@@ -1835,3 +1835,12 @@ S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶�
 - 32 个原健康测试迁至原生测试，名称、标签、断言数量均保持；新增共享节流并发契约。原生 race、消费者 race、普通消费者与真实 PostgreSQL 代次保护均通过，事件详见[验证摘要](baseline/S16/service-grok-health-owner-verification.json)。首次编译和 lint 的迁移反馈已修正并保留日志。
 - 受影响普通/unit/integration lint 均为 0；39/39 门禁、8 个构建集合、Wire 两次生成稳定及生产构建通过。51 个保护文件、SQL、Ent 和早期冻结资料未变，原计划正文保持。
 - 旧 service 生产文件 147 → 144，测试文件 235 → 234；32 个用例来自混合文件，因此不以用例数量代替文件减少量。剩余阻塞是 Grok/OpenAI 共用响应输出、模型恢复及 HTTP/WS/Live 执行图。S16 继续实施，最终全量验收尚未完成。
+
+### 共享请求/响应报文大批次与合并验证（2026-09-25）
+
+- 按用户调整后的粒度，将工具/namespace 改写、Codex 请求选项、WS 工具继承、Compact 恢复、响应终态/usage 和工具修正一起迁完生产调用、测试、装配与门禁；没有为每个文件单独验证或提交。
+- protocol 唯一执行纯报文操作，gateway/provider 投影账号与平台选项，`requeststate.ResponseTools` 持有尝试/turn 状态，HTTP 负责读取状态、恢复输出和观测。WS 下一轮声明与当前 turn 名称分开；原工具 ID、未知字段、大数及 nil/空状态保持。
+- Compact 直接使用原 `Recovery` 和 `Failure`，app 固定静态配置，HTTP Executor 按原顺序观察、关闭旧响应并更新模型。未新增推理、换号循环、资金操作或持久状态。
+- 118 个原测试名称、标签和断言调用数量对齐；相关 race 1,340 条通过、无失败或跳过。原有 benchmark 只编译，不作为性能证明。合并前两批完成完整普通/unit/integration 测试及三套 lint，具体事件、既有跳过和命令见[验证摘要](baseline/S16/service-response-output-owner-verification.json)。
+- 45/45 门禁、8 个构建集合、Wire 连续生成稳定、生产构建和文档链接检查通过。SQL、Ent、S00—S15 冻结资料、原计划正文及51个保护文件保持。
+- 本批旧 service 生产 144 → 135，测试 234 → 228。下一批按剩余共用响应的11文件/43方法依赖闭包整体处理健康副作用、流错误、首输出和代理反馈，再退出 Grok/OpenAI/WS/Live 旧执行图。S16 仍在实施，最终前端/跨平台/进程等完整验收尚未完成。

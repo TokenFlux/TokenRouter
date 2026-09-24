@@ -78,7 +78,7 @@ func (a *grokForwardAdapter) SetError(status int, message, detail string) {
 	gatewayhttp.SetOpsUpstreamError(a.c, status, message, detail)
 }
 func (a *grokForwardAdapter) ClientTools(mapping bridge.ResponsesClientToolMapping) {
-	setGrokResponsesClientToolMapping(a.c, mapping)
+	gatewayhttp.SetGrokResponsesClientToolMapping(a.c, mapping)
 }
 func (a *grokForwardAdapter) CacheIdentity(body []byte, model string) string {
 	return resolveGrokCacheIdentity(a.c, body, "", model)

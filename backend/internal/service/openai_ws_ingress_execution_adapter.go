@@ -50,7 +50,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 		return errors.New("account is nil")
 	}
 	// 复用 Gin 上下文时清理上一个账号留下的工具名称映射。
-	setCodexToolNameReverse(c, nil)
+	gatewayhttp.SetCodexToolNameReverse(c, nil)
 	if _, err := gatewayhttp.PrepareCodexIdentity(ctx, c, s.accountRepo, account); err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 	writeClientMessage := func(message []byte) error {
 		writeCtx, cancel := newOpenAIWSDownstreamWriteContext(ctx, hooks, s.openAIWSWriteTimeout())
 		defer cancel()
-		message = restoreCodexToolNamesFromContext(c, message)
+		message = gatewayhttp.RestoreCodexToolNamesFromContext(c, message)
 		return clientConn.Write(writeCtx, coderws.MessageText, message)
 	}
 

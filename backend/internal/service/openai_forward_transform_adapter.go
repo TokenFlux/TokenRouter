@@ -55,7 +55,7 @@ func (p openAIForwardTransformAdapter) Models(model string, compact bool) (strin
 	return provider.ExecutionModelPolicy(p.account).ForwardMappedModels(model, compact)
 }
 func (p openAIForwardTransformAdapter) CompactModel(model string) string {
-	return p.s.resolveOpenAICompactFallbackModel(p.account, model)
+	return p.s.compactExecutor.ResolveModel(p.account, model)
 }
 func (p openAIForwardTransformAdapter) ImagePermissionMessage() string {
 	return media.ImageGenerationPermissionMessage
@@ -76,7 +76,7 @@ func (p openAIForwardTransformAdapter) IsOpenAIImageGenerationModel(model string
 	return media.IsImageGenerationModel(model)
 }
 func (p openAIForwardTransformAdapter) IsCodexSparkModel(model string) bool {
-	return isCodexSparkModel(model)
+	return provider.IsCodexSparkModel(model)
 }
 func (p openAIForwardTransformAdapter) OpenAIRequestBodyImageGenerationToolNeedsNormalization(body []byte) bool {
 	return provider.ImageIntent().OpenAIRequestBodyImageGenerationToolNeedsNormalization(body)
@@ -85,34 +85,34 @@ func (p openAIForwardTransformAdapter) OpenAIRequestBodyHasImageGenerationDeclar
 	return provider.ImageIntent().OpenAIRequestBodyHasImageGenerationDeclaration(body)
 }
 func (p openAIForwardTransformAdapter) EnsureOpenAIResponsesImageGenerationTool(body map[string]any) bool {
-	return ensureOpenAIResponsesImageGenerationTool(body)
+	return provider.EnsureOpenAIResponsesImageGenerationTool(body)
 }
 func (p openAIForwardTransformAdapter) EnsureOpenAIResponsesImageGenerationToolChoiceAuto(body map[string]any) bool {
-	return ensureOpenAIResponsesImageGenerationToolChoiceAuto(body)
+	return provider.EnsureOpenAIResponsesImageGenerationToolChoiceAuto(body)
 }
 func (p openAIForwardTransformAdapter) NormalizeOpenAIResponsesImageOnlyModel(body map[string]any) bool {
-	return normalizeOpenAIResponsesImageOnlyModel(body)
+	return provider.NormalizeOpenAIResponsesImageOnlyModel(body)
 }
 func (p openAIForwardTransformAdapter) ValidateOpenAIResponsesImageModel(body map[string]any, model string) error {
-	return validateOpenAIResponsesImageModel(body, model)
+	return provider.ValidateOpenAIResponsesImageModel(body, model)
 }
 func (p openAIForwardTransformAdapter) ValidateCodexSparkInput(body map[string]any, model string) error {
-	return validateCodexSparkInput(body, model)
+	return provider.ValidateCodexSparkInput(body, model)
 }
 func (p openAIForwardTransformAdapter) ApplyCodexImageGenerationBridgeInstructions(body map[string]any) bool {
-	return applyCodexImageGenerationBridgeInstructions(body)
+	return provider.ApplyCodexImageGenerationBridgeInstructions(body)
 }
 func (p openAIForwardTransformAdapter) CodexTransform(body map[string]any, options openai.CodexOAuthTransformOptions) openai.CodexTransformResult {
-	return applyCodexOAuthTransformWithOptions(body, options)
+	return provider.ApplyCodexOAuthTransformWithOptions(body, options)
 }
 func (p openAIForwardTransformAdapter) EnsureCodexOAuthInstructionsField(body map[string]any) {
 	ensureCodexOAuthInstructionsField(body)
 }
 func (p openAIForwardTransformAdapter) ToolNameReverse(mapping map[string]string) {
-	setCodexToolNameReverse(p.c, mapping)
+	gatewayhttp.SetCodexToolNameReverse(p.c, mapping)
 }
 func (p openAIForwardTransformAdapter) ClientMetadata(body map[string]any) bool {
-	return applyCodexClientMetadata(body, p.account)
+	return provider.ApplyCodexClientMetadata(body, p.account)
 }
 func (p openAIForwardTransformAdapter) AccountIdentity(body map[string]any) bool {
 	return openai.ApplyCodexAccountIdentityClientMetadataMap(body, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(p.c, p.account.View())), gatewayhttp.APIKeyIDFromContext(p.c))
@@ -125,7 +125,7 @@ func (p openAIForwardTransformAdapter) Fingerprint(ctx context.Context, body map
 	if err != nil {
 		return nil, false, fmt.Errorf("resolve Codex fingerprint account: %w", err)
 	}
-	changed := applyCodexClientMetadata(body, account)
+	changed := provider.ApplyCodexClientMetadata(body, account)
 	var headers http.Header
 	if p.c != nil && p.c.Request != nil {
 		headers = p.c.Request.Header

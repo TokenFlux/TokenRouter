@@ -5,6 +5,10 @@ import (
 	"context"
 	"errors"
 
+	compact "github.com/TokenFlux/TokenRouter/internal/gateway/compact"
+
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
@@ -37,7 +41,7 @@ func (p *openAIPassthroughExecutionAdapter) CompactPath() bool {
 	return gatewayhttp.IsOpenAIResponsesCompactPath(p.c)
 }
 func (p *openAIPassthroughExecutionAdapter) CompactModel(model string) string {
-	return p.s.resolveOpenAICompactFallbackModel(p.account, model)
+	return p.s.compactExecutor.ResolveModel(p.account, model)
 }
 func (p *openAIPassthroughExecutionAdapter) InstructionsRejection(model string, body []byte) string {
 	return openai.DetectOpenAIPassthroughInstructionsRejectReason(model, body)
@@ -89,15 +93,15 @@ func (p *openAIPassthroughExecutionAdapter) ReservedToolNames(body []byte) ([]by
 	return openai.AliasOpenAIOAuthReservedToolNamesBody(body)
 }
 func (p *openAIPassthroughExecutionAdapter) MergeToolNames(value map[string]string) {
-	mergeCodexToolNameReverse(p.c, value)
+	gatewayhttp.MergeCodexToolNameReverse(p.c, value)
 }
 func (p *openAIPassthroughExecutionAdapter) NeedsClientTools(body []byte) bool {
-	return needsOpenAIResponsesClientToolAdaptation(body)
+	return protocolbridge.NeedsOpenAIResponsesClientToolAdaptation(body)
 }
 func (p *openAIPassthroughExecutionAdapter) AdaptClientTools(body []byte) ([]byte, error) {
-	updated, mapping, err := adaptOpenAIResponsesClientTools(body)
+	updated, mapping, err := protocolbridge.AdaptOpenAIResponsesClientTools(body)
 	if err == nil {
-		setOpenAIResponsesClientToolMapping(p.c, mapping)
+		gatewayhttp.SetOpenAIResponsesClientToolMapping(p.c, mapping)
 	}
 	return updated, err
 }
@@ -184,10 +188,10 @@ func (p *openAIPassthroughExecutionAdapter) TransportErrorPass(ctx context.Conte
 	return p.s.handleOpenAIUpstreamTransportError(ctx, p.c, p.account, err, true)
 }
 func (p *openAIPassthroughExecutionAdapter) CompactRetry(model string, body []byte, status int, message string, payload []byte, tried bool) ([]byte, string, bool) {
-	return p.s.prepareOpenAICompactFallbackRetry(p.c, p.account, model, body, status, message, payload, tried)
+	return p.s.compactExecutor.Prepare(p.c, p.account, model, body, status, message, payload, tried)
 }
 func (p *openAIPassthroughExecutionAdapter) CompactObserved(r *http.Response, body []byte, message string) {
-	p.s.appendOpenAICompactFallbackRetryOps(p.c, p.account, r, body, message, true)
+	p.s.compactExecutor.Observe(p.c, p.account, r, body, message, true)
 }
 func (p *openAIPassthroughExecutionAdapter) ErrorCode(body []byte) string {
 	return upstream.ExtractErrorCode(body)
@@ -202,7 +206,7 @@ func (p *openAIPassthroughExecutionAdapter) ErrorResponsePass(ctx context.Contex
 	return p.s.handleErrorResponsePassthrough(ctx, r, p.c, p.account, body, payload)
 }
 func (p *openAIPassthroughExecutionAdapter) WrapResponseBody(r *http.Response) {
-	if mapping, ok := openAIResponsesClientToolMapping(p.c); ok && isEventStreamResponse(r.Header) {
+	if mapping, ok := gatewayhttp.OpenAIResponsesClientToolMapping(p.c); ok && isEventStreamResponse(r.Header) {
 		limit := defaultMaxLineSize
 		if p.s.cfg != nil && p.s.cfg.Gateway.MaxLineSize > 0 {
 			limit = p.s.cfg.Gateway.MaxLineSize
@@ -219,17 +223,17 @@ func (p *openAIPassthroughExecutionAdapter) ResponseOptions(ctx context.Context)
 	return p.s.nativePassthroughOptions(ctx, p.c, p.account)
 }
 func (p *openAIPassthroughExecutionAdapter) CompactFromSignal(model string, body []byte, err error, tried bool, r *http.Response) ([]byte, string, bool) {
-	return p.s.applyOpenAIPassthroughCompactFallbackFromSignal(p.c, p.account, model, body, err, tried, r)
+	return p.s.compactExecutor.ApplySignal(p.c, p.account, model, body, err, tried, r)
 }
 func (p *openAIPassthroughExecutionAdapter) CompactSignal(err error) (forward.CompactFailure, bool) {
-	v, ok := asOpenAICompactFallbackSignal(err)
+	v, ok := compact.AsFailure(err)
 	if !ok {
 		return forward.CompactFailure{}, false
 	}
-	return forward.CompactFailure{Message: v.message, Payload: v.payload}, true
+	return forward.CompactFailure{Message: v.Message, Payload: v.Payload}, true
 }
 func (p *openAIPassthroughExecutionAdapter) CompactErrorResponse(r *http.Response, v forward.CompactFailure) (*http.Response, []byte) {
-	return openAICompactFallbackErrorResponse(r, &openAICompactFallbackSignal{message: v.Message, payload: v.Payload})
+	return gatewayhttp.CompactFallbackErrorResponse(r, &compact.Failure{Message: v.Message, Payload: v.Payload})
 }
 func (p *openAIPassthroughExecutionAdapter) BindOwner(ctx context.Context, id string) {
 	p.s.bindHTTPResponseAccount(ctx, p.c, p.account, id)

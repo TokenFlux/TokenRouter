@@ -1,4 +1,4 @@
-package service
+package openai_test
 
 import (
 	"testing"
@@ -123,7 +123,6 @@ func TestMergeHostedImageGenToolUsage_EmptyImageGen(t *testing.T) {
 }
 
 func TestParseSSEUsageBytes_ResponseCompletedWithImageGen(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	data := []byte(`{
 		"type": "response.completed",
 		"response": {
@@ -138,7 +137,7 @@ func TestParseSSEUsageBytes_ResponseCompletedWithImageGen(t *testing.T) {
 	}`)
 
 	usage := &openai.ForwardUsage{}
-	svc.parseSSEUsageBytes(data, usage)
+	openai.ParseSSEUsageBytes(data, usage)
 
 	require.Equal(t, 10000, usage.InputTokens)
 	require.Equal(t, 500, usage.OutputTokens)

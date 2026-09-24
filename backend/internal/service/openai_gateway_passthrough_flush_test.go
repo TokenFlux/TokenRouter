@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -298,7 +300,7 @@ func TestOpenAIStreamingPassthroughNamespaceRestoreErrorFlushesWrittenResidualOn
 		io.NopCloser(strings.NewReader(writtenPrefix+overflowData)),
 		-1,
 		func(c *gin.Context) {
-			setOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
+			gatewayhttp.SetOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
 				"collaboration__spawn_agent": {Namespace: "collaboration", Name: "spawn_agent"},
 			})
 		},

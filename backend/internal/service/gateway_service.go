@@ -1,44 +1,15 @@
 package service
 
 import (
-	"strings"
-
 	"time"
 
-	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
-
-	"github.com/tidwall/gjson"
 )
 
 const (
 	stickySessionTTL   = time.Hour // 粘性会话TTL
 	defaultMaxLineSize = 500 * 1024 * 1024
 )
-
-func openAIStreamEventIsTerminal(data string) bool {
-	trimmed := strings.TrimSpace(data)
-	if trimmed == "" {
-		return false
-	}
-	if trimmed == "[DONE]" {
-		return true
-	}
-	return s09openai.OpenAIStreamEventTypeIsTerminal(gjson.Get(trimmed, "type").String())
-}
-
-// openAIStreamEventIsTerminalWithType 复用已提取的 type，避免 SSE 热路径重复扫描 JSON。
-func openAIStreamEventIsTerminalWithType(data, eventType string) bool {
-	trimmed := strings.TrimSpace(data)
-	if trimmed == "" {
-		return false
-	}
-	if trimmed == "[DONE]" {
-		return true
-	}
-	return s09openai.OpenAIStreamEventTypeIsTerminal(eventType)
-}
 
 // sseDataRe matches SSE data lines with optional whitespace after colon.
 // Some upstream APIs return non-standard "data:" without space (should be "data: ").

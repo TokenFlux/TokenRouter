@@ -1,8 +1,10 @@
-package service
+package openai_test
 
 import (
 	"strings"
 	"testing"
+
+	responseprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -34,10 +36,10 @@ func TestOpenAIStreamEventIsTerminalWithTypeMatchesExistingSemantics(t *testing.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			eventType := gjson.GetBytes([]byte(tt.data), "type").String()
-			got := openAIStreamEventIsTerminalWithType(tt.data, eventType)
+			got := responseprotocol.OpenAIStreamEventIsTerminalWithType(tt.data, eventType)
 
 			require.Equal(t, tt.want, got)
-			require.Equal(t, openAIStreamEventIsTerminal(tt.data), got)
+			require.Equal(t, responseprotocol.OpenAIStreamEventIsTerminal(tt.data), got)
 		})
 	}
 }
@@ -56,7 +58,7 @@ func BenchmarkOpenAIResponseSSETypeExtraction(b *testing.B) {
 		b.SetBytes(int64(len(dataBytes)))
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			benchmarkOpenAIResponseSSETerminalSink = openAIStreamEventIsTerminal(data)
+			benchmarkOpenAIResponseSSETerminalSink = responseprotocol.OpenAIStreamEventIsTerminal(data)
 			benchmarkOpenAIResponseSSEEventTypeSink = strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
 		}
 	})
@@ -68,7 +70,7 @@ func BenchmarkOpenAIResponseSSETypeExtraction(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			eventTypeRaw := gjson.GetBytes(dataBytes, "type").String()
 			benchmarkOpenAIResponseSSEEventTypeSink = strings.TrimSpace(eventTypeRaw)
-			benchmarkOpenAIResponseSSETerminalSink = openAIStreamEventIsTerminalWithType(data, eventTypeRaw)
+			benchmarkOpenAIResponseSSETerminalSink = responseprotocol.OpenAIStreamEventIsTerminalWithType(data, eventTypeRaw)
 		}
 	})
 }

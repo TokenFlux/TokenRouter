@@ -160,7 +160,7 @@ func (s *OpenAIGatewayService) nativeChatResponseOptions(c *gin.Context, account
 			}
 			return 0
 		},
-		RestoreToolNames: func(body []byte) []byte { return restoreCodexToolNamesFromContext(c, body) },
+		RestoreToolNames: func(body []byte) []byte { return httpapi.RestoreCodexToolNamesFromContext(c, body) },
 		Observe:          func(body []byte, event string) { httpapi.ObserveOpenAIServiceTierInContext(c, body, event) },
 		CyberForwarded:   forwardcore.ErrCyberPolicyForwarded,
 		MarkCyber: func(value openai.CyberObservation) {

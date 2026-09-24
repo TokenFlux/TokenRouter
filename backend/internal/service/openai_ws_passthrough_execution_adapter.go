@@ -60,7 +60,7 @@ func (p *wsPassthroughAdapter) AliasTools(body []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	setCodexToolNameReverse(p.request, reverse)
+	gatewayhttp.SetCodexToolNameReverse(p.request, reverse)
 	if changed {
 		return out, nil
 	}
@@ -210,7 +210,7 @@ func (p *wsPassthroughAdapter) NormalizeCompleted(body []byte) ([]byte, bool) {
 	return openaicore.NormalizeCompletedImageGenerationStatus(body)
 }
 func (p *wsPassthroughAdapter) RestoreTools(body []byte) []byte {
-	return restoreCodexToolNamesFromContext(p.request, body)
+	return gatewayhttp.RestoreCodexToolNamesFromContext(p.request, body)
 }
 func (p *wsPassthroughAdapter) EventType(body []byte) string {
 	event, _, _ := openaicore.ParseWSEventEnvelope(body)

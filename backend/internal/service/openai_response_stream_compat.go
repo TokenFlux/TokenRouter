@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	responseprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
@@ -83,7 +85,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 			s.recordOpenAIStreamUpstreamError(c, account, false, requestID, kind, body, message)
 		},
 
-		CompactFallback: func(body []byte, message string) error { return newOpenAICompactFallbackSignal(c, body, message) },
+		CompactFallback: func(body []byte, message string) error { return gatewayhttp.NewOpenAICompactFailure(c, body, message) },
 
 		ErrorRule: func(body []byte, message string) (int, string, string, bool) {
 			return applyOpenAIStreamFailedErrorPassthroughRule(c, account.Record.Platform, body, message)
@@ -106,12 +108,12 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 
 		ToolCorrector: s.toolCorrector,
 
-		RestoreClientTools: func(body []byte) ([]byte, error) { return restoreGrokResponsesClientToolPayload(c, body) },
+		RestoreClientTools: func(body []byte) ([]byte, error) { return gatewayhttp.RestoreGrokResponsesClientToolPayload(c, body) },
 
-		RestoreNamespace: func(body []byte) ([]byte, error) { return restoreOpenAIResponsesNamespacePayload(c, body) },
+		RestoreNamespace: func(body []byte) ([]byte, error) { return gatewayhttp.RestoreOpenAIResponsesNamespacePayload(c, body) },
 
 		RestoreToolNames: func(body []byte, eventType string) []byte {
-			return restoreCodexToolNamesFromSSEContext(c, body, eventType)
+			return gatewayhttp.RestoreCodexToolNamesFromSSEContext(c, body, eventType)
 		},
 
 		EmptyCompleted: func(requestID string) error {
@@ -147,7 +149,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 
 		OpenAIStreamDataStartsTTFT: gatewayprovider.OpenAIStreamDataStartsTTFT,
 
-		OpenAIStreamEventIsTerminalWithType: openAIStreamEventIsTerminalWithType,
+		OpenAIStreamEventIsTerminalWithType: responseprotocol.OpenAIStreamEventIsTerminalWithType,
 	}
 	if account != nil {
 		options.AccountID = account.Record.ID

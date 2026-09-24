@@ -45,31 +45,6 @@ const (
 	openAIWSHTTPBridgeErrorBodyLimitBytes         = 64 * 1024
 )
 
-const openAIWSHTTPBridgeToolStateContextKey = "openai_ws_http_bridge_tool_state"
-
-// openAIWSHTTPBridgeToolState 保存 bridge 会话内可跨轮次复用的客户端工具降级状态。
-type openAIWSHTTPBridgeToolState struct {
-	ClientMapping bridge.ResponsesClientToolMapping
-	LoweredTools  json.RawMessage
-}
-
-func openAIWSHTTPBridgeToolStateFromContext(c *gin.Context) (openAIWSHTTPBridgeToolState, bool) {
-	if c == nil {
-		return openAIWSHTTPBridgeToolState{}, false
-	}
-	value, ok := c.Get(openAIWSHTTPBridgeToolStateContextKey)
-	state, typed := value.(openAIWSHTTPBridgeToolState)
-	return state, ok && typed
-}
-
-func setOpenAIWSHTTPBridgeToolState(c *gin.Context, state openAIWSHTTPBridgeToolState) {
-	if c == nil {
-		return
-	}
-	state.LoweredTools = append(json.RawMessage(nil), state.LoweredTools...)
-	c.Set(openAIWSHTTPBridgeToolStateContextKey, state)
-}
-
 func decodeOpenAIWSHTTPBridgeLoweredTools(raw json.RawMessage) []any {
 	if len(raw) == 0 {
 		return nil
@@ -522,7 +497,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				return nil, fmt.Errorf("sanitize Grok WS HTTP bridge input: %w", err)
 			}
 		}
-		inheritedState, _ := openAIWSHTTPBridgeToolStateFromContext(c)
+		inheritedState, _ := gatewayhttp.OpenAIWSHTTPBridgeToolStateFromContext(c)
 		inheritedLoweredTools := decodeOpenAIWSHTTPBridgeLoweredTools(inheritedState.LoweredTools)
 		body, clientToolMapping, err = bridge.AdaptResponsesClientToolsJSONWithMapping(
 			body,
@@ -542,7 +517,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if currentTools, present := openAIWSHTTPBridgeRawField(body, "tools"); present {
 			loweredTools = currentTools
 		}
-		setOpenAIWSHTTPBridgeToolState(c, openAIWSHTTPBridgeToolState{
+		gatewayhttp.SetOpenAIWSHTTPBridgeToolState(c, requeststate.WSBridgeTools{
 			ClientMapping: clientToolMapping,
 			LoweredTools:  loweredTools,
 		})
@@ -782,7 +757,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
 		maxLineSize = s.cfg.Gateway.MaxLineSize
 	}
-	if hasOpenAIResponsesClientToolMapping(clientToolMapping) {
+	if gatewayhttp.HasOpenAIResponsesClientToolMapping(clientToolMapping) {
 		resp.Body = upstream.NewResponsesClientToolStreamBody(resp.Body, clientToolMapping, maxLineSize)
 	}
 	scanner := bufio.NewScanner(resp.Body)

@@ -555,7 +555,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 					message = corrected
 				}
 			}
-			message = restoreCodexToolNamesFromContext(c, message)
+			message = gatewayhttp.RestoreCodexToolNamesFromContext(c, message)
 		}
 		if protocolopenai.WSEventShouldParseUsage(eventType) {
 			protocolopenai.ParseWSResponseUsageFromCompletedEvent(message, usage)
@@ -770,7 +770,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if needModelReplace {
 			finalResponse = s.replaceModelInResponseBody(finalResponse, mappedModel, originalModel)
 		}
-		finalResponse = s.correctToolCallsInResponseBody(finalResponse)
+		finalResponse = s.toolCorrector.CorrectResponseBody(finalResponse)
 		protocolopenai.PopulateUsageFromResponseJSON(finalResponse, usage)
 		if responseID == "" {
 			responseID = strings.TrimSpace(gjson.GetBytes(finalResponse, "id").String())
@@ -833,8 +833,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 // /responses payload 中剥离生图声明。Spark 上游会以 param=tools 拒绝该工具，
 // 而 Codex 客户端默认会携带它；返回值包含可能更新后的 payload、是否修改以及 JSON 错误。
 func stripCodexSparkImageGenerationToolFromRawPayload(payload []byte, model string) ([]byte, bool, error) {
-	if !isCodexSparkModel(model) {
+	if !gatewayprovider.IsCodexSparkModel(model) {
 		return payload, false, nil
 	}
-	return stripOpenAIImageGenerationToolsFromRawPayload(payload)
+	return gatewayprovider.StripOpenAIImageGenerationToolsFromRawPayload(payload)
 }

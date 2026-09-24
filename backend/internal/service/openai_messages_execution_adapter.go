@@ -63,7 +63,7 @@ func (p *openAIMessagesExecutionAdapter) Prepare(ctx context.Context) (forward.M
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
 		gatewayhttp.SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
 	}
-	setCodexToolNameReverse(p.c, nil)
+	gatewayhttp.SetCodexToolNameReverse(p.c, nil)
 	if _, err := gatewayhttp.PrepareCodexIdentity(ctx, p.c, p.s.accountRepo, account); err != nil {
 		return forward.MessagesProfile{}, forward.DispatchResponses, err
 	}
@@ -157,7 +157,7 @@ func (p *openAIMessagesExecutionAdapter) TrimLatestTurn(r *protocolopenai.Respon
 	trimAnthropicCompatResponsesInputToLatestTurn(r)
 }
 func (p *openAIMessagesExecutionAdapter) TodoGuard(r *protocolopenai.ResponsesRequest) {
-	appendOpenAICompatClaudeCodeTodoGuard(r)
+	gatewayprovider.AppendOpenAICompatClaudeCodeTodoGuard(r)
 }
 func (p *openAIMessagesExecutionAdapter) HashForLog(s string) string {
 	return upstream.HashSensitiveValueForLog(s)
@@ -175,10 +175,10 @@ func (p *openAIMessagesExecutionAdapter) Info(msg string, fields ...zap.Field) {
 	logging.L().Info(msg, fields...)
 }
 func (p *openAIMessagesExecutionAdapter) CodexTransform(body map[string]any, o openai.CodexOAuthTransformOptions) openai.CodexTransformResult {
-	return applyCodexOAuthTransformWithOptions(body, o)
+	return gatewayprovider.ApplyCodexOAuthTransformWithOptions(body, o)
 }
 func (p *openAIMessagesExecutionAdapter) ToolNameReverse(value map[string]string) {
-	setCodexToolNameReverse(p.c, value)
+	gatewayhttp.SetCodexToolNameReverse(p.c, value)
 }
 func (p *openAIMessagesExecutionAdapter) ForcedTemplate() string {
 	if p.s.cfg == nil {
@@ -193,7 +193,7 @@ func (p *openAIMessagesExecutionAdapter) EnsureInstructions(body map[string]any)
 	ensureCodexOAuthInstructionsField(body)
 }
 func (p *openAIMessagesExecutionAdapter) TodoGuardBody(body map[string]any) {
-	appendOpenAICompatClaudeCodeTodoGuardToRequestBody(body)
+	gatewayprovider.AppendOpenAICompatClaudeCodeTodoGuardToRequestBody(body)
 }
 func (p *openAIMessagesExecutionAdapter) AccountIdentity(body map[string]any, key int64) {
 	openai.ApplyCodexAccountIdentityClientMetadataMap(body, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(p.c, p.account.View())), key)
@@ -242,7 +242,7 @@ func (p *openAIMessagesExecutionAdapter) Credential(ctx context.Context) (string
 	return token, err
 }
 func (p *openAIMessagesExecutionAdapter) BindMessagesBridge(v bool) {
-	setOpenAICompatMessagesBridgeContext(p.c, v)
+	gatewayhttp.SetOpenAICompatMessagesBridgeContext(p.c, v)
 }
 func (p *openAIMessagesExecutionAdapter) UpstreamContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return detachUpstreamContext(ctx)

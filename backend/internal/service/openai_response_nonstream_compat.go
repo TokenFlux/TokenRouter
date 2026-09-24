@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 
+	responseprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/google/uuid"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
@@ -51,11 +53,11 @@ func (s *OpenAIGatewayService) nativeNonStreamOptions(ctx context.Context, c *gi
 		ObserveTier:        func(body []byte) { gatewayhttp.ObserveOpenAIServiceTierInContext(c, body, "response.completed") },
 		ObserveSSE:         func(body string) { gatewayhttp.ObserveOpenAISSEBody(c, body) },
 		ConvertCompact:     (grok.BodyCodec{NewID: uuid.NewString}).ConvertGrokResponseToOpenAICompact,
-		RestoreClientTools: func(body []byte) ([]byte, error) { return restoreGrokResponsesClientToolPayload(c, body) },
-		RestoreOpenAITools: func(body []byte) ([]byte, error) { return restoreOpenAIResponsesClientToolPayload(c, body) },
-		RestoreNamespace:   func(body []byte) ([]byte, error) { return restoreOpenAIResponsesNamespacePayload(c, body) },
-		RestoreToolNames:   func(body []byte) []byte { return restoreCodexToolNamesFromContext(c, body) },
-		CorrectToolCalls:   s.correctToolCallsInResponseBody,
+		RestoreClientTools: func(body []byte) ([]byte, error) { return gatewayhttp.RestoreGrokResponsesClientToolPayload(c, body) },
+		RestoreOpenAITools: func(body []byte) ([]byte, error) { return gatewayhttp.RestoreOpenAIResponsesClientToolPayload(c, body) },
+		RestoreNamespace:   func(body []byte) ([]byte, error) { return gatewayhttp.RestoreOpenAIResponsesNamespacePayload(c, body) },
+		RestoreToolNames:   func(body []byte) []byte { return gatewayhttp.RestoreCodexToolNamesFromContext(c, body) },
+		CorrectToolCalls:   s.toolCorrector.CorrectResponseBody,
 		ResponseHeaders: func(output, input http.Header) {
 			provider.WriteFilteredHeaders(output, input, s.responseHeaderFilter)
 			s.turnStateHeaders.Relay(c, account, input)
@@ -66,7 +68,7 @@ func (s *OpenAIGatewayService) nativeNonStreamOptions(ctx context.Context, c *gi
 		CountJSONSearch: grok.CountGrokNativeSearchCallsFromJSONBytes,
 		CountSSESearch:  grok.CountGrokNativeSearchCallsFromSSEBody,
 		ExtractError:    openai.ExtractOpenAISSEErrorMessage,
-		CompactFallback: func(body []byte, message string) error { return newOpenAICompactFallbackSignal(c, body, message) },
+		CompactFallback: func(body []byte, message string) error { return gatewayhttp.NewOpenAICompactFailure(c, body, message) },
 		TerminalFailover: func(resp *http.Response, event string, body []byte, message, model string) error {
 			if failure := s.nonStreamingTerminalFailureFailover(c, resp, account, false, event, body, message, model); failure != nil {
 				return failure
@@ -79,6 +81,8 @@ func (s *OpenAIGatewayService) nativeNonStreamOptions(ctx context.Context, c *gi
 		FailedTerminal: func(resp *http.Response, model string, body []byte, message string) error {
 			return s.nativeFailedResponseTerminal(ctx, c, account, resp, model, body, message)
 		},
-		SupplementCompaction: func(body []byte, stream string) []byte { return supplementCompactionItemFromSSE(c, body, stream) },
+		SupplementCompaction: func(body []byte, stream string) []byte {
+			return responseprotocol.SupplementCompactionItemFromSSE(gatewayhttp.IsOpenAIResponsesCompactPath(c), body, stream)
+		},
 	}
 }

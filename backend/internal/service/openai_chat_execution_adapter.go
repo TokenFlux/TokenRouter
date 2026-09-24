@@ -45,7 +45,7 @@ func (p *openAIChatExecutionAdapter) PrepareChat(ctx context.Context) (forward.C
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
 		gatewayhttp.SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
 	}
-	setCodexToolNameReverse(p.c, nil)
+	gatewayhttp.SetCodexToolNameReverse(p.c, nil)
 	if _, err := gatewayhttp.PrepareCodexIdentity(ctx, p.c, p.s.accountRepo, account); err != nil {
 		return forward.ChatProfile{}, err
 	}

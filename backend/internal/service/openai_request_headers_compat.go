@@ -28,7 +28,7 @@ func (s *OpenAIGatewayService) nativeResponsesRequestOptions(ctx context.Context
 		AllowHeader:    func(name string) bool { return openaiAllowedHeaders[name] },
 		GuardTurnState: func(headers http.Header) { s.turnStateHeaders.Guard(c, account, headers) },
 		MessagesBridge: func(body []byte) bool {
-			return isOpenAICompatMessagesBridgeContext(c) || isOpenAICompatMessagesBridgeBody(body)
+			return gatewayhttp.IsOpenAICompatMessagesBridgeContext(c) || gatewayprovider.IsOpenAICompatMessagesBridgeBody(body)
 		},
 		Originator:     func() string { return resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...) },
 		CompactSession: func() string { return gatewayhttp.ResolveOpenAICompactSessionID(c) },

@@ -11,6 +11,8 @@ import (
 	"testing"
 	time "time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -181,10 +183,10 @@ func TestOpenAISetupTokenMessagesUsesCodexBridgeAndTurnState(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, firstResult)
-	require.True(t, isOpenAICompatMessagesBridgeContext(firstCtx))
+	require.True(t, gatewayhttp.IsOpenAICompatMessagesBridgeContext(firstCtx))
 	require.Equal(t, int64(openAICompatAnthropicReplayMaxTailMessages+4), gjson.GetBytes(upstream.bodies[0], "input.#").Int())
 	require.Equal(t, "developer", gjson.GetBytes(upstream.bodies[0], "input.0.role").String())
-	require.Contains(t, gjson.GetBytes(upstream.bodies[0], "input.0.content.0.text").String(), openAICompatClaudeCodeTodoGuardMarker)
+	require.Contains(t, gjson.GetBytes(upstream.bodies[0], "input.0.content.0.text").String(), gatewayprovider.OpenAICompatClaudeCodeTodoGuardMarker)
 	require.Equal(t, "message-00", gjson.GetBytes(upstream.bodies[0], "input.1.content.0.text").String())
 	require.False(t, gjson.GetBytes(upstream.bodies[0], "prompt_cache_key").Exists())
 	require.Equal(t, chatgptCodexURL, upstream.requests[0].URL.String())
@@ -203,7 +205,7 @@ func TestOpenAISetupTokenMessagesUsesCodexBridgeAndTurnState(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, secondResult)
-	require.True(t, isOpenAICompatMessagesBridgeContext(secondCtx))
+	require.True(t, gatewayhttp.IsOpenAICompatMessagesBridgeContext(secondCtx))
 	require.Equal(t, "turn_state_setup", upstream.requests[1].Header.Get("x-codex-turn-state"))
 	require.Equal(t, upstreamcore.GenerateSessionUUID(openai.IsolateOpenAIUpstreamSessionID(0, accountprovider.CodexIdentityNamespace(account.View()), "stable-cache-key")), upstream.requests[1].Header.Get("session_id"))
 	require.Empty(t, upstream.requests[1].Header.Get("conversation_id"))

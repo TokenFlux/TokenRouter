@@ -46,7 +46,7 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 		RecordError: func(id, kind string, body []byte, message string) {
 			s.recordOpenAIStreamUpstreamError(c, account, true, id, kind, body, message)
 		},
-		CompactFallback: func(body []byte, message string) error { return newOpenAICompactFallbackSignal(c, body, message) },
+		CompactFallback: func(body []byte, message string) error { return gatewayhttp.NewOpenAICompactFailure(c, body, message) },
 		ErrorRule: func(body []byte, message string) (int, string, string, bool) {
 			return applyOpenAIStreamFailedErrorPassthroughRule(c, account.Record.Platform, body, message)
 		},
@@ -56,8 +56,10 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 		MarkCyber: func(value upstreamopenai.CyberObservation) {
 			gatewayhttp.MarkOpsCyberPolicy(c, moderationflow.Mark{Code: value.Code, Message: value.Message, Body: value.Body, UpstreamStatus: value.UpstreamStatus, UpstreamInTok: value.UpstreamInTok, UpstreamOutTok: value.UpstreamOutTok})
 		},
-		RestoreNamespace: func(body []byte) ([]byte, error) { return restoreOpenAIResponsesNamespacePayload(c, body) },
-		RestoreToolNames: func(body []byte, event string) []byte { return restoreCodexToolNamesFromSSEContext(c, body, event) },
+		RestoreNamespace: func(body []byte) ([]byte, error) { return gatewayhttp.RestoreOpenAIResponsesNamespacePayload(c, body) },
+		RestoreToolNames: func(body []byte, event string) []byte {
+			return gatewayhttp.RestoreCodexToolNamesFromSSEContext(c, body, event)
+		},
 		EmptyCompleted: func(id string) error {
 			return gatewayhttp.NewOpenAIResponsesEmptyCompletedFailoverError(c, upstreamErrorAccount(account), id)
 		},
@@ -65,7 +67,7 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 		WrapOpenAIUpstreamWarningIfCyber:    gatewayprovider.WrapOpenAIUpstreamWarningIfCyber,
 		TruncateString:                      logredact.TruncateUTF8,
 		OpenAIStreamDataStartsTTFT:          gatewayprovider.OpenAIStreamDataStartsTTFT,
-		OpenAIStreamEventIsTerminalWithType: openAIStreamEventIsTerminalWithType,
+		OpenAIStreamEventIsTerminalWithType: openai.OpenAIStreamEventIsTerminalWithType,
 	}
 	if account != nil {
 		stream.AccountID = account.Record.ID

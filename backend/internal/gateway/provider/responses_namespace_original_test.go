@@ -1,9 +1,11 @@
-package service
+package provider_test
 
 import (
 	"strconv"
 	"testing"
 	time "time"
+
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
@@ -54,7 +56,7 @@ func TestShouldFlattenOpenAIResponsesNamespaces(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, shouldFlattenOpenAIResponsesNamespaces(
+			require.Equal(t, tt.want, gatewayprovider.ShouldFlattenOpenAIResponsesNamespaces(
 				tt.account, tt.transport, tt.passthroughEnabled, tt.compactPath,
 			))
 		})
@@ -97,7 +99,7 @@ func TestShouldKeepOpenAIResponsesToolCallNamespaces(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, shouldKeepOpenAIResponsesToolCallNamespaces(
+			require.Equal(t, tt.want, gatewayprovider.ShouldKeepOpenAIResponsesToolCallNamespaces(
 				tt.account, tt.transport, tt.passthroughEnabled, tt.compactPath, tt.body,
 			))
 		})
@@ -129,7 +131,7 @@ func TestShouldStripOpenAIResponsesInputNamespaces(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, shouldStripOpenAIResponsesInputNamespaces(tt.account, tt.transport, tt.passthroughEnabled))
+			require.Equal(t, tt.want, gatewayprovider.ShouldStripOpenAIResponsesInputNamespaces(tt.account, tt.transport, tt.passthroughEnabled))
 		})
 	}
 }
@@ -152,7 +154,7 @@ func TestStripOpenAIResponsesInputNamespaces(t *testing.T) {
 		]
 	}`)
 
-	stripped, err := stripOpenAIResponsesInputNamespaces(body, false)
+	stripped, err := protocolbridge.StripOpenAIResponsesInputNamespaces(body, false)
 	require.NoError(t, err)
 	for index := 0; index < 8; index++ {
 		require.False(t, gjson.GetBytes(stripped, "input."+strconv.Itoa(index)+".namespace").Exists())
@@ -174,7 +176,7 @@ func TestStripOpenAIResponsesInputNamespacesLeavesOtherShapesByteExact(t *testin
 	}
 	for _, body := range tests {
 		for _, keepToolCallNamespaces := range []bool{false, true} {
-			stripped, err := stripOpenAIResponsesInputNamespaces(body, keepToolCallNamespaces)
+			stripped, err := protocolbridge.StripOpenAIResponsesInputNamespaces(body, keepToolCallNamespaces)
 			require.NoError(t, err)
 			require.Equal(t, body, stripped)
 		}
@@ -197,7 +199,7 @@ func TestStripOpenAIResponsesInputNamespacesKeepsToolCallNamespaces(t *testing.T
 		]
 	}`)
 
-	stripped, err := stripOpenAIResponsesInputNamespaces(body, true)
+	stripped, err := protocolbridge.StripOpenAIResponsesInputNamespaces(body, true)
 	require.NoError(t, err)
 
 	require.Equal(t, "collaboration", gjson.GetBytes(stripped, "input.0.namespace").String())
@@ -212,17 +214,17 @@ func TestStripOpenAIResponsesInputNamespacesKeepsToolCallNamespaces(t *testing.T
 
 	// 类型比较不区分大小写与首尾空白。
 	mixedCase := []byte(`{"input":[{"type":" Function_Call ","namespace":"collaboration","name":"spawn_agent"}]}`)
-	keptMixedCase, err := stripOpenAIResponsesInputNamespaces(mixedCase, true)
+	keptMixedCase, err := protocolbridge.StripOpenAIResponsesInputNamespaces(mixedCase, true)
 	require.NoError(t, err)
 	require.Equal(t, mixedCase, keptMixedCase)
 
 	// 全部为调用项时不重建请求，保持字节级不变。
 	callsOnly := []byte(`{"input":[{"type":"function_call","namespace":"collaboration","name":"spawn_agent"}]}`)
-	unchanged, err := stripOpenAIResponsesInputNamespaces(callsOnly, true)
+	unchanged, err := protocolbridge.StripOpenAIResponsesInputNamespaces(callsOnly, true)
 	require.NoError(t, err)
 	require.Equal(t, callsOnly, unchanged)
 
-	strippedAll, err := stripOpenAIResponsesInputNamespaces(body, false)
+	strippedAll, err := protocolbridge.StripOpenAIResponsesInputNamespaces(body, false)
 	require.NoError(t, err)
 	for index := 0; index < 8; index++ {
 		require.False(t, gjson.GetBytes(strippedAll, "input."+strconv.Itoa(index)+".namespace").Exists())

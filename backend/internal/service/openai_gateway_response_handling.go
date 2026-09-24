@@ -20,8 +20,7 @@ import (
 
 	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
+
 	"go.uber.org/zap"
 )
 
@@ -80,36 +79,6 @@ func (s *OpenAIGatewayService) readStreamingResponseObservation(ctx context.Cont
 		imageOutputSizes:    result.ImageOutputSizes,
 		searchCount:         result.SearchCount,
 	}, err
-}
-
-func (s *OpenAIGatewayService) replaceModelInSSELine(line, fromModel, toModel string) string {
-	return s09openai.ReplaceModelInSSELine(line, fromModel, toModel)
-}
-
-// correctToolCallsInResponseBody 修正响应体中的工具调用
-func (s *OpenAIGatewayService) correctToolCallsInResponseBody(body []byte) []byte {
-	if len(body) == 0 {
-		return body
-	}
-
-	updated := body
-	if s != nil && s.toolCorrector != nil {
-		if corrected, changed := s.toolCorrector.CorrectToolCallsInSSEBytes(updated); changed {
-			updated = corrected
-		}
-	}
-	if normalized, changed := s09openai.NormalizeOpenAIResponsesFunctionCallArguments(updated); changed {
-		updated = normalized
-	}
-	return updated
-}
-
-func (s *OpenAIGatewayService) parseSSEUsage(data string, usage *s09openai.ForwardUsage) {
-	s09openai.ParseSSEUsage(data, usage)
-}
-
-func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *s09openai.ForwardUsage) {
-	s09openai.ParseSSEUsageBytes(data, usage)
 }
 
 func (s *OpenAIGatewayService) bindHTTPResponseAccount(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, responseID string) {
@@ -184,36 +153,4 @@ func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolError(resp *http.R
 		},
 	})
 	return fmt.Errorf("non-streaming openai protocol error: %s", message)
-}
-
-// supplementCompactionItemFromSSE 保证 compact 请求的终态 output 携带
-// compaction item：终态 output 非空但缺失 compaction、而原始事件流的
-// output_item.done（或 added）中存在时（上游不一致形态），以 raw JSON 补入。
-// Codex remote compact v2 只从 output_item.done 收集 item 且要求恰好一个
-// compaction item——纯流式透传（v0.1.146）下客户端直接读事件流天然拿得到，
-// SSE→JSON 提取链路必须给出等价结果。非 compact 请求原样返回。
-func supplementCompactionItemFromSSE(c *gin.Context, finalResponse []byte, bodyText string) []byte {
-	if !gatewayhttp.IsOpenAIResponsesCompactPath(c) {
-		return finalResponse
-	}
-	if len(gjson.GetBytes(finalResponse, "output").Array()) == 0 {
-		// 空 output 由 reconstructResponseOutputFromSSE 整体修补，不在此处理。
-		return finalResponse
-	}
-	if s09openai.ResponsesOutputHasCompactionItem(finalResponse) {
-		return finalResponse
-	}
-	item, found := s09openai.FindRawCompactionItemFromSSE(bodyText)
-	if !found {
-		return finalResponse
-	}
-	patched, err := sjson.SetRawBytes(finalResponse, "output.-1", item)
-	if err != nil {
-		return finalResponse
-	}
-	return patched
-}
-
-func (s *OpenAIGatewayService) replaceModelInSSEBody(body, fromModel, toModel string) string {
-	return s09openai.ReplaceModelInSSEBody(body, fromModel, toModel)
 }

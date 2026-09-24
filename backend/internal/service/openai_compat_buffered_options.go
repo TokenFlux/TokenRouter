@@ -25,7 +25,7 @@ func (s *OpenAIGatewayService) nativeCompatBufferedOptions(c *gin.Context, logPr
 			}
 			return 0
 		},
-		RestoreToolNames: func(body []byte) []byte { return restoreCodexToolNamesFromContext(c, body) },
+		RestoreToolNames: func(body []byte) []byte { return gatewayhttp.RestoreCodexToolNamesFromContext(c, body) },
 		Observe:          func(body []byte, event string) { gatewayhttp.ObserveOpenAIServiceTierInContext(c, body, event) },
 		Log: func(message string, err error, interval time.Duration) {
 			if err != nil {

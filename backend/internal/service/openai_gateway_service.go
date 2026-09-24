@@ -292,6 +292,7 @@ type OpenAIGatewayService struct {
 	// 下游会话最近收到的回合状态签发账号，用于故障转移时剥离跨账号回带状态。
 	turnStateHeaders *gatewayhttp.CodexTurnStateHeaders
 	grokHealth       *accountprovider.GrokHealth
+	compactExecutor  *gatewayhttp.CompactExecutor
 }
 
 // NewOpenAIGatewayService 接入固定执行依赖，剩余协议编排随 S16 退出。
@@ -314,7 +315,7 @@ func NewOpenAIGatewayService(
 	channelService *routing.ChannelService,
 
 	settingService *gatewayprovider.RuntimeReaders,
-	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, turnStateHeaders *gatewayhttp.CodexTurnStateHeaders, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selectionadapter.Compatible, grokHealth *accountprovider.GrokHealth,
+	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, turnStateHeaders *gatewayhttp.CodexTurnStateHeaders, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selectionadapter.Compatible, grokHealth *accountprovider.GrokHealth, compactExecutor *gatewayhttp.CompactExecutor,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
 ) *OpenAIGatewayService {
 	var tlsFPRouterService *egress.TLSFingerprintRouterService
@@ -327,6 +328,7 @@ func NewOpenAIGatewayService(
 	svc := &OpenAIGatewayService{
 		selection:          choices,
 		grokHealth:         grokHealth,
+		compactExecutor:    compactExecutor,
 		openaiWSStateStore: stateStore,
 		turnStateHeaders:   turnStateHeaders,
 		prompts:            prompts,

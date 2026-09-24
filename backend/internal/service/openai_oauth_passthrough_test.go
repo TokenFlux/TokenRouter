@@ -761,7 +761,7 @@ func TestOpenAIGatewayService_NativeOAuth_NamespaceNonStreamingResponse(t *testi
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
-	setOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
+	httpapi.SetOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
 		"collaboration__spawn_agent": {Namespace: "collaboration", Name: "spawn_agent"},
 	})
 	resp := &http.Response{
@@ -796,7 +796,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_NamespaceNonStreamingResponse(t *
 	names := map[string]bridge.ResponsesNamespaceName{
 		"collaboration__spawn_agent": {Namespace: "collaboration", Name: "spawn_agent"},
 	}
-	setOpenAIResponsesNamespaceNames(c, names)
+	httpapi.SetOpenAIResponsesNamespaceNames(c, names)
 
 	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})).handleNonStreamingResponsePassthrough(
 		context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 91}}, "gpt-5.5", "",
@@ -993,7 +993,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_DisabledUsesLegacyTransform(t *te
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
 
-	// store=true + stream=false should be forced to store=false + stream=true by applyCodexOAuthTransform (OAuth legacy path)
+	// store=true + stream=false should be forced to store=false + stream=true by gatewayprovider.ApplyCodexOAuthTransform (OAuth legacy path)
 	inputBody := []byte(`{"model":"gpt-5.2","stream":false,"store":true,"input":[{"type":"text","text":"hi"}]}`)
 
 	resp := &http.Response{

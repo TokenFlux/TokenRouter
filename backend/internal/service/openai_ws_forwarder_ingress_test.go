@@ -224,7 +224,7 @@ func TestStripOpenAIImageGenerationToolsFromRawPayload(t *testing.T) {
 			"tool_choice":{"type":"image_generation"}
 		}`)
 
-		updated, changed, err := stripOpenAIImageGenerationToolsFromRawPayload(payload)
+		updated, changed, err := gatewayprovider.StripOpenAIImageGenerationToolsFromRawPayload(payload)
 
 		require.NoError(t, err)
 		require.True(t, changed)
@@ -248,7 +248,7 @@ func TestStripOpenAIImageGenerationToolsFromRawPayload(t *testing.T) {
 			"tool_choice":{"type":"namespace","name":"image_gen"}
 		}`)
 
-		updated, changed, err := stripOpenAIImageGenerationToolsFromRawPayload(payload)
+		updated, changed, err := gatewayprovider.StripOpenAIImageGenerationToolsFromRawPayload(payload)
 
 		require.NoError(t, err)
 		require.True(t, changed)
@@ -261,7 +261,7 @@ func TestStripOpenAIImageGenerationToolsFromRawPayload(t *testing.T) {
 	t.Run("non-image namespace is unchanged", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.5","tools":[{"type":"namespace","name":"code_tools"}]}`)
 
-		updated, changed, err := stripOpenAIImageGenerationToolsFromRawPayload(payload)
+		updated, changed, err := gatewayprovider.StripOpenAIImageGenerationToolsFromRawPayload(payload)
 
 		require.NoError(t, err)
 		require.False(t, changed)

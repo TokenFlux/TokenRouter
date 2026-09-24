@@ -86,18 +86,18 @@ func (p *wsRequestAdapter) BridgeImages(normalized []byte) ([]byte, error) {
 		return nil, err
 	}
 	bridgeModified := false
-	if ensureOpenAIResponsesImageGenerationTool(payloadMap) {
+	if gatewayprovider.EnsureOpenAIResponsesImageGenerationTool(payloadMap) {
 		bridgeModified = true
 		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_tool_injected account_id=%d", p.account.Record.ID)
 	}
-	if ensureOpenAIResponsesImageGenerationToolChoiceAuto(payloadMap) {
+	if gatewayprovider.EnsureOpenAIResponsesImageGenerationToolChoiceAuto(payloadMap) {
 		bridgeModified = true
 		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_tool_choice_auto account_id=%d", p.account.Record.ID)
 	}
 	if openai.NormalizeOpenAIResponsesImageGenerationTools(payloadMap) {
 		bridgeModified = true
 	}
-	if applyCodexImageGenerationBridgeInstructions(payloadMap) {
+	if gatewayprovider.ApplyCodexImageGenerationBridgeInstructions(payloadMap) {
 		bridgeModified = true
 		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_bridge_instructions_added account_id=%d", p.account.Record.ID)
 	}
@@ -113,7 +113,7 @@ func (p *wsRequestAdapter) BridgeImages(normalized []byte) ([]byte, error) {
 
 }
 func (p *wsRequestAdapter) StripImages(body []byte) ([]byte, bool, error) {
-	return stripOpenAIImageGenerationToolsFromRawPayload(body)
+	return gatewayprovider.StripOpenAIImageGenerationToolsFromRawPayload(body)
 }
 func (p *wsRequestAdapter) StripSparkImages(body []byte, model string) ([]byte, bool, error) {
 	return stripCodexSparkImageGenerationToolFromRawPayload(body, model)

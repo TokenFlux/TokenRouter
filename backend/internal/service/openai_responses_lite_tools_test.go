@@ -37,7 +37,7 @@ func TestApplyCodexOAuthTransform_PreservesLiteNamespaceToolChoice(t *testing.T)
 		"tool_choice": map[string]any{"type": "namespace", "name": "collaboration"},
 	}
 
-	applyCodexOAuthTransform(reqBody, true, false)
+	gatewayprovider.ApplyCodexOAuthTransform(reqBody, true, false)
 
 	require.Equal(t, map[string]any{"type": "namespace", "name": "collaboration"}, reqBody["tool_choice"])
 }

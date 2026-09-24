@@ -103,13 +103,15 @@ OpenAI 兼容非流式响应的 usage 按 `usage`、`response.usage`、`data.usa
 
 `/backend-api/codex` 和无 `/v1` 别名服务特定客户端兼容，但仍经过 TokenRouter Key 鉴权、分组准入、调度和结算。Responses WebSocket 不支持 Qoder；其它平台是否可进入 OpenAI 兼容处理器由路由和平台专题共同决定，不能仅凭 URL 推断。
 
+工具和命名空间的请求改写由 `protocol/bridge` 唯一执行；`gateway/provider` 根据账号、传输和 Compact 端点决定是否启用。HTTP Adapter 持有 `requeststate.ResponseTools`，分别保存当前尝试的 OpenAI/Grok 映射、namespace 与 Codex 名称；WS 的会话更新和当前 turn 名称分开，HTTP bridge 的下一轮声明保持原字节副本。非流、SSE 和 WS 使用同一恢复路径，未知字段、工具 ID、大数和原恢复次序保持。Codex 工具修正与统计继续使用原生唯一修正器，usage 与终态解析直接调用 `protocol/openai`。
+
 ### 远程压缩协议
 
 TokenRouter 同时兼容原生 Remote Compaction V2 和旧版 Compact 端点。两者共享 compaction 输出语义，但请求路径、传输方式、账号能力设置和模型改写边界不同：
 
 HTTP 路径识别、body-signal 提升、会话种子和结果日志由 gateway/httpapi 直接拥有；触发项检测、去重及移到 input 末尾由 protocol/openai 唯一实现。OpenAITextHandler 在原读取和校验位置执行这些步骤，不再向旧 Handler 回调。请求字段视图与按需完整解码统一使用 gateway/requeststate，保留首个重复字段、宽容前缀读取、数字精度以及原错误前缀。
 
-Responses 的历史 Chat 形状转换、工具 ID 清理、平台 schema 选择及 WS 兼容处理由 gateway/provider 组合原生协议实现，在线 HTTP 与 WS 消费者使用同一份算法。转换不截断客户端或工具文本；旧的恒 false 截断钩子已删除，完整对象与字段补丁仍在原时点同步。官方、OAuth 和显式 passthrough 的 `none` 保留规则，以及兼容地址的占位值删除规则保持各自边界。
+Responses 的历史 Chat 形状转换、工具 ID 清理、平台 schema 选择及 WS 兼容处理由 gateway/provider 组合原生协议实现，在线 HTTP 与 WS 消费者使用同一份算法。 Compact 单次恢复由 `gateway/compact.Recovery` 决定，`gateway/httpapi.CompactExecutor` 负责原响应关闭和恢复观测；app 只注入静态默认模型与日志配置。账号映射仍优先于默认模型，失败信号直接使用 `compact.Failure`，没有增加换号循环。转换不截断客户端或工具文本；旧的恒 false 截断钩子已删除，完整对象与字段补丁仍在原时点同步。官方、OAuth 和显式 passthrough 的 `none` 保留规则，以及兼容地址的占位值删除规则保持各自边界。
 
 | 边界 | 原生 `remote_compaction_v2` | 旧版 `/responses/compact` |
 | --- | --- | --- |

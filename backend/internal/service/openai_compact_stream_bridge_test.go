@@ -9,9 +9,11 @@ import (
 	"testing"
 	time "time"
 
+	responseprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -28,7 +30,7 @@ func newCompactBridgeTestContext(t *testing.T, markClientStream bool) (*gin.Cont
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
 	if markClientStream {
-		httpapi.MarkOpenAICompactClientStream(c)
+		gatewayhttp.MarkOpenAICompactClientStream(c)
 	}
 	return c, rec
 }
@@ -71,7 +73,7 @@ func TestBuildOpenAICompactSSEPayload_EmitsItemsAndCompleted(t *testing.T) {
 		"usage":{"input_tokens":9,"output_tokens":4,"total_tokens":13}
 	}`)
 
-	payload, ok := httpapi.BuildOpenAICompactSSEPayload(finalResponse)
+	payload, ok := gatewayhttp.BuildOpenAICompactSSEPayload(finalResponse)
 	require.True(t, ok)
 
 	events := parseCompactBridgeSSE(t, string(payload))
@@ -100,7 +102,7 @@ func TestBuildOpenAICompactSSEPayload_EmitsItemsAndCompleted(t *testing.T) {
 }
 
 func TestBuildOpenAICompactSSEPayload_InjectsMissingResponseID(t *testing.T) {
-	payload, ok := httpapi.BuildOpenAICompactSSEPayload([]byte(`{"output":[{"type":"compaction","encrypted_content":"x"}]}`))
+	payload, ok := gatewayhttp.BuildOpenAICompactSSEPayload([]byte(`{"output":[{"type":"compaction","encrypted_content":"x"}]}`))
 	require.True(t, ok)
 
 	events := parseCompactBridgeSSE(t, string(payload))
@@ -113,7 +115,7 @@ func TestBuildOpenAICompactSSEPayload_InjectsMissingResponseID(t *testing.T) {
 }
 
 func TestBuildOpenAICompactSSEPayload_ReplacesNonStringResponseID(t *testing.T) {
-	payload, ok := httpapi.BuildOpenAICompactSSEPayload([]byte(`{"id":123,"output":[{"type":"compaction","encrypted_content":"x"}]}`))
+	payload, ok := gatewayhttp.BuildOpenAICompactSSEPayload([]byte(`{"id":123,"output":[{"type":"compaction","encrypted_content":"x"}]}`))
 	require.True(t, ok)
 
 	events := parseCompactBridgeSSE(t, string(payload))
@@ -132,7 +134,7 @@ func TestBuildOpenAICompactSSEPayload_DropsMalformedUsage(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			body := []byte(`{"id":"resp_1","output":[{"type":"compaction","encrypted_content":"x"}],"usage":` + usage + `}`)
-			payload, ok := httpapi.BuildOpenAICompactSSEPayload(body)
+			payload, ok := gatewayhttp.BuildOpenAICompactSSEPayload(body)
 			require.True(t, ok)
 
 			events := parseCompactBridgeSSE(t, string(payload))
@@ -144,7 +146,7 @@ func TestBuildOpenAICompactSSEPayload_DropsMalformedUsage(t *testing.T) {
 }
 
 func TestBuildOpenAICompactSSEPayload_KeepsWellFormedUsage(t *testing.T) {
-	payload, ok := httpapi.BuildOpenAICompactSSEPayload([]byte(`{
+	payload, ok := gatewayhttp.BuildOpenAICompactSSEPayload([]byte(`{
 		"id":"resp_1",
 		"output":[{"type":"compaction","encrypted_content":"x"}],
 		"usage":{"input_tokens":9,"output_tokens":4,"total_tokens":13,"input_tokens_details":{"cached_tokens":2}}
@@ -165,7 +167,7 @@ func TestBuildOpenAICompactSSEPayload_RejectsNonJSONObject(t *testing.T) {
 		"non_json":  []byte("upstream said no"),
 		"bare_true": []byte("true"),
 	} {
-		_, ok := httpapi.BuildOpenAICompactSSEPayload(body)
+		_, ok := gatewayhttp.BuildOpenAICompactSSEPayload(body)
 		require.False(t, ok, "case %s 不应被合成为 SSE", name)
 	}
 }
@@ -175,17 +177,17 @@ func TestWriteOpenAICompactSSEBridge_RequiresMarkAndSuccessStatus(t *testing.T) 
 
 	// 未标记 client stream：不写出，走原 JSON 路径。
 	c, rec := newCompactBridgeTestContext(t, false)
-	require.False(t, httpapi.WriteOpenAICompactSSEBridge(c, http.StatusOK, finalResponse, httpapi.MarkOpsStreamError))
+	require.False(t, gatewayhttp.WriteOpenAICompactSSEBridge(c, http.StatusOK, finalResponse, gatewayhttp.MarkOpsStreamError))
 	require.Zero(t, rec.Body.Len())
 
 	// 标记但上游非 2xx：错误响应保持 JSON 原样（Codex 依赖 HTTP 状态码走重试）。
 	c, rec = newCompactBridgeTestContext(t, true)
-	require.False(t, httpapi.WriteOpenAICompactSSEBridge(c, http.StatusBadGateway, finalResponse, httpapi.MarkOpsStreamError))
+	require.False(t, gatewayhttp.WriteOpenAICompactSSEBridge(c, http.StatusBadGateway, finalResponse, gatewayhttp.MarkOpsStreamError))
 	require.Zero(t, rec.Body.Len())
 
 	// 标记且 2xx：合成 SSE。
 	c, rec = newCompactBridgeTestContext(t, true)
-	require.True(t, httpapi.WriteOpenAICompactSSEBridge(c, http.StatusOK, finalResponse, httpapi.MarkOpsStreamError))
+	require.True(t, gatewayhttp.WriteOpenAICompactSSEBridge(c, http.StatusOK, finalResponse, gatewayhttp.MarkOpsStreamError))
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "text/event-stream", rec.Header().Get("Content-Type"))
 	require.Contains(t, rec.Body.String(), "event: response.completed")
@@ -490,16 +492,16 @@ func TestSupplementCompactionItemFromSSE_Gating(t *testing.T) {
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	finalResponse := []byte(`{"id":"r1","output":[{"type":"message"}]}`)
-	require.Equal(t, string(finalResponse), string(supplementCompactionItemFromSSE(c, finalResponse, bodyText)))
+	require.Equal(t, string(finalResponse), string(responseprotocol.SupplementCompactionItemFromSSE(gatewayhttp.IsOpenAIResponsesCompactPath(c), finalResponse, bodyText)))
 
 	// compact 路径 + 终态已含 compaction：不重复补入。
 	c2, _ := newCompactBridgeTestContext(t, false)
 	already := []byte(`{"id":"r2","output":[{"type":"compaction","encrypted_content":"x"}]}`)
-	require.Equal(t, string(already), string(supplementCompactionItemFromSSE(c2, already, bodyText)))
+	require.Equal(t, string(already), string(responseprotocol.SupplementCompactionItemFromSSE(gatewayhttp.IsOpenAIResponsesCompactPath(c2), already, bodyText)))
 
 	// compact 路径 + 终态非空缺 compaction：补入到末尾。
 	missing := []byte(`{"id":"r3","output":[{"type":"message"}]}`)
-	patched := supplementCompactionItemFromSSE(c2, missing, bodyText)
+	patched := responseprotocol.SupplementCompactionItemFromSSE(gatewayhttp.IsOpenAIResponsesCompactPath(c2), missing, bodyText)
 	items := gjson.GetBytes(patched, "output").Array()
 	require.Len(t, items, 2)
 	require.Equal(t, "compaction", items[1].Get("type").String())

@@ -67,6 +67,13 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 			return (gatewayprovider.ModelPolicy{Record: value}).NormalizeOpenAI(model)
 		},
 	}
+	source.compactExecutor = &gatewayhttp.CompactExecutor{}
+	if source.cfg != nil {
+		source.compactExecutor.Models = gatewayprovider.CompactModels{Default: source.cfg.Gateway.OpenAICompactModel}
+		source.compactExecutor.LogBody = source.cfg.Gateway.LogUpstreamErrorBody
+		source.compactExecutor.LogBodyMaxBytes = source.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+	}
+
 	var quota *account.QuotaSettingsCache
 	if source.settingService != nil {
 		quota = source.settingService.Quota

@@ -3,6 +3,7 @@ package compact
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -10,7 +11,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// Failure 携带尚未提交的压缩失败；兼容层只投影旧错误载体。
+// Failure 携带尚未提交的压缩失败，HTTP 与恢复用例使用同一错误值。
 type Failure struct {
 	Payload []byte
 	Message string
@@ -202,4 +203,11 @@ func NormalizeHTTPErrorPayload(signal *Failure) []byte {
 		return payload
 	}
 	return normalized
+}
+
+// AsFailure 识别恢复信号，保留包装错误链和非空指针约束。
+func AsFailure(err error) (*Failure, bool) {
+	var failure *Failure
+	ok := errors.As(err, &failure)
+	return failure, ok && failure != nil
 }

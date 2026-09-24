@@ -330,7 +330,7 @@ func TestProxyOpenAIWSHTTPBridgeTurnGrokPromotesDiscoveryAndRestoresNamespaceSSE
 	require.False(t, gjson.GetBytes(upstream.lastBody, "input.1.tools").Exists())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "input.1.status").Exists())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "input.1.execution").Exists())
-	state, ok := openAIWSHTTPBridgeToolStateFromContext(c)
+	state, ok := gatewayhttp.OpenAIWSHTTPBridgeToolStateFromContext(c)
 	require.True(t, ok)
 	require.Equal(t, "multi_agent_v1", state.ClientMapping.NamespaceTools["multi_agent_v1__spawn_agent"].Namespace)
 	require.Len(t, events, 4)

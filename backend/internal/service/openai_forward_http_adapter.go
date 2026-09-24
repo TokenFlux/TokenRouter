@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	compact "github.com/TokenFlux/TokenRouter/internal/gateway/compact"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
@@ -48,20 +50,20 @@ func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *
 		},
 		RetryEncrypted: retryEncrypted, MarkInvalidLineage: markLineage,
 		CompactRetry: func(body []byte, status int, message string, payload []byte, tried bool) ([]byte, string, bool) {
-			return s.prepareOpenAICompactFallbackRetry(c, account, input.RequestedModel, body, status, message, payload, tried)
+			return s.compactExecutor.Prepare(c, account, input.RequestedModel, body, status, message, payload, tried)
 		},
 		CompactRetryObserved: func(resp *http.Response, payload []byte, message string) {
-			s.appendOpenAICompactFallbackRetryOps(c, account, resp, payload, message, false)
+			s.compactExecutor.Observe(c, account, resp, payload, message, false)
 		},
 		CompactSignal: func(err error) (forward.CompactFailure, bool) {
-			signal, ok := asOpenAICompactFallbackSignal(err)
+			signal, ok := compact.AsFailure(err)
 			if !ok {
 				return forward.CompactFailure{}, false
 			}
-			return forward.CompactFailure{Message: signal.message, Payload: signal.payload}, true
+			return forward.CompactFailure{Message: signal.Message, Payload: signal.Payload}, true
 		},
 		CompactErrorResponse: func(resp *http.Response, signal forward.CompactFailure) (*http.Response, []byte) {
-			return openAICompactFallbackErrorResponse(resp, &openAICompactFallbackSignal{message: signal.Message, payload: signal.Payload})
+			return gatewayhttp.CompactFallbackErrorResponse(resp, &compact.Failure{Message: signal.Message, Payload: signal.Payload})
 		},
 		ShouldFailover: s.shouldFailoverOpenAIUpstreamResponse,
 		HTTPFailover: func(resp *http.Response, payload []byte, message, model string) error {
@@ -91,7 +93,7 @@ func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *
 		},
 		ErrorSchedulingModel: gatewayprovider.ErrorSchedulingModel,
 		WrapResponseBody: func(resp *http.Response) {
-			if mapping, ok := openAIResponsesClientToolMapping(c); ok && isEventStreamResponse(resp.Header) {
+			if mapping, ok := gatewayhttp.OpenAIResponsesClientToolMapping(c); ok && isEventStreamResponse(resp.Header) {
 				limit := defaultMaxLineSize
 				if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
 					limit = s.cfg.Gateway.MaxLineSize

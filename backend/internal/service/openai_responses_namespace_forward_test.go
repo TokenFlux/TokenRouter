@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"testing"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -53,7 +55,7 @@ func TestOpenAIGatewayService_OAuthPreservesCodexNamespaceTools(t *testing.T) {
 	require.NotContains(t, string(forwarded), "collaboration__spawn_agent")
 	require.Equal(t, "collaboration", gjson.GetBytes(forwarded, "input.0.namespace").String())
 	require.False(t, gjson.GetBytes(forwarded, "input.1.namespace").Exists())
-	require.Empty(t, openAIResponsesNamespaceNames(c))
+	require.Empty(t, gatewayhttp.OpenAIResponsesNamespaceNames(c))
 }
 
 // API Key 自定义上游若接受 namespace 工具声明，也要求历史 function_call 原样携带
@@ -123,7 +125,7 @@ func TestOpenAIGatewayService_OAuthFlattenFlagRestoresLegacyBehavior(t *testing.
 	require.Equal(t, bridge.ResponsesNamespaceName{
 		Namespace: "collaboration",
 		Name:      "spawn_agent",
-	}, openAIResponsesNamespaceNames(c)["collaboration__spawn_agent"])
+	}, gatewayhttp.OpenAIResponsesNamespaceNames(c)["collaboration__spawn_agent"])
 }
 
 // failover 复用 gin.Context 时，每次转发都必须清除上一个账号留下的映射。
@@ -133,7 +135,7 @@ func TestOpenAIGatewayService_ForwardClearsStaleNamespaceNames(t *testing.T) {
 		newOpenAIRejectedFieldTestResponse(http.StatusOK, namespaceForwardOKResponse),
 	}}
 	c := newOpenAIRejectedFieldTestContext(body)
-	setOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
+	gatewayhttp.SetOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
 		"stale__tool": {Namespace: "stale", Name: "tool"},
 	})
 
@@ -142,5 +144,5 @@ func TestOpenAIGatewayService_ForwardClearsStaleNamespaceNames(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	require.Empty(t, openAIResponsesNamespaceNames(c))
+	require.Empty(t, gatewayhttp.OpenAIResponsesNamespaceNames(c))
 }

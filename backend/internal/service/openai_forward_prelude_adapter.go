@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -42,7 +44,7 @@ func (p openAIForwardPreludeAdapter) BlockGroupImages() bool {
 	return false
 }
 func (p openAIForwardPreludeAdapter) StripImages(body []byte) ([]byte, bool, error) {
-	return stripOpenAIImageGenerationToolsFromRawPayload(body)
+	return gatewayprovider.StripOpenAIImageGenerationToolsFromRawPayload(body)
 }
 func (p openAIForwardPreludeAdapter) Begin() {
 	gatewayhttp.BeginUpstreamResponseModelObservation(p.c)
@@ -55,10 +57,10 @@ func (p openAIForwardPreludeAdapter) FilterNoneReasoning(body []byte) ([]byte, e
 	return gatewayprovider.FilterOpenAIResponsesNoneReasoningEffortForAccount(gatewayprovider.ExecutionProtocolRecord(p.account), body)
 }
 func (p openAIForwardPreludeAdapter) ClearMappings() {
-	clearGrokResponsesClientToolMapping(p.c)
-	clearOpenAIResponsesClientToolMapping(p.c)
-	clearOpenAIResponsesNamespaceNames(p.c)
-	setCodexToolNameReverse(p.c, nil)
+	gatewayhttp.ClearGrokResponsesClientToolMapping(p.c)
+	gatewayhttp.ClearOpenAIResponsesClientToolMapping(p.c)
+	gatewayhttp.ClearOpenAIResponsesNamespaceNames(p.c)
+	gatewayhttp.SetCodexToolNameReverse(p.c, nil)
 }
 func (p openAIForwardPreludeAdapter) PrepareIdentity(ctx context.Context) error {
 	_, err := gatewayhttp.PrepareCodexIdentity(ctx, p.c, p.s.accountRepo, p.account)
@@ -124,27 +126,27 @@ func (p openAIForwardPreludeAdapter) CompactAPIKeyReplay(body []byte) ([]byte, b
 	return openai.NormalizeOpenAIAPIKeyStoreFalseReasoningReplay(body, true)
 }
 func (p openAIForwardPreludeAdapter) FlattenRequired(v forward.TransportDecision, passthrough, compact bool) bool {
-	return shouldFlattenOpenAIResponsesNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough, compact)
+	return gatewayprovider.ShouldFlattenOpenAIResponsesNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough, compact)
 }
 func (p openAIForwardPreludeAdapter) Flatten(body []byte) ([]byte, error) {
-	return flattenOpenAIResponsesNamespaces(p.c, body)
+	return gatewayhttp.FlattenOpenAIResponsesNamespaces(p.c, body)
 }
 func (p openAIForwardPreludeAdapter) StripNamespacesRequired(v forward.TransportDecision, passthrough bool) bool {
-	return shouldStripOpenAIResponsesInputNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough)
+	return gatewayprovider.ShouldStripOpenAIResponsesInputNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough)
 }
 func (p openAIForwardPreludeAdapter) KeepNamespaces(v forward.TransportDecision, passthrough, compact bool, body []byte) bool {
-	return shouldKeepOpenAIResponsesToolCallNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough, compact, body)
+	return gatewayprovider.ShouldKeepOpenAIResponsesToolCallNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough, compact, body)
 }
 func (p openAIForwardPreludeAdapter) StripNamespaces(body []byte, keep bool) ([]byte, error) {
-	return stripOpenAIResponsesInputNamespaces(body, keep)
+	return protocolbridge.StripOpenAIResponsesInputNamespaces(body, keep)
 }
 func (p openAIForwardPreludeAdapter) NeedsClientTools(body []byte) bool {
-	return needsOpenAIResponsesClientToolAdaptation(body)
+	return protocolbridge.NeedsOpenAIResponsesClientToolAdaptation(body)
 }
 func (p openAIForwardPreludeAdapter) AdaptClientTools(body []byte) ([]byte, error) {
-	body, mapping, err := adaptOpenAIResponsesClientTools(body)
+	body, mapping, err := protocolbridge.AdaptOpenAIResponsesClientTools(body)
 	if err == nil {
-		setOpenAIResponsesClientToolMapping(p.c, mapping)
+		gatewayhttp.SetOpenAIResponsesClientToolMapping(p.c, mapping)
 	}
 	return body, err
 }
@@ -158,10 +160,10 @@ func (p openAIForwardPreludeAdapter) InputItemIDs(body []byte) ([]byte, bool, er
 	return gatewayprovider.SanitizeOpenAIResponsesInputItemIDs(body)
 }
 func (p openAIForwardPreludeAdapter) MessagesBridge(body []byte) bool {
-	return isOpenAICompatMessagesBridgeBody(body)
+	return gatewayprovider.IsOpenAICompatMessagesBridgeBody(body)
 }
 func (p openAIForwardPreludeAdapter) BindMessagesBridge(v bool) {
-	setOpenAICompatMessagesBridgeContext(p.c, v)
+	gatewayhttp.SetOpenAICompatMessagesBridgeContext(p.c, v)
 }
 func (p openAIForwardPreludeAdapter) CodexClient() bool {
 	return openai.IsCodexOfficialClientByHeaders(p.c.GetHeader("User-Agent"), p.c.GetHeader("originator")) || (p.s.cfg != nil && p.s.cfg.Gateway.ForceCodexCLI)

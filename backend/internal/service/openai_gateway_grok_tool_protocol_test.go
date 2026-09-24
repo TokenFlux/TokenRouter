@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -197,14 +199,14 @@ func TestPatchGrokResponsesBodyWithClientToolsRejectsTrailingJSONDocument(t *tes
 func TestClearGrokResponsesClientToolMappingRemovesStaleContextState(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
-	setGrokResponsesClientToolMapping(c, bridge.ResponsesClientToolMapping{
+	gatewayhttp.SetGrokResponsesClientToolMapping(c, bridge.ResponsesClientToolMapping{
 		CustomTools: map[string]bool{"stale_tool": true},
 	})
 
-	_, seeded := grokResponsesClientToolMapping(c)
+	_, seeded := gatewayhttp.GrokResponsesClientToolMapping(c)
 	require.True(t, seeded)
-	clearGrokResponsesClientToolMapping(c)
-	_, remains := grokResponsesClientToolMapping(c)
+	gatewayhttp.ClearGrokResponsesClientToolMapping(c)
+	_, remains := gatewayhttp.GrokResponsesClientToolMapping(c)
 	require.False(t, remains)
 }
 

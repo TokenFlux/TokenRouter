@@ -453,7 +453,7 @@ func (s *OpenAIGatewayService) applyOpenAIWSEventErrorPolicy(
 // openAIWSSemantic429Headers 仅保留 Spark OAuth 的窗口头；普通 WS 语义 429
 // 携带的握手/成功响应头不能被误认为账号级配额耗尽。
 func openAIWSSemantic429Headers(account *gatewayprovider.ExecutionAccount, model string, headers http.Header) http.Header {
-	if isCodexSparkModel(model) && isOpenAIOAuthAccount(account) {
+	if gatewayprovider.IsCodexSparkModel(model) && isOpenAIOAuthAccount(account) {
 		return headers
 	}
 	return nil
