@@ -55,7 +55,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 
 		ClientOutputStarted: func(started bool) bool { return gatewayhttp.OpenAIStreamClientOutputStarted(c, started) },
 
-		StagedHeadersCommitted: func(headers http.Header) { s.noteStagedOpenAICodexTurnStateCommitted(c, account, headers) },
+		StagedHeadersCommitted: func(headers http.Header) { s.turnStateHeaders.Commit(c, account, headers) },
 
 		ClearDisconnect: func() { s.clearOpenAIProxyStreamDisconnect(account) },
 
@@ -183,9 +183,9 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 			provider.WriteFilteredHeaders(output, headers, s.responseHeaderFilter)
 		}
 		if staged {
-			stageOpenAICodexTurnState(&pending, headers)
+			gatewayhttp.StageCodexTurnState(&pending, headers)
 		} else {
-			s.relayOpenAICodexTurnState(c, account, headers)
+			s.turnStateHeaders.Relay(c, account, headers)
 		}
 		return pending
 	}

@@ -328,8 +328,7 @@ type OpenAIGatewayService struct {
 	openaiCompatSessionResponses      sync.Map
 	anthropicPromptCache              atomic.Pointer[session.AnthropicPromptCache]
 	// 下游会话最近收到的回合状态签发账号，用于故障转移时剥离跨账号回带状态。
-	openaiCodexTurnStateOrigins sync.Map
-	openaiCodexTurnStateWrites  atomic.Uint64
+	turnStateHeaders *gatewayhttp.CodexTurnStateHeaders
 }
 
 // NewOpenAIGatewayService creates a new OpenAIGatewayService
@@ -352,7 +351,7 @@ func NewOpenAIGatewayService(
 	channelService *routing.ChannelService,
 
 	settingService *gatewayprovider.RuntimeReaders,
-	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selectionadapter.Compatible,
+	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, turnStateHeaders *gatewayhttp.CodexTurnStateHeaders, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selectionadapter.Compatible,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
 ) *OpenAIGatewayService {
 	var tlsFPRouterService *egress.TLSFingerprintRouterService
@@ -365,6 +364,7 @@ func NewOpenAIGatewayService(
 	svc := &OpenAIGatewayService{
 		selection:          choices,
 		openaiWSStateStore: stateStore,
+		turnStateHeaders:   turnStateHeaders,
 		prompts:            prompts,
 		accountRepo:        accountRepo,
 		usageLogRepo:       usageLogRepo,

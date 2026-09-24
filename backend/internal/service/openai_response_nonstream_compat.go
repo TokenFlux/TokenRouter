@@ -58,7 +58,7 @@ func (s *OpenAIGatewayService) nativeNonStreamOptions(ctx context.Context, c *gi
 		CorrectToolCalls:   s.correctToolCallsInResponseBody,
 		ResponseHeaders: func(output, input http.Header) {
 			provider.WriteFilteredHeaders(output, input, s.responseHeaderFilter)
-			s.relayOpenAICodexTurnState(c, account, input)
+			s.turnStateHeaders.Relay(c, account, input)
 		},
 		WriteCompactBridge: func(status int, body []byte) bool {
 			return gatewayhttp.WriteOpenAICompactSSEBridge(c, status, body, gatewayhttp.MarkOpsStreamError)

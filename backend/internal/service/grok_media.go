@@ -219,7 +219,9 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 			}
 			return data
 		},
-		CopyHeaders: func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
+		CopyHeaders: func(dst, src http.Header) {
+			gatewayhttp.WriteOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter)
+		},
 	}
 	var sink upstream.OutputSink
 	if c != nil {

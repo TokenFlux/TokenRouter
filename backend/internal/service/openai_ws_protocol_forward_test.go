@@ -607,7 +607,7 @@ func TestNewOpenAIGatewayService_InitializesOpenAIWSResolver(t *testing.T) {
 		nil,
 		// 余额通知服务
 		nil, // 设置服务
-		nil, compileResponseHeaderFilter(cfg), nil, nil, nil, nil,
+		nil, compileResponseHeaderFilter(cfg), nil, nil, nil, nil, nil,
 
 		// 用户平台配额仓库
 	))

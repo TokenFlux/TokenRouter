@@ -1,0 +1,133 @@
+{
+  "baseline_head": "2304cb97fcd5dfd03aee85440f41e01f9291ac7b",
+  "scope": "共享回合状态来源与响应头完整能力，非S16最终验收",
+  "owners": [
+    "gateway/session.CodexTurnOrigins",
+    "gateway/httpapi.CodexTurnStateHeaders",
+    "gateway/httpapi.WriteOpenAIPassthroughResponseHeaders",
+    "app"
+  ],
+  "before": {
+    "production": 148,
+    "tests": 236
+  },
+  "after": {
+    "production": 147,
+    "tests": 235
+  },
+  "contracts": [
+    "API Key与原始会话隔离；来源表不保存不透明状态或凭据",
+    "首输出暂存不登记，真正提交后才记录来源；未知、同账号和过期来源保留回带",
+    "严格After过期边界、原TTL、每256次写入清理",
+    "所有Header消费直接绑定同一实例；原配额头放行和缺失回合头清理顺序"
+  ],
+  "tests": [
+    {
+      "log": "service-response-state-target-race-02.json",
+      "events": {
+        "pass": 21
+      },
+      "failures": [],
+      "skips": []
+    },
+    {
+      "log": "service-response-state-consumer-normal.json",
+      "events": {
+        "pass": 426,
+        "skip": 1
+      },
+      "failures": [],
+      "skips": [
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ]
+    }
+  ],
+  "test_mapping": {
+    "file": "service-response-state-test-mapping.json",
+    "moved": 8,
+    "missing": 0,
+    "assertion_changes": 2,
+    "explanation": "两个私有any类型断言由生产Owner的int64返回类型与非零账号断言替代；存在性、确切ID与未提交不登记的断言保留。"
+  },
+  "new_contracts": [
+    "TestCodexTurnOriginsExpiryBoundary",
+    "TestCodexTurnOriginsSweepsOn256thWrite",
+    "TestCodexTurnOriginsConcurrentRequestsStayIsolated"
+  ],
+  "unit_lint": {
+    "log": "service-response-state-unit-lint-02.log",
+    "exit_code": 0
+  },
+  "final_checks": {
+    "checks": [
+      {
+        "name": "wire",
+        "command": [
+          "go",
+          "generate",
+          "./cmd/server"
+        ],
+        "exit_code": 0,
+        "log": "service-response-state-final-wire.log"
+      },
+      {
+        "name": "build",
+        "command": [
+          "go",
+          "build",
+          "./..."
+        ],
+        "exit_code": 0,
+        "log": "service-response-state-final-build.log"
+      },
+      {
+        "name": "lint-normal",
+        "command": [
+          "golangci-lint",
+          "run",
+          "--timeout=30m",
+          "--max-same-issues=0",
+          "--max-issues-per-linter=0",
+          "./internal/gateway/session/...",
+          "./internal/gateway/httpapi/...",
+          "./internal/upstream/openai/...",
+          "./internal/service/...",
+          "./internal/app/..."
+        ],
+        "exit_code": 0,
+        "log": "service-response-state-final-lint-normal.log"
+      },
+      {
+        "name": "lint-integration",
+        "command": [
+          "golangci-lint",
+          "run",
+          "--timeout=30m",
+          "--max-same-issues=0",
+          "--max-issues-per-linter=0",
+          "--build-tags=integration",
+          "./internal/gateway/session/...",
+          "./internal/gateway/httpapi/...",
+          "./internal/upstream/openai/...",
+          "./internal/service/...",
+          "./internal/app/..."
+        ],
+        "exit_code": 0,
+        "log": "service-response-state-final-lint-integration.log"
+      }
+    ],
+    "wire_before": "225bfea209965d0c08bc36cbc9254de9cece9de3c5c4bebc354afde3c447d326",
+    "wire_after": "225bfea209965d0c08bc36cbc9254de9cece9de3c5c4bebc354afde3c447d326"
+  },
+  "gates": {
+    "file": "service-response-state-owner-boundary-gates.json",
+    "passed": 36,
+    "total": 36,
+    "config_sha256": "83d2c819e7a2f2c01a8a6c4f21786dc5828407d5309fcb56b4fe39a138021594",
+    "fixtures_removed": true
+  },
+  "build_selection": "service-response-state-build-selection.json",
+  "invariants": "service-response-state-invariants.json",
+  "historical_fix_scope_expanded": false,
+  "remaining": "Grok/OpenAI共享响应读取与健康副作用、媒体及WS/Live尚待退出；未把本批当作完整网关验收。"
+}

@@ -1818,3 +1818,12 @@ S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶�
 - 在 `fe716affc` 固定工作树串行运行全仓普通、unit、integration（`-p=4`）及三套 lint，期间未改生产代码。普通 **12,008 通过 / 4 跳过**，unit **20,042 / 8**，integration **13,016 / 4**，均无失败；三套全仓 lint 均为 0。
 - 跳过项逐测试保存，仍为已登记的供应商/本地授权、TLS、legacy-null 与 WS 分支限制，没有把整个存储集合跳过当作通过。详见 [合并复核](baseline/S16/interim-google-request-credentials-verification.json)。
 - 这次合并复核覆盖最近两个稳定能力，不代替 S16 最终验收。后续继续 Grok/OpenAI/WS-Live、共享响应与装配退出，旧 service 仍为 **148 个生产 / 236 个测试文件**；roadmap 保持 **16 / 17**。
+
+
+### 共享响应回合来源与 Header 完整能力（2026-09-24）
+
+- Codex 回合来源表迁入 `gateway/session.CodexTurnOrigins`，HTTP 暂存、提交、回带过滤和响应头透传进入 `gateway/httpapi`，所有调用直接绑定同一 app 实例；旧网关来源表、计数器及对应方法已删除。未合并不同作用域的 WS 回合状态缓存。
+- 保留原 API Key/原始会话键、TTL、严格 After 到期判断、每 256 次写入清理，以及“暂存不登记、真正提交才登记、未知/同账号/过期来源透传”。来源表仍只保存账号 ID；配额头放行和缺失回合状态的清理顺序不变。
+- 旧 service 从 **148 / 236 降至 147 个生产 / 235 个测试文件**，减少 **1 / 1**。8 个原测试全部迁移；两处私有 any 类型断言随生产接口改为静态 int64 返回及非零 ID 断言，存在性、确切 ID 和未提交不登记的业务断言保留，单列映射说明。补验到期时刻、256 次清理及并发请求隔离。
+- 定向 unit race **21 条通过事件**，消费者普通 **426 通过 / 1 项既有 WS 分支跳过**；普通/unit/integration 受影响 lint 均为 0，门禁 **36/36** 通过。Wire 重复生成稳定，全仓生产构建、integration 消费者编译及八类构建选择通过；17 处文档链接/锚点有效，旧冻结资料和 51 个其他任务文件未变。
+- 证据索引：[共享响应状态验证](baseline/S16/service-response-state-owner-verification.json)。Grok/OpenAI 共享响应读取、健康副作用、媒体及 WS/Live 仍继续收尾；roadmap 保持 **16 / 17**，最终全项验收未完成。

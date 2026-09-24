@@ -96,7 +96,7 @@ func newOpenAIExecutionAndSelectionFixture(
 
 		executionCredentials, credentials, resolver, channelService,
 
-		settingService, prompts, headerFilter, stateStore, modelTransient, proxyCircuit, choices, tlsFPRouterServices...)
+		settingService, prompts, headerFilter, stateStore, provideCodexTurnStateHeaders(choices), modelTransient, proxyCircuit, choices, tlsFPRouterServices...)
 	source.BindRuntimeBlockState(blocks)
 	source.BindSchedulerStickyStats(sticky)
 	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}

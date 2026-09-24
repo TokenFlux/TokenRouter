@@ -177,6 +177,8 @@ Messages、Claude 的 Chat/Responses 转换及 `count_tokens` 使用 `gateway/pr
 
 Gemini 与 Antigravity 的凭据来源、传输和动态读取端口由 app 注入 `gateway/provider/googleforward`。平台准备器不持有 Gin 或完整配置；`gateway/httpapi` 保留三种客户端协议的错误形状、规则覆盖和 Ops 写入顺序。图片计数与工具名恢复状态按 attempt 创建，图片仍取单个响应片段的最大内联图片数；没有观测到图片时才使用原模型名回退。
 
+OpenAI/Grok 共享响应的回合状态头由 `gateway/httpapi.CodexTurnStateHeaders` 处理：首输出暂存阶段不登记来源，实际提交后才写入会话组件的账号来源表。请求回带值只有在已知来自另一账号时才移除，未知、同账号或过期来源继续透传；来源按 API Key 与客户端原始会话隔离。配额头和回合状态的强制透传同样位于 HTTP Adapter，原流读取器仍决定何时调用。
+
 上游非流响应的有界读取由 infra/httpclient 执行，默认仍为 128 MiB，并保留多读一个字节判断超限及原错误链。gateway/httpapi 在原位置记录 Ops 并输出 Anthropic/OpenAI 形状的 502；读取函数不接管响应体关闭，重试与取消仍由执行链决定。
 
 每次 attempt 都以原始/规范化请求和本次账号重新构造供应商请求，注入凭据、代理、TLS 指纹、客户端标识、Thinking/工具配置及上游模型。平台适配器负责协议转换、上游响应限制和供应商错误解析，handler 负责在客户端协议中返回最终结果。

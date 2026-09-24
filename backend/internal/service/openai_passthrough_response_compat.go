@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	gatewaytelemetry "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 
-	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
@@ -32,8 +33,8 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 		Logf: func(format string, args ...any) {
 			logging.LegacyPrintf("service.openai_gateway", format, args...)
 		},
-		MarkCommitted:       func() { httpapi.MarkResponseCommitted(c) },
-		ClientOutputStarted: func(started bool) bool { return httpapi.OpenAIStreamClientOutputStarted(c, started) },
+		MarkCommitted:       func() { gatewayhttp.MarkResponseCommitted(c) },
+		ClientOutputStarted: func(started bool) bool { return gatewayhttp.OpenAIStreamClientOutputStarted(c, started) },
 		ClearDisconnect:     func() { s.clearOpenAIProxyStreamDisconnect(account) },
 		RecordDisconnect:    func(err error, id string) { s.recordOpenAIProxyStreamDisconnect(account, err, id) },
 		TerminalSideEffects: func(body []byte, message string, headers http.Header, model string) {
@@ -53,12 +54,12 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 			logOpenAICapacityFailoverSuppressed(ctx, account, "passthrough_sse", id, event)
 		},
 		MarkCyber: func(value upstreamopenai.CyberObservation) {
-			httpapi.MarkOpsCyberPolicy(c, moderationflow.Mark{Code: value.Code, Message: value.Message, Body: value.Body, UpstreamStatus: value.UpstreamStatus, UpstreamInTok: value.UpstreamInTok, UpstreamOutTok: value.UpstreamOutTok})
+			gatewayhttp.MarkOpsCyberPolicy(c, moderationflow.Mark{Code: value.Code, Message: value.Message, Body: value.Body, UpstreamStatus: value.UpstreamStatus, UpstreamInTok: value.UpstreamInTok, UpstreamOutTok: value.UpstreamOutTok})
 		},
 		RestoreNamespace: func(body []byte) ([]byte, error) { return restoreOpenAIResponsesNamespacePayload(c, body) },
 		RestoreToolNames: func(body []byte, event string) []byte { return restoreCodexToolNamesFromSSEContext(c, body, event) },
 		EmptyCompleted: func(id string) error {
-			return httpapi.NewOpenAIResponsesEmptyCompletedFailoverError(c, upstreamErrorAccount(account), id)
+			return gatewayhttp.NewOpenAIResponsesEmptyCompletedFailoverError(c, upstreamErrorAccount(account), id)
 		},
 		BuildOpenAIResponseFailedSSE:        gatewayprovider.BuildOpenAIResponseFailedSSE,
 		WrapOpenAIUpstreamWarningIfCyber:    gatewayprovider.WrapOpenAIUpstreamWarningIfCyber,
@@ -75,11 +76,11 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 	stream.MarkTime = func(moment upstreamopenai.StreamTime) {
 		switch moment {
 		case upstreamopenai.StreamTimeFlush:
-			httpapi.MarkOpsTimestamp(c, telemetry.FirstDownstreamFlushAt)
+			gatewayhttp.MarkOpsTimestamp(c, telemetry.FirstDownstreamFlushAt)
 		case upstreamopenai.StreamTimeData:
-			httpapi.MarkOpsTimestamp(c, telemetry.FirstSSEDataAt)
+			gatewayhttp.MarkOpsTimestamp(c, telemetry.FirstSSEDataAt)
 		case upstreamopenai.StreamTimeVisible:
-			httpapi.MarkOpsTimestamp(c, telemetry.FirstVisibleOutputAt)
+			gatewayhttp.MarkOpsTimestamp(c, telemetry.FirstVisibleOutputAt)
 		}
 	}
 	nonstream := s.nativeNonStreamOptions(ctx, c, account)
@@ -92,14 +93,16 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 	return upstreamopenai.PassthroughOptions{
 		StreamOptions: stream,
 		NonStream:     nonstream,
-		Headers:       func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
+		Headers: func(dst, src http.Header) {
+			gatewayhttp.WriteOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter)
+		},
 		StartKeepalive: func(headers http.Header) func() {
 			// 原 Header 在启动心跳前已设置；这里只把本次输出适配中的元数据同步至 HTTP。
 			for key, values := range headers {
 				c.Writer.Header()[key] = append([]string(nil), values...)
 			}
 			if s.cfg != nil && s.cfg.Gateway.StreamKeepaliveInterval > 0 {
-				return httpapi.StartOpenAISSEKeepalive(c, time.Duration(s.cfg.Gateway.StreamKeepaliveInterval)*time.Second)
+				return gatewayhttp.StartOpenAISSEKeepalive(c, time.Duration(s.cfg.Gateway.StreamKeepaliveInterval)*time.Second)
 			}
 			return func() {}
 		},

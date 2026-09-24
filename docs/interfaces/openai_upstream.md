@@ -126,7 +126,7 @@ Responses 的历史 Chat 形状转换、工具 ID 清理、平台 schema 选择�
 
 OpenAI OAuth 的 HTTP、passthrough、旧版 Compact 与 WebSocket 出站会在模型映射和本地 fast 策略处理完成后，由网关生成 `x-codex-routing-hint`。提示至少包含最终上游模型；只有有效的 `priority`、`ultrafast` 或 `flex` 才附带 tier，`fast` 先规范化为 `priority`，`default`、未知值和空值均保持 model-only。旧版 Compact 规范化必须保留 `service_tier`，否则提示会丢失已经生效的路由层级。该头由网关独占控制：所有账号类型都会先删除调用方及账号覆盖提供的任意大小写变体，只有 OpenAI OAuth 路径会重新生成；API Key 路径不得透传伪造提示。OAuth HTTP 也不再自动注入或透传旧版 `responses=experimental` beta 标记，但同一头中的其它独立 beta 项仍保留。
 
-`x-codex-beta-features` 是 Codex 的会话级协商头：OAuth 普通 Responses HTTP 与 WebSocket 握手在客户端未声明时补入 `remote_compaction_v2`，客户端给出的非空值保持原样；原生 V2 请求无论账号类型都保证该 feature 存在。上游响应中的 `x-codex-turn-state` 会在 HTTP/SSE、SSE 转 JSON 与 passthrough 路径显式回传。网关按 API Key 与客户端原始 session 记录最近签发账号；故障转移后，已知由其它账号签发的客户端回带值会被剥离，未知或同账号的值保持透传。
+`x-codex-beta-features` 是 Codex 的会话级协商头：OAuth 普通 Responses HTTP 与 WebSocket 握手在客户端未声明时补入 `remote_compaction_v2`，客户端给出的非空值保持原样；原生 V2 请求无论账号类型都保证该 feature 存在。上游响应中的 `x-codex-turn-state` 会在 HTTP/SSE、SSE 转 JSON 与 passthrough 路径显式回传。网关按 API Key 与客户端原始 session 记录最近签发账号；故障转移后，已知由其它账号签发的客户端回带值会被剥离，未知或同账号的值保持透传。 这份来源表由 `gateway/session.CodexTurnOrigins` 唯一持有，HTTP 的暂存、提交与回带过滤由 `CodexTurnStateHeaders` 执行。app 绑定同一实例和原粘性 TTL；每 256 次登记清扫过期来源，过期记录保持透传。来源表只保存账号 ID，不保存不透明回合状态值，也不与 WS 的回合状态缓存合并。
 
 WebSocket 连接池把 routing hint 视为拨号和普通复用的软亲和：优先复用相同提示建立的连接，池满时仍可在硬兼容连接上排队，显式 continuation 也不会仅因提示变化而断链。握手 beta feature 与本 fork 的 TLS fingerprint profile 仍是硬兼容键，任一变化都禁止复用，并会使尚未完成的旧目标预热拨号失效。路由诊断只记录网关推导的最终模型、规范化 tier、传输类型、账号 ID、是否生成提示和 WS 亲和决策，不记录提示头值、token 或凭据。
 

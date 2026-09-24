@@ -331,7 +331,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 			UpstreamStatus: resp.StatusCode,
 		})
 		gatewayhttp.SetOpsUpstreamError(c, resp.StatusCode, cyberMsg, logredact.TruncateUTF8(string(body), 2048))
-		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		gatewayhttp.WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		contentType := resp.Header.Get("Content-Type")
 		if contentType == "" {
 			contentType = "application/json"
@@ -346,7 +346,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	if account != nil && account.Record.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(resp.StatusCode, body) {
 		clientMsg := grokContentPolicyClientMessage(body)
 		gatewayhttp.SetOpsUpstreamError(c, resp.StatusCode, clientMsg, logredact.TruncateUTF8(string(body), 2048))
-		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		gatewayhttp.WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		gatewayhttp.MarkResponseCommitted(c)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": gin.H{
@@ -413,7 +413,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 			Message:            upstreamMsg,
 			Detail:             upstreamDetail,
 		})
-		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		gatewayhttp.WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		contentType := resp.Header.Get("Content-Type")
 		if contentType == "" {
 			contentType = "application/json"
@@ -438,7 +438,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 			Message:            upstreamMsg,
 			Detail:             upstreamDetail,
 		})
-		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		gatewayhttp.WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		contentType := resp.Header.Get("Content-Type")
 		if contentType == "" {
 			contentType = "application/json"

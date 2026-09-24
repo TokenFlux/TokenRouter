@@ -211,8 +211,8 @@ func (p *openAIPassthroughExecutionAdapter) WrapResponseBody(r *http.Response) {
 	}
 }
 func (p *openAIPassthroughExecutionAdapter) ObserveProvenance(h http.Header) {
-	if extractOpenAICodexTurnState(h) != "" {
-		p.s.noteOpenAICodexTurnStateProvenance(p.c, p.account)
+	if gatewayhttp.ExtractCodexTurnState(h) != "" {
+		p.s.turnStateHeaders.Commit(p.c, p.account, h)
 	}
 }
 func (p *openAIPassthroughExecutionAdapter) ResponseOptions(ctx context.Context) openai.PassthroughOptions {

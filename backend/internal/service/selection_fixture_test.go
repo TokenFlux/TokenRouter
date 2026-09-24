@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -63,6 +66,11 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 		Shared:    selectionadapter.Shared{Cache: source.cache, Concurrency: source.concurrencyService, Health: source.healthObserver, Channels: source.channelService, Parameters: scheduler.NewParameters(scheduler.NewSettingsRuntime(scheduler.Diagnostics{}), nil, schedulerParameterDefaultsForTest(source.cfg))},
 		Responses: source.ResponseStateStore(), QuotaSettings: quota, RuntimeBlocks: source.runtimeBlockState(), ModelTransient: source.getOpenAIAccountModelTransientState(), ProxyCircuit: source.getOpenAIProxyStreamCircuit(), StickyStats: source.stickyStats(),
 	}, selectionOptionsForTest(source.cfg))
+	if source.turnStateHeaders == nil {
+		source.turnStateHeaders = &gatewayhttp.CodexTurnStateHeaders{Origins: session.NewCodexTurnOrigins(time.Now)}
+	}
+	source.turnStateHeaders.TTL = source.selection.SessionStickyTTL
+
 }
 
 // streamSelectionDiagnosticSource 为真实流执行后的下一次选择提供可调度查询投影。

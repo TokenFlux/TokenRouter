@@ -100,7 +100,9 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 		ReadBody: func(reader io.Reader) ([]byte, error) {
 			return gatewayhttp.ReadUpstreamResponseBody(reader, resolveUpstreamResponseReadLimit(s.cfg), c, gatewayhttp.OpenAIResponseTooLarge)
 		},
-		CopyHeaders: func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
+		CopyHeaders: func(dst, src http.Header) {
+			gatewayhttp.WriteOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter)
+		},
 	}
 	var sink upstreamcore.OutputSink
 	if c != nil {

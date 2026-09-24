@@ -10,6 +10,7 @@
     "messages-execution",
     "google-execution",
     "request-credentials",
+    "response-state",
     "grok-execution",
     "openai-execution",
     "ws-live",
@@ -2201,7 +2202,6 @@
     },
     "ws-live": {
       "files": [
-        "backend/internal/service/openai_codex_turn_state.go",
         "backend/internal/service/openai_encrypted_content_lineage.go",
         "backend/internal/service/openai_http_ws_forward_adapter.go",
         "backend/internal/service/openai_live.go",
@@ -2652,6 +2652,22 @@
       "verification": "service-grok-credentials-owner-verification.json",
       "test_mapping": "service-grok-credentials-test-mapping.json",
       "exit": "删除整个旧请求凭据与失败状态操作，全部文本/媒体/WS 消费者、替身、装配和门禁同批接入唯一原生实现。"
+    },
+    "response-state": {
+      "status": "verified",
+      "files": [
+        "backend/internal/service/openai_codex_turn_state.go"
+      ],
+      "native_owners": [
+        "gateway/session.CodexTurnOrigins",
+        "gateway/httpapi.CodexTurnStateHeaders",
+        "gateway/httpapi.WriteOpenAIPassthroughResponseHeaders",
+        "app"
+      ],
+      "verification": "service-response-state-owner-verification.json",
+      "test_mapping": "service-response-state-test-mapping.json",
+      "completed_at": "2026-09-24",
+      "exit": "回合来源缓存、HTTP响应头和所有生产/测试调用同批改绑，旧实现与状态字段已删除。"
     }
   },
   "boundary_notes": {
@@ -2676,8 +2692,8 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 148,
-    "test_files": 236,
-    "verified_batch": "request-credentials"
+    "production_files": 147,
+    "test_files": 235,
+    "verified_batch": "response-state"
   }
 }

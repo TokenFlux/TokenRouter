@@ -1,0 +1,367 @@
+{
+  "format_version": 1,
+  "scope": "S16 共享响应回合来源与Header完整能力批次，非最终验收",
+  "parent_manifest": "progress-20260924-google-credentials-merged-manifest.json",
+  "parent_manifest_sha256": "2bb233c7f927219f437ece8d36ffcf27590b07e1f13ff9fa0f528dc3511a65e8",
+  "source_file_count": 58,
+  "source_total_bytes": 1526201,
+  "collection": "仅本批 service-response-state-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260924-response-state-01.tar.gz",
+      "size": 144459,
+      "sha256": "1206a79f0ad1a73f653e57daeca3d29ab5622ac1689b28fab0f74ac4520d423d",
+      "verified_members": 58,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 133693,
+          "sha256": "d586c88231a5fd4ab6b5fdc68e29add991a5f2f27e2cda3d74ffac755c4575f4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-build-selection.json",
+          "size": 439488,
+          "sha256": "f3d3d3b01424bb74582feb561ea6d1ebe1109e05ef130f1cf2ff5eb3adfb2431",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-compile-02.log",
+          "size": 336,
+          "sha256": "cf0bd42c531275da4fa04434209c09b68aef85602c78df7d050a54f53f607b53",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-compile.log",
+          "size": 569,
+          "sha256": "46fcec1f8cfef20151aade12fae198a32fe500c8e46956bce226153f701ac8a8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-consumer-normal.json",
+          "size": 828161,
+          "sha256": "f19a93d9489568aaf2cac4921cad8cc070d2baccd9012338f27e2d78925e301f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-final-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-final-checks.json",
+          "size": 1566,
+          "sha256": "50bc7e8d92e59550eed2f85875c447d34c656720a60b86703da782f1588b5166",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-final-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-final-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-final-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-import-permissions.json",
+          "size": 24503,
+          "sha256": "d3b4e0dbb7c11f1969bc4818e2d4ff454102879a06bd86296ad9a4f1a23e50c4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-initial-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-integration-compile.log",
+          "size": 332,
+          "sha256": "0effda9f8e4fcb1e10bb15fe04600bd5a53d3ff6d13bc0377b0b473e2970f908",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-invariants.json",
+          "size": 2390,
+          "sha256": "6c21c7328242aa04f0fb1ee7bfb0532cf165fc72e0f2e36c8569353136a5c4ca",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-app-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-app-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-app-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-app-no-old-integration.log",
+          "size": 285,
+          "sha256": "1e7c679a78d8860f0cda77d5d0bc0988ce31b41d852059f52329fbc5861159c1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-app-no-old-normal.log",
+          "size": 285,
+          "sha256": "1e7c679a78d8860f0cda77d5d0bc0988ce31b41d852059f52329fbc5861159c1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-app-no-old-unit.log",
+          "size": 285,
+          "sha256": "1e7c679a78d8860f0cda77d5d0bc0988ce31b41d852059f52329fbc5861159c1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-header-no-child-integration.log",
+          "size": 337,
+          "sha256": "cc2094930dc58d22698ad9c52d03e1e9418b24247e446d6330072de3d313bbb9",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-header-no-child-normal.log",
+          "size": 337,
+          "sha256": "cc2094930dc58d22698ad9c52d03e1e9418b24247e446d6330072de3d313bbb9",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-header-no-child-unit.log",
+          "size": 337,
+          "sha256": "cc2094930dc58d22698ad9c52d03e1e9418b24247e446d6330072de3d313bbb9",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-new-no-old-integration.log",
+          "size": 256,
+          "sha256": "177ebeefab8bfbc63dc65f2da4c7c66d29dad455a6c68434d8ca9467a4c3a9ce",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-new-no-old-normal.log",
+          "size": 256,
+          "sha256": "177ebeefab8bfbc63dc65f2da4c7c66d29dad455a6c68434d8ca9467a4c3a9ce",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-new-no-old-unit.log",
+          "size": 256,
+          "sha256": "177ebeefab8bfbc63dc65f2da4c7c66d29dad455a6c68434d8ca9467a4c3a9ce",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-no-config-integration.log",
+          "size": 365,
+          "sha256": "36e41ed36c95f554c2186dd555052d5649408efaa31f6dbdcc91df9248a6d618",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-no-config-normal.log",
+          "size": 365,
+          "sha256": "36e41ed36c95f554c2186dd555052d5649408efaa31f6dbdcc91df9248a6d618",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-no-config-unit.log",
+          "size": 365,
+          "sha256": "36e41ed36c95f554c2186dd555052d5649408efaa31f6dbdcc91df9248a6d618",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-no-store-integration.log",
+          "size": 323,
+          "sha256": "8276baca3bb418f5a7564c250acb437b139992ff202865840eca7f11f783b0bb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-no-store-normal.log",
+          "size": 323,
+          "sha256": "8276baca3bb418f5a7564c250acb437b139992ff202865840eca7f11f783b0bb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-http-no-store-unit.log",
+          "size": 323,
+          "sha256": "8276baca3bb418f5a7564c250acb437b139992ff202865840eca7f11f783b0bb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-core-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-core-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-core-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-no-http-integration.log",
+          "size": 239,
+          "sha256": "8b56492c6aa0f2a12bc0a1f901e8d9b823545cb70c15da2c72c23675b082c579",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-no-http-normal.log",
+          "size": 239,
+          "sha256": "8b56492c6aa0f2a12bc0a1f901e8d9b823545cb70c15da2c72c23675b082c579",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-no-http-unit.log",
+          "size": 239,
+          "sha256": "8b56492c6aa0f2a12bc0a1f901e8d9b823545cb70c15da2c72c23675b082c579",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-no-old-integration.log",
+          "size": 256,
+          "sha256": "54cda8e51a8a1b4b15ce51b7bb62167ab0539670aab6ade4b74fa6f8ab9db3d0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-no-old-normal.log",
+          "size": 256,
+          "sha256": "54cda8e51a8a1b4b15ce51b7bb62167ab0539670aab6ade4b74fa6f8ab9db3d0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-no-old-unit.log",
+          "size": 256,
+          "sha256": "54cda8e51a8a1b4b15ce51b7bb62167ab0539670aab6ade4b74fa6f8ab9db3d0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-no-store-integration.log",
+          "size": 274,
+          "sha256": "cdfcfb254d79498a16f9d610f3be242198c5e555a9666bf5027d10276651878b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-no-store-normal.log",
+          "size": 274,
+          "sha256": "cdfcfb254d79498a16f9d610f3be242198c5e555a9666bf5027d10276651878b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-no-store-unit.log",
+          "size": 274,
+          "sha256": "cdfcfb254d79498a16f9d610f3be242198c5e555a9666bf5027d10276651878b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-rename-no-io-integration.log",
+          "size": 249,
+          "sha256": "27efcc09867fbd5626891005a53633cbc08dc17c77c031d44731fb797f2ede7b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-rename-no-io-normal.log",
+          "size": 249,
+          "sha256": "27efcc09867fbd5626891005a53633cbc08dc17c77c031d44731fb797f2ede7b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gate-turn-origin-rename-no-io-unit.log",
+          "size": 249,
+          "sha256": "27efcc09867fbd5626891005a53633cbc08dc17c77c031d44731fb797f2ede7b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-boundary-gates.json",
+          "size": 26736,
+          "sha256": "4849cd3da39979595dbd1db6a3eaa5d33fa37f66295673e9835803a6f88b51b4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-owner-verification.json",
+          "size": 4125,
+          "sha256": "e65080a0409cb5f180aac692cb305a0cf5838be4c0e56206a6e625e24f7664b1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-target-race-02.json",
+          "size": 31466,
+          "sha256": "30d79c6cd56a371f78fd1453c4987b6bc9079d669bb2b99b407c79955dbc7f90",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-target-race.json",
+          "size": 15689,
+          "sha256": "86f9836086b8c035cbf56033501c744f6d506fa0e7fd1aab3b237e3d7fc466fd",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-test-mapping.json",
+          "size": 8121,
+          "sha256": "9d9df702bbbaac77c51ff3762b4c366889f3d031028a5659667b8e1ba2d4b33b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-unit-lint-02.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-unit-lint.log",
+          "size": 880,
+          "sha256": "ab75281304da9943418d94a89259f8cd8c401098b3863bde22d340afadf1e771",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-response-state-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}

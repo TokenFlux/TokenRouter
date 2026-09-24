@@ -14,7 +14,205 @@ linters:
   settings:
     depguard:
       rules:
-        # S16：共享请求凭据按账号恢复、请求预算与 HTTP 观察限制实际 import。
+        # S16：回合来源状态与响应头按会话核心、HTTP 和装配职责限制实际 import。
+        s16-response-state-internal-app-gateway-turn-state-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/gateway_turn_state.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/session$
+          - time$
+        s16-response-state-internal-gateway-httpapi-codex-turn-state-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/codex_turn_state.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/session$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
+          - github.com/gin-gonic/gin$
+          - net/http$
+          - strconv$
+          - strings$
+          - time$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/config
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/app
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: database/sql
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: entgo.io/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/redis/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+        # S16：回合来源状态与响应头按会话核心、HTTP 和装配职责限制实际 import。
+        s16-response-state-internal-gateway-httpapi-codex-turn-state-original-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/codex_turn_state_original_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/session$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - testing$
+          - time$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/config
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/app
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: database/sql
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: entgo.io/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/redis/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+        # S16：回合来源状态与响应头按会话核心、HTTP 和装配职责限制实际 import。
+        s16-response-state-internal-gateway-httpapi-openai-passthrough-headers-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openai_passthrough_headers.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/egress/provider$
+          - net/http$
+          - strings$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/config
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/app
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: database/sql
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: entgo.io/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/redis/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+        # S16：回合来源状态与响应头按会话核心、HTTP 和装配职责限制实际 import。
+        s16-response-state-internal-gateway-session-codex-turn-origins-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/session/codex_turn_origins.go"
+          allow:
+          - sync$
+          - sync/atomic$
+          - time$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/config
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/app
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: database/sql
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: entgo.io/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/redis/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/gin-gonic/gin
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+        # S16：回合来源状态与响应头按会话核心、HTTP 和装配职责限制实际 import。
+        s16-response-state-internal-gateway-session-codex-turn-origins-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/session/codex_turn_origins_test.go"
+          allow:
+          - fmt$
+          - github.com/stretchr/testify/require$
+          - sync$
+          - testing$
+          - time$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/config
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/app
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: database/sql
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: entgo.io/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/redis/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/gin-gonic/gin
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+        # S16：回合来源状态与响应头按会话核心、HTTP 和装配职责限制实际 import。
+        s16-response-state-internal-upstream-openai-compaction-header-original-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/upstream/openai/compaction_header_original_test.go"
+          allow:
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - testing$
         s16-grok-credentials-internal-gateway-provider-credential-token-refresh-cas-compat-test-go:
           list-mode: strict
           files:
@@ -8491,8 +8689,10 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/session$
           - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
@@ -18031,6 +18231,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/egress$
           - github.com/TokenFlux/TokenRouter/internal/egress/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
@@ -29123,27 +29324,6 @@ linters:
           - pkg: github.com/redis/go-redis/v9
             desc: service must not import redis
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-service-openai-codex-turn-state-go:
-          list-mode: strict
-          files:
-          - "**/internal/service/openai_codex_turn_state.go"
-          allow:
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
-          - github.com/gin-gonic/gin$
-          - net/http$
-          - strconv$
-          - strings$
-          - time$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: service must not import repository
-          - pkg: gorm.io/gorm
-            desc: service must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: service must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-gateway-httpapi-qoder-metadata-original-test-go:
           list-mode: strict
           files:
@@ -35889,7 +36069,6 @@ linters:
           - fmt$
           - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/egress$
-          - github.com/TokenFlux/TokenRouter/internal/egress/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
@@ -68027,6 +68206,8 @@ linters:
           - "!**/internal/gateway/httpapi/google_gemini_errors.go"
           - "!**/internal/gateway/httpapi/google_output.go"
           - "!**/internal/gateway/httpapi/request_credentials.go"
+          - "!**/internal/gateway/httpapi/codex_turn_state.go"
+          - "!**/internal/gateway/httpapi/openai_passthrough_headers.go"
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -68181,6 +68362,7 @@ linters:
           - "!**/internal/gateway/httpapi/messages_conversion_responses_original_test.go"
           - "!**/internal/gateway/httpapi/messages_conversion_chat_completions_original_test.go"
           - "!**/internal/gateway/httpapi/messages_conversion_fixture_test.go"
+          - "!**/internal/gateway/httpapi/codex_turn_state_original_test.go"
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -88909,6 +89091,7 @@ linters:
           - '!**/internal/app/http_composite_settings.go'
           - "!**/internal/app/gateway_google.go"
           - "!**/internal/app/gateway_credentials.go"
+          - "!**/internal/app/gateway_turn_state.go"
           allow:
           - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd

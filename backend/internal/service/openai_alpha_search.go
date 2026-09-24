@@ -139,7 +139,9 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 				s.UpdateCodexUsageSnapshotFromHeaders(ctx, account.Record.ID, headers)
 			}
 		},
-		Headers: func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
+		Headers: func(dst, src http.Header) {
+			gatewayhttp.WriteOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter)
+		},
 	}
 	result, err := (mediaprovider.AlphaSearch{Options: *target}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolAlphaSearch, ResponseModel: requestedModel}, gatewayhttp.ResponseSink{Writer: c.Writer})
 	if err != nil {
@@ -214,7 +216,9 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 				s.UpdateCodexUsageSnapshotFromHeaders(ctx, account.Record.ID, headers)
 			}
 		},
-		Headers: func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
+		Headers: func(dst, src http.Header) {
+			gatewayhttp.WriteOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter)
+		},
 	}
 	result, err := (mediaprovider.AlphaSearch{Options: *target}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolAlphaSearch, ResponseModel: requestedModel}, gatewayhttp.ResponseSink{Writer: c.Writer})
 	if err != nil {

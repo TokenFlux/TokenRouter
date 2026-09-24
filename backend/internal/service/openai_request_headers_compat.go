@@ -26,7 +26,7 @@ func (s *OpenAIGatewayService) nativeResponsesRequestOptions(ctx context.Context
 		IsCompact:      func() bool { return gatewayhttp.IsOpenAIResponsesCompactPath(c) },
 		ForceCodexCLI:  func() bool { return s.cfg != nil && s.cfg.Gateway.ForceCodexCLI },
 		AllowHeader:    func(name string) bool { return openaiAllowedHeaders[name] },
-		GuardTurnState: func(headers http.Header) { s.guardOpenAICodexTurnStateEcho(c, account, headers) },
+		GuardTurnState: func(headers http.Header) { s.turnStateHeaders.Guard(c, account, headers) },
 		MessagesBridge: func(body []byte) bool {
 			return isOpenAICompatMessagesBridgeContext(c) || isOpenAICompatMessagesBridgeBody(body)
 		},
