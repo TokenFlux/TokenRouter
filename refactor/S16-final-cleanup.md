@@ -1811,3 +1811,10 @@ S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶�
 - 原凭据定向 unit race **93 条通过事件**，直接消费者 unit race **818 条通过**，普通消费者 **246 条通过**，真实 PostgreSQL 条件写入与 outbox integration race **11 条通过**；无失败或跳过，集合有重叠，不求和。首次选错存储包的零测试结果不计通过，后续实际执行证据单列。
 - 受影响三类 lint 均退出 0，门禁 **45/45** 通过并删除夹具；首次门禁运行的 lint 进程锁冲突已保留，串行重跑通过，未改规则。全仓生产构建、普通/integration 消费者编译和八类构建选择通过，Wire 再生成稳定。索引为 [共享凭据验证](baseline/S16/service-grok-credentials-owner-verification.json)。
 - 本批只清除共享凭据能力；其余 Grok 文本、媒体和共享 Responses 输出继续实施，OpenAI、WS/Live 及最终合并验收仍未完成。roadmap 保持 **16 / 17**。按用户要求，完整验证的能力批次提交一次；不提交其他任务文件。
+
+
+### Google 与共享凭据合并全仓复核（2026-09-24）
+
+- 在 `fe716affc` 固定工作树串行运行全仓普通、unit、integration（`-p=4`）及三套 lint，期间未改生产代码。普通 **12,008 通过 / 4 跳过**，unit **20,042 / 8**，integration **13,016 / 4**，均无失败；三套全仓 lint 均为 0。
+- 跳过项逐测试保存，仍为已登记的供应商/本地授权、TLS、legacy-null 与 WS 分支限制，没有把整个存储集合跳过当作通过。详见 [合并复核](baseline/S16/interim-google-request-credentials-verification.json)。
+- 这次合并复核覆盖最近两个稳定能力，不代替 S16 最终验收。后续继续 Grok/OpenAI/WS-Live、共享响应与装配退出，旧 service 仍为 **148 个生产 / 236 个测试文件**；roadmap 保持 **16 / 17**。
