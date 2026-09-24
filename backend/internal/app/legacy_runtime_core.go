@@ -28,7 +28,6 @@ type coreRuntimeReady struct{}
 
 func provideCoreRuntime(
 	accountRuntime *account.RuntimeBlockState,
-	geminiPrecheck *account.GeminiPrecheck,
 	cfg *config.Config,
 	authCacheInvalidationWorker *apikey.AuthCacheInvalidationWorker,
 	schedulerSnapshot *scheduler.SnapshotService,
@@ -43,8 +42,6 @@ func provideCoreRuntime(
 	tlsFingerprintCollector *provider.TLSFingerprintCollectorService,
 	manager *lifecycle.Manager,
 	timingWheel *timingwheel.Wheel,
-	geminiGateway *service.GeminiMessagesCompatService,
-	antigravityGateway *service.AntigravityGatewayService,
 	digestStore *session.DigestSessionStore,
 	usageRepo usage.UsageLogRepository,
 	tasks *lifecycle.Tasks,
@@ -56,20 +53,12 @@ func provideCoreRuntime(
 	openAIGateway.BindRuntimeBlockState(accountRuntime)
 	bindGatewayBackground(tasks, openAIGateway)
 
-	geminiGateway.BindQuotaPrecheck(geminiPrecheck)
 	if openAIGateway != nil {
 		openAIGateway.BindSchedulerStickyStats(shared.Sticky)
 
 		openAIGateway.BindOpenAIAuthorization(openAIAuthorization)
 		openAIGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
 	}
-	if antigravityGateway != nil {
-		antigravityGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
-	}
-	if geminiGateway != nil {
-		geminiGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
-	}
-
 	manager.Register(lifecycle.Hook{Name: "AuthCacheInvalidationWorker", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if authCacheInvalidationWorker != nil {
 			authCacheInvalidationWorker.Start()

@@ -12,22 +12,11 @@ import (
 // RuntimeReaders 只列出执行适配器的已装配读取端口，不拥有规则、缓存或后台任务。
 // 各读取器共享应用实例；调用方仍在原请求位置读取动态值。
 type RuntimeReaders struct {
-	Gateway     *gateway.RuntimeSettings
-	Account     *account.RuntimeSettings
-	Quota       *account.QuotaSettingsCache
-	Routing     *routing.RuntimeSettings
-	Moderation  *moderation.RuntimeSettings
-	Search      *search.ConfigService
-	Scheduler   settings.Repository
-	Antigravity *AntigravityRuntimeOptions
-}
-
-// AntigravityRuntimeOptions 保留原日志和流预算的静态投影，nil 表示未提供配置。
-type AntigravityRuntimeOptions struct {
-	LogUpstreamErrorBody               bool
-	LogUpstreamErrorBodyMaxBytes       int
-	AntigravityFallbackCooldownMinutes int
-	MaxLineSize                        int
-	StreamDataIntervalTimeout          int
-	StreamKeepaliveInterval            int
+	Gateway    *gateway.RuntimeSettings
+	Account    *account.RuntimeSettings
+	Quota      *account.QuotaSettingsCache
+	Routing    *routing.RuntimeSettings
+	Moderation *moderation.RuntimeSettings
+	Search     *search.ConfigService
+	Scheduler  settings.Repository
 }

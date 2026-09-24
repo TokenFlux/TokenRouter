@@ -26,7 +26,7 @@ func schedulerParameterDefaultsForTest(cfg *config.Config) scheduler.ParameterDe
 
 // withSchedulerParametersForTest 只为仍有真实执行行为的 OpenAI 夹具装配原生选择端口。
 func withSchedulerParametersForTest[T interface {
-	*OpenAIGatewayService | *GeminiMessagesCompatService
+	*OpenAIGatewayService
 }](value T, configs ...*config.Config) T {
 	if source, ok := any(value).(*OpenAIGatewayService); ok {
 		bindCompatibleSelectionFixture(source)

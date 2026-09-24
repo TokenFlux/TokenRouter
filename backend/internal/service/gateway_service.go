@@ -15,8 +15,6 @@ import (
 const (
 	stickySessionTTL   = time.Hour // 粘性会话TTL
 	defaultMaxLineSize = 500 * 1024 * 1024
-	// 上游错误体只需要提取错误 JSON/日志摘要，默认 512KiB 避免错误风暴叠加大请求体。
-	gatewayUpstreamErrorBodyReadLimit int64 = 512 << 10
 )
 
 func openAIStreamEventIsTerminal(data string) bool {
@@ -40,16 +38,6 @@ func openAIStreamEventIsTerminalWithType(data, eventType string) bool {
 		return true
 	}
 	return s09openai.OpenAIStreamEventTypeIsTerminal(eventType)
-}
-
-func shortSessionHash(sessionHash string) string {
-	if sessionHash == "" {
-		return ""
-	}
-	if len(sessionHash) <= 8 {
-		return sessionHash
-	}
-	return sessionHash[:8]
 }
 
 // sseDataRe matches SSE data lines with optional whitespace after colon.

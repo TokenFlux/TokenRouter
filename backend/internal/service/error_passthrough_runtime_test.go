@@ -241,27 +241,6 @@ func TestOpenAIHandleErrorResponse_ContextWindow502KeepsMessageWithoutFailover(t
 	assert.Equal(t, "Your input exceeds the context window of this model. Please adjust your input and try again.", errField["message"])
 }
 
-func TestGeminiWriteGeminiMappedError_NoRuleKeepsDefault(t *testing.T) {
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-
-	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{})
-	respBody := []byte(`{"error":{"code":422,"message":"Invalid schema for field messages","status":"INVALID_ARGUMENT"}}`)
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 13, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}}
-
-	err := svc.writeGeminiMappedError(c, account, http.StatusUnprocessableEntity, "req-2", respBody)
-	require.Error(t, err)
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
-	errField, ok := payload["error"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "invalid_request_error", errField["type"])
-	assert.Equal(t, "Upstream request failed", errField["message"])
-}
-
 func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 
 	rec := httptest.NewRecorder()
@@ -289,30 +268,6 @@ func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errField["type"])
 	assert.Equal(t, "OpenAI上游失败", errField["message"])
-}
-
-func TestGeminiWriteGeminiMappedError_AppliesRuleFor422(t *testing.T) {
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-
-	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "Gemini上游失败")})
-	httpapi.BindErrorPassthroughService(c, ruleSvc)
-
-	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{})
-	respBody := []byte(`{"error":{"code":422,"message":"Invalid schema for field messages","status":"INVALID_ARGUMENT"}}`)
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}}
-
-	err := svc.writeGeminiMappedError(c, account, http.StatusUnprocessableEntity, "req-1", respBody)
-	require.Error(t, err)
-	assert.Equal(t, http.StatusTeapot, rec.Code)
-
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
-	errField, ok := payload["error"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "Gemini上游失败", errField["message"])
 }
 
 func TestApplyErrorPassthroughRule_SkipMonitoringSetsContextKey(t *testing.T) {
@@ -388,20 +343,6 @@ func TestOpenAIHandleErrorResponse_SetsResponseCommitted(t *testing.T) {
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 	require.Error(t, err)
 	assert.True(t, httpapi.IsResponseCommitted(c), "OpenAI non-failover path must mark response committed")
-}
-
-func TestGeminiWriteGeminiMappedError_SetsResponseCommitted(t *testing.T) {
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-
-	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{})
-	body := []byte(`{"error":{"message":"invalid field"}}`)
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 102, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}}
-
-	err := svc.writeGeminiMappedError(c, account, http.StatusBadRequest, "req-99", body)
-	require.Error(t, err)
-	assert.True(t, httpapi.IsResponseCommitted(c), "Gemini path must mark response committed")
 }
 
 func newNonFailoverPassthroughRule(statusCode int, keyword string, respCode int, customMessage string) *errorpolicy.ErrorPassthroughRule {

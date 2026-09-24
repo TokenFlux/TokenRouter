@@ -1,0 +1,883 @@
+{
+  "format_version": 1,
+  "scope": "S16 Google 完整能力批次，非最终验收",
+  "parent_manifest": "progress-20260924-messages-manifest.json",
+  "parent_manifest_sha256": "20bb2553ea28c39c8e56a9c2c56093d164beea1c5a345b542316255d3180b97c",
+  "source_file_count": 144,
+  "source_total_bytes": 10357621,
+  "collection": "仅本批 service-google-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260924-google-01.tar.gz",
+      "size": 641674,
+      "sha256": "8045bd633621c048603f7e304050f456355a728582990af8f7b2a6bb963c8b2f",
+      "verified_members": 144,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 132328,
+          "sha256": "bb8cea1e2ba44a4237fd2c7d88243fa2d42f454438ebe4016e37a79f4814bf4b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-affected-unit-lint-02.log",
+          "size": 470,
+          "sha256": "41dcd9896f9712dcac61cb9866bd6d0d6de2eabe7b8d7ec1fad99af71ff7803d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-affected-unit-lint-03.log",
+          "size": 294,
+          "sha256": "6619d57f3fb83d404f28b443b7f0a323616c1ef9f05cabcde4adfe2ddffa54eb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-affected-unit-lint.log",
+          "size": 2026,
+          "sha256": "775e97b89b3c829d7711bebbde0fbf900d8ef8668432dd8b207e5f96317d978b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-app-integration-race.json",
+          "size": 3652,
+          "sha256": "a7598b3ae4fd71c14f88fd1a940c4300162743062e3376233891c3cbec61ac2d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-benchmark-mapping.json",
+          "size": 1135,
+          "sha256": "844608607623564b0f3d55742c18ab6324567182c76252db98e293484a6bfbf3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-build-verification.json",
+          "size": 773,
+          "sha256": "6018eb68bec62469f8f3b7977326a975a0fac6c2665212d6716b9c38f3cb9d53",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-closure-compile.log",
+          "size": 436,
+          "sha256": "638aa18a392f4e67e60810066723e34fb92366b585e6a613ea7fa75fa12727e7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-consumer-compile-02.log",
+          "size": 261,
+          "sha256": "042e0bb768080341df65789ef7048442b3632dc3a560a6273ebc3a8c19ee83fb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-consumer-compile.log",
+          "size": 392,
+          "sha256": "c4409dd452ac52a421a5152bbb4860140f917828122e150b85e87b68826ff535",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-affected-integration-lint-02.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-affected-lint-02.json",
+          "size": 1833,
+          "sha256": "8882e3197675b211ed94434564ec40a1cf5654c753d1c6fe3ce49a9401b16bdb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-affected-lint.json",
+          "size": 587,
+          "sha256": "83b67d1faba6842f2d2257e9418c1959748d329671a4aa462cd89e0210fd09e3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-affected-normal-lint-02.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-affected-normal-lint.log",
+          "size": 397,
+          "sha256": "7edf8e4822b67eb3650d69543abee14cf15df25b788940c0a10ff534112a311d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-affected-unit-lint-02.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-compile-02.log",
+          "size": 1007,
+          "sha256": "cf7145deb932f23942625e9187077e10c88423e06fd390a0acb848c1e0147fab",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-compile.log",
+          "size": 5170,
+          "sha256": "fcd8ad623f09d68f3182a69d20c2a7436d4b0ae7ac148d667a1fc4e29f880e3b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-consumer-normal-02.json",
+          "size": 3025431,
+          "sha256": "1028f1b01196c63e08a68375d122beb957e5a3a48d1f6cae73968e9281e9815b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-consumer-normal.json",
+          "size": 3025702,
+          "sha256": "1de7e199ea505911c6f5ae5f1111f47d14f5480913d981ba11033ff231826682",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-integration-compile.log",
+          "size": 259,
+          "sha256": "d97698e06c1fca70e8b945243f003c597921ff7cbc3e7aa3377fec5e82d2d001",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-execution-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-execution-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-execution-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-existing-no-config-integration.log",
+          "size": 393,
+          "sha256": "e43ae112ba30b2165ce32cc5a489637dbb77ca09fcdddb9d27b65f1163f4dda1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-existing-no-config-normal.log",
+          "size": 393,
+          "sha256": "e43ae112ba30b2165ce32cc5a489637dbb77ca09fcdddb9d27b65f1163f4dda1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-existing-no-config-unit.log",
+          "size": 393,
+          "sha256": "e43ae112ba30b2165ce32cc5a489637dbb77ca09fcdddb9d27b65f1163f4dda1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-existing-no-gin-integration.log",
+          "size": 345,
+          "sha256": "9fe003ce2e9bb4171b228701d61cae21bdcccb5fa9109f8c6f85b0705b71ff93",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-existing-no-gin-normal.log",
+          "size": 345,
+          "sha256": "9fe003ce2e9bb4171b228701d61cae21bdcccb5fa9109f8c6f85b0705b71ff93",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-existing-no-gin-unit.log",
+          "size": 345,
+          "sha256": "9fe003ce2e9bb4171b228701d61cae21bdcccb5fa9109f8c6f85b0705b71ff93",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-no-child-integration.log",
+          "size": 367,
+          "sha256": "458a73c18fb797874fe3d0261d1dd47f6812733278cd3ad335922b7a31bbcfea",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-no-child-normal.log",
+          "size": 367,
+          "sha256": "458a73c18fb797874fe3d0261d1dd47f6812733278cd3ad335922b7a31bbcfea",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-gemini-no-child-unit.log",
+          "size": 367,
+          "sha256": "458a73c18fb797874fe3d0261d1dd47f6812733278cd3ad335922b7a31bbcfea",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-app-direct-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-app-direct-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-app-direct-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-app-no-old-integration.log",
+          "size": 269,
+          "sha256": "2993347610c7030c10f715f61ed86b28b23fa9a1a15269d86a412ca914b363e0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-app-no-old-normal.log",
+          "size": 269,
+          "sha256": "2993347610c7030c10f715f61ed86b28b23fa9a1a15269d86a412ca914b363e0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-app-no-old-unit.log",
+          "size": 269,
+          "sha256": "2993347610c7030c10f715f61ed86b28b23fa9a1a15269d86a412ca914b363e0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-health-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-health-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-health-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-health-no-gateway-integration.log",
+          "size": 377,
+          "sha256": "1b54000a30175dac7b2148ec031ea40651ebd69a9e5a1a0f335e05287c43f32f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-health-no-gateway-normal.log",
+          "size": 377,
+          "sha256": "1b54000a30175dac7b2148ec031ea40651ebd69a9e5a1a0f335e05287c43f32f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-health-no-gateway-unit.log",
+          "size": 377,
+          "sha256": "1b54000a30175dac7b2148ec031ea40651ebd69a9e5a1a0f335e05287c43f32f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-http-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-http-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-http-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-http-no-storage-integration.log",
+          "size": 315,
+          "sha256": "256a077df4fb4c15253c8bb24602129cdd082f11e56a520d2469300d4eec5548",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-http-no-storage-normal.log",
+          "size": 315,
+          "sha256": "256a077df4fb4c15253c8bb24602129cdd082f11e56a520d2469300d4eec5548",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-http-no-storage-unit.log",
+          "size": 315,
+          "sha256": "256a077df4fb4c15253c8bb24602129cdd082f11e56a520d2469300d4eec5548",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-moved-exception-expired-integration.log",
+          "size": 269,
+          "sha256": "b3a629634df92c848432eccbd7937be928ab321ae1f93d45940882259c7db689",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-moved-exception-expired-normal.log",
+          "size": 269,
+          "sha256": "b3a629634df92c848432eccbd7937be928ab321ae1f93d45940882259c7db689",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-moved-exception-expired-unit.log",
+          "size": 269,
+          "sha256": "b3a629634df92c848432eccbd7937be928ab321ae1f93d45940882259c7db689",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-new-contract-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-new-contract-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-new-contract-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-new-no-old-integration.log",
+          "size": 268,
+          "sha256": "c4dc30b50f9d8f64db721285df3db386091c300d96c381937cee5497139aa5cc",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-new-no-old-normal.log",
+          "size": 268,
+          "sha256": "c4dc30b50f9d8f64db721285df3db386091c300d96c381937cee5497139aa5cc",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-new-no-old-unit.log",
+          "size": 268,
+          "sha256": "c4dc30b50f9d8f64db721285df3db386091c300d96c381937cee5497139aa5cc",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-new-no-platform-inherit-integration.log",
+          "size": 284,
+          "sha256": "533b37d5477addb185bc97a8f1a41536ea149c84ad43975956566fd5c782c4f5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-new-no-platform-inherit-normal.log",
+          "size": 284,
+          "sha256": "533b37d5477addb185bc97a8f1a41536ea149c84ad43975956566fd5c782c4f5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-new-no-platform-inherit-unit.log",
+          "size": 284,
+          "sha256": "533b37d5477addb185bc97a8f1a41536ea149c84ad43975956566fd5c782c4f5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-test-no-config-integration.log",
+          "size": 405,
+          "sha256": "0eea0051317588afd3262420b5427d5939df31dc47b467413c738ba6f87056f8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-test-no-config-normal.log",
+          "size": 405,
+          "sha256": "0eea0051317588afd3262420b5427d5939df31dc47b467413c738ba6f87056f8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-test-no-config-unit.log",
+          "size": 405,
+          "sha256": "0eea0051317588afd3262420b5427d5939df31dc47b467413c738ba6f87056f8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-test-no-old-integration.log",
+          "size": 407,
+          "sha256": "463d6223bac3e58eda9f7122c4b3ff225e1415da76d9234f9b5e554fb81d35c7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-test-no-old-normal.log",
+          "size": 407,
+          "sha256": "463d6223bac3e58eda9f7122c4b3ff225e1415da76d9234f9b5e554fb81d35c7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gate-google-test-no-old-unit.log",
+          "size": 407,
+          "sha256": "463d6223bac3e58eda9f7122c4b3ff225e1415da76d9234f9b5e554fb81d35c7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-owner-boundary-gates.json",
+          "size": 36751,
+          "sha256": "4bfa7cd41dd206be5827faff1e757f372a262abea8f6cbb5cf9fb5a9ceae22f6",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-production-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-target-unit-race-02.json",
+          "size": 337914,
+          "sha256": "29250d5d2fa7fa05a4e3e7c7f469b26a24b08350dce738dc5510271fa1b1efb1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-final-target-unit-race.json",
+          "size": 337917,
+          "sha256": "cd5d888493aa2a860bab78f0a13a2a6a9edcc6b5275b32e8ba0f2ab7c86ab143",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-import-permissions.json",
+          "size": 47418,
+          "sha256": "55840ed0bec79428ef985778b5ca59138cc5625bf68a57522a2e44d6fe575eb6",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-initial-build.log",
+          "size": 146,
+          "sha256": "48bf742e0e1e1b5b6a9e9b8f93d0da4c6a4a2c6a6018b4d050fdc5578cbf7cac",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-invariants.json",
+          "size": 4825,
+          "sha256": "821ce5b9b8bc71468bc940f19dd0b470388f2d8b9e921f5c42272522e998389a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-execution-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-execution-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-execution-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-existing-no-config-integration.log",
+          "size": 393,
+          "sha256": "e43ae112ba30b2165ce32cc5a489637dbb77ca09fcdddb9d27b65f1163f4dda1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-existing-no-config-normal.log",
+          "size": 393,
+          "sha256": "e43ae112ba30b2165ce32cc5a489637dbb77ca09fcdddb9d27b65f1163f4dda1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-existing-no-config-unit.log",
+          "size": 393,
+          "sha256": "e43ae112ba30b2165ce32cc5a489637dbb77ca09fcdddb9d27b65f1163f4dda1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-existing-no-gin-integration.log",
+          "size": 345,
+          "sha256": "9fe003ce2e9bb4171b228701d61cae21bdcccb5fa9109f8c6f85b0705b71ff93",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-existing-no-gin-normal.log",
+          "size": 345,
+          "sha256": "9fe003ce2e9bb4171b228701d61cae21bdcccb5fa9109f8c6f85b0705b71ff93",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-existing-no-gin-unit.log",
+          "size": 345,
+          "sha256": "9fe003ce2e9bb4171b228701d61cae21bdcccb5fa9109f8c6f85b0705b71ff93",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-no-child-integration.log",
+          "size": 367,
+          "sha256": "458a73c18fb797874fe3d0261d1dd47f6812733278cd3ad335922b7a31bbcfea",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-no-child-normal.log",
+          "size": 367,
+          "sha256": "458a73c18fb797874fe3d0261d1dd47f6812733278cd3ad335922b7a31bbcfea",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-gemini-no-child-unit.log",
+          "size": 367,
+          "sha256": "458a73c18fb797874fe3d0261d1dd47f6812733278cd3ad335922b7a31bbcfea",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-app-direct-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-app-direct-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-app-direct-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-app-no-old-integration.log",
+          "size": 269,
+          "sha256": "2993347610c7030c10f715f61ed86b28b23fa9a1a15269d86a412ca914b363e0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-app-no-old-normal.log",
+          "size": 269,
+          "sha256": "2993347610c7030c10f715f61ed86b28b23fa9a1a15269d86a412ca914b363e0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-app-no-old-unit.log",
+          "size": 269,
+          "sha256": "2993347610c7030c10f715f61ed86b28b23fa9a1a15269d86a412ca914b363e0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-health-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-health-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-health-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-health-no-gateway-integration.log",
+          "size": 377,
+          "sha256": "1b54000a30175dac7b2148ec031ea40651ebd69a9e5a1a0f335e05287c43f32f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-health-no-gateway-normal.log",
+          "size": 377,
+          "sha256": "1b54000a30175dac7b2148ec031ea40651ebd69a9e5a1a0f335e05287c43f32f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-health-no-gateway-unit.log",
+          "size": 377,
+          "sha256": "1b54000a30175dac7b2148ec031ea40651ebd69a9e5a1a0f335e05287c43f32f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-http-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-http-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-http-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-http-no-storage-integration.log",
+          "size": 315,
+          "sha256": "256a077df4fb4c15253c8bb24602129cdd082f11e56a520d2469300d4eec5548",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-http-no-storage-normal.log",
+          "size": 315,
+          "sha256": "256a077df4fb4c15253c8bb24602129cdd082f11e56a520d2469300d4eec5548",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-http-no-storage-unit.log",
+          "size": 315,
+          "sha256": "256a077df4fb4c15253c8bb24602129cdd082f11e56a520d2469300d4eec5548",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-moved-exception-expired-integration.log",
+          "size": 269,
+          "sha256": "b3a629634df92c848432eccbd7937be928ab321ae1f93d45940882259c7db689",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-moved-exception-expired-normal.log",
+          "size": 269,
+          "sha256": "b3a629634df92c848432eccbd7937be928ab321ae1f93d45940882259c7db689",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-moved-exception-expired-unit.log",
+          "size": 269,
+          "sha256": "b3a629634df92c848432eccbd7937be928ab321ae1f93d45940882259c7db689",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-new-contract-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-new-contract-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-new-contract-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-new-no-old-integration.log",
+          "size": 268,
+          "sha256": "c4dc30b50f9d8f64db721285df3db386091c300d96c381937cee5497139aa5cc",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-new-no-old-normal.log",
+          "size": 268,
+          "sha256": "c4dc30b50f9d8f64db721285df3db386091c300d96c381937cee5497139aa5cc",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-new-no-old-unit.log",
+          "size": 268,
+          "sha256": "c4dc30b50f9d8f64db721285df3db386091c300d96c381937cee5497139aa5cc",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-new-no-platform-inherit-integration.log",
+          "size": 284,
+          "sha256": "533b37d5477addb185bc97a8f1a41536ea149c84ad43975956566fd5c782c4f5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-new-no-platform-inherit-normal.log",
+          "size": 284,
+          "sha256": "533b37d5477addb185bc97a8f1a41536ea149c84ad43975956566fd5c782c4f5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-new-no-platform-inherit-unit.log",
+          "size": 284,
+          "sha256": "533b37d5477addb185bc97a8f1a41536ea149c84ad43975956566fd5c782c4f5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-test-no-config-integration.log",
+          "size": 405,
+          "sha256": "0eea0051317588afd3262420b5427d5939df31dc47b467413c738ba6f87056f8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-test-no-config-normal.log",
+          "size": 405,
+          "sha256": "0eea0051317588afd3262420b5427d5939df31dc47b467413c738ba6f87056f8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-test-no-config-unit.log",
+          "size": 405,
+          "sha256": "0eea0051317588afd3262420b5427d5939df31dc47b467413c738ba6f87056f8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-test-no-old-integration.log",
+          "size": 407,
+          "sha256": "463d6223bac3e58eda9f7122c4b3ff225e1415da76d9234f9b5e554fb81d35c7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-test-no-old-normal.log",
+          "size": 407,
+          "sha256": "463d6223bac3e58eda9f7122c4b3ff225e1415da76d9234f9b5e554fb81d35c7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gate-google-test-no-old-unit.log",
+          "size": 407,
+          "sha256": "463d6223bac3e58eda9f7122c4b3ff225e1415da76d9234f9b5e554fb81d35c7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-boundary-gates.json",
+          "size": 32191,
+          "sha256": "71a6532f4fe738e2a2472692cf2a65288ee17e4d4a4392e48c7950425140bc8b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-build-selection.json",
+          "size": 472161,
+          "sha256": "03c0b90c75f048ffd933646a070019aa5589f344f479656c8ec02aad0ce76745",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-owner-verification.json",
+          "size": 7378,
+          "sha256": "50e4da4320cd23c9082e67467fb403c6dca7141614be258c2251902db83707bf",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-production-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-production-map.json",
+          "size": 16313,
+          "sha256": "d0d4e1cb0e7bc103941f7c1bab6f2d5788ef5b5d49f18d9e1788c96b1e87ac43",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-routing-binding-race.json",
+          "size": 19243,
+          "sha256": "6e0dfaca60c9d71299c3b4b38c92fdf24ea28e832b3372f226556a18479164eb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-target-normal-02.json",
+          "size": 286148,
+          "sha256": "4502072811f32c819df859ab440fffd75a97dde4d96531f0c0f3bd69e3e423a9",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-target-normal.json",
+          "size": 137260,
+          "sha256": "3adb0d51467cddc734710e21fa888a71eb99bdb93b455fdce05aa224f3484b9c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-target-unit-native-options.json",
+          "size": 425518,
+          "sha256": "0952b6b69f2262669f492e0ba6fdfe46561d699d8e52b6089d77c780a9b0319e",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-target-unit-race.json",
+          "size": 1834732,
+          "sha256": "b45de78c88e4a89a41c92c025090ee19c0f1226055636fc52060c88e39aa1a11",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-test-compile-01.log",
+          "size": 2573,
+          "sha256": "7936ae025c594f992ae4b5e701360a3acb92681989d843f63f587c8918ed68a5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-test-compile-02.log",
+          "size": 1364,
+          "sha256": "1984cad8a62eaa213fd8d0c073763698603ef1d5c63b05cdd4f595e15aa92f7f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-test-compile-03.log",
+          "size": 1555,
+          "sha256": "c20837b0252f9565fabe7dc13c7a2106f14041faeb5c560fd08f016d2c6e8f75",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-test-compile-04.log",
+          "size": 103,
+          "sha256": "e51580120987ce20000771c1359c11eea2504ccbe50601c1503435a1e110fefa",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-test-mapping.json",
+          "size": 128842,
+          "sha256": "15efdd56e091fd7b63d0cce07316122177d2b239521eb44b0f2d91eab10ac1a7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-test-native-options-compile-02.log",
+          "size": 529,
+          "sha256": "24efe7f17dcd468e8a40fd824460436d101dfdb069baf52b6d8478080634d281",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-test-native-options-compile.log",
+          "size": 1652,
+          "sha256": "f805cdaf7af352e32b208569e52c417efa4523da45a7d86f1bdbc541bf9f91d5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-wire-final-01.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-wire-initial.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-google-wire-repeat.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}

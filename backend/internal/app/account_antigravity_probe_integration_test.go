@@ -18,7 +18,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,11 +56,9 @@ func TestS16NativeAntigravityProbeAssembly(t *testing.T) {
 	store := accountpostgres.NewAccountStore(f.client, f.db, accountpostgres.AccountStoreOptions{})
 	cfg := &config.Config{}
 	runtime := app.NewS16AccountHealthRuntime(store, nil, cfg, nil, nil, nil, nil, nil)
-	limits := app.S16UpstreamHealth(runtime)
 	tokens := &account.AntigravityTokenSource{}
 	transport := &antigravityProbeTransport{}
-	oldGateway := service.NewAntigravityGatewayService(nil, nil, nil, tokens, limits, transport, nil, nil)
-	retry := app.NewS16AntigravityRetry(oldGateway, store, nil, runtime, nil, transport, cfg)
+	retry := app.NewS16AntigravityRetry(store, nil, runtime, nil, transport, cfg)
 	manager := lifecycle.New()
 	activity := app.NewS16GatewayActivity(manager)
 	probe := app.NewS16AntigravityProbe(tokens, retry, activity)

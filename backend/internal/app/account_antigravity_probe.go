@@ -18,13 +18,19 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache/codec"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 )
 
 // provideAntigravityRetry 在健康配置绑定完成后组合唯一平台适配，尚存网关只持有同一实例。
-func provideAntigravityRetry(source *service.AntigravityGatewayService, store *accountpostgres.AccountStore, counter account.Internal500CounterCache, runtime *accountHealthRuntime, snapshots *scheduler.SnapshotService, transport httpclient.UpstreamTransport, cfg *config.Config) *provider.AntigravityRetry {
-	health := &account.AntigravityHealth{Store: store, Counter: counter, ModelKeys: provider.AntigravityModelLimitKeys, Error: slog.Error, Warn: slog.Warn, Info: slog.Info,
+func provideAntigravityRetry(store *accountpostgres.AccountStore, counter account.Internal500CounterCache, runtime *accountHealthRuntime, snapshots *scheduler.SnapshotService, transport httpclient.UpstreamTransport, cfg *config.Config) *provider.AntigravityRetry {
+	health := &account.AntigravityHealth{
+		Store:     store,
+		Counter:   counter,
+		ModelKeys: provider.AntigravityModelLimitKeys,
+		Error:     slog.Error,
+		Warn:      slog.Warn,
+		Info:      slog.Info,
+
 		Logf: func(format string, values ...any) {
 			logging.LegacyPrintf("service.antigravity_gateway", format, values...)
 		},
@@ -34,10 +40,15 @@ func provideAntigravityRetry(source *service.AntigravityGatewayService, store *a
 			return snapshots.UpdateAccountInCache(ctx, codec.WrapRecord(value))
 		}
 	}
-	core := &provider.AntigravityRetry{Health: health, Policy: runtime.Health, Do: transport.Do,
+	core := &provider.AntigravityRetry{
+		Health: health,
+		Policy: runtime.Health,
+		Do:     transport.Do,
+
 		BaseURL: func(value *account.Record) string {
 			return antigravity.ResolveAntigravityForwardBaseURL(os.Getenv("GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL"), provider.AntigravityPaidTier(value))
 		},
+
 		BodyLimit: func() int64 {
 			limit := int64(512 << 10)
 			if cfg.Gateway.LogUpstreamErrorBody && cfg.Gateway.LogUpstreamErrorBodyMaxBytes > int(limit) {
@@ -45,11 +56,28 @@ func provideAntigravityRetry(source *service.AntigravityGatewayService, store *a
 			}
 			return limit
 		},
-		LogConfig:      func() (bool, int) { return cfg.Gateway.LogUpstreamErrorBody, cfg.Gateway.LogUpstreamErrorBodyMaxBytes },
-		TruncateString: logredact.TruncateUTF8, SafeURL: logredact.SafeUpstreamURL,
+
+		LogConfig: func() (bool, int) { return cfg.Gateway.LogUpstreamErrorBody, cfg.Gateway.LogUpstreamErrorBodyMaxBytes },
+
+		TruncateString: logredact.TruncateUTF8,
+		SafeURL:        logredact.SafeUpstreamURL,
 	}
-	source.BindAntigravityErrorObserver(&provider.AntigravityErrorObserver{
+	return core
+}
+
+// provideAntigravityProbe 与转发共用重试、账号健康和尝试拥有者；不登记第二个后台实例。
+func provideAntigravityProbe(tokens *account.AntigravityTokenSource, retry *provider.AntigravityRetry, activity *gatewayRequestActivity) *provider.AntigravityProbe {
+	return &provider.AntigravityProbe{Tokens: tokens, Retry: retry, Enter: activity.Enter}
+}
+
+// provideAntigravityErrorObserver 复用重试器的健康拥有者，观测只按既有顺序写入账号状态。
+func provideAntigravityErrorObserver(core *provider.AntigravityRetry, store *accountpostgres.AccountStore, runtime *accountHealthRuntime, cfg *config.Config) *provider.AntigravityErrorObserver {
+	health := core.Health
+
+	return &provider.AntigravityErrorObserver{
+
 		Health: health,
+
 		LogConfig: func() (bool, int) {
 			limit := 2048
 			if cfg.Gateway.LogUpstreamErrorBodyMaxBytes > 0 {
@@ -57,21 +85,18 @@ func provideAntigravityRetry(source *service.AntigravityGatewayService, store *a
 			}
 			return cfg.Gateway.LogUpstreamErrorBody, limit
 		},
+
 		TruncateString: logredact.TruncateUTF8,
+
 		ResetTime: func(body []byte) *int64 {
 			return gemini.ParseGeminiRateLimitResetTime(body, func() *int64 { v := account.GeminiDailyResetTime(time.Now(), geminiQuotaLocation()).Unix(); return &v })
 		},
+
 		DefaultDuration: func() time.Duration {
 			return provider.AntigravityFallbackDuration(cfg.Gateway.AntigravityFallbackCooldownMinutes, os.Getenv("GATEWAY_ANTIGRAVITY_FALLBACK_COOLDOWN_SECONDS"))
 		},
-		SetRateLimited: store.SetRateLimited, Other: runtime.Observer,
-	})
-	source.BindAntigravityHealth(health)
-	source.BindAntigravityRetry(core)
-	return core
-}
 
-// provideAntigravityProbe 与转发共用重试、账号健康和尝试拥有者；不登记第二个后台实例。
-func provideAntigravityProbe(tokens *account.AntigravityTokenSource, retry *provider.AntigravityRetry, activity *gatewayRequestActivity) *provider.AntigravityProbe {
-	return &provider.AntigravityProbe{Tokens: tokens, Retry: retry, Enter: activity.Enter}
+		SetRateLimited: store.SetRateLimited,
+		Other:          runtime.Observer,
+	}
 }

@@ -94,7 +94,13 @@
         "routing"
       ],
       "status": "pending",
-      "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。"
+      "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。",
+      "closed_by_batches": {
+        "google-execution": [
+          "account_token_view.go → gateway/provider.ExecutionToken",
+          "gateway_forward_execution_adapter.go 同步结果包装随最后一个调用者删除"
+        ]
+      }
     },
     "health": {
       "files": [
@@ -910,7 +916,6 @@
         "backend/internal/service/antigravity_health_compat.go",
         "backend/internal/service/antigravity_response_compat.go",
         "backend/internal/service/antigravity_retry_compat.go",
-        "backend/internal/service/creative_executor_gemini.go",
         "backend/internal/service/gemini_chat_completions_compat_service.go",
         "backend/internal/service/gemini_exchange_compat.go",
         "backend/internal/service/gemini_image_output_accounting.go",
@@ -1024,7 +1029,6 @@
         "GeminiMessagesCompatService.writeGoogleError",
         "NewAntigravityGatewayService",
         "NewGeminiMessagesCompatService",
-        "OpenAIGatewayService.validateGeminiBaseURL",
         "ParseGeminiRateLimitResetTime",
         "accountHasAntigravityPaidTier",
         "antigravityCompatProxyURL",
@@ -1116,8 +1120,27 @@
         "upstream/gemini",
         "upstream/vertex"
       ],
-      "status": "pending",
-      "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。"
+      "status": "verified",
+      "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。",
+      "completed_at": "2026-09-24",
+      "implementation": "gateway/provider/googleforward 组合请求准备；HTTP 输出和 Gemini 健康分别由 gateway/httpapi 与 account/provider 拥有。两个旧 Service、构造和绑定入口已删除。",
+      "verification": "service-google-owner-verification.json",
+      "test_mapping": "service-google-test-mapping.json",
+      "actual_native_owners": [
+        "gateway/provider/googleforward",
+        "gateway/httpapi",
+        "gateway/provider.ExecutionToken",
+        "account/provider.GeminiErrorObserver",
+        "account/provider.AntigravityRetry",
+        "account/provider.AntigravityErrorObserver",
+        "upstream/gemini",
+        "upstream/antigravity",
+        "upstream/vertex",
+        "protocol/bridge",
+        "routing/modelmap",
+        "app"
+      ],
+      "classification_correction": "creative_executor_gemini.go 的唯一方法属于 OpenAIGatewayService，随实际消费者归入 openai-execution；不按文件名计作 Google 残留。"
     },
     "openai-execution": {
       "files": [
@@ -1195,7 +1218,8 @@
         "backend/internal/service/openai_responses_rejected_field_retry.go",
         "backend/internal/service/openai_routing_hint.go",
         "backend/internal/service/openai_upstream_client_error.go",
-        "backend/internal/service/openai_upstream_transport_error.go"
+        "backend/internal/service/openai_upstream_transport_error.go",
+        "backend/internal/service/creative_executor_gemini.go"
       ],
       "symbols": [
         "GatewayService.applyClaudeAPIKeyFastMode",
@@ -1912,7 +1936,8 @@
         "writeOpenAIResponsesInputTokensError",
         "writeOpenAIResponsesInputTokensFallback",
         "writeOpenAIUpstreamClientError",
-        "writeSanitizedOpenAIPassthroughError"
+        "writeSanitizedOpenAIPassthroughError",
+        "OpenAIGatewayService.validateGeminiBaseURL"
       ],
       "depends_on": [
         "google-execution",
@@ -2629,5 +2654,10 @@
     },
     "production_reduced": 17,
     "tests_reduced": 31
+  },
+  "current_remaining": {
+    "production_files": 149,
+    "test_files": 246,
+    "verified_batch": "google-execution"
   }
 }

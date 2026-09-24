@@ -1789,3 +1789,15 @@ S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶�
 - 移植夹具补齐原默认 Beta 回调，保持响应读取默认 **128 MiB**；诊断开关关闭且无需保存错误上下文时，继续跳过报文解析。它们均为本次移植核对，不扩大历史问题范围。最终受影响普通合同 **142** 条通过；HTTP 输出测试归 HTTP Adapter，纯转换测试保留核心方向限制，补验 **32** 条合同通过。
 - 全仓普通/unit/integration lint 均为 **0**。84 项可丢弃门禁合同通过，八种构建集合无意外错误；夹具已删除。Wire 两次重生成摘要一致；后端、两个维护命令和 Linux 构建通过。SQL、Ent、S00—S15 冻结资料及 51 个保留文件无变化，原计划正文摘要不变，diff 检查通过。
 - 验证入口：[`service-messages-owner-verification.json`](baseline/S16/service-messages-owner-verification.json)。完整日志和清单按本批前缀增量归档；本批不代替 S16 最终前端、embed、跨平台及全项验收。下一完整能力批次为 Google 执行，之后继续 OpenAI/Grok、WS/Live 和共享边界；roadmap 仍为 **16 / 17**。
+
+
+### Google 执行完整批次（2026-09-24）
+
+- GeminiMessagesCompatService、AntigravityGatewayService 的生产调用、HTTP、测试及装配已一起退出。请求准备进入 `gateway/provider/googleforward`，响应 Header、错误格式与 Ops 输出留在 `gateway/httpapi`；Gemini 健康处理进入 `account/provider.GeminiErrorObserver`。Antigravity 转发与账号探测继续共享原健康和重试实例，没有新增账号切换循环。
+- 图片计数和工具名恢复改为每次 attempt 的显式状态，保留累计流片段取最大图片数、无图片时的模型回退及各入口原失败结算规则。凭据回填仍在读取后同步到执行目标；健康观察只回写原有凭据与 Extra 字段。静态配置由 app 直接投影，RuntimeReaders 的 Antigravity 配置转接及旧事后绑定已删除。
+- 本批旧 service 从 **169 个生产 / 259 个测试文件降至 149 / 246**，减少 **20 / 13**。`creative_executor_gemini.go` 实际只有 OpenAIGatewayService 的 URL 校验，已在统一账本归到 OpenAI 批次；`gemini_multiplatform_test.go` 仅为其他旧平台保留查询替身，不含 Google 执行实现。
+- **127 个原测试**完成名称、标签与断言调用核对，缺失为 0、断言调用数量变化为 0。无生产消费者的前缀辅助方法删除，原十项断言由纯 modelmap 匹配实现承接；4 个原 benchmark 保留并可编译，本阶段未执行。测试构造直接组合原生端口，私有响应边界仅由 `export_test.go` 开放，没有扩大生产 API。
+- 最终受影响普通测试 **1,603 条通过事件**；前序账号/provider 定向 unit race **1,408 条通过**，收尾 Google/modelmap race **295 条通过**，动态路由绑定补验 **10 条通过**；真实 PostgreSQL 探测装配 integration race **3 条通过**。这些集合包含父子测试且有重叠，不求和；均无失败或跳过。迁移夹具漏绑回调、旧构造参数和编译问题的初始日志保留，未追加历史问题修复。
+- 受影响普通、unit、integration lint 均退出 0；最终门禁夹具 **48/48** 通过并删除，八类构建选择无意外错误。Wire 重复生成稳定，全仓生产构建通过。证据索引为 [Google 批次验证](baseline/S16/service-google-owner-verification.json)，较大日志与逐符号映射由本批增量归档提供。
+- SQL、Ent、S00—S15、原计划正文与 51 个其他任务文件保持不变；现有架构、网关生命周期、Gemini 和 Antigravity 文档同步，31 处链接及稳定锚点有效。按用户调整后的频率，本批不重复全仓三套测试与前端验收；待后续稳定能力合并复核，S16 最终完整验收保持不变。
+- 下一批继续 Grok，再处理 OpenAI、WS/Live 与共享残留。roadmap 保持 **16 / 17、S16 实施中**；本批回退只恢复执行、装配、规则与文档，不涉及数据格式。

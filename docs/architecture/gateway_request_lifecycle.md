@@ -175,11 +175,13 @@ Messages、Claude 的 Chat/Responses 转换及 `count_tokens` 使用 `gateway/pr
 
 通用 `GatewayService` 已退出生产图。Messages、计数和 Qoder 的路由计划由 `gateway/provider.RoutePlanner` 连接渠道读取与 routing，摘要和隔离直接使用 gateway/session；重试耗尽后的兼容冷却由 `account.RetryCooldown` 读取最新池模式后决定。完成器直接绑定 app 的原生记录器。调试输出由同一个 `requestdebug.Trace` 持有文件句柄，请求和后台工作结束后再关闭。
 
+Gemini 与 Antigravity 的凭据来源、传输和动态读取端口由 app 注入 `gateway/provider/googleforward`。平台准备器不持有 Gin 或完整配置；`gateway/httpapi` 保留三种客户端协议的错误形状、规则覆盖和 Ops 写入顺序。图片计数与工具名恢复状态按 attempt 创建，图片仍取单个响应片段的最大内联图片数；没有观测到图片时才使用原模型名回退。
+
 上游非流响应的有界读取由 infra/httpclient 执行，默认仍为 128 MiB，并保留多读一个字节判断超限及原错误链。gateway/httpapi 在原位置记录 Ops 并输出 Anthropic/OpenAI 形状的 502；读取函数不接管响应体关闭，重试与取消仍由执行链决定。
 
 每次 attempt 都以原始/规范化请求和本次账号重新构造供应商请求，注入凭据、代理、TLS 指纹、客户端标识、Thinking/工具配置及上游模型。平台适配器负责协议转换、上游响应限制和供应商错误解析，handler 负责在客户端协议中返回最终结果。
 
-通用报文与转换算法位于 `protocol/{anthropic,openai,gemini,google,bridge}`。`pkg/apicompat` 转接已删除，采样/Max effort 选项由 `gateway/forward` 的型号策略投影提供；平台适配继续选择 schema、thinking、签名与工具选项，并注入时刻和 ID 生成器；每请求/attempt 创建独立转换状态。Gemini 的 Messages 与 OpenAI 兼容流保留各自的 thinking、index 和 usage 观测顺序，以逐事件迭代返回输出；HTTP 读取、Flush、首次输出判定、取消、失败后排水和重试仍由旧执行层拥有。不得因提取纯状态机而整流缓冲或改变真实输出后的重试边界。
+通用报文与转换算法位于 `protocol/{anthropic,openai,gemini,google,bridge}`。`pkg/apicompat` 转接已删除，采样/Max effort 选项由 `gateway/forward` 的型号策略投影提供；平台适配继续选择 schema、thinking、签名与工具选项，并注入时刻和 ID 生成器；每请求/attempt 创建独立转换状态。Gemini 的 Messages 与 OpenAI 兼容流保留各自的 thinking、index 和 usage 观测顺序，以逐事件迭代返回输出；HTTP Adapter 提供同步写入与 Flush，upstream 执行器保持首次输出判定、取消、失败后排水和账号内重试；外层网关仍决定换号。不得因提取纯状态机而整流缓冲或改变真实输出后的重试边界。
 
 流式响应有不可逆边界：在调用上游前记录 `ResponseWriter` 已写字节数；如果 attempt 已向客户端写出真实业务输出，就不能再选择账号，否则会把两个上游响应拼接为损坏的单流。旧版 Compact 桥接心跳、Responses 的 `response.created` / `response.in_progress` 前导事件，以及等待终态判定的可重试 `error` 帧不算业务输出，可以留在 attempt 缓冲中为 pre-output failover 保留空间；不可重试错误仍按事件边界及时转发。真实输出开始后，错误只能按当前协议追加允许的流错误事件或结束连接。非流式且尚未写响应时，才可以安全地进入下一次 failover。
 

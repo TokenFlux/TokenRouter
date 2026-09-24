@@ -65,7 +65,9 @@ func (gateway *OpenAIGatewayService) CreativeTarget(account *gatewayprovider.Exe
 			return gateway.httpUpstream.Do(req, accountProxyURL(account), account.Record.ID, account.Record.Concurrency)
 		}, HTTPError: func(status int, message string) error { return creative.CreativeHTTPStatusError(status, message) }, Invalid: func(format string, args ...any) error { return creative.CreativeNonRetryableError(format, args...) }, ErrorMessage: upstream.ExtractErrorMessage, Enter: enter}
 		if geminiTokens != nil {
-			options.Token = func(ctx context.Context) (string, error) { return accountToken(ctx, geminiTokens, account) }
+			options.Token = func(ctx context.Context) (string, error) {
+				return gatewayprovider.ExecutionToken(ctx, geminiTokens, account)
+			}
 		}
 		return options
 	}

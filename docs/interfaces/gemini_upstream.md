@@ -31,9 +31,9 @@ Code Assist/Google One 需要有效 project；AI Studio 的 project 可选并使
 <a id="gemini_protocol_dispatch"></a>
 ## 协议分派
 
-Gemini 通用 wire 与 Google 错误结构分别在 `protocol/gemini`、`protocol/google`；Google HTTP 状态映射在 `gateway/httpapi`，激活诊断在 `upstream/gemini/codeassist`。纯 Anthropic ↔ Gemini 转换位于 `protocol/bridge`，原生与内部方言分别接收显式选项，保留 schema、工具配对、签名和预算差异；平台 HTTP 交换、响应流和账号内重试由 `upstream/gemini` 唯一实现；入站许可、最终账号选择及完成处理仍由旧网关适配负责。
+Gemini 通用 wire 与 Google 错误结构分别在 `protocol/gemini`、`protocol/google`；Google HTTP 状态映射在 `gateway/httpapi`，激活诊断在 `upstream/gemini/codeassist`。纯 Anthropic ↔ Gemini 转换位于 `protocol/bridge`，原生与内部方言分别接收显式选项，保留 schema、工具配对、签名和预算差异；平台 HTTP 交换、响应流和账号内重试由 `upstream/gemini` 唯一实现；入站许可、最终账号选择及完成处理由 gateway 的准入、选择与完成接口负责。
 
-Gemini SDK/CLI 使用 `/v1beta/models`、`/v1beta/models/{model}` 和 `{model}:{action}` 形状，保持 Google 请求、流和错误语义。Anthropic Messages、Count Tokens、OpenAI Responses 与 Chat Completions 入口则先归一化，再由 Gemini 兼容服务转换为上游请求，响应恢复为原客户端协议。
+Gemini SDK/CLI 使用 `/v1beta/models`、`/v1beta/models/{model}` 和 `{model}:{action}` 形状，保持 Google 请求、流和错误语义。Anthropic Messages、Count Tokens、OpenAI Responses 与 Chat Completions 入口则先归一化，再由 `gateway/provider/googleforward.Gemini` 准备上游请求，响应恢复为原客户端协议。
 
 Gemini 分组支持 Messages、Responses、Chat 和 Gemini GenerateContent，新建时默认只启用 GenerateContent；四项都可关闭，迁移前已有分组启用四项。GenerateContent、StreamGenerateContent 和 CountTokens 的 POST 动作受 Gemini 协议开关控制，模型列表 GET 不受影响。
 
@@ -69,7 +69,7 @@ Gemini 原生入口返回 Google 形状，Anthropic/OpenAI 入口返回对应客
 <a id="gemini_native_execution"></a>
 ## 原生执行与账号授权边界
 
-`upstream/gemini.Executor` 闭合一次平台交换、协议输出和响应体关闭。Messages、原生、Chat 与 Responses 保留各自的流、非流及 Code Assist 缓冲分支；转换继续调用 `protocol/bridge`，SSE 同步通过 `OutputSink` 写出。三个原入口复用 `RequestPlan`，在原时点取得凭据与 project，原生输入与兼容 REST 净化不混用。原生错误、重试及配额时间解析不写账号；旧 HTTP/账号适配仍负责健康策略、错误改写和最终完成处理。
+`upstream/gemini.Executor` 闭合一次平台交换、协议输出和响应体关闭。Messages、原生、Chat 与 Responses 保留各自的流、非流及 Code Assist 缓冲分支；转换继续调用 `protocol/bridge`，SSE 同步通过 `OutputSink` 写出。三个原入口复用 `RequestPlan`，在原时点取得凭据与 project，原生输入与兼容 REST 净化不混用。原生错误、重试及配额时间解析不写账号。`gateway/provider/googleforward.Gemini` 组合本次执行，`account/provider.GeminiErrorObserver` 保留官方日配额、第三方冷却和池模式的区别；HTTP Adapter 负责错误改写，最终完成仍进入原生完成器。app 只投影静态读取上限与目标策略，凭据和配额读取保持原时点。
 
 结果分别报告已观测 usage（包括显式零）、语义输出、旧 TTFT、内联图片张数及失败分类。`countTokens` 原有的本地估算单独携带，不计入实际 usage 或资金事实；旧调用者的图片回退与结算条件保持。流式输出不新增整流缓冲，也不统一不同入口的断开处理。
 

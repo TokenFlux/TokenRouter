@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
@@ -16,14 +15,10 @@ import (
 )
 
 // provideGatewayRuntimeReaders 只绑定现有唯一读取器，不提前读取请求动态设置。
-func provideGatewayRuntimeReaders(store *settings.Store, cfg *config.Config, gatewayRuntime *gateway.RuntimeSettings, accountRuntime *account.RuntimeSettings, quota *account.QuotaSettingsCache, routingRuntime *routing.RuntimeSettings, moderationRuntime *moderation.RuntimeSettings, searchRuntime *search.ConfigService) *gatewayprovider.RuntimeReaders {
+func provideGatewayRuntimeReaders(store *settings.Store, gatewayRuntime *gateway.RuntimeSettings, accountRuntime *account.RuntimeSettings, quota *account.QuotaSettingsCache, routingRuntime *routing.RuntimeSettings, moderationRuntime *moderation.RuntimeSettings, searchRuntime *search.ConfigService) *gatewayprovider.RuntimeReaders {
 	antigravity.SetUserAgentVersionResolver(gatewayRuntime.GetAntigravityUserAgentVersion)
 	openai.SetCodexCanonicalUserAgentResolver(func() string { return gatewayRuntime.GetOpenAICodexUserAgent(context.Background()) })
 	readers := &gatewayprovider.RuntimeReaders{Gateway: gatewayRuntime, Account: accountRuntime, Quota: quota, Routing: routingRuntime, Moderation: moderationRuntime, Search: searchRuntime, Scheduler: store}
-	if cfg != nil {
-		source := cfg.Gateway
-		readers.Antigravity = &gatewayprovider.AntigravityRuntimeOptions{LogUpstreamErrorBody: source.LogUpstreamErrorBody, LogUpstreamErrorBodyMaxBytes: source.LogUpstreamErrorBodyMaxBytes, AntigravityFallbackCooldownMinutes: source.AntigravityFallbackCooldownMinutes, MaxLineSize: source.MaxLineSize, StreamDataIntervalTimeout: source.StreamDataIntervalTimeout, StreamKeepaliveInterval: source.StreamKeepaliveInterval}
-	}
 	return readers
 }
 

@@ -8,15 +8,15 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/googleforward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/gin-gonic/gin"
 )
 
 // provideModelsHTTP 直接构造四个只读目录入口，不经过旧聚合 handler。
-func provideModelsHTTP(catalogue *routing.RequestableCatalogue, reader *service.GeminiMessagesCompatService, activity *gatewayRequestActivity, choices *selection.Gemini) *gatewayhttp.ModelsHandler {
+func provideModelsHTTP(catalogue *routing.RequestableCatalogue, reader *googleforward.Gemini, activity *gatewayRequestActivity, choices *selection.Gemini) *gatewayhttp.ModelsHandler {
 	ports := gatewayhttp.ModelsPorts{
 		ReadAccess: keyhttp.GetAPIKeyFromContext, ReadPlatform: keyhttp.GetForcePlatformFromContext,
 		ReadBilling: func(c *gin.Context) (*billing.APIKeyBillingContext, bool) {
@@ -44,7 +44,7 @@ func provideModelsHTTP(catalogue *routing.RequestableCatalogue, reader *service.
 
 // geminiModelReadTarget 固化一次选择，仅允许读取模型资源；不额外回源或重新选择。
 type geminiModelReadTarget struct {
-	reader *service.GeminiMessagesCompatService
+	reader *googleforward.Gemini
 	value  *gatewayprovider.ExecutionAccount
 }
 

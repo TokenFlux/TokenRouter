@@ -4,7 +4,6 @@ package app
 
 import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/google/wire"
 )
 
@@ -21,6 +20,9 @@ var gatewayExecutionProviders = wire.NewSet(
 	provideOpenAIGatewayExecution,
 	provideGatewayBillingRates,
 	provideCreativeExecutor,
-	service.NewGeminiMessagesCompatService,
-	service.NewAntigravityGatewayService,
+	provideGeminiForward,
+	provideGeminiExecutor,
+	provideAntigravityForward,
+	provideAntigravityExecutor,
+	provideAntigravityErrorObserver,
 )

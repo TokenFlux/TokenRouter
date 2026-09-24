@@ -15,7 +15,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 // provideMessageAttemptRuntime 固定生产调用端口，HTTP 输出与每次尝试状态归 textattempt。
@@ -23,8 +22,8 @@ func messageAttemptBindings(
 	cooldown *account.RetryCooldown,
 	digest *session.DigestSessionStore,
 	messages *gatewayhttp.MessagesExecutor,
-	antigravity *service.AntigravityGatewayService,
-	gemini *service.GeminiMessagesCompatService,
+	antigravity *gatewayhttp.AntigravityExecutor,
+	gemini *gatewayhttp.GeminiExecutor,
 	funding *admission.FundingAdmission,
 	keys *apikey.APIKeyService,
 	recorders GatewayCompletionRecorders,
@@ -115,8 +114,8 @@ func provideMessageAttemptRuntime(
 	cooldown *account.RetryCooldown,
 	digest *session.DigestSessionStore,
 	messages *gatewayhttp.MessagesExecutor,
-	antigravity *service.AntigravityGatewayService,
-	gemini *service.GeminiMessagesCompatService,
+	antigravity *gatewayhttp.AntigravityExecutor,
+	gemini *gatewayhttp.GeminiExecutor,
 	funding *admission.FundingAdmission,
 	keys *apikey.APIKeyService,
 	recorders GatewayCompletionRecorders,

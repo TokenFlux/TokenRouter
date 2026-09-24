@@ -32,7 +32,7 @@ func TestSettingsReadersSharePublishedState(t *testing.T) {
 	routing := provideRoutingSettings(store)
 	moderation := provideModerationSettings(store)
 	searchRuntime := search.NewConfigService(store, nil, nil, search.NewRegistry())
-	readers := provideGatewayRuntimeReaders(store, nil, gatewayRuntime, account, quota, routing, moderation, searchRuntime)
+	readers := provideGatewayRuntimeReaders(store, gatewayRuntime, account, quota, routing, moderation, searchRuntime)
 	t.Cleanup(func() {
 		// 清除本测试安装的默认 UA 读取器，避免影响同进程的其他装配契约。
 		openai.SetCodexCanonicalUserAgentResolver(nil)
