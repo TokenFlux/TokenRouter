@@ -213,7 +213,7 @@ func TestForwardAsChatCompletions_OpenAICompatibleRawUsageGuard(t *testing.T) {
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
-			require.Equal(t, grokMissingUsageErrorCode, gjson.GetBytes(failoverErr.ResponseBody, "error.code").String())
+			require.Equal(t, "grok_missing_usage", gjson.GetBytes(failoverErr.ResponseBody, "error.code").String())
 			require.Equal(t, "rid-openai-compatible", http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 			require.False(t, c.Writer.Written())
 			require.Empty(t, recorder.Body.String())
@@ -1189,6 +1189,7 @@ func TestBufferRawChatCompletions_RejectsOversizedResponse(t *testing.T) {
 	}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()})
 	svc.cfg.Gateway.UpstreamResponseReadMaxBytes = 3
+	bindCompatibleSelectionFixture(svc)
 
 	result, err := svc.bufferRawChatCompletions(c, resp, rawChatCompletionsTestAccount(), "gpt-5.4", "gpt-5.4", "gpt-5.4", nil, nil, time.Now())
 	require.ErrorIs(t, err, httpclient.ErrResponseBodyTooLarge)

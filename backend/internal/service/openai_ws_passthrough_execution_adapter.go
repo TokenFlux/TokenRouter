@@ -202,7 +202,7 @@ func (p *wsPassthroughAdapter) DialFailure(ctx context.Context, model string, re
 		return openAIWSGenericPolicyCloseError(result.Status)
 	}
 	if result.Status != 0 && decision.ShouldFailoverWithDefaults(gatewayprovider.ExecutionErrorPolicy(p.account), result.Status, result.Status == http.StatusTooManyRequests, p.service.shouldFailoverOpenAIWSError(p.account, result.Status, result.Body)) {
-		return newOpenAIUpstreamFailoverError(result.Status, result.Headers, result.Body, upstreamcore.ExtractErrorMessage(result.Body), decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(p.account), result.Status))
+		return gatewayprovider.NewOpenAIUpstreamFailure(result.Status, result.Headers, result.Body, upstreamcore.ExtractErrorMessage(result.Body), decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(p.account), result.Status))
 	}
 	return p.service.mapOpenAIWSPassthroughDialError(err, result.Status, result.Headers)
 }
@@ -255,7 +255,7 @@ func (p *wsPassthroughAdapter) BeforeWrite(ctx context.Context, routingModel str
 			false,
 			p.service.shouldFailoverOpenAIWSError(p.account, terminalPolicy.StatusCode, payload),
 		) {
-			return newOpenAIUpstreamFailoverError(
+			return gatewayprovider.NewOpenAIUpstreamFailure(
 				terminalPolicy.StatusCode,
 				handshakeHeaders,
 				payload,
@@ -288,7 +288,7 @@ func (p *wsPassthroughAdapter) BeforeWrite(ctx context.Context, routingModel str
 			p.account.Record.ID,
 			errorStatus, gatewayprovider.TruncateOpenAIWSLogValue(errCodeRaw, gatewayprovider.OpenAIWSLogValueMaxLen), gatewayprovider.TruncateOpenAIWSLogValue(errTypeRaw, gatewayprovider.OpenAIWSLogValueMaxLen), gatewayprovider.TruncateOpenAIWSLogValue(errMsgRaw, gatewayprovider.OpenAIWSLogValueMaxLen),
 		)
-		return newOpenAIUpstreamFailoverError(
+		return gatewayprovider.NewOpenAIUpstreamFailure(
 			errorStatus,
 			handshakeHeaders,
 			append([]byte(nil), payload...),
@@ -306,10 +306,10 @@ func (p *wsPassthroughAdapter) CloseError(status int, reason string, err error) 
 	return gatewayhttp.NewOpenAIWSClientCloseError(coderws.StatusCode(status), reason, err)
 }
 func (p *wsPassthroughAdapter) FirstOutputFailure(ctx context.Context, d gatewayws.Deadline, headers map[string][]string) error {
-	return p.service.newOpenAIFirstOutputTimeoutError(ctx, p.request, p.account, d.StartedAt, d.RequestModel, d.ReasoningEffort, d.Timeout, "websocket_first_semantic_output", headers)
+	return p.service.responseOutput.FirstOutputFailure(ctx, p.request, p.account, d.StartedAt, d.RequestModel, d.ReasoningEffort, d.Timeout, "websocket_first_semantic_output", headers)
 }
 func (p *wsPassthroughAdapter) FirstOutputTimeout(effort string) time.Duration {
-	return p.service.openAIFirstOutputTimeout(effort)
+	return p.service.responseOutput.FirstOutputTimeout(effort)
 }
 func (p *wsPassthroughAdapter) Log(message string) { logOpenAIWSV2Passthrough("%s", message) }
 func (p *wsPassthroughAdapter) Truncate(message string, limit int) string {

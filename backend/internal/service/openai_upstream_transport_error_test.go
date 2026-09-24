@@ -236,8 +236,8 @@ func TestHandleOpenAIAccountUpstreamError_RecordsOllamaActivityOnly(t *testing.T
 		Credentials: map[string]any{"api_key": "k-openai", "base_url": "https://api.openai.com"}},
 	}
 
-	_ = svc.handleOpenAIAccountUpstreamError(context.Background(), ollama, http.StatusTooManyRequests, http.Header{}, []byte(`{"error":{"message":"rate"}}`), "gpt-test")
-	_ = svc.handleOpenAIAccountUpstreamError(context.Background(), other, http.StatusTooManyRequests, http.Header{}, []byte(`{"error":{"message":"rate"}}`), "gpt-test")
+	_ = gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, ollama, http.StatusTooManyRequests, http.Header{}, []byte(`{"error":{"message":"rate"}}`), false, "gpt-test").StopScheduling
+	_ = gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, other, http.StatusTooManyRequests, http.Header{}, []byte(`{"error":{"message":"rate"}}`), false, "gpt-test").StopScheduling
 
 	require.NoError(t, deferred.Stop())
 	_, ok := activity.Load(int64(504))

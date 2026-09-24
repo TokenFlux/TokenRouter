@@ -132,7 +132,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}
 
 	stateStore := s.ResponseStateStore()
-	groupID := getOpenAIGroupIDFromContext(c)
+	groupID := gatewayhttp.OpenAIResponseGroupID(c)
 	sessionHash := gatewayhttp.GenerateOpenAISessionHash(c, nil)
 	if sessionHash == "" {
 		var legacySessionHash string
@@ -240,7 +240,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 				false,
 				s.shouldFailoverOpenAIWSError(account, policyDialErr.StatusCode, policyDialErr.ResponseBody),
 			) {
-				return nil, newOpenAIUpstreamFailoverError(
+				return nil, gatewayprovider.NewOpenAIUpstreamFailure(
 					policyDialErr.StatusCode,
 					policyDialErr.ResponseHeaders,
 					policyDialErr.ResponseBody,
@@ -594,7 +594,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 				s.shouldFailoverOpenAIWSError(account, terminalPolicy.StatusCode, message),
 			) {
 				lease.MarkBroken()
-				return nil, newOpenAIUpstreamFailoverError(
+				return nil, gatewayprovider.NewOpenAIUpstreamFailure(
 					terminalPolicy.StatusCode,
 					lease.HandshakeHeaders(),
 					message,
@@ -653,7 +653,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 				false,
 				s.shouldFailoverOpenAIWSError(account, statusCode, message),
 			) {
-				return nil, newOpenAIUpstreamFailoverError(
+				return nil, gatewayprovider.NewOpenAIUpstreamFailure(
 					statusCode,
 					lease.HandshakeHeaders(),
 					message,

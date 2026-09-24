@@ -116,7 +116,7 @@ func (p *wsStreamAdapter) RawFailure(status int, headers map[string][]string, bo
 	return &forwardcore.UpstreamFailoverError{StatusCode: status, ResponseHeaders: upstream.CloneHeader(headers), ResponseBody: append([]byte(nil), body...), RetryableOnSameAccount: retry}
 }
 func (p *wsStreamAdapter) Failure(status int, headers map[string][]string, body []byte, message string, retry bool) error {
-	return newOpenAIUpstreamFailoverError(status, headers, body, message, retry)
+	return gatewayprovider.NewOpenAIUpstreamFailure(status, headers, body, message, retry)
 }
 func (p *wsStreamAdapter) IsToken(event string) bool { return wire.IsWSTokenEvent(event) }
 func (p *wsStreamAdapter) Message(body []byte) string {

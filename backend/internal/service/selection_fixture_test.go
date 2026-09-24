@@ -87,6 +87,21 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 		source.turnStateHeaders = &gatewayhttp.CodexTurnStateHeaders{Origins: session.NewCodexTurnOrigins(time.Now)}
 	}
 	source.turnStateHeaders.TTL = source.selection.SessionStickyTTL
+	reasoningCache, _ := source.cache.(session.ReasoningContentCache)
+	source.responseOutput = &gatewayhttp.OpenAIResponseOutput{
+		Reasoning:  &session.ReasoningHistory{Cache: reasoningCache, Warn: gatewayprovider.WarnReasoningCacheFailure},
+		Health:     &accountprovider.OpenAIResponseHealth{Health: source.healthObserver, Runtime: source.runtimeBlockState(), ModelTransient: source.getOpenAIAccountModelTransientState(), Deferred: source.deferredService},
+		GrokHealth: source.grokHealth, Observer: source.healthObserver, Headers: source.responseHeaderFilter, Turns: source.turnStateHeaders,
+		Corrector: source.toolCorrector, ProxyCircuit: source.getOpenAIProxyStreamCircuit(), Responses: source.ResponseStateStore(), ResponseTTL: source.selection.OpenAIHTTPResponseStickyTTL,
+		Redact: source.agentIdentity.Redact, Options: gatewayhttp.OpenAIResponseOptions{ReadLimit: config.DefaultUpstreamResponseReadMaxBytes},
+	}
+	if source.settingService != nil {
+		source.responseOutput.TTFT = source.settingService.Gateway.GetOpenAITTFTMode
+	}
+	if source.cfg != nil {
+		v := source.cfg.Gateway
+		source.responseOutput.Options = gatewayhttp.OpenAIResponseOptions{Configured: true, MaxLineSize: v.MaxLineSize, StreamDataIntervalTimeout: v.StreamDataIntervalTimeout, StreamKeepaliveInterval: v.StreamKeepaliveInterval, ImageStreamDataIntervalTimeout: v.ImageStreamDataIntervalTimeout, ImageStreamKeepaliveInterval: v.ImageStreamKeepaliveInterval, OpenAIFirstOutputTimeoutSeconds: v.OpenAIFirstOutputTimeoutSeconds, OpenAIHighEffortFirstOutputTimeoutSeconds: v.OpenAIHighEffortFirstOutputTimeoutSeconds, LogUpstreamErrorBody: v.LogUpstreamErrorBody, LogUpstreamErrorBodyMaxBytes: v.LogUpstreamErrorBodyMaxBytes, ResponseHeadersEnabled: source.cfg.Security.ResponseHeaders.Enabled, ReadLimit: resolveUpstreamResponseReadLimit(source.cfg)}
+	}
 
 }
 

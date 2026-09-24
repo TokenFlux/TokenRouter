@@ -45,7 +45,7 @@ func (s *OpenAIGatewayService) BeginOpenAIWSIngressSessionPreemption(
 	}
 
 	preemptSessionHash := ""
-	preemptGroupID := getOpenAIGroupIDFromContext(c)
+	preemptGroupID := gatewayhttp.OpenAIResponseGroupID(c)
 	if account != nil && account.Record.Platform == capability.PlatformOpenAI && account.Record.Type == capability.AccountTypeOAuth {
 		preemptSessionHash = gatewayhttp.GenerateOpenAISessionHash(c, firstClientMessage)
 	}

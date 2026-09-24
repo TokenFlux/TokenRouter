@@ -43,7 +43,7 @@ type NonStreamOptions struct {
 	SupplementCompaction                                     func([]byte, string) []byte
 }
 
-func isEventStreamResponse(header http.Header) bool {
+func IsEventStreamResponse(header http.Header) bool {
 	return strings.Contains(strings.ToLower(header.Get("Content-Type")), "text/event-stream")
 }
 func ReadNonStreamingResponse(ctx context.Context, resp *http.Response, c *upstream.OutputContext, options NonStreamOptions, originalModel, mappedModel string) (*NonStreamingResult, error) {
@@ -56,7 +56,7 @@ func ReadNonStreamingResponse(ctx context.Context, resp *http.Response, c *upstr
 	// Detect SSE responses for ALL account types via Content-Type header.
 	// Some OpenAI-compatible upstreams (including other sub2api instances)
 	// may return SSE even when stream=false was requested.
-	if isEventStreamResponse(resp.Header) {
+	if IsEventStreamResponse(resp.Header) {
 		options.ObserveSSE(string(body))
 		return ReadSSEAsJSON(ctx, resp, c, options, body, originalModel, mappedModel)
 	}

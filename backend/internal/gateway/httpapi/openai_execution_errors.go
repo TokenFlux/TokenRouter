@@ -50,8 +50,8 @@ func BuildForwardAnthropicStreamError(errType, message string) string {
 }
 
 // WriteForwardChatError 保留该转发入口既有的错误信封和提交语义。
-func WriteForwardChatError(c *gin.Context, statusCode int, errType, message string, mark func(*gin.Context)) {
-	mark(c)
+func WriteForwardChatError(c *gin.Context, statusCode int, errType, message string) {
+	MarkResponseCommitted(c)
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
 			"type":    errType,
@@ -61,8 +61,8 @@ func WriteForwardChatError(c *gin.Context, statusCode int, errType, message stri
 }
 
 // WriteForwardChatErrorBody 保留该转发入口既有的错误信封和提交语义。
-func WriteForwardChatErrorBody(c *gin.Context, statusCode int, body []byte, mark func(*gin.Context)) {
-	mark(c)
+func WriteForwardChatErrorBody(c *gin.Context, statusCode int, body []byte) {
+	MarkResponseCommitted(c)
 	c.Data(statusCode, "application/json; charset=utf-8", body)
 }
 

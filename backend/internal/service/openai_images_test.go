@@ -31,6 +31,7 @@ import (
 	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/imroc/req/v3"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -449,15 +450,6 @@ func TestNewOpenAIImageStatusError_UsesProvidedReadLimit(t *testing.T) {
 	var statusErr *upstreamopenai.ImageStatusError
 	require.ErrorAs(t, err, &statusErr)
 	require.Len(t, statusErr.ResponseBody, len(body))
-}
-
-func TestOpenAIUpstreamErrorBodyReadLimitForConfig_RespectsDiagnosticLimit(t *testing.T) {
-	cfg := &config.Config{Gateway: config.GatewayConfig{
-		LogUpstreamErrorBody:         true,
-		LogUpstreamErrorBodyMaxBytes: int(openAIUpstreamErrorBodyReadLimit) + 1024,
-	}}
-
-	require.Equal(t, int64(cfg.Gateway.LogUpstreamErrorBodyMaxBytes), openAIUpstreamErrorBodyReadLimitForConfig(cfg))
 }
 
 func TestAccountSupportsOpenAIImageCapability_OAuthSupportsNative(t *testing.T) {
@@ -1100,7 +1092,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyAccessStateUsesTypedFailover(t 
 	require.Equal(t, forwardcore.OpenAIUpstreamAccessStateReason, failoverErr.Reason)
 	require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 	require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
-	require.Equal(t, openAIUpstreamAccessUnavailableClientMessage, failoverErr.ClientMessage)
+	require.Equal(t, "Upstream access is temporarily unavailable, please retry later", failoverErr.ClientMessage)
 	require.False(t, failoverErr.RetryableOnSameAccount)
 	require.Equal(t, "req_images_access_state", http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 	require.False(t, c.Writer.Written())

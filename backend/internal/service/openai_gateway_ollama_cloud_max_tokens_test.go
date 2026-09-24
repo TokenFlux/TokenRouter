@@ -94,7 +94,7 @@ func TestOllamaCloudMaxTokensClamp(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := clampOllamaCloudMaxTokens(test.account, []byte(test.body))
+			got := gatewayprovider.ClampOllamaCloudMaxTokens(test.account, []byte(test.body))
 			if test.raw {
 				require.Equal(t, test.want, string(got))
 				return
@@ -105,8 +105,8 @@ func TestOllamaCloudMaxTokensClamp(t *testing.T) {
 }
 
 func TestOllamaCloudMaxTokensCap(t *testing.T) {
-	require.Equal(t, int64(65535), ollamaCloudMaxTokensCap(nil))
-	require.Equal(t, int64(65535), ollamaCloudMaxTokensCap(ollamaUsageAccount(201)))
+	require.Equal(t, int64(65535), gatewayprovider.OllamaCloudMaxTokensCap(nil))
+	require.Equal(t, int64(65535), gatewayprovider.OllamaCloudMaxTokensCap(ollamaUsageAccount(201)))
 
 	tests := []struct {
 		name string
@@ -126,14 +126,14 @@ func TestOllamaCloudMaxTokensCap(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			account := ollamaMaxTokensCapTestAccount(202, test.cap)
-			require.Equal(t, test.want, ollamaCloudMaxTokensCap(account))
+			require.Equal(t, test.want, gatewayprovider.OllamaCloudMaxTokensCap(account))
 		})
 	}
 }
 
 // TestApplyOllamaCloudRawChatCompletionsRequestClampsMaxTokens 验证 max_tokens clamp
-// 已接入组合钩子 applyOllamaCloudRawChatCompletionsRequest，并遵循该钩子的账号判定门槛
-// （isOllamaCloudRawChatCompletionsAccount：platform openai + type apikey +
+// 已接入组合钩子 gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest，并遵循该钩子的账号判定门槛
+// （gatewayprovider.IsOllamaCloudRawChatCompletionsAccount：platform openai + type apikey +
 // force_chat_completions + ollama.com 或 Ollama usage extra）。
 func TestApplyOllamaCloudRawChatCompletionsRequestClampsMaxTokens(t *testing.T) {
 	body := []byte(`{"model":"deepseek-chat","max_tokens":100000}`)
@@ -141,7 +141,7 @@ func TestApplyOllamaCloudRawChatCompletionsRequestClampsMaxTokens(t *testing.T) 
 	// Ollama Cloud 账号（ollama.com + force_chat_completions）→ clamp 到 65535。
 	ollama := ollamaCloudRawChatCompletionsTestAccount()
 	require.JSONEq(t, `{"model":"deepseek-chat","max_tokens":65535}`,
-		string(applyOllamaCloudRawChatCompletionsRequest(ollama, body)))
+		string(gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(ollama, body)))
 
 	// 官方 DeepSeek（api.deepseek.com + force_chat_completions）→ 字节级不变。
 	official := rawChatCompletionsTestAccount()
@@ -149,14 +149,14 @@ func TestApplyOllamaCloudRawChatCompletionsRequestClampsMaxTokens(t *testing.T) 
 	official.Record.Extra = map[string]any{
 		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 	}
-	require.Equal(t, body, applyOllamaCloudRawChatCompletionsRequest(official, body))
+	require.Equal(t, body, gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(official, body))
 
 	// ollama.com 但无 force_chat_completions（Extra 缺键）→ 不通过钩子判定门槛，字节级不变。
 	noForce := ollamaCloudRawChatCompletionsTestAccount()
 	noForce.Record.Extra = nil
-	require.Equal(t, body, applyOllamaCloudRawChatCompletionsRequest(noForce, body))
+	require.Equal(t, body, gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(noForce, body))
 
 	// 空 body → 原样返回。
-	require.Equal(t, []byte(nil), applyOllamaCloudRawChatCompletionsRequest(ollama, nil))
-	require.Equal(t, []byte{}, applyOllamaCloudRawChatCompletionsRequest(ollama, []byte{}))
+	require.Equal(t, []byte(nil), gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(ollama, nil))
+	require.Equal(t, []byte{}, gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(ollama, []byte{}))
 }

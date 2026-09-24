@@ -330,16 +330,16 @@ func testOpenAIStreamingRepairsConcatenatedJSONDocuments(t *testing.T, passthrou
 	var usage *openai.ForwardUsage
 	var err error
 	if passthrough {
-		result, forwardErr := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "gpt-5.6-sol", "gpt-5.6-sol")
+		result, forwardErr := svc.responseOutput.PassthroughStream(c.Request.Context(), resp, c, account, time.Now(), "gpt-5.6-sol", "gpt-5.6-sol")
 		err = forwardErr
 		if result != nil {
-			usage = result.usage
+			usage = result.Usage
 		}
 	} else {
-		result, forwardErr := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "gpt-5.6-sol", "gpt-5.6-sol")
+		result, forwardErr := svc.responseOutput.Stream(c.Request.Context(), resp, c, account, time.Now(), "gpt-5.6-sol", "gpt-5.6-sol", "")
 		err = forwardErr
 		if result != nil {
-			usage = result.usage
+			usage = result.Usage
 		}
 	}
 	require.NoError(t, err)

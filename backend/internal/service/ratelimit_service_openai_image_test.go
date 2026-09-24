@@ -30,7 +30,7 @@ func TestOpenAIGatewayService_HandleOpenAIAccountUpstreamError_ImageRateLimitDoe
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 203, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"type":"rate_limit_exceeded","message":"Rate limit reached for gpt-image-2-codex (for limit gpt-image) on input-images per min. Please try again in 1s."}}`)
 
-	disabled := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, http.Header{}, body, "gpt-image-2")
+	disabled := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusTooManyRequests, http.Header{}, body, false, "gpt-image-2").StopScheduling
 
 	require.False(t, disabled)
 	require.Len(t, repo.ModelRateLimitCalls, 1)
@@ -253,7 +253,7 @@ func TestOpenAIGatewayServiceHandleUpstreamError_PassthroughCapabilityLossDoesNo
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 206, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"message":"Tool choice 'image_generation' not found in 'tools' parameter.","param":"tool_choice","type":"invalid_request_error"}}`)
 
-	disabled := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusBadRequest, http.Header{}, body, "gpt-5.5")
+	disabled := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusBadRequest, http.Header{}, body, false, "gpt-5.5").StopScheduling
 
 	require.False(t, disabled)
 	require.Empty(t, repo.ModelRateLimitCalls)

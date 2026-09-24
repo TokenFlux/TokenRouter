@@ -110,7 +110,7 @@ func (s *OpenAIGatewayService) shouldFailoverLiveCreateError(err error) bool {
 		// 凭证读取和网络传输错误都可能只影响当前账号或代理。
 		return true
 	}
-	return s.shouldFailoverOpenAIUpstreamResponse(
+	return gatewayprovider.ShouldFailoverOpenAIResponse(
 		upstreamErr.StatusCode,
 		"",
 		upstreamErr.ResponseBody,

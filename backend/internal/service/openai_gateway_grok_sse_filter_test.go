@@ -216,11 +216,11 @@ func TestGrokResponsesBillingPingFilterPreservesUsageAndTerminalEvent(t *testing
 		toolCorrector: openai.NewCodexToolCorrector(),
 	})
 
-	result, err := svc.handleStreamingResponse(context.Background(), resp, c, account, time.Now(), "grok-4.5", "grok-4.5")
+	result, err := svc.responseOutput.Stream(context.Background(), resp, c, account, time.Now(), "grok-4.5", "grok-4.5", "")
 	require.NoError(t, err)
-	require.Equal(t, 3, result.usage.InputTokens)
-	require.Equal(t, 5, result.usage.OutputTokens)
-	require.Equal(t, "resp_1", result.responseID)
+	require.Equal(t, 3, result.Usage.InputTokens)
+	require.Equal(t, 5, result.Usage.OutputTokens)
+	require.Equal(t, "resp_1", result.ResponseID)
 	require.Contains(t, recorder.Body.String(), "response.completed")
 	require.NotContains(t, recorder.Body.String(), "inference-cost")
 	require.NotContains(t, recorder.Body.String(), "event: ping")

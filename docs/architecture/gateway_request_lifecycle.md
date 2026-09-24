@@ -80,6 +80,7 @@ OpenAI HTTP 的并发 helper 与本地图片限制器由 app 构造为唯一 `Op
 - 用户并发等待可能跨越余额、订阅或额度变化，获取用户槽后必须通过 BillingCache 再检查一次权益。
 - 模型权限、渠道限制和账号资格必须基于逐层解析后的对应模型，不能用客户端别名直接替代最终路由模型。
 - 上游成功后才增加相应 RPM 软计数并安排正常用量结算；本地拦截、内容拒绝和上游失败使用各自独立的审计/运维记录语义。
+- HTTP 200 中的失败事件使用语义状态执行账号策略。WS 桥已执行的副作用通过请求自己的 `ResponseFailureEffects` 交给输出端消费一次，避免重复处理；HTTP 提交、重试窗口和语义输出继续分开记录。
 - 响应别名恢复只改协议元数据字段，不能替换正文中恰好相同的字符串。 工具恢复状态由 `requeststate.ResponseTools` 按请求和 turn 持有，WS 会话更新不能改写仍在输出的 turn；协议算法与 HTTP 输出适配分别位于 `protocol/bridge` 和 `gateway/httpapi`。
 
 <a id="apikey_authentication"></a>

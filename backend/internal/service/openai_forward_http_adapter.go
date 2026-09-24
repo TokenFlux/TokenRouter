@@ -33,10 +33,10 @@ func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *
 	return forward.HTTPOptions{
 		Exchange: exchange, Sink: gatewayhttp.ResponseSink{Writer: c.Writer},
 		StreamOptions: func() openai.StreamOptions {
-			return s.nativeResponseStreamOptions(ctx, c, account, input.ReasoningEffortValue)
+			return s.responseOutput.StreamOptions(ctx, c, account, input.ReasoningEffortValue)
 		},
-		NonStreamOptions: func() openai.NonStreamOptions { return s.nativeNonStreamOptions(ctx, c, account) },
-		ReadErrorBody:    s.readUpstreamErrorBody,
+		NonStreamOptions: func() openai.NonStreamOptions { return s.responseOutput.NonStreamOptions(ctx, c, account) },
+		ReadErrorBody:    s.responseOutput.ReadErrorBody,
 		IsAgentIdentity:  func(ctx context.Context) bool { return s.agentIdentity.UsesAgentIdentity(ctx, account) },
 		InvalidAgentTask: openai.IsAgentTaskInvalidHTTPResponse,
 		RecoverAgentTask: func(ctx context.Context) error {
@@ -65,7 +65,7 @@ func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *
 		CompactErrorResponse: func(resp *http.Response, signal forward.CompactFailure) (*http.Response, []byte) {
 			return gatewayhttp.CompactFallbackErrorResponse(resp, &compact.Failure{Message: signal.Message, Payload: signal.Payload})
 		},
-		ShouldFailover: s.shouldFailoverOpenAIUpstreamResponse,
+		ShouldFailover: gatewayprovider.ShouldFailoverOpenAIResponse,
 		HTTPFailover: func(resp *http.Response, payload []byte, message, model string) error {
 			detail := ""
 			if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
@@ -76,24 +76,24 @@ func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *
 				detail = logredact.TruncateUTF8(string(payload), limit)
 			}
 			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: account.Record.Platform, AccountID: account.Record.ID, AccountName: account.Record.Name, UpstreamStatusCode: resp.StatusCode, UpstreamRequestID: resp.Header.Get("x-request-id"), Kind: "failover", Message: message, Detail: detail})
-			decision := s.applyFailoverSideEffects(ctx, resp, account, payload, model)
+			decision := s.responseOutput.ApplyHTTPFailure(ctx, resp, account, payload, model)
 			if decision.ShouldReturnGenericError() {
 				return nil
 			}
-			return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, payload, message, decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode))
+			return gatewayprovider.NewOpenAIUpstreamFailure(resp.StatusCode, resp.Header, payload, message, decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode))
 		},
 		CompactFailover: func(resp *http.Response, payload []byte, message, model string) error {
 			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: account.Record.Platform, AccountID: account.Record.ID, AccountName: account.Record.Name, UpstreamStatusCode: resp.StatusCode, UpstreamRequestID: resp.Header.Get("x-request-id"), Kind: "failover", Message: message})
-			disabled := s.handleFailoverSideEffects(ctx, resp, account, payload, model)
-			return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, payload, message, disabled, !disabled && account.View().IsPoolMode() && (account.View().IsPoolModeRetryableStatus(resp.StatusCode) || openai.IsOpenAITransientProcessingError(resp.StatusCode, message, payload)))
+			disabled := s.responseOutput.ApplyHTTPFailure(ctx, resp, account, payload, model).StopScheduling
+			return (gatewayprovider.OpenAIFailoverPolicy{Health: s.responseOutput.Health}).NewAccountFailure(account, resp.StatusCode, resp.Header, payload, message, disabled, !disabled && account.View().IsPoolMode() && (account.View().IsPoolModeRetryableStatus(resp.StatusCode) || openai.IsOpenAITransientProcessingError(resp.StatusCode, message, payload)))
 		},
 		ErrorResponse: func(resp *http.Response, body []byte, model string) error {
-			_, err := s.handleErrorResponse(ctx, resp, c, account, body, model)
+			_, err := s.responseOutput.ResponseError(ctx, resp, c, account, body, model)
 			return err
 		},
 		ErrorSchedulingModel: gatewayprovider.ErrorSchedulingModel,
 		WrapResponseBody: func(resp *http.Response) {
-			if mapping, ok := gatewayhttp.OpenAIResponsesClientToolMapping(c); ok && isEventStreamResponse(resp.Header) {
+			if mapping, ok := gatewayhttp.OpenAIResponsesClientToolMapping(c); ok && openai.IsEventStreamResponse(resp.Header) {
 				limit := defaultMaxLineSize
 				if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
 					limit = s.cfg.Gateway.MaxLineSize
@@ -101,7 +101,7 @@ func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *
 				resp.Body = upstream.NewResponsesClientToolStreamBody(resp.Body, mapping, limit)
 			}
 		},
-		BindResponseOwner: func(ctx context.Context, id string) { s.bindHTTPResponseAccount(ctx, c, account, id) },
+		BindResponseOwner: func(ctx context.Context, id string) { s.responseOutput.BindResponseAccount(ctx, c, account, id) },
 		UpdateUsageSnapshot: func(ctx context.Context, headers http.Header) {
 			if snapshot := openai.ParseCodexRateLimitHeaders(headers); snapshot != nil {
 				s.updateCodexUsageSnapshot(ctx, account.Record.ID, snapshot)

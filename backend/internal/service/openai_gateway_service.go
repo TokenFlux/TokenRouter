@@ -20,7 +20,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 
@@ -40,13 +39,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -66,9 +64,6 @@ const (
 	openaiPlatformAPIURL            = "https://api.openai.com/v1/responses"
 	openaiPlatformAPIInputTokensURL = "https://api.openai.com/v1/responses/input_tokens"
 	openaiStickySessionTTL          = time.Hour // 粘性会话TTL
-
-	// codex_cli_only 拒绝时单个请求头日志长度上限（字符）
-	codexCLIOnlyHeaderValueMaxBytes = 256
 
 	// OpenAI WS Mode 失败后的重连次数上限（不含首次尝试）。
 	// 与 Codex 客户端保持一致：失败后最多重连 5 次。
@@ -139,22 +134,6 @@ var openaiPassthroughAllowedHeaders = map[string]bool{
 	"x-codex-turn-state":         true,
 	"x-codex-turn-metadata":      true,
 	media.ResponsesLiteHeaderKey: true,
-}
-
-// codex_cli_only 拒绝时记录的请求头白名单（仅用于诊断日志，不参与上游透传）
-var codexCLIOnlyDebugHeaderWhitelist = []string{
-	"User-Agent",
-	"Content-Type",
-	"Accept",
-	"Accept-Language",
-	"OpenAI-Beta",
-	"Originator",
-	"Session_ID",
-	"Conversation_ID",
-	"X-Request-ID",
-	"X-Client-Request-ID",
-	"X-Forwarded-For",
-	"X-Real-IP",
 }
 
 // resolveOpenAITextProtocolForAttempt 解析当前账号的实际文本协议，并在转发前
@@ -281,18 +260,17 @@ type OpenAIGatewayService struct {
 	openaiModelTransient       *accountcore.ModelTransientState
 	openaiProxyStreamCircuit   *egress.ProxyStreamCircuit
 
-	openaiWSFallbackUntil             sync.Map // key: int64(accountID), value: time.Time
-	openaiOAuth429WindowStartUnixNano atomic.Int64
-	openaiOAuth429WindowCount         atomic.Int64
-	openaiWSRetryMetrics              openAIWSRetryMetrics
-	responseHeaderFilter              *egress.CompiledHeaderFilter
-	codexSnapshotThrottle             *accountcore.WriteThrottle
-	openaiCompatSessionResponses      sync.Map
-	anthropicPromptCache              atomic.Pointer[session.AnthropicPromptCache]
+	openaiWSFallbackUntil        sync.Map // key: int64(accountID), value: time.Time
+	openaiWSRetryMetrics         openAIWSRetryMetrics
+	responseHeaderFilter         *egress.CompiledHeaderFilter
+	codexSnapshotThrottle        *accountcore.WriteThrottle
+	openaiCompatSessionResponses sync.Map
+	anthropicPromptCache         atomic.Pointer[session.AnthropicPromptCache]
 	// 下游会话最近收到的回合状态签发账号，用于故障转移时剥离跨账号回带状态。
 	turnStateHeaders *gatewayhttp.CodexTurnStateHeaders
 	grokHealth       *accountprovider.GrokHealth
 	compactExecutor  *gatewayhttp.CompactExecutor
+	responseOutput   *gatewayhttp.OpenAIResponseOutput
 }
 
 // NewOpenAIGatewayService 接入固定执行依赖，剩余协议编排随 S16 退出。
@@ -315,7 +293,7 @@ func NewOpenAIGatewayService(
 	channelService *routing.ChannelService,
 
 	settingService *gatewayprovider.RuntimeReaders,
-	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, turnStateHeaders *gatewayhttp.CodexTurnStateHeaders, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selectionadapter.Compatible, grokHealth *accountprovider.GrokHealth, compactExecutor *gatewayhttp.CompactExecutor,
+	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, turnStateHeaders *gatewayhttp.CodexTurnStateHeaders, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selectionadapter.Compatible, grokHealth *accountprovider.GrokHealth, compactExecutor *gatewayhttp.CompactExecutor, responseOutput *gatewayhttp.OpenAIResponseOutput,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
 ) *OpenAIGatewayService {
 	var tlsFPRouterService *egress.TLSFingerprintRouterService
@@ -325,10 +303,17 @@ func NewOpenAIGatewayService(
 	if modelTransient == nil {
 		modelTransient = accountcore.NewModelTransientState(0)
 	}
+	var corrector *openai.CodexToolCorrector
+	if responseOutput != nil {
+		corrector = responseOutput.Corrector
+	} else {
+		corrector = openai.NewCodexToolCorrector()
+	}
 	svc := &OpenAIGatewayService{
 		selection:          choices,
 		grokHealth:         grokHealth,
 		compactExecutor:    compactExecutor,
+		responseOutput:     responseOutput,
 		openaiWSStateStore: stateStore,
 		turnStateHeaders:   turnStateHeaders,
 		prompts:            prompts,
@@ -348,7 +333,7 @@ func NewOpenAIGatewayService(
 		deferredService:      deferredService,
 		executionCredentials: executionCredentials,
 		requestCredentials:   requestCredentials,
-		toolCorrector:        openai.NewCodexToolCorrector(),
+		toolCorrector:        corrector,
 
 		resolver:       resolver,
 		channelService: channelService,
@@ -900,7 +885,7 @@ func logCodexCLIOnlyDetection(ctx context.Context, c *gin.Context, account *gate
 		fields = append(fields, zap.Int64("api_key_id", apiKeyID))
 	}
 	if !result.Matched {
-		fields = appendCodexCLIOnlyRejectedRequestFields(fields, c, body)
+		fields = gatewayhttp.AppendCodexRejectedRequestFields(fields, c, body)
 	}
 	log := logging.FromContext(ctx).With(fields...)
 	if result.Matched {
@@ -908,54 +893,6 @@ func logCodexCLIOnlyDetection(ctx context.Context, c *gin.Context, account *gate
 		return
 	}
 	log.Warn("OpenAI codex_cli_only 拒绝非官方客户端请求")
-}
-
-func appendCodexCLIOnlyRejectedRequestFields(fields []zap.Field, c *gin.Context, body []byte) []zap.Field {
-	if c == nil || c.Request == nil {
-		return fields
-	}
-
-	req := c.Request
-	requestModel, requestStream, promptCacheKey := requeststate.OpenAIRequestMetaFromBody(body)
-	fields = append(fields,
-		zap.String("request_method", strings.TrimSpace(req.Method)),
-		zap.String("request_path", strings.TrimSpace(req.URL.Path)),
-		zap.String("request_query", strings.TrimSpace(req.URL.RawQuery)),
-		zap.String("request_host", strings.TrimSpace(req.Host)),
-		zap.String("request_client_ip", strings.TrimSpace(clientip.GetClientIP(c))),
-		zap.String("request_remote_addr", strings.TrimSpace(req.RemoteAddr)),
-		zap.String("request_user_agent", strings.TrimSpace(req.Header.Get("User-Agent"))),
-		zap.String("request_content_type", strings.TrimSpace(req.Header.Get("Content-Type"))),
-		zap.Int64("request_content_length", req.ContentLength),
-		zap.Bool("request_stream", requestStream),
-	)
-	if requestModel != "" {
-		fields = append(fields, zap.String("request_model", requestModel))
-	}
-	if promptCacheKey != "" {
-		fields = append(fields, zap.String("request_prompt_cache_key_sha256", upstream.HashSensitiveValueForLog(promptCacheKey)))
-	}
-
-	if headers := snapshotCodexCLIOnlyHeaders(req.Header); len(headers) > 0 {
-		fields = append(fields, zap.Any("request_headers", headers))
-	}
-	fields = append(fields, zap.Int("request_body_size", len(body)))
-	return fields
-}
-
-func snapshotCodexCLIOnlyHeaders(header http.Header) map[string]string {
-	if len(header) == 0 {
-		return nil
-	}
-	result := make(map[string]string, len(codexCLIOnlyDebugHeaderWhitelist))
-	for _, key := range codexCLIOnlyDebugHeaderWhitelist {
-		value := strings.TrimSpace(header.Get(key))
-		if value == "" {
-			continue
-		}
-		result[strings.ToLower(key)] = logredact.TruncateUTF8(value, codexCLIOnlyHeaderValueMaxBytes)
-	}
-	return result
 }
 
 // EnforceOpenAIClientPolicyForRequest 在非 /responses 主入口上复用 OpenAI OAuth 客户端访问策略。

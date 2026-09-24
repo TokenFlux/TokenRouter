@@ -33,6 +33,6 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	serviceTier *string,
 	startTime time.Time,
 ) (*forwardcore.OpenAIResult, error) {
-	result, err := openai.ReadRawChatBuffered(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, account, billingModel, upstreamModel, serviceTier, writeChatCompletionsError), originalModel, upstreamModel, reasoningEffort, startTime)
-	return chatForwardResult(result, billingModel), err
+	result, err := openai.ReadRawChatBuffered(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.responseOutput.RawOptions(c, resp, account, billingModel, upstreamModel, serviceTier, gatewayhttp.WriteForwardChatError), originalModel, upstreamModel, reasoningEffort, startTime)
+	return gatewayprovider.ChatForwardResult(result, billingModel), err
 }

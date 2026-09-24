@@ -139,7 +139,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 			return fmt.Errorf("upstream request failed: %s", safeErr)
 		},
 
-		ReadErrorBody: s.readUpstreamErrorBody,
+		ReadErrorBody: s.responseOutput.ReadErrorBody,
 
 		HTTPError: func(resp *http.Response, respBody []byte) error {
 			upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
@@ -150,14 +150,14 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 					if account.Record.Platform == capability.PlatformGrok {
 						decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, respBody, "", upstreamModel)
 					} else {
-						decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
+						decision = gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, resp.StatusCode, resp.Header, respBody, false, upstreamModel)
 					}
 				},
 				Generic: func() bool { return decision.ShouldReturnGenericError() },
 				Failover: func() bool {
-					defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody)
+					defaultFailover := gatewayprovider.ShouldFailoverOpenAIResponse(resp.StatusCode, upstreamMsg, respBody)
 					if account.Record.Platform == capability.PlatformGrok {
-						defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
+						defaultFailover = gatewayprovider.ShouldFailoverGrokResponse(resp.StatusCode, respBody)
 					}
 					return decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, defaultFailover)
 				},
@@ -190,13 +190,13 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 					})
 				},
 				NewFailover: func() error {
-					shouldDisable := s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
+					shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, resp.StatusCode, resp.Header, respBody, false, upstreamModel).StopScheduling
 					retryableOnSameAccount := !shouldDisable && account.View().IsPoolMode() && account.View().IsPoolModeRetryableStatus(resp.StatusCode)
 					if account.View().IsOpenAIOAuth() && resp.StatusCode == http.StatusTooManyRequests {
-						return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMsg, shouldDisable, retryableOnSameAccount)
+						return (gatewayprovider.OpenAIFailoverPolicy{Health: s.responseOutput.Health}).NewAccountFailure(account, resp.StatusCode, resp.Header, respBody, upstreamMsg, shouldDisable, retryableOnSameAccount)
 					}
-					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMsg, respBody) {
-						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMsg, retryableOnSameAccount)
+					if gatewayprovider.IsOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMsg, respBody) {
+						return gatewayprovider.NewOpenAIUpstreamFailure(resp.StatusCode, resp.Header, respBody, upstreamMsg, retryableOnSameAccount)
 					}
 					return &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
 				},

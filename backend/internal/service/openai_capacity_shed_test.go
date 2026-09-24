@@ -50,22 +50,18 @@ func TestStreamFailedEventCapacityShedRetriesOnSameAccount(t *testing.T) {
 	for _, code := range []string{"server_is_overloaded", "slow_down"} {
 		payload := []byte(`{"type":"response.failed","response":{"error":{"code":"` + code + `"}}}`)
 		require.True(t, openai.IsOpenAIUpstreamCapacityShedEvent(payload), code)
-		require.True(t, openAIStreamFailedEventRetryableOnSameAccount(
-			accountcore.UpstreamErrorDecision{}, nonPool, http.StatusBadGateway, payload, "overloaded",
-		), code)
+		require.True(t, gatewayprovider.OpenAIStreamFailureRetryable(nonPool, payload, "overloaded"), code)
 	}
 
 	// 非降载的 failed 事件在非池模式下仍不做同账号重试，避免放大改动面。
 	other := []byte(`{"type":"response.failed","response":{"error":{"code":"server_error"}}}`)
 	require.False(t, openai.IsOpenAIUpstreamCapacityShedEvent(other))
-	require.False(t, openAIStreamFailedEventRetryableOnSameAccount(
-		accountcore.UpstreamErrorDecision{}, nonPool, http.StatusBadGateway, other, "boom",
-	))
+	require.False(t, gatewayprovider.OpenAIStreamFailureRetryable(nonPool, other, "boom"))
 }
 
 func TestOpenAIHTTPCapacityShedIsRequestScopedForOAuthAccounts(t *testing.T) {
 	payload := []byte(`{"error":{"type":"server_error","message":"Our servers are currently overloaded. Please try again later."}}`)
-	failoverErr := newOpenAIUpstreamFailoverError(
+	failoverErr := gatewayprovider.NewOpenAIUpstreamFailure(
 		http.StatusBadRequest,
 		http.Header{"X-Request-Id": []string{"rid-http-capacity"}},
 		payload,
@@ -84,14 +80,7 @@ func TestOpenAIHTTPCapacityShedIsRequestScopedForOAuthAccounts(t *testing.T) {
 
 	gateway := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: healthObserver})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
-	require.False(t, gateway.handleOpenAIAccountUpstreamError(
-		context.Background(),
-		account,
-		http.StatusBadRequest,
-		nil,
-		payload,
-		"gpt-5",
-	))
+	require.False(t, gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), gateway.responseOutput.Health, account, http.StatusBadRequest, nil, payload, false, "gpt-5").StopScheduling)
 	require.Zero(t, repo.tempUnschedCalls)
 }
 
@@ -150,14 +139,14 @@ func TestOpenAIStreamMetadataPreambleAndMessageOnlyOverloadFailOver(t *testing.T
 		{
 			name: "native",
 			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
-				_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "model", "model")
+				_, err := svc.responseOutput.Stream(c.Request.Context(), resp, c, account, time.Now(), "model", "model", "")
 				return err
 			},
 		},
 		{
 			name: "passthrough",
 			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
-				_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "model", "model")
+				_, err := svc.responseOutput.PassthroughStream(c.Request.Context(), resp, c, account, time.Now(), "model", "model")
 				return err
 			},
 		},
@@ -222,7 +211,7 @@ func TestOpenAIStreamCapacityShedErrorFramePrecedingFailedStillFailsOver(t *test
 		Header: http.Header{"X-Request-Id": []string{"rid-shed-error-then-failed"}},
 	}
 
-	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acc"}}, time.Now(), "model", "model")
+	_, err := svc.responseOutput.Stream(c.Request.Context(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acc"}}, time.Now(), "model", "model", "")
 	require.Error(t, err)
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -267,7 +256,7 @@ func TestOpenAIStreamCapacityShedAfterOutputRewritesCodeForClient(t *testing.T) 
 		Header: http.Header{"X-Request-Id": []string{"rid-shed-after-output"}},
 	}
 
-	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acc"}}, time.Now(), "model", "model")
+	_, err := svc.responseOutput.Stream(c.Request.Context(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acc"}}, time.Now(), "model", "model", "")
 	require.Error(t, err)
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))

@@ -17,6 +17,7 @@ import (
 func TestOpenAIWSTerminalEvent_ResponseFailedRecordsModelTransient(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5201, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	payload := []byte(`{"type":"response.failed","response":{"error":{"code":"server_error","message":"Internal error"}}}`)
@@ -36,6 +37,7 @@ func TestOpenAIWSTerminalFailureReturnsExplicitPolicyDecision(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	repo := &openAIWSPolicyRepo{}
 	svc.healthObserver = newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5206,
 		Platform: capability.PlatformOpenAI,
@@ -64,6 +66,7 @@ func TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	repo := &openAIWSPolicyRepo{}
 	svc.healthObserver = newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5207,
 		Platform: capability.PlatformOpenAI,
@@ -90,6 +93,7 @@ func TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy(t *testing.T) {
 func TestOpenAIWSErrorEvent_ServerErrorRecordsModelTransient(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5203, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	payload := []byte(`{"type":"error","error":{"code":"server_error","type":"server_error","message":"Internal error"}}`)
@@ -115,6 +119,7 @@ func TestOpenAIWSErrorPolicyStatus_PreservesExplicitStatusAndFallbackMapping(t *
 func TestOpenAIWSDial5xxRecordsModelTransient(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5202, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	dialErr := &openai.WSDialError{
@@ -137,6 +142,7 @@ func TestOpenAIWSDial5xxRecordsModelTransient(t *testing.T) {
 func TestOpenAIWSPoolModeErrorUsesConfiguredRetry(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5204,
 		Platform: capability.PlatformOpenAI,
@@ -173,6 +179,7 @@ func TestOpenAIWSCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	repo := &openAIWSPolicyRepo{}
 	svc.healthObserver = newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5205,
 		Platform: capability.PlatformOpenAI,

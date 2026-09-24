@@ -75,7 +75,7 @@ func (s *OpenAIGatewayService) markOpenAIWSInvalidEncryptedContentLineageFromPay
 		return
 	}
 	s.markOpenAIWSInvalidEncryptedContentLineage(
-		getOpenAIGroupIDFromContext(c),
+		gatewayhttp.OpenAIResponseGroupID(c),
 		s.openAIWSLineageSessionHashFromContext(c, payload),
 		digests,
 	)

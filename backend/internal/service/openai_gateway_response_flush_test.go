@@ -383,7 +383,7 @@ func TestOpenAIResponseFlush_FailedAndErrorEventsFlushAtBoundaries(t *testing.T)
 
 		require.Error(t, err)
 		require.NotNil(t, result)
-		require.Equal(t, 3, result.usage.InputTokens)
+		require.Equal(t, 3, result.Usage.InputTokens)
 		gotBody, flushes := recorder.snapshot()
 		expectedBody := "data: {\"type\":\"response.output_text.delta\",\"delta\":\"a\"}\n\n" +
 			"data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"safety_error\",\"message\":\"blocked\"}}}\n"
@@ -420,8 +420,8 @@ func TestOpenAIResponseFlush_FailedAndErrorEventsFlushAtBoundaries(t *testing.T)
 
 		require.Error(t, err)
 		require.NotNil(t, result)
-		require.Equal(t, 9, result.usage.InputTokens)
-		require.Equal(t, 2, result.usage.OutputTokens)
+		require.Equal(t, 9, result.Usage.InputTokens)
+		require.Equal(t, 2, result.Usage.OutputTokens)
 		gotBody, flushes := recorder.snapshot()
 		require.NotContains(t, gotBody, `"type":"error"`)
 		require.Equal(t, 1, strings.Count(gotBody, `"type":"response.failed"`))
@@ -455,8 +455,8 @@ func TestOpenAIResponseFlush_BareErrorFollowedByCompletedUsesCompletedTerminal(t
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, 7, result.usage.InputTokens)
-	require.Equal(t, 3, result.usage.OutputTokens)
+	require.Equal(t, 7, result.Usage.InputTokens)
+	require.Equal(t, 3, result.Usage.OutputTokens)
 	gotBody, _ := recorder.snapshot()
 	require.NotContains(t, gotBody, `"type":"error"`)
 	require.NotContains(t, gotBody, `"type":"response.failed"`)
@@ -496,7 +496,7 @@ func TestOpenAIResponseFlush_RecentBareErrorAllowsCompletedBeforeIdleTimeout(t *
 	require.NoError(t, <-errCh)
 	result := <-resultCh
 	require.NotNil(t, result)
-	require.Equal(t, 5, result.usage.InputTokens)
+	require.Equal(t, 5, result.Usage.InputTokens)
 	gotBody, _ := recorder.snapshot()
 	require.Contains(t, gotBody, `"type":"response.completed"`)
 	require.NotContains(t, gotBody, `"type":"response.failed"`)
@@ -586,19 +586,19 @@ func TestOpenAIResponseFlush_ClientDisconnectStillDrainsUsage(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, 7, result.usage.InputTokens)
-	require.Equal(t, 5, result.usage.OutputTokens)
-	require.Equal(t, 2, result.usage.CacheReadInputTokens)
+	require.Equal(t, 7, result.Usage.InputTokens)
+	require.Equal(t, 5, result.Usage.OutputTokens)
+	require.Equal(t, 2, result.Usage.CacheReadInputTokens)
 	gotBody, flushes := recorder.snapshot()
 	require.Equal(t, first, gotBody)
 	require.Len(t, flushes, 1)
 }
 
-func runOpenAIResponseFlushTest(recorder *openAIResponseFlushRecorder, body io.ReadCloser, gatewayCfg config.GatewayConfig) (*openaiStreamingResult, error) {
+func runOpenAIResponseFlushTest(recorder *openAIResponseFlushRecorder, body io.ReadCloser, gatewayCfg config.GatewayConfig) (*openai.StreamingResult, error) {
 	return runOpenAIResponseFlushTestWithAccount(recorder, body, gatewayCfg, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}})
 }
 
-func runOpenAIResponseFlushTestWithAccount(recorder *openAIResponseFlushRecorder, body io.ReadCloser, gatewayCfg config.GatewayConfig, account *gatewayprovider.ExecutionAccount) (*openaiStreamingResult, error) {
+func runOpenAIResponseFlushTestWithAccount(recorder *openAIResponseFlushRecorder, body io.ReadCloser, gatewayCfg config.GatewayConfig, account *gatewayprovider.ExecutionAccount) (*openai.StreamingResult, error) {
 
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -611,11 +611,11 @@ func runOpenAIResponseFlushTestWithAccount(recorder *openAIResponseFlushRecorder
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       body,
 	}
-	return svc.handleStreamingResponse(context.Background(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
+	return svc.responseOutput.Stream(context.Background(), resp, c, account, time.Now(), "gpt-5", "gpt-5", "")
 }
 
-func runOpenAIResponseFlushTestAsync(recorder *openAIResponseFlushRecorder, body io.ReadCloser, gatewayCfg config.GatewayConfig) (<-chan *openaiStreamingResult, <-chan error) {
-	resultCh := make(chan *openaiStreamingResult, 1)
+func runOpenAIResponseFlushTestAsync(recorder *openAIResponseFlushRecorder, body io.ReadCloser, gatewayCfg config.GatewayConfig) (<-chan *openai.StreamingResult, <-chan error) {
+	resultCh := make(chan *openai.StreamingResult, 1)
 	errCh := make(chan error, 1)
 	go func() {
 		result, err := runOpenAIResponseFlushTest(recorder, body, gatewayCfg)

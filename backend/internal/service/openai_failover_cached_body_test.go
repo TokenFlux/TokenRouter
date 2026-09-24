@@ -128,7 +128,7 @@ func TestOpenAIGatewayService_HandleFailoverSideEffects_DoesNotRereadResponseBod
 	}
 
 	require.NotPanics(t, func() {
-		svc.handleFailoverSideEffects(context.Background(), resp, account, []byte(`{"error":{"type":"rate_limit_error","message":"rate limited"}}`))
+		svc.responseOutput.ApplyHTTPFailure(context.Background(), resp, account, []byte(`{"error":{"type":"rate_limit_error","message":"rate limited"}}`))
 	})
 
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))

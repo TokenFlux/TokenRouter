@@ -43,7 +43,7 @@ func (s *GrokHealth) ObserveError(ctx context.Context, value *accountcore.Record
 	if model := firstGrokHealthModel(canonicalModel); model != "" {
 		canonicalModel = []string{s.NormalizeModel(value, model)}
 	}
-	stateCtx, cancel := grokStateContext(ctx)
+	stateCtx, cancel := AccountStateContext(ctx)
 	defer cancel()
 	observation := input.Observation
 	observation.Headers = nil
@@ -249,7 +249,7 @@ func (s *GrokHealth) applyForbiddenPolicy(ctx context.Context, value *accountcor
 	if s != nil && s.Health != nil &&
 		s.Health.Limits.Plans !=
 			nil {
-		stateCtx, cancel := grokStateContext(ctx)
+		stateCtx, cancel := AccountStateContext(ctx)
 		handled := s.Health.Core.TryTempUnschedulable(stateCtx, accountcore.CloneRecord(value), http.StatusForbidden, responseBody, value.Platform != capability.PlatformAntigravity, effectiveModel)
 
 		cancel()

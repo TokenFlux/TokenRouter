@@ -23,7 +23,7 @@ OAuth 授权会话、刷新结果补全和凭据组装由 `account.OpenAIAuthori
 
 供应商 OAuth/PAT/隐私交换、规范 Codex 身份、请求指纹、Header 组合及 WS 客户端位于 `upstream/openai`；WS v2 relay 与 Live attestation 是平台内的技术子包。WS 池唯一持有连接、预热、队列和租约状态，构造不启动 worker，入站拥有者在首次使用时显式启用。完整入站 WS 编排、每轮资金快照和完成处理仍在旧网关。
 
-标准 Responses、passthrough、Chat/Messages 转换和 Raw Chat 读取使用原生实现，通过同步 OutputSink 输出。首输出暂存器拥有当前尝试的内存和临时文件；protocol 唯一提供工具参数、usage、终态重建和图片产出计数。Embeddings、Images 和 Alpha Search 的单次执行负责网络调用和响应资源，账号选择、健康写入及全局重试由入站适配。Alpha Search 在错误处理回卷响应体时仍关闭最初取得的上游 Body。计数查询保持原生完整 JSON 与 Anthropic 兼容响应的区别，不作为推理结算事实。
+标准 Responses、passthrough、Chat/Messages 转换和 Raw Chat 读取使用原生实现，通过同步 OutputSink 输出。 `gateway/httpapi.OpenAIResponseOutput` 固定绑定响应读取、Header、错误规则、健康观测、超时及诊断；app 注入静态参数，TTFT 设置仍在原读取时点查询。响应结果直接使用上游读取器的值类型，保留“仅有观测的失败”在不同入口上的返回差异。首输出暂存器拥有当前尝试的内存和临时文件；protocol 唯一提供工具参数、usage、终态重建和图片产出计数。Embeddings、Images 和 Alpha Search 的单次执行负责网络调用和响应资源，账号选择、健康写入及全局重试由入站适配。Alpha Search 在错误处理回卷响应体时仍关闭最初取得的上游 Body。计数查询保持原生完整 JSON 与 Anthropic 兼容响应的区别，不作为推理结算事实。
 
 OAuth 补全账号元数据时，ID token 中的个人 `chatgpt_plan_type` 是个人套餐的权威来源。`accounts/check` 可能按 access token 的 `poid` 命中另一个 workspace；仅当该记录的账号 ID 与个人 `chatgpt_account_id` 一致时，才能把它的 `entitlement.expires_at` 与个人套餐组合。账号不一致时，到期时间必须改从个人 `/backend-api/subscriptions` 的 `active_until` 获取；若套餐本身来自 `accounts/check`，套餐和到期时间仍保持来自同一条记录。
 
@@ -104,6 +104,8 @@ OpenAI 兼容非流式响应的 usage 按 `usage`、`response.usage`、`data.usa
 `/backend-api/codex` 和无 `/v1` 别名服务特定客户端兼容，但仍经过 TokenRouter Key 鉴权、分组准入、调度和结算。Responses WebSocket 不支持 Qoder；其它平台是否可进入 OpenAI 兼容处理器由路由和平台专题共同决定，不能仅凭 URL 推断。
 
 工具和命名空间的请求改写由 `protocol/bridge` 唯一执行；`gateway/provider` 根据账号、传输和 Compact 端点决定是否启用。HTTP Adapter 持有 `requeststate.ResponseTools`，分别保存当前尝试的 OpenAI/Grok 映射、namespace 与 Codex 名称；WS 的会话更新和当前 turn 名称分开，HTTP bridge 的下一轮声明保持原字节副本。非流、SSE 和 WS 使用同一恢复路径，未知字段、工具 ID、大数和原恢复次序保持。Codex 工具修正与统计继续使用原生唯一修正器，usage 与终态解析直接调用 `protocol/openai`。
+
+推理历史的读取、请求回填与响应缓存由 `gateway/session.ReasoningHistory` 使用同一可选缓存能力完成，保留原 reasoning item ID、七天 TTL、两秒独立操作预算及读失败放行、写失败只记日志的规则。没有新增缓存实例或持久恢复保证。
 
 ### 远程压缩协议
 

@@ -91,14 +91,17 @@ func newOpenAIExecutionAndSelectionFixture(
 	credentials := gatewaytestkit.RequestCredentials(accountRepo, executionCredentials, grokTokenProvider, blocks)
 	executionCredentials = credentials.Source
 
+	turnHeaders := provideCodexTurnStateHeaders(choices)
+	grokHealth := &accountprovider.GrokHealth{Store: accountRepo, Health: healthObserver, Runtime: blocks, ModelTransient: modelTransient, Throttle: accountcore.NewWriteThrottle(30 * time.Second), NormalizeModel: func(value *accountcore.Record, model string) string {
+		return (gatewayprovider.ModelPolicy{Record: value}).NormalizeOpenAI(model)
+	}}
+	output := provideOpenAIResponseOutput(cfg, provideOpenAIResponseHealth(healthObserver, blocks, modelTransient, deferredService), grokHealth, healthObserver, headerFilter, turnHeaders, proxyCircuit, settingService, stateStore, choices, provideReasoningHistory(cache))
 	source := service.NewOpenAIGatewayService(accountRepo, usageLogRepo, cache, cfg, concurrencyService,
 		healthObserver, httpUpstream, tlsFPProfileService, deferredService,
 
 		executionCredentials, credentials, resolver, channelService,
 
-		settingService, prompts, headerFilter, stateStore, provideCodexTurnStateHeaders(choices), modelTransient, proxyCircuit, choices, &accountprovider.GrokHealth{Store: accountRepo, Health: healthObserver, Runtime: blocks, ModelTransient: modelTransient, Throttle: accountcore.NewWriteThrottle(30 * time.Second), NormalizeModel: func(value *accountcore.Record, model string) string {
-			return (gatewayprovider.ModelPolicy{Record: value}).NormalizeOpenAI(model)
-		}}, provideCompactExecutor(cfg), tlsFPRouterServices...)
+		settingService, prompts, headerFilter, stateStore, turnHeaders, modelTransient, proxyCircuit, choices, grokHealth, provideCompactExecutor(cfg), output, tlsFPRouterServices...)
 	source.BindRuntimeBlockState(blocks)
 	source.BindSchedulerStickyStats(sticky)
 	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}

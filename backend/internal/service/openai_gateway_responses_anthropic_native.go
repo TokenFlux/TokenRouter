@@ -56,7 +56,7 @@ func (s *OpenAIGatewayService) handleResponsesBufferedFromNativeAnthropic(
 	startTime time.Time,
 	clientToolMapping bridge.ResponsesClientToolMapping,
 ) (*forwardcore.OpenAIResult, error) {
-	result, err := forward.ResponsesFromAnthropicBuffered(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeAnthropicOutputOptions(c, writeResponsesError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime, clientToolMapping)
+	result, err := forward.ResponsesFromAnthropicBuffered(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.responseOutput.AnthropicOptions(c, writeResponsesError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime, clientToolMapping)
 	return openAIForwardResultFromHTTP(result), err
 }
 
@@ -72,6 +72,6 @@ func (s *OpenAIGatewayService) handleResponsesStreamingFromNativeAnthropic(
 	startTime time.Time,
 	clientToolMapping bridge.ResponsesClientToolMapping,
 ) (*forwardcore.OpenAIResult, error) {
-	result, err := forward.ResponsesFromAnthropicStreaming(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeAnthropicOutputOptions(c, writeResponsesError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime, clientToolMapping)
+	result, err := forward.ResponsesFromAnthropicStreaming(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.responseOutput.AnthropicOptions(c, writeResponsesError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime, clientToolMapping)
 	return openAIForwardResultFromHTTP(result), err
 }

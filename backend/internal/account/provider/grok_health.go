@@ -30,7 +30,8 @@ type GrokHealth struct {
 
 const grokQuotaSnapshotExtraKey = "grok_usage_snapshot"
 
-func grokStateContext(ctx context.Context) (context.Context, context.CancelFunc) {
+// AccountStateContext 为账号状态写入保留五秒独立预算。
+func AccountStateContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	base := context.Background()
 	if ctx != nil {
 		base = context.WithoutCancel(ctx)
@@ -67,7 +68,7 @@ func (s *GrokHealth) StoreSnapshot(ctx context.Context, value *accountcore.Recor
 	stateCtx := ctx
 	if hasActiveLimit {
 		var cancel context.CancelFunc
-		stateCtx, cancel = grokStateContext(ctx)
+		stateCtx, cancel = AccountStateContext(ctx)
 		defer cancel()
 	}
 	// 请求路径中的 Account 指针来自每次 Redis/DB 解码，不是进程内共享缓存；
@@ -119,7 +120,7 @@ func (s *GrokHealth) TempUnschedule(ctx context.Context, value *accountcore.Reco
 	}
 	s.Runtime.BlockAccountScheduling(value, until, reason)
 	if s.Store != nil {
-		stateCtx, cancel := grokStateContext(ctx)
+		stateCtx, cancel := AccountStateContext(ctx)
 		defer cancel()
 		_ = s.Store.SetTempUnschedulable(stateCtx, value.ID, until, reason)
 	}

@@ -322,6 +322,7 @@ func TestPassthroughLifecycle_NonCyberFailureKeepsAccountSideEffects(t *testing.
 	repo := &openAIStream403AccountRepo{}
 	svc := newPassthroughLifecycleService(passthroughLifecycleConfig(), upstream)
 	svc.healthObserver = newUpstreamHealthForTest(repo, svc.cfg, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := passthroughLifecycleAccount()
 
@@ -369,6 +370,7 @@ func TestPassthroughLifecycle_CyberSkipsFailureAccountSideEffects(t *testing.T) 
 	repo := &openAIStream403AccountRepo{}
 	svc := newPassthroughLifecycleService(passthroughLifecycleConfig(), upstream)
 	svc.healthObserver = newUpstreamHealthForTest(repo, svc.cfg, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := passthroughLifecycleAccount()
 

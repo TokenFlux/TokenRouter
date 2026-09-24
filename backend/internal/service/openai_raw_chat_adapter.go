@@ -6,14 +6,21 @@ import (
 	"errors"
 	"net/http"
 
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+
 	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -23,7 +30,7 @@ func (p *openAIRawChatAdapter) Profile() forward.MessagesProfile {
 	return forward.MessagesProfile{Profile: openAIForwardProfile(p.account), ID: p.account.Record.ID, GrokOAuth: p.account.View().IsGrokOAuth()}
 }
 func (p *openAIRawChatAdapter) Error(status int, kind, message string) {
-	writeChatCompletionsError(p.c, status, kind, message)
+	gatewayhttp.WriteForwardChatError(p.c, status, kind, message)
 }
 func (p *openAIRawChatAdapter) ReplaceModel(b []byte, m string) []byte {
 	return openai.ReplaceModelInBody(b, m)
@@ -33,7 +40,7 @@ func (p *openAIRawChatAdapter) FastRaw(ctx context.Context, m string, b []byte) 
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
-		writeChatCompletionsError(p.c, http.StatusForbidden, "permission_error", blocked.Message)
+		gatewayhttp.WriteForwardChatError(p.c, http.StatusForbidden, "permission_error", blocked.Message)
 	}
 	return updated, err
 }
@@ -47,7 +54,7 @@ func (p *openAIRawChatAdapter) BridgeImages(ctx context.Context, b []byte, key s
 	updated, usage, changed, err := p.s.bridgeGrokComposerImageInputs(ctx, p.c, p.account, b, key)
 	var failover *forwardcore.UpstreamFailoverError
 	if err != nil && !errors.As(err, &failover) && p.c != nil && p.c.Writer != nil && !p.c.Writer.Written() {
-		writeChatCompletionsError(p.c, http.StatusBadGateway, "upstream_error", err.Error())
+		gatewayhttp.WriteForwardChatError(p.c, http.StatusBadGateway, "upstream_error", err.Error())
 	}
 	return updated, usage, changed, err
 }
@@ -58,7 +65,7 @@ func (p *openAIRawChatAdapter) GrokEffort(b []byte, m string) ([]byte, error) {
 	return normalizeGrokChatReasoningEffort(b, m)
 }
 func (p *openAIRawChatAdapter) OllamaBody(b []byte) []byte {
-	return applyOllamaCloudRawChatCompletionsRequest(p.account, b)
+	return gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(p.account, b)
 }
 func (p *openAIRawChatAdapter) RawTarget() (string, error) {
 	return p.s.rawChatCompletionsURL(p.account)
@@ -73,19 +80,19 @@ func (p *openAIRawChatAdapter) ChatErrorResponse(r *http.Response, m string) (*f
 	return openAIHTTPResultFromForward(v), e
 }
 func (p *openAIRawChatAdapter) RawOptions(r *http.Response, billing, model string, tier *string) upstreamopenai.RawResponseOptions {
-	return p.s.nativeRawResponseOptions(p.c, r, p.account, billing, model, tier, writeChatCompletionsError)
+	return p.s.responseOutput.RawOptions(p.c, r, p.account, billing, model, tier, gatewayhttp.WriteForwardChatError)
 }
 
 // GrokDecision 复用平台的健康解释，仅返回编排需要的三个判断。
 func (p *openAIRawChatAdapter) GrokDecision(ctx context.Context, resp *http.Response, b []byte, m string) forward.RawGrokDecision {
 	d := gatewayprovider.ApplyGrokExecutionHealth(ctx, p.s.grokHealth, p.account, resp.StatusCode, resp.Header, b, "", m)
-	return forward.RawGrokDecision{Failover: d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(p.account), resp.StatusCode, p.s.shouldFailoverGrokUpstreamError(resp.StatusCode, b)), Generic: d.ShouldReturnGenericError(), RetrySame: d.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(p.account), resp.StatusCode)}
+	return forward.RawGrokDecision{Failover: d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(p.account), resp.StatusCode, gatewayprovider.ShouldFailoverGrokResponse(resp.StatusCode, b)), Generic: d.ShouldReturnGenericError(), RetrySame: d.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(p.account), resp.StatusCode)}
 }
 func (p *openAIRawChatAdapter) ObserveGrokError(r *http.Response, msg, kind string) {
-	gatewayhttp.AppendOpsUpstreamError(p.c, ops.OpsUpstreamErrorEvent{Platform: p.account.Record.Platform, AccountID: p.account.Record.ID, AccountName: p.account.Record.Name, UpstreamStatusCode: r.StatusCode, UpstreamRequestID: firstNonEmpty(r.Header.Get("x-request-id"), r.Header.Get("xai-request-id")), Kind: kind, Message: msg})
+	gatewayhttp.AppendOpsUpstreamError(p.c, ops.OpsUpstreamErrorEvent{Platform: p.account.Record.Platform, AccountID: p.account.Record.ID, AccountName: p.account.Record.Name, UpstreamStatusCode: r.StatusCode, UpstreamRequestID: requeststate.FirstNonEmpty(r.Header.Get("x-request-id"), r.Header.Get("xai-request-id")), Kind: kind, Message: msg})
 }
 func (p *openAIRawChatAdapter) GrokRetry(status int, b []byte) forward.RawGrokRetry {
-	retry, delay, deadline, max := grokSameAccountRetryMetadata(p.account, status, b)
+	retry, delay, deadline, max := gatewayprovider.GrokSameAccountRetryMetadata(p.account, status, b)
 	return forward.RawGrokRetry{Retryable: retry, Delay: delay, Deadline: deadline, Max: max}
 }
 func (p *openAIRawChatAdapter) GrokFailover(r *http.Response, b []byte, retry forward.RawGrokRetry, healthRetry bool) error {

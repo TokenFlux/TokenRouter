@@ -177,7 +177,7 @@ func TestLogOpenAIInstructionsRequiredDebug_LogsRequestDetails(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.1-codex","stream":false,"prompt_cache_key":"pc-abc","access_token":"secret-token","input":[{"type":"text","text":"hello"}]}`)
 	account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001, Name: "codex max套餐"}}
 
-	logOpenAIInstructionsRequiredDebug(
+	gatewayhttp.LogOpenAIInstructionsRequiredDebug(
 		context.Background(),
 		c,
 		account,
@@ -208,7 +208,7 @@ func TestLogOpenAIInstructionsRequiredDebug_NonTargetErrorSkipped(t *testing.T) 
 	c.Request.Header.Set("User-Agent", "curl/8.0")
 	body := []byte(`{"model":"gpt-5.1-codex","stream":false}`)
 
-	logOpenAIInstructionsRequiredDebug(
+	gatewayhttp.LogOpenAIInstructionsRequiredDebug(
 		context.Background(),
 		c,
 		&gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001}},
@@ -318,12 +318,12 @@ func TestOpenAITransientAndCapacityClassificationIgnoresEchoedJSON(t *testing.T)
 }
 
 func TestShouldFailoverOpenAIUpstreamResponseContextWindow502(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+
 	body := []byte(`{"error":{"message":"Your input exceeds the context window of this model. Please adjust your input and try again.","type":"upstream_error","code":null}}`)
 
-	require.False(t, svc.shouldFailoverOpenAIUpstreamResponse(http.StatusBadGateway, "", body))
-	require.True(t, svc.shouldFailoverOpenAIUpstreamResponse(http.StatusBadGateway, "temporary upstream outage", []byte(`{"error":{"message":"temporary upstream outage"}}`)))
-	require.True(t, svc.shouldFailoverOpenAIUpstreamResponse(
+	require.False(t, gatewayprovider.ShouldFailoverOpenAIResponse(http.StatusBadGateway, "", body))
+	require.True(t, gatewayprovider.ShouldFailoverOpenAIResponse(http.StatusBadGateway, "temporary upstream outage", []byte(`{"error":{"message":"temporary upstream outage"}}`)))
+	require.True(t, gatewayprovider.ShouldFailoverOpenAIResponse(
 		http.StatusBadGateway,
 		"temporary upstream outage",
 		[]byte(`{"error":{"message":"temporary upstream outage"},"echo":"context_length_exceeded"}`),

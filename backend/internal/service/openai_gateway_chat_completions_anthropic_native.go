@@ -52,7 +52,7 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 	reasoningEffort *string,
 	startTime time.Time,
 ) (*forwardcore.OpenAIResult, error) {
-	result, err := forward.ChatFromAnthropicBuffered(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeAnthropicOutputOptions(c, writeChatCompletionsError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime)
+	result, err := forward.ChatFromAnthropicBuffered(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.responseOutput.AnthropicOptions(c, gatewayhttp.WriteForwardChatError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime)
 	return openAIForwardResultFromHTTP(result), err
 }
 
@@ -68,6 +68,6 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 	startTime time.Time,
 	includeUsage bool,
 ) (*forwardcore.OpenAIResult, error) {
-	result, err := forward.ChatFromAnthropicStreaming(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeAnthropicOutputOptions(c, writeChatCompletionsError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime, includeUsage)
+	result, err := forward.ChatFromAnthropicStreaming(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.responseOutput.AnthropicOptions(c, gatewayhttp.WriteForwardChatError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime, includeUsage)
 	return openAIForwardResultFromHTTP(result), err
 }

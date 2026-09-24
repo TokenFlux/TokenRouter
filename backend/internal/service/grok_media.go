@@ -9,10 +9,15 @@ import (
 	"strings"
 	"time"
 
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
@@ -25,9 +30,7 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -203,7 +206,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 			if resp.StatusCode >= 400 {
 				handled = true
 				var err error
-				handledResult, err = s.handleGrokMediaErrorResponse(ctx, resp, c, account, firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")), upstreamModel)
+				handledResult, err = s.handleGrokMediaErrorResponse(ctx, resp, c, account, requeststate.FirstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")), upstreamModel)
 				return true, err
 			}
 			s.grokHealth.ObserveResponse(ctx, account.View(), resp.Header, resp.StatusCode, requestInfo.Model)
@@ -382,7 +385,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 		Duration: time.Since(startTime),
 	}
 	if billed := ExtractGrokVideoBillingFromStatusBody(statusBody, nil, requestID); billed != nil {
-		result.ResponseID = firstNonEmpty(billed.ResponseID, strings.TrimSpace(requestID))
+		result.ResponseID = requeststate.FirstNonEmpty(billed.ResponseID, strings.TrimSpace(requestID))
 		result.Model = billed.Model
 		result.BillingModel = billed.BillingModel
 		result.UpstreamModel = billed.UpstreamModel
@@ -463,7 +466,7 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 	requestIDHeader string,
 	requestedModel string,
 ) (*forwardcore.OpenAIResult, error) {
-	body := s.readUpstreamErrorBody(resp)
+	body := s.responseOutput.ReadErrorBody(resp)
 	// 在可配置的透传分支返回前同步账号策略；池模式默认只保留上游观测，不写本地冷却。
 	decision := gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, body, "", requestedModel)
 	upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
@@ -485,14 +488,14 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 			if !grok.IsGrokContentPolicyRejection(resp.StatusCode, body) {
 				return false, ""
 			}
-			return true, grokContentPolicyClientMessage(body)
+			return true, gatewayprovider.GrokContentPolicyClientMessage(body)
 		},
 		Generic: decision.ShouldReturnGenericError,
 		Failover: func() bool {
-			return decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, s.shouldFailoverGrokUpstreamError(resp.StatusCode, body))
+			return decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, gatewayprovider.ShouldFailoverGrokResponse(resp.StatusCode, body))
 		},
 		Retry: func() gatewaymedia.GrokRetry {
-			retryable, delay, deadline, maximum := grokSameAccountRetryMetadata(account, resp.StatusCode, body)
+			retryable, delay, deadline, maximum := gatewayprovider.GrokSameAccountRetryMetadata(account, resp.StatusCode, body)
 			return gatewaymedia.GrokRetry{Retryable: retryable, PolicyRetryable: decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode), Delay: delay, Deadline: deadline, Maximum: maximum}
 		},
 		Observe: func(kind, message string) {

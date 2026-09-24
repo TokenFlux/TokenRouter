@@ -222,7 +222,7 @@ func ReadRawChatBuffered(c *upstream.OutputContext, resp *http.Response, options
 	if parsedUsage, ok := wire.ExtractOpenAIUsageFromJSONBytes(respBody); ok {
 		usage = parsedUsage
 	}
-	if isEventStreamResponse(resp.Header) || wire.BodyHasSSEFraming(respBody) {
+	if IsEventStreamResponse(resp.Header) || wire.BodyHasSSEFraming(respBody) {
 		// 某些兼容上游在 stream=false 时仍返回 SSE；逐帧观察才能拿到
 		// response.completed 的实际 service_tier，而不是回退到请求档位。
 		options.ObserveSSE(string(respBody))

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -161,7 +161,7 @@ func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 				return ws.NewGenericPolicyError(statusCode)
 			}
 			if errorDecision.ShouldFailoverWithDefaults(gatewayprovider.ExecutionErrorPolicy(account), statusCode, false, s.shouldFailoverOpenAIWSError(account, statusCode, message)) {
-				return newOpenAIUpstreamFailoverError(
+				return gatewayprovider.NewOpenAIUpstreamFailure(
 					statusCode,
 					lease.HandshakeHeaders(),
 					message,
@@ -307,25 +307,6 @@ type openAIWSTerminalPolicyDecision struct {
 	Decision      accountcore.UpstreamErrorDecision
 }
 
-// openAIWSFailureSideEffectsState 记录 WS 桥已提前执行的账号副作用，供
-// failover 错误构造器消费一次，避免 error 事件与构造器重复写入限流状态。
-const openAIWSFailureSideEffectsStateKey = "openai_ws_failure_side_effects_state"
-
-type openAIWSFailureSideEffectsState struct {
-	StatusCode    int
-	ShouldDisable bool
-}
-
-func markOpenAIWSFailureSideEffectsApplied(c *gin.Context, statusCode int, shouldDisable bool) {
-	if c == nil {
-		return
-	}
-	c.Set(openAIWSFailureSideEffectsStateKey, openAIWSFailureSideEffectsState{
-		StatusCode:    statusCode,
-		ShouldDisable: shouldDisable,
-	})
-}
-
 func (s *OpenAIGatewayService) handleOpenAIWSTerminalTransientFailure(ctx context.Context, account *gatewayprovider.ExecutionAccount, canonicalModel string, headers http.Header, payload []byte) openAIWSTerminalPolicyDecision {
 	eventType, _, _ := openai.ParseWSEventEnvelope(payload)
 	result := openAIWSTerminalPolicyDecision{
@@ -338,7 +319,7 @@ func (s *OpenAIGatewayService) handleOpenAIWSTerminalTransientFailure(ctx contex
 	result.StatusCode = openAIWSErrorPolicyStatus(payload)
 	if result.StatusCode != 0 {
 		if result.StatusCode == http.StatusTooManyRequests {
-			headers = openAIWSSemantic429Headers(account, canonicalModel, headers)
+			headers = gatewayprovider.OpenAISemantic429Headers(account, canonicalModel, headers)
 		}
 		result.Decision = s.applyOpenAIWSEventErrorPolicy(ctx, account, canonicalModel, result.StatusCode, headers, payload)
 	}
@@ -352,7 +333,7 @@ func (s *OpenAIGatewayService) handleOpenAIWSErrorEventTransientFailure(ctx cont
 	}
 	status := openAIWSErrorPolicyStatus(payload)
 	if status == http.StatusTooManyRequests {
-		headers = openAIWSSemantic429Headers(account, canonicalModel, headers)
+		headers = gatewayprovider.OpenAISemantic429Headers(account, canonicalModel, headers)
 	}
 	return s.applyOpenAIWSEventErrorPolicy(ctx, account, canonicalModel, status, headers, payload)
 }
@@ -406,20 +387,20 @@ func (s *OpenAIGatewayService) handleOpenAIWSFailureAccountSideEffects(ctx conte
 	status := upstreamopenai.OpenAIStreamFailureStatus(payload, message)
 	switch status {
 	case http.StatusUnauthorized, http.StatusTooManyRequests, 529:
-		s.handleOpenAIStreamTerminalAccountSideEffects(nil, account, payload, message, headers, canonicalModel)
+		s.responseOutput.TerminalAccountEffects(nil, account, payload, message, headers, canonicalModel)
 		return true
 	case http.StatusForbidden:
 		if !upstreamopenai.OpenAIStream403AccountFailure(payload, message) {
 			return false
 		}
-		s.handleOpenAIStreamTerminalAccountSideEffects(nil, account, payload, message, headers, canonicalModel)
+		s.responseOutput.TerminalAccountEffects(nil, account, payload, message, headers, canonicalModel)
 		return true
 	}
 	status = openAIWSPayloadTransientStatus(payload)
 	if status == 0 {
 		return false
 	}
-	s.handleOpenAIAccountUpstreamError(ctx, account, status, headers, payload, canonicalModel)
+	gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, status, headers, payload, false, canonicalModel)
 	return true
 }
 
@@ -447,16 +428,7 @@ func (s *OpenAIGatewayService) applyOpenAIWSEventErrorPolicy(
 	if account != nil && account.Record.Platform == capability.PlatformGrok {
 		return gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, statusCode, headers, payload, "", canonicalModel)
 	}
-	return s.applyOpenAIAccountUpstreamError(ctx, account, statusCode, headers, payload, canonicalModel)
-}
-
-// openAIWSSemantic429Headers 仅保留 Spark OAuth 的窗口头；普通 WS 语义 429
-// 携带的握手/成功响应头不能被误认为账号级配额耗尽。
-func openAIWSSemantic429Headers(account *gatewayprovider.ExecutionAccount, model string, headers http.Header) http.Header {
-	if gatewayprovider.IsCodexSparkModel(model) && isOpenAIOAuthAccount(account) {
-		return headers
-	}
-	return nil
+	return gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, statusCode, headers, payload, false, canonicalModel)
 }
 
 // shouldFailoverOpenAIWSError 使用对应平台的 HTTP 错误分类作为 WS 握手和事件错误的默认切号规则。
@@ -465,10 +437,10 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIWSError(account *gatewayprovi
 		return false
 	}
 	if account != nil && account.Record.Platform == capability.PlatformGrok {
-		return s.shouldFailoverGrokUpstreamError(statusCode, payload)
+		return gatewayprovider.ShouldFailoverGrokResponse(statusCode, payload)
 	}
 	upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(payload)))
-	return s.shouldFailoverOpenAIUpstreamResponse(statusCode, upstreamMsg, payload)
+	return gatewayprovider.ShouldFailoverOpenAIResponse(statusCode, upstreamMsg, payload)
 }
 
 // openAIWSGenericPolicyCloseError 在 WS 入站尚未输出时用统一文案终止连接。
@@ -479,24 +451,9 @@ func openAIWSGenericPolicyCloseError(statusCode int) error {
 	)
 }
 
-func getOpenAIGroupIDFromContext(c *gin.Context) int64 {
-	if c == nil {
-		return 0
-	}
-	value, exists := c.Get("api_key")
-	if !exists {
-		return 0
-	}
-	apiKey, ok := value.(*apikey.APIKey)
-	if !ok || apiKey == nil || apiKey.GroupID == nil {
-		return 0
-	}
-	return *apiKey.GroupID
-}
-
 // newOpenAIWSRateLimitFailoverError 保留 WS 限流响应头并允许 OAuth 账号短暂原地重试。
 func (s *OpenAIGatewayService) newOpenAIWSRateLimitFailoverError(account *gatewayprovider.ExecutionAccount, headers http.Header, responseBody []byte, message string) *forwardcore.UpstreamFailoverError {
-	return s.newOpenAIAccountFailoverError(
+	return (gatewayprovider.OpenAIFailoverPolicy{Health: s.responseOutput.Health}).NewAccountFailure(
 		account,
 		http.StatusTooManyRequests,
 		headers,

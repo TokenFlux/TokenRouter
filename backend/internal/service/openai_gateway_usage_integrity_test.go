@@ -32,7 +32,7 @@ func TestRequiresBillableGrokChatUsage(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, testCase.want, requiresBillableGrokChatUsage(testCase.account, testCase.models...))
+			require.Equal(t, testCase.want, gatewayprovider.RequiresBillableGrokChatUsage(testCase.account, testCase.models...))
 		})
 	}
 }
@@ -40,10 +40,10 @@ func TestRequiresBillableGrokChatUsage(t *testing.T) {
 func TestHasBillableGrokChatUsageRequiresAggregateToken(t *testing.T) {
 	t.Parallel()
 
-	require.False(t, hasBillableGrokChatUsage(openai.ForwardUsage{}))
-	require.False(t, hasBillableGrokChatUsage(openai.ForwardUsage{ImageInputTokens: 2, ImageOutputTokens: 1}))
-	require.True(t, hasBillableGrokChatUsage(openai.ForwardUsage{InputTokens: 1}))
-	require.True(t, hasBillableGrokChatUsage(openai.ForwardUsage{OutputTokens: 1}))
-	require.True(t, hasBillableGrokChatUsage(openai.ForwardUsage{CacheCreationInputTokens: 1}))
-	require.True(t, hasBillableGrokChatUsage(openai.ForwardUsage{CacheReadInputTokens: 1}))
+	require.False(t, gatewayprovider.HasBillableGrokChatUsage(openai.ForwardUsage{}))
+	require.False(t, gatewayprovider.HasBillableGrokChatUsage(openai.ForwardUsage{ImageInputTokens: 2, ImageOutputTokens: 1}))
+	require.True(t, gatewayprovider.HasBillableGrokChatUsage(openai.ForwardUsage{InputTokens: 1}))
+	require.True(t, gatewayprovider.HasBillableGrokChatUsage(openai.ForwardUsage{OutputTokens: 1}))
+	require.True(t, gatewayprovider.HasBillableGrokChatUsage(openai.ForwardUsage{CacheCreationInputTokens: 1}))
+	require.True(t, gatewayprovider.HasBillableGrokChatUsage(openai.ForwardUsage{CacheReadInputTokens: 1}))
 }

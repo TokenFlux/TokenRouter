@@ -116,19 +116,21 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 		HTTPError: func(resp *http.Response, respBody []byte) error {
 			upstreamMessage := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 			return gatewaymedia.ResolveAlphaFailure(resp.StatusCode, gatewaymedia.AlphaFailurePorts{
-				Failover:            func() bool { return s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMessage, respBody) },
+				Failover: func() bool {
+					return gatewayprovider.ShouldFailoverOpenAIResponse(resp.StatusCode, upstreamMessage, respBody)
+				},
 				EndpointUnsupported: func() bool { return isOpenAIAlphaSearchEndpointUnsupported(account, resp.StatusCode) },
 				Prepare:             func() { resp.Body = io.NopCloser(bytes.NewReader(respBody)) },
 				ApplySideEffects: func() bool {
-					return s.handleFailoverSideEffects(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel))
+					return s.responseOutput.ApplyHTTPFailure(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel)).StopScheduling
 				},
 				NewFailover: func(shouldDisable bool) error {
 					retryableOnSameAccount := !shouldDisable && account.View().IsPoolMode() && account.View().IsPoolModeRetryableStatus(resp.StatusCode)
 					if account.View().IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
-						return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMessage, shouldDisable, retryableOnSameAccount)
+						return (gatewayprovider.OpenAIFailoverPolicy{Health: s.responseOutput.Health}).NewAccountFailure(account, resp.StatusCode, resp.Header, respBody, upstreamMessage, shouldDisable, retryableOnSameAccount)
 					}
-					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
-						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
+					if gatewayprovider.IsOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
+						return gatewayprovider.NewOpenAIUpstreamFailure(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
 					}
 					return &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
 				},
@@ -193,19 +195,21 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 		HTTPError: func(resp *http.Response, respBody []byte) error {
 			upstreamMessage := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 			return gatewaymedia.ResolveAlphaFailure(resp.StatusCode, gatewaymedia.AlphaFailurePorts{
-				Failover:            func() bool { return s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMessage, respBody) },
+				Failover: func() bool {
+					return gatewayprovider.ShouldFailoverOpenAIResponse(resp.StatusCode, upstreamMessage, respBody)
+				},
 				EndpointUnsupported: func() bool { return false },
 				Prepare:             func() { resp.Body = io.NopCloser(bytes.NewReader(respBody)) },
 				ApplySideEffects: func() bool {
-					return s.handleFailoverSideEffects(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel))
+					return s.responseOutput.ApplyHTTPFailure(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel)).StopScheduling
 				},
 				NewFailover: func(shouldDisable bool) error {
 					retryableOnSameAccount := !shouldDisable && account.View().IsPoolMode() && account.View().IsPoolModeRetryableStatus(resp.StatusCode)
 					if account.View().IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
-						return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMessage, shouldDisable, retryableOnSameAccount)
+						return (gatewayprovider.OpenAIFailoverPolicy{Health: s.responseOutput.Health}).NewAccountFailure(account, resp.StatusCode, resp.Header, respBody, upstreamMessage, shouldDisable, retryableOnSameAccount)
 					}
-					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
-						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
+					if gatewayprovider.IsOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
+						return gatewayprovider.NewOpenAIUpstreamFailure(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
 					}
 					return &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
 				},

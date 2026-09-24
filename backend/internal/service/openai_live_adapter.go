@@ -3,13 +3,18 @@ package service
 import (
 	"context"
 
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	gatewaylive "github.com/TokenFlux/TokenRouter/internal/gateway/live"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
+
 	coderws "github.com/coder/websocket"
 )
 
@@ -57,7 +62,7 @@ func (p livePorts) RecordZeroUsage(ctx context.Context, record *session.LiveCall
 		AccountID:         record.AccountID,
 		RequestID:         record.CallHash,
 		Model:             record.Model,
-		RequestedModel:    firstNonEmpty(record.RequestedModel, record.Model),
+		RequestedModel:    requeststate.FirstNonEmpty(record.RequestedModel, record.Model),
 		UpstreamModel:     liveOptionalString(record.UpstreamModel),
 		ModelMappingChain: liveOptionalString(record.ModelMappingChain),
 		GroupID:           liveOptionalID(record.GroupID),

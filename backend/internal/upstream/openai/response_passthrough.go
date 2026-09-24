@@ -469,7 +469,7 @@ func ReadPassthroughNonStreaming(ctx context.Context, resp *http.Response, sink 
 		return nil, err
 	}
 
-	if isEventStreamResponse(resp.Header) {
+	if IsEventStreamResponse(resp.Header) {
 		options.NonStream.ObserveSSE(string(body))
 		return ReadPassthroughSSEAsJSON(resp, sink, options, body, originalModel, mappedModel)
 	}

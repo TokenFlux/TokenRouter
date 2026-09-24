@@ -277,7 +277,7 @@ func (p *openAIMessagesExecutionAdapter) TransportError(ctx context.Context, err
 	return p.s.handleOpenAIUpstreamTransportError(ctx, p.c, p.account, err, false)
 }
 func (p *openAIMessagesExecutionAdapter) ReadErrorBody(r *http.Response) []byte {
-	return p.s.readUpstreamErrorBody(r)
+	return p.s.responseOutput.ReadErrorBody(r)
 }
 func (p *openAIMessagesExecutionAdapter) GrokInvalidEncrypted(status int, body []byte) bool {
 	return isGrokInvalidEncryptedContentResponse(status, body)
@@ -354,7 +354,7 @@ func (p *openAIMessagesExecutionAdapter) Sink() upstream.OutputSink {
 	return gatewayhttp.ResponseSink{Writer: p.c.Writer}
 }
 func (p *openAIMessagesExecutionAdapter) ResponseOptions(r *http.Response, original, billing, model string) openai.MessagesResponseOptions {
-	return p.s.nativeMessagesResponseOptions(p.c, p.account, r, original, billing, model)
+	return p.s.responseOutput.MessagesOptions(p.c, p.account, r, original, billing, model)
 }
 func (p *openAIMessagesExecutionAdapter) CyberPolicy() bool {
 	return gatewayhttp.GetOpsCyberPolicy(p.c) != nil

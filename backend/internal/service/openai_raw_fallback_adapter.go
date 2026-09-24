@@ -59,10 +59,10 @@ func (p *openAIRawFallbackAdapter) FastFallback(ctx context.Context, m string, b
 	return updated, err
 }
 func (p *openAIRawFallbackAdapter) RecacheInput(b json.RawMessage) {
-	p.s.recacheReasoningItemsFromInput(b)
+	p.s.responseOutput.Reasoning.FromInput(b)
 }
 func (p *openAIRawFallbackAdapter) ReasoningContent(id string) string {
-	return p.s.reasoningContentByID(id)
+	return p.s.responseOutput.Reasoning.Lookup(id)
 }
 func (p *openAIRawFallbackAdapter) EffectiveEffort(b, original []byte, models ...string) *string {
 	return requeststate.ExtractEffectiveOpenAIReasoningEffortFromBody(b, original, models...)
@@ -82,11 +82,11 @@ func (p *openAIRawFallbackAdapter) AnthropicError(r *http.Response, m string) (*
 	return openAIHTTPResultFromForward(v), e
 }
 func (p *openAIRawFallbackAdapter) ResponsesError(ctx context.Context, r *http.Response, b []byte, m string) (*forward.Result, error) {
-	v, e := p.s.handleErrorResponse(ctx, r, p.c, p.account, b, m)
+	v, e := p.s.responseOutput.ResponseError(ctx, r, p.c, p.account, b, m)
 	return openAIHTTPResultFromForward(v), e
 }
 func (p *openAIRawFallbackAdapter) RawOptions(r *http.Response, billing, model string, tier *string) openai.RawResponseOptions {
-	return p.s.nativeRawResponseOptions(p.c, r, nil, billing, model, tier, p.errorWriter())
+	return p.s.responseOutput.RawOptions(p.c, r, nil, billing, model, tier, p.errorWriter())
 }
 
 func (p *openAIRawFallbackAdapter) AnthropicToChat(r *protocolanthropic.AnthropicRequest) (*protocolopenai.ChatCompletionsRequest, error) {

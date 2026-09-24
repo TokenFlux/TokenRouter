@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	httpapitestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
+
 	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 
 	"github.com/stretchr/testify/require"
@@ -97,7 +99,7 @@ func TestWriteOpenAICompactSSEBridge_AfterKeepaliveCommitAppendsEvents(t *testin
 	require.True(t, WriteOpenAICompactSSEBridge(c, http.StatusOK, finalResponse, MarkOpsStreamError))
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	events := parseCompactBridgeSSE(t, stripKeepaliveComments(rec.Body.String()))
+	events := httpapitestkit.ParseCompactSSE(t, stripKeepaliveComments(rec.Body.String()))
 	require.Len(t, events, 2)
 	require.Equal(t, "response.output_item.done", events[0][0])
 	require.Equal(t, "compaction", gjson.Get(events[0][1], "item.type").String())
@@ -115,7 +117,7 @@ func TestWriteOpenAICompactSSEBridge_AfterKeepaliveCommitFailureEmitsFailedEvent
 
 	require.True(t, WriteOpenAICompactSSEBridge(c, http.StatusBadGateway, []byte(`{"error":{"message":"upstream exploded"}}`), MarkOpsStreamError))
 
-	events := parseCompactBridgeSSE(t, stripKeepaliveComments(rec.Body.String()))
+	events := httpapitestkit.ParseCompactSSE(t, stripKeepaliveComments(rec.Body.String()))
 	require.Len(t, events, 1)
 	require.Equal(t, "response.failed", events[0][0])
 	require.Equal(t, "failed", gjson.Get(events[0][1], "response.status").String())
@@ -188,7 +190,7 @@ func TestWriteOpenAIFastPolicyBlockedResponse_AfterKeepaliveCommit(t *testing.T)
 	WriteFastPolicyBlockedResponse(c, &tierpolicy.BlockedError{Message: "tier blocked"})
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	events := parseCompactBridgeSSE(t, stripKeepaliveComments(rec.Body.String()))
+	events := httpapitestkit.ParseCompactSSE(t, stripKeepaliveComments(rec.Body.String()))
 	require.Len(t, events, 1)
 	require.Equal(t, "response.failed", events[0][0])
 	require.Equal(t, "permission_error", gjson.Get(events[0][1], "response.error.code").String())

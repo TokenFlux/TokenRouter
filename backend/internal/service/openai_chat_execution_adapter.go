@@ -82,7 +82,7 @@ func (p *openAIChatExecutionAdapter) Reject(status int, kind, message string) {
 	gatewayhttp.WriteOpenAIForwardRejection(p.c, status, kind, message, "")
 }
 func (p *openAIChatExecutionAdapter) ResponsesToChat(r *protocolopenai.ResponsesRequest) (*protocolopenai.ChatCompletionsRequest, error) {
-	return protocolbridge.ResponsesToChatCompletionsRequestWithOptions(r, &protocolbridge.ResponsesToChatOptions{ReasoningContentByID: p.s.reasoningContentByID})
+	return protocolbridge.ResponsesToChatCompletionsRequestWithOptions(r, &protocolbridge.ResponsesToChatOptions{ReasoningContentByID: p.s.responseOutput.Reasoning.Lookup})
 }
 func (p *openAIChatExecutionAdapter) GrokBridgeEligible(body []byte) (bool, string) {
 	return grokChatResponsesBridgeEligibility(body)
@@ -142,5 +142,5 @@ func (p *openAIChatExecutionAdapter) ChatErrorResponse(r *http.Response, model s
 	return nil, err
 }
 func (p *openAIChatExecutionAdapter) ChatResponseOptions(r *http.Response, original, billing, model string) openai.ChatResponseOptions {
-	return p.s.nativeChatResponseOptions(p.c, p.account, r, original, billing, model)
+	return p.s.responseOutput.ChatOptions(p.c, p.account, r, original, billing, model)
 }

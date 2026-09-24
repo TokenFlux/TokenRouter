@@ -1,12 +1,10 @@
 package service
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
-	"errors"
+
 	"net/http"
-	"strings"
+
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
@@ -14,7 +12,7 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
@@ -92,13 +90,6 @@ func normalizeResponsesBodyServiceTier(body []byte) ([]byte, string, error) {
 	return trimmed, normalizedServiceTier, err
 }
 
-func openAICompatFailedResponseMessage(resp *protocolopenai.ResponsesResponse) string {
-	if resp == nil || resp.Error == nil {
-		return ""
-	}
-	return strings.TrimSpace(resp.Error.Message)
-}
-
 // handleChatCompletionsErrorResponse reads an upstream error and returns it in
 // OpenAI Chat Completions error format.
 func (s *OpenAIGatewayService) handleChatCompletionsErrorResponse(
@@ -107,7 +98,7 @@ func (s *OpenAIGatewayService) handleChatCompletionsErrorResponse(
 	account *gatewayprovider.ExecutionAccount,
 	requestedModel ...string,
 ) (*forwardcore.OpenAIResult, error) {
-	return s.handleCompatErrorResponse(resp, c, account, writeChatCompletionsError, writeChatCompletionsErrorBody, requestedModel...)
+	return s.responseOutput.CompatError(resp, c, account, gatewayhttp.WriteForwardChatError, gatewayhttp.WriteForwardChatErrorBody, requestedModel...)
 }
 
 func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
@@ -119,50 +110,8 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	upstreamModel string,
 	startTime time.Time,
 ) (*forwardcore.OpenAIResult, error) {
-	result, err := openai.ReadChatBuffered(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeChatResponseOptions(c, account, resp, originalModel, billingModel, upstreamModel), originalModel, upstreamModel, startTime)
-	return chatForwardResult(result, billingModel), err
-}
-
-func (s *OpenAIGatewayService) newOpenAICompatBufferedReadFailoverError(
-	c *gin.Context,
-	account *gatewayprovider.ExecutionAccount,
-	resp *http.Response,
-	requestID string,
-	err error,
-) error {
-	var readErr *openai.CompatBufferedReadError
-	if !errors.As(err, &readErr) || readErr == nil || errors.Is(readErr.Unwrap(), bufio.ErrTooLong) {
-		return err
-	}
-	var requestContext context.Context
-	if c != nil && c.Request != nil {
-		requestContext = c.Request.Context()
-	}
-	if !openai.ShouldClassifyUpstreamStreamReadError(readErr.Unwrap(), httpclient.ErrResponseBodyTooLarge, requestContext) {
-		return err
-	}
-	classifiedErr := openai.NewUpstreamStreamReadError(readErr.Unwrap())
-	code, message, ok := openai.OpenAIUpstreamStreamReadErrorDetails(classifiedErr)
-	if !ok {
-		return err
-	}
-	payload, _ := json.Marshal(gin.H{
-		"error": gin.H{
-			"type":    "upstream_error",
-			"code":    code,
-			"message": message,
-		},
-	})
-	var responseHeaders http.Header
-	if resp != nil {
-		responseHeaders = resp.Header
-	}
-	failoverErr := s.newOpenAIStreamPolicyFailoverError(
-		c, account, false, requestID, responseHeaders, http.StatusBadGateway, payload, message, false,
-	)
-	// 保留稳定错误码，确保重试耗尽后客户端和透传规则仍能识别传输故障。
-	failoverErr.ResponseBody = payload
-	return failoverErr
+	result, err := openai.ReadChatBuffered(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.responseOutput.ChatOptions(c, account, resp, originalModel, billingModel, upstreamModel), originalModel, upstreamModel, startTime)
+	return gatewayprovider.ChatForwardResult(result, billingModel), err
 }
 
 func (s *OpenAIGatewayService) handleChatStreamingResponse(
@@ -175,16 +124,6 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	startTime time.Time,
 	requestBodyLen int,
 ) (*forwardcore.OpenAIResult, error) {
-	result, err := openai.ReadChatStreaming(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeChatResponseOptions(c, account, resp, originalModel, billingModel, upstreamModel), originalModel, upstreamModel, startTime, requestBodyLen)
-	return chatForwardResult(result, billingModel), err
-}
-
-// writeChatCompletionsError 委托 HTTP Adapter，保留旧调用入口。
-func writeChatCompletionsError(c *gin.Context, statusCode int, errType, message string) {
-	gatewayhttp.WriteForwardChatError(c, statusCode, errType, message, gatewayhttp.MarkResponseCommitted)
-}
-
-// writeChatCompletionsErrorBody 委托 HTTP Adapter，保留旧调用入口。
-func writeChatCompletionsErrorBody(c *gin.Context, statusCode int, body []byte) {
-	gatewayhttp.WriteForwardChatErrorBody(c, statusCode, body, gatewayhttp.MarkResponseCommitted)
+	result, err := openai.ReadChatStreaming(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.responseOutput.ChatOptions(c, account, resp, originalModel, billingModel, upstreamModel), originalModel, upstreamModel, startTime, requestBodyLen)
+	return gatewayprovider.ChatForwardResult(result, billingModel), err
 }

@@ -108,7 +108,7 @@ func (ImagesExecutor) Execute(ctx context.Context, input upstream.AttemptInput, 
 	if t.OAuth {
 		before = t.Options.AdjustedWrittenSize()
 	}
-	if input.Stream && (t.OAuth || isEventStreamResponse(resp.Header)) {
+	if input.Stream && (t.OAuth || IsEventStreamResponse(resp.Header)) {
 		output = upstream.NewOutputContext(sink)
 		if t.OAuth {
 			usage, result.ObservedImages, result.ImageOutputSizes, result.FirstTokenMs, err = ReadImagesOAuthStreaming(resp, output, t.Options, started, t.ResponseFormat, t.StreamPrefix, input.ResponseModel)

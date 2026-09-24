@@ -41,7 +41,7 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 
 	t.Run("ollama.com + force_chat_completions", func(t *testing.T) {
 		t.Parallel()
-		require.True(t, isOllamaCloudRawChatCompletionsAccount(ollamaCloudRawChatCompletionsTestAccount()))
+		require.True(t, gatewayprovider.IsOllamaCloudRawChatCompletionsAccount(ollamaCloudRawChatCompletionsTestAccount()))
 	})
 
 	t.Run("ollama.com + historical probe is ignored", func(t *testing.T) {
@@ -50,7 +50,7 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 		account.Record.Extra = map[string]any{
 			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModePreserveClientProtocol),
 		}
-		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
+		require.False(t, gatewayprovider.IsOllamaCloudRawChatCompletionsAccount(account))
 	})
 
 	t.Run("extra usage signal without ollama host", func(t *testing.T) {
@@ -61,7 +61,7 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 			accountcore.ExtraKeyTextRouteMode:            string(accountcore.TextRouteModeForceChatCompletions),
 			accountcore.OllamaCloudUsageSnapshotExtraKey: map[string]any{"status": "ok"},
 		}
-		require.True(t, isOllamaCloudRawChatCompletionsAccount(account))
+		require.True(t, gatewayprovider.IsOllamaCloudRawChatCompletionsAccount(account))
 	})
 
 	t.Run("official DeepSeek", func(t *testing.T) {
@@ -72,7 +72,7 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 		account.Record.Extra = map[string]any{
 			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 		}
-		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
+		require.False(t, gatewayprovider.IsOllamaCloudRawChatCompletionsAccount(account))
 	})
 
 	t.Run("OpenCode Go extra", func(t *testing.T) {
@@ -83,21 +83,21 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 			"opencode_go_usage_auto_refresh":  true,
 		}
-		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
+		require.False(t, gatewayprovider.IsOllamaCloudRawChatCompletionsAccount(account))
 	})
 
 	t.Run("ollama.com without force_chat_completions", func(t *testing.T) {
 		t.Parallel()
 		account := ollamaCloudRawChatCompletionsTestAccount()
 		account.Record.Extra = nil
-		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
+		require.False(t, gatewayprovider.IsOllamaCloudRawChatCompletionsAccount(account))
 	})
 
 	t.Run("anthropic ollama.com", func(t *testing.T) {
 		t.Parallel()
 		account := ollamaCloudRawChatCompletionsTestAccount()
 		account.Record.Platform = capability.PlatformAnthropic
-		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
+		require.False(t, gatewayprovider.IsOllamaCloudRawChatCompletionsAccount(account))
 	})
 }
 
@@ -186,9 +186,9 @@ func TestApplyOllamaCloudRawChatCompletionsLeavesForeignAccountsUnchanged(t *tes
 	}
 
 	for _, account := range []*gatewayprovider.ExecutionAccount{official, opencode} {
-		require.Equal(t, reqBody, applyOllamaCloudRawChatCompletionsRequest(account, reqBody))
-		require.Equal(t, respBody, applyOllamaCloudRawChatCompletionsResponse(account, respBody))
-		require.Equal(t, sseLine, applyOllamaCloudRawChatCompletionsSSELine(account, sseLine))
+		require.Equal(t, reqBody, gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(account, reqBody))
+		require.Equal(t, respBody, gatewayprovider.ApplyOllamaCloudRawChatCompletionsResponse(account, respBody))
+		require.Equal(t, sseLine, gatewayprovider.ApplyOllamaCloudRawChatCompletionsSSELine(account, sseLine))
 	}
 }
 

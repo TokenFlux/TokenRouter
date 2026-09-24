@@ -24,14 +24,15 @@ func (transientCooldownAccountRepo) SetOverloaded(context.Context, int64, time.T
 func TestHandleOpenAITransientError_BlocksOnlyRequestedModel(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5105,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey},
 	}
 
-	firstShouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"Upstream request failed","type":"upstream_error"}}`), "gpt-5.5")
-	secondShouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"Upstream request failed","type":"upstream_error"}}`), "gpt-5.5")
+	firstShouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"Upstream request failed","type":"upstream_error"}}`), false, "gpt-5.5").StopScheduling
+	secondShouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"Upstream request failed","type":"upstream_error"}}`), false, "gpt-5.5").StopScheduling
 
 	require.False(t, firstShouldDisable)
 	require.False(t, secondShouldDisable)
@@ -45,14 +46,15 @@ func TestHandleOpenAITransientError_TransientStatusesUseModelScope(t *testing.T)
 		t.Run(http.StatusText(statusCode), func(t *testing.T) {
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 			svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+			bindCompatibleSelectionFixture(svc)
 
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: int64(5100 + statusCode),
 				Platform: capability.PlatformOpenAI,
 				Type:     capability.AccountTypeAPIKey},
 			}
 
-			firstShouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, statusCode, http.Header{}, []byte(`{"error":{"message":"temporary upstream failure"}}`), "gpt-5.5")
-			secondShouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, statusCode, http.Header{}, []byte(`{"error":{"message":"temporary upstream failure"}}`), "gpt-5.5")
+			firstShouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, statusCode, http.Header{}, []byte(`{"error":{"message":"temporary upstream failure"}}`), false, "gpt-5.5").StopScheduling
+			secondShouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, statusCode, http.Header{}, []byte(`{"error":{"message":"temporary upstream failure"}}`), false, "gpt-5.5").StopScheduling
 
 			require.False(t, firstShouldDisable)
 			require.False(t, secondShouldDisable)
@@ -69,6 +71,7 @@ func TestHandleOpenAITransientError_529RemainsOverloadOnly(t *testing.T) {
 func TestHandleOpenAITransientError_CanonicalModelIsNotMappedTwice(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5107,
 		Platform: capability.PlatformOpenAI,
@@ -84,7 +87,7 @@ func TestHandleOpenAITransientError_CanonicalModelIsNotMappedTwice(t *testing.T)
 	require.Equal(t, "upstream-a", canonicalModel)
 
 	for range 2 {
-		svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"temporary upstream failure"}}`), canonicalModel)
+		gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"temporary upstream failure"}}`), false, canonicalModel)
 	}
 
 	require.True(t, svc.isOpenAIAccountModelRuntimeBlocked(account, "public-alias"))
@@ -95,13 +98,14 @@ func TestHandleOpenAITransientError_CanonicalModelIsNotMappedTwice(t *testing.T)
 func TestHandleOpenAITransientError_DoesNotBlockParameter400(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5103,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey},
 	}
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusBadRequest, http.Header{}, []byte(`{"error":{"message":"Invalid type for input[0].arguments"}}`), "gpt-5.5")
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusBadRequest, http.Header{}, []byte(`{"error":{"message":"Invalid type for input[0].arguments"}}`), false, "gpt-5.5").StopScheduling
 
 	require.False(t, shouldDisable)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))

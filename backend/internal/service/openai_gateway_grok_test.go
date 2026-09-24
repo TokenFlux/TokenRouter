@@ -2445,7 +2445,7 @@ func TestForwardAsChatCompletionsForGrokAPIKeyRejectsNonStreamingResponseWithout
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
-	require.Equal(t, grokMissingUsageErrorCode, gjson.GetBytes(failoverErr.ResponseBody, "error.code").String())
+	require.Equal(t, "grok_missing_usage", gjson.GetBytes(failoverErr.ResponseBody, "error.code").String())
 	require.Equal(t, "rid-grok-raw-missing-usage", http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 	require.False(t, c.Writer.Written())
 	require.Empty(t, recorder.Body.String())
@@ -3212,6 +3212,7 @@ func TestOpenAIWSHTTPBridgeSSEErrorSideEffectsRunOncePerPlatform(t *testing.T) {
 			}))
 			if platform == capability.PlatformOpenAI {
 				svc.healthObserver = newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil)
+				bindCompatibleSelectionFixture(svc)
 
 			}
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 70, Platform: platform, Type: capability.AccountTypeOAuth, Concurrency: 1}}

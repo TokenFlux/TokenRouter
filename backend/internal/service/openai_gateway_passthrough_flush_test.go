@@ -10,11 +10,15 @@ import (
 	"testing"
 	"time"
 
+	responseupstream "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -73,7 +77,7 @@ func runPassthroughFlushTest(
 	body io.ReadCloser,
 	failAfterWrites int,
 	setups ...func(*gin.Context),
-) (*openaiStreamingResultPassthrough, *httptest.ResponseRecorder, *passthroughFlushTestWriter, error) {
+) (*responseupstream.StreamingResult, *httptest.ResponseRecorder, *passthroughFlushTestWriter, error) {
 	t.Helper()
 
 	recorder := httptest.NewRecorder()
@@ -97,7 +101,7 @@ func runPassthroughFlushTest(
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       body,
 	}
-	result, err := svc.handleStreamingResponsePassthrough(
+	result, err := svc.responseOutput.PassthroughStream(
 		context.Background(),
 		resp,
 		c,
@@ -129,8 +133,8 @@ func TestOpenAIStreamingPassthroughFlushesAtCompleteEventBoundaries(t *testing.T
 		len(firstEvent) + len(heartbeat),
 		len(upstream),
 	}, writer.flushBodyLengths)
-	require.Equal(t, 3, result.usage.InputTokens)
-	require.Equal(t, 2, result.usage.OutputTokens)
+	require.Equal(t, 3, result.Usage.InputTokens)
+	require.Equal(t, 2, result.Usage.OutputTokens)
 }
 
 func TestOpenAIStreamingPassthroughKeepsPreamblePendingUntilFirstOutputBoundary(t *testing.T) {
@@ -162,8 +166,8 @@ func TestOpenAIStreamingPassthroughFlushesTerminalEventAtEOFWithoutBlankLine(t *
 	require.NotNil(t, result)
 	require.Equal(t, wantBody, recorder.Body.String())
 	require.Equal(t, []int{len(wantBody)}, writer.flushBodyLengths)
-	require.Equal(t, 5, result.usage.InputTokens)
-	require.Equal(t, 2, result.usage.OutputTokens)
+	require.Equal(t, 5, result.Usage.InputTokens)
+	require.Equal(t, 2, result.Usage.OutputTokens)
 }
 
 func TestOpenAIStreamingPassthroughFailedBeforeOutputCanStillFailOverWithoutFlush(t *testing.T) {
@@ -193,8 +197,8 @@ func TestOpenAIStreamingPassthroughNonRetryableFailedBeforeOutputFlushesAtBounda
 	require.NotNil(t, result)
 	require.Equal(t, upstream, recorder.Body.String())
 	require.Equal(t, []int{len(upstream)}, writer.flushBodyLengths)
-	require.Equal(t, 6, result.usage.InputTokens)
-	require.Zero(t, result.usage.OutputTokens)
+	require.Equal(t, 6, result.Usage.InputTokens)
+	require.Zero(t, result.Usage.OutputTokens)
 }
 
 func TestOpenAIStreamingPassthroughBareErrorTerminatesBeforeDone(t *testing.T) {
@@ -214,8 +218,8 @@ func TestOpenAIStreamingPassthroughBareErrorTerminatesBeforeDone(t *testing.T) {
 	require.Contains(t, body, `"status":"failed"`)
 	require.NotContains(t, body, "[DONE]")
 	require.Equal(t, []int{len(body)}, writer.flushBodyLengths)
-	require.Equal(t, 6, result.usage.InputTokens)
-	require.Zero(t, result.usage.OutputTokens)
+	require.Equal(t, 6, result.Usage.InputTokens)
+	require.Zero(t, result.Usage.OutputTokens)
 }
 
 func TestOpenAIStreamingPassthroughBareErrorDrainsAuthoritativeFailedUsage(t *testing.T) {
@@ -235,8 +239,8 @@ func TestOpenAIStreamingPassthroughBareErrorDrainsAuthoritativeFailedUsage(t *te
 	require.Contains(t, body, `"id":"resp_failed"`)
 	require.NotContains(t, body, "[DONE]")
 	require.Equal(t, []int{len(body)}, writer.flushBodyLengths)
-	require.Equal(t, 9, result.usage.InputTokens)
-	require.Equal(t, 2, result.usage.OutputTokens)
+	require.Equal(t, 9, result.Usage.InputTokens)
+	require.Equal(t, 2, result.Usage.OutputTokens)
 }
 
 func TestOpenAIStreamingPassthroughFailedAfterOutputFlushesAtBoundaryAndKeepsUsage(t *testing.T) {
@@ -253,8 +257,8 @@ func TestOpenAIStreamingPassthroughFailedAfterOutputFlushesAtBoundaryAndKeepsUsa
 	require.NotNil(t, result)
 	require.Equal(t, upstream, recorder.Body.String())
 	require.Equal(t, []int{len(firstOutput), len(upstream)}, writer.flushBodyLengths)
-	require.Equal(t, 7, result.usage.InputTokens)
-	require.Equal(t, 2, result.usage.OutputTokens)
+	require.Equal(t, 7, result.Usage.InputTokens)
+	require.Equal(t, 2, result.Usage.OutputTokens)
 }
 
 func TestOpenAIStreamingPassthroughClientDisconnectStillDrainsTerminalUsage(t *testing.T) {
@@ -272,8 +276,8 @@ func TestOpenAIStreamingPassthroughClientDisconnectStillDrainsTerminalUsage(t *t
 	require.Equal(t, firstOutput, recorder.Body.String())
 	require.Equal(t, []int{len(firstOutput)}, writer.flushBodyLengths)
 	require.Equal(t, 1, writer.failedWrites)
-	require.Equal(t, 11, result.usage.InputTokens)
-	require.Equal(t, 4, result.usage.OutputTokens)
+	require.Equal(t, 11, result.Usage.InputTokens)
+	require.Equal(t, 4, result.Usage.OutputTokens)
 }
 
 func TestOpenAIStreamingPassthroughScannerErrorFlushesWrittenResidual(t *testing.T) {
@@ -327,6 +331,6 @@ func TestOpenAIStreamingPassthroughBlankWriteFailureDoesNotFlushAndStillDrainsUs
 	require.Empty(t, writer.flushBodyLengths)
 	require.Equal(t, 1, writer.successfulWrites)
 	require.Equal(t, 1, writer.failedWrites)
-	require.Equal(t, 13, result.usage.InputTokens)
-	require.Equal(t, 5, result.usage.OutputTokens)
+	require.Equal(t, 13, result.Usage.InputTokens)
+	require.Equal(t, 5, result.Usage.OutputTokens)
 }

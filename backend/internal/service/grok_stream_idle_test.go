@@ -21,7 +21,7 @@ func TestResolveGrokStreamIdleTimeout(t *testing.T) {
 
 func TestGrokStreamIdleFailoverError(t *testing.T) {
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
-	err := grokStreamIdleFailoverError(account, 180*time.Second)
+	err := gatewayprovider.GrokStreamIdleFailure(account, 180*time.Second)
 	require.NotNil(t, err)
 	require.Equal(t, 502, err.StatusCode)
 	require.True(t, err.SafeToFailoverAfterWrite)
@@ -34,7 +34,7 @@ func TestGrokStreamIdleFailoverError(t *testing.T) {
 
 func TestGrokStreamIdleFailoverErrorRequiresGrokAccount(t *testing.T) {
 	openAI := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
-	err := grokStreamIdleFailoverError(openAI, time.Second)
+	err := gatewayprovider.GrokStreamIdleFailure(openAI, time.Second)
 	require.False(t, err.RetryableOnSameAccount)
 	require.True(t, err.RequestScopedTransient)
 }

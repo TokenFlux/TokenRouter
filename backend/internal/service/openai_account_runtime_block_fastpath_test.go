@@ -59,8 +59,8 @@ func TestOpenAI429FastPath_KeepsOAuthAccountSchedulableDuringRetryWindow(t *test
 	setupTokenAccount := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 44, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken}}
 	grokOAuthAccount := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 45, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, http.Header{}, nil)
-	apiKeyShouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), apiKeyAccount, http.StatusTooManyRequests, http.Header{}, nil)
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusTooManyRequests, http.Header{}, nil, false).StopScheduling
+	apiKeyShouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, apiKeyAccount, http.StatusTooManyRequests, http.Header{}, nil, false).StopScheduling
 
 	require.False(t, shouldDisable)
 	require.False(t, apiKeyShouldDisable)
@@ -71,19 +71,8 @@ func TestOpenAI429FastPath_KeepsOAuthAccountSchedulableDuringRetryWindow(t *test
 	require.True(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(setupTokenAccount, http.StatusTooManyRequests, false))
 	require.False(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(apiKeyAccount, http.StatusTooManyRequests, false))
 	require.False(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(grokOAuthAccount, http.StatusTooManyRequests, false))
-	require.WithinDuration(t, time.Now().Add(accountcore.RuntimeRetryWindow), svc.openAIOAuth429RetryDeadline(account), time.Second)
-	require.WithinDuration(t, time.Now().Add(accountcore.RuntimeRetryWindow), svc.openAIOAuth429RetryDeadline(setupTokenAccount), time.Second)
-}
-
-func TestOpenAI429FastPath_BlocksOAuthOnlyAfterRetryWindow(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 420, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
-	expireRuntimeRetryForTest(svc, account.Record.ID)
-
-	svc.markOpenAIOAuth429RateLimited(context.Background(), account, http.Header{}, nil)
-
-	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
-	require.False(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(account, http.StatusTooManyRequests, false))
+	require.WithinDuration(t, time.Now().Add(accountcore.RuntimeRetryWindow), svc.responseOutput.Health.RetryDeadline(account.View()), time.Second)
+	require.WithinDuration(t, time.Now().Add(accountcore.RuntimeRetryWindow), svc.responseOutput.Health.RetryDeadline(setupTokenAccount.View()), time.Second)
 }
 
 func TestOpenAI429FastPath_BlocksOAuthImmediatelyWhenSevenDayQuotaIsExhausted(t *testing.T) {
@@ -108,7 +97,7 @@ func TestOpenAI429FastPath_BlocksOAuthImmediatelyWhenSevenDayQuotaIsExhausted(t 
 	headers.Set("x-codex-secondary-reset-after-seconds", "3600")
 	headers.Set("x-codex-secondary-window-minutes", "300")
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, headers, []byte(`{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded"}}`))
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusTooManyRequests, headers, []byte(`{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded"}}`), false).StopScheduling
 
 	require.False(t, shouldDisable)
 	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
@@ -147,7 +136,7 @@ func TestOpenAIStream429IgnoresSuccessfulQuotaSnapshotHeaders(t *testing.T) {
 	headers.Set("x-codex-primary-window-minutes", "10080")
 	payload := []byte(`{"type":"error","error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"slow down"}}`)
 
-	status, disabled := svc.handleOpenAIStreamTerminalAccountSideEffects(nil, account, payload, "slow down", headers)
+	status, disabled := svc.responseOutput.TerminalAccountEffects(nil, account, payload, "slow down", headers)
 
 	require.Equal(t, http.StatusTooManyRequests, status)
 	require.False(t, disabled)
@@ -157,21 +146,6 @@ func TestOpenAIStream429IgnoresSuccessfulQuotaSnapshotHeaders(t *testing.T) {
 	if !repo.lastRateLimitedUntil.IsZero() {
 		require.Less(t, time.Until(repo.lastRateLimitedUntil), time.Minute)
 	}
-}
-
-func TestOpenAIHTTP429StillUsesQuotaResetHeaders(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil)})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 422, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
-	clock := expireRuntimeRetryForTest(svc, account.Record.ID)
-	headers := http.Header{}
-	headers.Set("x-codex-primary-used-percent", "37")
-	headers.Set("x-codex-primary-reset-after-seconds", "604800")
-	headers.Set("x-codex-primary-window-minutes", "10080")
-
-	svc.markOpenAIOAuth429RateLimited(context.Background(), account, headers, nil)
-
-	clock.Set(time.Now().Add(6 * 24 * time.Hour))
-	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account), "HTTP 429 保留上游配额重置边界")
 }
 
 func TestOpenAI429FastPath_SparkQuotaOnlyBlocksSparkModel(t *testing.T) {
@@ -196,11 +170,7 @@ func TestOpenAI429FastPath_SparkQuotaOnlyBlocksSparkModel(t *testing.T) {
 	headers.Set("x-codex-secondary-reset-after-seconds", "3600")
 	headers.Set("x-codex-secondary-window-minutes", "300")
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(
-		context.Background(), account, http.StatusTooManyRequests, headers,
-		[]byte(`{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded"}}`),
-		"gpt-5.3-codex-spark",
-	)
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusTooManyRequests, headers, []byte(`{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded"}}`), false, "gpt-5.3-codex-spark").StopScheduling
 
 	require.False(t, shouldDisable)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
@@ -233,7 +203,7 @@ func TestOpenAIStreamFailover_Spark429KeepsModelScope(t *testing.T) {
 	headers.Set("x-codex-secondary-window-minutes", "300")
 	payload := []byte(`{"type":"error","error":{"type":"rate_limit_error","code":"rate_limit_exceeded"}}`)
 
-	failoverErr := svc.newOpenAIStreamFailoverErrorWithModel(
+	failoverErr := svc.responseOutput.NewStreamFailureWithModel(
 		nil, account, false, "", payload, "quota exhausted", "gpt-5.3-codex-spark", headers,
 	)
 
@@ -242,12 +212,6 @@ func TestOpenAIStreamFailover_Spark429KeepsModelScope(t *testing.T) {
 	require.Equal(t, 1, repo.setModelRateLimitCalls)
 	require.Equal(t, "gpt-5.3-codex-spark", repo.lastModelRateLimitKey)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
-}
-
-func TestOpenAI429RetryDelayHonorsBoundedRetryAfter(t *testing.T) {
-	deadline := time.Now().Add(accountcore.RuntimeRetryWindow)
-	require.Equal(t, openAIOAuth429RetryDelay, openAIOAuth429SameAccountRetryDelay(nil, deadline))
-	require.Equal(t, openAIOAuth429MaxRetryDelay, openAIOAuth429SameAccountRetryDelay(http.Header{"Retry-After": []string{"90"}}, deadline))
 }
 
 func TestOpenAI429FastPath_OpenCodeGoUsageLimitUsesMessageResetDuration(t *testing.T) {
@@ -267,13 +231,7 @@ func TestOpenAI429FastPath_OpenCodeGoUsageLimitUsesMessageResetDuration(t *testi
 	body := []byte(`{"type":"error","error":{"type":"GoUsageLimitError","message":"5-hour usage limit reached. Resets in 4hr 59min. To continue using this model now, enable usage from your available balance: https://opencode.ai/workspace/wrk_test/go"},"metadata":{"workspace":"wrk_test","limitName":"5 hour"}}`)
 
 	before := time.Now()
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(
-		context.Background(),
-		account,
-		http.StatusTooManyRequests,
-		http.Header{},
-		body,
-	)
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusTooManyRequests, http.Header{}, body, false).StopScheduling
 	after := time.Now()
 
 	require.False(t, shouldDisable)
@@ -283,31 +241,6 @@ func TestOpenAI429FastPath_OpenCodeGoUsageLimitUsesMessageResetDuration(t *testi
 	require.False(t, repo.lastRateLimitReset.Before(before.Add(expectedResetAfter-time.Second)))
 	require.False(t, repo.lastRateLimitReset.After(after.Add(expectedResetAfter)))
 	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
-}
-
-// TestOpenAI429FastPath_SkipsSparkShadow 外审第8轮 P1:spark 影子被选中后若 /responses 返回 429,
-// 不得按 global x-codex-* 信号写内存运行时熔断(否则 spark 被冷却到 global reset、单影子场景无可用账号)。
-func TestOpenAI429FastPath_SkipsSparkShadow(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	parentID := int64(800)
-	shadow := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 801,
-		Platform:        capability.PlatformOpenAI,
-		Type:            capability.AccountTypeOAuth,
-		ParentAccountID: &parentID,
-		QuotaDimension:  accountcore.QuotaDimensionSpark},
-	}
-	normal := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 802, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
-
-	headers := http.Header{}
-	headers.Set("x-codex-primary-used-percent", "100")
-	headers.Set("x-codex-primary-reset-after-seconds", "18000")
-	headers.Set("x-codex-primary-window-minutes", "300")
-
-	svc.markOpenAIOAuth429RateLimited(context.Background(), shadow, headers, nil)
-	svc.markOpenAIOAuth429RateLimited(context.Background(), normal, headers, nil)
-
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(shadow), "spark shadow must not be runtime-blocked by /responses global 429")
-	require.True(t, svc.isOpenAIAccountRuntimeBlocked(normal), "normal OpenAI OAuth account with an exhausted 5h window must be paused")
 }
 
 func TestOpenAIRuntimeBlock_AppliesToOpenAIAPIKeyWhenRateLimitServiceStopsScheduling(t *testing.T) {
@@ -427,14 +360,7 @@ func TestOpenAIPoolModeRetryable5xx_DoesNotCreateModelTransientBlock(t *testing.
 	}
 
 	for i := 0; i < 2; i++ {
-		shouldDisable := gateway.handleOpenAIAccountUpstreamError(
-			context.Background(),
-			account,
-			524,
-			http.Header{},
-			[]byte(`{"error":{"message":"upstream timeout"}}`),
-			"gpt-5.4",
-		)
+		shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), gateway.responseOutput.Health, account, 524, http.Header{}, []byte(`{"error":{"message":"upstream timeout"}}`), false, "gpt-5.4").StopScheduling
 		require.False(t, shouldDisable)
 	}
 
@@ -456,14 +382,7 @@ func TestOpenAIPoolModeNonRetryable5xx_DoesNotCreateModelTransientBlock(t *testi
 	}
 
 	for i := 0; i < 2; i++ {
-		shouldDisable := gateway.handleOpenAIAccountUpstreamError(
-			context.Background(),
-			account,
-			http.StatusServiceUnavailable,
-			http.Header{},
-			[]byte(`{"error":{"message":"upstream unavailable"}}`),
-			"gpt-5.4",
-		)
+		shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), gateway.responseOutput.Health, account, http.StatusServiceUnavailable, http.Header{}, []byte(`{"error":{"message":"upstream unavailable"}}`), false, "gpt-5.4").StopScheduling
 		require.False(t, shouldDisable)
 	}
 
@@ -481,14 +400,7 @@ func TestOpenAINonPoolAPIKey5xx_StillCreatesModelTransientBlock(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		shouldDisable := gateway.handleOpenAIAccountUpstreamError(
-			context.Background(),
-			account,
-			http.StatusGatewayTimeout,
-			http.Header{},
-			[]byte(`{"error":{"message":"upstream timeout"}}`),
-			"gpt-5.4",
-		)
+		shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), gateway.responseOutput.Health, account, http.StatusGatewayTimeout, http.Header{}, []byte(`{"error":{"message":"upstream timeout"}}`), false, "gpt-5.4").StopScheduling
 		require.False(t, shouldDisable)
 	}
 
@@ -502,14 +414,7 @@ func TestOpenAIModelNotFound_DoesNotRuntimeBlockWholeAccount(t *testing.T) {
 	})
 	account := gatewaytestkit.ModelNotFoundAccount()
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(
-		context.Background(),
-		account,
-		http.StatusNotFound,
-		http.Header{},
-		[]byte(`{"error":{"code":"model_not_found","message":"model not found"}}`),
-		"gpt-5.4",
-	)
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusNotFound, http.Header{}, []byte(`{"error":{"code":"model_not_found","message":"model not found"}}`), false, "gpt-5.4").StopScheduling
 
 	require.True(t, shouldDisable)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
@@ -524,14 +429,7 @@ func TestOpenAIModelTempUnschedulable_DoesNotRuntimeBlockWholeAccount(t *testing
 	})
 	account := gatewaytestkit.ModelNotFoundAccount()
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(
-		context.Background(),
-		account,
-		http.StatusNotFound,
-		http.Header{},
-		[]byte(`{"error":{"message":"endpoint not found"}}`),
-		"gpt-5.4",
-	)
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusNotFound, http.Header{}, []byte(`{"error":{"message":"endpoint not found"}}`), false, "gpt-5.4").StopScheduling
 
 	require.True(t, shouldDisable)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
@@ -547,14 +445,7 @@ func TestOpenAIModelTempUnschedulable_WriteFailureDoesNotRuntimeBlockWholeAccoun
 	})
 	account := gatewaytestkit.ModelNotFoundAccount()
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(
-		context.Background(),
-		account,
-		http.StatusNotFound,
-		http.Header{},
-		[]byte(`{"error":{"message":"endpoint not found"}}`),
-		"gpt-5.4",
-	)
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusNotFound, http.Header{}, []byte(`{"error":{"message":"endpoint not found"}}`), false, "gpt-5.4").StopScheduling
 
 	require.True(t, shouldDisable)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
@@ -577,14 +468,7 @@ func TestOpenAIOAuth429_MatchingModelTempRuleAvoidsAccountRuntimeBlock(t *testin
 		},
 	}
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(
-		context.Background(),
-		account,
-		http.StatusTooManyRequests,
-		http.Header{},
-		[]byte(`{"error":{"message":"model quota exhausted"}}`),
-		"gpt-5.4",
-	)
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusTooManyRequests, http.Header{}, []byte(`{"error":{"message":"model quota exhausted"}}`), false, "gpt-5.4").StopScheduling
 
 	require.True(t, shouldDisable)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
@@ -607,14 +491,7 @@ func TestOpenAIOAuth429_NonmatchingModelTempRuleKeepsAccountRuntimeBlock(t *test
 		},
 	}
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(
-		context.Background(),
-		account,
-		http.StatusTooManyRequests,
-		http.Header{},
-		[]byte(`{"error":{"message":"global rate limit"}}`),
-		"gpt-5.4",
-	)
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusTooManyRequests, http.Header{}, []byte(`{"error":{"message":"global rate limit"}}`), false, "gpt-5.4").StopScheduling
 
 	require.False(t, shouldDisable)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
@@ -629,13 +506,7 @@ func TestOpenAITempUnschedulable_UnknownModelKeepsAccountRuntimeBlock(t *testing
 	})
 	account := gatewaytestkit.ModelNotFoundAccount()
 
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(
-		context.Background(),
-		account,
-		http.StatusNotFound,
-		http.Header{},
-		[]byte(`{"error":{"message":"endpoint not found"}}`),
-	)
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusNotFound, http.Header{}, []byte(`{"error":{"message":"endpoint not found"}}`), false).StopScheduling
 
 	require.True(t, shouldDisable)
 	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))

@@ -97,7 +97,7 @@ func TestSummarizeNoOutputBody_RespectsLogBodyConfig(t *testing.T) {
 	body := []byte("data: {\"type\":\"response.in_progress\",\"response\":{\"status\":\"in_progress\"}}\n\n")
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 
-	summary := svc.summarizeOpenAIImagesNoOutputBody(body)
+	summary := svc.responseOutput.ImageNoOutputSummary(body)
 	if !strings.Contains(summary, "last_event=response.in_progress") {
 		t.Fatalf("summary should keep structured diagnostics, got %q", summary)
 	}

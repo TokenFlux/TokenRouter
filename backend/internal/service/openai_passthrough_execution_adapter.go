@@ -200,13 +200,13 @@ func (p *openAIPassthroughExecutionAdapter) ShouldFailover(status int, body []by
 	return shouldFailoverOpenAIPassthroughResponse(p.account, status, body)
 }
 func (p *openAIPassthroughExecutionAdapter) FailoverError(ctx context.Context, r *http.Response, body, payload []byte) error {
-	return p.s.handleFailoverErrorResponsePassthrough(ctx, r, p.c, p.account, body, payload)
+	return p.s.responseOutput.PassthroughFailoverError(ctx, r, p.c, p.account, body, payload)
 }
 func (p *openAIPassthroughExecutionAdapter) ErrorResponsePass(ctx context.Context, r *http.Response, body, payload []byte) error {
-	return p.s.handleErrorResponsePassthrough(ctx, r, p.c, p.account, body, payload)
+	return p.s.responseOutput.PassthroughError(ctx, r, p.c, p.account, body, payload)
 }
 func (p *openAIPassthroughExecutionAdapter) WrapResponseBody(r *http.Response) {
-	if mapping, ok := gatewayhttp.OpenAIResponsesClientToolMapping(p.c); ok && isEventStreamResponse(r.Header) {
+	if mapping, ok := gatewayhttp.OpenAIResponsesClientToolMapping(p.c); ok && openai.IsEventStreamResponse(r.Header) {
 		limit := defaultMaxLineSize
 		if p.s.cfg != nil && p.s.cfg.Gateway.MaxLineSize > 0 {
 			limit = p.s.cfg.Gateway.MaxLineSize
@@ -220,7 +220,7 @@ func (p *openAIPassthroughExecutionAdapter) ObserveProvenance(h http.Header) {
 	}
 }
 func (p *openAIPassthroughExecutionAdapter) ResponseOptions(ctx context.Context) openai.PassthroughOptions {
-	return p.s.nativePassthroughOptions(ctx, p.c, p.account)
+	return p.s.responseOutput.PassthroughOptions(ctx, p.c, p.account)
 }
 func (p *openAIPassthroughExecutionAdapter) CompactFromSignal(model string, body []byte, err error, tried bool, r *http.Response) ([]byte, string, bool) {
 	return p.s.compactExecutor.ApplySignal(p.c, p.account, model, body, err, tried, r)
@@ -236,7 +236,7 @@ func (p *openAIPassthroughExecutionAdapter) CompactErrorResponse(r *http.Respons
 	return gatewayhttp.CompactFallbackErrorResponse(r, &compact.Failure{Message: v.Message, Payload: v.Payload})
 }
 func (p *openAIPassthroughExecutionAdapter) BindOwner(ctx context.Context, id string) {
-	p.s.bindHTTPResponseAccount(ctx, p.c, p.account, id)
+	p.s.responseOutput.BindResponseAccount(ctx, p.c, p.account, id)
 }
 func (p *openAIPassthroughExecutionAdapter) ObservedServiceTier() string {
 	return gatewayhttp.ObservedUpstreamResponseServiceTier(p.c)

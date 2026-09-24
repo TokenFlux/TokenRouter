@@ -54,7 +54,7 @@ func TestHandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments(t *
 	}
 
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	result, err := svc.handleStreamingResponsePassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.4", "gpt-5.4")
+	result, err := svc.responseOutput.PassthroughStream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.4", "gpt-5.4")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 

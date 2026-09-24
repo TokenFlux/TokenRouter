@@ -600,15 +600,15 @@ func TestOpenAIGatewayServiceHandleResponsesImageOutputs_NonStreaming(t *testing
 		}`)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeAPIKey}}, "gpt-5.4", "gpt-5.4")
+	result, err := svc.responseOutput.NonStream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeAPIKey}}, "gpt-5.4", "gpt-5.4")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, 1, result.imageCount)
-	require.NotNil(t, result.usage)
-	require.Equal(t, 7, result.usage.InputTokens)
-	require.Equal(t, 3, result.usage.OutputTokens)
-	require.Equal(t, 2, result.usage.ImageOutputTokens)
+	require.Equal(t, 1, result.ImageCount)
+	require.NotNil(t, result.Usage)
+	require.Equal(t, 7, result.Usage.InputTokens)
+	require.Equal(t, 3, result.Usage.OutputTokens)
+	require.Equal(t, 2, result.Usage.ImageOutputTokens)
 }
 
 func TestOpenAIGatewayServiceHandleResponsesImageOutputs_Streaming(t *testing.T) {
@@ -624,15 +624,15 @@ func TestOpenAIGatewayServiceHandleResponsesImageOutputs_Streaming(t *testing.T)
 		)),
 	}
 
-	result, err := svc.handleStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.5", "gpt-5.5")
+	result, err := svc.responseOutput.Stream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.5", "gpt-5.5", "")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, 1, result.imageCount)
-	require.NotNil(t, result.usage)
-	require.Equal(t, 11, result.usage.InputTokens)
-	require.Equal(t, 5, result.usage.OutputTokens)
-	require.Equal(t, 4, result.usage.ImageOutputTokens)
+	require.Equal(t, 1, result.ImageCount)
+	require.NotNil(t, result.Usage)
+	require.Equal(t, 11, result.Usage.InputTokens)
+	require.Equal(t, 5, result.Usage.OutputTokens)
+	require.Equal(t, 4, result.Usage.ImageOutputTokens)
 	require.NotContains(t, recorder.Body.String(), `"status":"generating"`)
 	require.Equal(t, 2, strings.Count(recorder.Body.String(), `"status":"completed"`))
 }
@@ -650,7 +650,7 @@ func TestOpenAIGatewayServiceHandleResponsesImageOutputs_StreamingPassthrough(t 
 		)),
 	}
 
-	result, err := svc.handleStreamingResponsePassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.5", "gpt-5.5")
+	result, err := svc.responseOutput.PassthroughStream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.5", "gpt-5.5")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)

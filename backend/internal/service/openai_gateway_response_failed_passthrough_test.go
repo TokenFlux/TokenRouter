@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
@@ -38,7 +40,7 @@ func bindPassthroughRule(c *gin.Context, platform string, keywords []string, res
 		code := responseCode
 		rules = append(rules, &errorpolicy.ErrorPassthroughRule{ID: int64(i + 1), Enabled: true, Platforms: []string{platform}, MatchMode: errorpolicy.MatchModeAny, Keywords: []string{kw}, ResponseCode: &code, PassthroughBody: true})
 	}
-	gatewayhttp.BindErrorPassthroughService(c, newErrorRulesTestService(rules))
+	gatewayhttp.BindErrorPassthroughService(c, gatewaytestkit.ErrorRules(rules))
 }
 
 // forcedResponsesChatTestAccount 让 Chat 入站进入 Responses 错误转换测试路径。
@@ -94,14 +96,14 @@ func TestResponsesStreamAccessStateFailoverPrecedesPassthroughRule(t *testing.T)
 		{
 			name: "native",
 			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
-				_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
+				_, err := svc.responseOutput.Stream(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5", "")
 				return err
 			},
 		},
 		{
 			name: "passthrough",
 			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
-				_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
+				_, err := svc.responseOutput.PassthroughStream(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
 				return err
 			},
 		},
@@ -142,14 +144,14 @@ func TestResponsesStreamCyberPolicyPrecedesPassthroughRule(t *testing.T) {
 		{
 			name: "native",
 			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
-				_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
+				_, err := svc.responseOutput.Stream(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5", "")
 				return err
 			},
 		},
 		{
 			name: "passthrough",
 			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
-				_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
+				_, err := svc.responseOutput.PassthroughStream(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
 				return err
 			},
 		},
@@ -282,6 +284,7 @@ func TestForwardAsChatCompletions_ResponseFailedCustomErrorMissReturnsGeneric500
 		}},
 	})
 	svc.healthObserver = newUpstreamHealthForTest(repo, svc.cfg, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := forcedResponsesChatTestAccount()
 	account.Record.Credentials["custom_error_codes_enabled"] = true
@@ -318,6 +321,7 @@ func TestForwardAsChatCompletions_ResponseFailedCustomNonDefaultStatusFailsOver(
 		}},
 	})
 	svc.healthObserver = newUpstreamHealthForTest(repo, svc.cfg, nil, accountcore.HealthOptions{}, nil)
+	bindCompatibleSelectionFixture(svc)
 
 	account := forcedResponsesChatTestAccount()
 	account.Record.Credentials["custom_error_codes_enabled"] = true
@@ -358,9 +362,7 @@ func TestOpenAIResponsesStreaming_ResponseFailedCustomStatusFailsOver(t *testing
 	account := rawChatCompletionsTestAccount()
 	account.Record.Credentials["custom_error_codes_enabled"] = true
 	account.Record.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
-	_, err := svc.handleStreamingResponse(
-		context.Background(), resp, c, account, time.Now(), "gpt-5.4", "gpt-5.4",
-	)
+	_, err := svc.responseOutput.Stream(context.Background(), resp, c, account, time.Now(), "gpt-5.4", "gpt-5.4", "")
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -385,7 +387,7 @@ func bindStatusCodePassthroughRule(c *gin.Context, platform string, statusCode i
 		ResponseCode:    &responseCode,
 		PassthroughBody: true,
 	}
-	svc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{rule})
+	svc := gatewaytestkit.ErrorRules([]*errorpolicy.ErrorPassthroughRule{rule})
 	gatewayhttp.BindErrorPassthroughService(c, svc)
 }
 
@@ -396,7 +398,7 @@ func TestApplyOpenAIStreamFailedErrorPassthroughRule_UsesProvidedPlatform(t *tes
 	bindStatusCodePassthroughRule(c, capability.PlatformGrok, http.StatusBadRequest, "context_length_exceeded", http.StatusBadRequest)
 	payload := []byte(`{"type":"response.failed","response":{"status":"failed","error":{"code":"context_length_exceeded","type":"invalid_request_error","message":"input exceeds the context window"}}}`)
 
-	status, _, _, matched := applyOpenAIStreamFailedErrorPassthroughRule(
+	status, _, _, matched := gatewayhttp.ApplyOpenAIStreamFailedErrorRule(
 		c,
 		capability.PlatformGrok,
 		payload,

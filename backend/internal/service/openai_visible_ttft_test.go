@@ -8,10 +8,14 @@ import (
 	"testing"
 	"time"
 
+	responseupstream "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -56,8 +60,8 @@ func TestOpenAIResponsesTTFTStartsAtVisibleOutput(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			result := runSyntheticVisibleTTFTStream(t, passthrough, 120*time.Millisecond, 0,
 				`{"type":"response.output_text.delta","delta":"test output"}`)
-			require.NotNil(t, result.firstTokenMs)
-			require.GreaterOrEqual(t, *result.firstTokenMs, 100)
+			require.NotNil(t, result.FirstTokenMs)
+			require.GreaterOrEqual(t, *result.FirstTokenMs, 100)
 		})
 	}
 }
@@ -71,8 +75,8 @@ func TestOpenAIResponsesTTFTStartsAtCompletedImage(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			result := runSyntheticVisibleTTFTStream(t, passthrough, 120*time.Millisecond, 0,
 				`{"type":"response.output_item.done","item":{"id":"item_test","type":"image_generation_call","result":"dGVzdA=="}}`)
-			require.NotNil(t, result.firstTokenMs)
-			require.GreaterOrEqual(t, *result.firstTokenMs, 100)
+			require.NotNil(t, result.FirstTokenMs)
+			require.GreaterOrEqual(t, *result.FirstTokenMs, 100)
 		})
 	}
 }
@@ -99,7 +103,7 @@ func TestOpenAINativeMetadataDoesNotDisarmFirstOutputTimeout(t *testing.T) {
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: reader}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "account_test", Platform: capability.PlatformOpenAI}}
 
-	_, err := svc.handleStreamingResponse(context.Background(), resp, c, account, time.Now(), "test-model", "test-model")
+	_, err := svc.responseOutput.Stream(context.Background(), resp, c, account, time.Now(), "test-model", "test-model", "")
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.True(t, failoverErr.SafeToFailoverAfterWrite)
@@ -111,7 +115,7 @@ func TestOpenAINativeMetadataDoesNotDisarmFirstOutputTimeout(t *testing.T) {
 	}
 }
 
-func runSyntheticVisibleTTFTStream(t *testing.T, passthrough bool, visibleDelay time.Duration, timeoutSeconds int, visibleEvent string) *openaiStreamingResult {
+func runSyntheticVisibleTTFTStream(t *testing.T, passthrough bool, visibleDelay time.Duration, timeoutSeconds int, visibleEvent string) *responseupstream.StreamingResult {
 	t.Helper()
 
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{settingService: newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{gateway.SettingKeyOpenAITTFTMode: gateway.OpenAITTFTModeVisible}}, &config.Config{}), cfg: &config.Config{Gateway: config.GatewayConfig{
@@ -137,16 +141,16 @@ func runSyntheticVisibleTTFTStream(t *testing.T, passthrough bool, visibleDelay 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "account_test", Platform: capability.PlatformOpenAI}}
 	started := time.Now()
 
-	var result *openaiStreamingResult
+	var result *responseupstream.StreamingResult
 	var err error
 	if passthrough {
-		var passthroughResult *openaiStreamingResultPassthrough
-		passthroughResult, err = svc.handleStreamingResponsePassthrough(context.Background(), resp, c, account, started, "test-model", "test-model")
+		var passthroughResult *responseupstream.StreamingResult
+		passthroughResult, err = svc.responseOutput.PassthroughStream(context.Background(), resp, c, account, started, "test-model", "test-model")
 		if passthroughResult != nil {
-			result = &openaiStreamingResult{firstTokenMs: passthroughResult.firstTokenMs}
+			result = &responseupstream.StreamingResult{FirstTokenMs: passthroughResult.FirstTokenMs}
 		}
 	} else {
-		result, err = svc.handleStreamingResponse(context.Background(), resp, c, account, started, "test-model", "test-model")
+		result, err = svc.responseOutput.Stream(context.Background(), resp, c, account, started, "test-model", "test-model", "")
 	}
 	require.NoError(t, err)
 	require.NotNil(t, result)

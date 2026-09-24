@@ -109,7 +109,7 @@ func (a *grokForwardAdapter) Do(req *http.Request) (*http.Response, error) {
 	return a.s.httpUpstream.Do(req, a.proxyURL, a.account.Record.ID, a.account.Record.Concurrency)
 }
 func (a *grokForwardAdapter) ReadError(resp *http.Response) []byte {
-	return a.s.readUpstreamErrorBody(resp)
+	return a.s.responseOutput.ReadErrorBody(resp)
 }
 func (a *grokForwardAdapter) Latency(value int64) {
 	gatewayhttp.SetOpsLatencyMs(a.c, gatewayhttp.OpsUpstreamLatencyMsKey, value)
@@ -131,7 +131,7 @@ func (a *grokForwardAdapter) Health(ctx context.Context, status int, headers htt
 	d := gatewayprovider.ApplyGrokExecutionHealth(ctx, a.s.grokHealth, a.account, status, headers, body, teamModel, model)
 	return grokforward.Decision{
 		Generic:          d.ShouldReturnGenericError(),
-		Failover:         d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(a.account), status, a.s.shouldFailoverGrokUpstreamError(status, body)),
+		Failover:         d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(a.account), status, gatewayprovider.ShouldFailoverGrokResponse(status, body)),
 		RetrySameAccount: d.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(a.account), status),
 	}
 }
@@ -147,7 +147,7 @@ func (a *grokForwardAdapter) Observe(n grokforward.Notice) {
 	})
 }
 func (a *grokForwardAdapter) HandleError(ctx context.Context, resp *http.Response, body []byte, model string) (*grokforward.Result, error) {
-	v, err := a.s.handleErrorResponse(ctx, resp, a.c, a.account, body, model)
+	v, err := a.s.responseOutput.ResponseError(ctx, resp, a.c, a.account, body, model)
 	return nativeGrokForwardResult(v), err
 }
 func (a *grokForwardAdapter) ShouldMarkTeam(status int, body []byte) bool {
@@ -157,7 +157,7 @@ func (a *grokForwardAdapter) MarkTeam(model string) {
 	markGrokTeamModelRateLimit(a.account, model, accountcore.ResolveGrokTeamRateLimitUntil(time.Now().Add(grokTeamRateLimitDefaultTTL), time.Now()))
 }
 func (a *grokForwardAdapter) RetryMetadata(status int, body []byte) grokforward.Retry {
-	retry, delay, deadline, max := grokSameAccountRetryMetadata(a.account, status, body)
+	retry, delay, deadline, max := gatewayprovider.GrokSameAccountRetryMetadata(a.account, status, body)
 	return grokforward.Retry{Retryable: retry, Delay: delay, Deadline: deadline, Max: max}
 }
 func (a *grokForwardAdapter) Failure(f grokforward.Failure) error {
@@ -176,40 +176,40 @@ func (a *grokForwardAdapter) ObserveSuccess(ctx context.Context, headers http.He
 	a.s.grokHealth.ObserveResponse(ctx, a.account.View(), headers, status, model)
 }
 func (a *grokForwardAdapter) ReadStream(ctx context.Context, resp *http.Response, start time.Time, original, mapped string) (upstream.ResponsesObservation, error) {
-	v, err := a.s.readStreamingResponseObservation(ctx, resp, a.c, a.account, start, original, mapped, "")
+	v, err := a.s.responseOutput.ReadStreamObservation(ctx, resp, a.c, a.account, start, original, mapped, "")
 	if v == nil {
 		return upstream.ResponsesObservation{}, err
 	}
 	return upstream.ResponsesObservation{
-		Usage:               v.usage,
-		HasUsage:            v.hasUsage,
-		Served:              v.served,
-		HTTPCommitted:       v.httpCommitted,
-		RetryCommitted:      v.retryCommitted,
-		ClientDisconnected:  v.clientDisconnected,
-		FirstSemanticOutput: v.firstSemanticOutput,
-		FirstTokenMs:        v.firstTokenMs,
-		ResponseID:          v.responseID,
-		SearchCount:         v.searchCount,
-		ImageCount:          v.imageCount,
-		ImageOutputSizes:    v.imageOutputSizes,
+		Usage:               v.Usage,
+		HasUsage:            v.HasUsage,
+		Served:              v.Served,
+		HTTPCommitted:       v.HttpCommitted,
+		RetryCommitted:      v.RetryCommitted,
+		ClientDisconnected:  v.ClientDisconnected,
+		FirstSemanticOutput: v.FirstSemanticOutput,
+		FirstTokenMs:        v.FirstTokenMs,
+		ResponseID:          v.ResponseID,
+		SearchCount:         v.SearchCount,
+		ImageCount:          v.ImageCount,
+		ImageOutputSizes:    v.ImageOutputSizes,
 	}, err
 }
 func (a *grokForwardAdapter) ReadNonStream(ctx context.Context, resp *http.Response, original, mapped string) (upstream.ResponsesObservation, error) {
-	v, err := a.s.handleNonStreamingResponse(ctx, resp, a.c, a.account, original, mapped)
+	v, err := a.s.responseOutput.NonStream(ctx, resp, a.c, a.account, original, mapped)
 	if err != nil {
 		return upstream.ResponsesObservation{}, err
 	}
 	return upstream.ResponsesObservation{
-		Usage:            v.usage,
-		HasUsage:         v.usage != nil,
-		Served:           v.served,
+		Usage:            v.Usage,
+		HasUsage:         v.Usage != nil,
+		Served:           v.Served,
 		HTTPCommitted:    a.c.Writer.Written(),
 		RetryCommitted:   gatewayhttp.IsResponseCommitted(a.c),
-		ResponseID:       v.responseID,
-		SearchCount:      v.searchCount,
-		ImageCount:       v.imageCount,
-		ImageOutputSizes: v.imageOutputSizes,
+		ResponseID:       v.ResponseID,
+		SearchCount:      v.SearchCount,
+		ImageCount:       v.ImageCount,
+		ImageOutputSizes: v.ImageOutputSizes,
 	}, nil
 }
 func (a *grokForwardAdapter) Sink() upstream.OutputSink {

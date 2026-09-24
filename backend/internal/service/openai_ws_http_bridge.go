@@ -658,15 +658,15 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		}
 		requestScopedError := detectOpenAIWSHTTPBridgeRequestScopedError(account, resp.StatusCode, upstreamMsg, respBody)
 		decision := accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
-		defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody)
+		defaultFailover := gatewayprovider.ShouldFailoverOpenAIResponse(resp.StatusCode, upstreamMsg, respBody)
 		if account.Record.Platform == capability.PlatformGrok {
-			defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
+			defaultFailover = gatewayprovider.ShouldFailoverGrokResponse(resp.StatusCode, respBody)
 		}
 		if !requestScopedError {
 			if account.Record.Platform == capability.PlatformGrok {
 				decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, respBody, "", mappedModel)
 			} else {
-				decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, mappedModel)
+				decision = gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, resp.StatusCode, resp.Header, respBody, false, mappedModel)
 			}
 		}
 		if decision.ShouldReturnGenericError() {
@@ -675,7 +675,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		}
 		if !requestScopedError && decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, defaultFailover) &&
 			(turn == 1 || resp.StatusCode == http.StatusTooManyRequests) {
-			return nil, newOpenAIUpstreamFailoverError(
+			return nil, gatewayprovider.NewOpenAIUpstreamFailure(
 				resp.StatusCode,
 				resp.Header,
 				respBody,
@@ -913,12 +913,12 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				retrySame := requestScopedCapacity || terminalPolicy.Decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), statusCode)
 				if !requestScopedCapacity {
 					// 终止事件策略已在上方执行；交给错误构造器消费一次性状态，避免重复写入模型限流。
-					markOpenAIWSFailureSideEffectsApplied(c, statusCode, terminalPolicy.Decision.StopScheduling)
+					gatewayhttp.MarkOpenAIResponseFailureEffects(c, statusCode, terminalPolicy.Decision.StopScheduling)
 				}
-				return nil, s.newOpenAIStreamPolicyFailoverErrorWithModel(c, account, true, resp.Header.Get("x-request-id"), resp.Header, statusCode, upstreamMessage, errMessage, retrySame, mappedModel)
+				return nil, s.responseOutput.NewStreamPolicyFailureWithModel(c, account, true, resp.Header.Get("x-request-id"), resp.Header, statusCode, upstreamMessage, errMessage, retrySame, mappedModel)
 			}
 			if wroteDownstream && requestScopedCapacity && !capacityFailoverSuppressedLogged {
-				logOpenAICapacityFailoverSuppressed(ctx, account, "ws_http_bridge", resp.Header.Get("x-request-id"), eventType)
+				gatewayhttp.LogOpenAICapacityFailoverSuppressed(ctx, account, "ws_http_bridge", resp.Header.Get("x-request-id"), eventType)
 				capacityFailoverSuppressedLogged = true
 			}
 		}
@@ -950,16 +950,16 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 					requestScopedError = true
 					defaultFailover = false
 				} else {
-					defaultFailover = s.shouldFailoverGrokUpstreamError(statusCode, upstreamMessage)
+					defaultFailover = gatewayprovider.ShouldFailoverGrokResponse(statusCode, upstreamMessage)
 					decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, statusCode, resp.Header, upstreamMessage, "", mappedModel)
 				}
 			} else if !requestScopedError {
 				defaultFailover = s.shouldFailoverOpenAIWSError(account, policyStatus, upstreamMessage)
 				semanticHeaders := resp.Header
 				if policyStatus == http.StatusTooManyRequests {
-					semanticHeaders = openAIWSSemantic429Headers(account, mappedModel, semanticHeaders)
+					semanticHeaders = gatewayprovider.OpenAISemantic429Headers(account, mappedModel, semanticHeaders)
 				}
-				decision = s.applyOpenAIAccountUpstreamError(ctx, account, policyStatus, semanticHeaders, upstreamMessage, mappedModel)
+				decision = gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, policyStatus, semanticHeaders, upstreamMessage, false, mappedModel)
 			}
 			if decision.StopScheduling {
 				failureAccountSideEffectsApplied = true
@@ -978,15 +978,12 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				(turn == 1 || policyStatus == http.StatusTooManyRequests) {
 				retrySame := requestScopedCapacity || decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), policyStatus)
 				if c != nil && !requestScopedCapacity && !requestScopedError {
-					c.Set(openAIWSFailureSideEffectsStateKey, openAIWSFailureSideEffectsState{
-						StatusCode:    policyStatus,
-						ShouldDisable: decision.StopScheduling,
-					})
+					gatewayhttp.MarkOpenAIResponseFailureEffects(c, policyStatus, decision.StopScheduling)
 				}
-				return nil, s.newOpenAIStreamPolicyFailoverErrorWithModel(c, account, true, resp.Header.Get("x-request-id"), resp.Header, policyStatus, upstreamMessage, errMessage, retrySame, mappedModel)
+				return nil, s.responseOutput.NewStreamPolicyFailureWithModel(c, account, true, resp.Header.Get("x-request-id"), resp.Header, policyStatus, upstreamMessage, errMessage, retrySame, mappedModel)
 			}
 			if wroteDownstream && requestScopedCapacity && !capacityFailoverSuppressedLogged {
-				logOpenAICapacityFailoverSuppressed(ctx, account, "ws_http_bridge", resp.Header.Get("x-request-id"), eventType)
+				gatewayhttp.LogOpenAICapacityFailoverSuppressed(ctx, account, "ws_http_bridge", resp.Header.Get("x-request-id"), eventType)
 				capacityFailoverSuppressedLogged = true
 			}
 			if account.Record.Platform == capability.PlatformGrok {
@@ -1018,7 +1015,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				upstreamopenai.OpenAIStreamDataStartsClientOutput(string(clientMessage), eventType) || openai.IsWSTerminalEvent(eventType)
 			if stageBeforeSemanticOutput && !commitStagedMessages {
 				if pendingClientMessageBytes+int64(len(clientMessage)) > upstreamopenai.OpenAIFirstOutputStageMaxBytes {
-					return nil, s.newOpenAIStreamPolicyFailoverError(
+					return nil, s.responseOutput.NewStreamPolicyFailure(
 						c,
 						account,
 						true,

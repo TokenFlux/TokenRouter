@@ -485,7 +485,7 @@ func assertOpenAIAlphaSearchAccessStateFailover(t *testing.T, err error, request
 	require.Equal(t, forwardcore.OpenAIUpstreamAccessStateReason, failoverErr.Reason)
 	require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 	require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
-	require.Equal(t, openAIUpstreamAccessUnavailableClientMessage, failoverErr.ClientMessage)
+	require.Equal(t, "Upstream access is temporarily unavailable, please retry later", failoverErr.ClientMessage)
 	require.False(t, failoverErr.RetryableOnSameAccount)
 	require.Equal(t, requestID, http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 }

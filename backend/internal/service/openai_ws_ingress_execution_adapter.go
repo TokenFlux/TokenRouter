@@ -199,7 +199,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 		return payload, nil
 	}
 
-	groupID := getOpenAIGroupIDFromContext(c)
+	groupID := gatewayhttp.OpenAIResponseGroupID(c)
 	stateStore := s.ResponseStateStore()
 	var baseAcquireReq openai.WSAcquireRequest
 	var pool *openai.WSConnPool
@@ -324,7 +324,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 					dialErr.StatusCode == http.StatusTooManyRequests,
 					s.shouldFailoverOpenAIWSError(account, dialErr.StatusCode, dialErr.ResponseBody),
 				) {
-					return nil, newOpenAIUpstreamFailoverError(
+					return nil, gatewayprovider.NewOpenAIUpstreamFailure(
 						dialErr.StatusCode,
 						dialErr.ResponseHeaders,
 						dialErr.ResponseBody,

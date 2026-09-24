@@ -127,7 +127,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 		var blocked *tierpolicy.BlockedError
 		if errors.As(policyErr, &blocked) {
 			gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
-			writeChatCompletionsError(c, http.StatusForbidden, "permission_error", blocked.Message)
+			gatewayhttp.WriteForwardChatError(c, http.StatusForbidden, "permission_error", blocked.Message)
 		}
 		return nil, policyErr
 	}
@@ -172,7 +172,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 				return s.httpUpstream.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
 			},
 
-			ReadError: s.readUpstreamErrorBody,
+			ReadError: s.responseOutput.ReadErrorBody,
 
 			AfterExchange: func(err error) error {
 				if err != nil {
@@ -191,7 +191,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 				}
 				decision := gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, respBody, "", upstreamModel)
 				kind := "http_error"
-				if decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)) {
+				if decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, gatewayprovider.ShouldFailoverGrokResponse(resp.StatusCode, respBody)) {
 					kind = "failover"
 				}
 				gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
@@ -204,7 +204,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 
 					UpstreamStatusCode: resp.StatusCode,
 
-					UpstreamRequestID: firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
+					UpstreamRequestID: requeststate.FirstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
 
 					Kind: kind,
 
@@ -215,7 +215,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 					return true, handleErr
 				}
 				if kind == "failover" {
-					retryable, retryDelay, retryDeadline, retryMax := grokSameAccountRetryMetadata(account, resp.StatusCode, respBody)
+					retryable, retryDelay, retryDeadline, retryMax := gatewayprovider.GrokSameAccountRetryMetadata(account, resp.StatusCode, respBody)
 					return true, &protocolforward.UpstreamFailoverError{
 
 						StatusCode: resp.StatusCode,
@@ -295,7 +295,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 		result.UpstreamEndpoint = grok.GrokChatResponsesEndpoint
 		result.ResponseHeaders = nativeResult.UpstreamHeaders.Clone()
 		if result.RequestID == "" {
-			result.RequestID = firstNonEmpty(nativeResult.UpstreamHeaders.Get("x-request-id"), nativeResult.UpstreamHeaders.Get("xai-request-id"))
+			result.RequestID = requeststate.FirstNonEmpty(nativeResult.UpstreamHeaders.Get("x-request-id"), nativeResult.UpstreamHeaders.Get("xai-request-id"))
 		}
 		result.ReasoningEffort = requeststate.ExtractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
 	}

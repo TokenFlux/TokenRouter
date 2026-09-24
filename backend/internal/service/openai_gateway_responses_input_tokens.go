@@ -169,7 +169,7 @@ func writeOpenAIResponsesInputTokensError(c *gin.Context, status int, errType, m
 }
 
 func (s *OpenAIGatewayService) readResponsesInputTokensBody(resp *http.Response) ([]byte, error) {
-	body := s.readUpstreamErrorBody(resp)
+	body := s.responseOutput.ReadErrorBody(resp)
 	if len(body) == 0 {
 		return nil, fmt.Errorf("responses input_tokens: empty upstream response")
 	}
@@ -189,15 +189,15 @@ func (s *OpenAIGatewayService) handleResponsesInputTokensUpstreamError(
 	if account.Record.Platform == capability.PlatformGrok {
 		decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, body, "", prepared.UpstreamModel)
 	} else {
-		decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, prepared.UpstreamModel)
+		decision = gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, resp.StatusCode, resp.Header, body, false, prepared.UpstreamModel)
 	}
 	if decision.ShouldReturnGenericError() {
 		writeOpenAIResponsesInputTokensError(c, http.StatusInternalServerError, "upstream_error", "Upstream gateway error")
 		return fmt.Errorf("responses input_tokens: upstream error %d (custom policy)", resp.StatusCode)
 	}
-	defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, body)
+	defaultFailover := gatewayprovider.ShouldFailoverOpenAIResponse(resp.StatusCode, upstreamMsg, body)
 	if account.Record.Platform == capability.PlatformGrok {
-		defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, body)
+		defaultFailover = gatewayprovider.ShouldFailoverGrokResponse(resp.StatusCode, body)
 	}
 	if decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, defaultFailover) {
 		return &forwardcore.UpstreamFailoverError{

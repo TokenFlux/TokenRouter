@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	httpapitestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
+
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
@@ -773,7 +775,7 @@ func TestOpenAIGatewayService_NativeOAuth_NamespaceNonStreamingResponse(t *testi
 		}`)),
 	}
 
-	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})).handleNonStreamingResponse(
+	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})).responseOutput.NonStream(
 		context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Type: capability.AccountTypeOAuth}}, "gpt-5.5", "gpt-5.5",
 	)
 	require.NoError(t, err)
@@ -798,7 +800,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_NamespaceNonStreamingResponse(t *
 	}
 	httpapi.SetOpenAIResponsesNamespaceNames(c, names)
 
-	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})).handleNonStreamingResponsePassthrough(
+	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})).responseOutput.PassthroughNonStream(
 		context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 91}}, "gpt-5.5", "",
 	)
 	require.NoError(t, err)
@@ -1456,7 +1458,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_CompactErrorAfterKeepaliveIsFail
 	require.Error(t, err)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Result().Header.Get("Content-Type"), "text/event-stream")
-	events := parseCompactBridgeSSE(t, stripKeepaliveComments(rec.Body.String()))
+	events := httpapitestkit.ParseCompactSSE(t, stripKeepaliveComments(rec.Body.String()))
 	require.Len(t, events, 1)
 	require.Equal(t, "response.failed", events[0][0])
 	require.Equal(t, "failed", gjson.Get(events[0][1], "response.status").String())

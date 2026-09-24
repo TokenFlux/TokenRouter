@@ -58,7 +58,7 @@ func provideOpenAIGatewayExecution(
 	recorders GatewayCompletionRecorders,
 	executionCredentials *accountcore.OpenAIExecutionCredentials,
 	taskCoordinator *accountcore.OpenAITaskCoordinator,
-	cyberBlocks *session.CyberBlocks, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selection.Compatible, grokHealth *accountprovider.GrokHealth, compactExecutor *gatewayhttp.CompactExecutor,
+	cyberBlocks *session.CyberBlocks, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selection.Compatible, grokHealth *accountprovider.GrokHealth, compactExecutor *gatewayhttp.CompactExecutor, responseOutput *gatewayhttp.OpenAIResponseOutput,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
 ) *service.OpenAIGatewayService {
 	source := service.NewOpenAIGatewayService(
@@ -84,7 +84,7 @@ func provideOpenAIGatewayExecution(
 
 		prompts,
 		headerFilter,
-		stateStore, turnStateHeaders, modelTransient, proxyCircuit, choices, grokHealth, compactExecutor, tlsFPRouterServices...,
+		stateStore, turnStateHeaders, modelTransient, proxyCircuit, choices, grokHealth, compactExecutor, responseOutput, tlsFPRouterServices...,
 	)
 	// 构造完成后绑定原运行阻断回调，仍在任何后台或请求启动前完成。
 	if openAITokenProvider != nil {

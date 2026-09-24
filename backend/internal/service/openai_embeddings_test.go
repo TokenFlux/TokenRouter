@@ -165,7 +165,7 @@ func TestForwardEmbeddings_AccessStateUsesTypedFailover(t *testing.T) {
 	require.Equal(t, forwardcore.OpenAIUpstreamAccessStateReason, failoverErr.Reason)
 	require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 	require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
-	require.Equal(t, openAIUpstreamAccessUnavailableClientMessage, failoverErr.ClientMessage)
+	require.Equal(t, "Upstream access is temporarily unavailable, please retry later", failoverErr.ClientMessage)
 	require.False(t, failoverErr.RetryableOnSameAccount)
 	require.Equal(t, "req_embeddings_access_state", http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 	require.False(t, c.Writer.Written())

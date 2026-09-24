@@ -35,7 +35,7 @@ func (p *openAINativeAnthropicAdapter) errorWriter() func(*gin.Context, int, str
 	case forward.NativeResponses:
 		return writeResponsesError
 	case forward.NativeChat:
-		return writeChatCompletionsError
+		return httpapi.WriteForwardChatError
 	default:
 		return httpapi.WriteForwardAnthropicError
 	}
@@ -84,7 +84,7 @@ func (p *openAINativeAnthropicAdapter) TransportErrorNative(ctx context.Context,
 	return p.s.handleOpenAIUpstreamTransportError(ctx, p.c, p.account, err, true)
 }
 func (p *openAINativeAnthropicAdapter) DirectOptions() forward.NativeAnthropicOptions {
-	return p.s.nativeAnthropicDirectOptions(p.c, p.account)
+	return p.s.responseOutput.AnthropicDirectOptions(p.c, p.account)
 }
 func (p *openAINativeAnthropicAdapter) AdaptResponsesTools(body []byte) ([]byte, bridge.ResponsesClientToolMapping, error) {
 	return protocolforward.AdaptResponsesClientToolsForAnthropic(body)
@@ -105,5 +105,5 @@ func (p *openAINativeAnthropicAdapter) MapStatus(status int) int {
 	return protocolforward.MapStatus(status)
 }
 func (p *openAINativeAnthropicAdapter) OutputOptions() forward.AnthropicOutputOptions {
-	return p.s.nativeAnthropicOutputOptions(p.c, p.errorWriter())
+	return p.s.responseOutput.AnthropicOptions(p.c, p.errorWriter())
 }

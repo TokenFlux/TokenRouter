@@ -146,15 +146,15 @@ func (s *OpenAIGatewayService) ForwardCountTokensAsAnthropic(
 			if account.Record.Platform == capability.PlatformGrok {
 				decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, respBody, "", prepared.UpstreamModel)
 			} else {
-				decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, prepared.UpstreamModel)
+				decision = gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, resp.StatusCode, resp.Header, respBody, false, prepared.UpstreamModel)
 			}
 			if decision.ShouldReturnGenericError() {
 				writeAnthropicCountTokensError(c, http.StatusInternalServerError, "upstream_error", "Upstream gateway error")
 				return fmt.Errorf("input_tokens upstream error: %d (not in custom error codes)", resp.StatusCode)
 			}
-			defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody)
+			defaultFailover := gatewayprovider.ShouldFailoverOpenAIResponse(resp.StatusCode, upstreamMsg, respBody)
 			if account.Record.Platform == capability.PlatformGrok {
-				defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
+				defaultFailover = gatewayprovider.ShouldFailoverGrokResponse(resp.StatusCode, respBody)
 			}
 			if decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, defaultFailover) {
 				return &protocolforward.UpstreamFailoverError{

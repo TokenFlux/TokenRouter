@@ -26,6 +26,9 @@ func bindRuntimeBlockClockForTest(svc *OpenAIGatewayService) *runtimeBlockTestCl
 	svc.BindRuntimeBlockState(account.NewRuntimeBlockState(clock.Now))
 	if svc.grokHealth != nil {
 		svc.grokHealth.Runtime = svc.runtimeBlockState()
+		if svc.responseOutput != nil {
+			svc.responseOutput.Health.Runtime = svc.runtimeBlockState()
+		}
 	}
 	return clock
 }
