@@ -1779,3 +1779,13 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - [本批验证索引](baseline/S16/service-selection-owner-verification.json)；[增量证据清单](baseline/S16/progress-20260924-selection-manifest.json)。本批归档接续 model-read 父链，只保存新增或变化资料，逐成员校验通过。
 
 S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶段最终全仓测试、三套 lint、构建及进程验收。按用户后续授权，每个完整验证能力批次提交一次；不提交 AGENTS.md、SYNC.md 或其他任务内容。
+
+### Messages、转换、计数与通用执行聚合退出（2026-09-24）
+
+- 本批以 `440ffdd02` 为输入，按完整请求能力处理实现、生产调用、测试替身、装配和门禁。Messages、Claude Chat/Responses 转换、count、API Key 透传、Vertex 与 Bedrock 单次执行接入 `gateway/provider/messageforward.Runtime`，继续调用已有 forward/upstream 状态机。通用 `GatewayService`、构造器及全部方法已删除。
+- app 直接绑定 RoutePlanner、原生会话存储、RetryCooldown、完成记录器与唯一调试输出句柄；临时停调仍先检查请求级瞬时故障及最新池模式。请求内 Beta、工具恢复和诊断状态不再借用 Gin 通用键。共享非 JSON 响应失败处理、Fast 规则、传输错误分类及客户端字符串判断各保留一份实现。
+- 旧 service 从 **186 个生产 / 290 个测试文件**降至 **169 / 259**，减少 **17 / 31**。252 个原测试按名称、构建标签和断言调用数量核对，均无遗漏；5 个原 benchmark 迁移并编译，未执行 benchmark。20 个仍供其他平台使用的共享符号已逐项登记退出批次，未为清空文件机械搬包。
+- 合并验证：全仓普通 **12,007**、unit **20,041**、integration（`-p=4`）**13,014** 条通过事件，分别有 **4 / 8 / 5** 项已登记跳过，无失败。数字包含父子事件，不相加。标准/simple SIGTERM、版本、维护命令、初始化失败释放、监听失败、CLI/Web/AUTO_SETUP 及路由清单合同实际执行。真实 PostgreSQL 完成链 integration race 为 **3** 条通过，最终定向 race **933** 条通过。
+- 移植夹具补齐原默认 Beta 回调，保持响应读取默认 **128 MiB**；诊断开关关闭且无需保存错误上下文时，继续跳过报文解析。它们均为本次移植核对，不扩大历史问题范围。最终受影响普通合同 **142** 条通过；HTTP 输出测试归 HTTP Adapter，纯转换测试保留核心方向限制，补验 **32** 条合同通过。
+- 全仓普通/unit/integration lint 均为 **0**。84 项可丢弃门禁合同通过，八种构建集合无意外错误；夹具已删除。Wire 两次重生成摘要一致；后端、两个维护命令和 Linux 构建通过。SQL、Ent、S00—S15 冻结资料及 51 个保留文件无变化，原计划正文摘要不变，diff 检查通过。
+- 验证入口：[`service-messages-owner-verification.json`](baseline/S16/service-messages-owner-verification.json)。完整日志和清单按本批前缀增量归档；本批不代替 S16 最终前端、embed、跨平台及全项验收。下一完整能力批次为 Google 执行，之后继续 OpenAI/Grok、WS/Live 和共享边界；roadmap 仍为 **16 / 17**。

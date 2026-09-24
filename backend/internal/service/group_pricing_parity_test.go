@@ -229,7 +229,7 @@ func TestGroupPricingFreeFastWithIntervalsAndTurnTime(t *testing.T) {
 			require.InDelta(t, wantBase, cmd.BaseAmountUSD, 1e-12)
 			require.InDelta(t, wantBase*0.5, cmd.BillableAmountUSD, 1e-12)
 			// 展示复用解析器，但免费 Fast 不得污染随后计算的 Fast 成本。
-			market := newGatewayMarketplaceFixture(nil, nil, withSchedulerParametersForTest(&GatewayService{resolver: svc.Dependencies.Prices}), svc.Dependencies.Calculator, nil, nil, nil)
+			market := newPricingMarketplaceFixture(nil, nil, svc.Dependencies.Prices, svc.Dependencies.Calculator, nil, nil, nil)
 			display := market.PublicModelPricing(context.Background(), group, "gpt-5.6-sol")
 			require.Len(t, display.ContextIntervals, 2)
 			ratio := 3.0
@@ -246,7 +246,7 @@ func TestGroupPricingFreeFastWithIntervalsAndTurnTime(t *testing.T) {
 // 免费 Fast 不能让不支持该档位的模型在市场中多出 Fast 价格。
 func TestGroupPricingFreeFastDisplayRespectsModelSupport(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	svc := newGatewayMarketplaceFixture(nil, nil, withSchedulerParametersForTest(&GatewayService{resolver: billingtestkit.PriceResolver(nil, bs)}), bs, nil, nil, nil)
+	svc := newPricingMarketplaceFixture(nil, nil, billingtestkit.PriceResolver(nil, bs), bs, nil, nil, nil)
 	group := &routing.Group{ID: 1, Platform: capability.PlatformOpenAI, RateMultiplier: 1, FreeOpenAIFast: true,
 		ModelPricing: []routing.ChannelModelPricing{{Models: []string{"embedding-parity"}, InputPrice: testPtrFloat64(0.01)}},
 	}
@@ -328,7 +328,7 @@ func TestFreeFastIntervalOnlyDisplayMatchesStandard(t *testing.T) {
 						r = billingtestkit.ResolverWithCards(t, rCalculator, []routing.ChannelModelPricing{card})
 						group.ModelPricing = nil
 					}
-					svc := newGatewayMarketplaceFixture(nil, nil, withSchedulerParametersForTest(&GatewayService{resolver: r}), rCalculator, nil, nil, nil)
+					svc := newPricingMarketplaceFixture(nil, nil, r, rCalculator, nil, nil, nil)
 					display := svc.PublicModelPricing(context.Background(), group, "custom-priced")
 					require.Equal(t, "priced", display.PriceStatus)
 					ratio := 3.0
@@ -507,7 +507,7 @@ func TestQoderPricingMatchesOtherPlatforms(t *testing.T) {
 					r := billingtestkit.ResolverWithCards(t, bs, []routing.ChannelModelPricing{card})
 					gateway := completion.NewRecorder(completion.Dependencies{Prices: r, Calculator: bs}, completion.RecorderOptions{DefaultMultiplier: 1})
 
-					market := newGatewayMarketplaceFixture(nil, nil, withSchedulerParametersForTest(&GatewayService{resolver: r}), bs, nil, nil, nil)
+					market := newPricingMarketplaceFixture(nil, nil, r, bs, nil, nil, nil)
 					prices = append(prices, market.RequestableModelPricing(context.Background(), group, routing.MarketplaceModelDef{ID: model, PricingModel: model}))
 					result := &forwardcore.MessagesResult{Usage: upstream.TokenUsage{InputTokens: 100, OutputTokens: 10}, ServiceTier: testPtrString("priority")}
 					if looksLikeImageModel(model) {

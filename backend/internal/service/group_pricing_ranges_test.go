@@ -36,7 +36,7 @@ func TestPricingDisplayPreservesDefaultRanges(t *testing.T) {
 					r = billingtestkit.ResolverWithCards(t, rCalculator, []routing.ChannelModelPricing{card})
 					group.ModelPricing = nil
 				}
-				market := newGatewayMarketplaceFixture(nil, nil, withSchedulerParametersForTest(&GatewayService{resolver: r}), rCalculator, nil, nil, nil)
+				market := newPricingMarketplaceFixture(nil, nil, r, rCalculator, nil, nil, nil)
 				display := market.PublicModelPricing(context.Background(), group, "custom-ranges")
 				require.Len(t, display.ContextIntervals, 5)
 				require.Equal(t, 200, card.Intervals[0].MinTokens)
@@ -83,7 +83,7 @@ func TestPricingDisplayOnlyFlattensCompleteUniformRanges(t *testing.T) {
 			card.InputPrice = testPtrFloat64(0.001)
 		}
 		group := &routing.Group{ID: 1, Platform: capability.PlatformOpenAI, RateMultiplier: 1, ModelPricing: []routing.ChannelModelPricing{card}}
-		market := newGatewayMarketplaceFixture(nil, nil, withSchedulerParametersForTest(&GatewayService{resolver: r}), rCalculator, nil, nil, nil)
+		market := newPricingMarketplaceFixture(nil, nil, r, rCalculator, nil, nil, nil)
 		display := market.PublicModelPricing(context.Background(), group, "custom-uniform")
 		if pricedBase {
 			require.Empty(t, display.ContextIntervals)
@@ -126,7 +126,7 @@ func TestPricingIntervalsDistinguishMissingBaseFromExplicitZero(t *testing.T) {
 				}
 				cost, err := rCalculator.CalculateCostUnified(billing.CostInput{Ctx: context.Background(), Model: model, Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID,
 					Tokens: pricing.UsageTokens{InputTokens: 50}, RateMultiplier: 1, Resolver: r})
-				market := newGatewayMarketplaceFixture(nil, nil, withSchedulerParametersForTest(&GatewayService{resolver: r}), rCalculator, nil, nil, nil)
+				market := newPricingMarketplaceFixture(nil, nil, r, rCalculator, nil, nil, nil)
 				display := market.PublicModelPricing(context.Background(), group, model)
 				if kind == "missing" {
 					require.ErrorIs(t, err, pricing.ErrModelPricingUnavailable)
@@ -163,7 +163,7 @@ func TestPricingMissingMultiplierRangeDoesNotBorrowOtherIntervalPrice(t *testing
 			require.Equal(t, 0.45, cost.ActualCost)
 		}
 	}
-	market := newGatewayMarketplaceFixture(nil, nil, withSchedulerParametersForTest(&GatewayService{resolver: r}), rCalculator, nil, nil, nil)
+	market := newPricingMarketplaceFixture(nil, nil, r, rCalculator, nil, nil, nil)
 	display := market.PublicModelPricing(context.Background(), group, "custom-partial")
 	require.Len(t, display.ContextIntervals, 1)
 	require.Equal(t, 100, display.ContextIntervals[0].MinTokens)

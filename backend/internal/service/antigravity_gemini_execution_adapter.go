@@ -158,7 +158,7 @@ func (a *geminiExecutionAdapter) ShouldFailover(status int) bool {
 	return a.s.shouldFailoverUpstreamError(status)
 }
 func (a *geminiExecutionAdapter) TruncateBytes(body []byte, n int) string {
-	return truncateForLog(body, n)
+	return logredact.TruncateLine(body, n)
 }
 func (a *geminiExecutionAdapter) ErrorBody(status int, contentType string, body []byte) {
 	gatewayhttp.WriteForwardGeminiErrorBody(a.c, status, contentType, body, func() { gatewayhttp.MarkResponseCommitted(a.c) })

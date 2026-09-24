@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
+
 	"testing"
 	time "time"
 
@@ -11,7 +11,7 @@ import (
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
-	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -20,7 +20,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
@@ -28,7 +28,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -61,7 +60,7 @@ func fastModeTestResolver() *billingcore.PriceResolver {
 func TestOpenAIAPIKeyFastModeForceOnAndOff(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	forceOnCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
 	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastModeInput(forceOnCtx, account, "gpt-5.5"))
@@ -77,7 +76,7 @@ func TestOpenAIAPIKeyFastModeForceOnAndOff(t *testing.T) {
 // TestOpenAIGroupFastForcesHTTPAndWS 验证没有客户端输入时，组级策略会同时注入 HTTP body 和 WS response.create 帧。
 func TestOpenAIGroupFastForcesHTTPAndWS(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	group := &routing.Group{ID: 12, Platform: capability.PlatformOpenAI, Status: billingcore.StatusActive, Hydrated: true, ForceOpenAIFast: true}
 	ctx := requeststate.WithGroup(context.Background(), group)
 
@@ -93,7 +92,7 @@ func TestOpenAIGroupFastForcesHTTPAndWS(t *testing.T) {
 
 // TestOpenAIGroupFastStillHonorsGlobalAndKeyPolicy 验证组级强制不会绕过全局过滤或 API Key ForceOff 策略。
 func TestOpenAIGroupFastStillHonorsGlobalAndKeyPolicy(t *testing.T) {
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	group := &routing.Group{ID: 13, Platform: capability.PlatformOpenAI, Status: billingcore.StatusActive, Hydrated: true, ForceOpenAIFast: true}
 	base := requeststate.WithGroup(context.Background(), group)
 
@@ -117,7 +116,7 @@ func TestOpenAIGroupFastRequiresTrustedOpenAIContext(t *testing.T) {
 		{ID: 15, Platform: capability.PlatformAnthropic, Status: billingcore.StatusActive, Hydrated: true, ForceOpenAIFast: true},
 	} {
 		ctx := requeststate.WithGroup(context.Background(), group)
-		body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastModeInput(ctx, &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}}, "gpt-5.5"))
+		body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastModeInput(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}}, "gpt-5.5"))
 		require.NoError(t, err)
 		require.False(t, gjson.GetBytes(body, "service_tier").Exists())
 	}
@@ -126,7 +125,7 @@ func TestOpenAIGroupFastRequiresTrustedOpenAIContext(t *testing.T) {
 func TestOpenAIAPIKeyFastModeIgnoresUnsupportedModel(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "unknown-provider-model")
 
 	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"unknown-provider-model"}`), svc.fastModeInput(ctx, account, "unknown-provider-model"))
@@ -138,7 +137,7 @@ func TestOpenAIAPIKeyFastModeIgnoresUnsupportedModel(t *testing.T) {
 func TestOpenAIAPIKeyFastModeForceOffIgnoresMissingCapabilityMetadata(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "unknown-provider-model")
 
 	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"unknown-provider-model","service_tier":"priority"}`), svc.fastModeInput(ctx, account, "unknown-provider-model"))
@@ -154,7 +153,7 @@ func TestOpenAIAPIKeyFastModeForceOffIgnoresMissingCapabilityMetadata(t *testing
 // 强制关闭只删除 Fast tier，不能改变客户端选择的其它官方服务层级。
 func TestOpenAIAPIKeyFastModeForceOffPreservesNonFastTiers(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "unknown-provider-model")
 
 	for _, tier := range []string{"flex", "auto", "default", "scale"} {
@@ -176,7 +175,7 @@ func TestOpenAIAPIKeyFastModeForceOffPreservesNonFastTiers(t *testing.T) {
 // 客户端别名 fast 归一化后仍属于 priority，强制关闭必须将其删除。
 func TestOpenAIAPIKeyFastModeForceOffRemovesFastAlias(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "unknown-provider-model")
 
 	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"unknown-provider-model","service_tier":"fast"}`), svc.fastModeInput(ctx, account, "unknown-provider-model"))
@@ -187,7 +186,7 @@ func TestOpenAIAPIKeyFastModeForceOffRemovesFastAlias(t *testing.T) {
 func TestOpenAIAPIKeyFastModeCannotBypassSystemPolicy(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
 	svc.resolver = fastModeTestResolver()
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
 
 	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastModeInput(ctx, account, "gpt-5.5"))
@@ -220,7 +219,7 @@ func TestOpenAIAPIKeyFastModeCannotBypassSystemPolicy(t *testing.T) {
 func TestOpenAIAPIKeyFastModeAppliesToRealtimeFrames(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	forceOnCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
 	updated, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5"}`), "gpt-5.5", svc.fastModeInput(forceOnCtx, account, "gpt-5.5"))
@@ -239,7 +238,7 @@ func TestOpenAIAPIKeyFastModeAppliesToRealtimeFrames(t *testing.T) {
 func TestOpenAIWSFastModePolicyContextRefreshesEachTurn(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	baseCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
 	policies := map[int]string{
 		1: apikey.APIKeyFastModePolicyForceOn,
@@ -268,77 +267,16 @@ func TestAPIKeyFastModeIgnoresUnsupportedProviderAdapters(t *testing.T) {
 	openAISvc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	openAISvc.resolver = fastModeTestResolver()
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
-	body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), openAISvc.fastModeInput(ctx, &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}}, "gpt-5.5"))
+	body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), openAISvc.fastModeInput(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}}, "gpt-5.5"))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(body, "service_tier").Exists())
 
-	claudeSvc := withSchedulerParametersForTest(&GatewayService{resolver: fastModeTestResolver()})
-	body, headers, err := claudeSvc.applyClaudeAPIKeyFastMode(ctx, &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}}, "claude-opus-4-8", []byte(`{"model":"claude-opus-4-8"}`), http.Header{})
+	claudePrices := fastModeTestResolver()
+	body, headers, err := gatewayprovider.
+		ApplyAnthropicFastMode(ctx, claudePrices, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}}, "claude-opus-4-8", []byte(`{"model":"claude-opus-4-8"}`), http.Header{})
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(body, "speed").Exists())
 	require.Empty(t, claude.GetHeaderRaw(headers, "anthropic-beta"))
-}
-
-func TestClaudeAPIKeyFastModeWireEncoding(t *testing.T) {
-	svc := withSchedulerParametersForTest(&GatewayService{resolver: fastModeTestResolver()})
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
-
-	forceOnCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "claude-opus-4-8")
-	body, headers, err := svc.applyClaudeAPIKeyFastMode(forceOnCtx, account, "claude-opus-4-8", []byte(`{"model":"claude-opus-4-8"}`), http.Header{})
-	require.NoError(t, err)
-	require.Equal(t, "fast", gjson.GetBytes(body, "speed").String())
-	require.True(t, claude.ContainsBetaToken(claude.GetHeaderRaw(headers, "anthropic-beta"), claude.BetaFastMode))
-
-	forceOffCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "claude-opus-4-8")
-	claude.SetHeaderRaw(headers, "anthropic-beta", claude.BetaFastMode+",context-management-2025-06-27")
-	body, headers, err = svc.applyClaudeAPIKeyFastMode(forceOffCtx, account, "claude-opus-4-8", body, headers)
-	require.NoError(t, err)
-	require.False(t, gjson.GetBytes(body, "speed").Exists())
-	require.False(t, claude.ContainsBetaToken(claude.GetHeaderRaw(headers, "anthropic-beta"), claude.BetaFastMode))
-	require.True(t, claude.ContainsBetaToken(claude.GetHeaderRaw(headers, "anthropic-beta"), "context-management-2025-06-27"))
-}
-
-// Anthropic 直连的强制关闭应覆盖所有凭据类型，且不依赖定价解析器。
-func TestClaudeAPIKeyFastModeForceOffIgnoresCapabilityAndCredentialType(t *testing.T) {
-	svc := withSchedulerParametersForTest(&GatewayService{})
-	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "claude-opus-4-8")
-
-	for _, accountType := range []string{capability.AccountTypeAPIKey, capability.AccountTypeOAuth, capability.AccountTypeSetupToken} {
-		t.Run(accountType, func(t *testing.T) {
-			headers := http.Header{}
-			claude.SetHeaderRaw(headers, "anthropic-beta", claude.BetaFastMode+",context-management-2025-06-27")
-			body, updatedHeaders, err := svc.applyClaudeAPIKeyFastMode(
-				ctx,
-				&gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: accountType}},
-				"claude-opus-4-8",
-				[]byte(`{"model":"claude-opus-4-8","speed":"fast"}`),
-				headers,
-			)
-			require.NoError(t, err)
-			require.False(t, gjson.GetBytes(body, "speed").Exists())
-			require.False(t, claude.ContainsBetaToken(claude.GetHeaderRaw(updatedHeaders, "anthropic-beta"), claude.BetaFastMode))
-			require.True(t, claude.ContainsBetaToken(claude.GetHeaderRaw(updatedHeaders, "anthropic-beta"), "context-management-2025-06-27"))
-		})
-	}
-}
-
-func TestClaudeAPIKeyFastModeCannotBypassSystemFilter(t *testing.T) {
-	cfg := &config.Config{}
-	svc := withSchedulerParametersForTest(&GatewayService{
-		cfg:      cfg,
-		resolver: fastModeTestResolver(),
-	})
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
-	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "claude-opus-4-8")
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil).WithContext(ctx)
-	// 模拟系统 Beta 策略已将 Claude Fast token 标记为过滤。
-	c.Set(betaPolicyFilterSetKey, map[string]struct{}{claude.BetaFastMode: {}})
-
-	req, wireBody, err := svc.buildUpstreamRequest(ctx, c, account, []byte(`{"model":"claude-opus-4-8","messages":[]}`), "test-key", "apikey", "claude-opus-4-8", false, false)
-	require.NoError(t, err)
-	require.False(t, gjson.GetBytes(wireBody, "speed").Exists())
-	require.False(t, claude.ContainsBetaToken(claude.GetHeaderRaw(req.Header, "anthropic-beta"), claude.BetaFastMode))
 }
 
 func TestClaudeUsageSpeedDrivesFastBilling(t *testing.T) {
@@ -347,23 +285,13 @@ func TestClaudeUsageSpeedDrivesFastBilling(t *testing.T) {
 
 	groupID := int64(11)
 	apiKey := &apikey.APIKey{GroupID: &groupID, Group: &routing.Group{ID: groupID}}
-	account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
 	base := &forwardcore.MessagesResult{Usage: upstream.TokenUsage{InputTokens: 1000, OutputTokens: 100}, Model: "claude-opus-4-8"}
 	fast := *base
 	fast.Usage.Speed = "fast"
 
-	baseCost := svc.CalculateTokenCost(context.Background(), gatewaycapture.ProjectMessagesCompletionResult(base, gatewaycapture.ExecutionCompletionRecord(account)), gatewaycapture.ProjectCompletionKey(apiKey), gatewaycapture.ProjectCompletionAccount(gatewaycapture.ExecutionCompletionRecord(account)), "claude-opus-4-8", "claude-opus-4-8", "", "", 1, nil)
-	fastCost := svc.CalculateTokenCost(context.Background(), gatewaycapture.ProjectMessagesCompletionResult(&fast, gatewaycapture.ExecutionCompletionRecord(account)), gatewaycapture.ProjectCompletionKey(apiKey), gatewaycapture.ProjectCompletionAccount(gatewaycapture.ExecutionCompletionRecord(account)), "claude-opus-4-8", "claude-opus-4-8", "", "", 1, nil)
+	baseCost := svc.CalculateTokenCost(context.Background(), gatewayprovider.ProjectMessagesCompletionResult(base, gatewayprovider.ExecutionCompletionRecord(account)), gatewayprovider.ProjectCompletionKey(apiKey), gatewayprovider.ProjectCompletionAccount(gatewayprovider.ExecutionCompletionRecord(account)), "claude-opus-4-8", "claude-opus-4-8", "", "", 1, nil)
+	fastCost := svc.CalculateTokenCost(context.Background(), gatewayprovider.ProjectMessagesCompletionResult(&fast, gatewayprovider.ExecutionCompletionRecord(account)), gatewayprovider.ProjectCompletionKey(apiKey), gatewayprovider.ProjectCompletionAccount(gatewayprovider.ExecutionCompletionRecord(account)), "claude-opus-4-8", "claude-opus-4-8", "", "", 1, nil)
 	require.InDelta(t, baseCost.ActualCost*2, fastCost.ActualCost, 1e-12)
 	require.Equal(t, tierpolicy.OpenAIFastTierPriority, completion.ClaudeServiceTier(fast.Usage.Speed))
-}
-
-func TestClaudeUsageSpeedParsing(t *testing.T) {
-	svc := withSchedulerParametersForTest(&GatewayService{})
-	usage := &upstream.TokenUsage{}
-	svc.parseSSEUsage(`{"type":"message_start","message":{"usage":{"input_tokens":10,"speed":"fast"}}}`, usage)
-	require.Equal(t, "fast", usage.Speed)
-
-	parsed := anthropic.ParseClaudeUsageFromResponseBody([]byte(`{"usage":{"input_tokens":10,"output_tokens":2,"speed":"standard"}}`))
-	require.Equal(t, "standard", parsed.Speed)
 }

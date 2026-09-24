@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"time"
@@ -64,7 +65,7 @@ func RegisterGatewayRoutes(
 	var runtime *textattempt.Runtime
 	var activity *gatewayRequestActivity
 	if h.TextEnabled {
-		shared = provideMessageHTTPBindings(&service.GatewayService{}, &service.OpenAIGatewayService{}, nil, nil, nil, nil, nil, nil, cfg, nil)
+		shared = provideMessageHTTPBindings(gatewayprovider.NewRoutePlanner(nil), nil, &service.OpenAIGatewayService{}, nil, nil, nil, nil, nil, nil, cfg, nil)
 		runtime = textattempt.New(textattempt.Bindings{})
 		activity = &gatewayRequestActivity{Operations: lifecycle.NewOperations("route-fixture")}
 	}
@@ -74,7 +75,7 @@ func RegisterGatewayRoutes(
 	}
 	countTokensHTTP := h.CountTokensHTTP
 	if countTokensHTTP == nil && h.TextEnabled {
-		countTokensHTTP = provideCountTokensHTTP(nil, nil, nil, nil, cfg, nil, nil, nil, nil)
+		countTokensHTTP = provideCountTokensHTTP(nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil)
 	}
 	qoderCompatibleHTTP := h.QoderCompatibleHTTP
 	if qoderCompatibleHTTP == nil {
@@ -82,11 +83,11 @@ func RegisterGatewayRoutes(
 	}
 	compatibleTextHTTP := h.CompatibleTextHTTP
 	if compatibleTextHTTP == nil && h.TextEnabled {
-		compatibleTextHTTP = provideCompatibleTextHTTP(shared, &service.GatewayService{}, runtime, activity)
+		compatibleTextHTTP = provideCompatibleTextHTTP(shared, runtime, activity)
 	}
 	geminiNativeHTTP := h.GeminiNativeHTTP
 	if geminiNativeHTTP == nil && h.TextEnabled {
-		geminiNativeHTTP = provideGeminiNativeHTTP(shared, &service.GatewayService{}, runtime, activity, nil)
+		geminiNativeHTTP = provideGeminiNativeHTTP(shared, nil, runtime, activity, nil)
 	}
 	commonOpenAI := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
 	openAIRuntime := provideOpenAITextAttemptRuntime(commonOpenAI)

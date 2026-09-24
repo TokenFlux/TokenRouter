@@ -43,7 +43,6 @@ func provideCoreRuntime(
 	tlsFingerprintCollector *provider.TLSFingerprintCollectorService,
 	manager *lifecycle.Manager,
 	timingWheel *timingwheel.Wheel,
-	gateway *service.GatewayService,
 	geminiGateway *service.GeminiMessagesCompatService,
 	antigravityGateway *service.AntigravityGatewayService,
 	digestStore *session.DigestSessionStore,
@@ -55,7 +54,7 @@ func provideCoreRuntime(
 
 	nativeAttempts := requestActivity
 	openAIGateway.BindRuntimeBlockState(accountRuntime)
-	bindGatewayBackground(tasks, gateway, openAIGateway)
+	bindGatewayBackground(tasks, openAIGateway)
 
 	geminiGateway.BindQuotaPrecheck(geminiPrecheck)
 	if openAIGateway != nil {
@@ -69,9 +68,6 @@ func provideCoreRuntime(
 	}
 	if geminiGateway != nil {
 		geminiGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
-	}
-	if gateway != nil {
-		gateway.BindNativeAttemptActivity(nativeAttempts.Enter)
 	}
 
 	manager.Register(lifecycle.Hook{Name: "AuthCacheInvalidationWorker", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
@@ -194,10 +190,7 @@ func provideCoreRuntime(
 }
 
 // bindGatewayBackground 使执行侧派生工作与其他应用任务共享关闭屏障。
-func bindGatewayBackground(tasks *lifecycle.Tasks, gateway *service.GatewayService, openai *service.OpenAIGatewayService) {
-	if gateway != nil {
-		gateway.BindBackgroundTasks(tasks.Go)
-	}
+func bindGatewayBackground(tasks *lifecycle.Tasks, openai *service.OpenAIGatewayService) {
 	if openai != nil {
 		openai.BindBackgroundTasks(tasks.Go)
 	}

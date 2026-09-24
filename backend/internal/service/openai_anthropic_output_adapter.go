@@ -58,7 +58,7 @@ func (s *OpenAIGatewayService) nativeAnthropicDirectOptions(c *gin.Context, acco
 			return httpapi.ReadUpstreamResponseBody(r, resolveUpstreamResponseReadLimit(s.cfg), c, httpapi.AnthropicResponseTooLarge)
 		},
 		InvalidJSON: func(ctx context.Context, r *http.Response, body []byte, err error, model string) error {
-			return invalidNonStreamingJSONFailoverError(ctx, s.healthObserver, r, account, body, err, model)
+			return gatewayprovider.NonJSONUpstreamFailure(ctx, s.healthObserver, r, account, body, err, model)
 		},
 		ForceCache: requeststate.IsForceCacheBilling, ClassifyCache: anthropic.ClassifyResponseInputAsCacheRead,
 		CopyHeaders:  func(dst, src http.Header) { httpapi.WriteAnthropicPassthroughHeaders(dst, src, s.responseHeaderFilter) },

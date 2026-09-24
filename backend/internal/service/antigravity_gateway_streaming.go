@@ -49,7 +49,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 
 	// 记录上游错误详情便于排障（可选：由配置控制；不回显到客户端）
 	if logBody {
-		logging.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] upstream_error status=%d body=%s", upstreamStatus, truncateForLog(body, maxBytes))
+		logging.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] upstream_error status=%d body=%s", upstreamStatus, logredact.TruncateLine(body, maxBytes))
 	}
 
 	// 检查错误透传规则

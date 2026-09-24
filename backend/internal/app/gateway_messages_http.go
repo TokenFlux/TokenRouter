@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt"
@@ -12,15 +11,17 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/google/uuid"
 
-	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
-	"github.com/TokenFlux/TokenRouter/internal/routing"
+	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
@@ -28,7 +29,8 @@ import (
 
 // provideMessagesHTTP 直接构造原生 HTTP；执行依赖的最后兼容装配单独保留。
 func provideMessageHTTPBindings(
-	source *service.GatewayService,
+	planner *gatewayprovider.RoutePlanner,
+	cache session.GatewayCache,
 	openai *service.OpenAIGatewayService,
 	funding *admission.FundingAdmission,
 	rules *errorpolicy.ErrorPassthroughService,
@@ -55,15 +57,9 @@ func provideMessageHTTPBindings(
 		moderationPort = moderationService
 	}
 	bindings := gatewayhttp.MessagesBindings{
-		PlanRoute: func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-			var id *int64
-			if key != nil {
-				id = key.GroupID
-			}
-			return source.PlanRoute(ctx, service.APIKeyRouteGroup(key), id, model)
-		},
+		PlanRoute:      planner.PlanKey,
 		ClientVersions: settings.GetClaudeCodeVersionBounds, Funding: funding, Moderation: moderationPort, Errors: rules,
-		IsolateSession: source.EnsureSessionIsolation, CachedSession: choices.GetCachedSessionAccountID,
+		IsolateSession: messageSessionIsolation(cache), CachedSession: choices.GetCachedSessionAccountID,
 		ObserveCompatibility: func(log *zap.Logger) {
 			gatewayhttp.LogCompatibilityFallback(log, func() gatewayhttp.CompatibilityLogSnapshot {
 				value := openai.SnapshotOpenAICompatibilityFallbackMetrics()
@@ -110,14 +106,13 @@ func provideMessagesHTTP(
 }
 func provideCompatibleTextHTTP(
 	shared *messageHTTPBindings,
-	source *service.GatewayService,
 	runtime *textattempt.Runtime,
 	activity *gatewayRequestActivity,
 ) *gatewayhttp.CompatibleTextHandler {
 	result := gatewayhttp.NewBoundCompatibleTextHandler(
 		shared.options,
 		shared.bindings,
-		source.ReplaceModelInBody,
+		openaiwire.ReplaceModelInBody,
 		shared.prompt,
 		shared.concurrency,
 		textflow.NewMessagesExecutor(
@@ -139,7 +134,7 @@ func provideCompatibleTextHTTP(
 }
 func provideGeminiNativeHTTP(
 	shared *messageHTTPBindings,
-	source *service.GatewayService,
+	digest *session.DigestSessionStore,
 	runtime *textattempt.Runtime,
 	activity *gatewayRequestActivity, choices *selection.Generic,
 ) *gatewayhttp.GeminiNativeHandler {
@@ -150,7 +145,7 @@ func provideGeminiNativeHTTP(
 		shared.bindings,
 		gatewayhttp.GeminiHTTPBindings{
 			SafeModelSegment: gemini.IsSafeGeminiModelPathSegment,
-			FindSession:      source.FindGeminiSession,
+			FindSession:      messageDigestFind(digest),
 			BindSticky:       choices.BindStickySession,
 		},
 		shared.prompt,

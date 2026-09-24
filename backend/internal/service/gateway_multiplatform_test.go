@@ -11,14 +11,9 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
-
-// testConfig 返回一个用于测试的默认配置
-func testConfig() *config.Config {
-	return &config.Config{RunMode: config.RunModeStandard}
-}
 
 // mockAccountRepoForPlatform 单平台测试用的 mock
 type mockAccountRepoForPlatform struct {

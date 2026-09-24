@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -89,9 +91,9 @@ func TestClassifyUpstreamTransportError(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := classifyUpstreamTransportError(tc.err).Persistent
+			got := httpclient.ClassifyTransportFailure(tc.err).Persistent
 			if got != tc.persistent {
-				t.Fatalf("classifyUpstreamTransportError(%v).Persistent = %v, want %v", tc.err, got, tc.persistent)
+				t.Fatalf("httpclient.ClassifyTransportFailure(%v).Persistent = %v, want %v", tc.err, got, tc.persistent)
 			}
 		})
 	}

@@ -9,11 +9,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 )
 
-// EnsureSessionIsolation 记录显式会话 owner，并在目标分组开启隔离时拒绝跨分组切入。
-func (s *GatewayService) EnsureSessionIsolation(ctx context.Context, apiKey *apikey.APIKey, userID int64, source, sessionHash string) error {
-	return ensureSessionIsolation(ctx, s.cache, apiKey, userID, source, sessionHash, stickySessionTTL)
-}
-
 // EnsureSessionIsolation 记录 OpenAI 显式会话 owner，并在目标分组开启隔离时拒绝跨分组切入。
 func (s *OpenAIGatewayService) EnsureSessionIsolation(ctx context.Context, apiKey *apikey.APIKey, userID int64, source, sessionHash string) error {
 	return ensureSessionIsolation(ctx, s.cache, apiKey, userID, source, sessionHash, openaiStickySessionTTL)

@@ -24,6 +24,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -33,7 +34,7 @@ import (
 // qoderRuntime 的字段在应用装配时固定，不持有 Gin 或逐请求状态。
 type qoderRuntime struct {
 	Choices     *selection.Generic
-	Gateway     *service.GatewayService
+	Routes      *gatewayprovider.RoutePlanner
 	Qoder       *gatewayprovider.QoderRuntime
 	Refresh     *accountprovider.QoderRequestRefresh
 	Billing     *admission.FundingAdmission
@@ -44,11 +45,11 @@ type qoderRuntime struct {
 
 func (b *qoderRuntime) Prepare(ctx context.Context, request gateway.Request) (gateway.Request, error) {
 	key := apikey.CopyAPIKey(request.Funding.Key)
-	request.Route = b.Gateway.PlanRoute(ctx, service.APIKeyRouteGroup(key), key.GroupID, request.Model).WithClientProtocol(protocol.ProtocolOpenAIChatCompletions)
-	mapping := service.ChannelMappingFromRoutePlan(request.Route)
+	request.Route = b.Routes.PlanKey(ctx, key, request.Model).WithClientProtocol(protocol.ProtocolOpenAIChatCompletions)
+	mapping := request.Route.Mapping()
 	request.AttemptBody = request.Body
 	if mapping.Mapped {
-		request.AttemptBody = b.Gateway.ReplaceModelInBody(request.Body, mapping.MappedModel)
+		request.AttemptBody = openaiwire.ReplaceModelInBody(request.Body, mapping.MappedModel)
 	}
 	return request, nil
 }

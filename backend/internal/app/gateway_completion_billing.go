@@ -50,25 +50,7 @@ func ProvideGatewayCompletionRecorders(
 	}
 	subscriptions, _ := funds.(completion.SubscriptionReader)
 	effects := func() *completion.CommitEffects {
-		value := &completion.CommitEffects{
-			Activity: deferred,
-			Observe:  gatewaytelemetry.ObserveCompletion,
-			Funds: billing.SettlementEffects{
-				Cache:          eligibility,
-				Quotas:         quotas,
-				FlusherEnabled: cfg != nil && cfg.Database.UserPlatformQuotaFlusherEnabled,
-				Background:     tasks.Go,
-				Observe:        logging.LegacyPrintf,
-				BalanceWarning: func(id int64, balance float64, err error) {
-					slog.Warn("invalidate balance cache after exhausted deduction failed", "user_id", id, "new_balance", balance, "error", err)
-				},
-			},
-		}
-		value.Auth = keys
-		if notifications != nil {
-			value.Notifications = notifications
-		}
-		return value
+		return gatewayCommitEffects(deferred, eligibility, quotas, notifications, keys, tasks, cfg)
 	}
 	stats := func() *billing.PriceResolver {
 		var source billing.AccountStatsSource
@@ -121,4 +103,27 @@ type completionHealth struct{ core *account.HealthService }
 
 func (p completionHealth) ResetOpenAI403Counter(ctx context.Context, id int64) {
 	p.core.ResetForbiddenCounter(ctx, id)
+}
+
+// 两条完成链各自取得效果对象，后台任务继续交给同一应用拥有者。
+func gatewayCommitEffects(deferred *account.DeferredService, eligibility *billing.Eligibility, quotas billing.UserPlatformQuotaRepository, notifications *billing.BalanceNotifyService, keys *apikey.APIKeyService, tasks *lifecycle.Tasks, cfg *config.Config) *completion.CommitEffects {
+	value := &completion.CommitEffects{
+		Activity: deferred,
+		Observe:  gatewaytelemetry.ObserveCompletion,
+		Funds: billing.SettlementEffects{
+			Cache:          eligibility,
+			Quotas:         quotas,
+			FlusherEnabled: cfg != nil && cfg.Database.UserPlatformQuotaFlusherEnabled,
+			Background:     tasks.Go,
+			Observe:        logging.LegacyPrintf,
+			BalanceWarning: func(id int64, balance float64, err error) {
+				slog.Warn("invalidate balance cache after exhausted deduction failed", "user_id", id, "new_balance", balance, "error", err)
+			},
+		},
+	}
+	value.Auth = keys
+	if notifications != nil {
+		value.Notifications = notifications
+	}
+	return value
 }

@@ -45,7 +45,6 @@ var gatewayAssemblyProviders = wire.NewSet(
 	provideUsageRecordWorkerPool,
 	provideQoderRequestActivity,
 	provideQoderChat,
-	provideGatewayForRouting,
 	provideExecutionAccountStore,
 	provideFundingAdmission,
 	gatewayExecutionProviders,

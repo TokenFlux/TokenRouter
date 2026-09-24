@@ -1,0 +1,518 @@
+package anthropic_test
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
+)
+
+// TestSystemHasClaudeCodeBillingAttribution 验证代理流量识别只接受完整的 system 计费归因块。
+func TestSystemHasClaudeCodeBillingAttribution(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{
+			name: "完整计费块",
+			body: `{"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.220.abc; cc_entrypoint=cli;"}]}`,
+			want: true,
+		},
+		{
+			name: "计费块可位于后续 system 元素",
+			body: `{"system":[{"type":"text","text":"project"},{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.220.abc; cc_entrypoint=claude-vscode;"}]}`,
+			want: true,
+		},
+		{
+			name: "缺少入口字段",
+			body: `{"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.220.abc;"}]}`,
+		},
+		{
+			name: "前缀不精确",
+			body: `{"system":[{"type":"text","text":"prefix x-anthropic-billing-header: cc_version=2.1.220.abc; cc_entrypoint=cli;"}]}`,
+		},
+		{
+			name: "system 字符串不接受",
+			body: `{"system":"x-anthropic-billing-header: cc_version=2.1.220.abc; cc_entrypoint=cli;"}`,
+		},
+		{
+			name: "无效 JSON",
+			body: `{"system":`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, claude.SystemHasClaudeCodeBillingAttribution([]byte(tt.body)))
+		})
+	}
+}
+
+// TestIsProxiedClaudeCodeRequest 验证代理识别不能由任意 metadata.user_id 绕过。
+func TestIsProxiedClaudeCodeRequest(t *testing.T) {
+	validMetadata := claude.FormatMetadataUserID(
+		"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+		"550e8400-e29b-41d4-a716-446655440000",
+		"123e4567-e89b-42d3-a456-426614174000",
+		claude.CLICurrentVersion,
+	)
+	body := []byte(`{"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.220.abc; cc_entrypoint=cli;"}]}`)
+
+	require.True(t, claude.IsProxiedClaudeCodeRequest(body, validMetadata))
+	require.False(t, claude.IsProxiedClaudeCodeRequest(body, "arbitrary-user-id"))
+	require.False(t, claude.IsProxiedClaudeCodeRequest([]byte(`{"system":[{"type":"text","text":"project"}]}`), validMetadata))
+}
+
+func TestRewriteSystemForNonClaudeCodeWithPrompt_UsesCustomExpansionPrompt(t *testing.T) {
+	body := []byte(`{"model":"claude-3","system":"Project instructions","messages":[{"role":"user","content":"hello"}]}`)
+	customPrompt := "Custom Claude OAuth expansion prompt"
+
+	result := claude.RewriteSystemForNonClaudeCodeWithPrompt(body, "Project instructions", customPrompt)
+
+	system := gjson.GetBytes(result, "system")
+	require.True(t, system.IsArray())
+	require.Len(t, system.Array(), 3)
+	require.Equal(t, customPrompt, system.Array()[2].Get("text").String())
+	require.Equal(t, "ephemeral", system.Array()[2].Get("cache_control.type").String())
+}
+
+func TestRewriteSystemForNonClaudeCode_PreservesSystemCacheControlOnMigratedMessage(t *testing.T) {
+	body := []byte(`{"model":"claude-3","system":[{"type":"text","text":"Stable project instructions","cache_control":{"type":"ephemeral","ttl":"1h"}}],"messages":[{"role":"user","content":"hello"}]}`)
+	system := []any{
+		map[string]any{
+			"type":          "text",
+			"text":          "Stable project instructions",
+			"cache_control": map[string]any{"type": "ephemeral", "ttl": "1h"},
+		},
+	}
+
+	result := claude.RewriteSystemForNonClaudeCode(body, system)
+
+	require.Equal(t, "[System Instructions]\nStable project instructions", gjson.GetBytes(result, "messages.0.content.0.text").String())
+	require.Equal(t, "ephemeral", gjson.GetBytes(result, "messages.0.content.0.cache_control.type").String())
+	require.Equal(t, "1h", gjson.GetBytes(result, "messages.0.content.0.cache_control.ttl").String())
+}
+
+func TestRewriteSystemForNonClaudeCode_LeavesMigratedMessageUncachedWithoutSystemBreakpoint(t *testing.T) {
+	body := []byte(`{"model":"claude-3","system":[{"type":"text","text":"Project instructions"}],"messages":[{"role":"user","content":"hello"}]}`)
+	system := []any{
+		map[string]any{"type": "text", "text": "Project instructions"},
+	}
+
+	result := claude.RewriteSystemForNonClaudeCode(body, system)
+
+	require.False(t, gjson.GetBytes(result, "messages.0.content.0.cache_control").Exists())
+}
+
+func TestRewriteSystemForNonClaudeCodeWithPromptBlocks_UsesConfiguredBlocks(t *testing.T) {
+	body := []byte(`{"model":"claude-3","system":"Project instructions","messages":[{"role":"user","content":"hello"}]}`)
+	blocks := `{
+		"blocks": [
+			{"type":"text","text":"prefix {cc_version}.{fp}","cache_control":true},
+			{"enabled":false,"type":"text","text":"disabled"},
+			{"type":"text","text":"{claude_code_system_prompt}"},
+			{"type":"text","text":"tail","cache_control":{"type":"ephemeral","ttl":"1h"}}
+		]
+	}`
+
+	result := claude.RewriteSystemForNonClaudeCodeWithPromptBlocks(body, "Project instructions", "", blocks)
+
+	system := gjson.GetBytes(result, "system")
+	require.True(t, system.IsArray())
+	arr := system.Array()
+	require.Len(t, arr, 3)
+	require.Contains(t, arr[0].Get("text").String(), "prefix "+claude.CLICurrentVersion+".")
+	require.Equal(t, "ephemeral", arr[0].Get("cache_control.type").String())
+	require.Equal(t, claude.DefaultCacheControlTTL, arr[0].Get("cache_control.ttl").String())
+	require.Equal(t, claude.ClaudeCodeSystemPrompt, arr[1].Get("text").String())
+	require.False(t, arr[1].Get("cache_control").Exists())
+	require.Equal(t, "tail", arr[2].Get("text").String())
+	require.Equal(t, "1h", arr[2].Get("cache_control.ttl").String())
+}
+
+func TestSystemIncludesClaudeCodePrompt(t *testing.T) {
+	tests := []struct {
+		name   string
+		system any
+		want   bool
+	}{
+		{
+			name:   "nil system",
+			system: nil,
+			want:   false,
+		},
+		{
+			name:   "empty string",
+			system: "",
+			want:   false,
+		},
+		{
+			name:   "string with Claude Code prompt",
+			system: claude.ClaudeCodeSystemPrompt,
+			want:   true,
+		},
+		{
+			name:   "string with different content",
+			system: "You are a helpful assistant.",
+			want:   false,
+		},
+		{
+			name:   "empty array",
+			system: []any{},
+			want:   false,
+		},
+		{
+			name: "array with Claude Code prompt",
+			system: []any{
+				map[string]any{
+					"type": "text",
+					"text": claude.ClaudeCodeSystemPrompt,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "array with Claude Code prompt in second position",
+			system: []any{
+				map[string]any{"type": "text", "text": "First prompt"},
+				map[string]any{"type": "text", "text": claude.ClaudeCodeSystemPrompt},
+			},
+			want: true,
+		},
+		{
+			name: "array without Claude Code prompt",
+			system: []any{
+				map[string]any{"type": "text", "text": "Custom prompt"},
+			},
+			want: false,
+		},
+		{
+			name: "array with partial match (should not match)",
+			system: []any{
+				map[string]any{"type": "text", "text": "You are Claude"},
+			},
+			want: false,
+		},
+		// json.RawMessage cases (conversion path: ForwardAsResponses / ForwardAsChatCompletions)
+		{
+			name:   "json.RawMessage string with Claude Code prompt",
+			system: json.RawMessage(`"` + claude.ClaudeCodeSystemPrompt + `"`),
+			want:   true,
+		},
+		{
+			name:   "json.RawMessage string without Claude Code prompt",
+			system: json.RawMessage(`"You are a helpful assistant"`),
+			want:   false,
+		},
+		{
+			name:   "json.RawMessage nil (empty)",
+			system: json.RawMessage(nil),
+			want:   false,
+		},
+		{
+			name:   "json.RawMessage empty string",
+			system: json.RawMessage(`""`),
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := claude.SystemIncludesClaudeCodePrompt(tt.system)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestInjectClaudeCodePrompt(t *testing.T) {
+	claudePrefix := strings.TrimSpace(claude.ClaudeCodeSystemPrompt)
+
+	tests := []struct {
+		name           string
+		body           string
+		system         any
+		wantSystemLen  int
+		wantFirstText  string
+		wantSecondText string
+	}{
+		{
+			name:          "nil system",
+			body:          `{"model":"claude-3"}`,
+			system:        nil,
+			wantSystemLen: 1,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
+		},
+		{
+			name:          "empty string system",
+			body:          `{"model":"claude-3"}`,
+			system:        "",
+			wantSystemLen: 1,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
+		},
+		{
+			name:           "string system",
+			body:           `{"model":"claude-3"}`,
+			system:         "Custom prompt",
+			wantSystemLen:  2,
+			wantFirstText:  claude.ClaudeCodeSystemPrompt,
+			wantSecondText: claudePrefix + "\n\nCustom prompt",
+		},
+		{
+			name:          "string system equals Claude Code prompt",
+			body:          `{"model":"claude-3"}`,
+			system:        claude.ClaudeCodeSystemPrompt,
+			wantSystemLen: 1,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
+		},
+		{
+			name:   "array system",
+			body:   `{"model":"claude-3"}`,
+			system: []any{map[string]any{"type": "text", "text": "Custom"}},
+			// Claude Code + Custom = 2
+			wantSystemLen:  2,
+			wantFirstText:  claude.ClaudeCodeSystemPrompt,
+			wantSecondText: claudePrefix + "\n\nCustom",
+		},
+		{
+			name: "array system with existing Claude Code prompt (should dedupe)",
+			body: `{"model":"claude-3"}`,
+			system: []any{
+				map[string]any{"type": "text", "text": claude.ClaudeCodeSystemPrompt},
+				map[string]any{"type": "text", "text": "Other"},
+			},
+			// Claude Code at start + Other = 2 (deduped)
+			wantSystemLen:  2,
+			wantFirstText:  claude.ClaudeCodeSystemPrompt,
+			wantSecondText: claudePrefix + "\n\nOther",
+		},
+		{
+			name:          "empty array",
+			body:          `{"model":"claude-3"}`,
+			system:        []any{},
+			wantSystemLen: 1,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
+		},
+		// json.RawMessage cases (conversion path: ForwardAsResponses / ForwardAsChatCompletions)
+		{
+			name:           "json.RawMessage string system",
+			body:           `{"model":"claude-3","system":"Custom prompt"}`,
+			system:         json.RawMessage(`"Custom prompt"`),
+			wantSystemLen:  2,
+			wantFirstText:  claude.ClaudeCodeSystemPrompt,
+			wantSecondText: claudePrefix + "\n\nCustom prompt",
+		},
+		{
+			name:          "json.RawMessage nil system",
+			body:          `{"model":"claude-3"}`,
+			system:        json.RawMessage(nil),
+			wantSystemLen: 1,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
+		},
+		{
+			name:          "json.RawMessage Claude Code prompt (should not duplicate)",
+			body:          `{"model":"claude-3","system":"` + claude.ClaudeCodeSystemPrompt + `"}`,
+			system:        json.RawMessage(`"` + claude.ClaudeCodeSystemPrompt + `"`),
+			wantSystemLen: 1,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := claude.InjectClaudeCodePrompt([]byte(tt.body), tt.system)
+
+			var parsed map[string]any
+			err := json.Unmarshal(result, &parsed)
+			require.NoError(t, err)
+
+			system, ok := parsed["system"].([]any)
+			require.True(t, ok, "system should be an array")
+			require.Len(t, system, tt.wantSystemLen)
+
+			first, ok := system[0].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, tt.wantFirstText, first["text"])
+			require.Equal(t, "text", first["type"])
+
+			// Check cache_control
+			cc, ok := first["cache_control"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, "ephemeral", cc["type"])
+
+			if tt.wantSecondText != "" && len(system) > 1 {
+				second, ok := system[1].(map[string]any)
+				require.True(t, ok)
+				require.Equal(t, tt.wantSecondText, second["text"])
+			}
+		})
+	}
+}
+
+func TestRewriteSystemForNonClaudeCode(t *testing.T) {
+	tests := []struct {
+		name             string
+		body             string
+		system           any
+		wantSystemText   string // system array 第一个 block 的 text
+		wantMessagesLen  int    // messages 数组长度
+		wantFirstMsgRole string // 第一条消息的 role
+		wantFirstMsgText string // 第一条消息的 content[0].text
+		wantAckMsgText   string // 第二条消息的 content[0].text
+	}{
+		{
+			name:            "nil system - no messages injected",
+			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
+			system:          nil,
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
+			wantMessagesLen: 1, // 原始 1 条消息，不注入
+		},
+		{
+			name:            "empty string system - no messages injected",
+			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
+			system:          "",
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
+			wantMessagesLen: 1,
+		},
+		{
+			name:             "custom string system - migrated to messages",
+			body:             `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
+			system:           "You are a personal assistant running inside OpenClaw.",
+			wantSystemText:   claude.ClaudeCodeSystemPrompt,
+			wantMessagesLen:  3, // instruction + ack + original
+			wantFirstMsgRole: "user",
+			wantFirstMsgText: "[System Instructions]\nYou are a personal assistant running inside OpenClaw.",
+			wantAckMsgText:   "Understood. I will follow these instructions.",
+		},
+		{
+			name:            "system equals Claude Code prompt - no messages injected",
+			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
+			system:          claude.ClaudeCodeSystemPrompt,
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
+			wantMessagesLen: 1,
+		},
+		{
+			name: "array system with custom blocks - text joined and migrated",
+			body: `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
+			system: []any{
+				map[string]any{"type": "text", "text": "First instruction"},
+				map[string]any{"type": "text", "text": "Second instruction"},
+			},
+			wantSystemText:   claude.ClaudeCodeSystemPrompt,
+			wantMessagesLen:  3,
+			wantFirstMsgRole: "user",
+			wantFirstMsgText: "[System Instructions]\nFirst instruction\n\nSecond instruction",
+			wantAckMsgText:   "Understood. I will follow these instructions.",
+		},
+		{
+			name:            "empty array system - no messages injected",
+			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
+			system:          []any{},
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
+			wantMessagesLen: 1,
+		},
+		{
+			name:             "json.RawMessage string system",
+			body:             `{"model":"claude-3","system":"Custom prompt","messages":[{"role":"user","content":"hello"}]}`,
+			system:           json.RawMessage(`"Custom prompt"`),
+			wantSystemText:   claude.ClaudeCodeSystemPrompt,
+			wantMessagesLen:  3,
+			wantFirstMsgRole: "user",
+			wantFirstMsgText: "[System Instructions]\nCustom prompt",
+			wantAckMsgText:   "Understood. I will follow these instructions.",
+		},
+		{
+			name:            "json.RawMessage nil system",
+			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
+			system:          json.RawMessage(nil),
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
+			wantMessagesLen: 1,
+		},
+		{
+			name:             "multiple original messages preserved",
+			body:             `{"model":"claude-3","messages":[{"role":"user","content":"msg1"},{"role":"assistant","content":"resp1"},{"role":"user","content":"msg2"}]}`,
+			system:           "Be helpful",
+			wantSystemText:   claude.ClaudeCodeSystemPrompt,
+			wantMessagesLen:  5, // 2 injected + 3 original
+			wantFirstMsgRole: "user",
+			wantFirstMsgText: "[System Instructions]\nBe helpful",
+			wantAckMsgText:   "Understood. I will follow these instructions.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := claude.RewriteSystemForNonClaudeCode([]byte(tt.body), tt.system)
+
+			var parsed map[string]any
+			err := json.Unmarshal(result, &parsed)
+			require.NoError(t, err)
+
+			// system 应为 array 格式，对齐真实 Claude Code CLI 的 3-block 形态：
+			//   [0] billing attribution block (x-anthropic-billing-header: cc_version=...;)
+			//   [1] Claude Code 身份前缀 block (不带 cache_control)
+			//   [2] 工具无关的通用提示词扩充 block (带 cache_control，作为缓存断点)
+			systemArr, ok := parsed["system"].([]any)
+			require.True(t, ok, "system should be an array, got %T", parsed["system"])
+			require.Len(t, systemArr, 3, "system array should have exactly 3 blocks (billing + cc prompt + expansion)")
+
+			billingBlock, ok := systemArr[0].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, "text", billingBlock["type"])
+			require.Contains(t, billingBlock["text"], "x-anthropic-billing-header:")
+			require.Contains(t, billingBlock["text"], "cc_version=")
+			require.Contains(t, billingBlock["text"], "cc_entrypoint=cli")
+			// 新版 CLI 已取消 cch=... 签名字段，注入的 billing block 不应再带 cch。
+			require.NotContains(t, billingBlock["text"], "cch=")
+
+			systemBlock, ok := systemArr[1].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, "text", systemBlock["type"])
+			require.Equal(t, tt.wantSystemText, systemBlock["text"])
+			_, hasCC := systemBlock["cache_control"]
+			require.False(t, hasCC, "身份前缀 block 不应带 cache_control（断点落在扩充块）")
+
+			expansionBlock, ok := systemArr[2].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, "text", expansionBlock["type"])
+			require.Equal(t, claude.ClaudeCodeSystemPromptExpansion, expansionBlock["text"])
+			cc, ok := expansionBlock["cache_control"].(map[string]any)
+			require.True(t, ok, "expansion block should have cache_control")
+			require.Equal(t, "ephemeral", cc["type"])
+
+			// 检查 messages
+			messages, ok := parsed["messages"].([]any)
+			require.True(t, ok, "messages should be an array")
+			require.Len(t, messages, tt.wantMessagesLen)
+
+			if tt.wantFirstMsgRole != "" && len(messages) >= 2 {
+				// 检查注入的 instruction 消息
+				firstMsg, ok := messages[0].(map[string]any)
+				require.True(t, ok)
+				require.Equal(t, tt.wantFirstMsgRole, firstMsg["role"])
+
+				firstContent, ok := firstMsg["content"].([]any)
+				require.True(t, ok)
+				require.Len(t, firstContent, 1)
+				firstBlock, ok := firstContent[0].(map[string]any)
+				require.True(t, ok)
+				require.Equal(t, tt.wantFirstMsgText, firstBlock["text"])
+
+				// 检查注入的 ack 消息
+				ackMsg, ok := messages[1].(map[string]any)
+				require.True(t, ok)
+				require.Equal(t, "assistant", ackMsg["role"])
+
+				ackContent, ok := ackMsg["content"].([]any)
+				require.True(t, ok)
+				require.Len(t, ackContent, 1)
+				ackBlock, ok := ackContent[0].(map[string]any)
+				require.True(t, ok)
+				require.Equal(t, tt.wantAckMsgText, ackBlock["text"])
+			}
+		})
+	}
+}

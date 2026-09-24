@@ -11,6 +11,12 @@ import (
 // 完全学习自 claude-relay-service 项目的验证逻辑
 type ClaudeCodeValidator struct{}
 
+// IsClaudeCodeClient 同时检查 CLI User-Agent 与 metadata 身份格式。
+// 仅有伪装的 User-Agent 或非空 user_id 不足以跳过请求伪装。
+func IsClaudeCodeClient(userAgent, metadataUserID string) bool {
+	return claudeCodeUAPattern.MatchString(userAgent) && wire.ParseMetadataUserID(metadataUserID) != nil
+}
+
 var (
 	// User-Agent 匹配: claude-cli/x.x.x (仅支持官方 CLI，大小写不敏感)
 	claudeCodeUAPattern = regexp.MustCompile(`(?i)^claude-cli/\d+\.\d+\.\d+`)

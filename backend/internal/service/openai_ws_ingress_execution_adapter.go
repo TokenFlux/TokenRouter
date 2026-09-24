@@ -82,7 +82,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 	}
 
 	var routeErr error
-	account, routeErr = accountForProtocolAttempt(ctx, account)
+	account, routeErr = gatewayprovider.AccountForProtocolAttempt(ctx, account)
 	if routeErr != nil {
 		return routeErr
 	}

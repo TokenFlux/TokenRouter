@@ -22,13 +22,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/search"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 // ProvideGatewaySearchTools 由组合根为请求链持有唯一工具编排器；不创建新 Manager 或配额状态。
-func ProvideGatewaySearchTools(gateway *service.GatewayService, settings *search.ConfigService, channels *routing.ChannelService) *searchtools.Emulator {
+func ProvideGatewaySearchTools(settings *search.ConfigService, channels *routing.ChannelService) *searchtools.Emulator {
 	runtime := gatewayprovider.NewSearchTools(settings, channels)
-	gateway.BindSearchToolsRuntime(runtime)
 	return runtime
 }
 

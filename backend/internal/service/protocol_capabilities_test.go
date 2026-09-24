@@ -24,13 +24,13 @@ func TestProtocolRouteNativeFirstAndExplicitFallback(t *testing.T) {
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformDeepseek, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{accountcore.UpstreamProtocolsKey: []string{"anthropic_messages", "openai_responses"}, "api_base_urls": map[string]any{"anthropic": "https://relay.example/messages", "responses": "https://relay.example/responses"}}}}
 	group := &routing.Group{Platform: capability.PlatformDeepseek, AllowedProtocols: []protocolcore.ProtocolID{protocolcore.ProtocolAnthropicMessages}, ProtocolFallbacks: map[protocolcore.ProtocolID]protocolcore.ProtocolID{protocolcore.ProtocolAnthropicMessages: protocolcore.ProtocolOpenAIResponses}}
 	ctx := requeststate.WithClientProtocol(requeststate.WithGroup(context.Background(), group), protocolcore.ProtocolAnthropicMessages)
-	selected, err := accountForProtocolAttempt(ctx, account)
+	selected, err := gatewayprovider.AccountForProtocolAttempt(ctx, account)
 	require.NoError(t, err)
 	require.Equal(t, accountcore.APIProtocolAnthropic, gatewayprovider.ExecutionProtocolTarget(selected).GetAPIProtocol())
 	require.Empty(t, account.Route.Protocol())
 	require.Equal(t, "https://relay.example/messages", gatewayprovider.ExecutionProtocolTarget(selected).GetAnthropicProtocolBaseURL())
 	account.Record.Credentials[accountcore.UpstreamProtocolsKey] = []string{"openai_responses"}
-	selected, err = accountForProtocolAttempt(ctx, account)
+	selected, err = gatewayprovider.AccountForProtocolAttempt(ctx, account)
 	require.NoError(t, err)
 	require.Equal(t, accountcore.APIProtocolResponses, gatewayprovider.ExecutionProtocolTarget(selected).GetAPIProtocol())
 	require.Equal(t, "https://relay.example/responses", gatewayprovider.ExecutionProtocolTarget(selected).GetCNProtocolBaseURL(accountcore.APIProtocolResponses))

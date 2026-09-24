@@ -45,32 +45,6 @@ func TestApplyErrorPassthroughRule_NoBoundService(t *testing.T) {
 	assert.Equal(t, "Upstream request failed", errMsg)
 }
 
-func TestGatewayHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-
-	svc := withSchedulerParametersForTest(&GatewayService{})
-	respBody := []byte(`{"error":{"message":"Invalid schema for field messages"}}`)
-	resp := &http.Response{
-		StatusCode: http.StatusUnprocessableEntity,
-		Body:       io.NopCloser(bytes.NewReader(respBody)),
-		Header:     http.Header{},
-	}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
-
-	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
-	require.Error(t, err)
-	assert.Equal(t, http.StatusBadGateway, rec.Code)
-
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
-	errField, ok := payload["error"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "Upstream request failed", errField["message"])
-}
-
 func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 
 	rec := httptest.NewRecorder()
@@ -288,35 +262,6 @@ func TestGeminiWriteGeminiMappedError_NoRuleKeepsDefault(t *testing.T) {
 	assert.Equal(t, "Upstream request failed", errField["message"])
 }
 
-func TestGatewayHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-
-	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "上游请求失败")})
-	httpapi.BindErrorPassthroughService(c, ruleSvc)
-
-	svc := withSchedulerParametersForTest(&GatewayService{})
-	respBody := []byte(`{"error":{"message":"Invalid schema for field messages"}}`)
-	resp := &http.Response{
-		StatusCode: http.StatusUnprocessableEntity,
-		Body:       io.NopCloser(bytes.NewReader(respBody)),
-		Header:     http.Header{},
-	}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
-
-	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
-	require.Error(t, err)
-	assert.Equal(t, http.StatusTeapot, rec.Code)
-
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
-	errField, ok := payload["error"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "上游请求失败", errField["message"])
-}
-
 func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 
 	rec := httptest.NewRecorder()
@@ -426,55 +371,6 @@ func TestApplyErrorPassthroughRule_NoSkipMonitoringDoesNotSetContextKey(t *testi
 }
 
 // ---- ResponseCommittedKey: service 层写完错误响应后标记，handler 层检查跳过兜底写入 ----
-
-func TestHandleErrorResponse_SetsResponseCommitted(t *testing.T) {
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-
-	svc := withSchedulerParametersForTest(&GatewayService{})
-	resp := &http.Response{
-		StatusCode: http.StatusBadRequest,
-		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"temperature: range: 0..1"}}`))),
-		Header:     http.Header{},
-	}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 100, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
-
-	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
-	require.Error(t, err)
-	assert.True(t, httpapi.IsResponseCommitted(c), "non-failover error path must mark response committed")
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
-}
-
-func TestHandleErrorResponse_PassthroughRuleSetsCommitted(t *testing.T) {
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-
-	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{
-		newNonFailoverPassthroughRule(http.StatusBadRequest, "temperature", http.StatusBadRequest, "参数错误"),
-	})
-	httpapi.BindErrorPassthroughService(c, ruleSvc)
-
-	svc := withSchedulerParametersForTest(&GatewayService{})
-	resp := &http.Response{
-		StatusCode: http.StatusBadRequest,
-		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"temperature: range: 0..1"}}`))),
-		Header:     http.Header{},
-	}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 200, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
-
-	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
-	require.Error(t, err)
-	assert.True(t, httpapi.IsResponseCommitted(c), "passthrough rule path must mark response committed")
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
-	errField, ok := payload["error"].(map[string]any)
-	require.True(t, ok, "payload[\"error\"] should be map[string]any")
-	assert.Equal(t, "参数错误", errField["message"])
-}
 
 func TestOpenAIHandleErrorResponse_SetsResponseCommitted(t *testing.T) {
 

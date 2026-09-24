@@ -1,0 +1,54 @@
+{
+  "scope": "S16 Messages 完整能力批次；尚非阶段最终验收",
+  "baseline_head": "440ffdd02da97f4ef2684c651aa39db4cd7b8bf8",
+  "service_before": {
+    "production": 186,
+    "tests": 290
+  },
+  "service_after": {
+    "production": 169,
+    "tests": 259
+  },
+  "reductions": {
+    "production": 17,
+    "tests": 31
+  },
+  "test_mapping": {
+    "file": "service-messages-test-mapping.json",
+    "moved": 252,
+    "missing": 0,
+    "assertion_call_count_changes": 0,
+    "build_tag_changes": 0
+  },
+  "benchmarks": {
+    "moved": 5,
+    "executed": false,
+    "mapping": "service-messages-benchmark-mapping.json"
+  },
+  "events": "service-messages-verification-events.json",
+  "lint": {
+    "normal": "service-messages-final-normal-lint-02.log",
+    "unit": "service-messages-final-unit-lint-03.log",
+    "integration": "service-messages-final-integration-lint-03.log",
+    "exit_codes": [
+      0,
+      0,
+      0
+    ]
+  },
+  "gate_contracts": {
+    "passed": 84,
+    "total": 84,
+    "file": "service-messages-owner-boundary-gates.json"
+  },
+  "build_selection": "service-messages-owner-build-selection.json",
+  "builds": "service-messages-final-builds.json",
+  "wire_stable": true,
+  "shared_boundaries": "service-messages-shared-boundaries.json",
+  "preservation": "service-messages-preservation.json",
+  "docs": "service-messages-doc-check.json",
+  "verification_order_note": "普通全量后纠正测试夹具的128MiB默认响应上限；三套全量后恢复移植诊断的惰性读取。最终受影响普通合同142通过、定向race933通过；后续仅按HTTP/纯核心边界调整测试位置并补验32条合同。全仓lint按最终规则为0/0/0。",
+  "original_problem_scope": "未新增历史问题排查或修复；补齐默认Beta回调等为本次移植夹具修正。",
+  "next": "google-execution；OpenAI/Grok/WS-Live与共享边界继续按统一依赖账本处理。",
+  "full_s16_acceptance": "待全部能力退出后完整执行最终验收；roadmap保持16/17。"
+}

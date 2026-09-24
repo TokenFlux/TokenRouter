@@ -164,12 +164,16 @@ Live 与 sideband 的 HTTP 入口也由 app 直接构造，原生 LivePorts 共�
 
 `AcquireUser` 返回请求 Lease 与带计数所有权的 WaitResult；`Lease.Select` 返回当前 AttemptLease。选择结果也可能携带 WaitPlan，由 scheduler 执行等待循环、HTTP 同步观察并输出原心跳。只释放确认取得的等待计数；完整账号补全失败等后续准备错误立即归还已登记槽位。请求和尝试的组合释放幂等，成功/部分结果的会话保留由 Finish 决定。用户等待完成后仍在原位置复查权益。
 
-故障转移只处理适配器明确包装为 `forward.UpstreamFailoverError` 的可切换错误。该值保留错误阶段、归属、原始响应值及重试投影；平台特有的 OpenAI 容量与请求大小识别留在 gateway/provider，通用契约不导入具体平台。`failover.FailoverState` 记录切换次数、失败账号和最后错误，并根据账号 pool-mode 重试次数决定同账号重试、排除后选择下一个账号、短暂等待或耗尽。普通同账号重试固定等待 500ms；被标记为请求级瞬时故障的容量错误按 500ms、1s、2s、4s 指数退避，后续单次等待封顶 8s，客户端取消会立即打断等待。临时不可调度标记由 service 根据错误分类写入，不是所有 HTTP 非 2xx 都应封禁账号。
+故障转移只处理适配器明确包装为 `forward.UpstreamFailoverError` 的可切换错误。该值保留错误阶段、归属、原始响应值及重试投影；平台特有的 OpenAI 容量与请求大小识别留在 gateway/provider，通用契约不导入具体平台。`failover.FailoverState` 记录切换次数、失败账号和最后错误，并根据账号 pool-mode 重试次数决定同账号重试、排除后选择下一个账号、短暂等待或耗尽。普通同账号重试固定等待 500ms；被标记为请求级瞬时故障的容量错误按 500ms、1s、2s、4s 指数退避，后续单次等待封顶 8s，客户端取消会立即打断等待。账号健康命令按错误分类写入临时不可调度标记。Messages 的重试耗尽冷却会跳过请求级瞬时故障及池模式账号；HTTP 非 2xx 本身不构成停调条件。
 
 粘性会话已经绑定账号时，切换账号可能要求把普通输入按缓存读取计费，以反映缓存不再命中的成本语义。选择耗尽后的单账号重试和等待有严格上限；客户端 Context 取消必须立即终止，不继续选择或休眠。
 
 <a id="protocol_conversion_boundary"></a>
 ## 转发与流式边界
+
+Messages、Claude 的 Chat/Responses 转换及 `count_tokens` 使用 `gateway/provider/messageforward.Runtime`。app 固定绑定凭据来源、HTTP 池、健康反馈、TLS、渠道和搜索实例；普通、API Key 透传、Vertex 与 Bedrock 分支继续调用各自的 upstream 执行器。每次尝试独立持有 Beta 过滤结果、工具名称映射和错误诊断，HTTP Adapter 负责响应提交、Header、Flush 与错误报文。
+
+通用 `GatewayService` 已退出生产图。Messages、计数和 Qoder 的路由计划由 `gateway/provider.RoutePlanner` 连接渠道读取与 routing，摘要和隔离直接使用 gateway/session；重试耗尽后的兼容冷却由 `account.RetryCooldown` 读取最新池模式后决定。完成器直接绑定 app 的原生记录器。调试输出由同一个 `requestdebug.Trace` 持有文件句柄，请求和后台工作结束后再关闭。
 
 上游非流响应的有界读取由 infra/httpclient 执行，默认仍为 128 MiB，并保留多读一个字节判断超限及原错误链。gateway/httpapi 在原位置记录 Ops 并输出 Anthropic/OpenAI 形状的 502；读取函数不接管响应体关闭，重试与取消仍由执行链决定。
 

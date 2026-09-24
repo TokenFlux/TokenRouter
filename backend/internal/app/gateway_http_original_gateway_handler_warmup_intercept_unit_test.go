@@ -180,7 +180,7 @@ func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatew
 	schedulerCache := &fakeSchedulerCache{accounts: accounts}
 	schedulerSnapshot := scheduler.NewSnapshotService(schedulerCache, nil, nil, nil, nil, scheduler.SnapshotBindings{})
 
-	gwSvc, gwSvcChoices := newGenericExecutionAndSelectionFixture(
+	gwSvc, gwSvcChoices, messages := newGenericExecutionAndSelectionFixture(
 		nil,                               // accountRepo (not used: scheduler snapshot hit)
 		&fakeGroupRepo{group: group}, nil, // usageLogRepo
 		// usageBillingRepo
@@ -210,18 +210,8 @@ func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatew
 
 		// userPlatformQuotaRepo
 	)
-	gwSvc.
-
-		// RunModeSimple：跳过计费检查，避免引入 repo/cache 依赖。
-		BindCompletionRecorder(newHTTPCompletionFixture(nil, nil,
-
-			nil,
-
-			nil,
-
-			nil,
-
-			nil, nil, false))
+	// simple 用例保留原完成器，不通过旧网关对象取回。
+	gwSvc.Recorder = newHTTPCompletionFixture(nil, nil, nil, nil, nil, nil, nil, false)
 
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	billingCacheSvc := newBillingEligibilityFixture(cfg)
@@ -233,7 +223,7 @@ func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatew
 	)
 	concurrencyHelper := gatewayhttp.NewConcurrencyHelper(concurrencySvc, gatewayhttp.SSEPingFormatClaude, 0)
 
-	h := newMessageEndpointsFixture(gwSvc, newFundingAdmissionFixture(billingCacheSvc, cfg), concurrencyHelper, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 1}, newExecutionAvailabilityForTest(nil,
+	h := newMessageEndpointsFixture(gwSvc, messages, newFundingAdmissionFixture(billingCacheSvc, cfg), concurrencyHelper, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 1}, newExecutionAvailabilityForTest(nil,
 
 		nil, nil), gwSvcChoices,
 	)

@@ -94,7 +94,7 @@ API Key/Bedrock 可配置本地账号配额和亲和策略。可用的上游用�
 
 `upstream/anthropic.Executor` 拥有单次账号内交换、签名/预算恢复及标准或 API Key 直通响应处理。两条恢复策略分别保留：API Key 直通不新增 400 请求体降级，也不补入旧路径没有的上游接受回调。`upstream/bedrock.Executor` 独立处理签名请求、来源区域和 AWS EventStream；具体平台之间不互相引用。
 
-请求指纹由原生 `RequestFingerprint` 与其 Redis Adapter 持有；旧 `RequestFingerprintService` 只投影账号 ID 和 masking 开关，`IdentityService` 名称仅为兼容别名，不表示用户登录身份。原 `fingerprint:`、`masked_session:` 键、TTL、UA 升级和遮罩语义保持。Claude 授权会话及完成编排由 `account.ClaudeAuthorization` 持有，app 直接构造并绑定其生命周期；provider 组合协议参数，OAuth HTTP handler 位于 account/httpapi。管理、CRS 和刷新使用同一原生授权实例；实际交换及 usage HTTP 客户端位于原生平台包。
+请求指纹由 `upstream/anthropic.RequestFingerprint` 与其 Redis Adapter 持有，app 直接注入 Messages 原生执行器。账号 ID、masking 开关和请求 Header 在本次执行中投影，用户登录身份仍由 identity 拥有。原 `fingerprint:`、`masked_session:` 键、TTL、UA 升级和遮罩语义保持。Claude 授权会话及完成编排由 `account.ClaudeAuthorization` 持有，app 直接构造并绑定其生命周期；provider 组合协议参数，OAuth HTTP handler 位于 account/httpapi。管理、CRS 和刷新使用同一原生授权实例；实际交换及 usage HTTP 客户端位于原生平台包。
 
 gateway/forward 组织请求准备、转换与错误策略次序；gateway/httpapi 拥有同步输出和协议错误，gateway/completion 拥有完成处理。动态设置、凭据和账号观测通过固定的单步 Adapter 投影。流处理在原来的事件位置读取缓存分类投影，64 KiB Scanner 缓冲由唯一技术池复用。输出适配器带入已有 Header 和提交状态，保留等待心跳之后的重试边界。应用登记同步原生尝试，等待其释放响应体；超时不报告已排空。
 

@@ -53,18 +53,18 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 	}
 	schedulerCache := &countingGatewaySchedulerCache{fakeSchedulerCache: &fakeSchedulerCache{accounts: []*gatewayprovider.ExecutionAccount{account}}}
 	schedulerSnapshot := scheduler.NewSnapshotService(schedulerCache, nil, nil, nil, nil, scheduler.SnapshotBindings{})
-	gatewayService, gatewayServiceChoices := newGenericExecutionAndSelectionFixture(
+	gatewayService, gatewayServiceChoices, messages := newGenericExecutionAndSelectionFixture(
 		nil, &fakeGroupRepo{group: group}, nil, nil, nil,
 		schedulerSnapshot, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, responseHeaderFilterForTest(nil),
 	)
-	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(nil, nil,
-		nil, nil, nil, nil, nil, false))
+	gatewayService.Recorder = newHTTPCompletionFixture(nil, nil,
+		nil, nil, nil, nil, nil, false)
 
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	billingCacheService := newBillingEligibilityFixture(cfg)
 	billingCacheService.Start()
 	t.Cleanup(billingCacheService.Stop)
-	h := newMessageEndpointsFixture(gatewayService, newFundingAdmissionFixture(billingCacheService, cfg), gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+	h := newMessageEndpointsFixture(gatewayService, messages, newFundingAdmissionFixture(billingCacheService, cfg), gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 		Event: logging.Event,
 	},
 	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(cfg).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil,

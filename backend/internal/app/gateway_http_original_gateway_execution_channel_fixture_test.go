@@ -11,6 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
+	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
@@ -22,8 +23,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 // 剩余转发测试的构造夹具；不再用于模型目录 HTTP。
@@ -71,8 +70,8 @@ func newGatewayExecutionHandlerForTest(repo gatewayprovider.ExecutionAccountStor
 }
 
 func newGatewayExecutionHandlerWithChannelForTest(repo gatewayprovider.ExecutionAccountStore, channelService *routing.ChannelService) *messageEndpointsFixture {
-	source, choices := newGenericExecutionAndSelectionFixture(repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, channelService, nil, responseHeaderFilterForTest(nil))
-	return newMessageEndpointsFixture(source, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(repo, channelService, nil), choices)
+	source, choices, messages := newGenericExecutionAndSelectionFixture(repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, channelService, nil, responseHeaderFilterForTest(nil))
+	return newMessageEndpointsFixture(source, messages, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(repo, channelService, nil), choices)
 }
 
 func newGatewayExecutionChannelServiceForTest(groupID int64, platform string, channel routing.Channel) *routing.ChannelService {
@@ -97,14 +96,14 @@ type messageEndpointsFixture struct {
 }
 
 // newMessageEndpointsFixture 将被验证的真实单次能力接入原生运行时；观测使用无状态替身。
-func newMessageEndpointsFixture(source *service.GatewayService, funding *admission.FundingAdmission, concurrency *gatewayhttp.ConcurrencyHelper, options gatewayhttp.MessagesHTTPOptions, availability *gatewayModelAvailability, choices *selection.Generic) *messageEndpointsFixture {
+func newMessageEndpointsFixture(source *messageExecutionFixture, messages *gatewayhttp.MessagesExecutor, funding *admission.FundingAdmission, concurrency *gatewayhttp.ConcurrencyHelper, options gatewayhttp.MessagesHTTPOptions, availability *gatewayModelAvailability, choices *selection.Generic) *messageEndpointsFixture {
 	plan := func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 		var group *routing.Group
 		var id *int64
 		if key != nil {
 			group, id = key.Group, key.GroupID
 		}
-		return source.PlanRoute(ctx, group, id, model)
+		return source.Routes.PlanRoute(ctx, group, id, model)
 	}
 	b := textattempt.Bindings{
 		PlanRoute: plan, Concurrency: concurrency,
@@ -114,7 +113,7 @@ func newMessageEndpointsFixture(source *service.GatewayService, funding *admissi
 		b.Diagnoser = availability.Messages
 	}
 	if source != nil {
-		b.Recorder = source.CompletionRecorder()
+		b.Recorder = source.Recorder
 		b.Selection = textattempt.SelectionPorts{
 			SelectAccount:      choices.SelectAccountWithLoadAwareness,
 			TrackSession:       choices.TrackSessionAttempt,
@@ -125,16 +124,19 @@ func newMessageEndpointsFixture(source *service.GatewayService, funding *admissi
 			BindSticky:         choices.BindStickySession,
 			ResolveGroup:       choices.ResolveGroupByID,
 			AccountSwitched:    choices.RecordAdvancedAccountSwitch,
-			TempUnschedule:     source.TempUnscheduleRetryableError,
+			TempUnschedule:     messageRetryCooldown(source.Cooldown),
 		}
 		b.Forward = textattempt.ForwardPorts{
-			BedrockCompat:     source.ApplyBedrockCCCompat,
-			ForwardMessages:   source.Forward,
-			ForwardResponses:  source.ForwardAsResponses,
-			ForwardChat:       source.ForwardAsChatCompletions,
-			SaveGeminiSession: source.SaveGeminiSession,
-			ReplaceModel:      source.ReplaceModelInBody,
+
+			SaveGeminiSession: messageDigestSave(source.Digest),
+			ReplaceModel:      openaiwire.ReplaceModelInBody,
 		}
+	}
+	if messages != nil {
+		b.Forward.BedrockCompat = messages.ApplyBedrockCCCompat
+		b.Forward.ForwardMessages = messages.Forward
+		b.Forward.ForwardResponses = messages.ForwardAsResponses
+		b.Forward.ForwardChat = messages.ForwardAsChatCompletions
 	}
 	if funding != nil {
 		b.CheckFunding = funding.CheckKey
@@ -147,15 +149,15 @@ func newMessageEndpointsFixture(source *service.GatewayService, funding *admissi
 		},
 	}
 	if source != nil {
-		bindings.IsolateSession = source.EnsureSessionIsolation
+		bindings.IsolateSession = messageSessionIsolation(source.Cache)
 		bindings.CachedSession = choices.GetCachedSessionAccountID
 	}
 	runtime := textattempt.New(b)
 	var prompts *promptpolicy.Service
-	messages := gatewayhttp.NewBoundMessagesHandler(options, bindings, prompts, concurrency, textflow.NewMessagesExecutor(runtime, textflow.MessageOptions{MaxSwitches: options.MaxSwitches, CompletePartialFailure: true, Observe: telemetry.Failover}, textflow.MessageOptions{MaxSwitches: options.MaxGeminiSwitches, Observe: telemetry.Failover}))
+	messageHandler := gatewayhttp.NewBoundMessagesHandler(options, bindings, prompts, concurrency, textflow.NewMessagesExecutor(runtime, textflow.MessageOptions{MaxSwitches: options.MaxSwitches, CompletePartialFailure: true, Observe: telemetry.Failover}, textflow.MessageOptions{MaxSwitches: options.MaxGeminiSwitches, Observe: telemetry.Failover}))
 	compatible := gatewayhttp.NewBoundCompatibleTextHandler(options, bindings, b.Forward.ReplaceModel, prompts, concurrency, textflow.NewMessagesExecutor(runtime, textflow.MessageOptions{MaxSwitches: options.MaxSwitches, StopOnCanceledContext: true, Observe: telemetry.Failover}, textflow.MessageOptions{MaxSwitches: options.MaxGeminiSwitches, StopOnCanceledContext: true, Observe: telemetry.Failover}))
 	return &messageEndpointsFixture{
-		Messages: messages.Messages, Responses: compatible.Responses, ChatCompletions: compatible.ChatCompletions,
+		Messages: messageHandler.Messages, Responses: compatible.Responses, ChatCompletions: compatible.ChatCompletions,
 		prepareGatewayAttemptRequest: func(ctx context.Context, parsed *requeststate.ParsedRequest, body []byte, key *apikey.APIKey, model string) (*requeststate.ParsedRequest, routing.ChannelMappingResult, error) {
 			return gatewayhttp.PrepareChannelAttempt(ctx, parsed, body, key, model, plan)
 		},

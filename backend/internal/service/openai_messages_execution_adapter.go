@@ -53,7 +53,7 @@ type openAIMessagesExecutionAdapter struct {
 }
 
 func (p *openAIMessagesExecutionAdapter) Prepare(ctx context.Context) (forward.MessagesProfile, forward.Dispatch, error) {
-	account, err := accountForProtocolAttempt(ctx, p.account)
+	account, err := gatewayprovider.AccountForProtocolAttempt(ctx, p.account)
 	if err != nil {
 		return forward.MessagesProfile{}, forward.DispatchResponses, err
 	}

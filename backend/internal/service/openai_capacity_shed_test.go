@@ -42,34 +42,6 @@ func (r *capacityShedAccountRepoStub) GetByID(_ context.Context, id int64) (*gat
 // 上游容量降载是请求级信号：故障因素（客户端身份、模型容量）与账号无关，
 // 同账号重试用尽后不得把账号临时摘掉——否则一个被降载的请求会顺着 failover
 // 把整池账号逐个封禁，而每个账号都会以同一个错误失败。
-func TestTempUnscheduleRetryableErrorSkipsRequestScopedTransient(t *testing.T) {
-	t.Run("请求级瞬时故障不写账号状态", func(t *testing.T) {
-		repo := &capacityShedAccountRepoStub{}
-		svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo})
-
-		svc.TempUnscheduleRetryableError(context.Background(), 1, &forwardcore.UpstreamFailoverError{
-			StatusCode:             http.StatusBadGateway,
-			RetryableOnSameAccount: true,
-			RequestScopedTransient: true,
-		})
-
-		require.Zero(t, repo.tempUnschedCalls)
-	})
-
-	// 对照组：同样的 502 在未标记请求级瞬时故障时仍按原有语义临时摘号，
-	// 确认上面的断言来自新增守卫而非其他前置条件。
-	t.Run("未标记时保持原有临时摘号语义", func(t *testing.T) {
-		repo := &capacityShedAccountRepoStub{}
-		svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo})
-
-		svc.TempUnscheduleRetryableError(context.Background(), 1, &forwardcore.UpstreamFailoverError{
-			StatusCode:             http.StatusBadGateway,
-			RetryableOnSameAccount: true,
-		})
-
-		require.Equal(t, 1, repo.tempUnschedCalls)
-	})
-}
 
 // 非池模式账号同样要先在同账号重试：换号不改变降载因素。
 func TestStreamFailedEventCapacityShedRetriesOnSameAccount(t *testing.T) {
@@ -105,7 +77,7 @@ func TestOpenAIHTTPCapacityShedIsRequestScopedForOAuthAccounts(t *testing.T) {
 	require.True(t, failoverErr.RequestScopedTransient)
 
 	repo := &capacityShedAccountRepoStub{}
-	(withSchedulerParametersForTest(&GatewayService{accountRepo: repo})).TempUnscheduleRetryableError(context.Background(), 1, failoverErr)
+	accountcore.NewRetryCooldown(capacityRetryStore{repo}, accountcore.RetryCooldownOptions{}).Apply(context.Background(), accountcore.RetryCooldownInput{AccountID: 1, Status: failoverErr.StatusCode, Retryable: failoverErr.RetryableOnSameAccount, RequestScopedTransient: failoverErr.RequestScopedTransient})
 	require.Zero(t, repo.tempUnschedCalls)
 
 	healthObserver := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
@@ -376,4 +348,12 @@ func TestSanitizeOpenAICapacityShedErrorCodeForClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+// 只转换读取投影，后续冷却调用同一原生存储替身。
+type capacityRetryStore struct{ *capacityShedAccountRepoStub }
+
+func (s capacityRetryStore) GetByID(ctx context.Context, id int64) (*accountcore.Record, error) {
+	value, err := s.capacityShedAccountRepoStub.GetByID(ctx, id)
+	return gatewayprovider.ExecutionRecord(value), err
 }

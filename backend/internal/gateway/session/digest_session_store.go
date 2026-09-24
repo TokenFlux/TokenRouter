@@ -32,7 +32,7 @@ func NewDigestSessionStore() *DigestSessionStore {
 
 // Save 保存摘要会话。oldDigestChain 为 Find 返回的 matchedChain，用于删旧 key。
 func (s *DigestSessionStore) Save(groupID int64, prefixHash, digestChain, uuid string, accountID int64, oldDigestChain string) {
-	if digestChain == "" {
+	if s == nil || digestChain == "" {
 		return
 	}
 	ns := buildNS(groupID, prefixHash)
@@ -44,7 +44,7 @@ func (s *DigestSessionStore) Save(groupID int64, prefixHash, digestChain, uuid s
 
 // Find 查找摘要会话，从完整 chain 逐段截断，返回最长匹配及对应 matchedChain。
 func (s *DigestSessionStore) Find(groupID int64, prefixHash, digestChain string) (uuid string, accountID int64, matchedChain string, found bool) {
-	if digestChain == "" {
+	if s == nil || digestChain == "" {
 		return "", 0, "", false
 	}
 	ns := buildNS(groupID, prefixHash)

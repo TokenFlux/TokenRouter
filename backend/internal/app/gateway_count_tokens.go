@@ -26,8 +26,10 @@ import (
 
 // countExecution 仅连接尚未清零的选择与计数执行原语，不拥有循环、缓存或规则。
 type countExecution struct {
-	*service.GatewayService
-	choices *selection.Generic
+	planner  *gatewayprovider.RoutePlanner
+	choices  *selection.Generic
+	messages *gatewayhttp.MessagesExecutor
+	cooldown func(context.Context, int64, *forwardcore.UpstreamFailoverError)
 }
 
 func (p countExecution) SelectCountTarget(ctx context.Context, id *int64, hash, model string, excluded map[int64]struct{}) (gatewayhttp.CountTarget, error) {
@@ -35,20 +37,16 @@ func (p countExecution) SelectCountTarget(ctx context.Context, id *int64, hash, 
 	if err != nil {
 		return nil, err
 	}
-	return countTarget{gateway: p.GatewayService, account: value, choices: p.choices}, nil
+	return countTarget{gateway: p.messages, account: value, choices: p.choices}, nil
 }
 func (p countExecution) PlanCountRoute(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-	var id *int64
-	if key != nil {
-		id = key.GroupID
-	}
-	return p.PlanRoute(ctx, service.APIKeyRouteGroup(key), id, model)
+	return p.planner.PlanKey(ctx, key, model)
 }
 
 // countTarget 将已经取得的账号保持在受控调用内，不把凭据暴露给 HTTP。
 type countTarget struct {
 	choices *selection.Generic
-	gateway *service.GatewayService
+	gateway *gatewayhttp.MessagesExecutor
 	account *gatewayprovider.ExecutionAccount
 }
 
@@ -64,7 +62,7 @@ func (t countTarget) ReleaseSession(ctx context.Context, hash string) {
 }
 
 // provideCountTokensHTTP 直接装配原生 HTTP，固定依赖不经旧 Handler 工厂。
-func provideCountTokensHTTP(source *service.GatewayService, openAI *service.OpenAIGatewayService, funding *admission.FundingAdmission, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Generic) *gatewayhttp.CountTokensHandler {
+func provideCountTokensHTTP(planner *gatewayprovider.RoutePlanner, messages *gatewayhttp.MessagesExecutor, openAI *service.OpenAIGatewayService, funding *admission.FundingAdmission, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Generic, cooldown *account.RetryCooldown) *gatewayhttp.CountTokensHandler {
 	limit := int64(0)
 	switches := 10
 	if cfg != nil {
@@ -78,7 +76,7 @@ func provideCountTokensHTTP(source *service.GatewayService, openAI *service.Open
 		matcher = rules
 	}
 	ports := gatewayhttp.CountHTTPPorts{
-		Executor: countExecution{source, choices}, Funding: funding, ReadAccess: keyhttp.GetAPIKeyFromContext,
+		Executor: countExecution{planner: planner, choices: choices, messages: messages, cooldown: messageRetryCooldown(cooldown)}, Funding: funding, ReadAccess: keyhttp.GetAPIKeyFromContext,
 		ObserveCompatibility: func(log *zap.Logger) {
 			gatewayhttp.LogCompatibilityFallback(log, func() gatewayhttp.CompatibilityLogSnapshot {
 				value := openAI.SnapshotOpenAICompatibilityFallbackMetrics()
@@ -100,4 +98,8 @@ func provideCountTokensHTTP(source *service.GatewayService, openAI *service.Open
 		result.BindRequestActivity(activity.Enter)
 	}
 	return result
+}
+
+func (p countExecution) TempUnscheduleRetryableError(ctx context.Context, id int64, failure *forwardcore.UpstreamFailoverError) {
+	p.cooldown(ctx, id, failure)
 }

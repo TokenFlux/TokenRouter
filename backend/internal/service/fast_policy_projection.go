@@ -11,8 +11,11 @@ import (
 func (s *OpenAIGatewayService) fastModeInput(ctx context.Context, value *gatewayprovider.ExecutionAccount, model string) tierpolicy.DecisionInput {
 	return tierpolicy.DecisionInput{
 		Model: model, GroupPolicy: openAIGroupFastPolicy(ctx, value), OpenAI: value != nil && value.View().IsOpenAI(),
-		Evaluate:         func(tier string) (string, string) { return s.evaluateOpenAIFastPolicy(ctx, value, model, tier) },
-		KeyPolicy:        func() string { return apiKeyFastModePolicyFromContext(ctx) },
+		Evaluate: func(tier string) (string, string) { return s.evaluateOpenAIFastPolicy(ctx, value, model, tier) },
+		KeyPolicy: func() string {
+			return gatewayprovider.
+				APIKeyFastModePolicy(ctx)
+		},
 		ForceOnSupported: func() bool { return s.openAIAPIKeyFastModeForceOnSupported(ctx, value, model) },
 	}
 }

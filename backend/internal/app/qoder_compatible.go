@@ -19,7 +19,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/gin-gonic/gin"
 )
@@ -27,7 +27,7 @@ import (
 // qoderCompatibleExecution 只连接现有选择、刷新和完成投影，不持有循环或缓存。
 type qoderCompatibleExecution struct {
 	choices *selection.Generic
-	*service.GatewayService
+	*gatewayprovider.RoutePlanner
 	runtime *gatewayprovider.QoderRuntime
 	refresh *accountprovider.QoderRequestRefresh
 	keys    *apikey.APIKeyService
@@ -41,7 +41,7 @@ func (p *qoderCompatibleExecution) Select(ctx context.Context, id *int64, hash, 
 	return &qoderCompatibleSelection{owner: p, value: value}, nil
 }
 func (p *qoderCompatibleExecution) Plan(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-	return p.PlanRoute(ctx, service.APIKeyRouteGroup(key), key.GroupID, model)
+	return p.PlanKey(ctx, key, model)
 }
 
 type qoderCompatibleSelection struct {
@@ -89,7 +89,7 @@ func (t *qoderCompatibleTarget) Completion(ctx context.Context, capture gatewayh
 }
 
 // provideQoderCompatibleHTTP 直接构造原生固定端口，共享原池、计费、刷新及活动屏障。
-func provideQoderCompatibleHTTP(source *service.GatewayService, runtime *gatewayprovider.QoderRuntime, refresh *accountprovider.QoderRequestRefresh, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, rules *errorpolicy.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, activity *gatewayRequestActivity, qoderActivity *qoderRequestActivity, choices *selection.Generic) *gatewayhttp.QoderCompatibleHandler {
+func provideQoderCompatibleHTTP(source *gatewayprovider.RoutePlanner, runtime *gatewayprovider.QoderRuntime, refresh *accountprovider.QoderRequestRefresh, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, rules *errorpolicy.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, activity *gatewayRequestActivity, qoderActivity *qoderRequestActivity, choices *selection.Generic) *gatewayhttp.QoderCompatibleHandler {
 	slots := gatewayhttp.NewConcurrencyHelper(concurrency, gatewayhttp.SSEPingFormatComment, 0)
 	var matcher gatewayhttp.ErrorRuleMatcher
 	if rules != nil {
@@ -102,7 +102,7 @@ func provideQoderCompatibleHTTP(source *service.GatewayService, runtime *gateway
 		Errors: gatewayhttp.QoderErrorPresenter{Rules: matcher, Describe: gatewayprovider.DescribeQoderError, ReadAccess: keyhttp.GetAPIKeyFromContext, Catalogue: gatewayprovider.ModelDisplayCatalogue{}},
 	}
 	if source != nil {
-		options.Execution = &qoderCompatibleExecution{GatewayService: source, choices: choices, runtime: runtime, refresh: refresh, keys: keys}
+		options.Execution = &qoderCompatibleExecution{RoutePlanner: source, choices: choices, runtime: runtime, refresh: refresh, keys: keys}
 	}
 	if funding != nil {
 		options.Funding = funding

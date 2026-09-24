@@ -85,3 +85,9 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 [本批验证索引](service-selection-owner-verification.json)与[增量清单](progress-20260924-selection-manifest.json)接续 model-read 检查点。新增分卷仅包含本批新增或变化证据，已逐成员读取并验证 SHA-256；按父链顺序恢复后，验证命令、305 个测试的来源/目标/断言对应、原失败日志和修正结果均可核对。
 
 受影响范围普通/unit/integration 分别为 5,923 / 8,799 / 6,054 条通过事件，各保留 2 项既有跳过；三套 lint 均为零。定向 owner、混合执行、app 与真实 Redis race 分别通过 1,302 / 5 / 237 / 64 条事件，middleware Fast 合同补验通过。99 项门禁与 8 套构建选择核对通过，Wire 再生稳定。各集合存在重叠，不相加；本批不替代 S16 最终全仓验收。
+
+## 2026-09-24 Messages 完整能力退出
+
+`service-messages-owner-verification.json` 汇总本批验证。通用 GatewayService 已删除，旧 service 减少 17 个生产、31 个测试文件；252 个原测试和5个 benchmark 的归属可追踪，测试名称、标签及断言调用数量无遗漏。全仓普通/unit/integration 为 12,007 / 20,041 / 13,014 条通过事件，保留4 / 8 / 5项既有跳过；定向 race933、真实完成链 integration race3条通过。三套 lint 为0，门禁84/84，八种构建集合与 Wire 稳定性通过。较晚的移植修正及补验顺序在汇总中单列。
+
+`progress-20260924-messages-manifest.json` 只索引本批 `service-messages-*` 和更新的统一账本，父级为 selection 批次；不重新归档旧日志。S16 尚未完成，剩余平台执行与共享边界继续按统一账本退出。

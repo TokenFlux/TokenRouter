@@ -35,7 +35,7 @@ type openAIChatExecutionAdapter struct {
 }
 
 func (p *openAIChatExecutionAdapter) PrepareChat(ctx context.Context) (forward.ChatProfile, error) {
-	account, err := accountForProtocolAttempt(ctx, p.account)
+	account, err := gatewayprovider.AccountForProtocolAttempt(ctx, p.account)
 	if err != nil {
 		return forward.ChatProfile{}, err
 	}

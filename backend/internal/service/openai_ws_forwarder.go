@@ -51,7 +51,8 @@ func openAIWSFastModePolicyContext(ctx context.Context, hooks *gatewayws.OpenAII
 	if hooks == nil || hooks.ResolveFastModePolicy == nil {
 		return ctx
 	}
-	return withAPIKeyFastModePolicy(ctx, hooks.ResolveFastModePolicy(turn))
+	return gatewayprovider.
+		WithAPIKeyFastModePolicy(ctx, hooks.ResolveFastModePolicy(turn))
 }
 
 // resolveOpenAIWSTurnModels 按 R -> C -> U 顺序解析单个 WebSocket turn 的模型。

@@ -106,14 +106,14 @@ func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bo
 	billingCache.Start()
 	t.Cleanup(billingCache.Stop)
 	completionInput1 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
-	gateway, gatewayChoices := newGenericExecutionAndSelectionFixture(
+	gateway, gatewayChoices, messages := newGenericExecutionAndSelectionFixture(
 		nil, &fakeGroupRepo{group: group}, nil, nil, cfg, snapshots, nil, nil, nil, upstream, nil, nil, sessions, sessions,
 		nil, nil, nil, nil, nil, nil, responseHeaderFilterForTest(cfg),
 	)
-	gateway.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput1, billingCache, nil,
-		nil, nil, false))
+	gateway.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput1, billingCache, nil,
+		nil, nil, false)
 
-	h := newMessageEndpointsFixture(gateway, newFundingAdmissionFixture(billingCache, cfg), gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+	h := newMessageEndpointsFixture(gateway, messages, newFundingAdmissionFixture(billingCache, cfg), gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 		Event: logging.Event,
 	},
 	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(cfg).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil,

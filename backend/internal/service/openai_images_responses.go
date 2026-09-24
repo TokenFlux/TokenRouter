@@ -82,7 +82,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 			account.Record.ID,
 			account.Record.Platform,
 			account.Record.Type,
-			truncateForLog(body, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes),
+			logredact.TruncateLine(body, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes),
 		)
 	}
 

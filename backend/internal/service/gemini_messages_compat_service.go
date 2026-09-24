@@ -671,7 +671,7 @@ func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, acc
 	})
 
 	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		logging.LegacyPrintf("service.gemini_messages_compat", "[Gemini] upstream error %d: %s", upstreamStatus, truncateForLog(body, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes))
+		logging.LegacyPrintf("service.gemini_messages_compat", "[Gemini] upstream error %d: %s", upstreamStatus, logredact.TruncateLine(body, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes))
 	}
 
 	if status, errType, errMsg, matched := gatewayhttp.ApplyErrorPassthroughRule(

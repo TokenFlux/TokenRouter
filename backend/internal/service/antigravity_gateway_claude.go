@@ -154,7 +154,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 				return nil, err
 			}
 			return value.Resp, nil
-		}, SignatureEnabled: s.settingService.Gateway.IsSignatureRectifierEnabled, BudgetEnabled: s.settingService.Gateway.IsBudgetRectifierEnabled, TransformOptions: s.getClaudeTransformOptions, LogConfig: s.getLogConfig, ErrorDetail: s.getUpstreamErrorDetail, ReadErrorBody: s.readUpstreamErrorBody, Observe: retry.Options.Observe, IsBudgetConstraint: anthropic.IsThinkingBudgetConstraintError, BudgetTokens: anthropic.BudgetRectifyBudgetTokens, MinMaxTokens: anthropic.BudgetRectifyMinMaxTokens, MaxTokens: anthropic.BudgetRectifyMaxTokens, TruncateForLog: truncateForLog, TruncateString: logredact.TruncateUTF8}
+		}, SignatureEnabled: s.settingService.Gateway.IsSignatureRectifierEnabled, BudgetEnabled: s.settingService.Gateway.IsBudgetRectifierEnabled, TransformOptions: s.getClaudeTransformOptions, LogConfig: s.getLogConfig, ErrorDetail: s.getUpstreamErrorDetail, ReadErrorBody: s.readUpstreamErrorBody, Observe: retry.Options.Observe, IsBudgetConstraint: anthropic.IsThinkingBudgetConstraintError, BudgetTokens: anthropic.BudgetRectifyBudgetTokens, MinMaxTokens: anthropic.BudgetRectifyMinMaxTokens, MaxTokens: anthropic.BudgetRectifyMaxTokens, TruncateForLog: logredact.TruncateLine, TruncateString: logredact.TruncateUTF8}
 		return antigravity.RecoverClaude(ctx, antigravity.ClaudeRecoveryInput{AccountID: account.Record.ID, AccountName: account.Record.Name, Prefix: prefix, ProjectID: projectID, Model: mappedModel, Request: claudeReq, InitialOptions: transformOpts}, result.Resp, options), nil
 	}
 	target.BeforeResponse = func(ctx context.Context, resp *http.Response) (bool, error) {
@@ -170,7 +170,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 				upstreamDetail := s.getUpstreamErrorDetail(respBody)
 				logBody, maxBytes := s.getLogConfig()
 				if logBody {
-					logging.LegacyPrintf("service.antigravity_gateway", "%s status=400 prompt_too_long=true upstream_message=%q request_id=%s body=%s", prefix, upstreamMsg, resp.Header.Get("x-request-id"), truncateForLog(respBody, maxBytes))
+					logging.LegacyPrintf("service.antigravity_gateway", "%s status=400 prompt_too_long=true upstream_message=%q request_id=%s body=%s", prefix, upstreamMsg, resp.Header.Get("x-request-id"), logredact.TruncateLine(respBody, maxBytes))
 				}
 				gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 					Platform:           account.Record.Platform,

@@ -378,7 +378,7 @@ func (s *Compatible) getSchedulableAccount(ctx context.Context, accountID int64)
 }
 
 // filterGrokFreeQuotaAccountsForOpenAI 为 OpenAI 兼容旧版选择路径应用与
-// GatewayService 和高级调度器一致的本地免费层软性门禁。
+// 本地免费层软性限制与通用选择使用同一规则。
 func (s *Compatible) filterGrokFreeQuotaAccountsForOpenAI(ctx context.Context, accounts []gatewayprovider.ExecutionAccount) []gatewayprovider.ExecutionAccount {
 	if s == nil {
 		return accounts

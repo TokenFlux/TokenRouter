@@ -870,8 +870,32 @@
         "upstream/bedrock",
         "upstream/vertex"
       ],
-      "status": "pending",
-      "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。"
+      "status": "verified",
+      "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。",
+      "completed_at": "2026-09-24",
+      "implementation": "gateway/provider/messageforward.Runtime 与 gateway/httpapi.MessagesExecutor；通用 GatewayService、构造和全部方法已删除。",
+      "verification": "service-messages-owner-verification.json",
+      "test_mapping": "service-messages-test-mapping.json",
+      "shared_remaining": "service-messages-shared-boundaries.json",
+      "actual_native_owners": [
+        "gateway/provider/messageforward",
+        "gateway/provider/requestdebug",
+        "gateway/provider.RoutePlanner",
+        "gateway/provider.NonJSONUpstreamFailure",
+        "gateway/httpapi",
+        "gateway/clientmeta",
+        "gateway/session",
+        "gateway/forward",
+        "account.RetryCooldown",
+        "infra/httpclient",
+        "protocol/anthropic",
+        "protocol/openai",
+        "upstream/anthropic",
+        "upstream/bedrock",
+        "upstream/vertex",
+        "app"
+      ],
+      "exit_evidence": "生产入口、直接消费者、原测试/替身、Wire、角色门禁同批改绑；保留的20个共享符号只有其他平台消费者，沿既定账本随最后使用批次退出。"
     },
     "google-execution": {
       "files": [
@@ -2595,15 +2619,15 @@
     "shared-boundaries": "无独立规则的配置/结果/模型投影随最后使用批次删除；禁止以新增万能适配对象收纳。"
   },
   "current_service": {
-    "verified_against_head": "1f734d4d47beb68e97a6bf54cb680a62bb8a1143",
-    "production_files": 186,
-    "test_files": 290,
-    "last_completed_batch": "selection",
+    "verified_against_head": "440ffdd02da97f4ef2684c651aa39db4cd7b8bf8",
+    "production_files": 169,
+    "test_files": 259,
+    "last_completed_batch": "messages-execution",
     "previous": {
-      "production_files": 201,
-      "test_files": 321
+      "production_files": 186,
+      "test_files": 290
     },
-    "production_reduced": 15,
+    "production_reduced": 17,
     "tests_reduced": 31
   }
 }

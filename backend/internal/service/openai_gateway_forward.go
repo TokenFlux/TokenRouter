@@ -27,7 +27,7 @@ import (
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error) {
 	var routeErr error
-	account, routeErr = accountForProtocolAttempt(ctx, account)
+	account, routeErr = gatewayprovider.AccountForProtocolAttempt(ctx, account)
 	if routeErr != nil {
 		return nil, routeErr
 	}

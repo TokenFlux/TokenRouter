@@ -2,8 +2,10 @@ package app
 
 import (
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/search"
 	usage "github.com/TokenFlux/TokenRouter/internal/usage"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -55,17 +57,13 @@ func newGenericExecutionAndSelectionFixture(
 	resolver *billing.PriceResolver,
 
 	headerFilter *egress.CompiledHeaderFilter,
-) (*service.GatewayService, *selection.Generic) {
-	source := service.NewGatewayService(accountRepo, cache, cfg,
-		healthObserver, identityService, httpUpstream,
-
-		deferredService, messageCredentials,
-
-		digestStore, settingService, tlsFPProfileService, channelService,
-
-		resolver,
-		headerFilter,
-	)
+) (*messageExecutionFixture, *selection.Generic, *gatewayhttp.MessagesExecutor) {
+	var retryStore accountcore.RetryCooldownStore
+	if accountRepo != nil {
+		retryStore = fixtureRetryStore{accountRepo}
+	}
+	source := &messageExecutionFixture{Routes: gatewayprovider.NewRoutePlanner(channelService), Cache: cache, Digest: digestStore,
+		Cooldown: accountcore.NewRetryCooldown(retryStore, accountcore.RetryCooldownOptions{})}
 	feedback := scheduler.NewRuntimeStats(time.Now)
 	window := billing.NewWindowCostGuard(windowCostCache, gatewaytestkit.WindowCosts(usageLogRepo), billing.WindowCostGuardOptions{Now: time.Now, Stats: billing.SharedWindowCostMetrics(), Log: func(format string, args ...any) {
 		logging.LegacyPrintf("service.gateway", format, args...)
@@ -95,10 +93,33 @@ func newGenericExecutionAndSelectionFixture(
 		Sessions:        sessionLimitCache,
 		SetAccountError: write,
 	}, selectionOptions(cfg))
-	return source, choices
+	var searchSettings *search.ConfigService
+	if settingService != nil {
+		searchSettings = settingService.Search
+	}
+	searchTools := ProvideGatewaySearchTools(searchSettings, channelService)
+	messages := provideMessagesExecution(messageCredentials, identityService, httpUpstream, healthObserver, tlsFPProfileService, settingService, resolver, searchTools, nil, nil, accountRepo, deferredService, cfg, headerFilter, channelService)
+	return source, choices, messages
 }
 
 // newEmptyGenericSelectionFixture 保留零值入口的缺省预算，不配置额外账号或窗口来源。
 func newEmptyGenericSelectionFixture() *selection.Generic {
 	return selection.NewGeneric(selection.GenericDependencies{}, selection.DefaultOptions())
+}
+
+// 夹具只保存原生依赖，规则和状态由各模块的生产实现持有。
+type messageExecutionFixture struct {
+	Routes   *gatewayprovider.RoutePlanner
+	Cache    session.GatewayCache
+	Digest   *session.DigestSessionStore
+	Cooldown *accountcore.RetryCooldown
+	Recorder *completion.Recorder
+}
+type fixtureRetryStore struct {
+	gatewayprovider.ExecutionAccountStore
+}
+
+func (s fixtureRetryStore) GetByID(ctx context.Context, id int64) (*accountcore.Record, error) {
+	value, err := s.ExecutionAccountStore.GetByID(ctx, id)
+	return gatewayprovider.ExecutionRecord(value), err
 }

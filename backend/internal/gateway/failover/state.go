@@ -26,7 +26,7 @@ type Failure interface {
 type Observe func(context.Context, string, map[string]any)
 
 // TempUnscheduler 用于 HandleFailoverError 中同账号重试耗尽后的临时封禁。
-// GatewayService 隐式实现此接口。
+// 执行适配器提供账号读取与故障转移所需的窄接口。
 type TempUnscheduler[E Failure] interface {
 	TempUnscheduleRetryableError(ctx context.Context, accountID int64, failoverErr E)
 }

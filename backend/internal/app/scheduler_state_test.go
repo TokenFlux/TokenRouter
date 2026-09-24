@@ -51,10 +51,9 @@ func TestGatewayBackgroundTasksUseApplicationOwner(t *testing.T) {
 	for _, name := range []string{"messages", "openai"} {
 		t.Run(name, func(t *testing.T) {
 			tasks := lifecycle.NewTasks()
-			messages := &service.GatewayService{}
 			openai := &service.OpenAIGatewayService{}
-			bindGatewayBackground(tasks, messages, openai)
-			run := messages.RunBackgroundTask
+			bindGatewayBackground(tasks, openai)
+			run := gatewayCommitEffects(nil, nil, nil, nil, nil, tasks, nil).Funds.Background
 			if name == "openai" {
 				run = openai.RunBackgroundTask
 			}
