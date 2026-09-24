@@ -18,6 +18,7 @@
     "openai-protocol-execution",
     "openai-auxiliary",
     "openai-images",
+    "creative-targets",
     "openai-execution",
     "ws-live",
     "shared-boundaries"
@@ -25,7 +26,6 @@
   "batches": {
     "shared-boundaries": {
       "files": [
-        "backend/internal/service/account_proxy_projection.go",
         "backend/internal/service/account_token_view.go",
         "backend/internal/service/agent_identity_binding.go",
         "backend/internal/service/apikey_projection.go",
@@ -1148,7 +1148,6 @@
     },
     "openai-execution": {
       "files": [
-        "backend/internal/service/creative_provider_projection.go",
         "backend/internal/service/openai_account_runtime_block_fastpath.go",
         "backend/internal/service/openai_cyber_session_block.go",
         "backend/internal/service/openai_forward_http_adapter.go",
@@ -1158,8 +1157,7 @@
         "backend/internal/service/openai_gateway_service.go",
         "backend/internal/service/openai_messages_digest_session.go",
         "backend/internal/service/openai_proxy_stream_circuit.go",
-        "backend/internal/service/openai_refresh_failure_runtime.go",
-        "backend/internal/service/creative_executor_gemini.go"
+        "backend/internal/service/openai_refresh_failure_runtime.go"
       ],
       "symbols": [
         "GatewayService.applyClaudeAPIKeyFastMode",
@@ -2775,6 +2773,27 @@
       "test_mapping": "service-openai-images-test-mapping.json",
       "completed_at": "2026-09-25",
       "exit": "图片 API Key/OAuth、响应及回填生产直接绑定原生实例；测试和替身同批退出，模型级冷却由账号 Adapter 拥有。无旧 Service 图片方法或实例字段。"
+    },
+    "creative-targets": {
+      "status": "verified",
+      "files": [
+        "backend/internal/service/account_proxy_projection.go",
+        "backend/internal/service/creative_executor_gemini.go",
+        "backend/internal/service/creative_provider_projection.go"
+      ],
+      "native_owners": [
+        "creative.Executor",
+        "creative/provider.Target",
+        "gateway/provider.CreativeTargets",
+        "gateway/httpapi.OpenAIRequests",
+        "account.OpenAIExecutionCredentials",
+        "account.GeminiTokenSource",
+        "app"
+      ],
+      "verification": "service-creative-targets-owner-verification.json",
+      "test_mapping": "service-creative-targets-test-mapping.json",
+      "completed_at": "2026-09-25",
+      "exit": "任务目标、生产消费者、协议测试、装配及门禁同时退出旧service；原账号代理辅助函数消费者清零后删除。"
     }
   },
   "boundary_notes": {
@@ -2799,8 +2818,8 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 57,
-    "test_files": 191,
-    "verified_batch": "openai-images"
+    "production_files": 54,
+    "test_files": 190,
+    "verified_batch": "creative-targets"
   }
 }

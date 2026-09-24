@@ -14,6 +14,117 @@ linters:
   settings:
     depguard:
       rules:
+        # S16：创作任务目标、原生传输绑定 按职责限制实际 import；原文件许可随迁出删除。
+        s16-creative-targets-internal-app-creative-executor-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/creative_executor_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/creative$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/stretchr/testify/require$
+          - testing$
+          - time$
+        s16-creative-targets-internal-app-creative-targets-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/creative_targets.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+        s16-creative-targets-internal-gateway-httpapi-creative-target-projection-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/creative_target_projection_test.go"
+          allow:
+          - context$
+          - encoding/base64$
+          - encoding/json$
+          - fmt$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/creative$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/grok$
+          - github.com/stretchr/testify/require$
+          - io$
+          - net/http$
+          - strings$
+          - testing$
+          - time$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/config
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/app
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: database/sql
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: entgo.io/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/redis/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+        # S16：创作任务目标、原生传输绑定 按职责限制实际 import；原文件许可随迁出删除。
+        s16-creative-targets-internal-gateway-provider-creative-targets-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/creative_targets.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/creative$
+          - github.com/TokenFlux/TokenRouter/internal/creative/provider$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/infra/httpclient$
+          - github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/gemini$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/grok$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/vertex$
+          - net/http$
+          - strings$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/config
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/app
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: database/sql
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: entgo.io/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/redis/
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
+          - pkg: github.com/gin-gonic/gin
+            desc: 禁止依赖旧图、完整配置、装配或具体存储。
         # S16：OpenAI 图片执行、模型冷却与 HTTP 按职责限制实际 import；原文件许可随迁出删除。
         s16-openai-images-internal-service-account-repository-refresh-candidates-unit-test-go:
           list-mode: strict
@@ -3100,13 +3211,6 @@ linters:
           - net/http/httptest$
           - testing$
           - time$
-        s16-openai-execution-internal-service-creative-executor-gemini-go:
-          list-mode: strict
-          files:
-          - "**/internal/service/creative_executor_gemini.go"
-          allow:
-          - errors$
-          - strings$
         s16-openai-execution-internal-service-openai-client-policy-fixture-test-go:
           list-mode: strict
           files:
@@ -4541,26 +4645,6 @@ linters:
           - pkg: github.com/redis/
             desc: 禁止依赖旧图、完整配置、装配或具体存储。
         # S16：Grok 执行、传输健康、请求投影与 HTTP 按职责限制实际 import；原文件许可随迁出删除。
-        s16-grok-execution-internal-service-creative-target-projection-test-go:
-          list-mode: strict
-          files:
-          - "**/internal/service/creative_target_projection_test.go"
-          allow:
-          - context$
-          - encoding/base64$
-          - encoding/json$
-          - fmt$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/creative$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/grok$
-          - github.com/stretchr/testify/require$
-          - io$
-          - net/http$
-          - strings$
-          - testing$
-          - time$
         s16-grok-execution-internal-service-grok-media-error-fixture-test-go:
           list-mode: strict
           files:
@@ -10980,22 +11064,6 @@ linters:
           - pkg: github.com/redis/
             desc: 禁止依赖旧图、完整配置、装配或具体存储。
         # S16：Google 执行按 HTTP 输出、凭据和健康职责限制实际 import；旧入口已退出。
-        s16-google-internal-service-creative-provider-projection-go:
-          list-mode: strict
-          files:
-          - "**/internal/service/creative_provider_projection.go"
-          allow:
-          - context$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/creative$
-          - github.com/TokenFlux/TokenRouter/internal/creative/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/upstream$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/gemini$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/grok$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/vertex$
-          - net/http$
         s16-message-final-internal-gateway-httpapi-messages-conversion-responses-original-test-go:
           list-mode: strict
           files:
@@ -28784,7 +28852,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
           - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
@@ -74361,6 +74428,7 @@ linters:
           - "!**/internal/gateway/httpapi/openai_images_test.go"
           - "!**/internal/gateway/httpapi/openai_images_tool_cooldown_test.go"
           - "!**/internal/gateway/httpapi/openai_images_upstream_context_test.go"
+          - "!**/internal/gateway/httpapi/creative_target_projection_test.go"
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -74919,6 +74987,7 @@ linters:
           - "!**/internal/gateway/provider/ws_http_error_scope.go"
           - "!**/internal/gateway/provider/input_tokens.go"
           - "!**/internal/gateway/provider/image_backfill_policy.go"
+          - "!**/internal/gateway/provider/creative_targets.go"
           allow:
           - $gostd
           - entgo.io/ent
@@ -95147,6 +95216,7 @@ linters:
           - "!**/internal/app/gateway_openai_text_execution.go"
           - "!**/internal/app/gateway_openai_auxiliary.go"
           - "!**/internal/app/gateway_openai_images.go"
+          - "!**/internal/app/creative_targets.go"
           allow:
           - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd

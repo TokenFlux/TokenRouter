@@ -1886,3 +1886,10 @@ S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶�
 - 定向unit race210条通过，无失败或跳过。受影响普通集合扣除失败app初次运行，再计入app完整复验，共4,654条通过、2项既有跳过；unit7,099条通过、2项既有跳过。初次空Source夹具回归及无用代码lint诊断独立保留，修复后通过。
 - 45/45门禁、8个构建集合、三套受影响lint0/0/0、Wire两次稳定和生产构建通过。未修改SQL、Ent、早期冻结资料、原计划正文及51个保护文件。[验证摘要](baseline/S16/service-openai-images-owner-verification.json)记录实际命令、测试及限制。
 - 旧service生产60→57、测试201→191。剩余任务目标装配、Responses主入口、WS/Live和旧聚合资源继续退出；S16最终验收仍未完成。
+
+### 创作任务执行目标批次（2026-09-25）
+
+- app 的 creative.Executor 直接接收 gateway/provider.CreativeTargets，不再接收旧 OpenAIGatewayService。目标工厂固定共享凭据、身份、HTTP传输、Gemini token源及活动屏障，账号选择后才构造本次平台端口，实际执行时读取凭据。旧任务投影、Gemini URL校验转接与最后一个账号代理辅助入口已删除。
+- 两个原协议测试按名称、unit标签和全部断言迁移；创作普通2条、unit130条、消费者定向race10条通过，无失败或跳过。未修改资金、队列、缓存或平台重试。
+- 27/27门禁、8个构建集合、三套受影响lint0/0/0、生产构建及Wire两次稳定通过。[验证摘要](baseline/S16/service-creative-targets-owner-verification.json)保留实际命令与初次编译/lint诊断。
+- 旧service生产57→54、测试191→190；SQL、Ent、原计划及既有冻结/保护文件不变。完整Responses、WS/Live和最终全仓验收继续执行。

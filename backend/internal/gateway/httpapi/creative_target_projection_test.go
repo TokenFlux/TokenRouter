@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package httpapi
 
 import (
 	"context"
@@ -24,11 +24,12 @@ import (
 
 func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 	encoded := base64.StdEncoding.EncodeToString([]byte("edited-image"))
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, encoded)))},
 		{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, encoded)))},
 	}}
-	gateway := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	requests := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream}).Requests
+	gateway := &gatewayprovider.CreativeTargets{Requests: requests, Credentials: requests.Credentials, Identity: requests.Identity, Transport: upstream, Routes: gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 41,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeAPIKey,
@@ -39,7 +40,7 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 	}
 	run := creative.CreativeRun{Operation: creative.CreativeOperationEdit, RequestedOutputCount: 1, ImageSize: "2K", AspectRatio: "16:9"}
 	payload := creative.CreativeRunPayload{Prompt: "edit this", Sources: []creative.CreativeInputImage{{Bytes: []byte("source"), Mime: "image/png"}}}
-	outputs, err := gateway.CreativeTarget(account, gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}, nil, nil).ExecuteGrok(context.Background(), run, payload, "grok-imagine-image-2.0")
+	outputs, err := gateway.ForAccount(account).ExecuteGrok(context.Background(), run, payload, "grok-imagine-image-2.0")
 	require.NoError(t, err)
 	require.Len(t, outputs, 1)
 	require.Equal(t, []byte("edited-image"), outputs[0].Bytes)
@@ -58,16 +59,17 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 	require.Equal(t, "data:image/png;base64,c291cmNl", image["url"])
 
 	generateRun := creative.CreativeRun{Operation: creative.CreativeOperationGenerate, RequestedOutputCount: 1, ImageSize: "1K"}
-	_, err = gateway.CreativeTarget(account, gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}, nil, nil).ExecuteGrok(context.Background(), generateRun, creative.CreativeRunPayload{Prompt: "generate"}, "grok-imagine-image-2.0")
+	_, err = gateway.ForAccount(account).ExecuteGrok(context.Background(), generateRun, creative.CreativeRunPayload{Prompt: "generate"}, "grok-imagine-image-2.0")
 	require.NoError(t, err)
 	require.Equal(t, "https://xai.test/v1/images/generations", upstream.lastReq.URL.String())
 }
 
 // TestBuildCreativeOpenAIRequestBody 校验 OpenAI JSON/multipart 请求体。
 func TestCreativeGeminiInpaintIsRejectedBeforeUpstream(t *testing.T) {
-	upstream := &httpUpstreamRecorder{}
-	gateway := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
-	_, err := gateway.CreativeTarget(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}, nil, nil).ExecuteGemini(context.Background(), creative.CreativeRun{Operation: creative.CreativeOperationInpaint}, creative.CreativeRunPayload{}, "gemini-3.1-flash-image")
+	upstream := &auxiliaryHTTPRecorder{}
+	requests := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream}).Requests
+	gateway := &gatewayprovider.CreativeTargets{Requests: requests, Credentials: requests.Credentials, Identity: requests.Identity, Transport: upstream, Routes: gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}}
+	_, err := gateway.ForAccount(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}).ExecuteGemini(context.Background(), creative.CreativeRun{Operation: creative.CreativeOperationInpaint}, creative.CreativeRunPayload{}, "gemini-3.1-flash-image")
 	require.Error(t, err)
 	require.False(t, creative.IsRetryableCreativeError(err))
 	require.Empty(t, upstream.requests)

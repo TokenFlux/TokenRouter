@@ -28,7 +28,7 @@ TokenRouter 创作台（Creative Studio）提供面向个人用户的图片生�
 
 ## API 路由
 
-生产图由 app 直接构造 `creative.Public`、共享的 `creative.Results` 和原生 worker，HTTP 与设置管理使用同一个 Public。账号目录、托管 Key 和订阅读取绑定各模块现有存储，资金动作直接调用唯一 `billing.Funds`；旧公开服务、结果、恢复和 worker 包装已经删除，原规则/状态/并发测试直接验证 creative；隐藏 Key 测试归 apikey。任务执行也直接使用 app 装配的 creative.Executor，旧 CreativeExecutor/CreativeExecution 已删除。provider.Target 负责实际平台分派；账号选择、技术 transport 与模型路线的剩余旧投影仍在清理，不能把这些端口视为全部网关已迁移。worker 首轮沿用完整设置的批量读取与解析，热更新继续由设置应用器驱动。
+生产图由 app 直接构造 `creative.Public`、共享的 `creative.Results` 和原生 worker，HTTP 与设置管理使用同一个 Public。账号目录、托管 Key 和订阅读取绑定各模块现有存储，资金动作直接调用唯一 `billing.Funds`；旧公开服务、结果、恢复和 worker 包装已经删除，原规则/状态/并发测试直接验证 creative；隐藏 Key 测试归 apikey。任务执行也直接使用 app 装配的 creative.Executor，旧 CreativeExecutor/CreativeExecution 已删除。provider.Target 负责实际平台分派。app 直接绑定原生选择器与 gateway/provider.CreativeTargets；目标工厂按本次账号绑定 OpenAI/Grok/Gemini 的凭据、代理、Header 和传输，执行时才读取凭据。请求构造、HTTP 池和 Gemini token 源与现有入口共享，不再调用旧网关服务的任务投影。worker 首轮沿用完整设置的批量读取与解析，热更新继续由设置应用器驱动。
 
 新创作任务按操作使用统一协议：OpenAI/Grok 的 generate 对应 Images 生成，edit/inpaint 对应 Images 编辑；Gemini 对应 GenerateContent。目录和提交只提供分组已开放的操作，执行器复用账号原生集合及分组指定转换目标筛选候选。Responses 图片策略不阻断 Images 内部适配。已创建任务的读取、下载和清理仍遵循原资源权限。
 

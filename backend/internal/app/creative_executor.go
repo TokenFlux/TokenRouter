@@ -14,11 +14,10 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 // provideCreativeExecutor 直接绑定任务核心和受控执行目标，不建立旧任务运行时或复制状态。
-func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.ExecutionGroups, openAI *service.OpenAIGatewayService, generic *selection.Generic, tokens *account.GeminiTokenSource, activity *gatewayRequestActivity, choices *selection.Compatible) *creative.Executor {
+func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.ExecutionGroups, targets *gatewayprovider.CreativeTargets, generic *selection.Generic, choices *selection.Compatible) *creative.Executor {
 	timeout := 5 * time.Minute
 	if cfg != nil && cfg.Creative.ExecuteTimeoutSeconds > 0 {
 		timeout = time.Duration(cfg.Creative.ExecuteTimeoutSeconds) * time.Second
@@ -49,11 +48,7 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 			return gatewayprovider.ExecutionModelPolicy(value).UpstreamModel(ctx, model)
 		}
 		selection.Execute = func(ctx context.Context, run creative.CreativeRun, payload creative.CreativeRunPayload, model string) ([]creative.CreativeOutput, error) {
-			var enter func() (func(), error)
-			if activity != nil {
-				enter = activity.Enter
-			}
-			return openAI.CreativeTarget(value, provideGrokRoutes(cfg, nil), tokens, enter).ExecutePlatform(ctx, value.Record.Platform, run, payload, model)
+			return targets.ForAccount(value).ExecutePlatform(ctx, value.Record.Platform, run, payload, model)
 		}
 		selection.Report = func(model string, success bool) {
 			if value.Record.ID <= 0 {
@@ -61,7 +56,7 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 			}
 			switch value.Record.Platform {
 			case capability.PlatformOpenAI, capability.PlatformGrok:
-				if openAI != nil {
+				if targets != nil {
 					choices.ReportOpenAIAccountScheduleResultForSelection(result, value.Record.ID, model, success, nil)
 				}
 			case capability.PlatformGemini:
@@ -72,7 +67,7 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 		}
 		return selection, err
 	}
-	if openAI != nil {
+	if targets != nil {
 		out.OpenAI = func(ctx context.Context, run creative.CreativeRun) (*creative.Selection, error) {
 			id := run.GroupID
 			value, _, err := choices.SelectAccountWithSchedulerForImages(ctx, &id, "", run.Model, nil, account.OpenAIImagesCapabilityNative)

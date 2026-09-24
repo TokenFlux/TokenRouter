@@ -23,11 +23,11 @@ func TestCreativeExecutorNativeAssemblyPreservesPrepareReads(t *testing.T) {
 	groups := &creativeExecutionGroupProbe{}
 	cfg := &config.Config{}
 	cfg.Creative.ExecuteTimeoutSeconds = 17
-	executor := provideCreativeExecutor(cfg, groups, nil, nil, nil, nil, nil)
+	executor := provideCreativeExecutor(cfg, groups, nil, nil, nil)
 	require.Zero(t, groups.reads)
 	require.Equal(t, 17*time.Second, executor.Timeout)
 	_, err := executor.Prepare(context.Background(), creative.CreativeRun{GroupID: 12, Model: "gemini-3.1-flash-image", Operation: creative.CreativeOperationGenerate})
 	require.ErrorContains(t, err, "creative gateway service is not configured")
 	require.Equal(t, 2, groups.reads, "保持平台读取与协议投影两次原读取时点")
-	require.Equal(t, 5*time.Minute, provideCreativeExecutor(nil, nil, nil, nil, nil, nil, nil).Timeout)
+	require.Equal(t, 5*time.Minute, provideCreativeExecutor(nil, nil, nil, nil, nil).Timeout)
 }
