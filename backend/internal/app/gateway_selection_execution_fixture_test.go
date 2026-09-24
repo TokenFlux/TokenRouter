@@ -3,6 +3,9 @@ package app
 import (
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
@@ -46,7 +49,7 @@ func newOpenAIExecutionAndSelectionFixture(
 	settingService *gatewayprovider.RuntimeReaders,
 	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
-) (*service.OpenAIGatewayService, *selection.Compatible) {
+) (*service.OpenAIGatewayService, *selection.Compatible, *gatewayhttp.RequestCredentialExecutor) {
 	if modelTransient ==
 		nil {
 		modelTransient = provideSelectionModelTransient()
@@ -85,15 +88,18 @@ func newOpenAIExecutionAndSelectionFixture(
 		ProxyCircuit: proxyCircuit,
 		StickyStats:  sticky,
 	}, selectionOptions(cfg))
+	credentials := gatewaytestkit.RequestCredentials(accountRepo, executionCredentials, grokTokenProvider, blocks)
+	executionCredentials = credentials.Source
+
 	source := service.NewOpenAIGatewayService(accountRepo, usageLogRepo, cache, cfg, concurrencyService,
 		healthObserver, httpUpstream, tlsFPProfileService, deferredService,
 
-		executionCredentials, grokTokenProvider, resolver, channelService,
+		executionCredentials, credentials, resolver, channelService,
 
 		settingService, prompts, headerFilter, stateStore, modelTransient, proxyCircuit, choices, tlsFPRouterServices...)
 	source.BindRuntimeBlockState(blocks)
 	source.BindSchedulerStickyStats(sticky)
-	return source, choices
+	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}
 }
 
 // newEmptyCompatibleSelectionFixture 对应原零值执行入口，仍不配置任何账号来源。

@@ -42,7 +42,7 @@ func provideOpenAIGatewayExecution(
 	tlsFPProfileService *provider.TLSProfiles,
 	deferredService *accountcore.DeferredService,
 	openAITokenProvider *accountcore.OpenAITokenSource,
-	grokTokenProvider *accountcore.GrokTokenSource,
+	requestCredentials *gatewayprovider.RequestCredentials,
 	resolver *billing.PriceResolver,
 	channelService *routing.ChannelService,
 
@@ -73,7 +73,7 @@ func provideOpenAIGatewayExecution(
 		tlsFPProfileService,
 		deferredService,
 		executionCredentials,
-		grokTokenProvider,
+		requestCredentials,
 		resolver,
 		channelService,
 

@@ -126,7 +126,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 		return nil, fmt.Errorf("account platform %s is not supported for grok media", account.Record.Platform)
 	}
 
-	token, _, err := s.getRequestCredential(ctx, c, account)
+	token, _, err := s.requestCredentials.Resolve(ctx, gatewayhttp.RequestCredentialBudget(c), gatewayhttp.CredentialObserver{Context: c}, account)
 	if err != nil {
 		return nil, err
 	}

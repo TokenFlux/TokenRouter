@@ -6,7 +6,7 @@ import (
 	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
@@ -51,15 +51,6 @@ func (r *executionAccountStore) SetError(ctx context.Context, id int64, errorMsg
 	return r.data.SetError(ctx, id, errorMsg)
 }
 
-func (r *executionAccountStore) SetGrokCredentialErrorIfMatch(
-	ctx context.Context,
-	id int64,
-	snapshot accountcore.CredentialMutationSnapshot,
-	errorMsg string,
-) (bool, error) {
-	return r.data.SetGrokCredentialErrorIfMatch(ctx, id, snapshot, errorMsg, string(forwardcore.GrokCredentialReasonProxyInvalid))
-}
-
 func (r *executionAccountStore) UpdateGrokOAuthCredentialsIfUnchanged(
 	ctx context.Context,
 	id int64,
@@ -96,16 +87,6 @@ func (r *executionAccountStore) SetOverloaded(ctx context.Context, id int64, unt
 
 func (r *executionAccountStore) SetTempUnschedulable(ctx context.Context, id int64, until time.Time, reason string) error {
 	return r.data.SetTempUnschedulable(ctx, id, until, reason)
-}
-
-func (r *executionAccountStore) SetGrokCredentialTempUnschedulableIfMatch(
-	ctx context.Context,
-	id int64,
-	snapshot accountcore.CredentialMutationSnapshot,
-	until time.Time,
-	reason string,
-) (bool, error) {
-	return r.data.SetGrokCredentialTempUnschedulableIfMatch(ctx, id, snapshot, until, reason)
 }
 
 func (r *executionAccountStore) ClearTempUnschedulable(ctx context.Context, id int64) error {

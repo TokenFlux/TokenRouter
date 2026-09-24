@@ -289,7 +289,7 @@ type OpenAIGatewayService struct {
 	executionCredentials *accountcore.OpenAIExecutionCredentials
 
 	openAIAuthorization *accountcore.OpenAIAuthorization
-	grokTokenProvider   *accountcore.GrokTokenSource
+	requestCredentials  *gatewayprovider.RequestCredentials
 	toolCorrector       *openai.CodexToolCorrector
 
 	resolver       *billing.PriceResolver
@@ -320,7 +320,6 @@ type OpenAIGatewayService struct {
 	openaiProxyStreamCircuit   *egress.ProxyStreamCircuit
 
 	openaiWSFallbackUntil             sync.Map // key: int64(accountID), value: time.Time
-	grokCredentialMutationLocks       sync.Map // key: int64(accountID), value: *sync.Mutex
 	openaiOAuth429WindowStartUnixNano atomic.Int64
 	openaiOAuth429WindowCount         atomic.Int64
 	openaiWSRetryMetrics              openAIWSRetryMetrics
@@ -348,7 +347,7 @@ func NewOpenAIGatewayService(
 	tlsFPProfileService *provider.TLSProfiles,
 	deferredService *accountcore.DeferredService,
 	executionCredentials *accountcore.OpenAIExecutionCredentials,
-	grokTokenProvider *accountcore.GrokTokenSource,
+	requestCredentials *gatewayprovider.RequestCredentials,
 	resolver *billing.PriceResolver,
 	channelService *routing.ChannelService,
 
@@ -382,7 +381,7 @@ func NewOpenAIGatewayService(
 		tlsFPRouterService:   tlsFPRouterService,
 		deferredService:      deferredService,
 		executionCredentials: executionCredentials,
-		grokTokenProvider:    grokTokenProvider,
+		requestCredentials:   requestCredentials,
 		toolCorrector:        openai.NewCodexToolCorrector(),
 
 		resolver:       resolver,

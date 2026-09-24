@@ -36,10 +36,10 @@ func TestForwardGrokChatViaResponsesDropsRedundantViewImage(t *testing.T) {
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_chat_image", 0)}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -101,10 +101,10 @@ func TestForwardGrokMessagesDropsRedundantViewImage(t *testing.T) {
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokMessagesSSECompletedResponse("resp_messages_image", 0)}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)

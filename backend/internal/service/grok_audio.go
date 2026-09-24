@@ -41,7 +41,7 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 		return nil, err
 	}
 
-	token, _, err := s.getRequestCredential(ctx, c, account)
+	token, _, err := s.requestCredentials.Resolve(ctx, gatewayhttp.RequestCredentialBudget(c), gatewayhttp.CredentialObserver{Context: c}, account)
 	if err != nil {
 		return nil, err
 	}

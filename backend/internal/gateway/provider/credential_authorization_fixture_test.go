@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 未迁消费者测试只组装原生授权，不保留旧服务状态。
+// 凭据契约直接组装原生授权和本地供应商替身。
 func newGrokAuthorizationForTest(proxies egress.ProxyRepository, client account.GrokAuthorizationClient) *account.GrokAuthorization {
 	return account.NewGrokAuthorization(client, provider.GrokAuthorizationOptions(proxies, nil))
 }

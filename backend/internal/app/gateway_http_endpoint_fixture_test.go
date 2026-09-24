@@ -24,6 +24,7 @@ import (
 
 // gatewayHTTPFixtureInput 只描述测试提供的原生依赖和显式预算，不持有业务规则。
 type gatewayHTTPFixtureInput struct {
+	Credentials  *gatewayhttp.RequestCredentialExecutor
 	Availability *gatewayModelAvailability
 	Choices      *selection.Compatible
 	Source       *service.OpenAIGatewayService
@@ -112,11 +113,11 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 		common, _, blocks := base()
 		options := responsesWSOptions(input.Config)
 		options.MaxAccountSwitches = input.MaxSwitches
-		return wsentry.New(options, responsesWSBindings(input.Source, input.Funding, input.Keys, common, input.Prompts, blocks))
+		return wsentry.New(options, responsesWSBindings(input.Source, input.Credentials, input.Funding, input.Keys, common, input.Prompts, blocks))
 	}
 	media := func() *mediaentry.Runtime {
 		common, _, _ := base()
-		bindings := mediaBindings(input.Source, input.Keys, input.Funding, common, resources(), nil, input.Config)
+		bindings := mediaBindings(input.Source, input.Credentials, input.Keys, input.Funding, common, resources(), nil, input.Config)
 		bindings.Options.MaxSwitches = input.MaxSwitches
 		bindings.EligibilityProber = nil
 		return mediaentry.New(bindings)
@@ -142,7 +143,7 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 }
 
 // newGatewayHTTPEndpointsFromDeps 保留原测试参数输入，共享资源由真实 app provider 构造。
-func newGatewayHTTPEndpointsFromDeps(source *service.OpenAIGatewayService, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, worker *completion.UsageRecordWorkerPool, rules *errorpolicy.ErrorPassthroughService, moderator *moderation.ContentModerationService, opsService *ops.OpsService, cfg *config.Config, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Compatible, provided ...*gatewayhttp.OpenAIHTTPResources) *gatewayHTTPEndpointsFixture {
+func newGatewayHTTPEndpointsFromDeps(source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, worker *completion.UsageRecordWorkerPool, rules *errorpolicy.ErrorPassthroughService, moderator *moderation.ContentModerationService, opsService *ops.OpsService, cfg *config.Config, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Compatible, provided ...*gatewayhttp.OpenAIHTTPResources) *gatewayHTTPEndpointsFixture {
 	var resources *gatewayhttp.OpenAIHTTPResources
 	if len(provided) > 0 {
 		resources = provided[0]
@@ -150,7 +151,7 @@ func newGatewayHTTPEndpointsFromDeps(source *service.OpenAIGatewayService, concu
 	if resources == nil {
 		resources = provideOpenAIHTTPResources(concurrency, cfg)
 	}
-	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{Source: source, Availability: availability, Choices: choices, Funding: funding, Keys: keys, Worker: worker, Rules: rules, Moderator: moderator, Ops: opsService, Config: cfg, Prompts: prompts, Concurrency: resources.Concurrency, Images: resources.Images, MaxSwitches: openAITextOptions(cfg).MaxSwitches})
+	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{Source: source, Credentials: credentials, Availability: availability, Choices: choices, Funding: funding, Keys: keys, Worker: worker, Rules: rules, Moderator: moderator, Ops: opsService, Config: cfg, Prompts: prompts, Concurrency: resources.Concurrency, Images: resources.Images, MaxSwitches: openAITextOptions(cfg).MaxSwitches})
 }
 
 // 类型断言约束原测试后台端口，不增加第二套生命周期或队列。

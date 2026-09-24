@@ -69,6 +69,8 @@ Messages、Claude 兼容转换和计数的固定执行依赖由 app 注入 `gate
 
 `upstream` 按平台持有供应商认证交换、签名、原生请求/响应、媒体和连接资源；通用 wire 仍使用 protocol。账号授权会话、凭据缓存与条件写入由 account 拥有。HTTP、SSE、WebSocket、Live、计数与模型入口直接绑定 gateway/httpapi；文本、媒体和会话编排分别由 gateway/text、media、ws、live 拥有。Qoder Chat 继续使用固定 gateway.Execute，Messages/Responses 显式保留其字节提交和等待契约差异。平台执行的混合适配随 S11 逐批收敛，保持每请求唯一账号尝试循环。每次上游执行只接收明确投影，通过同步输出端口写出，完整输入授权、结算与完成队列不下沉到具体平台。
 
+Grok 请求凭据的共享入口直接绑定 `gateway/provider.RequestCredentials`。账号模块持有凭据失败时的条件写入、回读确认和运行时回滚，HTTP 只保存请求预算并记录原失败事件。该实例供文本、媒体与 WS 共同使用，不再从 OpenAIGatewayService 获取凭据或互斥状态。
+
 Anthropic 请求指纹由原生 `RequestFingerprint` 直接注入，与用户身份模块无关。Qoder 授权 HTTP、刷新消费者和生命周期直接绑定 `account/provider.QoderAuthorization` 及其唯一账号授权状态；app 只提供代理读取。仪表盘聚合和支付订单维护的生命周期也直接绑定 usage/payment 的原生拥有者，不再经旧服务包装启动。
 
 notification 拥有模板、语言/退订、投递协调、队列与 SMTP Adapter；identity 拥有验证码和重置凭据，billing/account/业务用例先确定通知事件，通知模块不反向查询资金或账号。site 同时拥有公告、页面权限和公开信息投影，文件读取位于 site/filesystem；web 只接收公开投影。moderation 的规则、裁决、观测和记录使用自己的核心与 Adapter，用户写入通过 identity 命令或同连接参与能力完成。search 拥有配置发布、供应商选择和额度意图，Brave/Tavily HTTP 与 Redis 状态分别进入 Adapter；gateway/searchtools 拥有工具协议、账号三态启用规则与合成结果，app 直接绑定唯一 search 注册表，旧全局 Manager 转接已经删除；gateway/completion 保持原完成资格、资金与分析事实的次序。

@@ -19,7 +19,7 @@ import (
 
 // provideMediaRuntime 固定既有单次执行与任务拥有者，构造不查询、不启动后台资源。
 func provideMediaRuntime(
-	source *service.OpenAIGatewayService,
+	source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor,
 	keys *apikey.APIKeyService,
 	funding *admission.FundingAdmission,
 	common openaiattempt.Bindings,
@@ -27,7 +27,7 @@ func provideMediaRuntime(
 	prober *account.GrokQuotaService,
 	cfg *config.Config,
 ) *mediaentry.Runtime {
-	return mediaentry.New(mediaBindings(source, keys, funding, common, resources, prober, cfg))
+	return mediaentry.New(mediaBindings(source, credentials, keys, funding, common, resources, prober, cfg))
 }
 
 func provideMediaHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestActivity) *gatewayhttp.MediaHandler {
@@ -43,7 +43,7 @@ func provideAuxiliaryHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestA
 
 // mediaBindings 只组合既有能力及静态选项，视频拥有者按原时点取得。
 func mediaBindings(
-	source *service.OpenAIGatewayService,
+	source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor,
 	keys *apikey.APIKeyService,
 	funding *admission.FundingAdmission,
 	common openaiattempt.Bindings,
@@ -97,7 +97,7 @@ func mediaBindings(
 		}
 		b.Platform.RealtimeError = source.HandleGrokRealtimeUpstreamError
 		b.Platform.RelayRealtime = source.RelayGrokRealtimeFrames
-		b.Platform.Credential = source.GetRequestCredential
+		b.Platform.Credential = credentials.Resolve
 		b.Platform.Stop429 = source.ShouldStopOpenAIOAuth429Failover
 		b.Platform.ReportSwitch = common.Selection.RecordSwitch
 	}

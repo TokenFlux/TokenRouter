@@ -962,7 +962,7 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*gatewayHTTPEn
 	billingCache.Start()
 	completionInput2 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput3 := &accountcore.DeferredService{}
-	gateway, gatewayChoices := newOpenAIExecutionAndSelectionFixture(
+	gateway, gatewayChoices, gatewayCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		repo, nil, nil, cfg, nil, nil, nil, upstream,
 		nil, completionInput3, newOpenAIExecutionCredentialsForTest(repo,
 			provider), provider, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
@@ -973,7 +973,7 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*gatewayHTTPEn
 		AcquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },
 		AcquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
 	}
-	h := newGatewayHTTPEndpointsFromDeps(gateway, scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+	h := newGatewayHTTPEndpointsFromDeps(gateway, gatewayCredentialPort, scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 		Event: logging.Event,
 	},
 	), newFundingAdmissionFixture(billingCache, cfg), &apikey.APIKeyService{}, nil, nil, nil, nil, cfg, nil, newExecutionAvailabilityForTest(repo,

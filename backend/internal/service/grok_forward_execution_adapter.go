@@ -86,7 +86,7 @@ func (a *grokForwardAdapter) FreeCacheRoute(body, intent []byte, identity string
 	return applyGrokFreeRequestToolCacheRoute(a.c, body, intent, a.account, identity)
 }
 func (a *grokForwardAdapter) Credential(ctx context.Context) error {
-	token, _, err := a.s.getRequestCredential(ctx, a.c, a.account)
+	token, _, err := a.s.requestCredentials.Resolve(ctx, gatewayhttp.RequestCredentialBudget(a.c), gatewayhttp.CredentialObserver{Context: a.c}, a.account)
 	a.token = token
 	return err
 }

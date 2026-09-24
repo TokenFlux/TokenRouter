@@ -88,6 +88,8 @@ Voice HTTP 入口包括 TTS、STT 和自定义 Voice 的创建、读取、修改
 
 OAuth 凭据失效、账号资格变化和上游限流使用带凭据快照的分类与 CAS 更新，避免旧请求把刚刷新的账号再次封禁。凭据获取的分类结果及 reason 常量归 `gateway/forward`，分类只读取错误链和代理存在性；持久化比较快照保持私有且不参与 JSON。账号写入与请求重试仍由各自用例执行。内容策略 403 与凭据 401/403、付费资格拒绝和可切换上游错误要分别处理；只有可切换且响应未开始的错误进入下一账号。实际 Grok 非流 Chat 响应必须包含至少一个为正的聚合输入、输出、缓存写入或缓存读取 token 桶；缺失、全零或只有图片/文本明细的成功响应会在 HTTP 200 提交前返回稳定的 `grok_missing_usage` 故障转移错误。识别同时依据 Grok 平台账号、最终计费模型、映射后上游模型和响应模型，通用 OpenAI 兼容账号不能绕过，客户端 Grok 命名别名映射到非 Grok 上游时也不会误拒。
 
+请求凭据由 `gateway/provider.RequestCredentials` 统一取得，文本、媒体、Voice 与 WS 共用同一实例。十五秒换号预算由请求自己的 `requeststate.CredentialBudget` 持有，HTTP Adapter 负责把失败分类关联到 Ops。条件写入、重新读取确认和缓存清理由 `account.GrokCredentialRecovery` 执行，并共享应用的运行时阻断状态；五秒写入、250 毫秒提交确认和 500 毫秒缓存清理预算保持。旧 `GetRequestCredential`、凭据失败方法和网关内互斥表已删除，其他 Grok 转发与共享 Responses 输出仍在 S16 收尾。
+
 ## 客户端配置
 
 用户可在 API Key 页面通过“使用密钥”生成 Grok Build CLI、Codex CLI 或 OpenCode 配置。现有 `config.toml` 应先备份，再合并新模型配置。Codex 配置使用环境变量保存 TokenRouter Key，显式设置 `requires_openai_auth=false`，并以 HTTP/SSE Responses 模式关闭 WebSocket；不能要求用户再登录 ChatGPT，也不能把密钥写进仓库。

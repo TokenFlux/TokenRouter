@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
@@ -26,7 +28,7 @@ func newOpenAIExecutionCredentialsForTest(repo gatewayprovider.ExecutionAccountS
 	}
 	return out
 }
-func withOpenAIExecutionCredentialsForTest(s *OpenAIGatewayService) *OpenAIGatewayService {
+func withOpenAIExecutionCredentialsForTest(s *OpenAIGatewayService, tokens ...*account.GrokTokenSource) *OpenAIGatewayService {
 	s.BindAgentIdentity(gatewayprovider.NewExecutionAgentIdentity(&agentTaskCoordinatorForTest, s.accountRepo, registerAgentTaskForTest, s.InvalidateAgentIdentityWSConnections))
 	if s.executionCredentials == nil {
 		s.executionCredentials = &account.OpenAIExecutionCredentials{}
@@ -37,9 +39,16 @@ func withOpenAIExecutionCredentialsForTest(s *OpenAIGatewayService) *OpenAIGatew
 			return gatewayprovider.ExecutionRecord(value), err
 		}
 	}
-	if s.grokTokenProvider != nil {
-		s.executionCredentials.Grok = s.grokTokenProvider.GetAccessToken
+	if s.requestCredentials == nil {
+		s.requestCredentials = gatewaytestkit.RequestCredentials(s.accountRepo, s.executionCredentials, nil, s.runtimeBlockState())
 	}
+	s.requestCredentials.Source = s.executionCredentials
+	if len(tokens) > 0 && tokens[0] != nil {
+		s.executionCredentials.Grok = tokens[0].GetAccessToken
+		s.requestCredentials.HasGrokTokenSource = true
+		s.requestCredentials.Recovery.Invalidate = tokens[0].InvalidateToken
+	}
+
 	return s
 }
 

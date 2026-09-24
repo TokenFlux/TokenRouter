@@ -1326,7 +1326,7 @@ func TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups(t *testing.
 		moderation.SettingKeyCyberSessionBlockTTLSeconds: "3600",
 	}}
 	cache := &cyberSessionBlockHandlerCacheStub{blocked: true}
-	gatewaySvc, gatewaySvcChoices := newOpenAIExecutionAndSelectionFixture(
+	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		nil, nil, cache, nil, nil, nil, nil,
 		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
 			nil), nil, nil, nil, gatewaytestkit.RuntimeReaders(settingRepo), nil, responseHeaderFilterForTest(nil), nil, nil, nil,
@@ -1337,7 +1337,7 @@ func TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups(t *testing.
 	moderationSvc := newHTTPModeration(t, settingRepo, nil)
 	moderationSvc.Start()
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:    gatewaySvc,
+		Source: gatewaySvc, Credentials: gatewaySvcCredentialPort,
 		Moderator: moderationSvc, Availability: newExecutionAvailabilityForTest(nil,
 
 			nil, nil), Choices: gatewaySvcChoices,
@@ -1733,7 +1733,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	t.Cleanup(billingCacheSvc.Stop)
 	completionInput4 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput5 := &accountcore.DeferredService{}
-	gatewaySvc, gatewaySvcChoices := newOpenAIExecutionAndSelectionFixture(
+	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		nil,
 
@@ -1755,7 +1755,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput4, billingCacheSvc, completionInput5, nil, nil, true))
 
 	h := newGatewayHTTPEndpointsFromDeps(
-		gatewaySvc, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
 		), newFundingAdmissionFixture(billingCacheSvc, cfg), testkit.NewService(nil, nil, nil, nil, nil, nil, cfg),
@@ -1835,7 +1835,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			t.Cleanup(billingCacheSvc.Stop)
 			completionInput6 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 			completionInput7 := &accountcore.DeferredService{}
-			gatewaySvc, gatewaySvcChoices := newOpenAIExecutionAndSelectionFixture(
+			gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 				accountRepo,
 				nil,
 
@@ -1857,7 +1857,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput6, billingCacheSvc, completionInput7, nil, completionHealth{rateLimitSvc.Core}, true))
 
 			h := newGatewayHTTPEndpointsFromDeps(
-				gatewaySvc, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+				gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 					Event: logging.Event},
 				), newFundingAdmissionFixture(billingCacheSvc, cfg), testkit.NewService(nil, nil, nil, nil, nil, nil, cfg),
@@ -1918,7 +1918,7 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	t.Cleanup(billingCacheSvc.Stop)
 	completionInput8 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput9 := &accountcore.DeferredService{}
-	gatewaySvc, gatewaySvcChoices := newOpenAIExecutionAndSelectionFixture(
+	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		nil,
 
@@ -1940,7 +1940,7 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput8, billingCacheSvc, completionInput9, nil, nil, true))
 
 	h := newGatewayHTTPEndpointsFromDeps(
-		gatewaySvc, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
 		), newFundingAdmissionFixture(billingCacheSvc, cfg), testkit.NewService(nil, nil, nil, nil, nil, nil, cfg),
@@ -2078,7 +2078,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	billingCacheSvc.Start()
 	completionInput10 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput11 := &accountcore.DeferredService{}
-	gatewaySvc, gatewaySvcChoices := newOpenAIExecutionAndSelectionFixture(
+	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		nil,
 
@@ -2108,7 +2108,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		},
 	}
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:  gatewaySvc,
+		Source: gatewaySvc, Credentials: gatewaySvcCredentialPort,
 		Funding: newFundingAdmissionFixture(billingCacheSvc, cfg),
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
@@ -2287,7 +2287,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 	billingCacheSvc.Start()
 	completionInput12 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput13 := &accountcore.DeferredService{}
-	gatewaySvc, gatewaySvcChoices := newOpenAIExecutionAndSelectionFixture(
+	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo, nil, nil, cfg, nil, nil, rateLimitSvc,
 		nil, nil, completionInput13, newOpenAIExecutionCredentialsForTest(accountRepo,
 			nil), nil, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
@@ -2301,7 +2301,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 		},
 	}
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:  gatewaySvc,
+		Source: gatewaySvc, Credentials: gatewaySvcCredentialPort,
 		Funding: newFundingAdmissionFixture(billingCacheSvc, cfg),
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
@@ -2481,7 +2481,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	billingCacheSvc.Start()
 	completionInput14 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput15 := &accountcore.DeferredService{}
-	gatewaySvc, gatewaySvcChoices := newOpenAIExecutionAndSelectionFixture(
+	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		usageRepo,
 
@@ -2513,7 +2513,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		},
 	}
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:  gatewaySvc,
+		Source: gatewaySvc, Credentials: gatewaySvcCredentialPort,
 		Funding: newFundingAdmissionFixture(billingCacheSvc, cfg),
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,

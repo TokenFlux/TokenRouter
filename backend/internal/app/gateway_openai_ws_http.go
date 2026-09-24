@@ -17,7 +17,7 @@ import (
 
 // provideResponsesWSHTTP 直接绑定 WS 用例，共享同一尝试支持、生命周期与动态数据读取。
 func provideResponsesWSHTTP(
-	source *service.OpenAIGatewayService,
+	source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor,
 	funding *admission.FundingAdmission,
 	keys *apikey.APIKeyService,
 	common openaiattempt.Bindings,
@@ -27,7 +27,7 @@ func provideResponsesWSHTTP(
 	activity *gatewayRequestActivity,
 ) *gatewayhttp.ResponsesWSHandler {
 	options := responsesWSOptions(cfg)
-	b := responsesWSBindings(source, funding, keys, common, prompt, blocks)
+	b := responsesWSBindings(source, credentials, funding, keys, common, prompt, blocks)
 	result := wsentry.New(options, b)
 	result.BindRequestActivity(activity.Enter)
 	return result
@@ -50,7 +50,7 @@ func responsesWSOptions(cfg *config.Config) gatewayhttp.ResponsesWSOptions {
 }
 
 // responsesWSBindings 仅接入已有共享状态及每轮单步端口。
-func responsesWSBindings(source *service.OpenAIGatewayService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, common openaiattempt.Bindings, prompt *promptpolicy.Service, blocks *session.CyberBlocks) wsentry.Bindings {
+func responsesWSBindings(source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor, funding *admission.FundingAdmission, keys *apikey.APIKeyService, common openaiattempt.Bindings, prompt *promptpolicy.Service, blocks *session.CyberBlocks) wsentry.Bindings {
 	b := wsentry.Bindings{
 		Common: common,
 		Prompt: prompt,
@@ -76,7 +76,7 @@ func responsesWSBindings(source *service.OpenAIGatewayService, funding *admissio
 		b.Isolate = source.EnsureSessionIsolation
 		b.ReportSelection = common.Selection.ReportSelection
 		b.Stop429 = source.ShouldStopOpenAIOAuth429Failover
-		b.Credential = source.GetRequestCredential
+		b.Credential = credentials.Resolve
 		b.ResolveRouting = source.ResolveOpenAIWSRoutingModelForAccount
 		b.BeginPreemption = source.BeginOpenAIWSIngressSessionPreemption
 		b.Relay = source.ProxyResponsesWebSocketFromClient

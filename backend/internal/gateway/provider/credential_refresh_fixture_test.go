@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 )
 
 type tokenRefreshAccountRepo struct {
-	mockAccountRepoForGemini
+	credentialReadStore
 	updateCalls                  int
 	fullUpdateCalls              int
 	updateCredentialsCalls       int
@@ -96,7 +96,7 @@ func (r *tokenRefreshAccountRepo) GetByID(ctx context.Context, id int64) (*gatew
 		case <-timer.C:
 		}
 	}
-	account, err := r.mockAccountRepoForGemini.GetByID(ctx, id)
+	account, err := r.credentialReadStore.GetByID(ctx, id)
 	if err != nil || !r.snapshotReads {
 		return account, err
 	}

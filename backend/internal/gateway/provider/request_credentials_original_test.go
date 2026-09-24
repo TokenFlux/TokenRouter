@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"context"
@@ -246,10 +246,10 @@ func TestGetRequestCredentialMapsPermanentGrokOAuthFailureAndRedactsSecrets(t *t
 	bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{
 		err: apperror.New(http.StatusBadGateway, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "invalid_grant access_token=leaked-access refresh_token=leaked-refresh"),
 	})
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+	svc := newRequestCredentialsFixture(repo, provider)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-	token, kind, err := svc.getRequestCredential(context.Background(), c, account)
+	token, kind, err := svc.Resolve(context.Background(), c, account)
 	require.Error(t, err)
 	require.Empty(t, token)
 	require.Empty(t, kind)
@@ -267,7 +267,7 @@ func TestGetRequestCredentialMapsPermanentGrokOAuthFailureAndRedactsSecrets(t *t
 
 	require.Equal(t, 1, repo.setErrorCalls)
 	require.Zero(t, repo.setTempUnschedCalls)
-	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.True(t, credentialBlocked(svc, account))
 	require.Equal(t, []string{accountcore.GrokTokenCacheKey(gatewayprovider.ExecutionRecord(account))}, cache.deletedKeys)
 	require.NotContains(t, repo.lastErrorMessage, "leaked-access")
 	require.NotContains(t, repo.lastErrorMessage, "leaked-refresh")
@@ -330,10 +330,10 @@ func TestGetRequestCredentialPermanentMappingsPersistAndInvalidate(t *testing.T)
 			cache := &grokTokenCacheForProviderTest{lockResult: true, token: tt.cachedToken}
 			provider := newGrokTokenSourceForTest(repo, cache)
 			bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{err: tt.refreshErr})
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+			svc := newRequestCredentialsFixture(repo, provider)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-			_, _, err := svc.getRequestCredential(context.Background(), c, account)
+			_, _, err := svc.Resolve(context.Background(), c, account)
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.Equal(t, tt.wantReason, failoverErr.Reason)
@@ -341,7 +341,7 @@ func TestGetRequestCredentialPermanentMappingsPersistAndInvalidate(t *testing.T)
 			require.Equal(t, 1, baseRepo.setErrorCalls)
 			require.Equal(t, accountcore.StatusError, account.Record.Status)
 			require.False(t, account.Record.Schedulable)
-			require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+			require.True(t, credentialBlocked(svc, account))
 			require.Equal(t, []string{accountcore.GrokTokenCacheKey(gatewayprovider.ExecutionRecord(account))}, cache.deletedKeys)
 		})
 	}
@@ -375,10 +375,10 @@ func TestGetRequestCredentialMissingAccessNeverRefreshesAndPermanentlyFailsOver(
 			refresher := &grokCredentialCountingRefresher{}
 			provider := newGrokTokenSourceForTest(repo, cache)
 			bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), refresher)
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+			svc := newRequestCredentialsFixture(repo, provider)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-			token, kind, err := svc.getRequestCredential(context.Background(), c, account)
+			token, kind, err := svc.Resolve(context.Background(), c, account)
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.Empty(t, token)
@@ -390,7 +390,7 @@ func TestGetRequestCredentialMissingAccessNeverRefreshesAndPermanentlyFailsOver(
 			require.Equal(t, accountcore.StatusError, account.Record.Status)
 			require.False(t, account.Record.Schedulable)
 			require.Equal(t, []string{accountcore.GrokTokenCacheKey(gatewayprovider.ExecutionRecord(account))}, cache.deletedKeys)
-			require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+			require.True(t, credentialBlocked(svc, account))
 		})
 	}
 }
@@ -407,10 +407,10 @@ func TestGetRequestCredentialWarmCachedAccessWithMissingRefreshPermanentlyFailsO
 	refresher := &grokCredentialCountingRefresher{}
 	provider := newGrokTokenSourceForTest(repo, cache)
 	bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), refresher)
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+	svc := newRequestCredentialsFixture(repo, provider)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-	_, _, err := svc.getRequestCredential(context.Background(), c, account)
+	_, _, err := svc.Resolve(context.Background(), c, account)
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -419,7 +419,7 @@ func TestGetRequestCredentialWarmCachedAccessWithMissingRefreshPermanentlyFailsO
 	require.Zero(t, refresher.refreshCalls)
 	require.Equal(t, 1, baseRepo.setErrorCalls)
 	require.Equal(t, []string{accountcore.GrokTokenCacheKey(gatewayprovider.ExecutionRecord(account))}, cache.deletedKeys)
-	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.True(t, credentialBlocked(svc, account))
 }
 
 func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testing.T) {
@@ -431,10 +431,10 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		cache := &grokTokenCacheForProviderTest{lockResult: true}
 		provider := newGrokTokenSourceForTest(repo, cache)
 		bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{err: errors.New("temporary refresh transport failure")})
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+		svc := newRequestCredentialsFixture(repo, provider)
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		_, _, err := svc.getRequestCredential(context.Background(), c, account)
+		_, _, err := svc.Resolve(context.Background(), c, account)
 		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
@@ -442,7 +442,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		require.True(t, failoverErr.ShouldRetryNextAccount())
 		require.Zero(t, repo.setErrorCalls)
 		require.Equal(t, 1, repo.setTempUnschedCalls)
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.True(t, credentialBlocked(svc, account))
 	})
 
 	t.Run("shared provider configuration stops without mutation", func(t *testing.T) {
@@ -450,17 +450,17 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		repo := &tokenRefreshAccountRepo{}
 		repo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}
 		provider := newGrokTokenSourceForTest(repo, nil)
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+		svc := newRequestCredentialsFixture(repo, provider)
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		_, _, err := svc.getRequestCredential(context.Background(), c, account)
+		_, _, err := svc.Resolve(context.Background(), c, account)
 		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.Equal(t, forwardcore.GatewayFailureScopeProvider, failoverErr.Scope)
 		require.Equal(t, forwardcore.NextAccountStop, failoverErr.NextAccountAction)
 		require.Zero(t, repo.setErrorCalls)
 		require.Zero(t, repo.setTempUnschedCalls)
-		require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.False(t, credentialBlocked(svc, account))
 	})
 
 	t.Run("account reread failures preserve shared versus missing-row scope", func(t *testing.T) {
@@ -480,10 +480,10 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 				cache := &grokTokenCacheForProviderTest{lockResult: true}
 				provider := newGrokTokenSourceForTest(repo, cache)
 				bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), accountcore.NewGrokTokenRefresher(nil))
-				svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+				svc := newRequestCredentialsFixture(repo, provider)
 				c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-				_, _, err := svc.getRequestCredential(context.Background(), c, account)
+				_, _, err := svc.Resolve(context.Background(), c, account)
 				var failoverErr *forwardcore.UpstreamFailoverError
 				require.ErrorAs(t, err, &failoverErr)
 				if tt.err != nil {
@@ -498,7 +498,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 				require.Zero(t, baseRepo.setErrorCalls)
 				require.Zero(t, baseRepo.setTempUnschedCalls)
 				require.Empty(t, cache.deletedKeys)
-				require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+				require.False(t, credentialBlocked(svc, account))
 			})
 		}
 	})
@@ -544,10 +544,10 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 				cache := &grokTokenCacheForProviderTest{lockResult: true}
 				provider := newGrokTokenSourceForTest(repo, cache)
 				bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), accountcore.NewGrokTokenRefresher(nil))
-				svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+				svc := newRequestCredentialsFixture(repo, provider)
 				c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-				_, _, err := svc.getRequestCredential(context.Background(), c, staleAccount)
+				_, _, err := svc.Resolve(context.Background(), c, staleAccount)
 				var failoverErr *forwardcore.UpstreamFailoverError
 				require.ErrorAs(t, err, &failoverErr)
 				require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
@@ -556,7 +556,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 				require.Zero(t, repo.setErrorCalls)
 				require.Zero(t, repo.setTempUnschedCalls)
 				require.Empty(t, cache.deletedKeys)
-				require.False(t, svc.isOpenAIAccountRuntimeBlocked(staleAccount))
+				require.False(t, credentialBlocked(svc, staleAccount))
 			})
 		}
 	})
@@ -573,10 +573,10 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		cache := &grokTokenCacheForProviderTest{lockResult: true}
 		provider := newGrokTokenSourceForTest(repo, cache)
 		bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), accountcore.NewGrokTokenRefresher(nil))
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+		svc := newRequestCredentialsFixture(repo, provider)
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		_, _, err := svc.getRequestCredential(context.Background(), c, staleAccount)
+		_, _, err := svc.Resolve(context.Background(), c, staleAccount)
 		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
@@ -587,7 +587,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		require.Equal(t, accountcore.StatusError, freshAccount.Record.Status)
 		require.False(t, freshAccount.Record.Schedulable)
 		require.Equal(t, []string{accountcore.GrokTokenCacheKey(gatewayprovider.ExecutionRecord(staleAccount))}, cache.deletedKeys)
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(staleAccount))
+		require.True(t, credentialBlocked(svc, staleAccount))
 	})
 
 	t.Run("refresh added after locked structural failure wins conditional mutation", func(t *testing.T) {
@@ -607,10 +607,10 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		cache := &grokTokenCacheForProviderTest{lockResult: true}
 		provider := newGrokTokenSourceForTest(repo, cache)
 		bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), accountcore.NewGrokTokenRefresher(nil))
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+		svc := newRequestCredentialsFixture(repo, provider)
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		token, kind, err := svc.getRequestCredential(context.Background(), c, staleAccount)
+		token, kind, err := svc.Resolve(context.Background(), c, staleAccount)
 
 		require.NoError(t, err)
 		require.Equal(t, "expired-access-token", token)
@@ -618,7 +618,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		require.Zero(t, repo.setErrorCalls)
 		require.Zero(t, repo.setTempUnschedCalls)
 		require.Empty(t, cache.deletedKeys)
-		require.False(t, svc.isOpenAIAccountRuntimeBlocked(staleAccount))
+		require.False(t, credentialBlocked(svc, staleAccount))
 	})
 
 	t.Run("expiry-only repair wins full credential fingerprint CAS", func(t *testing.T) {
@@ -636,17 +636,17 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{
 			err: apperror.New(http.StatusBadGateway, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "invalid_grant"),
 		})
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+		svc := newRequestCredentialsFixture(repo, provider)
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		token, kind, err := svc.getRequestCredential(context.Background(), c, account)
+		token, kind, err := svc.Resolve(context.Background(), c, account)
 
 		require.NoError(t, err)
 		require.Equal(t, "expired-access-token", token)
 		require.Equal(t, "oauth", kind)
 		require.Zero(t, repo.setErrorCalls)
 		require.Empty(t, cache.deletedKeys)
-		require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.False(t, credentialBlocked(svc, account))
 	})
 
 	t.Run("generic token endpoint 403 stops as shared provider failure", func(t *testing.T) {
@@ -658,10 +658,10 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{
 			err: apperror.New(http.StatusBadGateway, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "token refresh failed: status 403, body: forbidden"),
 		})
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+		svc := newRequestCredentialsFixture(repo, provider)
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		_, _, err := svc.getRequestCredential(context.Background(), c, account)
+		_, _, err := svc.Resolve(context.Background(), c, account)
 		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.Equal(t, forwardcore.GatewayFailureScopeProvider, failoverErr.Scope)
@@ -670,7 +670,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		require.Zero(t, repo.setErrorCalls)
 		require.Zero(t, repo.setTempUnschedCalls)
 		require.Empty(t, cache.deletedKeys)
-		require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.False(t, credentialBlocked(svc, account))
 	})
 
 	t.Run("account proxy generic 403 remains bounded account transient", func(t *testing.T) {
@@ -685,10 +685,10 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{
 			err: apperror.New(http.StatusBadGateway, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "token refresh failed: status 403, body: forbidden"),
 		})
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+		svc := newRequestCredentialsFixture(repo, provider)
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		_, _, err := svc.getRequestCredential(context.Background(), c, account)
+		_, _, err := svc.Resolve(context.Background(), c, account)
 		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
@@ -697,7 +697,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		require.Zero(t, repo.setErrorCalls)
 		require.Equal(t, 1, repo.setTempUnschedCalls)
 		require.Empty(t, cache.deletedKeys)
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.True(t, credentialBlocked(svc, account))
 	})
 
 	t.Run("proxy repository read failure stops without account mutation", func(t *testing.T) {
@@ -713,10 +713,10 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		defer stopGrokAuthorizationForTest(t, oauthSvc)
 		provider := newGrokTokenSourceForTest(repo, cache)
 		bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), accountcore.NewGrokTokenRefresher(oauthSvc))
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+		svc := newRequestCredentialsFixture(repo, provider)
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		_, _, err := svc.getRequestCredential(context.Background(), c, account)
+		_, _, err := svc.Resolve(context.Background(), c, account)
 		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.Equal(t, forwardcore.GatewayFailureScopeProvider, failoverErr.Scope)
@@ -725,7 +725,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		require.Zero(t, repo.setErrorCalls)
 		require.Zero(t, repo.setTempUnschedCalls)
 		require.Empty(t, cache.deletedKeys)
-		require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.False(t, credentialBlocked(svc, account))
 	})
 
 	t.Run("structurally missing configured proxy permanently blocks only that account", func(t *testing.T) {
@@ -743,10 +743,10 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		defer stopGrokAuthorizationForTest(t, oauthSvc)
 		provider := newGrokTokenSourceForTest(repo, cache)
 		bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), accountcore.NewGrokTokenRefresher(oauthSvc))
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+		svc := newRequestCredentialsFixture(repo, provider)
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		_, _, err := svc.getRequestCredential(context.Background(), c, account)
+		_, _, err := svc.Resolve(context.Background(), c, account)
 		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
@@ -756,7 +756,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		require.Equal(t, accountcore.StatusError, account.Record.Status)
 		require.False(t, account.Record.Schedulable)
 		require.Equal(t, []string{accountcore.GrokTokenCacheKey(gatewayprovider.ExecutionRecord(account))}, cache.deletedKeys)
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.True(t, credentialBlocked(svc, account))
 	})
 }
 
@@ -768,11 +768,11 @@ func TestGetRequestCredentialRuntimeBlockWinsBeforeWarmTokenCache(t *testing.T) 
 	repo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}
 	cache := &grokTokenCacheForProviderTest{token: "valid-access"}
 	provider := newGrokTokenSourceForTest(repo, cache)
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
-	svc.BlockAccountScheduling(account, time.Now().Add(time.Minute), "independent")
+	svc := newRequestCredentialsFixture(repo, provider)
+	svc.Runtime.Runtime.BlockAccountScheduling(gatewayprovider.ExecutionRecord(account), time.Now().Add(time.Minute), "independent")
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-	_, _, err := svc.getRequestCredential(context.Background(), c, account)
+	_, _, err := svc.Resolve(context.Background(), c, account)
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -797,10 +797,10 @@ func TestGetRequestCredentialWarmCachedAccessWithMissingConfiguredProxyPermanent
 	refresher := &grokCredentialCountingRefresher{}
 	provider := newGrokTokenSourceForTest(repo, cache)
 	bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), refresher)
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+	svc := newRequestCredentialsFixture(repo, provider)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-	_, _, err := svc.getRequestCredential(context.Background(), c, account)
+	_, _, err := svc.Resolve(context.Background(), c, account)
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -809,7 +809,7 @@ func TestGetRequestCredentialWarmCachedAccessWithMissingConfiguredProxyPermanent
 	require.Zero(t, refresher.refreshCalls)
 	require.Equal(t, 1, baseRepo.setErrorCalls)
 	require.Equal(t, []string{accountcore.GrokTokenCacheKey(gatewayprovider.ExecutionRecord(account))}, cache.deletedKeys)
-	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.True(t, credentialBlocked(svc, account))
 }
 
 func TestGetRequestCredentialCancellationAndBudgetDoNotMutateAccount(t *testing.T) {
@@ -818,14 +818,14 @@ func TestGetRequestCredentialCancellationAndBudgetDoNotMutateAccount(t *testing.
 	repo := &tokenRefreshAccountRepo{}
 	repo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}
 	provider := newGrokTokenSourceForTest(repo, nil)
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+	svc := newRequestCredentialsFixture(repo, provider)
 
 	t.Run("parent cancellation is returned directly", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-		_, _, err := svc.getRequestCredential(ctx, c, account)
+		_, _, err := svc.Resolve(ctx, c, account)
 		require.ErrorIs(t, err, context.Canceled)
 		var failoverErr *forwardcore.UpstreamFailoverError
 		require.False(t, errors.As(err, &failoverErr))
@@ -833,9 +833,9 @@ func TestGetRequestCredentialCancellationAndBudgetDoNotMutateAccount(t *testing.
 
 	t.Run("request credential budget stops safely", func(t *testing.T) {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
-		c.Set(grokCredentialFailoverDeadlineKey, time.Now().Add(-time.Second))
+		gatewayhttp.RequestCredentialBudget(c).Deadline = time.Now().Add(-time.Second)
 
-		_, _, err := svc.getRequestCredential(context.Background(), c, account)
+		_, _, err := svc.Resolve(context.Background(), c, account)
 		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.Equal(t, forwardcore.GatewayFailureScopeRequest, failoverErr.Scope)
@@ -845,7 +845,7 @@ func TestGetRequestCredentialCancellationAndBudgetDoNotMutateAccount(t *testing.
 
 	require.Zero(t, repo.setErrorCalls)
 	require.Zero(t, repo.setTempUnschedCalls)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.False(t, credentialBlocked(svc, account))
 }
 
 func TestGetRequestCredentialStateMutationFailureStopsAndKeepsRuntimeBlock(t *testing.T) {
@@ -894,10 +894,10 @@ func TestGetRequestCredentialStateMutationFailureStopsAndKeepsRuntimeBlock(t *te
 			tt.configure(repo, cache)
 			provider := newGrokTokenSourceForTest(repo, cache)
 			bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{err: tt.refreshErr})
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+			svc := newRequestCredentialsFixture(repo, provider)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-			_, _, err := svc.getRequestCredential(context.Background(), c, account)
+			_, _, err := svc.Resolve(context.Background(), c, account)
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.Equal(t, forwardcore.GatewayFailureScopeProvider, failoverErr.Scope)
@@ -906,7 +906,7 @@ func TestGetRequestCredentialStateMutationFailureStopsAndKeepsRuntimeBlock(t *te
 			require.Equal(t, tt.wantSetError, repo.setErrorCalls)
 			require.Equal(t, tt.wantSetTemp, repo.setTempUnschedCalls)
 			require.Len(t, cache.deletedKeys, tt.wantCacheDelete)
-			require.True(t, svc.isOpenAIAccountRuntimeBlocked(account), "failed mutation must retain the immediate local block")
+			require.True(t, credentialBlocked(svc, account), "failed mutation must retain the immediate local block")
 		})
 	}
 }
@@ -922,23 +922,23 @@ func TestGrokCredentialMutationBoundariesHonorParentCancellation(t *testing.T) {
 			setTempStarted:          make(chan struct{}),
 		}
 		cache := &grokTokenCacheForProviderTest{}
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: newGrokTokenSourceForTest(repo, cache)}))
+		svc := newRequestCredentialsFixture(repo, newGrokTokenSourceForTest(repo, cache))
 		ctx, cancel := context.WithCancel(context.Background())
 		result := make(chan error, 1)
 		go func() {
-			_, err := svc.applyGrokCredentialAccountFailure(ctx, account, forwardcore.GrokCredentialFailure{
+			_, err := svc.Runtime.Recovery.Apply(ctx, gatewayprovider.ExecutionRecord(account), credentialMutationForTest(forwardcore.GrokCredentialFailure{
 				Reason: forwardcore.GrokCredentialReasonRevoked, Permanent: true,
-			})
+			}))
 			result <- err
 		}()
 		<-repo.setErrorStarted
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account), "runtime block must precede persistent SetError")
+		require.True(t, credentialBlocked(svc, account), "runtime block must precede persistent SetError")
 		cancel()
 
 		require.ErrorIs(t, <-result, context.Canceled)
 		require.Zero(t, baseRepo.setErrorCalls)
 		require.Empty(t, cache.deletedKeys)
-		require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.False(t, credentialBlocked(svc, account))
 	})
 
 	t.Run("blocked temporary unschedule cancellation prevents runtime mutation", func(t *testing.T) {
@@ -950,22 +950,22 @@ func TestGrokCredentialMutationBoundariesHonorParentCancellation(t *testing.T) {
 			setErrorStarted:         make(chan struct{}),
 			setTempStarted:          make(chan struct{}),
 		}
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+		svc := newRequestCredentialsFixture(repo, nil)
 		ctx, cancel := context.WithCancel(context.Background())
 		result := make(chan error, 1)
 		go func() {
-			_, err := svc.applyGrokCredentialAccountFailure(ctx, account, forwardcore.GrokCredentialFailure{
+			_, err := svc.Runtime.Recovery.Apply(ctx, gatewayprovider.ExecutionRecord(account), credentialMutationForTest(forwardcore.GrokCredentialFailure{
 				Reason: forwardcore.GrokCredentialReasonRefreshTransient, Transient: true,
-			})
+			}))
 			result <- err
 		}()
 		<-repo.setTempStarted
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account), "runtime block must precede temporary unscheduling")
+		require.True(t, credentialBlocked(svc, account), "runtime block must precede temporary unscheduling")
 		cancel()
 
 		require.ErrorIs(t, <-result, context.Canceled)
 		require.Zero(t, baseRepo.setTempUnschedCalls)
-		require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.False(t, credentialBlocked(svc, account))
 	})
 
 	t.Run("post-commit cancellation finishes cache cleanup and retains quarantine", func(t *testing.T) {
@@ -973,24 +973,24 @@ func TestGrokCredentialMutationBoundariesHonorParentCancellation(t *testing.T) {
 		repo := &tokenRefreshAccountRepo{}
 		repo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}
 		cache := &grokCredentialBlockingCache{deleteStarted: make(chan struct{}), releaseDelete: make(chan struct{})}
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: newGrokTokenSourceForTest(repo, cache)}))
+		svc := newRequestCredentialsFixture(repo, newGrokTokenSourceForTest(repo, cache))
 		ctx, cancel := context.WithCancel(context.Background())
 		result := make(chan error, 1)
 		go func() {
-			_, err := svc.applyGrokCredentialAccountFailure(ctx, account, forwardcore.GrokCredentialFailure{
+			_, err := svc.Runtime.Recovery.Apply(ctx, gatewayprovider.ExecutionRecord(account), credentialMutationForTest(forwardcore.GrokCredentialFailure{
 				Reason: forwardcore.GrokCredentialReasonRevoked, Permanent: true,
-			})
+			}))
 			result <- err
 		}()
 		<-cache.deleteStarted
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account), "runtime block must precede cache invalidation")
+		require.True(t, credentialBlocked(svc, account), "runtime block must precede cache invalidation")
 		cancel()
 		close(cache.releaseDelete)
 
 		require.ErrorIs(t, <-result, context.Canceled)
 		require.Equal(t, 1, repo.setErrorCalls)
 		require.True(t, cache.wasDeleted())
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.True(t, credentialBlocked(svc, account))
 	})
 }
 
@@ -998,24 +998,24 @@ func TestGrokCredentialMutationLockWaitHonorsCredentialBudget(t *testing.T) {
 	account := expiredGrokOAuthAccountForCredentialTest(735)
 	repo := &tokenRefreshAccountRepo{}
 	repo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: newGrokTokenSourceForTest(repo, &grokTokenCacheForProviderTest{})}))
-	mutationLock := svc.grokCredentialMutationLock(account.Record.ID)
+	svc := newRequestCredentialsFixture(repo, newGrokTokenSourceForTest(repo, &grokTokenCacheForProviderTest{}))
+	mutationLock := newCredentialMutationHold(svc.Runtime.Recovery, account.Record.ID)
 	require.NoError(t, mutationLock.Lock(context.Background()))
 	defer mutationLock.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
 
 	startedAt := time.Now()
-	token, err := svc.applyGrokCredentialAccountFailure(ctx, account, forwardcore.GrokCredentialFailure{
+	token, err := svc.Runtime.Recovery.Apply(ctx, gatewayprovider.ExecutionRecord(account), credentialMutationForTest(forwardcore.GrokCredentialFailure{
 		Reason: forwardcore.GrokCredentialReasonRevoked, Permanent: true,
-	})
+	}))
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Empty(t, token)
 	require.Less(t, time.Since(startedAt), 500*time.Millisecond)
 	require.Zero(t, repo.setErrorCalls)
 	require.Zero(t, repo.setTempUnschedCalls)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.False(t, credentialBlocked(svc, account))
 }
 
 func TestGetRequestCredentialBudgetBoundsBlockedConditionalMutation(t *testing.T) {
@@ -1033,12 +1033,12 @@ func TestGetRequestCredentialBudgetBoundsBlockedConditionalMutation(t *testing.T
 	bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{
 		err: apperror.New(http.StatusBadGateway, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "invalid_grant"),
 	})
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+	svc := newRequestCredentialsFixture(repo, provider)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Set(grokCredentialFailoverDeadlineKey, time.Now().Add(40*time.Millisecond))
+	gatewayhttp.RequestCredentialBudget(c).Deadline = time.Now().Add(40 * time.Millisecond)
 
 	startedAt := time.Now()
-	token, kind, err := svc.getRequestCredential(context.Background(), c, account)
+	token, kind, err := svc.Resolve(context.Background(), c, account)
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -1051,7 +1051,7 @@ func TestGetRequestCredentialBudgetBoundsBlockedConditionalMutation(t *testing.T
 	require.Zero(t, baseRepo.setErrorCalls)
 	require.Zero(t, baseRepo.setTempUnschedCalls)
 	require.Empty(t, cache.deletedKeys)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.False(t, credentialBlocked(svc, account))
 }
 
 func TestGetRequestCredentialLockHeldTimeoutDoesNotQuarantineAccount(t *testing.T) {
@@ -1105,11 +1105,11 @@ func TestGetRequestCredentialLockHeldTimeoutDoesNotQuarantineAccount(t *testing.
 			cache := &grokTokenCacheForProviderTest{lockResult: false}
 			provider := newGrokTokenSourceForTest(repo, cache)
 			bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{})
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+			svc := newRequestCredentialsFixture(repo, provider)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
 			startedAt := time.Now()
-			_, _, err := svc.getRequestCredential(context.Background(), c, account)
+			_, _, err := svc.Resolve(context.Background(), c, account)
 
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
@@ -1126,7 +1126,7 @@ func TestGetRequestCredentialLockHeldTimeoutDoesNotQuarantineAccount(t *testing.
 				require.Zero(t, countingRepo.setTempUnschedCalls)
 			}
 			require.Empty(t, cache.deletedKeys)
-			require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+			require.False(t, credentialBlocked(svc, account))
 		})
 	}
 }
@@ -1160,16 +1160,16 @@ func TestGrokCredentialMutationCancellationAmbiguityConfirmsDurableCommit(t *tes
 			baseRepo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}
 			repo := &grokCredentialCommitThenCancelRepo{tokenRefreshAccountRepo: baseRepo}
 			cache := &grokTokenCacheForProviderTest{}
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: newGrokTokenSourceForTest(repo, cache)}))
+			svc := newRequestCredentialsFixture(repo, newGrokTokenSourceForTest(repo, cache))
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 			defer cancel()
 
-			token, err := svc.applyGrokCredentialAccountFailure(ctx, account, tt.class)
+			token, err := svc.Runtime.Recovery.Apply(ctx, gatewayprovider.ExecutionRecord(account), credentialMutationForTest(tt.class))
 
 			require.ErrorIs(t, err, context.DeadlineExceeded)
 			require.Empty(t, token)
 			require.True(t, tt.committed(account), "the detached confirmation must recognize the durable mutation")
-			require.True(t, svc.isOpenAIAccountRuntimeBlocked(account), "a confirmed durable quarantine must retain its runtime block")
+			require.True(t, credentialBlocked(svc, account), "a confirmed durable quarantine must retain its runtime block")
 			if tt.class.Permanent {
 				require.Equal(t, []string{accountcore.GrokTokenCacheKey(gatewayprovider.ExecutionRecord(account))}, cache.deletedKeys)
 			} else {
@@ -1198,13 +1198,13 @@ func TestGrokCredentialInnerStateDeadlineAmbiguityConfirmsDurableCommit(t *testi
 				returnErr:               context.DeadlineExceeded,
 			}
 			cache := &grokTokenCacheForProviderTest{}
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: newGrokTokenSourceForTest(repo, cache)}))
+			svc := newRequestCredentialsFixture(repo, newGrokTokenSourceForTest(repo, cache))
 
-			token, err := svc.applyGrokCredentialAccountFailure(context.Background(), account, tt.class)
+			token, err := svc.Runtime.Recovery.Apply(context.Background(), gatewayprovider.ExecutionRecord(account), credentialMutationForTest(tt.class))
 
 			require.NoError(t, err, "the detached readback must resolve the inner timeout's commit ambiguity")
 			require.Empty(t, token)
-			require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+			require.True(t, credentialBlocked(svc, account))
 			if tt.class.Permanent {
 				require.Equal(t, accountcore.StatusError, account.Record.Status)
 				require.False(t, account.Record.Schedulable)
@@ -1234,13 +1234,13 @@ func TestGrokCredentialUnconfirmedInnerStateDeadlineStopsAndRetainsSafetyBlock(t
 			baseRepo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}
 			repo := &grokCredentialUncommittedDeadlineRepo{tokenRefreshAccountRepo: baseRepo}
 			cache := &grokTokenCacheForProviderTest{}
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: newGrokTokenSourceForTest(repo, cache)}))
+			svc := newRequestCredentialsFixture(repo, newGrokTokenSourceForTest(repo, cache))
 
-			token, err := svc.applyGrokCredentialAccountFailure(context.Background(), account, tt.class)
+			token, err := svc.Runtime.Recovery.Apply(context.Background(), gatewayprovider.ExecutionRecord(account), credentialMutationForTest(tt.class))
 
-			require.ErrorIs(t, err, errGrokCredentialStateUpdateFailed)
+			require.ErrorIs(t, err, accountcore.ErrGrokCredentialStateUpdateFailed)
 			require.Empty(t, token)
-			require.True(t, svc.isOpenAIAccountRuntimeBlocked(account), "an unknown commit outcome must retain the local safety block")
+			require.True(t, credentialBlocked(svc, account), "an unknown commit outcome must retain the local safety block")
 			require.Equal(t, billing.StatusActive, account.Record.Status)
 			require.True(t, account.Record.Schedulable)
 			require.Nil(t, account.Record.TempUnschedulableUntil)
@@ -1252,43 +1252,43 @@ func TestGrokCredentialUnconfirmedInnerStateDeadlineStopsAndRetainsSafetyBlock(t
 func TestGrokCredentialRuntimeRollbackOwnership(t *testing.T) {
 	account := expiredGrokOAuthAccountForCredentialTest(734)
 	t.Run("later extending block survives", func(t *testing.T) {
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+		svc := newRequestCredentialsFixture(nil, nil)
 		until := time.Now().Add(time.Minute)
-		rollbackFirst := svc.blockGrokCredentialRuntime(account, until, "first")
+		rollbackFirst := svc.Runtime.Runtime.BlockRollback(account.Record.ID, until, "first")
 
 		secondInstalled := make(chan struct{})
 		go func() {
-			svc.BlockAccountScheduling(account, until.Add(time.Minute), "independent")
+			svc.Runtime.Runtime.BlockAccountScheduling(gatewayprovider.ExecutionRecord(account), until.Add(time.Minute), "independent")
 			close(secondInstalled)
 		}()
 		<-secondInstalled
 		rollbackFirst()
 
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account),
+		require.True(t, credentialBlocked(svc, account),
 			"rollback owned by the first invocation must not remove a later extending block")
 	})
 
 	t.Run("independent shorter block steals rollback ownership", func(t *testing.T) {
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+		svc := newRequestCredentialsFixture(nil, nil)
 		until := time.Now().Add(2 * time.Minute)
-		rollbackFirst := svc.blockGrokCredentialRuntime(account, until, "first")
-		svc.BlockAccountScheduling(account, until.Add(-time.Minute), "shorter-no-op")
+		rollbackFirst := svc.Runtime.Runtime.BlockRollback(account.Record.ID, until, "first")
+		svc.Runtime.Runtime.BlockAccountScheduling(gatewayprovider.ExecutionRecord(account), until.Add(-time.Minute), "shorter-no-op")
 
 		rollbackFirst()
 
-		require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.True(t, credentialBlocked(svc, account))
 	})
 
 	t.Run("serialized tentative rollbacks leave no block", func(t *testing.T) {
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+		svc := newRequestCredentialsFixture(nil, nil)
 		for i := 0; i < 2; i++ {
-			mu := svc.grokCredentialMutationLock(account.Record.ID)
+			mu := newCredentialMutationHold(svc.Runtime.Recovery, account.Record.ID)
 			require.NoError(t, mu.Lock(context.Background()))
-			rollback := svc.blockGrokCredentialRuntime(account, time.Now().Add(time.Minute), "tentative")
+			rollback := svc.Runtime.Runtime.BlockRollback(account.Record.ID, time.Now().Add(time.Minute), "tentative")
 			rollback()
 			mu.Unlock()
 		}
-		require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+		require.False(t, credentialBlocked(svc, account))
 	})
 }
 
@@ -1303,9 +1303,9 @@ func TestGetRequestCredentialAPIKeyBypassesOAuthFailureMapping(t *testing.T) {
 		}},
 	}
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc := newRequestCredentialsFixture(nil, nil)
 
-	token, kind, err := svc.getRequestCredential(context.Background(), c, account)
+	token, kind, err := svc.Resolve(context.Background(), c, account)
 	require.NoError(t, err)
 	require.Equal(t, "third-party-key", token)
 	require.Equal(t, "apikey", kind)
@@ -1324,22 +1324,19 @@ func TestPermanentCredentialFailureDoesNotDisableConcurrentlyRefreshedAccount(t 
 	repo := &tokenRefreshAccountRepo{}
 	repo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: &latest}
 	cache := &grokTokenCacheForProviderTest{}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:       repo,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, cache),
-	}))
+	svc := newRequestCredentialsFixture(repo, newGrokTokenSourceForTest(repo, cache))
 
-	_, mutationErr := svc.applyGrokCredentialAccountFailure(context.Background(), account, forwardcore.GrokCredentialFailure{
+	_, mutationErr := svc.Runtime.Recovery.Apply(context.Background(), gatewayprovider.ExecutionRecord(account), credentialMutationForTest(forwardcore.GrokCredentialFailure{
 		Scope:     forwardcore.GatewayFailureScopeAccount,
 		Reason:    forwardcore.GrokCredentialReasonRevoked,
 		Action:    forwardcore.NextAccountRetry,
 		Permanent: true,
-	})
+	}))
 
 	require.NoError(t, mutationErr)
 	require.Zero(t, repo.setErrorCalls)
 	require.Empty(t, cache.deletedKeys)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.False(t, credentialBlocked(svc, account))
 }
 
 func TestCredentialFailureConditionalMutationLosesToConcurrentRefresh(t *testing.T) {
@@ -1366,10 +1363,10 @@ func TestCredentialFailureConditionalMutationLosesToConcurrentRefresh(t *testing
 			cache := &grokTokenCacheForProviderTest{lockResult: true}
 			provider := newGrokTokenSourceForTest(repo, cache)
 			bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{err: tt.refreshErr})
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+			svc := newRequestCredentialsFixture(repo, provider)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-			token, kind, err := svc.getRequestCredential(context.Background(), c, account)
+			token, kind, err := svc.Resolve(context.Background(), c, account)
 
 			require.NoError(t, err)
 			require.Equal(t, "refresh-won-token", token)
@@ -1377,7 +1374,7 @@ func TestCredentialFailureConditionalMutationLosesToConcurrentRefresh(t *testing
 			require.Zero(t, repo.setErrorCalls)
 			require.Zero(t, repo.setTempUnschedCalls)
 			require.Empty(t, cache.deletedKeys)
-			require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+			require.False(t, credentialBlocked(svc, account))
 		})
 	}
 }
@@ -1407,10 +1404,10 @@ func TestCredentialFailureConditionalMutationLosesToConcurrentProxyRepair(t *tes
 			cache := &grokTokenCacheForProviderTest{lockResult: true}
 			provider := newGrokTokenSourceForTest(repo, cache)
 			bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{err: tt.refreshErr})
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+			svc := newRequestCredentialsFixture(repo, provider)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-			_, _, err := svc.getRequestCredential(context.Background(), c, account)
+			_, _, err := svc.Resolve(context.Background(), c, account)
 
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
@@ -1419,7 +1416,7 @@ func TestCredentialFailureConditionalMutationLosesToConcurrentProxyRepair(t *tes
 			require.Zero(t, repo.setErrorCalls)
 			require.Zero(t, repo.setTempUnschedCalls)
 			require.Empty(t, cache.deletedKeys)
-			require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+			require.False(t, credentialBlocked(svc, account))
 		})
 	}
 }
@@ -1436,10 +1433,10 @@ func TestCredentialFailureConditionalMutationLosesToSameIDProxyRestoration(t *te
 	}
 	cache := &grokTokenCacheForProviderTest{lockResult: true}
 	provider := newGrokTokenSourceForTest(repo, cache)
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+	svc := newRequestCredentialsFixture(repo, provider)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-	_, _, err := svc.getRequestCredential(context.Background(), c, account)
+	_, _, err := svc.Resolve(context.Background(), c, account)
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -1448,7 +1445,7 @@ func TestCredentialFailureConditionalMutationLosesToSameIDProxyRestoration(t *te
 	require.Zero(t, repo.setErrorCalls)
 	require.Zero(t, repo.setTempUnschedCalls)
 	require.Empty(t, cache.deletedKeys)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.False(t, credentialBlocked(svc, account))
 }
 
 func TestCredentialFailureConditionalMutationLosesToConcurrentUnschedulableState(t *testing.T) {
@@ -1477,15 +1474,15 @@ func TestCredentialFailureConditionalMutationLosesToConcurrentUnschedulableState
 				repo := &tokenRefreshAccountRepo{}
 				repo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}
 				repo.beforeConditionalState = func() { stateCase.mutate(account) }
-				svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: newGrokTokenSourceForTest(repo, &grokTokenCacheForProviderTest{})}))
+				svc := newRequestCredentialsFixture(repo, newGrokTokenSourceForTest(repo, &grokTokenCacheForProviderTest{}))
 
-				token, err := svc.applyGrokCredentialAccountFailure(context.Background(), account, classCase.class)
+				token, err := svc.Runtime.Recovery.Apply(context.Background(), gatewayprovider.ExecutionRecord(account), credentialMutationForTest(classCase.class))
 
 				require.ErrorIs(t, err, accountcore.ErrRefreshAccountStateChanged)
 				require.Empty(t, token)
 				require.Zero(t, repo.setErrorCalls)
 				require.Zero(t, repo.setTempUnschedCalls)
-				require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+				require.False(t, credentialBlocked(svc, account))
 			})
 		}
 	}
@@ -1495,28 +1492,28 @@ func TestCredentialFailureCASMissDoesNotRecoverIneligibleLatestCredential(t *tes
 	future := time.Now().Add(time.Hour)
 	states := []struct {
 		name               string
-		mutate             func(*OpenAIGatewayService, *gatewayprovider.ExecutionAccount)
+		mutate             func(*gatewayhttp.RequestCredentialExecutor, *gatewayprovider.ExecutionAccount)
 		wantRuntimeBlocked bool
 	}{
-		{name: "disabled", mutate: func(_ *OpenAIGatewayService, account *gatewayprovider.ExecutionAccount) {
+		{name: "disabled", mutate: func(_ *gatewayhttp.RequestCredentialExecutor, account *gatewayprovider.ExecutionAccount) {
 			account.Record.Status = billing.StatusDisabled
 		}},
-		{name: "not schedulable", mutate: func(_ *OpenAIGatewayService, account *gatewayprovider.ExecutionAccount) {
+		{name: "not schedulable", mutate: func(_ *gatewayhttp.RequestCredentialExecutor, account *gatewayprovider.ExecutionAccount) {
 			account.Record.Schedulable = false
 		}},
-		{name: "temporarily unschedulable", mutate: func(_ *OpenAIGatewayService, account *gatewayprovider.ExecutionAccount) {
+		{name: "temporarily unschedulable", mutate: func(_ *gatewayhttp.RequestCredentialExecutor, account *gatewayprovider.ExecutionAccount) {
 			account.Record.TempUnschedulableUntil = &future
 		}},
-		{name: "rate limited", mutate: func(_ *OpenAIGatewayService, account *gatewayprovider.ExecutionAccount) {
+		{name: "rate limited", mutate: func(_ *gatewayhttp.RequestCredentialExecutor, account *gatewayprovider.ExecutionAccount) {
 			account.Record.RateLimitResetAt = &future
 		}},
-		{name: "overloaded", mutate: func(_ *OpenAIGatewayService, account *gatewayprovider.ExecutionAccount) {
+		{name: "overloaded", mutate: func(_ *gatewayhttp.RequestCredentialExecutor, account *gatewayprovider.ExecutionAccount) {
 			account.Record.OverloadUntil = &future
 		}},
 		{
 			name: "independently runtime blocked",
-			mutate: func(svc *OpenAIGatewayService, account *gatewayprovider.ExecutionAccount) {
-				svc.BlockAccountScheduling(account, time.Now().Add(24*time.Hour), "independent")
+			mutate: func(svc *gatewayhttp.RequestCredentialExecutor, account *gatewayprovider.ExecutionAccount) {
+				svc.Runtime.Runtime.BlockAccountScheduling(gatewayprovider.ExecutionRecord(account), time.Now().Add(24*time.Hour), "independent")
 			},
 			wantRuntimeBlocked: true,
 		},
@@ -1535,7 +1532,7 @@ func TestCredentialFailureCASMissDoesNotRecoverIneligibleLatestCredential(t *tes
 				account := expiredGrokOAuthAccountForCredentialTest(int64(800 + classIndex*20 + stateIndex))
 				repo := &tokenRefreshAccountRepo{}
 				repo.accountsByID = map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}
-				svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: newGrokTokenSourceForTest(repo, &grokTokenCacheForProviderTest{})}))
+				svc := newRequestCredentialsFixture(repo, newGrokTokenSourceForTest(repo, &grokTokenCacheForProviderTest{}))
 				repo.beforeConditionalState = func() {
 					latest := *account
 					latest.Record.Credentials = querycache.ShallowMap(account.Record.Credentials)
@@ -1547,13 +1544,13 @@ func TestCredentialFailureCASMissDoesNotRecoverIneligibleLatestCredential(t *tes
 					repo.accountsByID[account.Record.ID] = &latest
 				}
 
-				token, err := svc.applyGrokCredentialAccountFailure(context.Background(), account, classCase.class)
+				token, err := svc.Runtime.Recovery.Apply(context.Background(), gatewayprovider.ExecutionRecord(account), credentialMutationForTest(classCase.class))
 
 				require.ErrorIs(t, err, accountcore.ErrRefreshAccountStateChanged)
 				require.Empty(t, token)
 				require.Zero(t, repo.setErrorCalls)
 				require.Zero(t, repo.setTempUnschedCalls)
-				require.Equal(t, stateCase.wantRuntimeBlocked, svc.isOpenAIAccountRuntimeBlocked(account))
+				require.Equal(t, stateCase.wantRuntimeBlocked, credentialBlocked(svc, account))
 			})
 		}
 	}
@@ -1570,10 +1567,10 @@ func TestGetRequestCredentialSharedCredentialPersistenceFailureStopsWithoutAccou
 		"refresh_token": "new-refresh-token",
 		"expires_at":    time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
 	}})
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+	svc := newRequestCredentialsFixture(repo, provider)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-	_, _, err := svc.getRequestCredential(context.Background(), c, account)
+	_, _, err := svc.Resolve(context.Background(), c, account)
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -1585,7 +1582,7 @@ func TestGetRequestCredentialSharedCredentialPersistenceFailureStopsWithoutAccou
 	require.Zero(t, repo.setErrorCalls)
 	require.Zero(t, repo.setTempUnschedCalls)
 	require.Empty(t, cache.deletedKeys)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.False(t, credentialBlocked(svc, account))
 }
 
 func TestGetRequestCredentialRecoversConcurrentRefreshWithoutFailover(t *testing.T) {
@@ -1605,10 +1602,10 @@ func TestGetRequestCredentialRecoversConcurrentRefreshWithoutFailover(t *testing
 	bindGrokRefreshForTest(provider, newGrokCredentialRefreshForTest(repo, cache), &tokenRefresherStub{
 		err: apperror.New(http.StatusForbidden, "GROK_OAUTH_ENTITLEMENT_DENIED", "access_denied"),
 	})
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, grokTokenProvider: provider}))
+	svc := newRequestCredentialsFixture(repo, provider)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
-	token, kind, err := svc.getRequestCredential(context.Background(), c, account)
+	token, kind, err := svc.Resolve(context.Background(), c, account)
 
 	require.NoError(t, err)
 	require.Equal(t, "fresh-concurrent-access", token)
@@ -1616,7 +1613,7 @@ func TestGetRequestCredentialRecoversConcurrentRefreshWithoutFailover(t *testing
 	require.Zero(t, baseRepo.setErrorCalls)
 	require.Zero(t, baseRepo.setTempUnschedCalls)
 	require.Empty(t, cache.deletedKeys)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.False(t, credentialBlocked(svc, account))
 	_, hasEvents := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
 	require.False(t, hasEvents)
 }

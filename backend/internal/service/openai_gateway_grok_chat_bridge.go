@@ -133,7 +133,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	}
 	responsesBody = updatedBody
 
-	token, _, err := s.getRequestCredential(ctx, c, account)
+	token, _, err := s.requestCredentials.Resolve(ctx, gatewayhttp.RequestCredentialBudget(c), gatewayhttp.CredentialObserver{Context: c}, account)
 	if err != nil {
 		return nil, fmt.Errorf("get grok access token: %w", err)
 	}

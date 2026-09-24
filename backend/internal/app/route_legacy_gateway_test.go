@@ -91,14 +91,14 @@ func RegisterGatewayRoutes(
 	}
 	commonOpenAI := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
 	openAIRuntime := provideOpenAITextAttemptRuntime(commonOpenAI)
-	mediaRuntime := provideMediaRuntime(nil, nil, nil, commonOpenAI, nil, nil, nil)
+	mediaRuntime := provideMediaRuntime(nil, nil, nil, nil, commonOpenAI, nil, nil, nil)
 	openAITextHTTP := h.OpenAITextHTTP
 	if openAITextHTTP == nil && h.OpenAIEnabled {
 		openAITextHTTP = provideOpenAITextHTTP(nil, nil, nil, nil, nil, nil, nil, nil, nil, openAIRuntime, activity)
 	}
 	responsesWSHTTP := h.ResponsesWSHTTP
 	if responsesWSHTTP == nil && h.OpenAIEnabled {
-		responsesWSHTTP = provideResponsesWSHTTP(nil, nil, nil, commonOpenAI, nil, nil, nil, activity)
+		responsesWSHTTP = provideResponsesWSHTTP(nil, nil, nil, nil, commonOpenAI, nil, nil, nil, activity)
 	}
 	modelsHTTP := h.ModelsHTTP
 	if modelsHTTP == nil && h.TextEnabled {

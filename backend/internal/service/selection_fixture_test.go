@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 	"github.com/stretchr/testify/require"
@@ -47,6 +49,11 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 	if source == nil {
 		return
 	}
+	if source.requestCredentials == nil {
+		source.requestCredentials = gatewaytestkit.RequestCredentials(source.accountRepo, source.executionCredentials, nil, source.runtimeBlockState())
+		source.executionCredentials = source.requestCredentials.Source
+	}
+
 	var quota *account.QuotaSettingsCache
 	if source.settingService != nil {
 		quota = source.settingService.Quota

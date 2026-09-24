@@ -9,6 +9,9 @@ import (
 
 // gatewayExecutionProviders 只装配剩余执行入口；业务实现按已登记迁移账本继续清零。
 var gatewayExecutionProviders = wire.NewSet(
+	provideGrokCredentialRecovery,
+	provideRequestCredentials,
+	provideRequestCredentialExecutor,
 	provider.NewRoutePlanner,
 	provideRetryCooldown,
 	provideGatewayRequestDebug,

@@ -41,7 +41,7 @@ func (p *openAIRawChatAdapter) StripViewImage(b []byte) ([]byte, error) {
 	return grok.StripRedundantGrokChatViewImageTool(b)
 }
 func (p *openAIRawChatAdapter) RawCredential(ctx context.Context) (string, string, error) {
-	return p.s.getRequestCredential(ctx, p.c, p.account)
+	return p.s.requestCredentials.Resolve(ctx, gatewayhttp.RequestCredentialBudget(p.c), gatewayhttp.CredentialObserver{Context: p.c}, p.account)
 }
 func (p *openAIRawChatAdapter) BridgeImages(ctx context.Context, b []byte, key string) ([]byte, openai.ForwardUsage, bool, error) {
 	updated, usage, changed, err := p.s.bridgeGrokComposerImageInputs(ctx, p.c, p.account, b, key)

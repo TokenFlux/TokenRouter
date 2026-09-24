@@ -20,7 +20,7 @@ func TestOpenAIHTTPResourceBindingSharesImageCapacity(t *testing.T) {
 		ImageOptions: &gatewayhttp.OpenAIImageAdmissionOptions{Enabled: true, Limit: 1},
 	}
 	cfg := &config.Config{Gateway: config.GatewayConfig{ImageConcurrency: config.ImageConcurrencyConfig{Enabled: true, MaxConcurrentRequests: 1}}}
-	h := newGatewayHTTPEndpointsFromDeps(nil, nil, nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, resources)
+	h := newGatewayHTTPEndpointsFromDeps(nil, nil, nil, nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, resources)
 	require.Same(t, resources.Images, h.Input.Images)
 	require.Same(t, resources.Concurrency, h.Input.Concurrency)
 	recorder := httptest.NewRecorder()

@@ -290,10 +290,10 @@ func TestForwardGrokResponsesOAuthRestoresClientToolsNonStreaming(t *testing.T) 
 		}`)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
 

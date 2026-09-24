@@ -157,7 +157,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 	}
 	accountRepo := openAIResponsesFailoverAccountRepo{accounts: accounts}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	gatewayService, gatewayServiceChoices := newOpenAIExecutionAndSelectionFixture(
+	gatewayService, gatewayServiceChoices, gatewayServiceCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		nil,
 
@@ -196,7 +196,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 		Event: logging.Event},
 	)
 	handler := newGatewayHTTPEndpointsFromDeps(
-		gatewayService,
+		gatewayService, gatewayServiceCredentialPort,
 		concurrencyService, newFundingAdmissionFixture(billingService, cfg), testkit.NewService(nil, nil, nil, nil, nil, nil, cfg),
 		nil,
 		nil,

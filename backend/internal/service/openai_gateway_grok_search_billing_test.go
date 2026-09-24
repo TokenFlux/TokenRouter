@@ -44,10 +44,10 @@ func TestForwardGrokResponses_PropagatesSearchCountFromJSON(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader([]byte(upstreamBody))),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
 	require.NoError(t, err)
@@ -75,10 +75,10 @@ func TestForwardGrokResponses_PropagatesSearchCountFromSSE(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader([]byte(sse))),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", true, time.Now())
 	require.NoError(t, err)

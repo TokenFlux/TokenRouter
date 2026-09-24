@@ -9,6 +9,7 @@
     "selection",
     "messages-execution",
     "google-execution",
+    "request-credentials",
     "grok-execution",
     "openai-execution",
     "ws-live",
@@ -2001,7 +2002,6 @@
     "grok-execution": {
       "files": [
         "backend/internal/service/grok_audio.go",
-        "backend/internal/service/grok_credential_failure.go",
         "backend/internal/service/grok_forward_execution_adapter.go",
         "backend/internal/service/grok_forward_result_adapter.go",
         "backend/internal/service/grok_limit_persistence_compat.go",
@@ -2027,7 +2027,6 @@
         "OpenAIGatewayService.ClaimGrokVideoBilling",
         "OpenAIGatewayService.ForwardGrokMedia",
         "OpenAIGatewayService.ForwardGrokVoice",
-        "OpenAIGatewayService.GetRequestCredential",
         "OpenAIGatewayService.HandleGrokRealtimeUpstreamError",
         "OpenAIGatewayService.LoadGrokVideoPendingBilling",
         "OpenAIGatewayService.MediaVideoTasks",
@@ -2042,30 +2041,21 @@
         "OpenAIGatewayService.ResolveGrokMediaVideoRequestGroup",
         "OpenAIGatewayService.StoreGrokVideoPendingBilling",
         "OpenAIGatewayService.applyGrokAccountUpstreamError",
-        "OpenAIGatewayService.applyGrokCredentialAccountFailure",
         "OpenAIGatewayService.applyGrokForbiddenPolicy",
         "OpenAIGatewayService.applyGrokUpstreamFailureDecision",
-        "OpenAIGatewayService.blockGrokCredentialRuntime",
         "OpenAIGatewayService.bridgeGrokComposerImageInputs",
         "OpenAIGatewayService.describeGrokComposerImage",
         "OpenAIGatewayService.forwardGrokChatCompletionsViaResponses",
         "OpenAIGatewayService.forwardGrokMediaVideoContent",
         "OpenAIGatewayService.forwardGrokResponses",
-        "OpenAIGatewayService.getRequestCredential",
-        "OpenAIGatewayService.grokCredentialConcurrentlyRefreshedToken",
-        "OpenAIGatewayService.grokCredentialMutationCommitted",
-        "OpenAIGatewayService.grokCredentialMutationLock",
         "OpenAIGatewayService.grokRealtimeOptions",
         "OpenAIGatewayService.handleGrokMediaErrorResponse",
-        "OpenAIGatewayService.newGrokCredentialFailover",
         "OpenAIGatewayService.rateLimitGrok",
-        "OpenAIGatewayService.resolveGrokCredentialCASMiss",
         "OpenAIGatewayService.shouldFailoverGrokUpstreamError",
         "OpenAIGatewayService.tempUnscheduleGrok",
         "OpenAIGatewayService.updateGrokUsageFromResponse",
         "OpenAIGatewayService.updateGrokUsageSnapshot",
         "OpenAIGatewayService.updateGrokUsageSnapshotWithRateLimit",
-        "OpenAIGatewayService.validateCurrentGrokCredentialFailure",
         "adaptGrokResponsesClientTools",
         "applyGrokFreeMessagesFunctionToolCacheRoute",
         "applyGrokFreeRequestToolCacheRoute",
@@ -2092,14 +2082,11 @@
         "grokClientFrames.WriteFrame",
         "grokClientToolCacheAccountPolicy",
         "grokContentPolicyClientMessage",
-        "grokCredentialAcquisitionContext",
-        "grokCredentialMutationSnapshot",
         "grokEncryptedContentStripRetried",
         "grokForwardAdapter.BillingModel",
         "grokForwardAdapter.Build",
         "grokForwardAdapter.CacheIdentity",
         "grokForwardAdapter.ClientTools",
-        "grokForwardAdapter.Credential",
         "grokForwardAdapter.Detach",
         "grokForwardAdapter.Do",
         "grokForwardAdapter.Effort",
@@ -2182,7 +2169,8 @@
         "openai-execution",
         "selection",
         "shared-boundaries",
-        "ws-live"
+        "ws-live",
+        "request-credentials"
       ],
       "native_owners": [
         "account",
@@ -2632,6 +2620,38 @@
       ],
       "status": "pending",
       "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。"
+    },
+    "request-credentials": {
+      "status": "verified",
+      "completed_at": "2026-09-24",
+      "files": [
+        "backend/internal/service/grok_credential_failure.go"
+      ],
+      "symbols": [
+        "OpenAIGatewayService.GetRequestCredential",
+        "OpenAIGatewayService.applyGrokCredentialAccountFailure",
+        "OpenAIGatewayService.blockGrokCredentialRuntime",
+        "OpenAIGatewayService.getRequestCredential",
+        "OpenAIGatewayService.grokCredentialConcurrentlyRefreshedToken",
+        "OpenAIGatewayService.grokCredentialMutationCommitted",
+        "OpenAIGatewayService.grokCredentialMutationLock",
+        "OpenAIGatewayService.newGrokCredentialFailover",
+        "OpenAIGatewayService.resolveGrokCredentialCASMiss",
+        "OpenAIGatewayService.validateCurrentGrokCredentialFailure",
+        "grokCredentialAcquisitionContext",
+        "grokCredentialMutationSnapshot",
+        "grokForwardAdapter.Credential"
+      ],
+      "native_owners": [
+        "account.GrokCredentialRecovery",
+        "gateway/provider.RequestCredentials",
+        "gateway/requeststate.CredentialBudget",
+        "gateway/httpapi.RequestCredentialExecutor",
+        "app"
+      ],
+      "verification": "service-grok-credentials-owner-verification.json",
+      "test_mapping": "service-grok-credentials-test-mapping.json",
+      "exit": "删除整个旧请求凭据与失败状态操作，全部文本/媒体/WS 消费者、替身、装配和门禁同批接入唯一原生实现。"
     }
   },
   "boundary_notes": {
@@ -2656,8 +2676,8 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 149,
-    "test_files": 246,
-    "verified_batch": "google-execution"
+    "production_files": 148,
+    "test_files": 236,
+    "verified_batch": "request-credentials"
   }
 }

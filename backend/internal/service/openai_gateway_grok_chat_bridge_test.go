@@ -247,10 +247,10 @@ func TestForwardGrokChatViaResponsesNonStreamingCachesAndReturnsChat(t *testing.
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_cache", 9856)}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -307,10 +307,10 @@ func TestForwardGrokChatViaResponsesNonStreamingRejectsCompletedResponseWithoutU
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := service.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
@@ -337,10 +337,10 @@ func TestForwardGrokChatImageWithoutCacheIdentityUsesResponses(t *testing.T) {
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_image", 0)}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
@@ -406,10 +406,10 @@ func TestForwardGrokChatViaResponsesCodeBuddyUsesStableConversationHeader(t *tes
 			}}
 			upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_codebuddy_"+strconv.Itoa(index), 4096)}
 			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-				httpUpstream:      upstream,
-				grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-				accountRepo:       repo,
-			}))
+				httpUpstream: upstream,
+
+				accountRepo: repo,
+			}), newGrokTokenSourceForTest(repo, nil))
 
 			result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, tt.body, "", "")
 			require.NoError(t, err)
@@ -439,10 +439,10 @@ func TestForwardGrokChatViaResponsesTraeToolHistoryKeepsCacheRoute(t *testing.T)
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_trae", 8192)}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	firstTurnIdentity := resolveGrokCacheIdentity(c, firstTurnBody, "", "grok-4.5")
 	extendedTurnIdentity := resolveGrokCacheIdentity(c, body, "", "grok-4.5")
@@ -495,10 +495,10 @@ func TestForwardGrokChatViaResponsesTraeCompatibilityFieldsKeepCacheRoute(t *tes
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_trae_compat", 12288)}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	firstTurnIdentity := resolveGrokCacheIdentity(c, firstTurnBody, "", "grok-4.5")
 	extendedTurnIdentity := resolveGrokCacheIdentity(c, body, "", "grok-4.5")
@@ -544,10 +544,10 @@ func TestForwardGrokChatViaResponsesStreamingPropagatesCachedUsage(t *testing.T)
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_stream", 4096)}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -598,10 +598,10 @@ func TestForwardGrokChatRuntimeGateFallsBackToRaw(t *testing.T) {
 				)),
 			}}
 			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-				httpUpstream:      upstream,
-				grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-				accountRepo:       repo,
-			}))
+				httpUpstream: upstream,
+
+				accountRepo: repo,
+			}), newGrokTokenSourceForTest(repo, nil))
 
 			result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 			require.NoError(t, err)
@@ -636,10 +636,10 @@ func TestForwardGrokChatViaResponses429UsesGrokRateLimitPolicy(t *testing.T) {
 		Body: io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 	before := time.Now()
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
@@ -679,10 +679,10 @@ func TestForwardGrokRawChat429PreservesRetryAfter(t *testing.T) {
 		Body: io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
@@ -713,10 +713,10 @@ func TestForwardGrokRawChatErrorRecordsActualEndpoint(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"bad request"}}`)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.Error(t, err)

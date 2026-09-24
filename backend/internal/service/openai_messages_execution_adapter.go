@@ -238,7 +238,7 @@ func (p *openAIMessagesExecutionAdapter) GrokFreeToolRoute(body, intent []byte, 
 	return applyGrokFreeMessagesFunctionToolCacheRoute(body, intent, p.account, key)
 }
 func (p *openAIMessagesExecutionAdapter) Credential(ctx context.Context) (string, error) {
-	token, _, err := p.s.getRequestCredential(ctx, p.c, p.account)
+	token, _, err := p.s.requestCredentials.Resolve(ctx, gatewayhttp.RequestCredentialBudget(p.c), gatewayhttp.CredentialObserver{Context: p.c}, p.account)
 	return token, err
 }
 func (p *openAIMessagesExecutionAdapter) BindMessagesBridge(v bool) {

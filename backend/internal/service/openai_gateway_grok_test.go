@@ -670,10 +670,10 @@ func TestForwardGrokResponsesCodexAdditionalToolsUsesMixedCacheIntent(t *testing
 		}`)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
 
@@ -751,10 +751,10 @@ func TestForwardGrokResponsesClaudeDesktopClientToolsUseCacheRoute(t *testing.T)
 		},
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	newContext := func(body []byte) *gin.Context {
 		recorder := httptest.NewRecorder()
@@ -1722,7 +1722,7 @@ func TestForwardGrokMediaOAuthImageToVideoUsesOfficialAPIForLargeBody(t *testing
 		},
 		Body: io.NopCloser(strings.NewReader(`{"request_id":"video-request-oauth"}`)),
 	}}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream, grokTokenProvider: newGrokTokenSourceForTest(nil, nil)}))
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream}), newGrokTokenSourceForTest(nil, nil))
 
 	_, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideosGenerations, "", body, "application/json")
 	require.NoError(t, err)
@@ -1968,10 +1968,10 @@ func TestForwardAsChatCompletionsForGrokStopFallsBackToXAIChatCompletions(t *tes
 		Body: io.NopCloser(strings.NewReader(`{"id":"chatcmpl","object":"chat.completion","model":"grok-4.3","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":2,"prompt_tokens_details":{"cached_tokens":1}}}`)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -2025,10 +2025,10 @@ func TestForwardGrokResponsesStreamingDefaultsEmptyModelTo45AndSnapshots(t *test
 		Body: io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "", true, time.Now())
 	require.NoError(t, err)
@@ -2484,11 +2484,11 @@ func TestForwardAsChatCompletionsForGrokStreamingUsesRawXAIChatCompletions(t *te
 		Body: io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:               rawChatCompletionsTestConfig(),
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -2535,10 +2535,10 @@ func TestForwardGrokResponsesNonStreamingUsesCacheIdentityAndCachedUsage(t *test
 		Body: io.NopCloser(strings.NewReader(`{"id":"resp_grok_non_stream","object":"response","model":"grok-4.3","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":7,"output_tokens":2,"total_tokens":9,"input_tokens_details":{"cached_tokens":4}}}`)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
 	require.NoError(t, err)
@@ -2592,10 +2592,10 @@ func TestForwardGrokResponsesFreeFunctionToolsUseCacheCapableMixedRoute(t *testi
 		)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
 
@@ -2644,10 +2644,10 @@ func TestForwardGrokResponsesFailoverKeepsCacheIdentityAcrossAccounts(t *testing
 		},
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	_, err := svc.forwardGrokResponses(context.Background(), c, firstAccount, body, "grok", false, time.Now())
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -2703,11 +2703,11 @@ func TestForwardAsChatCompletionsForGrokStreamingStopFallsBackToRawXAIChatComple
 		Body: io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:               rawChatCompletionsTestConfig(),
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -2763,11 +2763,11 @@ func TestForwardAsChatCompletionsForGrokComposerBridgesImageInput(t *testing.T) 
 		},
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:               rawChatCompletionsTestConfig(),
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -2809,10 +2809,10 @@ func TestForwardAsAnthropicForGrokUsesXAIResponses(t *testing.T) {
 	}
 	upstream := &httpUpstreamRecorder{resp: grokMessagesSSECompletedResponse("resp_grok_messages", 3)}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -2874,10 +2874,10 @@ func TestForwardAsAnthropicForGrokRetriesInvalidEncryptedContentOnce(t *testing.
 		grokMessagesSSECompletedResponse("resp_grok_messages_retry", 1),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -2925,10 +2925,10 @@ func TestForwardAsAnthropicForGrokFunctionToolUsesCacheCapableMixedRoute(t *test
 		Body:       io.NopCloser(strings.NewReader(responseBody)),
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 
@@ -2975,10 +2975,10 @@ func TestForwardAsAnthropicForGrokStreamingPreservesCacheUsage(t *testing.T) {
 	}
 	upstream := &httpUpstreamRecorder{resp: grokMessagesSSECompletedResponse("resp_grok_messages_stream", 2)}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream:      upstream,
-		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
-		accountRepo:       repo,
-	}))
+		httpUpstream: upstream,
+
+		accountRepo: repo,
+	}), newGrokTokenSourceForTest(repo, nil))
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
