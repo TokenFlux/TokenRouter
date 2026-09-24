@@ -24,6 +24,9 @@ func (c *runtimeBlockTestClock) Set(now time.Time) { c.nanos.Store(now.UnixNano(
 func bindRuntimeBlockClockForTest(svc *OpenAIGatewayService) *runtimeBlockTestClock {
 	clock := &runtimeBlockTestClock{}
 	svc.BindRuntimeBlockState(account.NewRuntimeBlockState(clock.Now))
+	if svc.grokHealth != nil {
+		svc.grokHealth.Runtime = svc.runtimeBlockState()
+	}
 	return clock
 }
 
@@ -33,11 +36,4 @@ func expireRuntimeRetryForTest(svc *OpenAIGatewayService, id int64) *runtimeBloc
 	svc.runtimeBlockState().RetryWindowActive(id)
 	clock.nanos.Store(0)
 	return clock
-}
-
-func bindExpiredRuntimeBlockForTest(svc *OpenAIGatewayService, id int64, expired time.Time) {
-	clock := bindRuntimeBlockClockForTest(svc)
-	clock.Set(expired.Add(-time.Minute))
-	svc.runtimeBlockState().Block(id, expired, "原过期快照夹具")
-	clock.nanos.Store(0)
 }

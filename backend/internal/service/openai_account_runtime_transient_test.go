@@ -63,7 +63,7 @@ func TestHandleOpenAITransientError_TransientStatusesUseModelScope(t *testing.T)
 }
 
 func TestHandleOpenAITransientError_529RemainsOverloadOnly(t *testing.T) {
-	require.False(t, shouldCooldownOpenAITransientUpstreamError(529, []byte(`{"error":{"message":"overloaded"}}`)))
+	require.False(t, gatewayprovider.IsTransientAccountFailure(529, []byte(`{"error":{"message":"overloaded"}}`)))
 }
 
 func TestHandleOpenAITransientError_CanonicalModelIsNotMappedTwice(t *testing.T) {

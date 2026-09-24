@@ -214,45 +214,7 @@ type openAIWSRetryMetrics struct {
 	nonRetryableFastFallback atomic.Int64
 }
 
-type accountWriteThrottle struct {
-	minInterval time.Duration
-	mu          sync.Mutex
-	lastByID    map[int64]time.Time
-}
-
-func newAccountWriteThrottle(minInterval time.Duration) *accountWriteThrottle {
-	return &accountWriteThrottle{
-		minInterval: minInterval,
-		lastByID:    make(map[int64]time.Time),
-	}
-}
-
-func (t *accountWriteThrottle) Allow(id int64, now time.Time) bool {
-	if t == nil || id <= 0 || t.minInterval <= 0 {
-		return true
-	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if last, ok := t.lastByID[id]; ok && now.Sub(last) < t.minInterval {
-		return false
-	}
-	t.lastByID[id] = now
-
-	if len(t.lastByID) > 4096 {
-		cutoff := now.Add(-4 * t.minInterval)
-		for accountID, writtenAt := range t.lastByID {
-			if writtenAt.Before(cutoff) {
-				delete(t.lastByID, accountID)
-			}
-		}
-	}
-
-	return true
-}
-
-var defaultOpenAICodexSnapshotPersistThrottle = newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval)
+var defaultOpenAICodexSnapshotPersistThrottle = accountcore.NewWriteThrottle(openAICodexSnapshotPersistMinInterval)
 
 // ErrNoAvailableCompactAccounts indicates the request needs /responses/compact
 // support but no compatible account is available.
@@ -324,14 +286,15 @@ type OpenAIGatewayService struct {
 	openaiOAuth429WindowCount         atomic.Int64
 	openaiWSRetryMetrics              openAIWSRetryMetrics
 	responseHeaderFilter              *egress.CompiledHeaderFilter
-	codexSnapshotThrottle             *accountWriteThrottle
+	codexSnapshotThrottle             *accountcore.WriteThrottle
 	openaiCompatSessionResponses      sync.Map
 	anthropicPromptCache              atomic.Pointer[session.AnthropicPromptCache]
 	// 下游会话最近收到的回合状态签发账号，用于故障转移时剥离跨账号回带状态。
 	turnStateHeaders *gatewayhttp.CodexTurnStateHeaders
+	grokHealth       *accountprovider.GrokHealth
 }
 
-// NewOpenAIGatewayService creates a new OpenAIGatewayService
+// NewOpenAIGatewayService 接入固定执行依赖，剩余协议编排随 S16 退出。
 func NewOpenAIGatewayService(
 	accountRepo gatewayprovider.ExecutionAccountStore,
 	usageLogRepo usage.UsageLogRepository,
@@ -351,7 +314,7 @@ func NewOpenAIGatewayService(
 	channelService *routing.ChannelService,
 
 	settingService *gatewayprovider.RuntimeReaders,
-	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, turnStateHeaders *gatewayhttp.CodexTurnStateHeaders, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selectionadapter.Compatible,
+	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, turnStateHeaders *gatewayhttp.CodexTurnStateHeaders, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selectionadapter.Compatible, grokHealth *accountprovider.GrokHealth,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
 ) *OpenAIGatewayService {
 	var tlsFPRouterService *egress.TLSFingerprintRouterService
@@ -363,6 +326,7 @@ func NewOpenAIGatewayService(
 	}
 	svc := &OpenAIGatewayService{
 		selection:          choices,
+		grokHealth:         grokHealth,
 		openaiWSStateStore: stateStore,
 		turnStateHeaders:   turnStateHeaders,
 		prompts:            prompts,
@@ -389,14 +353,19 @@ func NewOpenAIGatewayService(
 
 		settingService: settingService,
 
-		liveAttestation:          liveattestation.NewProvider(),
-		liveAttestationCipher:    newLiveAttestationCipher(cfg),
-		responseHeaderFilter:     headerFilter,
-		codexSnapshotThrottle:    newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		liveAttestation:       liveattestation.NewProvider(),
+		liveAttestationCipher: newLiveAttestationCipher(cfg),
+		responseHeaderFilter:  headerFilter,
+
 		openaiModelTransient:     modelTransient,
 		openaiProxyStreamCircuit: proxyCircuit,
 	}
 
+	if grokHealth != nil {
+		svc.codexSnapshotThrottle = grokHealth.Throttle
+	} else {
+		svc.codexSnapshotThrottle = accountcore.NewWriteThrottle(openAICodexSnapshotPersistMinInterval)
+	}
 	svc.logOpenAIWSModeBootstrap()
 	return svc
 }
@@ -510,7 +479,7 @@ func (s *OpenAIGatewayService) ReplaceModelInBody(body []byte, newModel string) 
 	return protocolopenai.ReplaceModelInBody(body, newModel)
 }
 
-func (s *OpenAIGatewayService) getCodexSnapshotThrottle() *accountWriteThrottle {
+func (s *OpenAIGatewayService) getCodexSnapshotThrottle() *accountcore.WriteThrottle {
 	if s != nil && s.codexSnapshotThrottle != nil {
 		return s.codexSnapshotThrottle
 	}

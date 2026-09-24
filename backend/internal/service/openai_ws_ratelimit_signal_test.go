@@ -820,7 +820,7 @@ func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_ThrottlesExtraWrites(t *t
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:           repo,
-		codexSnapshotThrottle: newAccountWriteThrottle(time.Hour),
+		codexSnapshotThrottle: accountcore.NewWriteThrottle(time.Hour),
 	}))
 	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:         ptrFloat64WS(94),

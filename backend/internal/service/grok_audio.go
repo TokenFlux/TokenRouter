@@ -12,7 +12,7 @@ import (
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
-	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -28,7 +28,7 @@ import (
 
 // ForwardGrokVoice 转发官方 xAI Voice HTTP API，包括 TTS、STT 和自定义 Voice 子资源。
 // TTS 返回音频字节、STT 返回 JSON，且 xAI 可能附加格式专用响应头，因此响应保持透传。
-func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Context, account *gatewaycapture.ExecutionAccount, endpoint string, body []byte, contentType string) (*forwardcore.OpenAIResult, error) {
+func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, endpoint string, body []byte, contentType string) (*forwardcore.OpenAIResult, error) {
 	if s == nil || account == nil {
 		return nil, fmt.Errorf("grok voice service/account is required")
 	}
@@ -60,7 +60,7 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 		if account.View().IsGrokOAuth() && isGrokCLIProxyTarget(targetURL) {
 			grok.ApplyCLIHeaders(headers)
 		}
-		accountprovider.ApplyAccountHeaderOverrides(gatewaycapture.ExecutionProtocolRecord(account), headers)
+		accountprovider.ApplyAccountHeaderOverrides(gatewayprovider.ExecutionProtocolRecord(account), headers)
 	})
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 		return nil, err
 	}
 	return &forwardcore.OpenAIResult{
-		RequestID:       gatewaycapture.StableAudioBillingRequestID(result.RequestID),
+		RequestID:       gatewayprovider.StableAudioBillingRequestID(result.RequestID),
 		UpstreamHeaders: result.UpstreamHeaders,
 		Model:           result.Model,
 		UpstreamModel:   result.UpstreamModel,
@@ -134,7 +134,7 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 
 // ProxyGrokRealtime 将 JSON Realtime 事件中继到 xAI 原生 Voice WebSocket。
 // 音频以 base64 包含在 JSON 事件中，保持原始 JSON 字节即可，无需转换协议事件类型。
-func (s *OpenAIGatewayService) ProxyGrokRealtime(ctx context.Context, c *gin.Context, client *coderws.Conn, account *gatewaycapture.ExecutionAccount, token, model string) (bool, error) {
+func (s *OpenAIGatewayService) ProxyGrokRealtime(ctx context.Context, c *gin.Context, client *coderws.Conn, account *gatewayprovider.ExecutionAccount, token, model string) (bool, error) {
 	if s == nil || client == nil || account == nil {
 		return false, fmt.Errorf("realtime service, client, and account are required")
 	}
@@ -149,7 +149,7 @@ func (s *OpenAIGatewayService) ProxyGrokRealtime(ctx context.Context, c *gin.Con
 	return s.ProxyGrokRealtimeConn(ctx, c, client, upstream)
 }
 
-func (s *OpenAIGatewayService) OpenGrokRealtime(ctx context.Context, account *gatewaycapture.ExecutionAccount, token, model string) (*grok.RealtimeSession, error) {
+func (s *OpenAIGatewayService) OpenGrokRealtime(ctx context.Context, account *gatewayprovider.ExecutionAccount, token, model string) (*grok.RealtimeSession, error) {
 	if s == nil || account == nil || account.Record.Platform != capability.PlatformGrok {
 		return nil, fmt.Errorf("grok realtime account is required")
 	}
@@ -161,11 +161,11 @@ func (s *OpenAIGatewayService) OpenGrokRealtime(ctx context.Context, account *ga
 }
 
 // HandleGrokRealtimeUpstreamError 为下游升级前失败的 WebSocket 握手应用共享 Grok 账号策略。
-func (s *OpenAIGatewayService) HandleGrokRealtimeUpstreamError(ctx context.Context, account *gatewaycapture.ExecutionAccount, statusCode int, body []byte) {
+func (s *OpenAIGatewayService) HandleGrokRealtimeUpstreamError(ctx context.Context, account *gatewayprovider.ExecutionAccount, statusCode int, body []byte) {
 	if statusCode <= 0 {
 		statusCode = http.StatusBadGateway
 	}
-	_ = s.applyGrokAccountUpstreamError(ctx, account, statusCode, nil, body)
+	_ = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, statusCode, nil, body, "")
 }
 
 func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin.Context, client *coderws.Conn, upstream *grok.RealtimeSession) (bool, error) {
@@ -175,7 +175,7 @@ func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin
 	return grok.RelayRealtime(ctx, grokClientFrames{client}, upstream)
 }
 
-func (s *OpenAIGatewayService) ProbeGrokRealtime(ctx context.Context, account *gatewaycapture.ExecutionAccount, token, model string) error {
+func (s *OpenAIGatewayService) ProbeGrokRealtime(ctx context.Context, account *gatewayprovider.ExecutionAccount, token, model string) error {
 	if s == nil || account == nil {
 		return fmt.Errorf("realtime service and account are required")
 	}
@@ -213,7 +213,7 @@ func (c grokUpstreamFrames) WriteFrame(ctx context.Context, _ upstreamcore.Frame
 func (c grokUpstreamFrames) Close() error { return c.conn.Close() }
 
 // 装配既有 WS dialer、代理和 TLS 快照，不更改共享客户端。
-func (s *OpenAIGatewayService) grokRealtimeOptions(account *gatewaycapture.ExecutionAccount, base, token, model string) mediaprovider.RealtimeOptions {
+func (s *OpenAIGatewayService) grokRealtimeOptions(account *gatewayprovider.ExecutionAccount, base, token, model string) mediaprovider.RealtimeOptions {
 	proxyURL := ""
 	if account.Record.ProxyID != nil && account.Record.Proxy != nil {
 		proxyURL = account.Record.Proxy.URL()

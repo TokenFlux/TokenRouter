@@ -206,7 +206,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 				handledResult, err = s.handleGrokMediaErrorResponse(ctx, resp, c, account, firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")), upstreamModel)
 				return true, err
 			}
-			s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, requestInfo.Model), account, resp.Header, resp.StatusCode)
+			s.grokHealth.ObserveResponse(ctx, account.View(), resp.Header, resp.StatusCode, requestInfo.Model)
 			return false, nil
 		},
 		ReadBody: func(reader io.Reader) ([]byte, error) {
@@ -365,7 +365,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	contentRequestID := resource.RequestID
 	statusBody := resource.StatusBody
 
-	s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, ""), account, contentResp.Header, contentResp.StatusCode)
+	s.grokHealth.ObserveResponse(ctx, account.View(), contentResp.Header, contentResp.StatusCode, "")
 	if err := writeGrokMediaContentResponse(c, contentResp); err != nil {
 		return nil, err
 	}
@@ -465,7 +465,7 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 ) (*forwardcore.OpenAIResult, error) {
 	body := s.readUpstreamErrorBody(resp)
 	// 在可配置的透传分支返回前同步账号策略；池模式默认只保留上游观测，不写本地冷却。
-	decision := s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, requestedModel)
+	decision := gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, body, "", requestedModel)
 	upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
 	if upstreamMsg == "" {
 		upstreamMsg = fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode)

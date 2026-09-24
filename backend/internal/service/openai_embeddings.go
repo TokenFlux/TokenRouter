@@ -148,7 +148,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 				InvalidRequest: func() bool { return openai.IsOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, respBody) },
 				ApplyPolicy: func() {
 					if account.Record.Platform == capability.PlatformGrok {
-						decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
+						decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, respBody, "", upstreamModel)
 					} else {
 						decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 					}

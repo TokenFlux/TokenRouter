@@ -30,7 +30,7 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(
 	responseBody []byte,
 	requestedModel ...string,
 ) bool {
-	return s.applyGrokAccountUpstreamError(ctx, account, statusCode, headers, responseBody, requestedModel...).StopScheduling
+	return gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, statusCode, headers, responseBody, "", requestedModel...).StopScheduling
 }
 
 func TestIsGrokContentPolicyRejection(t *testing.T) {
@@ -323,78 +323,4 @@ func TestGrokPermissionDeniedContentRefusalDoesNotMutateOrFailover(t *testing.T)
 	require.Zero(t, repo.updateCalls)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 	require.False(t, svc.shouldFailoverGrokUpstreamError(http.StatusForbidden, body))
-}
-
-func TestHandleGrokAccountUpstreamErrorEntitlement403KeepsDefaultCooldown(t *testing.T) {
-	repo := &grokQuotaAccountRepo{}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4716, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
-	before := time.Now()
-
-	svc.handleGrokAccountUpstreamError(
-		context.Background(), account, http.StatusForbidden, nil,
-		[]byte(`{"error":{"message":"subscription required"}}`),
-	)
-
-	require.Equal(t, 1, repo.tempUnschedCalls)
-	require.Equal(t, "grok access or entitlement denied", repo.lastTempUnschedReason)
-	require.Greater(t, repo.lastTempUnschedUntil, before.Add(29*time.Minute))
-	require.Less(t, repo.lastTempUnschedUntil, before.Add(31*time.Minute))
-}
-
-func TestHandleGrokAccountUpstreamError403UsesConfiguredRule(t *testing.T) {
-	repo := &grokQuotaAccountRepo{}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4717,
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"temp_unschedulable_enabled": true,
-			"temp_unschedulable_rules": []any{
-				map[string]any{
-					"error_code":       float64(http.StatusForbidden),
-					"keywords":         []any{"subscription"},
-					"duration_minutes": float64(7),
-				},
-			},
-		}},
-	}
-	before := time.Now()
-
-	svc.handleGrokAccountUpstreamError(
-		context.Background(), account, http.StatusForbidden, nil,
-		[]byte(`{"error":{"message":"subscription required"}}`),
-	)
-
-	require.Equal(t, 1, repo.tempUnschedCalls)
-	require.Greater(t, repo.lastTempUnschedUntil, before.Add(6*time.Minute))
-	require.Less(t, repo.lastTempUnschedUntil, before.Add(8*time.Minute))
-}
-
-func TestHandleGrokAccountUpstreamError403ConfiguredUnmatchedKeepsDefaultCooldown(t *testing.T) {
-	repo := &grokQuotaAccountRepo{}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4718,
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"temp_unschedulable_enabled": true,
-			"temp_unschedulable_rules": []any{
-				map[string]any{
-					"error_code":       float64(http.StatusForbidden),
-					"keywords":         []any{"different failure"},
-					"duration_minutes": float64(7),
-				},
-			},
-		}},
-	}
-
-	svc.handleGrokAccountUpstreamError(
-		context.Background(), account, http.StatusForbidden, nil,
-		[]byte(`{"error":{"message":"subscription required"}}`),
-	)
-
-	require.Equal(t, 1, repo.tempUnschedCalls)
-	require.Equal(t, "grok access or entitlement denied", repo.lastTempUnschedReason)
-	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
 }

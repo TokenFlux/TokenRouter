@@ -689,7 +689,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		}
 		if !requestScopedError {
 			if account.Record.Platform == capability.PlatformGrok {
-				decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, mappedModel)
+				decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, respBody, "", mappedModel)
 			} else {
 				decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, mappedModel)
 			}
@@ -718,7 +718,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	stopCancelBody := context.AfterFunc(ctx, func() { _ = resp.Body.Close() })
 	defer stopCancelBody()
 	if account.Record.Platform == capability.PlatformGrok {
-		s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, resolveGrokWSUpstreamModel(account, body, originalModel)), account, resp.Header, resp.StatusCode)
+		s.grokHealth.ObserveResponse(ctx, account.View(), resp.Header, resp.StatusCode, resolveGrokWSUpstreamModel(account, body, originalModel))
 	}
 
 	responseID := ""
@@ -976,7 +976,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 					defaultFailover = false
 				} else {
 					defaultFailover = s.shouldFailoverGrokUpstreamError(statusCode, upstreamMessage)
-					decision = s.applyGrokAccountUpstreamError(ctx, account, statusCode, resp.Header, upstreamMessage, mappedModel)
+					decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, statusCode, resp.Header, upstreamMessage, "", mappedModel)
 				}
 			} else if !requestScopedError {
 				defaultFailover = s.shouldFailoverOpenAIWSError(account, policyStatus, upstreamMessage)

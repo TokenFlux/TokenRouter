@@ -96,7 +96,9 @@ func newOpenAIExecutionAndSelectionFixture(
 
 		executionCredentials, credentials, resolver, channelService,
 
-		settingService, prompts, headerFilter, stateStore, provideCodexTurnStateHeaders(choices), modelTransient, proxyCircuit, choices, tlsFPRouterServices...)
+		settingService, prompts, headerFilter, stateStore, provideCodexTurnStateHeaders(choices), modelTransient, proxyCircuit, choices, &accountprovider.GrokHealth{Store: accountRepo, Health: healthObserver, Runtime: blocks, ModelTransient: modelTransient, Throttle: accountcore.NewWriteThrottle(30 * time.Second), NormalizeModel: func(value *accountcore.Record, model string) string {
+			return (gatewayprovider.ModelPolicy{Record: value}).NormalizeOpenAI(model)
+		}}, tlsFPRouterServices...)
 	source.BindRuntimeBlockState(blocks)
 	source.BindSchedulerStickyStats(sticky)
 	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}

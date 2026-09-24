@@ -12,6 +12,7 @@ var gatewayExecutionProviders = wire.NewSet(
 	provideCodexTurnStateHeaders,
 	provideGrokCredentialRecovery,
 	provideRequestCredentials,
+	provideGrokHealth,
 	provideRequestCredentialExecutor,
 	provider.NewRoutePlanner,
 	provideRetryCooldown,

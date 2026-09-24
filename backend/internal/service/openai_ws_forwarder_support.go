@@ -243,7 +243,7 @@ func openAIWSPayloadTransientStatus(payload []byte) int {
 	if status == 0 {
 		status = int(gjson.GetBytes(payload, "error.status").Int())
 	}
-	if shouldCooldownOpenAITransientUpstreamError(status, payload) {
+	if gatewayprovider.IsTransientAccountFailure(status, payload) {
 		return status
 	}
 	if status != 0 {
@@ -445,7 +445,7 @@ func (s *OpenAIGatewayService) applyOpenAIWSEventErrorPolicy(
 		return accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	if account != nil && account.Record.Platform == capability.PlatformGrok {
-		return s.applyGrokAccountUpstreamError(ctx, account, statusCode, headers, payload, canonicalModel)
+		return gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, statusCode, headers, payload, "", canonicalModel)
 	}
 	return s.applyOpenAIAccountUpstreamError(ctx, account, statusCode, headers, payload, canonicalModel)
 }

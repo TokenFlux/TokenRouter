@@ -78,7 +78,7 @@ func (p *openAIRawChatAdapter) RawOptions(r *http.Response, billing, model strin
 
 // GrokDecision 复用平台的健康解释，仅返回编排需要的三个判断。
 func (p *openAIRawChatAdapter) GrokDecision(ctx context.Context, resp *http.Response, b []byte, m string) forward.RawGrokDecision {
-	d := p.s.applyGrokAccountUpstreamError(ctx, p.account, resp.StatusCode, resp.Header, b, m)
+	d := gatewayprovider.ApplyGrokExecutionHealth(ctx, p.s.grokHealth, p.account, resp.StatusCode, resp.Header, b, "", m)
 	return forward.RawGrokDecision{Failover: d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(p.account), resp.StatusCode, p.s.shouldFailoverGrokUpstreamError(resp.StatusCode, b)), Generic: d.ShouldReturnGenericError(), RetrySame: d.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(p.account), resp.StatusCode)}
 }
 func (p *openAIRawChatAdapter) ObserveGrokError(r *http.Response, msg, kind string) {

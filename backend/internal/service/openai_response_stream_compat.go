@@ -127,7 +127,9 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 			}
 		},
 
-		IdleCooldown: func() { s.tempUnscheduleGrok(ctx, account, grokStreamIdleCooldown, "grok stream idle timeout") },
+		IdleCooldown: func() {
+			s.grokHealth.TempUnschedule(ctx, account.View(), grokStreamIdleCooldown, "grok stream idle timeout")
+		},
 
 		IdleFailover: func(interval time.Duration) error { return grokStreamIdleFailoverError(account, interval) },
 

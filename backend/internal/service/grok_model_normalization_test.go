@@ -137,14 +137,7 @@ func TestGrokModelNotFoundWritesFinalUpstreamID(t *testing.T) {
 	accountMappedModel := gatewayprovider.ExecutionModelPolicy(account).Mapped("client-alias")
 	require.Equal(t, "grok-latest", accountMappedModel)
 
-	decision := svc.applyGrokAccountUpstreamError(
-		context.Background(),
-		account,
-		http.StatusNotFound,
-		nil,
-		[]byte(`{"error":{"code":"model_not_found","message":"model not found"}}`),
-		accountMappedModel,
-	)
+	decision := gatewayprovider.ApplyGrokExecutionHealth(context.Background(), svc.grokHealth, account, http.StatusNotFound, nil, []byte(`{"error":{"code":"model_not_found","message":"model not found"}}`), "", accountMappedModel)
 
 	require.True(t, decision.StopScheduling)
 	require.Len(t, repo.modelRateLimitCalls, 1)
@@ -170,8 +163,8 @@ func TestGrokTransientErrorBlocksOnlyFinalModel(t *testing.T) {
 	canonicalModel := gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(gatewayprovider.ExecutionModelPolicy(account).Mapped("client-alias"))
 	body := []byte(`{"error":{"message":"temporary upstream failure"}}`)
 
-	first := svc.applyGrokAccountUpstreamError(context.Background(), account, http.StatusBadGateway, nil, body, canonicalModel)
-	second := svc.applyGrokAccountUpstreamError(context.Background(), account, http.StatusBadGateway, nil, body, canonicalModel)
+	first := gatewayprovider.ApplyGrokExecutionHealth(context.Background(), svc.grokHealth, account, http.StatusBadGateway, nil, body, "", canonicalModel)
+	second := gatewayprovider.ApplyGrokExecutionHealth(context.Background(), svc.grokHealth, account, http.StatusBadGateway, nil, body, "", canonicalModel)
 
 	require.False(t, first.StopScheduling)
 	require.False(t, second.StopScheduling)

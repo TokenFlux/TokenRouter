@@ -4,9 +4,6 @@
 package service
 
 import (
-	"time"
-
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	uuid "github.com/google/uuid"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
@@ -16,8 +13,4 @@ func sanitizeGrokResponsesTools(body []byte) ([]byte, error) {
 	return (grok.BodyCodec{
 		NewID: uuid.NewString}).
 		SanitizeGrokResponsesTools(body)
-}
-
-func grokRateLimitResetAt(snapshot *grok.QuotaSnapshot, now time.Time) (time.Time, bool) {
-	return accountcore.GrokRateLimitResetAt(snapshot, now)
 }

@@ -345,7 +345,7 @@ func (p *openAIMessagesExecutionAdapter) ErrorResponse(r *http.Response, model s
 	return nil, err
 }
 func (p *openAIMessagesExecutionAdapter) UpdateGrokUsage(ctx context.Context, model string, h http.Header, status int) {
-	p.s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, model), p.account, h, status)
+	p.s.grokHealth.ObserveResponse(ctx, p.account.View(), h, status, model)
 }
 func (p *openAIMessagesExecutionAdapter) BindTurnState(ctx context.Context, key, state string) {
 	p.s.bindOpenAICompatSessionTurnState(ctx, p.c, p.account, key, state)

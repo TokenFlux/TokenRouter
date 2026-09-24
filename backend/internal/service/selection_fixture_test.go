@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 
@@ -57,6 +59,14 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 		source.executionCredentials = source.requestCredentials.Source
 	}
 
+	source.grokHealth = &accountprovider.GrokHealth{
+		Store: source.accountRepo, Health: source.healthObserver,
+		Throttle: source.codexSnapshotThrottle, Runtime: source.runtimeBlockState(),
+		ModelTransient: source.getOpenAIAccountModelTransientState(),
+		NormalizeModel: func(value *account.Record, model string) string {
+			return (gatewayprovider.ModelPolicy{Record: value}).NormalizeOpenAI(model)
+		},
+	}
 	var quota *account.QuotaSettingsCache
 	if source.settingService != nil {
 		quota = source.settingService.Quota

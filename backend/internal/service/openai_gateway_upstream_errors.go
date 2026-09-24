@@ -462,7 +462,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	}
 	var decision accountcore.UpstreamErrorDecision
 	if account != nil && account.Record.Platform == capability.PlatformGrok {
-		decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, reqModel)
+		decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, body, "", reqModel)
 	} else {
 		decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, reqModel)
 	}
@@ -687,7 +687,7 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	}
 	var decision accountcore.UpstreamErrorDecision
 	if account.Record.Platform == capability.PlatformGrok {
-		decision = s.applyGrokAccountUpstreamError(c.Request.Context(), account, resp.StatusCode, resp.Header, body, modelForCooldown)
+		decision = gatewayprovider.ApplyGrokExecutionHealth(c.Request.Context(), s.grokHealth, account, resp.StatusCode, resp.Header, body, "", modelForCooldown)
 	} else {
 		decision = s.applyOpenAIAccountUpstreamError(c.Request.Context(), account, resp.StatusCode, resp.Header, body, modelForCooldown)
 	}

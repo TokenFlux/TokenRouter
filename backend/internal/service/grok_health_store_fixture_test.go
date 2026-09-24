@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// 测试按既有持久化字段核对快照，生产字段由账号模块拥有。
+const grokQuotaSnapshotExtraKey = "grok_usage_snapshot"
+
 type grokQuotaAccountRepo struct {
 	*mockAccountRepoForPlatform
 	updates               map[int64]map[string]any

@@ -187,7 +187,7 @@ func (s *OpenAIGatewayService) handleResponsesInputTokensUpstreamError(
 	upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
 	var decision accountcore.UpstreamErrorDecision
 	if account.Record.Platform == capability.PlatformGrok {
-		decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, prepared.UpstreamModel)
+		decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, body, "", prepared.UpstreamModel)
 	} else {
 		decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, prepared.UpstreamModel)
 	}

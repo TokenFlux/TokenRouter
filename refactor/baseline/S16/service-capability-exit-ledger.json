@@ -11,6 +11,7 @@
     "google-execution",
     "request-credentials",
     "response-state",
+    "grok-health",
     "grok-execution",
     "openai-execution",
     "ws-live",
@@ -2005,10 +2006,7 @@
         "backend/internal/service/grok_audio.go",
         "backend/internal/service/grok_forward_execution_adapter.go",
         "backend/internal/service/grok_forward_result_adapter.go",
-        "backend/internal/service/grok_limit_persistence_compat.go",
         "backend/internal/service/grok_media.go",
-        "backend/internal/service/grok_observation_execution_adapter.go",
-        "backend/internal/service/grok_quota_fetcher.go",
         "backend/internal/service/grok_quota_transport_compat.go",
         "backend/internal/service/grok_stream_idle.go",
         "backend/internal/service/grok_upstream_errors.go",
@@ -2668,6 +2666,24 @@
       "test_mapping": "service-response-state-test-mapping.json",
       "completed_at": "2026-09-24",
       "exit": "回合来源缓存、HTTP响应头和所有生产/测试调用同批改绑，旧实现与状态字段已删除。"
+    },
+    "grok-health": {
+      "status": "verified",
+      "files": [
+        "backend/internal/service/grok_quota_fetcher.go",
+        "backend/internal/service/grok_limit_persistence_compat.go",
+        "backend/internal/service/grok_observation_execution_adapter.go"
+      ],
+      "native_owners": [
+        "account/provider.GrokHealth",
+        "account.WriteThrottle",
+        "gateway/provider.ApplyGrokExecutionHealth",
+        "app"
+      ],
+      "verification": "service-grok-health-owner-verification.json",
+      "test_mapping": "service-grok-health-test-mapping.json",
+      "completed_at": "2026-09-24",
+      "exit": "健康规则、快照节流、请求观测与所有消费者同批改绑；旧方法和私有模型context已删除。"
     }
   },
   "boundary_notes": {
@@ -2692,8 +2708,8 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 147,
-    "test_files": 235,
-    "verified_batch": "response-state"
+    "production_files": 144,
+    "test_files": 234,
+    "verified_batch": "grok-health"
   }
 }

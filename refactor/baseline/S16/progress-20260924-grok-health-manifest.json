@@ -1,0 +1,445 @@
+{
+  "format_version": 1,
+  "scope": "S16 Grok 健康与共享快照节流完整批次，非最终验收",
+  "parent_manifest": "progress-20260924-response-state-manifest.json",
+  "parent_manifest_sha256": "690b5b08886316980d5a6328a46eeab5ef427645757d3d63ce616cdcbfef573e",
+  "source_file_count": 71,
+  "source_total_bytes": 4238982,
+  "collection": "仅本批 service-grok-health-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260924-grok-health-01.tar.gz",
+      "size": 325167,
+      "sha256": "5ed46a5e69495322eaa719cb7121158ac6817f68b44a0a1e163bf88abdb07df0",
+      "verified_members": 71,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 134266,
+          "sha256": "5a0a74c649a4248f6af7b96cdcaf5cca8a75146b9b7d21d608e48c53220fae76",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-build-02.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-build-selection.json",
+          "size": 651452,
+          "sha256": "c7cbe54c651c8c3319901fd5e591f86912f918f85dff1cb76a8efcb8f0e8db1c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-checks.json",
+          "size": 1122,
+          "sha256": "39bf5691cc743c252a2c8658bed023929885714e31c3bb32149c072a4a87fa8a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-compile-01.log",
+          "size": 3617,
+          "sha256": "00211bae1ff8534560e32a8a54f568736a2e0dd75d79a3255d9987375ec6a0dc",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-compile-02.log",
+          "size": 557,
+          "sha256": "1bd9ab1830cba839eeb9c383ec9885a585de99f8f77220fd5353572855d892ad",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-compile-integration.log",
+          "size": 2004,
+          "sha256": "75b3d127d9c3ca62e1624728864f92e1b5eea8e1da5e10560193bc427b2563ab",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-compile-normal.log",
+          "size": 2004,
+          "sha256": "83b9ed5c198aa0a046884f12aefb9a7e92362b0c7b7a1cbbc6ccbf6c91204d49",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-compile-unit.log",
+          "size": 2028,
+          "sha256": "940b430020e89ee839a3f8b9ee38496a7e4ea466f46f547fe3c51955223b0b56",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-complete-draft-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-consumer-normal-02.json",
+          "size": 229688,
+          "sha256": "511e3addb4e14085628e34ecc9d3e2bd98cea04a4385e51c5788bedbfe8de61b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-consumer-race-01.json",
+          "size": 789112,
+          "sha256": "5384be4cb58dc66e5cf5ab5306d51ce658a32fc984eb7457e6886f2482c5c8be",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-error-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-final-checks.json",
+          "size": 3918,
+          "sha256": "97323fcf090e466c4f260563d0866f32e807ec1dec84c7a7f9c030a83523f348",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-import-permissions.json",
+          "size": 40646,
+          "sha256": "cef87e493d37e011cc1e41ac79bf185ce178f47b67ded75c25090dd37cc4c6f4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-initial-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-native-race-01.json",
+          "size": 498099,
+          "sha256": "eee9a91b28b3f04779e0a21805ecf0949be2756a9a492e3327e1fc11455a75c8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-native-race-final.json",
+          "size": 498934,
+          "sha256": "47188375e1ed7f23aa584a28ba146db501f4ca92b064110c9ee583940d9beffa",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-adapter-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-adapter-no-old-integration.log",
+          "size": 356,
+          "sha256": "f80649d1c133b8119c17585eaa2977a98347d415c77a953fed48b5f61c52805d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-adapter-no-old-normal.log",
+          "size": 356,
+          "sha256": "f80649d1c133b8119c17585eaa2977a98347d415c77a953fed48b5f61c52805d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-adapter-no-old-unit.log",
+          "size": 356,
+          "sha256": "f80649d1c133b8119c17585eaa2977a98347d415c77a953fed48b5f61c52805d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-adapter-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-adapter-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-app-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-app-no-old-integration.log",
+          "size": 284,
+          "sha256": "f318e11c5a122edb20d16449e8f16ca0d5c9845f42d460d5139b5b47d6feccc8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-app-no-old-normal.log",
+          "size": 284,
+          "sha256": "f318e11c5a122edb20d16449e8f16ca0d5c9845f42d460d5139b5b47d6feccc8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-app-no-old-unit.log",
+          "size": 284,
+          "sha256": "f318e11c5a122edb20d16449e8f16ca0d5c9845f42d460d5139b5b47d6feccc8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-app-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-app-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-new-no-old-integration.log",
+          "size": 253,
+          "sha256": "3bd4b7c51d45e17e482a693e92cf0249ef9a7d38aa43434a317e65a58bf24fc3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-new-no-old-normal.log",
+          "size": 253,
+          "sha256": "3bd4b7c51d45e17e482a693e92cf0249ef9a7d38aa43434a317e65a58bf24fc3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-new-no-old-unit.log",
+          "size": 253,
+          "sha256": "3bd4b7c51d45e17e482a693e92cf0249ef9a7d38aa43434a317e65a58bf24fc3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-config-integration.log",
+          "size": 354,
+          "sha256": "5f8f1fa045e86b5dc4206d7fdc47eaea0da1b79323fd239f5936794d94315662",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-config-normal.log",
+          "size": 354,
+          "sha256": "5f8f1fa045e86b5dc4206d7fdc47eaea0da1b79323fd239f5936794d94315662",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-config-unit.log",
+          "size": 354,
+          "sha256": "5f8f1fa045e86b5dc4206d7fdc47eaea0da1b79323fd239f5936794d94315662",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-gateway-integration.log",
+          "size": 356,
+          "sha256": "841dcf9e5963d0adbbf0db39766106509789b2923ebe63a973073ed02a71c0e4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-gateway-normal.log",
+          "size": 356,
+          "sha256": "841dcf9e5963d0adbbf0db39766106509789b2923ebe63a973073ed02a71c0e4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-gateway-unit.log",
+          "size": 356,
+          "sha256": "841dcf9e5963d0adbbf0db39766106509789b2923ebe63a973073ed02a71c0e4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-store-integration.log",
+          "size": 312,
+          "sha256": "7ca28ce54ac2ae72df86c669737aee5f6a6381997cac8c54b8d80fd30feb2921",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-store-normal.log",
+          "size": 312,
+          "sha256": "7ca28ce54ac2ae72df86c669737aee5f6a6381997cac8c54b8d80fd30feb2921",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-store-unit.log",
+          "size": 312,
+          "sha256": "7ca28ce54ac2ae72df86c669737aee5f6a6381997cac8c54b8d80fd30feb2921",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-subpackage-integration.log",
+          "size": 310,
+          "sha256": "c74ac61f3c3a7de0cdeb7e9a5bf06b5a073364d93090c82660ccc295bad89c71",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-subpackage-normal.log",
+          "size": 310,
+          "sha256": "c74ac61f3c3a7de0cdeb7e9a5bf06b5a073364d93090c82660ccc295bad89c71",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-no-subpackage-unit.log",
+          "size": 310,
+          "sha256": "c74ac61f3c3a7de0cdeb7e9a5bf06b5a073364d93090c82660ccc295bad89c71",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-renamed-no-old-integration.log",
+          "size": 262,
+          "sha256": "4a5d5a2a3ae062b9d5744b73f2ae68803a6654e79d35c5a2db12640fa2e23089",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-renamed-no-old-normal.log",
+          "size": 262,
+          "sha256": "4a5d5a2a3ae062b9d5744b73f2ae68803a6654e79d35c5a2db12640fa2e23089",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-health-renamed-no-old-unit.log",
+          "size": 262,
+          "sha256": "4a5d5a2a3ae062b9d5744b73f2ae68803a6654e79d35c5a2db12640fa2e23089",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-throttle-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-throttle-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-throttle-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-throttle-no-http-integration.log",
+          "size": 227,
+          "sha256": "b2ca35e16300661b10462d3064efe6e0ec5d9bc68e72942d0127938a863c9762",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-throttle-no-http-normal.log",
+          "size": 227,
+          "sha256": "b2ca35e16300661b10462d3064efe6e0ec5d9bc68e72942d0127938a863c9762",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gate-throttle-no-http-unit.log",
+          "size": 227,
+          "sha256": "b2ca35e16300661b10462d3064efe6e0ec5d9bc68e72942d0127938a863c9762",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-boundary-gates.json",
+          "size": 28606,
+          "sha256": "bb148706338baa5fcc6caf930808f4881915f6ddc74f1662868b2864dc6b591a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-owner-verification.json",
+          "size": 6655,
+          "sha256": "e7872a3ca6b0ee57a347dccbb6e3b9c66abff2ac030edc61e6ba041365962419",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-projection-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-storage-race-02.json",
+          "size": 3683,
+          "sha256": "c76c6fc150c01f3dc57206204db9669673545143941c15e46adc52abb260b54b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-target-unit-01.json",
+          "size": 1300447,
+          "sha256": "091d804d0292a24b469034052abc7025fd39d733166e5e701f148fad7a933a8e",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-test-mapping.json",
+          "size": 31621,
+          "sha256": "139aed15017dd0c7138e752907196dbea719a16eced37fe10a283ab82a2f1aeb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-unit-lint-01.log",
+          "size": 1810,
+          "sha256": "c3f53e8d36493bd2df8382eb55a7bd6c2ea2be103b447a5d22ad748375e741f6",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-unit-lint-02.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-wire-01.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-wire-first.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-health-wire-second.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}

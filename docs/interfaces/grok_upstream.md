@@ -90,6 +90,8 @@ OAuth 凭据失效、账号资格变化和上游限流使用带凭据快照的�
 
 请求凭据由 `gateway/provider.RequestCredentials` 统一取得，文本、媒体、Voice 与 WS 共用同一实例。十五秒换号预算由请求自己的 `requeststate.CredentialBudget` 持有，HTTP Adapter 负责把失败分类关联到 Ops。条件写入、重新读取确认和缓存清理由 `account.GrokCredentialRecovery` 执行，并共享应用的运行时阻断状态；五秒写入、250 毫秒提交确认和 500 毫秒缓存清理预算保持。旧 `GetRequestCredential`、凭据失败方法和网关内互斥表已删除，其他 Grok 转发与共享 Responses 输出仍在 S16 收尾。
 
+额度观测和错误后的账号状态由 `account/provider.GrokHealth` 统一处理。`app` 将同一账号存储、运行时阻断、模型冷却与快照节流器注入文本、媒体和 WS 消费者，Grok 与 OpenAI 的普通快照仍共享原写入间隔。429、窗口耗尽和成功恢复继续绕过普通节流；持久化仍使用“只延长限流”和“比较已观察代次后恢复”的能力。团队冷却模型由当前尝试显式传入，请求内容拒绝仍在写入前短路。
+
 ## 客户端配置
 
 用户可在 API Key 页面通过“使用密钥”生成 Grok Build CLI、Codex CLI 或 OpenCode 配置。现有 `config.toml` 应先备份，再合并新模型配置。Codex 配置使用环境变量保存 TokenRouter Key，显式设置 `requires_openai_auth=false`，并以 HTTP/SSE Responses 模式关闭 WebSocket；不能要求用户再登录 ChatGPT，也不能把密钥写进仓库。

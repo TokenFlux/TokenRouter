@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -123,10 +124,11 @@ func (a *grokForwardAdapter) ErrorMessage(body []byte) string {
 	return logredact.SanitizeUpstreamQueries(upstream.ExtractErrorMessage(body))
 }
 func (a *grokForwardAdapter) Health(ctx context.Context, status int, headers http.Header, body []byte, model string, teamContext bool) grokforward.Decision {
+	teamModel := ""
 	if teamContext {
-		ctx = withGrokTeamRateLimitModel(ctx, model)
+		teamModel = strings.TrimSpace(model)
 	}
-	d := a.s.applyGrokAccountUpstreamError(ctx, a.account, status, headers, body, model)
+	d := gatewayprovider.ApplyGrokExecutionHealth(ctx, a.s.grokHealth, a.account, status, headers, body, teamModel, model)
 	return grokforward.Decision{
 		Generic:          d.ShouldReturnGenericError(),
 		Failover:         d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(a.account), status, a.s.shouldFailoverGrokUpstreamError(status, body)),
@@ -171,7 +173,7 @@ func (a *grokForwardAdapter) Failure(f grokforward.Failure) error {
 	}
 }
 func (a *grokForwardAdapter) ObserveSuccess(ctx context.Context, headers http.Header, status int, model string) {
-	a.s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, model), a.account, headers, status)
+	a.s.grokHealth.ObserveResponse(ctx, a.account.View(), headers, status, model)
 }
 func (a *grokForwardAdapter) ReadStream(ctx context.Context, resp *http.Response, start time.Time, original, mapped string) (upstream.ResponsesObservation, error) {
 	v, err := a.s.readStreamingResponseObservation(ctx, resp, a.c, a.account, start, original, mapped, "")
