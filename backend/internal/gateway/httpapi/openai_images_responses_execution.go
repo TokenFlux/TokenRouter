@@ -1,8 +1,7 @@
-package service
+package httpapi
 
 import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	"context"
 	"errors"
@@ -15,7 +14,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
@@ -25,8 +23,6 @@ import (
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
@@ -38,11 +34,7 @@ func buildOpenAIImagesResponsesRequest(parsed *gatewaymedia.ImageRequest, toolMo
 	return openai.BuildOpenAIImagesResponsesRequest(gatewaymedia.NativeImageRequest(parsed), toolModel)
 }
 
-func collectOpenAIImagesFromResponsesBody(body []byte) ([]openai.OpenAIResponsesImageResult, int64, []byte, openai.OpenAIResponsesImageResult, bool, error) {
-	return openai.CollectOpenAIImagesFromResponsesBody(body, time.Now)
-}
-
-func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
+func (s *OpenAIImagesExecutor) handleOpenAIImagesErrorResponse(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
@@ -50,28 +42,28 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 	requestBody []byte,
 	requestedModel ...string,
 ) (*forwardcore.OpenAIResult, error) {
-	body := s.responseOutput.ReadErrorBody(resp)
+	body := s.Output.ReadErrorBody(resp)
 
 	upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
 	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+	if s.Output.Options.LogUpstreamErrorBody {
+		maxBytes := s.Output.Options.LogUpstreamErrorBodyMaxBytes
 		if maxBytes <= 0 {
 			maxBytes = 2048
 		}
 		upstreamDetail = logredact.TruncateUTF8(string(body), maxBytes)
 	}
-	gatewayhttp.SetOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
-	gatewayhttp.LogOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
+	SetOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
+	LogOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
 
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+	if s.Output.Options.LogUpstreamErrorBody {
 		logging.LegacyPrintf("service.openai_gateway",
 			"OpenAI images upstream error %d (account=%d platform=%s type=%s): %s",
 			resp.StatusCode,
 			account.Record.ID,
 			account.Record.Platform,
 			account.Record.Type,
-			logredact.TruncateLine(body, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes),
+			logredact.TruncateLine(body, s.Output.Options.LogUpstreamErrorBodyMaxBytes),
 		)
 	}
 
@@ -84,11 +76,11 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 			return gatewayprovider.ExtractOpenAICyberWarningMessage(body, upstreamMsg), true
 		},
 		Observe: func(kind, message string) {
-			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: account.Record.Platform, AccountID: account.Record.ID, AccountName: account.Record.Name, UpstreamStatusCode: resp.StatusCode, UpstreamRequestID: resp.Header.Get("x-request-id"), Kind: kind, Message: message, Detail: upstreamDetail})
+			AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: account.Record.Platform, AccountID: account.Record.ID, AccountName: account.Record.Name, UpstreamStatusCode: resp.StatusCode, UpstreamRequestID: resp.Header.Get("x-request-id"), Kind: kind, Message: message, Detail: upstreamDetail})
 		},
 		Write: func(response gatewaymedia.ErrorResponse) error {
 			upErr := &openai.OpenAIImagesUpstreamError{StatusCode: response.Status, ErrorType: response.Type, Message: response.Message, UpstreamRequestID: strings.TrimSpace(resp.Header.Get("x-request-id"))}
-			gatewayhttp.WriteOpenAIImagesUpstreamErrorResponse(c, upErr)
+			WriteOpenAIImagesUpstreamErrorResponse(c, upErr)
 			return upErr
 		},
 		WrapCyber: func(cause error) error {
@@ -99,7 +91,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 			if len(requestedModel) > 0 {
 				model = strings.TrimSpace(requestedModel[0])
 			}
-			decision = gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, resp.StatusCode, resp.Header, body, false, model)
+			decision = gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.Output.Health, account, resp.StatusCode, resp.Header, body, false, model)
 		},
 		Generic: func() bool { return decision.ShouldReturnGenericError() },
 		Failover: func() bool {
@@ -109,12 +101,12 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 			return &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: body, RetryableOnSameAccount: decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode)}
 		},
 		Rewrite: func() (gatewaymedia.ErrorResponse, bool) {
-			status, typ, message, matched := gatewayhttp.ApplyErrorPassthroughRule(c, account.Record.Platform, resp.StatusCode, body, http.StatusBadGateway, "upstream_error", "Upstream request failed")
+			status, typ, message, matched := ApplyErrorPassthroughRule(c, account.Record.Platform, resp.StatusCode, body, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 			return gatewaymedia.ErrorResponse{Status: status, Type: typ, Message: logredact.SanitizeUpstreamQueries(message)}, matched
 		},
 		DefaultResponse: func() error {
 			upErr := openai.OpenAIImagesUpstreamErrorFromHTTP(resp.StatusCode, resp.Header, body)
-			gatewayhttp.WriteOpenAIImagesUpstreamErrorResponse(c, upErr)
+			WriteOpenAIImagesUpstreamErrorResponse(c, upErr)
 			return upErr
 		},
 	})
@@ -124,20 +116,16 @@ func openAIImagesStreamPrefix(parsed *gatewaymedia.ImageRequest) string {
 	return openai.OpenAIImagesStreamPrefix(gatewaymedia.NativeImageRequest(parsed))
 }
 
-func (s *OpenAIGatewayService) parseOpenAIImagesSSEUsageBytes(data []byte, usage *s09openai.ForwardUsage) {
-	openai.ParseOpenAIImagesSSEUsageBytes(data, usage)
-}
-
-func (s *OpenAIGatewayService) handleOpenAIImagesOAuthNonStreamingResponse(
+func (s *OpenAIImagesExecutor) handleOpenAIImagesOAuthNonStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
 	responseFormat string,
 	fallbackModel string,
 ) (s09openai.ForwardUsage, int, []string, error) {
-	return openai.ReadImagesOAuthNonStreaming(resp, gatewayhttp.ResponseSink{Writer: c.Writer}, s.responseOutput.ImageOptions(c), responseFormat, fallbackModel)
+	return openai.ReadImagesOAuthNonStreaming(resp, ResponseSink{Writer: c.Writer}, s.Output.ImageOptions(c), responseFormat, fallbackModel)
 }
 
-func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
+func (s *OpenAIImagesExecutor) handleOpenAIImagesOAuthStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
 	startTime time.Time,
@@ -145,10 +133,10 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 	streamPrefix string,
 	fallbackModel string,
 ) (s09openai.ForwardUsage, int, []string, *int, error) {
-	return openai.ReadImagesOAuthStreaming(resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.responseOutput.ImageOptions(c), startTime, responseFormat, streamPrefix, fallbackModel)
+	return openai.ReadImagesOAuthStreaming(resp, upstream.NewOutputContext(ResponseSink{Writer: c.Writer}), s.Output.ImageOptions(c), startTime, responseFormat, streamPrefix, fallbackModel)
 }
 
-func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
+func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 	ctx context.Context,
 	c *gin.Context,
 	account *gatewayprovider.ExecutionAccount,
@@ -175,7 +163,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	upstreamCtx, releaseUpstreamCtx := gatewayprovider.DetachUpstreamContext(ctx)
 	defer releaseUpstreamCtx()
 
-	token, _, err := s.executionCredentials.Resolve(upstreamCtx, gatewayprovider.ExecutionRecord(account))
+	token, _, err := s.Requests.Credentials.Resolve(upstreamCtx, gatewayprovider.ExecutionRecord(account))
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +186,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		proxyURL = account.Record.Proxy.URL()
 	}
 
-	options := s.responseOutput.ImageOptions(c)
+	options := s.Output.ImageOptions(c)
 	var legacyHTTPResult *forwardcore.OpenAIResult
 	httpFailure := false
 	retryAgent := false
@@ -211,22 +199,22 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 
 		Request: upstreamReq,
 		Options: options,
-		Enter:   s.nativeAttemptActivity,
+		Enter:   s.Enter,
 
 		ResponseFormat: parsed.ResponseFormat,
 		StreamPrefix:   openAIImagesStreamPrefix(parsed),
 
 		Do: func(req *http.Request) (*http.Response, error) {
 			upstreamStart := time.Now()
-			resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch...))
-			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+			resp, err := s.Requests.Transport.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch...))
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 			return resp, err
 		},
 
 		TransportError: func(err error) error {
 			safeErr := logredact.SanitizeUpstreamQueries(err.Error())
-			gatewayhttp.SetOpsUpstreamError(c, 0, safeErr, "")
-			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
+			SetOpsUpstreamError(c, 0, safeErr, "")
+			AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 				Platform:           account.Record.Platform,
 				AccountID:          account.Record.ID,
 				AccountName:        account.Record.Name,
@@ -238,9 +226,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 			return fmt.Errorf("upstream request failed: %s", safeErr)
 		},
 
-		ReadErrorBody: s.responseOutput.ReadErrorBody,
+		ReadErrorBody: s.Output.ReadErrorBody,
 
-		RedactErrorBody: func(body []byte) []byte { return s.agentIdentity.Redact(upstreamCtx, account, body) },
+		RedactErrorBody: func(body []byte) []byte { return s.Requests.Identity.Redact(upstreamCtx, account, body) },
 
 		HTTPError: func(resp *http.Response, respBody []byte) error {
 			httpFailure = true
@@ -248,17 +236,17 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 			var decision accountcore.UpstreamErrorDecision
 			retry, err := gatewaymedia.ResolveImageFailure(gatewaymedia.ImageFailurePorts{
 				Recover: func() (bool, error) {
-					if requeststate.AgentTaskRecoveryTried(ctx) || !s.agentIdentity.UsesAgentIdentity(ctx, account) || !openai.IsAgentTaskInvalidHTTPResponse(resp.StatusCode, respBody) {
+					if requeststate.AgentTaskRecoveryTried(ctx) || !s.Requests.Identity.UsesAgentIdentity(ctx, account) || !openai.IsAgentTaskInvalidHTTPResponse(resp.StatusCode, respBody) {
 						return false, nil
 					}
-					return true, s.agentIdentity.Recover(ctx, account, account.View().GetCredential("task_id"))
+					return true, s.Requests.Identity.Recover(ctx, account, account.View().GetCredential("task_id"))
 				},
 				Failover: func() bool {
 					upstreamMsg = logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 					return gatewayprovider.ShouldFailoverOpenAIResponse(resp.StatusCode, upstreamMsg, respBody)
 				},
 				Observe: func() {
-					gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
+					AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
 						Platform: account.Record.Platform,
 
@@ -278,13 +266,13 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 					})
 				},
 				ApplyPolicy: func() bool {
-					decision = s.responseOutput.ApplyHTTPFailure(upstreamCtx, resp, account, respBody, requestModel)
+					decision = s.Output.ApplyHTTPFailure(upstreamCtx, resp, account, respBody, requestModel)
 					return decision.ShouldReturnGenericError()
 				},
 				NewFailover: func() error {
 					retryableOnSameAccount := decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode)
 					if account.View().IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
-						return (gatewayprovider.OpenAIFailoverPolicy{Health: s.responseOutput.Health}).NewAccountFailure(
+						return (gatewayprovider.OpenAIFailoverPolicy{Health: s.Output.Health}).NewAccountFailure(
 							account,
 							resp.StatusCode,
 							resp.Header,
@@ -321,7 +309,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	if parsed.IsEdits() {
 		protocolID = protocol.ProtocolImagesEdits
 	}
-	result, err := (mediaprovider.Images{Options: *target}).Execute(upstreamCtx, upstream.AttemptInput{Protocol: protocolID, ResponseModel: requestModel, Stream: parsed.Stream}, gatewayhttp.ResponseSink{Writer: c.Writer})
+	result, err := (mediaprovider.Images{Options: *target}).Execute(upstreamCtx, upstream.AttemptInput{Protocol: protocolID, ResponseModel: requestModel, Stream: parsed.Stream}, ResponseSink{Writer: c.Writer})
 	if retryAgent {
 		return s.forwardOpenAIImagesOAuth(requeststate.WithAgentTaskRecovery(ctx), c, account, parsed, channelMappedModel)
 	}
@@ -350,30 +338,7 @@ func shouldCoolOpenAIImagesToolForError(upstreamErr *openai.OpenAIImagesUpstream
 	return upstreamErr != nil && !upstreamErr.SynthesizedFromModelText
 }
 
-func (s *OpenAIGatewayService) coolOpenAIImagesOAuthTool(ctx context.Context, account *gatewayprovider.ExecutionAccount) {
-	if s == nil || s.accountRepo == nil || account == nil || account.Record.Platform != capability.PlatformOpenAI {
-		return
-	}
-	stateCtx, cancel := accountprovider.AccountStateContext(ctx)
-	defer cancel()
-	cooldown := openai.OpenAIImagesOAuthUnavailableDefaultCooldown
-	if s.settingService != nil {
-		settings, err := s.settingService.Account.GetOpenAIImagesOAuthUnavailableCooldownSettings(stateCtx)
-		if err != nil {
-			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Images OAuth tool cooldown setting read failed error=%v", err)
-		} else {
-			cooldown = time.Duration(settings.CooldownMinutes) * time.Minute
-		}
-	}
-	resetAt := time.Now().Add(cooldown)
-	if err := s.accountRepo.SetModelRateLimit(stateCtx, account.Record.ID, accountcore.OpenAIImageGenerationRateLimitKey, resetAt, openai.OpenAIImagesOAuthUnavailableReason); err != nil {
-		logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Images OAuth tool cooldown write failed account_id=%d error=%v", account.Record.ID, err)
-		return
-	}
-	logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Images OAuth tool unavailable account_id=%d reset_in=%s", account.Record.ID, time.Until(resetAt).Truncate(time.Second))
-}
-
-func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
+func (s *OpenAIImagesExecutor) handleOpenAIImagesOAuthResponseError(
 	ctx context.Context,
 	c *gin.Context,
 	account *gatewayprovider.ExecutionAccount,
@@ -383,7 +348,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 	writerSizeBeforeResponse int,
 	err error,
 ) error {
-	responseWritten := c != nil && c.Writer != nil && gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c) != writerSizeBeforeResponse
+	responseWritten := c != nil && c.Writer != nil && OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c) != writerSizeBeforeResponse
 	if code, message, ok := openai.OpenAIUpstreamStreamReadErrorDetails(err); ok {
 		// HTTP 已成功但响应体传输中断时，仅在尚未输出真实图片内容前允许重试；
 		// 同时克隆上游响应头，避免后续释放响应后污染 failover 诊断信息。
@@ -395,7 +360,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 			requestID = strings.TrimSpace(resp.Header.Get("x-request-id"))
 		}
 		responseBody := []byte(fmt.Sprintf(`{"error":{"type":"upstream_error","code":%q,"message":%q}}`, code, message))
-		decision := gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, statusCode, headers, responseBody, false, requestedModel)
+		decision := gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.Output.Health, account, statusCode, headers, responseBody, false, requestedModel)
 		retryable := decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), statusCode, true)
 		kind := "http_error"
 		if retryable {
@@ -404,7 +369,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 				kind = "retry_exhausted_failover"
 			}
 		}
-		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
+		AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
 			Platform: account.Record.Platform,
 
@@ -451,7 +416,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 		}
 	}
 	responseBody := openai.OpenAIImagesUpstreamErrorResponseBody(upstreamErr)
-	decision := gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, upstreamErr.StatusCode, headers, responseBody, false, requestedModel)
+	decision := gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.Output.Health, account, upstreamErr.StatusCode, headers, responseBody, false, requestedModel)
 	retryable := decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), upstreamErr.StatusCode, openai.IsOpenAIImagesRetryableUpstreamError(upstreamErr))
 	kind := "http_error"
 	if retryable {
@@ -460,7 +425,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 			kind = "retry_exhausted_failover"
 		}
 	}
-	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
+	AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
 		Platform: account.Record.Platform,
 
@@ -481,12 +446,12 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 
 	if upstreamErr.Code == "image_generation_unavailable" {
 		if shouldCoolOpenAIImagesToolForError(upstreamErr) {
-			s.coolOpenAIImagesOAuthTool(ctx, account)
+			s.Cooldown.Apply(ctx, gatewayprovider.ExecutionRecord(account))
 		}
 		if responseWritten {
 			return err
 		}
-		return (gatewayprovider.OpenAIFailoverPolicy{Health: s.responseOutput.Health}).NewAccountFailure(
+		return (gatewayprovider.OpenAIFailoverPolicy{Health: s.Output.Health}).NewAccountFailure(
 			account,
 			upstreamErr.StatusCode,
 			headers,
@@ -499,8 +464,8 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 	if !retryable || responseWritten {
 		return err
 	}
-	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, upstreamErr.StatusCode, headers, responseBody, false, requestedModel).StopScheduling
-	return (gatewayprovider.OpenAIFailoverPolicy{Health: s.responseOutput.Health}).NewAccountFailure(
+	shouldDisable := gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.Output.Health, account, upstreamErr.StatusCode, headers, responseBody, false, requestedModel).StopScheduling
+	return (gatewayprovider.OpenAIFailoverPolicy{Health: s.Output.Health}).NewAccountFailure(
 		account,
 		upstreamErr.StatusCode,
 		headers,

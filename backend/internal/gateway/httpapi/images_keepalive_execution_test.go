@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
+	media "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -38,13 +39,13 @@ func TestOpenAIImagesJSONKeepalive_KeepsOAuthNonStreamResponseValid(t *testing.T
 		_ = writer.Close()
 	}()
 
-	stop := gatewayhttp.StartOpenAIImagesJSONKeepalive(c, 5*time.Millisecond)
+	stop := StartOpenAIImagesJSONKeepalive(c, 5*time.Millisecond)
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       reader,
 	}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc := newImagesFixture(imagesFixtureInputs{})
 	_, imageCount, _, err := svc.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, "b64_json", "gpt-image-2")
 	stop()
 
@@ -68,28 +69,26 @@ func TestOpenAIImagesJSONKeepalive_HeartbeatBeforeForwardStillFailsOver(t *testi
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: &httpUpstreamRecorder{
-			resp: &http.Response{
-				StatusCode: http.StatusOK,
-				Header: http.Header{
-					"Content-Type": []string{"text/event-stream"},
-					"X-Request-Id": []string{"req_img_heartbeat_failover"},
-				},
-				Body: io.NopCloser(strings.NewReader(
-					"data: {\"type\":\"response.created\",\"response\":{\"created_at\":1710000021}}\n\n" +
-						"data: {\"type\":\"error\",\"error\":{\"type\":\"server_error\",\"code\":\"server_error\",\"message\":\"The image service is temporarily unavailable.\"}}\n\n",
-				)),
+	svc := newImagesFixture(imagesFixtureInputs{transport: &auxiliaryHTTPRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": []string{"text/event-stream"},
+				"X-Request-Id": []string{"req_img_heartbeat_failover"},
 			},
+			Body: io.NopCloser(strings.NewReader(
+				"data: {\"type\":\"response.created\",\"response\":{\"created_at\":1710000021}}\n\n" +
+					"data: {\"type\":\"error\",\"error\":{\"type\":\"server_error\",\"code\":\"server_error\",\"message\":\"The image service is temporarily unavailable.\"}}\n\n",
+			)),
 		},
-	})
-	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	}})
+	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 
 	// 模拟上一轮 failover 已发生：心跳已提交 200 并写出空白字节。
-	stop := gatewayhttp.StartOpenAIImagesJSONKeepalive(c, 5*time.Millisecond)
+	stop := StartOpenAIImagesJSONKeepalive(c, 5*time.Millisecond)
 	defer stop()
-	waitForOpenAIImagesJSONKeepalive(t, c)
+	waitForImageExecutionKeepalive(t, c)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 22,
 		Name:     "openai-oauth-heartbeat-failover",
@@ -109,7 +108,7 @@ func TestOpenAIImagesJSONKeepalive_HeartbeatBeforeForwardStillFailsOver(t *testi
 	require.Contains(t, string(failoverErr.ResponseBody), "temporarily unavailable")
 	require.Empty(t, strings.TrimSpace(rec.Body.String()), "only heartbeat whitespace may reach the client")
 
-	rawEvents, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
+	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
 	require.True(t, ok)
 	events, ok := rawEvents.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)
@@ -120,8 +119,10 @@ func TestOpenAIImagesJSONKeepalive_HeartbeatBeforeForwardStillFailsOver(t *testi
 }
 
 // 等待实际首个心跳提交；Writer.Written 使用生产包装器的同一把锁，不读取其私有状态。
-func waitForOpenAIImagesJSONKeepalive(t *testing.T, c *gin.Context) {
+
+// 等待实际首个心跳提交；Writer.Written 使用生产包装器的同一把锁，不读取其私有状态。
+func waitForImageExecutionKeepalive(t *testing.T, c *gin.Context) {
 	t.Helper()
-	require.True(t, gatewayhttp.OpenAIImagesJSONKeepalivePresent(c))
+	require.True(t, OpenAIImagesJSONKeepalivePresent(c))
 	require.Eventually(t, c.Writer.Written, time.Second, time.Millisecond)
 }

@@ -17,6 +17,7 @@
     "grok-execution",
     "openai-protocol-execution",
     "openai-auxiliary",
+    "openai-images",
     "openai-execution",
     "ws-live",
     "shared-boundaries"
@@ -1155,9 +1156,6 @@
         "backend/internal/service/openai_forward_transform_adapter.go",
         "backend/internal/service/openai_gateway_forward.go",
         "backend/internal/service/openai_gateway_service.go",
-        "backend/internal/service/openai_images.go",
-        "backend/internal/service/openai_images_b64_backfill.go",
-        "backend/internal/service/openai_images_responses.go",
         "backend/internal/service/openai_messages_digest_session.go",
         "backend/internal/service/openai_proxy_stream_circuit.go",
         "backend/internal/service/openai_refresh_failure_runtime.go",
@@ -2755,6 +2753,28 @@
       "test_mapping": "service-openai-auxiliary-test-mapping.json",
       "completed_at": "2026-09-25",
       "exit": "Embeddings、AlphaSearch、两类input_tokens计数的实现、生产消费者、测试、精确门禁与装配同时改绑；计数路由不再依赖旧服务。原有请求/输出实例仍由当前组合根共享，旧主请求与WS拥有者继续退出。"
+    },
+    "openai-images": {
+      "status": "verified",
+      "files": [
+        "backend/internal/service/openai_images.go",
+        "backend/internal/service/openai_images_b64_backfill.go",
+        "backend/internal/service/openai_images_responses.go"
+      ],
+      "native_owners": [
+        "gateway/httpapi.OpenAIImagesExecutor",
+        "gateway/httpapi.OpenAIRequests",
+        "gateway/httpapi.OpenAIResponseOutput",
+        "account/provider.ImageToolCooldown",
+        "gateway/provider.ImagesURLToB64JSONEnabled",
+        "gateway/media",
+        "upstream/openai",
+        "app"
+      ],
+      "verification": "service-openai-images-owner-verification.json",
+      "test_mapping": "service-openai-images-test-mapping.json",
+      "completed_at": "2026-09-25",
+      "exit": "图片 API Key/OAuth、响应及回填生产直接绑定原生实例；测试和替身同批退出，模型级冷却由账号 Adapter 拥有。无旧 Service 图片方法或实例字段。"
     }
   },
   "boundary_notes": {
@@ -2779,8 +2799,8 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 60,
-    "test_files": 201,
-    "verified_batch": "openai-auxiliary"
+    "production_files": 57,
+    "test_files": 191,
+    "verified_batch": "openai-images"
   }
 }

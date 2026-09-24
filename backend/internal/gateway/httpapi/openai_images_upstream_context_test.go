@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -10,11 +10,12 @@ import (
 	"testing"
 	time "time"
 
+	media "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -31,15 +32,8 @@ func newOpenAIImagesTestContext(t *testing.T, body []byte) (*gin.Context, *httpt
 	return c, rec
 }
 
-func newOpenAIImagesTestService(upstream httpclient.UpstreamTransport) *OpenAIGatewayService {
-	return withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg: &config.Config{
-			Security: config.SecurityConfig{
-				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
-			},
-		},
-	})
+func newOpenAIImagesTestService(upstream httpclient.UpstreamTransport) *OpenAIImagesExecutor {
+	return newImagesFixture(imagesFixtureInputs{transport: upstream})
 }
 
 func newOpenAIImagesAPIKeyAccount() *gatewayprovider.ExecutionAccount {
@@ -75,10 +69,10 @@ func TestForwardOpenAIImagesAPIKey_NonStreamDetachesUpstreamContext(t *testing.T
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
 	c, _ := newOpenAIImagesTestContext(t, body)
 
-	recorder := &httpUpstreamRecorder{resp: openAIImagesJSONResponse()}
+	recorder := &auxiliaryHTTPRecorder{resp: openAIImagesJSONResponse()}
 	svc := newOpenAIImagesTestService(recorder)
 
-	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 	require.False(t, parsed.Stream, "本用例覆盖非流式生图")
 
@@ -101,7 +95,7 @@ func TestForwardOpenAIImagesAPIKey_StreamKeepsDetachedUpstreamContext(t *testing
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"b64_json"}`)
 	c, _ := newOpenAIImagesTestContext(t, body)
 
-	recorder := &httpUpstreamRecorder{resp: &http.Response{
+	recorder := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
 			"Content-Type": []string{"text/event-stream"},
@@ -115,7 +109,7 @@ func TestForwardOpenAIImagesAPIKey_StreamKeepsDetachedUpstreamContext(t *testing
 	}}
 	svc := newOpenAIImagesTestService(recorder)
 
-	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 	require.True(t, parsed.Stream)
 

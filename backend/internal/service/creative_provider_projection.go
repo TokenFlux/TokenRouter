@@ -9,7 +9,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/creative"
-	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	creativeprovider "github.com/TokenFlux/TokenRouter/internal/creative/provider"
@@ -30,19 +29,11 @@ func (gateway *OpenAIGatewayService) CreativeTarget(account *gatewayprovider.Exe
 		return value, err
 	}
 	target.OpenAI = &creativeprovider.OpenAIOptions{Token: token, URL: func(endpoint string) (string, error) {
-		targetURL := openAIImagesGenerationsURL
-		if endpoint == upstream.OpenAIImagesEditsEndpoint {
-			targetURL = openAIImagesEditsURL
-		}
-		baseURL := gatewayprovider.ExecutionProtocolTarget(account).GetOpenAIBaseURL()
-		if baseURL == "" {
-			return targetURL, nil
-		}
-		validated, err := gateway.Requests.ValidateBaseURL(baseURL)
+		targetURL, err := gateway.Requests.ImagesURL(account, endpoint)
 		if err != nil {
 			return "", creative.CreativeNonRetryableError("creative openai base url invalid: %s", err.Error())
 		}
-		return httpclient.BuildOpenAIEndpointURL(validated, endpoint), nil
+		return targetURL, nil
 	}, Prepare: func(req *http.Request) *http.Request {
 		return req.WithContext(upstream.WithHTTPUpstreamProfile(req.Context(), upstream.HTTPUpstreamProfileOpenAI))
 	}, AuthHeaders: func(ctx context.Context, token string) (http.Header, error) {

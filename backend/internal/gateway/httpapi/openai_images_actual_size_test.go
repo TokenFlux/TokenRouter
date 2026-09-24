@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 	time "time"
+
+	media "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -75,7 +77,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingUsesDecodedOutputDimens
 type openAIOAuthImageActualSizeTestRun struct {
 	result   *forwardcore.OpenAIResult
 	recorder *httptest.ResponseRecorder
-	upstream *httpUpstreamRecorder
+	upstream *auxiliaryHTTPRecorder
 }
 
 func runOpenAIOAuthImageActualSizeTest(t *testing.T, stream bool) openAIOAuthImageActualSizeTestRun {
@@ -96,7 +98,7 @@ func runOpenAIOAuthImageActualSizeTest(t *testing.T, stream bool) openAIOAuthIma
 			"data: [DONE]\n\n",
 		encoded,
 	)
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
 			"Content-Type": []string{"text/event-stream"},
@@ -104,8 +106,8 @@ func runOpenAIOAuthImageActualSizeTest(t *testing.T, stream bool) openAIOAuthIma
 		},
 		Body: io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
-	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	svc := newImagesFixture(imagesFixtureInputs{transport: upstream})
+	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,

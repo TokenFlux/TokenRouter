@@ -30,6 +30,7 @@ var gatewayExecutionProviders = wire.NewSet(
 	provideOpenAIResponseState,
 	provideOpenAIGatewayExecution,
 	provideOpenAIAuxiliary,
+	provideOpenAIImages,
 	provideGatewayBillingRates,
 	provideCreativeExecutor,
 	provideGeminiForward,

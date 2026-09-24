@@ -25,6 +25,8 @@ OAuth 授权会话、刷新结果补全和凭据组装由 `account.OpenAIAuthori
 
 标准 Responses、passthrough、Chat/Messages 转换和 Raw Chat 读取使用原生实现，通过同步 OutputSink 输出。 `gateway/httpapi.OpenAIResponseOutput` 固定绑定响应读取、Header、错误规则、健康观测、超时及诊断；app 注入静态参数，TTFT 设置仍在原读取时点查询。响应结果直接使用上游读取器的值类型，保留“仅有观测的失败”在不同入口上的返回差异。首输出暂存器拥有当前尝试的内存和临时文件；protocol 唯一提供工具参数、usage、终态重建和图片产出计数。Embeddings、Images 和 Alpha Search 的单次执行负责网络调用和响应资源，账号选择、健康写入及全局重试由入站适配。Alpha Search 在错误处理回卷响应体时仍关闭最初取得的上游 Body。计数查询保持原生完整 JSON 与 Anthropic 兼容响应的区别，不作为推理结算事实。 Embeddings、AlphaSearch、Messages count_tokens 和 Responses input_tokens 由 `gateway/httpapi.OpenAIAuxiliary` 直接接入；请求构造与健康/输出复用原实例，模型投影和计数请求准备归 gateway/provider。计数路由直接组合 RoutePlanner、选择器及受控账号目标，不再通过旧网关服务取得执行能力。
 
+图片入口由 `gateway/httpapi.OpenAIImagesExecutor` 组合原生请求和输出能力，app 将同一实例直接绑定到媒体运行时。API Key 与 OAuth 分支保留各自的协议转换、实际产出计数和失败资格。图片请求在原位置脱离客户端取消，读取完成后才交付已观测用量；JSON 心跳不视为真实图片输出。URL 回填复用原传输与逐跳目标校验，不改变返回格式选择和计费元数据。结构化图片工具不可用事件由 account/provider.ImageToolCooldown 写模型级冷却，模型文字兜底不触发该写入。
+
 OAuth 补全账号元数据时，ID token 中的个人 `chatgpt_plan_type` 是个人套餐的权威来源。`accounts/check` 可能按 access token 的 `poid` 命中另一个 workspace；仅当该记录的账号 ID 与个人 `chatgpt_account_id` 一致时，才能把它的 `entitlement.expires_at` 与个人套餐组合。账号不一致时，到期时间必须改从个人 `/backend-api/subscriptions` 的 `active_until` 获取；若套餐本身来自 `accounts/check`，套餐和到期时间仍保持来自同一条记录。
 
 OAuth 账号可受 Codex CLI-only、允许客户端、agent identity、privacy status 和 OAuth passthrough 策略限制。OAuth 出站的 `originator` 必须与最终 User-Agent 首段配对；客户端未提供可识别官方身份或身份修复失败时统一回退 `codex-tui`，PAT、模型/额度探测、Alpha Search、HTTP 与 WebSocket 走同一默认身份。客户端或 TLS 路由显式提供且可配对的官方身份继续保留，历史 `codex_cli_rs` 仍只作为兼容识别值。API Key 账号不应借用 OAuth-only 的内部端点或身份元数据。Header override、代理、base URL 和 TLS 配置属于出站安全边界，不能覆盖受保护认证头或绕过目标校验。

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -134,4 +136,22 @@ func (s *OpenAIRequests) RawChatURL(account *gatewayprovider.ExecutionAccount) (
 	}
 
 	return s.ChatURL(account)
+}
+
+// ImagesURL 保留默认端点、第三方 base 和编辑路径的选择顺序。
+func (s *OpenAIRequests) ImagesURL(account *gatewayprovider.ExecutionAccount, endpoint string) (string, error) {
+	targetURL := openAIImagesGenerationsURL
+	if endpoint == upstream.OpenAIImagesEditsEndpoint {
+		targetURL = openAIImagesEditsURL
+	}
+	baseURL := gatewayprovider.ExecutionProtocolTarget(account).GetOpenAIBaseURL()
+	if baseURL != "" {
+		validatedURL, err := s.ValidateBaseURL(baseURL)
+		if err != nil {
+			return "", err
+		}
+		targetURL = httpclient.BuildOpenAIEndpointURL(validatedURL, endpoint)
+	}
+
+	return targetURL, nil
 }

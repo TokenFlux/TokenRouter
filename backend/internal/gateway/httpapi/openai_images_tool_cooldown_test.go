@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package httpapi
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -27,7 +26,7 @@ import (
 
 // countingModelRateLimitRepo 记录 SetModelRateLimit 调用，用于断言"没写账号状态"。
 type countingModelRateLimitRepo struct {
-	accountRepoStub
+	gatewayprovider.ExecutionAccountStore
 	calls  int
 	scopes []string
 }
@@ -94,16 +93,16 @@ func TestShouldCoolOpenAIImagesToolForError(t *testing.T) {
 func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount(t *testing.T) {
 	c, _ := newImagesCooldownContext(t)
 	repo := &countingModelRateLimitRepo{}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	svc := newImagesFixture(imagesFixtureInputs{store: repo})
 	account := imagesCooldownAccount()
 
-	upstreamErr := openAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
+	upstreamErr := openai.OpenAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
 	require.NotNil(t, upstreamErr)
 	require.Equal(t, "image_generation_unavailable", upstreamErr.Code)
 
 	err := svc.handleOpenAIImagesOAuthResponseError(
 		context.Background(), c, account, "gpt-image-2", "https://upstream.example/v1/responses",
-		&http.Response{StatusCode: http.StatusOK, Header: http.Header{}}, gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
+		&http.Response{StatusCode: http.StatusOK, Header: http.Header{}}, OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
 	)
 
 	require.Zero(t, repo.calls, "模型闲聊不构成账号级证据，不得写 30 分钟冷却")
@@ -117,7 +116,7 @@ func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount(t *
 func TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAccount(t *testing.T) {
 	c, _ := newImagesCooldownContext(t)
 	repo := &countingModelRateLimitRepo{}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	svc := newImagesFixture(imagesFixtureInputs{store: repo})
 	account := imagesCooldownAccount()
 
 	upstreamErr := &openai.OpenAIImagesUpstreamError{
@@ -129,7 +128,7 @@ func TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAcc
 
 	_ = svc.handleOpenAIImagesOAuthResponseError(
 		context.Background(), c, account, "gpt-image-2", "https://upstream.example/v1/responses",
-		&http.Response{StatusCode: http.StatusOK, Header: http.Header{}}, gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
+		&http.Response{StatusCode: http.StatusOK, Header: http.Header{}}, OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
 	)
 
 	require.Equal(t, 1, repo.calls, "结构化上游证据仍须写冷却")
@@ -139,7 +138,7 @@ func TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAcc
 // 标记必须打在文字兜底的两个入口上，且不影响违规拦截分支的判定。
 func TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts(t *testing.T) {
 	t.Run("plain_text_reply_is_synthesized", func(t *testing.T) {
-		err := openAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
+		err := openai.OpenAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
 		require.NotNil(t, err)
 		require.True(t, err.SynthesizedFromModelText)
 		require.Equal(t, "image_generation_unavailable", err.Code)
@@ -151,13 +150,13 @@ func TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts(t *testing.T) {
 			`data: {"type":"response.completed","response":{"id":"r","status":"completed",` +
 			`"output":[{"type":"message","content":[{"type":"output_text","text":"I drafted a prompt for you."}]}]}}` +
 			"\n\n")
-		err := openAIImagesTextFallbackError(body)
+		err := openai.OpenAIImagesTextFallbackError(body)
 		require.NotNil(t, err)
 		require.True(t, err.SynthesizedFromModelText)
 	})
 
 	t.Run("content_policy_branch_unchanged", func(t *testing.T) {
-		err := openAIImagesTextFallbackErrorForText("Blocked by our content policy.")
+		err := openai.OpenAIImagesTextFallbackErrorForText("Blocked by our content policy.")
 		require.NotNil(t, err)
 		require.Equal(t, "content_policy_violation", err.Code)
 		require.Equal(t, http.StatusBadRequest, err.StatusCode)
@@ -167,14 +166,14 @@ func TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts(t *testing.T) {
 	})
 
 	t.Run("empty_text_yields_no_error", func(t *testing.T) {
-		require.Nil(t, openAIImagesTextFallbackErrorForText("   "))
+		require.Nil(t, openai.OpenAIImagesTextFallbackErrorForText("   "))
 	})
 }
 
 // 级联的前提条件：该错误确实是可重试的，所以会带着"已写冷却"的副作用换号。
 // 这条用例把前提钉死，避免以后有人把 502 改成非重试后误以为本修复多余。
 func TestOpenAIImagesTextFallback_RemainsRetryableAndThusCascades(t *testing.T) {
-	err := openAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
+	err := openai.OpenAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
 	require.NotNil(t, err)
 	require.True(t, openai.IsOpenAIImagesRetryableUpstreamError(err),
 		"文字兜底判据是可重试的——正因如此，写账号冷却会沿号池级联")

@@ -8,10 +8,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
-func (s *accountRepoStub) ListOAuthRefreshCandidates(context.Context) ([]gatewayprovider.ExecutionAccount, error) {
-	panic("unexpected ListOAuthRefreshCandidates call")
-}
-
 func (m *groupAwareMockAccountRepo) ListOAuthRefreshCandidates(context.Context) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListOAuthRefreshCandidates call")
 }

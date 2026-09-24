@@ -3,6 +3,7 @@ package app
 import (
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
@@ -82,6 +83,10 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 		input.Source.BindTextExecution(&gatewayhttp.OpenAITextExecutor{Requests: &gatewayhttp.OpenAIRequests{}, CodexUsage: &accountprovider.CodexUsageObserver{}})
 	}
 
+	var images *gatewayhttp.OpenAIImagesExecutor
+	if input.Source != nil {
+		images = provideOpenAIImages(input.Source, &gatewayRequestActivity{Operations: lifecycle.NewOperations("image-execution-fixture")})
+	}
 	f := &gatewayHTTPEndpointsFixture{Input: &input}
 	resources := func() *gatewayhttp.OpenAIHTTPResources {
 		return &gatewayhttp.OpenAIHTTPResources{Concurrency: input.Concurrency, Images: input.Images, ImageOptions: openAIImageAdmissionOptions(input.Config)}
@@ -123,7 +128,7 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 	}
 	media := func() *mediaentry.Runtime {
 		common, _, _ := base()
-		bindings := mediaBindings(input.Source, input.Credentials, input.Keys, input.Funding, common, resources(), nil, input.Config, input.Source.Grok, provideGrokVideoTasks(nil, input.Config), input.Source.Auxiliary)
+		bindings := mediaBindings(input.Source, input.Credentials, input.Keys, input.Funding, common, resources(), nil, input.Config, input.Source.Grok, provideGrokVideoTasks(nil, input.Config), input.Source.Auxiliary, images)
 		bindings.Options.MaxSwitches = input.MaxSwitches
 		bindings.EligibilityProber = nil
 		return mediaentry.New(bindings)

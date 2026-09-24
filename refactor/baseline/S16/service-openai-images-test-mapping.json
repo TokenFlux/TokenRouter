@@ -1,0 +1,2923 @@
+{
+  "assertion_call_count_changes": 0,
+  "baseline_head": "74a7f2d8465b883df4b18c2fdd022eccbddc2f88",
+  "missing": 0,
+  "moved": 101,
+  "note": "名称、构建条件、源与目标函数摘要和断言调用对应；构造/投影改写以及循环展开须结合源码核对。",
+  "tests": [
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/images_keepalive_execution_test.go",
+        "name": "TestOpenAIImagesJSONKeepalive_KeepsOAuthNonStreamResponseValid",
+        "tag": "normal",
+        "body_sha256": "0f6dcbb4baf55e1fb8d7f13065bee412634510792ad8c6824b4456c227774ee0",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/images_keepalive_execution_test.go",
+          "name": "TestOpenAIImagesJSONKeepalive_KeepsOAuthNonStreamResponseValid",
+          "tag": "normal",
+          "body_sha256": "53abdcb11661a265268733d47531f19dd9f30481dfe8aa0d78d52d02782afc8d",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/images_keepalive_execution_test.go",
+        "name": "TestOpenAIImagesJSONKeepalive_HeartbeatBeforeForwardStillFailsOver",
+        "tag": "normal",
+        "body_sha256": "30dc68a19e91d139c13a459ee0e59a65a4ec76a0c5d807ac253096e38c3b2eec",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Empty": 1,
+          "require.Equal": 4,
+          "require.ErrorAs": 1,
+          "require.Len": 1,
+          "require.Nil": 1,
+          "require.NoError": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/images_keepalive_execution_test.go",
+          "name": "TestOpenAIImagesJSONKeepalive_HeartbeatBeforeForwardStillFailsOver",
+          "tag": "normal",
+          "body_sha256": "126cdf49ab18709d0db82559a0656e644b0c09b2771105f56639b280bbfcb3d5",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Empty": 1,
+            "require.Equal": 4,
+            "require.ErrorAs": 1,
+            "require.Len": 1,
+            "require.Nil": 1,
+            "require.NoError": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_actual_size_test.go",
+        "name": "TestDetectOpenAIImageResultSize",
+        "tag": "normal",
+        "body_sha256": "fd6762e48b5802130b68eccd3addde0a08d1f2050d750bd9008a3f86c649eac6",
+        "assertions": {
+          "require.Empty": 2,
+          "require.Equal": 7
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_actual_size_test.go",
+          "name": "TestDetectOpenAIImageResultSize",
+          "tag": "normal",
+          "body_sha256": "fd6762e48b5802130b68eccd3addde0a08d1f2050d750bd9008a3f86c649eac6",
+          "assertions": {
+            "require.Empty": 2,
+            "require.Equal": 7
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_actual_size_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthUsesDecodedOutputDimensions",
+        "tag": "normal",
+        "body_sha256": "9181554653c723c9eb088a81edfa0e36daf4c92a5bfdcb405cc046fa6df66686",
+        "assertions": {
+          "require.Equal": 8
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_actual_size_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthUsesDecodedOutputDimensions",
+          "tag": "normal",
+          "body_sha256": "9181554653c723c9eb088a81edfa0e36daf4c92a5bfdcb405cc046fa6df66686",
+          "assertions": {
+            "require.Equal": 8
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_actual_size_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingUsesDecodedOutputDimensions",
+        "tag": "normal",
+        "body_sha256": "0d08764914694aff05018ce9f9b083a14376386516a99eff9fc4ffc00015681f",
+        "assertions": {
+          "require.Equal": 3,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_actual_size_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingUsesDecodedOutputDimensions",
+          "tag": "normal",
+          "body_sha256": "0d08764914694aff05018ce9f9b083a14376386516a99eff9fc4ffc00015681f",
+          "assertions": {
+            "require.Equal": 3,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestImagesURLToB64JSONEnabled",
+        "tag": "normal",
+        "body_sha256": "0a224230c5998054f555c5e05a4ad54712ebfefd78787b8b9170fddc118a053f",
+        "assertions": {
+          "require.False": 4,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestImagesURLToB64JSONEnabled",
+          "tag": "normal",
+          "body_sha256": "29c06aee5f1b2aa761660d31485b2f6860d36a151de25a55a2df2df2648e65cc",
+          "assertions": {
+            "require.False": 4,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestBackfillOpenAIImagesB64JSON",
+        "tag": "normal",
+        "body_sha256": "46fd366f0eb1a019627d3ceda805f24631b3eaa4afa7593def28bd96380c62d1",
+        "assertions": {
+          "require.Equal": 3,
+          "require.Len": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestBackfillOpenAIImagesB64JSON",
+          "tag": "normal",
+          "body_sha256": "00eda6520be01774de0d59f96a14e0018d1e0abfa344077656262a75517f8d3f",
+          "assertions": {
+            "require.Equal": 3,
+            "require.Len": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestBackfillOpenAIImagesB64JSON_DownloadRequestShape",
+        "tag": "normal",
+        "body_sha256": "b07b44b8a7b30ed54490c5fa0177cfd4db3de45409692bf6ac272bd29c4a5d35",
+        "assertions": {
+          "require.Empty": 3,
+          "require.Equal": 4,
+          "require.False": 1,
+          "require.Len": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestBackfillOpenAIImagesB64JSON_DownloadRequestShape",
+          "tag": "normal",
+          "body_sha256": "1702cbc96d0154c077b37ac6932a3c0be1bfcd2930247d3750135d6a0349efb0",
+          "assertions": {
+            "require.Empty": 3,
+            "require.Equal": 4,
+            "require.False": 1,
+            "require.Len": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestBackfillOpenAIImagesB64JSON_RejectsPrivateHosts",
+        "tag": "normal",
+        "body_sha256": "b76d66375e17b044a55a588b09e5c7ca4a586516b89c3cc6d18e696bc2cf6e96",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 2,
+          "require.Len": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestBackfillOpenAIImagesB64JSON_RejectsPrivateHosts",
+          "tag": "normal",
+          "body_sha256": "261171b1f7fceeafeaf1c293141824887d2a07f17804e4edd35c2653c9142b04",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 2,
+            "require.Len": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestIsBackfillImageContent",
+        "tag": "normal",
+        "body_sha256": "c9586e05d810b59858078c7bd11a5e7676fc626dadbbc7dcf9b751251a48fcdd",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestIsBackfillImageContent",
+          "tag": "normal",
+          "body_sha256": "c9586e05d810b59858078c7bd11a5e7676fc626dadbbc7dcf9b751251a48fcdd",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestBackfillOpenAIImagesB64JSON_NonObjectBodies",
+        "tag": "normal",
+        "body_sha256": "7d673e86385ac701b7f266e56c6af31e379687117e781597d2cb438172ad8063",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestBackfillOpenAIImagesB64JSON_NonObjectBodies",
+          "tag": "normal",
+          "body_sha256": "e8c2f98a4f563e6824376aba793ed69b52729ad277d8c8349e6a9a5cd22b7595",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL",
+        "tag": "normal",
+        "body_sha256": "1f57ea903e7cb53941f352dbd13c7264a87d84fca7e4b2d83b29017529056057",
+        "assertions": {
+          "require.Equal": 10,
+          "require.False": 1,
+          "require.Len": 1,
+          "require.NoError": 2,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL",
+          "tag": "normal",
+          "body_sha256": "2b8c1545959094f2b7bf8db98e108d522dc0b6657168a135058c3e9157d90885",
+          "assertions": {
+            "require.Equal": 10,
+            "require.False": 1,
+            "require.Len": 1,
+            "require.NoError": 2,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_APIKeyLeavesURLOnlyResponseWhenDisabled",
+        "tag": "normal",
+        "body_sha256": "f25ac328b167911dd88c5aa5a77c2802837398cae7e83adea07f1b16b1ee46a6",
+        "assertions": {
+          "require.Equal": 3,
+          "require.Len": 1,
+          "require.NoError": 2,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_APIKeyLeavesURLOnlyResponseWhenDisabled",
+          "tag": "normal",
+          "body_sha256": "a399451f0a01b2537c2448f4e530319dc581e14561a4878a908d458395913a78",
+          "assertions": {
+            "require.Equal": 3,
+            "require.Len": 1,
+            "require.NoError": 2,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestBackfillOpenAIImagesB64JSON_ForkBoundaries",
+        "tag": "normal",
+        "body_sha256": "ff7393c29ddf1fe79c303b50498394026708183664b5119fe4d634220e6f4ff9",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 5
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestBackfillOpenAIImagesB64JSON_ForkBoundaries",
+          "tag": "normal",
+          "body_sha256": "f0c551746d1112c90ee171e3f5643a449bf54898d35e31646b5cd3ac63391388",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestBackfillOpenAIImagesB64JSON_SizeAndDataURLValidation",
+        "tag": "normal",
+        "body_sha256": "823b4e4e538319cb81125a8e0444916be529d1178fcbe5b7bc558b07d8b21349",
+        "assertions": {
+          "require.Equal": 2,
+          "require.Len": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestBackfillOpenAIImagesB64JSON_SizeAndDataURLValidation",
+          "tag": "normal",
+          "body_sha256": "fdb93ab4964add20ab3b4025fee23ecaaa3803a968984243a0dc8b6ab42cd1ee",
+          "assertions": {
+            "require.Equal": 2,
+            "require.Len": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_b64_backfill_test.go",
+        "name": "TestBackfillOpenAIImagesB64JSON_PreservesBillingMetadata",
+        "tag": "normal",
+        "body_sha256": "3c1075060a1b6ab3ab0b539ddc14bd692e317554b9f1ad7d99f2258ee611e83f",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 4,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_b64_backfill_test.go",
+          "name": "TestBackfillOpenAIImagesB64JSON_PreservesBillingMetadata",
+          "tag": "normal",
+          "body_sha256": "22c577e4451542768feb680ef30c721b233a730231a89e7ef7e8f6f064f2b379",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 4,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestExtractImagesUpstreamError_IncompleteIsRetryable",
+        "tag": "normal",
+        "body_sha256": "045eb937cd480b6fff9ab70dad05169783b9642dc070b63d366d587ea7ce8d26",
+        "assertions": {
+          "t.Fatal": 2,
+          "t.Fatalf": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestExtractImagesUpstreamError_IncompleteIsRetryable",
+          "tag": "normal",
+          "body_sha256": "045eb937cd480b6fff9ab70dad05169783b9642dc070b63d366d587ea7ce8d26",
+          "assertions": {
+            "t.Fatal": 2,
+            "t.Fatalf": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestExtractImagesUpstreamError_IncompleteContentFilterNotRetryable",
+        "tag": "normal",
+        "body_sha256": "b91c7537b02edb0d1b3daf9667e2c82be669c378b3658a261fa305aa1baecdaa",
+        "assertions": {
+          "t.Fatal": 2,
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestExtractImagesUpstreamError_IncompleteContentFilterNotRetryable",
+          "tag": "normal",
+          "body_sha256": "b91c7537b02edb0d1b3daf9667e2c82be669c378b3658a261fa305aa1baecdaa",
+          "assertions": {
+            "t.Fatal": 2,
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestExtractImagesUpstreamError_ErrorAndFailedUnchanged",
+        "tag": "normal",
+        "body_sha256": "f4392b6c6c399cd54ecac926e354473720f0f52c2060aab1683f54abc739eed8",
+        "assertions": {
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestExtractImagesUpstreamError_ErrorAndFailedUnchanged",
+          "tag": "normal",
+          "body_sha256": "f4392b6c6c399cd54ecac926e354473720f0f52c2060aab1683f54abc739eed8",
+          "assertions": {
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestSummarizeNoOutputBody_ExtractsDiagnostics",
+        "tag": "normal",
+        "body_sha256": "b063e43a41de90e709b70d9e30bd92c11c19df9d2b99be9356c8cdc4b711148b",
+        "assertions": {
+          "t.Fatalf": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestSummarizeNoOutputBody_ExtractsDiagnostics",
+          "tag": "normal",
+          "body_sha256": "b063e43a41de90e709b70d9e30bd92c11c19df9d2b99be9356c8cdc4b711148b",
+          "assertions": {
+            "t.Fatalf": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestSummarizeNoOutputBody_IncompleteReasonAndTruncation",
+        "tag": "normal",
+        "body_sha256": "523e6f5b6278fe38631125e556f498eedd93c5fd7c85db0f10ccb5cb4fd3ece8",
+        "assertions": {
+          "t.Fatalf": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestSummarizeNoOutputBody_IncompleteReasonAndTruncation",
+          "tag": "normal",
+          "body_sha256": "523e6f5b6278fe38631125e556f498eedd93c5fd7c85db0f10ccb5cb4fd3ece8",
+          "assertions": {
+            "t.Fatalf": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestSummarizeNoOutputBody_RespectsLogBodyConfig",
+        "tag": "normal",
+        "body_sha256": "b58290fc066245d23f9af87dc61456708a8a6d141fbf5ccaa8978549c73fa59a",
+        "assertions": {
+          "t.Fatalf": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestSummarizeNoOutputBody_RespectsLogBodyConfig",
+          "tag": "normal",
+          "body_sha256": "55a928fcbee5b7039ba7878aefffce52b28ab6b4398fbe7278317570d8a57c89",
+          "assertions": {
+            "t.Fatalf": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestImagesOAuthNonStreaming_CompletedNoImageTriggersSameAccountRetry",
+        "tag": "normal",
+        "body_sha256": "feea00cc361f0752234dffc813b34f7bbb590621fc5d3e04af12144097949ccb",
+        "assertions": {
+          "t.Fatal": 2,
+          "t.Fatalf": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestImagesOAuthNonStreaming_CompletedNoImageTriggersSameAccountRetry",
+          "tag": "normal",
+          "body_sha256": "a44fc84e27bdae170d04427c9929d8a336ba02e4e8318760c5a95336dbf40102",
+          "assertions": {
+            "t.Fatal": 2,
+            "t.Fatalf": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestImagesOAuthNonStreaming_ContentRefusalReturns400NoRetry",
+        "tag": "normal",
+        "body_sha256": "f5fd1d124fe95b37615c8b1c70617339d04b6e92974d8b3087fcab35f4b05ec2",
+        "assertions": {
+          "t.Fatal": 1,
+          "t.Fatalf": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestImagesOAuthNonStreaming_ContentRefusalReturns400NoRetry",
+          "tag": "normal",
+          "body_sha256": "07260c40bd6b3037ae446de07c1bb228c5e966b7ebbee67b17cbacecad55c93c",
+          "assertions": {
+            "t.Fatal": 1,
+            "t.Fatalf": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestImagesOAuthNonStreaming_TextFallbackReturnsCapabilityError",
+        "tag": "normal",
+        "body_sha256": "c3ca3550764b7c136cbd5dfc229e14f5bb701110c91654e61db1b2df30d4c61b",
+        "assertions": {
+          "t.Fatalf": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestImagesOAuthNonStreaming_TextFallbackReturnsCapabilityError",
+          "tag": "normal",
+          "body_sha256": "a141a9c0052d2d656adb0064028007fd6224f5f6321d69fa134f929b1a167f10",
+          "assertions": {
+            "t.Fatalf": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError",
+        "tag": "normal",
+        "body_sha256": "682ac2d865696647324901fe5540e3d98d43ae32ca154f75480aed2bc51fdc38",
+        "assertions": {
+          "t.Fatal": 1,
+          "t.Fatalf": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError",
+          "tag": "normal",
+          "body_sha256": "cf7c1e8f3255a892125405f3b1bce10f90715d88f18897e5193df44e3daffb0c",
+          "assertions": {
+            "t.Fatal": 1,
+            "t.Fatalf": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestImagesOAuthStreaming_SplitSafetyRefusalReturns400",
+        "tag": "normal",
+        "body_sha256": "ec1d1d502c332100ce1414a53646f1f140f521c0c7dfa150e0b1c33d12d8befc",
+        "assertions": {
+          "t.Fatal": 1,
+          "t.Fatalf": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestImagesOAuthStreaming_SplitSafetyRefusalReturns400",
+          "tag": "normal",
+          "body_sha256": "c71d8d8546f1d6188e93160f91408ab498bec1beac6aca6389f7b6669506f063",
+          "assertions": {
+            "t.Fatal": 1,
+            "t.Fatalf": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_incomplete_test.go",
+        "name": "TestExtractModelRefusal_EmptyWhenNoText",
+        "tag": "normal",
+        "body_sha256": "640d2a8d5b34c33f70c2d26da8245ac8d1514793d74ccd8276e48bc4aa3a9699",
+        "assertions": {
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_incomplete_test.go",
+          "name": "TestExtractModelRefusal_EmptyWhenNoText",
+          "tag": "normal",
+          "body_sha256": "640d2a8d5b34c33f70c2d26da8245ac8d1514793d74ccd8276e48bc4aa3a9699",
+          "assertions": {
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSON",
+        "tag": "normal",
+        "body_sha256": "0d6762dcb79798d0e904c9fa9915d6c1916153ca57928d7609dfcc8f5aebc0e8",
+        "assertions": {
+          "require.Equal": 6,
+          "require.False": 1,
+          "require.NoError": 1,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSON",
+          "tag": "normal",
+          "body_sha256": "410667a995d90cff0f0894aead3138d2c8772a0a4c951a346f14d5daaa6bd9aa",
+          "assertions": {
+            "require.Equal": 6,
+            "require.False": 1,
+            "require.NoError": 1,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEdit",
+        "tag": "normal",
+        "body_sha256": "aa564f24a48e4552993dc44531a26cbd5ae381b7fe513828c061e63dc83ae6b8",
+        "assertions": {
+          "require.Equal": 6,
+          "require.Len": 1,
+          "require.NoError": 7,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEdit",
+          "tag": "normal",
+          "body_sha256": "b1b65fb7ca6f1fba857ce975db10ad5cc4c6c6d76941a48927884cc9d2a53aa0",
+          "assertions": {
+            "require.Equal": 6,
+            "require.Len": 1,
+            "require.NoError": 7,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIImagesRequestModerationBody_JSONEditIncludesInputImageURLs",
+        "tag": "normal",
+        "body_sha256": "9faa272807a193c38dd1b439392f493e6349d3f9eb5f598473f2d45683ba8a28",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIImagesRequestModerationBody_JSONEditIncludesInputImageURLs",
+          "tag": "normal",
+          "body_sha256": "9faa272807a193c38dd1b439392f493e6349d3f9eb5f598473f2d45683ba8a28",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_NormalizesOfficialAndCustomSizes",
+        "tag": "normal",
+        "body_sha256": "d3af72260e0bdde6602181de7b36233b99cf55a0ff2979a2c423bfaade6f5151",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_NormalizesOfficialAndCustomSizes",
+          "tag": "normal",
+          "body_sha256": "5289eadf90db8551e192ccacd9a6ef53d2b00bdcc9af8819dfdd0a015750ced0",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_UnknownSizesDoNotBlockPassthrough",
+        "tag": "normal",
+        "body_sha256": "e7b2d5930acd9fc1b349688b0236e650b77c34f24f6706b70f940b759a5ae8cb",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_UnknownSizesDoNotBlockPassthrough",
+          "tag": "normal",
+          "body_sha256": "e5c7119f0a9d8a1e7d7a83c7e36da5a2b58f1d9c56965f2c57da21010899bcb8",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_LegacyImageModelUnknownSizePassthrough",
+        "tag": "normal",
+        "body_sha256": "f0cd221248552e3b83176ed952509db6e0e98474b909fac2fcff3acf0ff1412b",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_LegacyImageModelUnknownSizePassthrough",
+          "tag": "normal",
+          "body_sha256": "1546e209d7fc0cebca494d71a15525021fcf4cc7e1a9c8ba042e6fb527f5dd78",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEditWithMaskAndNativeOptions",
+        "tag": "normal",
+        "body_sha256": "9530825de373acf0c872b720560c4b323a7bdd5882cd89fcb5baa5c64e73dde4",
+        "assertions": {
+          "require.Equal": 5,
+          "require.Len": 1,
+          "require.NoError": 12,
+          "require.NotNil": 4,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEditWithMaskAndNativeOptions",
+          "tag": "normal",
+          "body_sha256": "9452c132ff1475b32043f6e5a040f1486e1fe2b47440e4eb84f9c6221fc415ac",
+          "assertions": {
+            "require.Equal": 5,
+            "require.Len": 1,
+            "require.NoError": 12,
+            "require.NotNil": 4,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_PromptOnlyDefaultsRemainBasic",
+        "tag": "normal",
+        "body_sha256": "092a701b41ffc96de3430db4358b603b1e9f85ca506036f87b84f8979d29d9a8",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_PromptOnlyDefaultsRemainBasic",
+          "tag": "normal",
+          "body_sha256": "07d61194f51ff0a9e26a045a40aa6f654c98a18de1a1589d69f961613a9ea937",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_ExplicitSizeRequiresNativeCapability",
+        "tag": "normal",
+        "body_sha256": "664326a33a3ba54e5b1a1d918c19af914acaeceffae6ecd6a26fc6f6e9b86d50",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_ExplicitSizeRequiresNativeCapability",
+          "tag": "normal",
+          "body_sha256": "f6cafb3d0a3afdf132a4e5019370bd1531d0cb6eb7c42b3dbbf7bb15390b159c",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_RejectsNonImageModel",
+        "tag": "normal",
+        "body_sha256": "ef6adfa54f558899a4f19e26282629b7361ac0fc6b97d00d8774b6a5725c6946",
+        "assertions": {
+          "require.ErrorContains": 1,
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_RejectsNonImageModel",
+          "tag": "normal",
+          "body_sha256": "6cf54f15367043f1e23419d06ce20b48fa1cb346551e145a8d65f6301cfede9f",
+          "assertions": {
+            "require.ErrorContains": 1,
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequestForRouting",
+        "tag": "normal",
+        "body_sha256": "e104431d032ab38b6b11fc21630390f2a7e54830fe7da10a5f3ff5f50d7a4241",
+        "assertions": {
+          "require.Equal": 2,
+          "require.ErrorContains": 1,
+          "require.NoError": 2,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequestForRouting",
+          "tag": "normal",
+          "body_sha256": "06e04f84a2f3533e11cc8801699779fe750b5bfab7b8e7db5c0c03e8514ca511",
+          "assertions": {
+            "require.Equal": 2,
+            "require.ErrorContains": 1,
+            "require.NoError": 2,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_AllowsGrokImageModels",
+        "tag": "normal",
+        "body_sha256": "8b5f1ece810014a3a1fd0d7dccc0a40e707d3c9b57f34471081888690a77c202",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_AllowsGrokImageModels",
+          "tag": "normal",
+          "body_sha256": "68c40bc620500c5f811fcfef0da1e7a30e48c3cc02d2925ac2ecb7ccc760060b",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSONEditURLs",
+        "tag": "normal",
+        "body_sha256": "bf5217beb8d83ff34a575c777d3ab43031b96fe2469190d46668b45f1bad2e29",
+        "assertions": {
+          "require.Equal": 6,
+          "require.NoError": 1,
+          "require.NotNil": 3,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSONEditURLs",
+          "tag": "normal",
+          "body_sha256": "242cac6c95b698989ba9757d13067ba5a361dd4ca3c07b7135a76ea5fe318200",
+          "assertions": {
+            "require.Equal": 6,
+            "require.NoError": 1,
+            "require.NotNil": 3,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestCollectOpenAIImagePointers_RecognizesDirectAssets",
+        "tag": "normal",
+        "body_sha256": "62f6f79827c542cf4fca7008597ba1b55201829adffeed8c72df470b9c0c14b5",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Len": 1,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestCollectOpenAIImagePointers_RecognizesDirectAssets",
+          "tag": "normal",
+          "body_sha256": "62f6f79827c542cf4fca7008597ba1b55201829adffeed8c72df470b9c0c14b5",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Len": 1,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestResolveOpenAIImageBytes_PrefersInlineBase64",
+        "tag": "normal",
+        "body_sha256": "cdc00c122b544b11118110946bf95cb0a8556104a3e2c96bea29a55c1be5ca3e",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestResolveOpenAIImageBytes_PrefersInlineBase64",
+          "tag": "normal",
+          "body_sha256": "d032ae61cff5cf54dfa162889cecf1e9b48c75b1c620942562006d7b07026cdc",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestNewOpenAIImageStatusError_UsesProvidedReadLimit",
+        "tag": "normal",
+        "body_sha256": "c078d3788521732b701d6c49b824518f785585f43a3fbcd35b3617c3e710d04a",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Error": 1,
+          "require.ErrorAs": 1,
+          "require.Len": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestNewOpenAIImageStatusError_UsesProvidedReadLimit",
+          "tag": "normal",
+          "body_sha256": "5d1aad9e1240af7321318a561e0022ca8df215a9ae41c918fbbff479bb47a5c2",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Error": 1,
+            "require.ErrorAs": 1,
+            "require.Len": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestAccountSupportsOpenAIImageCapability_OAuthSupportsNative",
+        "tag": "normal",
+        "body_sha256": "8467e59eeeff13ae6fb0728fa1ca5102c2a0f2504f6f4dbe4f9bf61366af7d02",
+        "assertions": {
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestAccountSupportsOpenAIImageCapability_OAuthSupportsNative",
+          "tag": "normal",
+          "body_sha256": "ce865b15227581bfcd14682c3c996f4c02e556c3a0e32c29e99ce1f2ed4c64d8",
+          "assertions": {
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestAccountSupportsOpenAIImageCapability_SetupTokenSupportsNative",
+        "tag": "normal",
+        "body_sha256": "fc51e1298a9f5ee1aca4ce4239df1c5586af31011fd1a377f52d016ebf31c44d",
+        "assertions": {
+          "require.False": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestAccountSupportsOpenAIImageCapability_SetupTokenSupportsNative",
+          "tag": "normal",
+          "body_sha256": "28c1d07c59c72925360d99e9d52b4637cac7d72805e0d27df2d742991a81d018",
+          "assertions": {
+            "require.False": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestAccountSupportsOpenAIImageCapability_EmptyRequirementDoesNotRejectGrok",
+        "tag": "normal",
+        "body_sha256": "92a305a5a2694b3f4a0424fe0894ac9e3cef5a5dcd38551a6245f590332e5a6b",
+        "assertions": {
+          "require.False": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestAccountSupportsOpenAIImageCapability_EmptyRequirementDoesNotRejectGrok",
+          "tag": "normal",
+          "body_sha256": "966ea0a78c0586cc2155303477476c0da72b78b3279b131ce5a245885e1ccf14",
+          "assertions": {
+            "require.False": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestBuildOpenAIImagesURL_HandlesVersionedBaseURL",
+        "tag": "normal",
+        "body_sha256": "d3fb2ac067924fd99fb8d48e85ad2833d6c3198a6effa57b32d4bcce6cb534a0",
+        "assertions": {
+          "require.Equal": 5
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestBuildOpenAIImagesURL_HandlesVersionedBaseURL",
+          "tag": "normal",
+          "body_sha256": "d3fb2ac067924fd99fb8d48e85ad2833d6c3198a6effa57b32d4bcce6cb534a0",
+          "assertions": {
+            "require.Equal": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsAllImages",
+        "tag": "normal",
+        "body_sha256": "0369e3ca33137e1c97ad2df5b72d347693b353f35363a881bc8080ba4dfb9437",
+        "assertions": {
+          "require.Equal": 28,
+          "require.Len": 1,
+          "require.NoError": 2,
+          "require.NotNil": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsAllImages",
+          "tag": "normal",
+          "body_sha256": "53dac5a6c9b6b1fda33fdd9f525c17eb6de6580ce70d02ef117e3a16dfd953c7",
+          "assertions": {
+            "require.Equal": 28,
+            "require.Len": 1,
+            "require.NoError": 2,
+            "require.NotNil": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestParseOpenAIImagesSSEUsageBytes_ToolUsagePrecedenceAndFallback",
+        "tag": "normal",
+        "body_sha256": "18d4836be237a9a86355a130b54db7608089568b97bd26a56c3ed79bf042e271",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestParseOpenAIImagesSSEUsageBytes_ToolUsagePrecedenceAndFallback",
+          "tag": "normal",
+          "body_sha256": "927b09179addb14e0e6db4be213bd4e26e9ab6115fbdf7c9386e04649b52d12b",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestParseOpenAIImagesSSEUsageBytes_MalformedCompletedDoesNotOverrideUsage",
+        "tag": "normal",
+        "body_sha256": "9d1fee6c157b779f80dd083daf24f01e4d90c1e8d2539d22237efa4239bbd4e3",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestParseOpenAIImagesSSEUsageBytes_MalformedCompletedDoesNotOverrideUsage",
+          "tag": "normal",
+          "body_sha256": "9958754885de227d6ca06e602c4b6e4e774354bd505b7feee7e35350f1f6123b",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestBoundedJSONNonNegativeInt",
+        "tag": "normal",
+        "body_sha256": "ac8eec163e3b91b33bee0de6dc3c912dc78758a415c89342104ef5d7b6213a77",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestBoundedJSONNonNegativeInt",
+          "tag": "normal",
+          "body_sha256": "ac8eec163e3b91b33bee0de6dc3c912dc78758a415c89342104ef5d7b6213a77",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealError",
+        "tag": "normal",
+        "body_sha256": "0e9085c529c75ec5e96aa873ef2ec8d1312274eb6bae949f56d9eb9b04469d45",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 7,
+          "require.ErrorAs": 1,
+          "require.Nil": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealError",
+          "tag": "normal",
+          "body_sha256": "f2f0ae40b37388f03e8d3a148a5fb451ac59108bf5ac15224733a50d768e6aba",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 7,
+            "require.ErrorAs": 1,
+            "require.Nil": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturnsClientError",
+        "tag": "normal",
+        "body_sha256": "1a53c10567b23561ab31820f987e5e62cac526649a2fa40aedb5760a6a44965b",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 5,
+          "require.ErrorAs": 1,
+          "require.Nil": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturnsClientError",
+          "tag": "normal",
+          "body_sha256": "4d7543dfb46f5ca8d4c86d209e0e40564dc98d87b6bf08b98892de15b8b447d2",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 5,
+            "require.ErrorAs": 1,
+            "require.Nil": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthNonStreamServerErrorReturnsFailoverBeforeFlush",
+        "tag": "normal",
+        "body_sha256": "48fe27bdccee16d537f7e9b4249f9a2995afc50f2a7185d9595f2a82312f785d",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Empty": 1,
+          "require.Equal": 4,
+          "require.ErrorAs": 1,
+          "require.False": 1,
+          "require.Len": 1,
+          "require.Nil": 1,
+          "require.NoError": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthNonStreamServerErrorReturnsFailoverBeforeFlush",
+          "tag": "normal",
+          "body_sha256": "da21bc0eafb831a230a4dbe40b048185ac54e124ec3f80af3a12ef4b29f47025",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Empty": 1,
+            "require.Equal": 4,
+            "require.ErrorAs": 1,
+            "require.False": 1,
+            "require.Len": 1,
+            "require.Nil": 1,
+            "require.NoError": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuth429CarriesSameAccountRetryWindow",
+        "tag": "normal",
+        "body_sha256": "ff52fcf99789d9cd0356c232471f18b34c0779b6ccfef380c155ebdcd429448c",
+        "assertions": {
+          "require.Equal": 1,
+          "require.ErrorAs": 1,
+          "require.Nil": 1,
+          "require.NoError": 1,
+          "require.True": 1,
+          "require.WithinDuration": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuth429CarriesSameAccountRetryWindow",
+          "tag": "normal",
+          "body_sha256": "1b9c1e19178e9f845f73bcc199c078e9ec8a5ad6fb4bfb794afec6535a4a2692",
+          "assertions": {
+            "require.Equal": 1,
+            "require.ErrorAs": 1,
+            "require.Nil": 1,
+            "require.NoError": 1,
+            "require.True": 1,
+            "require.WithinDuration": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIImagesOAuthBodyReadTransportErrorFailover",
+        "tag": "normal",
+        "body_sha256": "813bf69ee06356fcc35c87ad8cdea4caef3d1ab324c816e2a86ae47a8fbbaf57",
+        "assertions": {
+          "require.Equal": 7,
+          "require.Error": 1,
+          "require.ErrorAs": 1,
+          "require.JSONEq": 1,
+          "require.Len": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIImagesOAuthBodyReadTransportErrorFailover",
+          "tag": "normal",
+          "body_sha256": "ef157c74dd9687204a7d2076692b900e988294e6adad6e2d0111f9494a7da506",
+          "assertions": {
+            "require.Equal": 7,
+            "require.Error": 1,
+            "require.ErrorAs": 1,
+            "require.JSONEq": 1,
+            "require.Len": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIImagesOAuthBodyReadErrorsNotMisclassified",
+        "tag": "normal",
+        "body_sha256": "4789594f5c3ebad3681327d8ac9f456e3b0f3b763be940160704936abe55f072",
+        "assertions": {
+          "require.ErrorIs": 1,
+          "require.False": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIImagesOAuthBodyReadErrorsNotMisclassified",
+          "tag": "normal",
+          "body_sha256": "ba7a1df426632abda40e7c7eec54546529fa19d8575dff67be37df4f10d21174",
+          "assertions": {
+            "require.ErrorIs": 1,
+            "require.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIImagesOAuthTransportErrorAfterDownstreamWriteDoesNotFailover",
+        "tag": "normal",
+        "body_sha256": "29d09ef6124d53af77ae4d4ea336c02951565e55b43a20d522aa45bda76e29fb",
+        "assertions": {
+          "require.Equal": 1,
+          "require.ErrorIs": 1,
+          "require.False": 1,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIImagesOAuthTransportErrorAfterDownstreamWriteDoesNotFailover",
+          "tag": "normal",
+          "body_sha256": "cdcfe86ab3675bb9b6a614da3c953ad522b713110b331e50bc74912361fd66d4",
+          "assertions": {
+            "require.Equal": 1,
+            "require.ErrorIs": 1,
+            "require.False": 1,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestShouldClassifyOpenAIUpstreamStreamReadErrorTransportStrings",
+        "tag": "normal",
+        "body_sha256": "199948db63a7e59748e8b58ff16ad2f75225e9f945adb1290acbf8ebf5f9c01d",
+        "assertions": {
+          "require.False": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestShouldClassifyOpenAIUpstreamStreamReadErrorTransportStrings",
+          "tag": "normal",
+          "body_sha256": "199948db63a7e59748e8b58ff16ad2f75225e9f945adb1290acbf8ebf5f9c01d",
+          "assertions": {
+            "require.False": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseURL",
+        "tag": "normal",
+        "body_sha256": "949dd566fcea97517abd156bbfbf9651cc47e17e03c4a11963fa49068255cdd0",
+        "assertions": {
+          "require.Equal": 9,
+          "require.NoError": 2,
+          "require.NotNil": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseURL",
+          "tag": "normal",
+          "body_sha256": "5974e037720055498056ee6b43df554c5db399b4a58a4370e3c86e2463f39583",
+          "assertions": {
+            "require.Equal": 9,
+            "require.NoError": 2,
+            "require.NotNil": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_APIKeyAccessStateUsesTypedFailover",
+        "tag": "normal",
+        "body_sha256": "b2620beee3025da072a88c36a5a75788280706e1c60792a44258a65dfb544e3a",
+        "assertions": {
+          "require.Equal": 8,
+          "require.ErrorAs": 1,
+          "require.False": 2,
+          "require.Nil": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_APIKeyAccessStateUsesTypedFailover",
+          "tag": "normal",
+          "body_sha256": "b1a43d987c2e9b01a4d213425e89336205ef380086e83ac9d9fa1a0e30bc163c",
+          "assertions": {
+            "require.Equal": 8,
+            "require.ErrorAs": 1,
+            "require.False": 2,
+            "require.Nil": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_APIKeyStreamJSONResponseBillsImage",
+        "tag": "normal",
+        "body_sha256": "46d3e6911937326ff52115bbcba688e4cd9b3af4a288fdbcb9f73cec95b2080d",
+        "assertions": {
+          "require.Equal": 6,
+          "require.NoError": 2,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_APIKeyStreamJSONResponseBillsImage",
+          "tag": "normal",
+          "body_sha256": "fe9a3ebcc9deae5afdfc09daebc1259cabb81304520508b1750ddba82d70e430",
+          "assertions": {
+            "require.Equal": 6,
+            "require.NoError": 2,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_APIKeyStreamRawJSONEventStreamFallbackBillsImage",
+        "tag": "normal",
+        "body_sha256": "0503b1a4a2e40ba8148b734e4695a64496e9f1b725d41115130609de995e8aa5",
+        "assertions": {
+          "require.Equal": 5,
+          "require.NoError": 2,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_APIKeyStreamRawJSONEventStreamFallbackBillsImage",
+          "tag": "normal",
+          "body_sha256": "b1c19859eec2d75e3d3bdf37843a77a712ed92f8ee56809ad0078d193eff3c03",
+          "assertions": {
+            "require.Equal": 5,
+            "require.NoError": 2,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_APIKeyStreamMultilineSSEDataBillsImage",
+        "tag": "normal",
+        "body_sha256": "d976e571f448d48e01123cfc353f9dd774832a994d9df7d78e4327906f71ce2a",
+        "assertions": {
+          "require.Equal": 4,
+          "require.NoError": 2,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_APIKeyStreamMultilineSSEDataBillsImage",
+          "tag": "normal",
+          "body_sha256": "fdb39f9ed364d2f9eddcdc041c29bd6f7e5bd9e927bbec6352241f978724f737",
+          "assertions": {
+            "require.Equal": 4,
+            "require.NoError": 2,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestExtractOpenAIImagesBillableCountFromJSONBytes_CompletedEvent",
+        "tag": "normal",
+        "body_sha256": "533b6ed311cd798a0423d7ad2b51c01c5a9cb641e226c1a4b87092257ea58db5",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestExtractOpenAIImagesBillableCountFromJSONBytes_CompletedEvent",
+          "tag": "normal",
+          "body_sha256": "3dca62bb26df58052a5eddde33b876e90b2422c10463c424011e898d2c68fcba",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL",
+        "tag": "normal",
+        "body_sha256": "7ba19f0fb470a736896f50c61d8658e27f19cd6eae94fd0780eefed95c69ee3d",
+        "assertions": {
+          "require.Contains": 3,
+          "require.Equal": 5,
+          "require.NoError": 7,
+          "require.NotNil": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL",
+          "tag": "normal",
+          "body_sha256": "67df005ec2c0b1e89c3ef8ef8fe26a4bcb580b854c99044b76f7d25eb70e7d40",
+          "assertions": {
+            "require.Contains": 3,
+            "require.Equal": 5,
+            "require.NoError": 7,
+            "require.NotNil": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents",
+        "tag": "normal",
+        "body_sha256": "a98feda001fd5f94d31a605bb94981a41b090cd784880598a0ffdf37ed9d8ed8",
+        "assertions": {
+          "require.Equal": 20,
+          "require.False": 1,
+          "require.JSONEq": 1,
+          "require.NoError": 2,
+          "require.NotNil": 1,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents",
+          "tag": "normal",
+          "body_sha256": "0bbac47208efdbd4efefcf84de22611d0c15cc1a395f34e86d991880e3a346ea",
+          "assertions": {
+            "require.Equal": 20,
+            "require.False": 1,
+            "require.JSONEq": 1,
+            "require.NoError": 2,
+            "require.NotNil": 1,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingModerationBlockedEmitsError",
+        "tag": "normal",
+        "body_sha256": "3903c336b21e7a88e7dc30cbdde9c59a16c849dc7aab870233eb0fc21e2b9d73",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 5,
+          "require.ErrorAs": 1,
+          "require.Nil": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingModerationBlockedEmitsError",
+          "tag": "normal",
+          "body_sha256": "e436c4d09ec12757910ae8fcd57d83d230f6cc5d514dd7cc01335a5f81ea0628",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 5,
+            "require.ErrorAs": 1,
+            "require.Nil": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorBeforeFlushReturnsFailover",
+        "tag": "normal",
+        "body_sha256": "f879186723c65237f9ce60bd4996b2363e3308f525ce06e43f3307cdebebc5be",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Empty": 1,
+          "require.Equal": 1,
+          "require.ErrorAs": 1,
+          "require.False": 1,
+          "require.Nil": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorBeforeFlushReturnsFailover",
+          "tag": "normal",
+          "body_sha256": "8971ef82aacd2c2a68998a5a91bdc3fa1694fbff891b0c6ea21047c4ef1ed990",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Empty": 1,
+            "require.Equal": 1,
+            "require.ErrorAs": 1,
+            "require.False": 1,
+            "require.Nil": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorAfterFlushDoesNotFailover",
+        "tag": "normal",
+        "body_sha256": "6d2383d4bd76ff23c8c9f048406c2cf0c6dd19c4a50024cca2bd3e55575408be",
+        "assertions": {
+          "require.Contains": 3,
+          "require.Equal": 1,
+          "require.ErrorAs": 1,
+          "require.False": 1,
+          "require.Len": 1,
+          "require.Nil": 1,
+          "require.NoError": 1,
+          "require.True": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorAfterFlushDoesNotFailover",
+          "tag": "normal",
+          "body_sha256": "7d301c89267f6ba8d2bea4ace53208ef1cf42b7a66da801b85149f6d49a9797e",
+          "assertions": {
+            "require.Contains": 3,
+            "require.Equal": 1,
+            "require.ErrorAs": 1,
+            "require.False": 1,
+            "require.Len": 1,
+            "require.Nil": 1,
+            "require.NoError": 1,
+            "require.True": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIImagesSSEErrorStatus",
+        "tag": "normal",
+        "body_sha256": "30016ac0e7e8cd9ade790510084861d83fbd36d3f9cbf2ed7d7aee649c337f5b",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIImagesSSEErrorStatus",
+          "tag": "normal",
+          "body_sha256": "30016ac0e7e8cd9ade790510084861d83fbd36d3f9cbf2ed7d7aee649c337f5b",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_APIKeyStreamingDrainsAfterClientDisconnect",
+        "tag": "normal",
+        "body_sha256": "e6e4cbf72bf70d718bb7bc0494b4f84307f31786fc1c9481f161a63e686200d5",
+        "assertions": {
+          "require.Equal": 4,
+          "require.NoError": 2,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_APIKeyStreamingDrainsAfterClientDisconnect",
+          "tag": "normal",
+          "body_sha256": "cb4125fa837927d00c4a2efb9e9c9fd1aef48a1127327a3af440468c0fd31882",
+          "assertions": {
+            "require.Equal": 4,
+            "require.NoError": 2,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI",
+        "tag": "normal",
+        "body_sha256": "388116a4c0f17171e866134da0d261e3eb3283f89e2bf1f5b05479a59db7016f",
+        "assertions": {
+          "require.Equal": 7,
+          "require.False": 1,
+          "require.NoError": 12,
+          "require.NotNil": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI",
+          "tag": "normal",
+          "body_sha256": "6cef92e374a5be7d268fd20667bb76a00f74022fa5821c874691178b5e22d8a0",
+          "assertions": {
+            "require.Equal": 7,
+            "require.False": 1,
+            "require.NoError": 12,
+            "require.NotNil": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthEditsStreamingTransformsEvents",
+        "tag": "normal",
+        "body_sha256": "59927f80ac39533ccd3448b9ae8607ef2dba2b9511e58ef9edf74a94dee67c11",
+        "assertions": {
+          "require.Equal": 22,
+          "require.False": 1,
+          "require.JSONEq": 1,
+          "require.NoError": 2,
+          "require.NotNil": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthEditsStreamingTransformsEvents",
+          "tag": "normal",
+          "body_sha256": "762c2e177cd4aed2821b93e93df8c5e27ac91d39d325832b0ce4d9ae170d4cdb",
+          "assertions": {
+            "require.Equal": 22,
+            "require.False": 1,
+            "require.JSONEq": 1,
+            "require.NoError": 2,
+            "require.NotNil": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestBuildOpenAIImagesResponsesRequest_PassesThroughNForMultiImageModels",
+        "tag": "normal",
+        "body_sha256": "dfc3fd1bfd0e8117ab75158ce0b460114a47f78e4c369aa473acf4e538341ebe",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestBuildOpenAIImagesResponsesRequest_PassesThroughNForMultiImageModels",
+          "tag": "normal",
+          "body_sha256": "dfc3fd1bfd0e8117ab75158ce0b460114a47f78e4c369aa473acf4e538341ebe",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestBuildOpenAIImagesResponsesRequest_ForcesImageToolChoice",
+        "tag": "normal",
+        "body_sha256": "89d449c00eb5a84dce431a7e908793daee3733fdfd67ff657d4b36e6f3e51751",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestBuildOpenAIImagesResponsesRequest_ForcesImageToolChoice",
+          "tag": "normal",
+          "body_sha256": "89d449c00eb5a84dce431a7e908793daee3733fdfd67ff657d4b36e6f3e51751",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestBuildOpenAIImagesResponsesRequest_DoesNotPassNForDallE3",
+        "tag": "normal",
+        "body_sha256": "180b5bc2114e381b70e19920eafce97376f79ff245d1d05d34a2b26088a96fde",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestBuildOpenAIImagesResponsesRequest_DoesNotPassNForDallE3",
+          "tag": "normal",
+          "body_sha256": "180b5bc2114e381b70e19920eafce97376f79ff245d1d05d34a2b26088a96fde",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestBuildOpenAIImagesResponsesRequest_StripsInputFidelity",
+        "tag": "normal",
+        "body_sha256": "86816964b93788284373312a8875f8edab22419686840d3bc1dfabf76e4a2608",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestBuildOpenAIImagesResponsesRequest_StripsInputFidelity",
+          "tag": "normal",
+          "body_sha256": "86816964b93788284373312a8875f8edab22419686840d3bc1dfabf76e4a2608",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestBuildOpenAIImagesResponsesRequest_RequiresVerbatimUserPrompt",
+        "tag": "normal",
+        "body_sha256": "3faa4048dc6be7ab34c777c87fc627c9bc3e90d97911ccd4f96c07481f36bc25",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestBuildOpenAIImagesResponsesRequest_RequiresVerbatimUserPrompt",
+          "tag": "normal",
+          "body_sha256": "3faa4048dc6be7ab34c777c87fc627c9bc3e90d97911ccd4f96c07481f36bc25",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestCollectOpenAIImagesFromResponsesBody_FallsBackToOutputItemDone",
+        "tag": "normal",
+        "body_sha256": "0bccd796725ee496e2ea9e00776cc594914e347c9e3efa2fbb79bc724b8d9470",
+        "assertions": {
+          "require.Equal": 4,
+          "require.JSONEq": 1,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestCollectOpenAIImagesFromResponsesBody_FallsBackToOutputItemDone",
+          "tag": "normal",
+          "body_sha256": "32adf4c4bb679bf365bc1cfe95b65ec47cdcc259095fa0c89252b6fe3707ae15",
+          "assertions": {
+            "require.Equal": 4,
+            "require.JSONEq": 1,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestCollectOpenAIImagesFromResponsesBody_MultilineSSE",
+        "tag": "normal",
+        "body_sha256": "bf5e1643b1fd9b216409316bfbd2a736a0c5c7fb51f9cb7bee223567d94f47ee",
+        "assertions": {
+          "require.Equal": 3,
+          "require.JSONEq": 1,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestCollectOpenAIImagesFromResponsesBody_MultilineSSE",
+          "tag": "normal",
+          "body_sha256": "1bf0a67f8b362ec1289971c1a44fe176502da5d42a4b26f4cb1990771729d8d7",
+          "assertions": {
+            "require.Equal": 3,
+            "require.JSONEq": 1,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesOutputItemDoneFallback",
+        "tag": "normal",
+        "body_sha256": "d41c09cbcfa981226691ece1862855fc030e95ef7308e21041bdee90af9904d7",
+        "assertions": {
+          "require.Equal": 6,
+          "require.JSONEq": 1,
+          "require.NoError": 2,
+          "require.NotContains": 1,
+          "require.NotNil": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesOutputItemDoneFallback",
+          "tag": "normal",
+          "body_sha256": "bb50f3377de4d20d38acc5975658faf7c0114a21ac95573327a75182165d3981",
+          "assertions": {
+            "require.Equal": 6,
+            "require.JSONEq": 1,
+            "require.NoError": 2,
+            "require.NotContains": 1,
+            "require.NotNil": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesMultilineSSE",
+        "tag": "normal",
+        "body_sha256": "c22b2f377e62f0dedf6c8f2ba4ba852c7d8ca5d196e26cdce596118c91125820",
+        "assertions": {
+          "require.Equal": 5,
+          "require.JSONEq": 1,
+          "require.NoError": 2,
+          "require.NotContains": 1,
+          "require.NotNil": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesMultilineSSE",
+          "tag": "normal",
+          "body_sha256": "3d8c36537c5a422fc49b75158efe30b003596b0d99a2fa95291a0dd56f0c289f",
+          "assertions": {
+            "require.Equal": 5,
+            "require.JSONEq": 1,
+            "require.NoError": 2,
+            "require.NotContains": 1,
+            "require.NotNil": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingDrainsAfterClientDisconnect",
+        "tag": "normal",
+        "body_sha256": "ea7ecbec4a9e3283a3842c20ff1c097494d9b706d88b6a0ef41be7faa3ff5d86",
+        "assertions": {
+          "require.Equal": 4,
+          "require.NoError": 2,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_OAuthStreamingDrainsAfterClientDisconnect",
+          "tag": "normal",
+          "body_sha256": "88d2aac49bedb96e9959a269219486edf402bbfc349e0b1efec14028ac1d5f18",
+          "assertions": {
+            "require.Equal": 4,
+            "require.NoError": 2,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_tool_cooldown_test.go",
+        "name": "TestShouldCoolOpenAIImagesToolForError",
+        "tag": "unit",
+        "body_sha256": "ebfabfe2a756f4db02c0204e75366fcb5cfc8608d5699b022c72c8da31928d5b",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_tool_cooldown_test.go",
+          "name": "TestShouldCoolOpenAIImagesToolForError",
+          "tag": "unit",
+          "body_sha256": "ebfabfe2a756f4db02c0204e75366fcb5cfc8608d5699b022c72c8da31928d5b",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_tool_cooldown_test.go",
+        "name": "TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount",
+        "tag": "unit",
+        "body_sha256": "a79060f8041877f50a0c94c95d240e225da1652736fc7743907696130b7ddbd8",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NotNil": 1,
+          "require.True": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_tool_cooldown_test.go",
+          "name": "TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount",
+          "tag": "unit",
+          "body_sha256": "f55fefff2977f0832ceef6aedb64db6dab02fc3738e2c7a5c7152724e90c2439",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NotNil": 1,
+            "require.True": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_tool_cooldown_test.go",
+        "name": "TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAccount",
+        "tag": "unit",
+        "body_sha256": "0bcec4f2581d7ae505a523ab7d24fdfe457a3efa3fea765de9b6eb57c61277b3",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_tool_cooldown_test.go",
+          "name": "TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAccount",
+          "tag": "unit",
+          "body_sha256": "dd1a8e4a3c80ef404e9125b7fcadb079f2b492895147e46ee86806988cbf7479",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_tool_cooldown_test.go",
+        "name": "TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts",
+        "tag": "unit",
+        "body_sha256": "c981815243207a544e64fa0fd49e84eddbf6bc69a79fc7e7b41dcb46b39292f2",
+        "assertions": {
+          "require.Equal": 4,
+          "require.False": 1,
+          "require.Nil": 1,
+          "require.NotNil": 3,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_tool_cooldown_test.go",
+          "name": "TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts",
+          "tag": "unit",
+          "body_sha256": "56bd8c63cc4d0a485575b4d9e24d50176f4b711d89d4a9e4eff11072b8cca2ec",
+          "assertions": {
+            "require.Equal": 4,
+            "require.False": 1,
+            "require.Nil": 1,
+            "require.NotNil": 3,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_tool_cooldown_test.go",
+        "name": "TestOpenAIImagesTextFallback_RemainsRetryableAndThusCascades",
+        "tag": "unit",
+        "body_sha256": "f036a65b202dbe9c9de3de71e493810d4011b688e4dd370dea8bc88207419d1b",
+        "assertions": {
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_tool_cooldown_test.go",
+          "name": "TestOpenAIImagesTextFallback_RemainsRetryableAndThusCascades",
+          "tag": "unit",
+          "body_sha256": "f27e99ffa5ecf35f8095143ee7208bec31192e75520238daeb7d61433c891b98",
+          "assertions": {
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_upstream_context_test.go",
+        "name": "TestForwardOpenAIImagesAPIKey_NonStreamDetachesUpstreamContext",
+        "tag": "normal",
+        "body_sha256": "86249f675f9c34ea8dcb6f5bd799476bd9b94ac448035a5b5d750b430d1f96e2",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 3,
+          "require.NotNil": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_upstream_context_test.go",
+          "name": "TestForwardOpenAIImagesAPIKey_NonStreamDetachesUpstreamContext",
+          "tag": "normal",
+          "body_sha256": "4c405392e5d2604621d38ea5f01f5c2949828d9f1e6629632fc1c54832837b6f",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 3,
+            "require.NotNil": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_upstream_context_test.go",
+        "name": "TestForwardOpenAIImagesAPIKey_StreamKeepsDetachedUpstreamContext",
+        "tag": "normal",
+        "body_sha256": "6540e1ca00c67b2994ee060fbf7700976d7bc1cc31c006362e746d35c11f1dca",
+        "assertions": {
+          "require.NoError": 2,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_upstream_context_test.go",
+          "name": "TestForwardOpenAIImagesAPIKey_StreamKeepsDetachedUpstreamContext",
+          "tag": "normal",
+          "body_sha256": "6662a6a794fc6414b0e0b01ee2be06bdbfceffd730d485990b085c64d9023ee9",
+          "assertions": {
+            "require.NoError": 2,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_images_upstream_context_test.go",
+        "name": "TestDetachUpstreamContextSemantics",
+        "tag": "normal",
+        "body_sha256": "bec2e729295fcfeee7f039f0f63911cd0370dd57b85dacfaeff3e44c2da1b1db",
+        "assertions": {
+          "require.ErrorIs": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_upstream_context_test.go",
+          "name": "TestDetachUpstreamContextSemantics",
+          "tag": "normal",
+          "body_sha256": "bec2e729295fcfeee7f039f0f63911cd0370dd57b85dacfaeff3e44c2da1b1db",
+          "assertions": {
+            "require.ErrorIs": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_setup_token_compat_test.go",
+        "name": "TestOpenAISetupTokenImagesUsesOAuthResponsesPath",
+        "tag": "normal",
+        "body_sha256": "e4629becccdf141644c10e0346006bb111cb9b9ad45ee4521911d868278765a5",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1,
+          "require.ErrorAs": 1,
+          "require.False": 1,
+          "require.Nil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_setup_token_test.go",
+          "name": "TestOpenAISetupTokenImagesUsesOAuthResponsesPath",
+          "tag": "normal",
+          "body_sha256": "9e6431526d875993bd6b75142c575d0841341ad8091c37783e163dd695bb6753",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1,
+            "require.ErrorAs": 1,
+            "require.False": 1,
+            "require.Nil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/ratelimit_service_openai_image_test.go",
+        "name": "TestOpenAIGatewayService_HandleOpenAIAccountUpstreamError_ImageRateLimitDoesNotBlockWholeAccount",
+        "tag": "unit",
+        "body_sha256": "3db8cee19ae0f24a265b85750b45387e61f2aacf542b9bdbde7dee2066c9f745",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 2,
+          "require.Len": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_health_test.go",
+          "name": "TestOpenAIGatewayService_HandleOpenAIAccountUpstreamError_ImageRateLimitDoesNotBlockWholeAccount",
+          "tag": "unit",
+          "body_sha256": "d639da4b072118ac6a8f82bc49bbfde21d7bc4e16a391e349e27b92fd99634f8",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 2,
+            "require.Len": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/ratelimit_service_openai_image_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCoolsCapability",
+        "tag": "unit",
+        "body_sha256": "4fc75eb188e77df57ee5c72f6ee0864fd550b3038806a60ddc5489c9d6341d76",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 2,
+          "require.ErrorAs": 1,
+          "require.Len": 1,
+          "require.Nil": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_health_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCoolsCapability",
+          "tag": "unit",
+          "body_sha256": "0b753167f1a8b1ab25794f25374988f6f24a94b514bc915025405159765c5e95",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 2,
+            "require.ErrorAs": 1,
+            "require.Len": 1,
+            "require.Nil": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/ratelimit_service_openai_image_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_TextFallbackDoesNotCoolImageCapability",
+        "tag": "unit",
+        "body_sha256": "bdba98c3f941a246e13118a800d9188722b5965bf4fa86a52348c0e4d173f42b",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 1,
+          "require.Error": 1,
+          "require.ErrorAs": 1,
+          "require.False": 1,
+          "require.Nil": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_health_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_TextFallbackDoesNotCoolImageCapability",
+          "tag": "unit",
+          "body_sha256": "d87bb256300e995698735d42853f04bcf5027486942c7f4c2ef0c7a42ad2b283",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 1,
+            "require.Error": 1,
+            "require.ErrorAs": 1,
+            "require.False": 1,
+            "require.Nil": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/ratelimit_service_openai_image_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_StructuredUnavailableCoolsImageCapability",
+        "tag": "unit",
+        "body_sha256": "e2bebd0e16f895c410f3ef989dee0f0848a62e174ac4ac7362c1b799790da8f9",
+        "assertions": {
+          "require.Equal": 3,
+          "require.Error": 1,
+          "require.Len": 1,
+          "require.Nil": 1,
+          "require.NoError": 1,
+          "require.WithinDuration": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_health_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_StructuredUnavailableCoolsImageCapability",
+          "tag": "unit",
+          "body_sha256": "9ae7f369ced7096b3987636f753a2429a9bc9d14ebcbac50994897b69efc62ae",
+          "assertions": {
+            "require.Equal": 3,
+            "require.Error": 1,
+            "require.Len": 1,
+            "require.Nil": 1,
+            "require.NoError": 1,
+            "require.WithinDuration": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/ratelimit_service_openai_image_test.go",
+        "name": "TestOpenAIGatewayService_CoolOpenAIImagesOAuthToolUsesConfiguredCooldown",
+        "tag": "unit",
+        "body_sha256": "20381624b3062e30cfafd39096433800923625c5a6dad4ec3df7b76a894a9f15",
+        "assertions": {
+          "require.Len": 1,
+          "require.WithinDuration": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_health_test.go",
+          "name": "TestOpenAIGatewayService_CoolOpenAIImagesOAuthToolUsesConfiguredCooldown",
+          "tag": "unit",
+          "body_sha256": "5e26e615541acf183113f7402a58b66ca60e0e31ce7e10cde2c33610fe579100",
+          "assertions": {
+            "require.Len": 1,
+            "require.WithinDuration": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/ratelimit_service_openai_image_test.go",
+        "name": "TestOpenAIGatewayServiceForwardImages_CapabilityLossCoolsImageScope",
+        "tag": "unit",
+        "body_sha256": "d9f276fa13845a7830d92a27a0d2f7cb33f7907624f9195526406e75488d1593",
+        "assertions": {
+          "require.Equal": 3,
+          "require.Error": 1,
+          "require.Len": 1,
+          "require.Nil": 1,
+          "require.NoError": 1,
+          "require.WithinDuration": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_health_test.go",
+          "name": "TestOpenAIGatewayServiceForwardImages_CapabilityLossCoolsImageScope",
+          "tag": "unit",
+          "body_sha256": "c3437079c10efea4264f9bdd411962a6214c36b3220f1d76a7635b768c4fb2f8",
+          "assertions": {
+            "require.Equal": 3,
+            "require.Error": 1,
+            "require.Len": 1,
+            "require.Nil": 1,
+            "require.NoError": 1,
+            "require.WithinDuration": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/ratelimit_service_openai_image_test.go",
+        "name": "TestOpenAIGatewayServiceHandleUpstreamError_PassthroughCapabilityLossDoesNotCool",
+        "tag": "unit",
+        "body_sha256": "f1780cc2ffa2e8bd73dee9732d4f030a738d7612067c2a4ffb2fbbc4fb92bbcd",
+        "assertions": {
+          "require.Empty": 1,
+          "require.False": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_images_health_test.go",
+          "name": "TestOpenAIGatewayServiceHandleUpstreamError_PassthroughCapabilityLossDoesNotCool",
+          "tag": "unit",
+          "body_sha256": "f7f6ae79c12cb187e084ac081f1ec034a983d6f1242a0c42c54837231cd2bc61",
+          "assertions": {
+            "require.Empty": 1,
+            "require.False": 2
+          }
+        }
+      ]
+    }
+  ]
+}

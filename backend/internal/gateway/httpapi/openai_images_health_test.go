@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -12,12 +12,14 @@ import (
 	"testing"
 	"time"
 
+	media "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 	settingstestkit "github.com/TokenFlux/TokenRouter/internal/settings/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -26,16 +28,16 @@ import (
 
 func TestOpenAIGatewayService_HandleOpenAIAccountUpstreamError_ImageRateLimitDoesNotBlockWholeAccount(t *testing.T) {
 	repo := &gatewaytestkit.ModelHealthStore{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
+	svc := newImagesFixture(imagesFixtureInputs{observer: gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: repo, Options: accountcore.HealthOptions{}})})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 203, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"type":"rate_limit_exceeded","message":"Rate limit reached for gpt-image-2-codex (for limit gpt-image) on input-images per min. Please try again in 1s."}}`)
 
-	disabled := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusTooManyRequests, http.Header{}, body, false, "gpt-image-2").StopScheduling
+	disabled := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.Output.Health, account, http.StatusTooManyRequests, http.Header{}, body, false, "gpt-image-2").StopScheduling
 
 	require.False(t, disabled)
 	require.Len(t, repo.ModelRateLimitCalls, 1)
 	require.Equal(t, accountcore.OpenAIImageGenerationRateLimitKey, repo.ModelRateLimitCalls[0].Scope)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.False(t, svc.Output.Health.Runtime.Blocked(account.Record.ID, func() string { return accountcore.RefreshCredentialIdentity(gatewayprovider.ExecutionRecord(account)) }))
 }
 
 func TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCoolsCapability(t *testing.T) {
@@ -50,18 +52,14 @@ func TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCools
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil),
-
-		httpUpstream: &httpUpstreamRecorder{
-			resp: &http.Response{
-				StatusCode: http.StatusTooManyRequests,
-				Header:     http.Header{"X-Request-Id": []string{"req_img_rate_limited"}},
-				Body:       io.NopCloser(strings.NewReader(errorBody)),
-			},
+	svc := newImagesFixture(imagesFixtureInputs{observer: gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: repo, Options: accountcore.HealthOptions{}}), transport: &auxiliaryHTTPRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{"X-Request-Id": []string{"req_img_rate_limited"}},
+			Body:       io.NopCloser(strings.NewReader(errorBody)),
 		},
-	})
-	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	}})
+	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 204,
 		Name:     "openai-oauth",
@@ -99,17 +97,14 @@ func TestOpenAIGatewayServiceForwardImages_TextFallbackDoesNotCoolImageCapabilit
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo: repo,
-		httpUpstream: &httpUpstreamRecorder{
-			resp: &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-				Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
-			},
+	svc := newImagesFixture(imagesFixtureInputs{store: repo, transport: &auxiliaryHTTPRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 		},
-	}))
-	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	}})
+	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 205,
 		Name:     "openai-oauth",
@@ -150,17 +145,14 @@ func TestOpenAIGatewayServiceForwardImages_StructuredUnavailableCoolsImageCapabi
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo: repo,
-		httpUpstream: &httpUpstreamRecorder{
-			resp: &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-				Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
-			},
+	svc := newImagesFixture(imagesFixtureInputs{store: repo, transport: &auxiliaryHTTPRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 		},
-	}))
-	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	}})
+	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 206,
 		Name:     "openai-oauth",
@@ -188,13 +180,11 @@ func TestOpenAIGatewayService_CoolOpenAIImagesOAuthToolUsesConfiguredCooldown(t 
 	accountRepo := &gatewaytestkit.ModelHealthStore{}
 	settingRepo := settingstestkit.NewMemory()
 	settingRepo.Data[accountcore.SettingKeyOpenAIImagesOAuthUnavailableCooldownSettings] = `{"cooldown_minutes":7}`
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:    accountRepo,
-		settingService: newExecutionReadersFixture(settingRepo, &config.Config{}),
-	}))
+	svc := newImagesFixture(imagesFixtureInputs{store: accountRepo})
+	svc.Cooldown.Settings = accountcore.NewRuntimeSettings(settingRepo, settingscore.ErrSettingNotFound).GetOpenAIImagesOAuthUnavailableCooldownSettings
 
 	before := time.Now()
-	svc.coolOpenAIImagesOAuthTool(context.Background(), &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 206, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}})
+	svc.Cooldown.Apply(context.Background(), &accountcore.Record{LoadLocation: time.LoadLocation, ID: 206, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth})
 
 	require.Len(t, accountRepo.ModelRateLimitCalls, 1)
 	require.WithinDuration(t, before.Add(7*time.Minute), accountRepo.ModelRateLimitCalls[0].ResetAt, time.Second)
@@ -212,18 +202,14 @@ func TestOpenAIGatewayServiceForwardImages_CapabilityLossCoolsImageScope(t *test
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil),
-
-		httpUpstream: &httpUpstreamRecorder{
-			resp: &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Header:     http.Header{"X-Request-Id": []string{"req_img_capability_lost"}},
-				Body:       io.NopCloser(strings.NewReader(errorBody)),
-			},
+	svc := newImagesFixture(imagesFixtureInputs{observer: gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: repo, Options: accountcore.HealthOptions{}}), transport: &auxiliaryHTTPRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header:     http.Header{"X-Request-Id": []string{"req_img_capability_lost"}},
+			Body:       io.NopCloser(strings.NewReader(errorBody)),
 		},
-	})
-	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	}})
+	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 205,
 		Name:     "openai-oauth",
@@ -249,13 +235,13 @@ func TestOpenAIGatewayServiceForwardImages_CapabilityLossCoolsImageScope(t *test
 
 func TestOpenAIGatewayServiceHandleUpstreamError_PassthroughCapabilityLossDoesNotCool(t *testing.T) {
 	repo := &gatewaytestkit.ModelHealthStore{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
+	svc := newImagesFixture(imagesFixtureInputs{observer: gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: repo, Options: accountcore.HealthOptions{}})})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 206, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"message":"Tool choice 'image_generation' not found in 'tools' parameter.","param":"tool_choice","type":"invalid_request_error"}}`)
 
-	disabled := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.responseOutput.Health, account, http.StatusBadRequest, http.Header{}, body, false, "gpt-5.5").StopScheduling
+	disabled := gatewayprovider.ApplyOpenAIResponseHealth(context.Background(), svc.Output.Health, account, http.StatusBadRequest, http.Header{}, body, false, "gpt-5.5").StopScheduling
 
 	require.False(t, disabled)
 	require.Empty(t, repo.ModelRateLimitCalls)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.False(t, svc.Output.Health.Runtime.Blocked(account.Record.ID, func() string { return accountcore.RefreshCredentialIdentity(gatewayprovider.ExecutionRecord(account)) }))
 }

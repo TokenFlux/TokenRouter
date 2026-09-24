@@ -1,0 +1,271 @@
+{
+  "baseline_head": "74a7f2d8465b883df4b18c2fdd022eccbddc2f88",
+  "scope": "S16 图片执行能力批次，非最终全仓验收",
+  "before": {
+    "production": 60,
+    "tests": 201
+  },
+  "after": {
+    "production": 57,
+    "tests": 191
+  },
+  "retired_production": [
+    "backend/internal/service/openai_images.go",
+    "backend/internal/service/openai_images_b64_backfill.go",
+    "backend/internal/service/openai_images_responses.go"
+  ],
+  "owners": [
+    "gateway/httpapi.OpenAIImagesExecutor",
+    "gateway/httpapi.OpenAIRequests",
+    "gateway/httpapi.OpenAIResponseOutput",
+    "account/provider.ImageToolCooldown",
+    "gateway/provider.ImagesURLToB64JSONEnabled",
+    "gateway/media",
+    "upstream/openai",
+    "app"
+  ],
+  "tests": [
+    {
+      "log": "service-openai-images-normal.jsonl",
+      "events": {
+        "pass": 4240,
+        "fail": 1,
+        "skip": 2
+      },
+      "failures": [
+        "TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedJSON413",
+        "github.com/TokenFlux/TokenRouter/internal/app"
+      ],
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ],
+      "passed_by_package": {
+        "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi": 1238,
+        "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider": 1,
+        "github.com/TokenFlux/TokenRouter/internal/gateway/provider": 581,
+        "github.com/TokenFlux/TokenRouter/internal/account/provider": 463,
+        "github.com/TokenFlux/TokenRouter/internal/gateway/media": 34,
+        "github.com/TokenFlux/TokenRouter/internal/service": 1620,
+        "github.com/TokenFlux/TokenRouter/internal/upstream/openai": 257,
+        "github.com/TokenFlux/TokenRouter/internal/app": 46
+      }
+    },
+    {
+      "log": "service-openai-images-normal-app-rerun.jsonl",
+      "events": {
+        "pass": 460
+      },
+      "failures": [],
+      "skips": [],
+      "passed_by_package": {
+        "github.com/TokenFlux/TokenRouter/internal/app": 460
+      }
+    },
+    {
+      "log": "service-openai-images-unit.jsonl",
+      "events": {
+        "pass": 7099,
+        "skip": 2
+      },
+      "failures": [],
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ],
+      "passed_by_package": {
+        "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi": 1516,
+        "github.com/TokenFlux/TokenRouter/internal/gateway/media": 34,
+        "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider": 1,
+        "github.com/TokenFlux/TokenRouter/internal/gateway/provider": 900,
+        "github.com/TokenFlux/TokenRouter/internal/account/provider": 1142,
+        "github.com/TokenFlux/TokenRouter/internal/creative/provider": 11,
+        "github.com/TokenFlux/TokenRouter/internal/service": 2524,
+        "github.com/TokenFlux/TokenRouter/internal/app": 660,
+        "github.com/TokenFlux/TokenRouter/internal/upstream/openai": 311
+      }
+    },
+    {
+      "log": "service-openai-images-contracts-race.jsonl",
+      "events": {
+        "pass": 210
+      },
+      "failures": [],
+      "skips": [],
+      "passed_by_package": {
+        "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi": 172,
+        "github.com/TokenFlux/TokenRouter/internal/service": 28,
+        "github.com/TokenFlux/TokenRouter/internal/app": 10
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "normal",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/media/...",
+        "./internal/gateway/provider",
+        "./internal/account/provider",
+        "./internal/creative/provider",
+        "./internal/service",
+        "./internal/app",
+        "./internal/upstream/openai"
+      ],
+      "status": "finished",
+      "exit_code": 1,
+      "elapsed_seconds": 78.94
+    },
+    {
+      "name": "normal-app-rerun",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/app"
+      ],
+      "status": "finished",
+      "exit_code": 0,
+      "elapsed_seconds": 13.04
+    },
+    {
+      "name": "unit",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/media/...",
+        "./internal/gateway/provider",
+        "./internal/account/provider",
+        "./internal/creative/provider",
+        "./internal/service",
+        "./internal/app",
+        "./internal/upstream/openai"
+      ],
+      "status": "finished",
+      "exit_code": 0,
+      "elapsed_seconds": 79.1
+    },
+    {
+      "name": "contracts-race",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "-tags=unit",
+        "-run",
+        "Images|ImageTool|ImageCapability|ImageRateLimit|ImageBytes|ImagePointers|BoundedJSON|DetachUpstreamContext",
+        "./internal/gateway/httpapi",
+        "./internal/service",
+        "./internal/app"
+      ],
+      "status": "finished",
+      "exit_code": 0,
+      "elapsed_seconds": 11.1
+    }
+  ],
+  "lint": [
+    {
+      "name": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/account/provider/...",
+        "./internal/creative/provider/...",
+        "./internal/service/...",
+        "./internal/app/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.14
+    },
+    {
+      "name": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/account/provider/...",
+        "./internal/creative/provider/...",
+        "./internal/service/...",
+        "./internal/app/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.84
+    },
+    {
+      "name": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/account/provider/...",
+        "./internal/creative/provider/...",
+        "./internal/service/...",
+        "./internal/app/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.63
+    }
+  ],
+  "normal_resolved_pass_events": 4654,
+  "migration_regressions": [
+    "原空Source正文拒绝夹具提前构造图片执行器发生nil访问；仅在Source实际提供时构造，完整app普通复验460通过。原失败日志保留。",
+    "最后图片消费者迁出后，旧账号替身和错误读取常量无消费者，删除对应死代码；未扩大lint忽略。"
+  ],
+  "mapping": {
+    "file": "service-openai-images-test-mapping.json",
+    "moved": 101,
+    "missing": 0,
+    "tags_unchanged": true,
+    "assertion_call_count_changes": 0,
+    "equivalent_replacement": "无生产消费者的旧图片计数辅助函数删除，完成事件断言改为调用生产使用的原生SSE计数器；原完成事件计数断言不变。心跳等待保留Writer.Written和Present原断言。"
+  },
+  "gates": {
+    "file": "service-openai-images-boundary-gates.json",
+    "passed": 45,
+    "total": 45,
+    "config_sha256": "7dc8166e1decb58968eae184fcf3b68ec1c280585392acc0fb763978310e0874"
+  },
+  "build_selection": "service-openai-images-build-selection.json",
+  "wire": "service-openai-images-wire-stability.json",
+  "protected_unchanged": 51,
+  "frozen_unchanged": true,
+  "contracts": [
+    "图片API Key/OAuth分支、原模型映射和图像产出资格保持",
+    "断开后读上游、JSON心跳与真实输出边界保持；未扩大重试或结算资格",
+    "URL回填仍仅适用OpenAI API Key开关，格式、逐跳校验及计费元数据保持",
+    "模型级工具冷却通过原账号存储和动态设置读取；文字兜底不写账号冷却",
+    "同一请求/响应/HTTP池/生命周期屏障，生产没有旧Service图片入口或第二实例"
+  ],
+  "remaining": [
+    "任务执行目标的旧装配依赖",
+    "完整Responses主入口及HTTP/WS分流",
+    "WS/Live和最后旧服务构造",
+    "最终全仓/前端/跨平台/进程/资金销项验收"
+  ]
+}
