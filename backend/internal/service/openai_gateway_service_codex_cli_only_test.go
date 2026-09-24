@@ -26,46 +26,6 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-type stubCodexRestrictionDetector struct {
-	result accountpolicy.CodexClientRestrictionDetectionResult
-}
-
-func TestOpenAIGatewayService_GetCodexClientRestrictionDetector(t *testing.T) {
-
-	t.Run("使用注入的 detector", func(t *testing.T) {
-		expected := &stubCodexRestrictionDetector{
-			result: accountpolicy.CodexClientRestrictionDetectionResult{Enabled: true, Matched: true, Reason: "stub"},
-		}
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{codexDetector: expected})
-
-		got := svc.getCodexClientRestrictionDetector()
-		require.Same(t, expected, got)
-	})
-
-	t.Run("service 为 nil 时返回默认 detector", func(t *testing.T) {
-		var svc *OpenAIGatewayService
-		got := svc.getCodexClientRestrictionDetector()
-		require.NotNil(t, got)
-	})
-
-	t.Run("service 未注入 detector 时返回默认 detector", func(t *testing.T) {
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: true}}})
-		got := svc.getCodexClientRestrictionDetector()
-		require.NotNil(t, got)
-
-		rec := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(rec)
-		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-		c.Request.Header.Set("User-Agent", "curl/8.0")
-		account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Extra: map[string]any{"codex_cli_only": true}}}
-
-		result := got.DetectClient(func() (string, string) { return c.GetHeader("User-Agent"), c.GetHeader("originator") }, gatewayprovider.ExecutionRecord(account), nil, false)
-		require.True(t, result.Enabled)
-		require.True(t, result.Matched)
-		require.Equal(t, accountpolicy.CodexClientRestrictionReasonForceCodexCLI, result.Reason)
-	})
-}
-
 func TestGetAPIKeyIDFromContext(t *testing.T) {
 
 	t.Run("context 为 nil", func(t *testing.T) {
@@ -104,8 +64,8 @@ func TestGetAPIKeyIDFromContext(t *testing.T) {
 func TestLogCodexCLIOnlyDetection_NilSafety(t *testing.T) {
 	// 不校验日志内容，仅保证在 nil 入参下不会 panic。
 	require.NotPanics(t, func() {
-		logCodexCLIOnlyDetection(context.TODO(), nil, nil, 0, accountpolicy.CodexClientRestrictionDetectionResult{Enabled: true, Matched: false, Reason: "test"}, nil)
-		logCodexCLIOnlyDetection(context.Background(), nil, nil, 0, accountpolicy.CodexClientRestrictionDetectionResult{Enabled: false, Matched: false, Reason: "disabled"}, nil)
+		gatewayhttp.LogCodexCLIOnlyDetection(context.TODO(), nil, nil, 0, accountpolicy.CodexClientRestrictionDetectionResult{Enabled: true, Matched: false, Reason: "test"}, nil)
+		gatewayhttp.LogCodexCLIOnlyDetection(context.Background(), nil, nil, 0, accountpolicy.CodexClientRestrictionDetectionResult{Enabled: false, Matched: false, Reason: "disabled"}, nil)
 	})
 }
 
@@ -114,12 +74,12 @@ func TestLogCodexCLIOnlyDetection_OnlyLogsRejected(t *testing.T) {
 	defer restore()
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001}}
-	logCodexCLIOnlyDetection(context.Background(), nil, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
+	gatewayhttp.LogCodexCLIOnlyDetection(context.Background(), nil, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
 		Enabled: true,
 		Matched: true,
 		Reason:  accountpolicy.CodexClientRestrictionReasonMatchedUA,
 	}, nil)
-	logCodexCLIOnlyDetection(context.Background(), nil, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
+	gatewayhttp.LogCodexCLIOnlyDetection(context.Background(), nil, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
 		Enabled: true,
 		Matched: false,
 		Reason:  accountpolicy.CodexClientRestrictionReasonNotMatchedUA,
@@ -145,7 +105,7 @@ func TestLogCodexCLIOnlyDetection_RejectedIncludesRequestDetails(t *testing.T) {
 
 	body := []byte(`{"model":"gpt-5.2","stream":false,"prompt_cache_key":"pc-123","access_token":"secret-token","input":[{"type":"text","text":"hello"}]}`)
 	account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001}}
-	logCodexCLIOnlyDetection(context.Background(), c, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
+	gatewayhttp.LogCodexCLIOnlyDetection(context.Background(), c, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
 		Enabled: true,
 		Matched: false,
 		Reason:  accountpolicy.CodexClientRestrictionReasonNotMatchedUA,
@@ -430,9 +390,4 @@ func TestOpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover(t
 	require.Equal(t, http.StatusBadRequest, failoverErr.StatusCode)
 	require.Contains(t, string(failoverErr.ResponseBody), "An error occurred while processing your request")
 	require.False(t, c.Writer.Written(), "service 层应返回 failover 错误给上层换号，而不是直接向客户端写响应")
-}
-
-// 新检测端口沿用同一替身结果，原断言保持不变。
-func (s *stubCodexRestrictionDetector) DetectClient(_ func() (string, string), _ *accountpolicy.Record, _ []string, _ bool) accountpolicy.CodexClientRestrictionDetectionResult {
-	return s.result
 }

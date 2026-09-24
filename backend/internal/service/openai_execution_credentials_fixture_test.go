@@ -49,6 +49,13 @@ func withOpenAIExecutionCredentialsForTest(s *OpenAIGatewayService, tokens ...*a
 		s.requestCredentials.Recovery.Invalidate = tokens[0].InvalidateToken
 	}
 
+	if s.Requests != nil {
+		s.Requests.Identity = s.agentIdentity
+		s.Requests.Credentials = s.executionCredentials
+	}
+	if s.Text != nil {
+		s.Text.Credentials = s.requestCredentials
+	}
 	return s
 }
 

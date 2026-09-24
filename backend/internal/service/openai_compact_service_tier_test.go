@@ -65,7 +65,7 @@ func TestOpenAIOAuthCompactHTTPBuildersUsePreservedServiceTierInRoutingHint(t *t
 		{
 			name: "ordinary",
 			build: func(c *gin.Context) (*http.Request, error) {
-				return svc.buildUpstreamRequest(
+				return svc.Requests.Build(
 					context.Background(), c, account, normalized, "test-token",
 					false, "", true,
 				)
@@ -74,7 +74,7 @@ func TestOpenAIOAuthCompactHTTPBuildersUsePreservedServiceTierInRoutingHint(t *t
 		{
 			name: "passthrough",
 			build: func(c *gin.Context) (*http.Request, error) {
-				return svc.buildUpstreamRequestOpenAIPassthrough(
+				return svc.Requests.BuildPassthrough(
 					context.Background(), c, account, normalized, "test-token",
 				)
 			},
@@ -96,7 +96,7 @@ func TestOpenAIOAuthCompactHTTPBuildersUsePreservedServiceTierInRoutingHint(t *t
 			require.Equal(
 				t,
 				"model=gpt-5.6-sol;tier=priority",
-				req.Header.Get(openAICodexRoutingHintHeader),
+				req.Header.Get("x-codex-routing-hint"),
 			)
 			require.Equal(t, "priority", gjson.GetBytes(normalized, "service_tier").String())
 		})

@@ -166,6 +166,7 @@ func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService 
 // newOpenAIImageChatRejectionHandlerWithService 复用最小依赖构造 Chat 端点测试处理器。
 func newOpenAIImageChatRejectionHandlerWithService(t *testing.T, cache *httptestkit.ConcurrencyHooks, gatewayService *service.OpenAIGatewayService, availability *gatewayModelAvailability, choices *selection.Compatible) *gatewayHTTPEndpointsFixture {
 	t.Helper()
+
 	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
 		Source: gatewayService, Availability: availability, Choices: choices,
 		Funding: &admission.FundingAdmission{},

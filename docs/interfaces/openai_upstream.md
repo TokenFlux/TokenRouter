@@ -40,6 +40,8 @@ OpenAI 兼容请求的显式粘性会话头按 `session-id`、`session_id`、`co
 <a id="openai_protocol_dispatch"></a>
 ## 协议与传输
 
+兼容文本的 Messages、Chat、Raw Chat、原生 Anthropic 与 passthrough 已由 `gateway/httpapi.OpenAITextExecutor` 接入；请求构造、Header、TLS 与客户端策略使用同一 `OpenAIRequests`。完整 Responses 主入口和 WS/Live 的剩余适配仍在退出旧服务，平台执行、重试边界及完成资格保持原约定。
+
 Responses、Chat、Messages 的入站 HTTP 与单次尝试运行时由 app 直接装配；`gateway/httpapi/openaiattempt` 复用同一选择、反馈、完成及槽位能力。重试循环仍由 `gateway/text` 唯一拥有，跨模式切换从原始报文派生 reasoning 清理结果，不污染后续请求。WS 入站、每轮账号目标与完成 hooks 由原生 wsentry 绑定，Forward/WS 结果投影归 gateway/provider；保留终态、恢复报文、响应 turn-state 和每轮计费时刻。媒体和辅助入口由原生 mediaentry 直接绑定，沿用同一失败输出、槽位与完成快照；图片 mandatory 与搜索/音频提交策略保持各自原语义。
 
 `protocol/openai` 拥有 Responses/Chat 报文、自定义编解码、服务层级值与宽容 JSON 字节修复；`protocol/bridge` 拥有跨协议转换和每条流的状态。旧 apicompat 委托它们并提供时刻/随机源。BOM、控制字节、原文与大小限制保持原行为；纯 `BodyLimitError` 在旧 httputil 的 HTTP 边界转回 `http.MaxBytesError`，请求读取和解压仍由 `server/httpx` 执行，原先未使用宽容修复的入口不会自动启用。Compact 请求白名单、reasoning replay 与 store=false 修复由原生请求 codec 执行，触发条件仍由原入站决定。Responses Header 与 CC 请求发送也通过原生实现，账号身份、代理/TLS 和请求状态以窄端口投影，保持原覆写顺序。UA/originator 字符串识别在 `gateway/clientmeta`，规范 Codex 出站身份与动态 UA resolver 已由原生包唯一持有，请求字段改写时机仍由旧入站适配决定。

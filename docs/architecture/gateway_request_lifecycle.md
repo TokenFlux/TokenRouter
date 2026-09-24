@@ -255,6 +255,8 @@ OpenAI 和 Messages 的转发结果由 `gateway/forward` 拥有，WS ingress hoo
 
 Grok 文本、图片/视频和 Voice 共用固定装配的 GrokExecutor，沿用原请求取消策略及应用活动屏障。Chat→Responses 不适用时回到同一次派发的原生 Chat 路径；档位规则通过 ExecutionFastPolicy 在原位置读取设置和价格，WS 仍复用该 turn 的设置快照。运行时不新建账号切换循环、资金记录器或缓存。
 
+OpenAI 兼容文本的单次执行由 `OpenAITextExecutor` 组合现有协议执行器，目标、凭据头、TLS 和客户端策略通过 `OpenAIRequests` 按原顺序取得。HTTP 适配仍同步处理输出；Raw Chat、原生 Anthropic、Messages 和 passthrough 不各自创建账号切换循环。CompatResponses 保留原账号/Key/提示缓存隔离键、TTL 和续接禁用规则；Codex 额度观察复用原节流间隔，写回进入应用管理的后台任务。
+
 上游风控警告统一用 `gateway/forward.UpstreamWarning` 传递，HTTP、WS 和 Grok 适配共用值类型及错误链契约。警告本身不证明请求可结算，完成资格、失败状态和通知仍按原入口规则决定。
 
 Compact/SSE 注释心跳、非流式图片 JSON 空白心跳及扣除心跳字节后的输出判定由 gateway/httpapi 管理。图片首拍仍会提交 200，迟到错误继续以合法 JSON 写回；这些空白不会关闭原有安全重试窗口。TTFT 的语义/可见输出策略由 gateway/provider 组合平台事件解析，保持其与 HTTP 提交和重试窗口的区别。写入包装器只在 HTTP 内部使用，停止及写入互斥保持原语义。

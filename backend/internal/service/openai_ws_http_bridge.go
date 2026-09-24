@@ -413,20 +413,6 @@ func buildOpenAIWSHTTPBridgeFailedEvent(responseID, model string, source []byte,
 	return body
 }
 
-// detectOpenAIWSHTTPBridgeRequestScopedError 识别只与当前请求有关的错误。
-// 这类错误既不修改账号状态，也不能因为池模式配置而回放当前 turn。
-func detectOpenAIWSHTTPBridgeRequestScopedError(account *gatewayprovider.ExecutionAccount, statusCode int, message string, body []byte) bool {
-	if hit, _, _ := upstreamopenai.DetectOpenAICyberPolicy(body); hit {
-		return true
-	}
-	if gatewayprovider.IsOpenAICyberWarningPayload(body, message) ||
-		upstreamopenai.IsOpenAIClientInvalidRequestError(statusCode, message, body) ||
-		upstreamopenai.IsOpenAIContextWindowError(message, body) {
-		return true
-	}
-	return account != nil && account.Record.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(statusCode, body)
-}
-
 // proxyOpenAIWSHTTPBridgeTurn 使用 HTTP Responses 上游完成一个 WS ingress turn，并把 SSE 事件转回 WS 消息。
 func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	ctx context.Context,
@@ -584,7 +570,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if account.Record.Platform == capability.PlatformGrok {
 			upstreamReq, buildErr = s.Grok.BuildResponsesRequest(upstreamCtx, c, account, requestBody, token, grokCacheIdentity, true)
 		} else {
-			upstreamReq, buildErr = s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, requestBody, token, routerMatch...)
+			upstreamReq, buildErr = s.Requests.BuildPassthrough(upstreamCtx, c, account, requestBody, token, routerMatch...)
 		}
 		if buildErr != nil {
 			return nil, buildErr
@@ -612,7 +598,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if buildErr != nil {
 			return nil, buildErr
 		}
-		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, routerMatch...))
+		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, routerMatch...))
 		if err != nil {
 			if turn == 1 {
 				return nil, s.transportFailure.Handle(ctx, c, account, err, true)
@@ -656,7 +642,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if upstreamMsg == "" {
 			upstreamMsg = http.StatusText(resp.StatusCode)
 		}
-		requestScopedError := detectOpenAIWSHTTPBridgeRequestScopedError(account, resp.StatusCode, upstreamMsg, respBody)
+		requestScopedError := gatewayprovider.OpenAIWSHTTPBridgeRequestScopedError(account, resp.StatusCode, upstreamMsg, respBody)
 		decision := accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 		defaultFailover := gatewayprovider.ShouldFailoverOpenAIResponse(resp.StatusCode, upstreamMsg, respBody)
 		if account.Record.Platform == capability.PlatformGrok {
@@ -936,7 +922,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			}
 			statusCode := openAIWSErrorPolicyStatus(upstreamMessage)
 			policyStatus := statusCode
-			requestScopedError := detectOpenAIWSHTTPBridgeRequestScopedError(account, statusCode, errMessage, upstreamMessage)
+			requestScopedError := gatewayprovider.OpenAIWSHTTPBridgeRequestScopedError(account, statusCode, errMessage, upstreamMessage)
 			decision := accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 			defaultFailover := s.shouldFailoverOpenAIWSError(account, policyStatus, upstreamMessage)
 			if requestScopedCapacity {

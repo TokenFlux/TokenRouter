@@ -199,7 +199,7 @@ func TestOpenAIBuildUpstreamRequestOpenAIPassthroughForwardsResponsesLiteHeader(
 	c.Request.Header.Set(media.ResponsesLiteHeader, "true")
 
 	svc := newOpenAIImageGenerationControlTestService(&httpUpstreamRecorder{})
-	req, err := svc.buildUpstreamRequestOpenAIPassthrough(
+	req, err := svc.Requests.BuildPassthrough(
 		c.Request.Context(),
 		c,
 		newOpenAIImageGenerationControlTestAccount(),

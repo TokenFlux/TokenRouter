@@ -235,7 +235,7 @@ func TestForwardAsRawChatCompletions_OllamaCloudReasoningAliasStreaming(t *testi
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, ollamaCloudRawChatCompletionsTestAccount(), body, "")
+	result, err := svc.Text.RawChat(context.Background(), c, ollamaCloudRawChatCompletionsTestAccount(), body, "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 3, result.Usage.InputTokens)
@@ -267,7 +267,7 @@ func TestForwardAsRawChatCompletions_OllamaCloudThinkingAliasNonStreaming(t *tes
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, ollamaCloudRawChatCompletionsTestAccount(), body, "")
+	result, err := svc.Text.RawChat(context.Background(), c, ollamaCloudRawChatCompletionsTestAccount(), body, "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "prev", gjson.GetBytes(upstream.lastBody, "messages.1.reasoning").String())

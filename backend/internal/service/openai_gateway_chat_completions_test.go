@@ -17,7 +17,6 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -97,77 +96,6 @@ func TestHandleChatStreamingResponse_ClassifiesHTTP2ReadError(t *testing.T) {
 	require.NotContains(t, message, "INTERNAL_ERROR")
 }
 
-func TestNormalizeResponsesRequestServiceTier(t *testing.T) {
-	t.Parallel()
-
-	req := &protocolopenai.ResponsesRequest{ServiceTier: " fast "}
-	normalizeResponsesRequestServiceTier(req)
-	require.Equal(t, "priority", req.ServiceTier)
-
-	req.ServiceTier = "flex"
-	normalizeResponsesRequestServiceTier(req)
-	require.Equal(t, "flex", req.ServiceTier)
-
-	// OpenAI 官方合法 tier 应被透传保留。
-	req.ServiceTier = "auto"
-	normalizeResponsesRequestServiceTier(req)
-	require.Equal(t, "auto", req.ServiceTier)
-
-	req.ServiceTier = "default"
-	normalizeResponsesRequestServiceTier(req)
-	require.Equal(t, "default", req.ServiceTier)
-
-	req.ServiceTier = "scale"
-	normalizeResponsesRequestServiceTier(req)
-	require.Equal(t, "scale", req.ServiceTier)
-
-	// 真未知值仍被剥离。
-	req.ServiceTier = "turbo"
-	normalizeResponsesRequestServiceTier(req)
-	require.Empty(t, req.ServiceTier)
-}
-
-func TestNormalizeResponsesBodyServiceTier(t *testing.T) {
-	t.Parallel()
-
-	body, tier, err := normalizeResponsesBodyServiceTier([]byte(`{"model":"gpt-5.1","service_tier":"fast"}`))
-	require.NoError(t, err)
-	require.Equal(t, "priority", tier)
-	require.Equal(t, "priority", gjson.GetBytes(body, "service_tier").String())
-
-	body, tier, err = normalizeResponsesBodyServiceTier([]byte(`{"model":"gpt-5.1","service_tier":"flex"}`))
-	require.NoError(t, err)
-	require.Equal(t, "flex", tier)
-	require.Equal(t, "flex", gjson.GetBytes(body, "service_tier").String())
-
-	// OpenAI 官方 tier 直接保留在 body 中（透传上游）。
-	body, tier, err = normalizeResponsesBodyServiceTier([]byte(`{"model":"gpt-5.1","service_tier":"auto"}`))
-	require.NoError(t, err)
-	require.Equal(t, "auto", tier)
-	require.Equal(t, "auto", gjson.GetBytes(body, "service_tier").String())
-
-	body, tier, err = normalizeResponsesBodyServiceTier([]byte(`{"model":"gpt-5.1","service_tier":"default"}`))
-	require.NoError(t, err)
-	require.Equal(t, "default", tier)
-	require.Equal(t, "default", gjson.GetBytes(body, "service_tier").String())
-
-	body, tier, err = normalizeResponsesBodyServiceTier([]byte(`{"model":"gpt-5.1","service_tier":"scale"}`))
-	require.NoError(t, err)
-	require.Equal(t, "scale", tier)
-	require.Equal(t, "scale", gjson.GetBytes(body, "service_tier").String())
-
-	body, tier, err = normalizeResponsesBodyServiceTier([]byte(`{"model":"gpt-5.6-sol","service_tier":"ultrafast"}`))
-	require.NoError(t, err)
-	require.Equal(t, "ultrafast", tier)
-	require.Equal(t, "ultrafast", gjson.GetBytes(body, "service_tier").String())
-
-	// 真未知值才会被删除。
-	body, tier, err = normalizeResponsesBodyServiceTier([]byte(`{"model":"gpt-5.1","service_tier":"turbo"}`))
-	require.NoError(t, err)
-	require.Empty(t, tier)
-	require.False(t, gjson.GetBytes(body, "service_tier").Exists())
-}
-
 func TestForwardAsChatCompletions_UnknownModelWithoutMessagesDispatchKeepsRequestedModel(t *testing.T) {
 
 	rec := httptest.NewRecorder()
@@ -197,7 +125,7 @@ func TestForwardAsChatCompletions_UnknownModelWithoutMessagesDispatchKeepsReques
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Equal(t, "gpt6", gjson.GetBytes(upstream.lastBody, "model").String())
@@ -238,7 +166,7 @@ func TestForwardAsChatCompletions_APIKeyPropagatesPromptCacheKeyInResponsesBody(
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "cache-key-123", "gpt-5.4")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "cache-key-123", "gpt-5.4")
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Equal(t, "cache-key-123", gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
@@ -283,7 +211,7 @@ func TestForwardAsChatCompletions_APIKeyResponsesRecordsThirdPartyMaxEffort(t *t
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -328,7 +256,7 @@ func TestForwardAsChatCompletions_APIKeyResponsesDoesNotRecordDroppedNestedEffor
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -364,7 +292,7 @@ func TestForwardAsChatCompletions_TransportErrorFailsOver(t *testing.T) {
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.4")
 
 	require.Nil(t, result)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -400,7 +328,7 @@ func TestForwardAsChatCompletions_APIKeyAutoDerivesStableIsolatedPromptCacheKey(
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 		c.Request.Header.Set("Content-Type", "application/json")
 		c.Set("api_key", &apikey.APIKey{ID: apiKeyID})
-		result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
+		result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.4")
 		require.Error(t, err)
 		require.Nil(t, result)
 	}
@@ -446,7 +374,7 @@ func TestForwardAsChatCompletions_ResponsesShapeDoesNotAutoDerivePromptCacheKey(
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 		c.Set("api_key", &apikey.APIKey{ID: 99})
-		result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, promptCacheKey, "gpt-5.4")
+		result, err := svc.Text.Chat(context.Background(), c, account, body, promptCacheKey, "gpt-5.4")
 		require.Error(t, err)
 		require.Nil(t, result)
 	}
@@ -492,7 +420,7 @@ func TestForwardAsChatCompletions_OAuthDoesNotInjectDefaultInstructions(t *testi
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.4")
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.NotNil(t, upstream.lastReq)
@@ -527,7 +455,7 @@ func forwardOAuthChatCompletionsForUpstreamBody(t *testing.T, body []byte) []byt
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.4")
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.NotEmpty(t, upstream.lastBody)
@@ -610,7 +538,7 @@ func TestForwardAsChatCompletions_ClientDisconnectDrainsUpstreamUsage(t *testing
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.1")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 11, result.Usage.InputTokens)
@@ -649,7 +577,7 @@ func TestForwardAsChatCompletions_BufferedContextWindowResponseFailedReturnsErro
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.5")
 	require.Error(t, err)
 	require.Nil(t, result)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -692,7 +620,7 @@ func TestForwardAsChatCompletions_StreamContextWindowResponseFailedReturnsErrorW
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.5")
 	require.Error(t, err)
 	require.NotNil(t, result)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -731,7 +659,7 @@ func TestForwardAsChatCompletions_StreamBareErrorAfterOutputDoesNotFailOver(t *t
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.5")
 
 	require.Error(t, err)
 	require.NotNil(t, result)
@@ -775,7 +703,7 @@ func TestForwardAsChatCompletions_StreamCyberPolicyNoFailover(t *testing.T) {
 		}},
 	}
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.5")
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr), "cyber must NOT trigger failover")
 	require.NotNil(t, gatewayhttp.GetOpsCyberPolicy(c), "cyber mark must be set")
@@ -821,7 +749,7 @@ func TestForwardAsChatCompletions_StreamsUsageWithoutClientStreamOptions(t *test
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.1")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 13, result.Usage.InputTokens)
@@ -871,7 +799,7 @@ func TestForwardAsChatCompletions_StreamsTopLevelTerminalUsage(t *testing.T) {
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.1")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 21, result.Usage.InputTokens)
@@ -917,7 +845,7 @@ func TestForwardAsChatCompletions_BufferedTopLevelTerminalUsage(t *testing.T) {
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.1")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 18, result.Usage.InputTokens)
@@ -969,7 +897,7 @@ func TestForwardAsChatCompletions_TerminalUsageWithoutUpstreamCloseReturns(t *te
 	}
 	resultCh := make(chan forwardResult, 1)
 	go func() {
-		result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
+		result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.1")
 		resultCh <- forwardResult{result: result, err: err}
 	}()
 
@@ -1033,7 +961,7 @@ func TestForwardAsChatCompletions_EventNamedTerminalWithoutUpstreamCloseReturns(
 	}
 	resultCh := make(chan forwardResult, 1)
 	go func() {
-		result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
+		result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.1")
 		resultCh <- forwardResult{result: result, err: err}
 	}()
 
@@ -1088,7 +1016,7 @@ func TestForwardAsChatCompletions_EventTypeDoesNotLeakAcrossFrames(t *testing.T)
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.1")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Contains(t, rec.Body.String(), `"content":"ok"`)
@@ -1131,7 +1059,7 @@ func TestForwardAsChatCompletions_BufferedTerminalWithoutUpstreamCloseReturns(t 
 	}
 	resultCh := make(chan forwardResult, 1)
 	go func() {
-		result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
+		result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.1")
 		resultCh <- forwardResult{result: result, err: err}
 	}()
 
@@ -1175,7 +1103,7 @@ func TestForwardAsChatCompletions_DoneSentinelWithoutTerminalReturnsError(t *tes
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.1")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing terminal event")
 	require.NotNil(t, result)
@@ -1217,7 +1145,7 @@ func TestForwardAsChatCompletions_UpstreamRequestIgnoresClientCancel(t *testing.
 		}},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(reqCtx, c, account, body, "", "gpt-5.1")
+	result, err := svc.Text.Chat(reqCtx, c, account, body, "", "gpt-5.1")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)

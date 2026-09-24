@@ -104,7 +104,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 	target := &mediaprovider.AlphaSearchOptions{
 		AccountID: account.Record.ID, Request: req, ResponsesFallback: false, Model: upstreamModel, Enter: s.nativeAttemptActivity,
 		Do: func(request *http.Request) (*http.Response, error) {
-			return s.httpUpstream.DoWithTLS(request, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
+			return s.httpUpstream.DoWithTLS(request, proxyURL, account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch...))
 		},
 		Latency: func(duration time.Duration) {
 			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, duration.Milliseconds())
@@ -138,7 +138,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 		},
 		UpdateQuota: func(headers http.Header) {
 			if !account.View().IsShadow() {
-				s.UpdateCodexUsageSnapshotFromHeaders(ctx, account.Record.ID, headers)
+				s.Text.CodexUsage.Headers(ctx, account.Record.ID, headers)
 			}
 		},
 		Headers: func(dst, src http.Header) {
@@ -183,7 +183,7 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 	target := &mediaprovider.AlphaSearchOptions{
 		AccountID: account.Record.ID, Request: req, ResponsesFallback: true, Model: upstreamModel, Enter: s.nativeAttemptActivity,
 		Do: func(request *http.Request) (*http.Response, error) {
-			return s.httpUpstream.DoWithTLS(request, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
+			return s.httpUpstream.DoWithTLS(request, proxyURL, account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch...))
 		},
 		Latency: func(duration time.Duration) {
 			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, duration.Milliseconds())
@@ -217,7 +217,7 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 		},
 		UpdateQuota: func(headers http.Header) {
 			if !account.View().IsShadow() {
-				s.UpdateCodexUsageSnapshotFromHeaders(ctx, account.Record.ID, headers)
+				s.Text.CodexUsage.Headers(ctx, account.Record.ID, headers)
 			}
 		},
 		Headers: func(dst, src http.Header) {
@@ -243,8 +243,8 @@ func openAIAlphaSearchSchedulingModel(account *gatewayprovider.ExecutionAccount,
 
 func (s *OpenAIGatewayService) buildOpenAIAlphaSearchResponsesWebSearchRequest(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, alphaBody []byte, body []byte, token string, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*http.Request, error) {
 	targetURL := chatgptCodexURL
-	options := s.nativeResponsesRequestOptions(ctx, c, account, token, targetURL, true, tlsRouterMatch...)
-	options.ApplyUserAgent = func(req *http.Request) { s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, true, tlsRouterMatch...) }
+	options := s.Requests.ResponseOptions(ctx, c, account, token, targetURL, true, tlsRouterMatch...)
+	options.ApplyUserAgent = func(req *http.Request) { s.Requests.ApplyUserAgent(ctx, c, account, req, true, tlsRouterMatch...) }
 	return openai.BuildAlphaSearchResponsesRequest(ctx, alphaBody, body, openai.AlphaSearchRequestOptions{
 		ResponsesRequestOptions: options,
 		Query: func() url.Values {
@@ -274,8 +274,8 @@ func (s *OpenAIGatewayService) buildOpenAIAlphaSearchRequest(
 	if err != nil {
 		return nil, err
 	}
-	options := s.nativeResponsesRequestOptions(ctx, c, account, token, targetURL, true, tlsRouterMatch...)
-	options.ApplyUserAgent = func(req *http.Request) { s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, true, tlsRouterMatch...) }
+	options := s.Requests.ResponseOptions(ctx, c, account, token, targetURL, true, tlsRouterMatch...)
+	options.ApplyUserAgent = func(req *http.Request) { s.Requests.ApplyUserAgent(ctx, c, account, req, true, tlsRouterMatch...) }
 	return openai.BuildAlphaSearchRequest(ctx, body, openai.AlphaSearchRequestOptions{
 		ResponsesRequestOptions: options,
 		Query: func() url.Values {
@@ -344,7 +344,7 @@ func (s *OpenAIGatewayService) openAIAlphaSearchURL(account *gatewayprovider.Exe
 		if baseURL == "" {
 			return openAIPlatformAlphaSearchURL, nil
 		}
-		validatedURL, err := s.validateUpstreamBaseURL(baseURL)
+		validatedURL, err := s.Requests.ValidateBaseURL(baseURL)
 		if err != nil {
 			return "", err
 		}

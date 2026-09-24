@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	httptestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
+
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -57,22 +59,6 @@ type tempUnschedulableOpenAIAccountRepo struct {
 func (r *tempUnschedulableOpenAIAccountRepo) SetModelRateLimit(_ context.Context, accountID int64, modelKey string, _ time.Time, _ ...string) error {
 	r.modelRateLimitAccountID = accountID
 	r.modelRateLimitKey = modelKey
-	return nil
-}
-
-type snapshotUpdateAccountRepo struct {
-	stubOpenAIAccountRepo
-	updateExtraCalls chan map[string]any
-}
-
-func (r *snapshotUpdateAccountRepo) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
-	if r.updateExtraCalls != nil {
-		copied := make(map[string]any, len(updates))
-		for k, v := range updates {
-			copied[k] = v
-		}
-		r.updateExtraCalls <- copied
-	}
 	return nil
 }
 
@@ -183,7 +169,7 @@ func TestOpenAIGatewayService_ForwardAsAnthropic_CapacityShedReturnsRequestScope
 		}},
 	}
 
-	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -204,39 +190,11 @@ func TestOpenAIGatewayService_ForwardAsAnthropic_CapacityShedReturnsRequestScope
 	secondAccount := *account
 	secondAccount.Record.ID = 5100
 	secondAccount.Record.Name = "healthy-failover-account"
-	result, secondErr := svc.ForwardAsAnthropic(context.Background(), secondContext, &secondAccount, body, "", "")
+	result, secondErr := svc.Text.Messages(context.Background(), secondContext, &secondAccount, body, "", "")
 	require.NoError(t, secondErr)
 	require.NotNil(t, result)
 	require.Equal(t, "resp_second", result.ResponseID)
 	require.NotEmpty(t, secondRec.Body.String())
-}
-
-func TestFailoverOpenAIUpstreamHTTPError_NilContextSkipsTempUnschedulablePolicy(t *testing.T) {
-	repo := &tempUnschedulableOpenAIAccountRepo{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		healthObserver: newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil),
-	})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5099, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"temp_unschedulable_enabled": true,
-			"temp_unschedulable_rules": []any{map[string]any{
-				"error_code":       float64(http.StatusBadRequest),
-				"keywords":         []any{"custom temporary outage"},
-				"duration_minutes": float64(1),
-			}},
-		}},
-	}
-	body := []byte(`{"error":{"message":"Custom temporary outage."}}`)
-	resp := &http.Response{StatusCode: http.StatusBadRequest, Header: http.Header{}}
-
-	got := svc.failoverOpenAIUpstreamHTTPError(
-		context.Background(), nil, account, resp, body,
-		"Custom temporary outage.", "gpt-5.4",
-	)
-
-	require.Nil(t, got)
-	require.Zero(t, repo.modelRateLimitAccountID)
-	require.Empty(t, repo.modelRateLimitKey)
 }
 
 type cancelReadCloser struct{}
@@ -264,20 +222,6 @@ func (r *openAIStreamReadThenErrorCloser) Read(p []byte) (int, error) {
 }
 
 func (r *openAIStreamReadThenErrorCloser) Close() error { return nil }
-
-type failingGinWriter struct {
-	gin.ResponseWriter
-	failAfter int
-	writes    int
-}
-
-func (w *failingGinWriter) Write(p []byte) (int, error) {
-	if w.writes >= w.failAfter {
-		return 0, errors.New("write failed")
-	}
-	w.writes++
-	return w.ResponseWriter.Write(p)
-}
 
 func TestExtractOpenAIResponseIDFromJSONBytes(t *testing.T) {
 	require.Equal(t, "resp_json", protocolopenai.ExtractOpenAIResponseIDFromJSONBytes([]byte(`{"id":"resp_json"}`)))
@@ -1319,7 +1263,7 @@ func TestOpenAIStreamingClientDisconnectDrainsUpstreamUsage(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
-	c.Writer = &failingGinWriter{ResponseWriter: c.Writer, failAfter: 0}
+	c.Writer = &httptestkit.FailingWriter{ResponseWriter: c.Writer, FailAfter: 0}
 
 	pr, pw := io.Pipe()
 	resp := &http.Response{
@@ -1902,7 +1846,7 @@ func TestOpenAIInvalidBaseURLWhenAllowlistDisabled(t *testing.T) {
 		Credentials: map[string]any{"base_url": "://invalid-url"}},
 	}
 
-	_, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte("{}"), "token", false, "", false)
+	_, err := svc.Requests.Build(c.Request.Context(), c, account, []byte("{}"), "token", false, "", false)
 	if err == nil {
 		t.Fatalf("expected error for invalid base_url when allowlist disabled")
 	}
@@ -1916,10 +1860,10 @@ func TestOpenAIValidateUpstreamBaseURLDisabledRequiresHTTPS(t *testing.T) {
 	}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg})
 
-	if _, err := svc.validateUpstreamBaseURL("http://not-https.example.com"); err == nil {
+	if _, err := svc.Requests.ValidateBaseURL("http://not-https.example.com"); err == nil {
 		t.Fatalf("expected http to be rejected when allow_insecure_http is false")
 	}
-	normalized, err := svc.validateUpstreamBaseURL("https://example.com")
+	normalized, err := svc.Requests.ValidateBaseURL("https://example.com")
 	if err != nil {
 		t.Fatalf("expected https to be allowed when allowlist disabled, got %v", err)
 	}
@@ -1939,7 +1883,7 @@ func TestOpenAIValidateUpstreamBaseURLDisabledAllowsHTTP(t *testing.T) {
 	}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg})
 
-	normalized, err := svc.validateUpstreamBaseURL("http://not-https.example.com")
+	normalized, err := svc.Requests.ValidateBaseURL("http://not-https.example.com")
 	if err != nil {
 		t.Fatalf("expected http allowed when allow_insecure_http is true, got %v", err)
 	}
@@ -1959,35 +1903,11 @@ func TestOpenAIValidateUpstreamBaseURLEnabledEnforcesAllowlist(t *testing.T) {
 	}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg})
 
-	if _, err := svc.validateUpstreamBaseURL("https://example.com"); err != nil {
+	if _, err := svc.Requests.ValidateBaseURL("https://example.com"); err != nil {
 		t.Fatalf("expected allowlisted host to pass, got %v", err)
 	}
-	if _, err := svc.validateUpstreamBaseURL("https://evil.com"); err == nil {
+	if _, err := svc.Requests.ValidateBaseURL("https://evil.com"); err == nil {
 		t.Fatalf("expected non-allowlisted host to fail")
-	}
-}
-
-func TestOpenAIUpdateCodexUsageSnapshotFromHeaders(t *testing.T) {
-	repo := &snapshotUpdateAccountRepo{updateExtraCalls: make(chan map[string]any, 1)}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
-	headers := http.Header{}
-	headers.Set("x-codex-primary-used-percent", "12")
-	headers.Set("x-codex-secondary-used-percent", "34")
-	headers.Set("x-codex-primary-window-minutes", "300")
-	headers.Set("x-codex-secondary-window-minutes", "10080")
-	headers.Set("x-codex-primary-reset-after-seconds", "600")
-	headers.Set("x-codex-secondary-reset-after-seconds", "86400")
-
-	svc.UpdateCodexUsageSnapshotFromHeaders(context.Background(), 123, headers)
-
-	select {
-	case updates := <-repo.updateExtraCalls:
-		require.Equal(t, 12.0, updates["codex_5h_used_percent"])
-		require.Equal(t, 34.0, updates["codex_7d_used_percent"])
-		require.Equal(t, 600, updates["codex_5h_reset_after_seconds"])
-		require.Equal(t, 86400, updates["codex_7d_reset_after_seconds"])
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected UpdateExtra to be called")
 	}
 }
 
@@ -2063,7 +1983,7 @@ func TestOpenAIBuildUpstreamRequestOpenAIPassthroughPreservesCompactPath(t *test
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Type: capability.AccountTypeOAuth}}
 
-	req, err := svc.buildUpstreamRequestOpenAIPassthrough(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token")
+	req, err := svc.Requests.BuildPassthrough(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token")
 	require.NoError(t, err)
 	require.Equal(t, chatgptCodexURL+"/compact", req.URL.String())
 	require.Equal(t, "application/json", req.Header.Get("Accept"))
@@ -2087,7 +2007,7 @@ func TestOpenAIBuildUpstreamRequestOpenAIPassthroughPreservesExplicitAPIKeyBetaH
 	}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
-	req, err := svc.buildUpstreamRequestOpenAIPassthrough(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token")
+	req, err := svc.Requests.BuildPassthrough(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token")
 	require.NoError(t, err)
 	require.Equal(t, "api-key-specific-beta", req.Header.Get("OpenAI-Beta"), "OAuth-only backport must not alter API-key passthrough headers")
 }
@@ -2101,7 +2021,7 @@ func TestOpenAIBuildUpstreamRequestOpenAIPassthroughDoesNotPropagateInternalRequ
 
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
-	req, err := svc.buildUpstreamRequestOpenAIPassthrough(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token")
+	req, err := svc.Requests.BuildPassthrough(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token")
 	require.NoError(t, err)
 	require.Empty(t, req.Header.Get("X-Sub2API-Request-ID"))
 }
@@ -2117,7 +2037,7 @@ func TestOpenAIBuildUpstreamRequestCompactForcesJSONAcceptForOAuth(t *testing.T)
 		Credentials: map[string]any{"chatgpt_account_id": "chatgpt-acc"}},
 	}
 
-	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", true)
+	req, err := svc.Requests.Build(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", true)
 	require.NoError(t, err)
 	require.Equal(t, chatgptCodexURL+"/compact", req.URL.String())
 	require.Equal(t, "application/json", req.Header.Get("Accept"))
@@ -2141,7 +2061,7 @@ func TestOpenAIBuildUpstreamRequestOAuthMessagesBridgeUsesSessionOnly(t *testing
 		Credentials: map[string]any{"chatgpt_account_id": "chatgpt-acc"}},
 	}
 
-	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, body, "token", true, "anthropic-metadata-session-1", false)
+	req, err := svc.Requests.Build(c.Request.Context(), c, account, body, "token", true, "anthropic-metadata-session-1", false)
 	require.NoError(t, err)
 	require.NotEmpty(t, req.Header.Get("Session_Id"))
 	require.Empty(t, req.Header.Get("Conversation_Id"))
@@ -2165,7 +2085,7 @@ func TestOpenAIBuildUpstreamRequestPreservesCompactPathForAPIKeyBaseURL(t *testi
 		Credentials: map[string]any{"base_url": "https://example.com/v1"}},
 	}
 
-	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", false)
+	req, err := svc.Requests.Build(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", false)
 	require.NoError(t, err)
 	require.Equal(t, "https://example.com/v1/responses/compact", req.URL.String())
 }
@@ -2211,7 +2131,7 @@ func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t 
 			}
 
 			isCodexCLI := openai.IsCodexOfficialClientByHeaders(c.GetHeader("User-Agent"), c.GetHeader("originator"))
-			req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", isCodexCLI)
+			req, err := svc.Requests.Build(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", isCodexCLI)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantOriginator, req.Header.Get("originator"))
 			require.Equal(t, tt.wantUA, req.Header.Get("User-Agent"))
@@ -2244,7 +2164,7 @@ func TestOpenAIBuildUpstreamRequestUsesTLSRouterUpstreamHeaders(t *testing.T) {
 		UpstreamOriginator:      "codex-tui",
 	}
 
-	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", false, routerMatch)
+	req, err := svc.Requests.Build(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", false, routerMatch)
 	require.NoError(t, err)
 	require.Equal(t, routerMatch.UpstreamUserAgent, req.Header.Get("User-Agent"))
 	require.Equal(t, routerMatch.UpstreamOriginator, req.Header.Get("originator"))
@@ -2266,75 +2186,13 @@ func TestOpenAIBuildUpstreamRequestRouterEmptyUAUsesAccountFallback(t *testing.T
 		}},
 	}
 
-	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", false, egress.TLSFingerprintRouterMatchResult{Matched: true})
+	req, err := svc.Requests.Build(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", false, egress.TLSFingerprintRouterMatchResult{Matched: true})
 	require.NoError(t, err)
 	require.Equal(t, "codex-tui/9.8.0 account-fallback", req.Header.Get("User-Agent"))
 	require.Equal(t, "codex-tui", req.Header.Get("originator"))
 }
 
 // ==================== P1-08 修复：model 替换性能优化测试 ====================
-
-func TestReplaceModelInResponseBody(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-
-	tests := []struct {
-		name     string
-		body     string
-		from     string
-		to       string
-		expected string
-	}{
-		{
-			name:     "替换顶层 model",
-			body:     `{"id":"chatcmpl-123","model":"gpt-4o","choices":[]}`,
-			from:     "gpt-4o",
-			to:       "alias",
-			expected: `{"id":"chatcmpl-123","model":"alias","choices":[]}`,
-		},
-		{
-			name:     "model 不匹配不替换",
-			body:     `{"id":"chatcmpl-123","model":"gpt-3.5-turbo","choices":[]}`,
-			from:     "gpt-4o",
-			to:       "alias",
-			expected: `{"id":"chatcmpl-123","model":"gpt-3.5-turbo","choices":[]}`,
-		},
-		{
-			name:     "无 model 字段不替换",
-			body:     `{"id":"chatcmpl-123","choices":[]}`,
-			from:     "gpt-4o",
-			to:       "alias",
-			expected: `{"id":"chatcmpl-123","choices":[]}`,
-		},
-		{
-			name:     "非法 JSON 返回原值",
-			body:     `not json`,
-			from:     "gpt-4o",
-			to:       "alias",
-			expected: `not json`,
-		},
-		{
-			name:     "空 body 返回原值",
-			body:     ``,
-			from:     "gpt-4o",
-			to:       "alias",
-			expected: ``,
-		},
-		{
-			name:     "保持嵌套结构不变",
-			body:     `{"model":"gpt-4o","usage":{"prompt_tokens":10,"completion_tokens":20},"choices":[{"message":{"role":"assistant","content":"hello"}}]}`,
-			from:     "gpt-4o",
-			to:       "alias",
-			expected: `{"model":"alias","usage":{"prompt_tokens":10,"completion_tokens":20},"choices":[{"message":{"role":"assistant","content":"hello"}}]}`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := svc.replaceModelInResponseBody([]byte(tt.body), tt.from, tt.to)
-			require.Equal(t, tt.expected, string(got))
-		})
-	}
-}
 
 func TestExtractOpenAISSEDataLine(t *testing.T) {
 	tests := []struct {

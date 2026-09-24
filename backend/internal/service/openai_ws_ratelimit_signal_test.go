@@ -16,7 +16,6 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
 	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -33,12 +32,6 @@ type openAIWSRateLimitSignalRepo struct {
 	tempCalls      []time.Time
 	errorCalls     []string
 	updateExtra    []map[string]any
-}
-
-type openAICodexSnapshotAsyncRepo struct {
-	stubOpenAIAccountRepo
-	updateExtraCh chan map[string]any
-	rateLimitCh   chan time.Time
 }
 
 type openAIWS403CounterCacheStub struct {
@@ -79,24 +72,6 @@ func (r *openAIWSRateLimitSignalRepo) UpdateExtra(_ context.Context, _ int64, up
 		copied[k] = v
 	}
 	r.updateExtra = append(r.updateExtra, copied)
-	return nil
-}
-
-func (r *openAICodexSnapshotAsyncRepo) SetRateLimited(_ context.Context, _ int64, resetAt time.Time) error {
-	if r.rateLimitCh != nil {
-		r.rateLimitCh <- resetAt
-	}
-	return nil
-}
-
-func (r *openAICodexSnapshotAsyncRepo) UpdateExtra(_ context.Context, _ int64, updates map[string]any) error {
-	if r.updateExtraCh != nil {
-		copied := make(map[string]any, len(updates))
-		for k, v := range updates {
-			copied[k] = v
-		}
-		r.updateExtraCh <- copied
-	}
 	return nil
 }
 
@@ -754,101 +729,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 		t.Fatal("等待 ingress websocket 结束超时")
 	}
 }
-
-func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_ExhaustedSnapshotDoesNotSetRateLimit(t *testing.T) {
-	repo := &openAICodexSnapshotAsyncRepo{
-		updateExtraCh: make(chan map[string]any, 1),
-		rateLimitCh:   make(chan time.Time, 1),
-	}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
-	snapshot := &openai.OpenAICodexUsageSnapshot{
-		PrimaryUsedPercent:         ptrFloat64WS(100),
-		PrimaryResetAfterSeconds:   ptrIntWS(3600),
-		PrimaryWindowMinutes:       ptrIntWS(10080),
-		SecondaryUsedPercent:       ptrFloat64WS(12),
-		SecondaryResetAfterSeconds: ptrIntWS(1200),
-		SecondaryWindowMinutes:     ptrIntWS(300),
-	}
-	svc.updateCodexUsageSnapshot(context.Background(), 601, snapshot)
-
-	select {
-	case updates := <-repo.updateExtraCh:
-		require.Equal(t, 100.0, updates["codex_7d_used_percent"])
-	case <-time.After(2 * time.Second):
-		t.Fatal("等待 codex 快照落库超时")
-	}
-
-	select {
-	case resetAt := <-repo.rateLimitCh:
-		t.Fatalf("不应因仅写入快照而生成运行时限流时间: %v", resetAt)
-	case <-time.After(2 * time.Second):
-	}
-}
-
-func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_NonExhaustedSnapshotDoesNotSetRateLimit(t *testing.T) {
-	repo := &openAICodexSnapshotAsyncRepo{
-		updateExtraCh: make(chan map[string]any, 1),
-		rateLimitCh:   make(chan time.Time, 1),
-	}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
-	snapshot := &openai.OpenAICodexUsageSnapshot{
-		PrimaryUsedPercent:         ptrFloat64WS(94),
-		PrimaryResetAfterSeconds:   ptrIntWS(3600),
-		PrimaryWindowMinutes:       ptrIntWS(10080),
-		SecondaryUsedPercent:       ptrFloat64WS(22),
-		SecondaryResetAfterSeconds: ptrIntWS(1200),
-		SecondaryWindowMinutes:     ptrIntWS(300),
-	}
-	svc.updateCodexUsageSnapshot(context.Background(), 602, snapshot)
-
-	select {
-	case <-repo.updateExtraCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("等待 codex 快照落库超时")
-	}
-
-	select {
-	case resetAt := <-repo.rateLimitCh:
-		t.Fatalf("不应写入运行时限流时间: %v", resetAt)
-	case <-time.After(200 * time.Millisecond):
-	}
-}
-
-func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_ThrottlesExtraWrites(t *testing.T) {
-	repo := &openAICodexSnapshotAsyncRepo{
-		updateExtraCh: make(chan map[string]any, 2),
-	}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:           repo,
-		codexSnapshotThrottle: accountcore.NewWriteThrottle(time.Hour),
-	}))
-	snapshot := &openai.OpenAICodexUsageSnapshot{
-		PrimaryUsedPercent:         ptrFloat64WS(94),
-		PrimaryResetAfterSeconds:   ptrIntWS(3600),
-		PrimaryWindowMinutes:       ptrIntWS(10080),
-		SecondaryUsedPercent:       ptrFloat64WS(22),
-		SecondaryResetAfterSeconds: ptrIntWS(1200),
-		SecondaryWindowMinutes:     ptrIntWS(300),
-	}
-
-	svc.updateCodexUsageSnapshot(context.Background(), 777, snapshot)
-	svc.updateCodexUsageSnapshot(context.Background(), 777, snapshot)
-
-	select {
-	case <-repo.updateExtraCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("等待第一次 codex 快照落库超时")
-	}
-
-	select {
-	case updates := <-repo.updateExtraCh:
-		t.Fatalf("unexpected second codex snapshot write: %v", updates)
-	case <-time.After(200 * time.Millisecond):
-	}
-}
-
-func ptrFloat64WS(v float64) *float64 { return &v }
-func ptrIntWS(v int) *int             { return &v }
 
 func TestOpenAIWSErrorHTTPStatusFromRaw_UsageLimitReachedIs429(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, upstreamopenai.WSErrorHTTPStatusFromRaw("", "usage_limit_reached"))

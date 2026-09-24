@@ -9,6 +9,8 @@ import (
 	"testing"
 	time "time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
@@ -41,40 +43,40 @@ func TestSetOpenAICodexRoutingHintCanonicalizesOfficialServiceTiers(t *testing.T
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			headers := make(http.Header)
-			setOpenAICodexRoutingHint(headers, oauthAccount, tt.model, tt.serviceTier)
-			require.Equal(t, tt.want, headers.Get(openAICodexRoutingHintHeader))
+			gatewayhttp.SetOpenAICodexRoutingHint(headers, oauthAccount, tt.model, tt.serviceTier)
+			require.Equal(t, tt.want, headers.Get("x-codex-routing-hint"))
 		})
 	}
 
 	t.Run("invalid header value is omitted", func(t *testing.T) {
 		headers := make(http.Header)
-		setOpenAICodexRoutingHint(headers, oauthAccount, "gpt-5.6\ninvalid", "priority")
-		require.Empty(t, headers.Get(openAICodexRoutingHintHeader))
+		gatewayhttp.SetOpenAICodexRoutingHint(headers, oauthAccount, "gpt-5.6\ninvalid", "priority")
+		require.Empty(t, headers.Get("x-codex-routing-hint"))
 	})
 
 	for _, model := range []string{"gpt-5.6;evil", "gpt=5.6"} {
 		t.Run("delimiter in model is omitted: "+model, func(t *testing.T) {
 			headers := make(http.Header)
-			setOpenAICodexRoutingHint(headers, oauthAccount, model, "priority")
-			require.Empty(t, headers.Get(openAICodexRoutingHintHeader))
+			gatewayhttp.SetOpenAICodexRoutingHint(headers, oauthAccount, model, "priority")
+			require.Empty(t, headers.Get("x-codex-routing-hint"))
 		})
 	}
 
 	t.Run("api key strips gateway-owned hint in every key casing", func(t *testing.T) {
 		headers := make(http.Header)
-		headers[openAICodexRoutingHintHeader] = []string{"lowercase-spoof"}
+		headers["x-codex-routing-hint"] = []string{"lowercase-spoof"}
 		headers["X-Codex-Routing-Hint"] = []string{"canonical-spoof"}
-		setOpenAICodexRoutingHint(headers, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}, "gpt-5.6", "priority")
+		gatewayhttp.SetOpenAICodexRoutingHint(headers, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}, "gpt-5.6", "priority")
 		for key := range headers {
-			require.False(t, strings.EqualFold(key, openAICodexRoutingHintHeader))
+			require.False(t, strings.EqualFold(key, "x-codex-routing-hint"))
 		}
 	})
 
 	t.Run("oauth replaces spoofed lowercase hint", func(t *testing.T) {
 		headers := make(http.Header)
-		headers[openAICodexRoutingHintHeader] = []string{"model=spoof;tier=flex"}
-		setOpenAICodexRoutingHint(headers, oauthAccount, "gpt-5.6", "priority")
-		require.Equal(t, "model=gpt-5.6;tier=priority", headers.Get(openAICodexRoutingHintHeader))
+		headers["x-codex-routing-hint"] = []string{"model=spoof;tier=flex"}
+		gatewayhttp.SetOpenAICodexRoutingHint(headers, oauthAccount, "gpt-5.6", "priority")
+		require.Equal(t, "model=gpt-5.6;tier=priority", headers.Get("x-codex-routing-hint"))
 		require.Len(t, headers, 1)
 	})
 }
@@ -116,12 +118,12 @@ func TestOpenAIOAuthHTTPBuildersSendRoutingHintFromFinalBody(t *testing.T) {
 					var req *http.Request
 					var err error
 					if passthrough {
-						req, err = svc.buildUpstreamRequestOpenAIPassthrough(context.Background(), c, oauthAccount, tt.body, "test-token")
+						req, err = svc.Requests.BuildPassthrough(context.Background(), c, oauthAccount, tt.body, "test-token")
 					} else {
-						req, err = svc.buildUpstreamRequest(context.Background(), c, oauthAccount, tt.body, "test-token", false, "", true)
+						req, err = svc.Requests.Build(context.Background(), c, oauthAccount, tt.body, "test-token", false, "", true)
 					}
 					require.NoError(t, err)
-					require.Equal(t, tt.want, req.Header.Get(openAICodexRoutingHintHeader))
+					require.Equal(t, tt.want, req.Header.Get("x-codex-routing-hint"))
 				})
 			}
 		})
@@ -150,7 +152,7 @@ func TestOpenAIHTTPPassthroughStripsOnlyOAuthLegacyResponsesBeta(t *testing.T) {
 			}
 		}
 
-		req, err := svc.buildUpstreamRequestOpenAIPassthrough(context.Background(), c, account, body, "test-token")
+		req, err := svc.Requests.BuildPassthrough(context.Background(), c, account, body, "test-token")
 		require.NoError(t, err)
 		return req.Header
 	}
@@ -219,10 +221,10 @@ func TestBuildOpenAIWSHeadersSendsOAuthRoutingHintOnly(t *testing.T) {
 			"chatgpt_account_id": "test-account",
 		}},
 	}
-	require.Equal(t, "model=gpt-5.6-codex;tier=priority", build(t, oauthAccount, "fast").Get(openAICodexRoutingHintHeader))
-	require.Equal(t, "model=gpt-5.6-codex;tier=ultrafast", build(t, oauthAccount, "ultrafast").Get(openAICodexRoutingHintHeader))
-	require.Equal(t, "model=gpt-5.6-codex", build(t, oauthAccount, "default").Get(openAICodexRoutingHintHeader))
-	require.Empty(t, build(t, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}, "priority").Get(openAICodexRoutingHintHeader))
+	require.Equal(t, "model=gpt-5.6-codex;tier=priority", build(t, oauthAccount, "fast").Get("x-codex-routing-hint"))
+	require.Equal(t, "model=gpt-5.6-codex;tier=ultrafast", build(t, oauthAccount, "ultrafast").Get("x-codex-routing-hint"))
+	require.Equal(t, "model=gpt-5.6-codex", build(t, oauthAccount, "default").Get("x-codex-routing-hint"))
+	require.Empty(t, build(t, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}, "priority").Get("x-codex-routing-hint"))
 }
 
 func TestOpenAIRoutingDiagnosticsUseFinalDerivedValuesOnly(t *testing.T) {
@@ -244,8 +246,8 @@ func TestOpenAIRoutingDiagnosticsUseFinalDerivedValuesOnly(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 	c.Request.Header.Set("Authorization", "Bearer caller-secret")
-	c.Request.Header.Set(openAICodexRoutingHintHeader, "model=caller-secret")
-	_, err := svc.buildUpstreamRequest(context.Background(), c, account, body, "oauth-secret", false, "", true)
+	c.Request.Header.Set("x-codex-routing-hint", "model=caller-secret")
+	_, err := svc.Requests.Build(context.Background(), c, account, body, "oauth-secret", false, "", true)
 	require.NoError(t, err)
 
 	decision := egress.OpenAIWSProtocolDecision{Transport: egress.OpenAIUpstreamTransportResponsesWebsocketV2}
@@ -284,7 +286,7 @@ func TestOpenAIWSConnPoolPreferredContinuationIgnoresRoutingHintChanges(t *testi
 		t.Helper()
 		headers := make(http.Header)
 		if hint != "" {
-			headers.Set(openAICodexRoutingHintHeader, hint)
+			headers.Set("x-codex-routing-hint", hint)
 		}
 		lease, err := pool.Acquire(context.Background(), openai.WSAcquireRequest{
 			Account:            openAIWSPoolAccountView(account),
@@ -328,7 +330,7 @@ func TestOpenAIWSConnPoolUsesRoutingHintAsSoftDialAffinity(t *testing.T) {
 
 	acquire := func(t *testing.T, hint string) *openai.WSConnLease {
 		headers := make(http.Header)
-		headers.Set(openAICodexRoutingHintHeader, hint)
+		headers.Set("x-codex-routing-hint", hint)
 		lease, err := pool.Acquire(context.Background(), openai.WSAcquireRequest{
 			Account: openAIWSPoolAccountView(account),
 			WSURL:   "wss://example.com/v1/responses",

@@ -64,9 +64,9 @@ func TestRemovedGPT56AliasAcrossGatewayProtocols(t *testing.T) {
 					case "responses":
 						_, err = svc.Forward(context.Background(), c, account, payload)
 					case "chat":
-						_, err = svc.ForwardAsChatCompletions(context.Background(), c, account, payload, "", "")
+						_, err = svc.Text.Chat(context.Background(), c, account, payload, "", "")
 					case "messages":
-						_, err = svc.ForwardAsAnthropic(context.Background(), c, account, payload, "", "")
+						_, err = svc.Text.Messages(context.Background(), c, account, payload, "", "")
 					}
 					require.Error(t, err)
 					require.NotEmpty(t, upstream.lastBody)

@@ -2,8 +2,6 @@ package service
 
 import (
 	"time"
-
-	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
 
 const (
@@ -22,8 +20,6 @@ var (
 )
 
 // ErrNoAvailableAccounts 表示没有可用的账号
-
-var allowedHeaders = claude.AllowedHeaders
 
 // derefGroupID safely dereferences *int64 to int64, returning 0 if nil
 func derefGroupID(groupID *int64) int64 {

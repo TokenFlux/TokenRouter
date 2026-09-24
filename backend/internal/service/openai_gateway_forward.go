@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	openaiexecution "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -16,8 +18,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-
-	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -32,7 +32,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		return nil, routeErr
 	}
 	profile := openAIForwardProfile(account)
-	prepared, err := forward.PreparePrelude(ctx, body, profile, openAIForwardPreludeAdapter{s: s, c: c, account: account, ctx: ctx})
+	prepared, err := openaiexecution.PreparePrelude(ctx, body, profile, openAIForwardPreludeAdapter{s: s, c: c, account: account, ctx: ctx})
 	if err != nil {
 		return nil, err
 	}
@@ -47,17 +47,17 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	originalModel := reqModel
 	isCodexCLI := prepared.CodexCLI
 	switch prepared.Route {
-	case forward.DispatchRawChat:
-		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body, tlsRouterMatch)
-	case forward.DispatchGrok:
+	case openaiexecution.DispatchRawChat:
+		return s.Text.ResponsesViaRawChat(ctx, c, account, body, tlsRouterMatch)
+	case openaiexecution.DispatchGrok:
 		return s.Grok.ForwardResponses(ctx, c, account, body, originalModel, reqStream, startTime)
-	case forward.DispatchAnthropic:
-		return s.forwardResponsesViaNativeAnthropic(ctx, c, account, body, reqModel)
-	case forward.DispatchPassthrough:
-		return s.forwardOpenAIPassthrough(ctx, c, account, originalBody, canonicalImageIntentBody, reqModel, prepared.ImageIntentInvalidated, prepared.ReasoningEffort, reqStream, startTime, tlsRouterMatch)
+	case openaiexecution.DispatchAnthropic:
+		return s.Text.NativeResponses(ctx, c, account, body, reqModel)
+	case openaiexecution.DispatchPassthrough:
+		return s.Text.Passthrough(ctx, c, account, originalBody, canonicalImageIntentBody, reqModel, prepared.ImageIntentInvalidated, prepared.ReasoningEffort, reqStream, startTime, tlsRouterMatch)
 	}
 
-	transformed, err := forward.TransformRequest(ctx, prepared, profile, openAIForwardTransformAdapter{openAIForwardPreludeAdapter{s: s, c: c, account: account, ctx: ctx}})
+	transformed, err := openaiexecution.TransformRequest(ctx, prepared, profile, openAIForwardTransformAdapter{openAIForwardPreludeAdapter{s: s, c: c, account: account, ctx: ctx}})
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			imageCfg, imageCfgErr = gatewayprovider.ImageIntent().ResolveOpenAIResponsesImageBillingConfigDetailedFromBody(body, billingModel)
 		}
 		if imageCfgErr != nil {
-			openAIForwardPreludeAdapter{s: s, c: c, account: account, ctx: ctx}.Reject(forward.Rejection{Status: http.StatusBadRequest, Type: "invalid_request_error", Message: imageCfgErr.Error(), Param: "size", ObserveUpstream: true})
+			openAIForwardPreludeAdapter{s: s, c: c, account: account, ctx: ctx}.Reject(openaiexecution.Rejection{Status: http.StatusBadRequest, Type: "invalid_request_error", Message: imageCfgErr.Error(), Param: "size", ObserveUpstream: true})
 			return nil, imageCfgErr
 		}
 		imageBillingModel = imageCfg.Model
@@ -159,7 +159,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		firstOutputTimeout = s.responseOutput.FirstOutputTimeout(reasoningEffortValue)
 	}
 
-	input := forward.HTTPInput{
+	input := openaiexecution.HTTPInput{
 		Body: body, LineageEntryBody: lineageEntryBody, AccountID: account.Record.ID, AccountName: account.Record.Name, Platform: account.Record.Platform,
 		RequestedModel: requestedModel, OriginalModel: originalModel, BillingModel: billingModel, UpstreamModel: upstreamModel,
 		ReasoningEffort: reasoningEffort, ReasoningEffortValue: reasoningEffortValue,
@@ -171,7 +171,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		FirstOutputTimeout: firstOutputTimeout,
 		RequestContext:     gatewayprovider.DetachUpstreamContext,
 		Build: func(ctx context.Context, body []byte) (*http.Request, error) {
-			return s.buildUpstreamRequest(ctx, c, account, body, token, reqStream, promptCacheKey, isCodexCLI, tlsRouterMatch)
+			return s.Requests.Build(ctx, c, account, body, token, reqStream, promptCacheKey, isCodexCLI, tlsRouterMatch)
 		},
 		ApplyHeaders: func(headers http.Header) { openai.ApplyCodexFingerprintHeaders(headers, fingerprintIDs) },
 		Do: func(request *http.Request) (*http.Response, error) {
@@ -179,7 +179,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			if account.Record.ProxyID != nil && account.Record.Proxy != nil {
 				proxyURL = account.Record.Proxy.URL()
 			}
-			return s.httpUpstream.DoWithTLS(request, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch))
+			return s.httpUpstream.DoWithTLS(request, proxyURL, account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch))
 		},
 		Latency: func(elapsed time.Duration) {
 			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, elapsed.Milliseconds())
@@ -212,19 +212,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		},
 	)
 	options.ReleaseDecodedRequest = func() { reqBody = nil }
-	result, err := forward.RunHTTP(ctx, input, options)
-	return openAIForwardResultFromHTTP(result), err
+	result, err := openaiexecution.RunHTTP(ctx, input, options)
+	return openaiexecution.ToForwardResult(result), err
 }
 
 func shouldForwardOpenAIResponsesViaRawChatCompletions(account *gatewayprovider.ExecutionAccount) bool {
 	return gatewayprovider.ExecutionModelPolicy(account).RawChat()
-}
-
-// buildUpstreamRequest 保留旧签名，仅投影目标与原生请求选项。
-func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool, routerMatch ...egress.TLSFingerprintRouterMatchResult) (*http.Request, error) {
-	return forward.BuildResponsesRequest(ctx, body, promptCacheKey, s.openAIRequestTarget(c, account, false), func(path string) { gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, path) }, func(b []byte) []byte {
-		return forward.NormalizeCNResponsesBody(account != nil && gatewayprovider.ExecutionProtocolTarget(account).UsesNativeCNResponses(), b)
-	}, func(target string) openai.ResponsesRequestOptions {
-		return s.nativeResponsesRequestOptions(ctx, c, account, token, target, isCodexCLI, routerMatch...)
-	})
 }

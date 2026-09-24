@@ -58,7 +58,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 		return err
 	}
 
-	tlsRouterMatch := s.matchTLSFingerprintRouter(c, account)
+	tlsRouterMatch := s.Requests.MatchTLS(c, account)
 
 	// 预取一次 OpenAI Fast Policy settings，绑定到 ctx，让该 WS session
 	// 内所有帧的 evaluateOpenAIFastPolicy 调用复用同一份快照，避免每帧
@@ -223,7 +223,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 		if buildHdrErr != nil {
 			return fmt.Errorf("build ws headers: %w", buildHdrErr)
 		}
-		tlsProfile, tlsProfileKey := s.resolveOpenAIWSTLSProfile(account, tlsRouterMatch)
+		tlsProfile, tlsProfileKey := s.Requests.WSTLSProfile(account, tlsRouterMatch)
 		baseAcquireReq = openai.WSAcquireRequest{
 			Account: openAIWSPoolAccountView(account),
 			WSURL:   wsURL,
@@ -434,7 +434,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 					baseAcquireReq.Headers = updatedHeaders
 				}
 			}
-			setOpenAICodexRoutingHint(baseAcquireReq.Headers, account, nextRoutingFields[0].String(), nextRoutingFields[1].String())
+			gatewayhttp.SetOpenAICodexRoutingHint(baseAcquireReq.Headers, account, nextRoutingFields[0].String(), nextRoutingFields[1].String())
 		},
 	}
 	runtime := gatewayws.IngressSession{State: state, Store: stateStore, Codec: wsReplayCodec{}, Port: port, Hooks: wsIngressHooks(hooks), Options: gatewayws.IngressOptions{

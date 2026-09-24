@@ -135,7 +135,7 @@ func (s *OpenAIGatewayService) createUpstreamLiveCall(ctx context.Context, accou
 			s.applyLiveUpstreamRouting(ctx, account, headers, tlsRouterMatch)
 		},
 		Do: func(request *http.Request) (*http.Response, error) {
-			return s.httpUpstream.DoWithTLS(request, resolveAccountProxyURL(account), account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch))
+			return s.httpUpstream.DoWithTLS(request, resolveAccountProxyURL(account), account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch))
 		},
 		StageFailure: func(stage string, err error) { logLiveCreateStageFailure(ctx, account.Record.ID, stage, err) },
 		HTTPFailure: func(status int, headers http.Header, body []byte) error {
@@ -208,7 +208,7 @@ func (s *OpenAIGatewayService) applyLiveUpstreamRouting(
 			headers.Set("originator", originator)
 		}
 	}
-	s.applyOpenAIUpstreamUserAgentHeader(ctx, nil, account, headers, false, routerMatch)
+	s.Requests.ApplyUserAgentHeader(ctx, nil, account, headers, false, routerMatch)
 	openai.ApplyLiveUpstreamIdentityHeaders(headers)
 }
 
@@ -260,7 +260,7 @@ func (s *OpenAIGatewayService) dialLiveSidebandForAccount(ctx context.Context, r
 	if err != nil {
 		return nil, err
 	}
-	tlsProfile, _ := s.resolveOpenAIWSTLSProfile(account, tlsRouterMatch)
+	tlsProfile, _ := s.Requests.WSTLSProfile(account, tlsRouterMatch)
 	return openai.DialLiveSideband(ctx, s.getOpenAIWSPassthroughDialer(), chatGPTLiveSidebandBaseURL, record.CallID, headers, resolveAccountProxyURL(account), tlsProfile)
 }
 
@@ -285,7 +285,7 @@ func (s *OpenAIGatewayService) liveClientPolicyResult(
 	request := (&http.Request{Method: http.MethodPost, Header: make(http.Header)}).WithContext(ctx)
 	request.Header.Set("User-Agent", identity.UserAgent)
 	request.Header.Set("originator", identity.Originator)
-	return s.detectCodexClientRestriction(&gin.Context{Request: request}, account, tlsRouterMatch)
+	return s.Requests.DetectClient(&gin.Context{Request: request}, account, tlsRouterMatch)
 }
 
 // GetLiveCallForIdentity 委托会话绑定校验，不重复读取或复制身份规则。

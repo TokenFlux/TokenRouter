@@ -1,6 +1,7 @@
 package app
 
 import (
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -76,6 +77,11 @@ func (w fixtureCyberOps) Enqueue(value *ops.OpsInsertErrorLogInput) {
 
 // newGatewayHTTPEndpoints 在调用前投影测试可变输入，复用真实 app 绑定函数；资源指针始终相同。
 func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpointsFixture {
+	// 准入拒绝测试的空 Source 仍只绑定空端口，不构造可执行上游。
+	if input.Source != nil && input.Source.Text == nil {
+		input.Source.BindTextExecution(&gatewayhttp.OpenAITextExecutor{Requests: &gatewayhttp.OpenAIRequests{}, CodexUsage: &accountprovider.CodexUsageObserver{}})
+	}
+
 	f := &gatewayHTTPEndpointsFixture{Input: &input}
 	resources := func() *gatewayhttp.OpenAIHTTPResources {
 		return &gatewayhttp.OpenAIHTTPResources{Concurrency: input.Concurrency, Images: input.Images, ImageOptions: openAIImageAdmissionOptions(input.Config)}

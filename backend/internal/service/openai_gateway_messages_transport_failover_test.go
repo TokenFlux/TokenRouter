@@ -32,7 +32,7 @@ func TestForwardAsAnthropic_TransportError_ReturnsFailoverError(t *testing.T) {
 	})
 
 	account := rawChatCompletionsTestAccount()
-	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -57,7 +57,7 @@ func TestForwardAsAnthropic_TransportError_DoesNotWriteResponse(t *testing.T) {
 	})
 
 	account := rawChatCompletionsTestAccount()
-	_, _ = svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	_, _ = svc.Text.Messages(context.Background(), c, account, body, "", "")
 
 	require.Equal(t, http.StatusOK, rec.Code, "transport error must not write HTTP response — handler owns the response for failover")
 	require.Empty(t, rec.Body.String(), "response body must be empty so handler can write the correct error or failover")
@@ -82,7 +82,7 @@ func TestForwardAsAnthropic_TransportError_ClientCanceled_NoFailover(t *testing.
 	})
 
 	account := rawChatCompletionsTestAccount()
-	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
 	var failoverErr *forwardcore.UpstreamFailoverError

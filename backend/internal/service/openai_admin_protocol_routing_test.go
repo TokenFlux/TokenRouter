@@ -43,9 +43,9 @@ func TestOpenAIAdministratorProtocolOverridesAllLegacyProbeState(t *testing.T) {
 					case "responses":
 						_, err = svc.Forward(context.Background(), c, account, body)
 					case "chat/completions":
-						_, err = svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+						_, err = svc.Text.Chat(context.Background(), c, account, body, "", "")
 					case "messages":
-						_, err = svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+						_, err = svc.Text.Messages(context.Background(), c, account, body, "", "")
 					}
 					require.Error(t, err)
 					require.NotNil(t, upstream.lastReq)

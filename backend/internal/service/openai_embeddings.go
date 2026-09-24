@@ -76,7 +76,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
-	validatedURL, err := s.validateUpstreamBaseURL(baseURL)
+	validatedURL, err := s.Requests.ValidateBaseURL(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid base_url: %w", err)
 	}
@@ -88,7 +88,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	}
 	forwardHeaders := make(http.Header)
 	for key, values := range c.Request.Header {
-		if openaiCCRawAllowedHeaders[strings.ToLower(key)] {
+		if gatewayhttp.AllowOpenAIRawChatHeader(strings.ToLower(key)) {
 			forwardHeaders[key] = append([]string(nil), values...)
 		}
 	}

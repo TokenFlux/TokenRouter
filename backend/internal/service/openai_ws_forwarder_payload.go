@@ -54,7 +54,7 @@ func (s *OpenAIGatewayService) buildOpenAIResponsesWSURL(account *gatewayprovide
 		if baseURL == "" {
 			targetURL = openaiPlatformAPIURL
 		} else {
-			validatedURL, err := s.validateUpstreamBaseURL(baseURL)
+			validatedURL, err := s.Requests.ValidateBaseURL(baseURL)
 			if err != nil {
 				return "", err
 			}
@@ -122,7 +122,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 			if c != nil && c.Request != nil {
 				reqCtx = c.Request.Context()
 			}
-			s.applyOpenAIUpstreamUserAgentHeader(reqCtx, c, account, headers, true, routerMatch...)
+			s.Requests.ApplyUserAgentHeader(reqCtx, c, account, headers, true, routerMatch...)
 		},
 		ResponsesRequestOptions: upstreamopenai.ResponsesRequestOptions{
 			UsesCodex: func() bool { return account != nil && account.View().UsesOpenAICodexProtocol() },
@@ -137,16 +137,16 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 			AccountHeaders: func(ctx context.Context, headers http.Header) error {
 				return gatewayprovider.CredentialChatGPTHeaders(ctx, s.accountRepo, headers, account)
 			},
-			Originator:      func() string { return resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...) },
+			Originator:      func() string { return gatewayhttp.ResolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...) },
 			OverrideHeaders: gatewayprovider.BindExecutionHeaders(account),
 			BetaFeatures: func(headers http.Header) {
 				gatewayhttp.ApplyOpenAICodexBetaFeatures(c, account != nil && account.View().IsOpenAIOAuthLike(), headers)
 			},
 			RoutingHint: func(headers http.Header, _ []byte) {
-				setOpenAICodexRoutingHint(headers, account, routingModel, routingServiceTier)
+				gatewayhttp.SetOpenAICodexRoutingHint(headers, account, routingModel, routingServiceTier)
 			},
 			Diagnostics: func(headers http.Header, _ []byte) {
-				logOpenAIRoutingDiagnostics(ctx, account, string(decision.Transport), routingModel, routingServiceTier, strings.TrimSpace(headers.Get(openAICodexRoutingHintHeader)) != "", "soft_routing_hint")
+				gatewayhttp.LogOpenAIRoutingDiagnostics(ctx, account, string(decision.Transport), routingModel, routingServiceTier, strings.TrimSpace(headers.Get(gatewayhttp.OpenAICodexRoutingHintHeader)) != "", "soft_routing_hint")
 			},
 		},
 	})

@@ -56,7 +56,7 @@ func cnProtocolIngressCases() []cnProtocolIngressCase {
 			path: "/v1/chat/completions",
 			body: []byte(`{"model":"deepseek-chat","messages":[{"role":"user","content":"hello"}],"stream":false}`),
 			forward: func(svc *OpenAIGatewayService, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) error {
-				_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+				_, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 				return err
 			},
 		},
@@ -65,7 +65,7 @@ func cnProtocolIngressCases() []cnProtocolIngressCase {
 			path: "/v1/messages",
 			body: []byte(`{"model":"deepseek-chat","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`),
 			forward: func(svc *OpenAIGatewayService, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) error {
-				_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+				_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 				return err
 			},
 		},
@@ -91,7 +91,7 @@ func TestAdaptiveProtocolRoutesChatCompletionsToNativeChat(t *testing.T) {
 		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
 	})
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
 	require.Error(t, err)
 	require.Equal(t, "http://chat.example/v1/chat/completions", upstream.lastReq.URL.String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "messages").IsArray())
@@ -109,7 +109,7 @@ func TestAdaptiveProtocolRoutesResponsesShapedChatToNativeResponses(t *testing.T
 		accountcore.APIProtocolResponses:       "http://responses.example",
 	})
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
 	require.Error(t, err)
 	require.Equal(t, "http://responses.example/responses", upstream.lastReq.URL.String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
@@ -126,7 +126,7 @@ func TestAdaptiveProtocolConvertsResponsesShapedChatForChatOnlyProvider(t *testi
 		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
 	})
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
 	require.Error(t, err)
 	require.Equal(t, "http://chat.example/v1/chat/completions", upstream.lastReq.URL.String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "messages").IsArray())
@@ -144,7 +144,7 @@ func TestAdaptiveProtocolRoutesKimiResponsesShapedChatToNativeResponses(t *testi
 		accountcore.APIProtocolResponses:       "http://responses.example/v1",
 	})
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
 	require.Error(t, err)
 	require.Equal(t, "http://responses.example/v1/responses", upstream.lastReq.URL.String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
@@ -161,7 +161,7 @@ func TestAdaptiveProtocolRoutesMessagesToNativeAnthropic(t *testing.T) {
 		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
 	})
 
-	_, err := svc.ForwardAsAnthropic(context.Background(), adaptiveProtocolTestContext("/v1/messages", body), account, body, "", "")
+	_, err := svc.Text.Messages(context.Background(), adaptiveProtocolTestContext("/v1/messages", body), account, body, "", "")
 	require.Error(t, err)
 	require.Equal(t, "http://anthropic.example/v1/messages", upstream.lastReq.URL.String())
 	require.Equal(t, "glm-4.7", gjson.GetBytes(upstream.lastBody, "model").String())

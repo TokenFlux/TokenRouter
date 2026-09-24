@@ -570,6 +570,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsA
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 	if svc.Grok != nil {
 		svc.Grok.Transport = svc.httpUpstream
 	}
@@ -732,6 +735,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealErr
 			)),
 		},
 	}
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:     "openai-oauth",
@@ -786,6 +792,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturn
 					"data: {\"type\":\"response.failed\",\"response\":{\"id\":\"resp_blocked\",\"status\":\"failed\",\"error\":{\"type\":\"image_generation_user_error\",\"code\":\"moderation_blocked\",\"message\":\"Your request was rejected by the safety system. safety_violations=[sexual].\"}}}\n\n",
 			)),
 		},
+	}
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
 	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
@@ -1343,6 +1352,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents(t *tes
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 	if svc.Grok != nil {
 		svc.Grok.Transport = svc.httpUpstream
 	}
@@ -1415,6 +1427,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingModerationBlockedEmitsE
 				"data: {\"type\":\"response.failed\",\"response\":{\"id\":\"resp_blocked_stream\",\"status\":\"failed\",\"error\":{\"type\":\"image_generation_user_error\",\"code\":\"moderation_blocked\",\"message\":\"Your request was rejected by the safety system.\"}}}\n\n",
 			)),
 		},
+	}
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
 	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
@@ -1674,6 +1689,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI(t
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 	if svc.Grok != nil {
 		svc.Grok.Transport = svc.httpUpstream
 	}
@@ -1738,6 +1756,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsStreamingTransformsEvents(t
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 	if svc.Grok != nil {
 		svc.Grok.Transport = svc.httpUpstream
 	}
@@ -1930,6 +1951,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesOutputItemDoneFa
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 	if svc.Grok != nil {
 		svc.Grok.Transport = svc.httpUpstream
 	}
@@ -1987,6 +2011,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesMultilineSSE(t *
 					"data: [DONE]\n\n",
 			)),
 		},
+	}
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
 	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11,
@@ -2051,6 +2078,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingDrainsAfterClientDiscon
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 	if svc.Grok != nil {
 		svc.Grok.Transport = svc.httpUpstream
 	}

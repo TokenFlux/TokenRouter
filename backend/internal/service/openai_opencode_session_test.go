@@ -9,6 +9,8 @@ import (
 	"testing"
 	time "time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -25,7 +27,7 @@ func newOpenCodeSessionTestContext(t *testing.T, value string) *gin.Context {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	if value != "" {
-		c.Request.Header.Set(openCodeSessionHeader, value)
+		c.Request.Header.Set("X-OpenCode-Session", value)
 	}
 	return c
 }
@@ -54,7 +56,7 @@ func requireSingleOpenCodeSessionHeader(t *testing.T, headers http.Header, want 
 	t.Helper()
 	count := 0
 	for key, values := range headers {
-		if strings.EqualFold(key, openCodeSessionHeader) {
+		if strings.EqualFold(key, "X-OpenCode-Session") {
 			count += len(values)
 			require.Equal(t, []string{want}, values)
 		}
@@ -111,8 +113,8 @@ func TestApplyOpenCodeSessionHeaderTrustBoundary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			headers := make(http.Header)
-			applyOpenCodeSessionHeader(newOpenCodeSessionTestContext(t, tt.incoming), tt.account, tt.targetURL, headers)
-			require.Equal(t, tt.want, headers.Get(openCodeSessionHeader))
+			gatewayhttp.ApplyOpenCodeSessionHeader(newOpenCodeSessionTestContext(t, tt.incoming), tt.account, tt.targetURL, headers)
+			require.Equal(t, tt.want, headers.Get("X-OpenCode-Session"))
 		})
 	}
 }
@@ -130,13 +132,13 @@ func TestOpenCodeSessionForwardedByResponsesBuildersAfterAccountOverride(t *test
 		{
 			name: "normal responses",
 			build: func(c *gin.Context) (*http.Request, error) {
-				return svc.buildUpstreamRequest(context.Background(), c, account, body, "token", false, "", false)
+				return svc.Requests.Build(context.Background(), c, account, body, "token", false, "", false)
 			},
 		},
 		{
 			name: "passthrough responses",
 			build: func(c *gin.Context) (*http.Request, error) {
-				return svc.buildUpstreamRequestOpenAIPassthrough(context.Background(), c, account, body, "token")
+				return svc.Requests.BuildPassthrough(context.Background(), c, account, body, "token")
 			},
 		},
 	}
@@ -157,7 +159,7 @@ func TestOpenCodeSessionMissingCallerValueKeepsExistingOverrideBehavior(t *testi
 	account := openCodeSessionTestAccount("https://opencode.ai/zen/v1")
 	c := newOpenCodeSessionTestContext(t, "")
 
-	req, err := svc.buildUpstreamRequest(
+	req, err := svc.Requests.Build(
 		context.Background(), c, account,
 		[]byte(`{"model":"gpt-5","input":"hello"}`), "token", false, "", false,
 	)
@@ -187,13 +189,16 @@ func TestOpenCodeSessionForwardedByRawChatCompletionsAfterAccountOverride(t *tes
 	upstream := &openCodeSessionHTTPUpstream{}
 	svc := openCodeSessionTestService()
 	svc.httpUpstream = upstream
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 	if svc.Grok != nil {
 		svc.Grok.Transport = svc.httpUpstream
 	}
 	account := openCodeSessionTestAccount("https://opencode.ai/zen/v1")
 	c := newOpenCodeSessionTestContext(t, "conversation-789")
 
-	resp, err := svc.sendCCUpstreamRequest(
+	resp, err := svc.Requests.SendChat(
 		context.Background(), c, account,
 		"https://opencode.ai/zen/v1/chat/completions", []byte(`{"model":"gpt-5"}`),
 		false, "token", "", "",
@@ -221,9 +226,9 @@ func TestOpenCodeSessionIsNotForwardedToOtherUpstreams(t *testing.T) {
 				Credentials: map[string]any{"base_url": baseURL}},
 			}
 			c := newOpenCodeSessionTestContext(t, "private-conversation")
-			req, err := svc.buildUpstreamRequest(context.Background(), c, account, body, "token", false, "", false)
+			req, err := svc.Requests.Build(context.Background(), c, account, body, "token", false, "", false)
 			require.NoError(t, err)
-			require.Empty(t, req.Header.Get(openCodeSessionHeader))
+			require.Empty(t, req.Header.Get("X-OpenCode-Session"))
 		})
 	}
 }

@@ -106,6 +106,9 @@ func TestOpenAIGatewayServiceForward_NormalizesResponsesLiteToolsForOAuth(t *tes
 			badCtx.Request.Header.Set(media.ResponsesLiteHeader, "true")
 			badUpstream := &httpUpstreamRecorder{}
 			svc.httpUpstream = badUpstream
+			if svc.Requests != nil {
+				svc.Requests.Transport = svc.httpUpstream
+			}
 			if svc.Grok != nil {
 				svc.Grok.Transport = svc.httpUpstream
 			}

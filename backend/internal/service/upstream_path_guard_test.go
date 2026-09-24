@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/gin-gonic/gin"
@@ -126,7 +128,7 @@ func TestOpenAIResponsesRequestPathSuffixRejectsNonConformingSubpaths(t *testing
 			require.Empty(t, httpapi.OpenAIResponsesRequestPathSuffix(c),
 				"path %q must never contribute an upstream path suffix", path)
 			require.Equal(t, chatgptCodexURL,
-				appendOpenAIResponsesRequestPathSuffix(chatgptCodexURL, httpapi.OpenAIResponsesRequestPathSuffix(c)))
+				upstreamopenai.AppendResponsesPathSuffix(chatgptCodexURL, httpapi.OpenAIResponsesRequestPathSuffix(c)))
 			require.False(t, httpapi.IsOpenAIResponsesCompactPath(c))
 		})
 	}
@@ -158,9 +160,9 @@ func TestIsOpenAIResponsesInputTokensRequestPath(t *testing.T) {
 
 func TestAppendOpenAIResponsesRequestPathSuffixRefusesUnsafeSuffix(t *testing.T) {
 	// 调用方漏了校验时，拼接函数本身也不得把不合规片段带进上游 URL。
-	require.Equal(t, chatgptCodexURL, appendOpenAIResponsesRequestPathSuffix(chatgptCodexURL, "/../../x"))
-	require.Equal(t, chatgptCodexURL, appendOpenAIResponsesRequestPathSuffix(chatgptCodexURL, "/?a=b"))
-	require.Equal(t, chatgptCodexURL+"/compact", appendOpenAIResponsesRequestPathSuffix(chatgptCodexURL, "/compact"))
+	require.Equal(t, chatgptCodexURL, upstreamopenai.AppendResponsesPathSuffix(chatgptCodexURL, "/../../x"))
+	require.Equal(t, chatgptCodexURL, upstreamopenai.AppendResponsesPathSuffix(chatgptCodexURL, "/?a=b"))
+	require.Equal(t, chatgptCodexURL+"/compact", upstreamopenai.AppendResponsesPathSuffix(chatgptCodexURL, "/compact"))
 }
 
 func newResponsesSuffixTestContext(t *testing.T, path string) *gin.Context {

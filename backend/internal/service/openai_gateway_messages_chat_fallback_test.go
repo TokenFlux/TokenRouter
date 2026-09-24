@@ -113,7 +113,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsPreservesFinalModelReasoningEffo
 			account.Record.Credentials["model_mapping"] = map[string]any{tt.model: tt.mapped}
 
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
-			result, err := svc.ForwardAsAnthropic(context.Background(), c, account, []byte(body), "", "")
+			result, err := svc.Text.Messages(context.Background(), c, account, []byte(body), "", "")
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Equal(t, tt.mapped, gjson.GetBytes(upstream.lastBody, "model").String())
@@ -147,7 +147,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsNonStreaming(t *testing.T) {
 	})
 
 	tlsMatch := egress.TLSFingerprintRouterMatchResult{Matched: true, UpstreamUserAgent: "router-agent"}
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "", tlsMatch)
+	result, err := svc.Text.Messages(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "", tlsMatch)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.lastReq.URL.String())
@@ -203,7 +203,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingClosesOpenBlockOnDone(t
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.True(t, gjson.GetBytes(upstream.lastBody, "stream_options.include_usage").Bool())
@@ -263,7 +263,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingToolCallAggregation(t *
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	parallelToolCalls := gjson.GetBytes(upstream.lastBody, "parallel_tool_calls")
@@ -319,7 +319,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingInterleavedParallelTool
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	parallelToolCalls := gjson.GetBytes(upstream.lastBody, "parallel_tool_calls")
@@ -411,7 +411,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingLengthMapsToMaxTokens(t
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -440,7 +440,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsEmptyStreamStillFramesMessage(t 
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -470,7 +470,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsNonFailover400UsesSharedErrorHan
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
 	require.Error(t, err)
 	require.Nil(t, result)
 
@@ -519,7 +519,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamReadErrorSkipsFinalize(t *
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream usage incomplete")
 	require.NotNil(t, result)
@@ -563,7 +563,7 @@ func TestForwardAsAnthropic_ResponsesSupportedAccountStillUsesResponsesEndpoint(
 		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModePreserveClientProtocol),
 	}
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.True(t, strings.HasSuffix(upstream.lastReq.URL.Path, "/responses"),

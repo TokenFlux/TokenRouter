@@ -385,7 +385,7 @@ func TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPat
 		Status:      billing.StatusActive, Schedulable: true},
 	}
 
-	result, err := svc.forwardOpenAIPassthrough(
+	result, err := svc.Text.Passthrough(
 		context.Background(), c, account, body, body, "gpt-5.5", false, nil, true, time.Now(),
 	)
 

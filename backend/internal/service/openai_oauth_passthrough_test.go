@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	httpapitestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
+	httptestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
@@ -1458,7 +1458,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_CompactErrorAfterKeepaliveIsFail
 	require.Error(t, err)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Result().Header.Get("Content-Type"), "text/event-stream")
-	events := httpapitestkit.ParseCompactSSE(t, stripKeepaliveComments(rec.Body.String()))
+	events := httptestkit.ParseCompactSSE(t, stripKeepaliveComments(rec.Body.String()))
 	require.Len(t, events, 1)
 	require.Equal(t, "response.failed", events[0][0])
 	require.Equal(t, "failed", gjson.Get(events[0][1], "response.status").String())
@@ -2186,7 +2186,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamClientDisconnectStillCollec
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
 	// 首次写入成功，后续写入失败，模拟客户端中途断开。
-	c.Writer = &failingGinWriter{ResponseWriter: c.Writer, failAfter: 1}
+	c.Writer = &httptestkit.FailingWriter{ResponseWriter: c.Writer, FailAfter: 1}
 
 	originalBody := []byte(`{"model":"gpt-5.2","stream":true,"input":[{"type":"text","text":"hi"}]}`)
 

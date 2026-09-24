@@ -105,6 +105,11 @@ func newOpenAIExecutionAndSelectionFixture(
 
 		settingService, prompts, headerFilter, stateStore, turnHeaders, modelTransient, proxyCircuit, choices, grokHealth, provideCompactExecutor(cfg), output, tlsFPRouterServices...)
 	source.BindGrokExecution(provideGrokExecutor(cfg, credentials, httpUpstream, output, grokHealth, tlsFPProfileService, settingService, blocks, deferredService, accountRepo, &gatewayRequestActivity{Operations: lifecycle.NewOperations("GatewayRequestsAndAttempts")}, resolver))
+	var routers *egress.TLSFingerprintRouterService
+	if len(tlsFPRouterServices) > 0 {
+		routers = tlsFPRouterServices[0]
+	}
+	source.BindTextExecution(openAITextExecution(cfg, accountRepo, nil, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, source.Grok, output, source.PromptCacheBindings(), choices.OpenAIHTTPResponseStickyTTL, provideCompactExecutor(cfg)))
 	source.BindRuntimeBlockState(blocks)
 	source.BindSchedulerStickyStats(sticky)
 	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}

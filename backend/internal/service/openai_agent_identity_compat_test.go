@@ -51,7 +51,7 @@ func TestOpenAIAgentIdentityPassthroughKeepsSessionAndPromptCacheHeaders(t *test
 	c.Request.Header.Set("Authorization", "Bearer inbound-must-not-forward")
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{}))
-	req, err := svc.buildUpstreamRequestOpenAIPassthrough(context.Background(), c, account, body, "")
+	req, err := svc.Requests.BuildPassthrough(context.Background(), c, account, body, "")
 	require.NoError(t, err)
 	require.Equal(t, "AgentAssertion", strings.SplitN(req.Header.Get("Authorization"), " ", 2)[0])
 	require.Equal(t, "account-agent-passthrough", req.Header.Get("chatgpt-account-id"))
@@ -76,7 +76,7 @@ func TestOpenAIAgentIdentityPassthroughKeepsSessionAndPromptCacheHeaders(t *test
 	oauthContext.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 	oauthContext.Request.Header.Set("session_id", "client-session")
 	oauthContext.Request.Header.Set("conversation_id", "client-conversation")
-	oauthReq, err := svc.buildUpstreamRequestOpenAIPassthrough(context.Background(), oauthContext, oauthAccount, body, "oauth-token")
+	oauthReq, err := svc.Requests.BuildPassthrough(context.Background(), oauthContext, oauthAccount, body, "oauth-token")
 	require.NoError(t, err)
 	require.Equal(t, oauthReq.Header.Get("session_id"), req.Header.Get("session_id"))
 	require.Equal(t, oauthReq.Header.Get("conversation_id"), req.Header.Get("conversation_id"))
@@ -250,7 +250,7 @@ func TestOpenAIAgentIdentityCompatRoutesRecoverInvalidTaskOnce(t *testing.T) {
 			path: "/v1/chat/completions",
 			body: []byte(`{"model":"gpt-5.4","stream":false,"messages":[{"role":"user","content":"hi"}]}`),
 			call: func(s *OpenAIGatewayService, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error) {
-				return s.ForwardAsChatCompletions(ctx, c, account, body, "", "gpt-5.4")
+				return s.Text.Chat(ctx, c, account, body, "", "gpt-5.4")
 			},
 		},
 		{
@@ -258,7 +258,7 @@ func TestOpenAIAgentIdentityCompatRoutesRecoverInvalidTaskOnce(t *testing.T) {
 			path: "/v1/messages",
 			body: []byte(`{"model":"gpt-5.4","stream":false,"max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`),
 			call: func(s *OpenAIGatewayService, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error) {
-				return s.ForwardAsAnthropic(ctx, c, account, body, "", "gpt-5.4")
+				return s.Text.Messages(ctx, c, account, body, "", "gpt-5.4")
 			},
 		},
 	}
@@ -343,7 +343,7 @@ func TestOpenAIAgentIdentityChatRecoveryKeepsAutoDerivedSessionIsolationStable(t
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	c.Set("api_key", &apikey.APIKey{ID: 99})
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.4")
 	require.Error(t, err)
 	require.Len(t, upstream.requests, 2)
 	firstKey := gjson.GetBytes(upstream.bodies[0], "prompt_cache_key").String()

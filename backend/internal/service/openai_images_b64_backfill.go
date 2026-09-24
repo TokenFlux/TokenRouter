@@ -23,7 +23,7 @@ func ImagesURLToB64JSONEnabled(account *gatewayprovider.ExecutionAccount) bool {
 func (s *OpenAIGatewayService) imageBackfillOptions(account *gatewayprovider.ExecutionAccount) openai.ImageBackfillOptions {
 	options := openai.ImageBackfillOptions{Enabled: ImagesURLToB64JSONEnabled(account)}
 	if s != nil {
-		options.ValidateURL = s.validateOutboundURL
+		options.ValidateURL = s.Requests.ValidateURL
 		if s.httpUpstream != nil && account != nil {
 			proxyURL := ""
 			if account.Record.ProxyID != nil && account.Record.Proxy != nil {

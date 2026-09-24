@@ -249,7 +249,7 @@ func (s *OpenAIGatewayService) buildInputTokensUpstreamRequest(
 	targetURL := openaiPlatformAPIInputTokensURL
 	if account.Record.Type == capability.AccountTypeAPIKey {
 		if baseURL := gatewayprovider.ExecutionProtocolTarget(account).GetOpenAIBaseURL(); strings.TrimSpace(baseURL) != "" {
-			validatedURL, err := s.validateUpstreamBaseURL(baseURL)
+			validatedURL, err := s.Requests.ValidateBaseURL(baseURL)
 			if err != nil {
 				return nil, err
 			}
@@ -257,7 +257,7 @@ func (s *OpenAIGatewayService) buildInputTokensUpstreamRequest(
 		}
 	}
 
-	options := s.nativeResponsesRequestOptions(ctx, c, account, token, targetURL, false)
+	options := s.Requests.ResponseOptions(ctx, c, account, token, targetURL, false)
 	options.ForwardHeaders = func() http.Header {
 		if c == nil || c.Request == nil {
 			return nil

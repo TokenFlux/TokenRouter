@@ -175,7 +175,7 @@ func TestOpenAIPassthroughAPIKeyRestoresClientToolsNonStreaming(t *testing.T) {
 	svc := openAIClientToolsTestService(upstream)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5659, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key"}}}
 
-	result, err := svc.forwardOpenAIPassthrough(context.Background(), c, account, body, body, "gpt-5.4", false, nil, false, time.Now())
+	result, err := svc.Text.Passthrough(context.Background(), c, account, body, body, "gpt-5.4", false, nil, false, time.Now())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -201,7 +201,7 @@ func TestOpenAIPassthroughAPIKeyPreservesCustomToolOutputContentParts(t *testing
 	svc := openAIClientToolsTestService(upstream)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6240, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key"}}}
 
-	result, err := svc.forwardOpenAIPassthrough(context.Background(), c, account, body, body, "gpt-5.4", false, nil, false, time.Now())
+	result, err := svc.Text.Passthrough(context.Background(), c, account, body, body, "gpt-5.4", false, nil, false, time.Now())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -231,7 +231,7 @@ func TestOpenAIPassthroughAPIKeyRestoresClientToolsStreaming(t *testing.T) {
 	svc := openAIClientToolsTestService(upstream)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5660, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key"}}}
 
-	result, err := svc.forwardOpenAIPassthrough(context.Background(), c, account, body, body, "gpt-5.4", false, nil, true, time.Now())
+	result, err := svc.Text.Passthrough(context.Background(), c, account, body, body, "gpt-5.4", false, nil, true, time.Now())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)

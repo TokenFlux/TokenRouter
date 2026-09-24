@@ -10,7 +10,6 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -278,71 +277,6 @@ func TestOpenAIRuntimeBlocker_IgnoresNonOpenAIFromRateLimitService(t *testing.T)
 
 	require.True(t, shouldDisable)
 	require.False(t, gateway.isOpenAIAccountRuntimeBlocked(account))
-}
-
-// 自 #4547（issue 4527 第4点）起，临时不可调度规则命中已知模型时按模型隔离：
-// 只封 (账号, 模型) 对，不再账号级一刀切；未知模型仍走账号级兜底
-// （见 TestOpenAITempUnschedulable_UnknownModelKeepsAccountRuntimeBlock）。
-// 池模式规则仍然生效（issue 4470）：停止同账号重试并对命中模型设临时封锁。
-func TestOpenAIPoolModeTempRule_StopsSameAccountRetryAndIsolatesBlockToModel(t *testing.T) {
-	repo := &gatewaytestkit.ErrorPolicyStore{}
-	var gateway *OpenAIGatewayService
-
-	healthObserver := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{Block: func(v *accountcore.Record, until time.Time, reason string) {
-		gateway.BlockAccountScheduling(gatewayprovider.NewExecutionAccount(v), until, reason)
-	}}, nil)
-
-	gateway = withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:            &config.Config{},
-		healthObserver: healthObserver,
-	})
-	healthObserver.Limits.RetryOpenAI = func(v *accountcore.Record, h http.Header, body []byte) bool {
-		return gateway.ShouldRetryOpenAIOAuth429(gatewayprovider.NewExecutionAccount(v), h, body)
-	}
-
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 46,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Credentials: map[string]any{
-			"pool_mode":                    true,
-			"pool_mode_retry_status_codes": []any{float64(http.StatusServiceUnavailable)},
-			"temp_unschedulable_enabled":   true,
-			"temp_unschedulable_rules": []any{
-				map[string]any{
-					"error_code":       float64(http.StatusServiceUnavailable),
-					"keywords":         []any{"unavailable"},
-					"duration_minutes": float64(30),
-				},
-			},
-		}},
-	}
-	body := []byte(`{"error":{"message":"Service temporarily unavailable"}}`)
-	resp := &http.Response{
-		StatusCode: http.StatusServiceUnavailable,
-		Header:     http.Header{},
-	}
-
-	failoverErr := gateway.failoverOpenAIUpstreamHTTPError(
-		context.Background(),
-		nil,
-		account,
-		resp,
-		body,
-		"Service temporarily unavailable",
-		"gpt-5.4",
-	)
-
-	require.NotNil(t, failoverErr)
-	require.False(t, failoverErr.RetryableOnSameAccount)
-	require.Zero(t, repo.TempCalls)
-	require.Equal(t, 0, repo.SetErrCalls)
-	require.Equal(t, billing.StatusActive, account.Record.Status)
-	require.Len(t, repo.ModelRateLimitCalls, 1)
-	require.Equal(t, "gpt-5.4", repo.ModelRateLimitCalls[0].Scope)
-	require.False(t, gateway.isOpenAIAccountRuntimeBlocked(account))
-	require.False(t, gateway.isOpenAIAccountRequestRuntimeBlocked(account, "gpt-5.5"))
 }
 
 func TestOpenAIPoolModeRetryable5xx_DoesNotCreateModelTransientBlock(t *testing.T) {

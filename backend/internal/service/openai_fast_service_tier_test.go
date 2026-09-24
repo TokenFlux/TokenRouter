@@ -266,7 +266,7 @@ func TestForwardAsChatCompletions_ServiceTierFastNormalizedToPriorityUpstream(t 
 		Extra:       map[string]any{}},
 	}
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.5")
 	require.Error(t, err) // upstream 400 → 错误返回，但请求体已被 recorder 捕获
 	require.NotNil(t, upstream.lastBody)
 	require.Equal(t, "priority", gjson.GetBytes(upstream.lastBody, "service_tier").String(),
@@ -301,7 +301,7 @@ func TestForwardAsChatCompletions_ServiceTierPriorityPreservedUpstream(t *testin
 		Extra:       map[string]any{}},
 	}
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.5")
 	require.Error(t, err)
 	require.NotNil(t, upstream.lastBody)
 	require.Equal(t, "priority", gjson.GetBytes(upstream.lastBody, "service_tier").String())
@@ -568,7 +568,7 @@ func TestForwardAsChatCompletions_KeepsOutboundAndObservedServiceTiersSeparate(t
 		Schedulable: true},
 	}
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)

@@ -67,11 +67,11 @@ func (p openAIForwardPreludeAdapter) PrepareIdentity(ctx context.Context) error 
 	return err
 }
 func (p openAIForwardPreludeAdapter) MatchTLS() egress.TLSFingerprintRouterMatchResult {
-	return p.s.matchTLSFingerprintRouter(p.c, p.account)
+	return p.s.Requests.MatchTLS(p.c, p.account)
 }
 func (p openAIForwardPreludeAdapter) ClientAllowed(ctx context.Context, tls egress.TLSFingerprintRouterMatchResult, body []byte) (bool, string) {
-	result := p.s.detectCodexClientRestriction(p.c, p.account, tls)
-	logCodexCLIOnlyDetection(ctx, p.c, p.account, gatewayhttp.APIKeyIDFromContext(p.c), result, body)
+	result := p.s.Requests.DetectClient(p.c, p.account, tls)
+	gatewayhttp.LogCodexCLIOnlyDetection(ctx, p.c, p.account, gatewayhttp.APIKeyIDFromContext(p.c), result, body)
 	if result.Enabled && !result.Matched {
 		return false, openAIClientPolicyForbiddenMessage(result)
 	}

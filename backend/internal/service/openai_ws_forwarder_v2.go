@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	protocolwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -30,7 +32,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -94,13 +95,13 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}
 	openai.SetOpenAIWSTurnMetadata(payload, turnMetadata)
 	gatewayhttp.ApplyStagedCodexFingerprintClientMetadata(c, account.View(), payload)
-	previousResponseID := protocolopenai.WSPayloadString(payload, "previous_response_id")
-	previousResponseIDKind := protocolopenai.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
+	previousResponseID := protocolwire.WSPayloadString(payload, "previous_response_id")
+	previousResponseIDKind := protocolwire.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
 	promptCacheKey := strings.TrimSpace(clientPromptCacheKey)
 	if promptCacheKey == "" {
 		// Fingerprint convergence may inject a default key when the client did
 		// not send one; retain that fallback without replacing an explicit raw key.
-		promptCacheKey = protocolopenai.WSPayloadString(payload, "prompt_cache_key")
+		promptCacheKey = protocolwire.WSPayloadString(payload, "prompt_cache_key")
 	}
 	_, hasTools := payload["tools"]
 	debugEnabled := gatewayprovider.IsOpenAIWSModeDebugEnabled()
@@ -116,7 +117,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	if raw, ok := payload["stream"]; ok {
 		streamValue = gatewayprovider.NormalizeOpenAIWSLogValue(strings.TrimSpace(fmt.Sprintf("%v", raw)))
 	}
-	payloadEventType := protocolopenai.WSPayloadString(payload, "type")
+	payloadEventType := protocolwire.WSPayloadString(payload, "type")
 	if payloadEventType == "" {
 		payloadEventType = "response.create"
 	}
@@ -168,7 +169,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		isCodexCLI,
 		turnState,
 		turnMetadata,
-		promptCacheKey, protocolopenai.WSPayloadString(payload, "model"), protocolopenai.WSPayloadString(payload, "service_tier"), tlsRouterMatch,
+		promptCacheKey, protocolwire.WSPayloadString(payload, "model"), protocolwire.WSPayloadString(payload, "service_tier"), tlsRouterMatch,
 	)
 	if buildHdrErr != nil {
 		return nil, fmt.Errorf("build ws headers: %w", buildHdrErr)
@@ -185,7 +186,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 
 	acquireCtx, acquireCancel := context.WithTimeout(ctx, s.openAIWSAcquireTimeout())
 	defer acquireCancel()
-	tlsProfile, tlsProfileKey := s.resolveOpenAIWSTLSProfile(account, tlsRouterMatch)
+	tlsProfile, tlsProfileKey := s.Requests.WSTLSProfile(account, tlsRouterMatch)
 
 	lease, err := s.getOpenAIWSConnPool().Acquire(acquireCtx, openai.WSAcquireRequest{
 		Account: openAIWSPoolAccountView(account),
@@ -341,8 +342,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		)
 	}
 
-	usage := &protocolopenai.ForwardUsage{}
-	imageCounter := protocolopenai.NewOpenAIImageOutputCounter()
+	usage := &protocolwire.ForwardUsage{}
+	imageCounter := protocolwire.NewOpenAIImageOutputCounter()
 	var firstTokenMs *int
 	responseID := ""
 	var finalResponse []byte
@@ -451,7 +452,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		} else {
 			message, readErr = lease.ReadMessageWithContextTimeout(ctx, readTimeout)
 			if readErr == nil {
-				if documents, repaired := protocolopenai.SplitConcatenatedJSONDocuments(message); repaired {
+				if documents, repaired := protocolwire.SplitConcatenatedJSONDocuments(message); repaired {
 					gatewayprovider.LogOpenAIWSModeInfo(
 						"concatenated_json_repaired account_id=%d conn_id=%s documents=%d bytes=%d",
 						account.Record.ID, gatewayprovider.TruncateOpenAIWSLogValue(connID, gatewayprovider.OpenAIWSIDValueMaxLen), len(documents),
@@ -464,7 +465,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		}
 		// 拼接文档修复后仍不是完整 JSON 的事件不得进入解析或下游输出链路。
 		if readErr == nil && !json.Valid(message) {
-			eventType, _, _ := protocolopenai.ParseWSEventEnvelope(message)
+			eventType, _, _ := protocolwire.ParseWSEventEnvelope(message)
 			if eventType == "" {
 				eventType = "unknown"
 			}
@@ -503,11 +504,11 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			gatewayhttp.SetOpsUpstreamError(c, 0, logredact.SanitizeUpstreamQueries(readErr.Error()), "")
 			return nil, fmt.Errorf("openai ws read event: %w", readErr)
 		}
-		if normalized, changed := protocolopenai.NormalizeCompletedImageGenerationStatus(message); changed {
+		if normalized, changed := protocolwire.NormalizeCompletedImageGenerationStatus(message); changed {
 			message = normalized
 		}
 
-		eventType, eventResponseID, responseField := protocolopenai.ParseWSEventEnvelope(message)
+		eventType, eventResponseID, responseField := protocolwire.ParseWSEventEnvelope(message)
 		if eventType == "" {
 			continue
 		}
@@ -522,11 +523,11 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			responseID = eventResponseID
 		}
 
-		isTokenEvent := protocolopenai.IsWSTokenEvent(eventType)
+		isTokenEvent := protocolwire.IsWSTokenEvent(eventType)
 		if isTokenEvent {
 			tokenEventCount++
 		}
-		isTerminalEvent := protocolopenai.IsWSTerminalEvent(eventType)
+		isTerminalEvent := protocolwire.IsWSTerminalEvent(eventType)
 		if isTerminalEvent {
 			terminalEventCount++
 		}
@@ -547,23 +548,23 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		}
 
 		if !clientDisconnected {
-			if needModelReplace && len(mappedModelBytes) > 0 && protocolopenai.WSEventMayContainModel(eventType) && bytes.Contains(message, mappedModelBytes) {
-				message = protocolopenai.ReplaceWSMessageModel(message, mappedModel, originalModel)
+			if needModelReplace && len(mappedModelBytes) > 0 && protocolwire.WSEventMayContainModel(eventType) && bytes.Contains(message, mappedModelBytes) {
+				message = protocolwire.ReplaceWSMessageModel(message, mappedModel, originalModel)
 			}
-			if protocolopenai.WSEventMayContainToolCalls(eventType) && protocolopenai.WSMessageLikelyContainsToolCalls(message) {
+			if protocolwire.WSEventMayContainToolCalls(eventType) && protocolwire.WSMessageLikelyContainsToolCalls(message) {
 				if corrected, changed := s.toolCorrector.CorrectToolCallsInSSEBytes(message); changed {
 					message = corrected
 				}
 			}
 			message = gatewayhttp.RestoreCodexToolNamesFromContext(c, message)
 		}
-		if protocolopenai.WSEventShouldParseUsage(eventType) {
-			protocolopenai.ParseWSResponseUsageFromCompletedEvent(message, usage)
+		if protocolwire.WSEventShouldParseUsage(eventType) {
+			protocolwire.ParseWSResponseUsageFromCompletedEvent(message, usage)
 		}
 		if eventType == "error" || eventType == "response.failed" {
 			gatewayhttp.MarkOpenAICyberPolicyEvent(c, message, http.StatusOK, usage)
 		}
-		var responseEvent protocolopenai.ResponsesStreamEvent
+		var responseEvent protocolwire.ResponsesStreamEvent
 		if err := json.Unmarshal(message, &responseEvent); err == nil {
 			responseAccumulator.ProcessEvent(&responseEvent)
 		}
@@ -585,7 +586,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 					return nil, ws.NewGenericPolicyError(terminalPolicy.StatusCode)
 				}
 				// 流已提交时无法改写 HTTP 状态，只下发净化后的通用终止事件。
-				message = protocolopenai.GenericFailedEventPayload()
+				message = protocolwire.GenericFailedEventPayload()
 			}
 			if !wroteDownstream && terminalPolicy.Decision.ShouldFailoverWithDefaults(
 				gatewayprovider.ExecutionErrorPolicy(account),
@@ -605,7 +606,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		}
 
 		if eventType == "error" {
-			errCodeRaw, errTypeRaw, errMsgRaw := protocolopenai.ParseWSErrorEventFields(message)
+			errCodeRaw, errTypeRaw, errMsgRaw := protocolwire.ParseWSErrorEventFields(message)
 			statusCode := openAIWSErrorPolicyStatus(message)
 			errorDecision := s.handleOpenAIWSErrorEventTransientFailure(ctx, account, mappedModel, lease.HandshakeHeaders(), message)
 			errMsg := strings.TrimSpace(errMsgRaw)
@@ -768,10 +769,10 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		}
 
 		if needModelReplace {
-			finalResponse = s.replaceModelInResponseBody(finalResponse, mappedModel, originalModel)
+			finalResponse = protocolwire.ReplaceModelInResponseBody(finalResponse, mappedModel, originalModel)
 		}
 		finalResponse = s.toolCorrector.CorrectResponseBody(finalResponse)
-		protocolopenai.PopulateUsageFromResponseJSON(finalResponse, usage)
+		protocolwire.PopulateUsageFromResponseJSON(finalResponse, usage)
 		if responseID == "" {
 			responseID = strings.TrimSpace(gjson.GetBytes(finalResponse, "id").String())
 		}

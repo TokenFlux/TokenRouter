@@ -1,0 +1,24 @@
+[
+  {
+    "name": "normal",
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "./internal/service",
+      "./internal/gateway/httpapi/...",
+      "./internal/gateway/provider/...",
+      "./internal/gateway/session",
+      "./internal/account/provider/...",
+      "./internal/app",
+      "./internal/server/middleware",
+      "./internal/protocol/bridge",
+      "./internal/protocol/openai",
+      "./internal/infra/httpclient/..."
+    ],
+    "exit_code": 1,
+    "seconds": 26.44,
+    "log": "service-openai-execution-consumers-normal.jsonl"
+  }
+]

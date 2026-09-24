@@ -71,7 +71,7 @@ func TestForwardAsChatCompletions_ResponseFailed_PassthroughRule(t *testing.T) {
 	})
 
 	account := forcedResponsesChatTestAccount()
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "passthrough")
@@ -201,7 +201,7 @@ func TestForwardAsAnthropic_ResponseFailed_PassthroughRule(t *testing.T) {
 	})
 
 	account := rawChatCompletionsTestAccount()
-	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "passthrough")
@@ -231,7 +231,7 @@ func TestForwardAsAnthropic_StreamingResponseFailed_PassthroughRule(t *testing.T
 		httpUpstream: upstream,
 	})
 
-	_, err := svc.ForwardAsAnthropic(context.Background(), c, rawChatCompletionsTestAccount(), body, "", "")
+	_, err := svc.Text.Messages(context.Background(), c, rawChatCompletionsTestAccount(), body, "", "")
 
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
@@ -257,7 +257,7 @@ func TestForwardAsChatCompletions_ResponseFailed_NoRule_Still502(t *testing.T) {
 	})
 
 	account := forcedResponsesChatTestAccount()
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadGateway, rec.Code, "without passthrough rule should still be 502")
@@ -290,7 +290,7 @@ func TestForwardAsChatCompletions_ResponseFailedCustomErrorMissReturnsGeneric500
 	account.Record.Credentials["custom_error_codes_enabled"] = true
 	account.Record.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -327,7 +327,7 @@ func TestForwardAsChatCompletions_ResponseFailedCustomNonDefaultStatusFailsOver(
 	account.Record.Credentials["custom_error_codes_enabled"] = true
 	account.Record.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -430,7 +430,7 @@ func TestForwardAsChatCompletions_ResponseFailed_ErrorCodeRuleMatchesViaSemantic
 	})
 
 	account := forcedResponsesChatTestAccount()
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code, "error-code-conditioned rule should match via semantic status inference")
@@ -460,7 +460,7 @@ func TestForwardAsAnthropic_ResponseFailed_ErrorCodeRuleMatchesViaSemanticStatus
 	})
 
 	account := rawChatCompletionsTestAccount()
-	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code, "error-code-conditioned rule should match via semantic status inference")

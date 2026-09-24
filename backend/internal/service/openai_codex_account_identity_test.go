@@ -49,7 +49,7 @@ func TestCodexAccountIdentitySourceResolvesShadowAndOverwritesFailoverContext(t 
 	require.Same(t, parent.View(), resolved)
 	require.Same(t, parent.View(), gatewayhttp.CodexIdentityRecord(c, shadow.View()))
 
-	req, err := service.buildUpstreamRequest(
+	req, err := service.Requests.Build(
 		context.Background(), c, shadow,
 		[]byte(`{"model":"gpt-5.6-codex","stream":true,"prompt_cache_key":"client-session"}`),
 		"token", true, "client-session", true,
@@ -98,7 +98,7 @@ func TestBuildOpenAIWSHeadersNamespacesCodexIdentityByOAuthAccount(t *testing.T)
 		require.NotEqual(t, first.Get(header), second.Get(header), header)
 	}
 
-	httpRequest, err := service.buildUpstreamRequest(
+	httpRequest, err := service.Requests.Build(
 		context.Background(), c, account11,
 		[]byte(`{"model":"gpt-5.6-codex","stream":true,"prompt_cache_key":"client-session"}`),
 		"token", true, "client-session", true,
@@ -133,7 +133,7 @@ func TestBuildUpstreamRequestNamespacesCodexIdentityByOAuthAccount(t *testing.T)
 				"chatgpt_account_id": chatgptAccountID,
 			}},
 		}
-		req, err := svc.buildUpstreamRequest(
+		req, err := svc.Requests.Build(
 			context.Background(), c, account, body, "oauth-token", true, "client-session", true,
 		)
 		require.NoError(t, err)

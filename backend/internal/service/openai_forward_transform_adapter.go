@@ -106,7 +106,7 @@ func (p openAIForwardTransformAdapter) CodexTransform(body map[string]any, optio
 	return provider.ApplyCodexOAuthTransformWithOptions(body, options)
 }
 func (p openAIForwardTransformAdapter) EnsureCodexOAuthInstructionsField(body map[string]any) {
-	ensureCodexOAuthInstructionsField(body)
+	protocolopenai.EnsureCodexInstructionsField(body)
 }
 func (p openAIForwardTransformAdapter) ToolNameReverse(mapping map[string]string) {
 	gatewayhttp.SetCodexToolNameReverse(p.c, mapping)

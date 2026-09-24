@@ -55,9 +55,9 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 					var err error
 					switch source {
 					case protocol.ProtocolAnthropicMessages:
-						_, err = svc.ForwardAsAnthropic(ctx, c, &account, ingress.body, "", "")
+						_, err = svc.Text.Messages(ctx, c, &account, ingress.body, "", "")
 					case protocol.ProtocolOpenAIChatCompletions:
-						_, err = svc.ForwardAsChatCompletions(ctx, c, &account, ingress.body, "", "")
+						_, err = svc.Text.Chat(ctx, c, &account, ingress.body, "", "")
 					default:
 						_, err = svc.Forward(ctx, c, &account, ingress.body)
 					}

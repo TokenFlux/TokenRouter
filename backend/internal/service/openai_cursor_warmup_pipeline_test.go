@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	openaiexecution "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -172,21 +174,21 @@ func TestCursorMixedShape_StripsUnsupportedFields(t *testing.T) {
 	}`)
 
 	// Sanity: the test fixture contains every field the production code strips.
-	for _, field := range cursorResponsesUnsupportedFields {
+	for _, field := range openaiexecution.CursorResponsesUnsupportedFields {
 		require.True(t, gjson.GetBytes(cursorBody, field).Exists(),
 			"test fixture must contain %s", field)
 	}
 
 	// Run the exact same loop as the production code.
 	result := cursorBody
-	for _, field := range cursorResponsesUnsupportedFields {
+	for _, field := range openaiexecution.CursorResponsesUnsupportedFields {
 		if stripped, err := sjson.DeleteBytes(result, field); err == nil {
 			result = stripped
 		}
 	}
 
 	// All unsupported fields must be gone.
-	for _, field := range cursorResponsesUnsupportedFields {
+	for _, field := range openaiexecution.CursorResponsesUnsupportedFields {
 		assert.False(t, gjson.GetBytes(result, field).Exists(),
 			"%s must be stripped", field)
 	}

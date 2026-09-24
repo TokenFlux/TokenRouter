@@ -38,7 +38,7 @@ func (gateway *OpenAIGatewayService) CreativeTarget(account *gatewayprovider.Exe
 		if baseURL == "" {
 			return targetURL, nil
 		}
-		validated, err := gateway.validateUpstreamBaseURL(baseURL)
+		validated, err := gateway.Requests.ValidateBaseURL(baseURL)
 		if err != nil {
 			return "", creative.CreativeNonRetryableError("creative openai base url invalid: %s", err.Error())
 		}
@@ -48,7 +48,7 @@ func (gateway *OpenAIGatewayService) CreativeTarget(account *gatewayprovider.Exe
 	}, AuthHeaders: func(ctx context.Context, token string) (http.Header, error) {
 		return gateway.agentIdentity.Headers(ctx, account, token)
 	}, ApplyHeaders: gatewayprovider.BindExecutionHeaders(account), Do: func(req *http.Request) (*http.Response, error) {
-		return gateway.httpUpstream.DoWithTLS(req, accountProxyURL(account), account.Record.ID, account.Record.Concurrency, gateway.resolveOpenAITLSProfile(account))
+		return gateway.httpUpstream.DoWithTLS(req, accountProxyURL(account), account.Record.ID, account.Record.Concurrency, gateway.Requests.TLSProfile(account))
 	}}
 	target.Grok = &creativeprovider.GrokOptions{OAuth: account.View().IsGrokOAuth(), Token: token, URL: func(endpoint grok.GrokMediaEndpoint) (string, error) {
 		return routes.Media(account, endpoint, "")
@@ -58,7 +58,7 @@ func (gateway *OpenAIGatewayService) CreativeTarget(account *gatewayprovider.Exe
 		return gateway.httpUpstream.Do(req, accountProxyURL(account), account.Record.ID, account.Record.Concurrency)
 	}}
 	target.Gemini = func(model string) gemininative.ImageOptions {
-		options := gemininative.ImageOptions{Mode: gemininative.CredentialMode(account.Record.Type), Model: model, ProjectID: account.View().GetCredential("project_id"), APIKey: func() string { return account.View().GetCredential("api_key") }, BaseURL: func() string { return account.View().GetGeminiBaseURL(geminicli.AIStudioBaseURL) }, ValidateURL: gateway.validateUpstreamBaseURL, ValidateGeminiBaseURL: gateway.validateGeminiBaseURL, VertexURL: func() (string, error) {
+		options := gemininative.ImageOptions{Mode: gemininative.CredentialMode(account.Record.Type), Model: model, ProjectID: account.View().GetCredential("project_id"), APIKey: func() string { return account.View().GetCredential("api_key") }, BaseURL: func() string { return account.View().GetGeminiBaseURL(geminicli.AIStudioBaseURL) }, ValidateURL: gateway.Requests.ValidateBaseURL, ValidateGeminiBaseURL: gateway.validateGeminiBaseURL, VertexURL: func() (string, error) {
 			return vertex.BuildVertexGeminiURL(gatewayprovider.ExecutionProtocolRecord(account).VertexProjectID(vertex.ServiceAccountProjectID), gatewayprovider.ExecutionProtocolRecord(account).VertexLocation(model), model, "generateContent", false)
 		}, ApplyHeaders: gatewayprovider.BindExecutionHeaders(account), Do: func(req *http.Request) (*http.Response, error) {
 			return gateway.httpUpstream.Do(req, accountProxyURL(account), account.Record.ID, account.Record.Concurrency)

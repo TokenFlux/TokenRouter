@@ -93,11 +93,18 @@ func provideOpenAIGatewayExecution(
 			source.BlockAccountScheduling(gatewayprovider.NewExecutionAccount(record), until, reason)
 		}
 	}
-	source.BindAgentIdentity(gatewayprovider.NewExecutionAgentIdentity(taskCoordinator, accountRepo, func(ctx context.Context, value *accountcore.Record) (string, error) {
+	identity := gatewayprovider.NewExecutionAgentIdentity(taskCoordinator, accountRepo, func(ctx context.Context, value *accountcore.Record) (string, error) {
 		return accountprovider.RegisterAgentIdentityTask(ctx, value, "https://auth.openai.com/api/accounts")
-	}, source.InvalidateAgentIdentityWSConnections))
+	}, source.InvalidateAgentIdentityWSConnections)
+	source.BindAgentIdentity(identity)
 	source.BindCyberBlocks(cyberBlocks)
 	source.BindCompletionRecorder(recorders.OpenAI)
-	source.BindPromptCacheBindings(session.NewAnthropicPromptCache(time.Now))
+	cacheBindings := session.NewAnthropicPromptCache(time.Now)
+	source.BindPromptCacheBindings(cacheBindings)
+	var routers *egress.TLSFingerprintRouterService
+	if len(tlsFPRouterServices) > 0 {
+		routers = tlsFPRouterServices[0]
+	}
+	source.BindTextExecution(openAITextExecution(cfg, accountRepo, identity, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, grokExecutor, responseOutput, cacheBindings, choices.OpenAIHTTPResponseStickyTTL, compactExecutor))
 	return source
 }

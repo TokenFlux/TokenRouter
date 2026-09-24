@@ -35,13 +35,13 @@ func provideOpenAIAttemptBindings(
 	}
 	b := openaiattempt.Bindings{Support: support, Recorder: records.OpenAI}
 	if s := source; s != nil {
-		b.Forward.EnforceOpenAIClientPolicyForRequest = s.EnforceOpenAIClientPolicyForRequest
+		b.Forward.EnforceOpenAIClientPolicyForRequest = s.Requests.EnforceClient
 		b.Forward.Forward = s.Forward
-		b.Forward.ForwardAsAnthropic = s.ForwardAsAnthropic
-		b.Forward.ForwardAsChatCompletions = s.ForwardAsChatCompletions
-		b.Forward.MatchOpenAITLSFingerprintRouterForRequest = s.MatchOpenAITLSFingerprintRouterForRequest
+		b.Forward.ForwardAsAnthropic = s.Text.Messages
+		b.Forward.ForwardAsChatCompletions = s.Text.Chat
+		b.Forward.MatchOpenAITLSFingerprintRouterForRequest = s.Requests.MatchTLS
 		b.Forward.ReplaceModelInBody = s.ReplaceModelInBody
-		b.Selection.UpdateCodexUsageSnapshotFromHeaders = s.UpdateCodexUsageSnapshotFromHeaders
+		b.Selection.UpdateCodexUsageSnapshotFromHeaders = s.Text.CodexUsage.Headers
 	}
 	if choices != nil {
 		support.Sticky = choices

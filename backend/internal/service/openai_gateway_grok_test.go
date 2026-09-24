@@ -1823,7 +1823,7 @@ func TestForwardAsChatCompletionsForGrokStopFallsBackToXAIChatCompletions(t *tes
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.Equal(t, xai.DefaultCLIBaseURL+"/chat/completions", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer access-token", upstream.lastReq.Header.Get("Authorization"))
@@ -2255,7 +2255,7 @@ func TestForwardAsChatCompletionsForGrokAPIKeyUsesConfiguredRawEndpointWithoutOA
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	_, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.Equal(t, "https://grok.example.test/v1/chat/completions", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer third-party-key", upstream.lastReq.Header.Get("Authorization"))
@@ -2289,7 +2289,7 @@ func TestForwardAsChatCompletionsForGrokAPIKeyRejectsNonStreamingResponseWithout
 	}}
 	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 
-	result, err := service.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	result, err := service.Text.Chat(context.Background(), c, account, body, "", "")
 
 	require.Nil(t, result)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -2340,7 +2340,7 @@ func TestForwardAsChatCompletionsForGrokStreamingUsesRawXAIChatCompletions(t *te
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.Equal(t, xai.DefaultCLIBaseURL+"/chat/completions", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer access-token", upstream.lastReq.Header.Get("Authorization"))
@@ -2559,7 +2559,7 @@ func TestForwardAsChatCompletionsForGrokStreamingStopFallsBackToRawXAIChatComple
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.Equal(t, xai.DefaultCLIBaseURL+"/chat/completions", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer access-token", upstream.lastReq.Header.Get("Authorization"))
@@ -2619,7 +2619,7 @@ func TestForwardAsChatCompletionsForGrokComposerBridgesImageInput(t *testing.T) 
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Len(t, upstream.requests, 2)
@@ -2664,7 +2664,7 @@ func TestForwardAsAnthropicForGrokUsesXAIResponses(t *testing.T) {
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.Equal(t, xai.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer access-token", upstream.lastReq.Header.Get("Authorization"))
@@ -2729,7 +2729,7 @@ func TestForwardAsAnthropicForGrokRetriesInvalidEncryptedContentOnce(t *testing.
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Len(t, upstream.requests, 2)
@@ -2780,7 +2780,7 @@ func TestForwardAsAnthropicForGrokFunctionToolUsesCacheCapableMixedRoute(t *test
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -2830,7 +2830,7 @@ func TestForwardAsAnthropicForGrokStreamingPreservesCacheUsage(t *testing.T) {
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	result, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 2, result.Usage.CacheReadInputTokens)
@@ -2991,6 +2991,9 @@ func TestGrokMediaPoolModeRetryFlagFollowsExplicitPolicies(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"maintenance in progress"}}`)),
 		}}
 		svc.httpUpstream = upstream
+		if svc.Requests != nil {
+			svc.Requests.Transport = svc.httpUpstream
+		}
 		if svc.Grok != nil {
 			svc.Grok.Transport = svc.httpUpstream
 		}
@@ -3117,29 +3120,6 @@ func TestOpenAIWSHTTPBridgeGrokExhaustedSuccessPersistsRateLimit(t *testing.T) {
 	require.Equal(t, 1, repo.rateLimitedCalls)
 	require.WithinDuration(t, resetAt, repo.lastRateLimitResetAt, time.Second)
 	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
-}
-
-func TestFailoverOpenAIUpstreamHTTPErrorUsesOnlyGrokRateLimitPolicy(t *testing.T) {
-
-	repo := &grokQuotaAccountRepo{}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 70, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
-	resp := &http.Response{
-		StatusCode: http.StatusTooManyRequests,
-		Header:     http.Header{"Retry-After": []string{"45"}},
-	}
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-
-	failoverErr := svc.failoverOpenAIUpstreamHTTPError(
-		context.Background(), c, account, resp,
-		[]byte(`{"error":{"message":"rate limited"}}`), "rate limited", "grok-4.3",
-	)
-
-	require.NotNil(t, failoverErr)
-	require.Equal(t, 1, repo.rateLimitedCalls)
-	require.Zero(t, repo.tempUnschedCalls)
 }
 
 func TestPatchGrokResponsesBody_StripsReasoningContentNull(t *testing.T) {

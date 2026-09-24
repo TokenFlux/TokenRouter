@@ -182,5 +182,8 @@ func provideCoreRuntime(
 func bindGatewayBackground(tasks *lifecycle.Tasks, openai *service.OpenAIGatewayService) {
 	if openai != nil {
 		openai.BindBackgroundTasks(tasks.Go)
+		if openai.Text != nil && openai.Text.CodexUsage != nil {
+			openai.Text.CodexUsage.Go = tasks.Go
+		}
 	}
 }

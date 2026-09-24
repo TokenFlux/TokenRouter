@@ -422,7 +422,7 @@ func (s *OpenAIGatewayService) applyOpenAIWSEventErrorPolicy(
 	headers http.Header,
 	payload []byte,
 ) accountcore.UpstreamErrorDecision {
-	if statusCode == 0 || detectOpenAIWSHTTPBridgeRequestScopedError(account, statusCode, upstream.ExtractErrorMessage(payload), payload) {
+	if statusCode == 0 || gatewayprovider.OpenAIWSHTTPBridgeRequestScopedError(account, statusCode, upstream.ExtractErrorMessage(payload), payload) {
 		return accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	if account != nil && account.Record.Platform == capability.PlatformGrok {

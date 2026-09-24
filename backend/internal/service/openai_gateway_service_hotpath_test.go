@@ -436,7 +436,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatComple
 	chatRecorder := httptest.NewRecorder()
 	chatCtx, _ := gin.CreateTestContext(chatRecorder)
 	chatCtx.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil)
-	chatResult, err := chatSvc.ForwardAsChatCompletions(context.Background(), chatCtx, account, []byte(`{"model":"gpt-5.4","stream":false,"messages":[{"role":"user","content":"hello"}]}`), "", "")
+	chatResult, err := chatSvc.Text.Chat(context.Background(), chatCtx, account, []byte(`{"model":"gpt-5.4","stream":false,"messages":[{"role":"user","content":"hello"}]}`), "", "")
 	require.NoError(t, err)
 	require.NotNil(t, chatResult)
 
@@ -883,7 +883,7 @@ func TestOpenAIGatewayEntrypointsRejectUltraBeforeUpstream(t *testing.T) {
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(string(body)))
 
-		result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+		result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 		require.ErrorContains(t, err, "not supported")
 		require.Nil(t, result)
 		require.Equal(t, http.StatusBadRequest, rec.Code)
@@ -895,7 +895,7 @@ func TestOpenAIGatewayEntrypointsRejectUltraBeforeUpstream(t *testing.T) {
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body)))
 
-		result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+		result, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 		require.ErrorContains(t, err, "not supported")
 		require.Nil(t, result)
 		require.Equal(t, http.StatusBadRequest, rec.Code)

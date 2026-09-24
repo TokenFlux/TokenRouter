@@ -114,6 +114,26 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 		routes.DefaultMode = source.settingService.Gateway.GetGrokDefaultBaseURLMode
 	}
 	source.BindGrokExecution(&gatewayhttp.GrokExecutor{FastPolicy: &gatewayprovider.ExecutionFastPolicy{Readers: source.settingService, Prices: source.resolver}, Credentials: source.requestCredentials, Transport: source.httpUpstream, Output: source.responseOutput, Health: source.grokHealth, Routes: routes, TLS: source.tlsFPProfileService, Dialer: source.getOpenAIWSPassthroughDialer(), Enter: source.nativeAttemptActivity, Failure: &gatewayhttp.UpstreamTransportFailure{Health: &accountprovider.TransportHealth{Runtime: source.runtimeBlockState(), Deferred: source.deferredService, Store: source.accountRepo}}})
+	continuation := &session.CompatResponses{TTL: source.OpenAIHTTPResponseStickyTTL}
+	if source.Text != nil && source.Text.Continuation != nil {
+		continuation = source.Text.Continuation
+	}
+	requests := &gatewayhttp.OpenAIRequests{Accounts: source.accountRepo, Identity: source.agentIdentity, Credentials: source.executionCredentials, Transport: source.httpUpstream, Failure: source.transportFailure, Turns: source.turnStateHeaders, Profiles: source.tlsFPProfileService, Routers: source.tlsFPRouterService, Readers: source.settingService, Detector: source.codexDetector, ClientPolicy: source.nativeOpenAIClientPolicyFixture(), GrokRoutes: routes}
+	usageThrottle := source.codexSnapshotThrottle
+	if usageThrottle == nil {
+		usageThrottle = account.NewWriteThrottle(30 * time.Second)
+	}
+	if source.Text != nil && source.Text.CodexUsage != nil && source.Text.CodexUsage.Throttle != nil {
+		usageThrottle = source.Text.CodexUsage.Throttle
+	}
+	executor := &gatewayhttp.OpenAITextExecutor{Requests: requests, Output: source.responseOutput, Grok: source.Grok, Credentials: source.requestCredentials, FastPolicy: source.fastPolicy, Continuation: continuation, PromptCache: source.PromptCacheBindings(), CodexUsage: &accountprovider.CodexUsageObserver{Store: source.accountRepo, Throttle: usageThrottle, Go: source.backgroundTasks}, ResponseTTL: source.OpenAIHTTPResponseStickyTTL, Compact: source.compactExecutor}
+	if source.cfg != nil {
+		v := source.cfg.Security.URLAllowlist
+		requests.Options = gatewayhttp.OpenAIRequestOptions{ForceCLI: source.cfg.Gateway.ForceCodexCLI, AllowTimeoutHeaders: source.cfg.Gateway.OpenAIPassthroughAllowTimeoutHeaders, URLPolicy: egress.OperatorURLPolicy{Enabled: v.Enabled, AllowInsecureHTTP: v.AllowInsecureHTTP, AllowPrivateHosts: v.AllowPrivateHosts, UpstreamHosts: v.UpstreamHosts}}
+		executor.ForcedTemplate = source.cfg.Gateway.ForcedCodexInstructionsTemplate
+	}
+	source.BindTextExecution(executor)
+
 }
 
 // streamSelectionDiagnosticSource 为真实流执行后的下一次选择提供可调度查询投影。

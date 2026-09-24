@@ -59,7 +59,7 @@ func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{tlsFPProfileService: profileSvc})
 
 	// 路由器命中优先使用规则目标模板。
-	routerProfile := svc.resolveOpenAITLSProfile(account, egress.TLSFingerprintRouterMatchResult{
+	routerProfile := svc.Requests.TLSProfile(account, egress.TLSFingerprintRouterMatchResult{
 		Matched:                 true,
 		TLSFingerprintProfileID: 20,
 	})
@@ -67,7 +67,7 @@ func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 	require.Equal(t, "router", routerProfile.Name)
 
 	// 规则目标模板不可用时安全回退账号固定模板。
-	fallbackProfile := svc.resolveOpenAITLSProfile(account, egress.TLSFingerprintRouterMatchResult{
+	fallbackProfile := svc.Requests.TLSProfile(account, egress.TLSFingerprintRouterMatchResult{
 		Matched:                 true,
 		TLSFingerprintProfileID: 404,
 	})

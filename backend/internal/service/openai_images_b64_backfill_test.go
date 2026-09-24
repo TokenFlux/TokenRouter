@@ -333,6 +333,9 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL(t *test
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 	if svc.Grok != nil {
 		svc.Grok.Transport = svc.httpUpstream
 	}
@@ -385,6 +388,9 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyLeavesURLOnlyResponseWhenDisabl
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Requests != nil {
+		svc.Requests.Transport = svc.httpUpstream
+	}
 	if svc.Grok != nil {
 		svc.Grok.Transport = svc.httpUpstream
 	}
@@ -415,6 +421,7 @@ func TestBackfillOpenAIImagesB64JSON_ForkBoundaries(t *testing.T) {
 	account = b64BackfillAccount(true)
 	svc.cfg.Security.URLAllowlist.Enabled = true
 	svc.cfg.Security.URLAllowlist.UpstreamHosts = []string{"relay.example.com"}
+	bindCompatibleSelectionFixture(svc)
 	require.Equal(t, body, svc.backfillOpenAIImagesB64JSON(t.Context(), account, nil, body))
 	require.Empty(t, upstream.requests)
 }

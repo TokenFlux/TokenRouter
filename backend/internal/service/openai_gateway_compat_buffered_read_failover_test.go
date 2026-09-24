@@ -95,20 +95,3 @@ func TestChatCompletionsBufferedResponsesOversizedLineDoesNotFailover(t *testing
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.NotErrorAs(t, err, &failoverErr)
 }
-
-func TestAnthropicBufferedResponsesReadErrorKeepsExistingBehavior(t *testing.T) {
-
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: &openAICompatBufferedReadErrorCloser{err: io.ErrUnexpectedEOF}}
-	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).handleAnthropicBufferedStreamingResponse(
-		resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI}},
-		"gpt-5.6-sol", "gpt-5.6-sol", "gpt-5.6-sol", time.Now(),
-	)
-	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
-	require.Equal(t, io.ErrUnexpectedEOF, err)
-	require.Nil(t, result)
-	var failoverErr *forwardcore.UpstreamFailoverError
-	require.NotErrorAs(t, err, &failoverErr)
-}

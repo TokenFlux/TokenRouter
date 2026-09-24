@@ -152,7 +152,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 
 		Do: func(req *http.Request) (*http.Response, error) {
 			upstreamStart := time.Now()
-			resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
+			resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch...))
 			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 			return resp, err
 		},
@@ -258,15 +258,15 @@ func (s *OpenAIGatewayService) buildOpenAIImagesRequest(
 	}
 	baseURL := gatewayprovider.ExecutionProtocolTarget(account).GetOpenAIBaseURL()
 	if baseURL != "" {
-		validatedURL, err := s.validateUpstreamBaseURL(baseURL)
+		validatedURL, err := s.Requests.ValidateBaseURL(baseURL)
 		if err != nil {
 			return nil, err
 		}
 		targetURL = httpclient.BuildOpenAIEndpointURL(validatedURL, endpoint)
 	}
 
-	options := s.nativeResponsesRequestOptions(ctx, c, account, token, targetURL, false, tlsRouterMatch...)
-	options.AllowHeader = func(name string) bool { return openaiPassthroughAllowedHeaders[name] }
+	options := s.Requests.ResponseOptions(ctx, c, account, token, targetURL, false, tlsRouterMatch...)
+	options.AllowHeader = func(name string) bool { return gatewayhttp.AllowOpenAIPassthroughHeader(name) }
 	return upstreamopenai.BuildImagesRequest(ctx, body, contentType, options)
 }
 

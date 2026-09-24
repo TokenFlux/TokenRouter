@@ -135,65 +135,6 @@ func TestIsGrokContentPolicyRejection(t *testing.T) {
 	}
 }
 
-func TestGrokContentPolicy403DoesNotMutateOrFailover(t *testing.T) {
-	repo := &grokQuotaAccountRepo{}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4715, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
-	body := []byte(`{"error":{"code":"new_sensitive","message":"text is sensitive"}}`)
-
-	svc.handleGrokAccountUpstreamError(context.Background(), account, http.StatusForbidden, nil, body)
-
-	require.Zero(t, repo.tempUnschedCalls)
-	require.Zero(t, repo.rateLimitedCalls)
-	require.Zero(t, repo.updateCalls)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
-	require.False(t, gatewayprovider.ShouldFailoverGrokResponse(http.StatusForbidden, body))
-
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	resp := &http.Response{StatusCode: http.StatusForbidden, Header: http.Header{}}
-	got := svc.failoverOpenAIUpstreamHTTPError(context.Background(), c, account, resp, body, "text is sensitive", "grok-4.5")
-	require.Nil(t, got)
-	require.Zero(t, repo.tempUnschedCalls)
-}
-
-func TestGrokNonFailoverDoesNotApplyGenericTempUnschedulablePolicy(t *testing.T) {
-
-	repo := &grokQuotaAccountRepo{}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:    repo,
-		healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil),
-	}))
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5099,
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"temp_unschedulable_enabled": true,
-			"temp_unschedulable_rules": []any{map[string]any{
-				"error_code":       float64(http.StatusForbidden),
-				"keywords":         []any{"text is sensitive"},
-				"duration_minutes": float64(1),
-			}},
-		}},
-	}
-	body := []byte(`{"error":{"code":"new_sensitive","message":"text is sensitive"}}`)
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	resp := &http.Response{StatusCode: http.StatusForbidden, Header: http.Header{}}
-
-	got := svc.failoverOpenAIUpstreamHTTPError(
-		context.Background(), c, account, resp, body, "text is sensitive", "",
-	)
-
-	require.Nil(t, got)
-	require.Zero(t, repo.tempUnschedCalls)
-	require.Zero(t, repo.rateLimitedCalls)
-	require.Zero(t, repo.updateCalls)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
-}
-
 func TestGrokContentPolicy403SharedErrorFallbackDoesNotMutate(t *testing.T) {
 
 	body := []byte(`{"error":{"code":"content_filter","message":"prohibited content"}}`)

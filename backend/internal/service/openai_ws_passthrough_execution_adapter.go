@@ -168,7 +168,7 @@ func (p *wsPassthroughAdapter) DialOnce(ctx context.Context) (gatewayws.DialResu
 	}
 	p.headers = headers
 	dialCtx, cancel := context.WithTimeout(ctx, p.service.openAIWSDialTimeout())
-	conn, status, handshake, err := p.service.getOpenAIWSPassthroughDialer().Dial(dialCtx, p.wsURL, p.headers, p.proxyURL, p.service.resolveOpenAITLSProfile(p.account, p.router))
+	conn, status, handshake, err := p.service.getOpenAIWSPassthroughDialer().Dial(dialCtx, p.wsURL, p.headers, p.proxyURL, p.service.Requests.TLSProfile(p.account, p.router))
 	cancel()
 	result := gatewayws.DialResult{Status: status, Headers: handshake}
 	if err != nil {
