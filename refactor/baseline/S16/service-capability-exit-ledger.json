@@ -2863,5 +2863,22 @@
     "production_files": 40,
     "test_files": 169,
     "verified_batch": "openai-live"
+  },
+  "latest_combined_validation": {
+    "head": "a8a9fb4bd1cb6f0bb86adaa68ecbf33ca01cec8e",
+    "report": "service-transport-group-verification.json",
+    "normal_pass": 12013,
+    "unit_pass": 20047,
+    "integration_pass": 13022,
+    "skips": [
+      4,
+      8,
+      4
+    ],
+    "lint": [
+      0,
+      0,
+      0
+    ]
   }
 }

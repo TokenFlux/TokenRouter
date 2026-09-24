@@ -1,0 +1,109 @@
+{
+  "format_version": 1,
+  "scope": "S16 四个稳定能力批次合并全仓验证批次及受影响消费者检查，非最终验收",
+  "parent_manifest": "progress-20260925-openai-live-manifest.json",
+  "parent_manifest_sha256": "5b3eae3071fda97104ed279cc0f0a19f9dea956e2d8b96f94c4fa82b46f854a9",
+  "source_file_count": 15,
+  "source_total_bytes": 65106766,
+  "collection": "仅本批 service-transport-group-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260925-transport-group-01.tar.gz",
+      "size": 3579099,
+      "sha256": "67fbb72ced2c7e477052cfad7666907ee6b46d4f09e3e6bc3da5e6b37c55963b",
+      "verified_members": 15,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 141495,
+          "sha256": "54a9338ab7bb8f3452a1cac3168bc9e18098baeea7724a684960a919f0dac633",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-checks.json",
+          "size": 1945,
+          "sha256": "32154f254e95bbb8b46a4480b5cb1483eae67531447a2b8a837bc10a1176213f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-integration.jsonl",
+          "size": 19188192,
+          "sha256": "c4d8c9bf5d4781e99cefce8ec1e5c3143c788d7911e7bfa860389d6d8a0cef2c",
+          "redacted": true
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-integration.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-lint-integration.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-lint-normal.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-lint-unit.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-normal.jsonl",
+          "size": 18015547,
+          "sha256": "8c0b32ce06f99e2a34c5ee46b93f994dfa6b9cd32b10f9787e4ac68e3c9dae53",
+          "redacted": true
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-normal.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-unit.jsonl",
+          "size": 27713402,
+          "sha256": "f9537302ae0f3f39389cbb1b82c75c117237b35ba5d588a714ec4bd78175295a",
+          "redacted": true
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-unit.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-transport-group-verification.json",
+          "size": 46155,
+          "sha256": "fc32eccdc0b6e9ed37733ad1e0a54e160b21ada3f3016e6f56afe1071f614618",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}
