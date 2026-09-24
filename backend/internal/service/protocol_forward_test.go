@@ -59,7 +59,7 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 					case protocol.ProtocolOpenAIChatCompletions:
 						_, err = svc.Text.Chat(ctx, c, &account, ingress.body, "", "")
 					default:
-						_, err = svc.Forward(ctx, c, &account, ingress.body)
+						_, err = svc.Responses.Forward(ctx, c, &account, ingress.body)
 					}
 					require.Error(t, err)
 					require.NotNil(t, upstream.lastReq, err)
@@ -118,7 +118,7 @@ func TestProtocolForwardConvertedResponsesRetainsWireContract(t *testing.T) {
 			}
 			upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{contentType}}, Body: io.NopCloser(strings.NewReader(tc.response))}}
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
-			result, err := svc.Forward(ctx, c, account, []byte(tc.body))
+			result, err := svc.Responses.Forward(ctx, c, account, []byte(tc.body))
 			require.NoError(t, err)
 			require.Equal(t, 3, result.Usage.InputTokens)
 			require.Equal(t, 2, result.Usage.OutputTokens)

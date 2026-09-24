@@ -133,6 +133,16 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 		executor.ForcedTemplate = source.cfg.Gateway.ForcedCodexInstructionsTemplate
 	}
 	source.BindTextExecution(executor)
+	imagePolicy := &gatewayprovider.ResponseImagePolicy{}
+	if source.channelService != nil {
+		imagePolicy.Channels = source.channelService
+	}
+	if source.cfg != nil {
+		imagePolicy.DefaultEnabled = source.cfg.Gateway.CodexImageGenerationBridgeEnabled
+	}
+	source.Lineage = &gatewayhttp.OpenAIEncryptedLineage{Store: source.ResponseStateStore(), TTL: source.selection.SessionStickyTTL}
+	source.Responses = &gatewayhttp.OpenAIResponsesExecutor{Requests: source.Requests, Output: source.responseOutput, Text: source.Text, Grok: source.Grok, Lineage: source.Lineage, ImageBridge: imagePolicy, ResolveTransport: source.selection.ResolveTransport, WebSocket: source.ForwardHTTPWebSocket}
+
 	source.Auxiliary = &gatewayhttp.OpenAIAuxiliary{Requests: source.Requests, Output: source.responseOutput, CodexUsage: source.Text.CodexUsage, Enter: source.nativeAttemptActivity}
 
 }

@@ -264,7 +264,7 @@ func (s *OpenAIGatewayService) bindOpenAIWSResponseSessionOwner(ctx context.Cont
 	if s == nil || c == nil {
 		return
 	}
-	apiKey := getAPIKeyFromContext(c)
+	apiKey := gatewayhttp.GetExecutionAPIKey(c)
 	if apiKey == nil || apiKey.UserID <= 0 {
 		return
 	}

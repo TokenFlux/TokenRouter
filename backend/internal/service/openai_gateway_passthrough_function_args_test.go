@@ -106,7 +106,7 @@ func TestForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle(t *
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 

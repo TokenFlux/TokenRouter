@@ -70,7 +70,7 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 				Schedulable: true},
 			}
 
-			result, err := svc.Forward(context.Background(), c, account, requestBody)
+			result, err := svc.Responses.Forward(context.Background(), c, account, requestBody)
 
 			require.Nil(t, result)
 			var failoverErr *forwardcore.UpstreamFailoverError
@@ -123,7 +123,7 @@ func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t 
 				Status: billing.StatusActive, Schedulable: true},
 			}
 
-			result, err := svc.Forward(context.Background(), c, account, requestBody)
+			result, err := svc.Responses.Forward(context.Background(), c, account, requestBody)
 
 			require.Nil(t, result)
 			require.Error(t, err)

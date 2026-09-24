@@ -104,7 +104,7 @@ func (p *wsStreamAdapter) EncryptedDigests(body []byte) []string {
 	return openai.CollectOpenAIEncryptedContentDigestsRaw(body)
 }
 func (p *wsStreamAdapter) MarkEncrypted(digests []string) {
-	p.service.markOpenAIWSInvalidEncryptedContentLineage(p.groupID, p.state.SessionHash, digests)
+	p.service.Lineage.Mark(p.groupID, p.state.SessionHash, digests)
 }
 func (p *wsStreamAdapter) SummarizeError(code, kind, message string) (string, string, string) {
 	return gatewayprovider.SummarizeOpenAIWSErrorEventFieldsFromRaw(code, kind, message)

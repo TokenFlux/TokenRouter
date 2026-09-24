@@ -330,7 +330,7 @@ func TestOpenAIGatewayService_Forward_LogsInstructionsRequiredDetails(t *testing
 	}
 	body := []byte(`{"model":"gpt-5.1-codex","stream":false,"input":[{"type":"text","text":"hello"}],"prompt_cache_key":"pc-forward","access_token":"secret-token"}`)
 
-	_, err := svc.Forward(context.Background(), c, account, body)
+	_, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Equal(t, "invalid_request_error", gjson.Get(rec.Body.String(), "error.type").String())
@@ -382,7 +382,7 @@ func TestOpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover(t
 	}
 	body := []byte(`{"model":"gpt-5.1-codex","stream":false,"input":[{"type":"text","text":"hello"}]}`)
 
-	_, err := svc.Forward(context.Background(), c, account, body)
+	_, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.Error(t, err)
 
 	var failoverErr *forwardcore.UpstreamFailoverError

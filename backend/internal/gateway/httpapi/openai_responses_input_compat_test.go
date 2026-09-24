@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 func TestOpenAIGatewayService_OAuthDropsOrphanAfterDroppingPreviousResponse(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.5","stream":false,"previous_response_id":"resp_missing","input":[{"type":"function_call_output","call_id":"call_missing","output":"keep this result"}]}`)
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		newOpenAIRejectedFieldTestResponse(http.StatusOK, `{"id":"resp_ok","output":[],"usage":{"input_tokens":1,"output_tokens":1,"input_tokens_details":{"cached_tokens":0}}}`),
 	}}
 
@@ -33,7 +33,7 @@ func TestOpenAIGatewayService_OAuthDropsOrphanAfterDroppingPreviousResponse(t *t
 func TestOpenAIGatewayService_PreservesOversizedToolOutputForUpstream(t *testing.T) {
 	oversized := strings.Repeat("x", openAIResponsesInputTextMaxChars) + "中"
 	body := []byte(`{"model":"gpt-5.5","stream":false,"input":[{"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{}"},{"type":"function_call_output","call_id":"call_1","output":"` + oversized + `"}]}`)
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		newOpenAIRejectedFieldTestResponse(http.StatusOK, `{"id":"resp_ok","output":[],"usage":{"input_tokens":1,"output_tokens":1,"input_tokens_details":{"cached_tokens":0}}}`),
 	}}
 

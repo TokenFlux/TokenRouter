@@ -1,11 +1,9 @@
-package service
+package httpapi
 
 import (
 	"context"
 	"net/http"
 	"testing"
-
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/stretchr/testify/require"
@@ -35,7 +33,7 @@ const namespaceForwardOKResponse = `{"id":"resp_ns","output":[],"usage":{"input_
 // OAuth 普通 Responses 必须原样保留 namespace 声明和历史工具调用字段。
 func TestOpenAIGatewayService_OAuthPreservesCodexNamespaceTools(t *testing.T) {
 	body := []byte(codexNamespaceRequestBody)
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		newOpenAIRejectedFieldTestResponse(http.StatusOK, namespaceForwardOKResponse),
 	}}
 	c := newOpenAIRejectedFieldTestContext(body)
@@ -55,14 +53,14 @@ func TestOpenAIGatewayService_OAuthPreservesCodexNamespaceTools(t *testing.T) {
 	require.NotContains(t, string(forwarded), "collaboration__spawn_agent")
 	require.Equal(t, "collaboration", gjson.GetBytes(forwarded, "input.0.namespace").String())
 	require.False(t, gjson.GetBytes(forwarded, "input.1.namespace").Exists())
-	require.Empty(t, gatewayhttp.OpenAIResponsesNamespaceNames(c))
+	require.Empty(t, OpenAIResponsesNamespaceNames(c))
 }
 
 // API Key 自定义上游若接受 namespace 工具声明，也要求历史 function_call 原样携带
 // namespace。声明仍为命名空间工具却清掉调用项字段，会触发 Missing namespace。
 func TestOpenAIGatewayService_APIKeyPreservesDeclaredNamespaceToolCalls(t *testing.T) {
 	body := []byte(codexNamespaceRequestBody)
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		newOpenAIRejectedFieldTestResponse(http.StatusOK, namespaceForwardOKResponse),
 	}}
 	c := newOpenAIRejectedFieldTestContext(body)
@@ -86,7 +84,7 @@ func TestOpenAIGatewayService_APIKeyPreservesDeclaredNamespaceToolCalls(t *testi
 // 因此保持既有的摊平 + 全量清理行为，不随默认值翻转扩大风险面。
 func TestOpenAIGatewayService_OAuthCompactKeepsFlattening(t *testing.T) {
 	body := []byte(codexNamespaceRequestBody)
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		newOpenAIRejectedFieldTestResponse(http.StatusOK, namespaceForwardOKResponse),
 	}}
 	c := newOpenAIRejectedFieldTestContext(body)
@@ -107,7 +105,7 @@ func TestOpenAIGatewayService_OAuthCompactKeepsFlattening(t *testing.T) {
 // 账号兼容开关打开后恢复 namespace 摊平旧行为。
 func TestOpenAIGatewayService_OAuthFlattenFlagRestoresLegacyBehavior(t *testing.T) {
 	body := []byte(codexNamespaceRequestBody)
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		newOpenAIRejectedFieldTestResponse(http.StatusOK, namespaceForwardOKResponse),
 	}}
 	c := newOpenAIRejectedFieldTestContext(body)
@@ -125,17 +123,17 @@ func TestOpenAIGatewayService_OAuthFlattenFlagRestoresLegacyBehavior(t *testing.
 	require.Equal(t, bridge.ResponsesNamespaceName{
 		Namespace: "collaboration",
 		Name:      "spawn_agent",
-	}, gatewayhttp.OpenAIResponsesNamespaceNames(c)["collaboration__spawn_agent"])
+	}, OpenAIResponsesNamespaceNames(c)["collaboration__spawn_agent"])
 }
 
 // failover 复用 gin.Context 时，每次转发都必须清除上一个账号留下的映射。
 func TestOpenAIGatewayService_ForwardClearsStaleNamespaceNames(t *testing.T) {
 	body := []byte(codexNamespaceRequestBody)
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		newOpenAIRejectedFieldTestResponse(http.StatusOK, namespaceForwardOKResponse),
 	}}
 	c := newOpenAIRejectedFieldTestContext(body)
-	gatewayhttp.SetOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
+	SetOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
 		"stale__tool": {Namespace: "stale", Name: "tool"},
 	})
 
@@ -144,5 +142,5 @@ func TestOpenAIGatewayService_ForwardClearsStaleNamespaceNames(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	require.Empty(t, gatewayhttp.OpenAIResponsesNamespaceNames(c))
+	require.Empty(t, OpenAIResponsesNamespaceNames(c))
 }

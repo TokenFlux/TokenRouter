@@ -1893,3 +1893,10 @@ S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶�
 - 两个原协议测试按名称、unit标签和全部断言迁移；创作普通2条、unit130条、消费者定向race10条通过，无失败或跳过。未修改资金、队列、缓存或平台重试。
 - 27/27门禁、8个构建集合、三套受影响lint0/0/0、生产构建及Wire两次稳定通过。[验证摘要](baseline/S16/service-creative-targets-owner-verification.json)保留实际命令与初次编译/lint诊断。
 - 旧service生产57→54、测试191→190；SQL、Ent、原计划及既有冻结/保护文件不变。完整Responses、WS/Live和最终全仓验收继续执行。
+
+### Responses主请求与失效密文会话批次（2026-09-25）
+
+- Responses 主请求、准备/转换/HTTP适配由 OpenAIResponsesExecutor 接入，图片桥接优先级由 gateway/provider.ResponseImagePolicy 唯一实现。失效密文读写与HTTP/WS共享原Store和TTL；WS分支只接收已经固化的输入，继续使用原池与RunHTTPForward，不增加重试循环或资金实现。
+- 17个原测试文件迁到原生HTTP/provider，另删除纯测试转接；130个测试按名称、标签和断言调用核对，无遗漏、无减少。图片桥接旧夹具在构造后修改cfg/channel的初次失败已修正为直接设置原生选项，原断言全部保留。
+- 受影响普通4,279条、unit6,124条通过，各2项既有跳过；定向race484条通过。45/45门禁、8个构建集合、三套受影响lint0/0/0、Wire两次稳定及生产构建通过。[验证摘要](baseline/S16/service-openai-responses-owner-verification.json)保存实际结果和迁移诊断。
+- 旧service生产54→47、测试190→172；SQL、Ent、早期冻结资料、原计划和51个保护文件未变。WS/Live资源与最后聚合装配仍待退出，S16尚未完成最终验收。

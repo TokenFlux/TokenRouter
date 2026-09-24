@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -14,8 +14,6 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -55,7 +53,7 @@ func TestOpenAIGatewayServiceForward_NormalizesResponsesLiteToolsForOAuth(t *tes
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 			c.Request.Header.Set("User-Agent", "codex_cli_rs/0.144.1")
 			c.Request.Header.Set(media.ResponsesLiteHeader, "true")
-			upstream := &httpUpstreamRecorder{resp: &http.Response{
+			upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 				Body: io.NopCloser(strings.NewReader(
@@ -63,9 +61,9 @@ func TestOpenAIGatewayServiceForward_NormalizesResponsesLiteToolsForOAuth(t *tes
 						"data: [DONE]\n\n",
 				)),
 			}}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+			svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 501, Name: "responses-lite", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth,
-				Concurrency: 1, Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1),
+				Concurrency: 1, Status: billing.StatusActive, Schedulable: true, RateMultiplier: new(float64(1)),
 				Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"},
 				Extra:       map[string]any{"openai_passthrough": passthrough}},
 			}
@@ -104,14 +102,8 @@ func TestOpenAIGatewayServiceForward_NormalizesResponsesLiteToolsForOAuth(t *tes
 			badCtx, _ := gin.CreateTestContext(badRec)
 			badCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 			badCtx.Request.Header.Set(media.ResponsesLiteHeader, "true")
-			badUpstream := &httpUpstreamRecorder{}
-			svc.httpUpstream = badUpstream
-			if svc.Requests != nil {
-				svc.Requests.Transport = svc.httpUpstream
-			}
-			if svc.Grok != nil {
-				svc.Grok.Transport = svc.httpUpstream
-			}
+			badUpstream := &auxiliaryHTTPRecorder{}
+			svc.Requests.Transport = badUpstream
 
 			result, err = svc.Forward(context.Background(), badCtx, account, []byte(`{"model":"gpt-5.6-terra","tools":[{"type":"function","name":"shell"}],"parallel_tool_calls":"false"}`))
 
@@ -158,8 +150,8 @@ func TestOpenAIGatewayServiceForward_DisablesResponsesLiteParallelToolCallsForAP
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 			c.Request.Header.Set(media.ResponsesLiteHeader, "true")
-			gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
-			upstream := &httpUpstreamRecorder{resp: &http.Response{
+			SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+			upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 				Body: io.NopCloser(strings.NewReader(
@@ -167,11 +159,11 @@ func TestOpenAIGatewayServiceForward_DisablesResponsesLiteParallelToolCallsForAP
 						"data: [DONE]\n\n",
 				)),
 			}}
-			cfg := &config.Config{}
-			cfg.Security.URLAllowlist.Enabled = false
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+			cfg := &responsesFixtureOptions{}
+			cfg.Request.URLPolicy.Enabled = false
+			svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 502, Name: "responses-lite-apikey", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
-				Concurrency: 1, Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1),
+				Concurrency: 1, Status: billing.StatusActive, Schedulable: true, RateMultiplier: new(float64(1)),
 				Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://example.com"},
 				Extra: map[string]any{
 					"openai_passthrough": passthrough,

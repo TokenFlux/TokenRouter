@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 	"testing"
 	time "time"
 
+	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -32,14 +32,14 @@ func TestRemovedGPT56AliasAcrossGatewayProtocols(t *testing.T) {
 				}
 				t.Run(name, func(t *testing.T) {
 					// 在上游边界返回固定错误，验证实际出站模型而不依赖响应转换细节。
-					upstream := &httpUpstreamRecorder{resp: &http.Response{
+					upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 						StatusCode: http.StatusBadRequest,
 						Header:     http.Header{"Content-Type": []string{"application/json"}},
 						Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"request captured"}}`)),
 					}}
-					cfg := &config.Config{}
-					cfg.Security.URLAllowlist.Enabled = false
-					svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+					cfg := &responsesFixtureOptions{}
+					cfg.Request.URLPolicy.Enabled = false
+					svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 					account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 991, Name: "alias-regression", Platform: capability.PlatformOpenAI, Type: accountType, Concurrency: 1,
 						Credentials: map[string]any{"api_key": "sk-test", "access_token": "oauth-test", "base_url": "https://example.com", "chatgpt_account_id": "test-account"},
 						Extra:       map[string]any{"use_responses_api": true}},
@@ -59,7 +59,7 @@ func TestRemovedGPT56AliasAcrossGatewayProtocols(t *testing.T) {
 					require.NoError(t, err)
 					c, _ := gin.CreateTestContext(httptest.NewRecorder())
 					c.Request = httptest.NewRequest(http.MethodPost, "/v1/"+protocol, nil)
-					gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+					SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 					switch protocol {
 					case "responses":
 						_, err = svc.Forward(context.Background(), c, account, payload)
@@ -71,10 +71,10 @@ func TestRemovedGPT56AliasAcrossGatewayProtocols(t *testing.T) {
 					require.Error(t, err)
 					require.NotEmpty(t, upstream.lastBody)
 					require.Equal(t, want, gjson.GetBytes(upstream.lastBody, "model").String())
-					require.Equal(t, want, openAIWSPassthroughPolicyModelForFrame(account, payload))
+					require.Equal(t, want, gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(gatewayprovider.ExecutionModelPolicy(account).Mapped(gjson.GetBytes(payload, "model").String())))
 					session, err := json.Marshal(map[string]any{"type": "session.update", "session": body})
 					require.NoError(t, err)
-					require.Equal(t, want, openAIWSPassthroughPolicyModelFromSessionFrame(account, session))
+					require.Equal(t, want, gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(gatewayprovider.ExecutionModelPolicy(account).Mapped(gatewayws.RequestModelFromSessionFrame(session))))
 				})
 			}
 		}

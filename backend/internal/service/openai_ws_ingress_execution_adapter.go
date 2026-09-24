@@ -379,7 +379,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 		ShouldBridgeFn: func(payload gatewayws.ClientPayload) bool {
 			return forceHTTPBridge || s.shouldBridgeOpenAIWSHTTP(account, payload.PayloadBytes, payload.PreviousResponseID)
 		},
-		InvalidFn: s.sessionInvalidEncryptedContentDigests, StripFn: s.stripSessionInvalidEncryptedContentLogged,
+		InvalidFn: s.Lineage.Digests, StripFn: s.Lineage.Strip,
 		BridgeIdentityFn: func(body []byte, model string) (string, error) {
 			return resolveGrokWSCacheIdentity(c, account, body, model)
 		},
@@ -392,7 +392,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 				c.Request.Header.Set(openAIWSTurnStateHeader, turnState)
 			}
 			if c != nil && sessionHash != "" {
-				c.Set(openAIWSIngressSessionHashContextKey, sessionHash)
+				c.Set(gatewayhttp.OpenAIWSIngressLineageContextKey, sessionHash)
 			}
 		},
 		OpenPoolFn: openPool,

@@ -1,0 +1,214 @@
+{
+  "baseline_head": "5de2ed1263288d882575098d54db54a731a9bb1c",
+  "scope": "S16 Responses主请求与共用密文能力批次，非最终全仓验收",
+  "before": {
+    "production": 54,
+    "tests": 190
+  },
+  "after": {
+    "production": 47,
+    "tests": 172
+  },
+  "owners": [
+    "gateway/httpapi.OpenAIResponsesExecutor",
+    "gateway/httpapi.OpenAIEncryptedLineage",
+    "gateway/httpapi.OpenAIRequests",
+    "gateway/httpapi.OpenAIResponseOutput",
+    "gateway/provider.ResponseImagePolicy",
+    "gateway/provider/openaiforward",
+    "gateway/ws",
+    "upstream/openai",
+    "app"
+  ],
+  "retired_production": [
+    "backend/internal/service/openai_encrypted_content_lineage.go",
+    "backend/internal/service/openai_forward_http_adapter.go",
+    "backend/internal/service/openai_forward_prelude_adapter.go",
+    "backend/internal/service/openai_forward_transform_adapter.go",
+    "backend/internal/service/openai_gateway_forward.go",
+    "backend/internal/service/protocol_routing.go",
+    "backend/internal/service/request_key_projection.go"
+  ],
+  "tests": [
+    {
+      "name": "normal",
+      "log": "service-openai-responses-normal.jsonl",
+      "events": {
+        "pass": 4279,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ]
+    },
+    {
+      "name": "unit",
+      "log": "service-openai-responses-unit.jsonl",
+      "events": {
+        "pass": 6124,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ]
+    },
+    {
+      "name": "contracts-race",
+      "log": "service-openai-responses-contracts-race.jsonl",
+      "events": {
+        "pass": 484
+      },
+      "skips": []
+    }
+  ],
+  "checks": [
+    {
+      "name": "normal",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/provider",
+        "./internal/gateway/provider/openaiforward",
+        "./internal/gateway/session",
+        "./internal/gateway/ws",
+        "./internal/service",
+        "./internal/app",
+        "./internal/upstream/openai"
+      ],
+      "status": "finished",
+      "exit_code": 0,
+      "elapsed_seconds": 79.19
+    },
+    {
+      "name": "unit",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/provider",
+        "./internal/gateway/provider/openaiforward",
+        "./internal/gateway/session",
+        "./internal/gateway/ws",
+        "./internal/service",
+        "./internal/app",
+        "./internal/upstream/openai"
+      ],
+      "status": "finished",
+      "exit_code": 0,
+      "elapsed_seconds": 77.61
+    },
+    {
+      "name": "contracts-race",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "-tags=unit",
+        "-run",
+        "Forward_|Compact|Lineage|Encrypted|ImageGeneration|ImageIntent|EmptyCompleted|GPT56|RemovedGPT56|RejectedField|Namespace|ClientTools|Lite|Orphan|GetOpenAIRequestBody",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/session",
+        "./internal/gateway/ws",
+        "./internal/service",
+        "./internal/app"
+      ],
+      "status": "finished",
+      "exit_code": 0,
+      "elapsed_seconds": 40.39
+    }
+  ],
+  "lint": [
+    {
+      "name": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/account/provider/...",
+        "./internal/creative/provider/...",
+        "./internal/service/...",
+        "./internal/app/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.79
+    },
+    {
+      "name": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/account/provider/...",
+        "./internal/creative/provider/...",
+        "./internal/service/...",
+        "./internal/app/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 8.71
+    },
+    {
+      "name": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/account/provider/...",
+        "./internal/creative/provider/...",
+        "./internal/service/...",
+        "./internal/app/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.65
+    }
+  ],
+  "test_mapping": "service-openai-responses-test-mapping.json",
+  "gates": {
+    "passed": 45,
+    "total": 45,
+    "config_sha256": "360bff31e3ba36b2a6769b90587a8e27131f41e71c8941454e12d4e01dee8fb9"
+  },
+  "wire": "service-openai-responses-wire-stability.json",
+  "build_selection": "service-openai-responses-build-selection.json",
+  "protected_unchanged": 51,
+  "frozen_unchanged": true,
+  "contracts": [
+    "生产Forward直接使用OpenAIResponsesExecutor，复用唯一请求、输出、凭据与Grok/Text协议执行实例",
+    "预处理、动态渠道图片桥接、客户端限制、Compact、工具字段、重试预算及原读取时点保持",
+    "HTTP/WS失效密文共用原Store和TTL；转入WS携带固化输入，复用已有RunHTTPForward及连接池，没有新增账号循环",
+    "17个原测试文件迁到原生HTTP/provider，旧纯测试转接删除；130个测试名称、标签与断言调用数量一致",
+    "构造时独立选项取代可变旧配置测试对象，保留业务断言；原WS多轮及混合协议消费者继续直接调用原生Responses实例"
+  ],
+  "migration_diagnostics": [
+    "初次消费者测试中，图片桥接6个父子失败来自测试构造后修改旧cfg/channel；将该组测试及替身迁至原生实例选项后523条定向通过，最终normal/unit/race集合均通过。没有修改生产规则。",
+    "响应图片渠道端口只在原具体渠道非nil时赋值，保留原缺依赖回退，避免typed-nil接口改变分支。"
+  ],
+  "remaining": [
+    "WS/Live完整资源、池、relay和最后旧构造",
+    "旧聚合读取与测试夹具退出",
+    "最终全仓、前端、跨平台、进程和十二组资金销项验收"
+  ]
+}

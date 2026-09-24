@@ -98,7 +98,7 @@ func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t
 			firstAccount := openAIFailoverCachedBodyTestAccount(1, "account-a", tt.firstMapping)
 			secondAccount := openAIFailoverCachedBodyTestAccount(2, "account-b", tt.secondMapping)
 
-			_, err := svc.Forward(context.Background(), c, firstAccount, body)
+			_, err := svc.Responses.Forward(context.Background(), c, firstAccount, body)
 			require.Error(t, err)
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.True(t, errors.As(err, &failoverErr))
@@ -106,7 +106,7 @@ func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t
 			require.Equal(t, tt.wantFirst, gjson.GetBytes(upstream.bodies[0], "model").String())
 
 			c.Set("openai_parsed_request_body", map[string]any{"model": tt.wantFirst, "stream": true})
-			result, err := svc.Forward(context.Background(), c, secondAccount, body)
+			result, err := svc.Responses.Forward(context.Background(), c, secondAccount, body)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, upstream.bodies, 2)

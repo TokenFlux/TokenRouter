@@ -19,6 +19,7 @@
     "openai-auxiliary",
     "openai-images",
     "creative-targets",
+    "openai-responses",
     "openai-execution",
     "ws-live",
     "shared-boundaries"
@@ -33,8 +34,6 @@
         "backend/internal/service/group_default_selection.go",
         "backend/internal/service/model_rejection_projection.go",
         "backend/internal/service/ollama_activity.go",
-        "backend/internal/service/protocol_routing.go",
-        "backend/internal/service/request_key_projection.go",
         "backend/internal/service/route_plan.go",
         "backend/internal/service/service_tier_billing.go",
         "backend/internal/service/session_isolation.go",
@@ -1150,10 +1149,6 @@
       "files": [
         "backend/internal/service/openai_account_runtime_block_fastpath.go",
         "backend/internal/service/openai_cyber_session_block.go",
-        "backend/internal/service/openai_forward_http_adapter.go",
-        "backend/internal/service/openai_forward_prelude_adapter.go",
-        "backend/internal/service/openai_forward_transform_adapter.go",
-        "backend/internal/service/openai_gateway_forward.go",
         "backend/internal/service/openai_gateway_service.go",
         "backend/internal/service/openai_messages_digest_session.go",
         "backend/internal/service/openai_proxy_stream_circuit.go",
@@ -2127,7 +2122,6 @@
     },
     "ws-live": {
       "files": [
-        "backend/internal/service/openai_encrypted_content_lineage.go",
         "backend/internal/service/openai_http_ws_forward_adapter.go",
         "backend/internal/service/openai_live.go",
         "backend/internal/service/openai_live_adapter.go",
@@ -2794,6 +2788,33 @@
       "test_mapping": "service-creative-targets-test-mapping.json",
       "completed_at": "2026-09-25",
       "exit": "任务目标、生产消费者、协议测试、装配及门禁同时退出旧service；原账号代理辅助函数消费者清零后删除。"
+    },
+    "openai-responses": {
+      "status": "verified",
+      "files": [
+        "backend/internal/service/openai_encrypted_content_lineage.go",
+        "backend/internal/service/openai_forward_http_adapter.go",
+        "backend/internal/service/openai_forward_prelude_adapter.go",
+        "backend/internal/service/openai_forward_transform_adapter.go",
+        "backend/internal/service/openai_gateway_forward.go",
+        "backend/internal/service/protocol_routing.go",
+        "backend/internal/service/request_key_projection.go"
+      ],
+      "native_owners": [
+        "gateway/httpapi.OpenAIResponsesExecutor",
+        "gateway/httpapi.OpenAIEncryptedLineage",
+        "gateway/httpapi.OpenAIRequests",
+        "gateway/httpapi.OpenAIResponseOutput",
+        "gateway/provider.ResponseImagePolicy",
+        "gateway/provider/openaiforward",
+        "gateway/ws",
+        "upstream/openai",
+        "app"
+      ],
+      "verification": "service-openai-responses-owner-verification.json",
+      "test_mapping": "service-openai-responses-test-mapping.json",
+      "completed_at": "2026-09-25",
+      "exit": "Responses主请求、准备/转换/HTTP适配、失效密文、图片策略及认证投影同步改绑原生实现；旧Forward方法和7个生产文件删除。WS传输端口继续复用旧池拥有者，属于未完成WS批次。"
     }
   },
   "boundary_notes": {
@@ -2818,8 +2839,8 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 54,
-    "test_files": 190,
-    "verified_batch": "creative-targets"
+    "production_files": 47,
+    "test_files": 172,
+    "verified_batch": "openai-responses"
   }
 }

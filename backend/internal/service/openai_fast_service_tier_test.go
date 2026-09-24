@@ -339,7 +339,7 @@ func TestForward_ResponsesServiceTierFastNormalizedToPriorityUpstream(t *testing
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastBody)
@@ -382,7 +382,7 @@ func TestForward_ResponsesServiceTierOmittedStaysOmitted(t *testing.T) {
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastBody)
@@ -430,7 +430,7 @@ func TestForwardStreaming_ServiceTierPropagatedToResult(t *testing.T) {
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)
@@ -478,7 +478,7 @@ func TestForward_ResponsesKeepsOutboundAndObservedServiceTiersSeparate(t *testin
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)
@@ -523,7 +523,7 @@ func TestForwardStreaming_KeepsOutboundAndObservedServiceTiersSeparate(t *testin
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)
@@ -625,7 +625,7 @@ func TestForward_ServiceTierFilteredByPolicyBillsStandard(t *testing.T) {
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	// 出站 body 已剥离 service_tier、上游也未回显 → 无 tier → 按标准价计费。

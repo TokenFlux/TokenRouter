@@ -106,5 +106,6 @@ func provideOpenAIGatewayExecution(
 		routers = tlsFPRouterServices[0]
 	}
 	source.BindTextExecution(openAITextExecution(cfg, accountRepo, identity, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, grokExecutor, responseOutput, cacheBindings, choices.OpenAIHTTPResponseStickyTTL, compactExecutor))
+	bindOpenAIResponses(source, cfg, channelService, choices)
 	return source
 }

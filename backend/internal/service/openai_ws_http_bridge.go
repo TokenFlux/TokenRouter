@@ -618,8 +618,8 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		_ = resp.Body.Close()
 		gatewayhttp.MarkOpenAICyberPolicyEvent(c, respBody, resp.StatusCode, nil)
 		if resp.StatusCode == http.StatusBadRequest &&
-			upstream.ExtractErrorCode(respBody) == openAIWSFallbackReasonInvalidEncryptedContent {
-			s.markOpenAIWSInvalidEncryptedContentLineageFromPayload(
+			upstream.ExtractErrorCode(respBody) == gatewayhttp.OpenAIInvalidEncryptedContentReason {
+			s.Lineage.MarkPayload(
 				c, body, "ingress_ws_http_bridge_invalid_encrypted_lineage_mark", account.Record.ID, turn,
 			)
 		}
@@ -910,8 +910,8 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		}
 		if eventType == "error" {
 			errCodeRaw, errTypeRaw, _ := openai.ParseWSErrorEventFields(upstreamMessage)
-			if reason, _ := upstreamopenai.ClassifyWSErrorEventFromRaw(errCodeRaw, errTypeRaw, upstreamopenai.ExtractOpenAISSEErrorMessage(upstreamMessage)); reason == openAIWSFallbackReasonInvalidEncryptedContent {
-				s.markOpenAIWSInvalidEncryptedContentLineageFromPayload(
+			if reason, _ := upstreamopenai.ClassifyWSErrorEventFromRaw(errCodeRaw, errTypeRaw, upstreamopenai.ExtractOpenAISSEErrorMessage(upstreamMessage)); reason == gatewayhttp.OpenAIInvalidEncryptedContentReason {
+				s.Lineage.MarkPayload(
 					c, body, "ingress_ws_http_bridge_invalid_encrypted_lineage_mark", account.Record.ID, turn,
 				)
 			}

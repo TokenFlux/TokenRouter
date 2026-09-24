@@ -54,7 +54,7 @@ func (p *openAIHTTPWSForwardAdapter) MarkEncrypted(entry []byte, digests []strin
 	if p.lineageSessionHash == "" {
 		p.lineageSessionHash = gatewayhttp.GenerateOpenAISessionHash(p.c, entry)
 	}
-	p.s.markOpenAIWSInvalidEncryptedContentLineage(p.lineageGroupID, p.lineageSessionHash, digests)
+	p.s.Lineage.Mark(p.lineageGroupID, p.lineageSessionHash, digests)
 }
 func (p *openAIHTTPWSForwardAdapter) TruncateID(v string, limit int) string {
 	return gatewayprovider.TruncateOpenAIWSLogValue(v, limit)
@@ -88,3 +88,10 @@ func (p *openAIHTTPWSForwardAdapter) Debug(msg string) {
 	gatewayprovider.LogOpenAIWSModeDebug("%s", msg)
 }
 func (p *openAIHTTPWSForwardAdapter) Info(msg string) { gatewayprovider.LogOpenAIWSModeInfo("%s", msg) }
+
+// ForwardHTTPWebSocket 接收已经准备好的单次请求，继续复用唯一 WS 池与既有恢复循环。
+func (s *OpenAIGatewayService) ForwardHTTPWebSocket(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body map[string]any, input gatewayhttp.OpenAIHTTPWSAttempt) (*forward.OpenAIResult, error) {
+	adapter := &openAIHTTPWSForwardAdapter{s: s, c: c, account: account, clientPromptCacheKey: input.ClientPromptCacheKey, token: input.Token, decision: input.Decision, isCodexCLI: input.CodexCLI, stream: input.Stream, originalModel: input.OriginalModel, upstreamModel: input.UpstreamModel, startedAt: input.StartedAt, tls: input.TLS, lineageGroupID: input.LineageGroupID, lineageSessionHash: input.LineageSessionHash}
+	result, err := gatewayws.RunHTTPForward(ctx, body, gatewayws.HTTPForwardInput{AccountID: account.Record.ID, AccountType: account.Record.Type, UpstreamModel: input.UpstreamModel, BillingModel: input.BillingModel, ImageBillingModel: input.ImageBillingModel, ImageSizeTier: input.ImageSizeTier, ImageInputSize: input.ImageInputSize, LineageEntryBody: input.LineageEntryBody, Stream: input.Stream, RetryLimit: openAIWSReconnectRetryLimit, IDLogLimit: gatewayprovider.OpenAIWSIDValueMaxLen}, adapter)
+	return gatewayprovider.ForwardResultFromWS(result), err
+}

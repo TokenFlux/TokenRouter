@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package httpapi
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func TestOpenAIResponsesEmptyCompletedFailsOver(t *testing.T) {
 			name = "passthrough"
 		}
 		t.Run(name, func(t *testing.T) {
-			upstream := &httpUpstreamRecorder{resp: &http.Response{
+			upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 				StatusCode: http.StatusOK,
 				Header: http.Header{
 					"Content-Type": []string{"text/event-stream"},
@@ -79,7 +79,7 @@ func TestOpenAIResponsesEmptyCompletedExemptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, passthrough := range []bool{false, true} {
-				upstream := &httpUpstreamRecorder{resp: &http.Response{
+				upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 					StatusCode: http.StatusOK,
 					Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 					Body:       io.NopCloser(strings.NewReader(tt.body)),
@@ -118,7 +118,7 @@ func TestOpenAIResponsesCompletedEventIsEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, openAIResponsesCompletedEventIsEmpty([]byte(tt.data), tt.usage))
+			require.Equal(t, tt.want, openai.OpenAIResponsesCompletedEventIsEmpty([]byte(tt.data), tt.usage))
 		})
 	}
 }

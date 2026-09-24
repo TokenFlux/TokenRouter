@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -13,9 +13,7 @@ import (
 	accountconfig "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
@@ -52,7 +50,7 @@ func TestOpenAIGatewayServiceForward_RejectsDisabledImageGenerationIntents(t *te
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			upstream := &httpUpstreamRecorder{}
+			upstream := &auxiliaryHTTPRecorder{}
 			svc := newOpenAIImageGenerationControlTestService(upstream)
 			c, recorder := newOpenAIImageGenerationControlTestContext(false, "unit-test-agent/1.0")
 			account := newOpenAIImageGenerationControlTestAccount()
@@ -70,7 +68,7 @@ func TestOpenAIGatewayServiceForward_RejectsDisabledImageGenerationIntents(t *te
 
 func TestOpenAIGatewayServiceForward_DisabledGroupAllowsTextOnlyResponses(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -104,7 +102,7 @@ func TestOpenAIGatewayServiceForward_DisabledGroupAllowsPassiveImageNamespace(t 
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			upstream := &httpUpstreamRecorder{
+			upstream := &auxiliaryHTTPRecorder{
 				resp: &http.Response{
 					StatusCode: http.StatusOK,
 					Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -113,7 +111,7 @@ func TestOpenAIGatewayServiceForward_DisabledGroupAllowsPassiveImageNamespace(t 
 			}
 			svc := newOpenAIImageGenerationControlTestService(upstream)
 			c, recorder := newOpenAIImageGenerationControlTestContext(false, "codex_cli_rs/0.144.1")
-			gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+			SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 			account := newOpenAIImageGenerationControlTestAccount()
 			account.Record.Extra = map[string]any{"openai_passthrough": tt.passthrough}
 			body := []byte(`{
@@ -131,7 +129,7 @@ func TestOpenAIGatewayServiceForward_DisabledGroupAllowsPassiveImageNamespace(t 
 			require.Equal(t, http.StatusOK, recorder.Code)
 			require.NotNil(t, upstream.lastReq)
 			require.Equal(t, "namespace", gjson.GetBytes(upstream.lastBody, `tools.#(name=="image_gen").type`).String())
-			cached, known := gatewayhttp.GetOpenAIImageIntentHint(c)
+			cached, known := GetOpenAIImageIntentHint(c)
 			require.True(t, known)
 			require.True(t, cached, "宽泛意图仍应保留给转发和计费")
 		})
@@ -155,7 +153,7 @@ func TestOpenAIGatewayServiceForward_CodexImageInjectionRespectsGroupCapability(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			upstream := &httpUpstreamRecorder{
+			upstream := &auxiliaryHTTPRecorder{
 				resp: &http.Response{
 					StatusCode: http.StatusOK,
 					Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -163,7 +161,7 @@ func TestOpenAIGatewayServiceForward_CodexImageInjectionRespectsGroupCapability(
 				},
 			}
 			svc := newOpenAIImageGenerationControlTestService(upstream)
-			svc.cfg.Gateway.CodexImageGenerationBridgeEnabled = tt.bridgeEnabled
+			svc.ImageBridge.DefaultEnabled = tt.bridgeEnabled
 			c, _ := newOpenAIImageGenerationControlTestContext(tt.allowImages, "codex_cli_rs/0.98.0")
 			if tt.responsesLite {
 				c.Request.Header.Set(media.ResponsesLiteHeader, "true")
@@ -198,7 +196,7 @@ func TestOpenAIBuildUpstreamRequestOpenAIPassthroughForwardsResponsesLiteHeader(
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.98.0")
 	c.Request.Header.Set(media.ResponsesLiteHeader, "true")
 
-	svc := newOpenAIImageGenerationControlTestService(&httpUpstreamRecorder{})
+	svc := newOpenAIImageGenerationControlTestService(&auxiliaryHTTPRecorder{})
 	req, err := svc.Requests.BuildPassthrough(
 		c.Request.Context(),
 		c,
@@ -213,7 +211,7 @@ func TestOpenAIBuildUpstreamRequestOpenAIPassthroughForwardsResponsesLiteHeader(
 
 func TestOpenAIGatewayServiceForward_ExplicitImageToolWorksWithBridgeDisabled(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -239,7 +237,7 @@ func TestOpenAIGatewayServiceForward_ExplicitImageToolWorksWithBridgeDisabled(t 
 
 func TestOpenAIGatewayServiceForward_AccountPolicyStripsExplicitImageTool(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -287,7 +285,7 @@ func TestOpenAIGatewayServiceForward_AccountPolicyStripsImageNamespaceTools(t *t
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			upstream := &httpUpstreamRecorder{
+			upstream := &auxiliaryHTTPRecorder{
 				resp: &http.Response{
 					StatusCode: http.StatusOK,
 					Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -296,7 +294,7 @@ func TestOpenAIGatewayServiceForward_AccountPolicyStripsImageNamespaceTools(t *t
 			}
 			svc := newOpenAIImageGenerationControlTestService(upstream)
 			c, _ := newOpenAIImageGenerationControlTestContext(false, "codex_cli_rs/0.144.1")
-			gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+			SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 			account := newOpenAIImageGenerationControlTestAccount()
 			account.Record.Extra = map[string]any{
 				accountconfig.CodexImageGenerationExplicitToolPolicyKey: accountconfig.CodexImagePolicyStrip,
@@ -329,7 +327,7 @@ func TestOpenAIGatewayServiceForward_AccountPolicyStripsImageNamespaceTools(t *t
 			require.True(t, gjson.GetBytes(upstream.lastBody, `tools.#(name=="shell")`).Exists())
 			require.True(t, gjson.GetBytes(upstream.lastBody, `tools.#(name=="code_tools")`).Exists())
 			require.Equal(t, "write code", gjson.GetBytes(upstream.lastBody, "input.0.content.0.text").String())
-			cached, known := gatewayhttp.GetOpenAIImageIntentHint(c)
+			cached, known := GetOpenAIImageIntentHint(c)
 			require.True(t, known)
 			require.True(t, cached)
 		})
@@ -338,7 +336,7 @@ func TestOpenAIGatewayServiceForward_AccountPolicyStripsImageNamespaceTools(t *t
 
 func TestOpenAIGatewayServiceForward_ChannelBridgeOverrideEnablesCodexInjection(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -347,7 +345,7 @@ func TestOpenAIGatewayServiceForward_ChannelBridgeOverrideEnablesCodexInjection(
 	}
 	svc := newOpenAIImageGenerationControlTestService(upstream)
 	groupID := int64(4242)
-	svc.channelService = newOpenAIImageGenerationControlChannelService(groupID, &routing.Channel{
+	svc.ImageBridge.Channels = newOpenAIImageGenerationControlChannelService(groupID, &routing.Channel{
 		ID:     9001,
 		Status: billing.StatusActive,
 		FeaturesConfig: map[string]any{
@@ -369,7 +367,7 @@ func TestOpenAIGatewayServiceForward_ChannelBridgeOverrideEnablesCodexInjection(
 
 func TestOpenAIGatewayServiceForward_CodexBridgeDoesNotInjectHostedToolAlongsideImageGenNamespace(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -377,7 +375,7 @@ func TestOpenAIGatewayServiceForward_CodexBridgeDoesNotInjectHostedToolAlongside
 		},
 	}
 	svc := newOpenAIImageGenerationControlTestService(upstream)
-	svc.cfg.Gateway.CodexImageGenerationBridgeEnabled = true
+	svc.ImageBridge.DefaultEnabled = true
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.144.1")
 	account := newOpenAIImageGenerationControlTestAccount()
 	body := []byte(`{
@@ -422,7 +420,7 @@ func TestOpenAIGatewayServiceForward_CodexBridgePreservesImageGenFunction(t *tes
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			upstream := &httpUpstreamRecorder{
+			upstream := &auxiliaryHTTPRecorder{
 				resp: &http.Response{
 					StatusCode: http.StatusOK,
 					Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -430,7 +428,7 @@ func TestOpenAIGatewayServiceForward_CodexBridgePreservesImageGenFunction(t *tes
 				},
 			}
 			svc := newOpenAIImageGenerationControlTestService(upstream)
-			svc.cfg.Gateway.CodexImageGenerationBridgeEnabled = true
+			svc.ImageBridge.DefaultEnabled = true
 			c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.144.1")
 			account := newOpenAIImageGenerationControlTestAccount()
 			body := []byte(`{"model":"gpt-5.5","input":"draw a cat","stream":false,"tools":[` + tt.tool + `]}`)
@@ -453,7 +451,7 @@ func TestOpenAIGatewayServiceForward_CodexBridgePreservesImageGenFunction(t *tes
 
 func TestOpenAIGatewayServiceForward_CodexBridgePreservesExistingToolChoice(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -461,7 +459,7 @@ func TestOpenAIGatewayServiceForward_CodexBridgePreservesExistingToolChoice(t *t
 		},
 	}
 	svc := newOpenAIImageGenerationControlTestService(upstream)
-	svc.cfg.Gateway.CodexImageGenerationBridgeEnabled = true
+	svc.ImageBridge.DefaultEnabled = true
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.98.0")
 	account := newOpenAIImageGenerationControlTestAccount()
 
@@ -475,7 +473,7 @@ func TestOpenAIGatewayServiceForward_CodexBridgePreservesExistingToolChoice(t *t
 
 func TestOpenAIGatewayServiceForward_CodexBridgeSkipsCompactRequests(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -483,7 +481,7 @@ func TestOpenAIGatewayServiceForward_CodexBridgeSkipsCompactRequests(t *testing.
 		},
 	}
 	svc := newOpenAIImageGenerationControlTestService(upstream)
-	svc.cfg.Gateway.CodexImageGenerationBridgeEnabled = true
+	svc.ImageBridge.DefaultEnabled = true
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.98.0")
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses/compact", nil)
 	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.98.0")
@@ -571,14 +569,14 @@ func TestOpenAIGatewayService_CodexImageGenerationBridgeOverridePrecedence(t *te
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newOpenAIImageGenerationControlTestService(&httpUpstreamRecorder{})
-			svc.cfg.Gateway.CodexImageGenerationBridgeEnabled = tt.global
+			svc := newOpenAIImageGenerationControlTestService(&auxiliaryHTTPRecorder{})
+			svc.ImageBridge.DefaultEnabled = tt.global
 			if tt.channel != nil {
-				svc.channelService = newOpenAIImageGenerationControlChannelService(groupID, tt.channel)
+				svc.ImageBridge.Channels = newOpenAIImageGenerationControlChannelService(groupID, tt.channel)
 			}
 			apiKey := &apikey.APIKey{GroupID: &groupID}
 
-			got := svc.isCodexImageGenerationBridgeEnabled(context.Background(), tt.account, apiKey)
+			got := svc.ImageBridge.Enabled(context.Background(), tt.account, apiKey)
 
 			require.Equal(t, tt.want, got)
 		})
@@ -587,7 +585,7 @@ func TestOpenAIGatewayService_CodexImageGenerationBridgeOverridePrecedence(t *te
 
 func TestOpenAIGatewayServiceHandleResponsesImageOutputs_NonStreaming(t *testing.T) {
 
-	svc := newOpenAIImageGenerationControlTestService(&httpUpstreamRecorder{})
+	svc := newOpenAIImageGenerationControlTestService(&auxiliaryHTTPRecorder{})
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "unit-test-agent/1.0")
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -600,7 +598,7 @@ func TestOpenAIGatewayServiceHandleResponsesImageOutputs_NonStreaming(t *testing
 		}`)),
 	}
 
-	result, err := svc.responseOutput.NonStream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeAPIKey}}, "gpt-5.4", "gpt-5.4")
+	result, err := svc.Output.NonStream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeAPIKey}}, "gpt-5.4", "gpt-5.4")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -613,7 +611,7 @@ func TestOpenAIGatewayServiceHandleResponsesImageOutputs_NonStreaming(t *testing
 
 func TestOpenAIGatewayServiceHandleResponsesImageOutputs_Streaming(t *testing.T) {
 
-	svc := newOpenAIImageGenerationControlTestService(&httpUpstreamRecorder{})
+	svc := newOpenAIImageGenerationControlTestService(&auxiliaryHTTPRecorder{})
 	c, recorder := newOpenAIImageGenerationControlTestContext(true, "unit-test-agent/1.0")
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -624,7 +622,7 @@ func TestOpenAIGatewayServiceHandleResponsesImageOutputs_Streaming(t *testing.T)
 		)),
 	}
 
-	result, err := svc.responseOutput.Stream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.5", "gpt-5.5", "")
+	result, err := svc.Output.Stream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.5", "gpt-5.5", "")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -639,7 +637,7 @@ func TestOpenAIGatewayServiceHandleResponsesImageOutputs_Streaming(t *testing.T)
 
 func TestOpenAIGatewayServiceHandleResponsesImageOutputs_StreamingPassthrough(t *testing.T) {
 
-	svc := newOpenAIImageGenerationControlTestService(&httpUpstreamRecorder{})
+	svc := newOpenAIImageGenerationControlTestService(&auxiliaryHTTPRecorder{})
 	c, recorder := newOpenAIImageGenerationControlTestContext(true, "unit-test-agent/1.0")
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -650,7 +648,7 @@ func TestOpenAIGatewayServiceHandleResponsesImageOutputs_StreamingPassthrough(t 
 		)),
 	}
 
-	result, err := svc.responseOutput.PassthroughStream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.5", "gpt-5.5")
+	result, err := svc.Output.PassthroughStream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.5", "gpt-5.5")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -707,15 +705,8 @@ func TestNormalizeCompletedImageGenerationStatus(t *testing.T) {
 	}
 }
 
-func newOpenAIImageGenerationControlTestService(upstream *httpUpstreamRecorder) *OpenAIGatewayService {
-	cfg := &config.Config{}
-	return withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          cfg,
-		httpUpstream: upstream,
-		cache:        &stubGatewayCache{},
-
-		toolCorrector: openai.NewCodexToolCorrector(),
-	})
+func newOpenAIImageGenerationControlTestService(upstream *auxiliaryHTTPRecorder) *OpenAIResponsesExecutor {
+	return newResponsesFixture(responsesFixtureInputs{transport: upstream})
 }
 
 func newOpenAIImageGenerationControlChannelService(groupID int64, ch *routing.Channel) *routing.ChannelService {

@@ -74,7 +74,7 @@ func cnProtocolIngressCases() []cnProtocolIngressCase {
 			path: "/v1/responses",
 			body: []byte(`{"model":"deepseek-chat","input":"hello","stream":false}`),
 			forward: func(svc *OpenAIGatewayService, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) error {
-				_, err := svc.Forward(context.Background(), c, account, body)
+				_, err := svc.Responses.Forward(context.Background(), c, account, body)
 				return err
 			},
 		},
@@ -178,7 +178,7 @@ func TestAdaptiveProtocolRoutesKimiResponsesToNativeResponses(t *testing.T) {
 		accountcore.APIProtocolResponses:       "http://responses.example/v1",
 	})
 
-	_, err := svc.Forward(context.Background(), adaptiveProtocolTestContext("/v1/responses", body), account, body)
+	_, err := svc.Responses.Forward(context.Background(), adaptiveProtocolTestContext("/v1/responses", body), account, body)
 	require.Error(t, err)
 	require.Equal(t, "http://responses.example/v1/responses", upstream.lastReq.URL.String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
@@ -200,7 +200,7 @@ func TestAdaptiveProtocolRoutesKimiCodingResponsesToNativeResponses(t *testing.T
 	})
 	account.Record.Credentials["account_mode"] = accountcore.AccountModeCoding
 
-	_, err := svc.Forward(context.Background(), adaptiveProtocolTestContext("/v1/responses", body), account, body)
+	_, err := svc.Responses.Forward(context.Background(), adaptiveProtocolTestContext("/v1/responses", body), account, body)
 	require.Error(t, err)
 	require.Equal(t, "https://api.kimi.com/coding/v1/responses", upstream.lastReq.URL.String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
@@ -217,7 +217,7 @@ func TestAdaptiveProtocolRoutesDeepSeekResponsesToNativeResponses(t *testing.T) 
 		accountcore.APIProtocolResponses:       "http://responses.example",
 	})
 
-	_, err := svc.Forward(context.Background(), adaptiveProtocolTestContext("/v1/responses", body), account, body)
+	_, err := svc.Responses.Forward(context.Background(), adaptiveProtocolTestContext("/v1/responses", body), account, body)
 	require.Error(t, err)
 	require.Equal(t, "http://responses.example/responses", upstream.lastReq.URL.String())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "store").Bool())

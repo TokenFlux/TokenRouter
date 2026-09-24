@@ -1,5 +1,5 @@
 // 请求转换适配仅提供值投影、原生 codec 和账号能力调用，不持有第二份转换状态。
-package service
+package httpapi
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 
 	provider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
@@ -32,11 +31,11 @@ func (p openAIForwardTransformAdapter) Decode(body []byte) (map[string]any, erro
 	return requeststate.DecodeOpenAIRequestBody(body)
 }
 func (p openAIForwardTransformAdapter) GroupImagePolicy(inherited string) string {
-	key := getAPIKeyFromContext(p.c)
-	return groupResponsesExplicitToolPolicy(responsesPolicyGroup(p.ctx, apiKeyGroup(key)), inherited)
+	key := GetExecutionAPIKey(p.c)
+	return provider.GroupResponsesExplicitToolPolicy(provider.ResponsesPolicyGroup(p.ctx, provider.APIKeyGroup(key)), inherited)
 }
 func (p openAIForwardTransformAdapter) ImageAllowed() bool {
-	key := getAPIKeyFromContext(p.c)
+	key := GetExecutionAPIKey(p.c)
 	if key == nil {
 		return routing.GroupAllowsResponsesImages(nil)
 	}
@@ -46,16 +45,16 @@ func (p openAIForwardTransformAdapter) LiteHeader() bool {
 	return p.openAIForwardPreludeAdapter.LiteHeader()
 }
 func (p openAIForwardTransformAdapter) BridgeEnabled(ctx context.Context) bool {
-	return p.s.isCodexImageGenerationBridgeEnabled(ctx, p.account, getAPIKeyFromContext(p.c))
+	return p.s.ImageBridge.Enabled(ctx, p.account, GetExecutionAPIKey(p.c))
 }
 func (p openAIForwardTransformAdapter) ImageIntentHint(model string, body []byte) bool {
-	return gatewayhttp.ResolveOpenAIImageIntentHint(p.c, model, body, provider.ImageIntent().IsImageGenerationIntent)
+	return ResolveOpenAIImageIntentHint(p.c, model, body, provider.ImageIntent().IsImageGenerationIntent)
 }
 func (p openAIForwardTransformAdapter) Models(model string, compact bool) (string, string) {
 	return provider.ExecutionModelPolicy(p.account).ForwardMappedModels(model, compact)
 }
 func (p openAIForwardTransformAdapter) CompactModel(model string) string {
-	return p.s.compactExecutor.ResolveModel(p.account, model)
+	return p.s.Text.Compact.ResolveModel(p.account, model)
 }
 func (p openAIForwardTransformAdapter) ImagePermissionMessage() string {
 	return media.ImageGenerationPermissionMessage
@@ -109,19 +108,19 @@ func (p openAIForwardTransformAdapter) EnsureCodexOAuthInstructionsField(body ma
 	protocolopenai.EnsureCodexInstructionsField(body)
 }
 func (p openAIForwardTransformAdapter) ToolNameReverse(mapping map[string]string) {
-	gatewayhttp.SetCodexToolNameReverse(p.c, mapping)
+	SetCodexToolNameReverse(p.c, mapping)
 }
 func (p openAIForwardTransformAdapter) ClientMetadata(body map[string]any) bool {
 	return provider.ApplyCodexClientMetadata(body, p.account)
 }
 func (p openAIForwardTransformAdapter) AccountIdentity(body map[string]any) bool {
-	return openai.ApplyCodexAccountIdentityClientMetadataMap(body, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(p.c, p.account.View())), gatewayhttp.APIKeyIDFromContext(p.c))
+	return openai.ApplyCodexAccountIdentityClientMetadataMap(body, accountprovider.CodexIdentityNamespace(CodexIdentityRecord(p.c, p.account.View())), APIKeyIDFromContext(p.c))
 }
 func (p openAIForwardTransformAdapter) ClearFingerprint() {
-	gatewayhttp.StageCodexFingerprintIDs(p.c, nil)
+	StageCodexFingerprintIDs(p.c, nil)
 }
 func (p openAIForwardTransformAdapter) Fingerprint(ctx context.Context, body map[string]any) (*openai.FingerprintIDs, bool, error) {
-	account, err := provider.CredentialAccount(ctx, p.s.accountRepo, p.account)
+	account, err := provider.CredentialAccount(ctx, p.s.Requests.Accounts, p.account)
 	if err != nil {
 		return nil, false, fmt.Errorf("resolve Codex fingerprint account: %w", err)
 	}
@@ -137,7 +136,7 @@ func (p openAIForwardTransformAdapter) Fingerprint(ctx context.Context, body map
 	return ids, changed, nil
 }
 func (p openAIForwardTransformAdapter) FastDecision(ctx context.Context, model, tier string, hasTier bool) forward.FastDecision {
-	decision := tierpolicy.Resolve(p.s.fastPolicy.Input(ctx, p.account, model), tier, hasTier)
+	decision := tierpolicy.Resolve(p.s.Text.FastPolicy.Input(ctx, p.account, model), tier, hasTier)
 	value := forward.FastDecision{DeleteField: decision.DeleteField, Tier: decision.Tier}
 	if decision.Blocked != nil {
 		value.Blocked = decision.Blocked
@@ -147,7 +146,7 @@ func (p openAIForwardTransformAdapter) FastDecision(ctx context.Context, model, 
 func (p openAIForwardTransformAdapter) FastBlocked(err error) {
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
-		gatewayhttp.WriteFastPolicyBlockedResponse(p.c, blocked)
+		WriteFastPolicyBlockedResponse(p.c, blocked)
 	}
 }
 func (p openAIForwardTransformAdapter) SanitizeOpenAIResponsesOrphanToolOutputs(body map[string]any, input []any, hasPrevious bool) bool {

@@ -1,5 +1,5 @@
-// 旧装配仅为请求准备提供账号资格、技术编解码和同步观测投影。
-package service
+// HTTP 请求准备连接账号资格、编解码和同步观测。
+package httpapi
 
 import (
 	"context"
@@ -10,10 +10,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/tidwall/gjson"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
@@ -26,18 +24,15 @@ import (
 )
 
 type openAIForwardPreludeAdapter struct {
-	s       *OpenAIGatewayService
+	s       *OpenAIResponsesExecutor
 	c       *gin.Context
 	account *gatewayprovider.ExecutionAccount
 	ctx     context.Context
 }
 
-func openAIForwardProfile(account *gatewayprovider.ExecutionAccount) forward.Profile {
-	return forward.Profile{Platform: account.Record.Platform, Name: account.Record.Name, Type: account.Record.Type, UsesCodex: account.View().UsesOpenAICodexProtocol(), OpenAI: account.View().IsOpenAI(), OAuth: account.View().IsOAuth(), OAuthLike: account.View().IsOpenAIOAuthLike(), APIKey: account.Record.Type == capability.AccountTypeAPIKey, Grok: account.Record.Platform == capability.PlatformGrok, DeepSeek: account.Record.Platform == capability.PlatformDeepseek, NativeCN: gatewayprovider.ExecutionProtocolTarget(account).UsesNativeCNResponses(), Anthropic: gatewayprovider.ExecutionProtocolTarget(account).IsAnthropicProtocol(), RawChat: shouldForwardOpenAIResponsesViaRawChatCompletions(account), ResolvedChat: account.Route.Protocol() == protocol.ProtocolOpenAIChatCompletions, Passthrough: account.View().IsOpenAIPassthroughEnabled()}
-}
 func (p openAIForwardPreludeAdapter) BlockGroupImages() bool {
 	if source, _ := requeststate.ClientProtocolFromContext(p.ctx); source == protocol.ProtocolOpenAIResponses {
-		if key := getAPIKeyFromContext(p.c); key != nil && key.Group != nil {
+		if key := GetExecutionAPIKey(p.c); key != nil && key.Group != nil {
 			return key.Group.ResponsesImagePolicy == "block"
 		}
 	}
@@ -47,23 +42,23 @@ func (p openAIForwardPreludeAdapter) StripImages(body []byte) ([]byte, bool, err
 	return gatewayprovider.StripOpenAIImageGenerationToolsFromRawPayload(body)
 }
 func (p openAIForwardPreludeAdapter) Begin() {
-	gatewayhttp.BeginUpstreamResponseModelObservation(p.c)
-	gatewayhttp.ClearActualOpenAIUpstreamEndpoint(p.c)
+	BeginUpstreamResponseModelObservation(p.c)
+	ClearActualOpenAIUpstreamEndpoint(p.c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(p.account) {
-		gatewayhttp.SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
+		SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
 	}
 }
 func (p openAIForwardPreludeAdapter) FilterNoneReasoning(body []byte) ([]byte, error) {
 	return gatewayprovider.FilterOpenAIResponsesNoneReasoningEffortForAccount(gatewayprovider.ExecutionProtocolRecord(p.account), body)
 }
 func (p openAIForwardPreludeAdapter) ClearMappings() {
-	gatewayhttp.ClearGrokResponsesClientToolMapping(p.c)
-	gatewayhttp.ClearOpenAIResponsesClientToolMapping(p.c)
-	gatewayhttp.ClearOpenAIResponsesNamespaceNames(p.c)
-	gatewayhttp.SetCodexToolNameReverse(p.c, nil)
+	ClearGrokResponsesClientToolMapping(p.c)
+	ClearOpenAIResponsesClientToolMapping(p.c)
+	ClearOpenAIResponsesNamespaceNames(p.c)
+	SetCodexToolNameReverse(p.c, nil)
 }
 func (p openAIForwardPreludeAdapter) PrepareIdentity(ctx context.Context) error {
-	_, err := gatewayhttp.PrepareCodexIdentity(ctx, p.c, p.s.accountRepo, p.account)
+	_, err := PrepareCodexIdentity(ctx, p.c, p.s.Requests.Accounts, p.account)
 	return err
 }
 func (p openAIForwardPreludeAdapter) MatchTLS() egress.TLSFingerprintRouterMatchResult {
@@ -71,26 +66,26 @@ func (p openAIForwardPreludeAdapter) MatchTLS() egress.TLSFingerprintRouterMatch
 }
 func (p openAIForwardPreludeAdapter) ClientAllowed(ctx context.Context, tls egress.TLSFingerprintRouterMatchResult, body []byte) (bool, string) {
 	result := p.s.Requests.DetectClient(p.c, p.account, tls)
-	gatewayhttp.LogCodexCLIOnlyDetection(ctx, p.c, p.account, gatewayhttp.APIKeyIDFromContext(p.c), result, body)
+	LogCodexCLIOnlyDetection(ctx, p.c, p.account, APIKeyIDFromContext(p.c), result, body)
 	if result.Enabled && !result.Matched {
-		return false, openAIClientPolicyForbiddenMessage(result)
+		return false, OpenAIClientPolicyForbiddenMessage(result)
 	}
 	return true, ""
 }
 func (p openAIForwardPreludeAdapter) Reject(v forward.Rejection) {
 	if v.PolicyDenied {
-		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+		MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
 	}
 	if v.FeatureDenied {
-		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalFeatureGate)
 	}
 	if v.ObserveUpstream {
-		gatewayhttp.SetOpsUpstreamError(p.c, v.Status, v.Message, "")
+		SetOpsUpstreamError(p.c, v.Status, v.Message, "")
 	}
-	gatewayhttp.WriteOpenAIForwardRejection(p.c, v.Status, v.Type, v.Message, v.Param)
+	WriteOpenAIForwardRejection(p.c, v.Status, v.Type, v.Message, v.Param)
 }
 func (p openAIForwardPreludeAdapter) CompactEffort(body []byte) ([]byte, bool, error) {
-	if p.account == nil || !p.account.View().IsOpenAIOAuthLike() || !gatewayhttp.IsOpenAIResponsesCompactPath(p.c) {
+	if p.account == nil || !p.account.View().IsOpenAIOAuthLike() || !IsOpenAIResponsesCompactPath(p.c) {
 		return body, false, nil
 	}
 	requestedModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
@@ -112,12 +107,12 @@ func (p openAIForwardPreludeAdapter) LitePayload(body []byte) ([]byte, bool, str
 	return updated, changed, param, err
 }
 func (p openAIForwardPreludeAdapter) Transport() forward.TransportDecision {
-	v := p.s.selection.ResolveTransport(p.account)
-	v = gatewayhttp.ResolveOpenAIWSDecisionByClientTransport(v, gatewayhttp.GetOpenAIClientTransport(p.c))
+	v := p.s.ResolveTransport(p.account)
+	v = ResolveOpenAIWSDecisionByClientTransport(v, GetOpenAIClientTransport(p.c))
 	return forward.TransportDecision{Transport: string(v.Transport), Reason: v.Reason}
 }
 func (p openAIForwardPreludeAdapter) CompactPath() bool {
-	return gatewayhttp.IsOpenAIResponsesCompactPath(p.c)
+	return IsOpenAIResponsesCompactPath(p.c)
 }
 func (p openAIForwardPreludeAdapter) CompactBody(body []byte) ([]byte, bool, error) {
 	return openai.NormalizeOpenAICompactRequestBody(body)
@@ -129,7 +124,7 @@ func (p openAIForwardPreludeAdapter) FlattenRequired(v forward.TransportDecision
 	return gatewayprovider.ShouldFlattenOpenAIResponsesNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough, compact)
 }
 func (p openAIForwardPreludeAdapter) Flatten(body []byte) ([]byte, error) {
-	return gatewayhttp.FlattenOpenAIResponsesNamespaces(p.c, body)
+	return FlattenOpenAIResponsesNamespaces(p.c, body)
 }
 func (p openAIForwardPreludeAdapter) StripNamespacesRequired(v forward.TransportDecision, passthrough bool) bool {
 	return gatewayprovider.ShouldStripOpenAIResponsesInputNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough)
@@ -146,7 +141,7 @@ func (p openAIForwardPreludeAdapter) NeedsClientTools(body []byte) bool {
 func (p openAIForwardPreludeAdapter) AdaptClientTools(body []byte) ([]byte, error) {
 	body, mapping, err := protocolbridge.AdaptOpenAIResponsesClientTools(body)
 	if err == nil {
-		gatewayhttp.SetOpenAIResponsesClientToolMapping(p.c, mapping)
+		SetOpenAIResponsesClientToolMapping(p.c, mapping)
 	}
 	return body, err
 }
@@ -163,10 +158,10 @@ func (p openAIForwardPreludeAdapter) MessagesBridge(body []byte) bool {
 	return gatewayprovider.IsOpenAICompatMessagesBridgeBody(body)
 }
 func (p openAIForwardPreludeAdapter) BindMessagesBridge(v bool) {
-	gatewayhttp.SetOpenAICompatMessagesBridgeContext(p.c, v)
+	SetOpenAICompatMessagesBridgeContext(p.c, v)
 }
 func (p openAIForwardPreludeAdapter) CodexClient() bool {
-	return openai.IsCodexOfficialClientByHeaders(p.c.GetHeader("User-Agent"), p.c.GetHeader("originator")) || (p.s.cfg != nil && p.s.cfg.Gateway.ForceCodexCLI)
+	return openai.IsCodexOfficialClientByHeaders(p.c.GetHeader("User-Agent"), p.c.GetHeader("originator")) || p.s.Requests.Options.ForceCLI
 }
 func (p openAIForwardPreludeAdapter) ImageToolPolicy() string {
 	return gatewayprovider.ExecutionProtocolRecord(p.account).CodexImageGenerationExplicitToolPolicy()

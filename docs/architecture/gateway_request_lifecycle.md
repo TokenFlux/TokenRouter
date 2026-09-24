@@ -37,6 +37,8 @@
 
 HTTP 入口由 app 固定构造。OpenAI Responses、Chat 与 Messages 的 HTTP 绑定直接接收唯一用户/图片槽资源、Cyber、审核、归属读取及资金端口，已不从旧 Handler 构造 HTTP 门面；`gateway/httpapi/openaiattempt.Runtime` 直接绑定平台单次能力、同一调度反馈、槽位和完成器，每次 Open 创建独立尝试状态；Responses、Chat、Messages 的生产执行也已不依赖旧 Handler。WS 的入站与每轮单步端口由 `gateway/httpapi/wsentry` 直接装配，与文本运行时共享同一份尝试绑定；图片、视频、音频、Embeddings 与 Alpha Search 的 HTTP 请求适配和完成捕获由 `gateway/httpapi/mediaentry` 直接装配，也共享原生失败输出与资源释放。Wire 已不再构造旧 Handler 或事后绑定其完成器；原合同测试直接使用实际原生绑定与函数句柄夹具，旧 handler 包已删除；平台单次交换与 WS relay 的剩余技术适配通过固定端口提供。图片单次执行直接绑定 OpenAIImagesExecutor，共用 OpenAIRequests、OpenAIResponseOutput 和应用活动屏障；图片工具冷却通过账号端口写入。图片意图提示由 HTTP 按尝试保存，渠道改写后重新判断，不把请求级提示误用于下一账号尝试。`gateway/text` 拥有文本账号循环与计数预检的独立预算，`gateway/requeststate` 拥有报文副本、引导规范化和请求内模型替换缓存；`gateway/modeltrace` 维护响应恢复链。`forward` 组织通用请求准备和转换推进，技术 provider/HTTP Adapter 执行交换、读写与 Flush。平台专有部分仍按 S11 阶段清单逐批从旧单步 Adapter 收敛，不创建第二套账号切换循环。
 
+Responses 的固定执行器拥有请求准备、转换和HTTP单次执行，复用已有 OpenAIRequests、OpenAITextExecutor 和输出实例。协议转换和Compact错误恢复不重新运行全局账号循环。失效密文读写在HTTP与WS间共享原会话存储及TTL，转入WS时不再重做模型映射或请求变换。
+
 文本入口把 `requeststate.ExecutionHints` 和 `RoutingState` 显式传给执行器，分别携带客户端识别、图片意图、粘性预取等执行提示，以及原生分组、路由计划和客户端协议。分组在写入和读取边界复制，后续 attempt 重新绑定变更后的分组，不能修改先前请求快照。旧单步 Adapter 暂通过私有类型的 context 读取同一状态；`pkg/ctxkey` 已删除，telemetry 只保留观测关联信息。
 
 Messages、通用 Responses/Chat 和 Gemini 原生的 HTTP 绑定由 app 直接构造 `gateway/httpapi` 的目标入口；共同的请求标记、审核、资金与会话前置操作不再由旧 Handler backend 实现。`gateway/httpapi/textattempt.Runtime` 在构造时绑定平台单次调用、选择反馈与原生资源，三个入口共享这一无状态运行时；每次 Open 只创建请求/attempt 数据，不按请求重建依赖。旧 GatewayHandler 类型及其构造转接已删除。app 对尚未清零的平台执行方法只做端口绑定；账号循环与完成规则仍由原生 text/completion 拥有。执行边界采用 `gateway/provider.SelectionResult`，保留实际账号目标、等待计划和本次反馈参数；调度核心继续只读取无凭据候选。

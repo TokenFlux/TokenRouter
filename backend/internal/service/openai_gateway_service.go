@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	selectionadapter "github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
@@ -35,7 +33,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
@@ -108,6 +105,8 @@ type openAIWSRetryMetrics struct {
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
+	Responses *gatewayhttp.OpenAIResponsesExecutor
+	Lineage   *gatewayhttp.OpenAIEncryptedLineage
 	Auxiliary *gatewayhttp.OpenAIAuxiliary
 	Text      *gatewayhttp.OpenAITextExecutor
 	Requests  *gatewayhttp.OpenAIRequests
@@ -296,30 +295,6 @@ func (s *OpenAIGatewayService) ResolveChannelMappingAndRestrict(ctx context.Cont
 	}
 	result, restricted := s.channelService.ResolveChannelMappingAndRestrict(ctx, groupID, model)
 	return modeltrace.WithChannelRedirect(result, ctx, model), restricted
-}
-
-func (s *OpenAIGatewayService) isCodexImageGenerationBridgeEnabled(ctx context.Context, account *gatewayprovider.ExecutionAccount, apiKey *apikey.APIKey) bool {
-	if group := responsesPolicyGroup(ctx, apiKeyGroup(apiKey)); group != nil {
-		switch group.ResponsesImagePolicy {
-		case "enabled":
-			return true
-		case "disabled", "block":
-			return false
-		}
-	}
-
-	if override := gatewayprovider.ExecutionProtocolRecord(account).CodexImageGenerationBridgeOverride(); override != nil {
-		return *override
-	}
-	if s != nil && s.channelService != nil && apiKey != nil && apiKey.GroupID != nil {
-		ch, err := s.channelService.GetChannelForGroup(ctx, *apiKey.GroupID)
-		if err != nil {
-			slog.Warn("failed to resolve codex image generation bridge channel override", "group_id", *apiKey.GroupID, "error", err)
-		} else if override := ch.CodexImageGenerationBridgeOverride(capability.PlatformOpenAI); override != nil {
-			return *override
-		}
-	}
-	return s != nil && s.cfg != nil && s.cfg.Gateway.CodexImageGenerationBridgeEnabled
 }
 
 // resolveChannelRoutingModel 返回 OpenAI 账号调度层使用的渠道映射后模型。
@@ -734,17 +709,6 @@ func (s *OpenAIGatewayService) SnapshotOpenAICompatibilityFallbackMetrics() Open
 
 		// 旧请求 key 已清零，保留公开指标字段，计数固定为零。
 	}
-}
-
-func openAIClientPolicyForbiddenMessage(result accountcore.CodexClientRestrictionDetectionResult) string {
-	// 按策略返回更明确的拒绝原因，同时保留旧 codex_cli_only 测试和客户端提示语义。
-	if result.Policy == accountcore.OpenAIOAuthClientPolicyCodexOnly {
-		return "This account only allows Codex official clients"
-	}
-	if result.Policy == accountcore.OpenAIOAuthClientPolicyTLSRouterMatchedOnly {
-		return "This account only allows clients matched by the configured TLS router"
-	}
-	return "This account only allows configured OpenAI OAuth clients"
 }
 
 // BindNativeAttemptActivity 将平台尝试绑定到应用唯一活动拥有者。

@@ -41,7 +41,7 @@ func TestOpenAIAdministratorProtocolOverridesAllLegacyProbeState(t *testing.T) {
 					var err error
 					switch inbound {
 					case "responses":
-						_, err = svc.Forward(context.Background(), c, account, body)
+						_, err = svc.Responses.Forward(context.Background(), c, account, body)
 					case "chat/completions":
 						_, err = svc.Text.Chat(context.Background(), c, account, body, "", "")
 					case "messages":

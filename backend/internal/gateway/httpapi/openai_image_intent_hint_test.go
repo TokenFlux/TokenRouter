@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -38,7 +37,7 @@ func TestOpenAIGatewayServicePassthroughCompactImageIntentIsAttemptLocal(t *test
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			upstream := &httpUpstreamRecorder{resp: &http.Response{
+			upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 				Body:       io.NopCloser(strings.NewReader(`{"id":"resp_compact","model":"` + tt.compactModel + `","usage":{"input_tokens":1,"output_tokens":1}}`)),
@@ -46,7 +45,7 @@ func TestOpenAIGatewayServicePassthroughCompactImageIntentIsAttemptLocal(t *test
 			svc := newOpenAIImageGenerationControlTestService(upstream)
 			c, recorder := newOpenAIImageGenerationControlTestContext(false, "unit-test-agent/1.0")
 			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses/compact", nil)
-			gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+			SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 			account := newOpenAIImageGenerationControlTestAccount()
 			account.Record.Extra = map[string]any{"openai_passthrough": true}
 			account.Record.Credentials = map[string]any{
@@ -59,7 +58,7 @@ func TestOpenAIGatewayServicePassthroughCompactImageIntentIsAttemptLocal(t *test
 
 			result, err := svc.Forward(context.Background(), c, account, body)
 
-			cached, known := gatewayhttp.GetOpenAIImageIntentHint(c)
+			cached, known := GetOpenAIImageIntentHint(c)
 			require.True(t, known)
 			require.Equal(t, tt.wantCanonical, cached)
 			if tt.wantRejected {

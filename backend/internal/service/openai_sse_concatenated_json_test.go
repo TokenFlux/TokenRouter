@@ -83,7 +83,7 @@ func TestOpenAIWSv2StreamingRepairsConcatenatedJSONDocumentsInSingleMessage(t *t
 	groupID := int64(1)
 	c.Set("api_key", &apikey.APIKey{GroupID: &groupID})
 
-	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
+	result, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 7, result.Usage.InputTokens)
@@ -154,7 +154,7 @@ func TestOpenAIWSv2RejectsMalformedEventAfterWritingDownstream(t *testing.T) {
 	groupID := int64(1)
 	c.Set("api_key", &apikey.APIKey{GroupID: &groupID})
 
-	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
+	result, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "after downstream output")
 	require.Nil(t, result)
@@ -215,7 +215,7 @@ func testOpenAIWSv2RejectsMalformedEventBeforeWritingDownstream(t *testing.T, ma
 	groupID := int64(1)
 	c.Set("api_key", &apikey.APIKey{GroupID: &groupID})
 
-	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
+	result, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
 	require.Error(t, err)
 	var fallbackErr *ws.FallbackError
 	require.ErrorAs(t, err, &fallbackErr)
@@ -289,7 +289,7 @@ func TestOpenAIWSv2StreamingBreaksConnectionWhenTerminalHasTrailingDocument(t *t
 	groupID := int64(1)
 	c.Set("api_key", &apikey.APIKey{GroupID: &groupID})
 
-	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
+	result, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.True(t, captureConn.closed, "a WS message with data after a terminal event must not return to the pool")

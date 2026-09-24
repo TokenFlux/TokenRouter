@@ -70,14 +70,14 @@ func (p *wsRequestAdapter) TurnMetadata() string {
 	return strings.TrimSpace(p.request.GetHeader(openai.WSTurnMetadataHeader))
 }
 func (p *wsRequestAdapter) ImagePolicy(ctx context.Context, body []byte) gatewayws.ImagePolicy {
-	apiKey := getAPIKeyFromContext(p.request)
-	allowed := routing.GroupAllowsResponsesImages(apiKeyGroup(apiKey))
+	apiKey := gatewayhttp.GetExecutionAPIKey(p.request)
+	allowed := routing.GroupAllowsResponsesImages(gatewayprovider.APIKeyGroup(apiKey))
 	explicit := accountconfig.CodexImagePolicyAllow
 	if p.isCodex {
 		explicit = gatewayprovider.ExecutionProtocolRecord(p.account).CodexImageGenerationExplicitToolPolicy()
 	}
-	explicit = groupResponsesExplicitToolPolicy(responsesPolicyGroup(ctx, apiKeyGroup(apiKey)), explicit)
-	bridge := p.isCodex && !gatewayprovider.ImageIntent().IsOpenAIResponsesLiteWebSocketPayload(body) && allowed && explicit != accountconfig.CodexImagePolicyStrip && p.service.isCodexImageGenerationBridgeEnabled(ctx, p.account, apiKey)
+	explicit = gatewayprovider.GroupResponsesExplicitToolPolicy(gatewayprovider.ResponsesPolicyGroup(ctx, gatewayprovider.APIKeyGroup(apiKey)), explicit)
+	bridge := p.isCodex && !gatewayprovider.ImageIntent().IsOpenAIResponsesLiteWebSocketPayload(body) && allowed && explicit != accountconfig.CodexImagePolicyStrip && p.service.Responses.ImageBridge.Enabled(ctx, p.account, apiKey)
 	return gatewayws.ImagePolicy{Allowed: allowed, Explicit: explicit, Bridge: bridge}
 }
 func (p *wsRequestAdapter) BridgeImages(normalized []byte) ([]byte, error) {

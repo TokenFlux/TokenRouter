@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -16,8 +16,6 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -37,12 +35,12 @@ func newOpenAICompactFallbackTestContext(t *testing.T, path string) *gin.Context
 
 func TestPrepareOpenAICompactFallbackRetryRequiresExplicitCompact(t *testing.T) {
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}}})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4"})
 	c := newOpenAICompactFallbackTestContext(t, "/v1/responses")
 	body := []byte(`{"model":"gpt-5.5","input":[{"type":"message","role":"user","content":"hello"}]}`)
 	errorBody := []byte(`{"error":{"code":"context_length_exceeded","message":"maximum context length exceeded"}}`)
 
-	retryBody, fallbackModel, retry := svc.compactExecutor.Prepare(
+	retryBody, fallbackModel, retry := svc.Text.Compact.Prepare(
 		c, nil, "gpt-5.5", body, http.StatusBadRequest, "maximum context length exceeded", errorBody, false,
 	)
 
@@ -53,14 +51,14 @@ func TestPrepareOpenAICompactFallbackRetryRequiresExplicitCompact(t *testing.T) 
 
 func TestPrepareOpenAICompactFallbackRetryPreservesNativeTriggerAndContext(t *testing.T) {
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}}})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4"})
 	c := newOpenAICompactFallbackTestContext(t, "/v1/responses")
-	httpapi.MarkOpenAINativeCompactionV2(c)
+	MarkOpenAINativeCompactionV2(c)
 	body := []byte(`{"model":"gpt-5.5","stream":true,"input":[{"type":"message","role":"user","content":"hello"},{"type":"compaction_trigger"}]}`)
 	errorBody := []byte(`{"error":{"code":"context_length_exceeded","message":"context window exceeded"}}`)
-	pathBefore := httpapi.OpenAIResponsesRequestPathSuffix(c)
+	pathBefore := OpenAIResponsesRequestPathSuffix(c)
 
-	retryBody, fallbackModel, retry := svc.compactExecutor.Prepare(
+	retryBody, fallbackModel, retry := svc.Text.Compact.Prepare(
 		c, nil, "gpt-5.5", body, http.StatusBadRequest, "context window exceeded", errorBody, false,
 	)
 
@@ -68,18 +66,18 @@ func TestPrepareOpenAICompactFallbackRetryPreservesNativeTriggerAndContext(t *te
 	require.Equal(t, "gpt-5.4", fallbackModel)
 	require.Equal(t, "gpt-5.4", gjson.GetBytes(retryBody, "model").String())
 	require.True(t, protocolopenai.HasCompactionTriggerInInput(retryBody))
-	require.True(t, httpapi.IsOpenAINativeCompactionV2(c))
-	require.Equal(t, pathBefore, httpapi.OpenAIResponsesRequestPathSuffix(c))
+	require.True(t, IsOpenAINativeCompactionV2(c))
+	require.Equal(t, pathBefore, OpenAIResponsesRequestPathSuffix(c))
 }
 
 func TestResolveOpenAICompactFallbackModelPrefersAccountMapping(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "global-compact"}}})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "global-compact"})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{
 		"compact_model_mapping": map[string]any{"gpt-5.5": "account-compact"},
 	}}}
 
-	require.Equal(t, "account-compact", svc.compactExecutor.ResolveModel(account, "gpt-5.5"))
-	require.Equal(t, "global-compact", svc.compactExecutor.ResolveModel(account, "unmapped-model"))
+	require.Equal(t, "account-compact", svc.Text.Compact.ResolveModel(account, "gpt-5.5"))
+	require.Equal(t, "global-compact", svc.Text.Compact.ResolveModel(account, "unmapped-model"))
 }
 
 func TestOpenAIGatewayForwardUsesGlobalCompactModelOnInitialLegacyRequest(t *testing.T) {
@@ -88,15 +86,12 @@ func TestOpenAIGatewayForwardUsesGlobalCompactModelOnInitialLegacyRequest(t *tes
 	c := newOpenAICompactFallbackTestContext(t, "/v1/responses/compact")
 	c.Request.Body = io.NopCloser(bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"id":"resp_compact","status":"completed","model":"global-compact","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "global-compact"}},
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "global-compact", transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"},
 		Status:      billing.StatusActive, Schedulable: true},
@@ -113,19 +108,19 @@ func TestOpenAIGatewayForwardUsesGlobalCompactModelOnInitialLegacyRequest(t *tes
 
 func TestPrepareOpenAICompactFallbackRetryLegacyPathAndSingleAttemptGuard(t *testing.T) {
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}}})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4"})
 	c := newOpenAICompactFallbackTestContext(t, "/v1/responses/compact")
 	body := []byte(`{"model":"gpt-5.5","input":[]}`)
 	errorBody := []byte(`{"response":{"status":"failed","error":null}}`)
 
-	retryBody, fallbackModel, retry := svc.compactExecutor.Prepare(
+	retryBody, fallbackModel, retry := svc.Text.Compact.Prepare(
 		c, nil, "gpt-5.5", body, http.StatusBadRequest, "", errorBody, false,
 	)
 	require.True(t, retry)
 	require.Equal(t, "gpt-5.4", fallbackModel)
-	require.Equal(t, "/compact", httpapi.OpenAIResponsesRequestPathSuffix(c))
+	require.Equal(t, "/compact", OpenAIResponsesRequestPathSuffix(c))
 
-	secondBody, secondModel, secondRetry := svc.compactExecutor.Prepare(
+	secondBody, secondModel, secondRetry := svc.Text.Compact.Prepare(
 		c, nil, "gpt-5.5", retryBody, http.StatusBadRequest, "", errorBody, true,
 	)
 	require.False(t, secondRetry)
@@ -135,12 +130,12 @@ func TestPrepareOpenAICompactFallbackRetryLegacyPathAndSingleAttemptGuard(t *tes
 
 func TestPrepareOpenAICompactFallbackRetryDoesNotHideSpecificBusinessFailure(t *testing.T) {
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}}})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4"})
 	c := newOpenAICompactFallbackTestContext(t, "/v1/responses/compact")
 	body := []byte(`{"model":"gpt-5.5","input":[]}`)
 	errorBody := []byte(`{"response":{"status":"failed","error":{"type":"permission_error","message":"workspace denied"}}}`)
 
-	retryBody, fallbackModel, retry := svc.compactExecutor.Prepare(
+	retryBody, fallbackModel, retry := svc.Text.Compact.Prepare(
 		c, nil, "gpt-5.5", body, http.StatusBadRequest, "workspace denied", errorBody, false,
 	)
 
@@ -174,12 +169,12 @@ func TestIsOpenAICompactModelFailureRequiresExplicitModelAvailabilityMessage(t *
 
 func TestPrepareOpenAICompactFallbackRetrySkipsSameModel(t *testing.T) {
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.5"}}})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.5"})
 	c := newOpenAICompactFallbackTestContext(t, "/v1/responses/compact")
 	body := []byte(`{"model":"gpt-5.5","input":[]}`)
 	errorBody := []byte(`{"error":{"code":"model_not_found","message":"model not found"}}`)
 
-	_, _, retry := svc.compactExecutor.Prepare(
+	_, _, retry := svc.Text.Compact.Prepare(
 		c, nil, "gpt-5.5", body, http.StatusNotFound, "model not found", errorBody, false,
 	)
 	require.False(t, retry)
@@ -191,9 +186,9 @@ func TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce(t *test
 	c := newOpenAICompactFallbackTestContext(t, "/v1/responses")
 	c.Request.Body = io.NopCloser(bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	httpapi.MarkOpenAINativeCompactionV2(c)
+	MarkOpenAINativeCompactionV2(c)
 
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		{
 			StatusCode: http.StatusBadRequest,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -205,10 +200,7 @@ func TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce(t *test
 			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_compact","status":"completed","model":"gpt-5.4","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`)),
 		},
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}},
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4", transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"},
 		Status:      billing.StatusActive, Schedulable: true},
@@ -224,7 +216,7 @@ func TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce(t *test
 	require.True(t, protocolopenai.HasCompactionTriggerInInput(upstream.bodies[1]))
 	require.Equal(t, upstream.requests[0].URL.Path, upstream.requests[1].URL.Path)
 	require.NotContains(t, upstream.requests[1].URL.Path, "/compact")
-	rawEvents, ok := c.Get(httpapi.OpsUpstreamErrorsKey)
+	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
 	require.True(t, ok)
 	events, ok := rawEvents.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)
@@ -240,9 +232,9 @@ func TestOpenAIGatewayForwardRetriesExplicitNativeCompactSSEFailureBeforeOutput(
 	c := newOpenAICompactFallbackTestContext(t, "/v1/responses")
 	c.Request.Body = io.NopCloser(bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	httpapi.MarkOpenAINativeCompactionV2(c)
+	MarkOpenAINativeCompactionV2(c)
 
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -255,10 +247,7 @@ func TestOpenAIGatewayForwardRetriesExplicitNativeCompactSSEFailureBeforeOutput(
 			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_compact","status":"completed","model":"gpt-5.4","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`)),
 		},
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}},
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4", transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"},
 		Status:      billing.StatusActive, Schedulable: true},
@@ -283,20 +272,17 @@ func TestOpenAIGatewayForwardRetriesStreamingCompactFailureBeforeOutput(t *testi
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	c.Request.Body = io.NopCloser(bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	httpapi.MarkOpenAINativeCompactionV2(c)
+	MarkOpenAINativeCompactionV2(c)
 
 	failed := "event: response.failed\n" +
 		`data: {"type":"response.failed","response":{"status":"failed","error":{"code":"context_length_exceeded","message":"context window exceeded"}}}` + "\n\n"
 	completed := "event: response.completed\n" +
 		`data: {"type":"response.completed","response":{"id":"resp_compact","status":"completed","model":"gpt-5.4","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}` + "\n\n"
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(failed))},
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(completed))},
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}},
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4", transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"},
 		Status:      billing.StatusActive, Schedulable: true},
@@ -320,21 +306,18 @@ func TestOpenAIGatewayForwardDoesNotRecurseWhenCompactFallbackAlsoFails(t *testi
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	c.Request.Body = io.NopCloser(bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	httpapi.MarkOpenAINativeCompactionV2(c)
+	MarkOpenAINativeCompactionV2(c)
 
 	failed := "event: response.failed\n" +
 		`data: {"type":"response.failed","response":{"status":"failed","error":{"code":"model_not_found","message":"model not found"}}}` + "\n\n"
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(failed))},
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(failed))},
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(failed))},
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(failed))},
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(failed))},
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}},
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4", transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"},
 		Status:      billing.StatusActive, Schedulable: true},
@@ -351,7 +334,7 @@ func TestOpenAIGatewayForwardDoesNotRecurseWhenCompactFallbackAlsoFails(t *testi
 	require.False(t, errors.As(err, &compactSignal))
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "model not found")
-	rawEvents, ok := c.Get(httpapi.OpsUpstreamErrorsKey)
+	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
 	require.True(t, ok)
 	events, ok := rawEvents.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)
@@ -368,18 +351,15 @@ func TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPat
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	c.Request.Header.Set("Content-Type", "application/json")
-	httpapi.MarkOpenAINativeCompactionV2(c)
+	MarkOpenAINativeCompactionV2(c)
 
 	failed := "event: response.failed\n" +
 		`data: {"type":"response.failed","response":{"status":"failed","error":{"code":"context_length_exceeded","message":"context window exceeded"}}}` + "\n\n"
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(failed))},
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(failed))},
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}},
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4", transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"},
 		Status:      billing.StatusActive, Schedulable: true},
@@ -396,7 +376,7 @@ func TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPat
 	require.False(t, errors.As(err, &compactSignal))
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "context window exceeded")
-	rawEvents, ok := c.Get(httpapi.OpsUpstreamErrorsKey)
+	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
 	require.True(t, ok)
 	events, ok := rawEvents.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)

@@ -1,4 +1,4 @@
-package service
+package provider_test
 
 import (
 	"context"
@@ -71,9 +71,9 @@ func TestProtocolImagePolicyAndBatchBinding(t *testing.T) {
 	*group = *routing.CloneGroup(group)
 	require.False(t, gatewaymedia.GroupImagePermission(group != nil, group.AllowImageGeneration))
 	require.True(t, routing.GroupAllowsResponsesImages(group))
-	require.Equal(t, accountcore.CodexImagePolicyAllow, groupResponsesExplicitToolPolicy(group, accountcore.CodexImagePolicyStrip))
+	require.Equal(t, accountcore.CodexImagePolicyAllow, gatewayprovider.GroupResponsesExplicitToolPolicy(group, accountcore.CodexImagePolicyStrip))
 	group.ResponsesImagePolicy = "block"
-	require.Equal(t, accountcore.CodexImagePolicyStrip, groupResponsesExplicitToolPolicy(group, accountcore.CodexImagePolicyAllow))
+	require.Equal(t, accountcore.CodexImagePolicyStrip, gatewayprovider.GroupResponsesExplicitToolPolicy(group, accountcore.CodexImagePolicyAllow))
 	for _, tc := range []struct {
 		kind   string
 		target protocolcore.ProtocolID
@@ -97,6 +97,6 @@ func TestProtocolAuxiliaryModelURLAndIndependentTransports(t *testing.T) {
 		require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(a), accountcore.OpenAIEndpointCapabilityTextGeneration))
 	}
 	group := &routing.Group{Platform: capability.PlatformOpenAI, AllowedProtocols: []protocolcore.ProtocolID{protocolcore.ProtocolImagesEdits}, ResponsesImagePolicy: "block"}
-	require.Equal(t, []string{creative.CreativeOperationEdit, creative.CreativeOperationInpaint}, creativeOperationsForGroup(group))
-	require.Nil(t, responsesPolicyGroup(requeststate.WithClientProtocol(context.Background(), protocolcore.ProtocolImagesEdits), group))
+	require.Equal(t, []string{creative.CreativeOperationEdit, creative.CreativeOperationInpaint}, creative.OperationsForGroup(group.Platform, group.ResponsesImagePolicy != "" || group.ProtocolFallbacks != nil, group.AllowsClientProtocol))
+	require.Nil(t, gatewayprovider.ResponsesPolicyGroup(requeststate.WithClientProtocol(context.Background(), protocolcore.ProtocolImagesEdits), group))
 }

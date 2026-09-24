@@ -36,7 +36,7 @@ func provideOpenAIAttemptBindings(
 	b := openaiattempt.Bindings{Support: support, Recorder: records.OpenAI}
 	if s := source; s != nil {
 		b.Forward.EnforceOpenAIClientPolicyForRequest = s.Requests.EnforceClient
-		b.Forward.Forward = s.Forward
+		b.Forward.Forward = s.Responses.Forward
 		b.Forward.ForwardAsAnthropic = s.Text.Messages
 		b.Forward.ForwardAsChatCompletions = s.Text.Chat
 		b.Forward.MatchOpenAITLSFingerprintRouterForRequest = s.Requests.MatchTLS

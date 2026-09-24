@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -12,11 +12,9 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -27,7 +25,7 @@ import (
 
 func TestOpenAIGatewayService_Forward_APIKeyMissingInstructionsKeepsLargeInputRaw(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -36,9 +34,9 @@ func TestOpenAIGatewayService_Forward_APIKeyMissingInstructionsKeepsLargeInputRa
 			)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -53,7 +51,7 @@ func TestOpenAIGatewayService_Forward_APIKeyMissingInstructionsKeepsLargeInputRa
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5","stream":false,"reasoning":{"effort":"minimal"},"input":[{"type":"message","content":[{"type":"input_text","text":"hi","nonce":9007199254740993}]}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -70,16 +68,16 @@ func TestOpenAIGatewayService_Forward_AstraReasoningEffortUsesGroupMapping(t *te
 
 	for _, effort := range []string{"minimal", "none"} {
 		t.Run(effort, func(t *testing.T) {
-			upstream := &httpUpstreamRecorder{
+			upstream := &auxiliaryHTTPRecorder{
 				resp: &http.Response{
 					StatusCode: http.StatusOK,
 					Header:     http.Header{"Content-Type": []string{"application/json"}},
 					Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 				},
 			}
-			cfg := &config.Config{}
-			cfg.Security.URLAllowlist.Enabled = false
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+			cfg := &responsesFixtureOptions{}
+			cfg.Request.URLPolicy.Enabled = false
+			svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 				Name:        "openai-apikey",
 				Platform:    capability.PlatformOpenAI,
@@ -97,7 +95,7 @@ func TestOpenAIGatewayService_Forward_AstraReasoningEffortUsesGroupMapping(t *te
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-			gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+			SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 			body := []byte(`{"model":"client-model","stream":false,"reasoning":{"effort":"` + effort + `"},"input":"hi"}`)
 			mappedBody, changed, err := requeststate.ApplyOpenAIReasoningEffortPolicy(body, "", []routing.ReasoningEffortMapping{{
@@ -129,16 +127,16 @@ func TestOpenAIGatewayService_Forward_PassthroughPreservesAstraInputWithoutGroup
 		{effort: "minimal", want: "minimal"},
 	} {
 		t.Run(tt.effort, func(t *testing.T) {
-			upstream := &httpUpstreamRecorder{
+			upstream := &auxiliaryHTTPRecorder{
 				resp: &http.Response{
 					StatusCode: http.StatusOK,
 					Header:     http.Header{"Content-Type": []string{"application/json"}},
 					Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 				},
 			}
-			cfg := &config.Config{}
-			cfg.Security.URLAllowlist.Enabled = false
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+			cfg := &responsesFixtureOptions{}
+			cfg.Request.URLPolicy.Enabled = false
+			svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 				Name:        "openai-passthrough",
 				Platform:    capability.PlatformOpenAI,
@@ -153,7 +151,7 @@ func TestOpenAIGatewayService_Forward_PassthroughPreservesAstraInputWithoutGroup
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-			gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+			SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 			result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-6-astra","reasoning":{"effort":"`+tt.effort+`"},"input":"hi"}`))
 			require.NoError(t, err)
@@ -167,16 +165,16 @@ func TestOpenAIGatewayService_Forward_PassthroughPreservesAstraInputWithoutGroup
 
 func TestOpenAIGatewayService_Forward_DecodedMutationKeepsLaterFieldDeletes(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -191,7 +189,7 @@ func TestOpenAIGatewayService_Forward_DecodedMutationKeepsLaterFieldDeletes(t *t
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5.4","stream":false,"max_completion_tokens":12,"tools":[{"type":"image_generation","format":"png"}],"input":[{"type":"message","content":"draw"}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -208,16 +206,16 @@ func TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndStripsPromptCacheOpt
 
 	runForward := func(t *testing.T, body []byte) []byte {
 		t.Helper()
-		upstream := &httpUpstreamRecorder{
+		upstream := &auxiliaryHTTPRecorder{
 			resp: &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 				Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 			},
 		}
-		cfg := &config.Config{}
-		cfg.Security.URLAllowlist.Enabled = false
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+		cfg := &responsesFixtureOptions{}
+		cfg.Request.URLPolicy.Enabled = false
+		svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 			Name:        "openai-apikey",
 			Platform:    capability.PlatformOpenAI,
@@ -232,7 +230,7 @@ func TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndStripsPromptCacheOpt
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-		gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+		SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 		result, err := svc.Forward(context.Background(), c, account, body)
 		require.NoError(t, err)
@@ -256,16 +254,16 @@ func TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndStripsPromptCacheOpt
 
 func TestOpenAIGatewayService_Forward_MappedImageModelUsesImageGate(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -282,7 +280,7 @@ func TestOpenAIGatewayService_Forward_MappedImageModelUsesImageGate(t *testing.T
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
 	c.Set("api_key", &apikey.APIKey{Group: &routing.Group{AllowImageGeneration: false}})
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"draw-alias","stream":false,"input":"draw"}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -290,7 +288,7 @@ func TestOpenAIGatewayService_Forward_MappedImageModelUsesImageGate(t *testing.T
 	require.Nil(t, result)
 	require.Nil(t, upstream.lastReq)
 	require.Equal(t, http.StatusForbidden, rec.Code)
-	cached, known := gatewayhttp.GetOpenAIImageIntentHint(c)
+	cached, known := GetOpenAIImageIntentHint(c)
 	require.True(t, known)
 	require.False(t, cached)
 
@@ -305,14 +303,14 @@ func TestOpenAIGatewayService_Forward_MappedImageModelUsesImageGate(t *testing.T
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
 	require.Len(t, upstream.bodies, 1)
-	cached, known = gatewayhttp.GetOpenAIImageIntentHint(c)
+	cached, known = GetOpenAIImageIntentHint(c)
 	require.True(t, known)
 	require.False(t, cached)
 }
 
 func TestOpenAIGatewayService_Forward_TextResponsesSetsBillingModelToMappedModel(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_text_mapped_billing"}},
@@ -321,9 +319,9 @@ func TestOpenAIGatewayService_Forward_TextResponsesSetsBillingModelToMappedModel
 			)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -339,7 +337,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesSetsBillingModelToMappedModel
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5.4","stream":false,"input":"hello"}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -354,16 +352,16 @@ func TestOpenAIGatewayService_Forward_TextResponsesSetsBillingModelToMappedModel
 
 func TestOpenAIGatewayService_Forward_TextResponsesWithoutMappingKeepsRequestedBillingModel(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_text_unmapped_billing"}},
 			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_text_unmapped","object":"response","model":"gpt-5.4","status":"completed","usage":{"input_tokens":20,"output_tokens":10,"total_tokens":30}}`)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -378,7 +376,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesWithoutMappingKeepsRequestedB
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.4","stream":false,"input":"hello"}`))
 	require.NoError(t, err)
@@ -390,8 +388,8 @@ func TestOpenAIGatewayService_Forward_TextResponsesWithoutMappingKeepsRequestedB
 
 func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatCompletions(t *testing.T) {
 
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -405,7 +403,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatComple
 		Extra: map[string]any{"use_responses_api": true}},
 	}
 
-	responsesUpstream := &httpUpstreamRecorder{
+	responsesUpstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_responses_mapped_billing"}},
@@ -414,16 +412,16 @@ func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatComple
 			)),
 		},
 	}
-	responsesSvc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: responsesUpstream})
+	responsesSvc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: responsesUpstream})
 	responsesRecorder := httptest.NewRecorder()
 	responsesCtx, _ := gin.CreateTestContext(responsesRecorder)
 	responsesCtx.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(responsesCtx, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(responsesCtx, OpenAIClientTransportHTTP)
 	responsesResult, err := responsesSvc.Forward(context.Background(), responsesCtx, account, []byte(`{"model":"gpt-5.4","stream":false,"input":"hello"}`))
 	require.NoError(t, err)
 	require.NotNil(t, responsesResult)
 
-	chatUpstream := &httpUpstreamRecorder{
+	chatUpstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_chat_mapped_billing"}},
@@ -432,7 +430,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatComple
 			)),
 		},
 	}
-	chatSvc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: chatUpstream})
+	chatSvc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: chatUpstream})
 	chatRecorder := httptest.NewRecorder()
 	chatCtx, _ := gin.CreateTestContext(chatRecorder)
 	chatCtx.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil)
@@ -447,16 +445,16 @@ func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatComple
 
 func TestOpenAIGatewayService_Forward_TextDataImageDoesNotForceMapMarshal(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -471,7 +469,7 @@ func TestOpenAIGatewayService_Forward_TextDataImageDoesNotForceMapMarshal(t *tes
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5","stream":false,"input":[{"type":"message","content":[{"type":"input_text","text":"literal data:image/png;base64, only","nonce":1e1000000}]}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -482,7 +480,7 @@ func TestOpenAIGatewayService_Forward_TextDataImageDoesNotForceMapMarshal(t *tes
 
 func TestOpenAIGatewayService_Forward_ImageToolBillingDoesNotForceFullDecode(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -491,9 +489,9 @@ func TestOpenAIGatewayService_Forward_ImageToolBillingDoesNotForceFullDecode(t *
 			)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -508,7 +506,7 @@ func TestOpenAIGatewayService_Forward_ImageToolBillingDoesNotForceFullDecode(t *
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5","stream":false,"tools":[{"type":"image_generation","model":"gpt-image-2","size":"2048x1152"}],"input":[{"type":"message","content":[{"type":"input_text","text":"draw","nonce":1e1000000}]}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -522,16 +520,16 @@ func TestOpenAIGatewayService_Forward_ImageToolBillingDoesNotForceFullDecode(t *
 
 func TestOpenAIGatewayService_Forward_ImageToolWithImageOnlyModelIsNormalized(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -546,7 +544,7 @@ func TestOpenAIGatewayService_Forward_ImageToolWithImageOnlyModelIsNormalized(t 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-image-2","stream":false,"tools":[{"type":"image_generation","model":"gpt-image-2"}],"input":"draw"}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -557,7 +555,7 @@ func TestOpenAIGatewayService_Forward_ImageToolWithImageOnlyModelIsNormalized(t 
 
 func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDoesNotDecodeBeforeError(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		responses: []*http.Response{
 			{
 				StatusCode: http.StatusBadRequest,
@@ -571,9 +569,9 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDoesNotDecodeBeforeError(
 			},
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 10,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -588,7 +586,7 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDoesNotDecodeBeforeError(
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5","stream":false,"input":[{"type":"reasoning","encrypted_content":"gAAA","summary":[{"type":"summary_text","text":"keep me"}]},{"type":"message","content":[{"type":"input_text","text":"hi","nonce":9007199254740993}]}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -603,7 +601,7 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDoesNotDecodeBeforeError(
 
 func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDropsCompaction(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		responses: []*http.Response{
 			{
 				StatusCode: http.StatusBadRequest,
@@ -617,9 +615,9 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDropsCompaction(t *testin
 			},
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 10,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -634,7 +632,7 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDropsCompaction(t *testin
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5.6-sol","stream":false,"input":[{"id":"cmp_stale","type":"compaction","encrypted_content":"gAAA"},{"type":"message","content":[{"type":"input_text","text":"hi"}]}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -648,16 +646,16 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDropsCompaction(t *testin
 
 func TestOpenAIGatewayService_Forward_CodexSparkRejectsEscapedInputImage(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -672,7 +670,7 @@ func TestOpenAIGatewayService_Forward_CodexSparkRejectsEscapedInputImage(t *test
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5.3-codex-spark","stream":false,"input":[{"type":"input_` + "\\u0069" + `mage","file_id":"file_1"}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -684,7 +682,7 @@ func TestOpenAIGatewayService_Forward_CodexSparkRejectsEscapedInputImage(t *test
 
 func TestOpenAIGatewayService_Forward_CodexBridgeInjectionSetsImageBilling(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -693,11 +691,11 @@ func TestOpenAIGatewayService_Forward_CodexBridgeInjectionSetsImageBilling(t *te
 			)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	cfg.Gateway.ForceCodexCLI = true
-	cfg.Gateway.CodexImageGenerationBridgeEnabled = true
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	cfg.Request.ForceCLI = true
+	cfg.ImageBridge = true
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -713,7 +711,7 @@ func TestOpenAIGatewayService_Forward_CodexBridgeInjectionSetsImageBilling(t *te
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
 	c.Set("api_key", &apikey.APIKey{Group: &routing.Group{AllowImageGeneration: true}})
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5","stream":false,"input":"draw if needed"}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -726,8 +724,8 @@ func TestOpenAIGatewayService_Forward_CodexBridgeInjectionSetsImageBilling(t *te
 
 func TestOpenAIGatewayService_Forward_HTTPPreservesPreviousResponseIDForAPIKey(t *testing.T) {
 
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -744,18 +742,18 @@ func TestOpenAIGatewayService_Forward_HTTPPreservesPreviousResponseIDForAPIKey(t
 		[]byte(`{"model":"gpt-5","stream":false,"previous_response_id":"","input":"hi"}`),
 		[]byte(`{"model":"gpt-5","stream":false,"previous_response_id":null,"input":"hi"}`),
 	} {
-		upstream := &httpUpstreamRecorder{
+		upstream := &auxiliaryHTTPRecorder{
 			resp: &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 				Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 			},
 		}
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+		svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-		gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+		SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 		result, err := svc.Forward(context.Background(), c, account, body)
 		require.NoError(t, err)
@@ -766,16 +764,16 @@ func TestOpenAIGatewayService_Forward_HTTPPreservesPreviousResponseIDForAPIKey(t
 
 func TestOpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -792,7 +790,7 @@ func TestOpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey(t 
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
 	// 开启图片生成以复现工具被规范化保留的路径，确保 Spark 剥离逻辑能覆盖该泄漏。
 	c.Set("api_key", &apikey.APIKey{Group: &routing.Group{AllowImageGeneration: true}})
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5.3-codex-spark","stream":false,"input":"hi","tools":[{"type":"function","name":"shell"},{"type":"image_generation","output_format":"png"}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -823,16 +821,16 @@ func TestOpenAIRequestBodyMayContainEmptyBase64InputImageSeesEscapedInputPrefix(
 
 func TestOpenAIGatewayService_Forward_ImageOnlyModelKeepsSupportedVerbosity(t *testing.T) {
 
-	upstream := &httpUpstreamRecorder{
+	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Security.URLAllowlist.Enabled = false
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	cfg := &responsesFixtureOptions{}
+	cfg.Request.URLPolicy.Enabled = false
+	svc := newResponsesFixture(responsesFixtureInputs{options: cfg, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -847,7 +845,7 @@ func TestOpenAIGatewayService_Forward_ImageOnlyModelKeepsSupportedVerbosity(t *t
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-image-2","stream":false,"text":{"verbosity":"low"},"input":"draw"}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -859,7 +857,7 @@ func TestOpenAIGatewayService_Forward_ImageOnlyModelKeepsSupportedVerbosity(t *t
 
 func TestOpenAIGatewayEntrypointsRejectUltraBeforeUpstream(t *testing.T) {
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc := newResponsesFixture(responsesFixtureInputs{})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
 		Type:  capability.AccountTypeAPIKey,
 		Extra: map[string]any{"openai_text_route_mode": "force_chat_completions"}},

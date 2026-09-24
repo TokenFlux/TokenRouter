@@ -44,7 +44,7 @@ func TestForwardResponses_ForceChatCompletionsRoutesNonStreamingToChatCompletion
 	})
 	gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
 
-	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
+	result, err := svc.Responses.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.lastReq.URL.String())
@@ -98,7 +98,7 @@ func TestForwardResponses_ForceChatCompletionsRoutesStreamingToChatCompletions(t
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
+	result, err := svc.Responses.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.lastReq.URL.String())
@@ -140,7 +140,7 @@ func TestForwardResponses_ChatFallbackRejectsInvalidToolArgumentsAtOutputLimit(t
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
+	result, err := svc.Responses.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
 	require.ErrorContains(t, err, "invalid JSON")
 	require.NotNil(t, result)
 	require.Equal(t, 4, result.Usage.InputTokens)
@@ -178,7 +178,7 @@ func TestForwardResponses_DeepSeekReasoningOnlyStreamProducesVisibleText(t *test
 		httpUpstream: upstream,
 	})
 
-	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
+	result, err := svc.Responses.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.True(t, result.Stream)
@@ -213,7 +213,7 @@ func TestForwardResponses_PreserveClientProtocolUsesResponsesEndpoint(t *testing
 		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModePreserveClientProtocol),
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "http://upstream.example/v1/responses", upstream.lastReq.URL.String())
@@ -277,7 +277,7 @@ func TestForwardResponsesChatFallbackRestoresEncryptedReasoningFromCache(t *test
 	cache := &reasoningCacheStub{getResp: map[string]string{"item_enc": "cached thinking"}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream, cache: cache})
 
-	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
+	result, err := svc.Responses.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "plain thinking", gjson.GetBytes(upstream.lastBody, "messages.0.reasoning_content").String())

@@ -164,7 +164,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(
 	}))
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
-	result, err := svc.Forward(context.Background(), c, &account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, &account, body)
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
@@ -230,7 +230,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 
 	before := time.Now()
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
-	result, err := svc.Forward(context.Background(), c, &account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, &account, body)
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Equal(t, http.StatusForbidden, rec.Code)
@@ -300,7 +300,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 	}))
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
-	result, err := svc.Forward(context.Background(), c, &account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, &account, body)
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
@@ -364,7 +364,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 
 	before := time.Now()
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
-	result, err := svc.Forward(context.Background(), c, &account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, &account, body)
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Equal(t, http.StatusForbidden, rec.Code)
@@ -410,7 +410,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake502RecordsModelTransient(t *t
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
 		c.Request.Header.Set("User-Agent", "unit-test-agent/1.0")
-		result, err := svc.Forward(context.Background(), c, &account, body)
+		result, err := svc.Responses.Forward(context.Background(), c, &account, body)
 		require.Error(t, err)
 		require.Nil(t, result)
 	}

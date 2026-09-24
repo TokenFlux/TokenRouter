@@ -181,7 +181,7 @@ func TestOpenAIGatewayService_ResponsesUnknownModelDoesNotFallbackToGPT54(t *tes
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.NotNil(t, upstream.lastReq)
@@ -216,7 +216,7 @@ func TestOpenAIGatewayService_OAuthResponsesPromotesSystemMessageWithoutDuplicat
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 
 	require.Error(t, err)
 	require.Nil(t, result)
@@ -264,7 +264,7 @@ func TestOpenAIGatewayService_NativeResponsesBodyModificationPreservesHTMLChars(
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.NotNil(t, upstream.lastReq)
@@ -305,7 +305,7 @@ func TestOpenAIGatewayService_OAuthMessagesBridgeDoesNotInjectDefaultInstruction
 		Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.NotNil(t, upstream.lastReq)
@@ -379,7 +379,7 @@ func TestOpenAIGatewayService_OpenAIOAuthHTTPForwardsTLSProfile(t *testing.T) {
 				}
 			}
 
-			_, _ = svc.Forward(context.Background(), c, account, body)
+			_, _ = svc.Responses.Forward(context.Background(), c, account, body)
 			if tc.wantProfile {
 				require.NotNil(t, upstream.lastTLSProfile)
 				return
@@ -558,7 +558,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamKeepsToolNameAndBodyNormali
 	// Use the gateway method that reads token from credentials when provider is nil.
 	svc.executionCredentials.OpenAI = nil
 
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.True(t, result.Stream)
@@ -630,7 +630,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_PreservesNamespaceRequest(t *test
 		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "namespace", gjson.GetBytes(upstream.lastBody, "tools.1.type").String())
@@ -691,7 +691,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_FlattenEnabledNamespaceRequestAnd
 		Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -746,7 +746,7 @@ func TestOpenAIGatewayService_NativeOAuth_FlattenEnabledNamespaceRequestAndStrea
 		Status:      billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "function", gjson.GetBytes(upstream.lastBody, "tools.0.type").String())
@@ -835,7 +835,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_FlattenEnabledNamespaceCollisionR
 		Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, body)
+	result, err := svc.Responses.Forward(context.Background(), c, account, body)
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Nil(t, upstream.lastReq)
@@ -879,7 +879,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_CompactUsesJSONAndKeepsNonStreami
 		RateMultiplier: f64p(1)},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.False(t, result.Stream)
@@ -934,7 +934,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_UpstreamRequestIgnoresClientCance
 		RateMultiplier: f64p(1)},
 	}
 
-	result, err := svc.Forward(reqCtx, c, account, originalBody)
+	result, err := svc.Responses.Forward(reqCtx, c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
@@ -974,7 +974,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_CodexMissingInstructionsGetsDefau
 				Status:      billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 			}
 
-			result, err := svc.Forward(context.Background(), c, account, originalBody)
+			result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.NotNil(t, upstream.lastReq)
@@ -1022,7 +1022,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_DisabledUsesLegacyTransform(t *te
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, inputBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, inputBody)
 	require.NoError(t, err)
 
 	// legacy path rewrites request body (not byte-equal)
@@ -1068,7 +1068,7 @@ func TestOpenAIGatewayService_OAuthLegacy_UpstreamRequestIgnoresClientCancel(t *
 		RateMultiplier: f64p(1)},
 	}
 
-	result, err := svc.Forward(reqCtx, c, account, originalBody)
+	result, err := svc.Responses.Forward(reqCtx, c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
@@ -1109,7 +1109,7 @@ func TestOpenAIGatewayService_OAuthLegacy_CompositeCodexUAUsesCodexOriginator(t 
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, inputBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, inputBody)
 	require.NoError(t, err)
 	require.NotNil(t, upstream.lastReq)
 	// 浏览器型复合 UA 被替换为默认 Codex UA（codex-tui 形态），originator 随最终 UA 配套（issue #3901）。
@@ -1167,7 +1167,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_ResponseHeadersAllowXCodex(t *tes
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, originalBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 
 	require.Equal(t, "12", rec.Header().Get("x-codex-primary-used-percent"))
@@ -1207,7 +1207,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_UpstreamErrorIncludesPassthroughF
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, originalBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.Error(t, err)
 	require.True(t, c.Writer.Written(), "非 429/529 的 passthrough 错误应直接写回客户端")
 	require.Equal(t, http.StatusBadRequest, rec.Code)
@@ -1331,7 +1331,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 			}
 			requestBody := []byte(`{"model":"gpt-5.2","stream":false,"input":"hello"}`)
 
-			_, err := svc.Forward(context.Background(), c, account, requestBody)
+			_, err := svc.Responses.Forward(context.Background(), c, account, requestBody)
 
 			require.Error(t, err)
 			require.Equal(t, tt.wantStatus, rec.Code)
@@ -1419,7 +1419,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_CompactErrorBeforeKeepaliveIsSin
 		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
+	_, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
 
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
@@ -1453,7 +1453,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_CompactErrorAfterKeepaliveIsFail
 		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
+	_, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
 
 	require.Error(t, err)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -1580,7 +1580,7 @@ func TestOpenAIGatewayService_OpenAIPassthrough_429And529TriggerFailover(t *test
 
 			account := newAccount(tc.accountType)
 			start := time.Now()
-			_, err := svc.Forward(context.Background(), c, account, originalBody)
+			_, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 			require.Error(t, err)
 
 			var failoverErr *forwardcore.UpstreamFailoverError
@@ -1647,7 +1647,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_Transient5xxTriggersFailover(t *
 				Schedulable: true},
 			}
 
-			result, err := svc.Forward(context.Background(), c, account, requestBody)
+			result, err := svc.Responses.Forward(context.Background(), c, account, requestBody)
 
 			require.Nil(t, result, "failed attempts must not report usage or success metadata")
 			var failoverErr *forwardcore.UpstreamFailoverError
@@ -1691,7 +1691,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ContextWindow502DoesNotFailover(
 		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
+	result, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
 
 	require.Nil(t, result)
 	require.Error(t, err)
@@ -1727,7 +1727,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PoolModeConfigured5xxRetriesSame
 		Extra: map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
+	_, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -1787,7 +1787,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PoolModeAuthErrorsTriggerFailove
 				Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 			}
 
-			_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
+			_, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
 
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
@@ -1848,7 +1848,7 @@ func TestOpenAIGatewayService_OpenAIPassthrough_CompactNetworkErrorsTriggerFailo
 			}
 			body := []byte(`{"model":"gpt-5.5","instructions":"local-test-instructions","input":[{"type":"text","text":"compact me"}]}`)
 
-			_, err := svc.Forward(context.Background(), c, account, body)
+			_, err := svc.Responses.Forward(context.Background(), c, account, body)
 			require.Error(t, err)
 			var failoverErr *forwardcore.UpstreamFailoverError
 			if tt.expectFailover {
@@ -1898,7 +1898,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_NonCodexUAFallbackToCodexUA(t *te
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, inputBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, inputBody)
 	require.NoError(t, err)
 	require.Equal(t, false, gjson.GetBytes(upstream.lastBody, "store").Bool())
 	require.Equal(t, true, gjson.GetBytes(upstream.lastBody, "stream").Bool())
@@ -1940,7 +1940,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA(t 
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, inputBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, inputBody)
 	require.NoError(t, err)
 	require.Equal(t, "codex-tui/9.9.9 test-terminal", upstream.lastReq.Header.Get("User-Agent"))
 	require.Equal(t, "codex-tui", upstream.lastReq.Header.Get("originator"))
@@ -1981,7 +1981,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_CodexTuiIdentityPreservedAndPaire
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, inputBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, inputBody)
 	require.NoError(t, err)
 	require.NotNil(t, upstream.lastReq)
 	require.Equal(t, tuiUA, upstream.lastReq.Header.Get("User-Agent"))
@@ -2036,7 +2036,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_TLSRouterOfficialUAIsPreservedAnd
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, inputBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, inputBody)
 	require.NoError(t, err)
 	require.Equal(t, routedUA, upstream.lastReq.Header.Get("User-Agent"))
 	require.Equal(t, "codex-tui", upstream.lastReq.Header.Get("originator"))
@@ -2067,7 +2067,7 @@ func TestOpenAIGatewayService_CodexCLIOnly_RejectsNonCodexClient(t *testing.T) {
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, inputBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, inputBody)
 	require.Error(t, err)
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	require.Contains(t, rec.Body.String(), "Codex official clients")
@@ -2122,7 +2122,7 @@ func TestOpenAIGatewayService_CodexCLIOnly_AllowOfficialClientFamilies(t *testin
 				RateMultiplier: f64p(1)},
 			}
 
-			_, err := svc.Forward(context.Background(), c, account, inputBody)
+			_, err := svc.Responses.Forward(context.Background(), c, account, inputBody)
 			require.NoError(t, err)
 			require.NotNil(t, upstream.lastReq)
 		})
@@ -2169,7 +2169,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamingSetsFirstTokenMs(t *test
 	}
 
 	start := time.Now()
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	// sanity: duration after start
 	require.GreaterOrEqual(t, time.Since(start), time.Duration(0))
@@ -2222,7 +2222,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamClientDisconnectStillCollec
 		RateMultiplier: f64p(1)},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.True(t, result.Stream)
@@ -2266,7 +2266,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PreservesBodyAndUsesResponsesEnd
 		RateMultiplier: f64p(1)},
 	}
 
-	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	result, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)
@@ -2315,7 +2315,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_WarnOnTimeoutHeadersForStream(t *
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, originalBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	require.True(t, logSink.ContainsMessage("检测到超时相关请求头，将按配置过滤以降低断流风险"))
 	require.True(t, logSink.ContainsFieldValue("timeout_headers", "x-stainless-timeout=10000"))
@@ -2355,7 +2355,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_InfoWhenStreamEndsWithoutDone(t *
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, originalBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.EqualError(t, err, "stream usage incomplete: missing terminal event")
 	require.True(t, logSink.ContainsMessage("上游流在未收到 [DONE] 时结束，疑似断流"))
 	require.True(t, logSink.ContainsMessageAtLevel("上游流在未收到 [DONE] 时结束，疑似断流", "info"))
@@ -2399,7 +2399,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_DefaultFiltersTimeoutHeaders(t *t
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, originalBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, upstream.lastReq)
 	require.Empty(t, upstream.lastReq.Header.Get("x-stainless-timeout"))
@@ -2446,7 +2446,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_AllowTimeoutHeadersWhenConfigured
 		RateMultiplier: f64p(1)},
 	}
 
-	_, err := svc.Forward(context.Background(), c, account, originalBody)
+	_, err := svc.Responses.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
 	require.NotNil(t, upstream.lastReq)
 	require.Equal(t, "120000", upstream.lastReq.Header.Get("x-stainless-timeout"))

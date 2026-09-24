@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -14,18 +14,16 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
-	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
-// Forward forwards request to OpenAI API
-func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error) {
+// Forward 保持单次 Responses 的准备、协议分派和执行顺序。
+func (s *OpenAIResponsesExecutor) Forward(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error) {
 	var routeErr error
 	account, routeErr = gatewayprovider.AccountForProtocolAttempt(ctx, account)
 	if routeErr != nil {
@@ -95,13 +93,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	// 阻断同一失效密文随客户端历史在每一轮重复触发"被拒→剥离→重试/重连"。
 	// lineage 会话键统一按进场形态的 body 派生：后续重试可能改写 body，
 	// 延迟计算会与下一请求的进场键漂移。
-	lineageGroupID := gatewayhttp.OpenAIResponseGroupID(c)
+	lineageGroupID := OpenAIResponseGroupID(c)
 	lineageEntryBody := body
 	lineageSessionHash := ""
-	if stateStore := s.ResponseStateStore(); stateStore != nil && stateStore.HasAnySessionInvalidEncryptedContent() {
-		lineageSessionHash = gatewayhttp.GenerateOpenAISessionHash(c, body)
+	if stateStore := s.Lineage.Store; stateStore != nil && stateStore.HasAnySessionInvalidEncryptedContent() {
+		lineageSessionHash = GenerateOpenAISessionHash(c, body)
 		if invalidDigests := stateStore.GetSessionInvalidEncryptedContentDigests(lineageGroupID, lineageSessionHash); len(invalidDigests) > 0 {
-			strippedBody, strippedCount := s.stripSessionInvalidEncryptedContentLogged(
+			strippedBody, strippedCount := s.Lineage.Strip(
 				body, invalidDigests, "invalid_encrypted_lineage_strip", account.Record.ID, 0,
 			)
 			if strippedCount > 0 {
@@ -131,20 +129,25 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		imageInputSize = imageCfg.InputSize
 	}
 
-	token, _, err := s.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
+	token, _, err := s.Requests.Credentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
 	if err != nil {
 		return nil, err
 	}
-	gatewayhttp.SetOpsUpstreamModel(c, upstreamModel)
+	SetOpsUpstreamModel(c, upstreamModel)
 
 	if wsDecision.Transport == egress.OpenAIUpstreamTransportResponsesWebsocketV2 {
 		wsReqBody, err := ensureReqBody()
 		if err != nil {
 			return nil, err
 		}
-		adapter := &openAIHTTPWSForwardAdapter{s: s, c: c, account: account, clientPromptCacheKey: clientPromptCacheKey, token: token, decision: wsDecision, isCodexCLI: isCodexCLI, stream: reqStream, originalModel: originalModel, upstreamModel: upstreamModel, startedAt: startTime, tls: tlsRouterMatch, lineageGroupID: lineageGroupID, lineageSessionHash: lineageSessionHash}
-		result, err := gatewayws.RunHTTPForward(ctx, wsReqBody, gatewayws.HTTPForwardInput{AccountID: account.Record.ID, AccountType: account.Record.Type, UpstreamModel: upstreamModel, BillingModel: billingModel, ImageBillingModel: imageBillingModel, ImageSizeTier: imageSizeTier, ImageInputSize: imageInputSize, LineageEntryBody: lineageEntryBody, Stream: reqStream, RetryLimit: openAIWSReconnectRetryLimit, IDLogLimit: gatewayprovider.OpenAIWSIDValueMaxLen}, adapter)
-		return gatewayprovider.ForwardResultFromWS(result), err
+		return s.WebSocket(ctx, c, account, wsReqBody, OpenAIHTTPWSAttempt{
+			ClientPromptCacheKey: clientPromptCacheKey, Token: token, Decision: wsDecision,
+			CodexCLI: isCodexCLI, Stream: reqStream, OriginalModel: originalModel,
+			UpstreamModel: upstreamModel, StartedAt: startTime, TLS: tlsRouterMatch,
+			LineageGroupID: lineageGroupID, LineageSessionHash: lineageSessionHash,
+			BillingModel: billingModel, ImageBillingModel: imageBillingModel,
+			ImageSizeTier: imageSizeTier, ImageInputSize: imageInputSize, LineageEntryBody: lineageEntryBody,
+		})
 	}
 
 	reasoningEffort := requeststate.ExtractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
@@ -156,7 +159,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}
 	firstOutputTimeout := time.Duration(0)
 	if reqStream && account.Record.Platform == capability.PlatformOpenAI {
-		firstOutputTimeout = s.responseOutput.FirstOutputTimeout(reasoningEffortValue)
+		firstOutputTimeout = s.Output.FirstOutputTimeout(reasoningEffortValue)
 	}
 
 	input := openaiexecution.HTTPInput{
@@ -179,15 +182,15 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			if account.Record.ProxyID != nil && account.Record.Proxy != nil {
 				proxyURL = account.Record.Proxy.URL()
 			}
-			return s.httpUpstream.DoWithTLS(request, proxyURL, account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch))
+			return s.Requests.Transport.DoWithTLS(request, proxyURL, account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch))
 		},
 		Latency: func(elapsed time.Duration) {
-			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, elapsed.Milliseconds())
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, elapsed.Milliseconds())
 		},
 		HeaderTimeout: func() error {
-			return s.responseOutput.FirstOutputFailure(ctx, c, account, startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil)
+			return s.Output.FirstOutputFailure(ctx, c, account, startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil)
 		},
-		TransportError: func(err error) error { return s.transportFailure.Handle(ctx, c, account, err, false) },
+		TransportError: func(err error) error { return s.Requests.Failure.Handle(ctx, c, account, err, false) },
 	}
 	options := s.nativeForwardHTTPOptions(ctx, c, account, input, exchange,
 		func(current []byte) ([]byte, bool, error) {
@@ -206,9 +209,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				return
 			}
 			if lineageSessionHash == "" {
-				lineageSessionHash = gatewayhttp.GenerateOpenAISessionHash(c, entry)
+				lineageSessionHash = GenerateOpenAISessionHash(c, entry)
 			}
-			s.markOpenAIWSInvalidEncryptedContentLineage(lineageGroupID, lineageSessionHash, digests)
+			s.Lineage.Mark(lineageGroupID, lineageSessionHash, digests)
 		},
 	)
 	options.ReleaseDecodedRequest = func() { reqBody = nil }
