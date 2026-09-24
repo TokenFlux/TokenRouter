@@ -51,7 +51,7 @@ func (p *openAIRawFallbackAdapter) NormalizeGLM(b []byte, m string) ([]byte, boo
 	return gatewayprovider.NormalizeGLMOpenAIReasoningEffort(b, m)
 }
 func (p *openAIRawFallbackAdapter) FastFallback(ctx context.Context, m string, b []byte) ([]byte, error) {
-	updated, err := tierpolicy.ApplyBody(b, p.s.fastModeInput(ctx, p.account, m))
+	updated, err := tierpolicy.ApplyBody(b, p.s.fastPolicy.Input(ctx, p.account, m))
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		httpapi.WriteFastPolicyBlockedResponse(p.c, blocked)

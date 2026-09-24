@@ -97,23 +97,23 @@ func TestApplyOpenAIFastPolicyToBody_DefaultPassesPriorityAndFast(t *testing.T) 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	body := []byte(`{"model":"gpt-5.5","service_tier":"priority","messages":[]}`)
-	updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+	updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Equal(t, string(body), string(updated))
 
 	body = []byte(`{"model":"gpt-5.5","service_tier":"fast"}`)
-	updated, err = tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+	updated, err = tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Equal(t, "priority", gjson.GetBytes(updated, "service_tier").String())
 
 	body = []byte(`{"model":"gpt-4","service_tier":"priority"}`)
-	updated, err = tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-4"))
+	updated, err = tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-4"))
 	require.NoError(t, err)
 	require.Equal(t, string(body), string(updated))
 
 	// No service_tier → no-op
 	body = []byte(`{"model":"gpt-5.5"}`)
-	updated, err = tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+	updated, err = tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Equal(t, string(body), string(updated))
 }
@@ -123,12 +123,12 @@ func TestApplyOpenAIFastPolicyToBody_ExplicitFilterRemovesField(t *testing.T) {
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	body := []byte(`{"model":"gpt-5.5","service_tier":"priority","messages":[]}`)
-	updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+	updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.NotContains(t, string(updated), `"service_tier"`)
 
 	body = []byte(`{"model":"gpt-5.5","service_tier":"fast"}`)
-	updated, err = tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+	updated, err = tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.NotContains(t, string(updated), `"service_tier"`)
 }
@@ -154,12 +154,12 @@ func TestApplyOpenAIFastPolicyToBody_UserScopedRuleOverridesGlobalRule(t *testin
 	body := []byte(`{"model":"gpt-5.5","service_tier":"priority"}`)
 
 	allowedUserCtx := apikey.WithAccessSnapshot(context.Background(), apikey.AccessSnapshot{PayerUserID: int64(42)})
-	updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(allowedUserCtx, account, "gpt-5.5"))
+	updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(allowedUserCtx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Equal(t, "priority", gjson.GetBytes(updated, "service_tier").String())
 
 	otherUserCtx := apikey.WithAccessSnapshot(context.Background(), apikey.AccessSnapshot{PayerUserID: int64(43)})
-	updated, err = tierpolicy.ApplyBody(body, svc.fastModeInput(otherUserCtx, account, "gpt-5.5"))
+	updated, err = tierpolicy.ApplyBody(body, svc.fastPolicy.Input(otherUserCtx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.NotContains(t, string(updated), `"service_tier"`)
 }
@@ -169,7 +169,7 @@ func TestApplyOpenAIFastPolicyToBody_PriorityFilterLeavesUltrafast(t *testing.T)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	body := []byte(`{"model":"gpt-5.6-sol","service_tier":"ultrafast"}`)
 
-	updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.6-sol"))
+	updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.6-sol"))
 	require.NoError(t, err)
 	require.Equal(t, tierpolicy.OpenAIFastTierUltrafast, gjson.GetBytes(updated, "service_tier").String())
 }
@@ -187,7 +187,7 @@ func TestApplyOpenAIFastPolicyToBody_ForcePriorityRewritesKnownTier(t *testing.T
 
 	for _, tier := range []string{"flex", "auto", "default", "scale", "fast", "priority", "ultrafast"} {
 		body := []byte(`{"model":"gpt-5.5","service_tier":"` + tier + `"}`)
-		updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+		updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 		require.NoError(t, err)
 		require.Equal(t, tierpolicy.OpenAIFastTierPriority, gjson.GetBytes(updated, "service_tier").String(),
 			"tier %q should be forced to priority", tier)
@@ -202,7 +202,7 @@ func TestApplyOpenAIFastPolicyToBody_OfficialTiersBypassDefaultRule(t *testing.T
 
 	for _, tier := range []string{"auto", "default", "scale"} {
 		body := []byte(`{"model":"gpt-5.5","service_tier":"` + tier + `"}`)
-		updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+		updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 		require.NoError(t, err, "tier %q should pass without error", tier)
 		require.Contains(t, string(updated), `"service_tier":"`+tier+`"`,
 			"tier %q should be preserved in body under default policy", tier)
@@ -210,7 +210,7 @@ func TestApplyOpenAIFastPolicyToBody_OfficialTiersBypassDefaultRule(t *testing.T
 
 	// evaluate 层也应判定为 pass（默认配置没有内置规则）。
 	for _, tier := range []string{"auto", "default", "scale"} {
-		action, _ := svc.evaluateOpenAIFastPolicy(context.Background(), account, "gpt-5.5", tier)
+		action, _ := svc.fastPolicy.Evaluate(context.Background(), account, "gpt-5.5", tier)
 		require.Equal(t, anthropic.BetaPolicyActionPass, action, "tier %q should evaluate to pass", tier)
 	}
 }
@@ -231,7 +231,7 @@ func TestApplyOpenAIFastPolicyToBody_AllRuleStripsOfficialTiers(t *testing.T) {
 
 	for _, tier := range []string{"auto", "default", "scale", "priority", "flex"} {
 		body := []byte(`{"model":"gpt-5.5","service_tier":"` + tier + `"}`)
-		updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+		updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 		require.NoError(t, err)
 		require.NotContains(t, string(updated), `"service_tier"`,
 			"tier %q should be stripped under ServiceTier=all + filter rule", tier)
@@ -252,7 +252,7 @@ func TestApplyOpenAIFastPolicyToBody_UnknownTierStripped(t *testing.T) {
 	// applyOpenAIFastPolicyToBody 收到未识别 tier 时不报错，body 透传不变
 	// （不属于本函数职责——上层 normalizeResponsesBodyServiceTier 已剥离）
 	body := []byte(`{"model":"gpt-5.5","service_tier":"xxx"}`)
-	updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+	updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Equal(t, string(body), string(updated))
 }
@@ -272,7 +272,7 @@ func TestApplyOpenAIFastPolicyToBody_BlockReturnsTypedError(t *testing.T) {
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	body := []byte(`{"model":"gpt-5.5","service_tier":"priority"}`)
-	updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(context.Background(), account, "gpt-5.5"))
+	updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(context.Background(), account, "gpt-5.5"))
 	require.Error(t, err)
 	var blocked *tierpolicy.BlockedError
 	require.True(t, errors.As(err, &blocked))

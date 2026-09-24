@@ -1,0 +1,58 @@
+[
+  {
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/service/...",
+      "./internal/gateway/...",
+      "./internal/account/provider/...",
+      "./internal/app/...",
+      "./internal/server/middleware/..."
+    ],
+    "exit_code": 0,
+    "seconds": 7.87,
+    "log": "service-grok-execution-closed-lint-normal.log"
+  },
+  {
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/service/...",
+      "./internal/gateway/...",
+      "./internal/account/provider/...",
+      "./internal/app/...",
+      "./internal/server/middleware/..."
+    ],
+    "exit_code": 0,
+    "seconds": 12.11,
+    "log": "service-grok-execution-closed-lint-unit.log"
+  },
+  {
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/service/...",
+      "./internal/gateway/...",
+      "./internal/account/provider/...",
+      "./internal/app/...",
+      "./internal/server/middleware/..."
+    ],
+    "exit_code": 0,
+    "seconds": 9.08,
+    "log": "service-grok-execution-closed-lint-integration.log"
+  }
+]

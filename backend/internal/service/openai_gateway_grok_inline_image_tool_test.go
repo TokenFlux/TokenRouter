@@ -12,6 +12,8 @@ import (
 	"testing"
 	time "time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -95,7 +97,7 @@ func TestForwardGrokMessagesDropsRedundantViewImage(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
 	c.Set("api_key", &apikey.APIKey{ID: 7992})
 
-	account := healthyGrokOAuthGatewayTestAccount(801, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(801, "access-token")
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}

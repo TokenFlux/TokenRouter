@@ -109,7 +109,7 @@ func (p *openAIPassthroughExecutionAdapter) NormalizeLite(body []byte) ([]byte, 
 	return provider.NormalizeResponsesLiteForAccount(p.account.View(), body)
 }
 func (p *openAIPassthroughExecutionAdapter) ApplyFastPass(ctx context.Context, model string, body []byte) ([]byte, error) {
-	updated, err := tierpolicy.ApplyBody(body, p.s.fastModeInput(ctx, p.account, model))
+	updated, err := tierpolicy.ApplyBody(body, p.s.fastPolicy.Input(ctx, p.account, model))
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		gatewayhttp.WriteFastPolicyBlockedResponse(p.c, blocked)
@@ -185,7 +185,7 @@ func (p *openAIPassthroughExecutionAdapter) Latency(d time.Duration) {
 	gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsUpstreamLatencyMsKey, d.Milliseconds())
 }
 func (p *openAIPassthroughExecutionAdapter) TransportErrorPass(ctx context.Context, err error) error {
-	return p.s.handleOpenAIUpstreamTransportError(ctx, p.c, p.account, err, true)
+	return p.s.transportFailure.Handle(ctx, p.c, p.account, err, true)
 }
 func (p *openAIPassthroughExecutionAdapter) CompactRetry(model string, body []byte, status int, message string, payload []byte, tried bool) ([]byte, string, bool) {
 	return p.s.compactExecutor.Prepare(p.c, p.account, model, body, status, message, payload, tried)

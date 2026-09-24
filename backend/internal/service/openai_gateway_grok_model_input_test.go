@@ -184,20 +184,20 @@ func TestPatchGrokResponsesBodyCombinesAdditionalToolsAndDropsOrphanControls(t *
 		"tools":[{"type":"function","name":"lookup"}],
 		"tool_choice":"auto","parallel_tool_calls":true
 	}`)
-	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.5")
 	require.NoError(t, err)
 	require.Equal(t, int64(1), gjson.GetBytes(patched, "tools.#").Int())
 	require.Equal(t, "lookup", gjson.GetBytes(patched, "tools.0.name").String())
 	require.Equal(t, "message", gjson.GetBytes(patched, "input.0.type").String())
 
-	withoutTools, err := patchGrokResponsesBody([]byte(`{"input":"hi","tool_choice":"auto","parallel_tool_calls":true}`), "grok-4.5")
+	withoutTools, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody([]byte(`{"input":"hi","tool_choice":"auto","parallel_tool_calls":true}`), "grok-4.5")
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(withoutTools, "tool_choice").Exists())
 	require.False(t, gjson.GetBytes(withoutTools, "parallel_tool_calls").Exists())
 
 	for _, malformedTools := range []string{"null", `{}`, `"invalid"`} {
 		malformedBody := []byte(`{"input":"hi","tools":` + malformedTools + `,"tool_choice":"auto","parallel_tool_calls":true}`)
-		patched, err := patchGrokResponsesBody(malformedBody, "grok-4.5")
+		patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(malformedBody, "grok-4.5")
 		require.NoError(t, err)
 		require.False(t, gjson.GetBytes(patched, "tool_choice").Exists(), string(patched))
 		require.False(t, gjson.GetBytes(patched, "parallel_tool_calls").Exists(), string(patched))
@@ -209,21 +209,21 @@ func TestSanitizeGrokCompactionReplayBodyPreservesVisibleSummary(t *testing.T) {
 		"previous_response_id":"resp_stale",
 		"input":[{"type":"compaction","encrypted_content":"opaque","summary":[{"type":"summary_text","text":"visible history"}]},{"type":"message","role":"user","content":"continue"}]
 	}`)
-	patched, changed, err := sanitizeGrokCompactionReplayBody(body)
+	patched, changed, err := gatewayprovider.GrokBodyCodec().SanitizeGrokCompactionReplayBody(body)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.False(t, gjson.GetBytes(patched, "previous_response_id").Exists())
 	require.False(t, gjson.GetBytes(patched, `input.#(type=="reasoning")`).Exists())
 	require.Contains(t, gjson.GetBytes(patched, "input.0.content.0.text").String(), "visible history")
 	require.Equal(t, "continue", gjson.GetBytes(patched, "input.1.content").String())
-	require.True(t, isGrokCompactionReplayDecodeError(http.StatusBadRequest, []byte(`{"error":{"message":"failed to deserialize compaction summary history"}}`)))
-	require.True(t, isGrokCompactionReplayDecodeError(http.StatusBadRequest, []byte(`{"error":{"type":"invalid_request_error"},"detail":"could not decode compaction blob"}`)))
+	require.True(t, gatewayprovider.GrokBodyCodec().IsGrokCompactionReplayDecodeError(http.StatusBadRequest, []byte(`{"error":{"message":"failed to deserialize compaction summary history"}}`)))
+	require.True(t, gatewayprovider.GrokBodyCodec().IsGrokCompactionReplayDecodeError(http.StatusBadRequest, []byte(`{"error":{"type":"invalid_request_error"},"detail":"could not decode compaction blob"}`)))
 }
 
 func TestGrokStructuredErrorCandidatesDoNotShadowTopLevelMessages(t *testing.T) {
 	shadowedInvalidEncrypted := []byte(`{"code":"invalid-argument","error":{"type":"invalid_request_error"},"message":"Could not decrypt encrypted_content because it was modified"}`)
-	require.True(t, isGrokInvalidEncryptedContentResponse(http.StatusBadRequest, shadowedInvalidEncrypted))
-	require.True(t, isGrokCompactionReplayDecodeError(http.StatusBadRequest, []byte(`{"error":{"type":"invalid_request_error"},"message":"could not decode compaction history"}`)))
+	require.True(t, gatewayprovider.GrokBodyCodec().IsGrokInvalidEncryptedContentResponse(http.StatusBadRequest, shadowedInvalidEncrypted))
+	require.True(t, gatewayprovider.GrokBodyCodec().IsGrokCompactionReplayDecodeError(http.StatusBadRequest, []byte(`{"error":{"type":"invalid_request_error"},"message":"could not decode compaction history"}`)))
 }
 
 func TestGrokDecoderCompatibility422FailsOverWithoutCooldown(t *testing.T) {

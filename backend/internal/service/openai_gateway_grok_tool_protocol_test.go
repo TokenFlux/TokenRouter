@@ -226,7 +226,7 @@ func TestForwardGrokResponsesClientToolNameConflictReturns400(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 	account := grokProtocolAPIKeyAccount(7101)
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 
 	require.Error(t, err)
 	require.Nil(t, result)
@@ -251,7 +251,7 @@ func TestForwardGrokResponsesMalformedToolSearchOutputReturns400BeforeUpstream(t
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 	account := grokProtocolAPIKeyAccount(7103)
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 
 	require.Error(t, err)
 	require.Nil(t, result)
@@ -297,7 +297,7 @@ func TestForwardGrokResponsesOAuthRestoresClientToolsNonStreaming(t *testing.T) 
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -340,7 +340,7 @@ func TestForwardGrokResponsesAPIKeyRestoresClientToolsFromSSEForNonStreamingRequ
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 	account := grokProtocolAPIKeyAccount(7104)
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -377,7 +377,7 @@ func TestForwardGrokResponsesAPIKeyRestoresClientToolsStreaming(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 	account := grokProtocolAPIKeyAccount(7103)
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", true, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", true, time.Now())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)

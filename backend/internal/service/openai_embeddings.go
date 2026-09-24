@@ -106,9 +106,9 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 
 		UserAgent: account.View().GetOpenAIUserAgent(),
 
-		ApplyHeaders: bindAccountHeaders(account),
+		ApplyHeaders: gatewayprovider.BindExecutionHeaders(account),
 
-		RequestContext: detachUpstreamContext,
+		RequestContext: gatewayprovider.DetachUpstreamContext,
 
 		Enter: s.nativeAttemptActivity,
 

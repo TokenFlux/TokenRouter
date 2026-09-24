@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
@@ -24,7 +26,7 @@ func TestForwardGrokResponses_PropagatesSearchCountFromJSON(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 
-	account := healthyGrokOAuthGatewayTestAccount(9901, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(9901, "access-token")
 	repo := &mockAccountRepoForPlatform{accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}}
 	upstreamBody := `{
 		"id":"resp_search_bill",
@@ -49,7 +51,7 @@ func TestForwardGrokResponses_PropagatesSearchCountFromJSON(t *testing.T) {
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 2, result.SearchCount, "Grok Responses must surface search tool calls for surcharge billing")
@@ -64,7 +66,7 @@ func TestForwardGrokResponses_PropagatesSearchCountFromSSE(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 
-	account := healthyGrokOAuthGatewayTestAccount(9902, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(9902, "access-token")
 	repo := &mockAccountRepoForPlatform{accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}}
 	// 装配后，同一 call_id 的 item.done 与 response.completed 只能统计一次。
 	sse := "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"web_search_call\",\"id\":\"ws1\",\"call_id\":\"c1\"}}\n\n" +
@@ -80,7 +82,7 @@ func TestForwardGrokResponses_PropagatesSearchCountFromSSE(t *testing.T) {
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", true, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", true, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 1, result.SearchCount, "stream SearchCount must be wired and deduped")

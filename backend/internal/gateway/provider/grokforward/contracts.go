@@ -7,7 +7,6 @@ import (
 	"time"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -33,30 +32,6 @@ type Options struct {
 }
 
 const ComposerVisionModel = "grok-build-0.1"
-
-// Result 保留旧同步结果的全部可观测字段，不另建完成任务或计费状态。
-type Result struct {
-	RequestID, ResponseID                                                             string
-	UpstreamHeaders                                                                   http.Header
-	Usage                                                                             wire.ForwardUsage
-	Model, BillingModel, UpstreamModel, UpstreamResponseServiceTier, UpstreamEndpoint string
-	ServiceTier, ReasoningEffort, RequestedReasoningEffort                            *string
-	Stream, OpenAIWSMode                                                              bool
-	UpstreamTerminalEvent                                                             string
-	ResponseHeaders                                                                   http.Header
-	Duration                                                                          time.Duration
-	FirstTokenMs                                                                      *int
-	ClientDisconnect                                                                  bool
-	ImageCount                                                                        int
-	ImageSize, ImageInputSize, ImageOutputSize, ImageSizeSource                       string
-	ImageOutputSizes                                                                  []string
-	ImageSizeBreakdown                                                                map[string]int
-	UpstreamWarning                                                                   *forwardcore.UpstreamWarning
-	VideoCount                                                                        int
-	VideoResolution                                                                   string
-	VideoDurationSeconds, WebSearchCalls, SearchCount                                 int
-	AudioUsage                                                                        *protocol.AudioUsage
-}
 
 type Decision struct{ Generic, Failover, RetrySameAccount bool }
 type Retry struct {
@@ -103,7 +78,7 @@ type Ports interface {
 	ErrorMessage([]byte) string
 	Health(context.Context, int, http.Header, []byte, string, bool) Decision
 	Observe(Notice)
-	HandleError(context.Context, *http.Response, []byte, string) (*Result, error)
+	HandleError(context.Context, *http.Response, []byte, string) (*forwardcore.OpenAIResult, error)
 	ShouldMarkTeam(int, []byte) bool
 	MarkTeam(string)
 	RetryMetadata(int, []byte) Retry

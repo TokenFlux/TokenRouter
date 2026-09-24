@@ -60,7 +60,11 @@ func (p *openAIChatExecutionAdapter) DispatchChat(ctx context.Context, route for
 	case forward.DispatchRawChat:
 		r, err = p.s.forwardAsRawChatCompletions(ctx, p.c, p.account, body, model, p.tls...)
 	case forward.DispatchGrok:
-		r, err = p.s.forwardGrokChatCompletionsViaResponses(ctx, p.c, p.account, body, key, model, p.tls...)
+		var handled bool
+		r, handled, err = p.s.Grok.ChatResponses(ctx, p.c, p.account, body, key, model, p.tls...)
+		if !handled && err == nil {
+			r, err = p.s.forwardAsRawChatCompletions(ctx, p.c, p.account, body, model, p.tls...)
+		}
 	}
 	return openAIHTTPResultFromForward(r), err
 }
@@ -85,7 +89,7 @@ func (p *openAIChatExecutionAdapter) ResponsesToChat(r *protocolopenai.Responses
 	return protocolbridge.ResponsesToChatCompletionsRequestWithOptions(r, &protocolbridge.ResponsesToChatOptions{ReasoningContentByID: p.s.responseOutput.Reasoning.Lookup})
 }
 func (p *openAIChatExecutionAdapter) GrokBridgeEligible(body []byte) (bool, string) {
-	return grokChatResponsesBridgeEligibility(body)
+	return gatewayprovider.GrokBodyCodec().GrokChatResponsesBridgeEligibility(body)
 }
 func (p *openAIChatExecutionAdapter) ChatError(status int, kind, message string) {
 	gatewayhttp.MarkResponseCommitted(p.c)
@@ -110,7 +114,7 @@ func (p *openAIChatExecutionAdapter) NormalizeRequestTier(r *protocolopenai.Resp
 	normalizeResponsesRequestServiceTier(r)
 }
 func (p *openAIChatExecutionAdapter) ApplyChatFast(ctx context.Context, model string, body []byte) ([]byte, error) {
-	updated, err := tierpolicy.ApplyBody(body, p.s.fastModeInput(ctx, p.account, model))
+	updated, err := tierpolicy.ApplyBody(body, p.s.fastPolicy.Input(ctx, p.account, model))
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		p.PolicyDenied()

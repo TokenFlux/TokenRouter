@@ -492,7 +492,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	functionToolUpstream := (account.Record.Platform == capability.PlatformOpenAI && account.Record.Type == capability.AccountTypeAPIKey) || account.Record.Platform == capability.PlatformGrok
 	if functionToolUpstream {
 		if account.Record.Platform == capability.PlatformGrok {
-			body, err = sanitizeGrokResponsesInput(body)
+			body, err = gatewayprovider.GrokBodyCodec().SanitizeGrokResponsesInput(body)
 			if err != nil {
 				return nil, fmt.Errorf("sanitize Grok WS HTTP bridge input: %w", err)
 			}
@@ -549,7 +549,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 
 	if account.Record.Platform == capability.PlatformGrok {
 		upstreamModel := resolveGrokWSUpstreamModel(account, body, originalModel)
-		body, err = patchGrokResponsesBody(body, upstreamModel)
+		body, err = gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, upstreamModel)
 		if err != nil {
 			return nil, err
 		}
@@ -558,7 +558,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if err != nil {
 			return nil, fmt.Errorf("apply grok prompt cache identity: %w", err)
 		}
-		body, err = applyGrokFreeRequestToolCacheRoute(c, body, grokMixedCacheIntentBody, account, grokCacheIdentity)
+		body, err = gatewayhttp.ApplyGrokFreeRequestToolCacheRoute(c, body, grokMixedCacheIntentBody, account, grokCacheIdentity)
 		if err != nil {
 			return nil, fmt.Errorf("apply grok Free function-tool cache route: %w", err)
 		}
@@ -577,12 +577,12 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	}
 
 	buildUpstreamRequest := func(requestBody []byte) (*http.Request, error) {
-		upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+		upstreamCtx, releaseUpstreamCtx := gatewayprovider.DetachUpstreamContext(ctx)
 		defer releaseUpstreamCtx()
 		var upstreamReq *http.Request
 		var buildErr error
 		if account.Record.Platform == capability.PlatformGrok {
-			upstreamReq, buildErr = buildGrokResponsesRequest(upstreamCtx, c, account, requestBody, token, grokCacheIdentity, s.cfg, s.settingService)
+			upstreamReq, buildErr = s.Grok.BuildResponsesRequest(upstreamCtx, c, account, requestBody, token, grokCacheIdentity, true)
 		} else {
 			upstreamReq, buildErr = s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, requestBody, token, routerMatch...)
 		}
@@ -615,7 +615,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, routerMatch...))
 		if err != nil {
 			if turn == 1 {
-				return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+				return nil, s.transportFailure.Handle(ctx, c, account, err, true)
 			}
 			safeErr := logredact.SanitizeUpstreamQueries(err.Error())
 			clientError := buildOpenAIWSHTTPBridgeErrorEvent(http.StatusBadGateway, "Upstream request failed")
@@ -1095,7 +1095,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	if err := scanner.Err(); err != nil {
 		streamErr := fmt.Errorf("read upstream http bridge stream: %w", err)
 		if turn == 1 && !wroteDownstream {
-			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, streamErr, true)
+			return nil, s.transportFailure.Handle(ctx, c, account, streamErr, true)
 		}
 		return resultWithUsage(), streamErr
 	}
@@ -1104,7 +1104,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		terminalErr = errors.New("upstream http bridge stream sent [DONE] before terminal event")
 	}
 	if turn == 1 && !wroteDownstream {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, terminalErr, true)
+		return nil, s.transportFailure.Handle(ctx, c, account, terminalErr, true)
 	}
 	return resultWithUsage(), terminalErr
 }
@@ -1115,11 +1115,11 @@ func resolveGrokWSCacheIdentity(c *gin.Context, account *gatewayprovider.Executi
 		return "", err
 	}
 	upstreamModel := resolveGrokWSUpstreamModel(account, body, routingModel)
-	body, err = patchGrokResponsesBody(body, upstreamModel)
+	body, err = gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, upstreamModel)
 	if err != nil {
 		return "", err
 	}
-	return resolveGrokCacheIdentity(c, body, "", upstreamModel), nil
+	return gatewayhttp.ResolveGrokCacheIdentity(c, body, "", upstreamModel), nil
 }
 
 func resolveGrokWSUpstreamModel(account *gatewayprovider.ExecutionAccount, body []byte, originalModel string) string {

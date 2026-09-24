@@ -76,7 +76,7 @@ func (p *wsPassthroughAdapter) FastPolicy(ctx context.Context, turn int, model s
 	if scoped {
 		ctx = openAIWSFastModePolicyContext(ctx, p.hooks, turn)
 	}
-	out, blocked, err := gatewayws.ApplyServiceTierFrame(body, model, p.service.fastModeInput(ctx, p.account, model))
+	out, blocked, err := gatewayws.ApplyServiceTierFrame(body, model, p.service.fastPolicy.Input(ctx, p.account, model))
 	if blocked == nil {
 		return out, nil, err
 	}

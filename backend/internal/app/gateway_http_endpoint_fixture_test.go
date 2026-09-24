@@ -117,7 +117,7 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 	}
 	media := func() *mediaentry.Runtime {
 		common, _, _ := base()
-		bindings := mediaBindings(input.Source, input.Credentials, input.Keys, input.Funding, common, resources(), nil, input.Config)
+		bindings := mediaBindings(input.Source, input.Credentials, input.Keys, input.Funding, common, resources(), nil, input.Config, input.Source.Grok, provideGrokVideoTasks(nil, input.Config))
 		bindings.Options.MaxSwitches = input.MaxSwitches
 		bindings.EligibilityProber = nil
 		return mediaentry.New(bindings)

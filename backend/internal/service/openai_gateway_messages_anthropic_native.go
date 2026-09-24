@@ -51,11 +51,11 @@ func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(ctx context.C
 		headers = c.Request.Header
 	}
 	return forward.BuildNativeAnthropicRequest(ctx, body, apiKey, targetURL, forward.NativeAnthropicRequestOptions{
-		Headers: headers, GetHeader: anthropic.GetHeaderRaw, OverrideValue: bindAccountHeaderValue(account),
+		Headers: headers, GetHeader: anthropic.GetHeaderRaw, OverrideValue: gatewayprovider.BindExecutionHeaderValue(account),
 		Sanitize: anthropic.SanitizeAnthropicBodyForBetaTokens, AllowedHeader: func(key string) bool { return allowedHeaders[key] },
 		WireCasing: anthropic.ResolveWireCasing, AddHeader: anthropic.AddHeaderRaw, SetHeader: anthropic.SetHeaderRaw,
 		AuthHeader: func(h http.Header, key string) {
 			anthropic.SetAPIKeyAuthHeader(h, gatewayprovider.ExecutionProtocolRecord(account).GetAnthropicAPIKeyAuthScheme() == accountcore.AnthropicAPIKeyAuthSchemeAuthorizationBearer, key)
-		}, ApplyOverrides: bindAccountHeaders(account),
+		}, ApplyOverrides: gatewayprovider.BindExecutionHeaders(account),
 	})
 }

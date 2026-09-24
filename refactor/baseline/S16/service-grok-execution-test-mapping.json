@@ -1,0 +1,3138 @@
+{
+  "assertion_call_count_changes": 1,
+  "baseline_head": "59e37e5f766742c4615890459436c1bdf5a5d04a",
+  "missing": 0,
+  "moved": 117,
+  "note": "名称、构建条件、源与目标函数摘要和断言调用对应；构造/投影改写以及循环展开须结合源码核对。",
+  "tests": [
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_audio_test.go",
+        "name": "TestBuildGrokVoiceURL_UsesAPIDefaultForCLIProxyBase",
+        "tag": "normal",
+        "body_sha256": "f28835b4049809621429ea8869a9e4bcafa513802e1a925c90b19cbd9863fe84",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_audio_test.go",
+          "name": "TestBuildGrokVoiceURL_UsesAPIDefaultForCLIProxyBase",
+          "tag": "normal",
+          "body_sha256": "66f60bfad0b8b310c74bc0f8d1e086a630216886d24b757f8077997445c084e9",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_audio_test.go",
+        "name": "TestBuildGrokVoiceURL_EmptyBaseFallsBackToAPI",
+        "tag": "normal",
+        "body_sha256": "635f748e90809f9d3c9af00ccf1cb4488576570c936582eb9c68b1870d71d08f",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_audio_test.go",
+          "name": "TestBuildGrokVoiceURL_EmptyBaseFallsBackToAPI",
+          "tag": "normal",
+          "body_sha256": "cd30f74bac915ffad8ef5aa0a17bbf8e15825593c1773fb54082a7f6b4254eb4",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_audio_test.go",
+        "name": "TestBuildGrokVoiceURL_RequiresEndpoint",
+        "tag": "normal",
+        "body_sha256": "15ff54674d773648bbd860b73fd42fb9f856d809cb1cbf4ffbdca379b37f7195",
+        "assertions": {
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_audio_test.go",
+          "name": "TestBuildGrokVoiceURL_RequiresEndpoint",
+          "tag": "normal",
+          "body_sha256": "fd5c4382a8d7fca33eb9c9dbe65549167474973d259e00bad956e3b1b2651453",
+          "assertions": {
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_audio_test.go",
+        "name": "TestBuildGrokVoiceURL_EncodesCustomVoicePathSegments",
+        "tag": "normal",
+        "body_sha256": "085402486181c66970ce0223bbf62cf1e10b4f4ed4adcab50e03ebf88b8a5aaf",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Error": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_audio_test.go",
+          "name": "TestBuildGrokVoiceURL_EncodesCustomVoicePathSegments",
+          "tag": "normal",
+          "body_sha256": "4e132bff79e9cfa87c32c8fe7c1116041d7c08ac9e5aadbf4e39270ade86aedf",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Error": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_audio_test.go",
+        "name": "TestForwardGrokVoice_RejectsNonGrok",
+        "tag": "normal",
+        "body_sha256": "f40a23f8d06ab463bafe91099a73dfc630edbd9c947c7f91e74c25e43f42aea1",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_audio_test.go",
+          "name": "TestForwardGrokVoice_RejectsNonGrok",
+          "tag": "normal",
+          "body_sha256": "deb26061565424696f05f92441c0cb93641f720eb5f32e70dfef4398a79bdda4",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_audio_test.go",
+        "name": "TestAwaitGrokRealtimeAudioObservedReadsFlagAfterRelayExits",
+        "tag": "normal",
+        "body_sha256": "25c1f427d657325b4c770464ef40624eb1ff36398a0b680e0d269712ff4f39e0",
+        "assertions": {
+          "require.ErrorIs": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_audio_test.go",
+          "name": "TestAwaitGrokRealtimeAudioObservedReadsFlagAfterRelayExits",
+          "tag": "normal",
+          "body_sha256": "25c1f427d657325b4c770464ef40624eb1ff36398a0b680e0d269712ff4f39e0",
+          "assertions": {
+            "require.ErrorIs": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_audio_test.go",
+        "name": "TestGrokRealtimeEventHasAudio",
+        "tag": "normal",
+        "body_sha256": "582b2496486b41a626d0abfd789a5996b60a1f1654a7e58da7e94bad678cdc62",
+        "assertions": {
+          "require.False": 3,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_audio_test.go",
+          "name": "TestGrokRealtimeEventHasAudio",
+          "tag": "normal",
+          "body_sha256": "582b2496486b41a626d0abfd789a5996b60a1f1654a7e58da7e94bad678cdc62",
+          "assertions": {
+            "require.False": 3,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_audio_test.go",
+        "name": "TestForwardGrokVoice_RejectsUnknownEndpoint",
+        "tag": "normal",
+        "body_sha256": "cf19347f1e1121460e302fdeff6bfe8f61465aeda0c96652ecbd26eab0c0927b",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_audio_test.go",
+          "name": "TestForwardGrokVoice_RejectsUnknownEndpoint",
+          "tag": "normal",
+          "body_sha256": "e97a5ab329f3c019cdc1d94bf99d64c7000a7574687c7c5163a58bf8e4bc3e16",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestForwardGrokMediaContentUsesUpstreamCredentialAndStreamsRange",
+        "tag": "unit",
+        "body_sha256": "4fe9747d5f5dd1928978ccd5ad2e64d193015243d351d504f3ee2ab581628fda",
+        "assertions": {
+          "require.Equal": 13,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestForwardGrokMediaContentUsesUpstreamCredentialAndStreamsRange",
+          "tag": "unit",
+          "body_sha256": "0f453881dfa26133b1954feb2748604b5950b78fb663a2edf0718d3e94dc0e4e",
+          "assertions": {
+            "require.Equal": 13,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestForwardGrokMediaContentStreamsFullResponseWithSafeDefaults",
+        "tag": "unit",
+        "body_sha256": "588454d48d4cee5c526249af9dc9da0b2ddba97d79e25a40681784f9d36fbd8f",
+        "assertions": {
+          "require.Empty": 4,
+          "require.Equal": 3,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestForwardGrokMediaContentStreamsFullResponseWithSafeDefaults",
+          "tag": "unit",
+          "body_sha256": "be65114582884ed884b9eb34a058f75785b23746201f0192039cf7f20daf032d",
+          "assertions": {
+            "require.Empty": 4,
+            "require.Equal": 3,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestForwardGrokMediaContentPreservesRangeNotSatisfiable",
+        "tag": "unit",
+        "body_sha256": "c2ecf0f9f0ccd1f14cce43b77cb8808bbdcf8881c1639d6b26d19e91a6d6426e",
+        "assertions": {
+          "require.Equal": 5,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestForwardGrokMediaContentPreservesRangeNotSatisfiable",
+          "tag": "unit",
+          "body_sha256": "84b7b46dcfec584cf5ae883bac009204c7e579212837664e2b9965632649390d",
+          "assertions": {
+            "require.Equal": 5,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestForwardGrokMediaContentFetchesValidatedSignedURLWithoutCredentials",
+        "tag": "unit",
+        "body_sha256": "eb25b104c2153b8d353b7b7e09c2cf9befc48ad9886787fea0d641a43de12f9e",
+        "assertions": {
+          "require.Empty": 2,
+          "require.Equal": 7,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestForwardGrokMediaContentFetchesValidatedSignedURLWithoutCredentials",
+          "tag": "unit",
+          "body_sha256": "3e52f73028fae91a1de27c10f28643b062b22a3d97a0d22a5c93fc19298ff15f",
+          "assertions": {
+            "require.Empty": 2,
+            "require.Equal": 7,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestForwardGrokMediaContentFollowsAuthenticatedSub2APIRelay",
+        "tag": "unit",
+        "body_sha256": "f100188e23bc9ddf5c79c72615ba75add5a4dc443c6e17dc95e432ab3b2f6ef1",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestForwardGrokMediaContentFollowsAuthenticatedSub2APIRelay",
+          "tag": "unit",
+          "body_sha256": "4d8ae296c3be9d234e9324dd32dbb9966620f1841e266f3c4336743449aad71e",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestForwardGrokMediaContentRejectsUntrustedSignedURL",
+        "tag": "unit",
+        "body_sha256": "7ca5686fd74993cf56b5fe19b5b02e325f486afbb4c7b1c2c5202dcfac0ab8ec",
+        "assertions": {
+          "require.ErrorContains": 1,
+          "require.Len": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestForwardGrokMediaContentRejectsUntrustedSignedURL",
+          "tag": "unit",
+          "body_sha256": "b3ecc221f6e66e495d8860d4f9ea5c5eca359043eedd57e3c687f19ef5c98e69",
+          "assertions": {
+            "require.ErrorContains": 1,
+            "require.Len": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestGrokMediaSignedVideoContentURLRejectsDeceptiveOrigins",
+        "tag": "unit",
+        "body_sha256": "b9bf9802376116b5b6d15ae7858fe0e412344c761cc60ae176b4e33fc01e8676",
+        "assertions": {
+          "require.ErrorContains": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestGrokMediaSignedVideoContentURLRejectsDeceptiveOrigins",
+          "tag": "unit",
+          "body_sha256": "287ed17b4b60cf725c325bac6712a36a202593965711b39755c260f2870beb34",
+          "assertions": {
+            "require.ErrorContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestGrokMediaSignedVideoContentURLRejectsDifferentRelayTask",
+        "tag": "unit",
+        "body_sha256": "994cce922d28979a962319a148e6ce5afb275743e26d9302c71f93b26ae0f19f",
+        "assertions": {
+          "require.ErrorContains": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestGrokMediaSignedVideoContentURLRejectsDifferentRelayTask",
+          "tag": "unit",
+          "body_sha256": "c49e0d0f1f8f606f60970d6f398be2f3879db0a9970b06e7ce14e7d79e58013f",
+          "assertions": {
+            "require.ErrorContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestForwardGrokVideoStatusRewritesOnlyProtectedContentURL",
+        "tag": "unit",
+        "body_sha256": "651538eec596fba70f102406a47d8e53d415fbb6207ecaae2e68bfd5f890d02b",
+        "assertions": {
+          "require.Equal": 5,
+          "require.NoError": 1,
+          "require.NotContains": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestForwardGrokVideoStatusRewritesOnlyProtectedContentURL",
+          "tag": "unit",
+          "body_sha256": "c7a6e3b64d04e85126c9c6c4b4f266341826fd429f1909eb2535d66f660d1335",
+          "assertions": {
+            "require.Equal": 5,
+            "require.NoError": 1,
+            "require.NotContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestRewriteGrokMediaVideoContentURLsPreservesOtherIDsAndHandlesNestedEscapedID",
+        "tag": "unit",
+        "body_sha256": "dd76362591bc5667024e4d56e90467a5ee9037cf9863cd1e3b64aee945772827",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestRewriteGrokMediaVideoContentURLsPreservesOtherIDsAndHandlesNestedEscapedID",
+          "tag": "unit",
+          "body_sha256": "dd76362591bc5667024e4d56e90467a5ee9037cf9863cd1e3b64aee945772827",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_content_test.go",
+        "name": "TestRewriteGrokMediaVideoContentURLsRewritesSignedVideoURL",
+        "tag": "unit",
+        "body_sha256": "cbf6c318ba5191142f349e47832d9be5b372a9fb583c3685014a90df132f80a9",
+        "assertions": {
+          "require.Equal": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_content_test.go",
+          "name": "TestRewriteGrokMediaVideoContentURLsRewritesSignedVideoURL",
+          "tag": "unit",
+          "body_sha256": "cbf6c318ba5191142f349e47832d9be5b372a9fb583c3685014a90df132f80a9",
+          "assertions": {
+            "require.Equal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_image_geometry_test.go",
+        "name": "TestApplyGrokImagineImageGeometryMapsOpenAISize",
+        "tag": "normal",
+        "body_sha256": "c0d4c2aa067c1d76f61731e9315e08805e235180a154a9d573477aa92fe85247",
+        "assertions": {
+          "require.Equal": 2,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_image_geometry_test.go",
+          "name": "TestApplyGrokImagineImageGeometryMapsOpenAISize",
+          "tag": "normal",
+          "body_sha256": "c0d4c2aa067c1d76f61731e9315e08805e235180a154a9d573477aa92fe85247",
+          "assertions": {
+            "require.Equal": 2,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_image_geometry_test.go",
+        "name": "TestApplyGrokImagineImageGeometryKeepsClientGeometry",
+        "tag": "normal",
+        "body_sha256": "0af5ed24344905889c17bc2383ddf5300d2f9f165480df8fbcb258e08943551e",
+        "assertions": {
+          "require.Equal": 2,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_image_geometry_test.go",
+          "name": "TestApplyGrokImagineImageGeometryKeepsClientGeometry",
+          "tag": "normal",
+          "body_sha256": "0af5ed24344905889c17bc2383ddf5300d2f9f165480df8fbcb258e08943551e",
+          "assertions": {
+            "require.Equal": 2,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_image_geometry_test.go",
+        "name": "TestSanitizeGrokMediaForwardBodyConvertsImageSize",
+        "tag": "normal",
+        "body_sha256": "8f28be2f57fa08740dec3c6b74c0444797a634a4a967f67d7d5e31261d7fd408",
+        "assertions": {
+          "require.Equal": 3,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_image_geometry_test.go",
+          "name": "TestSanitizeGrokMediaForwardBodyConvertsImageSize",
+          "tag": "normal",
+          "body_sha256": "8f28be2f57fa08740dec3c6b74c0444797a634a4a967f67d7d5e31261d7fd408",
+          "assertions": {
+            "require.Equal": 3,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_image_geometry_test.go",
+        "name": "TestParseGrokMediaRequestKeepsImageResolutionOutOfVideoNormalize",
+        "tag": "normal",
+        "body_sha256": "23e2830b14d9e48cff8fe65ad722de36fd4c2e818204fb4a38598a00408b6077",
+        "assertions": {
+          "require.Equal": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_image_geometry_test.go",
+          "name": "TestParseGrokMediaRequestKeepsImageResolutionOutOfVideoNormalize",
+          "tag": "normal",
+          "body_sha256": "23e2830b14d9e48cff8fe65ad722de36fd4c2e818204fb4a38598a00408b6077",
+          "assertions": {
+            "require.Equal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_image_geometry_test.go",
+        "name": "TestGrokImagineAspectRatioFromSize",
+        "tag": "normal",
+        "body_sha256": "c3e58686b2175369855fcf062b4e9c4e3676bd8cbe20a86a92e870602a415649",
+        "assertions": {
+          "require.Equal": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_image_geometry_test.go",
+          "name": "TestGrokImagineAspectRatioFromSize",
+          "tag": "normal",
+          "body_sha256": "c3e58686b2175369855fcf062b4e9c4e3676bd8cbe20a86a92e870602a415649",
+          "assertions": {
+            "require.Equal": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_video_billing_test.go",
+        "name": "TestGrokVideoE2EDurationFromCreatedAt",
+        "tag": "normal",
+        "body_sha256": "048e95272458298ae94c430c181a0f8ce4eedfe5a72689e08921e0b52e25459c",
+        "assertions": {
+          "require.Equal": 3,
+          "require.GreaterOrEqual": 1,
+          "require.LessOrEqual": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_video_billing_test.go",
+          "name": "TestGrokVideoE2EDurationFromCreatedAt",
+          "tag": "normal",
+          "body_sha256": "048e95272458298ae94c430c181a0f8ce4eedfe5a72689e08921e0b52e25459c",
+          "assertions": {
+            "require.Equal": 3,
+            "require.GreaterOrEqual": 1,
+            "require.LessOrEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_video_billing_test.go",
+        "name": "TestGrokVideoPendingCreatedAtStampOnStoreShape",
+        "tag": "normal",
+        "body_sha256": "3abc416b7ec94fbb45baf20baa6fee594f43c74881d3bddb5011b7cce6a05aea",
+        "assertions": {
+          "require.GreaterOrEqual": 1,
+          "require.LessOrEqual": 1,
+          "require.NotEmpty": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_video_billing_test.go",
+          "name": "TestGrokVideoPendingCreatedAtStampOnStoreShape",
+          "tag": "normal",
+          "body_sha256": "3abc416b7ec94fbb45baf20baa6fee594f43c74881d3bddb5011b7cce6a05aea",
+          "assertions": {
+            "require.GreaterOrEqual": 1,
+            "require.LessOrEqual": 1,
+            "require.NotEmpty": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_video_billing_test.go",
+        "name": "TestIsGrokVideoStatusBillable",
+        "tag": "normal",
+        "body_sha256": "e598ee7b5fe489348780cf78713357160dce72662a16a455144943fa66ba773e",
+        "assertions": {
+          "require.False": 8,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_video_billing_test.go",
+          "name": "TestIsGrokVideoStatusBillable",
+          "tag": "normal",
+          "body_sha256": "e598ee7b5fe489348780cf78713357160dce72662a16a455144943fa66ba773e",
+          "assertions": {
+            "require.False": 8,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_video_billing_test.go",
+        "name": "TestExtractGrokVideoBillingFromStatusBodyPrefersUpstreamParams",
+        "tag": "normal",
+        "body_sha256": "ae182d516eca36614c3651357688302557fee39811ce6f3c9263772e50074699",
+        "assertions": {
+          "require.Equal": 4,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_video_billing_test.go",
+          "name": "TestExtractGrokVideoBillingFromStatusBodyPrefersUpstreamParams",
+          "tag": "normal",
+          "body_sha256": "ae182d516eca36614c3651357688302557fee39811ce6f3c9263772e50074699",
+          "assertions": {
+            "require.Equal": 4,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_video_billing_test.go",
+        "name": "TestExtractGrokVideoBillingFromStatusBodyFallsBackToPending",
+        "tag": "normal",
+        "body_sha256": "7a4e79e6dc1de788c1f4cc055482c4735e90ba8171fd92ba19d66cf94ef94dea",
+        "assertions": {
+          "require.Equal": 4,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_video_billing_test.go",
+          "name": "TestExtractGrokVideoBillingFromStatusBodyFallsBackToPending",
+          "tag": "normal",
+          "body_sha256": "7a4e79e6dc1de788c1f4cc055482c4735e90ba8171fd92ba19d66cf94ef94dea",
+          "assertions": {
+            "require.Equal": 4,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_video_billing_test.go",
+        "name": "TestExtractGrokVideoBillingRejectsNonDoneStatus",
+        "tag": "normal",
+        "body_sha256": "7ff84dd6ef18829063e5b6295bd1e989a61664ab917e57c357e268d19f9ff27a",
+        "assertions": {
+          "require.Nil": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_video_billing_test.go",
+          "name": "TestExtractGrokVideoBillingRejectsNonDoneStatus",
+          "tag": "normal",
+          "body_sha256": "7ff84dd6ef18829063e5b6295bd1e989a61664ab917e57c357e268d19f9ff27a",
+          "assertions": {
+            "require.Nil": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_video_billing_test.go",
+        "name": "TestGrokMediaUsageFromResponseVideoCreateDoesNotBill",
+        "tag": "normal",
+        "body_sha256": "f1e5ac1d2a95d62e0aca0fb1f847fdfa3ef248b0f27d6c7b09fcb0d9480e7153",
+        "assertions": {
+          "require.Equal": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_video_billing_test.go",
+          "name": "TestGrokMediaUsageFromResponseVideoCreateDoesNotBill",
+          "tag": "normal",
+          "body_sha256": "f1e5ac1d2a95d62e0aca0fb1f847fdfa3ef248b0f27d6c7b09fcb0d9480e7153",
+          "assertions": {
+            "require.Equal": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_media_video_billing_test.go",
+        "name": "TestGrokMediaUsageFromResponseVideoStatusBillsOnOfficialDone",
+        "tag": "normal",
+        "body_sha256": "fbce661bfd70cb01aba07cd0014fe7d329e512bc272ed6768baac573b62d80a1",
+        "assertions": {
+          "require.Equal": 5
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_media_video_billing_test.go",
+          "name": "TestGrokMediaUsageFromResponseVideoStatusBillsOnOfficialDone",
+          "tag": "normal",
+          "body_sha256": "fbce661bfd70cb01aba07cd0014fe7d329e512bc272ed6768baac573b62d80a1",
+          "assertions": {
+            "require.Equal": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_headers_test.go",
+        "name": "TestApplyDefaultGrokUpstreamHeadersUsesCLIUserAgent",
+        "tag": "normal",
+        "body_sha256": "1754070f783cdd8d798cd932a9a5b179e98d6d0394d0e9e612eeb5db6ad7e132",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_request_headers_test.go",
+          "name": "TestApplyDefaultGrokUpstreamHeadersUsesCLIUserAgent",
+          "tag": "normal",
+          "body_sha256": "1754070f783cdd8d798cd932a9a5b179e98d6d0394d0e9e612eeb5db6ad7e132",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_headers_test.go",
+        "name": "TestApplyDefaultGrokUpstreamHeadersHonorsCLIVersionOverride",
+        "tag": "normal",
+        "body_sha256": "5be83b48995d8d5981b9f078a355cbb8f76dafec7695e679b93f26c34173b0df",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_request_headers_test.go",
+          "name": "TestApplyDefaultGrokUpstreamHeadersHonorsCLIVersionOverride",
+          "tag": "normal",
+          "body_sha256": "5be83b48995d8d5981b9f078a355cbb8f76dafec7695e679b93f26c34173b0df",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": false,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_headers_test.go",
+        "name": "TestResolveGrokUpstreamUserAgentNeverPassthrough",
+        "tag": "normal",
+        "body_sha256": "0a68b882ccee0825a604e7e9ce6c11200896b297ffa27684fd0f2e0ec47ad9d5",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_request_headers_test.go",
+          "name": "TestResolveGrokUpstreamUserAgentNeverPassthrough",
+          "tag": "normal",
+          "body_sha256": "879286d7de79c9e46a2a104bbc2293b9e257ee0d9bab42de51e247539885d13a",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_headers_test.go",
+        "name": "TestApplyGrokRuntimeHeadersKeepsCLIUserAgent",
+        "tag": "normal",
+        "body_sha256": "6e5858f57ce5f049a757061e6e3e1adcc287b2a83a460131a2cab80df0218ced",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_request_headers_test.go",
+          "name": "TestApplyGrokRuntimeHeadersKeepsCLIUserAgent",
+          "tag": "normal",
+          "body_sha256": "24b6ba36633925533308fb0d058953fd77339f12c8729c01658df6ebbd73a344",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_headers_test.go",
+        "name": "TestApplyGrokTLSProfileHeadersAlwaysUsesCLIUserAgent",
+        "tag": "normal",
+        "body_sha256": "6d856071a2957e9317f7f7a689e2d52145defeaa155167ea80a0097e8dcb2da8",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_request_headers_test.go",
+          "name": "TestApplyGrokTLSProfileHeadersAlwaysUsesCLIUserAgent",
+          "tag": "normal",
+          "body_sha256": "6715b6e1e7c01cca8fa2b5827455241f109679608d1e3b54895e30addd27e071",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_url_test.go",
+        "name": "TestGrokAPIKeyURLPolicyFollowsGlobalSecurityConfig",
+        "tag": "unit",
+        "body_sha256": "0d70f5419682d5bddc2b9fef3989478e9b4bc55aceee7f1d7d99d8bddd601824",
+        "assertions": {
+          "require.Equal": 4,
+          "require.EqualError": 2,
+          "require.NoError": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/app/grok_routes_test.go",
+          "name": "TestGrokAPIKeyURLPolicyFollowsGlobalSecurityConfig",
+          "tag": "unit",
+          "body_sha256": "9e1631aac19a980139ee90b925a373fe15b94773693725cc44109a40f385c06a",
+          "assertions": {
+            "require.Equal": 4,
+            "require.EqualError": 2,
+            "require.NoError": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_url_test.go",
+        "name": "TestGrokAPIKeyURLPolicyAppliesAllowlistAndPrivateHostControls",
+        "tag": "unit",
+        "body_sha256": "38cbefbb415403feecb37b6dd22b2ef971d8e140bec2d687cb71722a0ee36861",
+        "assertions": {
+          "require.Equal": 2,
+          "require.EqualError": 2,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/app/grok_routes_test.go",
+          "name": "TestGrokAPIKeyURLPolicyAppliesAllowlistAndPrivateHostControls",
+          "tag": "unit",
+          "body_sha256": "f9e0f5f648535f41635de8229990a2a5f4f7b843085edf94ba5da439d44f3497",
+          "assertions": {
+            "require.Equal": 2,
+            "require.EqualError": 2,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_url_test.go",
+        "name": "TestGrokAPIKeyURLPolicyRedactsMalformedConfiguredURL",
+        "tag": "unit",
+        "body_sha256": "7f4d89cbc54d23ed83397e3ec007fa596ddd1764f4b76b21c8a793f3ed4fd5a9",
+        "assertions": {
+          "require.EqualError": 1,
+          "require.NotContains": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/app/grok_routes_test.go",
+          "name": "TestGrokAPIKeyURLPolicyRedactsMalformedConfiguredURL",
+          "tag": "unit",
+          "body_sha256": "2a5a1749cefb5f1f3a852f0f97ffefd35b6a73f4f7840515d033590f411355ca",
+          "assertions": {
+            "require.EqualError": 1,
+            "require.NotContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_url_test.go",
+        "name": "TestGrokOAuthURLPolicy",
+        "tag": "unit",
+        "body_sha256": "14a34efd8ad3963bd179cca6eef1c1ba93f8e52632ccea546d12dd2ebd86ca81",
+        "assertions": {
+          "require.Equal": 7,
+          "require.EqualError": 3,
+          "require.NoError": 7
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/app/grok_routes_test.go",
+          "name": "TestGrokOAuthURLPolicy",
+          "tag": "unit",
+          "body_sha256": "f11da81b1ba5b9d895313a7ed85fcd65e4a5bf3f281e85bcad74ccb4b783c691",
+          "assertions": {
+            "require.Equal": 7,
+            "require.EqualError": 3,
+            "require.NoError": 7
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_upstream_url_test.go",
+        "name": "TestGrokOAuthMediaURLFollowsCustomForwardingUpstream",
+        "tag": "unit",
+        "body_sha256": "b7f663437a20a3b7e83e955dcaf284b0b0967453b0568fad87d39973dd2a8ec3",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/app/grok_routes_test.go",
+          "name": "TestGrokOAuthMediaURLFollowsCustomForwardingUpstream",
+          "tag": "unit",
+          "body_sha256": "c176c5d5c93220ce779bc53cfab80ee7e7cf5b05ba642e27d471c5e1b0107875",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokPreviousResponseSessionSeed",
+        "tag": "unit",
+        "body_sha256": "ab922f4658b17465577f4171e9335c539c43dd1e669a0e459f71192edb068c6e",
+        "assertions": {
+          "require.Empty": 3,
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokPreviousResponseSessionSeed",
+          "tag": "unit",
+          "body_sha256": "ab922f4658b17465577f4171e9335c539c43dd1e669a0e459f71192edb068c6e",
+          "assertions": {
+            "require.Empty": 3,
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityUsesPreviousResponseIDWhenNoOtherSeed",
+        "tag": "unit",
+        "body_sha256": "5123eb170318aa671c4d60a2cba2f567e28c399a48bdf9311ba6c471709da80c",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NotEmpty": 2,
+          "require.NotEqual": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityUsesPreviousResponseIDWhenNoOtherSeed",
+          "tag": "unit",
+          "body_sha256": "84b3d3f79914c2cc8b3af8d8e0df74d22a70d0de1738e8278c9e6e445ecd5859",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NotEmpty": 2,
+            "require.NotEqual": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityStableAcrossAppendOnlyTurns",
+        "tag": "unit",
+        "body_sha256": "7b3df19eadbe1f527ce20d9c25a1aef1c2c407651a79c9472a167590a2f76360",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Len": 1,
+          "require.NotEmpty": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityStableAcrossAppendOnlyTurns",
+          "tag": "unit",
+          "body_sha256": "08687bf89410096747008fd97d34efeaafbf42c8995c87e83528fd1dff21db1d",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Len": 1,
+            "require.NotEmpty": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityStableAcrossIndependentPromptsWithSamePrefix",
+        "tag": "unit",
+        "body_sha256": "54091066d9c0d79f94d79d3fea668e829cb803461cc0e85080b7e4039cbcfcc9",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NotEmpty": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityStableAcrossIndependentPromptsWithSamePrefix",
+          "tag": "unit",
+          "body_sha256": "9664aefa2776792eb27d8331fd402288ce4a962e9196ce7cbf5747e49290b6c3",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NotEmpty": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityStablePrefixIsolation",
+        "tag": "unit",
+        "body_sha256": "8231b06643066e023fa8ddbf83ad58e6c3a345ada5b0772660dc9210565eaef7",
+        "assertions": {
+          "require.NotEqual": 5
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityStablePrefixIsolation",
+          "tag": "unit",
+          "body_sha256": "d4f9a74d1fa0ce5f33521d90117f4504e1cfb2911ff989af386dd0d67b2a2270",
+          "assertions": {
+            "require.NotEqual": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityFallsBackWhenStablePrefixIsEmpty",
+        "tag": "unit",
+        "body_sha256": "292bf92a108fb45329a9df7b64710c0c9558ba0fa6d4c1fa9018e00ef6db2475",
+        "assertions": {
+          "require.NotEmpty": 2,
+          "require.NotEqual": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityFallsBackWhenStablePrefixIsEmpty",
+          "tag": "unit",
+          "body_sha256": "771c2d674c87925c52dc705522273c1442596b1e1babe4ae2bd4cf9bb14493ed",
+          "assertions": {
+            "require.NotEmpty": 2,
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentitySkipsUnanchoredFallback",
+        "tag": "unit",
+        "body_sha256": "520bce05ea72ff8305a9afd8355f1bafc60658e0c8b4c8739f6b0e2111074c45",
+        "assertions": {
+          "require.Empty": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentitySkipsUnanchoredFallback",
+          "tag": "unit",
+          "body_sha256": "a2dfca42f1784e82eaf65c0a068d96ebca61fe0f78940b9c6ec688a2b930d865",
+          "assertions": {
+            "require.Empty": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityIsolatesAPIKeyAndMappedModel",
+        "tag": "unit",
+        "body_sha256": "65adc3629e62de19b4cd475499c00e9e61d75d9c17cde3bc476a1681750348b7",
+        "assertions": {
+          "require.NotEmpty": 1,
+          "require.NotEqual": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityIsolatesAPIKeyAndMappedModel",
+          "tag": "unit",
+          "body_sha256": "1d3fd0d8b400719c9cdf68846036486c136c70458b5413a06585195da94a01af",
+          "assertions": {
+            "require.NotEmpty": 1,
+            "require.NotEqual": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityUsesAndIsolatesNativeConversationHeader",
+        "tag": "unit",
+        "body_sha256": "4bc3da8a2c2becdc35870ca8409923667e22a59b80a22ffd23b057b8ee32ef83",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NotContains": 1,
+          "require.NotEqual": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityUsesAndIsolatesNativeConversationHeader",
+          "tag": "unit",
+          "body_sha256": "80961619bc09342c6c9acbd1cea4215251111cff9ea687eab24116adb23be29b",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NotContains": 1,
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityExplicitHeaderPriority",
+        "tag": "unit",
+        "body_sha256": "b6803e7f15c68ffe3c69a9833fd83108c0a6ce1a2b76b84f9aade52fa8117ba2",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityExplicitHeaderPriority",
+          "tag": "unit",
+          "body_sha256": "98b0b87b4ec0dcd776a048a8bfb4c7b4113797599c13da2e2cb733f8350ebbb5",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityIDEHeaderPriority",
+        "tag": "unit",
+        "body_sha256": "229f3d064a635262910d0ef1ffb9e352baf539c5b96b79f5c343621ee5d1c900",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NotEqual": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityIDEHeaderPriority",
+          "tag": "unit",
+          "body_sha256": "d4fab4987be1b9c415c11ddfeffbf2c36f076d9aa94d2dfaae7131bef75cd426",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentitySideCallSharesParentCacheKey",
+        "tag": "unit",
+        "body_sha256": "9cc34f286d5a0074dea5d5e942916194e55caea7bae9c52e66738d12d3219843",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NotEmpty": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentitySideCallSharesParentCacheKey",
+          "tag": "unit",
+          "body_sha256": "b10098ad4bd35616ca849ca754b30a887c279f51b485462f5c722c67f18781cf",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NotEmpty": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestExplicitGrokCacheSeedPriority",
+        "tag": "unit",
+        "body_sha256": "9085b10515c0d519ccfe3004d58a55d668f3ad2547c79b9ccbec356920fbe336",
+        "assertions": {
+          "require.Equal": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestExplicitGrokCacheSeedPriority",
+          "tag": "unit",
+          "body_sha256": "3245a556d98e4d76293c72d2813a6883c28ec0b1e1f97f69b4aa6a5b578ef5a7",
+          "assertions": {
+            "require.Equal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityIDEHeadersAreStableIsolatedAndOpaque",
+        "tag": "unit",
+        "body_sha256": "08d596c042582e82ac17d35a590ee24c5a0d3026a3637c7ce1ace304c7aeb41f",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NotContains": 1,
+          "require.NotEmpty": 1,
+          "require.NotEqual": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityIDEHeadersAreStableIsolatedAndOpaque",
+          "tag": "unit",
+          "body_sha256": "7bc85deecce9dbc4c02ecf9bb9b28934ac8d5250bd6c37352d312359b234d560",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NotContains": 1,
+            "require.NotEmpty": 1,
+            "require.NotEqual": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestOpenCodeResponsesHeaderAndBodyCacheSignalsConverge",
+        "tag": "unit",
+        "body_sha256": "6bde9da3e2a079c1b14ec79a7a7030c8bcb73f4fb8ca51f011dbac75e8215902",
+        "assertions": {
+          "require.Equal": 4,
+          "require.NoError": 1,
+          "require.NotContains": 1,
+          "require.NotEmpty": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestOpenCodeResponsesHeaderAndBodyCacheSignalsConverge",
+          "tag": "unit",
+          "body_sha256": "400863788054cbae4652653bc52f8b01ef7d5dd02dd59d12ce8008c3567bd37d",
+          "assertions": {
+            "require.Equal": 4,
+            "require.NoError": 1,
+            "require.NotContains": 1,
+            "require.NotEmpty": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityPrefersClaudeCodeSession",
+        "tag": "unit",
+        "body_sha256": "ba71590e9b13f7ddfa3786e47559e7ad00bdb311a66e9e6c22c463aefc259024",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NotEmpty": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityPrefersClaudeCodeSession",
+          "tag": "unit",
+          "body_sha256": "b287483f3399dbb046ff29aa2ae854115afbee52e826ccb573861325372df72b",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NotEmpty": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityFailsClosedWithoutAPIKeyContext",
+        "tag": "unit",
+        "body_sha256": "dcfe9e382c0d25dab99de7576f71450c4d4179f413ced493f15bcfed5aeaf3d9",
+        "assertions": {
+          "require.Empty": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityFailsClosedWithoutAPIKeyContext",
+          "tag": "unit",
+          "body_sha256": "2162d53a4db39fff9004d4d1fc5c61e418f356ef576f3d76493a4ffcf7fd3dd9",
+          "assertions": {
+            "require.Empty": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokConversationHeaderIsScopedToGrokRequestScheduling",
+        "tag": "unit",
+        "body_sha256": "9bc2a51d6dd646a27e3db28776b1419c2a074cef53ab9d85471bfd4efa7d8efd",
+        "assertions": {
+          "require.Equal": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokConversationHeaderIsScopedToGrokRequestScheduling",
+          "tag": "unit",
+          "body_sha256": "4250acc98d97b034a1ef6f12e68fae7c864306ea38c26414d589dffc7ad53ada",
+          "assertions": {
+            "require.Equal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestApplyGrokCacheIdentityWritesResponsesBodyAndHeader",
+        "tag": "unit",
+        "body_sha256": "7c2155f9f80a9a306bcf7e51581283333080a67de57af2807fba7d283df8a458",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 5,
+          "require.False": 4,
+          "require.NoError": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestApplyGrokCacheIdentityWritesResponsesBodyAndHeader",
+          "tag": "unit",
+          "body_sha256": "7e55e0633cfebd2717aebf639c791acbde858b1ffc45fd0af2576383702139f9",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 5,
+            "require.False": 4,
+            "require.NoError": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeMessagesClientToolCacheDefaultsOnForKnownFree",
+        "tag": "unit",
+        "body_sha256": "22d5df2e29e8698ff4f25a7ab96abedab5890706cffcbb2639626777f5805116",
+        "assertions": {
+          "require.Equal": 8,
+          "require.Len": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeMessagesClientToolCacheDefaultsOnForKnownFree",
+          "tag": "unit",
+          "body_sha256": "3a29d895452ed5096f7448b3ef9106b13c5073a35dfa65fe2760ea74f5db66e8",
+          "assertions": {
+            "require.Equal": 8,
+            "require.Len": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeFunctionToolCacheRouteConvertsNamedSearchFunctions",
+        "tag": "unit",
+        "body_sha256": "d28f9a76d5b839936e1cd9218e1038c7bd53e1fd61d14612997064269b22dad1",
+        "assertions": {
+          "require.Equal": 4,
+          "require.False": 2,
+          "require.JSONEq": 1,
+          "require.Len": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeFunctionToolCacheRouteConvertsNamedSearchFunctions",
+          "tag": "unit",
+          "body_sha256": "0e912e301fa97c927aabe9aca3b49935155d591edebdf28078600ca734386ac8",
+          "assertions": {
+            "require.Equal": 4,
+            "require.False": 2,
+            "require.JSONEq": 1,
+            "require.Len": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeMessagesClientToolCacheDefaultsWithMissingAccountSetting",
+        "tag": "unit",
+        "body_sha256": "6d33537970ce596217b514be5f2017b6f88da8e66c58a6d1d9d895b8b94d14cf",
+        "assertions": {
+          "require.Equal": 2,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeMessagesClientToolCacheDefaultsWithMissingAccountSetting",
+          "tag": "unit",
+          "body_sha256": "e62aa47dc825c95d6c08056197d6bf42d1edb74c5b77bda5605ef2eeb1c3e858",
+          "assertions": {
+            "require.Equal": 2,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestApplyGrokCacheIdentityAppendsNativeToolsWhenSearchPresent",
+        "tag": "unit",
+        "body_sha256": "05b70fb1b219536e6bc994f727ec3520fcc854dc27586b91d13a4a0550029f2f",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Len": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestApplyGrokCacheIdentityAppendsNativeToolsWhenSearchPresent",
+          "tag": "unit",
+          "body_sha256": "bb3498a8796b3d8c948466148529fab38a4b3ea7930be474345297c1498e3397",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Len": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeClientToolCacheAccountOptIn",
+        "tag": "unit",
+        "body_sha256": "0e4d0277f6f0637895d8884a8bf1f67fddaa42c330bdaa41113a06925bb77594",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Len": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeClientToolCacheAccountOptIn",
+          "tag": "unit",
+          "body_sha256": "1ea29b6f5fe10f5a13ecb4b2b694f7a36aee447e76c1dd8a1771fb10c43ff10b",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Len": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeMessagesClientToolCacheAccountOptOut",
+        "tag": "unit",
+        "body_sha256": "e196bb34dc5c2b1e67682b9d818348dc6fbbacc9fc68592c651891280bd79bb4",
+        "assertions": {
+          "require.JSONEq": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeMessagesClientToolCacheAccountOptOut",
+          "tag": "unit",
+          "body_sha256": "771b75d9986e940b96d6f02aee32e34964d5e3fba1313d25981d7322b4b77b6b",
+          "assertions": {
+            "require.JSONEq": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeClientToolCacheRequestOptInOverridesAccountOptOut",
+        "tag": "unit",
+        "body_sha256": "c0d52c4bbc7453389270a2ad89ec7501d1ab819495d2f1b21c3e54b94a72c118",
+        "assertions": {
+          "require.Equal": 3,
+          "require.Len": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeClientToolCacheRequestOptInOverridesAccountOptOut",
+          "tag": "unit",
+          "body_sha256": "b2d12436811a954aa3598b8a92cce5c77de51adfcc632a60e60ebe79849648a6",
+          "assertions": {
+            "require.Equal": 3,
+            "require.Len": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeChatRequestClientToolCacheDefaultsOnWithoutClientFingerprint",
+        "tag": "unit",
+        "body_sha256": "892828bc9a3c9b0e967276546635c2efebf64d616a0bc5103ac38bc78897338e",
+        "assertions": {
+          "require.Equal": 3,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeChatRequestClientToolCacheDefaultsOnWithoutClientFingerprint",
+          "tag": "unit",
+          "body_sha256": "1503907f4029a07ff9f21a65ac4261237b515694decbca5f9632ad2dc405ec40",
+          "assertions": {
+            "require.Equal": 3,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeClientToolCacheClaudeDesktopResponsesAutoOptIn",
+        "tag": "unit",
+        "body_sha256": "9e3b2bf7a893bdf4e4b501308f13526ace368300b93cb4cec1cc72737f79726f",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeClientToolCacheClaudeDesktopResponsesAutoOptIn",
+          "tag": "unit",
+          "body_sha256": "5e2405c773b81bdf115b9bb871630f5cc592770767e3c6830d3a6d793415a23f",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeClientToolCacheClaudeDesktopFingerprintRequiresAllSignals",
+        "tag": "unit",
+        "body_sha256": "374a08f55d849d2bfa9c81db6c422f8fc47dd2d16def2a227acffe7af7297fcf",
+        "assertions": {
+          "require.JSONEq": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeClientToolCacheClaudeDesktopFingerprintRequiresAllSignals",
+          "tag": "unit",
+          "body_sha256": "1ef22ecab5dbb232f7b30e7defacc7f269ceb4ce2f4d688d603827b7b31af11f",
+          "assertions": {
+            "require.JSONEq": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeClientToolCacheExplicitRequestOptOut",
+        "tag": "unit",
+        "body_sha256": "99da0c86f708a8f9110d773233abcd57cd76686a412682e4415e52595fc902a3",
+        "assertions": {
+          "require.JSONEq": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeClientToolCacheExplicitRequestOptOut",
+          "tag": "unit",
+          "body_sha256": "56f77cebb8443f1228708cd349bcf1e81207ff8739a3cd4635aba2d2b4e22af8",
+          "assertions": {
+            "require.JSONEq": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeClientToolCacheClaudeDesktopAutoOptInDoesNotOverridePaidTier",
+        "tag": "unit",
+        "body_sha256": "14adcb0d1596ebbf6220519d35433a76986eaa7703f0064927e80ad19639a8f1",
+        "assertions": {
+          "require.JSONEq": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeClientToolCacheClaudeDesktopAutoOptInDoesNotOverridePaidTier",
+          "tag": "unit",
+          "body_sha256": "e1d556fa8cd111ffc080a838f9ffffa78c346ef65589d19076a84bcd587309dd",
+          "assertions": {
+            "require.JSONEq": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeRequestClientSearchFunctionUsesDefaultAccountPolicy",
+        "tag": "unit",
+        "body_sha256": "93d3dcc2acb4a5b2e72be45168c73bc3643543c798669bb1957d2ec4d48abc9f",
+        "assertions": {
+          "require.Equal": 3,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeRequestClientSearchFunctionUsesDefaultAccountPolicy",
+          "tag": "unit",
+          "body_sha256": "211fc47250f98ee64bd154c78c918171dedb871c5c295c3a735aa9baf1ea7fed",
+          "assertions": {
+            "require.Equal": 3,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeRequestToolChoiceNoneUsesSafeCacheRoute",
+        "tag": "unit",
+        "body_sha256": "3c01b732ab89903c4d0f32f69b7b29b177b27081a31c6bc76754e0813e83f896",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeRequestToolChoiceNoneUsesSafeCacheRoute",
+          "tag": "unit",
+          "body_sha256": "53635636964fce3a8620c0ed3ceb0fd8b3feccd55cdc9210f80124089777bfc2",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestApplyGrokCacheIdentityRecognizesResponsesLiteAdditionalTools",
+        "tag": "unit",
+        "body_sha256": "23046f278cebb6df5037122fb4abf7543d8a79b15cb43a64a47ad004974ededb",
+        "assertions": {
+          "require.Equal": 2,
+          "require.False": 1,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestApplyGrokCacheIdentityRecognizesResponsesLiteAdditionalTools",
+          "tag": "unit",
+          "body_sha256": "23046f278cebb6df5037122fb4abf7543d8a79b15cb43a64a47ad004974ededb",
+          "assertions": {
+            "require.Equal": 2,
+            "require.False": 1,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeCacheRoutePreservesMixedSupportedToolsWithSearchIntent",
+        "tag": "unit",
+        "body_sha256": "c10f9b6fc58123f4093e042e0b6b23a8bc0df7953457a043b083c95a5b73b1bb",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Len": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeCacheRoutePreservesMixedSupportedToolsWithSearchIntent",
+          "tag": "unit",
+          "body_sha256": "381412673681550fe629bc8ce9dd3d49314f9215b550cf6f07e51c5df2bcd2b3",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Len": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokClientToolCacheOptInDoesNotOverridePaidTier",
+        "tag": "unit",
+        "body_sha256": "05f3a4b06d82abe7af0e84aca6058c5f1fd59e785e927cf2bdf6fa18ac3706cf",
+        "assertions": {
+          "require.JSONEq": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokClientToolCacheOptInDoesNotOverridePaidTier",
+          "tag": "unit",
+          "body_sha256": "efe3a07aeac9937cc1baa98d667e5abf8b9793b24846c404849b87af2b6d3e91",
+          "assertions": {
+            "require.JSONEq": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestApplyGrokCacheIdentityRequiresPatchedFunctionTools",
+        "tag": "unit",
+        "body_sha256": "a8e90f51177b95521072b5e61e1f354f4ebff41503ed4d5dfce23da015c40f34",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestApplyGrokCacheIdentityRequiresPatchedFunctionTools",
+          "tag": "unit",
+          "body_sha256": "76201cb24c3a2aff7518287d79b3cf745e9382502bc08be26853a93d5f3fac67",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier",
+        "tag": "unit",
+        "body_sha256": "36fd7c714b56c8936338fdb727b8a3740b9347f11e3464b4576d0c8ef10c09ec",
+        "assertions": {
+          "require.Equal": 2,
+          "require.Len": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier",
+          "tag": "unit",
+          "body_sha256": "996de84960152867392a8f09fa5b78e14381efce2628105693c1aabae779b596",
+          "assertions": {
+            "require.Equal": 2,
+            "require.Len": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokFreeMessagesFunctionToolCacheRouteRequiresIdentity",
+        "tag": "unit",
+        "body_sha256": "14596f41c56ed3b5661516992b2c433d6bf2fa0aa3d18a60aee43c313c062cbd",
+        "assertions": {
+          "require.JSONEq": 1,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokFreeMessagesFunctionToolCacheRouteRequiresIdentity",
+          "tag": "unit",
+          "body_sha256": "6b9983d2271ea225c27365a6c725c94b687135799f21979200df2874883bdb10",
+          "assertions": {
+            "require.JSONEq": 1,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestApplyGrokCacheIdentityPreservesIneligibleClientToolFields",
+        "tag": "unit",
+        "body_sha256": "18a6a43441f2ff3f2670f4d86d2517661faa95885c7fe0ad18553e729fbad98b",
+        "assertions": {
+          "require.Equal": 5,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestApplyGrokCacheIdentityPreservesIneligibleClientToolFields",
+          "tag": "unit",
+          "body_sha256": "18a6a43441f2ff3f2670f4d86d2517661faa95885c7fe0ad18553e729fbad98b",
+          "assertions": {
+            "require.Equal": 5,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestApplyGrokCacheIdentityUsesPreSanitizationToolIntent",
+        "tag": "unit",
+        "body_sha256": "703a9328288bc51060ebf2c48fd4e813338e5a04c6cdc5da17c1e86c33cc8ebb",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestApplyGrokCacheIdentityUsesPreSanitizationToolIntent",
+          "tag": "unit",
+          "body_sha256": "fc90a611f0e805cff245389bcd069189da4a61f2d869a015eb53986a1bbdb377",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestApplyGrokCacheIdentityWithoutFreeTierRoutingOnlyWritesIdentity",
+        "tag": "unit",
+        "body_sha256": "8c52bdbe298dfb825ccce3cdcabb0b8d79c716b12e6f964f22ef436be03ea5d7",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestApplyGrokCacheIdentityWithoutFreeTierRoutingOnlyWritesIdentity",
+          "tag": "unit",
+          "body_sha256": "8c52bdbe298dfb825ccce3cdcabb0b8d79c716b12e6f964f22ef436be03ea5d7",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestGrokCompactRequestSkipsCacheIdentityAndNativeTools",
+        "tag": "unit",
+        "body_sha256": "70b36cf796081172e0db9812493880e6f76e1968a0a24cc2396eec5c35e47fb3",
+        "assertions": {
+          "require.Empty": 1,
+          "require.False": 3,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestGrokCompactRequestSkipsCacheIdentityAndNativeTools",
+          "tag": "unit",
+          "body_sha256": "3d233f9cf7137328dc75fb1d7259b09a721b36e0cfe287a61ca6885c755d47e2",
+          "assertions": {
+            "require.Empty": 1,
+            "require.False": 3,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_cache_test.go",
+        "name": "TestResolveGrokCacheIdentityConcurrentDeterminism",
+        "tag": "unit",
+        "body_sha256": "19ec8f70afbbb6297b218fb07abc6e391340eed05fd9d953f89ee15ee6961a94",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NotEmpty": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/openai_gateway_grok_cache_test.go",
+          "name": "TestResolveGrokCacheIdentityConcurrentDeterminism",
+          "tag": "unit",
+          "body_sha256": "114dbd01ea56657db68f51043be44004518849684601683aebee724384eb33ea",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NotEmpty": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_chat_bridge_test.go",
+        "name": "TestGrokChatResponsesBridgeEligibility",
+        "tag": "unit",
+        "body_sha256": "657e55100a53f2fc37c47b54bc68ca408e386120e0ee1035c72c735e41efb81f",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_native_openai_gateway_grok_chat_bridge_test.go",
+          "name": "TestGrokChatResponsesBridgeEligibility",
+          "tag": "unit",
+          "body_sha256": "7dfab6bc8d479addfc874bcf2c574a966958d7d77132a9b142a3622dbae55d8d",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_chat_bridge_test.go",
+        "name": "TestGrokChatResponsesRuntimeEligibility",
+        "tag": "unit",
+        "body_sha256": "6a97ebded5d21c9ab5ec9e50017335d4531f1f995c1f9ea1c46ea16bff222b60",
+        "assertions": {
+          "require.False": 4,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_native_openai_gateway_grok_chat_bridge_test.go",
+          "name": "TestGrokChatResponsesRuntimeEligibility",
+          "tag": "unit",
+          "body_sha256": "04e0ff6ede1ea77d7fa8e28a0675fdc559c52391af272ab3582807f98b87ee45",
+          "assertions": {
+            "require.False": 4,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilter",
+        "tag": "normal",
+        "body_sha256": "efc966af02d76c5567bf7c7ee0f59384a52790c23d302a1a383241cd8174adea",
+        "assertions": {
+          "require.Contains": 7,
+          "require.Equal": 1,
+          "require.NotContains": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilter",
+          "tag": "normal",
+          "body_sha256": "efc966af02d76c5567bf7c7ee0f59384a52790c23d302a1a383241cd8174adea",
+          "assertions": {
+            "require.Contains": 7,
+            "require.Equal": 1,
+            "require.NotContains": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterComposesWithClientToolStream",
+        "tag": "normal",
+        "body_sha256": "354f19b4ca93023b2052646c89efe7fa5a885a95af5c94a104638aec95c81576",
+        "assertions": {
+          "require.Contains": 3,
+          "require.NoError": 2,
+          "require.NotContains": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterComposesWithClientToolStream",
+          "tag": "normal",
+          "body_sha256": "7d217b6154735e4e76b85e52de58e955fd6ac5e9551ab4693c754a9aaa90e479",
+          "assertions": {
+            "require.Contains": 3,
+            "require.NoError": 2,
+            "require.NotContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterConvertsPingVariants",
+        "tag": "normal",
+        "body_sha256": "b0670eb275fd439434663f8509b49e4ac703b11058e8c3700d652dc96dc3e122",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterConvertsPingVariants",
+          "tag": "normal",
+          "body_sha256": "b0670eb275fd439434663f8509b49e4ac703b11058e8c3700d652dc96dc3e122",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterPreservesNonPingFrames",
+        "tag": "normal",
+        "body_sha256": "b630136d81a7a7b1ca9283e243f8d4e1f6953843a2f40c3bc136561b4b340a02",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterPreservesNonPingFrames",
+          "tag": "normal",
+          "body_sha256": "b630136d81a7a7b1ca9283e243f8d4e1f6953843a2f40c3bc136561b4b340a02",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterPassesThroughPingFrameWithUnknownField",
+        "tag": "normal",
+        "body_sha256": "b1a3bbb8c17783e70c4360fcdfacb28d434d1891fc7cc0f57c07ba361166b916",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterPassesThroughPingFrameWithUnknownField",
+          "tag": "normal",
+          "body_sha256": "b1a3bbb8c17783e70c4360fcdfacb28d434d1891fc7cc0f57c07ba361166b916",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterPassesThroughOversizedPingFrame",
+        "tag": "normal",
+        "body_sha256": "913542acab370ad24faaf08843bcf3c7a7c6e20738bbf30227a0ad520af3bab2",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterPassesThroughOversizedPingFrame",
+          "tag": "normal",
+          "body_sha256": "913542acab370ad24faaf08843bcf3c7a7c6e20738bbf30227a0ad520af3bab2",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterConvertsMalformedPingFrames",
+        "tag": "normal",
+        "body_sha256": "7d6f5b2dc818bea590ce3870d738e48bc1692981942e4e1c93e155e88ce782ae",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterConvertsMalformedPingFrames",
+          "tag": "normal",
+          "body_sha256": "7d6f5b2dc818bea590ce3870d738e48bc1692981942e4e1c93e155e88ce782ae",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterHandlesBareCRFrames",
+        "tag": "normal",
+        "body_sha256": "2c428776a3b2d5971075d93852caba2d0a0642a4b1ad0535927617b515d7887b",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterHandlesBareCRFrames",
+          "tag": "normal",
+          "body_sha256": "2c428776a3b2d5971075d93852caba2d0a0642a4b1ad0535927617b515d7887b",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterConvertsPartialPingFrameAtEOF",
+        "tag": "normal",
+        "body_sha256": "0c71765acba5c9a5a0934bd807f0a22dd69be9c46a748f582a88552527135f54",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterConvertsPartialPingFrameAtEOF",
+          "tag": "normal",
+          "body_sha256": "0c71765acba5c9a5a0934bd807f0a22dd69be9c46a748f582a88552527135f54",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterDoesNotFilterNonGrokAccounts",
+        "tag": "normal",
+        "body_sha256": "7fbb4cde950aa92a2c18c64e6c262ca4bb86554c49a328066bcdbecfacb23c29",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterDoesNotFilterNonGrokAccounts",
+          "tag": "normal",
+          "body_sha256": "9bc713e4f28f8b3ae6239b714074dc7b02ab09f95c6c0d3d4a195e05894e3516",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterPreservesUsageAndTerminalEvent",
+        "tag": "normal",
+        "body_sha256": "c9d545d6bf739dc088ba0bf7b50a565c3407aaf57c311bde07c9a56ddf85e4bd",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 3,
+          "require.NoError": 1,
+          "require.NotContains": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterPreservesUsageAndTerminalEvent",
+          "tag": "normal",
+          "body_sha256": "ab22d9ab5df6504b74cddd09b6e4b208d3bd919533656b9b7bb562acdba68131",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 3,
+            "require.NoError": 1,
+            "require.NotContains": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterCloseCancelsSourceOnce",
+        "tag": "normal",
+        "body_sha256": "e946982cb0d75b266d52b7a6897947668e898a9eb0c8f42d383fac81582bd949",
+        "assertions": {
+          "require.Error": 1,
+          "require.Eventually": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterCloseCancelsSourceOnce",
+          "tag": "normal",
+          "body_sha256": "0fe045a18c7463b27b456909963e7fd4020f9b3e621a88b2aa2f5e4c8418c832",
+          "assertions": {
+            "require.Error": 1,
+            "require.Eventually": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterFlushesCompletedFrames",
+        "tag": "normal",
+        "body_sha256": "9506c0fd4d6309bf60f751cf4cd6bc79f336995882d686ee6bdc000e9984108e",
+        "assertions": {
+          "require.NoError": 2,
+          "t.Fatal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterFlushesCompletedFrames",
+          "tag": "normal",
+          "body_sha256": "b26e1b5507bc20c3c655fa0b7cd11aecbbfaa4658029947062868ba79d0b501d",
+          "assertions": {
+            "require.NoError": 2,
+            "t.Fatal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_sse_filter_test.go",
+        "name": "TestGrokResponsesBillingPingFilterReportsOversizedLine",
+        "tag": "normal",
+        "body_sha256": "bd7ebd97ad792263107ac945d86543c23eba4da3376b44992b7899f7110f6a2b",
+        "assertions": {
+          "require.ErrorContains": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_sse_filter_contract_test.go",
+          "name": "TestGrokResponsesBillingPingFilterReportsOversizedLine",
+          "tag": "normal",
+          "body_sha256": "8f8d0e176f7f8bddf0b225ba41e85ca4e4cfdb2ff5fc4220bf5743fdfc76c0f6",
+          "assertions": {
+            "require.ErrorContains": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_test.go",
+        "name": "TestGrokResponsesCacheIdentityIncludesPromotedCodexTools",
+        "tag": "unit",
+        "body_sha256": "4ba6fe4549ef52d692f0c7287a4200f52e3261a22a3c2819e20a9b47b7f0dbab",
+        "assertions": {
+          "require.NoError": 2,
+          "require.NotEmpty": 2,
+          "require.NotEqual": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_cache_request_contract_test.go",
+          "name": "TestGrokResponsesCacheIdentityIncludesPromotedCodexTools",
+          "tag": "unit",
+          "body_sha256": "672a0fd95f85379fa60e32a2e2a4d5ccb460d056b69ab208c2ae78e910ac6dea",
+          "assertions": {
+            "require.NoError": 2,
+            "require.NotEmpty": 2,
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_test.go",
+        "name": "TestBuildGrokResponsesRequestPinsOAuthBaseURLAndUsesBearerToken",
+        "tag": "unit",
+        "body_sha256": "b8570c9d1a01073ce1044c53626ff6152678d72c613f1b5145a2a01ca4d60e2c",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 7,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_native_openai_gateway_grok_test.go",
+          "name": "TestBuildGrokResponsesRequestPinsOAuthBaseURLAndUsesBearerToken",
+          "tag": "unit",
+          "body_sha256": "4ee03223bc6c0b6bf8714a2a2c5a146ad355b11bb5b918075a49b5cb1f13e499",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 7,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_test.go",
+        "name": "TestBuildGrokResponsesRequestAllowsPublicAPIKeyBaseURLByDefault",
+        "tag": "unit",
+        "body_sha256": "281115385c6f6bb4ac899357120681cbf7dc58639594f2547f9335cc60336171",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 2,
+          "require.NoError": 1,
+          "require.NotEqual": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_native_openai_gateway_grok_test.go",
+          "name": "TestBuildGrokResponsesRequestAllowsPublicAPIKeyBaseURLByDefault",
+          "tag": "unit",
+          "body_sha256": "19b5d9e4e0c104471ad9562139d47627fbc0d4e36c42660fcd792a5fce674e4f",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 2,
+            "require.NoError": 1,
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_test.go",
+        "name": "TestBuildGrokResponsesRequestHonorsOAuthOfficialEndpointSwitch",
+        "tag": "unit",
+        "body_sha256": "368faffeeca083a6b414a536cd0c225cf3b31ed9390013ceffbc94ce68890f9b",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_native_openai_gateway_grok_test.go",
+          "name": "TestBuildGrokResponsesRequestHonorsOAuthOfficialEndpointSwitch",
+          "tag": "unit",
+          "body_sha256": "cddd5a33ad2f8fa7f138eeec6d38810a984d6073e6e96c669c55d16ceb6c8b7e",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_test.go",
+        "name": "TestBuildGrokResponsesRequestAppliesHeaderOverridesLast",
+        "tag": "unit",
+        "body_sha256": "2e7701f9909089870d632eac6e3d8e14b6cbcae00b8fd4224a690504aa10fc04",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 6,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_native_openai_gateway_grok_test.go",
+          "name": "TestBuildGrokResponsesRequestAppliesHeaderOverridesLast",
+          "tag": "unit",
+          "body_sha256": "967ab7d2d2b7ff12571c0ebce0e5ccccca9c73efe534d3e3da335e55678f3ce0",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 6,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_test.go",
+        "name": "TestBuildGrokResponsesRequestIgnoresBlockedHeaderOverrides",
+        "tag": "unit",
+        "body_sha256": "784df96bad9ed454cc3b614036c7a4540e61ace96c95fded147087b881b7a0cc",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_native_openai_gateway_grok_test.go",
+          "name": "TestBuildGrokResponsesRequestIgnoresBlockedHeaderOverrides",
+          "tag": "unit",
+          "body_sha256": "92266d11d12c19b4080f84f8e5d01334d32f7e194757b356d16db006ef39c79a",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_test.go",
+        "name": "TestExtractGrokMediaModelSupportsJSONAndMultipart",
+        "tag": "unit",
+        "body_sha256": "f8bf71de6676db17f2706ef6ad4257d12a17fbeb2b31b299bc2ac758f45b059b",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/grok_native_openai_gateway_grok_test.go",
+          "name": "TestExtractGrokMediaModelSupportsJSONAndMultipart",
+          "tag": "unit",
+          "body_sha256": "bc5e554d7fb60fd4a9f6ca73cddc5240e5975f327286c99a37c2f256ace3f621",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_upstream_transport_error_test.go",
+        "name": "TestClassifyUpstreamTransportError",
+        "tag": "unit",
+        "body_sha256": "fc421ab657007ea1e8fb96680bcb434e1e22273adf3f6097763c2f221132b36c",
+        "assertions": {
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_transport_failure_test.go",
+          "name": "TestClassifyUpstreamTransportError",
+          "tag": "unit",
+          "body_sha256": "fc421ab657007ea1e8fb96680bcb434e1e22273adf3f6097763c2f221132b36c",
+          "assertions": {
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_upstream_transport_error_test.go",
+        "name": "TestHandleOpenAIUpstreamTransportError_PersistentEvictsAndFailsOver",
+        "tag": "unit",
+        "body_sha256": "54056b2a28b27217d5729ff72c4a77277e788ba04145cfbe7d17f91b0024fb99",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 3,
+          "require.Len": 1,
+          "require.True": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_transport_failure_test.go",
+          "name": "TestHandleOpenAIUpstreamTransportError_PersistentEvictsAndFailsOver",
+          "tag": "unit",
+          "body_sha256": "70ef6d43b634612c40878930984e05abd43afe6bc3e87adc274c0e516f0f68b9",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 3,
+            "require.Len": 1,
+            "require.True": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_upstream_transport_error_test.go",
+        "name": "TestHandleOpenAIUpstreamTransportError_TransientFailsOverWithoutEviction",
+        "tag": "unit",
+        "body_sha256": "f1aaddf4a5eaa894c955a3bfb4a8dbd3f534f33158d9c745e8a1438f2824683a",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_transport_failure_test.go",
+          "name": "TestHandleOpenAIUpstreamTransportError_TransientFailsOverWithoutEviction",
+          "tag": "unit",
+          "body_sha256": "5c937e557e8f5a0339dbb2a1889865d7f5502f58decc989eb03aefae2f397ef7",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_upstream_transport_error_test.go",
+        "name": "TestHandleOpenAIUpstreamTransportError_ContextCanceledNoFailover",
+        "tag": "unit",
+        "body_sha256": "1328fa53c4ecdb70d0dd9ba14270462fc393427d6d0125b4fb523faf8fdfbeb6",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 1,
+          "require.False": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_transport_failure_test.go",
+          "name": "TestHandleOpenAIUpstreamTransportError_ContextCanceledNoFailover",
+          "tag": "unit",
+          "body_sha256": "a5480cb29f29ab32aa83c8915146e830f39b9be5be9c8e3361f76ea28d40a57c",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 1,
+            "require.False": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_upstream_transport_error_test.go",
+        "name": "TestHandleOpenAIUpstreamTransportError_WrappedContextCanceledNoFailover",
+        "tag": "unit",
+        "body_sha256": "fddf43c8c4c3954e94ebd74af0f941dbe8171f0b337792b813ce7ace8fa8dff3",
+        "assertions": {
+          "require.Empty": 1,
+          "require.False": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_transport_failure_test.go",
+          "name": "TestHandleOpenAIUpstreamTransportError_WrappedContextCanceledNoFailover",
+          "tag": "unit",
+          "body_sha256": "035c7eaab9cc03b839f7890ce47a6de01327327c590b140787fd22afa8657b82",
+          "assertions": {
+            "require.Empty": 1,
+            "require.False": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_upstream_transport_error_test.go",
+        "name": "TestHandleOpenAIUpstreamTransportError_RecordsOllamaActivityOnly",
+        "tag": "unit",
+        "body_sha256": "414fcb0d4eccc216d5afb4ddbaa425a2dbc30620c6ce91857b7694fe03c71b63",
+        "assertions": {
+          "require.False": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_transport_failure_test.go",
+          "name": "TestHandleOpenAIUpstreamTransportError_RecordsOllamaActivityOnly",
+          "tag": "unit",
+          "body_sha256": "f36306c560057a71b65594b3693e817ff24aacd14a5e135599ccdb7152342941",
+          "assertions": {
+            "require.False": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_upstream_transport_error_test.go",
+        "name": "TestHandleOpenAIUpstreamTransportError_ContextCanceledSkipsOllamaActivity",
+        "tag": "unit",
+        "body_sha256": "2784df0af08c2fd26a90ae8883425420777fdb7a763c48ead24c27053162b911",
+        "assertions": {
+          "require.ErrorIs": 1,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_transport_failure_test.go",
+          "name": "TestHandleOpenAIUpstreamTransportError_ContextCanceledSkipsOllamaActivity",
+          "tag": "unit",
+          "body_sha256": "2f2b36776d4b4d0dc329567eb00be3b3d703819a2be07987540414926278d630",
+          "assertions": {
+            "require.ErrorIs": 1,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_upstream_transport_error_test.go",
+        "name": "TestHandleOpenAIAccountUpstreamError_RecordsOllamaActivityOnly",
+        "tag": "unit",
+        "body_sha256": "701bcd31e214d48764720ff53965320ac79fc62ab8fe0928ba057bd6ac1a364b",
+        "assertions": {
+          "require.False": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_transport_failure_test.go",
+          "name": "TestHandleOpenAIAccountUpstreamError_RecordsOllamaActivityOnly",
+          "tag": "unit",
+          "body_sha256": "2d520e1f50be93fea84ead9a069f180082666e688f1f1782e9813ac163688d72",
+          "assertions": {
+            "require.False": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    }
+  ]
+}

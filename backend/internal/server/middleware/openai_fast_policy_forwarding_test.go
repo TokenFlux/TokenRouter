@@ -94,6 +94,7 @@ func TestAPIKeyAuthForwardsUserScopedOpenAIFastPolicyToUpstream(t *testing.T) {
 		nil, nil, &openAIFastPolicyForwardingHTTPUpstream{client: upstreamServer.Client()},
 		nil, nil, nil, nil, nil, nil, settingService, nil, responseHeaderFilterForTest(cfg), responses, nil, transient, circuit, choices, nil, nil, output,
 	)
+	gatewayService.BindGrokExecution(&gatewayhttp.GrokExecutor{FastPolicy: &gatewayprovider.ExecutionFastPolicy{Readers: settingService}})
 	gatewayService.BindRuntimeBlockState(blocks)
 
 	groupID := int64(101)

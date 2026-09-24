@@ -138,7 +138,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 				return gatewayprovider.CredentialChatGPTHeaders(ctx, s.accountRepo, headers, account)
 			},
 			Originator:      func() string { return resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...) },
-			OverrideHeaders: bindAccountHeaders(account),
+			OverrideHeaders: gatewayprovider.BindExecutionHeaders(account),
 			BetaFeatures: func(headers http.Header) {
 				gatewayhttp.ApplyOpenAICodexBetaFeatures(c, account != nil && account.View().IsOpenAIOAuthLike(), headers)
 			},

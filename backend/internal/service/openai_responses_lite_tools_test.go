@@ -106,6 +106,9 @@ func TestOpenAIGatewayServiceForward_NormalizesResponsesLiteToolsForOAuth(t *tes
 			badCtx.Request.Header.Set(media.ResponsesLiteHeader, "true")
 			badUpstream := &httpUpstreamRecorder{}
 			svc.httpUpstream = badUpstream
+			if svc.Grok != nil {
+				svc.Grok.Transport = svc.httpUpstream
+			}
 
 			result, err = svc.Forward(context.Background(), badCtx, account, []byte(`{"model":"gpt-5.6-terra","tools":[{"type":"function","name":"shell"}],"parallel_tool_calls":"false"}`))
 

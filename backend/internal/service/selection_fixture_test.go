@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -103,6 +105,15 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 		source.responseOutput.Options = gatewayhttp.OpenAIResponseOptions{Configured: true, MaxLineSize: v.MaxLineSize, StreamDataIntervalTimeout: v.StreamDataIntervalTimeout, StreamKeepaliveInterval: v.StreamKeepaliveInterval, ImageStreamDataIntervalTimeout: v.ImageStreamDataIntervalTimeout, ImageStreamKeepaliveInterval: v.ImageStreamKeepaliveInterval, OpenAIFirstOutputTimeoutSeconds: v.OpenAIFirstOutputTimeoutSeconds, OpenAIHighEffortFirstOutputTimeoutSeconds: v.OpenAIHighEffortFirstOutputTimeoutSeconds, LogUpstreamErrorBody: v.LogUpstreamErrorBody, LogUpstreamErrorBodyMaxBytes: v.LogUpstreamErrorBodyMaxBytes, ResponseHeadersEnabled: source.cfg.Security.ResponseHeaders.Enabled, ReadLimit: resolveUpstreamResponseReadLimit(source.cfg)}
 	}
 
+	routes := gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}
+	if source.cfg != nil {
+		v := source.cfg.Security.URLAllowlist
+		routes.Validate = (egress.OperatorURLPolicy{Enabled: v.Enabled, AllowInsecureHTTP: v.AllowInsecureHTTP, AllowPrivateHosts: v.AllowPrivateHosts, UpstreamHosts: v.UpstreamHosts}).Validate
+	}
+	if source.settingService != nil {
+		routes.DefaultMode = source.settingService.Gateway.GetGrokDefaultBaseURLMode
+	}
+	source.BindGrokExecution(&gatewayhttp.GrokExecutor{FastPolicy: &gatewayprovider.ExecutionFastPolicy{Readers: source.settingService, Prices: source.resolver}, Credentials: source.requestCredentials, Transport: source.httpUpstream, Output: source.responseOutput, Health: source.grokHealth, Routes: routes, TLS: source.tlsFPProfileService, Dialer: source.getOpenAIWSPassthroughDialer(), Enter: source.nativeAttemptActivity, Failure: &gatewayhttp.UpstreamTransportFailure{Health: &accountprovider.TransportHealth{Runtime: source.runtimeBlockState(), Deferred: source.deferredService, Store: source.accountRepo}}})
 }
 
 // streamSelectionDiagnosticSource 为真实流执行后的下一次选择提供可调度查询投影。

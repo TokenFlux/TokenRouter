@@ -137,7 +137,7 @@ func (p openAIForwardTransformAdapter) Fingerprint(ctx context.Context, body map
 	return ids, changed, nil
 }
 func (p openAIForwardTransformAdapter) FastDecision(ctx context.Context, model, tier string, hasTier bool) forward.FastDecision {
-	decision := tierpolicy.Resolve(p.s.fastModeInput(ctx, p.account, model), tier, hasTier)
+	decision := tierpolicy.Resolve(p.s.fastPolicy.Input(ctx, p.account, model), tier, hasTier)
 	value := forward.FastDecision{DeleteField: decision.DeleteField, Tier: decision.Tier}
 	if decision.Blocked != nil {
 		value.Blocked = decision.Blocked

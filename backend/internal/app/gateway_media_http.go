@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -25,9 +28,9 @@ func provideMediaRuntime(
 	common openaiattempt.Bindings,
 	resources *gatewayhttp.OpenAIHTTPResources,
 	prober *account.GrokQuotaService,
-	cfg *config.Config,
+	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks,
 ) *mediaentry.Runtime {
-	return mediaentry.New(mediaBindings(source, credentials, keys, funding, common, resources, prober, cfg))
+	return mediaentry.New(mediaBindings(source, credentials, keys, funding, common, resources, prober, cfg, grok, video))
 }
 
 func provideMediaHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestActivity) *gatewayhttp.MediaHandler {
@@ -49,7 +52,7 @@ func mediaBindings(
 	common openaiattempt.Bindings,
 	resources *gatewayhttp.OpenAIHTTPResources,
 	prober *account.GrokQuotaService,
-	cfg *config.Config,
+	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks,
 ) mediaentry.Bindings {
 
 	b := mediaentry.Bindings{
@@ -85,21 +88,31 @@ func mediaBindings(
 		b.PlanRoute = func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 			return source.PlanRoute(ctx, key.Group, key.GroupID, model)
 		}
-		b.VideoTasks = source.MediaVideoTasks
+		b.VideoTasks = func() *media.VideoTasks { return video }
 		b.Platform.SelectImages = common.Selection.SelectImages
 		b.Platform.Images = source.ForwardImages
-		b.Platform.GrokMedia = source.ForwardGrokMedia
+		b.Platform.GrokMedia = grok.ForwardGrokMedia
 		b.Platform.Embeddings = source.ForwardEmbeddings
 		b.Platform.AlphaSearch = source.ForwardAlphaSearch
-		b.Platform.Voice = source.ForwardGrokVoice
+		b.Platform.Voice = grok.ForwardGrokVoice
 		b.Platform.OpenRealtime = func(ctx context.Context, a *provider.ExecutionAccount, token, model string) (upstream.FrameConn, error) {
-			return source.OpenGrokRealtime(ctx, a, token, model)
+			return grok.OpenGrokRealtime(ctx, a, token, model)
 		}
-		b.Platform.RealtimeError = source.HandleGrokRealtimeUpstreamError
-		b.Platform.RelayRealtime = source.RelayGrokRealtimeFrames
+		b.Platform.RealtimeError = grok.HandleGrokRealtimeUpstreamError
+		b.Platform.RelayRealtime = grok.RelayGrokRealtimeFrames
 		b.Platform.Credential = credentials.Resolve
 		b.Platform.Stop429 = source.ShouldStopOpenAIOAuth429Failover
 		b.Platform.ReportSwitch = common.Selection.RecordSwitch
 	}
 	return b
+}
+
+// provideGrokVideoTasks 使用现有缓存的可选计费能力，不创建第二份缓存。
+func provideGrokVideoTasks(cache session.GatewayCache, cfg *config.Config) *media.VideoTasks {
+	billing, _ := cache.(session.GrokVideoBillingCache)
+	var options media.VideoOptions
+	if cfg != nil {
+		options.StickyTTL = time.Duration(cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
+	}
+	return media.NewVideoTasks(cache, billing, options)
 }

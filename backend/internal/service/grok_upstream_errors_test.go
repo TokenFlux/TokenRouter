@@ -264,7 +264,7 @@ func TestGrokContentPolicy403MediaResponseBypassesCustomErrorCodes(t *testing.T)
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
 
-	_, err := svc.handleGrokMediaErrorResponse(context.Background(), resp, c, account, "request-id", "grok-imagine")
+	_, err := mediaErrorResponseFixture(svc.Grok, context.Background(), resp, c, account, "request-id", "grok-imagine")
 	require.Error(t, err)
 	require.Equal(t, http.StatusForbidden, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "invalid_request_error")

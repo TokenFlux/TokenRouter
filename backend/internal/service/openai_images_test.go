@@ -570,6 +570,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsA
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Grok != nil {
+		svc.Grok.Transport = svc.httpUpstream
+	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:     "openai-oauth",
@@ -1340,6 +1343,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents(t *tes
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Grok != nil {
+		svc.Grok.Transport = svc.httpUpstream
+	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 		Name:     "openai-oauth",
@@ -1668,6 +1674,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI(t
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Grok != nil {
+		svc.Grok.Transport = svc.httpUpstream
+	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 		Name:     "openai-oauth",
@@ -1729,6 +1738,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsStreamingTransformsEvents(t
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Grok != nil {
+		svc.Grok.Transport = svc.httpUpstream
+	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:     "openai-oauth",
@@ -1918,6 +1930,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesOutputItemDoneFa
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Grok != nil {
+		svc.Grok.Transport = svc.httpUpstream
+	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 		Name:     "openai-oauth",
@@ -2036,6 +2051,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingDrainsAfterClientDiscon
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Grok != nil {
+		svc.Grok.Transport = svc.httpUpstream
+	}
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9,
 		Name:     "openai-oauth",

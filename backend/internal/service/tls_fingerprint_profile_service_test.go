@@ -20,13 +20,13 @@ func TestTLSFingerprintProfileService_ResolveTLSProfileOpenAI(t *testing.T) {
 		Type:  capability.AccountTypeOAuth,
 		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
-	require.NotNil(t, svc.ResolveRequestTLS(accountTLSSelection(openAIOAuth, nil)), "OpenAI OAuth 开启后应返回内置默认 profile")
+	require.NotNil(t, svc.ResolveRequestTLS(gatewayprovider.ExecutionTLSSelection(openAIOAuth, nil)), "OpenAI OAuth 开启后应返回内置默认 profile")
 
 	openAIAPIKey := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
 		Type:  capability.AccountTypeAPIKey,
 		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
-	require.Nil(t, svc.ResolveRequestTLS(accountTLSSelection(openAIAPIKey, nil)), "OpenAI API Key 不应启用 TLS 指纹伪装")
+	require.Nil(t, svc.ResolveRequestTLS(gatewayprovider.ExecutionTLSSelection(openAIAPIKey, nil)), "OpenAI API Key 不应启用 TLS 指纹伪装")
 }
 
 func TestTLSFingerprintProfileService_ResolveTLSProfileQoderCosy(t *testing.T) {
@@ -36,13 +36,13 @@ func TestTLSFingerprintProfileService_ResolveTLSProfileQoderCosy(t *testing.T) {
 		Type:  capability.AccountTypeCosy,
 		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
-	require.NotNil(t, svc.ResolveRequestTLS(accountTLSSelection(qoderCosy, nil)), "Qoder COSY 开启后应返回内置默认 profile")
+	require.NotNil(t, svc.ResolveRequestTLS(gatewayprovider.ExecutionTLSSelection(qoderCosy, nil)), "Qoder COSY 开启后应返回内置默认 profile")
 
 	qoderOtherType := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformQoder,
 		Type:  capability.AccountTypeOAuth,
 		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
-	require.Nil(t, svc.ResolveRequestTLS(accountTLSSelection(qoderOtherType, nil)), "非 COSY Qoder 账号不应启用 TLS 指纹伪装")
+	require.Nil(t, svc.ResolveRequestTLS(gatewayprovider.ExecutionTLSSelection(qoderOtherType, nil)), "非 COSY Qoder 账号不应启用 TLS 指纹伪装")
 }
 
 func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {

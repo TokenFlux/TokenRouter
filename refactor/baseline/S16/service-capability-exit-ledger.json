@@ -22,9 +22,7 @@
   "batches": {
     "shared-boundaries": {
       "files": [
-        "backend/internal/service/account_header_binding.go",
         "backend/internal/service/account_proxy_projection.go",
-        "backend/internal/service/account_tls_projection.go",
         "backend/internal/service/account_token_view.go",
         "backend/internal/service/agent_identity_binding.go",
         "backend/internal/service/apikey_projection.go",
@@ -1147,9 +1145,7 @@
     },
     "openai-execution": {
       "files": [
-        "backend/internal/service/api_key_fast_mode.go",
         "backend/internal/service/creative_provider_projection.go",
-        "backend/internal/service/fast_policy_projection.go",
         "backend/internal/service/openai_account_runtime_block_fastpath.go",
         "backend/internal/service/openai_alpha_search.go",
         "backend/internal/service/openai_chat_execution_adapter.go",
@@ -1194,7 +1190,6 @@
         "backend/internal/service/openai_request_target_adapter.go",
         "backend/internal/service/openai_responses_rejected_field_retry.go",
         "backend/internal/service/openai_routing_hint.go",
-        "backend/internal/service/openai_upstream_transport_error.go",
         "backend/internal/service/creative_executor_gemini.go"
       ],
       "symbols": [
@@ -1976,17 +1971,23 @@
     },
     "grok-execution": {
       "files": [
+        "backend/internal/service/account_header_binding.go",
+        "backend/internal/service/account_tls_projection.go",
+        "backend/internal/service/api_key_fast_mode.go",
+        "backend/internal/service/fast_policy_projection.go",
         "backend/internal/service/grok_audio.go",
         "backend/internal/service/grok_forward_execution_adapter.go",
         "backend/internal/service/grok_forward_result_adapter.go",
         "backend/internal/service/grok_media.go",
         "backend/internal/service/grok_quota_transport_compat.go",
+        "backend/internal/service/grok_team_rate_limit.go",
         "backend/internal/service/grok_upstream_headers.go",
         "backend/internal/service/grok_upstream_url.go",
         "backend/internal/service/openai_gateway_grok.go",
         "backend/internal/service/openai_gateway_grok_cache.go",
         "backend/internal/service/openai_gateway_grok_chat_bridge.go",
-        "backend/internal/service/openai_gateway_grok_sse_filter.go"
+        "backend/internal/service/openai_gateway_grok_sse_filter.go",
+        "backend/internal/service/openai_upstream_transport_error.go"
       ],
       "symbols": [
         "ExtractGrokMediaModel",
@@ -2141,31 +2142,21 @@
         "request-credentials"
       ],
       "native_owners": [
-        "account",
-        "account/provider",
-        "egress",
-        "gateway",
-        "gateway/clientmeta",
-        "gateway/forward",
-        "gateway/httpapi",
-        "gateway/media",
-        "gateway/media/provider",
-        "gateway/modeltrace",
-        "gateway/provider",
+        "gateway/httpapi.GrokExecutor",
         "gateway/provider/grokforward",
-        "gateway/requeststate",
-        "gateway/session",
-        "gateway/tierpolicy",
-        "infra/httpclient",
-        "pkg/logredact",
-        "protocol/bridge",
-        "protocol/openai",
-        "upstream",
+        "gateway/provider.GrokRoutes",
+        "gateway/provider.ExecutionFastPolicy",
+        "account/provider.TransportHealth",
+        "gateway/httpapi.UpstreamTransportFailure",
+        "gateway/media.VideoTasks",
         "upstream/grok",
-        "upstream/openai"
+        "app"
       ],
-      "status": "pending",
-      "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。"
+      "status": "verified",
+      "exit": "Grok Responses、Chat桥接、图片辅助、媒体/Voice、URL/缓存/Header、共享传输错误与档位投影同批改绑；全部原Grok专用生产文件删除。共用Raw Chat/Messages和入站WS剩余适配随OpenAI/WS完整能力退出。",
+      "verification": "service-grok-execution-owner-verification.json",
+      "test_mapping": "service-grok-execution-test-mapping.json",
+      "completed_at": "2026-09-25"
     },
     "ws-live": {
       "files": [
@@ -2747,8 +2738,8 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 110,
-    "test_files": 220,
-    "verified_batch": "common-response-execution"
+    "production_files": 93,
+    "test_files": 209,
+    "verified_batch": "grok-execution"
   }
 }

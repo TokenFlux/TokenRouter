@@ -4,10 +4,8 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -18,7 +16,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -37,19 +34,6 @@ import (
 // 所有 helper 都是对既有内联代码的等价提取，不改变任何行为；各路径的差异
 // （GLM effort 归一化、fast policy、Grok 分支、ClientDisconnect 语义等）仍留在
 // 调用方，属于有意保留的行为差异，不在此强行统一。
-
-// readOpenAIUpstreamError 读取上游错误体并把 resp.Body 回卷为可重读的副本
-// （下游 handleXxxErrorResponse 需要再次读取），返回原始错误体与脱敏后的
-// 上游错误消息。
-func (s *OpenAIGatewayService) readOpenAIUpstreamError(resp *http.Response) ([]byte, string) {
-	respBody := s.responseOutput.ReadErrorBody(resp)
-	_ = resp.Body.Close()
-	resp.Body = io.NopCloser(bytes.NewReader(respBody))
-
-	upstreamMsg := strings.TrimSpace(upstream.ExtractErrorMessage(respBody))
-	upstreamMsg = logredact.SanitizeUpstreamQueries(upstreamMsg)
-	return respBody, upstreamMsg
-}
 
 // failoverOpenAIUpstreamHTTPError 对 >=400 的上游响应做 failover 判定：命中时
 // 记录 ops 事件、执行账号级错误处置并返回 *UpstreamFailoverError；未命中返回
@@ -164,7 +148,7 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 ) (*http.Response, error) {
 	return openai.SendChatRequest(ctx, body, openai.CCRequestOptions{
 		URL: targetURL, Token: bearerToken, Stream: stream, Headers: c.Request.Header,
-		RequestContext:  detachUpstreamContext,
+		RequestContext:  gatewayprovider.DetachUpstreamContext,
 		ObserveEndpoint: func() { gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions") },
 		AllowHeader:     func(name string) bool { return openaiCCRawAllowedHeaders[name] },
 		PrepareTransport: func(upstreamReq *http.Request) {
@@ -195,6 +179,6 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 			}
 			return s.httpUpstream.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
 		},
-		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false) },
+		TransportError: func(err error) error { return s.transportFailure.Handle(ctx, c, account, err, false) },
 	})
 }

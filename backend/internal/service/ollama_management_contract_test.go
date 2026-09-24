@@ -5,6 +5,8 @@ import (
 	"testing"
 	time "time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -13,7 +15,7 @@ import (
 )
 
 func TestScheduleOllamaCloudUsageActivityOnlyForOllama(t *testing.T) {
-	deferred, activity := newDeferredActivityRecorder(t)
+	deferred, activity := gatewaytestkit.DeferredActivityRecorder(t)
 	ollama := ollamaUsageAccount(1)
 	other := ollamaUsageAccount(2)
 	other.Record.Credentials["base_url"] = "https://api.openai.com"

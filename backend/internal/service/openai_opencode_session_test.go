@@ -187,6 +187,9 @@ func TestOpenCodeSessionForwardedByRawChatCompletionsAfterAccountOverride(t *tes
 	upstream := &openCodeSessionHTTPUpstream{}
 	svc := openCodeSessionTestService()
 	svc.httpUpstream = upstream
+	if svc.Grok != nil {
+		svc.Grok.Transport = svc.httpUpstream
+	}
 	account := openCodeSessionTestAccount("https://opencode.ai/zen/v1")
 	c := newOpenCodeSessionTestContext(t, "conversation-789")
 

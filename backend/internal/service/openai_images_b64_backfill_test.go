@@ -333,6 +333,9 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL(t *test
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Grok != nil {
+		svc.Grok.Transport = svc.httpUpstream
+	}
 
 	result, err := svc.ForwardImages(context.Background(), c, b64BackfillAccount(true), body, parsed, "")
 	require.NoError(t, err)
@@ -382,6 +385,9 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyLeavesURLOnlyResponseWhenDisabl
 		},
 	}
 	svc.httpUpstream = upstream
+	if svc.Grok != nil {
+		svc.Grok.Transport = svc.httpUpstream
+	}
 
 	result, err := svc.ForwardImages(context.Background(), c, b64BackfillAccount(false), body, parsed, "")
 	require.NoError(t, err)

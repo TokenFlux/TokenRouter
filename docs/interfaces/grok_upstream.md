@@ -39,7 +39,7 @@ Responses WebSocket 是 Grok/OpenAI 的原生传输能力，不由兼容 Respons
 <a id="grok_account_contract"></a>
 ## 账号配置
 
-供应商 OAuth/SSO 交换、模型与额度解析位于 `upstream/grok`，账号授权和令牌读取分别由 `account.GrokAuthorization`、`GrokTokenSource` 与 `GrokTokenRefresher` 执行。账号通过 `protocol/grok` 报文与注入端口调用供应商，不持有其具体客户端。app 直接构造唯一授权实例，`account/provider` 投影代理读取及密码授权开关，`account/rediscache` 使用原 Redis 会话技术实现；旧 Grok 授权服务已删除。管理员 Grok 授权和 SSO 导入 HTTP 已由 `account/httpapi` 接入；导入队列、配额探测与模型观测共用账号运行时。Responses（包括 Chat 桥接和 Composer 图片辅助请求）、媒体与 Voice 的单次执行由原生执行器持有响应关闭，Realtime 和视频内容分别通过独立连接/流式资源接口释放。共享 OpenAI 客户端响应适配、完整入站重试和资金完成仍由原调用链提供，不能把单次 Execute 当作第二套全局重试。
+供应商 OAuth/SSO 交换、模型与额度解析位于 `upstream/grok`，账号授权和令牌读取分别由 `account.GrokAuthorization`、`GrokTokenSource` 与 `GrokTokenRefresher` 执行。账号通过 `protocol/grok` 报文与注入端口调用供应商，不持有其具体客户端。app 直接构造唯一授权实例，`account/provider` 投影代理读取及密码授权开关，`account/rediscache` 使用原 Redis 会话技术实现；旧 Grok 授权服务已删除。管理员 Grok 授权和 SSO 导入 HTTP 已由 `account/httpapi` 接入；导入队列、配额探测与模型观测共用账号运行时。Responses、Chat 桥接、Composer 图片辅助请求、媒体和 Voice 由 `gateway/httpapi.GrokExecutor` 接入，响应解析复用 upstream 与共享 `OpenAIResponseOutput`。app 固定绑定凭据、健康、HTTP 池、TLS 和同一个 WS 拨号器；Realtime 与视频内容分别通过连接和流式资源接口释放。Chat 桥接不适用时返回原生 Chat 分支，账号切换、入站编排和资金完成仍由请求拥有者负责。
 
 
 管理员可在控制台选择 OAuth 或 API Key 创建账号。OAuth 账号可通过浏览器授权、refresh token 或 SSO cookie 创建和重新授权；创建 Grok 分组并绑定账号后，用户即可生成分组 API Key。OAuth state 和 PKCE 会话优先保存在 Redis，并通过一次性消费标记阻止多实例重复兑换；Redis 写入失败时才使用进程内短期回退。SSO cookie、邮箱密码等临时输入只能用于兑换 Build OAuth token，不能写入账号凭据、响应或日志。

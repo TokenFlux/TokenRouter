@@ -5,16 +5,11 @@ import (
 
 	"net/http"
 
-	"time"
-
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
@@ -99,31 +94,4 @@ func (s *OpenAIGatewayService) handleChatCompletionsErrorResponse(
 	requestedModel ...string,
 ) (*forwardcore.OpenAIResult, error) {
 	return s.responseOutput.CompatError(resp, c, account, gatewayhttp.WriteForwardChatError, gatewayhttp.WriteForwardChatErrorBody, requestedModel...)
-}
-
-func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
-	resp *http.Response,
-	c *gin.Context,
-	account *gatewayprovider.ExecutionAccount,
-	originalModel string,
-	billingModel string,
-	upstreamModel string,
-	startTime time.Time,
-) (*forwardcore.OpenAIResult, error) {
-	result, err := openai.ReadChatBuffered(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.responseOutput.ChatOptions(c, account, resp, originalModel, billingModel, upstreamModel), originalModel, upstreamModel, startTime)
-	return gatewayprovider.ChatForwardResult(result, billingModel), err
-}
-
-func (s *OpenAIGatewayService) handleChatStreamingResponse(
-	resp *http.Response,
-	c *gin.Context,
-	account *gatewayprovider.ExecutionAccount,
-	originalModel string,
-	billingModel string,
-	upstreamModel string,
-	startTime time.Time,
-	requestBodyLen int,
-) (*forwardcore.OpenAIResult, error) {
-	result, err := openai.ReadChatStreaming(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.responseOutput.ChatOptions(c, account, resp, originalModel, billingModel, upstreamModel), originalModel, upstreamModel, startTime, requestBodyLen)
-	return gatewayprovider.ChatForwardResult(result, billingModel), err
 }

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -15,7 +17,7 @@ import (
 )
 
 // Forward 拥有 Grok 请求准备和响应决定，网络恢复只复用原生 ResponsesExecutor。
-func Forward(ctx context.Context, p Ports, o Options, in Input) (*Result, error) {
+func Forward(ctx context.Context, p Ports, o Options, in Input) (*forwardcore.OpenAIResult, error) {
 	body, originalModel, reqStream, startTime := in.Body, in.OriginalModel, in.Stream, in.StartedAt
 
 	if in.AccountType != "oauth" && in.AccountType != "apikey" {
@@ -73,7 +75,7 @@ func Forward(ctx context.Context, p Ports, o Options, in Input) (*Result, error)
 	p.ResolveProxy()
 	upstreamStart := time.Now()
 	var handled bool
-	var handledResult *Result
+	var handledResult *forwardcore.OpenAIResult
 	var handleErr error
 	target := &grok.ResponsesTarget{
 		AccountID: in.AccountID,
@@ -185,7 +187,7 @@ func Forward(ctx context.Context, p Ports, o Options, in Input) (*Result, error)
 	imageCount := nativeResult.ObservedImages
 	imageOutputSizes := nativeResult.ImageOutputSizes
 	reasoningEffort := p.Effort(patchedBody, originalModel)
-	result := &Result{
+	result := &forwardcore.OpenAIResult{
 		RequestID:       nativeResult.RequestID,
 		UpstreamHeaders: nativeResult.UpstreamHeaders,
 		ResponseID:      responseID,

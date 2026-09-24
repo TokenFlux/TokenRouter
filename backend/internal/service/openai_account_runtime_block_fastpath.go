@@ -13,10 +13,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
-const (
-	openAIAccountStateUpdateTimeout = 5 * time.Second
-)
-
 // 旧状态类型引用网关唯一的请求级预算。
 
 const (

@@ -13,6 +13,8 @@ import (
 	"testing"
 	time "time"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/creative"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -37,7 +39,7 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 	}
 	run := creative.CreativeRun{Operation: creative.CreativeOperationEdit, RequestedOutputCount: 1, ImageSize: "2K", AspectRatio: "16:9"}
 	payload := creative.CreativeRunPayload{Prompt: "edit this", Sources: []creative.CreativeInputImage{{Bytes: []byte("source"), Mime: "image/png"}}}
-	outputs, err := gateway.CreativeTarget(account, nil, nil, nil).ExecuteGrok(context.Background(), run, payload, "grok-imagine-image-2.0")
+	outputs, err := gateway.CreativeTarget(account, gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}, nil, nil).ExecuteGrok(context.Background(), run, payload, "grok-imagine-image-2.0")
 	require.NoError(t, err)
 	require.Len(t, outputs, 1)
 	require.Equal(t, []byte("edited-image"), outputs[0].Bytes)
@@ -56,7 +58,7 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 	require.Equal(t, "data:image/png;base64,c291cmNl", image["url"])
 
 	generateRun := creative.CreativeRun{Operation: creative.CreativeOperationGenerate, RequestedOutputCount: 1, ImageSize: "1K"}
-	_, err = gateway.CreativeTarget(account, nil, nil, nil).ExecuteGrok(context.Background(), generateRun, creative.CreativeRunPayload{Prompt: "generate"}, "grok-imagine-image-2.0")
+	_, err = gateway.CreativeTarget(account, gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}, nil, nil).ExecuteGrok(context.Background(), generateRun, creative.CreativeRunPayload{Prompt: "generate"}, "grok-imagine-image-2.0")
 	require.NoError(t, err)
 	require.Equal(t, "https://xai.test/v1/images/generations", upstream.lastReq.URL.String())
 }
@@ -65,7 +67,7 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 func TestCreativeGeminiInpaintIsRejectedBeforeUpstream(t *testing.T) {
 	upstream := &httpUpstreamRecorder{}
 	gateway := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
-	_, err := gateway.CreativeTarget(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, nil, nil, nil).ExecuteGemini(context.Background(), creative.CreativeRun{Operation: creative.CreativeOperationInpaint}, creative.CreativeRunPayload{}, "gemini-3.1-flash-image")
+	_, err := gateway.CreativeTarget(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}, nil, nil).ExecuteGemini(context.Background(), creative.CreativeRun{Operation: creative.CreativeOperationInpaint}, creative.CreativeRunPayload{}, "gemini-3.1-flash-image")
 	require.Error(t, err)
 	require.False(t, creative.IsRetryableCreativeError(err))
 	require.Empty(t, upstream.requests)

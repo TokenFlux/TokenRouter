@@ -75,7 +75,7 @@ func TestHandleChatStreamingResponse_ClassifiesHTTP2ReadError(t *testing.T) {
 	}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 
-	result, err := svc.handleChatStreamingResponse(
+	result, err := svc.responseOutput.ChatStreaming(
 		resp,
 		c,
 		&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "openai-oauth", Platform: capability.PlatformOpenAI}},

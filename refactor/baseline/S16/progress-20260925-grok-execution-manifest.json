@@ -1,0 +1,661 @@
+{
+  "format_version": 1,
+  "scope": "S16 Grok 执行、媒体、Voice 与共享依赖大批次及受影响消费者检查，非全仓最终验收",
+  "parent_manifest": "progress-20260925-common-response-manifest.json",
+  "parent_manifest_sha256": "a30cb1e7eb807d3d012d890db876034f0b7053e69887fb10efa48a14b9d19ce7",
+  "source_file_count": 107,
+  "source_total_bytes": 31261079,
+  "collection": "仅本批 service-grok-execution-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260925-grok-execution-01.tar.gz",
+      "size": 1808097,
+      "sha256": "68e37f4a286b70e227d6e2ef4ae0c9a391a056ab7adff5f4a15288b24193d15c",
+      "verified_members": 107,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 136001,
+          "sha256": "31c83a0f8dab1e1e64f61af6275d580fde2464c32556d1e35b9115c368b534a0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-app-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-app-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-app-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-app-no-old-integration.log",
+          "size": 293,
+          "sha256": "f51bea0b03be8a2dfbcf37ece2d2ab0d8baf94d563f949df9a5bf2adb96ae156",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-app-no-old-normal.log",
+          "size": 293,
+          "sha256": "f51bea0b03be8a2dfbcf37ece2d2ab0d8baf94d563f949df9a5bf2adb96ae156",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-app-no-old-unit.log",
+          "size": 293,
+          "sha256": "f51bea0b03be8a2dfbcf37ece2d2ab0d8baf94d563f949df9a5bf2adb96ae156",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-cache-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-cache-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-cache-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-cache-no-redis-integration.log",
+          "size": 331,
+          "sha256": "8bc86c3095940e7df3e729f45624eae8df739ad0cb79f1b8c0613b2415e1823f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-cache-no-redis-normal.log",
+          "size": 331,
+          "sha256": "8bc86c3095940e7df3e729f45624eae8df739ad0cb79f1b8c0613b2415e1823f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-cache-no-redis-unit.log",
+          "size": 331,
+          "sha256": "8bc86c3095940e7df3e729f45624eae8df739ad0cb79f1b8c0613b2415e1823f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-new-no-old-integration.log",
+          "size": 258,
+          "sha256": "6f7754df44040ec88af72aeafed974aa8f2949ce6d5bb469cda900b6e08ff661",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-new-no-old-normal.log",
+          "size": 258,
+          "sha256": "6f7754df44040ec88af72aeafed974aa8f2949ce6d5bb469cda900b6e08ff661",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-new-no-old-unit.log",
+          "size": 258,
+          "sha256": "6f7754df44040ec88af72aeafed974aa8f2949ce6d5bb469cda900b6e08ff661",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-no-config-integration.log",
+          "size": 359,
+          "sha256": "b6382656e8eea484b7da2c5a916305b15bbf52d780ff82cb10c470c2b511b683",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-no-config-normal.log",
+          "size": 359,
+          "sha256": "b6382656e8eea484b7da2c5a916305b15bbf52d780ff82cb10c470c2b511b683",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-no-config-unit.log",
+          "size": 359,
+          "sha256": "b6382656e8eea484b7da2c5a916305b15bbf52d780ff82cb10c470c2b511b683",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-no-store-integration.log",
+          "size": 317,
+          "sha256": "856901d214c93c956844bb7625abf62ba193f0f650daf42cda68f94ce94040e2",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-no-store-normal.log",
+          "size": 317,
+          "sha256": "856901d214c93c956844bb7625abf62ba193f0f650daf42cda68f94ce94040e2",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-no-store-unit.log",
+          "size": 317,
+          "sha256": "856901d214c93c956844bb7625abf62ba193f0f650daf42cda68f94ce94040e2",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-no-testkit-integration.log",
+          "size": 315,
+          "sha256": "d922c910e6079787cd85bc29feb33b2a1ab6957d419822753165d12767ee4506",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-no-testkit-normal.log",
+          "size": 315,
+          "sha256": "d922c910e6079787cd85bc29feb33b2a1ab6957d419822753165d12767ee4506",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-executor-no-testkit-unit.log",
+          "size": 315,
+          "sha256": "d922c910e6079787cd85bc29feb33b2a1ab6957d419822753165d12767ee4506",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-fast-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-fast-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-fast-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-fast-new-no-old-integration.log",
+          "size": 258,
+          "sha256": "1daeaf4176c48cff272dde262fbe237a775a8a3c4cbf13816010324701e90f8e",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-fast-new-no-old-normal.log",
+          "size": 258,
+          "sha256": "1daeaf4176c48cff272dde262fbe237a775a8a3c4cbf13816010324701e90f8e",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-fast-new-no-old-unit.log",
+          "size": 258,
+          "sha256": "1daeaf4176c48cff272dde262fbe237a775a8a3c4cbf13816010324701e90f8e",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-fast-no-config-integration.log",
+          "size": 377,
+          "sha256": "a895867836b7ede433371ab2656261535d04b702e32ed9e9c22d6d80e0ac6c05",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-fast-no-config-normal.log",
+          "size": 377,
+          "sha256": "a895867836b7ede433371ab2656261535d04b702e32ed9e9c22d6d80e0ac6c05",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-fast-no-config-unit.log",
+          "size": 377,
+          "sha256": "a895867836b7ede433371ab2656261535d04b702e32ed9e9c22d6d80e0ac6c05",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-new-no-old-integration.log",
+          "size": 263,
+          "sha256": "5996ffcf7907f5549ebf49af5f23a60980ca517fffe9c5e81878627049087aad",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-new-no-old-normal.log",
+          "size": 263,
+          "sha256": "5996ffcf7907f5549ebf49af5f23a60980ca517fffe9c5e81878627049087aad",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-new-no-old-unit.log",
+          "size": 263,
+          "sha256": "5996ffcf7907f5549ebf49af5f23a60980ca517fffe9c5e81878627049087aad",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-no-config-integration.log",
+          "size": 367,
+          "sha256": "3f5fb3393504e64e7bfbf491f3b818bc01388038790e3a939969dddb595015d4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-no-config-normal.log",
+          "size": 367,
+          "sha256": "3f5fb3393504e64e7bfbf491f3b818bc01388038790e3a939969dddb595015d4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-no-config-unit.log",
+          "size": 367,
+          "sha256": "3f5fb3393504e64e7bfbf491f3b818bc01388038790e3a939969dddb595015d4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-no-gateway-integration.log",
+          "size": 387,
+          "sha256": "8b7a23ae64df5bdc9e14bb03da45ce7fea0a9a98089eec91a132e0dcaf0fc3a7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-no-gateway-normal.log",
+          "size": 387,
+          "sha256": "8b7a23ae64df5bdc9e14bb03da45ce7fea0a9a98089eec91a132e0dcaf0fc3a7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-health-no-gateway-unit.log",
+          "size": 387,
+          "sha256": "8b7a23ae64df5bdc9e14bb03da45ce7fea0a9a98089eec91a132e0dcaf0fc3a7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-routes-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-routes-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-routes-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-routes-no-child-integration.log",
+          "size": 331,
+          "sha256": "9b12839ec1b53657e785d083f331b682a6ba1462c0718436b2c34a0dd08527d3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-routes-no-child-normal.log",
+          "size": 331,
+          "sha256": "9b12839ec1b53657e785d083f331b682a6ba1462c0718436b2c34a0dd08527d3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-routes-no-child-unit.log",
+          "size": 331,
+          "sha256": "9b12839ec1b53657e785d083f331b682a6ba1462c0718436b2c34a0dd08527d3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-routes-no-gin-integration.log",
+          "size": 309,
+          "sha256": "1f215b7e12de8f7d9fd20d00f817cb8f5f111c4cdbfc73afbee867b44e71aa55",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-routes-no-gin-normal.log",
+          "size": 309,
+          "sha256": "1f215b7e12de8f7d9fd20d00f817cb8f5f111c4cdbfc73afbee867b44e71aa55",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gate-routes-no-gin-unit.log",
+          "size": 309,
+          "sha256": "1f215b7e12de8f7d9fd20d00f817cb8f5f111c4cdbfc73afbee867b44e71aa55",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-boundary-gates.json",
+          "size": 42028,
+          "sha256": "3a9d59f2f946282cb6d4616b7006ccf5c73cf9527a5a51c2af1b961a2e5a47ec",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-build-selection-final.log",
+          "size": 74,
+          "sha256": "4c21b4f15f6daf8965f30c8158baed1d2e21404be8c5b4e30dcff6f93f33cc97",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-build-selection.json",
+          "size": 719156,
+          "sha256": "b11f4d760706de11021852faafdff44ac8144704da59210251fcc79c91e37107",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-cache-draft-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-chat-build.log",
+          "size": 241,
+          "sha256": "890ae21d0073fc33f839319f15b6e2b9dc345c4b493e690a6d86c51d8029ba16",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-closed-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-closed-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-closed-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-closed-lint.json",
+          "size": 1424,
+          "sha256": "efdea7045114c3412f8782f40c890fe56ad47aeaeea8056292a924a41490bcf9",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-compile.log",
+          "size": 5093,
+          "sha256": "63285a95aa12386a8f2cbb4cf858b7e176bd2d7bf2304a82c57d1459b108fc28",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-compile2.log",
+          "size": 3378,
+          "sha256": "a12514106668be875b5dae6923a06385817d82c0693333430976591a2aca0895",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-compile3.log",
+          "size": 4029,
+          "sha256": "f5c7f089e861a31662a0e498dd953af04250dbe8ca3014b8f41f9121d4d1c373",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-compile4.log",
+          "size": 244,
+          "sha256": "30ed118aa29fb7d326802f43f5564a25961e947b18ca80b16f90982aa61269a2",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-compile5.log",
+          "size": 333,
+          "sha256": "3f6d9d803d4a21dc5b9ce5263555e43de32fbb263c8dbfd79166fbd4fd2d1ac7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-compile6.log",
+          "size": 1194,
+          "sha256": "0874eb4b270e47233c7c2f72a96cfa388f72ed4ae4473a04e64a1315f5eb209c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-compile7.log",
+          "size": 334,
+          "sha256": "9037ae31ec72980f88f998fcdd9d08f3a6db40140c0390290b32d1d57f755eb9",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-consumer-build.log",
+          "size": 238,
+          "sha256": "9300577fdef4b7782e33ff1a41441aad8a5f8ddb12b2718a52a331b90a5c92d1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-consumer-checks.json",
+          "size": 1020,
+          "sha256": "19bc0b7914528fd36127275458f32bd1122ecf462baaf82ecbcd67fde020857d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-consumers-normal.jsonl",
+          "size": 9069930,
+          "sha256": "86c03be8eee0a58979a1750a3cf5f0cbcc283ff9e88f941af014eb14640c25ca",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-consumers-unit.jsonl",
+          "size": 12993210,
+          "sha256": "8d4880ee705b05e3f3f65c9231b088214422ab6b9223f575501b5edb14e037ee",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-doc-links.json",
+          "size": 3236,
+          "sha256": "dc471741b3deb0e4e8c4ac1a4ad942a550cb9cc177c7cd15cddda9acfbc4ffb0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-final-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-final-checks.json",
+          "size": 664,
+          "sha256": "b6a6458f2743946f4b4c895d23ef912a1227fc20f78284208a63e2e9e841cf54",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-final-lint-normal.log",
+          "size": 327,
+          "sha256": "0fa5d7181ed39cba5273e6290e8a09cea46771547d31574b3b6a884dbde80990",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-gates-final-run.log",
+          "size": 1632,
+          "sha256": "e4023d4016c942ed579db5c30c650ad410559d9ce21371cf991ca58e1a974074",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-gates-run.log",
+          "size": 1632,
+          "sha256": "e4023d4016c942ed579db5c30c650ad410559d9ce21371cf991ca58e1a974074",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-import-permissions.json",
+          "size": 86372,
+          "sha256": "2711035dacf5cc1c555d3280fc292240be7417f207fd01a4f4981c6f076de72f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-lint-final-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-lint-final-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-lint-final-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-lint-final.json",
+          "size": 1419,
+          "sha256": "6b9e2201a0d8099f1764e63297a6a91495738f16c01daa21a13341acdec58907",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-lint-unit.log",
+          "size": 1053,
+          "sha256": "8e34884300a88c2b7d00897341b057c172650987ef4814ba321722b33ce4b40c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-native-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-owner-verification.json",
+          "size": 9185,
+          "sha256": "ba1bd22df964ec6da8d8dfe1ef92f4b9511dd523f9ad65cbd0ed3e7a6a4d0ca1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-retired-wrapper-race.jsonl",
+          "size": 25051,
+          "sha256": "ee6a86b59e418bc3625a190b2deba06fb888603301d895958150d649b4f91fa5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-retired-wrapper-race2.jsonl",
+          "size": 19837,
+          "sha256": "abc0e658b517d6f6c362cf00ba8e83b50e082245dfec761c9a6d8f09a3e81220",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-routes-draft-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-storage-race.jsonl",
+          "size": 19957,
+          "sha256": "878eaad0179ed68cb404a5198b2336e8ee62a700be080d8f70012a34b0393f01",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-test-mapping.json",
+          "size": 108496,
+          "sha256": "3ec6081e0b3a663b87cde6ef00118e954ae4da5b5b43e5cd850c0fa227dacc29",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-transport-draft-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-unit-race.jsonl",
+          "size": 2851356,
+          "sha256": "02b23f999aa7d2d232334f96a1522736d6de6d9fb5a8bcca0bc0eee6496ebc0e",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-unit.jsonl",
+          "size": 2294607,
+          "sha256": "22f2f63703a4e9c08cba3966a3bb82bed73145116b6730e562db8c7c39976213",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-unit2.jsonl",
+          "size": 2844281,
+          "sha256": "c0533b049a34f42ede32371146eccec5c5a6c7dcffdcb91033eba90b6eaac1e9",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-wire-stability.json",
+          "size": 627,
+          "sha256": "5b417bfff68a2cf073d5c2a7e631577d2c68e3fa5e1c0babf0f3bff8a5388b31",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-wire-stable-1.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-wire-stable-2.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-wire2.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-grok-execution-wire3.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}

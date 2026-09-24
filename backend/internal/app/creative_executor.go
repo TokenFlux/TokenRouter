@@ -53,7 +53,7 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 			if activity != nil {
 				enter = activity.Enter
 			}
-			return openAI.CreativeTarget(value, cfg, tokens, enter).ExecutePlatform(ctx, value.Record.Platform, run, payload, model)
+			return openAI.CreativeTarget(value, provideGrokRoutes(cfg, nil), tokens, enter).ExecutePlatform(ctx, value.Record.Platform, run, payload, model)
 		}
 		selection.Report = func(model string, success bool) {
 			if value.Record.ID <= 0 {

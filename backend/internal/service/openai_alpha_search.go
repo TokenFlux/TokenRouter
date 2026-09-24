@@ -109,7 +109,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 		Latency: func(duration time.Duration) {
 			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, duration.Milliseconds())
 		},
-		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true) },
+		TransportError: func(err error) error { return s.transportFailure.Handle(ctx, c, account, err, true) },
 		ReadBody: func(reader io.Reader) ([]byte, error) {
 			return gatewayhttp.ReadUpstreamResponseBody(reader, resolveUpstreamResponseReadLimit(s.cfg), c, gatewayhttp.OpenAIResponseTooLarge)
 		},
@@ -188,7 +188,7 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 		Latency: func(duration time.Duration) {
 			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, duration.Milliseconds())
 		},
-		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true) },
+		TransportError: func(err error) error { return s.transportFailure.Handle(ctx, c, account, err, true) },
 		ReadBody: func(reader io.Reader) ([]byte, error) {
 			return gatewayhttp.ReadUpstreamResponseBody(reader, resolveUpstreamResponseReadLimit(s.cfg), c, gatewayhttp.OpenAIResponseTooLarge)
 		},

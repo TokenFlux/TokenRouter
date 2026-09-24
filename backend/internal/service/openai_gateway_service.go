@@ -200,6 +200,10 @@ var defaultOpenAICodexSnapshotPersistThrottle = accountcore.NewWriteThrottle(ope
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
+	Grok             *gatewayhttp.GrokExecutor
+	fastPolicy       *gatewayprovider.ExecutionFastPolicy
+	transportFailure *gatewayhttp.UpstreamTransportFailure
+
 	selection   *selectionadapter.Compatible
 	cyberBlocks *session.CyberBlocks
 	// prompts 直接引用 app 的唯一提示词运行时，WS 不再通过设置聚合取回它。
@@ -960,7 +964,7 @@ func (s *OpenAIGatewayService) resolveOpenAITLSProfile(value *gatewayprovider.Ex
 	if s == nil || s.tlsFPProfileService == nil {
 		return nil
 	}
-	return s.tlsFPProfileService.ResolveRequestTLS(accountTLSSelection(value, routerMatch))
+	return s.tlsFPProfileService.ResolveRequestTLS(gatewayprovider.ExecutionTLSSelection(value, routerMatch))
 }
 
 func (s *OpenAIGatewayService) resolveOpenAIWSTLSProfile(account *gatewayprovider.ExecutionAccount, routerMatch ...egress.TLSFingerprintRouterMatchResult) (*tlsfingerprint.Profile, string) {
@@ -970,7 +974,7 @@ func (s *OpenAIGatewayService) resolveOpenAIWSTLSProfile(account *gatewayprovide
 	}
 	// Responses WebSocket 是 HTTP/1.1 Upgrade，连接池键也按剥离 h2 后的模板隔离。
 	profile = tlsfingerprint.HTTP1OnlyProfile(profile)
-	return profile, egress.WebSocketTLSIdentity(accountTLSSelection(account, routerMatch), true, tlsfingerprint.CacheKey(profile))
+	return profile, egress.WebSocketTLSIdentity(gatewayprovider.ExecutionTLSSelection(account, routerMatch), true, tlsfingerprint.CacheKey(profile))
 }
 
 func openAIClientPolicyForbiddenMessage(result accountcore.CodexClientRestrictionDetectionResult) string {
@@ -987,4 +991,12 @@ func openAIClientPolicyForbiddenMessage(result accountcore.CodexClientRestrictio
 // BindNativeAttemptActivity 将平台尝试绑定到应用唯一活动拥有者。
 func (s *OpenAIGatewayService) BindNativeAttemptActivity(enter func() (func(), error)) {
 	s.nativeAttemptActivity = enter
+}
+
+// BindGrokExecution 只在启动前绑定同一执行器及共享传输失败处理器。
+func (s *OpenAIGatewayService) BindGrokExecution(value *gatewayhttp.GrokExecutor) {
+	s.Grok = value
+	s.fastPolicy = value.FastPolicy
+	s.transportFailure = value.Failure
+	s.openaiWSPassthroughDialer = value.Dialer
 }

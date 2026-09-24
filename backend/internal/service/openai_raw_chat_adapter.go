@@ -36,7 +36,7 @@ func (p *openAIRawChatAdapter) ReplaceModel(b []byte, m string) []byte {
 	return openai.ReplaceModelInBody(b, m)
 }
 func (p *openAIRawChatAdapter) FastRaw(ctx context.Context, m string, b []byte) ([]byte, error) {
-	updated, err := tierpolicy.ApplyBody(b, p.s.fastModeInput(ctx, p.account, m))
+	updated, err := tierpolicy.ApplyBody(b, p.s.fastPolicy.Input(ctx, p.account, m))
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
@@ -51,7 +51,7 @@ func (p *openAIRawChatAdapter) RawCredential(ctx context.Context) (string, strin
 	return p.s.requestCredentials.Resolve(ctx, gatewayhttp.RequestCredentialBudget(p.c), gatewayhttp.CredentialObserver{Context: p.c}, p.account)
 }
 func (p *openAIRawChatAdapter) BridgeImages(ctx context.Context, b []byte, key string) ([]byte, openai.ForwardUsage, bool, error) {
-	updated, usage, changed, err := p.s.bridgeGrokComposerImageInputs(ctx, p.c, p.account, b, key)
+	updated, usage, changed, err := p.s.Grok.BridgeComposerImages(ctx, p.c, p.account, b, key)
 	var failover *forwardcore.UpstreamFailoverError
 	if err != nil && !errors.As(err, &failover) && p.c != nil && p.c.Writer != nil && !p.c.Writer.Written() {
 		gatewayhttp.WriteForwardChatError(p.c, http.StatusBadGateway, "upstream_error", err.Error())
@@ -62,7 +62,7 @@ func (p *openAIRawChatAdapter) StripGrokCacheKey(b []byte) ([]byte, error) {
 	return grok.StripGrokChatPromptCacheKey(b)
 }
 func (p *openAIRawChatAdapter) GrokEffort(b []byte, m string) ([]byte, error) {
-	return normalizeGrokChatReasoningEffort(b, m)
+	return gatewayprovider.GrokBodyCodec().NormalizeGrokChatReasoningEffort(b, m)
 }
 func (p *openAIRawChatAdapter) OllamaBody(b []byte) []byte {
 	return gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(p.account, b)

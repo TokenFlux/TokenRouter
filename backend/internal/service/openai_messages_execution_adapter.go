@@ -108,7 +108,7 @@ func (p *openAIMessagesExecutionAdapter) APIKeyID() int64 {
 	return gatewayhttp.APIKeyIDFromContext(p.c)
 }
 func (p *openAIMessagesExecutionAdapter) ClaudeSession(body []byte) string {
-	return extractClaudeCodeSessionID(p.c, body)
+	return gatewayhttp.ExtractClaudeCodeSessionID(p.c, body)
 }
 func (p *openAIMessagesExecutionAdapter) MetadataSession(r *protocolanthropic.AnthropicRequest) string {
 	return session.AnthropicMetadataPromptCacheKey(r)
@@ -211,7 +211,7 @@ func (p *openAIMessagesExecutionAdapter) ApplyEffort(ctx context.Context, body [
 	return updated, changed, err
 }
 func (p *openAIMessagesExecutionAdapter) ApplyFast(ctx context.Context, model string, body []byte) ([]byte, error) {
-	updated, err := tierpolicy.ApplyBody(body, p.s.fastModeInput(ctx, p.account, model))
+	updated, err := tierpolicy.ApplyBody(body, p.s.fastPolicy.Input(ctx, p.account, model))
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
@@ -226,16 +226,16 @@ func (p *openAIMessagesExecutionAdapter) ResolvedServiceTier(tier *string) *stri
 	return gatewayhttp.ResolvedOpenAIUpstreamServiceTier(p.c, tier)
 }
 func (p *openAIMessagesExecutionAdapter) GrokCacheIdentity(body []byte, key, model string) string {
-	return resolveGrokCacheIdentity(p.c, body, key, model)
+	return gatewayhttp.ResolveGrokCacheIdentity(p.c, body, key, model)
 }
 func (p *openAIMessagesExecutionAdapter) PatchGrokBody(body []byte, model string) ([]byte, error) {
-	return patchGrokResponsesBody(body, model)
+	return gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, model)
 }
 func (p *openAIMessagesExecutionAdapter) ApplyGrokCache(body, intent []byte, key string, oauth bool) ([]byte, error) {
 	return grok.ApplyGrokResponsesCacheIdentity(body, intent, key, oauth)
 }
 func (p *openAIMessagesExecutionAdapter) GrokFreeToolRoute(body, intent []byte, key string) ([]byte, error) {
-	return applyGrokFreeMessagesFunctionToolCacheRoute(body, intent, p.account, key)
+	return gatewayprovider.ApplyGrokFreeMessagesFunctionToolCacheRoute(body, intent, p.account, key)
 }
 func (p *openAIMessagesExecutionAdapter) Credential(ctx context.Context) (string, error) {
 	token, _, err := p.s.requestCredentials.Resolve(ctx, gatewayhttp.RequestCredentialBudget(p.c), gatewayhttp.CredentialObserver{Context: p.c}, p.account)
@@ -245,11 +245,11 @@ func (p *openAIMessagesExecutionAdapter) BindMessagesBridge(v bool) {
 	gatewayhttp.SetOpenAICompatMessagesBridgeContext(p.c, v)
 }
 func (p *openAIMessagesExecutionAdapter) UpstreamContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return detachUpstreamContext(ctx)
+	return gatewayprovider.DetachUpstreamContext(ctx)
 }
 func (p *openAIMessagesExecutionAdapter) Build(_ context.Context, ctx context.Context, body []byte, token string, stream bool, key, grokIdentity string) (*http.Request, error) {
 	if p.account.Record.Platform == capability.PlatformGrok {
-		return buildGrokResponsesRequest(ctx, p.c, p.account, body, token, grokIdentity, p.s.cfg, p.s.settingService)
+		return p.s.Grok.BuildResponsesRequest(ctx, p.c, p.account, body, token, grokIdentity, true)
 	}
 	return p.s.buildUpstreamRequest(ctx, p.c, p.account, body, token, stream, key, false, p.tls...)
 }
@@ -274,22 +274,22 @@ func (p *openAIMessagesExecutionAdapter) Send(r *http.Request) (*http.Response, 
 }
 
 func (p *openAIMessagesExecutionAdapter) TransportError(ctx context.Context, err error) error {
-	return p.s.handleOpenAIUpstreamTransportError(ctx, p.c, p.account, err, false)
+	return p.s.transportFailure.Handle(ctx, p.c, p.account, err, false)
 }
 func (p *openAIMessagesExecutionAdapter) ReadErrorBody(r *http.Response) []byte {
 	return p.s.responseOutput.ReadErrorBody(r)
 }
 func (p *openAIMessagesExecutionAdapter) GrokInvalidEncrypted(status int, body []byte) bool {
-	return isGrokInvalidEncryptedContentResponse(status, body)
+	return gatewayprovider.GrokBodyCodec().IsGrokInvalidEncryptedContentResponse(status, body)
 }
 func (p *openAIMessagesExecutionAdapter) GrokHasEncrypted(body []byte) bool {
-	return requestHasGrokEncryptedReasoning(body)
+	return gatewayprovider.GrokBodyCodec().RequestHasGrokEncryptedReasoning(body)
 }
 func (p *openAIMessagesExecutionAdapter) TrimGrokEncrypted(body []byte) ([]byte, bool, error) {
-	return trimGrokInvalidEncryptedContentRetryBody(body)
+	return gatewayprovider.GrokBodyCodec().TrimGrokInvalidEncryptedContentRetryBody(body)
 }
 func (p *openAIMessagesExecutionAdapter) ReadUpstreamError(r *http.Response) ([]byte, string) {
-	return p.s.readOpenAIUpstreamError(r)
+	return p.s.responseOutput.ReadReplayableError(r)
 }
 func (p *openAIMessagesExecutionAdapter) AgentRecoveryTried(ctx context.Context) bool {
 	return requeststate.AgentTaskRecoveryTried(ctx)
@@ -325,13 +325,13 @@ func (p *openAIMessagesExecutionAdapter) DeleteResponseID(ctx context.Context, k
 	p.s.deleteOpenAICompatSessionResponseID(ctx, p.c, p.account, key)
 }
 func (p *openAIMessagesExecutionAdapter) GrokStripRetried(ctx context.Context) bool {
-	return grokEncryptedContentStripRetried(ctx)
+	return gatewayprovider.GrokBodyCodec().GrokEncryptedContentStripRetried(ctx)
 }
 func (p *openAIMessagesExecutionAdapter) StripThinkingSignatures(body []byte) ([]byte, bool) {
 	return protocolanthropic.StripThinkingSignaturesJSON(body)
 }
 func (p *openAIMessagesExecutionAdapter) MarkGrokStrip(ctx context.Context) context.Context {
-	return markGrokEncryptedContentStripRetried(ctx)
+	return gatewayprovider.GrokBodyCodec().MarkGrokEncryptedContentStripRetried(ctx)
 }
 func (p *openAIMessagesExecutionAdapter) FailoverHTTP(ctx context.Context, r *http.Response, body []byte, msg, model string) error {
 	failure := p.s.failoverOpenAIUpstreamHTTPError(ctx, p.c, p.account, r, body, msg, model)

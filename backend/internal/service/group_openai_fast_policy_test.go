@@ -43,6 +43,9 @@ func TestGroupOpenAIFastPolicyHTTPAndWS(t *testing.T) {
 			}
 			svc := newOpenAIGatewayServiceWithSettings(t, settings)
 			svc.resolver = fastModeTestResolver()
+			if svc.fastPolicy != nil {
+				svc.fastPolicy.Prices = svc.resolver
+			}
 			ctx := requeststate.WithGroup(fastModeTestContext(tt.key, "gpt-5.5"), &routing.Group{ID: 1, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, Hydrated: true, OpenAIFastPolicy: tt.group})
 			payload := map[string]any{"model": "gpt-5.5", "type": "response.create"}
 			if tt.tier != "" {
@@ -50,8 +53,8 @@ func TestGroupOpenAIFastPolicyHTTPAndWS(t *testing.T) {
 			}
 			body, _ := json.Marshal(payload)
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
-			httpBody, httpErr := tierpolicy.ApplyBody(body, svc.fastModeInput(ctx, account, "gpt-5.5"))
-			wsBody, blocked, err := gatewayws.ApplyServiceTierFrame(body, "gpt-5.5", svc.fastModeInput(ctx, account, "gpt-5.5"))
+			httpBody, httpErr := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(ctx, account, "gpt-5.5"))
+			wsBody, blocked, err := gatewayws.ApplyServiceTierFrame(body, "gpt-5.5", svc.fastPolicy.Input(ctx, account, "gpt-5.5"))
 			require.NoError(t, err)
 			if tt.blocked {
 				require.Error(t, httpErr)

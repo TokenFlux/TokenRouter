@@ -563,7 +563,7 @@ func TestHandleChatStreamingResponse_SilentRefusalReasoningSummaryExempt(t *test
 	}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()})
 
-	result, err := svc.handleChatStreamingResponse(
+	result, err := svc.responseOutput.ChatStreaming(
 		resp,
 		c,
 		rawChatCompletionsTestAccount(),
@@ -1098,7 +1098,7 @@ func TestForwardAsRawChatCompletions_UsesFilteredServiceTierForBilling(t *testin
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(nil, nil),
 	})
-	ctx := withOpenAIFastPolicyContext(context.Background(), &tierpolicy.OpenAIFastPolicySettings{
+	ctx := gatewayprovider.WithFastPolicyContext(context.Background(), &tierpolicy.OpenAIFastPolicySettings{
 		Rules: []tierpolicy.OpenAIFastPolicyRule{{
 			ServiceTier: tierpolicy.OpenAIFastTierPriority,
 			Action:      anthropic.BetaPolicyActionFilter,

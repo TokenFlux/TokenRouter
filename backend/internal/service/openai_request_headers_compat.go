@@ -41,7 +41,7 @@ func (s *OpenAIGatewayService) nativeResponsesRequestOptions(ctx context.Context
 			openai.ApplyCodexAccountIdentityHeaders(headers, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(c, account.View())), gatewayhttp.APIKeyIDFromContext(c))
 		},
 		ApplyFingerprint: func(headers http.Header) { gatewayhttp.ApplyStagedCodexFingerprintHeaders(c, account.View(), headers) },
-		OverrideHeaders:  bindAccountHeaders(account),
+		OverrideHeaders:  gatewayprovider.BindExecutionHeaders(account),
 		OpenCodeSession:  func(headers http.Header) { applyOpenCodeSessionHeader(c, account, targetURL, headers) },
 		BetaFeatures: func(headers http.Header) {
 			gatewayhttp.ApplyOpenAICodexBetaFeatures(c, account != nil && account.View().IsOpenAIOAuthLike(), headers)

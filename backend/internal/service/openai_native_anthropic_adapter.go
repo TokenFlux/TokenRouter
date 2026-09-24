@@ -71,7 +71,7 @@ func (p *openAINativeAnthropicAdapter) TargetURL() (string, error) {
 	return p.s.nativeAnthropicTargetURL(p.account)
 }
 func (p *openAINativeAnthropicAdapter) StreamContext(ctx context.Context, stream bool) (context.Context, context.CancelFunc) {
-	return detachStreamUpstreamContext(ctx, stream)
+	return gatewayprovider.DetachStreamUpstreamContext(ctx, stream)
 }
 func (p *openAINativeAnthropicAdapter) BuildNative(ctx context.Context, body []byte, key, url string) (*http.Request, error) {
 	r, _, err := p.s.buildNativeAnthropicUpstreamRequest(ctx, p.c, p.account, body, key, url)
@@ -81,7 +81,7 @@ func (p *openAINativeAnthropicAdapter) SendNative(r *http.Request) (*http.Respon
 	return p.s.httpUpstream.Do(r, p.proxyURL, p.account.Record.ID, p.account.Record.Concurrency)
 }
 func (p *openAINativeAnthropicAdapter) TransportErrorNative(ctx context.Context, err error) error {
-	return p.s.handleOpenAIUpstreamTransportError(ctx, p.c, p.account, err, true)
+	return p.s.transportFailure.Handle(ctx, p.c, p.account, err, true)
 }
 func (p *openAINativeAnthropicAdapter) DirectOptions() forward.NativeAnthropicOptions {
 	return p.s.responseOutput.AnthropicDirectOptions(p.c, p.account)

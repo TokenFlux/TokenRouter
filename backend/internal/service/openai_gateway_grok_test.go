@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
@@ -60,7 +62,7 @@ func TestPatchGrokResponsesBodySetsMappedModelAndDropsUnsupportedFields(t *testi
 		"reasoning": {"effort": "high"}
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.3")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.3")
 	require.NoError(t, err)
 	require.True(t, json.Valid(patched))
 	require.Equal(t, "grok-4.3", gjson.GetBytes(patched, "model").String())
@@ -111,7 +113,7 @@ func TestPatchGrokResponsesBodyDropsRedundantViewImageForCurrentInlineImage(t *t
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			patched, err := patchGrokResponsesBody([]byte(tt.body), "grok-4.6")
+			patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody([]byte(tt.body), "grok-4.6")
 			require.NoError(t, err)
 			require.False(t, gjson.GetBytes(patched, `tools.#(name=="view_image")`).Exists())
 			require.Equal(t, "shell_command", gjson.GetBytes(patched, "tools.0.name").String())
@@ -147,7 +149,7 @@ func TestPatchGrokResponsesBodyKeepsNonRedundantViewImage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			patched, err := patchGrokResponsesBody([]byte(tt.body), "grok-4.6")
+			patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody([]byte(tt.body), "grok-4.6")
 			require.NoError(t, err)
 			require.Equal(t, "view_image", gjson.GetBytes(patched, "tools.0.name").String())
 		})
@@ -163,7 +165,7 @@ func TestPatchGrokResponsesBodyDropsViewImageOnlyToolMetadata(t *testing.T) {
 		"parallel_tool_calls":true
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.6")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.6")
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(patched, "tools").Exists())
 	require.False(t, gjson.GetBytes(patched, "tool_choice").Exists())
@@ -238,7 +240,7 @@ func TestPatchGrokResponsesBodySanitizesComposerReasoningParameters(t *testing.T
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			patched, err := patchGrokResponsesBody(append([]byte(nil), bodyTemplate...), tt.upstreamModel)
+			patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(append([]byte(nil), bodyTemplate...), tt.upstreamModel)
 			require.NoError(t, err)
 			require.True(t, json.Valid(patched))
 			require.Equal(t, tt.upstreamModel, gjson.GetBytes(patched, "model").String())
@@ -281,7 +283,7 @@ func TestPatchGrokResponsesBodyDropsGrok45ReasoningUnsupportedFields(t *testing.
 		"stop": ["done"]
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.5")
 	require.NoError(t, err)
 	require.True(t, json.Valid(patched))
 	require.Equal(t, "grok-4.5", gjson.GetBytes(patched, "model").String())
@@ -303,7 +305,7 @@ func TestPatchGrokResponsesBodyKeepsPenaltyAndStopFieldsForNon45Models(t *testin
 		"stop": ["done"]
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.3")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.3")
 	require.NoError(t, err)
 	require.True(t, json.Valid(patched))
 	require.Equal(t, "grok-4.3", gjson.GetBytes(patched, "model").String())
@@ -315,7 +317,7 @@ func TestPatchGrokResponsesBodyKeepsPenaltyAndStopFieldsForNon45Models(t *testin
 func TestPatchGrokResponsesBodyDropsLogprobsForGrok420Family(t *testing.T) {
 	t.Parallel()
 	body := []byte(`{"model":"grok-4.20-0309-reasoning","input":"hello","logprobs":true,"top_logprobs":5}`)
-	patched, err := patchGrokResponsesBody(body, "grok-4.20-0309-reasoning")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.20-0309-reasoning")
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(patched, "logprobs").Exists())
 	require.False(t, gjson.GetBytes(patched, "top_logprobs").Exists())
@@ -338,7 +340,7 @@ func TestPatchGrokResponsesBodyNormalizesReasoningEffortAliases(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			patched, err := patchGrokResponsesBody([]byte(tt.body), tt.upstreamModel)
+			patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody([]byte(tt.body), tt.upstreamModel)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, gjson.GetBytes(patched, tt.path).String(), string(patched))
 			require.False(t, gjson.GetBytes(patched, "reasoningEffort").Exists())
@@ -347,7 +349,7 @@ func TestPatchGrokResponsesBodyNormalizesReasoningEffortAliases(t *testing.T) {
 }
 
 func TestPatchGrokResponsesBodyAddsDefaultFunctionParameters(t *testing.T) {
-	patched, err := patchGrokResponsesBody(
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(
 		[]byte(`{"input":"hi","tools":[{"type":"function","name":"lookup","large_id":9007199254740993},{"type":"function","name":"wait","parameters":null}]}`),
 		"grok-4.5",
 	)
@@ -360,16 +362,16 @@ func TestPatchGrokResponsesBodyAddsDefaultFunctionParameters(t *testing.T) {
 }
 
 func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
-	patched, err := normalizeGrokChatReasoningEffort([]byte(`{"reasoningEffort":"ultra"}`), "grok-4.3")
+	patched, err := gatewayprovider.GrokBodyCodec().NormalizeGrokChatReasoningEffort([]byte(`{"reasoningEffort":"ultra"}`), "grok-4.3")
 	require.NoError(t, err)
 	require.Equal(t, "high", gjson.GetBytes(patched, "reasoning_effort").String())
 	require.False(t, gjson.GetBytes(patched, "reasoningEffort").Exists())
 
-	patched, err = normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), "grok-4.6")
+	patched, err = gatewayprovider.GrokBodyCodec().NormalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), "grok-4.6")
 	require.NoError(t, err)
 	require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning_effort").String())
 
-	patched, err = normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"high"}`), "grok-composer-2.5-fast")
+	patched, err = gatewayprovider.GrokBodyCodec().NormalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"high"}`), "grok-composer-2.5-fast")
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(patched, "reasoning_effort").Exists())
 }
@@ -387,7 +389,7 @@ func TestPatchGrokResponsesBodyDropsNestedUnsupportedFields(t *testing.T) {
 		"metadata": {"external_web_access": false, "large_id": 9007199254740993}
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.3")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.3")
 	require.NoError(t, err)
 	require.True(t, json.Valid(patched))
 	require.False(t, strings.Contains(string(patched), "external_web_access"))
@@ -445,7 +447,7 @@ func TestPatchGrokResponsesBodyDropsToolChoiceWhenNoSupportedToolsRemain(t *test
 		"tool_choice": {"type": "namespace", "namespace": "functions"}
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.3")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.3")
 	require.NoError(t, err)
 	require.True(t, json.Valid(patched))
 	require.False(t, gjson.GetBytes(patched, "tools").Exists())
@@ -651,10 +653,10 @@ func TestForwardGrokResponsesCodexAdditionalToolsUsesMixedCacheIntent(t *testing
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
-	c.Request.Header.Set(grokClientToolCacheOptInHeader, "prefer-cache")
+	c.Request.Header.Set("X-Sub2API-Grok-Client-Tool-Cache", "prefer-cache")
 	c.Set("api_key", &apikey.APIKey{ID: 4501})
 
-	account := healthyGrokOAuthGatewayTestAccount(4501, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(4501, "access-token")
 	account.Record.Credentials["subscription_tier"] = "free"
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
@@ -675,7 +677,7 @@ func TestForwardGrokResponsesCodexAdditionalToolsUsesMixedCacheIntent(t *testing
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -695,7 +697,7 @@ func TestForwardGrokResponsesCodexAdditionalToolsUsesMixedCacheIntent(t *testing
 	identity := gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String()
 	require.NotEmpty(t, identity)
 	require.Equal(t, identity, upstream.lastReq.Header.Get(gatewayhttp.GrokConversationIDHeader))
-	require.Empty(t, upstream.lastReq.Header.Get(grokClientToolCacheOptInHeader))
+	require.Empty(t, upstream.lastReq.Header.Get("X-Sub2API-Grok-Client-Tool-Cache"))
 }
 
 func TestForwardGrokResponsesClaudeDesktopClientToolsUseCacheRoute(t *testing.T) {
@@ -725,7 +727,7 @@ func TestForwardGrokResponsesClaudeDesktopClientToolsUseCacheRoute(t *testing.T)
 		]
 	}`)
 
-	account := healthyGrokOAuthGatewayTestAccount(4504, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(4504, "access-token")
 	account.Record.Credentials["subscription_tier"] = "free"
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
@@ -768,9 +770,9 @@ func TestForwardGrokResponsesClaudeDesktopClientToolsUseCacheRoute(t *testing.T)
 		return c
 	}
 
-	first, err := svc.forwardGrokResponses(context.Background(), newContext(firstBody), account, firstBody, "grok", false, time.Now())
+	first, err := svc.Grok.ForwardResponses(context.Background(), newContext(firstBody), account, firstBody, "grok", false, time.Now())
 	require.NoError(t, err)
-	second, err := svc.forwardGrokResponses(context.Background(), newContext(secondBody), account, secondBody, "grok", false, time.Now())
+	second, err := svc.Grok.ForwardResponses(context.Background(), newContext(secondBody), account, secondBody, "grok", false, time.Now())
 	require.NoError(t, err)
 
 	require.Equal(t, 0, first.Usage.CacheReadInputTokens)
@@ -799,23 +801,6 @@ func TestForwardGrokResponsesClaudeDesktopClientToolsUseCacheRoute(t *testing.T)
 	require.Equal(t, secondIdentity, upstream.requests[1].Header.Get(gatewayhttp.GrokConversationIDHeader))
 }
 
-func TestGrokResponsesCacheIdentityIncludesPromotedCodexTools(t *testing.T) {
-	c := newGrokCacheTestContext(4503)
-	lookupBody := []byte(`{"model":"grok","input":[{"type":"additional_tools","tools":[{"type":"function","name":"lookup","parameters":{"type":"object"}}]},{"type":"message","role":"user","content":"same prompt"}]}`)
-	readBody := []byte(`{"model":"grok","input":[{"type":"additional_tools","tools":[{"type":"function","name":"read_file","parameters":{"type":"object"}}]},{"type":"message","role":"user","content":"same prompt"}]}`)
-
-	patchedLookup, err := patchGrokResponsesBody(lookupBody, "grok-4.5")
-	require.NoError(t, err)
-	patchedRead, err := patchGrokResponsesBody(readBody, "grok-4.5")
-	require.NoError(t, err)
-
-	lookupIdentity := resolveGrokCacheIdentity(c, patchedLookup, "", "grok-4.5")
-	readIdentity := resolveGrokCacheIdentity(c, patchedRead, "", "grok-4.5")
-	require.NotEmpty(t, lookupIdentity)
-	require.NotEmpty(t, readIdentity)
-	require.NotEqual(t, lookupIdentity, readIdentity)
-}
-
 func TestCodexUnsupportedAdditionalToolsDoNotBecomeToolFreeCacheIntent(t *testing.T) {
 	body := []byte(`{
 		"model":"grok","tool_choice":"auto",
@@ -827,7 +812,7 @@ func TestCodexUnsupportedAdditionalToolsDoNotBecomeToolFreeCacheIntent(t *testin
 			{"type":"message","role":"user","content":"hello"}
 		]
 	}`)
-	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.5")
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(patched, "tools").Exists())
 	require.False(t, gjson.GetBytes(patched, "tool_choice").Exists())
@@ -835,39 +820,14 @@ func TestCodexUnsupportedAdditionalToolsDoNotBecomeToolFreeCacheIntent(t *testin
 	mixedCacheIntent := patched
 	patched, err = xai.ApplyGrokResponsesCacheIdentity(patched, body, "isolated-id", true)
 	require.NoError(t, err)
-	account := healthyGrokOAuthGatewayTestAccount(4502, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(4502, "access-token")
 	account.Record.Credentials["subscription_tier"] = "free"
-	patched, err = applyGrokFreeRequestToolCacheRoute(nil, patched, mixedCacheIntent, account, "isolated-id")
+	patched, err = gatewayhttp.ApplyGrokFreeRequestToolCacheRoute(nil, patched, mixedCacheIntent, account, "isolated-id")
 
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(patched, "tools").Exists())
 	require.False(t, gjson.GetBytes(patched, "tool_choice").Exists())
 	require.Equal(t, "isolated-id", gjson.GetBytes(patched, "prompt_cache_key").String())
-}
-
-func TestBuildGrokResponsesRequestPinsOAuthBaseURLAndUsesBearerToken(t *testing.T) {
-	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
-
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"base_url": "https://xai.test/v1/",
-		}},
-	}
-
-	req, err := buildGrokResponsesRequest(context.Background(), nil, account, []byte(`{"model":"grok-4.3"}`), "access-token", "isolated-cache-id", nil)
-	require.NoError(t, err)
-	require.Equal(t, http.MethodPost, req.Method)
-	require.Equal(t, "https://xai.test/v1/responses", req.URL.String())
-	require.Equal(t, "Bearer access-token", req.Header.Get("Authorization"))
-	require.Equal(t, "application/json", req.Header.Get("Content-Type"))
-	require.Contains(t, req.Header.Get("Accept"), "text/event-stream")
-	require.Equal(t, xai.CLIClientVersion, req.Header.Get("X-Grok-Client-Version"))
-	require.Equal(t, "isolated-cache-id", req.Header.Get(gatewayhttp.GrokConversationIDHeader))
-
-	data, err := io.ReadAll(req.Body)
-	require.NoError(t, err)
-	require.Equal(t, `{"model":"grok-4.3"}`, strings.TrimSpace(string(data)))
 }
 
 func TestBuildGrokCompactRequestBodyUsesResponsesCompactionTurn(t *testing.T) {
@@ -919,7 +879,7 @@ func TestPatchGrokResponsesBodyRestoresCompactInput(t *testing.T) {
 		]
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.5")
 	require.NoError(t, err)
 	require.Equal(t, "reasoning", gjson.GetBytes(patched, "input.0.type").String())
 	require.Equal(t, "grok-encrypted-state", gjson.GetBytes(patched, "input.0.encrypted_content").String())
@@ -968,7 +928,7 @@ func TestForwardGrokResponsesCompactRoundTrip(t *testing.T) {
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.False(t, result.Stream)
@@ -990,87 +950,6 @@ func TestForwardGrokResponsesCompactRoundTrip(t *testing.T) {
 	require.Equal(t, "compact summary", gjson.Get(recorder.Body.String(), "output.0.summary.0.text").String())
 }
 
-func TestBuildGrokResponsesRequestAllowsPublicAPIKeyBaseURLByDefault(t *testing.T) {
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"base_url": "https://grok.example.test/v1/",
-		}},
-	}
-
-	req, err := buildGrokResponsesRequest(context.Background(), nil, account, []byte(`{"model":"grok-4.3"}`), "api-key", "", nil)
-	require.NoError(t, err)
-	require.Equal(t, "https://grok.example.test/v1/responses", req.URL.String())
-	require.Equal(t, "Bearer api-key", req.Header.Get("Authorization"))
-	require.Empty(t, req.Header.Get("X-Grok-Client-Version"))
-	require.NotEqual(t, xai.DefaultGrokUpstreamUserAgent(), req.Header.Get("User-Agent"))
-}
-
-func TestBuildGrokResponsesRequestHonorsOAuthOfficialEndpointSwitch(t *testing.T) {
-	t.Parallel()
-
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"base_url": xai.DefaultBaseURL,
-		}},
-	}
-
-	req, err := buildGrokResponsesRequest(context.Background(), nil, account, []byte(`{"model":"grok-4.3"}`), "access-token", "", nil)
-	require.NoError(t, err)
-	require.Equal(t, xai.DefaultBaseURL+"/responses", req.URL.String())
-}
-
-func TestBuildGrokResponsesRequestAppliesHeaderOverridesLast(t *testing.T) {
-	t.Parallel()
-
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"base_url":                "https://relay.example.test/v1",
-			"header_override_enabled": true,
-			"header_overrides": map[string]any{
-				"User-Agent":            "relay-client/2.0",
-				"X-Grok-Client-Version": "9.9.9",
-				"X-Relay-Token":         "relay-secret",
-			},
-		}},
-	}
-
-	req, err := buildGrokResponsesRequest(context.Background(), nil, account, []byte(`{"model":"grok-4.3"}`), "access-token", "conv-1", nil)
-	require.NoError(t, err)
-	require.Equal(t, "https://relay.example.test/v1/responses", req.URL.String())
-	// 覆写值优先于内置 CLI 身份头。名字不在 wire casing 映射中的覆写头
-	// 以小写键直写（HTTP/2 线上语义），需按写入形态断言。
-	require.Equal(t, "relay-client/2.0", req.Header.Get("User-Agent"))
-	require.Equal(t, []string{"9.9.9"}, map[string][]string(req.Header)["x-grok-client-version"])
-	require.Empty(t, req.Header.Get("X-Grok-Client-Version"))
-	require.Equal(t, []string{"relay-secret"}, map[string][]string(req.Header)["x-relay-token"])
-	// 会话路由头与认证头不受覆写影响。
-	require.Equal(t, "conv-1", req.Header.Get(gatewayhttp.GrokConversationIDHeader))
-	require.Equal(t, "Bearer access-token", req.Header.Get("Authorization"))
-}
-
-func TestBuildGrokResponsesRequestIgnoresBlockedHeaderOverrides(t *testing.T) {
-	t.Parallel()
-
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"header_override_enabled": true,
-			"header_overrides": map[string]any{
-				"Authorization":  "Bearer stolen",
-				"x-grok-conv-id": "pinned-conversation",
-			},
-		}},
-	}
-
-	req, err := buildGrokResponsesRequest(context.Background(), nil, account, []byte(`{"model":"grok-4.3"}`), "api-key", "conv-2", nil)
-	require.NoError(t, err)
-	require.Equal(t, "Bearer api-key", req.Header.Get("Authorization"))
-	require.Equal(t, "conv-2", req.Header.Get(gatewayhttp.GrokConversationIDHeader))
-}
-
 func TestGrokMediaGenerationGateCoversImagesAndVideo(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1090,18 +969,6 @@ func TestGrokMediaGenerationGateCoversImagesAndVideo(t *testing.T) {
 			require.Equal(t, tt.want, tt.endpoint.IsGenerationRequest())
 		})
 	}
-}
-
-func TestExtractGrokMediaModelSupportsJSONAndMultipart(t *testing.T) {
-	require.Equal(t, "grok-imagine", ExtractGrokMediaModel("application/json", []byte(`{"model":"grok-imagine"}`)))
-
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-	require.NoError(t, writer.WriteField("prompt", "draw a cat"))
-	require.NoError(t, writer.WriteField("model", "grok-imagine-edit"))
-	require.NoError(t, writer.Close())
-
-	require.Equal(t, "grok-imagine-edit", ExtractGrokMediaModel(writer.FormDataContentType(), buf.Bytes()))
 }
 
 func TestParseGrokMediaRequestBuildsMultipartModerationBody(t *testing.T) {
@@ -1159,7 +1026,7 @@ func TestNormalizeGrokMediaForwardBodyCanonicalizesImageURLAlias(t *testing.T) {
 		"duration":8
 	}`)
 
-	out, contentType, err := normalizeGrokMediaForwardBody(xai.GrokMediaEndpointVideosGenerations, body, "application/json")
+	out, contentType, err := gatewayprovider.GrokMediaCodec().NormalizeGrokMediaForwardBody(xai.GrokMediaEndpointVideosGenerations, body, "application/json")
 
 	require.NoError(t, err)
 	require.Equal(t, "application/json", contentType)
@@ -1175,7 +1042,7 @@ func TestNormalizeGrokMediaForwardBodyPreservesImageToVideoModelForOfficialURL(t
 		"image":{"url":"https://example.com/source.png"}
 	}`)
 
-	out, _, err := normalizeGrokMediaForwardBody(xai.GrokMediaEndpointVideosGenerations, body, "application/json")
+	out, _, err := gatewayprovider.GrokMediaCodec().NormalizeGrokMediaForwardBody(xai.GrokMediaEndpointVideosGenerations, body, "application/json")
 
 	require.NoError(t, err)
 	require.Equal(t, "grok-imagine-video-1.5", gjson.GetBytes(out, "model").String())
@@ -1225,7 +1092,7 @@ func TestPrepareGrokImageEditNormalizesOfficialImageObjects(t *testing.T) {
 		"mask":{"image_url":"https://example.com/mask.png"}
 	}`)
 
-	out, contentType, err := prepareGrokMediaForwardBody(xai.GrokMediaEndpointImagesEdits, body, "application/json")
+	out, contentType, err := gatewayprovider.GrokMediaCodec().PrepareGrokMediaForwardBody(xai.GrokMediaEndpointImagesEdits, body, "application/json")
 	require.NoError(t, err)
 	require.Equal(t, "application/json", contentType)
 	for _, path := range []string{"image", "images.0", "mask"} {
@@ -1238,7 +1105,7 @@ func TestPrepareGrokImageEditNormalizesOfficialImageObjects(t *testing.T) {
 func TestPrepareGrokImageEditRejectsMoreThanThreeSources(t *testing.T) {
 	body := []byte(`{"images":["https://example.com/1.png","https://example.com/2.png","https://example.com/3.png","https://example.com/4.png"]}`)
 
-	out, _, err := prepareGrokMediaForwardBody(xai.GrokMediaEndpointImagesEdits, body, "application/json")
+	out, _, err := gatewayprovider.GrokMediaCodec().PrepareGrokMediaForwardBody(xai.GrokMediaEndpointImagesEdits, body, "application/json")
 	require.Error(t, err)
 	require.Nil(t, out)
 	require.Contains(t, err.Error(), "maximum of 3 source images")
@@ -1297,7 +1164,7 @@ func TestForwardGrokMediaImagesGenerationNormalizesImagineAlias(t *testing.T) {
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesGenerations, "", body, "application/json")
+	result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesGenerations, "", body, "application/json")
 	require.NoError(t, err)
 	require.Equal(t, "https://xai.test/v1/images/generations", upstream.lastReq.URL.String())
 	require.Equal(t, http.MethodPost, upstream.lastReq.Method)
@@ -1341,7 +1208,7 @@ func TestForwardGrokMediaImagesGenerationRejectsEmptySuccessfulResponse(t *testi
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesGenerations, "", body, "application/json")
+	result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesGenerations, "", body, "application/json")
 	require.Nil(t, result)
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -1464,7 +1331,7 @@ func TestForwardGrokMediaAppliesAccountModelMappingAfterEndpointNormalization(t 
 			}}
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-			result, err := svc.ForwardGrokMedia(context.Background(), c, account, tt.endpoint, "", []byte(tt.body), "application/json")
+			result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, tt.endpoint, "", []byte(tt.body), "application/json")
 
 			require.NoError(t, err)
 			require.JSONEq(t, tt.wantBody, string(upstream.lastBody))
@@ -1504,7 +1371,7 @@ func TestForwardGrokMediaImagesGenerationStripsUnsupportedSize(t *testing.T) {
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesGenerations, "", body, "application/json")
+	result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesGenerations, "", body, "application/json")
 	require.NoError(t, err)
 	require.JSONEq(t, `{"model":"grok-imagine-image","prompt":"draw a cat","resolution":"1k","aspect_ratio":"1:1"}`, string(upstream.lastBody))
 	require.False(t, gjson.GetBytes(upstream.lastBody, "size").Exists())
@@ -1553,7 +1420,7 @@ func TestForwardGrokMediaImagesEditMultipartConvertsToJSON(t *testing.T) {
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesEdits, "", buf.Bytes(), writer.FormDataContentType())
+	result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesEdits, "", buf.Bytes(), writer.FormDataContentType())
 	require.NoError(t, err)
 	require.Equal(t, "https://xai.test/v1/images/edits", upstream.lastReq.URL.String())
 	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Content-Type"))
@@ -1595,7 +1462,7 @@ func TestForwardGrokMediaVideoGenerationReturnsUsageAndResponseID(t *testing.T) 
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideosGenerations, "", body, "application/json")
+	result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideosGenerations, "", body, "application/json")
 	require.NoError(t, err)
 	require.Equal(t, "https://xai.test/v1/videos/generations", upstream.lastReq.URL.String())
 	require.JSONEq(t, `{"model":"grok-imagine-video-1.5","prompt":"waves","resolution":"720p","duration":10}`, string(upstream.lastBody))
@@ -1637,7 +1504,7 @@ func TestForwardGrokMediaVideoGenerationReturnsTaskIDAsResponseID(t *testing.T) 
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideosGenerations, "", body, "application/json")
+	result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideosGenerations, "", body, "application/json")
 	require.NoError(t, err)
 	require.Equal(t, "video-task-123", result.ResponseID)
 }
@@ -1651,7 +1518,7 @@ func TestExtractGrokMediaVideoRequestIDPreservesExistingPrecedence(t *testing.T)
 		"video":{"request_id":"video-request-id","id":"video-id","task_id":"video-task-id"}
 	}`)
 
-	require.Equal(t, "request-id", extractGrokMediaVideoRequestID(body))
+	require.Equal(t, "request-id", gatewayprovider.GrokMediaCodec().ExtractGrokMediaVideoRequestID(body))
 }
 
 func TestForwardGrokMediaVideoGenerationPreservesImageToVideoModel(t *testing.T) {
@@ -1682,7 +1549,7 @@ func TestForwardGrokMediaVideoGenerationPreservesImageToVideoModel(t *testing.T)
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideosGenerations, "", body, "application/json")
+	result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideosGenerations, "", body, "application/json")
 	require.NoError(t, err)
 	require.Equal(t, "https://xai.test/v1/videos/generations", upstream.lastReq.URL.String())
 	require.JSONEq(t, `{"model":"grok-imagine-video-1.5","prompt":"animate","image":{"url":"data:image/png;base64,aW1n"}}`, string(upstream.lastBody))
@@ -1724,7 +1591,7 @@ func TestForwardGrokMediaOAuthImageToVideoUsesOfficialAPIForLargeBody(t *testing
 	}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream}), newGrokTokenSourceForTest(nil, nil))
 
-	_, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideosGenerations, "", body, "application/json")
+	_, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideosGenerations, "", body, "application/json")
 	require.NoError(t, err)
 	require.Equal(t, xai.DefaultBaseURL+"/videos/generations", upstream.lastReq.URL.String())
 	require.Empty(t, upstream.lastReq.Header.Get("X-XAI-Token-Auth"))
@@ -1760,7 +1627,7 @@ func TestForwardGrokMediaVideoStatusUsesGETWithoutBody(t *testing.T) {
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideoStatus, "request-123", nil, "")
+	result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointVideoStatus, "request-123", nil, "")
 	require.NoError(t, err)
 	require.Equal(t, "https://xai.test/v1/videos/request-123", upstream.lastReq.URL.String())
 	require.Equal(t, http.MethodGet, upstream.lastReq.Method)
@@ -1807,7 +1674,7 @@ func TestForwardGrokMediaVideoMutationEndpoints(t *testing.T) {
 			}}
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-			result, err := svc.ForwardGrokMedia(context.Background(), c, account, tt.endpoint, "", body, "application/json")
+			result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, tt.endpoint, "", body, "application/json")
 			require.NoError(t, err)
 			require.Equal(t, "https://xai.test/v1"+tt.path, upstream.lastReq.URL.String())
 			require.Equal(t, http.MethodPost, upstream.lastReq.Method)
@@ -1828,7 +1695,7 @@ func TestGrokMediaVideoRequestBindingIsScopedToUserAndAPIKey(t *testing.T) {
 	c.Request.Header.Set("session_id", "shared-client-session")
 	groupID := int64(7)
 	cache := &stubGatewayCache{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cache: cache})
+	tasks := media.NewVideoTasks(cache, nil, media.VideoOptions{})
 	const userID int64 = 41
 	const apiKeyID int64 = 51
 	require.NotEmpty(t, gatewayhttp.GenerateExplicitOpenAISessionHash(c, nil))
@@ -1836,17 +1703,17 @@ func TestGrokMediaVideoRequestBindingIsScopedToUserAndAPIKey(t *testing.T) {
 
 	hash := media.GrokMediaVideoRequestSessionHash("video-request-123", userID, apiKeyID)
 	require.NotEmpty(t, hash)
-	require.NoError(t, svc.BindGrokMediaVideoRequestAccount(ctx, &groupID, "video-request-123", userID, apiKeyID, 63))
+	require.NoError(t, tasks.BindGrokMediaVideoRequestAccount(ctx, &groupID, "video-request-123", userID, apiKeyID, 63))
 
-	accountID, err := svc.ResolveGrokMediaVideoRequestAccount(ctx, &groupID, "video-request-123", userID, apiKeyID)
+	accountID, err := tasks.ResolveGrokMediaVideoRequestAccount(ctx, &groupID, "video-request-123", userID, apiKeyID)
 	require.NoError(t, err)
 	require.Equal(t, int64(63), accountID)
 
-	accountID, err = svc.ResolveGrokMediaVideoRequestAccount(ctx, &groupID, "video-request-123", userID+1, apiKeyID)
+	accountID, err = tasks.ResolveGrokMediaVideoRequestAccount(ctx, &groupID, "video-request-123", userID+1, apiKeyID)
 	require.Error(t, err)
 	require.Zero(t, accountID)
 
-	accountID, err = svc.ResolveGrokMediaVideoRequestAccount(ctx, &groupID, "video-request-123", userID, apiKeyID+1)
+	accountID, err = tasks.ResolveGrokMediaVideoRequestAccount(ctx, &groupID, "video-request-123", userID, apiKeyID+1)
 	require.Error(t, err)
 	require.Zero(t, accountID)
 }
@@ -1884,7 +1751,7 @@ func TestForwardGrokMedia429ReconcilesRateLimitBeforeCustomErrorBypass(t *testin
 	repo := &grokQuotaAccountRepo{}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream, accountRepo: repo}))
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesGenerations, "", body, "application/json")
+	result, err := svc.Grok.ForwardGrokMedia(context.Background(), c, account, xai.GrokMediaEndpointImagesGenerations, "", body, "application/json")
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Equal(t, http.StatusInternalServerError, recorder.Code)
@@ -1915,30 +1782,13 @@ func TestGrokMedia429FailoverPreservesRetryAfter(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}
 
-	result, err := svc.handleGrokMediaErrorResponse(context.Background(), resp, c, account, "request-id", "grok-imagine")
+	result, err := mediaErrorResponseFixture(svc.Grok, context.Background(), resp, c, account, "request-id", "grok-imagine")
 
 	require.Nil(t, result)
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
 	require.Equal(t, "45", http.Header(failoverErr.ResponseHeaders).Get("Retry-After"))
-}
-
-func healthyGrokOAuthGatewayTestAccount(id int64, token string) *gatewayprovider.ExecutionAccount {
-	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id,
-		Name:        "grok",
-		Platform:    capability.PlatformGrok,
-		Type:        capability.AccountTypeOAuth,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"access_token":  token,
-			"refresh_token": "refresh-token",
-			"expires_at":    time.Now().Add(2 * accountcore.GrokTokenRefreshSkew).UTC().Format(time.RFC3339),
-			"base_url":      xai.DefaultCLIBaseURL,
-		}},
-	}
 }
 
 func TestForwardAsChatCompletionsForGrokStopFallsBackToXAIChatCompletions(t *testing.T) {
@@ -1949,7 +1799,7 @@ func TestForwardAsChatCompletionsForGrokStopFallsBackToXAIChatCompletions(t *tes
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	c.Set("api_key", &apikey.APIKey{ID: 5101})
 
-	account := healthyGrokOAuthGatewayTestAccount(51, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(51, "access-token")
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{51: account},
@@ -2000,7 +1850,7 @@ func TestForwardGrokResponsesStreamingDefaultsEmptyModelTo45AndSnapshots(t *test
 	c.Request.Header.Set("OpenAI-Beta", "responses=experimental")
 	c.Set("api_key", &apikey.APIKey{ID: 5201})
 
-	account := healthyGrokOAuthGatewayTestAccount(52, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(52, "access-token")
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{52: account},
@@ -2030,7 +1880,7 @@ func TestForwardGrokResponsesStreamingDefaultsEmptyModelTo45AndSnapshots(t *test
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "", true, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "", true, time.Now())
 	require.NoError(t, err)
 	require.Equal(t, xai.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer access-token", upstream.lastReq.Header.Get("Authorization"))
@@ -2087,7 +1937,7 @@ func TestForwardGrokResponsesAPIKeyUsesXAIResponses(t *testing.T) {
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", true, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", true, time.Now())
 	require.NoError(t, err)
 	require.Equal(t, "https://api.x.ai/v1/responses", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer xai-test-key", upstream.lastReq.Header.Get("Authorization"))
@@ -2135,9 +1985,9 @@ func TestForwardGrokResponsesUsesMetadataSessionForCacheIdentityWithoutForwardin
 		return c
 	}
 
-	_, err := svc.forwardGrokResponses(context.Background(), newContext(firstBody), account, firstBody, "grok", false, time.Now())
+	_, err := svc.Grok.ForwardResponses(context.Background(), newContext(firstBody), account, firstBody, "grok", false, time.Now())
 	require.NoError(t, err)
-	_, err = svc.forwardGrokResponses(context.Background(), newContext(secondBody), account, secondBody, "grok", false, time.Now())
+	_, err = svc.Grok.ForwardResponses(context.Background(), newContext(secondBody), account, secondBody, "grok", false, time.Now())
 	require.NoError(t, err)
 	require.Len(t, upstream.bodies, 2)
 
@@ -2198,7 +2048,7 @@ func TestForwardGrokResponsesRetriesInvalidEncryptedContentOnce(t *testing.T) {
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "resp_recovered", result.ResponseID)
@@ -2278,7 +2128,7 @@ func TestForwardGrokResponsesInvalidEncryptedContentRecoveryDoesNotOvermatch(t *
 			}}}
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-			result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+			result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 			require.Nil(t, result)
 			require.Error(t, err)
 			require.Len(t, upstream.requests, 1)
@@ -2289,8 +2139,8 @@ func TestForwardGrokResponsesInvalidEncryptedContentRecoveryDoesNotOvermatch(t *
 
 func TestGrokCompactionBlobRecoveryStripsCompactionItem(t *testing.T) {
 	body := []byte(`{"model":"grok","input":[{"type":"compaction","id":"cmp_1","encrypted_content":"blob"},{"type":"message","role":"user","content":"hi"}]}`)
-	require.True(t, isGrokInvalidEncryptedContentResponse(http.StatusUnprocessableEntity, []byte(`{"code":"invalid_compaction","error":"could not decode the compaction blob"}`)))
-	retry, changed, err := trimGrokInvalidEncryptedContentRetryBody(body)
+	require.True(t, gatewayprovider.GrokBodyCodec().IsGrokInvalidEncryptedContentResponse(http.StatusUnprocessableEntity, []byte(`{"code":"invalid_compaction","error":"could not decode the compaction blob"}`)))
+	retry, changed, err := gatewayprovider.GrokBodyCodec().TrimGrokInvalidEncryptedContentRetryBody(body)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "message", gjson.GetBytes(retry, "input.0.type").String())
@@ -2325,7 +2175,7 @@ func TestForwardGrokResponsesInvalidEncryptedContentRecoveryNestedErrorShape(t *
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Len(t, upstream.requests, 2)
@@ -2363,7 +2213,7 @@ func TestForwardGrokResponsesInvalidEncryptedContentRetryFailureIsTerminal(t *te
 	}}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 	require.Nil(t, result)
 	require.Error(t, err)
 	require.Len(t, upstream.requests, 2)
@@ -2459,7 +2309,7 @@ func TestForwardAsChatCompletionsForGrokStreamingUsesRawXAIChatCompletions(t *te
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	account := healthyGrokOAuthGatewayTestAccount(53, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(53, "access-token")
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{53: account},
@@ -2515,7 +2365,7 @@ func TestForwardGrokResponsesNonStreamingUsesCacheIdentityAndCachedUsage(t *test
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("api_key", &apikey.APIKey{ID: 5202})
 
-	account := healthyGrokOAuthGatewayTestAccount(56, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(56, "access-token")
 	observedResetAt := time.Now().Add(-time.Second).UTC().Truncate(time.Second)
 	observedLimitedAt := observedResetAt.Add(-grokRateLimitRepeatCooldown)
 	account.Record.RateLimitedAt = &observedLimitedAt
@@ -2540,7 +2390,7 @@ func TestForwardGrokResponsesNonStreamingUsesCacheIdentityAndCachedUsage(t *test
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.False(t, result.Stream)
@@ -2577,7 +2427,7 @@ func TestForwardGrokResponsesFreeFunctionToolsUseCacheCapableMixedRoute(t *testi
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 	c.Set("api_key", &apikey.APIKey{ID: 5204})
 
-	account := healthyGrokOAuthGatewayTestAccount(60, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(60, "access-token")
 	account.Record.Credentials["subscription_tier"] = "free"
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
@@ -2597,7 +2447,7 @@ func TestForwardGrokResponsesFreeFunctionToolsUseCacheCapableMixedRoute(t *testi
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, account, body, "grok", false, time.Now())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -2620,7 +2470,7 @@ func TestForwardGrokResponsesFailoverKeepsCacheIdentityAcrossAccounts(t *testing
 	c.Set("api_key", &apikey.APIKey{ID: 5203})
 
 	newAccount := func(id int64, token string) *gatewayprovider.ExecutionAccount {
-		account := healthyGrokOAuthGatewayTestAccount(id, token)
+		account := gatewaytestkit.HealthyGrokOAuthAccount(id, token)
 		account.Record.Name = fmt.Sprintf("grok-%d", id)
 		return account
 	}
@@ -2649,11 +2499,11 @@ func TestForwardGrokResponsesFailoverKeepsCacheIdentityAcrossAccounts(t *testing
 		accountRepo: repo,
 	}), newGrokTokenSourceForTest(repo, nil))
 
-	_, err := svc.forwardGrokResponses(context.Background(), c, firstAccount, body, "grok", false, time.Now())
+	_, err := svc.Grok.ForwardResponses(context.Background(), c, firstAccount, body, "grok", false, time.Now())
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 
-	result, err := svc.forwardGrokResponses(context.Background(), c, secondAccount, body, "grok", false, time.Now())
+	result, err := svc.Grok.ForwardResponses(context.Background(), c, secondAccount, body, "grok", false, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Len(t, upstream.requests, 2)
@@ -2678,7 +2528,7 @@ func TestForwardAsChatCompletionsForGrokStreamingStopFallsBackToRawXAIChatComple
 	c.Request.Header.Set(gatewayhttp.GrokConversationIDHeader, "native-client-conversation")
 	c.Set("api_key", &apikey.APIKey{ID: 5301})
 
-	account := healthyGrokOAuthGatewayTestAccount(53, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(53, "access-token")
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{53: account},
@@ -2737,7 +2587,7 @@ func TestForwardAsChatCompletionsForGrokComposerBridgesImageInput(t *testing.T) 
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("api_key", &apikey.APIKey{ID: 5501})
 
-	account := healthyGrokOAuthGatewayTestAccount(55, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(55, "access-token")
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{55: account},
@@ -2801,7 +2651,7 @@ func TestForwardAsAnthropicForGrokUsesXAIResponses(t *testing.T) {
 	c.Request.Header.Set("originator", "opencode")
 	c.Set("api_key", &apikey.APIKey{ID: 5401})
 
-	account := healthyGrokOAuthGatewayTestAccount(54, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(54, "access-token")
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{54: account},
@@ -2859,7 +2709,7 @@ func TestForwardAsAnthropicForGrokRetriesInvalidEncryptedContentOnce(t *testing.
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
 	c.Set("api_key", &apikey.APIKey{ID: 5404})
 
-	account := healthyGrokOAuthGatewayTestAccount(59, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(59, "access-token")
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{59: account},
@@ -2883,8 +2733,8 @@ func TestForwardAsAnthropicForGrokRetriesInvalidEncryptedContentOnce(t *testing.
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Len(t, upstream.requests, 2)
-	require.True(t, requestHasGrokEncryptedReasoning(upstream.bodies[0]))
-	require.False(t, requestHasGrokEncryptedReasoning(upstream.bodies[1]))
+	require.True(t, gatewayprovider.GrokBodyCodec().RequestHasGrokEncryptedReasoning(upstream.bodies[0]))
+	require.False(t, gatewayprovider.GrokBodyCodec().RequestHasGrokEncryptedReasoning(upstream.bodies[1]))
 	require.Equal(t, upstream.requests[0].URL.String(), upstream.requests[1].URL.String())
 	require.Contains(t, recorder.Body.String(), "ok")
 }
@@ -2902,7 +2752,7 @@ func TestForwardAsAnthropicForGrokFunctionToolUsesCacheCapableMixedRoute(t *test
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
 	c.Set("api_key", &apikey.APIKey{ID: 5403})
 
-	account := healthyGrokOAuthGatewayTestAccount(58, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(58, "access-token")
 	account.Record.Extra = map[string]any{accountcore.GrokUsageBillingExtraKey: map[string]any{
 		"status_code":        http.StatusOK,
 		"source":             "billing_probe",
@@ -2967,7 +2817,7 @@ func TestForwardAsAnthropicForGrokStreamingPreservesCacheUsage(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
 	c.Set("api_key", &apikey.APIKey{ID: 5402})
 
-	account := healthyGrokOAuthGatewayTestAccount(57, "access-token")
+	account := gatewaytestkit.HealthyGrokOAuthAccount(57, "access-token")
 	repo := &grokQuotaAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{57: account},
@@ -3086,7 +2936,7 @@ func TestGrokMediaPoolModeRetryFlagFollowsExplicitPolicies(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 		}
 
-		result, err := svc.handleGrokMediaErrorResponse(context.Background(), resp, c, account, "request-id", "grok-imagine")
+		result, err := mediaErrorResponseFixture(svc.Grok, context.Background(), resp, c, account, "request-id", "grok-imagine")
 
 		require.Nil(t, result)
 		var failoverErr *forwardcore.UpstreamFailoverError
@@ -3110,7 +2960,7 @@ func TestGrokMediaPoolModeRetryFlagFollowsExplicitPolicies(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"invalid api key"}}`)),
 		}
 
-		result, err := svc.handleGrokMediaErrorResponse(context.Background(), resp, c, account, "request-id", "grok-imagine")
+		result, err := mediaErrorResponseFixture(svc.Grok, context.Background(), resp, c, account, "request-id", "grok-imagine")
 
 		require.Nil(t, result)
 		var failoverErr *forwardcore.UpstreamFailoverError
@@ -3141,13 +2991,16 @@ func TestGrokMediaPoolModeRetryFlagFollowsExplicitPolicies(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"maintenance in progress"}}`)),
 		}}
 		svc.httpUpstream = upstream
+		if svc.Grok != nil {
+			svc.Grok.Transport = svc.httpUpstream
+		}
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
 		body := []byte(`{"model":"image-alias","prompt":"draw a cat"}`)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
 		c.Request.Header.Set("Content-Type", "application/json")
 
-		result, err := svc.ForwardGrokMedia(
+		result, err := svc.Grok.ForwardGrokMedia(
 			context.Background(),
 			c,
 			account,
@@ -3301,7 +3154,7 @@ func TestPatchGrokResponsesBody_StripsReasoningContentNull(t *testing.T) {
 		]
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.5")
 	require.NoError(t, err)
 	require.True(t, json.Valid(patched))
 
@@ -3327,7 +3180,7 @@ func TestPatchGrokResponsesBody_KeepsReasoningContentNonNull(t *testing.T) {
 		]
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.5")
 	require.NoError(t, err)
 
 	reasoning := gjson.GetBytes(patched, "input.0")
@@ -3346,7 +3199,7 @@ func TestPatchGrokResponsesBody_MultipleReasoningContentNull(t *testing.T) {
 		]
 	}`)
 
-	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	patched, err := gatewayprovider.GrokBodyCodec().PatchGrokResponsesBody(body, "grok-4.5")
 	require.NoError(t, err)
 
 	items := gjson.GetBytes(patched, "input").Array()
@@ -3392,7 +3245,7 @@ func TestForwardGrokResponsesRejectsMappedImageModelWithClientError(t *testing.T
 		}},
 	}
 
-	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).forwardGrokResponses(
+	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).Grok.ForwardResponses(
 		context.Background(), c, account, body, "image-alias", false, time.Now(),
 	)
 

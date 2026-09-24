@@ -388,7 +388,7 @@ func TestProxyOpenAIWSHTTPBridgeTurnGrokInheritsToolSearchAndPromotesFollowupDis
 	require.Len(t, upstream.bodies, 2)
 	require.Equal(t, "tool_search", gjson.GetBytes(upstream.bodies[1], "tools.0.name").String())
 	require.Equal(t, "multi_agent_v1__spawn_agent", gjson.GetBytes(upstream.bodies[1], "tools.1.name").String())
-	require.NotEqual(t, grokFreeCacheDisabledToolChoice, gjson.GetBytes(upstream.bodies[1], "tool_choice").String())
+	require.NotEqual(t, "none", gjson.GetBytes(upstream.bodies[1], "tool_choice").String())
 	require.Equal(t, "grok-ws-cache", gjson.GetBytes(upstream.bodies[1], "prompt_cache_key").String())
 	require.Equal(t, "function_call_output", gjson.GetBytes(upstream.bodies[1], "input.0.type").String())
 	require.Len(t, events, 1)
@@ -732,7 +732,7 @@ func TestProxyOpenAIWSHTTPBridgeTurnTransportErrorFailoverSafety(t *testing.T) {
 			if tt.wantFailover {
 				require.ErrorAs(t, err, &failoverErr)
 				require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
-				require.JSONEq(t, string(openAITransportFailoverBody), string(failoverErr.ResponseBody))
+				require.JSONEq(t, string([]byte(`{"error":{"type":"upstream_error","message":"Upstream request failed"}}`)), string(failoverErr.ResponseBody))
 			} else {
 				require.Error(t, err)
 				require.False(t, errors.As(err, &failoverErr))
@@ -1694,7 +1694,7 @@ func TestProxyOpenAIWSHTTPBridgeTurnPromotesCodexAdditionalToolsForMixedCache(t 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
-	c.Request.Header.Set(grokClientToolCacheOptInHeader, "prefer-cache")
+	c.Request.Header.Set("X-Sub2API-Grok-Client-Tool-Cache", "prefer-cache")
 	var events [][]byte
 
 	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
@@ -1723,7 +1723,7 @@ func TestProxyOpenAIWSHTTPBridgeTurnPromotesCodexAdditionalToolsForMixedCache(t 
 	require.False(t, gjson.GetBytes(upstream.lastBody, `tools.#(type=="namespace")`).Exists())
 	require.Equal(t, "isolated-ws-cache-id", gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
 	require.Equal(t, "isolated-ws-cache-id", upstream.lastReq.Header.Get(gatewayhttp.GrokConversationIDHeader))
-	require.Empty(t, upstream.lastReq.Header.Get(grokClientToolCacheOptInHeader))
+	require.Empty(t, upstream.lastReq.Header.Get("X-Sub2API-Grok-Client-Tool-Cache"))
 }
 
 func TestProxyResponsesWebSocketFromClientForGrokUsesXAIHTTPBridge(t *testing.T) {

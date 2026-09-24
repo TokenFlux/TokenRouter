@@ -3,6 +3,8 @@ package app
 import (
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
@@ -102,6 +104,7 @@ func newOpenAIExecutionAndSelectionFixture(
 		executionCredentials, credentials, resolver, channelService,
 
 		settingService, prompts, headerFilter, stateStore, turnHeaders, modelTransient, proxyCircuit, choices, grokHealth, provideCompactExecutor(cfg), output, tlsFPRouterServices...)
+	source.BindGrokExecution(provideGrokExecutor(cfg, credentials, httpUpstream, output, grokHealth, tlsFPProfileService, settingService, blocks, deferredService, accountRepo, &gatewayRequestActivity{Operations: lifecycle.NewOperations("GatewayRequestsAndAttempts")}, resolver))
 	source.BindRuntimeBlockState(blocks)
 	source.BindSchedulerStickyStats(sticky)
 	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}

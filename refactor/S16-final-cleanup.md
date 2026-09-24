@@ -1853,3 +1853,11 @@ S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶�
 - 定向 race 3,901条通过、2项既有跳过；真实 Redis/PostgreSQL race分别3/4条通过，无失败或跳过。全量普通/unit/integration分别12,013/20,047/13,022条通过，既有跳过4/8/4逐名对齐。完整lint最终0/0/0；首次发现的2个无生产消费者旧包装及中断的冷分析均留有记录。
 - 最终60/60门禁、8个构建集合、Wire连续生成稳定和生产构建通过。SQL、Ent、旧冻结资料、原计划正文与51个保护文件保持；[验证摘要](baseline/S16/service-common-response-owner-verification.json)区分了行为通过、跳过和仅编译。
 - 旧service生产135→110、测试228→220，完整批次验证后提交。剩余Grok/OpenAI请求执行、WS/Live与旧装配继续按能力收尾；S16最终前端、跨平台、进程及资金销项尚待完成，roadmap保持16/17。
+
+### Grok 文本、媒体、Voice 与共享执行依赖大批次（2026-09-25）
+
+- 将 Responses、Chat→Responses、Composer 图片辅助、媒体、Voice 与 Realtime 单次执行改绑到 `GrokExecutor`，同批迁完 URL、缓存身份、Header、传输错误、档位投影、生产消费者、测试和装配。旧 Grok 专用生产文件全部删除，共用 Raw Chat/Messages/入站 WS 适配仍归后续 OpenAI/WS 批次。
+- app 复用原凭据、健康、HTTP 池、TLS、同一个 WS 拨号器及请求活动屏障；视频归属和完成认领直接绑定原生 VideoTasks。保持取消、一次交换、Header、响应关闭和资金完成资格，没有新增缓存或重试循环。
+- 117 个原测试有名称、标签及断言映射，没有缺失或减少断言；Header 请求构造额外检查两次错误返回。非 Grok ping 契约改用实际响应输出并补齐终态，仍断言 ping 原字节保留。首轮测试装配反馈和修正记录均保留。
+- 普通和 unit 的完整受影响消费者分别通过 5342 / 8252 条事件；定向 race 1,806 条通过、1 项既有跳过，PostgreSQL/Redis race 16 条通过。集合存在重叠，不相加。三套受影响 lint 为 0/0/0，57/57 门禁、8 个构建集合、Wire 两次稳定及全仓生产构建通过；详见[验证摘要](baseline/S16/service-grok-execution-owner-verification.json)。
+- 旧 service 生产文件 110→93、测试文件 220→209。SQL、Ent、S00—S15、原计划正文和51个保护文件保持。批次验证后提交；下一批集中处理共用 OpenAI 请求执行，再处理 WS/Live。S16 最终验收尚未完成，roadmap 保持16/17。

@@ -67,7 +67,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 
 func (s *OpenAIGatewayService) rawChatCompletionsURL(account *gatewayprovider.ExecutionAccount) (string, error) {
 	if account.Record.Platform == capability.PlatformGrok {
-		targetURL, err := buildGrokChatCompletionsURL(account, s.cfg, s.settingService)
+		targetURL, err := s.Grok.Routes.Chat(account, true)
 		if err != nil {
 			return "", fmt.Errorf("invalid grok base_url: %w", err)
 		}

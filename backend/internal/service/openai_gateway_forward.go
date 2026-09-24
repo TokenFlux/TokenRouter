@@ -50,7 +50,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	case forward.DispatchRawChat:
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body, tlsRouterMatch)
 	case forward.DispatchGrok:
-		return s.forwardGrokResponses(ctx, c, account, body, originalModel, reqStream, startTime)
+		return s.Grok.ForwardResponses(ctx, c, account, body, originalModel, reqStream, startTime)
 	case forward.DispatchAnthropic:
 		return s.forwardResponsesViaNativeAnthropic(ctx, c, account, body, reqModel)
 	case forward.DispatchPassthrough:
@@ -169,7 +169,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	exchange := openai.HTTPExchangeOptions{
 		StartedAt:          startTime,
 		FirstOutputTimeout: firstOutputTimeout,
-		RequestContext:     detachUpstreamContext,
+		RequestContext:     gatewayprovider.DetachUpstreamContext,
 		Build: func(ctx context.Context, body []byte) (*http.Request, error) {
 			return s.buildUpstreamRequest(ctx, c, account, body, token, reqStream, promptCacheKey, isCodexCLI, tlsRouterMatch)
 		},
@@ -187,7 +187,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		HeaderTimeout: func() error {
 			return s.responseOutput.FirstOutputFailure(ctx, c, account, startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil)
 		},
-		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false) },
+		TransportError: func(err error) error { return s.transportFailure.Handle(ctx, c, account, err, false) },
 	}
 	options := s.nativeForwardHTTPOptions(ctx, c, account, input, exchange,
 		func(current []byte) ([]byte, bool, error) {

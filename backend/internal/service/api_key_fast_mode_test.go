@@ -60,15 +60,18 @@ func fastModeTestResolver() *billingcore.PriceResolver {
 func TestOpenAIAPIKeyFastModeForceOnAndOff(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
+	if svc.fastPolicy != nil {
+		svc.fastPolicy.Prices = svc.resolver
+	}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	forceOnCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
-	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastModeInput(forceOnCtx, account, "gpt-5.5"))
+	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastPolicy.Input(forceOnCtx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Equal(t, tierpolicy.OpenAIFastTierPriority, gjson.GetBytes(updated, "service_tier").String())
 
 	forceOffCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "gpt-5.5")
-	updated, err = tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5","service_tier":"priority"}`), svc.fastModeInput(forceOffCtx, account, "gpt-5.5"))
+	updated, err = tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5","service_tier":"priority"}`), svc.fastPolicy.Input(forceOffCtx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
 }
@@ -80,11 +83,11 @@ func TestOpenAIGroupFastForcesHTTPAndWS(t *testing.T) {
 	group := &routing.Group{ID: 12, Platform: capability.PlatformOpenAI, Status: billingcore.StatusActive, Hydrated: true, ForceOpenAIFast: true}
 	ctx := requeststate.WithGroup(context.Background(), group)
 
-	body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastModeInput(ctx, account, "gpt-5.5"))
+	body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastPolicy.Input(ctx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Equal(t, tierpolicy.OpenAIFastTierPriority, gjson.GetBytes(body, "service_tier").String())
 
-	frame, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5"}`), "gpt-5.5", svc.fastModeInput(ctx, account, "gpt-5.5"))
+	frame, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5"}`), "gpt-5.5", svc.fastPolicy.Input(ctx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Nil(t, blocked)
 	require.Equal(t, tierpolicy.OpenAIFastTierPriority, gjson.GetBytes(frame, "service_tier").String())
@@ -97,13 +100,13 @@ func TestOpenAIGroupFastStillHonorsGlobalAndKeyPolicy(t *testing.T) {
 	base := requeststate.WithGroup(context.Background(), group)
 
 	filtered := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
-	body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), filtered.fastModeInput(base, account, "gpt-5.5"))
+	body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), filtered.fastPolicy.Input(base, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(body, "service_tier").Exists())
 
 	forceOff := apikey.WithFastModePolicy(base, apikey.APIKeyFastModePolicyForceOff)
 	passed := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
-	body, err = tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), passed.fastModeInput(forceOff, account, "gpt-5.5"))
+	body, err = tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), passed.fastPolicy.Input(forceOff, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(body, "service_tier").Exists())
 }
@@ -116,7 +119,7 @@ func TestOpenAIGroupFastRequiresTrustedOpenAIContext(t *testing.T) {
 		{ID: 15, Platform: capability.PlatformAnthropic, Status: billingcore.StatusActive, Hydrated: true, ForceOpenAIFast: true},
 	} {
 		ctx := requeststate.WithGroup(context.Background(), group)
-		body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastModeInput(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}}, "gpt-5.5"))
+		body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastPolicy.Input(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}}, "gpt-5.5"))
 		require.NoError(t, err)
 		require.False(t, gjson.GetBytes(body, "service_tier").Exists())
 	}
@@ -125,10 +128,13 @@ func TestOpenAIGroupFastRequiresTrustedOpenAIContext(t *testing.T) {
 func TestOpenAIAPIKeyFastModeIgnoresUnsupportedModel(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
+	if svc.fastPolicy != nil {
+		svc.fastPolicy.Prices = svc.resolver
+	}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "unknown-provider-model")
 
-	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"unknown-provider-model"}`), svc.fastModeInput(ctx, account, "unknown-provider-model"))
+	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"unknown-provider-model"}`), svc.fastPolicy.Input(ctx, account, "unknown-provider-model"))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
 }
@@ -137,14 +143,17 @@ func TestOpenAIAPIKeyFastModeIgnoresUnsupportedModel(t *testing.T) {
 func TestOpenAIAPIKeyFastModeForceOffIgnoresMissingCapabilityMetadata(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
+	if svc.fastPolicy != nil {
+		svc.fastPolicy.Prices = svc.resolver
+	}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "unknown-provider-model")
 
-	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"unknown-provider-model","service_tier":"priority"}`), svc.fastModeInput(ctx, account, "unknown-provider-model"))
+	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"unknown-provider-model","service_tier":"priority"}`), svc.fastPolicy.Input(ctx, account, "unknown-provider-model"))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
 
-	updated, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"unknown-provider-model","service_tier":"priority"}`), "unknown-provider-model", svc.fastModeInput(ctx, account, "unknown-provider-model"))
+	updated, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"unknown-provider-model","service_tier":"priority"}`), "unknown-provider-model", svc.fastPolicy.Input(ctx, account, "unknown-provider-model"))
 	require.NoError(t, err)
 	require.Nil(t, blocked)
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
@@ -159,12 +168,12 @@ func TestOpenAIAPIKeyFastModeForceOffPreservesNonFastTiers(t *testing.T) {
 	for _, tier := range []string{"flex", "auto", "default", "scale"} {
 		t.Run(tier, func(t *testing.T) {
 			body := []byte(`{"model":"unknown-provider-model","service_tier":"` + tier + `"}`)
-			updated, err := tierpolicy.ApplyBody(body, svc.fastModeInput(ctx, account, "unknown-provider-model"))
+			updated, err := tierpolicy.ApplyBody(body, svc.fastPolicy.Input(ctx, account, "unknown-provider-model"))
 			require.NoError(t, err)
 			require.Equal(t, tier, gjson.GetBytes(updated, "service_tier").String())
 
 			wsBody := []byte(`{"type":"response.create","model":"unknown-provider-model","service_tier":"` + tier + `"}`)
-			updated, blocked, err := gatewayws.ApplyServiceTierFrame(wsBody, "unknown-provider-model", svc.fastModeInput(ctx, account, "unknown-provider-model"))
+			updated, blocked, err := gatewayws.ApplyServiceTierFrame(wsBody, "unknown-provider-model", svc.fastPolicy.Input(ctx, account, "unknown-provider-model"))
 			require.NoError(t, err)
 			require.Nil(t, blocked)
 			require.Equal(t, tier, gjson.GetBytes(updated, "service_tier").String())
@@ -178,7 +187,7 @@ func TestOpenAIAPIKeyFastModeForceOffRemovesFastAlias(t *testing.T) {
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "unknown-provider-model")
 
-	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"unknown-provider-model","service_tier":"fast"}`), svc.fastModeInput(ctx, account, "unknown-provider-model"))
+	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"unknown-provider-model","service_tier":"fast"}`), svc.fastPolicy.Input(ctx, account, "unknown-provider-model"))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
 }
@@ -186,10 +195,13 @@ func TestOpenAIAPIKeyFastModeForceOffRemovesFastAlias(t *testing.T) {
 func TestOpenAIAPIKeyFastModeCannotBypassSystemPolicy(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
 	svc.resolver = fastModeTestResolver()
+	if svc.fastPolicy != nil {
+		svc.fastPolicy.Prices = svc.resolver
+	}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
 
-	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastModeInput(ctx, account, "gpt-5.5"))
+	updated, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), svc.fastPolicy.Input(ctx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
 
@@ -199,7 +211,10 @@ func TestOpenAIAPIKeyFastModeCannotBypassSystemPolicy(t *testing.T) {
 		Scope:       claude.BetaPolicyScopeAll,
 	}}})
 	blockSvc.resolver = fastModeTestResolver()
-	_, err = tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), blockSvc.fastModeInput(ctx, account, "gpt-5.5"))
+	if blockSvc.fastPolicy != nil {
+		blockSvc.fastPolicy.Prices = blockSvc.resolver
+	}
+	_, err = tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), blockSvc.fastPolicy.Input(ctx, account, "gpt-5.5"))
 	var blocked *tierpolicy.BlockedError
 	require.ErrorAs(t, err, &blocked)
 
@@ -210,8 +225,11 @@ func TestOpenAIAPIKeyFastModeCannotBypassSystemPolicy(t *testing.T) {
 		Scope:       claude.BetaPolicyScopeAll,
 	}}})
 	svc.resolver = fastModeTestResolver()
+	if svc.fastPolicy != nil {
+		svc.fastPolicy.Prices = svc.resolver
+	}
 	ctx = fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "gpt-5.5")
-	updated, err = tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5","service_tier":"flex"}`), svc.fastModeInput(ctx, account, "gpt-5.5"))
+	updated, err = tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5","service_tier":"flex"}`), svc.fastPolicy.Input(ctx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Equal(t, tierpolicy.OpenAIFastTierPriority, gjson.GetBytes(updated, "service_tier").String())
 }
@@ -219,16 +237,19 @@ func TestOpenAIAPIKeyFastModeCannotBypassSystemPolicy(t *testing.T) {
 func TestOpenAIAPIKeyFastModeAppliesToRealtimeFrames(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
+	if svc.fastPolicy != nil {
+		svc.fastPolicy.Prices = svc.resolver
+	}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	forceOnCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
-	updated, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5"}`), "gpt-5.5", svc.fastModeInput(forceOnCtx, account, "gpt-5.5"))
+	updated, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5"}`), "gpt-5.5", svc.fastPolicy.Input(forceOnCtx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Nil(t, blocked)
 	require.Equal(t, tierpolicy.OpenAIFastTierPriority, gjson.GetBytes(updated, "service_tier").String())
 
 	forceOffCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOff, "gpt-5.5")
-	updated, blocked, err = gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`), "gpt-5.5", svc.fastModeInput(forceOffCtx, account, "gpt-5.5"))
+	updated, blocked, err = gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`), "gpt-5.5", svc.fastPolicy.Input(forceOffCtx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Nil(t, blocked)
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
@@ -238,6 +259,9 @@ func TestOpenAIAPIKeyFastModeAppliesToRealtimeFrames(t *testing.T) {
 func TestOpenAIWSFastModePolicyContextRefreshesEachTurn(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	svc.resolver = fastModeTestResolver()
+	if svc.fastPolicy != nil {
+		svc.fastPolicy.Prices = svc.resolver
+	}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	baseCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
 	policies := map[int]string{
@@ -251,13 +275,13 @@ func TestOpenAIWSFastModePolicyContextRefreshesEachTurn(t *testing.T) {
 	}
 
 	turnOneCtx := openAIWSFastModePolicyContext(baseCtx, hooks, 1)
-	updated, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5"}`), "gpt-5.5", svc.fastModeInput(turnOneCtx, account, "gpt-5.5"))
+	updated, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5"}`), "gpt-5.5", svc.fastPolicy.Input(turnOneCtx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Nil(t, blocked)
 	require.Equal(t, tierpolicy.OpenAIFastTierPriority, gjson.GetBytes(updated, "service_tier").String())
 
 	turnTwoCtx := openAIWSFastModePolicyContext(baseCtx, hooks, 2)
-	updated, blocked, err = gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`), "gpt-5.5", svc.fastModeInput(turnTwoCtx, account, "gpt-5.5"))
+	updated, blocked, err = gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`), "gpt-5.5", svc.fastPolicy.Input(turnTwoCtx, account, "gpt-5.5"))
 	require.NoError(t, err)
 	require.Nil(t, blocked)
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
@@ -266,8 +290,11 @@ func TestOpenAIWSFastModePolicyContextRefreshesEachTurn(t *testing.T) {
 func TestAPIKeyFastModeIgnoresUnsupportedProviderAdapters(t *testing.T) {
 	openAISvc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	openAISvc.resolver = fastModeTestResolver()
+	if openAISvc.fastPolicy != nil {
+		openAISvc.fastPolicy.Prices = openAISvc.resolver
+	}
 	ctx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
-	body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), openAISvc.fastModeInput(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}}, "gpt-5.5"))
+	body, err := tierpolicy.ApplyBody([]byte(`{"model":"gpt-5.5"}`), openAISvc.fastPolicy.Input(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}}, "gpt-5.5"))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(body, "service_tier").Exists())
 
