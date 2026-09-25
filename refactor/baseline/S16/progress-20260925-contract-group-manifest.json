@@ -1,0 +1,109 @@
+{
+  "format_version": 1,
+  "scope": "S16 四个稳定能力批次合并全仓验证批次及受影响消费者检查，非最终验收",
+  "parent_manifest": "progress-20260925-grok-final-manifest.json",
+  "parent_manifest_sha256": "93ffae61dcba7a084496c307ec704401d590a4bf58a7b28f2ce8b1983632a948",
+  "source_file_count": 15,
+  "source_total_bytes": 65368290,
+  "collection": "仅本批 service-contract-group-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260925-contract-group-01.tar.gz",
+      "size": 3642733,
+      "sha256": "283fa13b2a29481d866024dfc50a3bb9a9f1ae184a0d3cff2d6f08a3d646fe92",
+      "verified_members": 15,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 150901,
+          "sha256": "ee69b208212338d3a2cc448aea5eade14cfd6770c2a7714613659738c288ce57",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-checks.json",
+          "size": 1946,
+          "sha256": "a2777af8298ccb2dfa737ad9fafa4d77bc707640905c9c2c22bfcdedecadcb86",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-integration.jsonl",
+          "size": 19257031,
+          "sha256": "d3978e3709fdee659e88f62209fbf255dfbe5d3e8520887c6d105552bfdaf269",
+          "redacted": true
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-integration.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-lint-integration.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-lint-normal.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-lint-unit.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-normal.jsonl",
+          "size": 18083622,
+          "sha256": "4c8f4dcdde0f2de7c314573d1341f70332ac14fc983dfdcf20c2c4160d653938",
+          "redacted": true
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-normal.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-unit.jsonl",
+          "size": 27828408,
+          "sha256": "b8fba784518d0c22ae2a51fcdb5568421932337557de8fac6ef7ca37ffa822ab",
+          "redacted": true
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-unit.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-contract-group-verification.json",
+          "size": 46352,
+          "sha256": "afb391cd8a9a8e6907e066f80e5336fe17daadd5684e8183977b91d241940070",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}
