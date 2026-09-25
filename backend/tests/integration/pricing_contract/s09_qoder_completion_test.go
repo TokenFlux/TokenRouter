@@ -1,7 +1,7 @@
 //go:build unit
 
 // 本文件只验证已约定的完成失败边界，存储原子性另由真实集成测试证明。
-package service
+package pricingcontract
 
 import (
 	"context"

@@ -1,0 +1,159 @@
+{
+  "baseline_head": "7c2e3dfba66901c4957ac15e76f2c4e59d68a00f",
+  "scope": "账号查询/健康记录、渠道价卡、峰值与CN用量完成合同",
+  "before": {
+    "production": 22,
+    "tests": 52
+  },
+  "after": {
+    "production": 20,
+    "tests": 35
+  },
+  "retired_files": [
+    "backend/internal/service/account_health_helpers_test.go",
+    "backend/internal/service/channel_test.go",
+    "backend/internal/service/cn_monitor_s06_test.go",
+    "backend/internal/service/cn_provider_balance_check_service_test.go",
+    "backend/internal/service/group.go",
+    "backend/internal/service/group_peak_rate_test.go",
+    "backend/internal/service/kimi_anthropic_usage_test.go",
+    "backend/internal/service/ollama_activity.go",
+    "backend/internal/service/ollama_management_contract_test.go",
+    "backend/internal/service/openai_codex_pat_service_test.go",
+    "backend/internal/service/openai_gateway_cn_fixes_test.go",
+    "backend/internal/service/openai_token_source_fixture_test.go",
+    "backend/internal/service/recording_shared_unit_fixture_test.go",
+    "backend/internal/service/s06_cn_monitor_interleaving_test.go",
+    "backend/internal/service/s09_qoder_completion_test.go",
+    "backend/internal/service/s09_qoder_frames_fixture_test.go",
+    "backend/internal/service/temp_unsched_test.go",
+    "backend/internal/service/testhelpers_test.go",
+    "backend/internal/service/upstream_usage_fixture_test.go"
+  ],
+  "tests": [
+    {
+      "name": "normal",
+      "log": "service-domain-contracts-normal.jsonl",
+      "events": {
+        "pass": 77
+      }
+    },
+    {
+      "name": "unit",
+      "log": "service-domain-contracts-unit.jsonl",
+      "events": {
+        "pass": 182
+      }
+    },
+    {
+      "name": "race",
+      "log": "service-domain-contracts-race.jsonl",
+      "events": {
+        "pass": 182
+      }
+    },
+    {
+      "name": "remaining-normal",
+      "log": "service-domain-contracts-remaining-normal.jsonl",
+      "events": {
+        "pass": 206
+      }
+    },
+    {
+      "name": "remaining-unit",
+      "log": "service-domain-contracts-remaining-unit.jsonl",
+      "events": {
+        "pass": 211
+      }
+    }
+  ],
+  "test_mapping": "service-domain-contracts-test-mapping.json",
+  "path_map": "service-domain-contracts-path-map.json",
+  "lint": [
+    {
+      "name": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./internal/account",
+        "./internal/account/provider",
+        "./internal/routing",
+        "./internal/billing/pricing",
+        "./internal/gateway/provider",
+        "./internal/gateway/provider/openaiforward",
+        "./internal/protocol/anthropic",
+        "./tests/integration/pricing_contract",
+        "./tests/integration/account",
+        "./internal/service"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.4
+    },
+    {
+      "name": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./internal/account",
+        "./internal/account/provider",
+        "./internal/routing",
+        "./internal/billing/pricing",
+        "./internal/gateway/provider",
+        "./internal/gateway/provider/openaiforward",
+        "./internal/protocol/anthropic",
+        "./tests/integration/pricing_contract",
+        "./tests/integration/account",
+        "./internal/service"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.65
+    },
+    {
+      "name": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./internal/account",
+        "./internal/account/provider",
+        "./internal/routing",
+        "./internal/billing/pricing",
+        "./internal/gateway/provider",
+        "./internal/gateway/provider/openaiforward",
+        "./internal/protocol/anthropic",
+        "./tests/integration/pricing_contract",
+        "./tests/integration/account",
+        "./internal/service"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.47
+    }
+  ],
+  "gates": {
+    "passed": 30,
+    "total": 30,
+    "config_sha256": "dd2c3375350930ebf501db6c1c4c50b449098958a0655a0a9e1f34195e74c313"
+  },
+  "build_selection": "service-domain-contracts-build-selection.json",
+  "protected_unchanged": 51,
+  "wire_ent_sql_unchanged": true,
+  "migration_feedback": [
+    "峰值原测试在service初始化全局UTC；迁移后直接指定完成快照的UTC Location，保留2.4/0.8原断言，未更改生产日期或全局时区。",
+    "CN监控测试直接使用Record与独立查询/监控选项，原CAS互斥、身份比较、预算、取消和结果保留断言不变。"
+  ],
+  "remaining": [
+    "最后普通网关及定价/选号/会话合同与旧聚合图",
+    "最终全仓、前端、平台、进程、资金及文档验收"
+  ],
+  "final_acceptance_pending": true
+}

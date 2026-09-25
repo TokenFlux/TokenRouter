@@ -2879,9 +2879,9 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 22,
-    "test_files": 52,
-    "verified_batch": "grok-final"
+    "production_files": 20,
+    "test_files": 35,
+    "verified_batch": "domain-contracts"
   },
   "latest_combined_validation": {
     "head": "b5299ff18c6f1d7fea57aa33b0e8cf8fae68f85c",
@@ -3062,6 +3062,42 @@
         "upstream/grok",
         "upstream",
         "gateway/testkit"
+      ]
+    },
+    "domain-contracts": {
+      "status": "verified",
+      "retired_files": [
+        "backend/internal/service/account_health_helpers_test.go",
+        "backend/internal/service/channel_test.go",
+        "backend/internal/service/cn_monitor_s06_test.go",
+        "backend/internal/service/cn_provider_balance_check_service_test.go",
+        "backend/internal/service/group.go",
+        "backend/internal/service/group_peak_rate_test.go",
+        "backend/internal/service/kimi_anthropic_usage_test.go",
+        "backend/internal/service/ollama_activity.go",
+        "backend/internal/service/ollama_management_contract_test.go",
+        "backend/internal/service/openai_codex_pat_service_test.go",
+        "backend/internal/service/openai_gateway_cn_fixes_test.go",
+        "backend/internal/service/openai_token_source_fixture_test.go",
+        "backend/internal/service/recording_shared_unit_fixture_test.go",
+        "backend/internal/service/s06_cn_monitor_interleaving_test.go",
+        "backend/internal/service/s09_qoder_completion_test.go",
+        "backend/internal/service/s09_qoder_frames_fixture_test.go",
+        "backend/internal/service/temp_unsched_test.go",
+        "backend/internal/service/testhelpers_test.go",
+        "backend/internal/service/upstream_usage_fixture_test.go"
+      ],
+      "verification": "service-domain-contracts-verification.json",
+      "owners": [
+        "backend/internal/account",
+        "backend/internal/account/provider",
+        "backend/internal/billing/pricing",
+        "backend/internal/gateway/provider",
+        "backend/internal/gateway/provider/openaiforward",
+        "backend/internal/protocol/anthropic",
+        "backend/internal/routing",
+        "backend/tests/integration/account",
+        "backend/tests/integration/pricing_contract"
       ]
     }
   }

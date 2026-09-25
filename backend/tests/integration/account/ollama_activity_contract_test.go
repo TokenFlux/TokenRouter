@@ -1,9 +1,11 @@
-package service
+package account_test
 
 import (
 	"fmt"
 	"testing"
 	time "time"
+
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
@@ -20,9 +22,9 @@ func TestScheduleOllamaCloudUsageActivityOnlyForOllama(t *testing.T) {
 	other := ollamaUsageAccount(2)
 	other.Record.Credentials["base_url"] = "https://api.openai.com"
 
-	scheduleOllamaCloudUsageActivity(deferred, ollama)
-	scheduleOllamaCloudUsageActivity(deferred, other)
-	scheduleOllamaCloudUsageActivity(nil, ollama)
+	(&accountprovider.TransportHealth{Deferred: deferred}).Attempt(gatewayprovider.ExecutionRecord(ollama))
+	(&accountprovider.TransportHealth{Deferred: deferred}).Attempt(gatewayprovider.ExecutionRecord(other))
+	(&accountprovider.TransportHealth{}).Attempt(gatewayprovider.ExecutionRecord(ollama))
 
 	require.NoError(t, deferred.Stop())
 	_, ok := activity.Load(int64(1))

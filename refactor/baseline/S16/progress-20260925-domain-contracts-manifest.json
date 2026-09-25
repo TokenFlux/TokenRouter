@@ -1,0 +1,319 @@
+{
+  "format_version": 1,
+  "scope": "S16 账号查询与领域合同收尾批次及受影响消费者检查，非最终验收",
+  "parent_manifest": "progress-20260925-contract-group-manifest.json",
+  "parent_manifest_sha256": "4b77f9b9b1334e7c14f9b8b320162095d9a2060f7c9115bfb6193f5c6ba215fc",
+  "source_file_count": 50,
+  "source_total_bytes": 1685534,
+  "collection": "仅本批 service-domain-contracts-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260925-domain-contracts-01.tar.gz",
+      "size": 159829,
+      "sha256": "b50edf67ef408606a2373476d0b63290d89e36afafa8db014e8164046839b1a4",
+      "verified_members": 50,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 152726,
+          "sha256": "183fe62f0f37046a72a52923343ca08e84f6457f685560abf354f36230436f44",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-account-no-gateway-integration.log",
+          "size": 280,
+          "sha256": "28a699902444617c1ea8e718a7537fd5b35944e7d187979ae96fad167708c542",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-account-no-gateway-normal.log",
+          "size": 280,
+          "sha256": "28a699902444617c1ea8e718a7537fd5b35944e7d187979ae96fad167708c542",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-account-no-gateway-unit.log",
+          "size": 280,
+          "sha256": "28a699902444617c1ea8e718a7537fd5b35944e7d187979ae96fad167708c542",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-account-valid-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-account-valid-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-account-valid-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-contract-no-old-integration.log",
+          "size": 343,
+          "sha256": "add56f83fc1d6126502fa01f62b8ec26dc3b91d906fd1a499a4ffd4b790d0c1f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-contract-no-old-normal.log",
+          "size": 343,
+          "sha256": "add56f83fc1d6126502fa01f62b8ec26dc3b91d906fd1a499a4ffd4b790d0c1f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-contract-no-old-unit.log",
+          "size": 343,
+          "sha256": "add56f83fc1d6126502fa01f62b8ec26dc3b91d906fd1a499a4ffd4b790d0c1f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-contract-valid-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-contract-valid-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-contract-valid-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-new-query-no-old-integration.log",
+          "size": 263,
+          "sha256": "5968bad624a74ef05cdd38ba7ebc6dd4160a0f48296a5edd64bb06cbf7bb2a93",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-new-query-no-old-normal.log",
+          "size": 263,
+          "sha256": "5968bad624a74ef05cdd38ba7ebc6dd4160a0f48296a5edd64bb06cbf7bb2a93",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-new-query-no-old-unit.log",
+          "size": 263,
+          "sha256": "5968bad624a74ef05cdd38ba7ebc6dd4160a0f48296a5edd64bb06cbf7bb2a93",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-pricing-no-routing-integration.log",
+          "size": 279,
+          "sha256": "66f8e60479c5efdfb9353b3928781afe7d4269e81e44dd69634871eaf3f288ff",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-pricing-no-routing-normal.log",
+          "size": 279,
+          "sha256": "66f8e60479c5efdfb9353b3928781afe7d4269e81e44dd69634871eaf3f288ff",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-pricing-no-routing-unit.log",
+          "size": 279,
+          "sha256": "66f8e60479c5efdfb9353b3928781afe7d4269e81e44dd69634871eaf3f288ff",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-pricing-valid-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-pricing-valid-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-pricing-valid-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-query-no-child-integration.log",
+          "size": 335,
+          "sha256": "97086b6bed92145eadec2bf030c2cfbeb04ddaba9a46e61b7c88343205009a25",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-query-no-child-normal.log",
+          "size": 335,
+          "sha256": "97086b6bed92145eadec2bf030c2cfbeb04ddaba9a46e61b7c88343205009a25",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-query-no-child-unit.log",
+          "size": 335,
+          "sha256": "97086b6bed92145eadec2bf030c2cfbeb04ddaba9a46e61b7c88343205009a25",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-query-no-config-integration.log",
+          "size": 379,
+          "sha256": "8ed717d471400e46f2c343232ca4ece507b56a6076e57b4dd7fe9ed4f0cb011f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-query-no-config-normal.log",
+          "size": 379,
+          "sha256": "8ed717d471400e46f2c343232ca4ece507b56a6076e57b4dd7fe9ed4f0cb011f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-query-no-config-unit.log",
+          "size": 379,
+          "sha256": "8ed717d471400e46f2c343232ca4ece507b56a6076e57b4dd7fe9ed4f0cb011f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-query-valid-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-query-valid-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gate-query-valid-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-boundary-gates.json",
+          "size": 22501,
+          "sha256": "b45ae2fa11fabbff7fb09ff60e77b49e32451e320a0947b59773097dab990fb2",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-build-selection.json",
+          "size": 394327,
+          "sha256": "403a8d669144d57601a4d1e2fa171ffdc380cf91b839a02331f47c281e0ed6d4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-commands.json",
+          "size": 10746,
+          "sha256": "7ab496e0b1f63cca3eb556e2c291845de733eb72a607d45b40a8b6fba1b0f27d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-compile.log",
+          "size": 26790,
+          "sha256": "252cd45939c553c31f86dffee6d1c0624c829cb2cfd5953ed09c6f05ac31b145",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-import-permissions.json",
+          "size": 9278,
+          "sha256": "85c492c5d9fea9567de5d16e63a1f2c9da9f6ebb8d8b255a44ad4e4450746ad1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-initial-normal.jsonl",
+          "size": 84565,
+          "sha256": "af48208135703190fb95220254cb4ce0448fda730261d32df15beb21510529e2",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-lint-initial-unit.log",
+          "size": 376,
+          "sha256": "596f75b07dc070723ef283cadd861d1e62909061428f0567a0a9c6eb95bf027c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-lint.json",
+          "size": 1842,
+          "sha256": "b97056e690f75e87356ef8caa476b105f84aa44b9f5172c19fe2d2e36b7d38d6",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-normal.jsonl",
+          "size": 84217,
+          "sha256": "9cd56d09988acef8dd02e66793e95cb219facc4588e56e110d5c12344a321962",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-path-map.json",
+          "size": 11166,
+          "sha256": "5a94e9b3bd8f15b77bec52ac68bbbf5682996183e973d02bf6d31a2409066317",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-race.jsonl",
+          "size": 185108,
+          "sha256": "bb50ff648d746f225cad9e8ef2fdf9bdb55604a606e30f42d7b7132e9296094a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-remaining-normal.jsonl",
+          "size": 219140,
+          "sha256": "9c3ef3edaf4e87e6d5e3ed3f50fa9e72f5913b594a192f0b1c8f35ca29339849",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-remaining-unit.jsonl",
+          "size": 225376,
+          "sha256": "3326c52b5f83f13482777a11c6f74f2712d1a0c8391cf3f9fef7907fccaedbef",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-test-mapping.json",
+          "size": 61404,
+          "sha256": "e68c0fcd90bad47a812f25d3ff3b31bff60df545696a5e8a1a12a565c972bdd4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-unit.jsonl",
+          "size": 185092,
+          "sha256": "1841d76c37c3a94c057214d455ce1ab341afc68b0fff4a28c319209494318553",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-domain-contracts-verification.json",
+          "size": 5093,
+          "sha256": "ee215d15bf0b96079c4c1108812fe83a9511ddb90d9742555d003e0862629091",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}

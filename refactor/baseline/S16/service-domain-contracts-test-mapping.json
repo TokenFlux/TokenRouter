@@ -1,0 +1,1849 @@
+{
+  "assertion_call_count_changes": 0,
+  "baseline_head": "7c2e3dfba66901c4957ac15e76f2c4e59d68a00f",
+  "missing": 0,
+  "moved": 71,
+  "note": "名称、构建条件、源与目标函数摘要和断言调用对应；构造/投影改写以及循环展开须结合源码核对。",
+  "tests": [
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestGetModelPricing",
+        "tag": "unit",
+        "body_sha256": "d7d27b8338b660b60b2f7f2a2d937f3f99f1ebeebe0caa0a9cb25c8cf73811a7",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Nil": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/channel_value_contract_test.go",
+          "name": "TestGetModelPricing",
+          "tag": "unit",
+          "body_sha256": "4655e0ba69572c8af25aac49c2e364487a1922d30083bf3fea313b13d48c2a9d",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Nil": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestGetModelPricing_ReturnsCopy",
+        "tag": "unit",
+        "body_sha256": "eea473c5826807e6b5ce00cf135d95dbb70b8cd3fccc1fcd4e6b1ebe50ebc1fd",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/channel_value_contract_test.go",
+          "name": "TestGetModelPricing_ReturnsCopy",
+          "tag": "unit",
+          "body_sha256": "87653473ea730803b5af292fd73179e2970829471d63616ca99a75c90b93fa1f",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestGetModelPricing_EmptyPricing",
+        "tag": "unit",
+        "body_sha256": "3260513cf13948585c1f370aab15cecfcf7283bccc1af5da90be5773e2436451",
+        "assertions": {
+          "require.Nil": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/channel_value_contract_test.go",
+          "name": "TestGetModelPricing_EmptyPricing",
+          "tag": "unit",
+          "body_sha256": "3260513cf13948585c1f370aab15cecfcf7283bccc1af5da90be5773e2436451",
+          "assertions": {
+            "require.Nil": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestGetIntervalForContext",
+        "tag": "unit",
+        "body_sha256": "dbad799c8d5b22584ae275ce1c8d45aab0ba6371b77f9a0ebe23b1e4dc897962",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.Nil": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestGetIntervalForContext",
+          "tag": "unit",
+          "body_sha256": "a81650302ca39ae6ad51e3132df0ed4a7d0de172c3fda2bca5954ff1e7cbc78f",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.Nil": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestGetIntervalForContext_NoMatch",
+        "tag": "unit",
+        "body_sha256": "9dd4772c6983afbdecf083726a2dc9ba23cfacbc284648be5077d6740e687bdc",
+        "assertions": {
+          "require.Nil": 3,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestGetIntervalForContext_NoMatch",
+          "tag": "unit",
+          "body_sha256": "528f764390876c67129624b625bcbb93b20ca4a38792bc0f7129025240ad9637",
+          "assertions": {
+            "require.Nil": 3,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestGetIntervalForContext_Empty",
+        "tag": "unit",
+        "body_sha256": "88e24252687db070afd29d442d8b70a589d66d77ec4eea253ec17f2619a68883",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestGetIntervalForContext_Empty",
+          "tag": "unit",
+          "body_sha256": "4dd92536161a0a1ce8bcf94a24999b9a8401e08387757968d698a5834585fff3",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestGetTierByLabel",
+        "tag": "unit",
+        "body_sha256": "8d65f86e4b226c150048808961cb5a4d4d3dc5f8cd20448959926c853a690a4c",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.Nil": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestGetTierByLabel",
+          "tag": "unit",
+          "body_sha256": "0b74c400e52420ecd888b828979661899d7d11a97fc1312e252ecc45cbec82e1",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.Nil": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestGetTierByLabel_Empty",
+        "tag": "unit",
+        "body_sha256": "c4975e821134ca41cff94d37d5fe4b82055776dbc70b7d27645de4e6a5ef1081",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestGetTierByLabel_Empty",
+          "tag": "unit",
+          "body_sha256": "965b78b6559adb73b373e006f9c02136cd2afee63f1640daa62c5b048086d416",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestChannelClone",
+        "tag": "unit",
+        "body_sha256": "df1bfc9aa6ae3359bb17472a12c32a9358e8aaf0ed5af037c902d72e65a1f934",
+        "assertions": {
+          "require.Equal": 4,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/channel_value_contract_test.go",
+          "name": "TestChannelClone",
+          "tag": "unit",
+          "body_sha256": "84363d12abc1f02c4fccc14c355d5c0f7c09ff5e675b63d9654c5bbe0df83eb3",
+          "assertions": {
+            "require.Equal": 4,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestChannelClone_Nil",
+        "tag": "unit",
+        "body_sha256": "aaa1b9b887e75e417ea7fb98a2ef14a3a4498c9d67042c44abc9ecf5b20910c3",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/channel_value_contract_test.go",
+          "name": "TestChannelClone_Nil",
+          "tag": "unit",
+          "body_sha256": "aaa1b9b887e75e417ea7fb98a2ef14a3a4498c9d67042c44abc9ecf5b20910c3",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestChannelModelPricingClone",
+        "tag": "unit",
+        "body_sha256": "cbda59493d715cb9bbaf4162ff2bd39340d3e12595c75c5621aad377ecd6f54e",
+        "assertions": {
+          "require.Equal": 5,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestChannelModelPricingClone",
+          "tag": "unit",
+          "body_sha256": "9d1c00f89f3f0ea9937fb82eda1965104243a61f62f457a1db6cc5545b321035",
+          "assertions": {
+            "require.Equal": 5,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestBillingModeIsValid",
+        "tag": "unit",
+        "body_sha256": "1fce66ba998f830917e4b286b712f72d50942f7beb3c8896d35a32582e2bb83a",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestBillingModeIsValid",
+          "tag": "unit",
+          "body_sha256": "2de564e399681fe9fd6ec24e12dde27fd64f53995f4bc500fbb27628954b1177",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestChannelIsActive",
+        "tag": "unit",
+        "body_sha256": "dbe7a9d6ba23c2068e621e67dbbe8a8bea2f645c8caaba57042e6c3c66c8eff8",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/channel_value_contract_test.go",
+          "name": "TestChannelIsActive",
+          "tag": "unit",
+          "body_sha256": "65657c381866bf8f1830d2b4435c1921ef60a3789f282a43b39ac87114d4c7a9",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestChannelModelPricingClone_EdgeCases",
+        "tag": "unit",
+        "body_sha256": "73d836802c2bef56aa09205b4362a9c4b9d3c9c8d3da1e8aa0678706234464e6",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Nil": 2,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestChannelModelPricingClone_EdgeCases",
+          "tag": "unit",
+          "body_sha256": "cb33e48ef21701beb6dccfc82c5c5e7e7f90bb2e34738952cca0252b3f001b2c",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Nil": 2,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestChannelClone_EdgeCases",
+        "tag": "unit",
+        "body_sha256": "689266a15b696a5713abcf1f28a50990083600a624f6c094c061e24478e9c439",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Nil": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/channel_value_contract_test.go",
+          "name": "TestChannelClone_EdgeCases",
+          "tag": "unit",
+          "body_sha256": "689266a15b696a5713abcf1f28a50990083600a624f6c094c061e24478e9c439",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Nil": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_Empty",
+        "tag": "unit",
+        "body_sha256": "eb56719eacb315b88be708bd52844fe59c5fc04897ba9fe6049a7f1bd119637a",
+        "assertions": {
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_Empty",
+          "tag": "unit",
+          "body_sha256": "0b778cb6ceed504210f93a8b44a6e953db47d966de4fb0da455f79ab4b27a611",
+          "assertions": {
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_ValidIntervals",
+        "tag": "unit",
+        "body_sha256": "d4650bc9a9b7c6eb4699498b18ddac46542a672277a1c40080a36144007aeb0d",
+        "assertions": {
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_ValidIntervals",
+          "tag": "unit",
+          "body_sha256": "2830422ecf5d1c61faa5bb729fbf15be19ad11f3b01ab12d7c7a7c897735dd39",
+          "assertions": {
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_NegativeMinTokens",
+        "tag": "unit",
+        "body_sha256": "debc85450c4c9d04146b140352b0d7295d71f3f91488bd5b55511ed8224ad6e3",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_NegativeMinTokens",
+          "tag": "unit",
+          "body_sha256": "78cf986f96b98141ff9161b92b2b4695bd6615ae0f71604c7922e26cc52128c0",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_MaxTokensZero",
+        "tag": "unit",
+        "body_sha256": "b395060dad4d0072952e0f4a0abc46357f0a64cbad623228b85cd33f9690a193",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_MaxTokensZero",
+          "tag": "unit",
+          "body_sha256": "40962e391f678d7bda0c8348d1ce5ea012ca67fa4310e9aa9bc937130d7e175e",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_MaxLessThanMin",
+        "tag": "unit",
+        "body_sha256": "17a920e619da5421521d6f427d17289358197308789a4064b5dc3f517f7afbe5",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_MaxLessThanMin",
+          "tag": "unit",
+          "body_sha256": "e46712173fde2a8dea9af8f0e163a21e15da0095330513b4f7c8734c4f80599c",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_MaxEqualsMin",
+        "tag": "unit",
+        "body_sha256": "b06c33948979dfc55b8f84516bb2197d5b8dcb981ac28bf5045a226aafb5f51b",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_MaxEqualsMin",
+          "tag": "unit",
+          "body_sha256": "a68c8da701583f327a33124bf8ea80b4d9837940a72588168fab6f9af744d2ce",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_NegativePrice",
+        "tag": "unit",
+        "body_sha256": "a0b50c55da159ea83a476ba18618e2d3ccfc8e5bfa648452e0394c3d9f48d5ca",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_NegativePrice",
+          "tag": "unit",
+          "body_sha256": "cb686f42662214ae6d6d8208293698292c8b1befd603dfcffa94dab6c25e21cc",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_OverlappingIntervals",
+        "tag": "unit",
+        "body_sha256": "d0aec4819f8fb69bca2f4b225b2cf34489ade1df2cd105d4f6b40ed58c8c3e6a",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_OverlappingIntervals",
+          "tag": "unit",
+          "body_sha256": "26742622bcb9017a728fdaa3727da445f6133fcf8b93feeccbd8cc01240a7a8f",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_UnboundedNotLast",
+        "tag": "unit",
+        "body_sha256": "205039076c2c5b580ef3800adc77cd2af8238bf8fd1ffaddd25c18b17bcb6303",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_UnboundedNotLast",
+          "tag": "unit",
+          "body_sha256": "b0cdb28c608293826c2e96ecfebc876d57e0b13fbebcff5c9f3bb30542fb369b",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_ImageModeAllowsMultipleUnboundedTiers",
+        "tag": "unit",
+        "body_sha256": "6753381b045c2ea453561a0b2d3f7cb530cc33c5fc8cf12b456187d74d3de1a6",
+        "assertions": {
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_ImageModeAllowsMultipleUnboundedTiers",
+          "tag": "unit",
+          "body_sha256": "d1c4a5f34d76cf76f2789bffb1d41116ebc90062b83b5a501828b154c36fe41d",
+          "assertions": {
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_ImageModeStillRejectsNegativePrice",
+        "tag": "unit",
+        "body_sha256": "07855739d4605cc51653e60117d8c90d148517600e3638b0774a3f950627e079",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_ImageModeStillRejectsNegativePrice",
+          "tag": "unit",
+          "body_sha256": "46b7cf102125def563b5ed1c5097c0f3b89e4581785dae786642ddac6982e696",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/channel_test.go",
+        "name": "TestValidateIntervals_ImageModeStillRejectsBadMaxTokens",
+        "tag": "unit",
+        "body_sha256": "be38a4133a98c23ccc13c3caf9bd94dc9a57da032744dffaf27b2ec805af97a4",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/channel_value_contract_test.go",
+          "name": "TestValidateIntervals_ImageModeStillRejectsBadMaxTokens",
+          "tag": "unit",
+          "body_sha256": "3d41bceabd898a92d28acd5521f5541aaf5a01a6719d80a967c7d95b6f07716c",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/cn_provider_balance_check_service_test.go",
+        "name": "TestCNUsageMonitorRunOncePersistsUnifiedSnapshotWithoutLegacyWrites",
+        "tag": "normal",
+        "body_sha256": "3a99fadcd16a9fa02632994b6f2b992be6bb7cf8859ee2ebc561123897478fbe",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 5,
+          "require.InDelta": 1,
+          "require.Len": 2,
+          "require.NotNil": 1,
+          "require.True": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/provider/cn_provider_balance_check_service_contract_test.go",
+          "name": "TestCNUsageMonitorRunOncePersistsUnifiedSnapshotWithoutLegacyWrites",
+          "tag": "normal",
+          "body_sha256": "082f272c7747b86c789efef08ffa97b4b186b2366978f489c55a2453ea7e0cf3",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 5,
+            "require.InDelta": 1,
+            "require.Len": 2,
+            "require.NotNil": 1,
+            "require.True": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/cn_provider_balance_check_service_test.go",
+        "name": "TestCNUsageMonitorFailurePreservesLastSuccess",
+        "tag": "normal",
+        "body_sha256": "e64f9e588cfffad068ee1eec6636193de900185990a635017f900c62a004b105",
+        "assertions": {
+          "require.Equal": 1,
+          "require.InDelta": 1,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/provider/cn_provider_balance_check_service_contract_test.go",
+          "name": "TestCNUsageMonitorFailurePreservesLastSuccess",
+          "tag": "normal",
+          "body_sha256": "cb6f77679e6d0e875c82e58aa78a059e90ba68648d2c7ab9aae448819712d552",
+          "assertions": {
+            "require.Equal": 1,
+            "require.InDelta": 1,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/cn_provider_balance_check_service_test.go",
+        "name": "TestCNUsageMonitorCustomHostRequiresExplicitAllowlist",
+        "tag": "normal",
+        "body_sha256": "20a27db67940e1bc913494c3d87805b04505a1c273205ec35891efbbdbb677e1",
+        "assertions": {
+          "require.Equal": 2,
+          "require.Len": 2,
+          "require.NotNil": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/provider/cn_provider_balance_check_service_contract_test.go",
+          "name": "TestCNUsageMonitorCustomHostRequiresExplicitAllowlist",
+          "tag": "normal",
+          "body_sha256": "fd82b418df631b99645bcf627fa29ddaf8c2b263a1e4917c1f9da45aab855993",
+          "assertions": {
+            "require.Equal": 2,
+            "require.Len": 2,
+            "require.NotNil": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/cn_provider_balance_check_service_test.go",
+        "name": "TestCNUsageMonitorSkipsCycleWhenNotLeader",
+        "tag": "normal",
+        "body_sha256": "430a90af31403e1273b18f5456b4a9e6fe2d2285b30e97da7f8dba752ac1d7d2",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/provider/cn_provider_balance_check_service_contract_test.go",
+          "name": "TestCNUsageMonitorSkipsCycleWhenNotLeader",
+          "tag": "normal",
+          "body_sha256": "250ee56d3324e83f6e4ec9c0e2fecb88d96c711c0e66072ed0c7e7eb90aad10b",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/cn_provider_balance_check_service_test.go",
+        "name": "TestCNUsageMonitorDefaultOffAndStopCancelsProbe",
+        "tag": "normal",
+        "body_sha256": "b1baf7d92deb6b2de52f1e03f979aa6cf8d61d571184e9290816428ad742f16f",
+        "assertions": {
+          "require.Empty": 1,
+          "t.Fatal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/provider/cn_provider_balance_check_service_contract_test.go",
+          "name": "TestCNUsageMonitorDefaultOffAndStopCancelsProbe",
+          "tag": "normal",
+          "body_sha256": "7611f329cfaa6f3b7ae2f46fbdab3339246f880004a833f2cef1998771f0de0a",
+          "assertions": {
+            "require.Empty": 1,
+            "t.Fatal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/cn_provider_balance_check_service_test.go",
+        "name": "TestCNUsageBalanceThresholdUsesAllCurrenciesAndIdentityReason",
+        "tag": "normal",
+        "body_sha256": "aab76933449c681727593ea0c564ea75e768f1118ae1f71e5c073745dbf675f7",
+        "assertions": {
+          "require.False": 1,
+          "require.True": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/provider/cn_provider_balance_check_service_contract_test.go",
+          "name": "TestCNUsageBalanceThresholdUsesAllCurrenciesAndIdentityReason",
+          "tag": "normal",
+          "body_sha256": "aab76933449c681727593ea0c564ea75e768f1118ae1f71e5c073745dbf675f7",
+          "assertions": {
+            "require.False": 1,
+            "require.True": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestPeakMultiplierAt_DisabledOrUnconfigured",
+        "tag": "normal",
+        "body_sha256": "e9574db03e1a52caea5858a15a47b35b0b2a66c9d41e4fd30fbd06e23caa4cf9",
+        "assertions": {
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/group_peak_contract_test.go",
+          "name": "TestPeakMultiplierAt_DisabledOrUnconfigured",
+          "tag": "normal",
+          "body_sha256": "e9574db03e1a52caea5858a15a47b35b0b2a66c9d41e4fd30fbd06e23caa4cf9",
+          "assertions": {
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestPeakMultiplierAt_NilReceiver",
+        "tag": "normal",
+        "body_sha256": "25360f5aa9a46d1ba1d0acecc682441752ef99fc57653a4a40df77fc7eb9e0f5",
+        "assertions": {
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/group_peak_contract_test.go",
+          "name": "TestPeakMultiplierAt_NilReceiver",
+          "tag": "normal",
+          "body_sha256": "25360f5aa9a46d1ba1d0acecc682441752ef99fc57653a4a40df77fc7eb9e0f5",
+          "assertions": {
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestPeakMultiplierAt_Boundaries",
+        "tag": "normal",
+        "body_sha256": "cc42793c25fcbb82242ba63ce0879e6f46f222ca9800797ec9a7cfce023e6307",
+        "assertions": {
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/group_peak_contract_test.go",
+          "name": "TestPeakMultiplierAt_Boundaries",
+          "tag": "normal",
+          "body_sha256": "cc42793c25fcbb82242ba63ce0879e6f46f222ca9800797ec9a7cfce023e6307",
+          "assertions": {
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestPeakMultiplierAt_RespectsTimezoneLocation",
+        "tag": "normal",
+        "body_sha256": "f0d0342e1e79af37ab823e7e465d5fd9baa3ae6c75c37e3a9b8a89439b075af8",
+        "assertions": {
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/group_peak_contract_test.go",
+          "name": "TestPeakMultiplierAt_RespectsTimezoneLocation",
+          "tag": "normal",
+          "body_sha256": "f0d0342e1e79af37ab823e7e465d5fd9baa3ae6c75c37e3a9b8a89439b075af8",
+          "assertions": {
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestValidatePeakRateConfig",
+        "tag": "normal",
+        "body_sha256": "aa1d487aa5206d6a1143d55f13387ab5f7bb5ef06a4d226e064c32d7a05f2e8a",
+        "assertions": {
+          "t.Fatalf": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/group_peak_contract_test.go",
+          "name": "TestValidatePeakRateConfig",
+          "tag": "normal",
+          "body_sha256": "aa1d487aa5206d6a1143d55f13387ab5f7bb5ef06a4d226e064c32d7a05f2e8a",
+          "assertions": {
+            "t.Fatalf": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestParseMinutesMatchesLegacyTimeParseShape",
+        "tag": "normal",
+        "body_sha256": "88dcb45b6cecbcfe7e12590139f49c693f0a83cc6caf8096c5448dce1c4ab4a1",
+        "assertions": {
+          "t.Fatalf": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/group_peak_contract_test.go",
+          "name": "TestParseMinutesMatchesLegacyTimeParseShape",
+          "tag": "normal",
+          "body_sha256": "88dcb45b6cecbcfe7e12590139f49c693f0a83cc6caf8096c5448dce1c4ab4a1",
+          "assertions": {
+            "t.Fatalf": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestNormalizePeakRateConfig",
+        "tag": "normal",
+        "body_sha256": "23403e558747a44261f8423920d63797fa6f724b59679ccb9c9faeccc82421df",
+        "assertions": {
+          "t.Fatalf": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/group_peak_contract_test.go",
+          "name": "TestNormalizePeakRateConfig",
+          "tag": "normal",
+          "body_sha256": "23403e558747a44261f8423920d63797fa6f724b59679ccb9c9faeccc82421df",
+          "assertions": {
+            "t.Fatalf": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestPeakMultiplierAt_EnabledGroupUsesConfiguredWindow",
+        "tag": "normal",
+        "body_sha256": "d19cbc17d6ad279776a73599b6c2ce30da0b6c63bb8fb56ad87aac9241ab4cf6",
+        "assertions": {
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/routing/group_peak_contract_test.go",
+          "name": "TestPeakMultiplierAt_EnabledGroupUsesConfiguredWindow",
+          "tag": "normal",
+          "body_sha256": "d19cbc17d6ad279776a73599b6c2ce30da0b6c63bb8fb56ad87aac9241ab4cf6",
+          "assertions": {
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestPeakMultiplier_GatewayBillingSequence",
+        "tag": "normal",
+        "body_sha256": "1f42edfc0090eaa46fb1600eb5947624066302a8e51405c6658c0cef83ccc61e",
+        "assertions": {
+          "t.Fatalf": 6
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_peak_contract_test.go",
+          "name": "TestPeakMultiplier_GatewayBillingSequence",
+          "tag": "normal",
+          "body_sha256": "b7db1553239bd5eab1c1957fc78153021877e87137be43b3098cfde6e9cfd8de",
+          "assertions": {
+            "t.Fatalf": 6
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_peak_rate_test.go",
+        "name": "TestPeakMultiplier_SnapshotRoundTrip",
+        "tag": "normal",
+        "body_sha256": "10a27b4d3107844e91006d59f7e1528967abb87414bd54d79af3baee93f8c876",
+        "assertions": {
+          "t.Fatalf": 5
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_peak_contract_test.go",
+          "name": "TestPeakMultiplier_SnapshotRoundTrip",
+          "tag": "normal",
+          "body_sha256": "10a27b4d3107844e91006d59f7e1528967abb87414bd54d79af3baee93f8c876",
+          "assertions": {
+            "t.Fatalf": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/kimi_anthropic_usage_test.go",
+        "name": "TestParseSSEUsagePassthroughNormalizesKimiPromptUsage",
+        "tag": "normal",
+        "body_sha256": "83b2e9ae13fb5c8f26b3826e2d3ec67f7f05d9ffb7d6a06e72ce388eef837614",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/anthropic/cn_anthropic_usage_contract_test.go",
+          "name": "TestParseSSEUsagePassthroughNormalizesKimiPromptUsage",
+          "tag": "normal",
+          "body_sha256": "b692599ec23c6f763d59c7a0c747c295f6b877e46407aa48d64e72a21c1e9613",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/kimi_anthropic_usage_test.go",
+        "name": "TestParseSSEUsagePassthroughKimiFullyCachedInputReplacesStartTotal",
+        "tag": "normal",
+        "body_sha256": "99dcb68e99c303205e8cce66113443de65944505669ff7175b7572275f0a3c2a",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/anthropic/cn_anthropic_usage_contract_test.go",
+          "name": "TestParseSSEUsagePassthroughKimiFullyCachedInputReplacesStartTotal",
+          "tag": "normal",
+          "body_sha256": "35d7f5a5fb1b89faae4bba02f8438201ef0d533131e3d7b405de723fa8b123de",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/kimi_anthropic_usage_test.go",
+        "name": "TestParseClaudeUsageFromResponseBodyNormalizesCNProviderAliases",
+        "tag": "normal",
+        "body_sha256": "be414c2fcb55a2f0f9ee615a24105d766f4ec16f0a100f208b57eb85de33a2e8",
+        "assertions": {
+          "require.Equal": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/anthropic/cn_anthropic_usage_contract_test.go",
+          "name": "TestParseClaudeUsageFromResponseBodyNormalizesCNProviderAliases",
+          "tag": "normal",
+          "body_sha256": "be414c2fcb55a2f0f9ee615a24105d766f4ec16f0a100f208b57eb85de33a2e8",
+          "assertions": {
+            "require.Equal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/kimi_anthropic_usage_test.go",
+        "name": "TestParseSSEUsagePassthroughNormalizesGLMAndDeepSeekAliases",
+        "tag": "normal",
+        "body_sha256": "2c2a9eb9e84f3933cc4e47f4acf4dc57ea4e8989bac8e698591411d71dc229c0",
+        "assertions": {
+          "require.Equal": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/anthropic/cn_anthropic_usage_contract_test.go",
+          "name": "TestParseSSEUsagePassthroughNormalizesGLMAndDeepSeekAliases",
+          "tag": "normal",
+          "body_sha256": "7671afdeb0f289b993a07ec7cec44882dfd8da1d86a5a8f2226c47f02247d127",
+          "assertions": {
+            "require.Equal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/kimi_anthropic_usage_test.go",
+        "name": "TestMergeAnthropicUsageNormalizesKimiStreamForOpenAIBilling",
+        "tag": "normal",
+        "body_sha256": "60b956d2d833cf03ec17ef631f49821367c8319743312a6c3f22e4be1ca40f8e",
+        "assertions": {
+          "require.Equal": 5,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openaiforward/cn_anthropic_usage_contract_test.go",
+          "name": "TestMergeAnthropicUsageNormalizesKimiStreamForOpenAIBilling",
+          "tag": "normal",
+          "body_sha256": "75976e7037d2d4b6e52bc41f99fcf88a98aa81016db6e7533f9465b67b7e5717",
+          "assertions": {
+            "require.Equal": 5,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/kimi_anthropic_usage_test.go",
+        "name": "TestMergeAnthropicUsageNormalizesGLMAndDeepSeekAliases",
+        "tag": "normal",
+        "body_sha256": "d7d1d516caf5d4422e015540926668ed291407464aa4b6b7549f28614ff6e153",
+        "assertions": {
+          "require.Equal": 4,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openaiforward/cn_anthropic_usage_contract_test.go",
+          "name": "TestMergeAnthropicUsageNormalizesGLMAndDeepSeekAliases",
+          "tag": "normal",
+          "body_sha256": "369281bdac9321fe6a65363f760a7cbfe7f993a8da9429e9a6a4a7f0445e6202",
+          "assertions": {
+            "require.Equal": 4,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/kimi_anthropic_usage_test.go",
+        "name": "TestClaudeUsageToOpenAIUsagePreservesCNProviderNativeAnthropicBuckets",
+        "tag": "normal",
+        "body_sha256": "f4aac47be8ab89ac9813d7e71cf853972bf9cd3d1546d809085d0e33817d85b4",
+        "assertions": {
+          "require.Equal": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openaiforward/cn_anthropic_usage_contract_test.go",
+          "name": "TestClaudeUsageToOpenAIUsagePreservesCNProviderNativeAnthropicBuckets",
+          "tag": "normal",
+          "body_sha256": "9e610b60ff36c23f295a98dc3016b9c53ace03ea40179e73141961977ecd77b9",
+          "assertions": {
+            "require.Equal": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/kimi_anthropic_usage_test.go",
+        "name": "TestCNProviderAnthropicUsageBillsUncachedInput",
+        "tag": "normal",
+        "body_sha256": "f304a5d677f491d8459d063bd0ce59115077791344809909ae5aa9143f647762",
+        "assertions": {
+          "require.Equal": 1,
+          "require.InDelta": 1,
+          "require.NoError": 2,
+          "require.Positive": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/cn_anthropic_usage_contract_test.go",
+          "name": "TestCNProviderAnthropicUsageBillsUncachedInput",
+          "tag": "normal",
+          "body_sha256": "6a882351dc2034acafac2ef03b9c2a4f3670a3570ee94b00fbcffa6f79294455",
+          "assertions": {
+            "require.Equal": 1,
+            "require.InDelta": 1,
+            "require.NoError": 2,
+            "require.Positive": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/ollama_management_contract_test.go",
+        "name": "TestScheduleOllamaCloudUsageActivityOnlyForOllama",
+        "tag": "normal",
+        "body_sha256": "5707c1ab544937a4f78556585c6cb14625fc05676e3c409e2f2732ffcdba5837",
+        "assertions": {
+          "require.False": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/account/ollama_activity_contract_test.go",
+          "name": "TestScheduleOllamaCloudUsageActivityOnlyForOllama",
+          "tag": "normal",
+          "body_sha256": "72855afa67001cba08c0e5ff6db08b70213a32312aab600b3864427624f951d0",
+          "assertions": {
+            "require.False": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_codex_pat_service_test.go",
+        "name": "TestOpenAITokenProvider_PersonalAccessTokenDoesNotExpireLikeOAuth",
+        "tag": "normal",
+        "body_sha256": "dfba6781b3710defa34cd654d43e0fe587eb1071fb76ad9b5d1c5332e84356b1",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/provider/codex_pat_contract_test.go",
+          "name": "TestOpenAITokenProvider_PersonalAccessTokenDoesNotExpireLikeOAuth",
+          "tag": "normal",
+          "body_sha256": "b292dd34c6945f70ace00b31464aa3df42827de04d5980d2d315210c5a772320",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_codex_pat_service_test.go",
+        "name": "TestSetOpenAIChatGPTAccountHeadersAddsFedRAMP",
+        "tag": "normal",
+        "body_sha256": "c8eea8fafefebbceeb34866cbd3d24b0adabf52f7bf6b54af854b95e7d398244",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/provider/codex_pat_contract_test.go",
+          "name": "TestSetOpenAIChatGPTAccountHeadersAddsFedRAMP",
+          "tag": "normal",
+          "body_sha256": "9f594a48719e2e8389f5507419509c75ed0c4a41ca5618ec558d9a5b1cab1ffb",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_cn_fixes_test.go",
+        "name": "TestFilterCNProviderBillingModelCandidates",
+        "tag": "unit",
+        "body_sha256": "7eee0368470594dfc512cdf65a1169750f65697af9387320171ee36d07d14aeb",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/cn_response_completion_contract_test.go",
+          "name": "TestFilterCNProviderBillingModelCandidates",
+          "tag": "unit",
+          "body_sha256": "7eee0368470594dfc512cdf65a1169750f65697af9387320171ee36d07d14aeb",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_cn_fixes_test.go",
+        "name": "TestFilterCNProviderBillingModelCandidatesKeepsExplicitGroupPricing",
+        "tag": "unit",
+        "body_sha256": "0f2bc22c5e368952cba7630da6e12bee6161c02466e274a2c2c274297be12e80",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/cn_response_completion_contract_test.go",
+          "name": "TestFilterCNProviderBillingModelCandidatesKeepsExplicitGroupPricing",
+          "tag": "unit",
+          "body_sha256": "6edd39b8da27ab37b71f416fc3bf0c0568ffbdc19523177b910dcd72d72aed6a",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_cn_fixes_test.go",
+        "name": "TestCalculateOpenAIRecordUsageCostEmptyCandidatesIsPricingUnavailable",
+        "tag": "unit",
+        "body_sha256": "6e6166cdafe7cb05235f464701dba30a59e9f480bfa86e05c14176507177ea22",
+        "assertions": {
+          "require.Error": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/cn_response_completion_contract_test.go",
+          "name": "TestCalculateOpenAIRecordUsageCostEmptyCandidatesIsPricingUnavailable",
+          "tag": "unit",
+          "body_sha256": "6e6166cdafe7cb05235f464701dba30a59e9f480bfa86e05c14176507177ea22",
+          "assertions": {
+            "require.Error": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_cn_fixes_test.go",
+        "name": "TestHandle403_OtherCNProviderWithKimiConcurrencyMessageUsesNormalPolicy",
+        "tag": "unit",
+        "body_sha256": "56e95aa19b0cc73791d99a079ed46d86f8a10a92efaa22c34acd0f50f7f60449",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 3,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/cn_response_completion_contract_test.go",
+          "name": "TestHandle403_OtherCNProviderWithKimiConcurrencyMessageUsesNormalPolicy",
+          "tag": "unit",
+          "body_sha256": "0794b8385ab394ddf9ec8ff2d8b8cf15a414ad461ea9861e1db0f346bc68d6bf",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 3,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_cn_fixes_test.go",
+        "name": "TestHandle403_CNProviderConcurrencyLimitAlwaysUsesTemporaryCooldown",
+        "tag": "unit",
+        "body_sha256": "0ba0281e0e453ed1c27b85de51cc262c552a234f6c000f6fe8fab812d2992496",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 4,
+          "require.Len": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/cn_response_completion_contract_test.go",
+          "name": "TestHandle403_CNProviderConcurrencyLimitAlwaysUsesTemporaryCooldown",
+          "tag": "unit",
+          "body_sha256": "c1a170f5f94efd40fde9d1561941ecd768a6598d5f88cf88e9735871584106ff",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 4,
+            "require.Len": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_cn_fixes_test.go",
+        "name": "TestHandle403_KimiConcurrencyLimitRepositoryFailureKeepsRuntimeBlock",
+        "tag": "unit",
+        "body_sha256": "ff7ebda3f495232b57768adf3f74d302942559a2937419b6e6cc213ef7c29548",
+        "assertions": {
+          "require.Equal": 5,
+          "require.Len": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/cn_response_completion_contract_test.go",
+          "name": "TestHandle403_KimiConcurrencyLimitRepositoryFailureKeepsRuntimeBlock",
+          "tag": "unit",
+          "body_sha256": "ff3d3a997181f2946437c6590816455f69e63e2d9722ff4c286b436dcc1f4ca6",
+          "assertions": {
+            "require.Equal": 5,
+            "require.Len": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_cn_fixes_test.go",
+        "name": "TestHandle403_CNProviderNearMatchRetainsNormalPermanentErrorPolicy",
+        "tag": "unit",
+        "body_sha256": "71f3921214cfc2ad441bbe2cbe568bcb0c76a563c2cacfb55c7644b7391c887d",
+        "assertions": {
+          "require.Equal": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/cn_response_completion_contract_test.go",
+          "name": "TestHandle403_CNProviderNearMatchRetainsNormalPermanentErrorPolicy",
+          "tag": "unit",
+          "body_sha256": "3fe9293ff99a63f7691ff6514cc84f50c7959bf0dbfa74f86fa52dbd6522c794",
+          "assertions": {
+            "require.Equal": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/s06_cn_monitor_interleaving_test.go",
+        "name": "TestS06CNMonitorOldIdentityCannotPauseNewCredentials",
+        "tag": "normal",
+        "body_sha256": "a096de4ef0e1c4fc5d96ca79457017430b56b42fa824d38286a6f40908df6c89",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Nil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/provider/s06_cn_monitor_interleaving_contract_test.go",
+          "name": "TestS06CNMonitorOldIdentityCannotPauseNewCredentials",
+          "tag": "normal",
+          "body_sha256": "f57125a3b377e852680bbc4cd3d8e7b54a0c286efc20f7089b906b4c3210e3b7",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Nil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/s09_qoder_completion_test.go",
+        "name": "TestS09QoderNativeChainCompletionFailures",
+        "tag": "unit",
+        "body_sha256": "267474e9e7733b15a6f0d61321c8a0ff091904b88417efec2de14e992507b146",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 6,
+          "require.Error": 1,
+          "require.ErrorIs": 1,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.Zero": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/s09_qoder_completion_test.go",
+          "name": "TestS09QoderNativeChainCompletionFailures",
+          "tag": "unit",
+          "body_sha256": "267474e9e7733b15a6f0d61321c8a0ff091904b88417efec2de14e992507b146",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 6,
+            "require.Error": 1,
+            "require.ErrorIs": 1,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.Zero": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/temp_unsched_test.go",
+        "name": "TestMatchTempUnschedKeyword",
+        "tag": "unit",
+        "body_sha256": "7211c6b2a9beb482bb36397ad765ad778c6f435050fcf266ce840b596d7083dc",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/temp_unsched_contract_test.go",
+          "name": "TestMatchTempUnschedKeyword",
+          "tag": "unit",
+          "body_sha256": "12de7acdc1565c974c754b41abeea459e27231afecf983e62878e6793c021231",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/temp_unsched_test.go",
+        "name": "TestAccountIsSchedulable_TempUnschedulable",
+        "tag": "unit",
+        "body_sha256": "bc847e47405cafd5d328d2821576af4aef97b14ec89ba10c3f3f20078c842523",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/temp_unsched_contract_test.go",
+          "name": "TestAccountIsSchedulable_TempUnschedulable",
+          "tag": "unit",
+          "body_sha256": "3610052ac1f4e27d1af64894f8673f05bf0a1c7d78f67e3c3aa55b22033515a9",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/temp_unsched_test.go",
+        "name": "TestAccount_IsTempUnschedulableEnabled",
+        "tag": "unit",
+        "body_sha256": "b25c7c6ba5973365f5f011e7466234e276171651f07f7a13fd3c23f4a13d3e3d",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/temp_unsched_contract_test.go",
+          "name": "TestAccount_IsTempUnschedulableEnabled",
+          "tag": "unit",
+          "body_sha256": "95060f71979297af7f569bd2cd21cc712c6dd2f8ba60eb5dd4f5a9d548c34932",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/temp_unsched_test.go",
+        "name": "TestAccount_GetTempUnschedulableRules",
+        "tag": "unit",
+        "body_sha256": "97e3d17f66981f7f8196c5d46ed4f99f170402c7208cfcd8fce4d89cd197898c",
+        "assertions": {
+          "require.Len": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/temp_unsched_contract_test.go",
+          "name": "TestAccount_GetTempUnschedulableRules",
+          "tag": "unit",
+          "body_sha256": "ffe07b2b158651753f74484b5728eeae3fbf977cf4adc588249ded5f35dfec01",
+          "assertions": {
+            "require.Len": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/temp_unsched_test.go",
+        "name": "TestTempUnschedulableRule_Parse",
+        "tag": "unit",
+        "body_sha256": "555e30c00150ca4f03043499c5d1d837d090352700e1715981317b70d9a0ce2f",
+        "assertions": {
+          "require.Equal": 3,
+          "require.Len": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/temp_unsched_contract_test.go",
+          "name": "TestTempUnschedulableRule_Parse",
+          "tag": "unit",
+          "body_sha256": "d8805be0c5e88f84afcc1bfa3bdc9809d4f0668f4658b913242879792c9415b2",
+          "assertions": {
+            "require.Equal": 3,
+            "require.Len": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/temp_unsched_test.go",
+        "name": "TestTruncateTempUnschedMessage",
+        "tag": "unit",
+        "body_sha256": "e19263b602c42d573eaba1a28cc0f5565761f68b1f1e268c0ccf7dc7c9a06252",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/temp_unsched_contract_test.go",
+          "name": "TestTruncateTempUnschedMessage",
+          "tag": "unit",
+          "body_sha256": "68ff62947084b3659dd2743b302069d82e25156151039e2eba65d3dc9dbaeec6",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/temp_unsched_test.go",
+        "name": "TestTempUnschedState",
+        "tag": "unit",
+        "body_sha256": "d2f17ca344db0a2b70552d498ce2e54c132386e3a086124a36ca9cd99f26b7b0",
+        "assertions": {
+          "require.Equal": 5
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/temp_unsched_contract_test.go",
+          "name": "TestTempUnschedState",
+          "tag": "unit",
+          "body_sha256": "16c5db6797b16645ba91236a693f38cc06f6faab6132e934dac33fe28cadfbca",
+          "assertions": {
+            "require.Equal": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/temp_unsched_test.go",
+        "name": "TestAccount_TempUnschedulableUntil",
+        "tag": "unit",
+        "body_sha256": "ec82818ede2f78d3fa32acedc0d44605fde24aadbe91c550a3b9fd1afe1424ad",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/account/temp_unsched_contract_test.go",
+          "name": "TestAccount_TempUnschedulableUntil",
+          "tag": "unit",
+          "body_sha256": "5b53598c88e7c8acf784052383b2dea0a4505edf371aa8667b36c363f0631cef",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    }
+  ]
+}
