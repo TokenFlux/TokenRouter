@@ -538,9 +538,10 @@
   }
 
   .table th {
-    @apply px-4 py-3 text-left font-medium;
-    @apply text-primary-900 dark:text-dark-100;
-    @apply bg-primary-100/70 dark:bg-dark-950;
+    /* 与 DataTable 统一的中性紧凑表头:py-2 + text-xs,不再使用品牌底色。 */
+    @apply px-4 py-2 text-left text-xs font-medium tracking-wider;
+    @apply text-gray-500 dark:text-dark-400;
+    @apply bg-gray-50 dark:bg-dark-950;
     @apply border-b border-primary-900/10 dark:border-dark-600;
   }
 
