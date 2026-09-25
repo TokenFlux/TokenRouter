@@ -13,7 +13,7 @@ import (
 
 	protocolwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"

@@ -2,16 +2,16 @@
 package httpapi
 
 import (
-	context "context"
-	errors "errors"
-	strconv "strconv"
+	"context"
+	"errors"
+	"strconv"
 
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // AccountManagement 只表达 HTTP 使用的账号用例，不暴露具体存储。

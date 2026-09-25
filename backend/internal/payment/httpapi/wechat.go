@@ -2,29 +2,29 @@
 package httpapi
 
 import (
-	oauthpkce "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 
-	context "context"
+	"context"
 	"encoding/json"
 
-	http "net/http"
+	"net/http"
 
-	url "net/url"
+	"net/url"
 	"strconv"
 
-	strings "strings"
+	"strings"
 
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
 
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 
-	payment "github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/TokenFlux/TokenRouter/internal/payment"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // WeChatPaymentHTTPOptions 仅提供支付授权所需的配置和令牌能力，避免构造完整认证图。

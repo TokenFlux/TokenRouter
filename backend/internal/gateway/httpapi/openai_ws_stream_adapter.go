@@ -9,7 +9,7 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 

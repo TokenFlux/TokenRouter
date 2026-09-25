@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 

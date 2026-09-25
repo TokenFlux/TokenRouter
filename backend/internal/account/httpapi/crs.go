@@ -2,9 +2,9 @@
 package httpapi
 
 import (
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // CRSHandler 只解析管理请求，六类同步及逐条结果由账号用例拥有。

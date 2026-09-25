@@ -1,13 +1,13 @@
 package selection
 
 import (
-	context "context"
+	"context"
 
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 // advancedSchedulerEffectiveSettingsForGroup 将分组覆盖置于运行时全局设置之上。

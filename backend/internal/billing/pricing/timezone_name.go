@@ -2,8 +2,8 @@
 package pricing
 
 import (
-	fmt "fmt"
-	strings "strings"
+	"fmt"
+	"strings"
 )
 
 func ValidateTimezoneName(name string) error {

@@ -2,13 +2,13 @@
 package httpapi
 
 import (
-	strings "strings"
+	"strings"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	ip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // SessionBindingContext 全局中间件：将请求的客户端 IP 与 User-Agent 注入

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewaytelemetry "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 

@@ -2,11 +2,11 @@
 package routing
 
 import (
-	context "context"
-	sort "sort"
-	strings "strings"
+	"context"
+	"sort"
+	"strings"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // RequestableModel 描述客户端可请求的模型，以及模型广场应使用的定价模型。

@@ -20,7 +20,7 @@ import (
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	upstream "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 )

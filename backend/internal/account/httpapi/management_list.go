@@ -2,17 +2,17 @@
 package httpapi
 
 import (
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
-	json "encoding/json"
-	http "net/http"
-	strconv "strconv"
-	strings "strings"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 const accountListGroupUngroupedQueryValue = "ungrouped"

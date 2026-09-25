@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
-	provider "github.com/TokenFlux/TokenRouter/internal/identity/provider"
+	"github.com/TokenFlux/TokenRouter/internal/identity/provider"
 
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
 

@@ -1,8 +1,9 @@
 package provider
 
 import (
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"strings"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // mapAntigravityModel 获取映射后的模型名

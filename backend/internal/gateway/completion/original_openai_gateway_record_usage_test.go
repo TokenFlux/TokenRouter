@@ -12,12 +12,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	completiontestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"

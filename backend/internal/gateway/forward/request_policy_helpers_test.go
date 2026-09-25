@@ -2,10 +2,10 @@ package forward
 
 import (
 	"encoding/json"
-	testing "testing"
+	"testing"
 
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 // 这些测试辅助函数只检查工具配对和解析断言，供旧入口的型号策略契约使用。

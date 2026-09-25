@@ -2,16 +2,16 @@
 package httpapi
 
 import (
-	context "context"
-	strconv "strconv"
-	time "time"
+	"context"
+	"strconv"
+	"time"
 
 	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	groupdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // GetLiveCapability 返回当前服务端是否具备生成 Live attestation 的运行环境。

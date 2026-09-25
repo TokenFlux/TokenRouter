@@ -2,7 +2,7 @@
 package routing
 
 import (
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // ModelChain 分开保存客户端、Key 后请求、渠道与账号模型；不对已解析的一跳映射递归。

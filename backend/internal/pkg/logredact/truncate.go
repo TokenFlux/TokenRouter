@@ -2,8 +2,8 @@
 package logredact
 
 import (
-	strings "strings"
-	utf8 "unicode/utf8"
+	"strings"
+	"unicode/utf8"
 )
 
 func TruncateUTF8Value(value string, maxLen int) string {

@@ -15,9 +15,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	time "time"
+	"time"
 
-	media "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"

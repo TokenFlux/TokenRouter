@@ -2,13 +2,13 @@
 package account
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	sync "sync"
-	time "time"
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
 
-	errgroup "golang.org/x/sync/errgroup"
+	"golang.org/x/sync/errgroup"
 )
 
 type OAuthUsageReader interface {

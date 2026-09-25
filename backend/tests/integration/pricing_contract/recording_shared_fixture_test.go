@@ -4,7 +4,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	completiontestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 

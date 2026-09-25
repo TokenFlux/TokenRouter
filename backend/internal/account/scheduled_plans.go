@@ -2,8 +2,8 @@
 package account
 
 import (
-	context "context"
-	time "time"
+	"context"
+	"time"
 )
 
 // ScheduledTestPlan 描述账号维护计划。

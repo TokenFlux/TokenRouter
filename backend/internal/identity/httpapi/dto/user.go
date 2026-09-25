@@ -2,10 +2,10 @@
 package dto
 
 import (
-	time "time"
+	"time"
 
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi/dto"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 type User[K any] struct {

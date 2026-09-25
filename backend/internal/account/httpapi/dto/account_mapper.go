@@ -2,14 +2,14 @@
 package dto
 
 import (
-	json "encoding/json"
-	url "net/url"
-	strings "strings"
-	time "time"
+	"encoding/json"
+	"net/url"
+	"strings"
+	"time"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	proxydto "github.com/TokenFlux/TokenRouter/internal/egress/httpapi/dto"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 )
 

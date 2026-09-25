@@ -4,6 +4,7 @@ package anthropic
 import (
 	"encoding/json"
 ) // StripThinkingFromClaudeRequest converts thinking blocks to text blocks in a Claude Messages request.
+
 // This preserves the thinking content while avoiding signature validation errors.
 // Note: redacted_thinking blocks are removed because they cannot be converted to text.
 // It also disables top-level `thinking` to avoid upstream structural constraints for thinking mode.

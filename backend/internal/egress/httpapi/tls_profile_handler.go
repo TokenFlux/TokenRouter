@@ -2,12 +2,12 @@
 package httpapi
 
 import (
-	http "net/http"
-	strconv "strconv"
+	"net/http"
+	"strconv"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // TLSFingerprintProfileHandler 处理 TLS 指纹模板的 HTTP 请求

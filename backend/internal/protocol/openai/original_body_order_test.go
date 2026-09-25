@@ -1,8 +1,9 @@
 package openai_test
 
 import (
-	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"strings"
+
+	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"testing"
 

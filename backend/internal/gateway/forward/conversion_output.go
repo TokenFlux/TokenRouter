@@ -8,7 +8,7 @@ import (
 	"time"
 
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
-	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/tidwall/gjson"

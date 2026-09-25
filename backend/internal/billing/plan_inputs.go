@@ -1,8 +1,8 @@
 package billing
 
 import (
-	bytes "bytes"
-	json "encoding/json"
+	"bytes"
+	"encoding/json"
 )
 
 type NullableFloat64Patch struct {

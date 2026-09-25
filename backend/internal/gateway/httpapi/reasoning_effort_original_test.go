@@ -7,7 +7,7 @@ import (
 
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"

@@ -2,10 +2,10 @@
 package provider
 
 import (
-	context "context"
-	fmt "fmt"
-	slog "log/slog"
-	strings "strings"
+	"context"
+	"fmt"
+	"log/slog"
+	"strings"
 )
 
 // resolveDingTalkDeptPath 从叶部门递归向上拼 "公司/部门/子部门" 路径字符串。

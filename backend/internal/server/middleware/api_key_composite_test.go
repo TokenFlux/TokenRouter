@@ -11,13 +11,13 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	testkit "github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

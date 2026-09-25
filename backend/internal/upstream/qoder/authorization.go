@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 type OAuthClientPort interface {

@@ -2,9 +2,9 @@
 package identity
 
 import (
-	context "context"
-	errors "errors"
-	strings "strings"
+	"context"
+	"errors"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

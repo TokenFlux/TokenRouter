@@ -1,26 +1,26 @@
 package selection
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	slog "log/slog"
-	strings "strings"
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
 	"sync/atomic"
-	time "time"
+	"time"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 const openAIAccountScheduleLayerLoadBalance = "load_balance"

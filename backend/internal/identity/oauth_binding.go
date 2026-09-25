@@ -2,12 +2,12 @@
 package identity
 
 import (
-	hmac "crypto/hmac"
-	sha256 "crypto/sha256"
-	base64 "encoding/base64"
-	errors "errors"
-	strconv "strconv"
-	strings "strings"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"strconv"
+	"strings"
 )
 
 // OAuthBindingSigner 保留现有用户 ID 与 HMAC cookie 格式，HTTP 不读取完整配置。

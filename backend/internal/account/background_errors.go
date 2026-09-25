@@ -2,9 +2,9 @@
 package account
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
+	"context"
+	"errors"
+	"fmt"
 )
 
 // ErrRefreshSkipped 表示刷新被跳过（锁竞争或已被其他路径刷新），不计入 failed 或 refreshed

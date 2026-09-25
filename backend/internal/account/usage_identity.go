@@ -2,12 +2,12 @@
 package account
 
 import (
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
-	json "encoding/json"
-	fmt "fmt"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 func UpstreamUsageContextFingerprint(account *Record, config UpstreamUsageQueryConfig, baseURL string) string {

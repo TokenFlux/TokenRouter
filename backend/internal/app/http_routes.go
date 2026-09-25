@@ -1,9 +1,9 @@
 package app
 
 import (
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	gin "github.com/gin-gonic/gin"
+	"github.com/TokenFlux/TokenRouter/internal/idempotency"
+	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
+	"github.com/gin-gonic/gin"
 )
 
 // httpRouteSecurity 保持各路由族原有 middleware 顺序，所有实例由组合根提供。

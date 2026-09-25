@@ -2,10 +2,10 @@
 package egress
 
 import (
-	testing "testing"
-	time "time"
+	"testing"
+	"time"
 
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTLSFingerprintCollectorServiceSessionLimits(t *testing.T) {

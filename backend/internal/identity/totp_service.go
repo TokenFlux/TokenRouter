@@ -2,17 +2,17 @@
 package identity
 
 import (
-	context "context"
-	rand "crypto/rand"
-	subtle "crypto/subtle"
-	hex "encoding/hex"
-	fmt "fmt"
-	slog "log/slog"
-	time "time"
+	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
+	"fmt"
+	"log/slog"
+	"time"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	otp "github.com/pquerna/otp"
-	totp "github.com/pquerna/otp/totp"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 )
 
 var (

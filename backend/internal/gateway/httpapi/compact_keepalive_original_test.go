@@ -8,7 +8,7 @@ import (
 
 	httpapitestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
 
-	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"

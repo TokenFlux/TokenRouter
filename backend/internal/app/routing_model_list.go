@@ -4,11 +4,11 @@ package app
 import (
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 
-	config "github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
-	time "time"
+	"time"
 )
 
 // provideRoutingModelList 由 app 投影原 15 秒默认 TTL；缓存无构造启动副作用。

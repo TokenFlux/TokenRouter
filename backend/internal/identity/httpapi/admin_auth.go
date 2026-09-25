@@ -2,14 +2,14 @@
 package httpapi
 
 import (
-	subtle "crypto/subtle"
-	errors "errors"
-	strings "strings"
+	"crypto/subtle"
+	"errors"
+	"strings"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	gin "github.com/gin-gonic/gin"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/gin-gonic/gin"
 )
 
 // AdminAuth 管理员认证中间件实现

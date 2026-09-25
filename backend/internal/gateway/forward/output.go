@@ -1,7 +1,7 @@
 package forward
 
 import (
-	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 

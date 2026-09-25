@@ -2,12 +2,12 @@
 package httpapi
 
 import (
-	context "context"
-	json "encoding/json"
-	fmt "fmt"
-	http "net/http"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // TestStreamWriter 是真实 HTTP 输出边界，业务用例只看到事件接口。

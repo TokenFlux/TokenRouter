@@ -2,11 +2,11 @@
 package transfer
 
 import (
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
+	"encoding/json"
+	"errors"
+	"fmt"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 const (

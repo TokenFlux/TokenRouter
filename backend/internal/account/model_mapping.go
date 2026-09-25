@@ -2,7 +2,7 @@
 package account
 
 import (
-	maps "maps"
+	"maps"
 )
 
 // ModelMappingDefaults 按需投影平台默认目录，不建立第二份别名缓存。

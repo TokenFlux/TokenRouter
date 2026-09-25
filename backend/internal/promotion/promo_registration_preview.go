@@ -2,7 +2,7 @@
 package promotion
 
 import (
-	context "context"
+	"context"
 )
 
 // RegistrationPromotionPreview 保留公开注册预览的结果形状和原错误分类。

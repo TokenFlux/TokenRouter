@@ -5,17 +5,17 @@ import (
 	"context"
 	"errors"
 
-	compact "github.com/TokenFlux/TokenRouter/internal/gateway/compact"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/compact"
 
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	provider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
-	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 

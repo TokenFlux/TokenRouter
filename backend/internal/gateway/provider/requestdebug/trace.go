@@ -5,10 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
-	"github.com/tidwall/gjson"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,6 +13,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/tidwall/gjson"
 )
 
 const debugGatewayBodyDefaultFilename = "gateway_debug.log"

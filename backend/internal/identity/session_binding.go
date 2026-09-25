@@ -2,10 +2,10 @@
 package identity
 
 import (
-	context "context"
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
-	strings "strings"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

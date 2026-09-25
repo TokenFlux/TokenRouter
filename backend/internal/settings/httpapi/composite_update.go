@@ -10,7 +10,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/identity/authconfig"
 	"github.com/TokenFlux/TokenRouter/internal/identity/contact"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/notification"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/settings/composite"
@@ -205,7 +205,7 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 	}
 	forwardedClientIPHeaders := append([]string(nil), previousSettings.ForwardedClientIPHeaders...)
 	if req.ForwardedClientIPHeaders != nil {
-		forwardedClientIPHeaders = append([]string(nil), (*req.ForwardedClientIPHeaders)...)
+		forwardedClientIPHeaders = append([]string(nil), *req.ForwardedClientIPHeaders...)
 	}
 
 	// 开启敏感操作 step-up 门控属自锁风险操作：仅允许本人已启用 TOTP 的管理员会话开启，

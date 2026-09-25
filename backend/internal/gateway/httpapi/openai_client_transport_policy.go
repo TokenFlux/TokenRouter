@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 func ResolveOpenAIWSDecisionByClientTransport(

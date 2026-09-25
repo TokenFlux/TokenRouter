@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	"context"

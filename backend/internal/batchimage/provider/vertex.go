@@ -14,7 +14,7 @@ import (
 
 	core "github.com/TokenFlux/TokenRouter/internal/batchimage"
 
-	vertex "github.com/TokenFlux/TokenRouter/internal/upstream/vertex"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/vertex"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

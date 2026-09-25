@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/require"

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 )

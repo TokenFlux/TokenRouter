@@ -53,7 +53,7 @@ func newAntigravityStreamFixture(cfg *googleforward.Options) *googleforward.Anti
 }
 
 func TestAntigravityUpstreamErrorBodyReadLimit_RespectsDiagnosticLimit(t *testing.T) {
-	svc := newAntigravityStreamFixture(&googleforward.Options{LogErrorBody: true, LogErrorBodyMaxBytes: int((int64(512 << 10))) + 1024})
+	svc := newAntigravityStreamFixture(&googleforward.Options{LogErrorBody: true, LogErrorBodyMaxBytes: int(int64(512<<10)) + 1024})
 
 	require.Equal(t, int64(svc.Options.LogErrorBodyMaxBytes), googleforward.ErrorBodyLimitForTest(svc))
 }
@@ -336,7 +336,7 @@ func TestAntigravityGatewayService_ForwardGemini_UsesConfiguredProjectFallback(t
 	}
 	svc := newAntigravityFixture(antigravityDependencies{
 
-		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}),
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024}),
 
 		tokenProvider: newAntigravityTokenSourceForTest(nil),
 
@@ -408,7 +408,7 @@ func TestAntigravityGatewayService_ForwardGemini_ImageUsesDefaultMappingAndOAuth
 	}
 	svc := newAntigravityFixture(antigravityDependencies{
 
-		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}),
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024}),
 
 		tokenProvider: newAntigravityTokenSourceForTest(nil),
 
@@ -473,7 +473,7 @@ func TestAntigravityGatewayService_ForwardGemini_PreservesServerSideToolInvocati
 	}}}
 	svc := newAntigravityFixture(antigravityDependencies{
 
-		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}),
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024}),
 
 		tokenProvider: newAntigravityTokenSourceForTest(nil),
 
@@ -596,7 +596,7 @@ func TestAntigravityGatewayService_Forward_PromptTooLong(t *testing.T) {
 
 	svc := newAntigravityFixture(antigravityDependencies{
 
-		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}),
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024}),
 
 		tokenProvider: newAntigravityTokenSourceForTest(nil),
 
@@ -1040,7 +1040,7 @@ func TestAntigravityGatewayService_Forward_BillsWithMappedModel(t *testing.T) {
 
 	svc := newAntigravityFixture(antigravityDependencies{
 
-		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}),
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024}),
 
 		tokenProvider: newAntigravityTokenSourceForTest(nil),
 
@@ -1111,7 +1111,7 @@ func TestAntigravityGatewayService_ForwardGemini_BillsWithMappedModel(t *testing
 
 	svc := newAntigravityFixture(antigravityDependencies{
 
-		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}),
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024}),
 
 		tokenProvider: newAntigravityTokenSourceForTest(nil),
 
@@ -1210,7 +1210,7 @@ func TestAntigravityGatewayService_ForwardGemini_RetriesCorruptedThoughtSignatur
 
 	svc := newAntigravityFixture(antigravityDependencies{
 
-		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}),
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024}),
 
 		tokenProvider: newAntigravityTokenSourceForTest(nil),
 
@@ -1350,7 +1350,7 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 
 	svc := newAntigravityFixture(antigravityDependencies{
 
-		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}),
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}), options: fixtureOptions(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024}),
 
 		tokenProvider: newAntigravityTokenSourceForTest(nil),
 
@@ -1379,7 +1379,7 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 // 验证：usage 字段可被累积/覆盖更新，并且能记录首 token 时间
 func TestStreamUpstreamResponse_UsageAndFirstToken(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1417,7 +1417,7 @@ func TestStreamUpstreamResponse_UsageAndFirstToken(t *testing.T) {
 // 验证：正常流式转发完成时，数据正确透传、usage 正确收集、clientDisconnect=false
 func TestStreamUpstreamResponse_NormalComplete(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1459,7 +1459,7 @@ func TestStreamUpstreamResponse_NormalComplete(t *testing.T) {
 // 验证：正常 Gemini 流式转发，数据正确透传、usage 正确收集
 func TestHandleGeminiStreamingResponse_NormalComplete(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1504,7 +1504,7 @@ func TestHandleGeminiStreamingResponse_NormalComplete(t *testing.T) {
 // 验证：正常 Claude 流式转发（Gemini→Claude 转换），数据正确转换并输出
 func TestHandleClaudeStreamingResponse_NormalComplete(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1545,7 +1545,7 @@ func TestHandleClaudeStreamingResponse_NormalComplete(t *testing.T) {
 // 验证：Gemini 流式转发时 thoughtsTokenCount 被计入 OutputTokens
 func TestHandleGeminiStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1579,7 +1579,7 @@ func TestHandleGeminiStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 // 验证：Gemini→Claude 流式转换时 thoughtsTokenCount 被计入 OutputTokens
 func TestHandleClaudeStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1612,7 +1612,7 @@ func TestHandleClaudeStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 // 验证：客户端写入失败后，streamUpstreamResponse 继续读取上游以收集 usage
 func TestStreamUpstreamResponse_ClientDisconnectDrainsUsage(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1645,7 +1645,7 @@ func TestStreamUpstreamResponse_ClientDisconnectDrainsUsage(t *testing.T) {
 // 验证：context 取消时返回 usage 且标记 clientDisconnect
 func TestStreamUpstreamResponse_ContextCanceled(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1666,7 +1666,7 @@ func TestStreamUpstreamResponse_ContextCanceled(t *testing.T) {
 // 验证：上游超时时返回已收集的 usage
 func TestStreamUpstreamResponse_Timeout(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{StreamInterval: 1, MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{StreamInterval: 1, MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1687,7 +1687,7 @@ func TestStreamUpstreamResponse_Timeout(t *testing.T) {
 // 验证：客户端断开后上游超时，返回 usage 并标记 clientDisconnect
 func TestStreamUpstreamResponse_TimeoutAfterClientDisconnect(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{StreamInterval: 1, MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{StreamInterval: 1, MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1715,7 +1715,7 @@ func TestStreamUpstreamResponse_TimeoutAfterClientDisconnect(t *testing.T) {
 // 验证：Gemini 流式转发中客户端断开后继续 drain 上游
 func TestHandleGeminiStreamingResponse_ClientDisconnect(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1744,7 +1744,7 @@ func TestHandleGeminiStreamingResponse_ClientDisconnect(t *testing.T) {
 // 验证：context 取消时不注入错误事件
 func TestHandleGeminiStreamingResponse_ContextCanceled(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1766,7 +1766,7 @@ func TestHandleGeminiStreamingResponse_ContextCanceled(t *testing.T) {
 // 验证：Claude 流式转发中客户端断开后继续 drain 上游
 func TestHandleClaudeStreamingResponse_ClientDisconnect(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1795,7 +1795,7 @@ func TestHandleClaudeStreamingResponse_ClientDisconnect(t *testing.T) {
 // 验证：上游只返回无法解析的 SSE 行时，触发 UpstreamFailoverError 而不是向客户端发出残缺流
 func TestHandleClaudeStreamingResponse_EmptyStream(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1833,7 +1833,7 @@ func TestHandleClaudeStreamingResponse_EmptyStream(t *testing.T) {
 // 验证：context 取消时不注入错误事件
 func TestHandleClaudeStreamingResponse_ContextCanceled(t *testing.T) {
 
-	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: (500 * 1024 * 1024)})
+	svc := newAntigravityStreamFixture(&googleforward.Options{MaxLineSize: 500 * 1024 * 1024})
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)

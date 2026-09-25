@@ -8,8 +8,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	clientmeta "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

@@ -2,7 +2,7 @@
 package account
 
 import (
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 // HeaderOverrides 由账号决定适用性，名称/值安全规则由 egress 唯一执行。

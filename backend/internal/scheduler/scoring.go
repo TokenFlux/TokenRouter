@@ -1,17 +1,17 @@
 package scheduler
 
 import (
-	heap "container/heap"
-	fnv "hash/fnv"
-	math "math"
-	strconv "strconv"
-	strings "strings"
-	sync "sync"
-	atomic "sync/atomic"
-	time "time"
+	"container/heap"
+	"hash/fnv"
+	"math"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 // RuntimeStats 保存所有高级调度分组共享的运行时反馈。

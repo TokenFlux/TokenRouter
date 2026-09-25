@@ -3,8 +3,9 @@
 package identity_test
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 func TestSettingKeyAuthSourcePlatformQuotas(t *testing.T) {

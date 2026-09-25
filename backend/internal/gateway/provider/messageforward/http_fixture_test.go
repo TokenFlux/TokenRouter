@@ -2,6 +2,8 @@ package messageforward_test
 
 import (
 	"context"
+	"strings"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
@@ -12,7 +14,6 @@ import (
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
-	"strings"
 )
 
 const defaultMaxLineSize = 500 * 1024 * 1024

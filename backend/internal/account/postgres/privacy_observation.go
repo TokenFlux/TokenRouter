@@ -2,9 +2,9 @@
 package postgres
 
 import (
-	context "context"
+	"context"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // UpdatePrivacyModeIfUnchanged 在原 Extra/outbox 事务内比较请求身份，不能写到管理员更换后的账号。

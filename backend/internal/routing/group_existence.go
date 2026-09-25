@@ -2,9 +2,9 @@
 package routing
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
+	"context"
+	"errors"
+	"fmt"
 )
 
 type GroupExistenceLookup interface {

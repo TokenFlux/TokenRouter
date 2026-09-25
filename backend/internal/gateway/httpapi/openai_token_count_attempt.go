@@ -4,7 +4,7 @@ package httpapi
 import (
 	"time"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/gin-gonic/gin"

@@ -2,12 +2,12 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
+	"context"
+	"database/sql"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	apikey "github.com/TokenFlux/TokenRouter/ent/apikey"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/ent/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 )
 

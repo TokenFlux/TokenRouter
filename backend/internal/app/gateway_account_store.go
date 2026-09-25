@@ -2,13 +2,13 @@
 package app
 
 import (
-	context "context"
+	"context"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
 // executionAccountStore 不拥有连接或备用构造路径，只引用原生存储。

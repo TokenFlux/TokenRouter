@@ -2,15 +2,15 @@
 package identity
 
 import (
-	context "context"
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
-	sort "sort"
-	strings "strings"
-	time "time"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
 
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
 // User management implementations
@@ -515,13 +515,13 @@ func (s *UserAdmin) UpdateUserBalance(ctx context.Context, userID int64, balance
 	s.AdminTryAccrueAffiliateRebateForAdminRecharge(ctx, userID, operation, balance)
 
 	if s.BalanceCache != nil {
-		s.RunBackground("service/admin_user.go:UpdateUserBalance", (func() {
+		s.RunBackground("service/admin_user.go:UpdateUserBalance", func() {
 			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := s.BalanceCache.InvalidateUserBalance(cacheCtx, userID); err != nil {
 				s.Observer.Printf("service.admin", "invalidate user balance cache failed: user_id=%d err=%v", userID, err)
 			}
-		}))
+		})
 	}
 
 	if balanceDiff != 0 {

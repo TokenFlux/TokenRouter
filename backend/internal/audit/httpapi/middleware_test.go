@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	service "github.com/TokenFlux/TokenRouter/internal/audit"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"

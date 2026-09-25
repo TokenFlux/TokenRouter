@@ -3,7 +3,7 @@ package postgres
 
 import (
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // ApplyKeyUsageReset 将消费字段附加到调用方的同一条更新语句，不提交事务。

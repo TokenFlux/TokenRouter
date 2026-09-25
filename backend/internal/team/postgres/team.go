@@ -4,25 +4,25 @@ package postgres
 import (
 	usagequery "github.com/TokenFlux/TokenRouter/internal/usage/postgres/query"
 
-	context "context"
+	"context"
 
-	sql "database/sql"
+	"database/sql"
 
-	errors "errors"
+	"errors"
 
-	fmt "fmt"
+	"fmt"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 
-	team "github.com/TokenFlux/TokenRouter/internal/team"
+	"github.com/TokenFlux/TokenRouter/internal/team"
 
-	pq "github.com/lib/pq"
+	"github.com/lib/pq"
 
-	strings "strings"
+	"strings"
 
-	time "time"
+	"time"
 )
 
 type TeamRepository struct {

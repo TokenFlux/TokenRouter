@@ -1,7 +1,7 @@
 package qoder
 
 import (
-	strings "strings"
+	"strings"
 )
 
 func NormalizeModelForWhitelist(model string) string {

@@ -1,9 +1,9 @@
 package billing
 
 import (
-	rand "crypto/rand"
-	hex "encoding/hex"
-	time "time"
+	"crypto/rand"
+	"encoding/hex"
+	"time"
 )
 
 type RedeemCode struct {

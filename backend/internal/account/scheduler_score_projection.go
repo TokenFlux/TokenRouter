@@ -2,10 +2,10 @@
 package account
 
 import (
-	context "context"
-	sort "sort"
+	"context"
+	"sort"
 
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 )
 
 // SchedulerScoreAccounts 仅查询管理评分所需的候选集合，保持筛选与分页独立。

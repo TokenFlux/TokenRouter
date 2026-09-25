@@ -2,12 +2,12 @@
 package account
 
 import (
-	context "context"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"fmt"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
 // Record management implementations

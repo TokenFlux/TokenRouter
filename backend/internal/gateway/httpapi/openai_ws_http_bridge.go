@@ -14,7 +14,7 @@ import (
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"

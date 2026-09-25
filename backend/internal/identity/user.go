@@ -3,11 +3,11 @@ package identity
 
 import (
 	"strings"
-	time "time"
+	"time"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	contact "github.com/TokenFlux/TokenRouter/internal/identity/contact"
-	bcrypt "golang.org/x/crypto/bcrypt"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity/contact"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {

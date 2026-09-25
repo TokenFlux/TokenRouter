@@ -1,9 +1,10 @@
 package provider
 
 import (
+	"strings"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/tidwall/gjson"
-	"strings"
 )
 
 // ClientRejectionObservation 保留原精确关键词和 detail.code 分类。

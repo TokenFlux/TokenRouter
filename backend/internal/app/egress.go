@@ -4,21 +4,21 @@ package app
 import (
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	context "context"
+	"context"
 
-	sql "database/sql"
+	"database/sql"
 
-	time "time"
+	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 
-	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 
-	config "github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 
 	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 
@@ -28,7 +28,7 @@ import (
 
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	schedulerpostgres "github.com/TokenFlux/TokenRouter/internal/scheduler/postgres"
 )

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/backup"

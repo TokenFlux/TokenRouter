@@ -2,11 +2,11 @@
 package account
 
 import (
-	context "context"
-	errors "errors"
-	reflect "reflect"
+	"context"
+	"errors"
+	"reflect"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
 )
 

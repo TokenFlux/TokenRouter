@@ -1,1 +1,47 @@
-{"ID":701,"Name":"first","Notes":null,"Platform":"openai","Type":"oauth","Credentials":{"model_mapping":{"a":"first","z":"last"}},"Extra":{"mixed_scheduling":true},"ProxyID":null,"ProxyFallbackOriginID":null,"ProxyFallbackOriginName":null,"Concurrency":0,"Priority":0,"RateMultiplier":null,"LoadFactor":null,"Status":"","ErrorMessage":"","LastUsedAt":null,"ExpiresAt":null,"AutoPauseOnExpired":false,"CreatedAt":"0001-01-01T00:00:00Z","UpdatedAt":"0001-01-01T00:00:00Z","Schedulable":false,"RateLimitedAt":null,"RateLimitResetAt":null,"OverloadUntil":null,"TempUnschedulableUntil":null,"TempUnschedulableReason":"","SessionWindowStart":null,"SessionWindowEnd":null,"SessionWindowStatus":"","ParentAccountID":null,"QuotaDimension":"","Proxy":null,"AccountGroups":null,"GroupIDs":[17],"Groups":null}
+{
+  "ID": 701,
+  "Name": "first",
+  "Notes": null,
+  "Platform": "openai",
+  "Type": "oauth",
+  "Credentials": {
+    "model_mapping": {
+      "a": "first",
+      "z": "last"
+    }
+  },
+  "Extra": {
+    "mixed_scheduling": true
+  },
+  "ProxyID": null,
+  "ProxyFallbackOriginID": null,
+  "ProxyFallbackOriginName": null,
+  "Concurrency": 0,
+  "Priority": 0,
+  "RateMultiplier": null,
+  "LoadFactor": null,
+  "Status": "",
+  "ErrorMessage": "",
+  "LastUsedAt": null,
+  "ExpiresAt": null,
+  "AutoPauseOnExpired": false,
+  "CreatedAt": "0001-01-01T00:00:00Z",
+  "UpdatedAt": "0001-01-01T00:00:00Z",
+  "Schedulable": false,
+  "RateLimitedAt": null,
+  "RateLimitResetAt": null,
+  "OverloadUntil": null,
+  "TempUnschedulableUntil": null,
+  "TempUnschedulableReason": "",
+  "SessionWindowStart": null,
+  "SessionWindowEnd": null,
+  "SessionWindowStatus": "",
+  "ParentAccountID": null,
+  "QuotaDimension": "",
+  "Proxy": null,
+  "AccountGroups": null,
+  "GroupIDs": [
+    17
+  ],
+  "Groups": null
+}

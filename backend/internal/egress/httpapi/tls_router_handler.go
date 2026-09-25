@@ -2,13 +2,13 @@
 package httpapi
 
 import (
-	json "encoding/json"
-	strconv "strconv"
-	strings "strings"
+	"encoding/json"
+	"strconv"
+	"strings"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // TLSFingerprintRouterHandler 处理 TLS 路由器的 HTTP 请求。

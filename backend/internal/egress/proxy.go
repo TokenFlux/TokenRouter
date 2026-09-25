@@ -2,10 +2,10 @@
 package egress
 
 import (
-	net "net"
-	url "net/url"
-	strconv "strconv"
-	time "time"
+	"net"
+	"net/url"
+	"strconv"
+	"time"
 )
 
 const (

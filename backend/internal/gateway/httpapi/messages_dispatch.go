@@ -1,13 +1,13 @@
 package httpapi
 
 import (
-	modeltrace "github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"context"
 	"strings"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 )
 
 func ResolveOpenAIMessagesDispatchMappedModel(apiKey *apikey.APIKey, requestedModel string) string {

@@ -2,7 +2,7 @@
 package account
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // CodexFingerprintMode 控制 OAuth 账号出站请求的设备指纹收敛强度。

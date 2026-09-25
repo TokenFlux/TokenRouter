@@ -2,10 +2,10 @@
 package apikey
 
 import (
-	context "context"
-	regexp "regexp"
-	sort "sort"
-	strings "strings"
+	"context"
+	"regexp"
+	"sort"
+	"strings"
 )
 
 const (

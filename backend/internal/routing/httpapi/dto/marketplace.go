@@ -2,10 +2,10 @@
 package dto
 
 import (
-	time "time"
+	"time"
 
-	pricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 type ModelMarketplaceStats struct {

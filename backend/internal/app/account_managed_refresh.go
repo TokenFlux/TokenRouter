@@ -8,7 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 // provideManagedRefresh 绑定原生账号用例与唯一刷新协调器，构造不执行交换。

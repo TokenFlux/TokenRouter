@@ -2,8 +2,8 @@
 package provider
 
 import (
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	tlsfingerprint "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 )
 
 // ToTLSProfile 将领域模型转换为运行时使用的 tlsfingerprint.Profile

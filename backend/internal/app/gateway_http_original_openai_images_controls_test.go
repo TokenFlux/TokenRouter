@@ -7,16 +7,16 @@ import (
 	"testing"
 
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"

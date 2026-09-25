@@ -2,12 +2,12 @@
 package postgres
 
 import (
-	context "context"
-	strings "strings"
+	"context"
+	"strings"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	authidentity "github.com/TokenFlux/TokenRouter/ent/authidentity"
-	identityadoptiondecision "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
+	"github.com/TokenFlux/TokenRouter/ent/authidentity"
+	"github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

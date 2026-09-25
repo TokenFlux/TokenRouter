@@ -2,17 +2,17 @@
 package routing
 
 import (
-	context "context"
-	sha256 "crypto/sha256"
-	errors "errors"
-	fmt "fmt"
-	maps "maps"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	"maps"
+	"strconv"
+	"strings"
+	"time"
 
-	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
-	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 const (

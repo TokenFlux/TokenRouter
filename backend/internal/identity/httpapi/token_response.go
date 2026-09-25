@@ -2,14 +2,14 @@
 package httpapi
 
 import (
-	json "encoding/json"
-	slog "log/slog"
+	"encoding/json"
+	"log/slog"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	dto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 func EnsureLoginUserActive(user *identity.User) error {

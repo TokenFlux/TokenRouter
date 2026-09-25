@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	testkit "github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"

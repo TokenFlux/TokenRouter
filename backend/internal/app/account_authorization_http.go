@@ -2,7 +2,7 @@ package app
 
 import (
 	accountauth "github.com/TokenFlux/TokenRouter/internal/account"
-	provider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	"github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 )

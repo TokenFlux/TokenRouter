@@ -2,7 +2,7 @@
 package account
 
 import (
-	openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // TextRouteMode 描述普通文本请求的上游协议路由策略。

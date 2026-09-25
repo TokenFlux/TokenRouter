@@ -6,7 +6,7 @@ import (
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // checkChannelPricingRestriction 根据渠道计费基准检查模型是否受定价列表限制。

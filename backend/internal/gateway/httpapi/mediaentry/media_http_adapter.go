@@ -6,20 +6,20 @@ import (
 	"errors"
 	"time"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
-	provider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -43,7 +43,7 @@ func mediaAccessView(key *apikey.APIKey) *gatewayhttp.MediaAccess {
 	if key.Group != nil {
 		platform = key.Group.Platform
 	}
-	return &gatewayhttp.MediaAccess{HasGroup: key.Group != nil, Platform: platform, ID: key.ID, GroupID: group, Composite: key.IsComposite, ImagesAllowed: (key.Group == nil || key.Group.AllowImageGeneration)}
+	return &gatewayhttp.MediaAccess{HasGroup: key.Group != nil, Platform: platform, ID: key.ID, GroupID: group, Composite: key.IsComposite, ImagesAllowed: key.Group == nil || key.Group.AllowImageGeneration}
 }
 func (p mediaHTTPAdapter) Access(c *gin.Context) (*gatewayhttp.MediaAccess, bool) {
 	key, ok := keyhttp.GetAPIKeyFromContext(c)

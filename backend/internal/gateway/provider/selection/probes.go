@@ -1,13 +1,13 @@
 package selection
 
 import (
-	context "context"
-	fmt "fmt"
+	"context"
+	"fmt"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 

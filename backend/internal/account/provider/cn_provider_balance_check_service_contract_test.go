@@ -6,7 +6,7 @@ import (
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"

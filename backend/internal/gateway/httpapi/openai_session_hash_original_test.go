@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"

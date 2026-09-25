@@ -2,12 +2,12 @@
 package testkit
 
 import (
-	slices "slices"
-	sort "sort"
-	time "time"
+	"slices"
+	"sort"
+	"time"
 
-	provider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // ModelKey 渠道测试输入复合键（显式包含 Platform 防止跨平台同名模型冲突）

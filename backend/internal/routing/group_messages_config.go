@@ -2,7 +2,7 @@
 package routing
 
 import (
-	strings "strings"
+	"strings"
 )
 
 func NormalizeMessagesDispatchConfig(cfg OpenAIMessagesDispatchModelConfig, normalize func(string) string) OpenAIMessagesDispatchModelConfig {

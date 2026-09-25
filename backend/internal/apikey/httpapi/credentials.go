@@ -2,13 +2,13 @@
 package httpapi
 
 import (
-	errors "errors"
-	http "net/http"
-	strings "strings"
+	"errors"
+	"net/http"
+	"strings"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	googleapi "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 const MaxAuthorizationHeaderBytes = apikey.MaxAPIKeyCredentialBytes + 128

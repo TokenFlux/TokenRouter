@@ -2,10 +2,10 @@
 package identity
 
 import (
-	fmt "fmt"
+	"fmt"
 	_ "image/png"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 

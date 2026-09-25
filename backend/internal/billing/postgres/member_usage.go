@@ -2,12 +2,12 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	time "time"
+	"context"
+	"database/sql"
+	"time"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
 func (r *MemberUsageStore) ResetMemberUsage(ctx context.Context, teamID, userID int64, resetDaily, resetWeekly, resetMonthly bool, now time.Time) error {

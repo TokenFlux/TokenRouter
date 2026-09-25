@@ -2,7 +2,7 @@
 package identity
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // GmailFamilyDomains 列出 Gmail 及其历史别名域名。两者投递到同一收件箱。

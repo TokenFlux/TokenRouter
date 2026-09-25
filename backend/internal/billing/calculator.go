@@ -1,10 +1,10 @@
 package billing
 
 import (
-	context "context"
-	fmt "fmt"
-	strings "strings"
-	time "time"
+	"context"
+	"fmt"
+	"strings"
+	"time"
 
 	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )

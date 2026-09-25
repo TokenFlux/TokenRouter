@@ -2,12 +2,12 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
-	time "time"
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
 
 	keycore "github.com/TokenFlux/TokenRouter/internal/apikey"
 )

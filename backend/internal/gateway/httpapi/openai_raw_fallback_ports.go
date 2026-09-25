@@ -11,11 +11,11 @@ import (
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 
-	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 

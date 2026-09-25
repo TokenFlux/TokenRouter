@@ -13,7 +13,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 	"github.com/TokenFlux/TokenRouter/internal/idempotency/testkit"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

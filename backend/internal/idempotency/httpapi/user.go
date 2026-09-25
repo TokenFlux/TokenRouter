@@ -1,15 +1,15 @@
 package httpapi
 
 import (
-	context "context"
-	strconv "strconv"
-	time "time"
+	"context"
+	"strconv"
+	"time"
 
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
+	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 func (e *Executor) ExecuteUserIdempotentJSON(

@@ -3,8 +3,9 @@ package session
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // ownerReaderProbe 只提供持久化归属事实，验证授权条件与读取顺序。

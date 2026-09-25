@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/gin-gonic/gin"
 )
 

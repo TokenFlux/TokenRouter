@@ -2,8 +2,8 @@
 package contact
 
 import (
-	json "encoding/json"
-	strings "strings"
+	"encoding/json"
+	"strings"
 )
 
 // Entry 保留权益展示中的通知邮箱值，不提供身份管理操作。

@@ -2,8 +2,8 @@
 package account
 
 import (
-	context "context"
-	errors "errors"
+	"context"
+	"errors"
 )
 
 var ErrRefreshStopped = errors.New("oauth refresh coordinator is stopped")

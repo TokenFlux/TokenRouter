@@ -7,7 +7,7 @@ import (
 
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 
-	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
 
 	opshttp "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
 	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"

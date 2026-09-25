@@ -1,16 +1,16 @@
 package billing
 
 import (
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
-	errors "errors"
-	fmt "fmt"
-	math "math"
-	strings "strings"
-	time "time"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"math"
+	"strings"
+	"time"
 
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	decimal "github.com/shopspring/decimal"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/shopspring/decimal"
 )
 
 var ErrUsageBillingRequestIDRequired = errors.New("usage billing request_id is required")

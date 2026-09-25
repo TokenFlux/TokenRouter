@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	usageview "github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
 )
 
 const (

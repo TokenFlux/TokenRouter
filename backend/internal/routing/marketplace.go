@@ -2,15 +2,15 @@
 package routing
 
 import (
-	context "context"
-	fmt "fmt"
-	math "math"
-	sort "sort"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"context"
+	"fmt"
+	"math"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
-	pricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
 type ModelMarketplaceGroup struct {

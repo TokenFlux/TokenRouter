@@ -2,7 +2,7 @@
 package account
 
 import (
-	sort "sort"
+	"sort"
 )
 
 // ModelPlatformRules 只在平台专有资格分支按需调用，模型配置与一跳匹配由 account 拥有。

@@ -2,7 +2,7 @@
 package account
 
 import (
-	time "time"
+	"time"
 )
 
 // TokenRefreshTempUnschedDuration token 刷新重试耗尽后临时不可调度的持续时间

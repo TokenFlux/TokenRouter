@@ -2,19 +2,19 @@
 package httpapi
 
 import (
-	context "context"
-	slog "log/slog"
-	strconv "strconv"
-	strings "strings"
+	"context"
+	"log/slog"
+	"strconv"
+	"strings"
 
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
+	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	groupdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // CreateGroupRequest represents create group request

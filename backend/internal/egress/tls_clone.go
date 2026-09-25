@@ -2,7 +2,7 @@
 package egress
 
 import (
-	slices "slices"
+	"slices"
 )
 
 // CloneTLSFingerprintProfile 隔离配置来源、缓存和请求所持有的可变字段。

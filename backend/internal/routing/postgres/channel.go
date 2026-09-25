@@ -2,15 +2,15 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	json "encoding/json"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
 
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	pq "github.com/lib/pq"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/lib/pq"
 )
 
 type ChannelStore struct {

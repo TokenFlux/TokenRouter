@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 
 	"time"
 

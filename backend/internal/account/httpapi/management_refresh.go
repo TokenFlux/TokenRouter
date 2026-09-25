@@ -2,11 +2,11 @@
 package httpapi
 
 import (
-	strconv "strconv"
+	"strconv"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // ApplyOAuthCredentialsRequest 是重新授权后保存 OAuth 凭据的专用请求体。

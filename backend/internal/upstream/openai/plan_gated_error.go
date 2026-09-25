@@ -1,9 +1,10 @@
 package openai
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"net/http"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
 // IsCodexPlanGatedModelError 保留 ChatGPT OAuth 套餐拒绝目标模型的确定性错误识别。

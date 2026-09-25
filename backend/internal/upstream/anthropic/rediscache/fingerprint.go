@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	anthropic "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/redis/go-redis/v9"
 )
 

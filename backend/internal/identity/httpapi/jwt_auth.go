@@ -2,13 +2,13 @@
 package httpapi
 
 import (
-	errors "errors"
-	strings "strings"
+	"errors"
+	"strings"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	gin "github.com/gin-gonic/gin"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/gin-gonic/gin"
 )
 
 // JWTAuth JWT认证中间件实现

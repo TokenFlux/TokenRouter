@@ -2,16 +2,16 @@
 package account
 
 import (
-	context "context"
-	json "encoding/json"
-	errors "errors"
-	strings "strings"
-	sync "sync"
-	time "time"
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"sync"
+	"time"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	errgroup "golang.org/x/sync/errgroup"
+	"golang.org/x/sync/errgroup"
 )
 
 const (

@@ -3,8 +3,9 @@
 package billing_test
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 func TestSettingKeyDefaultPlatformQuotas(t *testing.T) {

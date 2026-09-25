@@ -2,7 +2,7 @@
 package logredact
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // MaskCredential 对请求头中的凭证做首尾保留掩码：

@@ -2,21 +2,21 @@
 package team
 
 import (
-	context "context"
-	rand "crypto/rand"
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
-	fmt "fmt"
-	slog "log/slog"
-	mail "net/mail"
-	url "net/url"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"log/slog"
+	"net/mail"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 )
 
 const (

@@ -2,18 +2,18 @@
 package httpapi
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	http "net/http"
-	url "net/url"
-	strings "strings"
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	oauthpkce "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 type EmailOAuthHandler struct {

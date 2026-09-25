@@ -2,9 +2,9 @@
 package dto
 
 import (
-	bytes "bytes"
-	json "encoding/json"
-	time "time"
+	"bytes"
+	"encoding/json"
+	"time"
 )
 
 type RedeemCode struct {

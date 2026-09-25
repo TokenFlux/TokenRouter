@@ -2,7 +2,7 @@
 package account
 
 import (
-	strings "strings"
+	"strings"
 )
 
 const (

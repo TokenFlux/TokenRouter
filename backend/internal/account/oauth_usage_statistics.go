@@ -2,12 +2,12 @@
 package account
 
 import (
-	context "context"
-	fmt "fmt"
-	sync "sync"
-	time "time"
+	"context"
+	"fmt"
+	"sync"
+	"time"
 
-	errgroup "golang.org/x/sync/errgroup"
+	"golang.org/x/sync/errgroup"
 )
 
 // LocalUsageStats 读取账号展示所需的五个累计值，SQL 查询由 usage 存储适配器执行。

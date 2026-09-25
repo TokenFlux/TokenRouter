@@ -2,8 +2,8 @@
 package httpx
 
 import (
-	strings "strings"
-	utf8 "unicode/utf8"
+	"strings"
+	"unicode/utf8"
 )
 
 // NormalizePersistentText 在攻击者可控元数据进入日志或数据库列前限制其大小，并保留有效 UTF-8 内容。

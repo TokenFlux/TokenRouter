@@ -3,7 +3,7 @@ package provider_test
 import (
 	"context"
 	"testing"
-	time "time"
+	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
@@ -19,11 +19,11 @@ func TestChannelMappingChainIncludesAPIKeyRedirectAndDeduplicatesStages(t *testi
 		context.Background(),
 		modeltrace.NewAPIKeyModelRedirectTrace("codex-auto-review", "codex-auto-review", "gpt-5.6-luna"),
 	)
-	mapping := modeltrace.WithChannelRedirect((routing.ChannelMappingResult{
+	mapping := modeltrace.WithChannelRedirect(routing.ChannelMappingResult{
 		MappedModel:        "gpt-5.6-luna-channel",
 		Mapped:             true,
 		BillingModelSource: routing.BillingModelSourceChannelMapped,
-	}), ctx, "gpt-5.6-luna")
+	}, ctx, "gpt-5.6-luna")
 
 	fields := mapping.ToUsageFields("gpt-5.6-luna", "gpt-5.6-luna-upstream")
 	require.Equal(t, "gpt-5.6-luna", fields.OriginalModel)

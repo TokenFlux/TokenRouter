@@ -3,8 +3,9 @@
 package provider
 
 import (
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"testing"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamkimi "github.com/TokenFlux/TokenRouter/internal/upstream/kimi"

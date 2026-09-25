@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 )
 
 // auditNormalizeBodyKey 归一化键名：小写并去除分隔符，

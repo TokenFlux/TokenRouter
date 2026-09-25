@@ -2,7 +2,7 @@
 package account
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // 废弃探测键仅在输入边界清理；路由、调度和公开类型不得引用这些状态。

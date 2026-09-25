@@ -2,13 +2,13 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	json "encoding/json"
-	fmt "fmt"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	pq "github.com/lib/pq"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/lib/pq"
 )
 
 // batchLoadAccountStatsPricingRules 批量加载多个渠道的账号统计定价规则（含模型定价）

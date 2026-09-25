@@ -2,16 +2,16 @@
 package httpapi
 
 import (
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"strconv"
+	"strings"
+	"time"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	team "github.com/TokenFlux/TokenRouter/internal/team"
-	gin "github.com/gin-gonic/gin"
+	"github.com/TokenFlux/TokenRouter/internal/team"
+	"github.com/gin-gonic/gin"
 )
 
 // UserHandler 处理当前用户所在团队的生命周期和成员管理请求。

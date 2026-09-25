@@ -2,8 +2,8 @@
 package account
 
 import (
-	maps "maps"
-	strings "strings"
+	"maps"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

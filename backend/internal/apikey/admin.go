@@ -2,11 +2,11 @@
 package apikey
 
 import (
-	context "context"
-	fmt "fmt"
+	"context"
+	"fmt"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
 // AdminUpdateAPIKeyGroupIDResult is the result of AdminUpdateAPIKeyGroupID.

@@ -2,7 +2,7 @@
 package egress
 
 import (
-	context "context"
+	"context"
 )
 
 type ProxyAdministrator interface {

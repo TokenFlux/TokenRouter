@@ -25,7 +25,7 @@ import (
 	routinghttpapi "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/server"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
+	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/web"
 	"github.com/redis/go-redis/v9"

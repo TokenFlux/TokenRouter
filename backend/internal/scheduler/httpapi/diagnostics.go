@@ -2,15 +2,15 @@
 package httpapi
 
 import (
-	context "context"
-	json "encoding/json"
-	io "io"
-	strconv "strconv"
-	strings "strings"
+	"context"
+	"encoding/json"
+	"io"
+	"strconv"
+	"strings"
 
-	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // AccountSchedulerDiagnostics 使用无凭据的只读诊断投影，评分由 scheduler 执行。

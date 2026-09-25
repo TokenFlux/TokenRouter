@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strings"
 
-	compact "github.com/TokenFlux/TokenRouter/internal/gateway/compact"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/compact"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"

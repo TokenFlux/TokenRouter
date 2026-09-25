@@ -2,8 +2,8 @@
 package egress
 
 import (
-	context "context"
-	time "time"
+	"context"
+	"time"
 )
 
 type ProxyLatencyInfo struct {

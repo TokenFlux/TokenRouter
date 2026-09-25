@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -54,7 +54,7 @@ func (b *openAIMessageAttemptBridge) Select(excluded map[int64]struct{}) (textfl
 		if !cls.ModelNotFound {
 			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 		}
-		b.binding().anthropicStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, (*b.streamStarted))
+		b.binding().anthropicStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, *b.streamStarted)
 		return textflow.ResponseSelection{}, nil
 	}
 	b.account = b.selection.Account
@@ -83,21 +83,21 @@ func (b *openAIMessageAttemptBridge) SelectionFailure(err error, excludedCount i
 	)
 	if excludedCount == 0 {
 		if err != nil {
-			if b.binding().handleOpenAISelectionBusinessError(b.c, err, (*b.streamStarted)) {
+			if b.binding().handleOpenAISelectionBusinessError(b.c, err, *b.streamStarted) {
 				return
 			}
 			cls := ClassifyOpenAICompatibleNoAccountErrorFromGin(b.c, b.binding().resolvedDiagnoser, b.apiKey, b.accountLayerModel, b.reqModel)
 			if !cls.ModelNotFound {
 				gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 			}
-			b.binding().anthropicStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, (*b.streamStarted))
+			b.binding().anthropicStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, *b.streamStarted)
 			return
 		}
 	} else {
 		if lastFailoverErr != nil {
-			b.binding().handleAnthropicFailoverExhausted(b.c, lastFailoverErr, (*b.streamStarted))
+			b.binding().handleAnthropicFailoverExhausted(b.c, lastFailoverErr, *b.streamStarted)
 		} else {
-			b.binding().anthropicStreamingAwareError(b.c, http.StatusBadGateway, "api_error", "Upstream request failed", (*b.streamStarted))
+			b.binding().anthropicStreamingAwareError(b.c, http.StatusBadGateway, "api_error", "Upstream request failed", *b.streamStarted)
 		}
 		return
 	}
@@ -289,7 +289,7 @@ func (b *openAIMessageAttemptBridge) OtherFailure(err error) {
 	upstreamErrorAlreadyCommunicated := gatewayhttp.OpenAIForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
 	b.wroteFallback = false
 	if !upstreamErrorAlreadyCommunicated && (!recordedWarning || b.c.Writer.Size() == b.writerSizeBeforeForward) {
-		b.wroteFallback = b.binding().ensureAnthropicErrorResponse(b.c, (*b.streamStarted))
+		b.wroteFallback = b.binding().ensureAnthropicErrorResponse(b.c, *b.streamStarted)
 	}
 	b.reqLog.Warn("openai_messages.forward_failed",
 		zap.Int64("account_id", b.account.Record.ID),

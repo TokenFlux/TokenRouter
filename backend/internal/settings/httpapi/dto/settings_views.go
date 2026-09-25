@@ -2,13 +2,13 @@ package dto
 
 import (
 	billinghttp "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
-	creative "github.com/TokenFlux/TokenRouter/internal/creative"
+	"github.com/TokenFlux/TokenRouter/internal/creative"
 	gatewaydto "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/dto"
-	promptpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identitydto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
-	ops "github.com/TokenFlux/TokenRouter/internal/ops"
-	payment "github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/payment"
 	sitedto "github.com/TokenFlux/TokenRouter/internal/site/httpapi/dto"
 )
 

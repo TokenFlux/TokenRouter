@@ -2,11 +2,11 @@
 package routing
 
 import (
-	slices "slices"
+	"slices"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
-	capability "github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 // EffectiveAllowedProtocols 为响应映射和编辑快照返回独立协议集合。

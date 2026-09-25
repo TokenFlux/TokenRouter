@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	failover "github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
 	gatewaytelemetry "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"

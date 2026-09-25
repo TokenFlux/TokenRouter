@@ -2,7 +2,7 @@
 package dto
 
 import (
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 // NotifyEmailEntry represents a notification email with enable/disable and verification state.

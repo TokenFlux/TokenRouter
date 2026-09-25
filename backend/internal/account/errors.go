@@ -2,8 +2,8 @@
 package account
 
 import (
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 var (

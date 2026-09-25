@@ -2,9 +2,9 @@
 package account
 
 import (
-	context "context"
-	sync "sync"
-	time "time"
+	"context"
+	"sync"
+	"time"
 )
 
 // OAuthRefreshCandidatePager 沿用原有界分页与原始 ID 游标，不退回无界扫描。

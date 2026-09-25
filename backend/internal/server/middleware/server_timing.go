@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/gin-gonic/gin"

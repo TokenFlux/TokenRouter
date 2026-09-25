@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
-	dto "github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto"
 	"github.com/stretchr/testify/require"
 )
 

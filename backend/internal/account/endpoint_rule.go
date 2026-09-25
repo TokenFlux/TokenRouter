@@ -2,9 +2,9 @@
 package account
 
 import (
-	slices "slices"
+	"slices"
 
-	capability "github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 func (a *Record) SupportsOpenAIEndpointCapability(requested OpenAIEndpointCapability, grokMedia func() (bool, string)) bool {

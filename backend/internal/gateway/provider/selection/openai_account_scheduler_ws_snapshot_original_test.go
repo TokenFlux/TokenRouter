@@ -4,9 +4,10 @@ package selection
 
 import (
 	"context"
-	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"testing"
 	time "time"
+
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"

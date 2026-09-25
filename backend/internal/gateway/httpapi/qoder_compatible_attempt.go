@@ -9,7 +9,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"

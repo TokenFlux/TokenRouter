@@ -3,8 +3,9 @@
 package app
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/account"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
 
 	usagecore "github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"

@@ -2,9 +2,9 @@
 package account
 
 import (
-	fmt "fmt"
-	strconv "strconv"
-	strings "strings"
+	"fmt"
+	"strconv"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

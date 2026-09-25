@@ -9,10 +9,10 @@ import (
 
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/audit"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

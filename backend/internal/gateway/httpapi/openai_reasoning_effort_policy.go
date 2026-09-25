@@ -5,7 +5,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/routing"

@@ -2,7 +2,7 @@
 package dto
 
 import (
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 func ProxyFromEgress(p *egress.Proxy) *Proxy {

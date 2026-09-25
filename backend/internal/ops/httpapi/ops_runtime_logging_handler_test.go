@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	opsprovider "github.com/TokenFlux/TokenRouter/internal/ops/provider"
 

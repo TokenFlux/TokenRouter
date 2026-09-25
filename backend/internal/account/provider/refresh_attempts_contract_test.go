@@ -11,9 +11,10 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
+	"maps"
+
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
-	"maps"
 )
 
 type tokenRefreshAccountRepo struct {

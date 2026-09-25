@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	compact "github.com/TokenFlux/TokenRouter/internal/gateway/compact"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/compact"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"

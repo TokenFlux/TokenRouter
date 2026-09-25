@@ -8,7 +8,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	httpapi "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

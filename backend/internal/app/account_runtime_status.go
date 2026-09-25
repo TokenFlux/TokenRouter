@@ -6,7 +6,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 

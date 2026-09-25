@@ -6,7 +6,7 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"

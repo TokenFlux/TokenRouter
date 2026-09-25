@@ -1,14 +1,14 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	errors "errors"
+	"context"
+	"database/sql"
+	"errors"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 

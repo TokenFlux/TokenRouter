@@ -1,7 +1,7 @@
 package provider
 
 import (
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 )
 

@@ -1,18 +1,18 @@
 package textattempt
 
 import (
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"context"
 	"errors"
 	"net/http"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 

@@ -6,7 +6,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"go.uber.org/zap"
 
-	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 )
 
 func ObserveCompletion(component, message string) {

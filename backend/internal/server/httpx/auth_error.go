@@ -2,7 +2,7 @@
 package httpx
 
 import (
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // ErrorResponse 标准错误响应结构

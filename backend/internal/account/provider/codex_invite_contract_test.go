@@ -3,10 +3,11 @@ package provider
 import (
 	"context"
 	"encoding/json"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"net/http"
 	"testing"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"

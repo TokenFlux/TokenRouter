@@ -8,25 +8,25 @@ import (
 	"time"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
-	grokforward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 
-	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 
-	uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 )
 
 // grokForwardAdapter 只持有本次受控凭据与旧能力引用，不保存新的会话/健康状态。
@@ -42,8 +42,8 @@ func (a *grokForwardAdapter) options() grokforward.Options {
 	if a.s.Output.Options.MaxLineSize > 0 {
 		maxLine = a.s.Output.Options.MaxLineSize
 	}
-	return grokforward.Options{Codec: (grok.BodyCodec{
-		NewID: uuid.NewString}), MaxLineSize: maxLine, Enter: a.s.Enter}
+	return grokforward.Options{Codec: grok.BodyCodec{
+		NewID: uuid.NewString}, MaxLineSize: maxLine, Enter: a.s.Enter}
 }
 func (a *grokForwardAdapter) input(body []byte, model string, stream bool, start time.Time) grokforward.Input {
 	return grokforward.Input{

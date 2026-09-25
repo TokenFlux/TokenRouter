@@ -4,7 +4,7 @@ package app
 import (
 	"context"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 
 	opscore "github.com/TokenFlux/TokenRouter/internal/ops"

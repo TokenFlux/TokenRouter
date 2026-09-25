@@ -10,9 +10,9 @@ import (
 
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 
-	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"

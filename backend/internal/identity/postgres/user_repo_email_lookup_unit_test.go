@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 
 	"entgo.io/ent/dialect"

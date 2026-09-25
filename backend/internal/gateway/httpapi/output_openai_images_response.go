@@ -7,7 +7,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"

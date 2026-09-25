@@ -6,10 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"

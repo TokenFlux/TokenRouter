@@ -2,10 +2,10 @@
 package postgres
 
 import (
-	context "context"
-	json "encoding/json"
-	errors "errors"
-	time "time"
+	"context"
+	"encoding/json"
+	"errors"
+	"time"
 
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 )

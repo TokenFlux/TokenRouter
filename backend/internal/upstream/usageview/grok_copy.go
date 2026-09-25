@@ -2,7 +2,7 @@
 package usageview
 
 import (
-	slices "slices"
+	"slices"
 )
 
 // CloneQuotaWindow 只复制展示值，保留 nil 与空集合。

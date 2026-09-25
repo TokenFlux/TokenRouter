@@ -5,7 +5,7 @@ import (
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
-	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 )
 
 func ProjectCompletionAccount(v *account.Record) *completion.AccountSnapshot {

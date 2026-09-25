@@ -2,12 +2,12 @@
 package rediscache
 
 import (
-	context "context"
-	json "encoding/json"
-	fmt "fmt"
+	"context"
+	"encoding/json"
+	"fmt"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	redis "github.com/redis/go-redis/v9"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/redis/go-redis/v9"
 )
 
 const proxyLatencyKeyPrefix = "proxy:latency:"

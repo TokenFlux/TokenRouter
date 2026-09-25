@@ -2,16 +2,16 @@
 package rediscache
 
 import (
-	context "context"
-	rand "crypto/rand"
-	base64 "encoding/base64"
-	json "encoding/json"
-	fmt "fmt"
-	strings "strings"
-	time "time"
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	redis "github.com/redis/go-redis/v9"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/redis/go-redis/v9"
 )
 
 const passkeySessionPrefix = "passkey:session:"

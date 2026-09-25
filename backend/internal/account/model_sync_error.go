@@ -2,7 +2,7 @@
 package account
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // UpstreamModelSyncErrorKind 对模型同步失败类型做分类，便于安全映射到 HTTP 状态码。

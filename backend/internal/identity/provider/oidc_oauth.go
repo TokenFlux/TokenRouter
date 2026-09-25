@@ -2,24 +2,24 @@
 package provider
 
 import (
-	context "context"
-	ecdsa "crypto/ecdsa"
-	elliptic "crypto/elliptic"
-	rsa "crypto/rsa"
-	base64 "encoding/base64"
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
-	big "math/big"
-	url "net/url"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math/big"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	jwt "github.com/golang-jwt/jwt/v5"
-	req "github.com/imroc/req/v3"
-	gjson "github.com/tidwall/gjson"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/imroc/req/v3"
+	"github.com/tidwall/gjson"
 )
 
 type OidcTokenResponse = identity.OIDCTokenResponse

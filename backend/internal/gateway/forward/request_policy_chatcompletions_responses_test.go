@@ -1,12 +1,12 @@
 package forward
 
 import (
-	json "encoding/json"
-	testing "testing"
+	"encoding/json"
+	"testing"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	assert "github.com/stretchr/testify/assert"
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChatCompletionsToResponses_BasicText(t *testing.T) {

@@ -1,21 +1,22 @@
 package app
 
 import (
-	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

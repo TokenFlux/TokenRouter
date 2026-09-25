@@ -2,21 +2,21 @@
 package httpapi
 
 import (
-	context "context"
-	base64 "encoding/base64"
-	errors "errors"
-	io "io"
-	slog "log/slog"
-	http "net/http"
-	url "net/url"
-	strings "strings"
+	"context"
+	"encoding/base64"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strings"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	oauthpkce "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
-	clientip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // PendingHTTPOptions 只保留 HTTP 与测试观察，不承载注册事务。

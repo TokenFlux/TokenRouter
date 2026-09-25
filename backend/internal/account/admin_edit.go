@@ -2,16 +2,16 @@
 package account
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	maps "maps"
-	reflect "reflect"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"context"
+	"errors"
+	"fmt"
+	"maps"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 

@@ -1,7 +1,7 @@
 package billing
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // API Key 结算模式常量。auto 保持存量 Key 的订阅优先、余额补足行为。

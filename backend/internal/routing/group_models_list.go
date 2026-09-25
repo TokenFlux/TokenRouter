@@ -2,7 +2,7 @@
 package routing
 
 import (
-	strings "strings"
+	"strings"
 )
 
 func NormalizeGroupModelsListConfig(cfg GroupModelsListConfig) GroupModelsListConfig {

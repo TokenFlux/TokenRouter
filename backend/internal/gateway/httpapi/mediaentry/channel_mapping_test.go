@@ -3,7 +3,7 @@ package mediaentry
 import (
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 func applyGrokMediaChannelMapping(body []byte, contentType string, mapping routing.ChannelMappingResult) ([]byte, string, error) {

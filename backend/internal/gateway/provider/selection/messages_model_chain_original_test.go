@@ -2,18 +2,19 @@ package selection
 
 import (
 	"context"
-	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"testing"
 	"time"
+
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"

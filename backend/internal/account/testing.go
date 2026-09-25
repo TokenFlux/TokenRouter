@@ -2,13 +2,13 @@
 package account
 
 import (
-	context "context"
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
-	sync "sync"
-	time "time"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
 )
 
 // TestEvent represents a SSE event for account testing

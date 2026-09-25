@@ -2,9 +2,9 @@
 package egress
 
 import (
-	strings "strings"
-	sync "sync"
-	time "time"
+	"strings"
+	"sync"
+	"time"
 )
 
 // HTTP2Options 保留上游 HTTP/2 代理回退的原技术配置。

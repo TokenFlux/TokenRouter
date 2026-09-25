@@ -6,7 +6,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 
-	uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )

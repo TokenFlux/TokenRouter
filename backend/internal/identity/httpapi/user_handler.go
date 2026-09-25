@@ -2,16 +2,16 @@
 package httpapi
 
 import (
-	context "context"
-	json "encoding/json"
-	strings "strings"
+	"context"
+	"encoding/json"
+	"strings"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	dto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // UserHandler 处理用户资料与身份绑定；推广资金入口留在所属用例。

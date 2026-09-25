@@ -2,8 +2,9 @@ package account
 
 import (
 	"context"
-	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"time"
+
+	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // ApplyObservedRateLimit 保留先通知内存阻断、再持久化的原失败边界。

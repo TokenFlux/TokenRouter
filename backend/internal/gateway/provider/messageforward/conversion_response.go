@@ -3,10 +3,11 @@ package messageforward
 import (
 	"bufio"
 	"crypto/rand"
-	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"net/http"
 	"time"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 )
 
 // forwardResponse 保留每条转换流的扫描器、64KiB 初始缓冲与既有大小限制。

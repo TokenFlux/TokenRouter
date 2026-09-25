@@ -2,16 +2,16 @@
 package provider
 
 import (
-	context "context"
-	json "encoding/json"
-	fmt "fmt"
-	http "net/http"
-	url "net/url"
-	strings "strings"
-	time "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 const turnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"

@@ -2,19 +2,19 @@
 package provider
 
 import (
-	bytes "bytes"
-	context "context"
-	json "encoding/json"
-	fmt "fmt"
-	io "io"
-	slog "log/slog"
-	http "net/http"
-	url "net/url"
-	strings "strings"
-	sync "sync"
-	time "time"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 // DingTalkClientConfig 是 DingTalkClient 需要的最小配置子集

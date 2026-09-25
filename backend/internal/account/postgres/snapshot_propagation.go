@@ -2,8 +2,8 @@
 package postgres
 
 import (
-	context "context"
-	time "time"
+	"context"
+	"time"
 )
 
 // afterChangeDetached 在请求取消后仍以短超时传播最新账号快照。

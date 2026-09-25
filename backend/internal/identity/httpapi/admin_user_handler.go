@@ -2,18 +2,18 @@
 package httpapi
 
 import (
-	context "context"
-	strconv "strconv"
-	strings "strings"
+	"context"
+	"strconv"
+	"strings"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	billingdto "github.com/TokenFlux/TokenRouter/internal/billing/httpapi/dto"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	dto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // UserAdministration 是管理员 HTTP 实际消费的身份用例接口。

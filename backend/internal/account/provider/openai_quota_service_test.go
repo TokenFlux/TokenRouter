@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	openaiupstream "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"net/http"
 	"strings"
 	"testing"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	openaiupstream "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"

@@ -7,8 +7,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	provider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"

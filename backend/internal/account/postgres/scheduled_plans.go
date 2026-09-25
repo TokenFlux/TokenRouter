@@ -2,11 +2,11 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	time "time"
+	"context"
+	"database/sql"
+	"time"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 type scheduledTestPlanRepository struct {

@@ -1,7 +1,7 @@
 package billing
 
 import (
-	time "time"
+	"time"
 )
 
 type SubscriptionPlan struct {

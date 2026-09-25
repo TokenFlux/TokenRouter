@@ -2,9 +2,9 @@
 package account
 
 import (
-	context "context"
-	fmt "fmt"
-	sync "sync"
+	"context"
+	"fmt"
+	"sync"
 )
 
 type operationActivity struct {

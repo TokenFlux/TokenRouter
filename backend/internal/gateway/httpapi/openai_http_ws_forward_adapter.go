@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
-	forward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"

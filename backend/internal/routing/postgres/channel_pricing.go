@@ -2,15 +2,15 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	pq "github.com/lib/pq"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/lib/pq"
 )
 
 func (r *ChannelStore) ListModelPricing(ctx context.Context, channelID int64) ([]routing.ChannelModelPricing, error) {

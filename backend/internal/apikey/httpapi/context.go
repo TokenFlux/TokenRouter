@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/gin-gonic/gin"
 )
 

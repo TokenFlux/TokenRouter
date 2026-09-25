@@ -2,7 +2,7 @@
 package postgres
 
 import (
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
 func paginationResultFromTotal(total int64, params pagination.PaginationParams) *pagination.PaginationResult {

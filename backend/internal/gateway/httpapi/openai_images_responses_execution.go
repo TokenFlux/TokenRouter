@@ -18,7 +18,7 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"

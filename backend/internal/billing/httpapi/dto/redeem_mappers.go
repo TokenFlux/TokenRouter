@@ -2,7 +2,7 @@
 package dto
 
 import (
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 func RedeemCodeFromService(rc *billing.RedeemCode) *RedeemCode {

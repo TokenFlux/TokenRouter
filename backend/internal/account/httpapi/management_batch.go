@@ -4,7 +4,7 @@ package httpapi
 import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // BatchDelete 以有限并发删除多个账号，并返回稳定的逐账号结果。

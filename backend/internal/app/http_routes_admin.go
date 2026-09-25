@@ -24,7 +24,7 @@ import (
 	routesite "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/team/httpapi"
 	routeusageadmin "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/admin"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // provideAdminRouteMount 固定所属 HTTP 实例，只负责注册与跨模块投影。

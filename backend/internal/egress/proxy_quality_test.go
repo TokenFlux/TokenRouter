@@ -2,9 +2,9 @@
 package egress
 
 import (
-	testing "testing"
+	"testing"
 
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFinalizeProxyQualityResult_ScoreAndGrade(t *testing.T) {

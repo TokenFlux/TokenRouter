@@ -11,7 +11,7 @@ import (
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"

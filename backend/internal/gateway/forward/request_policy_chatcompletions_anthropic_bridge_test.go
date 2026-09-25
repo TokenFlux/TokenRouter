@@ -1,14 +1,14 @@
 package forward
 
 import (
-	json "encoding/json"
-	strings "strings"
-	testing "testing"
+	"encoding/json"
+	"strings"
+	"testing"
 
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAnthropicToChatCompletionsRequest_BasicText(t *testing.T) {

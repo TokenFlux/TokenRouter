@@ -2,11 +2,11 @@
 package textattempt
 
 import (
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	queuepolicy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 
 	"context"
@@ -18,7 +18,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -108,7 +108,7 @@ func (b *messageAttemptBridge) Select(excluded map[int64]struct{}) (textflow.Sel
 // FirstSelectionFailure 只执行一次适配操作，重试与分组回退循环由 gateway/text 拥有。
 func (b *messageAttemptBridge) FirstSelectionFailure(err error, fallbackUsed bool) {
 
-	if handleGroupSelectionBusinessError(b.c, err, (*b.streamStarted), func(status int, errType string, message string, responseStarted bool) {
+	if handleGroupSelectionBusinessError(b.c, err, *b.streamStarted, func(status int, errType string, message string, responseStarted bool) {
 		b.binding().handleStreamingAwareError(b.c, status, errType, message, responseStarted)
 	}) {
 		return
@@ -129,7 +129,7 @@ func (b *messageAttemptBridge) FirstSelectionFailure(err error, fallbackUsed boo
 	if !cls.ModelNotFound {
 		message = "No available accounts: " + err.Error()
 	}
-	b.binding().handleStreamingAwareError(b.c, cls.Status, cls.ErrType, message, (*b.streamStarted))
+	b.binding().handleStreamingAwareError(b.c, cls.Status, cls.ErrType, message, *b.streamStarted)
 }
 
 // Intercept 只执行一次适配操作，重试与分组回退循环由 gateway/text 拥有。
@@ -164,7 +164,7 @@ func (b *messageAttemptBridge) Acquire() bool {
 				zap.String("model", b.reqModel),
 				zap.String("platform", b.platform),
 			)
-			b.binding().handleStreamingAwareError(b.c, http.StatusServiceUnavailable, "api_error", "No available accounts", (*b.streamStarted))
+			b.binding().handleStreamingAwareError(b.c, http.StatusServiceUnavailable, "api_error", "No available accounts", *b.streamStarted)
 			return false
 		}
 		accountWaitCounted := false
@@ -177,7 +177,7 @@ func (b *messageAttemptBridge) Acquire() bool {
 				zap.Int64("account_id", b.account.Record.ID),
 				zap.Int("max_waiting", b.selection.WaitPlan.MaxWaiting),
 			)
-			b.binding().handleStreamingAwareErrorWithCode(b.c, http.StatusTooManyRequests, "rate_limit_error", gatewayhttp.GatewayQueueFullCode, "Too many pending requests, please retry later", (*b.streamStarted))
+			b.binding().handleStreamingAwareErrorWithCode(b.c, http.StatusTooManyRequests, "rate_limit_error", gatewayhttp.GatewayQueueFullCode, "Too many pending requests, please retry later", *b.streamStarted)
 			return false
 		}
 		if err == nil && canWait {
@@ -201,7 +201,7 @@ func (b *messageAttemptBridge) Acquire() bool {
 		if err != nil {
 			b.reqLog.Warn("gateway.account_slot_acquire_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 			releaseWait()
-			b.binding().handleConcurrencyError(b.c, err, "account", (*b.streamStarted))
+			b.binding().handleConcurrencyError(b.c, err, "account", *b.streamStarted)
 			return false
 		}
 		// Slot acquired: no longer waiting in queue.
@@ -434,7 +434,7 @@ func (b *messageAttemptBridge) Fallback(err error, fallbackUsed bool) bool {
 				if retryAfter > 0 {
 					b.c.Header("Retry-After", strconv.Itoa(retryAfter))
 				}
-				b.binding().handleStreamingAwareError(b.c, status, code, message, (*b.streamStarted))
+				b.binding().handleStreamingAwareError(b.c, status, code, message, *b.streamStarted)
 				return false
 			}
 			// 兜底重试按"直接请求兜底分组"处理：清除强制平台，允许按分组平台调度
@@ -459,7 +459,7 @@ func (b *messageAttemptBridge) OtherFailure(err error) {
 	upstreamErrorAlreadyCommunicated := gatewayhttp.ForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
 	wroteFallback := false
 	if !upstreamErrorAlreadyCommunicated {
-		wroteFallback = b.binding().ensureForwardErrorResponse(b.c, (*b.streamStarted))
+		wroteFallback = b.binding().ensureForwardErrorResponse(b.c, *b.streamStarted)
 	}
 	forwardFailedFields := []zap.Field{
 		zap.Int64("account_id", b.account.Record.ID),

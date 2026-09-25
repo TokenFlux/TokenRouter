@@ -2,14 +2,14 @@
 package postgres
 
 import (
-	context "context"
-	time "time"
+	"context"
+	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 )
 
 // AccountStoreOptions 仅注入跨模块值映射、原事件写入和技术时钟。

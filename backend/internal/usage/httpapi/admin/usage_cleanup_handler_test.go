@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
@@ -20,7 +20,7 @@ import (
 
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 
-	dto "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/usage/httpapi/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

@@ -2,9 +2,9 @@
 package account
 
 import (
-	json "encoding/json"
-	fmt "fmt"
-	time "time"
+	"encoding/json"
+	"fmt"
+	"time"
 )
 
 const (

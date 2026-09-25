@@ -20,7 +20,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"

@@ -2,12 +2,12 @@
 package identity
 
 import (
-	context "context"
+	"context"
 	_ "image/png"
-	time "time"
+	"time"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
 // UserListFilters 包含用户列表的所有筛选项。

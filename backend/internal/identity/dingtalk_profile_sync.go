@@ -2,8 +2,8 @@
 package identity
 
 import (
-	context "context"
-	strings "strings"
+	"context"
+	"strings"
 )
 
 // DingTalkProfileSnapshot 只包含同步资料所需字段，不携带提供方客户端。

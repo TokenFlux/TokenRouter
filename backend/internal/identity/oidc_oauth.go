@@ -2,11 +2,11 @@
 package identity
 
 import (
-	context "context"
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"strings"
 )
 
 type OIDCOAuthOptions struct {

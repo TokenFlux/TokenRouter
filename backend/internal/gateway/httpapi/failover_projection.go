@@ -2,7 +2,7 @@ package httpapi
 
 import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	upstream "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 )

@@ -2,7 +2,7 @@
 package policy
 
 import (
-	time "time"
+	"time"
 )
 
 // AdvancedSchedulerScoreDiagnosticRequest 描述管理员希望模拟的安全请求上下文。

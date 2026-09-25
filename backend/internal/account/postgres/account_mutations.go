@@ -2,9 +2,9 @@
 package postgres
 
 import (
-	context "context"
-	json "encoding/json"
-	errors "errors"
+	"context"
+	"encoding/json"
+	"errors"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	dbaccount "github.com/TokenFlux/TokenRouter/ent/account"

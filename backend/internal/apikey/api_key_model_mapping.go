@@ -2,13 +2,13 @@
 package apikey
 
 import (
-	fmt "fmt"
-	sort "sort"
-	strings "strings"
-	utf8 "unicode/utf8"
+	"fmt"
+	"sort"
+	"strings"
+	"unicode/utf8"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	modelmap "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+	"github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
 )
 
 const (

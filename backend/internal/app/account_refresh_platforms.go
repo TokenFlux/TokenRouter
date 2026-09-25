@@ -7,7 +7,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/account/provider"
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 // accountRefreshRegistrations 区分平台注册集合，避免装配重复创建执行器。

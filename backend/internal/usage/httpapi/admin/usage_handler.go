@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	idemhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"

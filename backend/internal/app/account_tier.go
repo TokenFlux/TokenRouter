@@ -2,8 +2,8 @@
 package app
 
 import (
-	account "github.com/TokenFlux/TokenRouter/internal/account"
-	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 )
 
 // provideAccountTier 使用同一个账号配置用例，停止纳入原后台预算。

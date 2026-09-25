@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"

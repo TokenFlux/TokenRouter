@@ -2,7 +2,7 @@
 package account
 
 import (
-	maps "maps"
+	"maps"
 )
 
 // DiscardDeprecatedAccountExtra 静默移除旧客户端可能继续提交的废弃账号扩展键。

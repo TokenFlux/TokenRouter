@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // QoderRequestMetadata 为一次平台执行复制请求头并传递现有客户端标记。

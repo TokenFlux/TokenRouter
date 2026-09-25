@@ -1,7 +1,7 @@
 package app
 
 import (
-	time "time"
+	"time"
 
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	notificationhttp "github.com/TokenFlux/TokenRouter/internal/notification/httpapi"
@@ -9,7 +9,7 @@ import (
 	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	sitehttp "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // provideAuthRouteMount 固定所属 HTTP 实例，只负责注册与跨模块投影。

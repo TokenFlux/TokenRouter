@@ -8,13 +8,13 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 
-	gemini "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache/codec"

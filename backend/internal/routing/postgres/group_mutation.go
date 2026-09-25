@@ -2,8 +2,8 @@
 package postgres
 
 import (
-	context "context"
-	fmt "fmt"
+	"context"
+	"fmt"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 )

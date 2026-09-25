@@ -1,16 +1,16 @@
 package httpapi
 
 import (
-	errors "errors"
-	strconv "strconv"
-	time "time"
+	"errors"
+	"strconv"
+	"time"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // QuotaHandler 只读取请求身份、解码和序列化，管理写入由完整权益用例负责。

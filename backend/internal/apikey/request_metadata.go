@@ -2,7 +2,7 @@
 package apikey
 
 import (
-	context "context"
+	"context"
 )
 
 // RequestMetadata 由网关入口投影，保留值缺失与显式空值的区别。

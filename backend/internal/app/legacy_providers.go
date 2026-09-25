@@ -8,32 +8,32 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 
-	context "context"
+	"context"
 
-	http "net/http"
+	"net/http"
 
-	time "time"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 
 	identitysettings "github.com/TokenFlux/TokenRouter/internal/identity"
 
-	bootstrap "github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
+	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 
-	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 
-	config "github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
-	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
+	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 
-	site "github.com/TokenFlux/TokenRouter/internal/site"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // 以下构造函数将基础设施参数和模块接口绑定到应用依赖图。

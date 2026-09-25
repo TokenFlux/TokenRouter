@@ -2,7 +2,7 @@
 package account
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // GetOpenAIBaseURL 解析 OpenAI 协议族账号的上游 base_url。

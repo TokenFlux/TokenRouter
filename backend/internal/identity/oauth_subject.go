@@ -2,7 +2,7 @@
 package identity
 
 import (
-	strings "strings"
+	"strings"
 )
 
 func OAuthFirstNonEmpty(values ...string) string {

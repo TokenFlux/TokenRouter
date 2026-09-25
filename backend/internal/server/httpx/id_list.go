@@ -2,7 +2,7 @@
 package httpx
 
 import (
-	sort "sort"
+	"sort"
 )
 
 func NormalizeInt64IDList(ids []int64) []int64 {

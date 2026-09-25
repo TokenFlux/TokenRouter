@@ -2,11 +2,11 @@
 package routing_test
 
 import (
-	context "context"
+	"context"
 	"time"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 

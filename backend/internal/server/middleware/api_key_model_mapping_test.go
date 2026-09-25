@@ -12,7 +12,7 @@ import (
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

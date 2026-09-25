@@ -2,11 +2,11 @@
 package account
 
 import (
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
+	"errors"
+	"fmt"
+	"strings"
 
-	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
+	"github.com/TokenFlux/TokenRouter/internal/account/transfer"
 )
 
 func ApplyArchiveDefaults(item *transfer.DataAccount, defaults *transfer.OpenAIOAuthImportDefaults) {

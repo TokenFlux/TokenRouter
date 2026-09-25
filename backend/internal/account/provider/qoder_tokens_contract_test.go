@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"maps"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	providercore "github.com/TokenFlux/TokenRouter/internal/egress/provider"
@@ -18,7 +20,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/stretchr/testify/require"
-	"maps"
 )
 
 func TestQoderTokenProviderBuildsAndCachesDirectSession(t *testing.T) {

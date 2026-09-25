@@ -2,16 +2,16 @@
 package postgres
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	slog "log/slog"
-	strings "strings"
-	time "time"
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	authidentity "github.com/TokenFlux/TokenRouter/ent/authidentity"
+	"github.com/TokenFlux/TokenRouter/ent/authidentity"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"

@@ -2,7 +2,7 @@
 package routing
 
 import (
-	slices "slices"
+	"slices"
 )
 
 // AdminCatalogKind 只区分现有管理目录来源，不表示可执行协议能力。

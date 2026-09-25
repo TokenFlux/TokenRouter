@@ -1,12 +1,12 @@
 package httpapi
 
 import (
-	modeltrace "github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
 
 	"context"
 	"strings"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 )
 

@@ -2,13 +2,13 @@
 package routing
 
 import (
-	context "context"
-	fmt "fmt"
-	slices "slices"
-	strconv "strconv"
-	strings "strings"
-	atomic "sync/atomic"
-	time "time"
+	"context"
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"time"
 
 	gocache "github.com/patrickmn/go-cache"
 )

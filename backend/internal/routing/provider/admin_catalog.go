@@ -2,13 +2,13 @@
 package provider
 
 import (
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
-	antigravity "github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // AdminCatalogOptions 在读取时投影平台目录，不复制目录缓存或模型资格规则。

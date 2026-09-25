@@ -10,7 +10,7 @@ import (
 	sitehttp "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 	teamhttp "github.com/TokenFlux/TokenRouter/internal/team/httpapi"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // provideUserRouteMount 固定所属 HTTP 实例，只负责注册与跨模块投影。

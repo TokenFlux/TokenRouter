@@ -2,7 +2,7 @@ package openaiattempt
 
 import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"go.uber.org/zap"
 )
 

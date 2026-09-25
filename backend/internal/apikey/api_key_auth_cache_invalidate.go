@@ -2,7 +2,7 @@
 package apikey
 
 import (
-	context "context"
+	"context"
 )
 
 // InvalidateAuthCacheByKey 清除指定 API Key 的认证缓存

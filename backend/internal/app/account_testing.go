@@ -3,14 +3,14 @@ package app
 
 import (
 	"context"
-	log "log"
+	"log"
 	"slices"
-	time "time"
+	"time"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/account/provider"

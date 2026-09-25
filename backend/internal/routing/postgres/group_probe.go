@@ -2,14 +2,14 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	json "encoding/json"
-	fmt "fmt"
-	time "time"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	pq "github.com/lib/pq"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/lib/pq"
 )
 
 type GroupAvailabilityProbeStore struct {

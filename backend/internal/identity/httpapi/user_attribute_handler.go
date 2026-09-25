@@ -2,15 +2,15 @@
 package httpapi
 
 import (
-	json "encoding/json"
+	"encoding/json"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 
-	strconv "strconv"
-	time "time"
+	"strconv"
+	"time"
 
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // UserAttributeHandler handles user attribute management

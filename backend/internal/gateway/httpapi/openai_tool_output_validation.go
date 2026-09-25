@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"net/http"
 	"strings"

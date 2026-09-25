@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	httptestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/gin-gonic/gin"

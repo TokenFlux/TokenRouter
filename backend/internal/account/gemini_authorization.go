@@ -11,7 +11,7 @@ import (
 	"time"
 
 	geminiwire "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
-	google "github.com/TokenFlux/TokenRouter/internal/protocol/google"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
 )
 
 type GeminiOAuthClient interface {

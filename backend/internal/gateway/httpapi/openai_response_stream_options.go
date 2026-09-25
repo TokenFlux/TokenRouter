@@ -13,7 +13,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 
-	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -131,7 +131,7 @@ func (p *OpenAIResponseOutput) StreamOptions(ctx context.Context, c *gin.Context
 		},
 
 		IdleCooldown: func() {
-			p.GrokHealth.TempUnschedule(ctx, account.View(), (2 * time.Minute), "grok stream idle timeout")
+			p.GrokHealth.TempUnschedule(ctx, account.View(), 2*time.Minute, "grok stream idle timeout")
 		},
 
 		IdleFailover: func(interval time.Duration) error { return gatewayprovider.GrokStreamIdleFailure(account, interval) },

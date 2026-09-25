@@ -2,7 +2,7 @@
 package billing
 
 import (
-	time "time"
+	"time"
 )
 
 // NextFixedDailyReset 计算在 after 之后的下一个每日固定重置时间点

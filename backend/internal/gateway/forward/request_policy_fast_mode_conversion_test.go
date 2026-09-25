@@ -1,11 +1,11 @@
 package forward
 
 import (
-	json "encoding/json"
-	testing "testing"
+	"encoding/json"
+	"testing"
 
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAnthropicFastConvertsToOpenAIPriority(t *testing.T) {

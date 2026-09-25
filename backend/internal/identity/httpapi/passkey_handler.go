@@ -2,19 +2,19 @@
 package httpapi
 
 import (
-	bytes "bytes"
-	context "context"
-	json "encoding/json"
-	strconv "strconv"
-	strings "strings"
+	"bytes"
+	"context"
+	"encoding/json"
+	"strconv"
+	"strings"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	ip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 type BackendSettings interface{ IsBackendModeEnabled(context.Context) bool }

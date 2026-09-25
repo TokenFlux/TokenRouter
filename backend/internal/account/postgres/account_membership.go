@@ -2,14 +2,14 @@
 package postgres
 
 import (
-	context "context"
-	errors "errors"
+	"context"
+	"errors"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	dbaccount "github.com/TokenFlux/TokenRouter/ent/account"
 	dbaccountgroup "github.com/TokenFlux/TokenRouter/ent/accountgroup"
 	dbgroup "github.com/TokenFlux/TokenRouter/ent/group"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 )
 
 func (r *AccountStore) Delete(ctx context.Context, id int64) error {

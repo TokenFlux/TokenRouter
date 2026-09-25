@@ -2,7 +2,7 @@
 package team
 
 import (
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 

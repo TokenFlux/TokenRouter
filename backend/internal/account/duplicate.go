@@ -2,15 +2,15 @@
 package account
 
 import (
-	context "context"
-	sha256 "crypto/sha256"
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
-	strconv "strconv"
-	strings "strings"
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 

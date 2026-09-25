@@ -3,6 +3,7 @@ package promotion
 import (
 	"strconv"
 ) // AdminReadSettings 只包含本模块在综合管理页的展示投影。
+
 type AdminReadSettings struct {
 	AdminRechargeRebateEnabled   bool
 	AffiliateEnabled             bool

@@ -1,9 +1,10 @@
 package app
 
 import (
+	"testing"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // 静态配置只在组合根投影，编译结果保留 nil、默认、显式增删及输入隔离。

@@ -2,13 +2,14 @@ package messageforward
 
 import (
 	"context"
+	"strconv"
+	"strings"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/tidwall/gjson"
-	"strconv"
-	"strings"
 )
 
 // metadataUserID 保留账号与客户端会话共同派生的 OAuth 身份。

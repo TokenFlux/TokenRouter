@@ -1,8 +1,8 @@
 package account
 
 import (
-	fmt "fmt"
-	time "time"
+	"fmt"
+	"time"
 )
 
 // openAIQuotaHeadroomFactor 把 Codex quota 快照转换成 0..1 的调度因子。

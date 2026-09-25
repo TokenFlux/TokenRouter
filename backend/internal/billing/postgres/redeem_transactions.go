@@ -1,11 +1,11 @@
 package postgres
 
 import (
-	context "context"
-	fmt "fmt"
+	"context"
+	"fmt"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // RedeemUserWriter 只允许兑换所需的原子权益增量，不能整体更新用户。

@@ -2,18 +2,18 @@
 package httpapi
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	strconv "strconv"
-	strings "strings"
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
-	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account/transfer"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // ArchiveHandler 只负责备份 HTTP 输入、幂等和管理员响应；资源查询与导入由账号用例拥有。

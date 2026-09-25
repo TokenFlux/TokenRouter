@@ -3,7 +3,7 @@ package usageview_test
 import (
 	"testing"
 
-	usageview "github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
 	"github.com/stretchr/testify/require"
 )
 

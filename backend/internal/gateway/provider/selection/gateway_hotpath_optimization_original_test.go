@@ -11,8 +11,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"

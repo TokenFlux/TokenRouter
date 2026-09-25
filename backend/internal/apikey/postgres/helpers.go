@@ -2,9 +2,9 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	errors "errors"
+	"context"
+	"database/sql"
+	"errors"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"

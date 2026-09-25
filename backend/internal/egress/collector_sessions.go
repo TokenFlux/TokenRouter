@@ -2,12 +2,12 @@
 package egress
 
 import (
-	rand "crypto/rand"
-	hex "encoding/hex"
-	errors "errors"
-	sort "sort"
-	sync "sync"
-	time "time"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"sort"
+	"sync"
+	"time"
 )
 
 // CaptureSessions 拥有短期会话、到期和记录上限，不能访问监听或证书文件。

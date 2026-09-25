@@ -2,8 +2,8 @@
 package account
 
 import (
-	errors "errors"
-	time "time"
+	"errors"
+	"time"
 )
 
 // CreationOptions 提供构造账号值所需的时钟、时区和 seed，不加载完整应用配置。

@@ -3,7 +3,7 @@ package provider_test
 import (
 	"context"
 	"testing"
-	time "time"
+	"time"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
@@ -15,7 +15,7 @@ import (
 
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )

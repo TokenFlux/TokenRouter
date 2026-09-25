@@ -2,12 +2,12 @@
 package httpapi
 
 import (
-	context "context"
-	strconv "strconv"
+	"context"
+	"strconv"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // TestHandler 仅绑定管理 HTTP 字段、SSE 与原测试成功后恢复端口。

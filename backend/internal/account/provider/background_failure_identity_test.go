@@ -10,9 +10,10 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
+	"maps"
+
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
-	"maps"
 )
 
 // 返回旧交换失败之前，模拟管理员已经持久化一份新凭据。

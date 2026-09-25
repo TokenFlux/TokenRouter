@@ -2,7 +2,7 @@
 package httpapi
 
 import (
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // AuthEndpoints 只表达身份 HTTP 的端点集合，支付授权有独立接口。

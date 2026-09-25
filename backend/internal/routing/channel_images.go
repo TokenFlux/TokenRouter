@@ -2,7 +2,7 @@
 package routing
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // CodexImageGenerationBridgeOverride 返回渠道级 Codex 图片桥接覆盖配置。

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/DATA-DOG/go-sqlmock"
 	service "github.com/TokenFlux/TokenRouter/internal/creative"
 	"github.com/stretchr/testify/require"
 )

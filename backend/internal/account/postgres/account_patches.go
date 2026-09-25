@@ -2,16 +2,16 @@
 package postgres
 
 import (
-	context "context"
-	json "encoding/json"
-	errors "errors"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"context"
+	"encoding/json"
+	"errors"
+	"strconv"
+	"strings"
+	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
-	pq "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 func (r *AccountStore) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {

@@ -10,6 +10,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 ) // ResponsesStreamOutputItems 按 output_index 记录每个
+
 // response.output_item.done 事件携带的原始 item。
 //
 // ReconstructResponseOutputFromSSE 重建缓冲响应时已经优先使用 done item，而不是

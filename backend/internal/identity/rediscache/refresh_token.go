@@ -2,13 +2,13 @@
 package rediscache
 
 import (
-	context "context"
-	json "encoding/json"
-	fmt "fmt"
-	time "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	redis "github.com/redis/go-redis/v9"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/redis/go-redis/v9"
 )
 
 const (

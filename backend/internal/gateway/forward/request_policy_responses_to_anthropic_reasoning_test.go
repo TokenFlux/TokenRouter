@@ -1,12 +1,12 @@
 package forward
 
 import (
-	json "encoding/json"
-	testing "testing"
+	"encoding/json"
+	"testing"
 
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 // 验证两种 OpenAI 入站协议不会把 xhigh 提升到会额外计费的 max。

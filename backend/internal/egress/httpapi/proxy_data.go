@@ -2,14 +2,14 @@
 package httpapi
 
 import (
-	fmt "fmt"
-	strconv "strconv"
-	strings "strings"
+	"fmt"
+	"strconv"
+	"strings"
 
-	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/account/transfer"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 func (h *ProxyHandler) ExportData(c *gin.Context) {

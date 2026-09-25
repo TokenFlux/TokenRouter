@@ -6,7 +6,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 

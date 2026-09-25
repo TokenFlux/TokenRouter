@@ -2,9 +2,9 @@
 package account
 
 import (
-	context "context"
-	sync "sync"
-	time "time"
+	"context"
+	"sync"
+	"time"
 )
 
 type RefreshRateGate struct {

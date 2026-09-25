@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // TestRealAPI performs an end-to-end test against the real Qoder API.

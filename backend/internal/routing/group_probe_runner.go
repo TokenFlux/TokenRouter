@@ -2,11 +2,11 @@
 package routing
 
 import (
-	context "context"
-	fmt "fmt"
-	strings "strings"
-	sync "sync"
-	time "time"
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
 )
 
 const (

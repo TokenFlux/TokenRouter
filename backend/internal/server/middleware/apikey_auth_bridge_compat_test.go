@@ -4,19 +4,19 @@ package middleware
 import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 
-	context "context"
+	"context"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 
-	config "github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
-	clientip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // newGatewayAuthorization 不执行业务规则；装配同一原生 Key 与订阅实例。

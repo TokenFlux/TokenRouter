@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
 )

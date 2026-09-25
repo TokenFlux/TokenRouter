@@ -2,9 +2,9 @@
 package provider
 
 import (
-	http "net/http"
+	"net/http"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 func FilterHeaders(src http.Header, filter *egress.CompiledHeaderFilter) http.Header {

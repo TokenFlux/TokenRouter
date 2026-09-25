@@ -24,14 +24,14 @@ import (
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	testkit "github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 

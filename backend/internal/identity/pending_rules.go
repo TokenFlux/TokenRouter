@@ -2,8 +2,8 @@
 package identity
 
 import (
-	errors "errors"
-	strings "strings"
+	"errors"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

@@ -4,7 +4,7 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
 	"context"
 	"errors"

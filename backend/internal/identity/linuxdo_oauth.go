@@ -2,9 +2,9 @@
 package identity
 
 import (
-	context "context"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"fmt"
+	"strings"
 )
 
 type LinuxDoOAuthOptions struct {

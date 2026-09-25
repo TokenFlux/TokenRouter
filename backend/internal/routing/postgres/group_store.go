@@ -2,22 +2,22 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
-	sort "sort"
-	strings "strings"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
 
 	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	group "github.com/TokenFlux/TokenRouter/ent/group"
+	"github.com/TokenFlux/TokenRouter/ent/group"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	pq "github.com/lib/pq"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/lib/pq"
 )
 
 type GroupLinkParticipant interface {

@@ -10,11 +10,12 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
+	"maps"
+
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
-	"maps"
 )
 
 type tokenRefreshCandidateRepo struct {

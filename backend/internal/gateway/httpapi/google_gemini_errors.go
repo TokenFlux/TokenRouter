@@ -11,7 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	upstream "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/gin-gonic/gin"
 )

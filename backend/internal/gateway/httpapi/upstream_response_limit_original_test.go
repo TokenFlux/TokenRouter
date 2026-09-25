@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/iotest"
 
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

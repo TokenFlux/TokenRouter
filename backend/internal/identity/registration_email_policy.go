@@ -2,12 +2,12 @@
 package identity
 
 import (
-	json "encoding/json"
-	fmt "fmt"
-	regexp "regexp"
-	strings "strings"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strings"
 
-	publicsuffix "golang.org/x/net/publicsuffix"
+	"golang.org/x/net/publicsuffix"
 )
 
 var RegistrationEmailDomainPattern = regexp.MustCompile(

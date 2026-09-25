@@ -6,7 +6,7 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 
-	slog "log/slog"
+	"log/slog"
 	"testing"
 	"time"
 

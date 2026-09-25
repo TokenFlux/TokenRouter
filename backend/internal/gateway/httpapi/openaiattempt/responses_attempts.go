@@ -8,18 +8,18 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
@@ -77,7 +77,7 @@ func (b *responsesAttemptBridge) Select(excluded map[int64]struct{}) (textflow.R
 		if !cls.ModelNotFound {
 			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 		}
-		b.binding().handleStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, (*b.streamStarted))
+		b.binding().handleStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, *b.streamStarted)
 		return textflow.ResponseSelection{}, nil
 	}
 	if b.previousResponseID != "" && b.selection != nil && b.selection.Account != nil {
@@ -143,7 +143,7 @@ func (b *responsesAttemptBridge) SelectionFailure(err error, excludedCount int, 
 	if excludedCount == 0 {
 		if b.legacyCompact && errors.Is(err, scheduler.ErrNoAvailableCompactAccounts) {
 			gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
-			b.binding().handleStreamingAwareError(b.c, http.StatusServiceUnavailable, "compact_not_supported", "No available accounts support /responses/compact", (*b.streamStarted))
+			b.binding().handleStreamingAwareError(b.c, http.StatusServiceUnavailable, "compact_not_supported", "No available accounts support /responses/compact", *b.streamStarted)
 			return
 		}
 		cls := ClassifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, b.requestPlatform)
@@ -151,13 +151,13 @@ func (b *responsesAttemptBridge) SelectionFailure(err error, excludedCount int, 
 		if !cls.ModelNotFound {
 			gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 		}
-		b.binding().handleStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, (*b.streamStarted))
+		b.binding().handleStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, *b.streamStarted)
 		return
 	}
 	if lastFailoverErr != nil {
-		b.binding().handleFailoverExhausted(b.c, lastFailoverErr, (*b.streamStarted))
+		b.binding().handleFailoverExhausted(b.c, lastFailoverErr, *b.streamStarted)
 	} else {
-		b.binding().handleFailoverExhaustedSimple(b.c, 502, (*b.streamStarted))
+		b.binding().handleFailoverExhaustedSimple(b.c, 502, *b.streamStarted)
 	}
 }
 
@@ -298,7 +298,7 @@ func (b *responsesAttemptBridge) RetryReady(failure *textflow.AttemptFailure) bo
 	// OpenAIForwardMayFailover 已确认写出的字节不含语义输出，
 	// 但重试耗尽时仍须按已提交的 SSE 响应返回流内错误。
 	if b.c.Writer.Written() {
-		(*b.streamStarted) = true
+		*b.streamStarted = true
 	}
 	if failoverErr.ShouldReportAccountScheduleFailure() {
 		b.binding().reportOpenAIAccountScheduleResult(b.account, OpenAIAccountScheduleModel(b.c, b.account, b.forwardModel, b.requireCompact, nil), false, nil, err)
@@ -349,7 +349,7 @@ func (b *responsesAttemptBridge) OtherFailure(err error) {
 	// cyber warning 场景下，service 层可能已经把上游 response.failed/JSON 错误写给下游。
 	// 此时不再补写第二个 fallback，避免客户端看到重复的终止事件。
 	if !upstreamErrorAlreadyCommunicated && (!recordedWarning || gatewayhttp.OpenAICompactKeepaliveAdjustedWrittenSize(b.c) == b.writerSizeBeforeForward) {
-		b.wroteFallback = b.binding().ensureOpenAIForwardErrorResponse(b.c, (*b.streamStarted), err)
+		b.wroteFallback = b.binding().ensureOpenAIForwardErrorResponse(b.c, *b.streamStarted, err)
 	}
 	b.fields = []zap.Field{
 		zap.Int64("account_id", b.account.Record.ID),

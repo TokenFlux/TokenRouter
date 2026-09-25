@@ -122,6 +122,5 @@ func (s *ExecutionFastPolicy) Input(ctx context.Context, value *ExecutionAccount
 
 func (s *ExecutionFastPolicy) ForceOnSupported(ctx context.Context, account *ExecutionAccount, model string) bool {
 	return account != nil && account.View().IsOpenAI() &&
-
 		SupportsFastMode(ctx, s.Prices, model)
 }

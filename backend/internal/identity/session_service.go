@@ -2,18 +2,18 @@
 package identity
 
 import (
-	context "context"
-	rand "crypto/rand"
-	sha256 "crypto/sha256"
-	binary "encoding/binary"
-	hex "encoding/hex"
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
-	time "time"
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
 
-	jwt "github.com/golang-jwt/jwt/v5"
-	bcrypt "golang.org/x/crypto/bcrypt"
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // MaxTokenLength 限制 token 大小，避免超长 header 触发解析时的异常内存分配。

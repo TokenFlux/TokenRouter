@@ -2,17 +2,17 @@
 package postgres
 
 import (
-	context "context"
-	errors "errors"
+	"context"
+	"errors"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	dbaccount "github.com/TokenFlux/TokenRouter/ent/account"
 	dbaccountgroup "github.com/TokenFlux/TokenRouter/ent/accountgroup"
 	dbgroup "github.com/TokenFlux/TokenRouter/ent/group"
 	dbproxy "github.com/TokenFlux/TokenRouter/ent/proxy"
-	account "github.com/TokenFlux/TokenRouter/internal/account"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 )
 
 func (r *AccountStore) Create(ctx context.Context, record *account.Record) error {

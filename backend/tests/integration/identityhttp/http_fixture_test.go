@@ -15,7 +15,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
-	provider "github.com/TokenFlux/TokenRouter/internal/identity/provider"
+	"github.com/TokenFlux/TokenRouter/internal/identity/provider"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	paymenthttp "github.com/TokenFlux/TokenRouter/internal/payment/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"

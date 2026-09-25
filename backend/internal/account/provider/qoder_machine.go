@@ -2,9 +2,10 @@
 package provider
 
 import (
+	"strings"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
-	"strings"
 )
 
 // ensureQoderMachineCredentials 为新建 Qoder 账号补齐并持久化站点对应的稳定机器身份。

@@ -2,8 +2,8 @@
 package apikey
 
 import (
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
+	"crypto/sha256"
+	"encoding/hex"
 )
 
 func AuthCacheKey(key string) string {

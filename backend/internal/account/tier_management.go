@@ -2,12 +2,12 @@
 package account
 
 import (
-	context "context"
-	sync "sync"
-	time "time"
+	"context"
+	"sync"
+	"time"
 
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	errgroup "golang.org/x/sync/errgroup"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"golang.org/x/sync/errgroup"
 )
 
 // GoogleOneTierObservation 只保留本次供应商查询的观测，不能携带旧配置整图。

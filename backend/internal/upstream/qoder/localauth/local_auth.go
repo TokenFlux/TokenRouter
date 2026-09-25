@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // DefaultAuthDir 返回默认的 Qoder 认证目录。

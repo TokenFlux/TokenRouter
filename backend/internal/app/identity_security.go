@@ -4,17 +4,17 @@ package app
 import (
 	"github.com/TokenFlux/TokenRouter/internal/notification"
 
-	config "github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 
-	provider "github.com/TokenFlux/TokenRouter/internal/identity/provider"
+	"github.com/TokenFlux/TokenRouter/internal/identity/provider"
 
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	"time"
 )

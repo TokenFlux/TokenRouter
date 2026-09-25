@@ -2,11 +2,11 @@
 package httpapi
 
 import (
-	errors "errors"
+	"errors"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // BatchUpdateCredentialsRequest represents batch credentials update request

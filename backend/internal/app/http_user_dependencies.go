@@ -1,12 +1,12 @@
 package app
 
 import (
-	context "context"
+	"context"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
-	notification "github.com/TokenFlux/TokenRouter/internal/notification"
-	promotion "github.com/TokenFlux/TokenRouter/internal/promotion"
+	"github.com/TokenFlux/TokenRouter/internal/notification"
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
 	promotionhttp "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
 )
 

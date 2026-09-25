@@ -1,7 +1,7 @@
 package dto_test
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 )
 
 import (

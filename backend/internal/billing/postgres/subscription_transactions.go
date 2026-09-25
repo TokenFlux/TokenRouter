@@ -1,15 +1,15 @@
 package postgres
 
 import (
-	context "context"
-	fmt "fmt"
-	time "time"
+	"context"
+	"fmt"
+	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	apikey "github.com/TokenFlux/TokenRouter/ent/apikey"
+	"github.com/TokenFlux/TokenRouter/ent/apikey"
 	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
-	usersubscription "github.com/TokenFlux/TokenRouter/ent/usersubscription"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // SubscriptionMutations 只负责权益事务取得、复用、固定锁序与 Key 改绑。

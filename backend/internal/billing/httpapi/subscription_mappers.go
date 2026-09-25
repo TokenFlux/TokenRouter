@@ -2,7 +2,7 @@
 package httpapi
 
 import (
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	billingdto "github.com/TokenFlux/TokenRouter/internal/billing/httpapi/dto"
 )
 

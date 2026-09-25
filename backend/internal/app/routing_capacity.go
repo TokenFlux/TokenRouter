@@ -9,7 +9,7 @@ import (
 
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 

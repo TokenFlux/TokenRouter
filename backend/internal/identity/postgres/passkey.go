@@ -2,17 +2,17 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
-	time "time"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	webauthn "github.com/go-webauthn/webauthn/webauthn"
-	pq "github.com/lib/pq"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/lib/pq"
 )
 
 type passkeyRepository struct {

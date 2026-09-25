@@ -2,12 +2,12 @@
 package account
 
 import (
-	context "context"
-	fmt "fmt"
-	maps "maps"
-	strings "strings"
+	"context"
+	"fmt"
+	"maps"
+	"strings"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 func (s *Admin) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Record, error) {

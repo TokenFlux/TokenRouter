@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )

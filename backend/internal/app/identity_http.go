@@ -8,32 +8,32 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/settings/composite"
 	"github.com/TokenFlux/TokenRouter/internal/site"
 
-	context "context"
+	"context"
 
-	slog "log/slog"
+	"log/slog"
 
-	strings "strings"
+	"strings"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 
 	paymenthttp "github.com/TokenFlux/TokenRouter/internal/payment/httpapi"
 
-	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 
-	config "github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 
-	provider "github.com/TokenFlux/TokenRouter/internal/identity/provider"
+	"github.com/TokenFlux/TokenRouter/internal/identity/provider"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
+	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // identityHTTP 固定新身份 HTTP 和旧支付授权适配，路由保留原 URL 与中间件。

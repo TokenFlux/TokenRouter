@@ -2,13 +2,13 @@
 package routing_test
 
 import (
-	context "context"
-	slog "log/slog"
+	"context"
+	"log/slog"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	pricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 type marketplaceQuoteFixture struct {

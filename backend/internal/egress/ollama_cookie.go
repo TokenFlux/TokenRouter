@@ -2,10 +2,10 @@
 package egress
 
 import (
-	errors "errors"
-	strings "strings"
+	"errors"
+	"strings"
 
-	httpguts "golang.org/x/net/http/httpguts"
+	"golang.org/x/net/http/httpguts"
 )
 
 const ollamaCloudUsageMaxSessionBytes = 16 * 1024

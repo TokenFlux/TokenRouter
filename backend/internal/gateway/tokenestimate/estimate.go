@@ -254,9 +254,9 @@ func EncodingForModel(model string) tokenizer.Encoding {
 	normalized := strings.ToLower(strings.TrimSpace(model))
 	switch {
 	case strings.HasPrefix(normalized, "gpt-3.5"),
-		(strings.HasPrefix(normalized, "gpt-4") &&
+		strings.HasPrefix(normalized, "gpt-4") &&
 			!strings.HasPrefix(normalized, "gpt-4o") &&
-			!strings.HasPrefix(normalized, "gpt-4.1")),
+			!strings.HasPrefix(normalized, "gpt-4.1"),
 		strings.HasPrefix(normalized, "text-embedding-"):
 		return tokenizer.Cl100kBase
 	default:

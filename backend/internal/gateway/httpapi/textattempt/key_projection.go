@@ -1,9 +1,9 @@
 package textattempt
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // cloneAPIKeyWithGroup 只派生本次回退的分组视图，不改写缓存中的 Key。

@@ -2,13 +2,13 @@
 package app
 
 import (
-	context "context"
+	"context"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	site "github.com/TokenFlux/TokenRouter/internal/site"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 )
 
 // announcementUsers 将身份查询结果转换为公告资格判断所需的只读投影。

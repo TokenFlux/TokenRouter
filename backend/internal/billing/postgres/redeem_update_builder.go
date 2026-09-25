@@ -3,7 +3,7 @@ package postgres
 
 import (
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // redeemUpdateBuilder 是兑换快照字段的唯一赋值实现，注册补偿和普通管理复用。

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 

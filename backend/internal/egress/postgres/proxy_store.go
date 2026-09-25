@@ -2,19 +2,19 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	sort "sort"
-	strings "strings"
-	time "time"
+	"context"
+	"database/sql"
+	"sort"
+	"strings"
+	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	proxy "github.com/TokenFlux/TokenRouter/ent/proxy"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/ent/proxy"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
 // ProxyAccountParticipant 不拥有事务；操作必须落到给定连接。

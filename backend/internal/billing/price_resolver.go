@@ -1,9 +1,9 @@
 package billing
 
 import (
-	context "context"
-	slices "slices"
-	strings "strings"
+	"context"
+	"slices"
+	"strings"
 
 	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )

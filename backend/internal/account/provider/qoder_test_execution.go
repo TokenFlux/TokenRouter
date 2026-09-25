@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	provider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 

@@ -2,7 +2,7 @@
 package egress
 
 import (
-	time "time"
+	"time"
 )
 
 // TLSFingerprintProfile TLS 指纹配置模板

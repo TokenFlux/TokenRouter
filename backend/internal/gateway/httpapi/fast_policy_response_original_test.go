@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

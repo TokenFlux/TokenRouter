@@ -6,7 +6,7 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/search"
-	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
@@ -21,7 +21,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -29,7 +29,7 @@ import (
 
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // newGenericExecutionAndSelectionFixture 显式组合原执行入口与原生选择，不复制窗口或调度规则。

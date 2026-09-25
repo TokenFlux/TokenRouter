@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/payment"
-	stripe "github.com/stripe/stripe-go/v85"
+	"github.com/stripe/stripe-go/v85"
 	"github.com/stripe/stripe-go/v85/webhook"
 )
 

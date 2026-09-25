@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
+	"github.com/TokenFlux/TokenRouter/internal/account/transfer"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 

@@ -2,11 +2,11 @@
 package egress
 
 import (
-	context "context"
-	regexp "regexp"
-	strings "strings"
-	sync "sync"
-	time "time"
+	"context"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
 )
 
 // TLSFingerprintRouterRepository 定义 TLS 路由器的数据访问接口。

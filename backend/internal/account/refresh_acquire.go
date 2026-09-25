@@ -2,8 +2,8 @@
 package account
 
 import (
-	context "context"
-	fmt "fmt"
+	"context"
+	"fmt"
 )
 
 // acquireRefreshLock 保留进程锁、Redis 竞争与故障降级；停止等待由调用者的活动上下文约束。

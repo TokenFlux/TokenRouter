@@ -3,10 +3,11 @@ package codec
 
 import (
 	"encoding/json"
+	"time"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
-	"time"
 )
 
 type accountWire struct {

@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/messageforward"
-	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/messageforward"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 

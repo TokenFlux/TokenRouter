@@ -2,11 +2,11 @@
 package postgres
 
 import (
-	context "context"
+	"context"
 
-	ent "github.com/TokenFlux/TokenRouter/ent"
-	tlsfingerprintrouter "github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 type tlsFingerprintRouterRepository struct {

@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/gin-gonic/gin"
 )
 

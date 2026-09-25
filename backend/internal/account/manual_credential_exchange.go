@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"strconv"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 // ManualCredentialExchange 只合并本次交换结果，账号持久化与锁由管理用例拥有。

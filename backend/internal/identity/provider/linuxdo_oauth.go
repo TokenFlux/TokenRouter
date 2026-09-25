@@ -2,17 +2,17 @@
 package provider
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	url "net/url"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"context"
+	"errors"
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	req "github.com/imroc/req/v3"
-	gjson "github.com/tidwall/gjson"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/imroc/req/v3"
+	"github.com/tidwall/gjson"
 )
 
 type LinuxDoTokenResponse = identity.LinuxDoTokenResponse

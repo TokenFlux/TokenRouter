@@ -2,9 +2,9 @@
 package apikey
 
 import (
-	sync "sync"
-	atomic "sync/atomic"
-	time "time"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 const KeyInvalidAuthAbuseShardCount = 16

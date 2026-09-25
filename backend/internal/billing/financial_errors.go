@@ -1,7 +1,7 @@
 package billing
 
 import (
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 var ErrAPIKeyNotFound = apperror.NotFound("API_KEY_NOT_FOUND", "api key not found")

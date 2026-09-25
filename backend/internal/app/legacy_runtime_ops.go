@@ -3,7 +3,7 @@
 package app
 
 import (
-	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
 import (

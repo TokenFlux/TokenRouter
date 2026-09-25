@@ -8,7 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream/usageprovider"
-	usageview "github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
 	"github.com/stretchr/testify/require"
 )
 

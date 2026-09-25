@@ -2,14 +2,14 @@
 package provider
 
 import (
-	context "context"
-	fmt "fmt"
-	io "io"
-	http "net/http"
-	time "time"
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 // ProxyQualityHTTP 使用既有共享客户端，逐目标保留超时与诊断语义。

@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"

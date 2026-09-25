@@ -2,7 +2,7 @@
 package egress
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // ResponseHeaderOptions 是响应头策略的静态投影。

@@ -2,8 +2,8 @@
 package account
 
 import (
-	json "encoding/json"
-	strings "strings"
+	"encoding/json"
+	"strings"
 )
 
 func OllamaCloudUsageStateFromAccount(account *Record) *OllamaCloudUsageState {

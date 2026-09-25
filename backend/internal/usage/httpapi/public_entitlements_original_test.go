@@ -9,13 +9,13 @@ import (
 	"time"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
 	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"
 

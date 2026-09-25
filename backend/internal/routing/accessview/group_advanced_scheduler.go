@@ -2,7 +2,7 @@
 package accessview
 
 import (
-	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 type GroupAdvancedSchedulerOverrides = policy.GroupAdvancedSchedulerOverrides

@@ -2,7 +2,7 @@
 package dto
 
 import (
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // RedactCredentials 复制一份 in，剥离 account.SensitiveCredentialKeys 列出的所有敏感子键，

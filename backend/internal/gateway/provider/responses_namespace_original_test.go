@@ -3,12 +3,12 @@ package provider_test
 import (
 	"strconv"
 	"testing"
-	time "time"
+	"time"
 
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"

@@ -2,16 +2,16 @@
 package provider
 
 import (
-	context "context"
-	json "encoding/json"
-	fmt "fmt"
-	io "io"
-	http "net/http"
-	url "net/url"
-	strings "strings"
-	time "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 // WeChatOptions 只包含客户端所需凭据与请求目标。

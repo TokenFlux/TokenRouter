@@ -2,15 +2,15 @@
 package rediscache
 
 import (
-	context "context"
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
-	fmt "fmt"
-	strings "strings"
-	time "time"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"strings"
+	"time"
 
-	team "github.com/TokenFlux/TokenRouter/internal/team"
-	redis "github.com/redis/go-redis/v9"
+	"github.com/TokenFlux/TokenRouter/internal/team"
+	"github.com/redis/go-redis/v9"
 )
 
 const (

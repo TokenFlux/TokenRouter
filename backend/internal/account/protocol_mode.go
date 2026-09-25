@@ -2,7 +2,7 @@
 package account
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // ConfiguredAPIProtocol 只读取账号配置；请求级的协议解析结果由调用方持有。

@@ -4,15 +4,16 @@ package httpapi_test
 
 import (
 	"encoding/json"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/messageforward"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/messageforward"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

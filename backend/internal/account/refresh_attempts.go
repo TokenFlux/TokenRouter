@@ -2,12 +2,12 @@
 package account
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	time "time"
+	"context"
+	"errors"
+	"fmt"
+	"time"
 
-	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 )
 
 // RefreshTokenOperation 是兼容直接刷新路径的最小交换能力。

@@ -2,18 +2,18 @@
 package apikey
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	slog "log/slog"
-	maps "maps"
-	rand "math/rand/v2"
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"maps"
+	"math/rand/v2"
 	"slices"
-	time "time"
+	"time"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
-	ristretto "github.com/dgraph-io/ristretto"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/dgraph-io/ristretto"
 )
 
 const KeyApiKeyAuthSnapshotVersion = 40

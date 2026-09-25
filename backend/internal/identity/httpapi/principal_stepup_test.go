@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/gin-gonic/gin"

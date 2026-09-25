@@ -2,8 +2,8 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
+	"context"
+	"database/sql"
 )
 
 // Executor 接收调用方已经选择的连接或事务，不创建或结束事务。

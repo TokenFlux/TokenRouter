@@ -1,14 +1,14 @@
 package textattempt
 
 import (
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 
 	"context"
 	"errors"
@@ -16,7 +16,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 
@@ -48,7 +48,7 @@ func (b *geminiMessageAttemptBridge) Select(excluded map[int64]struct{}) (textfl
 // FirstSelectionFailure 保留 Gemini Messages 的既有差异，循环复用 gateway/text。
 func (b *geminiMessageAttemptBridge) FirstSelectionFailure(err error, _ bool) {
 
-	if handleGroupSelectionBusinessError(b.c, err, (*b.streamStarted), func(status int, errType string, message string, responseStarted bool) {
+	if handleGroupSelectionBusinessError(b.c, err, *b.streamStarted, func(status int, errType string, message string, responseStarted bool) {
 		b.binding().handleStreamingAwareError(b.c, status, errType, message, responseStarted)
 	}) {
 		return
@@ -83,7 +83,7 @@ func (b *geminiMessageAttemptBridge) Acquire() bool {
 				zap.String("model", b.reqModel),
 				zap.String("platform", b.platform),
 			)
-			b.binding().handleStreamingAwareError(b.c, http.StatusServiceUnavailable, "api_error", "No available accounts", (*b.streamStarted))
+			b.binding().handleStreamingAwareError(b.c, http.StatusServiceUnavailable, "api_error", "No available accounts", *b.streamStarted)
 			return false
 		}
 		accountWaitCounted := false
@@ -96,7 +96,7 @@ func (b *geminiMessageAttemptBridge) Acquire() bool {
 				zap.Int64("account_id", b.account.Record.ID),
 				zap.Int("max_waiting", b.selection.WaitPlan.MaxWaiting),
 			)
-			b.binding().handleStreamingAwareErrorWithCode(b.c, http.StatusTooManyRequests, "rate_limit_error", gatewayhttp.GatewayQueueFullCode, "Too many pending requests, please retry later", (*b.streamStarted))
+			b.binding().handleStreamingAwareErrorWithCode(b.c, http.StatusTooManyRequests, "rate_limit_error", gatewayhttp.GatewayQueueFullCode, "Too many pending requests, please retry later", *b.streamStarted)
 			return false
 		}
 		if err == nil && canWait {
@@ -120,7 +120,7 @@ func (b *geminiMessageAttemptBridge) Acquire() bool {
 		if err != nil {
 			b.reqLog.Warn("gateway.account_slot_acquire_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 			releaseWait()
-			b.binding().handleConcurrencyError(b.c, err, "account", (*b.streamStarted))
+			b.binding().handleConcurrencyError(b.c, err, "account", *b.streamStarted)
 			return false
 		}
 		// Slot acquired: no longer waiting in queue.

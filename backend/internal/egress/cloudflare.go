@@ -2,10 +2,10 @@
 package egress
 
 import (
-	fmt "fmt"
-	textproto "net/textproto"
-	regexp "regexp"
-	strings "strings"
+	"fmt"
+	"net/textproto"
+	"regexp"
+	"strings"
 )
 
 var (

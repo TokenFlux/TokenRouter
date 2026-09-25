@@ -2,12 +2,12 @@
 package identity
 
 import (
-	context "context"
-	json "encoding/json"
-	fmt "fmt"
-	regexp "regexp"
-	strconv "strconv"
-	strings "strings"
+	"context"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

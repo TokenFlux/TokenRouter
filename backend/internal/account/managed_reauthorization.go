@@ -2,9 +2,9 @@
 package account
 
 import (
-	context "context"
+	"context"
 
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 type ManagedReauthorizationInput struct {

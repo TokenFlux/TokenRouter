@@ -2,12 +2,12 @@
 package postgres
 
 import (
-	context "context"
+	"context"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	userattributedefinition "github.com/TokenFlux/TokenRouter/ent/userattributedefinition"
-	userattributevalue "github.com/TokenFlux/TokenRouter/ent/userattributevalue"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/ent/userattributedefinition"
+	"github.com/TokenFlux/TokenRouter/ent/userattributevalue"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 // UserAttributeDefinitionRepository implementation

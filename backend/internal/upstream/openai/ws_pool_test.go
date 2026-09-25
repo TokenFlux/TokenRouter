@@ -2347,7 +2347,7 @@ func TestOpenAIWSConnPoolHeadersFactoryRunsAtDialAndStalePrewarmIsDiscarded(t *t
 	factoryCalls := 0
 	latestHeader := ""
 	req := WSAcquireRequest{
-		Account: (&WSPoolAccount{ID: accountID, Type: "oauth"}),
+		Account: &WSPoolAccount{ID: accountID, Type: "oauth"},
 		WSURL:   "wss://example.com/v1/responses",
 		HeadersFactory: func(_ context.Context, headers http.Header) (http.Header, error) {
 			factoryCalls++

@@ -2,8 +2,8 @@
 package egress
 
 import (
-	context "context"
-	time "time"
+	"context"
+	"time"
 )
 
 // TLSFingerprintCollectorStatus 表示收集器当前运行状态。

@@ -1,13 +1,13 @@
 package provider
 
 import (
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
-	antigravity "github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 

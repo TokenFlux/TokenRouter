@@ -2,9 +2,9 @@
 package identity
 
 import (
-	context "context"
-	errors "errors"
-	time "time"
+	"context"
+	"errors"
+	"time"
 )
 
 // ErrRefreshTokenNotFound is returned when a refresh token is not found in cache.

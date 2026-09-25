@@ -2,14 +2,14 @@
 package httpapi
 
 import (
-	errors "errors"
-	slog "log/slog"
-	http "net/http"
-	strconv "strconv"
+	"errors"
+	"log/slog"
+	"net/http"
+	"strconv"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // SyncUpstreamModels 从账号上游同步实时支持模型列表。

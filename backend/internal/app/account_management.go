@@ -15,8 +15,8 @@ import (
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // provideAccountManagement 为账号管理 HTTP 接口绑定管理用例和展示参数。

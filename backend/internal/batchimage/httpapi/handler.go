@@ -19,7 +19,7 @@ import (
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

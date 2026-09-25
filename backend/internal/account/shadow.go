@@ -2,10 +2,10 @@
 package account
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"errors"
+	"fmt"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

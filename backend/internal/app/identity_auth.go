@@ -2,7 +2,7 @@
 package app
 
 import (
-	context "context"
+	"context"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -14,15 +14,15 @@ import (
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 
-	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 
-	config "github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // identityAuthSettings 只组合所属模块的读取端口，不持有第二份规则或缓存。

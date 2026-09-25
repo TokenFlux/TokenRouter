@@ -2,7 +2,7 @@
 package dto
 
 import (
-	time "time"
+	"time"
 )
 
 type Proxy struct {

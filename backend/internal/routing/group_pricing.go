@@ -2,7 +2,7 @@
 package routing
 
 import (
-	strings "strings"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

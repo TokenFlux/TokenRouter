@@ -2,9 +2,9 @@
 package egress
 
 import (
-	context "context"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"fmt"
+	"strings"
 )
 
 // CRSProxySpec 是导入文件中的代理身份，不包含运行客户端或账号。

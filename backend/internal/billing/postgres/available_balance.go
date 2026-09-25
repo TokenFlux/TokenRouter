@@ -2,11 +2,11 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	errors "errors"
+	"context"
+	"database/sql"
+	"errors"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 )
 

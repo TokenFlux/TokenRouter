@@ -6,10 +6,10 @@ import (
 	httptestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
-	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	"context"
 	"net/http"
@@ -18,10 +18,10 @@ import (
 	"testing"
 	"time"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"

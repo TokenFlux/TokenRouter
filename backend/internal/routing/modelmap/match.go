@@ -2,7 +2,7 @@
 package modelmap
 
 import (
-	sort "sort"
+	"sort"
 	"strings"
 )
 

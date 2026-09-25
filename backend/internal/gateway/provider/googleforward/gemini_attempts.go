@@ -25,7 +25,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	upstream "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 )

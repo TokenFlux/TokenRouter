@@ -2,8 +2,8 @@
 package account
 
 import (
-	strings "strings"
-	time "time"
+	"strings"
+	"time"
 )
 
 func (a *Record) ModelRateLimitResetAt(scope string) *time.Time {

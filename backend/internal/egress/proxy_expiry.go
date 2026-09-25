@@ -2,11 +2,11 @@
 package egress
 
 import (
-	context "context"
-	fmt "fmt"
-	log "log"
-	sync "sync"
-	time "time"
+	"context"
+	"fmt"
+	"log"
+	"sync"
+	"time"
 )
 
 // ProxyExpiryService 拥有代理到期扫描的启动与停止屏障。

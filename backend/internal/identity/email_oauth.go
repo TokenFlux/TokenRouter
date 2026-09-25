@@ -2,7 +2,7 @@
 package identity
 
 import (
-	context "context"
+	"context"
 )
 
 type EmailOAuthOptions struct {

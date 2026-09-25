@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -14,7 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // BindStickySession sets session -> account binding with standard TTL.

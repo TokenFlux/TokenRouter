@@ -8,7 +8,7 @@ import (
 	openaiexecution "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
@@ -18,7 +18,7 @@ import (
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
-	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 

@@ -2,11 +2,11 @@
 package account
 
 import (
-	maps "maps"
-	slices "slices"
-	strings "strings"
+	"maps"
+	"slices"
+	"strings"
 
-	capability "github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 func (a *Record) LegacyUpstreamProtocols(legacyMode string) []capability.ProtocolID {

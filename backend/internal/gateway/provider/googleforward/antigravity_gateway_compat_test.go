@@ -17,7 +17,7 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/googleforward"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -187,7 +187,7 @@ func TestAntigravityCompatOAuthUsesNativeTokenAndRoute(t *testing.T) {
 				},
 			}
 			svc := newAntigravityCompatibilityFixture(
-				googleforward.Options{MaxLineSize: (500 * 1024 * 1024)},
+				googleforward.Options{MaxLineSize: 500 * 1024 * 1024},
 				upstream,
 			)
 			c, recorder := newAntigravityCompatContext(http.MethodPost, tt.path, tt.body)
@@ -250,7 +250,7 @@ func TestAntigravityCompatResponsesRestoresNamespaceTools(t *testing.T) {
 
 				Body: io.NopCloser(strings.NewReader(upstreamBody)),
 			}}}
-			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, upstream)
+			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, upstream)
 			c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/responses", tt.body)
 
 			result, err := svc.ForwardAsResponses(context.Background(), gatewayhttp.NewGoogleBoundary(c, svc.Options, true), newAntigravityCompatAccount(capability.AccountTypeOAuth), tt.body, nil)
@@ -304,7 +304,7 @@ func TestAntigravityCompatChatRestoresForkToolNames(t *testing.T) {
 
 				Body: io.NopCloser(strings.NewReader(upstreamBody)),
 			}}}
-			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, upstream)
+			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, upstream)
 			c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", tt.body)
 
 			result, err := svc.ForwardAsChatCompletions(context.Background(), gatewayhttp.NewGoogleBoundary(c, svc.Options, true), newAntigravityCompatAccount(capability.AccountTypeOAuth), tt.body, nil)
@@ -426,7 +426,7 @@ func TestBuildAntigravityCompatGeminiBody_ConfiguresMixedToolInvocations(t *test
 func TestAntigravityCompatChatMixedBuiltInToolsEnableServerSideInvocations(t *testing.T) {
 
 	upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{antigravityCompatSuccessResponse()}}
-	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, upstream)
+	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, upstream)
 	body := []byte(`{
 		"model":"claude-opus-4-6-thinking",
 		"messages":[{"role":"user","content":"hello"}],
@@ -509,7 +509,7 @@ func TestAntigravityCompatPreservesChatTokenLimit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{antigravityCompatSuccessResponse()}}
-			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, upstream)
+			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, upstream)
 			body := []byte(tt.body)
 			c, _ := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", body)
 
@@ -565,7 +565,7 @@ func TestAntigravityCompatRoutesByMappedModelFamily(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.model, func(t *testing.T) {
 			upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{antigravityCompatSuccessResponse()}}
-			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, upstream)
+			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, upstream)
 			body := []byte(`{"model":"` + tt.model + `","messages":[{"role":"user","content":"ok"}],"max_tokens":8}`)
 			c, _ := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", body)
 
@@ -590,7 +590,7 @@ func TestAntigravityCompatUnauthorizedIsCredentialFailure(t *testing.T) {
 
 		Body: io.NopCloser(strings.NewReader(`{"error":{"message":"Invalid bearer token"}}`)),
 	}}}
-	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, upstream)
+	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, upstream)
 	body := []byte(`{"model":"gemini-3.1-pro-high","messages":[{"role":"user","content":"ok"}]}`)
 	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", body)
 
@@ -637,7 +637,7 @@ func TestAntigravityCompatEmptyStreamTriggersFailover(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, nil)
+			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, nil)
 			c, recorder := newAntigravityCompatContext(http.MethodPost, "/", nil)
 			resp := &http.Response{
 
@@ -688,7 +688,7 @@ func TestAntigravityCompatUsageOnlyStreamTriggersFailover(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, nil)
+			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, nil)
 			c, recorder := newAntigravityCompatContext(http.MethodPost, "/", nil)
 			resp := &http.Response{
 
@@ -761,7 +761,7 @@ func TestAntigravityCompatUsageOnlyNonStreamingTriggersFailover(t *testing.T) {
 					`data: {"response":{"responseId":"resp_3757","usageMetadata":{"promptTokenCount":8}}}` + "\n\n",
 				)),
 			}}}
-			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, upstream)
+			svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, upstream)
 			c, recorder := newAntigravityCompatContext(http.MethodPost, tt.path, tt.body)
 
 			result, err := tt.call(
@@ -784,7 +784,7 @@ func TestAntigravityCompatUsageOnlyNonStreamingTriggersFailover(t *testing.T) {
 
 func TestAntigravityCompatChatStreamMapsToolCallAndUsage(t *testing.T) {
 
-	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, nil)
+	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, nil)
 	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", nil)
 	body := `data: {"response":{"responseId":"resp_3757","candidates":[{"content":{"parts":[{"functionCall":{"id":"call_3757","name":"get_weather","args":{"city":"Tokyo"}}}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":3}}}` + "\n\n"
 	resp := &http.Response{
@@ -812,7 +812,7 @@ func TestAntigravityCompatChatStreamMapsToolCallAndUsage(t *testing.T) {
 func TestAntigravityCompatFirstEventTimeoutTriggersFailover(t *testing.T) {
 
 	svc := newAntigravityCompatibilityFixture(
-		googleforward.Options{MaxLineSize: (500 * 1024 * 1024), StreamInterval: 1},
+		googleforward.Options{MaxLineSize: 500 * 1024 * 1024, StreamInterval: 1},
 		nil,
 	)
 	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", nil)
@@ -847,7 +847,7 @@ func TestAntigravityCompatFirstEventTimeoutTriggersFailover(t *testing.T) {
 
 func TestAntigravityCompatClientDisconnectDrainsUsage(t *testing.T) {
 
-	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, nil)
+	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, nil)
 	c, _ := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", nil)
 	c.Writer = &antigravityFailingWriter{ResponseWriter: c.Writer, failAfter: 0}
 	body := strings.Join([]string{
@@ -879,7 +879,7 @@ func TestAntigravityCompatClientDisconnectDrainsUsage(t *testing.T) {
 
 func TestAntigravityCompatStreamErrorCommitsSingleTerminalFrame(t *testing.T) {
 
-	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: (500 * 1024 * 1024)}, nil)
+	svc := newAntigravityCompatibilityFixture(googleforward.Options{MaxLineSize: 500 * 1024 * 1024}, nil)
 	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/responses", nil)
 	body := []byte(`data: {"response":{"responseId":"resp_3757","candidates":[{"content":{"parts":[{"text":"partial"}]}}],"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":1}}}` + "\n\n")
 	resp := &http.Response{
@@ -905,7 +905,7 @@ func TestAntigravityCompatStreamErrorCommitsSingleTerminalFrame(t *testing.T) {
 func TestAntigravityCompatKeepaliveAfterFirstEvent(t *testing.T) {
 
 	svc := newAntigravityCompatibilityFixture(
-		googleforward.Options{MaxLineSize: (500 * 1024 * 1024), StreamKeepalive: 1},
+		googleforward.Options{MaxLineSize: 500 * 1024 * 1024, StreamKeepalive: 1},
 		nil,
 	)
 	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/responses", nil)

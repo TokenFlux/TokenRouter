@@ -2,7 +2,7 @@
 package account
 
 import (
-	time "time"
+	"time"
 )
 
 // GroupAccountCapacityRow 是容量汇总所需的轻量账号投影。

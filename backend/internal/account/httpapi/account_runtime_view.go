@@ -3,7 +3,7 @@ package httpapi
 
 import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	dto "github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto"
 )
 
 // AccountWithConcurrency 保留管理端的实时并发与调度展示字段。

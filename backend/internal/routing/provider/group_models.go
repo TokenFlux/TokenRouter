@@ -3,11 +3,11 @@ package provider
 import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
-	antigravity "github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // DefaultGroupModelCandidates 保留平台目录的原始顺序与动态读取时点。

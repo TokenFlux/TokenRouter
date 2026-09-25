@@ -10,7 +10,7 @@ import (
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 

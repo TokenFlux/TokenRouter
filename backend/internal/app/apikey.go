@@ -9,15 +9,15 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/settings/preaggregation"
 
-	sql "database/sql"
+	"database/sql"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
 
-	config "github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 
@@ -25,7 +25,7 @@ import (
 
 	"time"
 
-	team "github.com/TokenFlux/TokenRouter/internal/team"
+	"github.com/TokenFlux/TokenRouter/internal/team"
 	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
 )
 

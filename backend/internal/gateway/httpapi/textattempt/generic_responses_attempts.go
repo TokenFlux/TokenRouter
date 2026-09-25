@@ -1,16 +1,16 @@
 package textattempt
 
 import (
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"context"
 	"errors"
 	"net/http"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -79,7 +79,7 @@ func (b *genericResponsesAttemptBridge) Acquire() bool {
 		)
 		if err != nil {
 			b.reqLog.Warn("gateway.responses.account_slot_acquire_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
-			b.binding().handleConcurrencyError(b.c, err, "account", (*b.streamStarted))
+			b.binding().handleConcurrencyError(b.c, err, "account", *b.streamStarted)
 			return false
 		}
 	}
@@ -143,7 +143,7 @@ func (b *genericResponsesAttemptBridge) OtherFailure(err error) {
 	upstreamErrorAlreadyCommunicated := gatewayhttp.ForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
 	wroteFallback := false
 	if !upstreamErrorAlreadyCommunicated {
-		wroteFallback = b.binding().ensureForwardErrorResponse(b.c, (*b.streamStarted))
+		wroteFallback = b.binding().ensureForwardErrorResponse(b.c, *b.streamStarted)
 	}
 	b.reqLog.Error("gateway.responses.forward_failed",
 		zap.Int64("account_id", b.account.Record.ID),

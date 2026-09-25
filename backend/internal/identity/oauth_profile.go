@@ -2,8 +2,8 @@
 package identity
 
 import (
-	context "context"
-	strings "strings"
+	"context"
+	"strings"
 )
 
 // EmailOAuthProfile 是已经验证的邮箱提供方资料，不包含 HTTP 客户端或配置。

@@ -2,14 +2,14 @@
 package httpapi
 
 import (
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
-	fmt "fmt"
-	strings "strings"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"strings"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // StepUpSessionKey 计算 step-up 授权的会话键：

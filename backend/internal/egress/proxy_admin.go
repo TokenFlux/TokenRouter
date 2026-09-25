@@ -2,12 +2,12 @@
 package egress
 
 import (
-	context "context"
-	fmt "fmt"
-	time "time"
+	"context"
+	"fmt"
+	"time"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
 type ProxyTasks interface{ Go(string, func()) bool }

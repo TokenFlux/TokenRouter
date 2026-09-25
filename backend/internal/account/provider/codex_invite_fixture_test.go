@@ -2,10 +2,11 @@ package provider
 
 import (
 	"context"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"net/http"
 	"strings"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 

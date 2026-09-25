@@ -1,13 +1,13 @@
 package forward
 
 import (
-	json "encoding/json"
-	testing "testing"
+	"encoding/json"
+	"testing"
 
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func anthropicAssistantMsg(t *testing.T, blocks string) *protocolanthropic.AnthropicRequest {

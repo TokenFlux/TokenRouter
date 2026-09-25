@@ -1,20 +1,20 @@
 package httpapi
 
 import (
-	bytes "bytes"
-	context "context"
-	csv "encoding/csv"
-	errors "errors"
-	fmt "fmt"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"bytes"
+	"context"
+	"encoding/csv"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
 
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // RedeemAdministrator 只包含兑换 HTTP 所需的完整用例。

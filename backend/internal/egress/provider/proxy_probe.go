@@ -2,17 +2,17 @@
 package provider
 
 import (
-	context "context"
-	json "encoding/json"
-	fmt "fmt"
-	io "io"
-	log "log"
-	http "net/http"
-	strings "strings"
-	time "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+	"time"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 type ProxyProbeTarget struct {

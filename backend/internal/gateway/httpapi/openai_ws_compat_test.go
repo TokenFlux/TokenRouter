@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	openaiwsv2 "github.com/TokenFlux/TokenRouter/internal/upstream/openai/wsrelay"

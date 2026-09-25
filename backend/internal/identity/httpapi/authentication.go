@@ -2,7 +2,7 @@
 package httpapi
 
 import (
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // AuthenticationHandler 汇总同一组实例，不在每个请求重新创建用例、存储或 provider 客户端。

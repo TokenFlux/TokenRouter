@@ -11,7 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
-	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/tidwall/gjson"
 )

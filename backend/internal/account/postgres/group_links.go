@@ -2,11 +2,11 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
+	"context"
+	"database/sql"
 
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
-	pq "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 // GroupLinks 只在调用方连接维护账号关联，不拥有提交或失效。

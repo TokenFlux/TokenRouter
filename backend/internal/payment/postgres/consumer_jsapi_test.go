@@ -2,9 +2,10 @@ package postgres_test
 
 import (
 	"context"
+	"testing"
+
 	paymenttestkit "github.com/TokenFlux/TokenRouter/internal/payment/testkit"
 	sqlitetest "github.com/TokenFlux/TokenRouter/internal/testutil/sqlite"
-	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 )

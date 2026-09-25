@@ -2,16 +2,16 @@
 package provider
 
 import (
-	context "context"
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
-	req "github.com/imroc/req/v3"
-	gjson "github.com/tidwall/gjson"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/imroc/req/v3"
+	"github.com/tidwall/gjson"
 )
 
 // EmailOAuthProviderConfig 保存 GitHub/Google 这类邮箱 OAuth 登录的配置。

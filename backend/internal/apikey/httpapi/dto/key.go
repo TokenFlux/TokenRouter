@@ -2,10 +2,10 @@
 package dto
 
 import (
-	time "time"
+	"time"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 type APIKey[G any] struct {

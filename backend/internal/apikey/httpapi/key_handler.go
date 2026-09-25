@@ -2,20 +2,20 @@
 package httpapi
 
 import (
-	context "context"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"context"
+	"strconv"
+	"strings"
+	"time"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-	dto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // APIKeyHandler 只持有 Key 用例与路由展示端口；分组算法和容量查询仍由其原所有者提供。

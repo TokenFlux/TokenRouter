@@ -2,10 +2,10 @@
 package identity
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"errors"
+	"fmt"
+	"strings"
 )
 
 type DingTalkOAuthOptions struct {

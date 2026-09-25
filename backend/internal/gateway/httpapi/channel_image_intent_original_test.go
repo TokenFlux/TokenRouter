@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

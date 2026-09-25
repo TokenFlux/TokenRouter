@@ -1,11 +1,11 @@
 package forward
 
 import (
-	json "encoding/json"
-	testing "testing"
+	"encoding/json"
+	"testing"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChatCompletionsToResponsesPreservesXSearchTool(t *testing.T) {

@@ -2,7 +2,7 @@
 package identity
 
 import (
-	context "context"
+	"context"
 )
 
 // TencentCaptchaConfig 保存腾讯云票据校验接口所需凭据，禁止通过公开接口返回。

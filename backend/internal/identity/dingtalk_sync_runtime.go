@@ -2,9 +2,9 @@
 package identity
 
 import (
-	context "context"
-	strings "strings"
-	time "time"
+	"context"
+	"strings"
+	"time"
 )
 
 // DingTalkSyncRuntime 持有配置读取与任务端口，保存原后台同步时机和 30 秒预算。

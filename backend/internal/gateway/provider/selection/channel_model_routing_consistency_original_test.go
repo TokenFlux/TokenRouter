@@ -9,7 +9,7 @@ import (
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 

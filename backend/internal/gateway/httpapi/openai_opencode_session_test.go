@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	time "time"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 

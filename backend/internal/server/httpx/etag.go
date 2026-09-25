@@ -2,7 +2,7 @@
 package httpx
 
 import (
-	strings "strings"
+	"strings"
 )
 
 // IfNoneMatchMatched 保留旧快照端点的通配、弱标签与逗号分隔匹配。

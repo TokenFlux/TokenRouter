@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"

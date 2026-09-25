@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
-	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/tidwall/gjson"
 )

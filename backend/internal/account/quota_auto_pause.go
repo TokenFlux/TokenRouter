@@ -2,11 +2,11 @@
 package account
 
 import (
-	json "encoding/json"
-	fmt "fmt"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // QuotaAutoPauseSettings 是动态阈值的只读输入，省略值保持原回退语义。

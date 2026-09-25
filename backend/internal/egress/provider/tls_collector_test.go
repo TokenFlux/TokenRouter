@@ -2,18 +2,18 @@
 package provider
 
 import (
-	context "context"
-	tls "crypto/tls"
-	x509 "crypto/x509"
-	binary "encoding/binary"
-	fmt "fmt"
-	io "io"
-	net "net"
-	http "net/http"
-	testing "testing"
-	time "time"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"testing"
+	"time"
 
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTLSFingerprintCollectorServiceLifecycleAndCapture(t *testing.T) {

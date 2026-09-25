@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	gatewaytelemetry "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"

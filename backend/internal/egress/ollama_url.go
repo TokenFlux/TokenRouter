@@ -2,8 +2,8 @@
 package egress
 
 import (
-	url "net/url"
-	strings "strings"
+	"net/url"
+	"strings"
 )
 
 func IsOllamaCloudBaseURL(raw string) bool {

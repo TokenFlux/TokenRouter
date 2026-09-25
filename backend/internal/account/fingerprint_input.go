@@ -2,10 +2,10 @@
 package account
 
 import (
-	maps "maps"
-	strings "strings"
+	"maps"
+	"strings"
 
-	uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 )
 
 func CanonicalCodexFingerprintSeed(value any) (string, bool) {

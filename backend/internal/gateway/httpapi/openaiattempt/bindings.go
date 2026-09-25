@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"

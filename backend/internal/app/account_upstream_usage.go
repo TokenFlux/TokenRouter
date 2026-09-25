@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
-	provider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 

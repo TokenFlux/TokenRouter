@@ -2,8 +2,9 @@
 package account_test
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/account"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 func TestResolveDefaultTierID(t *testing.T) {

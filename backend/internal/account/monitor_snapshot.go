@@ -2,7 +2,7 @@
 package account
 
 import (
-	time "time"
+	"time"
 )
 
 // CNUsageMonitorError 记录最近一次探测失败，不包含凭据或原始响应正文。

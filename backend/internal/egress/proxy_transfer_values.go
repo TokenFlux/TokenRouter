@@ -2,9 +2,9 @@
 package egress
 
 import (
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
+	"errors"
+	"fmt"
+	"strings"
 )
 
 type TransferProxy struct {

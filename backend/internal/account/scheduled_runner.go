@@ -2,11 +2,11 @@
 package account
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	sync "sync"
-	time "time"
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
 )
 
 // ScheduledTestExecutor 保留后台结果语义；实际测试事件入口在后续批次接入同一实现。

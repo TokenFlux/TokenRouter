@@ -1,7 +1,7 @@
 package billing
 
 import (
-	time "time"
+	"time"
 )
 
 // APIKeyRateLimitData holds rate limit usage and window state for an API key.

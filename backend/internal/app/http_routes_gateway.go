@@ -4,7 +4,7 @@ import (
 	batchhttp "github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 // provideGatewayRouteMount 在构造时固定原生端点，不再在注册时创建旧 handler。

@@ -2,17 +2,17 @@
 package postgres
 
 import (
-	context "context"
-	sql "database/sql"
-	json "encoding/json"
-	slog "log/slog"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"log/slog"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	keycore "github.com/TokenFlux/TokenRouter/internal/apikey"
-	contact "github.com/TokenFlux/TokenRouter/internal/identity/contact"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/identity/contact"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 )
 
 func userEntityToKeyView(u *dbent.User) *keycore.User {

@@ -2,7 +2,7 @@
 package egress
 
 import (
-	time "time"
+	"time"
 )
 
 // ResolveProxyFallbackTarget 计算一个过期代理 start 应把账号改投到哪里。

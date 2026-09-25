@@ -2,20 +2,20 @@
 package provider
 
 import (
-	bytes "bytes"
-	context "context"
-	json "encoding/json"
-	errors "errors"
-	fmt "fmt"
-	io "io"
-	http "net/http"
-	slices "slices"
-	strings "strings"
-	time "time"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
 
-	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
+	"github.com/TokenFlux/TokenRouter/internal/account/transfer"
 	urlvalidator "github.com/TokenFlux/TokenRouter/internal/egress"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 // CRSClientOptions 只投影原 CRS 连接约束，不持有完整应用配置。

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 var (

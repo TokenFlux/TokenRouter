@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 

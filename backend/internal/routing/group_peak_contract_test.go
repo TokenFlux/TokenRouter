@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 func TestPeakMultiplierAt_DisabledOrUnconfigured(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	openaiexecution "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"

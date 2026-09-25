@@ -2,13 +2,13 @@
 package app
 
 import (
-	context "context"
-	http "net/http"
-	httptest "net/http/httptest"
-	testing "testing"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
 
-	config "github.com/TokenFlux/TokenRouter/internal/config"
-	require "github.com/stretchr/testify/require"
+	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/stretchr/testify/require"
 )
 
 // 配置必须控制实际请求目标，装配不能忽略配置而使用内置地址。

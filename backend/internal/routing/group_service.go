@@ -2,12 +2,12 @@
 package routing
 
 import (
-	context "context"
-	fmt "fmt"
+	"context"
+	"fmt"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	capability "github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 var (

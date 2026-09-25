@@ -2,15 +2,15 @@
 package postgres
 
 import (
-	context "context"
-	json "encoding/json"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"context"
+	"encoding/json"
+	"strconv"
+	"strings"
+	"time"
 
 	dbaccount "github.com/TokenFlux/TokenRouter/ent/account"
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
-	pq "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 func (r *AccountStore) UpdateLastUsed(ctx context.Context, id int64) error {

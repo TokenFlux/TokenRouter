@@ -3,9 +3,10 @@ package provider
 import (
 	"context"
 	"errors"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"sync"
 	"testing"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )

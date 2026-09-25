@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 

@@ -3,7 +3,7 @@ package httpapi
 import (
 	"testing"
 
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/stretchr/testify/require"
 )
 

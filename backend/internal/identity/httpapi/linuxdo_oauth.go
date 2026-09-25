@@ -2,22 +2,22 @@
 package httpapi
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	log "log"
-	http "net/http"
-	url "net/url"
-	strconv "strconv"
-	strings "strings"
-	utf8 "unicode/utf8"
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"unicode/utf8"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
-	oauthpkce "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 type LinuxDoHandler struct {

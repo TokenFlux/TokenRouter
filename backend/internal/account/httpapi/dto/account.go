@@ -2,9 +2,9 @@
 package dto
 
 import (
-	time "time"
+	"time"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	proxydto "github.com/TokenFlux/TokenRouter/internal/egress/httpapi/dto"
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 )

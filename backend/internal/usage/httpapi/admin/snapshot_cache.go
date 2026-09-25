@@ -2,9 +2,9 @@
 package admin
 
 import (
-	time "time"
+	"time"
 
-	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
 )
 
 type snapshotCache = httpx.SnapshotCache

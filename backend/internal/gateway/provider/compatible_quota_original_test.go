@@ -2,9 +2,10 @@ package provider
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 

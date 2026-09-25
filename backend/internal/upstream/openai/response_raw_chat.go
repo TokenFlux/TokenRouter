@@ -12,7 +12,7 @@ import (
 	"time"
 
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	anthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"

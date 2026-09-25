@@ -1,9 +1,10 @@
 package clientmeta_test
 
 import (
+	"testing"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestIsClaudeCodeClient(t *testing.T) {

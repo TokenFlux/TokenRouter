@@ -2,8 +2,9 @@
 package account
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 // GrokTierRules 提供平台声明的纯解析能力，不持有账号或运行状态。

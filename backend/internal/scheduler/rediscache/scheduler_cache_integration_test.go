@@ -4,10 +4,11 @@ package rediscache
 
 import (
 	"context"
-	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"strings"
 	"testing"
 	"time"
+
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"

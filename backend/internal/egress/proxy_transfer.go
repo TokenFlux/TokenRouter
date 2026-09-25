@@ -2,10 +2,10 @@
 package egress
 
 import (
-	context "context"
-	fmt "fmt"
-	strings "strings"
-	time "time"
+	"context"
+	"fmt"
+	"strings"
+	"time"
 )
 
 type ProxyExportQuery struct {

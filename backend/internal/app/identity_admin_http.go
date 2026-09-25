@@ -7,7 +7,7 @@ import (
 	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/gin-gonic/gin"

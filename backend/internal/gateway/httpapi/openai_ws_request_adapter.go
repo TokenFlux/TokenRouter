@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
 	accountconfig "github.com/TokenFlux/TokenRouter/internal/account"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 

@@ -2,18 +2,18 @@
 package postgres
 
 import (
-	context "context"
-	errors "errors"
-	strings "strings"
-	time "time"
+	"context"
+	"errors"
+	"strings"
+	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	authidentity "github.com/TokenFlux/TokenRouter/ent/authidentity"
-	authidentitychannel "github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
-	identityadoptiondecision "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
-	pendingauthsession "github.com/TokenFlux/TokenRouter/ent/pendingauthsession"
-	predicate "github.com/TokenFlux/TokenRouter/ent/predicate"
+	"github.com/TokenFlux/TokenRouter/ent/authidentity"
+	"github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
+	"github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
+	"github.com/TokenFlux/TokenRouter/ent/pendingauthsession"
+	"github.com/TokenFlux/TokenRouter/ent/predicate"
 	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"

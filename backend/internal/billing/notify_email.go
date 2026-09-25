@@ -2,7 +2,7 @@
 package billing
 
 import (
-	contact "github.com/TokenFlux/TokenRouter/internal/identity/contact"
+	"github.com/TokenFlux/TokenRouter/internal/identity/contact"
 )
 
 // ParseNotifyEmails 委托身份邮箱格式兼容。

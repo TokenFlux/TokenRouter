@@ -558,7 +558,7 @@ func TestGetModelPricing_OpenAIFallbackMatchedLoggedAsInfo(t *testing.T) {
 func TestGetModelPricing_Gpt54UsesStaticFallbackWhenRemoteMissing(t *testing.T) {
 	svc := newPricingServiceFixture(pricingServiceFixture{
 		pricingData: map[string]*billingpricing.LiteLLMModelPricing{
-			"gpt-5.1-codex": &billingpricing.LiteLLMModelPricing{InputCostPerToken: 1.25e-6},
+			"gpt-5.1-codex": {InputCostPerToken: 1.25e-6},
 		},
 	})
 

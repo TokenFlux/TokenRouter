@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-	provider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
+	"github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway"

@@ -106,21 +106,21 @@ func (s *liveHTTPUpstreamStub) DoWithTLS(
 }
 
 func TestLiveCapabilityOnlyAllowsOpenAIOAuth(t *testing.T) {
-	require.True(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}})), accountcore.OpenAIEndpointCapabilityLive))
-	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}})), accountcore.OpenAIEndpointCapabilityLive))
-	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}})), accountcore.OpenAIEndpointCapabilityLive))
-	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+	require.True(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}), accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}), accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}), accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
 		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			accountcore.OpenAIAuthModeCredentialKey: accountcore.OpenAIAuthModePersonalAccessToken,
 		}},
-	})), accountcore.OpenAIEndpointCapabilityLive))
-	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+	}), accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
 		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			accountcore.OpenAIAuthModeCredentialKey: accountcore.OpenAIAuthModeAgentIdentity,
 		}},
-	})), accountcore.OpenAIEndpointCapabilityLive))
+	}), accountcore.OpenAIEndpointCapabilityLive))
 }
 
 func TestValidateLiveCallRequestDoesNotRequireDelegation(t *testing.T) {

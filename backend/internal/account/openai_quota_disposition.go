@@ -1,8 +1,9 @@
 package account
 
 import (
-	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"time"
+
+	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // OpenAI429Disposition 区分明确耗尽窗口和兼容重置观测，不决定请求重试。

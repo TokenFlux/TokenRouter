@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"testing"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	"github.com/stretchr/testify/require"
 )

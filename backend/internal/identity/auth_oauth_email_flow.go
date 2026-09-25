@@ -2,13 +2,13 @@
 package identity
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	slog "log/slog"
-	mail "net/mail"
-	strings "strings"
-	time "time"
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/mail"
+	"strings"
+	"time"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

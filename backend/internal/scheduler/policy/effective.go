@@ -2,8 +2,8 @@
 package policy
 
 import (
-	fmt "fmt"
-	math "math"
+	"fmt"
+	"math"
 )
 
 // EffectiveSettings 是完成全局与分组覆盖合并后的请求级配置。

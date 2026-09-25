@@ -2,14 +2,14 @@
 package httpapi
 
 import (
-	context "context"
-	strconv "strconv"
+	"context"
+	"strconv"
 
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-	dto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 type KeyAdministration interface {

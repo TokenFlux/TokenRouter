@@ -2,10 +2,10 @@
 package egress
 
 import (
-	regexp "regexp"
-	strconv "strconv"
-	strings "strings"
-	time "time"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (

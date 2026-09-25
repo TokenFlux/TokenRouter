@@ -7,7 +7,7 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	grokforward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 

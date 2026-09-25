@@ -1,7 +1,7 @@
 package account
 
 import (
-	strings "strings"
+	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )

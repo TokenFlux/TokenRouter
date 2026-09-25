@@ -1,12 +1,12 @@
 package forward
 
 import (
-	json "encoding/json"
-	testing "testing"
+	"encoding/json"
+	"testing"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	require "github.com/stretchr/testify/require"
-	gjson "github.com/tidwall/gjson"
+	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 // TestChatReasoningAliasRequestConversion 验证历史 assistant reasoning 别名不会在 Chat 转 Responses 时丢失。

@@ -15,7 +15,7 @@ import (
 	gatewaylive "github.com/TokenFlux/TokenRouter/internal/gateway/live"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	clientip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"

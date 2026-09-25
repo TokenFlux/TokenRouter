@@ -2,10 +2,10 @@
 package account
 
 import (
-	json "encoding/json"
-	fmt "fmt"
-	strings "strings"
-	time "time"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )

@@ -1,10 +1,10 @@
 package billing
 
 import (
-	context "context"
-	time "time"
+	"context"
+	"time"
 
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
 type UserSubscriptionRepository interface {

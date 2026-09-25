@@ -2,7 +2,7 @@
 package httpapi
 
 import (
-	gin "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 func ClearOAuthLoginCookies(c *gin.Context) {

@@ -2,11 +2,11 @@
 package identity
 
 import (
-	context "context"
-	strings "strings"
-	time "time"
+	"context"
+	"strings"
+	"time"
 
-	contract "github.com/TokenFlux/TokenRouter/internal/notification/contract"
+	"github.com/TokenFlux/TokenRouter/internal/notification/contract"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 

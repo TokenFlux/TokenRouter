@@ -3,11 +3,11 @@ package provider
 import (
 	"encoding/json"
 	"testing"
-	time "time"
+	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -66,7 +66,7 @@ func TestCodexAccountIdentityNamespaceUsesStableCredentialSource(t *testing.T) {
 	require.Equal(t, "seed:"+seed, CodexIdentityNamespace(seeded)) // Local row IDs repeat across independent deployments, so they are not a
 	// safe fallback for upstream identity.
 
-	require.Empty(t, CodexIdentityNamespace((&accountcore.Record{LoadLocation: time.LoadLocation, ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth})))
+	require.Empty(t, CodexIdentityNamespace(&accountcore.Record{LoadLocation: time.LoadLocation, ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}))
 
 	setupTokenA := &accountcore.Record{LoadLocation: time.LoadLocation, ID: 30, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken, Credentials: map[string]any{"access_token": "setup-token-a"}}
 	setupTokenADuplicate := &accountcore.Record{LoadLocation: time.LoadLocation, ID: 31, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken, Credentials: map[string]any{"access_token": "setup-token-a"}}

@@ -2,8 +2,8 @@
 package routing
 
 import (
-	context "context"
-	time "time"
+	"context"
+	"time"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 

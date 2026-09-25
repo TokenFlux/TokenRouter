@@ -2,8 +2,8 @@
 package routing
 
 import (
-	context "context"
-	strings "strings"
+	"context"
+	"strings"
 )
 
 // DefaultGroupCandidate 只保留默认选择需要的名称与显式标记。

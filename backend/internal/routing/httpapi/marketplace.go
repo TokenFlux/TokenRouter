@@ -2,12 +2,12 @@
 package httpapi
 
 import (
-	context "context"
+	"context"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	dto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
-	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/gin-gonic/gin"
 )
 
 // MarketplaceStatsReader 只提供首页公开统计投影，不暴露 Dashboard 的其它能力。

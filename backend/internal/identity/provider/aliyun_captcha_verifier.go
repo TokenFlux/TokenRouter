@@ -2,15 +2,15 @@
 package provider
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
+	"context"
+	"errors"
+	"fmt"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	captcha "github.com/alibabacloud-go/captcha-20230305/client"
 	openapiutil "github.com/alibabacloud-go/darabonba-openapi/v2/utils"
-	dara "github.com/alibabacloud-go/tea/dara"
-	tea "github.com/alibabacloud-go/tea/tea"
+	"github.com/alibabacloud-go/tea/dara"
+	"github.com/alibabacloud-go/tea/tea"
 )
 
 const aliyunCaptchaTimeoutMillis = 10_000

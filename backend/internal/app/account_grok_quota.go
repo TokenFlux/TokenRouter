@@ -5,7 +5,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"

@@ -1,8 +1,8 @@
 package billing
 
 import (
-	math "math"
-	time "time"
+	"math"
+	"time"
 )
 
 type SettlementSubscription struct {

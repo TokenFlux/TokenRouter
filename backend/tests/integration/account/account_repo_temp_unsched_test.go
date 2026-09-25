@@ -17,7 +17,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 
-	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/require"
 )
 

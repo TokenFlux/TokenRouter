@@ -2,9 +2,9 @@
 package egress
 
 import (
-	errors "errors"
-	url "net/url"
-	strings "strings"
+	"errors"
+	"net/url"
+	"strings"
 )
 
 // UsageURLPolicy 区分未装配配置与显式关闭白名单，保留原查询端点校验顺序。

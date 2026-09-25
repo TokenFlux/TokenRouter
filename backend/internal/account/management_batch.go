@@ -2,11 +2,11 @@
 package account
 
 import (
-	context "context"
-	sort "sort"
-	sync "sync"
+	"context"
+	"sort"
+	"sync"
 
-	errgroup "golang.org/x/sync/errgroup"
+	"golang.org/x/sync/errgroup"
 )
 
 type ManagementBatchStore interface {

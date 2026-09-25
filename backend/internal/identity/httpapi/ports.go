@@ -2,11 +2,11 @@
 package httpapi
 
 import (
-	context "context"
+	"context"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	gin "github.com/gin-gonic/gin"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/gin-gonic/gin"
 )
 
 // UserReader 只为当前认证读取用户状态。

@@ -1,7 +1,7 @@
 package billing
 
 import (
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 var ErrRedeemCodeExists = apperror.Conflict("REDEEM_CODE_EXISTS", "redeem code already exists")

@@ -2,16 +2,16 @@
 package routing
 
 import (
-	context "context"
-	errors "errors"
-	fmt "fmt"
-	strings "strings"
+	"context"
+	"errors"
+	"fmt"
+	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	wireprotocol "github.com/TokenFlux/TokenRouter/internal/protocol"
-	capability "github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 const GroupSortOrderStep = 10
@@ -526,7 +526,7 @@ func (s *GroupAdmin) UpdateGroup(ctx context.Context, id int64, input *UpdateGro
 		group.AdvancedSchedulerOverrides = policy.CloneGroupAdvancedSchedulerOverrides(*input.AdvancedSchedulerOverrides)
 	}
 	if input.AllowedProtocols != nil {
-		group.AllowedProtocols = append([]wireprotocol.ProtocolID{}, (*input.AllowedProtocols)...)
+		group.AllowedProtocols = append([]wireprotocol.ProtocolID{}, *input.AllowedProtocols...)
 	} else {
 		// 字段缺省时保留原集合；切换平台只移除新平台不支持的协议。
 		group.AllowedProtocols = previousAllowedProtocols

@@ -2,12 +2,12 @@
 package httpapi
 
 import (
-	strconv "strconv"
-	strings "strings"
+	"strconv"
+	"strings"
 
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	team "github.com/TokenFlux/TokenRouter/internal/team"
-	gin "github.com/gin-gonic/gin"
+	"github.com/TokenFlux/TokenRouter/internal/team"
+	"github.com/gin-gonic/gin"
 )
 
 // AdminHandler 处理平台管理员的团队运维操作。

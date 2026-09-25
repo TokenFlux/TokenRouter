@@ -2,17 +2,17 @@
 package identity
 
 import (
-	bytes "bytes"
-	context "context"
-	rand "crypto/rand"
-	fmt "fmt"
-	io "io"
-	strings "strings"
-	time "time"
+	"bytes"
+	"context"
+	"crypto/rand"
+	"fmt"
+	"io"
+	"strings"
+	"time"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	protocol "github.com/go-webauthn/webauthn/protocol"
-	webauthn "github.com/go-webauthn/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 const (

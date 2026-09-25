@@ -2,12 +2,12 @@
 package provider
 
 import (
-	fmt "fmt"
-	io "io"
+	"fmt"
+	"io"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	protocol "github.com/go-webauthn/webauthn/protocol"
-	webauthn "github.com/go-webauthn/webauthn/webauthn"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 // PasskeyOptions 是启动时固定的 RP 配置。

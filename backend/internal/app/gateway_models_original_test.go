@@ -3,11 +3,11 @@ package app
 import (
 	"context"
 	"encoding/json"
-	slog "log/slog"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	time "time"
+	"time"
 
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 
@@ -17,7 +17,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
