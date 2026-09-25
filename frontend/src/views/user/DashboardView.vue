@@ -18,7 +18,7 @@
         <UserDashboardStats :stats="stats" :balance="user?.balance || 0" :is-simple="authStore.isSimpleMode" />
         <UserDashboardCharts v-model:startDate="startDate" v-model:endDate="endDate" v-model:granularity="granularity" :loading="loadingCharts" :trend="trendData" :models="modelStats" @dateRangeChange="onDateRangeChange" @granularityChange="loadCharts" @refresh="refreshAll" />
         <UserDashboardHeatmap ref="heatmapRef" />
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div class="lg:col-span-2"><UserDashboardAnnouncements /></div>
           <div class="lg:col-span-1"><UserDashboardQuickActions /></div>
         </div>

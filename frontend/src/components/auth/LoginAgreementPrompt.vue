@@ -12,7 +12,7 @@
         :content="t('auth.agreementRequired')"
         :closable="false"
         width-class="w-72"
-        class="mt-[2px] shrink-0"
+        class="mt-0.5 shrink-0"
         @update:open="emit('update:hintVisible', $event)"
       >
         <template #trigger>

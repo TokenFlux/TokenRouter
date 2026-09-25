@@ -34,7 +34,7 @@
         </div>
       </div>
 
-      <div v-if="mode === 'dashboard'" class="card p-5">
+      <div v-if="mode === 'dashboard'" class="card p-6">
         <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('team.totalCost') }}</h2>
         <div v-if="daily.length === 0" class="py-12 text-center text-sm text-gray-500">{{ t('team.noUsage') }}</div>
         <div v-else class="mt-5 space-y-3">

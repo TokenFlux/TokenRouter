@@ -27,6 +27,7 @@
 }
 
 /* 2. Popover Container */
+/* 宽度 440px 与内边距均落在 4px 网格上;!important 用于覆盖 driver.js 的内联默认样式,属合法例外。 */
 .driver-popover.theme-tour-popover {
   position: fixed !important;
   z-index: 100000000 !important;

@@ -16,7 +16,7 @@
             <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
           </div>
           <!-- 品牌标题在浅色和深色主题下保持清晰对比。 -->
-          <h1 class="mb-2 text-3xl font-bold text-black dark:text-white">
+          <h1 class="mb-2 page-title">
             {{ siteName }}
           </h1>
           <p class="text-sm text-gray-500 dark:text-dark-400">

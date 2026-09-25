@@ -5,7 +5,7 @@
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent"></div>
       </div>
 
-      <div v-else-if="errorMessage" class="card p-8 text-center">
+      <div v-else-if="errorMessage" class="card p-6 text-center">
         <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
           <Icon name="exclamationCircle" size="xl" class="text-red-500" />
         </div>

@@ -3,7 +3,7 @@
     <div class="mx-auto max-w-2xl">
       <div v-if="isProcessing" class="card p-6 text-center">
         <div class="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
-        <h1 class="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
+        <h1 class="mt-4 page-title">
           {{ t('auth.oauth.callbackTitle') }}
         </h1>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -12,7 +12,7 @@
       </div>
 
       <div v-else-if="needsRegistrationCompletion" class="card p-6">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <h1 class="page-title">
           {{ t('auth.oidc.callbackTitle', { providerName }) }}
         </h1>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -80,7 +80,7 @@
       </div>
 
       <div v-else-if="invalidCallback" class="card p-6 text-center">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <h1 class="page-title">
           {{ t('auth.oauth.invalidCallbackTitle') }}
         </h1>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -92,7 +92,7 @@
       </div>
 
       <div v-else class="card p-6">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <h1 class="page-title">
           {{ t('auth.oauth.callbackTitle') }}
         </h1>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">

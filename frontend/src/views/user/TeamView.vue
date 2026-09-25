@@ -29,7 +29,7 @@
           <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400">
             <Icon name="users" size="xl" />
           </div>
-          <h1 class="mt-5 text-2xl font-semibold text-gray-900 dark:text-white">{{ t('team.createTitle') }}</h1>
+          <h1 class="mt-5 page-title">{{ t('team.createTitle') }}</h1>
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t('team.createDescription') }}</p>
           <button class="btn btn-secondary mt-5" type="button" @click="startTeamGuide">
             <Icon name="questionCircle" size="sm" />
@@ -52,7 +52,7 @@
         <header class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="flex flex-wrap items-center gap-3">
-              <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ teamContext.team.name }}</h1>
+              <h1 class="page-title">{{ teamContext.team.name }}</h1>
               <span class="badge" :class="teamContext.team.status === 'active' ? 'badge-success' : 'badge-danger'">
                 {{ teamContext.team.status === 'active' ? t('team.statusActive') : t('team.statusSuspended') }}
               </span>
@@ -90,7 +90,7 @@
         </nav>
 
         <section v-if="activeTab === 'overview'" class="space-y-6">
-          <div v-if="!isOwner" class="card p-5" data-tour="team-limit-progress">
+          <div v-if="!isOwner" class="card p-6" data-tour="team-limit-progress">
             <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('team.limitProgress') }}</h2>
             <div class="mt-5 grid gap-5 md:grid-cols-3">
               <div v-for="limit in memberLimits" :key="limit.label">
@@ -196,11 +196,11 @@
         </section>
 
         <section v-else class="space-y-6">
-          <div v-if="isOwner" class="card p-5">
+          <div v-if="isOwner" class="card p-6">
             <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('team.name') }}</h2>
             <form class="mt-4 flex flex-col gap-3 sm:flex-row" @submit.prevent="renameTeam"><input v-model.trim="renameName" class="input flex-1" required maxlength="100" /><button class="btn btn-primary" :disabled="submitting">{{ t('team.rename') }}</button></form>
           </div>
-          <div v-if="isOwner" class="card p-5">
+          <div v-if="isOwner" class="card p-6">
             <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('team.defaultMemberLimits') }}</h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('team.defaultMemberLimitsDescription') }}</p>
             <form class="mt-5" @submit.prevent="saveDefaultMemberLimits">

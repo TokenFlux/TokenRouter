@@ -481,8 +481,9 @@
   }
 
   /* ============ 统计卡片 ============ */
+  /* 统计卡与仪表盘网格卡共用 p-4 档,独立卡片才用 p-6。 */
   .stat-card {
-    @apply card p-5;
+    @apply card p-4;
     @apply flex items-start gap-4;
   }
 
@@ -792,14 +793,14 @@
 
   .sidebar-link {
     @apply flex h-9 items-center gap-3 rounded-control py-1.5;
+    /* 水平内边距落在 4px 网格上(此前的 17px/14px 是魔数);折叠态由 sidebar-link-collapsed 另行覆盖。 */
+    @apply px-4;
     @apply overflow-hidden;
     @apply text-sm font-medium;
     @apply text-primary-900 dark:text-dark-100;
     @apply transition-all duration-200;
     @apply hover:bg-primary-100 dark:hover:bg-dark-950;
     @apply hover:text-primary-700 dark:hover:text-primary-400;
-    padding-left: 1.0625rem;
-    padding-right: 0.875rem;
   }
 
   .sidebar-link-active {
