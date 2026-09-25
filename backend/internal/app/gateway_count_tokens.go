@@ -19,7 +19,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -62,7 +61,7 @@ func (t countTarget) ReleaseSession(ctx context.Context, hash string) {
 }
 
 // provideCountTokensHTTP 直接装配原生 HTTP，固定依赖不经旧 Handler 工厂。
-func provideCountTokensHTTP(planner *gatewayprovider.RoutePlanner, messages *gatewayhttp.MessagesExecutor, openAI *service.OpenAIGatewayService, funding *admission.FundingAdmission, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Generic, cooldown *account.RetryCooldown) *gatewayhttp.CountTokensHandler {
+func provideCountTokensHTTP(planner *gatewayprovider.RoutePlanner, messages *gatewayhttp.MessagesExecutor, shared *schedulerSharedState, funding *admission.FundingAdmission, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Generic, cooldown *account.RetryCooldown) *gatewayhttp.CountTokensHandler {
 	limit := int64(0)
 	switches := 10
 	if cfg != nil {
@@ -79,8 +78,7 @@ func provideCountTokensHTTP(planner *gatewayprovider.RoutePlanner, messages *gat
 		Executor: countExecution{planner: planner, choices: choices, messages: messages, cooldown: messageRetryCooldown(cooldown)}, Funding: funding, ReadAccess: keyhttp.GetAPIKeyFromContext,
 		ObserveCompatibility: func(log *zap.Logger) {
 			gatewayhttp.LogCompatibilityFallback(log, func() gatewayhttp.CompatibilityLogSnapshot {
-				value := openAI.SnapshotOpenAICompatibilityFallbackMetrics()
-				return gatewayhttp.CompatibilityLogSnapshot{ReadTotal: value.SessionHashLegacyReadFallbackTotal, ReadHit: value.SessionHashLegacyReadFallbackHit, DualWrite: value.SessionHashLegacyDualWriteTotal, ReadHitRate: value.SessionHashLegacyReadHitRate, MetadataTotal: value.MetadataLegacyFallbackTotal}
+				return gatewayCompatibilitySnapshot(shared)
 			})
 		},
 		BusinessError: func(c *gin.Context, err error, started bool, write func(int, string, string, bool)) bool {

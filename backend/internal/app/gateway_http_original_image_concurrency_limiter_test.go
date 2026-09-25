@@ -22,7 +22,6 @@ import (
 
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -47,7 +46,7 @@ func TestOpenAIGatewayHandlerResponses_ImageIntentRejectedByImageConcurrency(t *
 	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 20, Concurrency: 1})
 
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:  &service.OpenAIGatewayService{},
+		Source:  &gatewayExecutionFixture{},
 		Funding: &admission.FundingAdmission{},
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&httptestkit.ConcurrencySequence{UserSeq: []bool{true}}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
@@ -94,7 +93,7 @@ func TestOpenAIGatewayHandlerResponses_TextOnlyNotRejectedByImageConcurrency(t *
 	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 20, Concurrency: 1})
 
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:  &service.OpenAIGatewayService{},
+		Source:  &gatewayExecutionFixture{},
 		Funding: newFundingAdmissionFixture(newBillingEligibilityFixture(&config.Config{RunMode: config.RunModeSimple}), &config.Config{RunMode: config.RunModeSimple}),
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&httptestkit.ConcurrencySequence{UserSeq: []bool{true}}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,

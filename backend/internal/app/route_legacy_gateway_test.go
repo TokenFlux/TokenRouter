@@ -4,7 +4,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"time"
 
@@ -65,7 +64,7 @@ func RegisterGatewayRoutes(
 	var runtime *textattempt.Runtime
 	var activity *gatewayRequestActivity
 	if h.TextEnabled {
-		shared = provideMessageHTTPBindings(gatewayprovider.NewRoutePlanner(nil), nil, &service.OpenAIGatewayService{}, nil, nil, nil, nil, nil, nil, cfg, nil)
+		shared = provideMessageHTTPBindings(gatewayprovider.NewRoutePlanner(nil), nil, provideSchedulerSharedState(nil, nil), nil, nil, nil, nil, nil, nil, cfg, nil)
 		runtime = textattempt.New(textattempt.Bindings{})
 		activity = &gatewayRequestActivity{Operations: lifecycle.NewOperations("route-fixture")}
 	}
@@ -91,14 +90,14 @@ func RegisterGatewayRoutes(
 	}
 	commonOpenAI := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
 	openAIRuntime := provideOpenAITextAttemptRuntime(commonOpenAI)
-	mediaRuntime := provideMediaRuntime(nil, nil, nil, nil, commonOpenAI, nil, nil, nil, nil, nil, nil, nil)
+	mediaRuntime := provideMediaRuntime(nil, nil, nil, nil, commonOpenAI, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	openAITextHTTP := h.OpenAITextHTTP
 	if openAITextHTTP == nil && h.OpenAIEnabled {
-		openAITextHTTP = provideOpenAITextHTTP(nil, nil, nil, nil, nil, nil, nil, nil, nil, openAIRuntime, activity)
+		openAITextHTTP = provideOpenAITextHTTP(nil, nil, nil, nil, nil, nil, nil, nil, nil, openAIRuntime, activity, nil, nil)
 	}
 	responsesWSHTTP := h.ResponsesWSHTTP
 	if responsesWSHTTP == nil && h.OpenAIEnabled {
-		responsesWSHTTP = provideResponsesWSHTTP(nil, nil, nil, nil, commonOpenAI, nil, nil, nil, activity, nil)
+		responsesWSHTTP = provideResponsesWSHTTP(nil, nil, nil, nil, commonOpenAI, nil, nil, nil, activity, nil, nil)
 	}
 	modelsHTTP := h.ModelsHTTP
 	if modelsHTTP == nil && h.TextEnabled {

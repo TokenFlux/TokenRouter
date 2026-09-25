@@ -13,15 +13,16 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
+	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 // provideOpenAITextHTTP 直接组合原生 HTTP 与固定单次运行时，不经过旧 Handler。
 func provideOpenAITextHTTP(
-	source *service.OpenAIGatewayService,
+	source *gatewayhttp.OpenAIResponsesExecutor,
 	funding *admission.FundingAdmission,
 	keys *apikey.APIKeyService,
 	resources *gatewayhttp.OpenAIHTTPResources,
@@ -32,9 +33,10 @@ func provideOpenAITextHTTP(
 	cfg *config.Config,
 	runtime *openaiattempt.Runtime,
 	activity *gatewayRequestActivity,
+	planner *provider.RoutePlanner, cache session.GatewayCache,
 ) *gatewayhttp.OpenAITextHandler {
 	options := openAITextOptions(cfg)
-	bindings := openAITextBindings(source, funding, keys, resources, cyber, rules, moderator)
+	bindings := openAITextBindings(source, funding, keys, resources, cyber, rules, moderator, planner, cache)
 	result := gatewayhttp.NewBoundOpenAITextHandler(options, bindings, prompts, textflow.NewResponsesExecutor(runtime, textflow.ResponseOptions{MaxSwitches: options.MaxSwitches}, textflow.ResponseOptions{MaxSwitches: options.MaxSwitches, FirstOutputBudget: true}))
 	result.BindRequestActivity(activity.Enter)
 	return result
@@ -57,7 +59,7 @@ func openAITextOptions(cfg *config.Config) gatewayhttp.OpenAITextOptions {
 }
 
 // openAITextBindings 固定原生能力，运行时只创建请求数据。
-func openAITextBindings(source *service.OpenAIGatewayService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, resources *gatewayhttp.OpenAIHTTPResources, cyber *gatewayhttp.CyberHandler, rules *errorpolicy.ErrorPassthroughService, moderator *moderation.ContentModerationService) gatewayhttp.OpenAITextBindings {
+func openAITextBindings(source *gatewayhttp.OpenAIResponsesExecutor, funding *admission.FundingAdmission, keys *apikey.APIKeyService, resources *gatewayhttp.OpenAIHTTPResources, cyber *gatewayhttp.CyberHandler, rules *errorpolicy.ErrorPassthroughService, moderator *moderation.ContentModerationService, planner *provider.RoutePlanner, cache session.GatewayCache) gatewayhttp.OpenAITextBindings {
 	var moderationPort gatewayhttp.ModerationPort
 	if moderator != nil {
 		moderationPort = moderator
@@ -71,16 +73,16 @@ func openAITextBindings(source *service.OpenAIGatewayService, funding *admission
 			Concurrency: resources != nil && resources.Concurrency != nil && resources.Concurrency.Service() != nil,
 		},
 		Resources:     resources,
-		ResponseOwner: func() session.HTTPResponseOwnerReader { return source.ResponseStateStore() },
+		ResponseOwner: func() session.HTTPResponseOwnerReader { return source.Lineage.Store },
 		Moderation:    moderationPort,
 		PlanRoute: func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-			return source.PlanRoute(ctx, key.Group, key.GroupID, model)
+			return planner.PlanKey(ctx, key, model)
 		},
-		ReplaceModel:   source.ReplaceModelInBody,
+		ReplaceModel:   openaiwire.ReplaceModelInBody,
 		Errors:         rules,
 		Funding:        funding,
 		Cyber:          cyber,
-		IsolateSession: source.EnsureSessionIsolation,
+		IsolateSession: messageSessionIsolation(cache),
 	}
 	return bindings
 }

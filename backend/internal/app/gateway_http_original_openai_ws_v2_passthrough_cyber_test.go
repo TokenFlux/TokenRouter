@@ -103,7 +103,7 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo, gatewayCache, cfg, nil, nil, nil, nil, nil, completionInput17, newOpenAIExecutionCredentialsForTest(accountRepo, nil), nil, nil, nil, settingSvc, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
-	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, usageRepo, completionInput16, billingCacheSvc, completionInput17, nil, nil, true))
+	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, usageRepo, completionInput16, billingCacheSvc, completionInput17, nil, nil, true)
 
 	concurrencyCache := &httptestkit.ConcurrencyHooks{
 		AcquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },

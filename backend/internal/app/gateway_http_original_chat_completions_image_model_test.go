@@ -26,7 +26,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -141,7 +140,7 @@ func newOpenAIImageChatRejectionHandler(t *testing.T) *gatewayHTTPEndpointsFixtu
 
 func newOpenAIImageChatRejectionHandlerWithCache(t *testing.T, cache *httptestkit.ConcurrencyHooks) *gatewayHTTPEndpointsFixture {
 	t.Helper()
-	return newOpenAIImageChatRejectionHandlerWithService(t, cache, &service.OpenAIGatewayService{}, newExecutionAvailabilityForTest(
+	return newOpenAIImageChatRejectionHandlerWithService(t, cache, &gatewayExecutionFixture{}, newExecutionAvailabilityForTest(
 
 		// newOpenAIImageChatRejectionHandlerWithChannel 构造带渠道映射的 OpenAI Chat 测试处理器。
 		nil, nil, nil), newEmptyCompatibleSelectionFixture())
@@ -154,8 +153,8 @@ func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService 
 		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
 			nil), nil, nil, channelService, nil, nil, responseHeaderFilterForTest(nil), nil, nil, nil,
 	)
-	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(nil, nil, nil,
-		nil, nil, channelService, nil, true))
+	gatewayService.Recorder = newHTTPCompletionFixture(nil, nil, nil,
+		nil, nil, channelService, nil, true)
 
 	return newOpenAIImageChatRejectionHandlerWithService(t, &httptestkit.ConcurrencyHooks{}, gatewayService, newExecutionAvailabilityForTest(nil,
 
@@ -164,7 +163,7 @@ func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService 
 }
 
 // newOpenAIImageChatRejectionHandlerWithService 复用最小依赖构造 Chat 端点测试处理器。
-func newOpenAIImageChatRejectionHandlerWithService(t *testing.T, cache *httptestkit.ConcurrencyHooks, gatewayService *service.OpenAIGatewayService, availability *gatewayModelAvailability, choices *selection.Compatible) *gatewayHTTPEndpointsFixture {
+func newOpenAIImageChatRejectionHandlerWithService(t *testing.T, cache *httptestkit.ConcurrencyHooks, gatewayService *gatewayExecutionFixture, availability *gatewayModelAvailability, choices *selection.Compatible) *gatewayHTTPEndpointsFixture {
 	t.Helper()
 
 	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{

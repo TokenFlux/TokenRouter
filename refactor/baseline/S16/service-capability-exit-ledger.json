@@ -2899,5 +2899,14 @@
       0,
       0
     ]
+  },
+  "production_legacy_graph": {
+    "service_imports": 0,
+    "verification": "service-root-assembly-verification.json",
+    "retired_app_factories": [
+      "backend/internal/app/gateway_openai_execution.go",
+      "backend/internal/app/gateway_openai_responses.go",
+      "backend/internal/app/egress_router_projection.go"
+    ]
   }
 }

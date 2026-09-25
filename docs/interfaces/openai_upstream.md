@@ -25,7 +25,7 @@ OAuth 授权会话、刷新结果补全和凭据组装由 `account.OpenAIAuthori
 
 标准 Responses、passthrough、Chat/Messages 转换和 Raw Chat 读取使用原生实现，通过同步 OutputSink 输出。 `gateway/httpapi.OpenAIResponseOutput` 固定绑定响应读取、Header、错误规则、健康观测、超时及诊断；app 注入静态参数，TTFT 设置仍在原读取时点查询。响应结果直接使用上游读取器的值类型，保留“仅有观测的失败”在不同入口上的返回差异。首输出暂存器拥有当前尝试的内存和临时文件；protocol 唯一提供工具参数、usage、终态重建和图片产出计数。Embeddings、Images 和 Alpha Search 的单次执行负责网络调用和响应资源，账号选择、健康写入及全局重试由入站适配。Alpha Search 在错误处理回卷响应体时仍关闭最初取得的上游 Body。计数查询保持原生完整 JSON 与 Anthropic 兼容响应的区别，不作为推理结算事实。 Embeddings、AlphaSearch、Messages count_tokens 和 Responses input_tokens 由 `gateway/httpapi.OpenAIAuxiliary` 直接接入；请求构造与健康/输出复用原实例，模型投影和计数请求准备归 gateway/provider。计数路由直接组合 RoutePlanner、选择器及受控账号目标，不再通过旧网关服务取得执行能力。
 
-Responses 主请求由 `gateway/httpapi.OpenAIResponsesExecutor` 执行准备、模型与工具转换、HTTP交换及协议分派。图片桥接按分组、账号、渠道、全局默认的原顺序求值；渠道仍在需要时读取。HTTP与WS使用同一 OpenAIEncryptedLineage 和会话存储，失效密文摘要只在上游明确拒绝后记录，后续请求按原会话键剥离。转入WS时传递已固化的模型、计费投影、TLS及请求体，继续使用原连接池和恢复循环；WS资源已由同一 OpenAIWSConnections 持有，关闭后不能重新创建连接池。
+Responses 主请求由 `gateway/httpapi.OpenAIResponsesExecutor` 执行准备、模型与工具转换、HTTP交换及协议分派。图片桥接按分组、账号、渠道、全局默认的原顺序求值；渠道仍在需要时读取。HTTP与WS使用同一 OpenAIEncryptedLineage 和会话存储，失效密文摘要只在上游明确拒绝后记录，后续请求按原会话键剥离。转入WS时传递已固化的模型、计费投影、TLS及请求体，继续使用原连接池和恢复循环；WS资源已由同一 OpenAIWSConnections 持有，关闭后不能重新创建连接池。app分别装配原生文本、Responses、WS、Images和辅助执行器，复用同一请求构造、输出、凭据及连接拥有者，已不构造旧OpenAIGatewayService。
 
 图片入口由 `gateway/httpapi.OpenAIImagesExecutor` 组合原生请求和输出能力，app 将同一实例直接绑定到媒体运行时。API Key 与 OAuth 分支保留各自的协议转换、实际产出计数和失败资格。图片请求在原位置脱离客户端取消，读取完成后才交付已观测用量；JSON 心跳不视为真实图片输出。URL 回填复用原传输与逐跳目标校验，不改变返回格式选择和计费元数据。结构化图片工具不可用事件由 account/provider.ImageToolCooldown 写模型级冷却，模型文字兜底不触发该写入。
 

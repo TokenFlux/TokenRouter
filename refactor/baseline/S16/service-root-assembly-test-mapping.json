@@ -1,0 +1,2120 @@
+{
+  "assertion_call_count_changes": 0,
+  "baseline_head": "342f6d0721df3c560b1a64a868047c581b5c6482",
+  "missing": 0,
+  "note": "名称、构建条件、源与目标函数摘要和断言调用对应；构造/投影改写以及循环展开须结合源码核对。",
+  "tests": [
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_completion_runtime_test.go",
+        "name": "TestCompletionRuntimeOwnsIsolatedRatesAndSharedRecorders",
+        "tag": "normal",
+        "body_sha256": "9252b8f77c8ee598bdb47b6739de294d73d51e89a95c1348ce20468874d6591e",
+        "assertions": {
+          "require.Equal": 5,
+          "require.NoError": 1,
+          "require.NotSame": 2,
+          "require.Same": 5,
+          "require.Zero": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_completion_runtime_test.go",
+          "name": "TestCompletionRuntimeOwnsIsolatedRatesAndSharedRecorders",
+          "tag": "normal",
+          "body_sha256": "dff0db03b97fc3d82302c3b1ad9f92008173c770847fde0a4146f5b154fa3f9d",
+          "assertions": {
+            "require.Equal": 5,
+            "require.NoError": 1,
+            "require.NotSame": 2,
+            "require.Same": 5,
+            "require.Zero": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_chat_completions_image_model_test.go",
+        "name": "TestChatCompletionsRejectsGPTImageModelsBeforeScheduling",
+        "tag": "normal",
+        "body_sha256": "76042db49025eed253e075a1b0823eae97a7929653279709ba640d24449467a5",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 2,
+          "require.False": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_chat_completions_image_model_test.go",
+          "name": "TestChatCompletionsRejectsGPTImageModelsBeforeScheduling",
+          "tag": "normal",
+          "body_sha256": "76042db49025eed253e075a1b0823eae97a7929653279709ba640d24449467a5",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 2,
+            "require.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_chat_completions_image_model_test.go",
+        "name": "TestChatCompletionsRejectsChannelMappedImageModel",
+        "tag": "normal",
+        "body_sha256": "3f9e89bd932c9801b360cdca44612939ca07ad1db949f6b11473cbbcf6d034d5",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1,
+          "require.False": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_chat_completions_image_model_test.go",
+          "name": "TestChatCompletionsRejectsChannelMappedImageModel",
+          "tag": "normal",
+          "body_sha256": "3f9e89bd932c9801b360cdca44612939ca07ad1db949f6b11473cbbcf6d034d5",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1,
+            "require.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_chat_completions_image_model_test.go",
+        "name": "TestOpenAIChatCompletionsImageModelRejectionDoesNotAcquireConcurrency",
+        "tag": "normal",
+        "body_sha256": "f2be074bf5ae83fd751ad63887c894b7dc3ac51b4932c02a2813f5b93dcc695b",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_chat_completions_image_model_test.go",
+          "name": "TestOpenAIChatCompletionsImageModelRejectionDoesNotAcquireConcurrency",
+          "tag": "normal",
+          "body_sha256": "f2be074bf5ae83fd751ad63887c894b7dc3ac51b4932c02a2813f5b93dcc695b",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_image_concurrency_limiter_test.go",
+        "name": "TestOpenAIGatewayHandlerResponses_ImageIntentRejectedByImageConcurrency",
+        "tag": "normal",
+        "body_sha256": "367ed34a57113de6115eb9e710d5b59e832accd960e2b4c5bc229e94ca25b12a",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 2,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_image_concurrency_limiter_test.go",
+          "name": "TestOpenAIGatewayHandlerResponses_ImageIntentRejectedByImageConcurrency",
+          "tag": "normal",
+          "body_sha256": "ff71e870f96c2ab34d67b43b32c3785b683155096328df6172cf497e12d0316d",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 2,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_image_concurrency_limiter_test.go",
+        "name": "TestOpenAIGatewayHandlerResponses_TextOnlyNotRejectedByImageConcurrency",
+        "tag": "normal",
+        "body_sha256": "13f5952774d150e1bba8276060d1305c110550459e5d3ff204052b1379af13f3",
+        "assertions": {
+          "require.NotContains": 1,
+          "require.NotEqual": 1,
+          "require.NotNil": 1,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_image_concurrency_limiter_test.go",
+          "name": "TestOpenAIGatewayHandlerResponses_TextOnlyNotRejectedByImageConcurrency",
+          "tag": "normal",
+          "body_sha256": "dadf9f4180f1533f425ec7304af80e6a414e5c267ab5f63a3919e861efcd3471",
+          "assertions": {
+            "require.NotContains": 1,
+            "require.NotEqual": 1,
+            "require.NotNil": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+        "name": "TestResponsesCredentialFailoverLoop",
+        "tag": "unit",
+        "body_sha256": "c20dc04ec41bd56990b99bc976b79a7509ef5d337e3727256711e95ce843735f",
+        "assertions": {
+          "require.Contains": 4,
+          "require.Empty": 9,
+          "require.Equal": 13,
+          "require.Zero": 3,
+          "t.Fatal": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+          "name": "TestResponsesCredentialFailoverLoop",
+          "tag": "unit",
+          "body_sha256": "c20dc04ec41bd56990b99bc976b79a7509ef5d337e3727256711e95ce843735f",
+          "assertions": {
+            "require.Contains": 4,
+            "require.Empty": 9,
+            "require.Equal": 13,
+            "require.Zero": 3,
+            "t.Fatal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+        "name": "TestResponsesGrok429FailoverIsBounded",
+        "tag": "unit",
+        "body_sha256": "589a4c2470b4cf08bc0979bb5d8c84e1d3bad4108ee13ee800fef26dbc64810a",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 6,
+          "require.NotContains": 3
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+          "name": "TestResponsesGrok429FailoverIsBounded",
+          "tag": "unit",
+          "body_sha256": "589a4c2470b4cf08bc0979bb5d8c84e1d3bad4108ee13ee800fef26dbc64810a",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 6,
+            "require.NotContains": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+        "name": "TestResponsesGrok402FailoverCooldown",
+        "tag": "unit",
+        "body_sha256": "34416e9cb0a8420a8841bbe7f49a1e21372ec38a37a80c480fe85a4d1108296e",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 6
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+          "name": "TestResponsesGrok402FailoverCooldown",
+          "tag": "unit",
+          "body_sha256": "34416e9cb0a8420a8841bbe7f49a1e21372ec38a37a80c480fe85a4d1108296e",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 6
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+        "name": "TestResponsesGrok429FailoverHandlesMixedStatuses",
+        "tag": "unit",
+        "body_sha256": "1f5ef6c1c12e79af3627be6e0c45d21798650267cb51da75a863187a8ede4e29",
+        "assertions": {
+          "require.Equal": 6,
+          "require.NotContains": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+          "name": "TestResponsesGrok429FailoverHandlesMixedStatuses",
+          "tag": "unit",
+          "body_sha256": "1f5ef6c1c12e79af3627be6e0c45d21798650267cb51da75a863187a8ede4e29",
+          "assertions": {
+            "require.Equal": 6,
+            "require.NotContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+        "name": "TestGrokMedia429FailoverIsBounded",
+        "tag": "unit",
+        "body_sha256": "1a301b7067670472dff07182bd4de1ab4a1e4175fcf5e075a045f9f511c6a86c",
+        "assertions": {
+          "require.Equal": 4,
+          "require.NotContains": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+          "name": "TestGrokMedia429FailoverIsBounded",
+          "tag": "unit",
+          "body_sha256": "1a301b7067670472dff07182bd4de1ab4a1e4175fcf5e075a045f9f511c6a86c",
+          "assertions": {
+            "require.Equal": 4,
+            "require.NotContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+        "name": "TestGrokOAuthCredentialFailoverAcrossHTTPHandlers",
+        "tag": "unit",
+        "body_sha256": "d2ac4a554cb355ff34e7f41f0555fafcf99d2fb574a3c33be6983b319d15268d",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Empty": 1,
+          "require.Equal": 5,
+          "require.NotContains": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+          "name": "TestGrokOAuthCredentialFailoverAcrossHTTPHandlers",
+          "tag": "unit",
+          "body_sha256": "d2ac4a554cb355ff34e7f41f0555fafcf99d2fb574a3c33be6983b319d15268d",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Empty": 1,
+            "require.Equal": 5,
+            "require.NotContains": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+        "name": "TestGrokOAuthMissingSelectedRowRetriesHealthyAccountWithoutMutation",
+        "tag": "unit",
+        "body_sha256": "060fc45a88fa73918e367c813d284382307ecbc94851b8619b59756c4577d845",
+        "assertions": {
+          "require.Empty": 2,
+          "require.Equal": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+          "name": "TestGrokOAuthMissingSelectedRowRetriesHealthyAccountWithoutMutation",
+          "tag": "unit",
+          "body_sha256": "060fc45a88fa73918e367c813d284382307ecbc94851b8619b59756c4577d845",
+          "assertions": {
+            "require.Empty": 2,
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+        "name": "TestResponsesWebSocketCredentialFailoverLoop",
+        "tag": "unit",
+        "body_sha256": "cefc82cbf3f0256786f364a2281986c3e4fb52a4620334818bea5eb2b600a01d",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Empty": 3,
+          "require.Equal": 4,
+          "require.ErrorAs": 1,
+          "require.Eventually": 1,
+          "require.NoError": 3,
+          "t.Fatal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go",
+          "name": "TestResponsesWebSocketCredentialFailoverLoop",
+          "tag": "unit",
+          "body_sha256": "cefc82cbf3f0256786f364a2281986c3e4fb52a4620334818bea5eb2b600a01d",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Empty": 3,
+            "require.Equal": 4,
+            "require.ErrorAs": 1,
+            "require.Eventually": 1,
+            "require.NoError": 3,
+            "t.Fatal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestHandleGroupSelectionBusinessError",
+        "tag": "normal",
+        "body_sha256": "a0606b05bd0434346de2248a9aed3e0e9eec73fc327913acfbd2327fb5020277",
+        "assertions": {
+          "require.Equal": 3,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestHandleGroupSelectionBusinessError",
+          "tag": "normal",
+          "body_sha256": "a0606b05bd0434346de2248a9aed3e0e9eec73fc327913acfbd2327fb5020277",
+          "assertions": {
+            "require.Equal": 3,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesRequiredCapability",
+        "tag": "normal",
+        "body_sha256": "28bf27f5789150309b1fe8c2b146e40c71daece257fad778d382d78e26b93aae",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesRequiredCapability",
+          "tag": "normal",
+          "body_sha256": "28bf27f5789150309b1fe8c2b146e40c71daece257fad778d382d78e26b93aae",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIEnsureForwardErrorResponse_ResponsesRouteCyberWarningEmitsOriginalMessage",
+        "tag": "normal",
+        "body_sha256": "63547e9322c46003658bafad4aa769459119906a2194b01e3e915a6ccf518523",
+        "assertions": {
+          "assert.Contains": 3,
+          "assert.NotContains": 1,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIEnsureForwardErrorResponse_ResponsesRouteCyberWarningEmitsOriginalMessage",
+          "tag": "normal",
+          "body_sha256": "63547e9322c46003658bafad4aa769459119906a2194b01e3e915a6ccf518523",
+          "assertions": {
+            "assert.Contains": 3,
+            "assert.NotContains": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIForwardErrorAlreadyCommunicated",
+        "tag": "normal",
+        "body_sha256": "34fdeb11e7a66c4318a0530b736a6757054cf4a27f76a0bb66a3363b43641902",
+        "assertions": {
+          "require.False": 2,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIForwardErrorAlreadyCommunicated",
+          "tag": "normal",
+          "body_sha256": "34fdeb11e7a66c4318a0530b736a6757054cf4a27f76a0bb66a3363b43641902",
+          "assertions": {
+            "require.False": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIHandleFailoverExhausted_CyberWarningPassesThroughMessage",
+        "tag": "normal",
+        "body_sha256": "13b034a8e79b89c078d8bee9a5b726f3d46924e03273434f17dc87c476a3f426",
+        "assertions": {
+          "assert.Contains": 1,
+          "assert.NotContains": 1,
+          "require.Equal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIHandleFailoverExhausted_CyberWarningPassesThroughMessage",
+          "tag": "normal",
+          "body_sha256": "13b034a8e79b89c078d8bee9a5b726f3d46924e03273434f17dc87c476a3f426",
+          "assertions": {
+            "assert.Contains": 1,
+            "assert.NotContains": 1,
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestShouldLogOpenAIForwardFailureAsWarn",
+        "tag": "normal",
+        "body_sha256": "a8e7603e7b5ccaee9b00821403eddfb9137ae7a26aa83b7b76217a46611bc9b1",
+        "assertions": {
+          "require.False": 3,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestShouldLogOpenAIForwardFailureAsWarn",
+          "tag": "normal",
+          "body_sha256": "a8e7603e7b5ccaee9b00821403eddfb9137ae7a26aa83b7b76217a46611bc9b1",
+          "assertions": {
+            "require.False": 3,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIGatewayMessagesProtocolPolicyAllowsGrokGroups",
+        "tag": "normal",
+        "body_sha256": "69bf7874b832b5b99774bc130ce8cbedecaa98404dd297ffec9d9115baac8be7",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 4,
+          "require.NotContains": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIGatewayMessagesProtocolPolicyAllowsGrokGroups",
+          "tag": "normal",
+          "body_sha256": "69bf7874b832b5b99774bc130ce8cbedecaa98404dd297ffec9d9115baac8be7",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 4,
+            "require.NotContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_MissingDependencies_ReturnsServiceUnavailable",
+        "tag": "normal",
+        "body_sha256": "6230646477824b1c1a4cae9089b14e111df49023f3c702a56e5cab2d344fc04b",
+        "assertions": {
+          "assert.Equal": 2,
+          "require.Equal": 1,
+          "require.NoError": 1,
+          "require.NotPanics": 1,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_MissingDependencies_ReturnsServiceUnavailable",
+          "tag": "normal",
+          "body_sha256": "6230646477824b1c1a4cae9089b14e111df49023f3c702a56e5cab2d344fc04b",
+          "assertions": {
+            "assert.Equal": 2,
+            "require.Equal": 1,
+            "require.NoError": 1,
+            "require.NotPanics": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_SetsClientTransportHTTP",
+        "tag": "normal",
+        "body_sha256": "936fa76758caec1328a6bf55549434424713b4c83a0537779cc5fddcbe38574e",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_SetsClientTransportHTTP",
+          "tag": "normal",
+          "body_sha256": "936fa76758caec1328a6bf55549434424713b4c83a0537779cc5fddcbe38574e",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_RejectsMessageIDAsPreviousResponseID",
+        "tag": "normal",
+        "body_sha256": "0f4cbda8bac2a33d7a814f401f49e421587712eff1dcbe6d4bfcf7a0cc801888",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_RejectsMessageIDAsPreviousResponseID",
+          "tag": "normal",
+          "body_sha256": "0f4cbda8bac2a33d7a814f401f49e421587712eff1dcbe6d4bfcf7a0cc801888",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_AcceptsHTTPContinuationPreviousResponseIDBeforeRouting",
+        "tag": "normal",
+        "body_sha256": "c00da50126538c3d144bf98bb55867747f56042fdf04c20862df503c07dc94ae",
+        "assertions": {
+          "require.NoError": 1,
+          "require.NotContains": 1,
+          "require.NotEqual": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_AcceptsHTTPContinuationPreviousResponseIDBeforeRouting",
+          "tag": "normal",
+          "body_sha256": "6dba7236f984d88a3662728d5f830632d0304c0e7ea88db036928ab0a1a2457f",
+          "assertions": {
+            "require.NoError": 1,
+            "require.NotContains": 1,
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_RejectsHTTPContinuationOwnedByAnotherUser",
+        "tag": "normal",
+        "body_sha256": "f125586fd67133c2a9290cf86448c003513126c3baf19e64714859baf0de6456",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_RejectsHTTPContinuationOwnedByAnotherUser",
+          "tag": "normal",
+          "body_sha256": "be3a9560222cf7be85313af4aa5c6c4fd1c0e6281a5e1fa9b5e0085a473b53fa",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_RejectsUnownedHTTPContinuation",
+        "tag": "normal",
+        "body_sha256": "941b34a71e5085e4079a34322cba6f3e7f7c8085764b8edd6035e1c79e3c5222",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_RejectsUnownedHTTPContinuation",
+          "tag": "normal",
+          "body_sha256": "941b34a71e5085e4079a34322cba6f3e7f7c8085764b8edd6035e1c79e3c5222",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousResponseReuse",
+        "tag": "normal",
+        "body_sha256": "8417cedee30a5fa19e0213bc17c20487c846a3b92ec2a38088e1480b914a4cbb",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1,
+          "require.NotContains": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousResponseReuse",
+          "tag": "normal",
+          "body_sha256": "8417cedee30a5fa19e0213bc17c20487c846a3b92ec2a38088e1480b914a4cbb",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1,
+            "require.NotContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_SetsClientTransportWSWhenUpgradeValid",
+        "tag": "normal",
+        "body_sha256": "2286f19128d71c84420467ea3805dffd547ac7d36ca125ca60a37ba9ef072923",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_SetsClientTransportWSWhenUpgradeValid",
+          "tag": "normal",
+          "body_sha256": "2286f19128d71c84420467ea3805dffd547ac7d36ca125ca60a37ba9ef072923",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_InvalidUpgradeDoesNotSetTransport",
+        "tag": "normal",
+        "body_sha256": "644584276753b11f87c66020c13a1786a83b7cd5253d603871d906b8de965ffa",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_InvalidUpgradeDoesNotSetTransport",
+          "tag": "normal",
+          "body_sha256": "644584276753b11f87c66020c13a1786a83b7cd5253d603871d906b8de965ffa",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_IngressCapacityRejected",
+        "tag": "normal",
+        "body_sha256": "44a013c11a892e330b90e597b326dfc1d11695443d33f6d986c2137e7ccf335b",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Error": 1,
+          "require.Nil": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_IngressCapacityRejected",
+          "tag": "normal",
+          "body_sha256": "44a013c11a892e330b90e597b326dfc1d11695443d33f6d986c2137e7ccf335b",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Error": 1,
+            "require.Nil": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_IngressLeaseBackendUnavailableBeforeUpgrade",
+        "tag": "normal",
+        "body_sha256": "a6516ce5fbf46b9432c1bf27be3c1894380f34f25faeb0f27767409bdf055ba9",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Error": 1,
+          "require.Nil": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_IngressLeaseBackendUnavailableBeforeUpgrade",
+          "tag": "normal",
+          "body_sha256": "a6516ce5fbf46b9432c1bf27be3c1894380f34f25faeb0f27767409bdf055ba9",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Error": 1,
+            "require.Nil": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_FirstMessageTimeoutUsesConfig",
+        "tag": "normal",
+        "body_sha256": "1c7399635e0ffadb3680eb4837414f276513c3fbe4da3487ab4b0140097c2405",
+        "assertions": {
+          "require.Error": 1,
+          "require.Eventually": 1,
+          "require.GreaterOrEqual": 1,
+          "require.Less": 1,
+          "require.NoError": 1,
+          "require.NotErrorIs": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_FirstMessageTimeoutUsesConfig",
+          "tag": "normal",
+          "body_sha256": "1c7399635e0ffadb3680eb4837414f276513c3fbe4da3487ab4b0140097c2405",
+          "assertions": {
+            "require.Error": 1,
+            "require.Eventually": 1,
+            "require.GreaterOrEqual": 1,
+            "require.Less": 1,
+            "require.NoError": 1,
+            "require.NotErrorIs": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_IngressLeaseReleasedOnEarlyReturn",
+        "tag": "normal",
+        "body_sha256": "56bc8cbab46f51f17f1473f9811da0ec955d982c005aa99701f2d70ae79068cb",
+        "assertions": {
+          "require.Equal": 1,
+          "require.ErrorAs": 1,
+          "require.Eventually": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_IngressLeaseReleasedOnEarlyReturn",
+          "tag": "normal",
+          "body_sha256": "56bc8cbab46f51f17f1473f9811da0ec955d982c005aa99701f2d70ae79068cb",
+          "assertions": {
+            "require.Equal": 1,
+            "require.ErrorAs": 1,
+            "require.Eventually": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_IngressLeaseReleasedWhenUpgradeFails",
+        "tag": "normal",
+        "body_sha256": "6c561e1c42aeb72759e3aaab1568559f267891f7a3a63d78cd4b0e1700819b40",
+        "assertions": {
+          "require.Eventually": 1,
+          "require.NoError": 2,
+          "require.NotEqual": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_IngressLeaseReleasedWhenUpgradeFails",
+          "tag": "normal",
+          "body_sha256": "6c561e1c42aeb72759e3aaab1568559f267891f7a3a63d78cd4b0e1700819b40",
+          "assertions": {
+            "require.Eventually": 1,
+            "require.NoError": 2,
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_RejectsMessageIDAsPreviousResponseID",
+        "tag": "normal",
+        "body_sha256": "0f16c7854fe7e75b4a5914b4bf263d0705bfe02b1cc0141b334491a6b4443dba",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1,
+          "require.Error": 1,
+          "require.ErrorAs": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_RejectsMessageIDAsPreviousResponseID",
+          "tag": "normal",
+          "body_sha256": "0f16c7854fe7e75b4a5914b4bf263d0705bfe02b1cc0141b334491a6b4443dba",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1,
+            "require.Error": 1,
+            "require.ErrorAs": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_PreviousResponseIDKindLoggedBeforeAcquireFailure",
+        "tag": "normal",
+        "body_sha256": "a525273910223d3510ba0313175a402a1fd71abc30569a3487653a8b8a257bf6",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1,
+          "require.Error": 1,
+          "require.ErrorAs": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_PreviousResponseIDKindLoggedBeforeAcquireFailure",
+          "tag": "normal",
+          "body_sha256": "a525273910223d3510ba0313175a402a1fd71abc30569a3487653a8b8a257bf6",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1,
+            "require.Error": 1,
+            "require.ErrorAs": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame",
+        "tag": "normal",
+        "body_sha256": "00925c9b53be358721b8cc32f6672deb63429c008de201bf31940bfe5149e5fa",
+        "assertions": {
+          "require.Contains": 3,
+          "require.Equal": 4,
+          "require.ErrorAs": 1,
+          "require.Eventually": 2,
+          "require.NoError": 4,
+          "require.True": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame",
+          "tag": "normal",
+          "body_sha256": "c174fda8a3f1973e984687371ec149291894895f8046d1c9a51d71be8462b58b",
+          "assertions": {
+            "require.Contains": 3,
+            "require.Equal": 4,
+            "require.ErrorAs": 1,
+            "require.Eventually": 2,
+            "require.NoError": 4,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody",
+        "tag": "normal",
+        "body_sha256": "81cf265f495a4ea773cc3d10d3cd59ea385679129d01081a56a2b6b357e51c43",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 4,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody",
+          "tag": "normal",
+          "body_sha256": "81cf265f495a4ea773cc3d10d3cd59ea385679129d01081a56a2b6b357e51c43",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 4,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt",
+        "tag": "normal",
+        "body_sha256": "fc0d1c6fcff0a6f84d74b15d35d8ec2bc8a429fa6c2b579cd0ce72d61d83b79d",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt",
+          "tag": "normal",
+          "body_sha256": "fc0d1c6fcff0a6f84d74b15d35d8ec2bc8a429fa6c2b579cd0ce72d61d83b79d",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIRecordCyberWarning_RequestSnapshotUsesCurrentToolOutput",
+        "tag": "normal",
+        "body_sha256": "2f1f4c6333332b112067cb6830da14159cd1afb82da2aff237f5c7c2be5fbc1d",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Len": 2,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIRecordCyberWarning_RequestSnapshotUsesCurrentToolOutput",
+          "tag": "normal",
+          "body_sha256": "2f1f4c6333332b112067cb6830da14159cd1afb82da2aff237f5c7c2be5fbc1d",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Len": 2,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIRecordForwardResultCyberWarning_RecordsWSV2TerminalWarning",
+        "tag": "normal",
+        "body_sha256": "4ee88a1dd1a88608024e3fa6328d21d4b8f5c0f9339734dccdbb1b06fc107746",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 3,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIRecordForwardResultCyberWarning_RecordsWSV2TerminalWarning",
+          "tag": "normal",
+          "body_sha256": "4ee88a1dd1a88608024e3fa6328d21d4b8f5c0f9339734dccdbb1b06fc107746",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 3,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning",
+        "tag": "normal",
+        "body_sha256": "4b7394e50ab0ffbd945ab4fd4c29822e3bcf57a605980268d5756be6b3ca7026",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 4,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning",
+          "tag": "normal",
+          "body_sha256": "4b7394e50ab0ffbd945ab4fd4c29822e3bcf57a605980268d5756be6b3ca7026",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 4,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope",
+        "tag": "normal",
+        "body_sha256": "7027e827a9c7805cc75bf6624d880cc8c4289b6837e67f58032dc7f13aa77367",
+        "assertions": {
+          "require.Empty": 1,
+          "require.False": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope",
+          "tag": "normal",
+          "body_sha256": "7027e827a9c7805cc75bf6624d880cc8c4289b6837e67f58032dc7f13aa77367",
+          "assertions": {
+            "require.Empty": 1,
+            "require.False": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups",
+        "tag": "normal",
+        "body_sha256": "df6c94354f5a844039935a009695bc6c92819bd47bd74226615fa517344d194a",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Empty": 1,
+          "require.Equal": 3,
+          "require.NoError": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups",
+          "tag": "normal",
+          "body_sha256": "736dad892441e9f298be54e977f12283942e956454c229f777d4825a818f1f99",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Empty": 1,
+            "require.Equal": 3,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_PassthroughUsageLogPersistsUserAgentAndReasoningEffort",
+        "tag": "normal",
+        "body_sha256": "2e176e5208901293fac8ea9a36494a91f219fa4f0fcfaa0be252b92b47786acd",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NotNil": 2,
+          "require.True": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_PassthroughUsageLogPersistsUserAgentAndReasoningEffort",
+          "tag": "normal",
+          "body_sha256": "2e176e5208901293fac8ea9a36494a91f219fa4f0fcfaa0be252b92b47786acd",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NotNil": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_PassthroughUsageLogInfersReasoningFromInitialRequestModel",
+        "tag": "normal",
+        "body_sha256": "907d36c619296f5f87abea1026fa7d037f24f99d2f83295a34cdc5ad0058852e",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NotNil": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_PassthroughUsageLogInfersReasoningFromInitialRequestModel",
+          "tag": "normal",
+          "body_sha256": "907d36c619296f5f87abea1026fa7d037f24f99d2f83295a34cdc5ad0058852e",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_StripsPreviousResponseIDWhenStickyPreviousMisses",
+        "tag": "normal",
+        "body_sha256": "da7758af78fc6417756cbb6f05f7c0163cfe8c4dd9465f9da56a5c3bedaca99e",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_StripsPreviousResponseIDWhenStickyPreviousMisses",
+          "tag": "normal",
+          "body_sha256": "da7758af78fc6417756cbb6f05f7c0163cfe8c4dd9465f9da56a5c3bedaca99e",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_KeepsFunctionCallOutputPreviousResponseIDWhenStickyPreviousMisses",
+        "tag": "normal",
+        "body_sha256": "8eb1700ece6cff39d8c147a02a3e5c1afd143b231890d51902df5a0725565ab4",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_KeepsFunctionCallOutputPreviousResponseIDWhenStickyPreviousMisses",
+          "tag": "normal",
+          "body_sha256": "8eb1700ece6cff39d8c147a02a3e5c1afd143b231890d51902df5a0725565ab4",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_PassthroughUsageLogLeavesUserAgentNilWhenMissing",
+        "tag": "normal",
+        "body_sha256": "a5727378d503390abeeebc35b63df3a7311fffbb7f6369b8dd87f7c42836196d",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Nil": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_PassthroughUsageLogLeavesUserAgentNilWhenMissing",
+          "tag": "normal",
+          "body_sha256": "a5727378d503390abeeebc35b63df3a7311fffbb7f6369b8dd87f7c42836196d",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Nil": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches",
+        "tag": "normal",
+        "body_sha256": "e332f5a0bcac639ca7aee4b95f1c49f1bb1c2d42a02e60677934dbce55b0af42",
+        "assertions": {
+          "require.Equal": 4
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches",
+          "tag": "normal",
+          "body_sha256": "5f7dcf224436381e7a74668086746764a3b8a9233af21383e6cfff29e8a16310",
+          "assertions": {
+            "require.Equal": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHealthyAccount",
+        "tag": "normal",
+        "body_sha256": "166938ee16fcf1a68ba8bb54e09c11fac1c0e36f1b2069f4597a9868a4341cbc",
+        "assertions": {
+          "require.Equal": 3
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHealthyAccount",
+          "tag": "normal",
+          "body_sha256": "b4da78b2d4db8dae09fcf710df00cc8dbf8312e890c60041496e576664b5c709",
+          "assertions": {
+            "require.Equal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry",
+        "tag": "normal",
+        "body_sha256": "15709ca8b9bf9112ac4a9e4c0edb76e92158ce97cd126a76ff2573e110b48009",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 5
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry",
+          "tag": "normal",
+          "body_sha256": "67fa154d08f1cade530fb3628b6773f4b20975fdf1583bd8e463c4d784e7f4c4",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent",
+        "tag": "normal",
+        "body_sha256": "1d46b93a2441e06584010f46d8abeba3e18d271767d7ac6c24677a089eda1770",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 3,
+          "t.Fatal": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent",
+          "tag": "normal",
+          "body_sha256": "2276c292c6a5ac4e9c0082095721553f1d41be427119a4f2bb4dd024ae6239f8",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 3,
+            "t.Fatal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+        "name": "TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClientForOneFailover",
+        "tag": "normal",
+        "body_sha256": "ab7661a99df6a38d3ef4eb9891a8eab64a9b1a15ab733ea867fd9adfa3314015",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 3,
+          "require.NoError": 4,
+          "require.NotContains": 1,
+          "t.Fatal": 3
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_gateway_handler_test.go",
+          "name": "TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClientForOneFailover",
+          "tag": "normal",
+          "body_sha256": "3447e576cebe420265e2417529d79cfa745d967554c49ac4829f70e23ccc0a3a",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 3,
+            "require.NoError": 4,
+            "require.NotContains": 1,
+            "t.Fatal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_grok_image_intent_gate_test.go",
+        "name": "TestOpenAIGatewayHandlerResponses_GrokPassiveImageToolDeclarationBypassesPermissionGate",
+        "tag": "normal",
+        "body_sha256": "8436e96e2fae5ba54121b9d79f0ee6527c001a4d6a96fc49559f7f429fa808ed",
+        "assertions": {
+          "require.NotContains": 1,
+          "require.NotEqual": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_grok_image_intent_gate_test.go",
+          "name": "TestOpenAIGatewayHandlerResponses_GrokPassiveImageToolDeclarationBypassesPermissionGate",
+          "tag": "normal",
+          "body_sha256": "8436e96e2fae5ba54121b9d79f0ee6527c001a4d6a96fc49559f7f429fa808ed",
+          "assertions": {
+            "require.NotContains": 1,
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_grok_image_intent_gate_test.go",
+        "name": "TestOpenAIGatewayHandlerResponses_GrokResponsesLiteImageToolDeclarationBypassesPermissionGate",
+        "tag": "normal",
+        "body_sha256": "9cc19a10654bdcf4c511f000577b1784be25c9303a66bfb12c5ff3d9d40d0df7",
+        "assertions": {
+          "require.NotContains": 1,
+          "require.NotEqual": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_grok_image_intent_gate_test.go",
+          "name": "TestOpenAIGatewayHandlerResponses_GrokResponsesLiteImageToolDeclarationBypassesPermissionGate",
+          "tag": "normal",
+          "body_sha256": "9cc19a10654bdcf4c511f000577b1784be25c9303a66bfb12c5ff3d9d40d0df7",
+          "assertions": {
+            "require.NotContains": 1,
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_grok_image_intent_gate_test.go",
+        "name": "TestOpenAIGatewayHandlerResponses_ImagePermissionHardSignalsStillRejected",
+        "tag": "normal",
+        "body_sha256": "85f5d0563a1863836a61d8d30a431e748bb993190d16d15a1ef1a64723702b5f",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_grok_image_intent_gate_test.go",
+          "name": "TestOpenAIGatewayHandlerResponses_ImagePermissionHardSignalsStillRejected",
+          "tag": "normal",
+          "body_sha256": "85f5d0563a1863836a61d8d30a431e748bb993190d16d15a1ef1a64723702b5f",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_grok_image_intent_gate_test.go",
+        "name": "TestOpenAIGatewayHandlerResponses_PassiveNamespaceDoesNotTrigger403",
+        "tag": "normal",
+        "body_sha256": "7651277b06114f233cf1958299c5c6815c03a0733ff190403479998f3fcb87f1",
+        "assertions": {
+          "require.NotEqual": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_grok_image_intent_gate_test.go",
+          "name": "TestOpenAIGatewayHandlerResponses_PassiveNamespaceDoesNotTrigger403",
+          "tag": "normal",
+          "body_sha256": "7651277b06114f233cf1958299c5c6815c03a0733ff190403479998f3fcb87f1",
+          "assertions": {
+            "require.NotEqual": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_images_controls_test.go",
+        "name": "TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling",
+        "tag": "normal",
+        "body_sha256": "a86380656ad38fb07b7f1f3d012b80495d6186dc46f60de92772affbcbc2c40b",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_images_controls_test.go",
+          "name": "TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling",
+          "tag": "normal",
+          "body_sha256": "c020068e67fecda27b758a93901aa8b49c7d4f72d0953888d3e487fecd2cb75d",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_images_controls_test.go",
+        "name": "TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel",
+        "tag": "normal",
+        "body_sha256": "edbb16996fd22602082376ff6cb4dfc48671ac03e83c4cee77c4a485a6f75a53",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_images_controls_test.go",
+          "name": "TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel",
+          "tag": "normal",
+          "body_sha256": "edbb16996fd22602082376ff6cb4dfc48671ac03e83c4cee77c4a485a6f75a53",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_images_failover_test.go",
+        "name": "TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhenExhausted",
+        "tag": "unit",
+        "body_sha256": "6fcfaf612c1a859e9f1684d101c3bae32b020087597aac2290563c9206a6d911",
+        "assertions": {
+          "require.Equal": 8,
+          "require.Len": 1,
+          "require.NotContains": 1,
+          "require.NotEmpty": 1,
+          "require.True": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_images_failover_test.go",
+          "name": "TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhenExhausted",
+          "tag": "unit",
+          "body_sha256": "69373d057bc4e33077b1816210e48fcbc6b36f476bc5fea2e3d122ff35b6959f",
+          "assertions": {
+            "require.Equal": 8,
+            "require.Len": 1,
+            "require.NotContains": 1,
+            "require.NotEmpty": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_responses_failover_cancel_test.go",
+        "name": "TestOpenAIGatewayHandlerResponses_FailoverAbortsWhenClientDisconnected",
+        "tag": "unit",
+        "body_sha256": "18c1fbd14ef3bb3b6094cfa96b1de9a1a3e552037330fcaaf07c639366241af6",
+        "assertions": {
+          "require.Equal": 4,
+          "require.False": 1,
+          "require.Len": 1,
+          "require.True": 2,
+          "require.Zero": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_responses_failover_cancel_test.go",
+          "name": "TestOpenAIGatewayHandlerResponses_FailoverAbortsWhenClientDisconnected",
+          "tag": "unit",
+          "body_sha256": "18c1fbd14ef3bb3b6094cfa96b1de9a1a3e552037330fcaaf07c639366241af6",
+          "assertions": {
+            "require.Equal": 4,
+            "require.False": 1,
+            "require.Len": 1,
+            "require.True": 2,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_responses_failover_cancel_test.go",
+        "name": "TestOpenAIGatewayHandlerResponses_FailoverContinuesForConnectedClient",
+        "tag": "unit",
+        "body_sha256": "c336e48f0de5888f86c9d112ee00a000e7818d5b3a21fd10719a9267932d8531",
+        "assertions": {
+          "require.Equal": 3,
+          "require.False": 2,
+          "require.True": 5
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_responses_failover_cancel_test.go",
+          "name": "TestOpenAIGatewayHandlerResponses_FailoverContinuesForConnectedClient",
+          "tag": "unit",
+          "body_sha256": "c336e48f0de5888f86c9d112ee00a000e7818d5b3a21fd10719a9267932d8531",
+          "assertions": {
+            "require.Equal": 3,
+            "require.False": 2,
+            "require.True": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_service_tier_validation_test.go",
+        "name": "TestOpenAIGatewayHandlerResponses_InvalidServiceTierRejected400",
+        "tag": "normal",
+        "body_sha256": "2e528feb01757ba188925c7d597ee09e1aff1db3e3a73518966d3d8a224e1b65",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Equal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_service_tier_validation_test.go",
+          "name": "TestOpenAIGatewayHandlerResponses_InvalidServiceTierRejected400",
+          "tag": "normal",
+          "body_sha256": "2e528feb01757ba188925c7d597ee09e1aff1db3e3a73518966d3d8a224e1b65",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_service_tier_validation_test.go",
+        "name": "TestOpenAIGatewayHandlerChatCompletions_InvalidServiceTierRejected400",
+        "tag": "normal",
+        "body_sha256": "ca5058d174dae7d17b48b6209504f0a9e916728260a8b731f1774b445ce60217",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Equal": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_service_tier_validation_test.go",
+          "name": "TestOpenAIGatewayHandlerChatCompletions_InvalidServiceTierRejected400",
+          "tag": "normal",
+          "body_sha256": "ca5058d174dae7d17b48b6209504f0a9e916728260a8b731f1774b445ce60217",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_ws_v2_passthrough_cyber_test.go",
+        "name": "TestOpenAIResponsesWebSocketV2PassthroughCyberMarkIsConsumedAfterTurn",
+        "tag": "normal",
+        "body_sha256": "fe6f621b47d5aa7685b7d08c59b4f9d35cbefab95fab15c5aff511447a9750c2",
+        "assertions": {
+          "require.Equal": 3,
+          "require.ErrorAs": 1,
+          "require.Eventually": 2,
+          "require.NoError": 7,
+          "require.NotEmpty": 1,
+          "require.True": 1,
+          "t.Fatal": 2,
+          "t.Fatalf": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_ws_v2_passthrough_cyber_test.go",
+          "name": "TestOpenAIResponsesWebSocketV2PassthroughCyberMarkIsConsumedAfterTurn",
+          "tag": "normal",
+          "body_sha256": "fe6f621b47d5aa7685b7d08c59b4f9d35cbefab95fab15c5aff511447a9750c2",
+          "assertions": {
+            "require.Equal": 3,
+            "require.ErrorAs": 1,
+            "require.Eventually": 2,
+            "require.NoError": 7,
+            "require.NotEmpty": 1,
+            "require.True": 1,
+            "t.Fatal": 2,
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_http_original_openai_ws_v2_passthrough_cyber_test.go",
+        "name": "TestOpenAIResponsesWebSocketV2PassthroughNonCyberTurnAllowsFollowup",
+        "tag": "normal",
+        "body_sha256": "ae774bf75f59f4a91d6b82bd19da00a8b0e2da66f97f28ac0a5dbf1d3fac9ec5",
+        "assertions": {
+          "require.Empty": 2,
+          "require.Equal": 2,
+          "require.JSONEq": 1,
+          "require.NoError": 11,
+          "require.NotEmpty": 1,
+          "require.True": 1,
+          "t.Fatal": 3
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_http_original_openai_ws_v2_passthrough_cyber_test.go",
+          "name": "TestOpenAIResponsesWebSocketV2PassthroughNonCyberTurnAllowsFollowup",
+          "tag": "normal",
+          "body_sha256": "ae774bf75f59f4a91d6b82bd19da00a8b0e2da66f97f28ac0a5dbf1d3fac9ec5",
+          "assertions": {
+            "require.Empty": 2,
+            "require.Equal": 2,
+            "require.JSONEq": 1,
+            "require.NoError": 11,
+            "require.NotEmpty": 1,
+            "require.True": 1,
+            "t.Fatal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_media_http_test.go",
+        "name": "TestMediaAssemblyKeepsReadAndStopBoundaries",
+        "tag": "normal",
+        "body_sha256": "b3f4063339f6e330b74851d231e856e751c7f5dc5989bf2746b264bcd170754a",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_media_http_test.go",
+          "name": "TestMediaAssemblyKeepsReadAndStopBoundaries",
+          "tag": "normal",
+          "body_sha256": "087a0d5f68fa602a05ba0054941a34f8d109ff4e24230221f0ae3da1e7e15a02",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_openai_text_http_test.go",
+        "name": "TestOpenAITextAssemblyReadAndStopBoundaries",
+        "tag": "normal",
+        "body_sha256": "7f84ee450eb1de794c1e92e9d4cc3d83543a4b38877f1848488ed01230071db7",
+        "assertions": {
+          "require.Contains": 2,
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_openai_text_http_test.go",
+          "name": "TestOpenAITextAssemblyReadAndStopBoundaries",
+          "tag": "normal",
+          "body_sha256": "1da956a4557aeb931b57f6de029a0d31967bc6f6010508608b9405954bd5a88d",
+          "assertions": {
+            "require.Contains": 2,
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/gateway_openai_ws_http_test.go",
+        "name": "TestOpenAIWSAssemblyUpgradeAndStopBoundaries",
+        "tag": "normal",
+        "body_sha256": "370f0760a3fd4888134944c403ad0caaa12d3658b2be4dfa74494c97aa221057",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/gateway_openai_ws_http_test.go",
+          "name": "TestOpenAIWSAssemblyUpgradeAndStopBoundaries",
+          "tag": "normal",
+          "body_sha256": "84723c6d60e37ffaf2dca202487c73f8fabace63e3b36573ca1a16420d601319",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/scheduler_state_test.go",
+        "name": "TestAccountRuntimeBlockBindingSharesRecoveryFence",
+        "tag": "normal",
+        "body_sha256": "ef5c78aa1a4b929696754ebdada9ea1d0b8a769a0c6c15224aba9397f3f4ef8e",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.Greater": 1,
+          "require.NotZero": 1,
+          "require.True": 2
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/scheduler_state_test.go",
+          "name": "TestAccountRuntimeBlockBindingSharesRecoveryFence",
+          "tag": "normal",
+          "body_sha256": "971a455c7b8cc5d4d6fb867f0f92851c4063984d4a338544ab4fadaa2213847a",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.Greater": 1,
+            "require.NotZero": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/scheduler_state_test.go",
+        "name": "TestSchedulerSharedStateBindsLegacyConsumers",
+        "tag": "normal",
+        "body_sha256": "55b656c88bbb475c42489c32a2a6600d24111391d7b1dcd4a3777d46ada26068",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Greater": 1,
+          "require.NotSame": 2,
+          "require.Zero": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/scheduler_state_test.go",
+          "name": "TestSchedulerSharedStateBindsLegacyConsumers",
+          "tag": "normal",
+          "body_sha256": "7b9128e620067442b4622c6b69489d41cb225c9e6c8eda7954380df04b0f52ec",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Greater": 1,
+            "require.NotSame": 2,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/app/scheduler_state_test.go",
+        "name": "TestGatewayBackgroundTasksUseApplicationOwner",
+        "tag": "normal",
+        "body_sha256": "468376ad2b95715e3040aa5be67edbe7918c2895b01f8ac311386a37d8cf2b43",
+        "assertions": {
+          "require.ErrorContains": 1,
+          "require.False": 1,
+          "require.NoError": 1,
+          "require.True": 1,
+          "t.Error": 1
+        }
+      },
+      "status": "preserved",
+      "targets": [
+        {
+          "file": "backend/internal/app/scheduler_state_test.go",
+          "name": "TestGatewayBackgroundTasksUseApplicationOwner",
+          "tag": "normal",
+          "body_sha256": "7be14d70cfc6c5a4179e9b8406bdff56ff27a50e5f4e81e7fee5dd9054817e14",
+          "assertions": {
+            "require.ErrorContains": 1,
+            "require.False": 1,
+            "require.NoError": 1,
+            "require.True": 1,
+            "t.Error": 1
+          }
+        }
+      ]
+    }
+  ],
+  "verified_tests": 74,
+  "scope": "app同路径测试改绑，核对名称、标签和断言数量"
+}

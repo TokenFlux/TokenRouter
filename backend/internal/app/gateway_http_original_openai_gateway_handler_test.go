@@ -57,7 +57,6 @@ import (
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 
@@ -400,7 +399,7 @@ func TestOpenAIResponses_AcceptsHTTPContinuationPreviousResponseIDBeforeRouting(
 	})
 
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
-	require.NoError(t, h.Input.Source.ResponseStateStore().BindHTTPResponseOwner(context.Background(), groupID, "resp_123456", 1, 101, h.Input.Source.WebSockets.OpenAIHTTPResponseStickyTTL()))
+	require.NoError(t, h.Input.Source.Responses.Lineage.Store.BindHTTPResponseOwner(context.Background(), groupID, "resp_123456", 1, 101, h.Input.Source.WebSockets.OpenAIHTTPResponseStickyTTL()))
 	h.Responses(c)
 
 	require.NotEqual(t, http.StatusBadRequest, w.Code)
@@ -426,7 +425,7 @@ func TestOpenAIResponses_RejectsHTTPContinuationOwnedByAnotherUser(t *testing.T)
 	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 2, Concurrency: 1})
 
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
-	require.NoError(t, h.Input.Source.ResponseStateStore().BindHTTPResponseOwner(context.Background(), groupID, "resp_other_tenant", 1, 101, h.Input.Source.WebSockets.OpenAIHTTPResponseStickyTTL()))
+	require.NoError(t, h.Input.Source.Responses.Lineage.Store.BindHTTPResponseOwner(context.Background(), groupID, "resp_other_tenant", 1, 101, h.Input.Source.WebSockets.OpenAIHTTPResponseStickyTTL()))
 	h.Responses(c)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
@@ -942,7 +941,7 @@ func TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame(t *testing.T
 	}, time.Second, 10*time.Millisecond)
 	repo.resetLogs()
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:    &service.OpenAIGatewayService{},
+		Source:    &gatewayExecutionFixture{},
 		Funding:   &admission.FundingAdmission{},
 		Keys:      &apikey.APIKeyService{},
 		Moderator: moderationSvc,
@@ -1331,8 +1330,8 @@ func TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups(t *testing.
 		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
 			nil), nil, nil, nil, gatewaytestkit.RuntimeReaders(settingRepo), nil, responseHeaderFilterForTest(nil), nil, nil, nil,
 	)
-	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(nil, nil, nil,
-		nil, nil, nil, nil, true))
+	gatewaySvc.Recorder = newHTTPCompletionFixture(nil, nil, nil,
+		nil, nil, nil, nil, true)
 
 	moderationSvc := newHTTPModeration(t, settingRepo, nil)
 	moderationSvc.Start()
@@ -1448,7 +1447,7 @@ func newOpenAIHandlerForPreviousResponseIDValidation(t *testing.T, cache *httpte
 		}
 	}
 	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:  &service.OpenAIGatewayService{},
+		Source:  &gatewayExecutionFixture{},
 		Funding: &admission.FundingAdmission{},
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
@@ -1750,7 +1749,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 		nil,
 		nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
-	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput4, billingCacheSvc, completionInput5, nil, nil, true))
+	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput4, billingCacheSvc, completionInput5, nil, nil, true)
 
 	h := newGatewayHTTPEndpointsFromDeps(
 		gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
@@ -1850,7 +1849,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 				nil,
 				nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 			)
-			gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput6, billingCacheSvc, completionInput7, nil, completionHealth{rateLimitSvc.Core}, true))
+			gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput6, billingCacheSvc, completionInput7, nil, completionHealth{rateLimitSvc.Core}, true)
 
 			h := newGatewayHTTPEndpointsFromDeps(
 				gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
@@ -1931,7 +1930,7 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 		nil,
 		nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
-	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput8, billingCacheSvc, completionInput9, nil, nil, true))
+	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput8, billingCacheSvc, completionInput9, nil, nil, true)
 
 	h := newGatewayHTTPEndpointsFromDeps(
 		gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
@@ -2089,7 +2088,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		nil,
 		nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
-	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput10, billingCacheSvc, completionInput11, nil, completionHealth{rateLimitSvc.Core}, true))
+	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput10, billingCacheSvc, completionInput11, nil, completionHealth{rateLimitSvc.Core}, true)
 
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {
@@ -2284,7 +2283,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 		nil, nil, completionInput13, newOpenAIExecutionCredentialsForTest(accountRepo,
 			nil), nil, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
-	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput12, billingCacheSvc, completionInput13, nil, completionHealth{rateLimitSvc.Core}, true))
+	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput12, billingCacheSvc, completionInput13, nil, completionHealth{rateLimitSvc.Core}, true)
 
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireUserSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
@@ -2492,7 +2491,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 
 		// 用户平台配额仓库
 	)
-	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, usageRepo, completionInput14, billingCacheSvc, completionInput15, channelSvc, nil, true))
+	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, usageRepo, completionInput14, billingCacheSvc, completionInput15, channelSvc, nil, true)
 
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {

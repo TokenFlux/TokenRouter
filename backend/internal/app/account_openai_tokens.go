@@ -5,15 +5,22 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/account/postgres"
 )
 
 // provideOpenAITokens 绑定同一刷新协调器、缓存和指标，运行阻断端口在网关构造时接入。
-func provideOpenAITokens(store *postgres.AccountStore, cache account.AccessTokenCache, authorization *account.OpenAIAuthorization, refresh *account.OAuthRefreshAPI) *account.OpenAITokenSource {
+func provideOpenAITokens(store *postgres.AccountStore, cache account.AccessTokenCache, authorization *account.OpenAIAuthorization, refresh *account.OAuthRefreshAPI, blocks *account.RuntimeBlockState) *account.OpenAITokenSource {
 	executor := &account.OpenAITokenRefresher{Authorization: authorization}
 	return &account.OpenAITokenSource{
-		Cache:      cache,
+		Cache: cache,
+		Block: func(record *account.Record, until time.Time, reason string) {
+			if record != nil && (record.Platform == capability.PlatformOpenAI || record.Platform == capability.PlatformGrok) {
+				blocks.Block(record.ID, until, reason)
+			}
+		},
 		Repository: store,
 		SetError:   store.SetError,
 		Metrics:    &account.OpenAITokenMetricsStore{},

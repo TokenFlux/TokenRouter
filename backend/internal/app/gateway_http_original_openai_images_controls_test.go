@@ -21,7 +21,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -48,7 +47,7 @@ func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *test
 	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 333, Concurrency: 1})
 
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:      &service.OpenAIGatewayService{},
+		Source:      &gatewayExecutionFixture{},
 		Funding:     &admission.FundingAdmission{},
 		Keys:        &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(&scheduler.ConcurrencyService{}, gatewayhttp.SSEPingFormatNone, 0), Availability: newExecutionAvailabilityForTest(nil, nil, nil), Choices: newEmptyCompatibleSelectionFixture(),

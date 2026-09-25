@@ -23,7 +23,6 @@ import (
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +38,7 @@ import (
 func newServiceTierHandlerTest(t *testing.T) *gatewayHTTPEndpointsFixture {
 	t.Helper()
 	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:  &service.OpenAIGatewayService{},
+		Source:  &gatewayExecutionFixture{},
 		Funding: newFundingAdmissionFixture(newBillingEligibilityFixture(&config.Config{RunMode: config.RunModeSimple}), &config.Config{RunMode: config.RunModeSimple}),
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(

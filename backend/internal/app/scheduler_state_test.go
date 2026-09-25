@@ -9,17 +9,16 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
 // 原生恢复与执行端必须观察同一停调代次，不能各自创建状态副本。
 func TestAccountRuntimeBlockBindingSharesRecoveryFence(t *testing.T) {
 	state := account.NewRuntimeBlockState(time.Now)
-	gateway := &service.OpenAIGatewayService{}
-	gateway.BindRuntimeBlockState(state)
+	gateway := provideOpenAIResponseHealth(nil, state, nil, nil).Runtime
+	tokens := provideOpenAITokens(nil, nil, nil, nil, state)
 	value := &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 71, Platform: account.PlatformOpenAI}}
-	gateway.BlockAccountScheduling(value, time.Now().Add(time.Minute), "装配合同")
+	tokens.Block(gatewayprovider.ExecutionRecord(value), time.Now().Add(time.Minute), "装配合同")
 	fence := state.ManagedRecoveryFence(value.Record.ID)
 	require.NotZero(t, fence)
 	require.Equal(t, fence, gateway.ManagedRecoveryFence(value.Record.ID))
@@ -32,9 +31,8 @@ func TestAccountRuntimeBlockBindingSharesRecoveryFence(t *testing.T) {
 // 实际装配必须把新反馈及兼容参数入口绑定到同一实例。
 func TestSchedulerSharedStateBindsLegacyConsumers(t *testing.T) {
 	state := provideSchedulerSharedState(nil, nil)
-	gateway := &service.OpenAIGatewayService{}
-	gateway.BindSchedulerStickyStats(state.Sticky)
-	require.Equal(t, int64(0), gateway.SnapshotOpenAICompatibilityFallbackMetrics().SessionHashLegacyReadFallbackTotal)
+	snapshot := gatewayCompatibilitySnapshot(state)
+	require.Equal(t, int64(0), snapshot.ReadTotal)
 	other := provideSchedulerSharedState(nil, nil)
 	require.NotSame(t, state.Settings, other.Settings)
 	require.NotSame(t, state.Sticky, other.Sticky)
@@ -51,11 +49,10 @@ func TestGatewayBackgroundTasksUseApplicationOwner(t *testing.T) {
 	for _, name := range []string{"messages", "openai"} {
 		t.Run(name, func(t *testing.T) {
 			tasks := lifecycle.NewTasks()
-			openai := &service.OpenAIGatewayService{}
-			bindGatewayBackground(tasks, openai)
+			openai := provideOpenAITextExecutor(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, provideAnthropicPromptCache(), selection.NewCompatible(selection.CompatibleDependencies{}, selection.DefaultOptions()), nil, tasks)
 			run := gatewayCommitEffects(nil, nil, nil, nil, nil, tasks, nil).Funds.Background
 			if name == "openai" {
-				run = openai.RunBackgroundTask
+				run = openai.CodexUsage.Go
 			}
 			started := make(chan struct{})
 			release := make(chan struct{})

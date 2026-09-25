@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -14,12 +16,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 // provideResponsesWSHTTP 直接绑定 WS 用例，共享同一尝试支持、生命周期与动态数据读取。
 func provideResponsesWSHTTP(
-	source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor,
+	source *gatewayhttp.OpenAIWebSocketExecutor, credentials *gatewayhttp.RequestCredentialExecutor,
 	funding *admission.FundingAdmission,
 	keys *apikey.APIKeyService,
 	common openaiattempt.Bindings,
@@ -27,10 +28,10 @@ func provideResponsesWSHTTP(
 	blocks *session.CyberBlocks,
 	cfg *config.Config,
 	activity *gatewayRequestActivity,
-	choices *selection.Compatible,
+	choices *selection.Compatible, planner *gatewayprovider.RoutePlanner,
 ) *gatewayhttp.ResponsesWSHandler {
 	options := responsesWSOptions(cfg)
-	b := responsesWSBindings(source, credentials, funding, keys, common, prompt, blocks, choices)
+	b := responsesWSBindings(source, credentials, funding, keys, common, prompt, blocks, choices, planner)
 	result := wsentry.New(options, b)
 	result.BindRequestActivity(activity.Enter)
 	return result
@@ -53,7 +54,7 @@ func responsesWSOptions(cfg *config.Config) gatewayhttp.ResponsesWSOptions {
 }
 
 // responsesWSBindings 仅接入已有共享状态及每轮单步端口。
-func responsesWSBindings(source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor, funding *admission.FundingAdmission, keys *apikey.APIKeyService, common openaiattempt.Bindings, prompt *promptpolicy.Service, blocks *session.CyberBlocks, choices *selection.Compatible) wsentry.Bindings {
+func responsesWSBindings(source *gatewayhttp.OpenAIWebSocketExecutor, credentials *gatewayhttp.RequestCredentialExecutor, funding *admission.FundingAdmission, keys *apikey.APIKeyService, common openaiattempt.Bindings, prompt *promptpolicy.Service, blocks *session.CyberBlocks, choices *selection.Compatible, planner *gatewayprovider.RoutePlanner) wsentry.Bindings {
 	b := wsentry.Bindings{
 		Common: common,
 		Prompt: prompt,
@@ -74,15 +75,15 @@ func responsesWSBindings(source *service.OpenAIGatewayService, credentials *gate
 	}
 	if source != nil {
 		b.PlanRoute = func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-			return source.PlanRoute(ctx, key.Group, key.GroupID, model)
+			return planner.PlanKey(ctx, key, model)
 		}
 		b.Isolate = source.EnsureSessionIsolation
 		b.ReportSelection = common.Selection.ReportSelection
-		b.Stop429 = source.ShouldStopOpenAIOAuth429Failover
+		b.Stop429 = stopOpenAI429
 		b.Credential = credentials.Resolve
 		b.ResolveRouting = choices.ResolveOpenAIWSRoutingModelForAccount
-		b.BeginPreemption = source.WebSockets.BeginOpenAIWSIngressSessionPreemption
-		b.Relay = source.WebSockets.ProxyResponsesWebSocketFromClient
+		b.BeginPreemption = source.BeginOpenAIWSIngressSessionPreemption
+		b.Relay = source.ProxyResponsesWebSocketFromClient
 	}
 	return b
 }

@@ -23,7 +23,6 @@ import (
 	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +30,7 @@ import (
 func provideMessageHTTPBindings(
 	planner *gatewayprovider.RoutePlanner,
 	cache session.GatewayCache,
-	openai *service.OpenAIGatewayService,
+	shared *schedulerSharedState,
 	funding *admission.FundingAdmission,
 	rules *errorpolicy.ErrorPassthroughService,
 	moderationService *moderation.ContentModerationService,
@@ -62,8 +61,7 @@ func provideMessageHTTPBindings(
 		IsolateSession: messageSessionIsolation(cache), CachedSession: choices.GetCachedSessionAccountID,
 		ObserveCompatibility: func(log *zap.Logger) {
 			gatewayhttp.LogCompatibilityFallback(log, func() gatewayhttp.CompatibilityLogSnapshot {
-				value := openai.SnapshotOpenAICompatibilityFallbackMetrics()
-				return gatewayhttp.CompatibilityLogSnapshot{ReadTotal: value.SessionHashLegacyReadFallbackTotal, ReadHit: value.SessionHashLegacyReadFallbackHit, DualWrite: value.SessionHashLegacyDualWriteTotal, ReadHitRate: value.SessionHashLegacyReadHitRate, MetadataTotal: value.MetadataLegacyFallbackTotal}
+				return gatewayCompatibilitySnapshot(shared)
 			})
 		},
 	}

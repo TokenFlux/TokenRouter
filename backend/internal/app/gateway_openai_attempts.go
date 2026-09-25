@@ -9,12 +9,12 @@ import (
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // provideOpenAIAttemptBindings 为 HTTP 与 WS 固定同一平台单次调用、槽位与完成端口。
 func provideOpenAIAttemptBindings(
-	source *service.OpenAIGatewayService,
+	source *gatewayhttp.OpenAIResponsesExecutor,
 	keys *apikey.APIKeyService,
 	resources *gatewayhttp.OpenAIHTTPResources,
 	cyber *gatewayhttp.CyberHandler,
@@ -36,11 +36,11 @@ func provideOpenAIAttemptBindings(
 	b := openaiattempt.Bindings{Support: support, Recorder: records.OpenAI}
 	if s := source; s != nil {
 		b.Forward.EnforceOpenAIClientPolicyForRequest = s.Requests.EnforceClient
-		b.Forward.Forward = s.Responses.Forward
+		b.Forward.Forward = s.Forward
 		b.Forward.ForwardAsAnthropic = s.Text.Messages
 		b.Forward.ForwardAsChatCompletions = s.Text.Chat
 		b.Forward.MatchOpenAITLSFingerprintRouterForRequest = s.Requests.MatchTLS
-		b.Forward.ReplaceModelInBody = s.ReplaceModelInBody
+		b.Forward.ReplaceModelInBody = openaiwire.ReplaceModelInBody
 		b.Selection.UpdateCodexUsageSnapshotFromHeaders = s.Text.CodexUsage.Headers
 	}
 	if choices != nil {

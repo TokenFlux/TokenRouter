@@ -18,7 +18,7 @@ import (
 func TestOpenAIWSAssemblyUpgradeAndStopBoundaries(t *testing.T) {
 	activity := &gatewayRequestActivity{Operations: lifecycle.NewOperations("ws-entry-contract")}
 	common := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
-	h := provideResponsesWSHTTP(nil, nil, nil, nil, common, nil, nil, nil, activity, nil)
+	h := provideResponsesWSHTTP(nil, nil, nil, nil, common, nil, nil, nil, activity, nil, nil)
 	for _, step := range []struct {
 		name    string
 		upgrade bool

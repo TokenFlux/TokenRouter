@@ -25,7 +25,6 @@ import (
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -115,7 +114,7 @@ func runOpenAIResponsesImagePermissionGateTest(t *testing.T, platform string, bo
 	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: userID, Concurrency: 1})
 
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:  &service.OpenAIGatewayService{},
+		Source:  &gatewayExecutionFixture{},
 		Funding: newFundingAdmissionFixture(newBillingEligibilityFixture(&config.Config{RunMode: config.RunModeSimple}), &config.Config{RunMode: config.RunModeSimple}),
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(

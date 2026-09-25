@@ -14,7 +14,56 @@ linters:
   settings:
     depguard:
       rules:
-        # S16：WS资源、帧传输、HTTP桥接及实际消费者 按职责限制实际 import；原文件许可随迁出删除。
+        # S16：唯一组合根与原生入口装配 按职责限制实际 import；原文件许可随迁出删除。
+        s16-root-assembly-internal-app-account-openai-tokens-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/account_openai_tokens.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - log/slog$
+          - time$
+        s16-root-assembly-internal-app-gateway-native-execution-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/gateway_native_execution.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
+          - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/egress/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/session$
+          - github.com/TokenFlux/TokenRouter/internal/infra/httpclient$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - time$
+        s16-root-assembly-internal-app-gateway-native-fixture-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/gateway_native_fixture_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/session$
+        s16-root-assembly-internal-app-gateway-shared-projection-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/gateway_shared_projection.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/failover$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
         s16-openai-ws-internal-gateway-httpapi-ws-raw-chat-fixture-unit-test-go:
           list-mode: strict
           files:
@@ -3100,19 +3149,6 @@ linters:
           - pkg: github.com/gin-gonic/gin
             desc: 禁止依赖旧图、完整配置、装配或具体存储。
         # S16：Responses 请求、转换、失效密文及 HTTP 按职责限制实际 import；原文件许可随迁出删除。
-        s16-openai-responses-internal-app-gateway-openai-responses-go:
-          list-mode: strict
-          files:
-          - "**/internal/app/gateway_openai_responses.go"
-          allow:
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/session$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/service$
         s16-openai-responses-internal-gateway-httpapi-execution-api-key-go:
           list-mode: strict
           files:
@@ -4349,7 +4385,6 @@ linters:
           allow:
           - github.com/TokenFlux/TokenRouter/internal/account/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/service$
         s16-openai-images-internal-gateway-httpapi-images-keepalive-execution-test-go:
           list-mode: strict
           files:
@@ -5011,7 +5046,6 @@ linters:
           allow:
           - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/service$
         s16-openai-auxiliary-internal-gateway-httpapi-alpha-resource-contract-test-go:
           list-mode: strict
           files:
@@ -15291,7 +15325,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
           - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/stretchr/testify/require$
           - testing$
           - time$
@@ -15314,7 +15347,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
           - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
           - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
           - go.uber.org/zap$
         s16-message-batch-internal-app-gateway-execution-wire-go:
@@ -15577,7 +15609,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/moderation$
           - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/upstream/gemini$
           - github.com/google/uuid$
           - go.uber.org/zap$
@@ -15624,7 +15655,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/payment$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/usage$
           - time$
         s16-message-batch-internal-app-prompt-binding-test-go:
@@ -15713,8 +15743,8 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
           - github.com/TokenFlux/TokenRouter/internal/protocol$
           - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/upstream$
           - github.com/TokenFlux/TokenRouter/internal/upstream/qoder$
           - net/http$
@@ -15737,7 +15767,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/usage/httpapi$
           - github.com/gin-gonic/gin$
           - time$
@@ -15760,7 +15789,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/stretchr/testify/require$
           - testing$
           - time$
@@ -23204,6 +23232,7 @@ linters:
           files:
           - "**/internal/app/gateway_selection_execution_fixture_test.go"
           allow:
+          - context$
           - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/account/provider$
           - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
@@ -23218,9 +23247,9 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/session$
           - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
           - github.com/TokenFlux/TokenRouter/internal/infra/httpclient$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
@@ -24154,14 +24183,15 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/wsentry$
           - github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow$
           - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
           - github.com/TokenFlux/TokenRouter/internal/gateway/session$
           - github.com/TokenFlux/TokenRouter/internal/gateway/text$
           - github.com/TokenFlux/TokenRouter/internal/moderation$
           - github.com/TokenFlux/TokenRouter/internal/ops$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
+          - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -24380,7 +24410,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
           - net/http$
@@ -24506,7 +24535,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
           - github.com/tidwall/gjson$
@@ -24567,7 +24595,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
           - github.com/tidwall/gjson$
@@ -24637,7 +24664,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
           - github.com/tidwall/gjson$
@@ -24749,7 +24775,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
           - net/http$
@@ -25030,7 +25055,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/settings$
           - github.com/TokenFlux/TokenRouter/internal/usage$
           - github.com/coder/websocket$
@@ -25204,7 +25228,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/session$
           - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/upstream$
           - time$
           deny:
@@ -25633,10 +25656,10 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/wsentry$
           - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
           - github.com/TokenFlux/TokenRouter/internal/gateway/session$
           - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -25808,7 +25831,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
           - github.com/TokenFlux/TokenRouter/internal/moderation$
-          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -26241,11 +26264,12 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/session$
           - github.com/TokenFlux/TokenRouter/internal/gateway/text$
           - github.com/TokenFlux/TokenRouter/internal/moderation$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
@@ -27383,7 +27407,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/moderation$
           - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/upstream/gemini$
           - github.com/google/uuid$
           - go.uber.org/zap$
@@ -30177,28 +30200,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
         # S16：旧执行构造只注入原生作用域，例外随执行端口清零。
-        s16-openai-execution-scoped-binding:
-          list-mode: strict
-          files:
-          - "**/internal/app/gateway_openai_execution.go"
-          allow:
-          - context$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/account/provider$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/egress$
-          - github.com/TokenFlux/TokenRouter/internal/egress/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/session$
-          - github.com/TokenFlux/TokenRouter/internal/infra/httpclient$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - time$
         s16-account-health-binding:
           list-mode: strict
           files:
@@ -33389,7 +33390,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
           - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
           - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
           - go.uber.org/zap$
           deny:
@@ -56022,7 +56022,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/usage/httpapi$
           - github.com/gin-gonic/gin$
           - time$
@@ -69427,8 +69426,8 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
           - github.com/TokenFlux/TokenRouter/internal/protocol$
           - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/upstream$
           - github.com/TokenFlux/TokenRouter/internal/upstream/qoder$
           - net/http$
@@ -97313,7 +97312,6 @@ linters:
           - "!**/internal/app/assembly_account_wire.go"
           - "!**/internal/app/gateway_account_store.go"
           - "!**/internal/app/gateway_account_mutations.go"
-          - "!**/internal/app/gateway_openai_execution.go"
           - "!**/internal/app/account_health_binding.go"
           - "!**/internal/app/gateway_openai_tokens.go"
           - "!**/internal/app/gateway_live_http.go"
@@ -97463,10 +97461,11 @@ linters:
           - "!**/internal/app/gateway_openai_auxiliary.go"
           - "!**/internal/app/gateway_openai_images.go"
           - "!**/internal/app/creative_targets.go"
-          - "!**/internal/app/gateway_openai_responses.go"
           - "!**/internal/app/gateway_live_execution.go"
           - "!**/internal/app/gateway_ws_connections.go"
           - "!**/internal/app/gateway_ws_options.go"
+          - "!**/internal/app/gateway_native_execution.go"
+          - "!**/internal/app/gateway_shared_projection.go"
           allow:
           - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd
@@ -99266,7 +99265,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/stretchr/testify/require$
           - testing$
           - time$
@@ -99747,7 +99745,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/payment$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/usage$
           - time$
           deny:

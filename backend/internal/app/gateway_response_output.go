@@ -18,9 +18,9 @@ func provideOpenAIResponseHealth(observer *accountprovider.UpstreamHealth, block
 }
 
 // provideOpenAIResponseOutput 只投影静态参数并绑定输出所需的固定端口。
-func provideOpenAIResponseOutput(cfg *config.Config, health *accountprovider.OpenAIResponseHealth, grok *accountprovider.GrokHealth, observer *accountprovider.UpstreamHealth, headers *egress.CompiledHeaderFilter, turns *gatewayhttp.CodexTurnStateHeaders, circuit *egress.ProxyStreamCircuit, readers *provider.RuntimeReaders, responses session.OpenAIWSStateStore, choices *selection.Compatible, history *session.ReasoningHistory) *gatewayhttp.OpenAIResponseOutput {
+func provideOpenAIResponseOutput(cfg *config.Config, health *accountprovider.OpenAIResponseHealth, grok *accountprovider.GrokHealth, observer *accountprovider.UpstreamHealth, headers *egress.CompiledHeaderFilter, turns *gatewayhttp.CodexTurnStateHeaders, circuit *egress.ProxyStreamCircuit, readers *provider.RuntimeReaders, responses session.OpenAIWSStateStore, choices *selection.Compatible, history *session.ReasoningHistory, identity *provider.ExecutionAgentIdentity) *gatewayhttp.OpenAIResponseOutput {
 	output := &gatewayhttp.OpenAIResponseOutput{
-		Reasoning: history, Health: health, GrokHealth: grok, Observer: observer, Headers: headers, Turns: turns,
+		Reasoning: history, Redact: identity.Redact, Health: health, GrokHealth: grok, Observer: observer, Headers: headers, Turns: turns,
 		Corrector: openai.NewCodexToolCorrector(), ProxyCircuit: circuit, Responses: responses,
 		ResponseTTL: choices.OpenAIHTTPResponseStickyTTL,
 		Options:     gatewayhttp.OpenAIResponseOptions{ReadLimit: config.DefaultUpstreamResponseReadMaxBytes},

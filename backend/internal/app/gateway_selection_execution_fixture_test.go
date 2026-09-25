@@ -1,7 +1,10 @@
 package app
 
 import (
+	"context"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 
@@ -13,7 +16,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
@@ -48,7 +50,7 @@ func newOpenAIExecutionAndSelectionFixture(
 	settingService *gatewayprovider.RuntimeReaders,
 	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
-) (*service.OpenAIGatewayService, *selection.Compatible, *gatewayhttp.RequestCredentialExecutor) {
+) (*gatewayExecutionFixture, *selection.Compatible, *gatewayhttp.RequestCredentialExecutor) {
 	if modelTransient ==
 		nil {
 		modelTransient = provideSelectionModelTransient()
@@ -94,24 +96,27 @@ func newOpenAIExecutionAndSelectionFixture(
 	grokHealth := &accountprovider.GrokHealth{Store: accountRepo, Health: healthObserver, Runtime: blocks, ModelTransient: modelTransient, Throttle: accountcore.NewWriteThrottle(30 * time.Second), NormalizeModel: func(value *accountcore.Record, model string) string {
 		return (gatewayprovider.ModelPolicy{Record: value}).NormalizeOpenAI(model)
 	}}
-	output := provideOpenAIResponseOutput(cfg, provideOpenAIResponseHealth(healthObserver, blocks, modelTransient, deferredService), grokHealth, healthObserver, headerFilter, turnHeaders, proxyCircuit, settingService, stateStore, choices, provideReasoningHistory(cache))
 	connections := gatewayhttp.NewOpenAIWSConnections(openAIWSPoolOptions(cfg), nil)
-	source := service.NewOpenAIGatewayService(connections, accountRepo, cache, cfg, concurrencyService,
-		healthObserver, httpUpstream, tlsFPProfileService, deferredService,
-
-		executionCredentials, credentials, resolver, channelService,
-
-		settingService, prompts, headerFilter, stateStore, turnHeaders, modelTransient, proxyCircuit, choices, grokHealth, provideCompactExecutor(cfg), output, tlsFPRouterServices...)
-	source.BindGrokExecution(provideGrokExecutor(cfg, credentials, httpUpstream, output, grokHealth, tlsFPProfileService, settingService, blocks, deferredService, accountRepo, &gatewayRequestActivity{Operations: lifecycle.NewOperations("GatewayRequestsAndAttempts")}, resolver, connections))
+	identity := gatewayprovider.NewExecutionAgentIdentity(&accountcore.OpenAITaskCoordinator{}, accountRepo, nil, connections.InvalidateAccount)
+	output := provideOpenAIResponseOutput(cfg, provideOpenAIResponseHealth(healthObserver, blocks, modelTransient, deferredService), grokHealth, healthObserver, headerFilter, turnHeaders, proxyCircuit, settingService, stateStore, choices, provideReasoningHistory(cache), identity)
+	activity := &gatewayRequestActivity{Operations: lifecycle.NewOperations("GatewayRequestsAndAttempts")}
+	grokExecutor := provideGrokExecutor(cfg, credentials, httpUpstream, output, grokHealth, tlsFPProfileService, settingService, blocks, deferredService, accountRepo, activity, resolver, connections)
 	var routers *egress.TLSFingerprintRouterService
 	if len(tlsFPRouterServices) > 0 {
 		routers = tlsFPRouterServices[0]
 	}
-	source.BindTextExecution(openAITextExecution(cfg, accountRepo, nil, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, source.Grok, output, source.PromptCacheBindings(), choices.OpenAIHTTPResponseStickyTTL, provideCompactExecutor(cfg)))
-	source.Auxiliary = &gatewayhttp.OpenAIAuxiliary{Requests: source.Requests, Output: output, CodexUsage: source.Text.CodexUsage}
-	bindOpenAIResponses(source, cfg, channelService, choices, cache, prompts)
-	source.BindRuntimeBlockState(blocks)
-	source.BindSchedulerStickyStats(sticky)
+	text := openAITextExecution(cfg, accountRepo, identity, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, grokExecutor, output, provideAnthropicPromptCache(), choices.OpenAIHTTPResponseStickyTTL, provideCompactExecutor(cfg))
+	lineage := provideOpenAIEncryptedLineage(stateStore, choices)
+	imagePolicy := provideOpenAIImageBridgePolicy(cfg, channelService)
+	sockets := provideOpenAIWebSockets(cfg, connections, text, prompts, choices, lineage, imagePolicy, cache)
+	responses := provideOpenAIResponses(text, sockets, choices, lineage, imagePolicy)
+	var read func(context.Context) (bool, time.Duration)
+	if settingService != nil {
+		read = settingService.Moderation.GetCyberSessionBlockRuntime
+	}
+	source := &gatewayExecutionFixture{Text: text, Requests: text.Requests, Responses: responses, WebSockets: sockets, Grok: grokExecutor, Cache: cache, Planner: gatewayprovider.NewRoutePlanner(channelService), Blocks: session.NewCyberBlocks(session.AdaptCyberSessionBlockStore(cache), read, func(format string, args ...any) { logging.LegacyPrintf("service.openai_gateway", format, args...) })}
+	source.Auxiliary = provideOpenAIAuxiliary(text, nil, activity)
+
 	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}
 }
 

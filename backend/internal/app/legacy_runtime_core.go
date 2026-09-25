@@ -20,7 +20,6 @@ import (
 	payment "github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
@@ -36,7 +35,6 @@ func provideCoreRuntime(
 	shared *schedulerSharedState,
 	usageCleanup *usage.UsageCleanupService,
 	idempotencyCleanup *idempotency.IdempotencyCleanupService,
-	openAIGateway *service.OpenAIGatewayService,
 	paymentOrderExpiry *payment.OrderExpiry,
 	tlsFingerprintCollector *provider.TLSFingerprintCollectorService,
 	manager *lifecycle.Manager,
@@ -46,17 +44,6 @@ func provideCoreRuntime(
 	tasks *lifecycle.Tasks,
 	httpUpstream httpclient.UpstreamTransport, requestActivity *gatewayRequestActivity, rates *gatewayBillingRates,
 ) *coreRuntimeReady {
-	// 原生平台仅登记同步尝试，不改变客户端取消或供应商重试预算。
-
-	nativeAttempts := requestActivity
-	openAIGateway.BindRuntimeBlockState(accountRuntime)
-	bindGatewayBackground(tasks, openAIGateway)
-
-	if openAIGateway != nil {
-		openAIGateway.BindSchedulerStickyStats(shared.Sticky)
-
-		openAIGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
-	}
 	manager.Register(lifecycle.Hook{Name: "AuthCacheInvalidationWorker", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if authCacheInvalidationWorker != nil {
 			authCacheInvalidationWorker.Start()
@@ -169,11 +156,3 @@ func provideCoreRuntime(
 }
 
 // bindGatewayBackground 使执行侧派生工作与其他应用任务共享关闭屏障。
-func bindGatewayBackground(tasks *lifecycle.Tasks, openai *service.OpenAIGatewayService) {
-	if openai != nil {
-		openai.BindBackgroundTasks(tasks.Go)
-		if openai.Text != nil && openai.Text.CodexUsage != nil {
-			openai.Text.CodexUsage.Go = tasks.Go
-		}
-	}
-}

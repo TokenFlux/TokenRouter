@@ -157,7 +157,7 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 		nil,
 		nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
-	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil,
+	gatewayService.Recorder = newHTTPCompletionFixture(cfg, nil,
 
 		nil,
 
@@ -165,7 +165,7 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 
 		nil,
 
-		nil, nil, true))
+		nil, nil, true)
 
 	billingService := newBillingEligibilityFixture(cfg)
 	billingService.Start()

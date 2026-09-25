@@ -16,21 +16,20 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
 // provideMediaRuntime 固定既有单次执行与任务拥有者，构造不查询、不启动后台资源。
 func provideMediaRuntime(
-	source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor,
+	source *gatewayhttp.OpenAIResponsesExecutor, credentials *gatewayhttp.RequestCredentialExecutor,
 	keys *apikey.APIKeyService,
 	funding *admission.FundingAdmission,
 	common openaiattempt.Bindings,
 	resources *gatewayhttp.OpenAIHTTPResources,
 	prober *account.GrokQuotaService,
-	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks, auxiliary *gatewayhttp.OpenAIAuxiliary, images *gatewayhttp.OpenAIImagesExecutor,
+	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks, auxiliary *gatewayhttp.OpenAIAuxiliary, images *gatewayhttp.OpenAIImagesExecutor, planner *provider.RoutePlanner, cache session.GatewayCache,
 ) *mediaentry.Runtime {
-	return mediaentry.New(mediaBindings(source, credentials, keys, funding, common, resources, prober, cfg, grok, video, auxiliary, images))
+	return mediaentry.New(mediaBindings(source, credentials, keys, funding, common, resources, prober, cfg, grok, video, auxiliary, images, planner, cache))
 }
 
 func provideMediaHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestActivity) *gatewayhttp.MediaHandler {
@@ -46,13 +45,13 @@ func provideAuxiliaryHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestA
 
 // mediaBindings 只组合既有能力及静态选项，视频拥有者按原时点取得。
 func mediaBindings(
-	source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor,
+	source *gatewayhttp.OpenAIResponsesExecutor, credentials *gatewayhttp.RequestCredentialExecutor,
 	keys *apikey.APIKeyService,
 	funding *admission.FundingAdmission,
 	common openaiattempt.Bindings,
 	resources *gatewayhttp.OpenAIHTTPResources,
 	prober *account.GrokQuotaService,
-	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks, auxiliary *gatewayhttp.OpenAIAuxiliary, images *gatewayhttp.OpenAIImagesExecutor,
+	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks, auxiliary *gatewayhttp.OpenAIAuxiliary, images *gatewayhttp.OpenAIImagesExecutor, planner *provider.RoutePlanner, cache session.GatewayCache,
 ) mediaentry.Bindings {
 
 	b := mediaentry.Bindings{
@@ -82,11 +81,11 @@ func mediaBindings(
 	}
 	b.EligibilityProber = prober
 	if source != nil {
-		b.Isolate = source.EnsureSessionIsolation
+		b.Isolate = messageSessionIsolation(cache)
 	}
 	if source != nil {
 		b.PlanRoute = func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-			return source.PlanRoute(ctx, key.Group, key.GroupID, model)
+			return planner.PlanKey(ctx, key, model)
 		}
 		b.VideoTasks = func() *media.VideoTasks { return video }
 		b.Platform.SelectImages = common.Selection.SelectImages
@@ -101,7 +100,7 @@ func mediaBindings(
 		b.Platform.RealtimeError = grok.HandleGrokRealtimeUpstreamError
 		b.Platform.RelayRealtime = grok.RelayGrokRealtimeFrames
 		b.Platform.Credential = credentials.Resolve
-		b.Platform.Stop429 = source.ShouldStopOpenAIOAuth429Failover
+		b.Platform.Stop429 = stopOpenAI429
 		b.Platform.ReportSwitch = common.Selection.RecordSwitch
 	}
 	return b

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"time"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
@@ -14,13 +16,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/wsentry"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,7 +31,7 @@ type gatewayHTTPFixtureInput struct {
 	Credentials  *gatewayhttp.RequestCredentialExecutor
 	Availability *gatewayModelAvailability
 	Choices      *selection.Compatible
-	Source       *service.OpenAIGatewayService
+	Source       *gatewayExecutionFixture
 	Funding      *admission.FundingAdmission
 	Keys         *apikey.APIKeyService
 	Worker       *completion.UsageRecordWorkerPool
@@ -61,10 +63,14 @@ type gatewayHTTPEndpointsFixture struct {
 	enqueueCyberSessionBlockedOpsEntry func(*gin.Context, *apikey.APIKey, string, string)
 }
 
-type fixtureCyberTasks struct{ source *service.OpenAIGatewayService }
+type fixtureCyberTasks struct{ source *gatewayExecutionFixture }
 
 func (t fixtureCyberTasks) Go(name string, fn func()) bool {
-	return t.source.RunBackgroundTask(name, fn)
+	if t.source != nil && t.source.Background != nil {
+		return t.source.Background(name, fn)
+	}
+	go fn()
+	return true
 }
 
 type fixtureCyberOps struct {
@@ -80,12 +86,29 @@ func (w fixtureCyberOps) Enqueue(value *ops.OpsInsertErrorLogInput) {
 func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpointsFixture {
 	// 准入拒绝测试的空 Source 仍只绑定空端口，不构造可执行上游。
 	if input.Source != nil && input.Source.Text == nil {
-		input.Source.BindTextExecution(&gatewayhttp.OpenAITextExecutor{Requests: &gatewayhttp.OpenAIRequests{}, CodexUsage: &accountprovider.CodexUsageObserver{}})
+		input.Source.Text = &gatewayhttp.OpenAITextExecutor{Requests: &gatewayhttp.OpenAIRequests{}, CodexUsage: &accountprovider.CodexUsageObserver{}}
+		input.Source.Requests = input.Source.Text.Requests
 	}
 
+	var responses *gatewayhttp.OpenAIResponsesExecutor
+	var sockets *gatewayhttp.OpenAIWebSocketExecutor
+	planner := gatewayprovider.NewRoutePlanner(nil)
+	var cache session.GatewayCache
+	if input.Source != nil {
+		if input.Source.Responses == nil {
+			input.Source.Responses = &gatewayhttp.OpenAIResponsesExecutor{Requests: input.Source.Requests, Text: input.Source.Text, Lineage: &gatewayhttp.OpenAIEncryptedLineage{Store: session.NewOpenAIWSStateStore(input.Source.Cache, gatewayprovider.LogOpenAIWSModeInfo), TTL: func() time.Duration { return time.Hour }}}
+		}
+		if input.Source.WebSockets == nil {
+			input.Source.WebSockets = &gatewayhttp.OpenAIWebSocketExecutor{OpenAIWSDependencies: gatewayhttp.OpenAIWSDependencies{State: input.Source.Responses.Lineage.Store}}
+		}
+		responses, sockets, cache = input.Source.Responses, input.Source.WebSockets, input.Source.Cache
+		if input.Source.Planner != nil {
+			planner = input.Source.Planner
+		}
+	}
 	var images *gatewayhttp.OpenAIImagesExecutor
 	if input.Source != nil {
-		images = provideOpenAIImages(input.Source, &gatewayRequestActivity{Operations: lifecycle.NewOperations("image-execution-fixture")})
+		images = provideOpenAIImages(input.Source.Text, &gatewayRequestActivity{Operations: lifecycle.NewOperations("image-execution-fixture")})
 	}
 	f := &gatewayHTTPEndpointsFixture{Input: &input}
 	resources := func() *gatewayhttp.OpenAIHTTPResources {
@@ -96,9 +119,9 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 		var blocks *session.CyberBlocks
 		if input.Source != nil {
 			if recorder == nil {
-				recorder = input.Source.CompletionRecorder()
+				recorder = input.Source.Recorder
 			}
-			blocks = input.Source.CyberBlocks()
+			blocks = input.Source.Blocks
 		}
 		var moderator gatewayhttp.ModerationPort
 		if input.Moderator != nil {
@@ -109,14 +132,14 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 			runtime.Ops = fixtureCyberOps{input.Ops, input.Queue}
 		}
 		cyber := gatewayhttp.NewBoundCyberHandler(blocks, moderator, runtime)
-		bindings := provideOpenAIAttemptBindings(input.Source, input.Keys, resources(), cyber, input.Rules, input.Moderator, GatewayCompletionRecorders{OpenAI: recorder}, input.Worker, input.Availability, input.Choices)
+		bindings := provideOpenAIAttemptBindings(responses, input.Keys, resources(), cyber, input.Rules, input.Moderator, GatewayCompletionRecorders{OpenAI: recorder}, input.Worker, input.Availability, input.Choices)
 		return bindings, cyber, blocks
 	}
 	text := func() *gatewayhttp.OpenAITextHandler {
 		common, cyber, _ := base()
 		options := openAITextOptions(input.Config)
 		options.MaxSwitches = input.MaxSwitches
-		bindings := openAITextBindings(input.Source, input.Funding, input.Keys, resources(), cyber, input.Rules, input.Moderator)
+		bindings := openAITextBindings(responses, input.Funding, input.Keys, resources(), cyber, input.Rules, input.Moderator, planner, cache)
 		executor := textflow.NewResponsesExecutor(provideOpenAITextAttemptRuntime(common), textflow.ResponseOptions{MaxSwitches: input.MaxSwitches}, textflow.ResponseOptions{MaxSwitches: input.MaxSwitches, FirstOutputBudget: true})
 		return gatewayhttp.NewBoundOpenAITextHandler(options, bindings, input.Prompts, executor)
 	}
@@ -124,11 +147,11 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 		common, _, blocks := base()
 		options := responsesWSOptions(input.Config)
 		options.MaxAccountSwitches = input.MaxSwitches
-		return wsentry.New(options, responsesWSBindings(input.Source, input.Credentials, input.Funding, input.Keys, common, input.Prompts, blocks, input.Choices))
+		return wsentry.New(options, responsesWSBindings(sockets, input.Credentials, input.Funding, input.Keys, common, input.Prompts, blocks, input.Choices, planner))
 	}
 	media := func() *mediaentry.Runtime {
 		common, _, _ := base()
-		bindings := mediaBindings(input.Source, input.Credentials, input.Keys, input.Funding, common, resources(), nil, input.Config, input.Source.Grok, provideGrokVideoTasks(nil, input.Config), input.Source.Auxiliary, images)
+		bindings := mediaBindings(responses, input.Credentials, input.Keys, input.Funding, common, resources(), nil, input.Config, input.Source.Grok, provideGrokVideoTasks(nil, input.Config), input.Source.Auxiliary, images, planner, cache)
 		bindings.Options.MaxSwitches = input.MaxSwitches
 		bindings.EligibilityProber = nil
 		return mediaentry.New(bindings)
@@ -154,7 +177,7 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 }
 
 // newGatewayHTTPEndpointsFromDeps 保留原测试参数输入，共享资源由真实 app provider 构造。
-func newGatewayHTTPEndpointsFromDeps(source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, worker *completion.UsageRecordWorkerPool, rules *errorpolicy.ErrorPassthroughService, moderator *moderation.ContentModerationService, opsService *ops.OpsService, cfg *config.Config, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Compatible, provided ...*gatewayhttp.OpenAIHTTPResources) *gatewayHTTPEndpointsFixture {
+func newGatewayHTTPEndpointsFromDeps(source *gatewayExecutionFixture, credentials *gatewayhttp.RequestCredentialExecutor, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, worker *completion.UsageRecordWorkerPool, rules *errorpolicy.ErrorPassthroughService, moderator *moderation.ContentModerationService, opsService *ops.OpsService, cfg *config.Config, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Compatible, provided ...*gatewayhttp.OpenAIHTTPResources) *gatewayHTTPEndpointsFixture {
 	var resources *gatewayhttp.OpenAIHTTPResources
 	if len(provided) > 0 {
 		resources = provided[0]

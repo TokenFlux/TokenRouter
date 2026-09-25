@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 
@@ -26,7 +27,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
@@ -65,7 +65,7 @@ func (b *qoderRuntime) Select(ctx context.Context, request gateway.Request, excl
 	ctx = requeststate.WithRoutePlan(ctx, request.Route)
 	key := apikey.CopyAPIKey(request.Funding.Key)
 	plan := request.Route
-	mapping := service.ChannelMappingFromRoutePlan(plan)
+	mapping := routing.ChannelMappingResult(plan.Mapping())
 	body := request.AttemptBody
 	var project func(*gatewayprovider.SelectionResult, *gatewayprovider.ExecutionAccount, bool) *gateway.Selection
 	project = func(selection *gatewayprovider.SelectionResult, account *gatewayprovider.ExecutionAccount, refresh bool) *gateway.Selection {

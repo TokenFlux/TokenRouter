@@ -1,0 +1,106 @@
+{
+  "baseline_head": "342f6d0721df3c560b1a64a868047c581b5c6482",
+  "scope": "S16组合根旧聚合工厂退出，非最终清包验收",
+  "retired_app_factories": [
+    "backend/internal/app/gateway_openai_execution.go",
+    "backend/internal/app/gateway_openai_responses.go",
+    "backend/internal/app/egress_router_projection.go"
+  ],
+  "production_service_imports": [],
+  "production_reference_scan": {
+    "command": [
+      "rg",
+      "-l",
+      "internal/service",
+      "backend",
+      "--glob",
+      "*.go",
+      "--glob",
+      "!**/*_test.go"
+    ],
+    "exit_code": 1,
+    "expected_no_match": true
+  },
+  "tests": [
+    {
+      "log": "service-root-app-normal-2.jsonl",
+      "events": {
+        "pass": 460
+      }
+    },
+    {
+      "log": "service-root-app-unit-race.jsonl",
+      "events": {
+        "pass": 660
+      }
+    }
+  ],
+  "test_mapping": "service-root-assembly-test-mapping.json",
+  "lint": [
+    {
+      "name": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./internal/app/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.15
+    },
+    {
+      "name": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./internal/app/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.11
+    },
+    {
+      "name": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./internal/app/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.16
+    }
+  ],
+  "gates": {
+    "passed": 36,
+    "total": 36,
+    "config_sha256": "0b2105fe96d545b8b24a08433749f58e1cb30b6dac4772a30c572ae35d51504b"
+  },
+  "wire": "service-root-assembly-wire-stability.json",
+  "build_selection": "service-root-assembly-build-selection.json",
+  "protected_unchanged": 51,
+  "frozen_unchanged": true,
+  "remaining": {
+    "service_production_files": 24,
+    "service_test_files": 138,
+    "production_consumers": 0
+  },
+  "contracts": [
+    "文本/Responses/WS/Images/辅助入口分别由Wire构造，固定依赖不再从旧聚合对象取回",
+    "凭据协调器、请求、输出、池、模型状态、粘性计数和后台任务保持唯一实例；TokenSource阻断直接绑定账号运行状态",
+    "原生入口直接读取RoutePlanner/会话存储/共享完成器，通用429只投影给现有核心规则",
+    "app测试装配仅持有实际原生实例与输入，不创建旧服务业务规则或资源副本"
+  ],
+  "migration_regressions": [
+    "空依赖准入夹具需要保留原懒初始化响应归属存储；初次continuation测试panic已修复并完整复验，原断言未变。"
+  ],
+  "final_acceptance_pending": true
+}

@@ -967,7 +967,7 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*gatewayHTTPEn
 		nil, completionInput3, newOpenAIExecutionCredentialsForTest(repo,
 			provider), provider, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
-	gateway.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput2, billingCache, completionInput3, nil, nil, true))
+	gateway.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput2, billingCache, completionInput3, nil, nil, true)
 
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },
