@@ -32,14 +32,14 @@
         >
           <div
             v-if="selectableIntervals.length > 0"
-            class="inline-flex max-w-full flex-wrap rounded-lg bg-gray-100 p-0.5 dark:bg-dark-800"
+            class="inline-flex max-w-full flex-wrap rounded-compact bg-gray-100 p-0.5 dark:bg-dark-800"
             data-testid="pricing-interval-switch"
           >
             <button
               v-for="(item, index) in selectableIntervals"
               :key="item.key"
               type="button"
-              class="rounded-md px-2 py-0.5 text-xs font-semibold transition"
+              class="rounded-control px-2 py-0.5 text-xs font-semibold transition"
               :class="index === activeIntervalIndex ? segmentActiveClass : segmentInactiveClass"
               @click="selectedIntervalIndex = index"
             >
@@ -48,12 +48,12 @@
           </div>
           <div
             v-if="hasFastPricing"
-            class="inline-flex max-w-full flex-wrap rounded-lg bg-gray-100 p-0.5 dark:bg-dark-800"
+            class="inline-flex max-w-full flex-wrap rounded-control bg-gray-100 p-0.5 dark:bg-dark-800"
             data-testid="pricing-fast-switch"
           >
             <button
               type="button"
-              class="rounded-md px-2 py-0.5 text-xs font-semibold transition"
+              class="rounded-control px-2 py-0.5 text-xs font-semibold transition"
               :class="!fastMode ? segmentActiveClass : segmentInactiveClass"
               @click="fastMode = false"
             >
@@ -61,7 +61,7 @@
             </button>
             <button
               type="button"
-              class="rounded-md px-2 py-0.5 text-xs font-semibold transition"
+              class="rounded-control px-2 py-0.5 text-xs font-semibold transition"
               :class="fastMode ? segmentActiveClass : segmentInactiveClass"
               @click="fastMode = true"
             >

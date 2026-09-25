@@ -311,7 +311,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-control);
   border: 1px solid rgb(209 213 219);
   background-color: rgb(249 250 251);
   padding: 0.5rem 0.75rem;

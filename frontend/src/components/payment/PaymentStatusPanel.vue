@@ -10,7 +10,7 @@
             <Icon name="check" size="lg" class="text-green-500" />
           </div>
           <p class="text-lg font-bold text-gray-900 dark:text-white">{{ props.orderType === 'subscription' ? t('payment.result.subscriptionSuccess') : t('payment.result.success') }}</p>
-          <div v-if="paidOrder" class="w-full rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
+          <div v-if="paidOrder" class="w-full rounded-surface bg-gray-50 p-4 dark:bg-dark-800">
             <div class="space-y-2 text-sm">
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
@@ -139,7 +139,7 @@
                 <span class="font-semibold tabular-nums text-gray-900 dark:text-white">{{ countdownDisplay }}</span>
               </div>
             </div>
-            <div :class="['relative rounded-lg border-2 p-4', qrBorderClass]">
+            <div :class="['relative rounded-control border-2 p-4', qrBorderClass]">
               <canvas ref="qrCanvas" class="mx-auto"></canvas>
               <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <span :class="['rounded-full p-2 shadow ring-2 ring-white', qrLogoBgClass]">
@@ -181,7 +181,7 @@
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4">
           <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ scanTitle }}</p>
-          <div :class="['relative rounded-lg border-2 p-4', qrBorderClass]">
+          <div :class="['relative rounded-control border-2 p-4', qrBorderClass]">
             <canvas ref="qrCanvas" class="mx-auto"></canvas>
             <!-- Brand logo overlay -->
             <div class="pointer-events-none absolute inset-0 flex items-center justify-center">

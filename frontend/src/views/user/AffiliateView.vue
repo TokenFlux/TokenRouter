@@ -174,8 +174,8 @@ const inviteLink = computed(() => {
 // 去掉多余尾零，让页面展示更清爽，例如 20.00 展示为 20。
 const formattedRebateRate = computed(() => {
   const v = detail.value?.effective_rebate_rate_percent ?? 0
-  const rounded = Math.round(v * 100) / 100
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toString()
+  const roundedValue = Math.round(v * 100) / 100
+  return Number.isInteger(roundedValue) ? String(roundedValue) : roundedValue.toString()
 })
 
 function formatCount(value: number): string {

@@ -10,7 +10,7 @@
         v-for="(bucket, index) in normalizedBuckets"
         :key="`${bucket.date || 'empty'}-${index}`"
         :class="[
-          'h-6 max-w-full justify-self-center rounded-[2px]',
+          'h-6 max-w-full justify-self-center rounded-compact',
           bucketClass(bucket.availability_rate, bucket.total_count),
         ]"
         :style="{ width: bucketWidth }"

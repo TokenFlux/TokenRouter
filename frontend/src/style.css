@@ -6,6 +6,12 @@
   :root {
     /* 布局 token：顶栏高度供侧栏与表格页高度计算共用，调整时只需改这一处。 */
     --header-h: 3.5rem;
+    /* 圆角 token：语义档位,raw CSS 只允许引用这些变量;
+       当前仍是旧数值,数值切换在迁移完成后统一进行。 */
+    --radius-compact: 4px;
+    --radius-control: 6px;
+    --radius-surface: 8px;
+    --radius-dialog: 12px;
   }
 
   * {
@@ -859,7 +865,7 @@
   }
 
   .skeleton {
-    @apply animate-pulse rounded bg-primary-200 dark:bg-dark-700;
+    @apply animate-pulse rounded-compact bg-primary-200 dark:bg-dark-700;
   }
 
   /* ============ 分隔线 ============ */
@@ -925,7 +931,7 @@
   .code {
     @apply font-mono text-sm;
     @apply bg-primary-100 dark:bg-dark-950;
-    @apply rounded px-1.5 py-0.5;
+    @apply rounded-compact px-1.5 py-0.5;
     @apply text-primary-700 dark:text-primary-300;
   }
 
@@ -953,22 +959,22 @@
   }
 
   .tour-info-box {
-    @apply rounded-md border-l-4 border-blue-500 bg-blue-50 px-3 py-2 text-xs text-blue-900;
+    @apply rounded-control border-l-4 border-blue-500 bg-blue-50 px-3 py-2 text-xs text-blue-900;
     @apply dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-200;
   }
 
   .tour-success-box {
-    @apply rounded-md border-l-4 border-emerald-500 bg-emerald-50 px-3 py-2 text-xs text-emerald-900;
+    @apply rounded-control border-l-4 border-emerald-500 bg-emerald-50 px-3 py-2 text-xs text-emerald-900;
     @apply dark:border-emerald-400 dark:bg-emerald-950/40 dark:text-emerald-200;
   }
 
   .tour-warning-box {
-    @apply rounded-md border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-900;
+    @apply rounded-control border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-900;
     @apply dark:border-amber-400 dark:bg-amber-950/40 dark:text-amber-200;
   }
 
   .tour-error-box {
-    @apply rounded-md border-l-4 border-red-500 bg-red-50 px-3 py-2 text-xs text-red-900;
+    @apply rounded-control border-l-4 border-red-500 bg-red-50 px-3 py-2 text-xs text-red-900;
     @apply dark:border-red-400 dark:bg-red-950/40 dark:text-red-200;
   }
 

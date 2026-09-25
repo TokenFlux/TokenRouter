@@ -9,7 +9,7 @@
       v-for="modality in capabilities.input"
       :key="`input-${modality}`"
       :data-modality="`input-${modality}`"
-      class="inline-flex h-5 w-5 items-center justify-center rounded-md"
+      class="inline-flex h-5 w-5 items-center justify-center rounded-control"
       :class="modalityTagClass(modality)"
     >
       <Icon :name="modalityIconName(modality)" size="xs" :stroke-width="2.5" />
@@ -19,7 +19,7 @@
       v-for="modality in capabilities.output"
       :key="`output-${modality}`"
       :data-modality="`output-${modality}`"
-      class="inline-flex h-5 w-5 items-center justify-center rounded-md"
+      class="inline-flex h-5 w-5 items-center justify-center rounded-control"
       :class="modalityTagClass(modality)"
     >
       <Icon :name="modalityIconName(modality)" size="xs" :stroke-width="2.5" />

@@ -23,7 +23,7 @@
   position: relative !important;
   z-index: 99999999 !important;
   outline: 4px solid rgba(0, 210, 255, 0.24) !important;
-  border-radius: 4px !important;
+  border-radius: var(--radius-compact) !important;
 }
 
 /* 2. Popover Container */
@@ -41,7 +41,7 @@
   background-color: #ffffff !important;
   border: 1px solid #CDEFFD !important;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
-  border-radius: 12px !important;
+  border-radius: var(--radius-dialog) !important;
   padding: 0 !important;
   color: #2D4F68 !important;
   font-family: inherit !important;
@@ -86,7 +86,7 @@
   background-color: transparent !important;
   border: none !important;
   z-index: 20 !important;
-  border-radius: 4px !important;
+  border-radius: var(--radius-compact) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -164,7 +164,7 @@
   padding: 8px 16px !important;
   font-size: 13px !important;
   font-weight: 500 !important;
-  border-radius: 6px !important;
+  border-radius: var(--radius-control) !important;
   cursor: pointer !important;
   transition: background-color 0.2s, border-color 0.2s !important;
   border: 1px solid transparent !important;

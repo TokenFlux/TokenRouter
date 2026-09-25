@@ -10,7 +10,7 @@
       <!-- 色阶图例 -->
       <div class="flex shrink-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
         <span>{{ t('dashboard.heatmapLess') }}</span>
-        <span v-for="level in 5" :key="level" class="h-3 w-3 rounded-sm" :class="levelClass(level - 1)" />
+        <span v-for="level in 5" :key="level" class="h-3 w-3 rounded-compact" :class="levelClass(level - 1)" />
         <span>{{ t('dashboard.heatmapMore') }}</span>
       </div>
     </div>
@@ -52,7 +52,7 @@
           v-for="day in visibleDays"
           :key="day.date"
           data-testid="heatmap-cell"
-          class="h-3 w-3 rounded-sm"
+          class="h-3 w-3 rounded-compact"
           :class="day.future ? 'invisible' : levelClass(day.level)"
           :style="{ gridColumn: day.weekIndex + 2, gridRow: day.dayOfWeek + 2 }"
           @mouseenter="onCellHover(day, $event)"
@@ -67,7 +67,7 @@
     <div
       ref="tooltipRef"
       data-testid="heatmap-tooltip"
-      class="pointer-events-none absolute z-20 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-dark-600"
+      class="pointer-events-none absolute z-20 whitespace-nowrap rounded-control bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-dark-600"
       :style="tooltipStyle"
       :aria-hidden="hoveredDay ? 'false' : 'true'"
     >

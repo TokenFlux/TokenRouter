@@ -21,7 +21,7 @@
           >
           <div class="absolute inset-0 flex items-center justify-center">
             <div
-              class="flex h-24 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg shadow-primary-500/30"
+              class="flex h-24 w-24 items-center justify-center rounded-surface bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg shadow-primary-500/30"
             >
               <svg
                 class="h-12 w-12 text-white"

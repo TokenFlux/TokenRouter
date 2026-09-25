@@ -59,11 +59,11 @@
 }
 
 .markdown-body code {
-  @apply rounded-lg bg-gray-100 px-2 py-1 font-mono text-[13px] text-pink-600 dark:bg-dark-700 dark:text-pink-400;
+  @apply rounded-surface bg-gray-100 px-2 py-1 font-mono text-[13px] text-pink-600 dark:bg-dark-700 dark:text-pink-400;
 }
 
 .markdown-body pre {
-  @apply my-5 overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-dark-600 dark:bg-dark-900/50;
+  @apply my-5 overflow-x-auto rounded-surface border border-gray-200 bg-gray-50 p-5 dark:border-dark-600 dark:bg-dark-900/50;
 }
 
 .markdown-body pre code {
@@ -75,7 +75,7 @@
 }
 
 .markdown-body table {
-  @apply mb-5 w-full overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600;
+  @apply mb-5 w-full overflow-hidden rounded-control border border-gray-200 dark:border-dark-600;
 }
 
 .markdown-body th,
@@ -101,7 +101,7 @@
 }
 
 .markdown-body img {
-  @apply my-5 max-w-full rounded-xl border border-gray-200 shadow-md dark:border-dark-600;
+  @apply my-5 max-w-full rounded-surface border border-gray-200 shadow-md dark:border-dark-600;
 }
 
 .markdown-body strong {
@@ -161,7 +161,7 @@
 }
 
 .announcement-popup-content pre {
-  @apply my-4 rounded-lg p-4;
+  @apply my-4 rounded-surface p-4;
 }
 
 .announcement-popup-content table {
@@ -178,5 +178,5 @@
 }
 
 .announcement-popup-content img {
-  @apply my-4 rounded-lg shadow-none;
+  @apply my-4 rounded-control shadow-none;
 }

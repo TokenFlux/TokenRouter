@@ -16,7 +16,7 @@
 
     <div
       v-if="open"
-      class="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+      class="absolute right-0 top-full z-50 mt-2 w-48 rounded-control border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-800"
       role="menu"
       data-test="scope-dropdown-menu"
     >
@@ -26,7 +26,7 @@
         type="button"
         role="menuitemradio"
         :aria-checked="scope === option.value"
-        class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+        class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
         :data-test="`scope-option-${option.value}`"
         @click="setScope(option.value)"
       >

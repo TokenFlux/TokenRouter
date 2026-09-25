@@ -14,11 +14,11 @@
         <div
           v-for="(item, index) in compositeExamples"
           :key="`${item.groupId}-${item.prefix}`"
-          class="flex min-w-0 items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2.5 dark:border-dark-600"
+          class="flex min-w-0 items-center justify-between gap-3 rounded-control border border-gray-200 px-3 py-2.5 dark:border-dark-600"
         >
           <div class="min-w-0">
             <div class="flex min-w-0 items-center gap-2">
-              <span class="shrink-0 rounded bg-primary-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ item.prefix }}</span>
+              <span class="shrink-0 rounded-compact bg-primary-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ item.prefix }}</span>
               <span class="truncate text-sm text-gray-600 dark:text-dark-300">{{ item.groupName }}</span>
             </div>
             <code class="mt-1 block truncate text-xs text-gray-500 dark:text-dark-400">{{ item.example }}</code>
@@ -31,7 +31,7 @@
       </div>
 
       <!-- No Group Assigned Warning -->
-      <div v-else-if="!platform" class="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+      <div v-else-if="!platform" class="flex items-start gap-3 p-4 rounded-control bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
         <svg class="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
         </svg>
@@ -54,7 +54,7 @@
         <div
           v-else
           data-testid="no-text-protocols"
-          class="flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800"
+          class="flex items-start gap-3 rounded-surface border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800"
         >
           <Icon name="ban" size="md" class="mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" />
           <div>
@@ -93,7 +93,7 @@
         <!-- Codex 认证模式 -->
         <div
           v-if="showCodexAuthMode"
-          class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
+          class="rounded-control border border-gray-200 p-3 dark:border-dark-700"
         >
           <div class="mb-2">
             <p class="text-sm font-medium text-gray-900 dark:text-white">
@@ -104,7 +104,7 @@
             </p>
           </div>
           <div
-            class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+            class="grid grid-cols-2 gap-1 rounded-control bg-gray-100 p-1 dark:bg-dark-700"
             role="radiogroup"
             :aria-label="t('keys.useKeyModal.openai.authModeTitle')"
           >
@@ -114,7 +114,7 @@
               data-testid="codex-auth-mode-legacy"
               :aria-checked="codexAuthMode === 'legacy'"
               :class="[
-                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'rounded-control px-3 py-2 text-sm font-medium transition-colors',
                 codexAuthMode === 'legacy'
                   ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
                   : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
@@ -129,7 +129,7 @@
               data-testid="codex-auth-mode-api-key"
               :aria-checked="codexAuthMode === 'api-key'"
               :class="[
-                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'rounded-control px-3 py-2 text-sm font-medium transition-colors',
                 codexAuthMode === 'api-key'
                   ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
                   : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
@@ -152,7 +152,7 @@
         <!-- Codex WebSocket 连接模式 -->
         <div
           v-if="showCodexWebSocketMode"
-          class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
+          class="rounded-control border border-gray-200 p-3 dark:border-dark-700"
         >
           <div class="mb-2">
             <p class="text-sm font-medium text-gray-900 dark:text-white">
@@ -163,7 +163,7 @@
             </p>
           </div>
           <div
-            class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+            class="grid grid-cols-2 gap-1 rounded-control bg-gray-100 p-1 dark:bg-dark-700"
             role="radiogroup"
             :aria-label="t('keys.useKeyModal.openai.websocketTitle')"
           >
@@ -173,7 +173,7 @@
               data-testid="codex-websocket-disabled"
               :aria-checked="!codexWebSocketEnabled"
               :class="[
-                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'rounded-control px-3 py-2 text-sm font-medium transition-colors',
                 !codexWebSocketEnabled
                   ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
                   : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
@@ -188,7 +188,7 @@
               data-testid="codex-websocket-enabled"
               :aria-checked="codexWebSocketEnabled"
               :class="[
-                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'rounded-control px-3 py-2 text-sm font-medium transition-colors',
                 codexWebSocketEnabled
                   ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
                   : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
@@ -235,14 +235,14 @@
               <Icon name="exclamationCircle" size="sm" class="flex-shrink-0" />
               {{ file.hint }}
             </p>
-            <div class="bg-gray-900 dark:bg-dark-900 rounded-xl overflow-hidden">
+            <div class="bg-gray-900 dark:bg-dark-900 rounded-surface overflow-hidden">
               <!-- Code Header -->
               <div class="flex items-center justify-between px-4 py-2 bg-gray-800 dark:bg-dark-800 border-b border-gray-700 dark:border-dark-700">
                 <span class="min-w-0 truncate text-xs text-gray-400 font-mono">{{ file.path }}</span>
                 <button
                   type="button"
                   @click="copyContent(file.content, index)"
-                  class="flex flex-shrink-0 items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors"
+                  class="flex flex-shrink-0 items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-control transition-colors"
                   :class="copiedIndex === index
                     ? 'bg-green-500/20 text-green-400'
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'"
@@ -263,7 +263,7 @@
         </div>
 
         <!-- Usage Note -->
-        <div v-if="showPlatformNote" class="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
+        <div v-if="showPlatformNote" class="flex items-start gap-3 p-3 rounded-control bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
           <Icon name="infoCircle" size="md" class="text-blue-500 flex-shrink-0 mt-0.5" />
           <p class="text-sm text-blue-700 dark:text-blue-300">
             {{ platformNote }}

@@ -483,7 +483,7 @@ onUnmounted(() => {
   right: 8px;
   padding: 4px 10px;
   font-size: 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-compact);
   background: rgba(255, 255, 255, 0.15);
   color: #e2e8f0;
   border: 1px solid rgba(255, 255, 255, 0.2);

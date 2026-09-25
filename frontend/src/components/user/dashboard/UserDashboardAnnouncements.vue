@@ -12,7 +12,7 @@
         :class="unreadCount > 0
           ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300'
           : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-300'"
-        class="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium"
+        class="inline-flex shrink-0 items-center gap-1.5 rounded-compact px-2 py-1 text-xs font-medium"
       >
         <span
           :class="unreadCount > 0
@@ -72,7 +72,7 @@
             type="button"
             data-testid="announcement-timeline-item"
             :data-announcement-id="item.announcement.id"
-            class="group flex min-h-[88px] w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 dark:hover:bg-dark-800/60 dark:focus-visible:ring-primary-400/70"
+            class="group flex min-h-[88px] w-full items-start gap-3 rounded-control px-3 py-3 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 dark:hover:bg-dark-800/60 dark:focus-visible:ring-primary-400/70"
             @click="openAnnouncement(item.announcement)"
           >
             <div class="min-w-0 flex-1">

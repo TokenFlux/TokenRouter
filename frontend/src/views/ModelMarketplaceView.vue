@@ -27,7 +27,7 @@
               {{ activeFilterCount }}
             </span>
           </button>
-          <div v-show="showFilterDropdown" class="absolute right-0 top-full z-[60] mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
+          <div v-show="showFilterDropdown" class="absolute right-0 top-full z-[60] mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
             <div class="mb-3 flex items-center justify-between">
               <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
               <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetFilters">
@@ -59,7 +59,7 @@
       <header class="glass relative z-20 border-b border-primary-900/10 px-4 dark:border-dark-600/80 sm:px-6">
         <nav class="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4">
           <router-link to="/home" class="flex min-w-0 items-center gap-2.5">
-            <span class="h-8 w-8 shrink-0 overflow-hidden rounded-lg shadow-sm">
+            <span class="h-8 w-8 shrink-0 overflow-hidden rounded-control shadow-sm">
               <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
             </span>
             <span class="truncate text-base font-semibold text-gray-950 dark:text-white">{{ siteName }}</span>
@@ -137,7 +137,7 @@
                 {{ activeFilterCount }}
               </span>
             </button>
-            <div v-show="showFilterDropdown" class="absolute right-0 top-full z-[60] mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
+            <div v-show="showFilterDropdown" class="absolute right-0 top-full z-[60] mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
               <div class="mb-3 flex items-center justify-between">
                 <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
                 <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetFilters">
@@ -180,7 +180,7 @@
         </div>
 
         <div v-else-if="!hasMarketplaceResults" class="card px-6 py-14">
-          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-300">
+          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-surface bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-300">
             <Icon name="inbox" size="xl" />
           </div>
           <h2 class="mt-6 text-center text-2xl font-semibold text-gray-950 dark:text-white">{{ t('marketplace.emptyTitle') }}</h2>
@@ -243,7 +243,7 @@
                 </div>
 
                 <div class="flex items-start gap-3">
-                  <span class="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-950">
+                  <span class="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-surface border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-950">
                     <ModelIcon :model="groupBrandIconModel(group)" size="28px" />
                   </span>
                   <div class="min-w-0">
@@ -272,7 +272,7 @@
               <article
                 v-for="model in group.models"
                 :key="`${group.id}-${model.id}`"
-                class="group min-w-0 max-w-full rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-black/20 hover:shadow-sm dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
+                class="group min-w-0 max-w-full rounded-surface border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-black/20 hover:shadow-sm dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
               >
                 <div class="flex min-w-0 flex-wrap items-start justify-between gap-2">
                   <h3 class="min-w-0 flex-1 basis-32 truncate text-base font-semibold text-gray-950 dark:text-white">{{ model.display_name }}</h3>

@@ -61,9 +61,9 @@ const RULES = [
   }
 ]
 
-// border-radius 声明单独按行解析:剔除 var(...) 后,只允许 0、9999px、斜杠与 CSS 全局关键字
+// border-radius 声明单独按行解析:剔除 var(...) 后,只允许 0、9999px、斜杠、!important 与 CSS 全局关键字
 const BORDER_RADIUS_DECL = /border-radius\s*:\s*([^;]+);/g
-const ALLOWED_RADIUS_VALUE = /^([\s/]|0|9999px|inherit|initial|unset|revert)+$/
+const ALLOWED_RADIUS_VALUE = /^([\s/]|0|9999px|inherit|initial|unset|revert|!important)*$/
 
 /** 收集一个文件内全部违规,返回 [{ruleId, line, column, snippet, message}] */
 function checkFile(file) {

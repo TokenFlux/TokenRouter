@@ -4,7 +4,7 @@
       <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
         <RouterLink to="/home" class="flex min-w-0 items-center gap-3">
           <template v-if="settings">
-            <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-dark-800 dark:ring-dark-700">
+            <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-surface bg-white shadow-sm ring-1 ring-gray-200 dark:bg-dark-800 dark:ring-dark-700">
               <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
             </span>
             <span class="truncate text-base font-semibold text-gray-950 dark:text-white">
@@ -12,13 +12,13 @@
             </span>
           </template>
           <template v-else>
-            <span class="h-10 w-10 flex-shrink-0 animate-pulse rounded-xl bg-gray-200 dark:bg-dark-700" aria-hidden="true"></span>
-            <span class="h-5 w-28 animate-pulse rounded bg-gray-200 dark:bg-dark-700" aria-hidden="true"></span>
+            <span class="h-10 w-10 flex-shrink-0 animate-pulse rounded-surface bg-gray-200 dark:bg-dark-700" aria-hidden="true"></span>
+            <span class="h-5 w-28 animate-pulse rounded-compact bg-gray-200 dark:bg-dark-700" aria-hidden="true"></span>
           </template>
         </RouterLink>
         <RouterLink
           to="/login"
-          class="inline-flex flex-shrink-0 items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-none transition hover:bg-primary-700"
+          class="inline-flex flex-shrink-0 items-center justify-center rounded-control bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-none transition hover:bg-primary-700"
         >
           登录
         </RouterLink>
@@ -32,7 +32,7 @@
 
       <section
         v-else-if="loadError"
-        class="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+        class="rounded-control border border-red-200 bg-red-50 p-6 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
       >
         <h1 class="text-lg font-semibold">文档加载失败</h1>
         <p class="mt-2 text-sm">请稍后刷新页面重试。</p>
@@ -40,10 +40,10 @@
 
       <section
         v-else-if="!currentDocument"
-        class="rounded-lg border border-gray-200 bg-white p-6 dark:border-dark-700 dark:bg-dark-900"
+        class="rounded-surface border border-gray-200 bg-white p-6 dark:border-dark-700 dark:bg-dark-900"
       >
         <div class="flex items-start gap-3">
-          <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-dark-300">
+          <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-control bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-dark-300">
             <Icon name="document" size="sm" />
           </span>
           <div>
@@ -58,7 +58,7 @@
       <article v-else>
         <div class="mb-8 border-b border-gray-200 pb-6 dark:border-dark-700">
           <div class="flex items-start gap-4">
-            <span class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300">
+            <span class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-control bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300">
               <Icon :name="documentIcon" size="md" />
             </span>
             <div class="min-w-0">
@@ -80,7 +80,7 @@
         ></div>
         <div
           v-else
-          class="rounded-lg border border-dashed border-gray-300 bg-white px-6 py-14 text-center text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-400"
+          class="rounded-control border border-dashed border-gray-300 bg-white px-6 py-14 text-center text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-400"
         >
           暂无正文内容
         </div>
@@ -212,11 +212,11 @@ onMounted(async () => {
 }
 
 .legal-document-content :deep(code) {
-  @apply rounded bg-gray-100 px-1.5 py-0.5 font-mono text-sm dark:bg-dark-800;
+  @apply rounded-surface bg-gray-100 px-1.5 py-0.5 font-mono text-sm dark:bg-dark-800;
 }
 
 .legal-document-content :deep(pre) {
-  @apply my-5 overflow-x-auto rounded-lg bg-gray-950 p-4 text-gray-100;
+  @apply my-5 overflow-x-auto rounded-surface bg-gray-950 p-4 text-gray-100;
 }
 
 .legal-document-content :deep(pre code) {
@@ -236,7 +236,7 @@ onMounted(async () => {
 }
 
 .legal-document-content :deep(img) {
-  @apply my-5 h-auto max-w-full rounded-lg;
+  @apply my-5 h-auto max-w-full rounded-control;
 }
 
 .legal-document-content :deep(hr) {

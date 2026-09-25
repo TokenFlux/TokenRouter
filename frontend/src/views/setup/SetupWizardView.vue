@@ -6,7 +6,7 @@
       <!-- Logo & Title -->
       <div class="mb-8 text-center">
         <div
-          class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg"
+          class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-surface bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg"
         >
           <Icon name="cog" size="xl" class="text-white" />
         </div>
@@ -58,7 +58,7 @@
       </div>
 
       <!-- Step Content -->
-      <div class="rounded-2xl bg-white p-8 shadow-xl dark:bg-dark-800">
+      <div class="rounded-surface bg-white p-8 shadow-xl dark:bg-dark-800">
         <!-- Step 1: Database -->
         <div v-if="currentStep === 0" class="space-y-6">
           <div class="mb-6 text-center">
@@ -91,7 +91,7 @@
             </div>
           </div>
 
-          <div class="flex items-center justify-between rounded-xl border border-gray-200 p-3 dark:border-dark-700">
+          <div class="flex items-center justify-between rounded-surface border border-gray-200 p-3 dark:border-dark-700">
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-white">
                 {{ t("setup.redis.enableTls") }}
@@ -246,7 +246,7 @@
             </div>
           </div>
 
-          <div class="flex items-center justify-between rounded-xl border border-gray-200 p-3 dark:border-dark-700">
+          <div class="flex items-center justify-between rounded-surface border border-gray-200 p-3 dark:border-dark-700">
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-white">
                 {{ t("setup.redis.enableTls") }}
@@ -360,7 +360,7 @@
           </div>
 
           <div class="space-y-4">
-            <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
+            <div class="rounded-surface bg-gray-50 p-4 dark:bg-dark-700">
               <h3 class="mb-2 text-sm font-medium text-gray-500 dark:text-dark-400">
                 {{ t('setup.ready.database') }}
               </h3>
@@ -371,7 +371,7 @@
               </p>
             </div>
 
-            <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
+            <div class="rounded-surface bg-gray-50 p-4 dark:bg-dark-700">
               <h3 class="mb-2 text-sm font-medium text-gray-500 dark:text-dark-400">
                 {{ t('setup.ready.redis') }}
               </h3>
@@ -380,7 +380,7 @@
               </p>
             </div>
 
-            <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
+            <div class="rounded-surface bg-gray-50 p-4 dark:bg-dark-700">
               <h3 class="mb-2 text-sm font-medium text-gray-500 dark:text-dark-400">
                 {{ t('setup.ready.adminEmail') }}
               </h3>
@@ -392,7 +392,7 @@
         <!-- Error Message -->
         <div
           v-if="errorMessage"
-          class="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-900/20"
+          class="mt-6 rounded-surface border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-900/20"
         >
           <div class="flex items-start gap-3">
             <Icon name="exclamationCircle" size="md" class="flex-shrink-0 text-red-500" />
@@ -403,7 +403,7 @@
         <!-- Success Message -->
         <div
           v-if="installSuccess"
-          class="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800/50 dark:bg-green-900/20"
+          class="mt-6 rounded-surface border border-green-200 bg-green-50 p-4 dark:border-green-800/50 dark:bg-green-900/20"
         >
           <div class="flex items-start gap-3">
             <svg

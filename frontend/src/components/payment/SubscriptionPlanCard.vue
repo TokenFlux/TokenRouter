@@ -1,7 +1,7 @@
 <template>
   <div
     :class="[
-      'group relative flex flex-col overflow-hidden rounded-2xl border transition-all',
+      'group relative flex flex-col overflow-hidden rounded-surface border transition-all',
       'hover:shadow-xl hover:-translate-y-0.5',
       borderClass,
       'bg-white dark:bg-dark-800',
@@ -33,13 +33,13 @@
           <span class="text-xs text-gray-400 dark:text-dark-500">/ {{ validitySuffix }}</span>
           <div v-if="plan.original_price" class="mt-0.5 flex items-center justify-end gap-1.5">
             <span class="text-xs text-gray-400 line-through dark:text-dark-500">{{ planCurrencySymbol }}{{ plan.original_price }}<template v-if="plan.currency"> {{ plan.currency }}</template></span>
-            <span :class="['rounded px-1 py-0.5 text-xs font-semibold', discountClass]">{{ discountText }}</span>
+            <span :class="['rounded-compact px-1 py-0.5 text-xs font-semibold', discountClass]">{{ discountText }}</span>
           </div>
         </div>
       </div>
 
       <!-- 套餐额度信息 -->
-      <div class="mb-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-dark-700/50">
+      <div class="mb-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-control bg-gray-50 px-3 py-2 text-xs dark:bg-dark-700/50">
         <div v-if="hasPlanQuota(plan.daily_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.dailyLimit') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatPlanQuota(plan.daily_limit_usd) }}</span>
@@ -60,7 +60,7 @@
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.models') }}</span>
           <div class="flex flex-wrap justify-end gap-1">
             <span v-for="scope in modelScopeLabels" :key="scope"
-              class="rounded bg-gray-200/80 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-600 dark:text-gray-300">
+              class="rounded-compact bg-gray-200/80 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-600 dark:text-gray-300">
               {{ scope }}
             </span>
           </div>
@@ -82,7 +82,7 @@
       <!-- Subscribe Button -->
       <button
         type="button"
-        :class="['h-9 w-full rounded-xl py-1.5 text-sm font-semibold transition-all active:scale-[0.98]', btnClass]"
+        :class="['h-9 w-full rounded-control py-1.5 text-sm font-semibold transition-all active:scale-[0.98]', btnClass]"
         @click="emit('select', plan)"
       >
         {{ isRenewal ? t('payment.renewNow') : t('payment.subscribeNow') }}
