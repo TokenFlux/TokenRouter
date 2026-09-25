@@ -308,7 +308,7 @@ backend/
 <a id="static_dependencies"></a>
 ## 静态依赖
 
-实线箭头表示生产代码的 Go import，从导入方指向被依赖方。下图选取具体包展示各层关系，不表示每个业务核心都有相同依赖，也不是全部 import 的枚举。完整限制由 `backend/.golangci.yml` 的 depguard 按核心、适配和具体文件执行。
+实线箭头表示生产代码的 Go import，从导入方指向被依赖方。下图选取具体包展示各层关系，不表示每个业务核心都有相同依赖，也不是全部 import 的枚举。依赖限制由 `tools/architecture/` 的 arch-go 架构测试执行：角色约束技术库，模块表约束内部协作，纯叶子、平台方向及文件级窄权限继续单独检查。执行入口为 `make -C backend test-architecture`；golangci-lint 负责通用代码质量检查。
 
 ```mermaid
 flowchart TB

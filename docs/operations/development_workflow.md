@@ -20,6 +20,7 @@
 | Node.js | `.github/workflows/backend-ci.yml` | `20` |
 | pnpm | CI 与根 Makefile | `9`；根命令默认使用 `npx --yes pnpm@9` |
 | golangci-lint | CI | `v2.13`，配置在 `backend/.golangci.yml` |
+| arch-go | `tools/architecture/go.mod` | `v2.1.2`；使用 Go API，由独立工具模块运行 |
 | PostgreSQL、Redis | Compose 与集成测试 | 生产必需；测试可由 Testcontainers/Compose 提供 |
 
 本地应安装与 CI 相同的 lint 版本，避免规则集差异造成只在 CI 出现的结果：
@@ -57,13 +58,17 @@ HTTP、用例、存储和后台资源由 app 装配各模块实现。业务测�
 
 综合设置的新增字段必须在 app 静态参与者中声明唯一字段/键所有权，并保持一次原子保存、提交后应用失败明确标记已持久化。HTTP/DTO 使用所属模块的能力，测试夹具只提供数据或 I/O 替身。
 
-`.golangci.yml` 按职责约束业务核心、纯叶子契约、protocol、upstream、infra 和具体 Adapter，旧包路径继续由禁止依赖规则封锁。核心不依赖旧业务或框架/存储实现，HTTP Adapter 不直接访问数据库；具体上游不能依赖其他平台实现，技术包不反向读取完整 config 或业务 service。规则同时匹配目录直属文件和嵌套文件；新增的未分类路径也有默认约束。
+架构检查位于 `tools/architecture/`，与后端应用依赖隔离。`catalog.go` 保存技术库、模块协作、纯叶子、平台及必要文件许可，`policy.go` 按目录角色复用约束，arch-go 执行依赖判断。普通辅助子包继承所属角色；未登记的顶层模块和平台只能使用少量基础标准库，声明业务或 I/O 依赖前必须登记。新增目录不能通过任意嵌套 `postgres` 等名称获取 Adapter 权限。
 
-protocol 的六组生产与测试规则使用精确的标准库白名单，允许内存解析、编码和调用方提供的流接口，不通过 `$gostd` 放行文件、进程或网络执行包。测试仅额外允许 `testing`；确需读取文件的测试应按实际源文件单独审核。`io` 的流接口可以使用，但允许包中的具体调用和间接副作用仍需代码审查。其他角色的标准库许可按各自职责维护，例如 ipmatch 的 `net` 地址解析依赖不受这项收紧影响。
+核心不依赖旧业务或框架/存储实现，HTTP Adapter 不直接访问数据库；具体上游不能依赖其他平台实现，技术包不反向读取完整 config 或业务 service。旧包路径始终禁止。扫描器读取所有手写 Go 文件，覆盖测试、构建标签、平台文件和 wireinject；生成代码不参与架构规则判断。这是静态 import 检查，不代表所有构建集合都实际编译或执行过。
+
+`make -C backend test-architecture` 使用固定版本 arch-go 的 Go API 检查规则，并运行正反例、扫描覆盖及文件许可消费者测试。因工具读取独立模块外的源码，入口使用 `-count=1` 关闭测试缓存。后端 `make test` 和 CI 的 lint job 都执行该入口；CI 分别缓存后端与架构工具的 Go 依赖。修改角色和模块关系时维护规则表，不新增生成配置流程。golangci-lint 保留通用代码质量检查，不再承载架构白名单。
+
+protocol 和其他纯角色共用明确的标准库白名单，允许内存解析、编码、同步、测试及调用方提供的流接口。确需读取文件或构造 HTTP 输入的测试按实际文件许可，其他纯文件不能继承。ipmatch 和 urlpolicy 仅额外允许 `net` 的地址类型。`io`、`net` 及其他允许包中具体调用的副作用仍需代码审查。arch-go v2 将 `golang.org/x` 归到标准库类别，适配层按真实第三方库许可单独处理，不能随标准库整体放行。
 
 保留路径的旧依赖按准确源文件和 import 登记，许可不覆盖同目录新文件，也不覆盖允许包的其他子包。每次添加路径或修改规则，要分别用普通、unit、integration 集合验证合法依赖与违规夹具；已有失败不能自动转成白名单。角色检查不能识别“通过接口绕过业务用例”或“借现有 import 增加耦合”，这两项仍需代码审查。
 
-billing 的 singleflight、隔离倍率缓存和提醒设置读取按实际文件许可；app 的动态设置、渠道、通知、推广、账号 outbox 和支付桥接同样精确到文件/import。公告和 billing 的用户读取直接投影 identity，不再经旧身份仓储桥接。PostgreSQL 与 Redis Adapter 不互相继承存储客户端许可，新增核心文件不继承这些专用依赖。资金测试必须确认真实 PostgreSQL 事务回滚、持久去重、8/10 位精度及 Redis 用户锁交错；SQLite 和 mock 不能替代这些行为证据。
+billing 的缓存与提醒设置读取按核心角色和模块关系许可；app 负责动态设置、渠道、通知、推广、账号 outbox 和支付能力的组合。公告和 billing 的用户读取直接投影 identity，不再经旧身份仓储桥接。PostgreSQL 与 Redis Adapter 不互相继承存储客户端许可；同连接资金参与、跨存储投影等窄权限仍限定文件和目标包。资金测试必须确认真实 PostgreSQL 事务回滚、持久去重、8/10 位精度及 Redis 用户锁交错；SQLite 和 mock 不能替代这些行为证据。
 
 identity、team、apikey 的生产实例和同连接事务参与工厂由 app 绑定。身份 SDK 验证、令牌消费和认证缓存需要分别覆盖普通/unit 构建选择及真实 PostgreSQL/Redis；只剩测试消费者的私有转接放入对应标签的 `_test.go`，不保留生产算法副本。
 
@@ -71,7 +76,7 @@ usage、audit、ops 已使用各自核心和 Adapter；用户/Key/团队的用�
 
 upstream 的具体平台不能相互导入，也不接收旧 Account、Gin 或完整 config。共享 Google 认证原语位于 upstream/internal/googleauth，纯 wire/转换继续由 protocol 提供；账号授权会话及凭据持久化归 account。app 投影参数，gateway 决定重试时机；测试需要分别验证 HTTP 提交、语义输出、可重试边界和已观测用量。平台验证使用本地 HTTP/TLS/WS 及隔离存储夹具，不能把这些结果当作真实供应商账号验证。
 
-notification、site、moderation、search 的核心、纯契约和 Adapter 按职责匹配现有 depguard。邮件凭据留 identity，阈值留 billing，通知接受已确定事件；审核跨身份事务沿用同一 SQL 连接；文件读取归 site/filesystem；搜索的 HTTP 与 Redis 分开。适配不得复制核心状态或算法，文件移动时同步清理专用许可及排除项。角色夹具需覆盖新文件、精确历史 import、非法子包和迁出后的同名文件。
+notification、site、moderation、search 的核心、纯契约和 Adapter 按职责匹配架构规则。邮件凭据留 identity，阈值留 billing，通知接受已确定事件；审核跨身份事务沿用同一 SQL 连接；文件读取归 site/filesystem；搜索的 HTTP 与 Redis 分开。适配不得复制核心状态或算法，文件移动时同步清理专用许可及排除项。角色夹具需覆盖新文件、精确历史 import、非法子包和迁出后的同名文件。
 
 这些模块的行为验证包括真实 SMTP/TLS 夹具、页面文件边界、PostgreSQL 审核回滚、Redis 预占释放、配置交错及有界关闭。全量普通、unit、integration 命令串行执行；integration 使用 `-p=4` 限制包级容器压力，保留测试内部并发和断言。测试事件、跳过、原失败及后续通过分别保存，不能用数量相同代替诊断逐项比较。
 
@@ -79,7 +84,7 @@ gateway 的请求值与固定 `Execute` 契约位于 `gateway/execution`；该�
 
 网关验证分别核对真实输出、HTTP 提交和重试窗口，不能只比最终字符串；失败可以伴随已观测用量，但完成资格按入口保留。对完成队列、模型快照、WS/Live 和规则发布运行定向 race，真实资金与 Redis 协议使用隔离存储。不同顶层测试若共享第三方全局测试设置，可分别执行并保留内部并发与断言，失败与补验日志必须同时保留。
 
-删除迁出文件的专用 depguard 规则时，必须同步移除普通角色中的对应排除项，否则旧路径可能变成未被任何角色匹配的空洞。验证覆盖删除后恢复同名文件、旧文件新增禁止 import、同目录新文件及非法子包，不能只检查迁出后的正向 lint。
+删除或迁移文件后，同步移除对应的文件权限，并检查源目录与目标目录的角色。文件许可消费者测试会拒绝已经没有实际 import 的陈旧条目。验证覆盖删除后恢复同名文件、旧文件新增禁止 import、同目录新文件及非法子包，不能只检查迁出后的正向 lint。
 
 creative、batchimage 的核心、HTTP、PostgreSQL、Redis 与平台 Adapter 使用各自角色门禁。任务资金引用的 scope 只在 app 注册，所属存储参与者不得开启或提交自己的事务；真实 PostgreSQL 测试必须覆盖投影失败整体回滚和旧请求 ID 重放。平台及 GCS 测试使用本地夹具，不能用真实收费生成替代回归。成功元数据、输出保存和资金效果分别核验，输出保存失败不能重新调用供应商；临时 Redis 故障也不能直接断言结果永久丢失。
 
@@ -92,11 +97,11 @@ creative、batchimage 的核心、HTTP、PostgreSQL、Redis 与平台 Adapter �
 - API 类型和调用放在 `src/api/`，跨页面状态进入 store/composable，避免在 view 复制协议。
 - 修改依赖必须同步 `frontend/pnpm-lock.yaml`，CI 使用 frozen lockfile。
 
-app 的专用绑定许可精确到源文件与 import。存储、任务队列和上游客户端在 app 的 wireinject 集合中绑定；旧聚合包与 legacybridge 路径由全局规则拒绝。传输测试随 `gateway/provider/transport` 运行，旧 repository 测试许可不随路径迁移继承。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
+app 按组合根角色连接具体实现，bootstrap 和 lifecycle 继续使用独立的依赖范围。存储、任务队列和上游客户端在 app 的 wireinject 集合中绑定；旧聚合包与 legacybridge 路径由全局规则拒绝。传输测试随 `gateway/provider/transport` 运行，旧 repository 测试许可不随路径迁移继承。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
 
-协议哈希和 Gemini 迭代器的 `crypto/sha256`、`iter` 许可只匹配实际文件；clientmeta 的版本库、app 定价装配及目录 HTTP 契约测试也按文件许可。pricing、capability、clientmeta 使用明确标准库集合，不能增加文件/网络读取。纯规则测试直接传入值；平台选择、HTTP 失败/取消和目录热更新还要验证实际调用方。管理员目录的完整 JSON、24 项顺序及 TypeScript 类型由 app 组合测试对照前端 fixture，不能通过修改夹具掩盖输出差异。
+协议哈希和 Gemini 迭代器使用纯角色的 `crypto/sha256`、`iter` 许可；clientmeta 的版本库按纯角色许可，app 定价装配及目录 HTTP 契约测试按对应角色和模块关系检查。pricing、capability、clientmeta 使用明确标准库集合，不能增加文件/网络读取。纯规则测试直接传入值；平台选择、HTTP 失败/取消和目录热更新还要验证实际调用方。管理员目录的完整 JSON、24 项顺序及 TypeScript 类型由 app 组合测试对照前端 fixture，不能通过修改夹具掩盖输出差异。
 
-scheduler 的核心、HTTP、Redis、PostgreSQL 分别使用角色门禁。评分、排序、会话和等待不接收旧实体、Gin 或存储客户端；必要的纯 AccountSnapshot/RoutePlan、singleflight 和散列依赖按实际文件精确许可。`scheduler/rediscache/codec` 维护 `sched:v2` 完整账号与轻量投影，测试使用兼容报文验证存储格式。确认取得/故障放行、重复释放、锁过期继任及运行时取消必须验证实际资源数量，不能只检查返回码。
+scheduler 的核心、HTTP、Redis、PostgreSQL 分别使用角色门禁。评分、排序、会话和等待不接收旧实体、Gin 或存储客户端；必要的 AccountSnapshot/RoutePlan、singleflight 和散列依赖由核心角色及模块关系许可。`scheduler/rediscache/codec` 维护 `sched:v2` 完整账号与轻量投影，测试使用兼容报文验证存储格式。确认取得/故障放行、重复释放、锁过期继任及运行时取消必须验证实际资源数量，不能只检查返回码。
 
 ## 生成代码与迁移
 
@@ -120,11 +125,14 @@ Ent schema 不是生产迁移器。数据库权威变更仍须新增 `backend/mi
 # 受影响包
 (cd backend && GOTOOLCHAIN=go1.27.0 go test ./internal/account/... ./internal/routing/... ./internal/egress/...)
 
+# 架构检查覆盖全部标签，不需要重复按标签执行
+make -C backend test-architecture
+
 # 与 CI 一致的测试分层
 make -C backend test-unit
 make -C backend test-integration
 
-# 普通测试、lint 配置校验及 lint
+# 架构检查、普通测试、lint 配置校验及 lint
 make -C backend test
 ```
 
@@ -138,7 +146,7 @@ Messages、Chat、Responses 与 Raw Chat 的协议合同直接构造 gateway/htt
 
 团队所有权的两次有序 SQL 更新由 team/postgres 的同包测试直接验证。sqlmock 夹具检查关闭错误时须同时登记关闭预期，不能把测试资源清理误判为业务 SQL 失败。
 
-分别串行运行普通、unit 和 integration 全量测试，避免多个 Ent schema loader 会话争用临时目录；用 go list 与 JSON 事件核对实际标签、OS 文件和测试执行。依赖门禁仍统一使用 `.golangci.yml` 的 depguard，旧耦合只按实际文件/import 登记；新文件不能继承历史许可。验证结果中的跳过与仅编译不算行为通过。
+分别串行运行普通、unit 和 integration 全量测试，避免多个 Ent schema loader 会话争用临时目录；用 go list 与 JSON 事件核对实际标签、OS 文件和测试执行。依赖门禁使用 `make -C backend test-architecture`，文件级窄权限仍按实际文件/import 登记；普通新文件和辅助子包不能继承这些例外。验证结果中的跳过与仅编译不算行为通过。
 
 集成测试可能启动 PostgreSQL/Redis 容器；环境没有 Docker 时要明确报告未运行，不能用单元测试结果代替。涉及迁移时还要运行 migration runner 和对应 schema/data regression tests。
 

@@ -85,10 +85,14 @@ jobs:
           go-version-file: backend/go.mod
           check-latest: false
           cache: true
-          cache-dependency-path: backend/go.sum
+          cache-dependency-path: |
+            backend/go.sum
+            tools/architecture/go.sum
       - name: Verify Go version
         run: |
           go version | grep -q 'go1.27.0'
+      - name: Architecture checks
+        run: make -C backend test-architecture
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
