@@ -23,7 +23,9 @@
 | Usage billing record | 一次不可重复应用的资金/额度变更 | 以 `request_id + api_key_id` 认领，绑定付款用户、行为用户、团队、Key、分组和账号 |
 | Usage Log | 已完成请求的可查询事实 | 保存端点、模型链、token/媒体、金额和归属；用于统计与审计，不单独充当扣费账本 |
 
-分组配置、默认选择、管理与复制用例由 `internal/routing` 拥有，SQL/Ent 实现在 `routing/postgres`。渠道管理、模型映射、价卡读取和唯一渠道缓存也在 routing；app 将同一个存储和缓存实例提供给 Key、身份管理与 billing。分组值直接使用 `routing.Group`；原管理员聚合及分组管理转接已删除，管理调用直接进入所属用例。分组管理直接读取 AccountStore/KeyStore；容量查询使用账号存储的批量或逐组只读投影，保留预取失败回退、空结果和逐行阈值取时点。分组与渠道的 CRUD、复制和排序 HTTP 在 `routing/httpapi`，普通/管理员 DTO 在其 `dto` 子包；分组用量、容量、关联 Key 和倍率/RPM 端点也由新 handler 组合窄接口；倍率配置由 billing 执行，Key 列表由 apikey 提供，用量和 Live 平台检查仍经 app 的过渡读取投影。
+分组配置、默认选择、管理与复制用例由 `internal/routing` 拥有，SQL/Ent 实现在 `routing/postgres`。渠道管理、模型映射、价卡读取和唯一渠道缓存也在 routing；app 将同一个存储和缓存实例提供给 Key、身份管理与 billing。分组值直接使用 `routing.Group`，管理调用进入所属用例。分组管理直接读取 AccountStore/KeyStore；容量查询使用账号存储的批量或逐组只读投影，保留预取失败回退、空结果和逐行阈值取时点。
+
+分组与渠道的 CRUD、复制和排序 HTTP 在 `routing/httpapi`，普通/管理员 DTO 在其 `dto` 子包；分组用量、容量、关联 Key 和倍率/RPM 端点由 HTTP 处理器组合窄接口；倍率配置由 billing 执行，Key 列表由 apikey 提供，用量和 Live 平台检查通过 app 绑定的读取投影。
 
 分组创建/更新涉及的默认切换、排序锁和账号关系复制/替换保留原事务边界；账号关联写入由 `account/postgres` 的同连接参与方法承担，用户授权清理由 `identity/postgres` 参与。调度 outbox 编码、同连接写入与消费归 `scheduler` 及其 Adapter；同事务 outbox 和提交后尽力发布保持各入口原边界。渠道缓存发布时取得独立副本，返回的嵌套 JSON 配置也与缓存隔离；管理输入或调用方修改副本不会改变其他请求的规则。
 
@@ -63,11 +65,13 @@ OpenAI 分组通过 `openai_fast_policy` 选择跟随请求、强制 Fast、强�
 
 同一范围的分组还可启用 `free_openai_fast`。当最终使用的是 OpenAI 账号且计费档位为 `priority`/`fast` 时，网关保持发往上游的 Fast 档位不变，只用同一分组、渠道、长上下文和峰值规则重新计算 Standard 用户价格。Usage Log 的 `total_cost`、账号统计和账号额度继续保留 Fast 成本；`actual_cost`、余额/订阅分配和 API Key 配额使用 Standard 价格。缺少 Standard 定价时沿用既有缺价零成本记录路径，不把请求改写成普通上游请求；其它平台、普通档位和不可信认证上下文必须忽略该字段。
 
-OpenAI 分组还可设置 `max_reasoning_effort` 与 `max_reasoning_effort_over_limit`。策略只处理客户端显式提供的 `reasoning.effort`、`reasoning_effort` 或 Messages 的 `output_config.effort`；缺省 effort 不会被桥接器补出的默认值误判为客户端请求。先按分组的模型范围映射（精确、前缀或后缀）得到有效档位，再比较 `minimal < low < medium < high < xhigh < max`：`downgrade`（默认）改写为上限，`deny` 返回本地 403 权限错误并标记为业务限制。推理档位改写仅能来自管理员配置的映射或上限策略，普通转发层不得再隐式改写；`none` 可作为映射和请求审计值，但不参与上限排序。Usage Log 同时保留策略前的请求档位与最终转发档位。复合 Key 在鉴权阶段已经选出具体 OpenAI 分组，因此沿用该分组策略。HTTP Responses/Chat、Messages 转换和 Responses WebSocket 的每个请求帧都必须执行同一裁决，且策略快照随 API Key 认证缓存传播。
+OpenAI 分组还可设置 `max_reasoning_effort` 与 `max_reasoning_effort_over_limit`。策略只处理客户端显式提供的 `reasoning.effort`、`reasoning_effort` 或 Messages 的 `output_config.effort`；缺省 effort 不会被桥接器补出的默认值误判为客户端请求。先按分组的模型范围映射（精确、前缀或后缀）得到有效档位，再比较 `minimal < low < medium < high < xhigh < max`：`downgrade`（默认）改写为上限，`deny` 返回本地 403 权限错误并标记为业务限制。
+
+推理档位改写仅能来自管理员配置的映射或上限策略，普通转发层不得再隐式改写；`none` 可作为映射和请求审计值，但不参与上限排序。Usage Log 同时保留策略前的请求档位与最终转发档位。复合 Key 在鉴权阶段已经选出具体 OpenAI 分组，因此沿用该分组策略。HTTP Responses/Chat、Messages 转换和 Responses WebSocket 的每个请求帧都必须执行同一裁决，且策略快照随 API Key 认证缓存传播。
 
 Anthropic 分组也支持同一套模型范围映射、上限与超限动作，合法档位为 `low < medium < high < xhigh < max`，不接受 OpenAI 专用的 `none/minimal` 配置。Messages、Responses、Chat 三个入口都在协议转换和账号调度前执行策略；强制路由到其他平台时不套用 Anthropic 策略。兼容桥保留 `xhigh` 与 `max` 的区别，防止转换过程静默触发不同费率。
 
-网关在 `requeststate.ExecutionHints` 保留本次规范健康模型，`gateway/provider` 将原始/规范模型、thinking 与端点固化为账号观测输入。账号规则不再从旧 service 的临时模型键取值；调用后的账号副本回写仍只覆盖该入口原先拥有的字段，不能把观测快照当成完整账号更新。
+网关在 `requeststate.ExecutionHints` 保留本次规范健康模型，`gateway/provider` 将原始/规范模型、thinking 与端点固化为账号观测输入。调用后的账号副本回写仍只覆盖该入口原先拥有的字段，不能把观测快照当成完整账号更新。
 
 用户/分组 RPM 准入、账号软计数及三区规则归 scheduler，仍在资金检查后执行，simple 跳过及故障放行不变。五小时费用窗口规则、批量查询和回填归 billing，usage 聚合仍通过只读端口读取；费用与消费字段不进入调度写权限。
 
@@ -91,9 +95,17 @@ Anthropic 分组也支持同一套模型范围映射、上限与超限动作，�
 <a id="group_model_pricing"></a>
 ### 分组模型价卡与倍率继承
 
-价卡及金额算法的唯一实现位于 `billing/pricing`。app 直接构造 billing 的 Calculator 与 PriceResolver，旧 BillingService 和 ModelPricingResolver 包装已删除。PriceResolver 通过注入的渠道与模型候选端口按原顺序查价，纯规则先判断是否需要基础价；显式分组价格不增加渠道查询，按次/媒体价卡不增加 token 基础价查询。调用方只传递用量、时刻、服务层级、最终 effort 和分组价卡投影；图片任务的单张价解析也由同一 PriceResolver 提供。账号统计价卡和用户分组倍率由 billing 拥有，两个网关的倍率缓存保持各自作用域。`PricingAt` 为零继续禁用渠道分时；模型峰谷所需默认时刻单独投影，不借此启用原本未启用的分时倍率。时区加载由 provider 完成，纯计算只接受显式 Location。
+价卡及金额算法的唯一实现位于 `billing/pricing`。app 直接构造 billing 的 Calculator 与 PriceResolver。PriceResolver 通过注入的渠道与模型候选端口按原顺序查价，纯规则先判断是否需要基础价；显式分组价格不增加渠道查询，按次/媒体价卡不增加 token 基础价查询。调用方只传递用量、时刻、服务层级、最终 effort 和分组价卡投影；图片任务的单张价解析也由同一 PriceResolver 提供。
 
-一次请求同时存在用户扣费和账号成本统计两个口径。用户扣费的基础价格按分组逐模型定价、渠道定价、内置模型定价的顺序解析，再叠加分组和订阅/用户倍率；最终路由账号不能改变用户价格。分组逐模型条目与渠道共用 token、按次、图片、视频、上下文区间和倍率能力。存在显式单价（包括零价）或有效 token 区间时，分组价卡覆盖渠道，分组与渠道都先把默认单价覆盖到基础价格，再应用区间；区间内未填写的价格桶、区间倍率以及未命中区间的请求均使用该默认价，默认价未填写的桶才继承内置单价。仅设置 Fast/Flex、Max 推理或分时倍率时，先解析渠道价格，没有渠道价再使用内置价格，然后只覆盖同名倍率；基础价、区间、价格来源和计费模式保持继承结果，空价卡不阻断继承。纯倍率不能把按次/媒体模式改成 token，也不能为缺价模型创造免费基础价。上下文区间只有倍率、没有可继承基础价时同样保持未定价；必须存在基础单价或命中区间的显式单价（包括零价），否则结算返回 `ErrModelPricingUnavailable`。其它区间有价不能让当前缺价范围变成免费。分组 Fast=1.5 会替换渠道 Fast=2，不相乘；不同维度与现有分组、峰值及订阅倍率正常组合。渠道仅含服务层级、Max 或分时倍率的条目也保留内置价格的全部价格桶和来源（包括图片 token 单价和内置峰谷规则），不执行显式单价卡的图片桶清理。分时配置本身即可构成有效价卡，无须同时填写单价。OpenAI 和通用网关按有效价卡识别媒体的 token 计费配置，不能以基础价格来源是否为分组/渠道来排除纯倍率价卡；继承到按图或视频按次价格时仍使用该模式，不乘 token 倍率。Qoder 使用相同的分组、渠道和内置价格回退，不再以别名或路由键身份禁止回退。价卡的最终价格倍率仍要求显式价格。启用 `free_openai_fast` 时只把用户资金分配的基础金额切换到 Standard，不能把 Fast 的账号统计基数或 Usage Log 明细覆盖掉。账号 `rate_multiplier` 只影响账号维度的成本统计和账号额度累计，不应偷偷改变用户/API Key 扣款。
+账号统计价卡和用户分组倍率由 billing 拥有，两个网关的倍率缓存保持各自作用域。`PricingAt` 为零继续禁用渠道分时；模型峰谷所需默认时刻单独投影，不借此启用原本未启用的分时倍率。时区加载由 provider 完成，纯计算只接受显式 Location。
+
+一次请求同时存在用户扣费和账号成本统计两个口径。用户扣费的基础价格按分组逐模型定价、渠道定价、内置模型定价的顺序解析，再叠加分组和订阅/用户倍率；最终路由账号不能改变用户价格。分组逐模型条目与渠道共用 token、按次、图片、视频、上下文区间和倍率能力。存在显式单价（包括零价）或有效 token 区间时，分组价卡覆盖渠道，分组与渠道都先把默认单价覆盖到基础价格，再应用区间；区间内未填写的价格桶、区间倍率以及未命中区间的请求均使用该默认价，默认价未填写的桶才继承内置单价。
+
+仅设置 Fast/Flex、Max 推理或分时倍率时，先解析渠道价格，没有渠道价再使用内置价格，然后只覆盖同名倍率；基础价、区间、价格来源和计费模式保持继承结果，空价卡不阻断继承。纯倍率不能把按次/媒体模式改成 token，也不能为缺价模型创造免费基础价。上下文区间只有倍率、没有可继承基础价时同样保持未定价；必须存在基础单价或命中区间的显式单价（包括零价），否则结算返回 `ErrModelPricingUnavailable`。其它区间有价不能让当前缺价范围变成免费。
+
+分组 Fast=1.5 会替换渠道 Fast=2，不相乘；不同维度与现有分组、峰值及订阅倍率正常组合。渠道仅含服务层级、Max 或分时倍率的条目也保留内置价格的全部价格桶和来源（包括图片 token 单价和内置峰谷规则），不执行显式单价卡的图片桶清理。分时配置本身即可构成有效价卡，无须同时填写单价。OpenAI 和通用网关按有效价卡识别媒体的 token 计费配置，不能以基础价格来源是否为分组/渠道来排除纯倍率价卡；继承到按图或视频按次价格时仍使用该模式，不乘 token 倍率。
+
+Qoder 使用相同的分组、渠道和内置价格回退，不再以别名或路由键身份禁止回退。价卡的最终价格倍率仍要求显式价格。启用 `free_openai_fast` 时只把用户资金分配的基础金额切换到 Standard，不能把 Fast 的账号统计基数或 Usage Log 明细覆盖掉。账号 `rate_multiplier` 只影响账号维度的成本统计和账号额度累计，不得改变用户/API Key 扣款。
 
 资金分配始终分别携带订阅与余额倍率，不能把首个订阅的 `ActualCost / TotalCost` 同时用作余额按量倍率。确认最终计费模式后，只有 token 模式给这两类倍率及套餐倍率叠加高峰因子；图片、视频和按次模式的高峰因子固定为 1。订阅不足时，溢出部分按余额侧倍率结算。
 
@@ -101,7 +113,11 @@ Anthropic 分组也支持同一套模型范围映射、上限与超限动作，�
 
 Kimi、Zhipu、DeepSeek 账号的计费候选不能把客户端 `claude`、`opus`、`sonnet`、`haiku` 名称送入全局 Claude/Sonnet 兜底价，因为兼容 Anthropic 请求不代表实际提供 Claude 模型。只有分组或渠道对该候选配置了显式价格时才保留；账号/渠道映射后的真实 CN 模型仍按正常优先级解析。候选全部被过滤或没有任何非空模型时返回 `ErrModelPricingUnavailable`，沿用零成本告警并保留 Usage Log 的既有路径，不得静默按 Claude 价收费，也不得因定价未知丢弃整条使用记录。
 
-长上下文是模型或渠道的公开价格策略，不是账号能力。分组或渠道存在有效 token 区间时，按总输入量命中显式区间，并禁止再叠加模型内置长上下文倍率；分组及渠道区间是管理员明确配置的价格合同，不受分组长上下文开关影响。没有有效显式区间时，分组 `long_context_pricing_enabled` 决定是否使用模型定价中的阈值和输入/输出倍率；新建和存量分组默认开启，显式关闭只去掉内置阶梯。分组 token 价卡可直接配置自定义区间；`long_context_pricing_enabled` 只控制模型默认阶梯，不控制显式区间。总输入量包含输入、缓存创建和缓存读取；各模型按自身边界语义判断是否进入长上下文档，进入后整次会话的输入侧与输出侧分别应用对应倍率。模型目录中的 `input/output_cost_per_token_above_*k_tokens` 会在加载时折算为阈值与倍率；条目显式提供任一 `long_context_*` 字段（包括 `0`）时以显式值为准。可选的 `pricing.override_file` 按字段浅合并覆盖目录和回退数据，`null` 删除字段，优先级高于两者；仅含完整价格字段的新模型才会被并入，拼写错误或只有局部补丁的未知模型会告警并丢弃。模型广场公开的上下文区间价格必须与相同分组倍率下的 `ActualCost` 一致，调度到任何普通账号或 Spark 影子账号都不能改变结果。账号 `extra` 中已废弃的 OpenAI 开关不参与判断；`long_context_billing_applied` 只在该规则实际增加费用时记录为真。
+长上下文是模型或渠道的公开价格策略，不是账号能力。分组或渠道存在有效 token 区间时，按总输入量命中显式区间，并禁止再叠加模型内置长上下文倍率；分组及渠道区间是管理员明确配置的价格合同，不受分组长上下文开关影响。没有有效显式区间时，分组 `long_context_pricing_enabled` 决定是否使用模型定价中的阈值和输入/输出倍率；新建和存量分组默认开启，显式关闭只去掉内置阶梯。分组 token 价卡可直接配置自定义区间；`long_context_pricing_enabled` 只控制模型默认阶梯，不控制显式区间。
+
+总输入量包含输入、缓存创建和缓存读取；各模型按自身边界语义判断是否进入长上下文档，进入后整次会话的输入侧与输出侧分别应用对应倍率。模型目录中的 `input/output_cost_per_token_above_*k_tokens` 会在加载时折算为阈值与倍率；条目显式提供任一 `long_context_*` 字段（包括 `0`）时以显式值为准。可选的 `pricing.override_file` 按字段浅合并覆盖目录和回退数据，`null` 删除字段，优先级高于两者；仅含完整价格字段的新模型才会被并入，拼写错误或只有局部补丁的未知模型会告警并丢弃。
+
+模型广场公开的上下文区间价格必须与相同分组倍率下的 `ActualCost` 一致，调度到任何普通账号或 Spark 影子账号都不能改变结果。账号 `extra` 中已废弃的 OpenAI 开关不参与判断；`long_context_billing_applied` 只在该规则实际增加费用时记录为真。
 
 账号成本基数优先使用 Usage Log 的 `account_stats_cost`，仅在该字段为 `nil` 时回退 `total_cost`；显式 `0` 表示账号成本为零。账号统计和账号 `quota_used` 都把这个基数乘以账号 `rate_multiplier`，从而保持同一成本口径。用户余额、订阅和 API Key 配额始终使用 `ActualCost`，不受账号成本覆盖影响。账号成本回退到模型文件定价时，必须使用 Usage Log 最终记录的服务层级，并与模型长上下文倍率组合计算；自定义账号统计价格以及已经由 `ApplyPricingToAccountStats` 取得的用户计费结果都是最终成本基数，不得再次叠加服务层级倍率。
 
@@ -116,18 +132,26 @@ Kimi、Zhipu、DeepSeek 账号的计费候选不能把客户端 `claude`、`opus
 
 计费来源为上游模型时，要在账号选定并完成最终映射后才能确定价格；模型限制与计费必须使用同一解析结果。高峰倍率按请求结算时刻和配置时区计算，只叠加到适用的 token 价格；图片按张与视频按秒采用普通分组、用户或订阅有效倍率，不叠加 token 专用高峰因子。所有价格和倍率必须拒绝负值，并在配置写入时校验所选模式所需字段。定价模式冲突检测必须复用定价缓存键的归一化：忽略首尾空白，并把 `claude-*` 名称中的点号与连字符视为等价，防止两个配置静默覆盖同一缓存项；模型映射缓存只做小写归一化，不能套用这条定价专用规则而误报冲突。
 
-分组和渠道模型定价可为 token 模式配置 `time_pricing`：使用 IANA 时区和每日重复的左闭右开 `HH:mm`/`HH:mm:ss` 区间，倍率必须有限、至少 `0.01` 且最多两位小数，区间不得重叠；结束时间 `00:00` 表示当天 24:00，跨午夜区间必须拆成两段。该倍率只作用于 token 的输入、图片输入、输出和缓存价格桶，不作用于按次、图片或视频模式，也不复制到账号统计规则。纯倍率分组条目未设置分时规则时继承渠道规则，设置后整体替换渠道规则（规则时段之外为 1x），不与渠道分时重复相乘；分组高峰倍率仍独立叠加。管理员写入时由后端最终校验，渠道存储在 `channel_model_pricing.time_pricing` JSONB，分组存储在现有 `groups.model_pricing` JSONB 条目中；当前 fork 的迁移文件为 `249_channel_model_time_pricing.sql`。普通请求使用结算时刻，OpenAI WebSocket 使用对应 turn 开始时刻；配置损坏或无法加载时安全回退到 `1x`，不改变既有计费。
+分组和渠道模型定价可为 token 模式配置 `time_pricing`：使用 IANA 时区和每日重复的左闭右开 `HH:mm`/`HH:mm:ss` 区间，倍率必须有限、至少 `0.01` 且最多两位小数，区间不得重叠；结束时间 `00:00` 表示当天 24:00，跨午夜区间必须拆成两段。该倍率只作用于 token 的输入、图片输入、输出和缓存价格桶，不作用于按次、图片或视频模式，也不复制到账号统计规则。纯倍率分组条目未设置分时规则时继承渠道规则，设置后整体替换渠道规则（规则时段之外为 1x），不与渠道分时重复相乘；分组高峰倍率仍独立叠加。
 
-Token 计费还支持独立的 `max_reasoning_effort_multiplier`。仅最终转发档位为 `max` 时生效；Fable 5.1 沿用本次上游同步的默认 `3x`，分组和渠道可用有限正数覆盖（`1` 表示不加价），未配置时继承模型默认。该规则作用于全部 token 成本桶，并与当前价格、服务层级、区间及分时倍率组合；按次、图片/视频按次和搜索附加费用不乘此倍率。原始请求为 `max` 但策略降档后，按最终档位结算。账号统计使用模型文件默认价时同样应用最终档位；自定义统计价保持独立最终成本，`ApplyPricingToAccountStats` 复用已算出的 `total_cost`，两者均不重复叠加。渠道字段通过 `268_channel_max_reasoning_effort_multiplier.sql` 持久化，账号统计规则不接受此字段。
+管理员写入时由后端最终校验，渠道存储在 `channel_model_pricing.time_pricing` JSONB，分组存储在现有 `groups.model_pricing` JSONB 条目中；当前 fork 的迁移文件为 `249_channel_model_time_pricing.sql`。普通请求使用结算时刻，OpenAI WebSocket 使用对应 turn 开始时刻；配置损坏或无法加载时安全回退到 `1x`，不改变既有计费。
+
+Token 计费还支持独立的 `max_reasoning_effort_multiplier`。仅最终转发档位为 `max` 时生效；Fable 5.1 默认 `3x`，分组和渠道可用有限正数覆盖（`1` 表示不加价），未配置时继承模型默认。该规则作用于全部 token 成本桶，并与当前价格、服务层级、区间及分时倍率组合；按次、图片/视频按次和搜索附加费用不乘此倍率。原始请求为 `max` 但策略降档后，按最终档位结算。账号统计使用模型文件默认价时同样应用最终档位；自定义统计价保持独立最终成本，`ApplyPricingToAccountStats` 复用已算出的 `total_cost`，两者均不重复叠加。
+
+渠道字段通过 `268_channel_max_reasoning_effort_multiplier.sql` 持久化，账号统计规则不接受此字段。
 
 缓存写入可选地拆成 `cache_write_price`（5 分钟）和 `cache_write_1h_price`（1 小时）两档；1h 列为 NULL 时继续把旧列用于两档，保证历史渠道和账号统计规则的结算不变。该字段同时适用于渠道默认价、token 区间和账号统计价，显式 0 仍表示免费；分档用量缺失时按旧聚合 token 数回退。数据库迁移为 `261_channel_cache_write_1h_pricing.sql`。
 
-Grok 媒体、搜索和 Voice 使用独立计价维度。视频按输出秒计价，分组与渠道模型价卡的 `video` 模式按 480p/720p/1080p 分档，未配置价卡时使用模型族内置价；异步创建不扣费，首次完成观察才用任务级稳定 request ID 结算。搜索以 `search_price_per_1k` 按调用次数附加在 token 费用之上；独立 `/web_search` 和 `/x_search` 的纯工具请求也可单独结算。Realtime、TTS、STT 分别使用每分钟、每百万字符、每小时价格；Realtime 握手或纯文本会话不出账，只有任一方向观察到非空音频负载后才按该连接的会话时长结算。未知的数字版 Grok 文本模型可以回退到当前默认文本 token 价，但模型 ID 含 `imagine`、`image`、`video`、`audio`、`speech`、`tts`、`transcribe` 或 `realtime` 时必须排除这项兜底；`vision` 多模态对话仍按 token 计费。上述列 `NULL` 表示使用默认值，显式 `0` 表示免费，不能用“缺少 token usage”跳过已确认的媒体或工具用量。
+Grok 媒体、搜索和 Voice 使用独立计价维度。视频按输出秒计价，分组与渠道模型价卡的 `video` 模式按 480p/720p/1080p 分档，未配置价卡时使用模型族内置价；异步创建不扣费，首次完成观察才用任务级稳定 request ID 结算。搜索以 `search_price_per_1k` 按调用次数附加在 token 费用之上；独立 `/web_search` 和 `/x_search` 的纯工具请求也可单独结算。Realtime、TTS、STT 分别使用每分钟、每百万字符、每小时价格；Realtime 握手或纯文本会话不出账，只有任一方向观察到非空音频负载后才按该连接的会话时长结算。
+
+未知的数字版 Grok 文本模型可以回退到当前默认文本 token 价，但模型 ID 含 `imagine`、`image`、`video`、`audio`、`speech`、`tts`、`transcribe` 或 `realtime` 时必须排除这项兜底；`vision` 多模态对话仍按 token 计费。上述列 `NULL` 表示使用默认值，显式 `0` 表示免费，不能用“缺少 token usage”跳过已确认的媒体或工具用量。
 
 <a id="usage_settlement"></a>
 ## 用量结算
 
-旧 `recordUsageCore` 保留供应商用量归一化、模型/请求 ID 选择和 Usage Log 构造；资金预检、查价、分配和提交后资金处理委托 billing。`Eligibility.Check` 只处理资金准入，`gateway/admission.FundingAdmission` 固定其与 scheduler RPM 的执行顺序：资金通过后才读取运行模式并累计 RPM，simple 跳过计数；Qoder 等待后仅复查资金。旧 BillingCacheService 包装已删除，身份、Key、推广和完成处理共用同一原生缓存实例。`simple` 只执行适用记录路径；`standard` 经 `Funds.Settle` 进入 billing/postgres 的闭合事务，不能因 context 中已有 Ent Tx 就自动参加外层事务。
+`gateway/completion.Recorder` 负责供应商用量归一化、模型与请求 ID 选择和 Usage Log 构造；资金预检、查价、分配和提交后资金处理由 billing 承担。`Eligibility.Check` 只处理资金准入，`gateway/admission.FundingAdmission` 固定其与 scheduler RPM 的执行顺序：资金通过后才读取运行模式并累计 RPM，simple 跳过计数；Qoder 等待后仅复查资金。
+
+身份、Key、推广和完成处理共用同一计费缓存实例。`simple` 只执行适用记录路径；`standard` 经 `Funds.Settle` 进入 billing/postgres 的闭合事务，不能因 context 中已有 Ent Tx 就自动参加外层事务。
 
 billing 从锁定的订阅快照生成有序分配与窗口更新，PostgreSQL Adapter 负责锁序、SQL 更新、outbox 和提交。外层身份/权益事务通过明确的 Ent Tx 参与入口复用连接；参与方法不提交、回滚或发布缓存/通知。
 
@@ -142,22 +166,25 @@ billing 从锁定的订阅快照生成有序分配与窗口更新，PostgreSQL A
 
 `users.balance`、API Key 配额和窗口用量使用 `NUMERIC(20,8)`。进入这些 SQL 加减法前，金额必须按 PostgreSQL 一致的 half-away-from-zero 规则统一量化到 8 位；否则同一笔第 9 位处于 half 边界的金额会因余额减法与配额加法方向相反而产生 `1e-8` 对账差异。幂等指纹仍由量化前的原始金额派生，避免升级前后的同一请求重试被误判为冲突；10 位精度的订阅与用量事实不应在命令入口被提前降到 8 位。
 
-订阅解析必须同时满足生效时间、状态、周期额度和分组覆盖范围。`auto` 没有适用订阅时才走余额倍率，并允许订阅与余额共同承担；锁定订阅模式在请求准入时不允许回退其它订阅或余额。普通请求已经通过预检并成功完成时，如果最终费用超过指定订阅的剩余额度，事务只把可覆盖部分累计到该订阅，订阅用量保持封顶，溢出基础用量按余额倍率扣减付款主体余额并允许余额为负，防止后置结算失败形成零计费记录。该余额扣减只结算已放行请求及并发在途请求，不会把额度已耗尽的指定订阅 Key 转成按量模式；后续新请求仍按订阅快照拒绝，即使用户余额足够也不回退。指定订阅不存在、失效或不覆盖最终分组时，整笔结算仍须失败，不能伪装成余额扣费。结算命令和幂等指纹都携带模式及指定订阅 ID，避免异步记录阶段因 Key 配置后来变化而选择错误资金来源。团队请求锁定和扣减的是 owner 对应付款用户，但团队成员累计使用 `ActorUserID`，避免账务与行为归属混淆。
+订阅解析必须同时满足生效时间、状态、周期额度和分组覆盖范围。`auto` 没有适用订阅时才走余额倍率，并允许订阅与余额共同承担；锁定订阅模式在请求准入时不允许回退其它订阅或余额。普通请求已经通过预检并成功完成时，如果最终费用超过指定订阅的剩余额度，事务只把可覆盖部分累计到该订阅，订阅用量保持封顶，溢出基础用量按余额倍率扣减付款主体余额并允许余额为负，防止后置结算失败形成零计费记录。该余额扣减只结算已放行请求及并发在途请求，不会把额度已耗尽的指定订阅 Key 转成按量模式；后续新请求仍按订阅快照拒绝，即使用户余额足够也不回退。
 
-批量图片与创作台直接调用唯一 `Funds.Reserve/Capture/Release`，通用任务引用显式包含 scope、任务 ID 和原预占动作 ID。app 注册允许的 scope 与事务参与工厂；`creative/postgres`、`batchimage/postgres` 只用 billing 提供的本次 SQL Tx 写所属任务表的分配与 allowance 标记，billing 不再识别两张任务表。未知 scope 在事务前拒绝；投影失败随资金、去重和额度一起回滚，死锁重试重新创建事务及参与者。scope 与参与信息不加入历史指纹，v1/v2/v3 快照和原 request ID 保持兼容。任务使用独立的预占/结算命令：提交时持久化余额与订阅分配快照，完成或取消时按同一幂等 request ID 结算、释放差额或回滚适用预记。指定订阅必须在提交上游前完整覆盖预占金额，额度不足就回滚并拒绝，不能复用普通请求“上游完成后再把溢出记为余额欠费”的时序。
+指定订阅不存在、失效或不覆盖最终分组时，整笔结算仍须失败，不能伪装成余额扣费。结算命令和幂等指纹都携带模式及指定订阅 ID，避免异步记录阶段因 Key 配置后来变化而选择错误资金来源。团队请求锁定和扣减的是 owner 对应付款用户，但团队成员累计使用 `ActorUserID`，避免账务与行为归属混淆。
+
+批量图片与创作台直接调用唯一 `Funds.Reserve/Capture/Release`，通用任务引用显式包含 scope、任务 ID 和原预占动作 ID。app 注册允许的 scope 与事务参与工厂；`creative/postgres`、`batchimage/postgres` 只用 billing 提供的本次 SQL Tx 写所属任务表的分配与 allowance 标记，billing 不再识别两张任务表。未知 scope 在事务前拒绝；投影失败随资金、去重和额度一起回滚，死锁重试重新创建事务及参与者。
+
+scope 与参与信息不加入历史指纹，v1/v2/v3 快照和原 request ID 保持兼容。任务使用独立的预占/结算命令：提交时持久化余额与订阅分配快照，完成或取消时按同一幂等 request ID 结算、释放差额或回滚适用预记。指定订阅必须在提交上游前完整覆盖预占金额，额度不足就回滚并拒绝，不能复用普通请求“上游完成后再把溢出记为余额欠费”的时序。
 
 ## 记录与对账
 
 网关完成计算和提交次序由 `gateway/completion.Recorder` 唯一实现，app 在构造固定执行器前绑定同一 Forward/OpenAI 完成实例。HTTP、SSE、媒体和 WS turn 在提交任务前取得独立主体、资金来源、报文及模型快照；后台不再读取 Gin 或随后变化的请求对象。普通完成、Cyber 失败补记和 Live 零费用记录保留各自原资格，未把一种入口的部分失败扣费扩展到其它入口。
 
-完成输入的同步捕获由 `gateway/provider` 唯一实现，读取原生 Key、身份与账号记录后复制实际需要的计费字段，不保留凭据或原请求体。请求 ID 前缀优先级、上游自定义 Header、WS 无 HTTP 请求 ID、UTF-8 列宽截断、WS turn 的固定时刻及显式额度更新能力均保持原语义。历史长上下文专用入参已删除；长上下文算法继续由模型目录和统一定价决定。
+完成输入的同步捕获由 `gateway/provider` 唯一实现，读取原生 Key、身份与账号记录后复制实际需要的计费字段，不保留凭据或原请求体。请求 ID 前缀优先级、上游自定义 Header、WS 无 HTTP 请求 ID、UTF-8 列宽截断、WS turn 的固定时刻及显式额度更新能力均保持原语义。长上下文算法由模型目录和统一定价决定。
 
-普通结算的 `completion.Store` 由 app 直接绑定唯一 `billing/postgres.SettlementStore`，与任务 `Funds` 共用同一存储；已删除旧资金仓储构造与命令包装。订阅解析仍由该存储在原调用点读取，普通 `Apply` 保持自己的闭合事务，不因请求携带外层事务而自动加入。
+普通结算的 `completion.Store` 由 app 直接绑定唯一 `billing/postgres.SettlementStore`，与任务 `Funds` 共用同一存储。订阅解析仍由该存储在原调用点读取，普通 `Apply` 保持自己的闭合事务，不因请求携带外层事务而自动加入。
 
 完成队列同时等待排队和同步溢出任务，停止后不能重开扩缩容；没有新增持久完成队列。队列或进程超时不表示资金已提交，分析记录也不能替代 billing 的真实幂等/事务结果。
 
 余额和账号额度阈值由 app 构造的唯一 `billing.BalanceNotifyService` 判断，完成处理直接使用该实例。账号配置通过 `account/provider.QuotaNotification` 投影；有事务返回状态时使用该状态中的用量和限额，没有时才按原时机回源。邮件呈现与投递仍由 notification 拥有，通知不参与资金提交。
-
 
 普通网关在资金事务成功后才尽力写 Usage Log。日志写入失败不能回滚已提交的扣费，也不能因重试日志而再次扣费；反过来，结算失败时不得写一条看似成功的正常使用记录。`usage_billing_dedup` 和实际余额/订阅/配额更新是资金效果的幂等边界，Usage Log 是分析、用户账单展示和运维排查的事实视图。
 

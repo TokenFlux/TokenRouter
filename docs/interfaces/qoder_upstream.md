@@ -4,7 +4,7 @@ Qoder Cosy 原生集合仅含 qoder_chat；公开 Messages/Responses/Chat 由分
 
 TokenRouter 通过 Qoder COSY 网关路径支持 Qoder 原生上游账号。面向请求公开的别名会映射到 Qoder 路由键，原始路由键仍可作为直接请求模型，以满足兼容和运维需要。
 
-本文拥有 Qoder 账号、站点、模型能力、请求适配、定价、配额和失败边界。TokenRouter 的共用调度与账本语义不在本文定义范围内；实现中尚不存在的 Qoder 企业登录变体也不在支持承诺内。
+本文说明 Qoder 账号、站点、模型能力、请求适配、定价、配额和失败边界。TokenRouter 的共用调度与账本语义不在本文定义范围内；实现中尚不存在的 Qoder 企业登录变体也不在支持承诺内。
 
 ## 章节导航
 
@@ -138,14 +138,15 @@ TokenRouter 不读取客户端声明的上下文上限。Chat Completions、Resp
 <a id="qoder_execution_boundary"></a>
 ## 平台执行与输出边界
 
-Qoder 原生客户端、站点/模型能力、签名、报文转换和会话增量状态由 `upstream/qoder` 唯一拥有。`Executor.Execute` 接收本次协议、已投影目标和同步输出端口；平台不读取 Gin、旧账号实体或配置对象。`gateway/provider.QoderRuntime` 唯一持有平台执行器与会话存储，app 为 Chat 和其余入口绑定同一实例；目标使用原生账号记录，令牌与客户端仍按原时点取得。旧 `QoderGatewayService` 已删除；主 Chat 链直接使用原生 gateway 执行器，Messages/Responses 及兼容 Chat 尝试通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，继续共享同一运行时，不另建尝试循环。只供显式导入和 opt-in 测试使用的本地凭据读取隔离在 `upstream/qoder/localauth`，正常服务不自动读取本机 Qoder 登录资料。
+Qoder 原生客户端、站点/模型能力、签名、报文转换和会话增量状态由 `upstream/qoder` 唯一拥有。`Executor.Execute` 接收本次协议、已投影目标和同步输出端口；平台不读取 Gin、旧账号实体或配置对象。`gateway/provider.QoderRuntime` 唯一持有平台执行器与会话存储，app 为 Chat 和其余入口绑定同一实例；目标使用原生账号记录，令牌与客户端仍按原时点取得。主 Chat 链直接使用原生 gateway 执行器，Messages/Responses 及兼容 Chat 尝试通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，继续共享同一运行时，不另建尝试循环。
 
-HTTP 适配器拥有实际写入和 Flush，转换器逐段输出，不聚合整条 SSE。`gateway/httpapi.QoderRequestMetadata` 复制本次请求头并投影原 Key ID 与客户端标记，平台会话键计算仍由 upstream 唯一执行。旧流输出包装已删除，HTTP 边界测试直接连接相同输出 Writer 与原生流实现。流中已发生服务并已收到 usage 后，上游继续报错时会同时返回部分结果与错误；完成入口使用这些已观测计量结算一次，保持失败响应、失败反馈及原会话回滚，不把失败绑定为成功会话，也不重新推理或估算缺失用量。尚未发生服务或未观测用量的失败不生成这类部分结算。
+只供显式导入和 opt-in 测试使用的本地凭据读取隔离在 `upstream/qoder/localauth`，正常服务不自动读取本机 Qoder 登录资料。
+
+HTTP 适配器拥有实际写入和 Flush，转换器逐段输出，不聚合整条 SSE。`gateway/httpapi.QoderRequestMetadata` 复制本次请求头并投影原 Key ID 与客户端标记，平台会话键计算仍由 upstream 唯一执行。HTTP 边界测试连接相同的输出 Writer 与平台流实现。流中已发生服务并已收到 usage 后，上游继续报错时会同时返回部分结果与错误；完成入口使用这些已观测计量结算一次，保持失败响应、失败反馈及原会话回滚，不把失败绑定为成功会话，也不重新推理或估算缺失用量。尚未发生服务或未观测用量的失败不生成这类部分结算。
 
 在准备和取得凭据之后、发起推理之前检查原请求取消，取消后不启动新的推理。已经进入上游的流式请求仍脱离客户端取消，在原十五分钟执行预算内收集尾部 usage；非流保持取消传播。响应体由平台执行关闭，账号与用户 Lease 由请求编排完成释放。
 
-
-账号授权的十分钟会话、完成认领、pending 和成功重放由 `account.QoderAuthorization` 持有，`account/provider` 只投影原生交换结果。刷新资格及新旧凭据合并属于 account，实际站点交换属于 upstream；持久化继续经过既有刷新协调和身份 CAS。请求失败后的凭据身份判断和刷新锁等待也由 account 拥有，保留立即回读、100ms 轮询和3秒预算；仅凭据轮换后才重试，不返回旧凭据充当刷新成功。供应商错误到限流/过载的账号写入由 account/provider 执行，沿用脱离请求取消的5秒预算与尽力失败语义。
+账号授权的十分钟会话、完成认领、pending 和成功重放由 `account.QoderAuthorization` 持有，`account/provider` 只投影原生交换结果。刷新资格及新旧凭据合并属于 account，实际站点交换属于 upstream；持久化继续经过既有刷新协调和身份 CAS。请求失败后的凭据身份判断和刷新锁等待也由 account 拥有，保留立即回读、100ms 轮询和 3 秒预算；仅凭据轮换后才重试，不返回旧凭据充当刷新成功。供应商错误到限流/过载的账号写入由 account/provider 执行，沿用脱离请求取消的 5 秒预算与尽力失败语义。
 
 运行时凭据缓存由 `account.QoderSessions` 唯一持有，保留身份世代和 90 秒共享构建预算。`account/provider.QoderTokenProvider` 负责凭据投影及供应商构建，`QoderTokenRefresher` 组合站点交换与账号凭据合并，传输复用原 HTTP 池和 TLS 策略。单个等待者取消不影响其他等待者；应用停止会取消共享构建、等待已进入操作并拒绝迟到回填。各平台令牌及 Qoder 会话失效由 `account.CompositeTokenCacheInvalidator` 统一调用原缓存端口，不改变备用键清理或尽力删除语义。授权 HTTP 实现位于 `account/httpapi`，URL、管理员中间件、state 和冻结代理语义保持。
 
@@ -168,7 +169,11 @@ Qoder 与其他平台使用同一套价格解析规则，不再要求公开别�
 
 Qoder 有独立的上游月度 Credits 配额。TokenRouter 只把它作为账号用量和容量信息，它与 TokenRouter 用户余额、订阅以及用户与平台维度的美元配额相互独立。
 
-账号用量界面会查询所选站点的 Gateway `/api/v2/quota/usage` 端点，并把最近成功快照保存到 `account.extra.qoder_quota_snapshot`。国际站请求始终使用 COSY 签名；中国站的 `qodercn20` 和 PAT 账号同样使用 COSY 签名，旧版或导入的 COSY 会话则按官方客户端行为使用 `security_oauth_token` Bearer 鉴权。中国站请求会在可用时携带缓存的 `orgId`，1.24.2 的常规配额查询不发送 `quota_key`。实时查询失败时，管理界面可以同时显示缓存快照和降级用量错误。完整上游月度 Credit 余额是 `userQuota`、`addOnQuota` 与 `orgResourcePackage` 或 `sharedQuota` 之和，与 qodercli 用量视图一致。对于非个人零配额账号，`isQuotaExceeded=true` 或已耗尽的正数合计配额会把正常账号 `rate_limited_until` 调度信号设置到 Qoder 的 `expiresAt`；仍有附加或组织 Credit 时会阻止或清除过期配额锁。观测到的 `personal_standard` 结构如果 `total=0`、`remaining=0` 且 `expiresAt` 极远，只用于展示，直到真实请求错误确认限制。请求时的错误码 `115`、`agentLimitResetTime` 或 HTTP 429 仍走正常账号限流冷却路径。
+账号用量界面会查询所选站点的 Gateway `/api/v2/quota/usage` 端点，并把最近成功快照保存到 `account.extra.qoder_quota_snapshot`。国际站请求始终使用 COSY 签名；中国站的 `qodercn20` 和 PAT 账号同样使用 COSY 签名，旧版或导入的 COSY 会话则按官方客户端行为使用 `security_oauth_token` Bearer 鉴权。中国站请求会在可用时携带缓存的 `orgId`，1.24.2 的常规配额查询不发送 `quota_key`。
+
+实时查询失败时，管理界面可以同时显示缓存快照和降级用量错误。完整上游月度 Credit 余额是 `userQuota`、`addOnQuota` 与 `orgResourcePackage` 或 `sharedQuota` 之和，与 qodercli 用量视图一致。对于非个人零配额账号，`isQuotaExceeded=true` 或已耗尽的正数合计配额会把正常账号 `rate_limited_until` 调度信号设置到 Qoder 的 `expiresAt`；仍有附加或组织 Credit 时会阻止或清除过期配额锁。
+
+观测到的 `personal_standard` 结构如果 `total=0`、`remaining=0` 且 `expiresAt` 极远，只用于展示，直到真实请求错误确认限制。请求时的错误码 `115`、`agentLimitResetTime` 或 HTTP 429 仍走正常账号限流冷却路径。
 
 ## 运维
 

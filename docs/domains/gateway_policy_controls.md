@@ -22,7 +22,7 @@
 | Account | 凭据、代理、模型映射/白名单、重试状态码、临时不可调度、Header override 和 capability | 不能绕过分组对用户公开的能力 |
 | Setting/config | 高级调度评分参数、跨分组运行策略、兼容开关、默认 Header/UA、缓存和安全策略 | 不能替代分组的调度器选择或每个账号的权威运行状态 |
 
-每个 Group 当前最多关联一个 Channel；不存在“同一分组多个渠道再二次选择”的运行关系。字段属于哪一层决定缓存失效范围、管理权限和审计来源，不能为了前端表单方便复制为多份互相覆盖的配置。
+每个 Group 最多关联一个 Channel，请求在该渠道配置下选择账号。字段属于哪一层决定缓存失效范围、管理权限和审计来源，不能为了前端表单方便复制为多份互相覆盖的配置。
 
 ## 协议与能力准入
 
@@ -50,7 +50,7 @@ Group 的 fallback 包括普通 fallback、invalid-request fallback 和 unavaila
 
 `require_oauth_only` 排除 API Key 等非 OAuth 账号；`require_privacy_set` 要求上游隐私状态已经确认。OpenAI/Antigravity 的 privacy 检查和设置可在创建、刷新或维护流程触发，但请求热路径只能使用当前已验证状态，不能假定刷新成功。
 
-OpenAI 客户端访问裁决直接使用 account 的原生检测端口，按需读取 Header 字符串，TLS 路由只传入匹配结果；HTTP、Live 和自动探针复用同一规则。WS 传输选择直接调用 gateway/provider 对账号与配置的投影和 egress 的唯一决策，旧检测器及 resolver 已删除，配置与动态客户端放行设置仍在原时点读取。
+OpenAI 客户端访问裁决直接使用 account 的原生检测端口，按需读取 Header 字符串，TLS 路由只传入匹配结果；HTTP、Live 和自动探针复用同一规则。WS 传输选择直接调用 gateway/provider 对账号与配置的投影和 egress 的唯一决策，配置与动态客户端放行设置仍在原时点读取。
 
 会话隔离与粘性约束防止不同账号、团队或用户上下文互相复用。OAuth passthrough、Claude Code-only 和允许客户端策略必须与账号类型共同校验；客户端伪造 User-Agent 不能自动获得额外权限。
 
@@ -60,7 +60,7 @@ Group 可限制最大 reasoning effort 并配置 effort 映射，平台适配器
 
 HTTP 在原策略改写位置捕获客户端档位，`gateway/requeststate` 保存请求策略快照并执行报文字段改写；映射、上限和错误类型仍由 routing 拥有。WS 使用相同报文规则和原生用量解码器，逐轮区分客户端原档位与最终上游档位。缺省桥接档位不自动成为客户端请求，显式字段被最终转换删除后也不再从模型后缀补回；异步完成只读取已经固化的值。
 
-Fast/Ultra Fast 的系统、分组与 Key 裁决统一由 `gateway/tierpolicy.Resolve` 执行，HTTP 报文与 WS 帧都使用该结果。系统短路和分组强制关闭不会触发后续 Key 开启查价；Key 强制开启产生的新档位仍须再次接受系统策略。旧执行边界只投影资格及惰性读取端口，协议拒绝、HTTP/SSE 错误与 WS 错误帧分别由原生 Adapter 输出。
+Fast/Ultra Fast 的系统、分组与 Key 裁决统一由 `gateway/tierpolicy.Resolve` 执行，HTTP 报文与 WS 帧都使用该结果。系统短路和分组强制关闭不会触发后续 Key 开启查价；Key 强制开启产生的新档位仍须再次接受系统策略。执行适配投影资格及惰性读取端口，协议拒绝、HTTP/SSE 错误与 WS 错误帧分别由原生 Adapter 输出。
 
 Header 策略来自平台默认、全局设置和允许的账号 override。认证、hop-by-hop、Host/长度等受保护头不能被任意覆盖。Anthropic beta/cache、OpenAI UA/客户端元数据、Claude Code mimicry 和 dateline/metadata 兼容均应在平台边界内处理，并接受出站安全校验。
 
@@ -68,6 +68,6 @@ Header 策略来自平台默认、全局设置和允许的账号 override。认�
 
 账号可配置额外重试状态码和临时不可调度规则，但最终是否换账号还取决于平台错误分类、响应是否开始、attempt 上限和上下文截止时间。401/403、429、5xx、内容策略和本地拒绝不能只按 HTTP 数字归为一类。
 
-重试发生在同一分组的账号 attempt 内；fallback 发生在明确的跨分组策略上；错误响应规则只改变最终客户端展示。这三者是不同阶段。修改任何一层时要验证不会重复扣费、重复写流或把本地策略拒绝计作账号故障。
+重试发生在同一分组的账号 attempt 内；fallback 发生在明确的跨分组策略上；错误响应规则只改变最终客户端展示。修改这些阶段时要验证不会重复扣费、重复写流或把本地策略拒绝计作账号故障。
 
 相关文档：[账号调度与缓存一致性](../architecture/account_scheduling_and_cache.md)、[网关错误响应策略](../interfaces/gateway_error_policy.md)、[路由与结算](routing_and_billing.md)。

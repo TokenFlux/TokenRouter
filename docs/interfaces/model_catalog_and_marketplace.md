@@ -14,11 +14,13 @@
 <a id="model_catalog_resolution"></a>
 ## 目录解析
 
-公开市场的分组筛选、逐请求账号预取/排序、辅助容量与可用性、动态设置和输出组合已由 `routing.Marketplace` 执行；`routing/httpapi` 直接提供模型与公开统计 HTTP。app 绑定唯一新分组存储、settings.Store、billing 报价及原 Dashboard 统计读取，平台默认目录与显示名由 `routing/provider` 投影，app 直接注入选项，保留动态目录的原读取时点。旧 ModelMarketplaceService 及其测试方法转接已删除。市场展示、价卡和元数据测试直接验证 routing.Marketplace；网关目录与实际查价的一致性测试也直接组合原生市场端口，不构造另一份市场服务。
+公开市场的分组筛选、逐请求账号预取/排序、辅助容量与可用性、动态设置和输出组合已由 `routing.Marketplace` 执行；`routing/httpapi` 直接提供模型与公开统计 HTTP。app 绑定唯一分组存储、settings.Store、billing 报价及原 Dashboard 统计读取，平台默认目录与显示名由 `routing/provider` 投影，app 直接注入选项，保留动态目录的原读取时点。市场展示、价卡和元数据测试直接验证 routing.Marketplace；网关目录与实际查价的一致性测试也直接组合原生市场端口，不构造另一份市场服务。
 
-`routing.RequestableResolver` 唯一负责可请求候选合并、渠道限制、R → C → U 及价格歧义判断。`routing.RequestableCatalogue` 组合候选读取与模型列表短缓存，由 app 直接绑定 account 存储；公开市场不再经过旧 GatewayService 读取账号。`gateway/provider.ModelPolicy` 为目录和实际转发提供同一套平台模型判断，账号记录与本次 attempt 的模型链分开传入。账号模型范围与一跳匹配由 account 提供，平台专有资格、thinking/模型限流观测和动态默认目录通过窄接口接入。`routing.ModelList` 由 app 按原 TTL 构造一次，保留原组/平台键、nil 结果、失效范围及全进程指标，仍由应用时间轮按原频率清理。请求模型与公开模型都使用同一可请求解析边界：从当前分组的可调度账号能力生成候选，再执行 Key/分组/渠道/账号的模型映射和范围校验。默认平台模型只在缺少可用解析服务的兼容场景提供基线；已经完成账号/渠道解析但结果为空时必须保持为空，不能重新回退默认列表。
+`routing.RequestableResolver` 唯一负责可请求候选合并、渠道限制、R → C → U 及价格歧义判断。`routing.RequestableCatalogue` 组合候选读取与模型列表短缓存，由 app 直接绑定 account 存储。`gateway/provider.ModelPolicy` 为目录和实际转发提供同一套平台模型判断，账号记录与本次 attempt 的模型链分开传入。账号模型范围与一跳匹配由 account 提供，平台专有资格、thinking/模型限流观测和动态默认目录通过窄接口接入。
 
-网关四类模型目录 HTTP 由 app 直接构造 `gateway/httpapi.ModelsHandler`，复用同一 `routing.RequestableCatalogue`，不从旧 GatewayHandler 创建门面。平台展示数据由 `gateway/provider.ModelDisplayCatalogue` 提供；`gateway/modeldisplay` 只保存原展示值、稳定合并与默认列表规则。HTTP 继续拥有 Key 别名、自定义列表、原生 Gemini 响应与回退；Gemini 远端模型读取通过 app 的只读目标端口连接现有选择/传输原语，不新增账号选择或查询。
+`routing.ModelList` 由 app 按原 TTL 构造一次，保留原组/平台键、nil 结果、失效范围及全进程指标，仍由应用时间轮按原频率清理。请求模型与公开模型都使用同一可请求解析边界：从当前分组的可调度账号能力生成候选，再执行 Key/分组/渠道/账号的模型映射和范围校验。默认平台模型只在缺少可用解析服务的兼容场景提供基线；已经完成账号/渠道解析但结果为空时必须保持为空，不能重新回退默认列表。
+
+网关四类模型目录 HTTP 由 app 直接构造 `gateway/httpapi.ModelsHandler`，复用同一 `routing.RequestableCatalogue`。平台展示数据由 `gateway/provider.ModelDisplayCatalogue` 提供；`gateway/modeldisplay` 只保存原展示值、稳定合并与默认列表规则。HTTP 继续拥有 Key 别名、自定义列表、原生 Gemini 响应与回退；Gemini 远端模型读取通过 app 的只读目标端口连接现有选择/传输原语，不新增账号选择或查询。
 
 账号映射的配置解析与默认透传合并由 `account.ResolveModelMapping` 执行，平台默认表按需由外层提供。返回映射是独立值；读取时不再修改账号内的派生缓存，避免调度/展示并发读取以及调用方修改结果污染后续请求。原精确/通配匹配继续复用 `routing/modelmap`；Qoder 专有资格和默认目录由平台规则适配器提供，请求改写仍在原执行时点发生。分组模型拒绝提示由 routing 聚合候选，gateway/provider 提供站点默认目录；只在候选合资格且没有显式模型时读取默认目录，显式配置过滤为空时保持非 nil 空集合。
 
@@ -37,7 +39,7 @@
 <a id="model_catalog_metadata_lookup"></a>
 ## 目录元数据查询
 
-目录加载、hash、fallback/override 文件、缓存与热更新由 `billing/provider` 唯一持有，JSON 解析、浅合并、身份候选和价格回退规则由 `billing/pricing` 计算并返回诊断。provider 在原读锁范围内调用纯查询并记录诊断；app 注入的平台候选工厂使一次查询中的日期回退也复用同一动态默认值。旧 PricingService 仅委托该实例，更新失败保留原目录，代理失败策略、URL 校验及更新周期保持原契约。
+目录加载、hash、fallback/override 文件、缓存与热更新由 `billing/provider` 唯一持有，JSON 解析、浅合并、身份候选和价格回退规则由 `billing/pricing` 计算并返回诊断。provider 在原读锁范围内调用纯查询并记录诊断；app 注入的平台候选工厂使一次查询中的日期回退也复用同一动态默认值。更新失败保留原目录，代理失败策略、URL 校验及更新周期保持原契约。
 
 公开市场通过 `billing.PriceResolver.PublicQuote` 使用与实扣一致的价卡解析；免费 Fast 只修改原本支持该模式的展示副本，不影响 Embeddings 等模型。价格、能力、分组与渠道查价共用明确身份候选，优先完整 ID，再尝试等价名称写法，最后查询明确的同型号档位别名。名称处理兼容大小写、首尾空白、`models/` 和 Vertex 资源路径；Claude 新旧命名顺序中的主次版本支持点号和短横线互换，日期和其它后缀保持原样。完整目录条目存在时独立生效，不从基础条目拼接价格、缓存、上下文阶梯或能力字段。
 
@@ -55,7 +57,11 @@ GPT-5.6 系列的内置目录、白名单和配置导出只提供 `gpt-5.6-sol/t
 
 模型展示价格与实际结算共用计费解析器，按分组逐模型定价、渠道有效价格、内置模型价格的顺序选择基础价格，再应用 Group 倍率。渠道映射已经给出 pricing model 时，展示层不应再次猜测别名链；分组显式单价或区间不能被渠道覆盖；仅配置服务层级、Max 推理或分时倍率时继承渠道/内置基础价，并按字段覆盖同名倍率。非 Qoder 分组只有在管理员配置的积分人民币单价和美元汇率都有效时，才展示官方价比例/人民币等价；任一缺失或非法则省略。Qoder 分组不展示这两个官方价对比字段。
 
-`context_intervals` 是实际用户定价合同。分组或渠道配置有效 token 区间时按共同的 `(min, max]` 边界展示和结算，并优先于模型内置长上下文规则；分组关闭 `long_context_pricing_enabled` 也不会压平这类显式区间。没有有效显式区间而模型含长上下文元数据时，开关开启会合成基础档和长上下文档，关闭则展示并结算单一基础价。模型目录的 `input/output_cost_per_token_above_*k_tokens` 在解析层转换为同一组阈值和倍率；显式 `long_context_*` 字段（含 `0`）优先。可选 `pricing.override_file` 在目录和回退文件之上按字段浅合并，`null` 表示删除字段，覆盖后的目录仍由展示与结算共同读取。合成长上下文档时，普通与 priority/Fast 的缓存创建、缓存读取价格都按输入侧倍率调整；缓存创建的标准、5 分钟和 1 小时价格来源保持相同倍率语义。展示会补齐显式区间前后及中间有基础价的范围；缺价范围不展示为零价，也不会被其它区间价格代替。只有全部正上下文范围有价且普通/Fast 价格一致时才压平为单价。返回的零价区间仍保留范围标签和切换入口；JSON 中零金额字段省略不表示该区间缺价。区间价格已经应用 Group 倍率，因此相同请求在任何最终路由账号上都必须得到相同 `ActualCost`；账号配置不能改变公开价格，也不能再次加价。
+`context_intervals` 是实际用户定价合同。分组或渠道配置有效 token 区间时按共同的 `(min, max]` 边界展示和结算，并优先于模型内置长上下文规则；分组关闭 `long_context_pricing_enabled` 也不会压平这类显式区间。没有有效显式区间而模型含长上下文元数据时，开关开启会合成基础档和长上下文档，关闭则展示并结算单一基础价。模型目录的 `input/output_cost_per_token_above_*k_tokens` 在解析层转换为同一组阈值和倍率；显式 `long_context_*` 字段（含 `0`）优先。
+
+可选 `pricing.override_file` 在目录和回退文件之上按字段浅合并，`null` 表示删除字段，覆盖后的目录仍由展示与结算共同读取。合成长上下文档时，普通与 priority/Fast 的缓存创建、缓存读取价格都按输入侧倍率调整；缓存创建的标准、5 分钟和 1 小时价格来源保持相同倍率语义。展示会补齐显式区间前后及中间有基础价的范围；缺价范围不展示为零价，也不会被其它区间价格代替。只有全部正上下文范围有价且普通/Fast 价格一致时才压平为单价。
+
+返回的零价区间仍保留范围标签和切换入口；JSON 中零金额字段省略不表示该区间缺价。区间价格已经应用 Group 倍率，因此相同请求在任何最终路由账号上都必须得到相同 `ActualCost`；账号配置不能改变公开价格，也不能再次加价。
 
 启用 `free_openai_fast` 的适用分组，其模型广场 Fast 用户价格与同一 Standard 基础价/上下文档一致；Fast 展示资格同时检查默认价和有效区间，只有区间单价的自定义模型同样适用。只调整展示副本，结算的 Fast `total_cost` 和账号统计不因此改成 Standard。分时倍率沿用既有渠道展示口径，不新增市场价格的实时刷新。
 
@@ -72,7 +78,7 @@ GPT-5.6 系列的内置目录、白名单和配置导出只提供 `gpt-5.6-sol/t
 
 每个 Group 的 `availability_probe_config` 还控制探测模型、提示词、间隔、单次尝试超时、User-Agent 和最大重试次数。`max_retries` 表示首次失败后允许追加的尝试次数：旧配置缺失该键时默认 3，显式设为 0 时只执行首次探测，允许范围为 0 到 10。每次尝试拥有独立超时；首次或任一次重试成功后，本轮观测即记为成功并停止继续尝试。一次调度周期只保存一个最终结果，中间失败不单独进入可用率样本。
 
-探测轮次、重试与最终结果编排由 `routing` 拥有，租约、原子保存和历史时间桶查询在 `routing/postgres`；`routing/provider` 提供原 cron 日历调度与平台目录投影。app 注入实例标识、时区和执行端口，具体账号选择与上游测试暂由旧平台执行层提供。构造不启动，重复 Start/Stop 不再注册新任务；停止会取消维护、领取与请求预算，并在生命周期的后台总预算内等待在途操作。超时返回失败，不能视作 drain 完成；尚未保存的领取继续按原 PostgreSQL 租约到期规则恢复。
+探测轮次、重试与最终结果编排由 `routing` 拥有，租约、原子保存和历史时间桶查询在 `routing/postgres`；`routing/provider` 提供原 cron 日历调度与平台目录投影。app 注入实例标识、时区和执行端口，账号选择由 `gateway/provider/selection` 提供，探测执行复用 `account.TestService`，通过 app 构造的 Probe 适配连接。构造不启动，重复 Start/Stop 不再注册新任务；停止会取消维护、领取与请求预算，并在生命周期的后台总预算内等待在途操作。超时返回失败，不能视作 drain 完成；尚未保存的领取继续按原 PostgreSQL 租约到期规则恢复。
 
 每个实例的 runner 不允许分钟级 cron 轮次重叠；单轮只领取不超过实例 worker 数量的到期 Group，使每个已领取分组都能立即执行，并由 PostgreSQL 租约阻止其它实例重复领取。维护、领取和每个分组的探测分别使用独立超时预算，慢维护不能挤占合法重试窗口。管理 Group API 中不合法的 `availability_probe_config` 统一返回 HTTP `400` 和 reason `INVALID_AVAILABILITY_PROBE_CONFIG`。
 

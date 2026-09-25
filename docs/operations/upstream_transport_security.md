@@ -14,7 +14,7 @@
 <a id="upstream_proxy_lifecycle"></a>
 ## 代理生命周期
 
-代理管理和 fallback 规则位于 egress，PostgreSQL 与 Redis Adapter 随模块持有；app 绑定原 outbox writer 和同连接账号参与者。代理支持 `http`、`https`、`socks5` 和 `socks5h`，可保存过期时间、健康状态和延迟结果。管理端测试与周期健康检查使用真实代理链，普通展示与日志不输出代理密码；显式管理员备份按原文件契约导出凭据。代理导入导出规则由 egress.ProxyTransfer 拥有，HTTP 直接绑定新处理器，备份 envelope 在 account/transfer 作为纯格式共享。保留批内备援名称引用、部分成功、状态同步及导入后探测，后台探测由 app 的同一任务拥有者接管。
+代理管理和 fallback 规则位于 egress，PostgreSQL 与 Redis Adapter 随模块持有；app 绑定原 outbox writer 和同连接账号参与者。代理支持 `http`、`https`、`socks5` 和 `socks5h`，可保存过期时间、健康状态和延迟结果。管理端测试与周期健康检查使用真实代理链，普通展示与日志不输出代理密码；显式管理员备份按原文件契约导出凭据。代理导入导出规则由 egress.ProxyTransfer 拥有，HTTP 绑定 egress/httpapi 的处理器，备份 envelope 在 account/transfer 作为纯格式共享。保留批内备援名称引用、部分成功、状态同步及导入后探测，后台探测由 app 的同一任务拥有者接管。
 
 代理到期维护由 app 管理，构造不启动、重复 Start 不增加扫描，Stop 后不再启动；关闭会取消并等待当前扫描。代理到期后，维护服务按配置选择：
 
@@ -24,20 +24,20 @@
 
 fallback 链循环、全部过期或目标缺失时保留可诊断失败，不能无限递归。代理替换或解绑后必须失效受影响账号的调度快照和 HTTP client 缓存；`direct` 是明确配置的降级，不是任意代理错误后的自动绕过。
 
-EgressPolicy 持有每请求的代理、TLS 身份、Header 和目标/重定向投影，技术 Adapter 按原时点构造 transport options。嵌套配置均复制，安全 Header 在原执行入口应用；平台线缆大小写和 Grok CLI/403 策略由对应 upstream 提供。该投影不改变校验与连接分别解析 DNS 的方式。
+EgressPolicy 持有每请求的代理、TLS 身份、Header 和目标/重定向投影，技术 Adapter 按原时点构造 transport options。嵌套配置均复制，安全 Header 在原执行入口应用；平台报文 Header 大小写和 Grok CLI/403 策略由对应 upstream 提供。该投影不改变校验与连接分别解析 DNS 的方式。
 
 <a id="upstream_client_pool"></a>
 ## 连接池隔离
 
 普通共享 HTTP 客户端、req 客户端和按账号隔离的上游池都由 `infra/httpclient` 实现，但保留各自的缓存命名空间与 key，不合并复用策略。proxy 解析与拨号、TLS 握手位于其技术子包。`app/http_transport.go` 投影配置，`gateway/provider/transport` 将平台和请求标记转换为每请求技术参数；OpenAI 的 H2 代理回退状态与决策由 egress 的 TransportPolicy 唯一持有，传输 Adapter 只投影请求类别和技术观测；Grok CLI 身份与窄范围可重放 403 回退由 upstream/grok 拥有。
 
-调用方直接使用 `infra/httpclient.UpstreamTransport` 技术端口，旧 service 接口声明已删除。app 只构造一个具体 `gateway/provider/transport.Client`，Wire 为各消费者绑定同一实例；接口归属改变不合并已有客户端池或改变隔离键。
+调用方直接使用 `infra/httpclient.UpstreamTransport` 技术端口。app 只构造一个具体 `gateway/provider/transport.Client`，Wire 为各消费者绑定同一实例；接口归属改变不合并已有客户端池或改变隔离键。
 
 `UpstreamPool.Do` 在请求失败时释放占用，在成功时将释放绑定到响应体关闭；重复关闭不会重复减少计数。每请求的重定向或 transport 包装通过客户端派生完成，不能修改缓存客户端。调用方仍必须关闭响应体，才能释放在途占用。
 
 每次执行先复制客户端并设置本次 `CheckRedirect`，再交给 `PrepareClient` 做平台适配；适配器可以覆盖当前请求的重定向规则，但不能修改共享 transport。回调不进入缓存，传入 nil 时恢复默认重定向行为。因此，同一池中禁止重定向、公网逐跳校验和普通请求可以并发使用，各自策略不会随缓存预热顺序改变，底层连接仍按原隔离键复用。
 
-HTTP client 池可按 `proxy`、`account` 或 `account_proxy` 隔离，并有最大条目、空闲过期和逐出策略。隔离键还包含 TLS profile 等传输身份，防止不同账号或指纹错误复用连接。池配置变化要关闭/逐出旧 transport，不能只修改后续 key。
+HTTP client 池可按 `proxy`、`account` 或 `account_proxy` 隔离，并有最大条目、空闲过期和逐出策略。隔离键还包含 TLS profile 等传输身份，防止不同账号或指纹错误复用连接。池配置变化要关闭/逐出旧 transport，仅修改后续 key 不会释放已有连接。
 
 普通与 TLS 指纹上游传输都显式限制 DNS/TCP 建连和 TLS 握手阶段，当前默认各为 10 秒；TCP keepalive 探测间隔为 30 秒。HTTP 代理保留调用方的建连拨号器，SOCKS5/SOCKS5H 因会覆盖 `Transport.DialContext`，其 forward dialer 必须自行携带同等上限并响应请求 context。`ResponseHeaderTimeout` 只约束建连后的响应头等待，不能替代这些阶段超时。
 
@@ -48,13 +48,13 @@ HTTP client 池可按 `proxy`、`account` 或 `account_proxy` 隔离，并有最
 
 egress 拥有 TLS Profile/Router 配置与唯一缓存；写入缓存和返回运行时投影都复制切片、规则及可空字段，单次请求不能修改后续请求的策略。TLS fingerprint profile 描述 ClientHello/HTTP 行为，账号可以直接绑定 profile，也可以绑定 router。Router 依据平台、请求和配置选择 profile、User-Agent 或 originator；结果进入连接池隔离键。配置缓存更新后需要跨实例失效，不能让同一账号长期使用不同规则版本。
 
-调用方以 `TLSSelection` 显式提供账号资格、直接模板与路由匹配结果；`egress/provider.TLSProfiles` 仅把策略结果转换为传输指纹，不读取账号或保存缓存。app 直接管理原生模板服务的启停，授权 token 的专用选择继续复用同一实例。旧 service 模板/路由构造转接已删除。
+调用方以 `TLSSelection` 显式提供账号资格、直接模板与路由匹配结果；`egress/provider.TLSProfiles` 仅把策略结果转换为传输指纹，不读取账号或保存缓存。app 直接管理原生模板服务的启停，授权 token 的专用选择继续复用同一实例。
 
 TLS collector 的短期会话、到期和记录上限由 egress 拥有，监听、证书及 ClientHello 捕获在 provider Adapter，仍按管理员请求开启。TLS collector 可采集受控会话以建立或检查 profile。采集入口是管理员诊断面，不允许接收任意公网目标或把捕获的 Authorization/Cookie 作为普通样本保存。OAuth token/reset 等特殊请求可以使用专用 profile/UA，但仍遵守目标和代理校验。
 
 ## 目标与重定向校验
 
-URL 格式、scheme、allowlist 与字面量地址策略由 `egress` 的纯校验实现拥有；DNS 查询由 `infra/httpclient` 执行，旧 urlvalidator 入口已删除。策略与执行分开，不改变原先的解析时机或代理行为。
+URL 格式、scheme、allowlist 与字面量地址策略由 `egress` 的纯校验实现拥有；DNS 查询由 `infra/httpclient` 执行。策略与执行分开，不改变原先的解析时机或代理行为。
 
 自定义 base URL 在转发和账号测试等使用入口至少经过格式与 scheme 校验。启用 `security.url_allowlist` 后，入口还要求目标命中对应 host allowlist，并按 `allow_private_hosts` 决定是否允许本地或私网字面量地址；关闭 allowlist 时只保留最小格式校验，HTTP 还必须由 `allow_insecure_http` 显式放行，启动日志会提示 SSRF 检查已关闭。
 
@@ -64,7 +64,9 @@ URL 格式、scheme、allowlist 与字面量地址策略由 `egress` 的纯校�
 
 ## Header 与凭据边界
 
-Header override 只对 Anthropic/OpenAI/Kimi/Zhipu/DeepSeek 的 API Key 账号，以及 Grok 的 API Key/OAuth 账号生效。保存时会规范化名称和值并拒绝重复或非法条目，读取旧数据时还会再次过滤。Authorization、API Key、Proxy-Authorization、Host、Cookie、会话隔离头、hop-by-hop 和 transport 控制头都在禁止名单中，不能通过账号字段覆盖。OpenAI 的 `x-codex-routing-hint` 也属于网关自有控制头：出站构造会先删除调用方与账号覆盖提供的所有大小写变体，再仅为 OAuth 请求按最终模型和有效服务层级生成，API Key 路径不得透传。
+Header override 只对 Anthropic/OpenAI/Kimi/Zhipu/DeepSeek 的 API Key 账号，以及 Grok 的 API Key/OAuth 账号生效。保存时会规范化名称和值并拒绝重复或非法条目，读取旧数据时还会再次过滤。Authorization、API Key、Proxy-Authorization、Host、Cookie、会话隔离头、hop-by-hop 和 transport 控制头都在禁止名单中，不能通过账号字段覆盖。
+
+OpenAI 的 `x-codex-routing-hint` 也属于网关自有控制头：出站构造会先删除调用方与账号覆盖提供的所有大小写变体，再仅为 OAuth 请求按最终模型和有效服务层级生成，API Key 路径不得透传。
 
 账号类型适用性由 `account` 判定，名称和值的安全规则由 `egress` 唯一执行。每次取得的覆写表都是独立值，读路径不在共享账号内更新派生缓存，调用方修改和并发读取不会影响后续请求。
 

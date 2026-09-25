@@ -1,6 +1,6 @@
 # 开发、验证与上游同步
 
-本文记录 TokenRouter 当前工具链、代码生成、测试分层、仓库约束、发布和 fork 同步流程。它替代旧开发指南中的个人机器路径、固定本地凭据和临时故障处置；具体版本始终以 manifest 与 CI 为准。
+本文记录 TokenRouter 当前工具链、代码生成、测试分层、仓库约束、发布和 fork 同步流程。具体工具版本以 manifest 与 CI 为准，本地凭据与临时故障记录不写入本文。
 
 ## 章节导航
 
@@ -53,7 +53,9 @@ docker compose -f deploy/docker-compose.dev.yml up --build
 <a id="backend_dependency_rules"></a>
 ## 代码边界
 
-生产和生成代码已不再引用旧 service；HTTP、用例、存储和后台资源由 app 直接装配各模块的原生实现。旧 service 包及其测试构造辅助已删除，业务测试位于实际所有者，跨模块合同位于 tests/integration。billing 的核心、HTTP、PostgreSQL 和 Redis 已按角色分离；通用技术实现已分布在 `internal/infra`，HTTP 工具在 `server/httpx`、`server/clientip`，纯工具在明确列出的 pkg 包中。综合设置的新增字段必须在 app 静态参与者中声明唯一字段/键所有权，并保持一次原子保存、提交后应用失败明确标记已持久化。原生HTTP/DTO直接使用所属模块；测试夹具只提供数据或I/O替身，不重建旧服务图。
+HTTP、用例、存储和后台资源由 app 装配各模块实现。业务测试位于实际所有者，跨模块契约位于 tests/integration。包职责与依赖方向见[后端模块地图](../architecture/backend_modules.md)。billing 的核心、HTTP、PostgreSQL 和 Redis 已按角色分离；通用技术实现已分布在 `internal/infra`，HTTP 工具在 `server/httpx`、`server/clientip`，纯工具在明确列出的 pkg 包中。
+
+综合设置的新增字段必须在 app 静态参与者中声明唯一字段/键所有权，并保持一次原子保存、提交后应用失败明确标记已持久化。HTTP/DTO 使用所属模块的能力，测试夹具只提供数据或 I/O 替身。
 
 `.golangci.yml` 按职责约束业务核心、纯叶子契约、protocol、upstream、infra 和具体 Adapter，旧包路径继续由禁止依赖规则封锁。核心不依赖旧业务或框架/存储实现，HTTP Adapter 不直接访问数据库；具体上游不能依赖其他平台实现，技术包不反向读取完整 config 或业务 service。规则同时匹配目录直属文件和嵌套文件；新增的未分类路径也有默认约束。
 
@@ -63,19 +65,19 @@ protocol 的六组生产与测试规则使用精确的标准库白名单，允�
 
 billing 的 singleflight、隔离倍率缓存和提醒设置读取按实际文件许可；app 的动态设置、渠道、通知、推广、账号 outbox 和支付桥接同样精确到文件/import。公告和 billing 的用户读取直接投影 identity，不再经旧身份仓储桥接。PostgreSQL 与 Redis Adapter 不互相继承存储客户端许可，新增核心文件不继承这些专用依赖。资金测试必须确认真实 PostgreSQL 事务回滚、持久去重、8/10 位精度及 Redis 用户锁交错；SQLite 和 mock 不能替代这些行为证据。
 
-identity、team、apikey 的生产实例和同连接事务参与工厂由 app 固定；旧资料、Key 和管理接口只作投影与委托。身份 SDK 验证、令牌消费和认证缓存需要分别覆盖普通/unit 构建选择及真实 PostgreSQL/Redis；只剩测试消费者的私有转接放入对应标签的 `_test.go`，不保留生产算法副本。
+identity、team、apikey 的生产实例和同连接事务参与工厂由 app 绑定。身份 SDK 验证、令牌消费和认证缓存需要分别覆盖普通/unit 构建选择及真实 PostgreSQL/Redis；只剩测试消费者的私有转接放入对应标签的 `_test.go`，不保留生产算法副本。
 
 usage、audit、ops 已使用各自核心和 Adapter；用户/Key/团队的用量 SQL 参与函数复用调用方连接，不能改成逐条查询或分页后排序。新核心不导入旧实体、Gin 或具体存储；纯 `querycache`、`logevent` 与已迁统计值拥有独立职责规则。历史构造、HTTP 上下文和测试适配许可继续精确到文件/import，普通新文件不会继承许可；验收需要真实队列/事务/取消事件和查询次数证据，不能用仅编译或跳过替代。
 
-upstream 的具体平台不能相互导入，也不接收旧 Account、Gin 或完整 config。共享 Google 认证原语位于 upstream/internal/googleauth，纯 wire/转换继续由 protocol 提供；账号授权会话及凭据持久化归 account。app固定投影参数，gateway保持原重试时机；测试需要分别验证 HTTP 提交、语义输出、可重试边界和已观测用量。平台迁移使用本地 HTTP/TLS/WS 及隔离存储夹具，不能把这些结果当作真实供应商账号验证。
+upstream 的具体平台不能相互导入，也不接收旧 Account、Gin 或完整 config。共享 Google 认证原语位于 upstream/internal/googleauth，纯 wire/转换继续由 protocol 提供；账号授权会话及凭据持久化归 account。app 投影参数，gateway 决定重试时机；测试需要分别验证 HTTP 提交、语义输出、可重试边界和已观测用量。平台验证使用本地 HTTP/TLS/WS 及隔离存储夹具，不能把这些结果当作真实供应商账号验证。
 
-notification、site、moderation、search 的核心、纯契约和 Adapter 按职责匹配现有 depguard。邮件凭据留 identity，阈值留 billing，通知接受已确定事件；审核跨身份事务沿用同一 SQL 连接；文件读取归 site/filesystem；搜索的 HTTP 与 Redis 分开。旧转接不得拥有第二份状态或算法，迁出文件的历史许可及原排除同时删除。角色夹具需覆盖新文件、精确历史 import、非法子包和迁出后的同名文件。
+notification、site、moderation、search 的核心、纯契约和 Adapter 按职责匹配现有 depguard。邮件凭据留 identity，阈值留 billing，通知接受已确定事件；审核跨身份事务沿用同一 SQL 连接；文件读取归 site/filesystem；搜索的 HTTP 与 Redis 分开。适配不得复制核心状态或算法，文件移动时同步清理专用许可及排除项。角色夹具需覆盖新文件、精确历史 import、非法子包和迁出后的同名文件。
 
 这些模块的行为验证包括真实 SMTP/TLS 夹具、页面文件边界、PostgreSQL 审核回滚、Redis 预占释放、配置交错及有界关闭。全量普通、unit、integration 命令串行执行；integration 使用 `-p=4` 限制包级容器压力，保留测试内部并发和断言。测试事件、跳过、原失败及后续通过分别保存，不能用数量相同代替诊断逐项比较。
 
-gateway 的请求值与固定 `Execute` 契约位于 `gateway/execution`；该叶子不能反向导入根执行器、text 或 Adapter。HTTP 构造时由 app 先绑定唯一完成 Recorder，再构造执行器；请求调用只传显式状态和同步输出。内部账号循环、平台同账号恢复和协议转换仍各有一个实现，不能通过新增回调再包装整个旧 handler。暂存兼容 Adapter 只能提供单步调用与投影。
+gateway 的请求值与固定 `Execute` 契约位于 `gateway/execution`；该叶子不能反向导入根执行器、text 或 Adapter。HTTP 构造时由 app 先绑定唯一完成 Recorder，再构造执行器；请求调用只传显式状态和同步输出。内部账号循环、平台同账号恢复和协议转换仍各有一个实现，不能通过新增回调再包装整个旧 handler。执行 Adapter 只提供单步调用与投影。
 
-网关验证分别核对真实输出、HTTP 提交和重试窗口，不能只比最终字符串；失败可以伴随已观测用量，但完成资格按入口保留。对完成队列、模型快照、WS/Live 和规则发布运行定向 race，真实资金与 Redis 协议使用隔离存储。不同顶层测试若共享第三方全局测试设置，可分别执行并保留内部并发与断言，失败与补验日志必须同时保留；这不允许修改清单外历史问题。
+网关验证分别核对真实输出、HTTP 提交和重试窗口，不能只比最终字符串；失败可以伴随已观测用量，但完成资格按入口保留。对完成队列、模型快照、WS/Live 和规则发布运行定向 race，真实资金与 Redis 协议使用隔离存储。不同顶层测试若共享第三方全局测试设置，可分别执行并保留内部并发与断言，失败与补验日志必须同时保留。
 
 删除迁出文件的专用 depguard 规则时，必须同步移除普通角色中的对应排除项，否则旧路径可能变成未被任何角色匹配的空洞。验证覆盖删除后恢复同名文件、旧文件新增禁止 import、同目录新文件及非法子包，不能只检查迁出后的正向 lint。
 
@@ -90,11 +92,11 @@ creative、batchimage 的核心、HTTP、PostgreSQL、Redis 与平台 Adapter �
 - API 类型和调用放在 `src/api/`，跨页面状态进入 store/composable，避免在 view 复制协议。
 - 修改依赖必须同步 `frontend/pnpm-lock.yaml`，CI 使用 frozen lockfile。
 
-app 的旧图绑定许可精确到源文件与 import；legacybridge 已删除，其 import 由全局规则拒绝，原有文件许可与目录排除同步移除。repository 的 Wire 聚合已删除，原生存储、任务队列和上游客户端分别在 app 的 wireinject 集合中绑定；service、handler 及其聚合集合均已删除。传输测试随 `gateway/provider/transport` 运行，旧 repository 测试许可不随路径迁移继承。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
+app 的专用绑定许可精确到源文件与 import。存储、任务队列和上游客户端在 app 的 wireinject 集合中绑定；旧聚合包与 legacybridge 路径由全局规则拒绝。传输测试随 `gateway/provider/transport` 运行，旧 repository 测试许可不随路径迁移继承。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
 
-协议哈希和 Gemini 迭代器的 `crypto/sha256`、`iter` 许可只匹配实际文件；clientmeta 的版本库、app 定价装配及目录 HTTP 契约测试也按文件许可。pricing、capability、clientmeta 使用明确标准库集合，不能增加文件/网络读取。纯规则的测试应直接传入值；平台选择、HTTP 失败/取消和目录热更新还要验证旧消费者。管理员目录的完整 JSON、24 项顺序及 TypeScript 类型由 app 组合测试对照前端 fixture，不能通过修改夹具掩盖输出差异。
+协议哈希和 Gemini 迭代器的 `crypto/sha256`、`iter` 许可只匹配实际文件；clientmeta 的版本库、app 定价装配及目录 HTTP 契约测试也按文件许可。pricing、capability、clientmeta 使用明确标准库集合，不能增加文件/网络读取。纯规则测试直接传入值；平台选择、HTTP 失败/取消和目录热更新还要验证实际调用方。管理员目录的完整 JSON、24 项顺序及 TypeScript 类型由 app 组合测试对照前端 fixture，不能通过修改夹具掩盖输出差异。
 
-scheduler 的核心、HTTP、Redis、PostgreSQL 分别使用角色门禁。评分、排序、会话和等待不接收旧实体、Gin 或存储客户端；必要的纯 AccountSnapshot/RoutePlan、singleflight 和散列依赖按实际文件精确许可。旧 `sched:v2` 完整账号 codec 暂留唯一兼容 Adapter，迁出的测试继续用原报文验证。确认取得/故障放行、重复释放、锁过期继任及运行时取消必须验证实际资源数量，不能只检查返回码。
+scheduler 的核心、HTTP、Redis、PostgreSQL 分别使用角色门禁。评分、排序、会话和等待不接收旧实体、Gin 或存储客户端；必要的纯 AccountSnapshot/RoutePlan、singleflight 和散列依赖按实际文件精确许可。`scheduler/rediscache/codec` 维护 `sched:v2` 完整账号与轻量投影，测试使用兼容报文验证存储格式。确认取得/故障放行、重复释放、锁过期继任及运行时取消必须验证实际资源数量，不能只检查返回码。
 
 ## 生成代码与迁移
 
@@ -104,7 +106,9 @@ scheduler 的核心、HTTP、Redis、PostgreSQL 分别使用角色门禁。评�
 make -C backend generate
 ```
 
-该目标依次执行 `go generate ./ent` 和 `go generate ./cmd/server`。纯 Wire 装配变更只运行 `(cd backend && go generate ./cmd/server)`；原入口委托 app 的生成位置，构建版本仍通过 `-X main.Version` 等变量注入。修改 `backend/ent/schema/`、生成 feature 或 Wire provider 后，提交对应生成差异，并检查差异只包含预期 schema/依赖变化。Go 1.27 的 jsonv2 生成代码可能把 Ent 的 JSON 字段表示为 `encoding/json/jsontext.Value`，这是预期的生成结果。
+该目标依次执行 `go generate ./ent` 和 `go generate ./cmd/server`。纯 Wire 装配变更只运行 `(cd backend && go generate ./cmd/server)`；原入口委托 app 的生成位置，构建版本仍通过 `-X main.Version` 等变量注入。修改 `backend/ent/schema/`、生成 feature 或 Wire provider 后，提交对应生成差异，并检查差异只包含预期 schema/依赖变化。
+
+Go 1.27 的 jsonv2 生成代码可能把 Ent 的 JSON 字段表示为 `encoding/json/jsontext.Value`，这是预期的生成结果。
 
 Ent schema 不是生产迁移器。数据库权威变更仍须新增 `backend/migrations/*.sql`，不能依赖 Ent auto-migrate，也不能修改既有迁移。编号、`_notx.sql`、checksum 和 fork 上游重编号规则见 [部署与数据库迁移](deployment_and_migrations.md)。
 
@@ -126,15 +130,15 @@ make -C backend test
 
 外部 E2E 测试位于 `backend/tests/integration`；`make -C backend test-e2e` 与 `test-e2e-local` 使用同一 Go 测试入口，继续读取原服务地址和测试凭据环境变量。未配置服务和供应商凭据时，只能报告测试入选或编译结果，不能据此声称行为通过。
 
-该目录也承接跨模块装配契约，具体执行集合由文件的构建标签决定。`tests/integration/pricing_contract` 保存渠道/市场价卡、Key快照、完成处理和资金分配的跨模块合同，继续使用 unit 标签；纯账号统计匹配与计算测试位于 billing/pricing。测试直接调用原生模块与既有存储替身，目录名称不表示已运行真实数据库。身份注册/邮箱绑定使用原生 identity 与 PostgreSQL Adapter 在 SQLite 夹具下验证既有规则，批量任务运行时使用原生 batchimage 与 miniredis；这些 `unit` 测试不能代替真实 PostgreSQL/Redis 的事务和竞争证据。
+该目录也承接跨模块装配契约，具体执行集合由文件的构建标签决定。`tests/integration/pricing_contract` 保存渠道/市场价卡、Key 快照、完成处理和资金分配的跨模块合同，继续使用 unit 标签；纯账号统计匹配与计算测试位于 billing/pricing。测试直接调用原生模块与既有存储替身，目录名称不表示已运行真实数据库。身份注册/邮箱绑定使用原生 identity 与 PostgreSQL Adapter 在 SQLite 夹具下验证既有规则，批量任务运行时使用原生 batchimage 与 miniredis；这些 `unit` 测试不能代替真实 PostgreSQL/Redis 的事务和竞争证据。
 
 Messages、Chat、Responses 与 Raw Chat 的协议合同直接构造 gateway/httpapi 的单次执行器，共用实际请求、响应和会话组件；纯流终态和用量 JSON 断言位于 protocol/openai。阻塞读取、响应关闭等 I/O 替身由 gateway/testkit 共用，测试不重建旧网关应用图。
 
 用量 HTTP、仪表盘和 DTO 契约测试直接构造 usage 与消费者侧查询投影，不通过旧 service 或完整设置服务装配。日期测试显式指定 Calendar，分别覆盖用户时区回退、DST 与各入口的结束边界；清理任务的存储缺失错误由 PostgreSQL Adapter 测试核对后，再以相同错误链输入 HTTP 夹具。
 
-团队所有权的两次有序 SQL 更新由 team/postgres 的同包测试直接验证；不为旧测试包装保留导出函数。sqlmock 夹具检查关闭错误时须同时登记关闭预期，不能把测试资源清理误判为业务 SQL 失败。
+团队所有权的两次有序 SQL 更新由 team/postgres 的同包测试直接验证。sqlmock 夹具检查关闭错误时须同时登记关闭预期，不能把测试资源清理误判为业务 SQL 失败。
 
-重构阶段分别串行运行普通、unit 和 integration 全量测试，避免多个 Ent schema loader 会话争用临时目录；用 go list 与 JSON 事件核对实际标签、OS 文件和测试执行。依赖门禁仍统一使用 `.golangci.yml` 的 depguard，旧耦合只按实际文件/import 登记；新文件不能继承历史许可。验证结果中的跳过与仅编译不算行为通过。
+分别串行运行普通、unit 和 integration 全量测试，避免多个 Ent schema loader 会话争用临时目录；用 go list 与 JSON 事件核对实际标签、OS 文件和测试执行。依赖门禁仍统一使用 `.golangci.yml` 的 depguard，旧耦合只按实际文件/import 登记；新文件不能继承历史许可。验证结果中的跳过与仅编译不算行为通过。
 
 集成测试可能启动 PostgreSQL/Redis 容器；环境没有 Docker 时要明确报告未运行，不能用单元测试结果代替。涉及迁移时还要运行 migration runner 和对应 schema/data regression tests。
 
@@ -157,7 +161,7 @@ npx --yes pnpm@9 --dir frontend run build
 
 提交信息遵循 Conventional Commits，例如 `feat(gateway): ...`、`fix(billing): ...`、`docs(project): ...`。一次提交应围绕一个可验证目的，生成文件、迁移和契约测试与其源变更一起提交。
 
-`SYNC.md` 是本地同步进度，受 `.gitignore` 保护，永远不要提交。使用 Codex 计划模式时，实施前按项目指令保存完整计划；本次后端包重构按用户约定统一使用 `refactor/`，其他任务仍遵循 `AGENTS.md`。不要覆盖工作区中来源不明的修改；提交前按文件核对 staging 范围。
+`SYNC.md` 是本地同步进度，受 `.gitignore` 保护，永远不要提交。使用 Codex 计划模式时，实施前按项目指令保存完整计划到 `.agents/plans/`，执行进度追加到末尾。不要覆盖工作区中来源不明的修改；提交前按文件核对 staging 范围。
 
 每次代码变更都依据 [工程文档目录](../index.md) 判断相关专题；已读取且仍保留足够内容的索引和章节按 `project-doc` 的“读取与上下文复用”规则复用，无须在每次改文件或收尾前重读。如果持久架构、领域不变量、外部契约或运维流程变化，同步正文、分类目录和代码锚点；局部实现细节不应无条件扩写成新文档。README 保持项目入口简洁，工程细节放入 `docs/`。
 
@@ -174,12 +178,14 @@ npx --yes pnpm@9 --dir frontend run build
 
 ## 发布
 
-`.github/workflows/release.yml` 由 `v*` tag 或手动 dispatch 触发。标准发布只构建一次前端，再把 Linux、Windows 和 macOS 的五个 Go 目标分配到独立 runner 并行编译；最终 job 通过 `tools/goreleaser_prebuilt.sh` 把这些二进制导入 GoReleaser，统一生成 Release 归档、校验和、双架构镜像与 manifest。每个镜像架构只执行一次构建，并同时附加 GHCR 与可选 DockerHub 标签；未配置 DockerHub 时不会创建占位镜像。simple release 跳过二进制 matrix，只构建精简镜像集合。workflow 从 annotated tag body 读取 release notes，并在成功后把 `backend/cmd/server/VERSION` 同步回默认分支。
+`.github/workflows/release.yml` 由 `v*` tag 或手动 dispatch 触发。标准发布只构建一次前端，再把 Linux、Windows 和 macOS 的五个 Go 目标分配到独立 runner 并行编译；最终 job 通过 `tools/goreleaser_prebuilt.sh` 把这些二进制导入 GoReleaser，统一生成 Release 归档、校验和、双架构镜像与 manifest。
+
+每个镜像架构只执行一次构建，并同时附加 GHCR 与可选 DockerHub 标签；未配置 DockerHub 时不会创建占位镜像。simple release 跳过二进制 matrix，只构建精简镜像集合。workflow 从 annotated tag body 读取 release notes，并在成功后把 `backend/cmd/server/VERSION` 同步回默认分支。
 
 发布前确保目标提交已推送、CI 通过、数据库迁移可滚动升级且备份已验证。发布后检查 Release、镜像、二进制、VERSION 回写和部署 smoke test；tag 只标识代码版本，不替代迁移/恢复检查。
 
-相关文档：[项目总览](../project_overview.md)、[系统架构](../architecture/system_architecture.md)、[配置边界](../interfaces/configuration.md)、[部署与数据库迁移](deployment_and_migrations.md)、[运维目录](index.md)。
-
-推广与支付的依赖门禁已覆盖新核心、HTTP、PostgreSQL 和 app。原 payment 根包 Ent/config/Wire 许可已删除；billing 值、套餐 HTTP 复用和微信身份辅助分别按实际文件/import 许可，新文件与迁出文件不继承许可。资金验证使用真实 PostgreSQL，分别检查 Promo、返利转入、订单履约及退款短事务；退款渠道使用本地夹具，不进行真实付款/退款。回退新退款代码前保留并核实 `REFUND_PREPARED` 事实，不能仅替换二进制后重发渠道退款。
+推广与支付的依赖门禁已覆盖新核心、HTTP、PostgreSQL 和 app。payment 根包不直接依赖 Ent/config/Wire；billing 值、套餐 HTTP 复用和微信身份辅助分别按实际文件/import 许可，新文件与迁出文件不继承许可。资金验证使用真实 PostgreSQL，分别检查 Promo、返利转入、订单履约及退款短事务；退款渠道使用本地夹具，不进行真实付款/退款。回退新退款代码前保留并核实 `REFUND_PREPARED` 事实，不能仅替换二进制后重发渠道退款。
 
 备份/维护验证只对隔离 PostgreSQL、本地 S3/HTTP 夹具及临时可执行文件操作。恢复至少覆盖真实成功提交、SQL 失败回滚、输入中断及取消；系统锁覆盖同业务 ID 的不同认领代次。二进制替换测试不得使用测试进程或部署实例的真实路径。初始化与两个维护命令应验证退出前释放连接，并保持 Wire 可重复生成、Ent 与已发布 SQL 不变。
+
+相关文档：[项目总览](../project_overview.md)、[系统架构](../architecture/system_architecture.md)、[配置边界](../interfaces/configuration.md)、[部署与数据库迁移](deployment_and_migrations.md)、[运维目录](index.md)。

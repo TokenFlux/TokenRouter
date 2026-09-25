@@ -61,7 +61,7 @@ POST /v1beta/models/Gemini/gemini-2.5-pro:generateContent
 - 图片生成与编辑的 JSON 或 multipart 请求。
 - 单模型批量图片提交。
 - Gemini `/v1beta/models/<前缀>/<模型>:<动作>` 入口。
-- 无模型的用量、账单、视频任务查询和批任务管理接口，这些接口只校验 Key 身份。
+- 无模型的用量、视频任务查询和批任务管理接口；这些入口仍校验身份、用户与团队状态、IP 和资源归属，不重新选组消费。
 
 `/v1/models`、裸 `/models`、Gemini 模型列表和批量图片模型列表会按映射顺序聚合可用模型，并在每个模型 ID 前添加对应前缀。
 
@@ -80,6 +80,6 @@ POST /v1beta/models/Gemini/gemini-2.5-pro:generateContent
 
 ## 实时接口限制
 
-复合 Key 不支持 `/v1/live`、Codex Realtime、Responses WebSocket 和 Live sideband。这些入口可能在同一连接中切换模型，服务会返回 `COMPOSITE_KEY_ENDPOINT_UNSUPPORTED`，不会选择任意默认分组。
+复合 Key 不支持 `/v1/live`、Codex Realtime、Responses WebSocket 和 Live sideband。这些入口可能在同一连接中切换模型，服务会返回 `COMPOSITE_KEY_ENDPOINT_UNSUPPORTED`，不会自动选择默认分组。
 
 相关文档：[API Key 模型重定向](api_key_model_redirects.md)、[路由与结算](routing_and_billing.md)、[网关请求生命周期](../architecture/gateway_request_lifecycle.md)。

@@ -23,7 +23,7 @@ Anthropic 管理端正式支持以下账号：
 | `bedrock` | `sigv4` 使用 AWS 凭据和区域签名；`apikey` 使用 Bedrock API Key；可配置全局端点和模型映射 |
 | `service_account` | 使用 Google Service Account 换取 Vertex AI token，并携带 project/location 等 Vertex 上下文 |
 
-Messages 及其协议转换入口的凭据选择由 `account.MessageCredentialSource` 拥有，app 固定绑定同一 Claude/Vertex token 源。OAuth 与 setup-token 保持不同的刷新资格；普通 API Key、Grok 存量凭据及 Bedrock 签名分支仍按原顺序读取，旧网关不再解释这些凭据规则。
+Messages 及其协议转换入口的凭据选择由 `account.MessageCredentialSource` 拥有，app 固定绑定同一 Claude/Vertex token 源。OAuth 与 setup-token 保持不同的刷新资格；普通 API Key、Grok 存量凭据及 Bedrock 签名分支仍按原顺序读取。
 
 Claude 浏览器 OAuth 固定从 `https://claude.com/cai/oauth/authorize` 发起授权，token 交换仍使用 `https://platform.claude.com/v1/oauth/token`，回调仍是 `https://platform.claude.com/oauth/code/callback`。三者分别承担授权、换取凭据和接收授权码，不能因域名相近而互相替换。
 
@@ -31,7 +31,7 @@ Claude 浏览器 OAuth 固定从 `https://claude.com/cai/oauth/authorize` 发起
 
 ## 协议分派
 
-Anthropic wire 类型与纯 Beta 常量由 `protocol/anthropic` 拥有，跨 Responses/Chat 的转换由 `protocol/bridge` 唯一实现，旧 apicompat 兼容入口已删除。`gateway/clientmeta` 只解析客户端字符串与版本；CLI 版本环境覆盖、默认 Header 和平台指纹常量由 `upstream/anthropic` 持有，仍在进程初始化时解析一次。入站许可裁决继续由调用方执行。
+Anthropic wire 类型与纯 Beta 常量由 `protocol/anthropic` 拥有，跨 Responses/Chat 的转换由 `protocol/bridge` 唯一实现。`gateway/clientmeta` 只解析客户端字符串与版本；CLI 版本环境覆盖、默认 Header 和平台指纹常量由 `upstream/anthropic` 持有，仍在进程初始化时解析一次。入站许可裁决继续由调用方执行。
 
 Anthropic 原生入口是 `POST /v1/messages` 和 `POST /v1/messages/count_tokens`。同一 Anthropic 分组还可从 OpenAI Chat Completions 和 Responses 入口进入：处理器先把客户端形状归一化为 Anthropic 请求，按 attempt 选账号并转发，再把非流或 SSE 结果恢复成原协议。
 
@@ -61,14 +61,16 @@ Bedrock 的账号模型映射先于区域解析执行。已登记的 Claude 基�
 
 未开启强制全局时，默认别名和地域预设只使用当前来源区域已核实的地域推理；显式裸基础 ID 在已确认支持单区域调用的来源区域保留原样。缺少有效目标不会自动切换全球或其它地域。开启后仅选择支持该来源区域的 `global.` ID。HTTP 端点和 SigV4 签名继续使用账号原有 `aws_region`（空值默认 `us-east-1`），不把推理范围当作签名区域。GovCloud 的精确 ID 和来源区域独立核对，不能套用商业区域或推断全局支持。
 
-区域规则在 `bedrock_model_routing.go` 集中维护，并逐型号保留来源 URL 和核对日期。已确认不支持、来源区域未收录、文档未给出精确地域 ID 分别保留相应诊断，不将未核实信息表述为官方不支持。未核实组合不自动生成 ID；未知完整供应商 ID、其它平台模型及自定义 ARN 保持显式值透传，由上游验证。解析不会迁移账号数据或兼容历史错误的 `-v1` 写法，也不改变合法版本和日期后缀。
+区域规则在 `backend/internal/upstream/bedrock/model_routing.go` 集中维护，并逐型号保留来源 URL 和核对日期。已确认不支持、来源区域未收录、文档未给出精确地域 ID 分别保留相应诊断，不将未核实信息表述为官方不支持。未核实组合不自动生成 ID；未知完整供应商 ID、其它平台模型及自定义 ARN 保持显式值透传，由上游验证。解析不会迁移账号数据或兼容历史错误的 `-v1` 写法，也不改变合法版本和日期后缀。
 
 调度、可请求模型列表、正式 Bedrock 转发和管理员账号测试共用同一解析结果。无有效路由的账号在模型筛选阶段被排除，同组其它有效账号仍可使用；管理员测试给出具体模型和来源区域诊断，仅在此区域已支持全局时提示启用该选项。请求路径中的二次校验失败不会调用上游、写入凭据失效状态或发起无意义重试。普通客户端沿用既有错误格式，不暴露账号区域细节。该静态判定不代替 AWS IAM、SCP 或账号模型权限校验。
 
 <a id="claude_billing_fingerprint"></a>
 ### Claude 请求指纹
 
-Claude Code-only 约束会在 CLI UA 之后校验必需 Header、metadata 与官方 system 特征。OAuth 账号级客户端指纹只接受稳定的 `<product>/<major>.<minor>.<patch>` User-Agent，拒绝本地构建后缀、超长值和远超当前内置版本的 Claude CLI 哨兵主版本；首次创建与版本升级共用该校验，历史非法缓存会在读取时用合法客户端 UA 或默认指纹自愈，并保留原 `ClientID`。Auto mode 安全分类请求可在监视器提示词前后携带独立会话上下文块；校验器会遍历所有文本 system 块查找同时满足固定前缀、长度下限和全部结构标记的提示词，不会因附加上下文误拒，也不会仅凭上下文块放行。
+Claude Code-only 约束会在 CLI UA 之后校验必需 Header、metadata 与官方 system 特征。OAuth 账号级客户端指纹只接受稳定的 `<product>/<major>.<minor>.<patch>` User-Agent，拒绝本地构建后缀、超长值和远超当前内置版本的 Claude CLI 哨兵主版本；首次创建与版本升级共用该校验，历史非法缓存会在读取时用合法客户端 UA 或默认指纹自愈，并保留原 `ClientID`。
+
+Auto mode 安全分类请求可在监视器提示词前后携带独立会话上下文块；校验器会遍历所有文本 system 块查找同时满足固定前缀、长度下限和全部结构标记的提示词，不会因附加上下文误拒，也不会仅凭上下文块放行。
 
 Messages 和 CountTokens 的 OAuth 出站请求中，`x-anthropic-billing-header` 的 `cc_version` 必须匹配最终 User-Agent。启用 Claude Code 伪装时使用运行时 CLI 默认头（包括合法的 CLI 版本环境覆盖），即使没有账号指纹服务或指纹统一被关闭也要同步；普通指纹转发使用账号缓存 UA。三位十六进制指纹后缀包含版本和用户消息信息，版本同步时必须重算，并保持重复处理幂等、用户消息不变；该步骤在最终出站请求体构造前完成。
 
@@ -86,11 +88,8 @@ API Key/Bedrock 可配置本地账号配额和亲和策略。可用的上游用�
 
 最终错误先经过平台分类，再应用管理员配置的[网关错误响应策略](gateway_error_policy.md)。错误正文、凭据、内部 project/region 和上游标识不得无条件返回客户端。排障应关联 request ID、requested/upstream model、账号 attempt、token refresh、代理/TLS 路由、限流恢复时间和结算记录。
 
-相关文档：[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[账号调度与缓存一致性](../architecture/account_scheduling_and_cache.md)、[账号维护](../operations/account_maintenance.md)。
-
-
 <a id="anthropic_native_execution"></a>
-## 原生执行与过渡装配
+## 平台执行与应用装配
 
 `upstream/anthropic.Executor` 拥有单次账号内交换、签名/预算恢复及标准或 API Key 直通响应处理。两条恢复策略分别保留：API Key 直通不新增 400 请求体降级，也不补入旧路径没有的上游接受回调。`upstream/bedrock.Executor` 独立处理签名请求、来源区域和 AWS EventStream；具体平台之间不互相引用。
 
@@ -98,9 +97,10 @@ API Key/Bedrock 可配置本地账号配额和亲和策略。可用的上游用�
 
 gateway/forward 组织请求准备、转换与错误策略次序；gateway/httpapi 拥有同步输出和协议错误，gateway/completion 拥有完成处理。动态设置、凭据和账号观测通过固定的单步 Adapter 投影。流处理在原来的事件位置读取缓存分类投影，64 KiB Scanner 缓冲由唯一技术池复用。输出适配器带入已有 Header 和提交状态，保留等待心跳之后的重试边界。应用登记同步原生尝试，等待其释放响应体；超时不报告已排空。
 
+### 请求规则与执行观测
 
-### 请求规则与执行观测的现有边界
+Beta 配置值和模型白名单、消息缓存断点、messages/count_tokens 请求构造由 `upstream/anthropic` 唯一实现；动态设置由 gateway/provider 注入的读取端口提供。纯 thinking/tool 字节修复在 `protocol/anthropic`，`gateway/provider/modelidentity` 解释模型的 thinking 协议族，调用方再传入过滤与签名选项；官方严格校验、第三方原样回传和未知模型保守处理保持独立，平台之间不反向引用实现。
 
-Beta 配置值和模型白名单、消息缓存断点、messages/count_tokens 请求构造由 `upstream/anthropic` 唯一实现；动态设置读取仍通过旧入站适配传入。纯 thinking/tool 字节修复在 `protocol/anthropic`，`gateway/provider/modelidentity` 解释模型的 thinking 协议族，调用方再传入过滤与签名选项；官方严格校验、第三方原样回传和未知模型保守处理保持独立，平台之间不反向引用实现。
+Claude token 读取和回填、版本比较、刷新资格及凭据合并归 `account`，继续复用原缓存与刷新协调器。Vertex 交换已绑定 `upstream/vertex` 和 `upstream/internal/googleauth`；账号缓存协调由 account 拥有，详见 [Vertex 服务账号与对象流](gemini_upstream.md#vertex_service_account_execution)。执行接口分别报告已观测用量（包括显式零）、语义输出、终态与旧 TTFT；网关的 text/forward、HTTP 与 completion 分别拥有尝试、展示和完成次序，结算资格由完成器按入口规则判断。
 
-Claude token 读取和回填、版本比较、刷新资格及凭据合并归 `account`，继续复用原缓存与刷新协调器。Vertex 交换已绑定 `upstream/vertex` 和 `upstream/internal/googleauth`；账号缓存协调由 account 拥有，详见 [Vertex 服务账号与对象流](gemini_upstream.md#vertex_service_account_execution)。新执行接口单独报告已观测用量（包括显式零）、语义输出、终态与旧 TTFT；网关的 text/forward、HTTP 与 completion 分别拥有尝试、展示和完成次序，不据新增观测改变既有结算规则。
+相关文档：[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[账号调度与缓存一致性](../architecture/account_scheduling_and_cache.md)、[账号维护](../operations/account_maintenance.md)。

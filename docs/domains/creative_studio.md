@@ -2,15 +2,15 @@
 
 TokenRouter 创作台（Creative Studio）提供面向个人用户的图片生成、编辑与局部重绘异步任务：浏览器上传素材并创建任务，服务端只保存任务元数据，worker 从 Redis 队列消费任务并调用上游图片模型，结果在 Redis 中短暂留存，由前端取回并保存到浏览器本地。
 
-本文覆盖创作台 API、任务生命周期、幂等、隐藏执行 Key、计费、Redis 临时数据、审核无留存、前端本地存储边界、配置和检查清单。它不定义批量图片作业（见[批量图片作业](batch_image_jobs.md)），不承诺生产价格数值，也不描述上游供应商自己的内容政策。
+本文覆盖创作台 API、任务生命周期、幂等、隐藏执行 Key、计费、Redis 临时数据、审核无留存、前端本地存储边界、配置和检查清单。它不定义批量图片作业（见[批量图片作业](batch_image_jobs.md)），不列生产价格数值，也不描述上游供应商自己的内容政策。
 
-边界声明（用户与运维都必须理解）：
+素材与结果的存储边界如下：
 
 - 服务端不持久化用户素材：原图、mask、生成图、prompt 明文和 provider 原始响应都不进入 PostgreSQL；prompt 只存 sha256，请求幂等指纹也是 sha256。
 - 生成期间服务端临时接收并转发：在服务端侧素材与 prompt 明文只存在于 Redis 临时键，TTL 默认 30 分钟，到期即不可恢复。
 - 浏览器可在当前创作台 IndexedDB 中保存画布快照、图片 Blob 和当前表单草稿（包括提示词）；这些数据只留在当前浏览器配置文件，提交任务时才会上传提示词与素材。
 - 上游供应商可能有自己的留存策略：素材与 prompt 会按上游 API 要求发送给对应平台，供应商侧的数据边界不受 TokenRouter 控制。
-- 断线/过期后结果可能丢失且不算成功：客户端未及时取回输出时任务降级为 `result_lost`，服务端绝不明示成功，也不会从服务端恢复素材；上游已成功但结果丢失的任务仍保持计费。
+- 断线/过期后结果可能丢失且不算成功：客户端未及时取回输出时任务降级为 `result_lost`，服务端不返回可交付成功状态，也不会从服务端恢复素材；上游已成功但结果丢失的任务仍保持计费。
 - 浏览器本地存储不保证永久：输出图片只保存在当前浏览器的 IndexedDB 中，清理站点数据、换浏览器或换设备都会丢失素材，且无跨设备同步。任务历史与详情同时按登录用户和浏览器工作区隔离，不同浏览器不会互相看到任务行。
 
 ## 章节导航
@@ -23,12 +23,14 @@ TokenRouter 创作台（Creative Studio）提供面向个人用户的图片生�
 - [Redis 临时数据](#redis-临时数据)：说明临时键、TTL、ack 即删和队列协调。
 - [审核无留存](#审核无留存)：说明创作台送审的无媒体留存模式。
 - [提供商说明](#提供商说明)：说明 openai/grok/gemini 三个平台的执行契约。
-- [前端本地存储边界](#前端本地存储边界)：说明 IndexedDB、收割流程和丢失边界。
+- [前端本地存储边界](#前端本地存储边界)：说明 IndexedDB、输出取回流程和丢失边界。
 - [配置](#配置)、[运维检查清单](#运维检查清单)和[安全检查清单](#安全检查清单)：说明运行时启用条件与验证要求。
 
 ## API 路由
 
-生产图由 app 直接构造 `creative.Public`、共享的 `creative.Results` 和原生 worker，HTTP 与设置管理使用同一个 Public。账号目录、托管 Key 和订阅读取绑定各模块现有存储，资金动作直接调用唯一 `billing.Funds`；旧公开服务、结果、恢复和 worker 包装已经删除，原规则/状态/并发测试直接验证 creative；隐藏 Key 测试归 apikey。任务执行也直接使用 app 装配的 creative.Executor，旧 CreativeExecutor/CreativeExecution 已删除。provider.Target 负责实际平台分派。app 直接绑定原生选择器与 gateway/provider.CreativeTargets；目标工厂按本次账号绑定 OpenAI/Grok/Gemini 的凭据、代理、Header 和传输，执行时才读取凭据。请求构造、HTTP 池和 Gemini token 源与现有入口共享，不再调用旧网关服务的任务投影。worker 首轮沿用完整设置的批量读取与解析，热更新继续由设置应用器驱动。
+生产图由 app 直接构造 `creative.Public`、共享的 `creative.Results` 和原生 worker，HTTP 与设置管理使用同一个 Public。账号目录、托管 Key 和订阅读取绑定各模块现有存储，资金动作直接调用唯一 `billing.Funds`；规则、状态与并发测试直接验证 creative，隐藏 Key 测试归 apikey。任务执行也直接使用 app 装配的 creative.Executor。
+
+provider.Target 负责实际平台分派。app 直接绑定原生选择器与 gateway/provider.CreativeTargets；目标工厂按本次账号绑定 OpenAI/Grok/Gemini 的凭据、代理、Header 和传输，执行时才读取凭据。请求构造、HTTP 池和 Gemini token 源与现有入口共享。worker 首轮沿用完整设置的批量读取与解析，热更新继续由设置应用器驱动。
 
 新创作任务按操作使用统一协议：OpenAI/Grok 的 generate 对应 Images 生成，edit/inpaint 对应 Images 编辑；Gemini 对应 GenerateContent。目录和提交只提供分组已开放的操作，执行器复用账号原生集合及分组指定转换目标筛选候选。Responses 图片策略不阻断 Images 内部适配。已创建任务的读取、下载和清理仍遵循原资源权限。
 
@@ -47,7 +49,13 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 
 除 `GET /creative/models` 与 `GET /creative/capabilities` 外，以上任务创建、历史、活动、详情、输出读取和 ack 路由都必须携带 `X-Creative-Workspace-ID` 请求头。请求头必须是非空 UUID；服务端会规范化为小写，缺失返回 `400 CREATIVE_WORKSPACE_REQUIRED`，格式非法返回 `400 CREATIVE_WORKSPACE_INVALID`。工作区 ID 是浏览器数据分区标识，不替代 JWT 用户权限校验；同源标签页共享同一个值，不同浏览器、无痕窗口或清除站点数据后会使用不同值。
 
-`GET /creative/models` 返回当前用户可用分组与图片模型的组合。每项除分组、模型、操作、尺寸和图片单价（`price_512`、`price_1k`、`price_2k`、`price_4k`）外，还按具体模型返回 `aspect_ratios`、`qualities`、`output_formats`、`output_compression`、`background_options`、`thinking_levels`、`max_output_count` 与 `max_reference_images`；不支持的集合返回空数组，压缩范围返回对象或 `null`。创作台不提供输出格式选择，因此 `output_formats` 对所有模型为空数组、`output_compression` 为 `null`，这两个字段仅作为能力协议保留；输出格式由供应商实际返回决定，任务输出 metadata 的 `mime_type` 保留真实 MIME（例如 `image/png` 或 `image/jpeg`），前端按该 MIME 保存和下载。`max_output_count` 固定为 1，创作台每次任务只生成一张图片。`price_512` 仅用于支持 Gemini 512 档位的模型：若渠道配置了 `512` 分层价格则优先使用，否则使用渠道默认价格。前端只按这些服务端能力渲染参数，不根据模型名自行猜测。列表只包含用户可绑定、已启用图片生成、平台支持创作台操作且能解析图片价格的分组。OpenAI 分组支持 `generate`/`edit`/`inpaint`，Gemini（含 Vertex 账号）与 Grok 分组支持 `generate`/`edit`。功能关闭（进程配置 `creative.enabled` 或数据库运行时开关 `creative_enabled` 关闭）时，该接口返回空数组而非错误，前端据此展示"已停用"空态；其余写/读接口返回 404 `CREATIVE_DISABLED`。
+`GET /creative/models` 返回当前用户可用分组与图片模型的组合。每项除分组、模型、操作、尺寸和图片单价（`price_512`、`price_1k`、`price_2k`、`price_4k`）外，还按具体模型返回 `aspect_ratios`、`qualities`、`output_formats`、`output_compression`、`background_options`、`thinking_levels`、`max_output_count` 与 `max_reference_images`；不支持的集合返回空数组，压缩范围返回对象或 `null`。
+
+创作台不提供输出格式选择，因此 `output_formats` 对所有模型为空数组、`output_compression` 为 `null`，这两个字段仅作为能力协议保留；输出格式由供应商实际返回决定，任务输出 metadata 的 `mime_type` 保留真实 MIME（例如 `image/png` 或 `image/jpeg`），前端按该 MIME 保存和下载。`max_output_count` 固定为 1，创作台每次任务只生成一张图片。
+
+`price_512` 仅用于支持 Gemini 512 档位的模型：若渠道配置了 `512` 分层价格则优先使用，否则使用渠道默认价格。前端只按这些服务端能力渲染参数，不根据模型名自行猜测。列表只包含用户可绑定、已启用图片生成、平台支持创作台操作且能解析图片价格的分组。OpenAI 分组支持 `generate`/`edit`/`inpaint`，Gemini（含 Vertex 账号）与 Grok 分组支持 `generate`/`edit`。
+
+功能关闭（进程配置 `creative.enabled` 或数据库运行时开关 `creative_enabled` 关闭）时，该接口返回空数组而非错误，前端据此展示"已停用"空态；其余写/读接口返回 404 `CREATIVE_DISABLED`。
 
 管理员还可以在系统设置中配置全局生图模型白名单。`creative_model_settings` 是 `settings` 表中的 JSON 数组，每项精确绑定一个分组和模型，并声明允许的能力：
 
@@ -85,9 +93,11 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 
 任务 ID 为 `crun_` 前缀加 16 字节随机 hex。任务公共投影包含 `id`、`status`、`model`、`requested_model`、`operation`、`requested_output_count`、`image_size`、`aspect_ratio`、`output_format`、`group_id`、`estimated_cost`、`hold_amount`、`actual_cost`、错误字段、时间戳和 `outputs` 输出元数据数组（`index`、`status`、`mime_type`、`byte_size`、`transient_expires_at`、`acked_at`）；幂等重放响应额外带 `idempotent_replay=true`。
 
-`GET /creative/runs` 按 `created_at` 倒序返回当前用户当前浏览器工作区的历史任务，支持 `status`、`limit` 查询参数。`GET /creative/runs/active` 使用不透明 cursor 分页，覆盖 `queued`、`running`、`provider_succeeded`、`settlement_pending`、`release_pending`，返回 `{items,next_cursor,has_more}`，不受历史页数量限制。详情、输出 content 和 ack 也要求工作区匹配；工作区不匹配统一返回 `404 CREATIVE_RUN_NOT_FOUND`，不泄露任务是否存在。迁移前 `workspace_id` 为空的旧任务不会返回给任何工作区，也不能读取详情、图片或 ack，但数据库记录保留，后台 worker 仍可完成、结算和清理。
+`GET /creative/runs` 按 `created_at` 倒序返回当前用户当前浏览器工作区的历史任务，支持 `status`、`limit` 查询参数。`GET /creative/runs/active` 使用不透明 cursor 分页，覆盖 `queued`、`running`、`provider_succeeded`、`settlement_pending`、`release_pending`，返回 `{items,next_cursor,has_more}`，不受历史页数量限制。
 
-`GET .../outputs/{index}/content` 在临时有效期内返回图片二进制（`Cache-Control: private, no-store`）；输出已 ack、已过期或临时键已丢失时返回 410 语义错误（`CREATIVE_OUTPUT_EXPIRED`/`CREATIVE_RESULT_LOST`），并把仍处 `succeeded` 的任务降级为 `result_lost`，绝不明示成功。
+详情、输出 content 和 ack 也要求工作区匹配；工作区不匹配统一返回 `404 CREATIVE_RUN_NOT_FOUND`，不泄露任务是否存在。迁移前 `workspace_id` 为空的旧任务不会返回给任何工作区，也不能读取详情、图片或 ack，但数据库记录保留，后台 worker 仍可完成、结算和清理。
+
+`GET .../outputs/{index}/content` 在临时有效期内返回图片二进制（`Cache-Control: private, no-store`）；输出已 ack、已过期或临时键已丢失时返回 410 语义错误（`CREATIVE_OUTPUT_EXPIRED`/`CREATIVE_RESULT_LOST`），并把仍处 `succeeded` 的任务降级为 `result_lost`，不返回可交付成功状态。
 
 `POST .../outputs/{index}/ack` 用于客户端确认输出已保存到本地：先把输出标记为 `acked`，再删除对应临时输出键，删除失败由 transient reconciler 重试，重复 ack 幂等成功。只有结算完成并进入可交付终态的 run 才能读取/ack 输出。
 
@@ -132,7 +142,9 @@ worker 从 Redis 预留任务后先读取用户最新并发配置，并通过现
 
 ## 计费
 
-创作台资金规则由 `creative.Funding` 拥有，调用唯一 `billing.Funds.Reserve/Capture/Release`。`creative/postgres.FundingParticipant` 使用 billing 本次 SQL 事务写入冻结分配和预记标记；billing 不再选择任务表。app 登记任务 scope 与参与工厂，引用显式携带原预占动作 ID，新字段不加入历史指纹。创作台按所选尺寸基础单价估价，快照订阅/余额倍率；没有批量折扣与账号倍率。质量、背景和思考强度不参与创作台价格计算，输出格式不参与价格计算且不由客户端指定，实际 MIME 以供应商返回为准。每次任务固定只生成一张图片。资金动作的请求 ID 前缀固定，全部经 `usage_billing_dedup` 幂等：
+创作台资金规则由 `creative.Funding` 拥有，调用唯一 `billing.Funds.Reserve/Capture/Release`。`creative/postgres.FundingParticipant` 使用 billing 本次 SQL 事务写入冻结分配和预记标记；billing 不再选择任务表。app 登记任务 scope 与参与工厂，引用显式携带原预占动作 ID，新字段不加入历史指纹。创作台按所选尺寸基础单价估价，快照订阅/余额倍率；没有批量折扣与账号倍率。
+
+质量、背景和思考强度不参与创作台价格计算，输出格式不参与价格计算且不由客户端指定，实际 MIME 以供应商返回为准。每次任务固定只生成一张图片。资金动作的请求 ID 前缀固定，全部经 `usage_billing_dedup` 幂等：
 
 ```text
 creative_hold:{run_id}      创建任务时预占
@@ -162,7 +174,11 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 
 输出保存时同时把 `transient_expires_at` 写入输出元数据，客户端据此知道取回截止时间；ack 立即删除对应输出键。`creative.ResultDelivery` 先在 PostgreSQL 的同一事务记录供应商成功时间、实际账号、输出元数据和 settle outbox，再保存 Redis 输出；成功事实不等于可交付成功。保存最多三次、间隔一秒、总预算五秒，停止或租约丢失终止保存。保存耗尽或明确丢失时按已成功图片捕获一次费用并进入 `result_lost`，不会重新推理；Redis 读取故障保留待恢复，不直接当作永久丢失。只有结果可读取且结算完成时才进入 `succeeded`。
 
-队列协调（`creative:queue:*`）与批量图片同构：ready 列表、delayed 有序集合、active 有序集合、单任务 inflight 键（默认 TTL 7 天）、单任务锁键（默认 TTL 300 秒）；入队与预留用 Lua 脚本原子执行。每次领取生成 lease token，心跳、锁续期、重排、ACK 和 stale recovery 都校验 token；失去租约的 worker 取消执行 context，不得写任务、输出、计费或队列状态。`creative_run_outbox` reconciler 负责 provisioning/settle/release 恢复，transient reconciler 负责终态 Redis 清理。队列、临时存储和元数据实现分别位于 `creative/rediscache`、`creative/postgres`，创建与目录位于 `creative.Public`，单次尝试位于 `creative.Executor`，结果推进、恢复与公开查询位于 `creative.Results`/`Queries`，平台请求由 `creative/provider` 使用绑定的技术能力执行。app 固定唯一生产实例，账号目录复用 creative/provider 对原生 Record 的只读适配；公开、结果、worker、账号选择与平台目标都由app直接绑定原生能力。`creative.queue_enabled` 默认开启，应用启动时运行 `creative_worker_count` 个任务 worker（默认 128）、一个 delayed mover、一个 stale active recovery 和两个 reconciler；worker 数量通过管理端功能设置热更新，详见[接口](../interfaces/http_api.md)。
+队列协调（`creative:queue:*`）与批量图片同构：ready 列表、delayed 有序集合、active 有序集合、单任务 inflight 键（默认 TTL 7 天）、单任务锁键（默认 TTL 300 秒）；入队与预留用 Lua 脚本原子执行。每次领取生成 lease token，心跳、锁续期、重排、ACK 和 stale recovery 都校验 token；失去租约的 worker 取消执行 context，不得写任务、输出、计费或队列状态。
+
+`creative_run_outbox` reconciler 负责 provisioning/settle/release 恢复，transient reconciler 负责终态 Redis 清理。队列、临时存储和元数据实现分别位于 `creative/rediscache`、`creative/postgres`，创建与目录位于 `creative.Public`，单次尝试位于 `creative.Executor`，结果推进、恢复与公开查询位于 `creative.Results`/`Queries`，平台请求由 `creative/provider` 使用绑定的技术能力执行。
+
+app 固定唯一生产实例，账号目录复用 creative/provider 对原生 Record 的只读适配；公开、结果、worker、账号选择与平台目标都由 app 直接绑定对应能力。`creative.queue_enabled` 默认开启，应用启动时运行 `creative_worker_count` 个任务 worker（默认 128）、一个 delayed mover、一个 stale active recovery 和两个 reconciler；worker 数量通过管理端功能设置热更新，详见[接口](../interfaces/http_api.md)。
 
 ## 审核无留存
 
@@ -185,7 +201,9 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 
 当前不暴露无法与异步任务、存储或计费边界稳定对应的上游参数：OpenAI `moderation`、`input_fidelity`、`stream`、`partial_images`，Gemini `includeThoughts`、`temperature`、`topP`、`topK`、`seed`、Google Search grounding 和通用 `candidateCount`，以及任意自定义 OpenAI `WxH` 尺寸。审核策略由服务端统一控制，`gpt-image-2` 固定高保真，Gemini 中间 thought image 固定不返回。
 
-模型候选：Gemini 复用批量图片的账号模型映射展开（含 Vertex），并额外内置 `nano-banana-pro`/`nano-banana-2` 两个代理别名；`nano-banana-*` 别名族按 Gemini 图片模型处理；OpenAI 候选为 `gpt-image-1`/`gpt-image-2`；Grok 候选为 `grok-imagine` 系列。账号未配置模型映射时等价于网关全量透传语义，按平台默认候选回退，并额外纳入账号显式 `model_whitelist` 中匹配图片模型谓词的变体，再执行账号最终模型白名单过滤。尺寸档位只由平台与模型能力决定，不以是否填写单价限制能力；GPT Image 2 开放 `4K`；Gemini 3.1 Flash Image 额外开放 `512`，该档位优先使用分组或渠道价卡的 `512` 分层价格，未配置时回退价卡默认价格；`gemini-2.5-flash-image` 与 `gemini-3.1-flash-lite-image` 固定为 `1K`。接口同时返回按模型广场分组倍率计算的各尺寸展示单价，创作台预估费用按所选尺寸单价计算，每次任务固定单张输出。
+模型候选：Gemini 复用批量图片的账号模型映射展开（含 Vertex），并额外内置 `nano-banana-pro`/`nano-banana-2` 两个代理别名；`nano-banana-*` 别名族按 Gemini 图片模型处理；OpenAI 候选为 `gpt-image-1`/`gpt-image-2`；Grok 候选为 `grok-imagine` 系列。账号未配置模型映射时等价于网关全量透传语义，按平台默认候选回退，并额外纳入账号显式 `model_whitelist` 中匹配图片模型谓词的变体，再执行账号最终模型白名单过滤。
+
+尺寸档位只由平台与模型能力决定，不以是否填写单价限制能力；GPT Image 2 开放 `4K`；Gemini 3.1 Flash Image 额外开放 `512`，该档位优先使用分组或渠道价卡的 `512` 分层价格，未配置时回退价卡默认价格；`gemini-2.5-flash-image` 与 `gemini-3.1-flash-lite-image` 固定为 `1K`。接口同时返回按模型广场分组倍率计算的各尺寸展示单价，创作台预估费用按所选尺寸单价计算，每次任务固定单张输出。
 
 管理员候选接口 `GET /api/v1/admin/settings/creative-model-candidates` 返回当前 active、启用图片生成且存在可调度图片模型的全部分组和模型，不按管理员用户分组权限过滤，因此可以配置 exclusive 分组。OpenAI 候选返回 `generate`/`edit`/`inpaint`，Gemini/Grok 候选返回 `generate`/`edit`。
 
@@ -195,7 +213,7 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 
 - 画布交互：空白拖拽平移视角；普通 wheel（包括触控板双指滚动）按跟手方向平移，浏览器标记 `ctrlKey` 的触控板捏合以光标为中心缩放；移动端原生双指手势以两指中点为锚同时缩放/平移，缩放范围统一为 `0.2–3`；图片可点选、拖动、删除；支持从操作系统文件夹拖入 PNG/JPEG/WebP 图片，也支持把历史记录中的本地输出缩略图拖到画布，图片中心对齐拖放落点，多图从落点按固定间距斜向错开；外部拖入绕过裁剪弹窗并保存为源素材，历史拖入复用已有 output 素材；历史默认折叠为画布右上角悬浮列表，点击任务行时若其输出已在本画布上（按 runId + outputIndex 匹配对象 data）则视角平移过去；进行中的任务只显示加载状态，不提供素材操作或取消入口。
 - 生成输入：文生图不需要选图；图生图 / 局部重绘以画布当前选中的图片为源图，局部重绘另附画笔导出的 mask（白底透明 PNG，尺寸拉伸回源图自然尺寸）；画笔是唯一画布工具，白色轨迹作为 mask path 画在图片上层。
-- 输出上板与历史恢复：全部进行中任务通过 `GET /creative/runs/active` 游标轮询，每 3 秒同步完整 active 集合；历史页只加载任务元数据，输出状态由服务端批量查询。刷新发现的新任务自动加入追踪，终态 run 从 `pollStates` 清理。`succeeded` 时逐个取回未 ack 的输出，先写入 IndexedDB 再调用 ack，下载使用 300 秒超时并对网络/5xx 做有限指数退避，随后自动把输出图片放上画布。进入创作台或手动刷新历史时，对 `succeeded` 且未 ack 的输出执行同一收割流程；本地已有素材时只重试 ack。单个输出取回失败（410/`result_lost`）或本地保存失败只标记该输出缺失，不中断其它输出；ack 失败不抹掉已经保存的本地素材，后续刷新继续重试。
+- 输出上板与历史恢复：全部进行中任务通过 `GET /creative/runs/active` 游标轮询，每 3 秒同步完整 active 集合；历史页只加载任务元数据，输出状态由服务端批量查询。刷新发现的新任务自动加入追踪，终态 run 从 `pollStates` 清理。`succeeded` 时逐个取回未 ack 的输出，先写入 IndexedDB 再调用 ack，下载使用 300 秒超时并对网络/5xx 做有限指数退避，随后自动把输出图片放上画布。进入创作台或手动刷新历史时，对 `succeeded` 且未 ack 的输出执行同一输出取回流程；本地已有素材时只重试 ack。单个输出取回失败（410/`result_lost`）或本地保存失败只标记该输出缺失，不中断其它输出；ack 失败不抹掉已经保存的本地素材，后续刷新继续重试。
 - 本地存储：IndexedDB 库名 `tokenrouter-creative-studio`（版本 1），对象仓库为 `assets`（源图/输出 blob）、`scenes`（画布 JSON 快照，图片 src 以 `asset://<key>` 占位、刷新后回 assets 取 blob 恢复，缺失的图跳过不阻塞）和 `settings`（模型、操作、尺寸、比例、画质、背景、思考强度与提示词草稿）；画布恢复完成前不会执行外部上板或用空画布覆盖已有快照，画布变更防抖约 1 秒存快照，并在页面隐藏/卸载时刷新待写入内容，恢复时重建 runId + outputIndex → 画布对象的注册表；图片绝不以 base64 进入 localStorage。另用 localStorage 的 `creative:workspaceId` 持久化高熵 UUID，同源标签页共享；清空本机创作数据会删除 IndexedDB 内容并旋转工作区 ID，因此旧历史立即隐藏，后续任务进入新工作区。
 - 丢失边界：历史自动恢复只适用于服务端仍为 `succeeded`、输出未 ack 且 transient 尚未过期的任务；服务端已 ack、transient 已过期或本地保存失败后仍无对应 blob 的输出显示“素材缺失”。本地配额不足时提示用户下载备份；清理浏览器站点数据会清空全部本地素材并创建新的工作区，且没有任何跨设备同步。
 - 幂等重试：创建任务失败重试复用同一 Idempotency-Key，成功后重置。
@@ -244,7 +262,7 @@ creative:
 - 确认目标分组启用图片生成；未配置图片尺寸价格或账号模型映射时会按平台默认值回退，GPT Image 2 缺少 4K 覆盖价时仍使用默认价开放 4K。
 - 确认上游账号凭据有效（Gemini apikey/Vertex/OAuth、OpenAI、xAI）。
 - 确认分组模型价卡与有效倍率，验证估价的 hold/capture/release 行为。
-- 明白临时输出默认 30 分钟过期：通知用户及时取回，或按需调大 `transient_ttl_seconds`。
+- 临时输出默认 30 分钟过期：通知用户及时取回，或按需调大 `transient_ttl_seconds`。
 - 排查 `result_lost` 时先检查客户端是否在 TTL 内完成取回与 ack，再检查 worker 日志。
 
 ## 安全检查清单

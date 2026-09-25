@@ -1,6 +1,6 @@
 # TokenRouter 项目总览
 
-本文说明 TokenRouter 的产品责任、运行边界、仓库所有权和跨模块核心术语，供首次进入仓库或判断变更归属时建立共同上下文。本文不枚举具体 HTTP 字段、平台模型表、部署命令或单个函数行为；这些内容由对应分类文档或库外用户手册负责。
+本文说明 TokenRouter 的产品职责、运行边界、仓库目录和核心术语，供首次接触项目或定位变更时使用。本文不枚举具体 HTTP 字段、平台模型表、部署命令或单个函数行为；这些内容由对应分类文档或库外用户手册负责。
 
 ## 章节导航
 
@@ -44,12 +44,12 @@ Go 模块路径为 `github.com/TokenFlux/TokenRouter`。后端以 `backend/go.mo
 
 | 路径 | 规范责任 | 注意事项 |
 | --- | --- | --- |
-| `backend/cmd/server/` | 参数、版本信息与最终退出 | 原生成入口委托 app 的 Wire 图 |
+| `backend/cmd/server/` | 参数、版本信息与最终退出 | 保留版本参数与 Wire 生成入口 |
 | `backend/internal/app/` | 唯一组合根、精简初始化及生命周期 | 修改手写装配后生成 Wire，资源由原生模块唯一持有 |
 | `backend/internal/server/` | HTTP server、中间件顺序和路由注册 | 路由只负责接口装配，业务不变量由所属模块持有 |
 | `backend/internal/gateway/` | 入站编排、准入、会话、输出和完成处理 | HTTP Adapter 与单次平台执行分别绑定原生端口 |
 | `backend/internal/upstream/` | 平台交换、原生报文与连接资源 | 凭据持久化由 account 负责，资金由 billing 负责 |
-| `backend/internal/<module>/` | 原生用例及其 PostgreSQL、Redis、HTTP、provider 适配 | 旧 repository 包已删除；通用技术实现归 infra |
+| `backend/internal/<module>/` | 原生用例及其 PostgreSQL、Redis、HTTP、provider 适配 | 通用技术实现归 infra，模块职责见下方地图 |
 | `backend/ent/schema/` | 主要持久实体的 Ent schema 源 | `backend/ent/` 下其余大部分文件为生成代码 |
 | `backend/migrations/` | 已发布数据库的前向演进 | SQL 被嵌入二进制并按文件名执行；已应用文件不可改写 |
 | `backend/internal/config/` | 启动配置结构、默认值、环境映射和校验 | 数据库中的运行时设置由 settings 和所属模块读取器负责，不等同于启动配置 |
@@ -58,6 +58,8 @@ Go 模块路径为 `github.com/TokenFlux/TokenRouter`。后端以 `backend/go.mo
 | `.github/workflows/` | 后端 CI、安全扫描和 release 自动化 | 实际工具链版本和发布触发条件以 workflow 为准 |
 | `docs/` | Project Doc 与库外用户/法律资料 | 只有各级 `index.md` 规范列出的文档属于 Project Doc |
 | `skills/`、`tools/` | 仓库专用操作技能和维护工具 | 不属于应用运行时；变更时仍需遵守相应输入输出契约 |
+
+完整后端包结构、每个包的职责和依赖关系见[后端模块地图](architecture/backend_modules.md)。
 
 ## 核心术语
 

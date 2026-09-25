@@ -14,7 +14,7 @@
 
 每个用户和平台最多一条 `user_platform_quotas` 活跃记录。允许的平台为 Anthropic、OpenAI、Gemini、Antigravity、Grok、Qoder、Kimi、Zhipu 和 DeepSeek。每条记录分别保存日/周/月 limit、usage 和 window start。国产供应商的 payg/coding 只是上游账号模式，用户额度仍按 Kimi、Zhipu 或 DeepSeek 平台归属，不拆成额外平台。
 
-limit 的三态语义是领域不变量：
+limit 区分三种值：
 
 - `nil`：该窗口无限额。
 - `0`：完全禁用；因 usage 从 0 开始，任何请求都会达到上限。
@@ -28,7 +28,7 @@ limit 的三态语义是领域不变量：
 
 管理规则、准入、倍率和镜像生命周期由 billing 持有；PostgreSQL 与 Redis Adapter 分别位于 billing/postgres、billing/rediscache。
 
-检查采用 Redis-first：当前 schema 的缓存命中直接判断；MISS 或旧缓存用 singleflight 合并数据库回源并回填。Redis 故障时仍查询数据库做一次性检查；数据库也失败或请求上下文取消时当前实现 fail-open 并记录 warning，避免额度基础设施故障阻断全部网关流量。
+检查采用 Redis-first：当前 schema 的缓存命中直接判断；MISS 或旧缓存用 singleflight 合并数据库回源并回填。Redis 故障时仍查询数据库做一次性检查；数据库也失败或请求上下文取消时，预检查放行并记录 warning，避免额度基础设施故障阻断全部网关流量。
 
 额度耗尽返回 HTTP 429 和日/周/月专用错误码，并附 `window_resets_at`。客户端 `Retry-After` 从相同窗口口径计算，不能使用服务器 UTC 日界替代配置时区。
 
@@ -58,7 +58,7 @@ Flusher 每批 Pop dirty key、批量读取 Redis、写入绝对 usage/window sn
 
 - Redis usage 是当前执法视图，数据库 usage 在异步模式下可能滞后；管理端展示要注明读取来源或刷新状态。
 - Flusher 写绝对值而非 delta，重试不会重复累加；dirty key 丢失可由后续活跃请求重新标记，但低活跃用户的数据库镜像可能长期偏低。
-- 管理重置与 flusher/回源/累计的旧快照覆盖已在单实例内通过共享用户锁串行化。该锁不协调多个服务进程，也不把 Redis 和 PostgreSQL 变成原子提交；Redis 失效或写回故障仍可能造成 TTL 范围内的滞后，应结合告警核对。
+- 管理重置、flusher、回源与累计在单实例内共用用户锁，防止旧快照覆盖新窗口。该锁不协调多个服务进程，也不把 Redis 和 PostgreSQL 变成原子提交；Redis 失效或写回故障仍可能造成 TTL 范围内的滞后，应结合告警核对。
 - 用户平台额度与账号上游 quota、订阅窗口、团队成员限额、Key 5h/1d/7d 限额分别排查，不能只看一个 “quota exhausted”。
 
 相关文档：[路由与结算](routing_and_billing.md)、[支付与权益](payments_and_entitlements.md)、[账号维护](../operations/account_maintenance.md)。

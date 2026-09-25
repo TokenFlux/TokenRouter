@@ -4,10 +4,7 @@ TokenRouter 通过统一 API 提供异步 Gemini 批量图片生成，底层由 
 
 本文覆盖公共资源形状、持久化作业生命周期、队列协调、计费预留、提供商执行、清理、安全边界、配置和验证。不定义生产价格、特定部署的 Google Cloud IAM 策略或普通同步图片生成。
 
-支持的提供商：
-
-- `gemini_api`
-- `vertex`
+支持 `gemini_api` 和 `vertex` 两类提供商。
 
 API 用户不会看到 Gemini 文件名、Vertex 作业名、GCS 路径、签名 URL、API Key 或服务账号材料。当前实现通过 TokenRouter 代理下载。
 
@@ -170,13 +167,15 @@ Redis 结构：
 - 队列幂等键：`batch_image.idempotency_key_prefix`
 - 由下载限流器管理的下载限制键
 
-`batchimage.Public` 拥有提交、目录、查询及取消，`PipelineProcessor` 在轮询/索引与结算之间推进，`Cleanup` 和 `Download` 分别拥有清理及输出读取。HTTP 位于 `batchimage/httpapi`，元数据与队列位于 PostgreSQL/Redis Adapter，平台操作位于 `batchimage/provider`。app 直接构造原生 Gemini/Vertex provider，并将唯一 `batchimage.Registry` 注入提交、轮询、下载及清理；Vertex 配置投影也由 app 完成。旧供应商和注册表包装已删除。下载与清理也由 app 直接构造原生用例，ResultAccess 在原操作时点从账号存储读取已绑定账号，每次供应商操作得到独立凭据副本；下载保留账号资格及脱敏错误，清理保留原错误传播差异。旧下载、清理服务及其 Core 转接已删除。处理、索引、结算及失活资金恢复由 app 直接组合原生实例，读取同一账号存储、billing.Funds、usage 存储和报价器；worker 配置只在 app 投影。提交、目录、查询及取消也已直接绑定原生 Public；候选通过 provider.Candidates 在原查询时点从 AccountStore 投影，复用 account 模型规则和 routing 的逐候选协议解析。套餐读取仍按资金模式触发，指定订阅不会回退。旧批量图片服务、资金转接及其专属测试包装均已删除，跨域共用的旧资金命令在最终资金账本中继续单独跟踪。
+`batchimage.Public` 拥有提交、目录、查询及取消，`PipelineProcessor` 在轮询/索引与结算之间推进，`Cleanup` 和 `Download` 分别拥有清理及输出读取。HTTP 位于 `batchimage/httpapi`，元数据与队列位于 PostgreSQL/Redis Adapter，平台操作位于 `batchimage/provider`。app 直接构造原生 Gemini/Vertex provider，并将唯一 `batchimage.Registry` 注入提交、轮询、下载及清理；Vertex 配置投影也由 app 完成。
+
+下载与清理也由 app 直接构造原生用例，ResultAccess 在原操作时点从账号存储读取已绑定账号，每次供应商操作得到独立凭据副本；下载保留账号资格及脱敏错误，清理保留原错误传播差异。处理、索引、结算及失活资金恢复由 app 直接组合原生实例，读取同一账号存储、billing.Funds、usage 存储和报价器；worker 配置只在 app 投影。提交、目录、查询及取消也已直接绑定原生 Public；候选通过 provider.Candidates 在原查询时点从 AccountStore 投影，复用 account 模型规则和 routing 的逐候选协议解析。套餐读取仍按资金模式触发，指定订阅不会回退。
 
 worker 必须从 Redis 预留作业，不应以数据库扫描循环方式运行。只有 Redis 队列预留返回具体批量作业 ID 后才读取数据库。队列由 `batchimage/rediscache` 唯一实现；取得任务锁后，心跳、ACK 和重排通过持有者句柄原子比较现有锁 token。续期不匹配或无法确认所有权时取消本轮推进，旧 worker 不得清除接管者的活动记录。数据键、字符串 token 与 TTL 不变，也不构成 Redis/PostgreSQL 的分布式事务。
 
 ## 计费
 
-旧作业资金入口委托 `billing.Funds` 的 `Reserve/Capture/Release`，与创作台共用唯一资金实现。任务表投影由所属模块的 PostgreSQL 参与者提供，billing 通过 app 登记的工厂在同一 SQL 事务调用，资金分配和 allowance 标记仍一次提交；任务状态机与供应商执行由 batchimage 及其 provider 唯一拥有。v1/v2/v3 快照、原请求 ID、指纹以及删除 Key/退出成员后的释放规则保持兼容。
+作业资金调用 `billing.Funds` 的 `Reserve/Capture/Release`，与创作台共用唯一资金实现。任务表投影由所属模块的 PostgreSQL 参与者提供，billing 通过 app 登记的工厂在同一 SQL 事务调用，资金分配和 allowance 标记仍一次提交；任务状态机与供应商执行由 batchimage 及其 provider 唯一拥有。v1/v2/v3 快照、原请求 ID、指纹以及删除 Key/退出成员后的释放规则保持兼容。
 
 计费规则：
 
@@ -186,8 +185,7 @@ worker 必须从 Redis 预留作业，不应以数据库扫描循环方式运行
 - 生成定价快照时只读取一次完整分组配置，基础单价、分组倍率、批量折扣和预占比例共同来自这一份配置，避免并发修改时组合不同版本的价格。
 - 定价快照遵循普通图片计费：每份订阅分配使用其套餐分组倍率；订阅覆盖后剩余的基础成本使用快照中的用户专属按量倍率。
 - 结果索引完成后执行结算；已提交任务保留原价格和资金快照，即使升级清除了旧分组价格和独立倍率也不重算。
-- 只对成功图片计费。
-- 失败条目不计费。
+- 按成功图片数量计费，失败条目不计费。
 - 结算按提交时预留的订阅和余额快照捕获；只有 `auto` 的预留允许同时包含两种来源。失败或取消时通过幂等路径释放所有未使用预留。
 - 参考图片作为输入发送给 Gemini，可能产生少量上游输入 Token 和临时存储成本。`output_count > 1` 时，每个展开后的输出请求都会计算一次参考图，但公共计费模型不额外收取参考图费用。用户可见的估算、冻结和结算金额仍根据输出图片数量和已配置的批量图片单价计算。
 - 结算请求 ID 为 `batch_image_settlement:{batch_id}`。
@@ -236,8 +234,7 @@ DELETE /v1/images/batches/{id}/outputs
 - 支持包含有效服务账号 JSON 的 Gemini `service_account` 上游账号。
 - GCS 存储桶和前缀由服务端管理。
 - Vertex 作业名和 GCS 路径只在内部使用。
-- 当前实现中的批量图片输出只能按 `1K` 或默认值处理。
-- 不得承诺 `2K` 或 `4K`。
+- 当前输出只支持 `1K` 或默认值，不支持 `2K`、`4K`。
 
 其他 Gemini 账号或登录类型不会被当前批量图片提供商选择，除非它们通过相同提供商流程公开等价的 API Key 或服务账号凭据。
 
@@ -345,15 +342,10 @@ batch_image:
 
 ## 安全检查清单
 
-- 公共响应不包含提供商引用。
-- 不暴露 GCS URI。
-- 不暴露签名 URL。
-- 不暴露服务账号。
-- 不暴露 API Key。
+- 公共响应不包含提供商引用、GCS URI、签名 URL、服务账号材料或 API Key。
 - PostgreSQL 不保存图片字节或 Base64。
 - 日志不记录 Base64。
-- 状态、条目、下载、取消和删除路由都受所有者范围约束。
-- 输出删除受所有者范围约束。
+- 状态、条目、下载、取消和删除路由都校验所有者，输出删除也遵守同一边界。
 - 清理路径只能由服务端生成。
 
 ## 测试命令

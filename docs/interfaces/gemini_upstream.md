@@ -2,7 +2,7 @@
 
 Gemini 账号原生集合为 GenerateContent；API Key 另有 Gemini Batch，Vertex Service Account 另有 Vertex Batch。分组公开 image_batches 经 provider 绑定使用对应专用协议。统一配置字段与入口门禁见[统一协议能力](protocol_capabilities.md)。
 
-创作台 Gemini 图片请求统一使用 `generateContent` 的 inlineData。自定义 base URL 校验失败会直接 fail-closed，不会回退到 Google 官方地址；本地按 base64 编码后的 JSON 请求总大小估算并限制在 20 MiB 以内，超限应在提交前返回输入过大错误。本轮不使用 File API。
+创作台 Gemini 图片请求统一使用 `generateContent` 的 inlineData。自定义 base URL 校验失败会直接 fail-closed，不会回退到 Google 官方地址；本地按 base64 编码后的 JSON 请求总大小估算并限制在 20 MiB 以内，超限应在提交前返回输入过大错误。创作台不使用 File API。
 
 本文描述 Gemini OAuth、API Key 和 Service Account 账号，Gemini v1beta 原生入口，以及 Anthropic/OpenAI 兼容转换的当前边界。它不固化上游动态模型清单，也不把 Antigravity 混合账号等同于 Gemini 原生账号。
 
@@ -24,9 +24,11 @@ Gemini 正式支持：
 | `apikey` | 使用 Base URL 和 API Key 直连；`credentials.provider_type=third_party` 表示 Gemini 兼容第三方提供商，缺失或 `official` 表示 Google AI Studio 官方接入 |
 | `service_account` | 使用 Google Service Account 换取 Vertex token，并解析 project/location 上下文 |
 
-账号原生 Record 负责显式 project 优先级、历史凭据字段和逐模型 location 选择，服务账号 JSON 的校验与 project 提取由 upstream/vertex 唯一实现。账号测试、批量任务及在线转发都在原调用时点使用这两部分，不经旧账号方法重新实现解析，也不提前解析原本不会读取的凭据。
+账号原生 Record 负责显式 project 优先级、历史凭据字段和逐模型 location 选择，服务账号 JSON 的校验与 project 提取由 upstream/vertex 唯一实现。账号测试、批量任务及在线转发都在原调用时点使用这两部分，按实际需要解析凭据。
 
-Code Assist/Google One 需要有效 project；AI Studio 的 project 可选并使用选择的 tier。第三方 API Key 保持 `type=apikey` 和 Gemini 兼容请求形状，但必须配置非 Google 官方域名的 Base URL；它没有 Google 官方账号等级，因此不写 `tier_id`，也不参与本地模拟 RPD/RPM 预检或用量窗口。本地配额预检由 app 唯一构造 `account.GeminiPrecheck` 并直接绑定执行消费者，按原洛杉矶日界读取 usage 批量投影及缓存，不经旧健康聚合服务另行构造。第三方上游实际返回 `429` 时始终使用通用冷却，不解析 Google 日配额的重置语义。OAuth refresh 会重试并兼容历史 client 元数据；token provider 使用过期前偏移和并发锁，避免同账号重复刷新。其它导入类型没有 Gemini 正式转发契约，见[上游账号能力矩阵](upstream_account_matrix.md)。
+Code Assist/Google One 需要有效 project；AI Studio 的 project 可选并使用选择的 tier。第三方 API Key 保持 `type=apikey` 和 Gemini 兼容请求形状，但必须配置非 Google 官方域名的 Base URL；它没有 Google 官方账号等级，因此不写 `tier_id`，也不参与本地模拟 RPD/RPM 预检或用量窗口。本地配额预检由 app 唯一构造 `account.GeminiPrecheck` 并直接绑定执行消费者，按原洛杉矶日界读取 usage 批量投影及缓存。
+
+第三方上游实际返回 `429` 时始终使用通用冷却，不解析 Google 日配额的重置语义。OAuth refresh 会重试并兼容历史 client 元数据；token provider 使用过期前偏移和并发锁，避免同账号重复刷新。其它导入类型没有 Gemini 正式转发契约，见[上游账号能力矩阵](upstream_account_matrix.md)。
 
 <a id="gemini_protocol_dispatch"></a>
 ## 协议分派
@@ -63,26 +65,26 @@ OAuth refresh、Service Account token、project/tier 发现和上游请求错误
 
 Gemini 原生入口返回 Google 形状，Anthropic/OpenAI 入口返回对应客户端形状。最终错误可应用[网关错误响应策略](gateway_error_policy.md)，但 project、service account JSON、token、API key 和内部上游响应不能无条件透传。排障应核对 OAuth variant、project/location/tier、最终模型、thought/session 状态、quota reset 和 attempt 链。
 
-相关文档：[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[账号调度与缓存一致性](../architecture/account_scheduling_and_cache.md)、[账号维护](../operations/account_maintenance.md)。
-
-
 <a id="gemini_native_execution"></a>
 ## 原生执行与账号授权边界
 
-`upstream/gemini.Executor` 闭合一次平台交换、协议输出和响应体关闭。Messages、原生、Chat 与 Responses 保留各自的流、非流及 Code Assist 缓冲分支；转换继续调用 `protocol/bridge`，SSE 同步通过 `OutputSink` 写出。三个原入口复用 `RequestPlan`，在原时点取得凭据与 project，原生输入与兼容 REST 净化不混用。原生错误、重试及配额时间解析不写账号。`gateway/provider/googleforward.Gemini` 组合本次执行，`account/provider.GeminiErrorObserver` 保留官方日配额、第三方冷却和池模式的区别；HTTP Adapter 负责错误改写，最终完成仍进入原生完成器。app 只投影静态读取上限与目标策略，凭据和配额读取保持原时点。
+`upstream/gemini.Executor` 闭合一次平台交换、协议输出和响应体关闭。Messages、原生、Chat 与 Responses 保留各自的流、非流及 Code Assist 缓冲分支；转换继续调用 `protocol/bridge`，SSE 同步通过 `OutputSink` 写出。三个原入口复用 `RequestPlan`，在原时点取得凭据与 project，原生输入与兼容 REST 净化不混用。原生错误、重试及配额时间解析不写账号。
 
-结果分别报告已观测 usage（包括显式零）、语义输出、旧 TTFT、内联图片张数及失败分类。`countTokens` 原有的本地估算单独携带，不计入实际 usage 或资金事实；旧调用者的图片回退与结算条件保持。流式输出不新增整流缓冲，也不统一不同入口的断开处理。
+`gateway/provider/googleforward.Gemini` 组合本次执行，`account/provider.GeminiErrorObserver` 保留官方日配额、第三方冷却和池模式的区别；HTTP Adapter 负责错误改写，最终完成仍进入原生完成器。app 只投影静态读取上限与目标策略，凭据和配额读取保持原时点。
 
-Gemini 授权会话和三类 OAuth 编排、project/tier 发现、token 回填及刷新资格由 `account.GeminiAuthorization` 拥有；协议交换、Drive 与 Resource Manager 位于 `upstream/gemini/codeassist`。app 直接构造授权实例，完整配置在 app 投影，provider 组合协议参数；动态 OAuth 配置仍在原调用时点读取。管理员 tier 刷新使用 account 的原生管理选项。原 project/账号缓存键和刷新 CAS 保持。构造不启动清理，app 统一启动与停止；停止超时保留未完成状态，不把旧有限重试仍在收尾称为已排空。
+结果分别报告已观测 usage（包括显式零）、语义输出、旧 TTFT、内联图片张数及失败分类。`countTokens` 原有的本地估算单独携带，不计入实际 usage 或资金事实；调用方分别保留图片回退与结算条件。流式输出不新增整流缓冲，也不统一不同入口的断开处理。
+
+Gemini 授权会话和三类 OAuth 编排、project/tier 发现、token 回填及刷新资格由 `account.GeminiAuthorization` 拥有；协议交换、Drive 与 Resource Manager 位于 `upstream/gemini/codeassist`。app 直接构造授权实例，完整配置在 app 投影，provider 组合协议参数；动态 OAuth 配置仍在原调用时点读取。管理员 tier 刷新使用 account 的原生管理选项。原 project/账号缓存键和刷新 CAS 保持。构造不启动清理，app 统一启动与停止；停止超时保留未完成状态，有限重试未结束时不能报告已排空。
 
 Batch 客户端与 JSONL 编码、创作 generateContent 技术调用及图片解码已接入原生实现。`protocol/gemini` 为批量与创作保留明确 wire 变体；任务输入只投影必要字段，任务状态机、最后完成/清理和资金处理仍由原任务用例负责。Vertex URL/token 端口现已绑定 `upstream/vertex` 与账号缓存协调；Gemini 不 import Vertex，原生执行仍通过显式 URL/认证输入复用协议输出。
-
 
 <a id="vertex_service_account_execution"></a>
 ## Vertex 服务账号与对象流
 
 `upstream/vertex` 拥有 project/location 端点、Claude 模型日期及 body 变体、Beta 过滤、Batch 与 GCS 技术调用。签名交换使用 `upstream/internal/googleauth` 的 RSA JWT 原语；只接收已投影密钥和代理，不读取账号、缓存或完整配置。凭据 JSON 的历史字段选择、显式 project 和逐模型 location 覆盖由 `account` 拥有。私钥不会进入通用执行结果。
 
-访问 token 继续使用 `vertex:service_account:` 身份摘要及原 Redis cache/lock、TTL 和五分钟偏移。`account/provider` 唯一组合凭据解析、身份摘要、代理投影与交换，Claude、Gemini 和批量图片消费者共用该入口。竞争者正常等待 200ms 再读取缓存；B03 修复使等待取消立即返回取消错误，既不继续回读，也不发起交换。Redis 故障仍按原行为降级；本阶段不新增锁协议或多实例保证。
+访问 token 继续使用 `vertex:service_account:` 身份摘要及原 Redis cache/lock、TTL 和五分钟偏移。`account/provider` 唯一组合凭据解析、身份摘要、代理投影与交换，Claude、Gemini 和批量图片消费者共用该入口。竞争者正常等待 200ms 再读取缓存；等待取消时立即返回取消错误，不继续回读或发起交换。Redis 故障仍按原行为降级。
 
-Claude 与 Gemini 的单次执行继续复用已迁的协议输出链，Vertex 通过调用方投影接入，不建立平台间 import 或新的账号切换循环。Batch 提交、读取、取消和 GCS 上传/分页/删除/对象流只有一份技术实现；对象流仍由接收方关闭。任务归属、结果状态转换、受控清理及资金捕获保留在原任务用例，等待 S13。
+Claude 与 Gemini 的单次执行复用各自的协议输出链，Vertex 通过调用方投影接入，不建立平台间 import 或新的账号切换循环。Batch 提交、读取、取消和 GCS 上传/分页/删除/对象流只有一份技术实现；对象流仍由接收方关闭。任务归属、结果状态转换、受控清理及资金捕获由 batchimage 与 creative 的任务用例负责。
+
+相关文档：[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[账号调度与缓存一致性](../architecture/account_scheduling_and_cache.md)、[账号维护](../operations/account_maintenance.md)。

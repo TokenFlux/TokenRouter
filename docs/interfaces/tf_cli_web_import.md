@@ -19,7 +19,7 @@ TokenRouter 后端不接收导入请求，也不新增授权接口。Keys 页把
 
 页面只访问 `http://127.0.0.1:43110` 至 `43119`。发现使用 `GET /ping`；有 session 时携带随机 challenge，并用 Web Crypto 校验 tf 返回的 HMAC。导入使用 `POST /import`，只在发现证明有效时发送 `X-TF-Session-Proof`。
 
-页面只称“已验证当前 tf 会话”。proof 不验证网页、API Key、本机程序来源或后续网关结果，也不提供 freshness 或防重放。没有 session、proof 不匹配或 Web Crypto 不可用时仍可导入，但发送前必须显示未验证警告。若已验证后导入 proof 过期或计算失败，本次不发送 Key；页面先降级为未验证状态，再要求用户确认。
+“已验证当前 tf 会话”只说明会话证明校验通过。proof 不验证网页、API Key、本机程序来源或后续网关结果，也不提供 freshness 或防重放。没有 session、proof 不匹配或 Web Crypto 不可用时仍可导入，但发送前必须显示未验证警告。若已验证后导入 proof 过期或计算失败，本次不发送 Key；页面先降级为未验证状态，再要求用户确认。
 
 回环 fetch 固定使用 CORS、`credentials: omit`、`cache: no-store`、`redirect: error`、`referrerPolicy: no-referrer` 和 `targetAddressSpace: loopback`。发现总预算为 30 秒。浏览器自动完成 `OPTIONS` 预检，前端不手动发送。
 
@@ -35,7 +35,7 @@ HTTP `202 Accepted` 只表示终端已确认。tf 之后才校验网关，并在
 <a id="user_confirmation"></a>
 ## 页面交互
 
-Keys 行的更多菜单提供“导入 TF CLI”，不增加第二套入口或 Key 选择状态。弹窗先发现服务，再显示已验证状态或未验证警告；用户点击“发送到 TF CLI”后才发送 Key。POST 等待期间提示用户在终端核对来源并确认。网页确认决定是否发送 Key，终端确认决定 tf 是否继续处理，两者不能互相替代。
+Keys 行的更多菜单提供“导入 TF CLI”，使用当前行的 Key。弹窗先发现服务，再显示已验证状态或未验证警告；用户点击“发送到 TF CLI”后才发送 Key。POST 等待期间提示用户在终端核对来源并确认。网页确认决定是否发送 Key，终端确认决定 tf 是否继续处理，两者不能互相替代。
 
 <a id="browser_security_headers"></a>
 ## 浏览器安全头

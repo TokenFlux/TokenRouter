@@ -42,7 +42,9 @@ Claude Code 可把 base URL 指向部署地址的 `/antigravity`，认证值仍�
 
 ## 协议适配
 
-通用 Claude/Gemini wire 变体、schema 清理、非流及 SSE 状态已由 `protocol` 唯一实现；与 OpenAI 兼容报文不同的 `max_tokens`、metadata、tools 形状保留明确变体。`upstream/antigravity` 拥有 v1internal 外壳、project/身份补丁、原生 session ID、模型回退和流式协议事实；账号授权、项目发现、token 回填和健康写入归 `account`。`gateway/httpapi.AntigravityExecutor` 负责 HTTP 错误展示和 Ops 投影，入站完成处理使用原生完成器。平台/模型判断选择 thinking/signature/tool 选项后传入 bridge，纯转换不反向读取这些平台状态。
+通用 Claude/Gemini wire 变体、schema 清理、非流及 SSE 状态已由 `protocol` 唯一实现；与 OpenAI 兼容报文不同的 `max_tokens`、metadata、tools 形状保留明确变体。`upstream/antigravity` 拥有 v1internal 外壳、project/身份补丁、原生 session ID、模型回退和流式协议事实；账号授权、项目发现、token 回填和健康写入归 `account`。
+
+`gateway/httpapi.AntigravityExecutor` 负责 HTTP 错误展示和 Ops 投影，入站完成处理使用原生完成器。平台/模型判断选择 thinking/signature/tool 选项后传入 bridge，纯转换不反向读取这些平台状态。
 
 Antigravity 分组支持 Messages、Responses、Chat 和 Gemini GenerateContent，新建时默认启用 Messages 与 Gemini GenerateContent；四项都可关闭，迁移前已有分组启用四项。通用入口和 `/antigravity/*` 别名都按最终分组执行对应协议门禁；Gemini 模型列表 GET 不受生成协议开关影响。
 
@@ -80,7 +82,7 @@ Antigravity 账号 `extra.mixed_scheduling` 为布尔 `true` 时，可以作为 
 
 Antigravity 同时提供 Claude 与 Gemini 模型族。Gemini 3.6 Flash 的基础、high、low、medium 与 tiered 五种模型 ID 均进入默认模型目录和身份映射；账号存在自定义映射时，只要没有覆盖它们的通配符，这些精确直通映射仍会自动保留。可见模型来自默认映射、分组/渠道限制、账号资格和当前可请求解析；API Key 精确别名可投影到列表，目标不可请求时不展示。模型能力不能只由名称前缀推断，thinking/image 等能力由适配器与账号详情共同约束。
 
-额度查询按账号和模型 scope 保存上游 reset/remaining 状态，并可包含 AI Credits。429/503 分类区分模型限流、credits 耗尽和共享容量不足；请求结算的 `QuotaPlatform` 必须保留 Antigravity，即使客户端从 Anthropic/OpenAI 兼容入口进入。账号成本和用户扣费仍遵守渠道计价与分组倍率边界。
+额度查询按账号和模型 scope 保存上游 reset/remaining 状态，并可包含 AI Credits。429/503 分类区分模型限流、credits 耗尽和共享容量不足；请求期由 `gateway/admission.QuotaPlatform` 固定额度平台：强制平台入口使用 Antigravity，其他入口使用最终分组平台；不能仅因选到 Antigravity 账号就改变额度归属。账号成本和用户扣费仍遵守渠道计价与分组倍率边界。
 
 ## 失败与恢复
 
@@ -93,15 +95,12 @@ Antigravity 同时提供 Claude 与 Gemini 模型族。Gemini 3.6 Flash 的基�
 
 修改适配器时应覆盖非流/流、Claude/Gemini/OpenAI 三种客户端形状、工具/thinking、单/多账号限流、混合调度关闭后的快照失效和用量归属测试。
 
-相关文档：[上游账号能力矩阵](upstream_account_matrix.md)、[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[路由与结算](../domains/routing_and_billing.md)、[HTTP 接口边界](http_api.md)、[接口目录](index.md)。
-
-
 <a id="antigravity_native_execution"></a>
-## 原生执行与账号拥有者
+## 平台执行与账号职责
 
-`upstream/antigravity.Executor` 接入 Claude、Gemini、Chat、Responses 和历史静态 upstream 五条生产链，闭合单次平台交换、恢复、输出及最终响应体关闭。账号内普通重试、智能重试、credits 请求和共享模型容量去重只有一份实现；全局账号切换、付款主体和资金完成由网关编排持有；`gateway/provider/googleforward.Antigravity` 只组合本次凭据、转换选项和同步输出，旧 `AntigravityGatewayService` 已删除。`Probe` 复用同一平台重试，只测试指定账号，不取得用户或账号的请求槽。
+`upstream/antigravity.Executor` 接入 Claude、Gemini、Chat、Responses 和历史静态 upstream 五条生产链，闭合单次平台交换、恢复、输出及最终响应体关闭。账号内普通重试、智能重试、credits 请求和共享模型容量去重只有一份实现；全局账号切换、付款主体和资金完成由网关编排持有；`gateway/provider/googleforward.Antigravity` 只组合本次凭据、转换选项和同步输出。`Probe` 复用同一平台重试，只测试指定账号，不取得用户或账号的请求槽。
 
-流通过同步 `OutputSink` 输出，保留原来每种协议的前导缓冲、非流收集、心跳、首 token 与断开后的尾部读取规则。结果区分已观测 usage、是否服务和错误；HTTP 提交及重试关闭与语义输出分开，不用新观测改变 Antigravity 旧失败结算规则。平台用量归一化、外层冻结的 QuotaPlatform 与后台完成输入保持原链：强制平台路由优先，否则按分组平台；后台不能用缺少原路由上下文的 context 重新计算。
+流通过同步 `OutputSink` 输出，保留原来每种协议的前导缓冲、非流收集、心跳、首 token 与断开后的尾部读取规则。结果区分已观测 usage、是否服务和错误；HTTP 提交及重试关闭与语义输出分开，失败结算仍按 Antigravity 入口的完成资格判断。平台用量归一化、外层冻结的 QuotaPlatform 与后台完成输入保持原链：强制平台路由优先，否则按分组平台；后台不能用缺少原路由上下文的 context 重新计算。
 
 OAuth 会话、交换后的一次性删除、项目与套餐发现、隐私设置及验证由 `account.AntigravityAuthorization` 编排。原生客户端只执行供应商协议，wire 变体由 `protocol/google` 保留。token provider 的 project 回填冷却、缓存键、八秒请求刷新预算、后台十五分钟刷新资格与原 CAS 不变。额度展示、credits/模型窗口及 INTERNAL 500 惩罚归账号；共享缓存、计数器和发布端口复用原实例。
 
@@ -110,3 +109,5 @@ app 直接构造 `account.AntigravityAuthorization` 并登记授权活动，prov
 指定账号的管理与后台测试由 `account/provider.AntigravityProbe` 闭合执行，复用同一 `AntigravityRetry` 和原生平台循环。探针 UA 是显式请求字段，不通过专用 Context 键传递；测试不记录 Ops 错误或操作粘性会话。app 绑定唯一健康、计数器与发布端口，并使探测与转发共用尝试关闭屏障。令牌、模型映射、最小提示词、错误正文上限和响应体关闭顺序保持原行为。
 
 错误观测由 `account/provider.AntigravityErrorObserver` 组合原生账号健康端口。模型窗口先于一般错误处理，503 共享容量不足不升级为账号冷却；429 缺少模型信息时沿用原最终模型和账号级兜底。app 注入同一健康、发布与平台观测实例，平台准备器只传入本次 thinking、错误报文和粘性清除动作。
+
+相关文档：[上游账号能力矩阵](upstream_account_matrix.md)、[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[路由与结算](../domains/routing_and_billing.md)、[HTTP 接口边界](http_api.md)、[接口目录](index.md)。

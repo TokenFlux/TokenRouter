@@ -1,6 +1,6 @@
 # 部署与数据库迁移
 
-本文记录 TokenRouter 构建产物、运行拓扑、首次初始化、数据库迁移、升级和恢复之间的工程边界。逐命令安装步骤由既有部署手册维护；修改启动装配、镜像、Compose、setup、SQL 迁移或在线更新前应先读本文。
+本文记录 TokenRouter 构建产物、运行拓扑、首次初始化、数据库迁移、升级和恢复之间的工程边界。安装命令见部署手册；本文用于核对启动、迁移与恢复的兼容要求。
 
 ## 章节导航
 
@@ -70,7 +70,11 @@
 
 ## 升级与恢复
 
+以下迁移专题保留各版本的切换与回退条件。文中 v34 至 v39 等缓存版本指对应迁移发布时的状态；当前认证缓存为 v40，部署当前代码时以[调度与缓存文档](../architecture/account_scheduling_and_cache.md)为准。后续迁移可能替代早期字段，不能只按某个历史专题判断当前接口。
+
 <a id="maintenance_execution"></a>
+### 备份与维护执行
+
 备份配置、记录、定时与恢复编排由 backup 拥有，`backup/provider` 管理 dump/psql、压缩分卷、本地文件和 S3。系统更新与回退由 ops/maintenance 编排，技术 Adapter 在可执行文件所在目录下载并替换；版本查询继续复用 Ops 的唯一发布查询实例。更新仍可在浏览器断开后继续，应用退出则取消下载等准备工作；一旦进入二进制替换临界区，必须完成替换或恢复原文件。
 
 备份停止时立即拒绝新任务并取消启动回源、cron 与在途任务，随后在应用剩余后台预算内等待子进程及清理。超时保留未完成状态，不表示 drain 成功。恢复使用开启 `ON_ERROR_STOP` 的单事务 psql；输入流损坏先取消进程再关闭标准输入，避免把不完整输入的 EOF 当作提交条件。异步恢复只有成功保存 running 记录后才会启动。最终数据库提交后若状态保存失败，不能据此声称数据库已回滚。
@@ -104,7 +108,9 @@
 
 迁移 `242_group_video_model_prices.sql` 为分组增加可空 JSONB `video_model_prices`，按 Grok 视频模型族和分辨率保存每秒价格；`243_group_audio_voice_pricing.sql` 增加 Realtime 每分钟、TTS 每百万字符和 STT 每小时价格；`244_group_search_price_per_1k.sql` 增加搜索每千次价格。三类价格均以 `NULL` 表示使用代码默认值，显式 `0` 表示免费。管理端和服务层会规范化模型族、拒绝负价，并保持旧 `video_price_*` 作为视频回退层。
 
-迁移 `245_clear_non_grok_video_generation_config.sql` 清除非 Grok 分组的旧视频价格（原 SQL 保留了未启用平台值 `composite` 的历史例外），避免其它平台误宣称视频能力。清理前会一次性创建 `groups_video_price_backup_245`，保存受影响分组的旧列和 JSONB；`CREATE TABLE IF NOT EXISTS` 保证重放不会覆盖首次快照。该历史例外不代表本分支支持该平台；原迁移保留不变以满足校验和约束。确认无需恢复后可手工删除备份表；需要恢复时按 `group_id` 从该表回填价格，不能通过删除 `schema_migrations` 记录触发逆向迁移。
+迁移 `245_clear_non_grok_video_generation_config.sql` 清除非 Grok 分组的旧视频价格（原 SQL 保留了未启用平台值 `composite` 的历史例外），避免其它平台误宣称视频能力。清理前会一次性创建 `groups_video_price_backup_245`，保存受影响分组的旧列和 JSONB；`CREATE TABLE IF NOT EXISTS` 保证重放不会覆盖首次快照。
+
+该历史例外不代表本分支支持该平台；原迁移保留不变以满足校验和约束。确认无需恢复后可手工删除备份表；需要恢复时按 `group_id` 从该表回填价格，不能通过删除 `schema_migrations` 记录触发逆向迁移。
 
 这四个文件由上游迁移 217-220 按 fork 当前最大编号重新编号为 242-245。部署后应验证 Grok 分组的模型级视频价、搜索与三类音频价往返，非 Grok 清理范围和备份表内容，以及异步视频在首次完成轮询时只结算一次。
 
@@ -160,7 +166,9 @@
 
 ### OpenAI 账号级长上下文计费开关下线
 
-迁移 `241_remove_openai_long_context_billing_toggle.sql` 幂等删除迁移 203 创建的两个账号同步触发器和两个函数，并从所有账号 `extra` 中移除 `openai_long_context_billing_enabled`，保留其它 JSONB 数据。新服务仍把该键视为废弃输入：账号创建、更新、批量更新、导入和 CRS 同步即使收到非法类型也会静默丢弃，不再保存或返回旧校验错误。整份替换语义的单账号更新只携带废弃键时等同未提供 `extra`，不会清空其它配置；显式 `extra:{}` 仍表示清空允许清空的字段，废弃键与有效字段并存时只处理有效字段。账号数据导入会在计算幂等指纹前丢弃该键，因此旧键缺失、任意旧值和非法类型均表示同一逻辑请求。
+迁移 `241_remove_openai_long_context_billing_toggle.sql` 幂等删除迁移 203 创建的两个账号同步触发器和两个函数，并从所有账号 `extra` 中移除 `openai_long_context_billing_enabled`，保留其它 JSONB 数据。新服务仍把该键视为废弃输入：账号创建、更新、批量更新、导入和 CRS 同步即使收到非法类型也会静默丢弃，不再保存或返回旧校验错误。
+
+整份替换语义的单账号更新只携带废弃键时等同未提供 `extra`，不会清空其它配置；显式 `extra:{}` 仍表示清空允许清空的字段，废弃键与有效字段并存时只处理有效字段。账号数据导入会在计算幂等指纹前丢弃该键，因此旧键缺失、任意旧值和非法类型均表示同一逻辑请求。
 
 升级后，长上下文用户价格只由分组逐模型基础价、渠道显式区间、模型内置阶梯、分组长上下文开关和分组倍率决定。渠道显式区间优先且不会重复叠加模型内置倍率，也不受分组开关影响；没有显式区间时，开关决定是否按模型广场公开的长上下文档结算。账号统计和账号 `quota_used` 统一使用 `COALESCE(account_stats_cost, total_cost) × account_rate_multiplier`，显式零账号成本不累计额度；这不改变用户余额、订阅或 API Key 配额继续使用 `ActualCost` 的规则。
 
@@ -190,7 +198,9 @@
 
 ### 上游声明倍率探测下线
 
-迁移 `236_remove_upstream_billing_probe.sql` 幂等删除账号 JSONB 中的 `upstream_billing_probe`、`upstream_billing_probe_enabled`，并删除设置 `upstream_billing_probe_settings`、`openai_low_upstream_rate_priority_enabled`、`openai_oauth_scheduling_rate_multiplier`、`openai_advanced_scheduler_weight_upstream_cost`。迁移不改动其它账号 extra 或设置。旧配置项 `gateway.openai_ws.scheduler_score_weights.upstream_cost` 已失去行为，升级前应从配置文件、Secret 和环境模板中移除。
+迁移 `236_remove_upstream_billing_probe.sql` 幂等删除账号 JSONB 中的 `upstream_billing_probe`、`upstream_billing_probe_enabled`，并删除设置 `upstream_billing_probe_settings`、`openai_low_upstream_rate_priority_enabled`、`openai_oauth_scheduling_rate_multiplier`、`openai_advanced_scheduler_weight_upstream_cost`。
+
+迁移不改动其它账号 extra 或设置。旧配置项 `gateway.openai_ws.scheduler_score_weights.upstream_cost` 已失去行为，升级前应从配置文件、Secret 和环境模板中移除。
 
 这是无兼容路由和弃用期的破坏性升级。发布时先停止并确认全部旧实例退出，再备份 PostgreSQL 和旧配置，然后启动一个新实例完成迁移，最后扩容其余新实例；禁止新旧二进制混跑，否则旧进程可能重新写回已删除数据。`GET /v1/sub2api/billing` 和全部 `/api/v1/admin/accounts/*upstream-billing-probe*` 路由在新版本上返回普通 `404`。
 
@@ -221,14 +231,16 @@
 
 ### 创作台 durable 状态与 outbox 迁移
 
-迁移 `257_creative_run_durable_settlement.sql` 为 `creative_runs` 增加 provisioning、provider 成功记录、settlement/release 重试与 reconciler 字段，创建 `creative_run_outbox`，并为每个用户/分组的 active `creative_studio` 托管 Key 增加部分唯一索引。它把既有 queued/running 任务回填为可继续入队的阶段，不改变 Redis 图片 TTL 边界。发布时应先执行迁移，再部署兼容旧状态的应用版本并启动 outbox/transient reconciler；观察 `settlement_pending`、`release_pending`、lease lost、result lost 和 outbox lag 后，再调高恢复告警阈值。
+迁移 `257_creative_run_durable_settlement.sql` 为 `creative_runs` 增加 provisioning、provider 成功记录、settlement/release 重试与 reconciler 字段，创建 `creative_run_outbox`，并为每个用户/分组的 active `creative_studio` 托管 Key 增加部分唯一索引。它把既有 queued/running 任务回填为可继续入队的阶段，不改变 Redis 图片 TTL 边界。
+
+发布时应先执行迁移，再部署兼容旧状态的应用版本并启动 outbox/transient reconciler；观察 `settlement_pending`、`release_pending`、lease lost、result lost 和 outbox lag 后，再调高恢复告警阈值。
 
 升级完成后至少检查 `/health`、登录/API Key 鉴权、一个非流和流式网关请求、用量结算、关键后台任务及迁移表。保留旧产物和升级前备份，直到这些检查完成。
-
-相关文档：[系统架构](../architecture/system_architecture.md)、[配置边界](../interfaces/configuration.md)、[运维目录](index.md)。
 
 ### 统一协议能力切换
 
 迁移 `273_unify_protocol_capabilities.sql` 将旧账号文本路由/工作负载转为 `credentials.upstream_protocols`，把分组文本集合改名为 `allowed_protocols`，回填已有媒体、Live、Voice、搜索入口和显式转换映射，并保留 CN 分协议地址。原图片开关关闭的 OpenAI/Grok 分组迁移为 Responses 图片 `block`，开启的为 `inherit`。旧内部布尔列保留为派生镜像；新管理响应只提供统一配置。
 
 此次升级按一次切换执行：先备份并验证恢复，停止全部旧实例，再启动一个新实例完成迁移，重建认证缓存 v40 和 `sched:v2:` 调度缓存，抽样确认 CN 自定义地址、OpenAI/PAT 原生边界、分组转换、媒体入口和既有任务管理后再扩容。迁移可重放，不覆盖已保存的新空集合或转换配置。旧固定 CN 协议及 OpenAI 强制协议只迁移真实存在的字段；混合账号在同一分组中共享同一个显式转换目标，应抽样确认目标账号已启用该协议。回退必须恢复升级前数据库，不能只回退二进制。
+
+相关文档：[系统架构](../architecture/system_architecture.md)、[配置边界](../interfaces/configuration.md)、[运维目录](index.md)。

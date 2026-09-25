@@ -14,10 +14,10 @@
 
 后端常量定义九个平台 `anthropic`、`openai`、`gemini`、`antigravity`、`grok`、`qoder`、`kimi`、`zhipu`、`deepseek`，以及七类账号 `oauth`、`setup-token`、`apikey`、`upstream`、`bedrock`、`service_account`、`cosy`。矩阵使用以下等级：
 
-- **正式支持**：管理端有创建或授权流程，平台运行时也有对应凭据、转发和维护契约。
-- **兼容保留**：通用创建/导入层可以保存，或旧运行路径仍会识别，但管理端不推荐该组合；不能据此推导完整平台能力。
-- **不支持**：创建校验明确拒绝，或该类型被限定给另一个平台。
-- **契约冲突**：管理端与运行时对同一组合的类型解释不同；在实现统一前不作为正式支持承诺。
+- 正式支持：管理端有创建或授权流程，平台运行时也有对应凭据、转发和维护契约。
+- 兼容保留：通用创建/导入层可以保存，或旧运行路径仍会识别，但管理端不推荐该组合；不能据此推导完整平台能力。
+- 不支持：创建校验明确拒绝，或该类型被限定给另一个平台。
+- 契约冲突：管理端与运行时对同一组合的类型解释不同；在实现统一前不作为正式支持承诺。
 
 通用数据导入器除 Qoder/COSY 的双向限制外，会接受多种历史组合。这只是迁移兼容性；真正的可调度性仍由平台 token provider、协议处理器、账号状态、模型和 endpoint 能力共同决定。
 
@@ -53,7 +53,7 @@ Kimi、Zhipu 和 DeepSeek 只接受 `type=apikey`。账号模式独立于原生�
 - [Grok / xAI 上游](grok_upstream.md)
 - [Qoder 原生上游](qoder_upstream.md)
 
-Kimi、Zhipu、DeepSeek 的账号类型、模式与协议矩阵暂由本页和[API Key 上游用量查询](upstream_usage.md)共同拥有；新增独立认证、OAuth 或供应商专属管理 API 前必须先建立对应平台专题。
+Kimi、Zhipu、DeepSeek 的账号类型、模式与协议矩阵由本页和[API Key 上游用量查询](upstream_usage.md)共同拥有；新增独立认证、OAuth 或供应商专属管理 API 前必须先建立对应平台专题。
 
 <a id="public_gateway_protocols"></a>
 ## 公开网关协议
@@ -93,6 +93,6 @@ Kimi、Zhipu、DeepSeek 的账号类型、模式与协议矩阵暂由本页和[A
 
 ## 已确认冲突
 
-Antigravity 管理端把“静态上游”表单保存为 `type=apikey`，但当前 Antigravity Claude 直连和 token provider 的静态分支只识别历史 `type=upstream`；OpenAI Chat/Responses 兼容路径又明确要求原生 OAuth。两者不能被描述为等价账号类型。本轮只记录该冲突，不修改运行行为；在代码和契约测试统一前，新的 Antigravity 静态账号不应被视为完整正式支持。
+Antigravity 管理端把“静态上游”表单保存为 `type=apikey`，但当前 Antigravity Claude 直连和 token provider 的静态分支只识别历史 `type=upstream`；OpenAI Chat/Responses 兼容路径又明确要求原生 OAuth。两者不能被描述为等价账号类型。在代码和契约测试统一前，新的 Antigravity 静态账号不应被视为完整正式支持。
 
 相关文档：[接口目录](index.md)、[账号维护](../operations/account_maintenance.md)、[上游传输安全](../operations/upstream_transport_security.md)。

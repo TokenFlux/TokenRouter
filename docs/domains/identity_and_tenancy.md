@@ -1,6 +1,6 @@
 # 身份与租户
 
-本文描述用户、外部认证身份、登录会话、管理员授权和团队租户之间的领域边界。它用于修改认证或归属关系时保持安全不变量，不记录逐端点请求格式、第三方 OAuth 字段或前端页面操作步骤。
+本文说明用户、登录身份、会话、管理员权限和团队的关系，以及认证和归属变更必须维持的约束。端点格式与配置见[HTTP 接口](../interfaces/http_api.md)和[配置边界](../interfaces/configuration.md)。
 
 ## 章节导航
 
@@ -17,11 +17,13 @@
 
 ## 核心实体
 
-用户资料、注册/绑定规则、会话、强认证和属性用例由 `internal/identity` 实现，团队用例由 `internal/team` 实现，Key 生命周期和认证缓存由 `internal/apikey` 实现。各自的 `postgres`、`rediscache`、`provider` 与 `httpapi` 按实际需要承接存储、外部验证和 HTTP。用户实体及仓储接口统一使用 identity 类型，app 向原生用例和剩余消费者交付同一 `identity/postgres.UserStore`，旧用户字段转换与 repository 用户转接已删除。公告及 billing 继续消费各自的只读投影。七类身份、通用 pending 和 OAuth 回调的生产 HTTP 由 app 一次性组合；旧 AuthHandler 及其 OAuth 转接已经删除，原跨模块 HTTP 断言直接使用 identity/httpapi 的同一组端点。微信支付 OAuth 独立由 payment/httpapi 与身份 provider 的交换端口协作，不构造登录身份图。
+用户资料、注册/绑定规则、会话、强认证和属性用例由 `internal/identity` 实现，团队用例由 `internal/team` 实现，Key 生命周期和认证缓存由 `internal/apikey` 实现。各自的 `postgres`、`rediscache`、`provider` 与 `httpapi` 按实际需要承接存储、外部验证和 HTTP。用户实体及仓储接口统一使用 identity 类型，app 向用例和调用方交付同一 `identity/postgres.UserStore`。
 
-身份 HTTP 及调用方直接使用 `identity/httpapi/authctx`，旧 server middleware 和 identity HTTP 根包的主体转接已删除。Key 已认证投影、鉴权失败时仅供 Ops 读取的加载投影以及强制平台字段由 `apikey/httpapi` 提供；失败投影不成为准入依据。资金来源和订阅读取由 gateway HTTP 拥有，保留原字段编码与取值时机。
+公告及 billing 继续消费各自的只读投影。七类身份、通用 pending 和 OAuth 回调的生产 HTTP 由 app 一次性组合；跨模块 HTTP 测试使用 identity/httpapi 的同一组端点。微信支付 OAuth 独立由 payment/httpapi 与身份 provider 的交换端口协作，不构造登录身份图。
 
-`Principal` 表达已验证的身份和凭据种类；`AccessSnapshot` 分别记录 Key owner、付款用户、行为成员和团队。身份核心的 `User` 不递归持有 API Key，旧 HTTP 的关联形状由 DTO 投影恢复。资金消费、调账及注册赠送的写入仍由 billing 负责，身份与团队事务通过同连接参与能力组合，提交前不发布成功失效。
+身份 HTTP 及调用方直接使用 `identity/httpapi/authctx`。Key 已认证投影、鉴权失败时仅供 Ops 读取的加载投影以及强制平台字段由 `apikey/httpapi` 提供；失败投影不成为准入依据。资金来源和订阅读取由 gateway HTTP 拥有，保留原字段编码与取值时机。
+
+`Principal` 表达已验证的身份和凭据种类；`AccessSnapshot` 分别记录 Key owner、付款用户、行为成员和团队。身份核心的 `User` 不递归持有 API Key，兼容 HTTP 关联字段由 DTO 投影提供。资金消费、调账及注册赠送的写入仍由 billing 负责，身份与团队事务通过同连接参与能力组合，提交前不发布成功失效。
 
 Key 消费者直接使用 `apikey.APIKey`、`APIKeyRepository` 和唯一 `APIKeyService`，分组策略使用 `routing.Group`。app 交付同一 `apikey/postgres.KeyStore`，认证缓存仍使用 v40 专用快照及原深复制边界；同连接删除和分组迁移直接绑定原生存储参与能力。
 
@@ -44,9 +46,13 @@ Key 消费者直接使用 `apikey.APIKey`、`APIKeyRepository` 和唯一 `APIKey
 
 邮箱域名白名单为空时，普通注册和 OAuth 邮箱补全允许所有域名。白名单非空时默认严格拒绝非白名单域名；只有显式开启数据库运行时设置 `registration_email_domain_quota_enabled`，才允许其它邮箱按公共后缀规则归一为可注册主域名（eTLD+1），且每个主域名只允许一个未删除用户，子域名共享额度，白名单域名仍不限注册数量。验证码发送前会预检额度，最终创建仍须在注册事务内重新读取开关、持有主域名锁并复查，避免设置变化或并发请求穿透；当前用户邮箱绑定/换绑与已验证邮箱 OAuth 自动建号保持严格白名单语义，不使用该额度放宽。
 
-公开认证动作通过统一验证码边界选择 Cloudflare Turnstile、腾讯天御或阿里云验证码 2.0，三个提供方不能同时启用。普通登录、注册、验证码发送和密码找回校验当前启用的提供方；腾讯天御与阿里云还保护 Passkey 登录 begin 与 OAuth 登录 start，票据只随触发动作提交且不能复用到 finish/callback。腾讯天御的 `cn` 与 `intl` 站点必须在前端 SDK 和服务端校验 endpoint 上保持一致；国际站先在当前表单容器展示 checkbox，成功票据只缓存到一次动作消费，过期、动作失败或显式重置后立即销毁并重新初始化。OAuth 当前用户绑定 start 保留既有已认证边界，不重复要求匿名登录验证码；动作验证码已启用但服务或必要凭据不完整时必须 fail-close。
+公开认证动作通过统一验证码边界选择 Cloudflare Turnstile、腾讯天御或阿里云验证码 2.0，三个提供方不能同时启用。普通登录、注册、验证码发送和密码找回校验当前启用的提供方；腾讯天御与阿里云还保护 Passkey 登录 begin 与 OAuth 登录 start，票据只随触发动作提交且不能复用到 finish/callback。腾讯天御的 `cn` 与 `intl` 站点必须在前端 SDK 和服务端校验 endpoint 上保持一致；国际站先在当前表单容器展示 checkbox，成功票据只缓存到一次动作消费，过期、动作失败或显式重置后立即销毁并重新初始化。
 
-Google One Tap 是现有 Google 登录的浏览器凭据入口，不创建新的身份类型。前端仅在未登录、公开设置完整、非 backend mode、安全 Origin、登录协议已满足且腾讯/阿里云动作验证码关闭时请求 GIS 展示；Cloudflare Turnstile 不扩大到该入口。服务端只接受经 Google 官方验证器校验签名、`aud`、`iss` 和 `exp` 后的 ID Token，并严格要求非空 `sub`、邮箱及 `email_verified=true`。`sub` 继续作为 Google `AuthIdentity` 的稳定主体；已有用户进入统一 token pair 签发和用户状态检查，新用户写入现有 `PendingAuthSession` 后进入相同的密码、邀请码、邮箱策略、注册开关和优惠补全流程。One Tap 关闭、Google OAuth 配置不完整、动作验证码启用、backend mode、注册关闭或身份不可登录时都必须 fail-close，原始 token 与完整 claims 不得写日志。
+OAuth 当前用户绑定 start 保留既有已认证边界，不重复要求匿名登录验证码；动作验证码已启用但服务或必要凭据不完整时必须 fail-close。
+
+Google One Tap 是现有 Google 登录的浏览器凭据入口，不创建新的身份类型。前端仅在未登录、公开设置完整、非 backend mode、安全 Origin、登录协议已满足且腾讯/阿里云动作验证码关闭时请求 GIS 展示；Cloudflare Turnstile 不扩大到该入口。服务端只接受经 Google 官方验证器校验签名、`aud`、`iss` 和 `exp` 后的 ID Token，并严格要求非空 `sub`、邮箱及 `email_verified=true`。
+
+`sub` 继续作为 Google `AuthIdentity` 的稳定主体；已有用户进入统一 token pair 签发和用户状态检查，新用户写入现有 `PendingAuthSession` 后进入相同的密码、邀请码、邮箱策略、注册开关和优惠补全流程。One Tap 关闭、Google OAuth 配置不完整、动作验证码启用、backend mode、注册关闭或身份不可登录时都必须 fail-close，原始 token 与完整 claims 不得写日志。
 
 普通面板请求使用 JWT 中间件，验证流程至少包括：
 
@@ -74,7 +80,7 @@ Google One Tap 是现有 Google 登录的浏览器凭据入口，不创建新的
 <a id="email_challenges"></a>
 ### 邮箱挑战与通知
 
-邮箱挑战与密码重置凭据由 identity.EmailChallenges 和 identity/rediscache 唯一维护，通知模块仅接收已经准备好的验证码、重置链接或验证事件。队列仍在 worker 执行时生成验证码；普通验证码先存后发，通知邮箱验证先发后存，密码重置继续复用未过期令牌和原冷却。发送失败不会被统一改成回滚所有凭据或重新生成令牌。模板、取消与投递边界见[通知与 SMTP](../interfaces/configuration.md#notification_delivery)。
+邮箱挑战与密码重置凭据由 identity.EmailChallenges 和 identity/rediscache 唯一维护，通知模块仅接收已经准备好的验证码、重置链接或验证事件。队列仍在 worker 执行时生成验证码；普通验证码先存后发，通知邮箱验证先发后存，密码重置继续复用未过期令牌和原冷却。发送失败不会被统一改成回滚所有凭据或重新生成令牌。模板、取消与投递边界见[通知与邮件投递](notification_delivery.md)。
 
 ## 强认证与敏感操作
 
@@ -117,7 +123,9 @@ GitHub/Google 与 LinuxDo/OIDC 等共享 `AuthIdentity` 唯一性，但 HTTP 流
 
 ## 身份绑定与解绑
 
-当前用户绑定第三方身份时，先通过受保护入口生成 provider 的后端 authorize URL，start 路由记录 `bind_current_user` 意图，callback 再验证当前会话和外部主体。Email 绑定使用独立验证码与密码设置流程；尚无真实邮箱的用户始终可以完成首次绑定，验证并绑定与当前记录相同的邮箱也不算换绑，只有把已有真实邮箱改成另一地址时才要求运行时设置 `user_email_change_enabled` 已开启，并且还要验证现有密码，不能把修改 profile email 当作绑定。服务端在发送验证码和提交换绑两个阶段都执行开关门禁，设置缺失或读取失败时拒绝换绑。邮箱查重同时按精确地址和收件箱 alias 归一身份处理：Gmail/googlemail 忽略本地点号并统一域名，所有域名的本地 `+` 后缀与域名根点按既定策略折叠；允许换绑时当前用户可以更换自己的 alias，其他用户占用同一收件箱时必须拒绝。
+当前用户绑定第三方身份时，先通过受保护入口生成 provider 的后端 authorize URL，start 路由记录 `bind_current_user` 意图，callback 再验证当前会话和外部主体。Email 绑定使用独立验证码与密码设置流程；尚无真实邮箱的用户始终可以完成首次绑定，验证并绑定与当前记录相同的邮箱也不算换绑，只有把已有真实邮箱改成另一地址时才要求运行时设置 `user_email_change_enabled` 已开启，并且还要验证现有密码，不能把修改 profile email 当作绑定。
+
+服务端在发送验证码和提交换绑两个阶段都执行开关门禁，设置缺失或读取失败时拒绝换绑。邮箱查重同时按精确地址和收件箱 alias 归一身份处理：Gmail/googlemail 忽略本地点号并统一域名，所有域名的本地 `+` 后缀与域名根点按既定策略折叠；允许换绑时当前用户可以更换自己的 alias，其他用户占用同一收件箱时必须拒绝。
 
 绑定必须在事务中确认：目标外部三元组尚未属于其他用户、当前用户和会话仍有效、pending intent 与 provider 一致，并原子写入 identity/channel/接纳决定。Email 换绑还要在同一事务内锁定规范化邮箱与收件箱 alias 身份，复查占用者后再写入用户邮箱和密码哈希，避免并发请求穿透服务层预检。管理员直接绑定仍要遵守相同唯一约束和 canonical provider key 规则，不得制造两个用户共享主体。
 
