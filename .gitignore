@@ -119,7 +119,7 @@ backend/.installed
 SYNC.md
 PLAN.md
 tests
-# 后端模块迁移后的测试源码需要纳入版本控制。
+# 后端与部署脚本的测试源码需要纳入版本控制。
 !backend/tests/
 !backend/tests/**
 !deploy/tests/
@@ -146,57 +146,5 @@ output/
 # 仓库根目录的 Vitest 与 Vite 缓存
 .vite/
 
-# S16 原始验证文件保留在本地，版本库保存完整压缩归档与可读索引。
-refactor/baseline/S16/*
-!refactor/baseline/S16/*.md
-!refactor/baseline/S16/s16-evidence.tar.gz
-!refactor/baseline/S16/archive-manifest.json
-!refactor/baseline/S16/commit-verification.json
-!refactor/baseline/S16/commit-*.log.gz
-!refactor/baseline/S16/interim-search-catalogue-check.json
-
-# 用户授权的 S16 网关清理检查点：增量证据及逐文件校验。
-!refactor/baseline/S16/progress-20260923-*.tar.gz
-!refactor/baseline/S16/progress-20260923-manifest.json
-
-# S16 通用文本运行时检查点的增量证据索引。
-!refactor/baseline/S16/progress-20260923-textattempt-manifest.json
-
-# S16 旧通用 Handler 退役检查点索引。
-!refactor/baseline/S16/progress-20260923-generic-retirement-manifest.json
-
-# S16 OpenAI 入站提示检查点索引。
-!refactor/baseline/S16/progress-20260923-openai-hints-manifest.json
-
-# S16 OpenAI 共用输出检查点索引。
-!refactor/baseline/S16/progress-20260923-openai-output-manifest.json
-
-# S16 OpenAI HTTP 资源检查点索引。
-!refactor/baseline/S16/progress-20260923-openai-controls-manifest.json
-
-# S16 Cyber 会话及固定装配检查点索引。
-!refactor/baseline/S16/progress-20260923-cyber-manifest.json
-
-# S16 OpenAI 文本 HTTP 检查点索引。
-!refactor/baseline/S16/progress-20260923-openai-text-manifest.json
-
-# S16 OpenAI 单次尝试运行时检查点索引。
-!refactor/baseline/S16/progress-20260923-openai-attempt-manifest.json
-
-# S16 WS 入站与每轮适配检查点索引。
-!refactor/baseline/S16/progress-20260923-ws-entry-manifest.json
-
-# S16 2026-09-24 媒体完整能力检查点及后续证据分片。
-!refactor/baseline/S16/progress-20260924-*.tar.gz
-!refactor/baseline/S16/progress-20260924-media-entry-manifest.json
-
-# S16 旧 HTTP 包与测试兼容清零检查点。
-!refactor/baseline/S16/progress-20260924-handler-retirement-manifest.json
-
-# S16 选择完整能力批次：增量证据与统一验证入口。
-!refactor/baseline/S16/progress-20260924-selection-manifest.json
-!refactor/baseline/S16/service-selection-owner-verification.json
-
-# S16 Messages 完整能力批次的验证入口和增量证据。
-!refactor/baseline/S16/progress-20260924-messages-manifest.json
-!refactor/baseline/S16/service-messages-owner-verification.json
+# 本地重构计划和验证资料，不纳入版本控制。
+/refactor/

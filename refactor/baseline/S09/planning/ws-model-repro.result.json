@@ -1,1 +1,0 @@
-{"command": ["go", "test", "-race", "-count=1", "-json", "-tags=unit", "-overlay=/tmp/tokenrouter-s09-planning/ws-model-overlay.json", "./internal/service", "-run", "^TestS09PlanningWSUsageModelConcurrentDirections$"], "exit": 1, "seconds": 27.996232271194458}

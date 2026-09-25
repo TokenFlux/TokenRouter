@@ -1,1 +1,0 @@
-{"command": ["go", "test", "-C", "backend", "-count=1", "-race", "-json", "-tags=integration", "-overlay=/tmp/tokenrouter-s13-planning/overlay-integration.json", "-count=3", "-run", "^TestS13BatchImageLostOwner$", "./internal/repository"], "exit_code": 1}

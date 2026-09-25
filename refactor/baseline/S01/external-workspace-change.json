@@ -1,5 +1,0 @@
-{
-  "source": "AGENTS.md",
-  "classification": "实施期间外部新增的可读性规范，保留但不计入本阶段交付。",
-  "diff": "diff --git a/AGENTS.md b/AGENTS.md\nindex 6572e26aa..2994289f2 100644\n--- a/AGENTS.md\n+++ b/AGENTS.md\n@@ -13,6 +13,7 @@\n ## 通用规范\n \n - 代码必须包含注释，注释统一使用中文。\n+- 代码不要刻意压行，保持可读性。\n - Commit message 必须遵循 Conventional Commits 规范。\n - 不得提交 `SYNC.md`。\n - 除非用户明确要求，否则不得创建或切换 Git 分支；所有任务直接在当前 `main` 分支上完成。\n"
-}

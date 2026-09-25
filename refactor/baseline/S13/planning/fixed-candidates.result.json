@@ -1,1 +1,0 @@
-{"command": ["go", "test", "-C", "backend", "-race", "-tags=unit", "-overlay=/tmp/tokenrouter-s13-planning/overlay-unit.json", "-count=3", "-run", "^TestS13(Stopped|Repeated|Creative)", "./internal/service"], "exit_code": 1}

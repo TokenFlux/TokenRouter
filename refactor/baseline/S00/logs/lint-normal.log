@@ -1,8 +1,0 @@
-internal/domain/protocol_catalog.go:131:3: QF1003: could use tagged switch on accountType (staticcheck)
-		if accountType == AccountTypeAPIKey [REDACTED]
-		^
-internal/service/account.go:2038:43: QF1001: could apply De Morgan's law (staticcheck)
-			if !has(domain.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(domain.ProtocolOpenAIResponses)) {
-			                                       ^
-2 issues:
-* staticcheck: 2

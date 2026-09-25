@@ -1,1 +1,0 @@
-{"command": ["go", "test", "-count=1", "-json", "-tags=unit", "./internal/service", "-run", "^TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA$"], "exit": 1, "seconds": 3.4971797466278076}

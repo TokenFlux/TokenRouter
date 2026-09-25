@@ -1,7 +1,0 @@
-[
-  "backend/internal/account/usage_values.go",
-  "backend/internal/account/usage_errors.go",
-  "backend/internal/account/usage_validation.go",
-  "backend/internal/account/usage_catalog.go",
-  "backend/internal/service/cn_provider_quota_service.go"
-]

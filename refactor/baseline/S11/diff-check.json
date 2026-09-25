@@ -1,7 +1,0 @@
-{
-  "tracked_exit_code": 0,
-  "tracked_output": "",
-  "new_text_files_checked": 617,
-  "new_file_problems": [],
-  "no_index_note": "新增文件 --no-index 退出 1 表示差异；非空诊断或大于 1 的退出码才算检查问题。"
-}

@@ -1,7 +1,0 @@
-{
-  "test_result": "final-frontend-test.result.json",
-  "test_files_passed": 14,
-  "tests_passed": 199,
-  "build_result": "final-frontend-build.result.json",
-  "note": "Vitest 实际日志有既有 router-link 测试替身 warning；命令退出0，未改前端逻辑或断言。"
-}
