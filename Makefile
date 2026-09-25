@@ -1,4 +1,4 @@
-.PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan
+.PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan fmt-go-changed check-fmt-go-changed
 
 PNPM ?= npx --yes pnpm@9
 
@@ -52,3 +52,10 @@ test-datamanagementd:
 
 secret-scan:
 	@python3 tools/secret_scan.py
+
+# 提交前只格式化改动的手写 Go 文件，复用 backend/.golangci.yml。
+fmt-go-changed:
+	@python3 tools/format_go.py
+
+check-fmt-go-changed:
+	@python3 tools/format_go.py --check $(if $(FMT_BASE),--base "$(FMT_BASE)")

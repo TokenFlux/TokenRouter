@@ -14,9 +14,19 @@
 
 - 代码必须包含注释，注释统一使用中文。
 - 代码不要刻意压行，保持可读性。
+- Go 代码 import 语句不允许添加不必要的别名。
+- 写代码注释和文档需要使用 Humanizer 技能。
 - Commit message 必须遵循 Conventional Commits 规范。
 - 除非用户明确要求，否则不得创建或切换 Git 分支；所有任务直接在当前 `main` 分支上完成。
-- 写代码注释和文档需要使用 Humanizer 技能
+
+## Go 格式化
+
+- 每次提交代码前，必须在仓库根目录运行 `make fmt-go-changed`，通过 `golangci-lint fmt` 对本次改动的手写 Go 文件执行格式化，排除自动生成的文件。
+- 格式规则统一维护在 `backend/.golangci.yml`：启用 `gofumpt` 默认规则，保留现有 `gofmt` 重写规则。工具版本以 `.golangci-version` 为准，本地与 CI 必须一致，不单独安装或固定 `gofumpt` 版本。
+- 命令覆盖暂存、未暂存及未跟踪的 Go 文件；生成文件按 `package` 声明前的 `// Code generated ... DO NOT EDIT.` 标记识别。不要直接对生成文件运行格式化。
+- 格式化以整个改动文件为单位。执行后检查 diff，将属于本次提交的格式化结果重新暂存；部分暂存文件要逐块确认，命令不会自动 `git add`。
+- 提交前运行 `make check-fmt-go-changed` 确认没有剩余格式差异；没有 Go 文件改动时命令会直接通过。
+- 检查已提交代码时使用 `make check-fmt-go-changed FMT_BASE=<基准提交>`。CI 的 PR 基准为目标分支与源提交的共同祖先，push 基准为推送前的提交，不能用干净工作区的未提交差异代替。
 
 ## 计划模式
 

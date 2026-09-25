@@ -12,6 +12,13 @@ linters:
     - staticcheck
     - unused
 
+  exclusions:
+    rules:
+      # gofumpt 由改动文件格式检查负责，避免全量 lint 要求历史文件重新排版。
+      - linters:
+          - gofumpt
+        path: '.*'
+
   settings:
     gosec:
       excludes:
@@ -98,6 +105,10 @@ linters:
 formatters:
   enable:
     - gofmt
+    # 使用内置 gofumpt 默认规则，不开启 extra；版本随 golangci-lint 固定。
+    - gofumpt
+  exclusions:
+    generated: strict
   settings:
     gofmt:
       # Simplify code: gofmt with `-s` option.

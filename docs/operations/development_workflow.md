@@ -19,15 +19,18 @@
 | Go | `backend/go.mod`、CI | `1.27.0` |
 | Node.js | `.github/workflows/backend-ci.yml` | `20` |
 | pnpm | CI 与根 Makefile | `9`；根命令默认使用 `npx --yes pnpm@9` |
-| golangci-lint | CI | `v2.13`，配置在 `backend/.golangci.yml` |
+| golangci-lint | `.golangci-version` | 本地与 CI 固定同一完整版本，配置在 `backend/.golangci.yml` |
+| gofumpt | golangci-lint 内置 | 使用默认规则，不开启 extra，不单独维护版本 |
 | arch-go | `tools/architecture/go.mod` | `v2.1.2`；使用 Go API，由独立工具模块运行 |
 | PostgreSQL、Redis | Compose 与集成测试 | 生产必需；测试可由 Testcontainers/Compose 提供 |
 
 本地应安装与 CI 相同的 lint 版本，避免规则集差异造成只在 CI 出现的结果：
 
 ```bash
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"$(cat .golangci-version)"
 ```
+
+安装命令在仓库根目录执行，并确保 Go 安装目录中的二进制在 PATH 中。`tools/golangci-lint.sh` 会验证实际版本，拒绝版本不符的本地工具；CI action 从同一版本文件读取安装版本。
 
 升级 Go 时必须同时修改 `backend/go.mod`，以及 `backend-ci.yml`（两处）、`release.yml`（两处）和 `security-scan.yml` 中的 `go version` 硬断言；workflow 都通过 `go-version-file: backend/go.mod` 安装工具链，任一断言遗漏都会在版本校验步骤失败。
 
@@ -168,6 +171,18 @@ npx --yes pnpm@9 --dir frontend run build
 ## 提交与文档
 
 提交信息遵循 Conventional Commits，例如 `feat(gateway): ...`、`fix(billing): ...`、`docs(project): ...`。一次提交应围绕一个可验证目的，生成文件、迁移和契约测试与其源变更一起提交。
+
+每次提交代码前，在仓库根目录运行 `make fmt-go-changed`，再运行 `make check-fmt-go-changed`。入口需要 Python 3 和指定版本的 golangci-lint。`tools/format_go.py` 筛选文件后调用 `golangci-lint fmt --config backend/.golangci.yml`，检查模式追加 `--diff`。配置启用 gofumpt 默认规则，并保留 gofmt 的 `interface{}` → `any`、`a[b:len(a)]` → `a[b:]` 重写规则；不单独维护 gofumpt 版本。
+
+命令处理暂存、未暂存及未跟踪的 Go 文件，按整个文件格式化，覆盖后端和仓库工具模块；删除的文件、符号链接、vendor/node_modules 以及带标准生成标记的文件会跳过。生成标记为 `package` 声明前的 `// Code generated ... DO NOT EDIT.`，Ent schema 等手写源仍参与格式化。脚本预先排除生成文件，格式化配置也使用 strict 生成文件识别。
+
+格式化后检查 diff，并将本次提交涉及的修改重新暂存。部分暂存文件需要逐块核对，命令不修改 Git 暂存区。检查入口发现格式差异或工具执行失败时返回非零状态；本地通过 AGENTS.md 要求执行，没有安装 Git hook。
+
+检查已提交改动使用 `make check-fmt-go-changed FMT_BASE=<基准提交>`，按基准与 HEAD 的差异选文件，即使工作区干净也会检查。CI 的 PR 检出源提交，以目标分支与源提交的共同祖先为基准；普通 push 比较推送前后的提交，新分支首次推送比较默认分支共同祖先，默认分支首次推送比较空树。基准无法解析时检查失败，不能悄悄跳过。
+
+现有全量 lint 保留 gofmt 与其他规则；配置中的 `linters.exclusions.rules` 仅排除 gofumpt 报告，将新增检查交给上述改动文件入口，避免要求历史文件全量重排。该排除不影响 `golangci-lint fmt`。后端 `make test` 使用相同的版本校验入口。
+
+`PYTHONDONTWRITEBYTECODE=1 python3 tools/test_format_go.py` 在临时 Git 仓库中验证文件筛选、生成代码排除、暂存区保护、干净工作区的提交差异，以及两种格式化规则共同生效；CI 安装指定版本后也执行该测试。
 
 `SYNC.md` 是本地同步进度，受 `.gitignore` 保护，永远不要提交。`refactor/` 保存本地重构计划和验证资料，整个目录不纳入版本控制；需要共享的现行工程说明维护在 `docs/`。使用 Codex 计划模式时，实施前按项目指令保存完整计划到 `.agents/plans/`，执行进度追加到末尾。不要覆盖工作区中来源不明的修改；提交前按文件核对 staging 范围。
 

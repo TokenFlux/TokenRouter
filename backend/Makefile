@@ -12,8 +12,8 @@ generate:
 
 test: test-architecture
 	go test ./...
-	golangci-lint config verify
-	golangci-lint run ./...
+	bash ../tools/golangci-lint.sh config verify
+	bash ../tools/golangci-lint.sh run ./...
 
 # 架构检查读取模块外的后端文件，关闭测试缓存以保证每次检查当前源码。
 test-architecture:
