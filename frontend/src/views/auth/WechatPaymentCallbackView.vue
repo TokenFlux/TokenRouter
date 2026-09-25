@@ -20,7 +20,7 @@
 
         <div
           v-else
-          class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/80"
+          class="mt-6 rounded-surface border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/80"
         >
           <p class="text-sm text-gray-700 dark:text-gray-300">
             {{ errorMessage }}

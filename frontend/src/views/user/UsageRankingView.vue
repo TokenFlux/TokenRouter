@@ -31,7 +31,7 @@
         <LoadingSpinner />
       </div>
 
-      <div v-else-if="errorMessage" class="rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200">
+      <div v-else-if="errorMessage" class="rounded-control border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200">
         {{ errorMessage }}
       </div>
 
@@ -48,7 +48,7 @@
           />
         </section>
 
-        <section v-if="ranking.length > 0" class="rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800">
+        <section v-if="ranking.length > 0" class="rounded-control border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800">
           <div class="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('usageRanking.listTitle') }}</h2>
@@ -69,9 +69,9 @@
           </div>
         </section>
 
-        <section v-else class="flex min-h-[360px] items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center dark:border-dark-600 dark:bg-dark-800">
+        <section v-else class="flex min-h-[360px] items-center justify-center rounded-surface border border-dashed border-gray-300 bg-white p-8 text-center dark:border-dark-600 dark:bg-dark-800">
           <div>
-            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-gray-400 dark:bg-dark-700 dark:text-dark-300">
+            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-control bg-gray-100 text-gray-400 dark:bg-dark-700 dark:text-dark-300">
               <Icon name="chart" size="lg" />
             </div>
             <h2 class="mt-4 text-base font-semibold text-gray-900 dark:text-white">{{ t('usageRanking.emptyTitle') }}</h2>
@@ -276,7 +276,7 @@ const TopRankCard = defineComponent({
         'article',
         {
           class: [
-            'relative overflow-hidden rounded-lg border p-5 shadow-sm',
+            'relative overflow-hidden rounded-control border p-5 shadow-sm',
             theme.card,
             props.featured ? 'md:min-h-[260px] md:p-6' : 'md:min-h-[220px]',
           ].join(' '),
@@ -334,7 +334,7 @@ const RankingRow = defineComponent({
           class: ['grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-5 py-4 transition sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center', topClass].join(' '),
         },
         [
-          h('span', { class: `mt-1 inline-flex h-8 w-12 items-center justify-center rounded-lg text-sm font-semibold ring-1 sm:mt-0 ${theme.badge}` }, rankLabel(props.item.rank)),
+          h('span', { class: `mt-1 inline-flex h-8 w-12 items-center justify-center rounded-control text-sm font-semibold ring-1 sm:mt-0 ${theme.badge}` }, rankLabel(props.item.rank)),
           h('div', { class: 'flex min-w-0 items-center gap-3' }, [
             h(UserAvatar, rankingAvatarProps(props.item, 'h-10 w-10')),
             h('div', { class: 'min-w-0' }, [

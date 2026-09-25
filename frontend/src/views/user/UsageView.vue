@@ -95,7 +95,7 @@
               </span>
             </button>
 
-            <div v-show="showFilterDropdown" class="absolute left-0 top-full z-[60] mt-2 max-h-[min(70vh,42rem)] w-[min(48rem,calc(100vw-3rem))] overflow-y-auto rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
+            <div v-show="showFilterDropdown" class="absolute left-0 top-full z-[60] mt-2 max-h-[min(70vh,42rem)] w-[min(48rem,calc(100vw-3rem))] overflow-y-auto rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
               <div class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
               <div v-if="activeTab === 'errors'" class="flex flex-wrap items-end gap-4">
             <div class="w-full sm:w-auto sm:min-w-[220px]">
@@ -172,7 +172,7 @@
               </button>
               <div
                 v-if="showColumnDropdown"
-                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-control border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
               >
                 <button
                   v-for="col in currentToggleableColumns"

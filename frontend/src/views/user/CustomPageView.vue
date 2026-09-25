@@ -401,7 +401,7 @@ onUnmounted(() => {
 }
 
 .toc-close-btn {
-  @apply p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-dark-200 hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors;
+  @apply p-1 rounded-compact text-gray-400 hover:text-gray-600 dark:hover:text-dark-200 hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors;
 }
 
 .toc-nav {
@@ -409,7 +409,7 @@ onUnmounted(() => {
 }
 
 .toc-item {
-  @apply block px-2 py-1.5 text-sm rounded transition-colors truncate;
+  @apply block px-2 py-1.5 text-sm rounded-compact transition-colors truncate;
   @apply text-gray-600 dark:text-dark-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-dark-600;
 }
 
@@ -423,7 +423,7 @@ onUnmounted(() => {
 .toc-level-4 { padding-left: 44px; }
 
 .toc-toggle-btn {
-  @apply absolute left-2 top-2 z-10 flex items-center px-2 py-1.5 rounded-md text-sm;
+  @apply absolute left-2 top-2 z-10 flex items-center px-2 py-1.5 rounded-control text-sm;
   @apply bg-white dark:bg-dark-700 border border-gray-200 dark:border-dark-500;
   @apply text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-600;
   @apply shadow-sm transition-colors cursor-pointer;
@@ -431,7 +431,7 @@ onUnmounted(() => {
 
 .custom-embed-shell {
   @apply relative;
-  @apply h-full w-full overflow-hidden rounded-2xl;
+  @apply h-full w-full overflow-hidden rounded-surface;
   @apply bg-gradient-to-b from-gray-50 to-white dark:from-dark-900 dark:to-dark-950;
   @apply p-0;
 }
@@ -468,12 +468,12 @@ onUnmounted(() => {
 .markdown-page-content li { @apply mb-1; }
 .markdown-page-content a { @apply text-primary-500 hover:text-primary-600 underline; }
 .markdown-page-content blockquote { @apply border-l-4 border-gray-300 dark:border-dark-500 pl-4 italic text-gray-600 dark:text-dark-300 my-4; }
-.markdown-page-content img { @apply max-w-full h-auto rounded-lg my-4; }
+.markdown-page-content img { @apply max-w-full h-auto rounded-control my-4; }
 .markdown-page-content table { @apply w-full border-collapse my-4; }
 .markdown-page-content th { @apply border border-gray-300 dark:border-dark-500 px-3 py-2 bg-gray-50 dark:bg-dark-700 font-semibold text-left; }
 .markdown-page-content td { @apply border border-gray-300 dark:border-dark-500 px-3 py-2; }
-.markdown-page-content code { @apply bg-gray-100 dark:bg-dark-700 px-1.5 py-0.5 rounded text-sm font-mono; }
-.markdown-page-content pre { @apply bg-gray-900 dark:bg-dark-900 text-gray-100 p-4 rounded-lg overflow-x-auto my-4 relative; }
+.markdown-page-content code { @apply bg-gray-100 dark:bg-dark-700 px-1.5 py-0.5 rounded-surface text-sm font-mono; }
+.markdown-page-content pre { @apply bg-gray-900 dark:bg-dark-900 text-gray-100 p-4 rounded-surface overflow-x-auto my-4 relative; }
 .markdown-page-content pre code { @apply bg-transparent p-0 text-inherit; }
 .markdown-page-content hr { @apply my-6 border-gray-200 dark:border-dark-600; }
 

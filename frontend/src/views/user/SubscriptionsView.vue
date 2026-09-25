@@ -23,7 +23,7 @@
         <div
           v-for="chain in planChains"
           :key="chain.plan_id"
-          class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
+          class="overflow-hidden rounded-surface border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
         >
           <div class="border-b border-gray-100 p-4 dark:border-dark-700">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -101,7 +101,7 @@
                 <span
                   v-for="group in chain.plan.applicable_groups"
                   :key="group.id"
-                  class="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-dark-700 dark:text-dark-200"
+                  class="rounded-control bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-dark-700 dark:text-dark-200"
                 >
                   {{ group.name || `#${group.id}` }}
                 </span>
@@ -109,7 +109,7 @@
             </div>
 
             <div class="grid gap-3 text-sm sm:grid-cols-2">
-              <div class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-700/50">
+              <div class="rounded-surface bg-gray-50 px-4 py-3 dark:bg-dark-700/50">
                 <div class="text-xs text-gray-400 dark:text-dark-500">
                   {{ t('userSubscriptions.startsAt') }}
                 </div>
@@ -117,7 +117,7 @@
                   {{ formatDateOnly(new Date(chain.starts_at)) }}
                 </div>
               </div>
-              <div class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-700/50">
+              <div class="rounded-surface bg-gray-50 px-4 py-3 dark:bg-dark-700/50">
                 <div class="text-xs text-gray-400 dark:text-dark-500">
                   {{ t('userSubscriptions.expires') }}
                 </div>
@@ -129,7 +129,7 @@
 
             <div
               v-if="chain.pending_count > 0"
-              class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/30 dark:bg-blue-900/10 dark:text-blue-300"
+              class="rounded-surface border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/30 dark:bg-blue-900/10 dark:text-blue-300"
             >
               {{ t('userSubscriptions.extendsThrough', { date: formatDateOnly(new Date(chain.expires_at)) }) }}
             </div>
@@ -162,7 +162,7 @@
 
               <div
                 v-if="usageWindows(chain.active).length === 0"
-                class="flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 py-6 dark:from-emerald-900/20 dark:to-teal-900/20"
+                class="flex items-center justify-center rounded-surface bg-gradient-to-r from-emerald-50 to-teal-50 py-6 dark:from-emerald-900/20 dark:to-teal-900/20"
               >
                 <div class="flex items-center gap-3">
                   <span class="text-4xl text-emerald-600 dark:text-emerald-400">∞</span>
@@ -180,7 +180,7 @@
 
             <div
               v-else
-              class="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:bg-amber-900/10 dark:text-amber-300"
+              class="rounded-surface bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:bg-amber-900/10 dark:text-amber-300"
             >
               {{ t('userSubscriptions.pendingOnly') }}
             </div>

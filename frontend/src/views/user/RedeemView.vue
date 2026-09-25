@@ -9,7 +9,7 @@
         <div class="card overflow-hidden">
           <div class="px-6 py-8 text-center">
             <div
-              class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-100 dark:bg-primary-500/15"
+              class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-surface bg-primary-100 dark:bg-primary-500/15"
             >
               <BalanceIcon size="xl" class="text-primary-600 dark:text-primary-400" />
             </div>
@@ -88,7 +88,7 @@
             <div class="p-6">
               <div class="flex items-start gap-4">
                 <div
-                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30"
+                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-surface bg-emerald-100 dark:bg-emerald-900/30"
                 >
                   <Icon name="checkCircle" size="md" class="text-emerald-600 dark:text-emerald-400" />
                 </div>
@@ -142,7 +142,7 @@
             <div class="p-6">
               <div class="flex items-start gap-4">
                 <div
-                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30"
+                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-surface bg-red-100 dark:bg-red-900/30"
                 >
                   <Icon
                     name="exclamationCircle"
@@ -197,12 +197,12 @@
             <div
               v-for="item in history"
               :key="item.id"
-              class="flex items-center justify-between rounded-xl bg-gray-50 p-4 dark:bg-dark-800"
+              class="flex items-center justify-between rounded-surface bg-gray-50 p-4 dark:bg-dark-800"
             >
               <div class="flex items-center gap-4">
                 <div
                   :class="[
-                    'flex h-10 w-10 items-center justify-center rounded-xl',
+                    'flex h-10 w-10 items-center justify-center rounded-surface',
                     isBalanceType(item.type)
                       ? item.value >= 0
                         ? 'bg-emerald-100 dark:bg-emerald-900/30'
@@ -293,7 +293,7 @@
           <!-- Empty State -->
           <div v-else class="empty-state py-8">
             <div
-              class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-dark-800"
+              class="mb-4 flex h-16 w-16 items-center justify-center rounded-surface bg-gray-100 dark:bg-dark-800"
             >
               <Icon name="clock" size="xl" class="text-gray-400 dark:text-dark-500" />
             </div>

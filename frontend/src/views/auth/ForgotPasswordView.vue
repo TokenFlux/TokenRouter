@@ -13,7 +13,7 @@
 
       <!-- Success State -->
       <div v-if="isSubmitted" class="space-y-6">
-        <div class="rounded-xl border border-green-200 bg-green-50 p-6 dark:border-green-800/50 dark:bg-green-900/20">
+        <div class="rounded-surface border border-green-200 bg-green-50 p-6 dark:border-green-800/50 dark:bg-green-900/20">
           <div class="flex flex-col items-center gap-4 text-center">
             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-800/50">
               <Icon name="checkCircle" size="lg" class="text-green-600 dark:text-green-400" />

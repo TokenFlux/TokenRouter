@@ -12,7 +12,7 @@
       <div class="absolute left-3 top-3 z-20">
         <button
           type="button"
-          class="flex h-9 w-9 items-center justify-center rounded-xl border border-primary-900/10 bg-white/90 text-gray-600 shadow-md backdrop-blur transition-colors hover:text-gray-900 dark:border-dark-600 dark:bg-dark-900/90 dark:text-gray-300 dark:hover:text-gray-100"
+          class="flex h-9 w-9 items-center justify-center rounded-control border border-primary-900/10 bg-white/90 text-gray-600 shadow-md backdrop-blur transition-colors hover:text-gray-900 dark:border-dark-600 dark:bg-dark-900/90 dark:text-gray-300 dark:hover:text-gray-100"
           :class="settingsOpen && 'text-primary-700 dark:text-primary-300'"
           :title="t('creative.canvas.settings')"
           :aria-expanded="settingsOpen"
@@ -24,11 +24,11 @@
         <Transition name="settings-panel">
           <div
             v-if="settingsOpen"
-            class="absolute left-0 top-12 w-64 rounded-xl border border-primary-900/10 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-dark-600 dark:bg-dark-900/95"
+            class="absolute left-0 top-12 w-64 rounded-surface border border-primary-900/10 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-dark-600 dark:bg-dark-900/95"
           >
             <button
               type="button"
-              class="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-primary-900/10 text-xs text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700 dark:hover:text-gray-100"
+              class="flex h-9 w-full items-center justify-center gap-1.5 rounded-control border border-primary-900/10 text-xs text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700 dark:hover:text-gray-100"
               @click="onResetCanvas"
             >
               <Icon name="trash" size="sm" />
@@ -36,7 +36,7 @@
             </button>
             <button
               type="button"
-              class="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-red-200 text-xs text-red-600 transition-colors hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
+              class="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-control border border-red-200 text-xs text-red-600 transition-colors hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
               @click="onClearRequested"
             >
               <Icon name="trash" size="sm" />
@@ -356,7 +356,7 @@ async function onClearLocalData(): Promise<void> {
 
 /* 信封沿运行时计算的向量匀速飞行，透明度收尾避免落到历史按钮上时产生遮挡。 */
 .creative-submit-flight {
-  @apply pointer-events-none absolute z-40 flex h-7 w-7 items-center justify-center rounded-md border border-primary-500/40 bg-white/95 text-primary-600 shadow-lg dark:border-primary-400/40 dark:bg-dark-800/95 dark:text-primary-300;
+  @apply pointer-events-none absolute z-40 flex h-7 w-7 items-center justify-center rounded-control border border-primary-500/40 bg-white/95 text-primary-600 shadow-lg dark:border-primary-400/40 dark:bg-dark-800/95 dark:text-primary-300;
   margin-left: -0.875rem;
   margin-top: -0.875rem;
   animation: creative-submit-flight 1000ms linear forwards;

@@ -25,7 +25,7 @@
                     {{ activeFilterCount }}
                   </span>
                 </button>
-                <div v-show="showFilterDropdown" class="absolute left-0 right-auto top-full z-[60] mt-2 w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 max-[639px]:left-auto max-[639px]:right-0" @click.stop>
+                <div v-show="showFilterDropdown" class="absolute left-0 right-auto top-full z-[60] mt-2 w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 max-[639px]:left-auto max-[639px]:right-0" @click.stop>
                   <div class="mb-3 flex items-center justify-between">
                     <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
                     <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetKeyFilters">
@@ -64,13 +64,13 @@
                 </button>
                 <div
                   v-if="showColumnDropdown"
-                  class="absolute right-0 top-full z-50 mt-2 max-h-80 w-52 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                  class="absolute right-0 top-full z-50 mt-2 max-h-80 w-52 overflow-y-auto rounded-control border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-800"
                 >
                   <button
                     v-for="column in toggleableColumns"
                     :key="column.key"
                     @click="toggleColumn(column.key)"
-                    class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                    class="flex w-full items-center justify-between rounded-control px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
                   >
                     <span>{{ column.label }}</span>
                     <Icon
@@ -119,7 +119,7 @@
               </code>
               <button
                 @click="copyToClipboard(value, row.id)"
-                class="rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
+                class="rounded-control p-1 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
                 :class="
                   copiedKeyId === row.id
                     ? 'text-green-500'
@@ -156,14 +156,14 @@
               v-if="row.is_composite"
               type="button"
               data-test="composite-group-summary"
-              class="flex max-w-[22rem] flex-wrap items-center gap-1.5 rounded-md px-1 py-1 text-left hover:bg-gray-100 dark:hover:bg-dark-700"
+              class="flex max-w-[22rem] flex-wrap items-center gap-1.5 rounded-control px-1 py-1 text-left hover:bg-gray-100 dark:hover:bg-dark-700"
               :title="t('keys.composite.editMappings')"
               @click="editKey(row)"
             >
               <span
                 v-for="binding in row.composite_groups"
                 :key="`${row.id}-${binding.group_id}`"
-                class="inline-flex min-w-0 items-center gap-1 rounded border border-gray-200 bg-gray-50 px-1.5 py-1 dark:border-dark-600 dark:bg-dark-800"
+                class="inline-flex min-w-0 items-center gap-1 rounded-compact border border-gray-200 bg-gray-50 px-1.5 py-1 dark:border-dark-600 dark:bg-dark-800"
               >
                 <span class="max-w-24 truncate font-mono text-xs font-semibold text-primary-700 dark:text-primary-300">{{ binding.prefix }}</span>
                 <span class="text-gray-300 dark:text-dark-500">/</span>
@@ -174,7 +174,7 @@
               <button
                 :ref="(el) => setGroupButtonRef(row.id, el)"
                 @click="openGroupSelector(row)"
-                class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
+                class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-control px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
                 :title="t('keys.clickToChangeGroup')"
               >
                 <GroupBadge
@@ -212,7 +212,7 @@
           <template #cell-current_concurrency="{ value }">
             <span
               :class="[
-                'inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-sm font-semibold tabular-nums',
+                'inline-flex min-w-8 items-center justify-center rounded-compact px-2 py-1 text-sm font-semibold tabular-nums',
                 (value ?? 0) > 0
                   ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
@@ -360,7 +360,7 @@
               <button
                 v-if="row.usage_5h > 0 || row.usage_1d > 0 || row.usage_7d > 0"
                 @click.stop="confirmResetRateLimitFromTable(row)"
-                class="mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="mt-0.5 inline-flex items-center gap-1 rounded-compact px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
                 :title="t('keys.resetRateLimitUsage')"
               >
                 <Icon name="refresh" size="xs" />
@@ -417,7 +417,7 @@
               <!-- 高频操作固定展示，低频和危险操作收进更多菜单。 -->
               <button
                 @click="editKey(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="flex flex-col items-center gap-0.5 rounded-control p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t('common.edit') }}</span>
@@ -425,7 +425,7 @@
               <!-- Owner 锁定由团队管理员控制，成员侧不再提供无效的恢复入口。 -->
               <span
                 v-if="row.team_owner_disabled"
-                class="flex cursor-not-allowed flex-col items-center gap-0.5 rounded-lg p-1.5 text-amber-600 dark:text-amber-400"
+                class="flex cursor-not-allowed flex-col items-center gap-0.5 rounded-control p-1.5 text-amber-600 dark:text-amber-400"
                 :title="t('keys.teamOwnerDisabledHint')"
               >
                 <Icon name="lock" size="sm" />
@@ -436,7 +436,7 @@
                 v-else
                 @click="toggleKeyStatus(row)"
                 :class="[
-                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
+                  'flex flex-col items-center gap-0.5 rounded-control p-1.5 transition-colors',
                   row.status === 'active'
                     ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
                     : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
@@ -447,7 +447,7 @@
                 <span class="text-xs">{{ row.status === 'active' ? t('keys.disable') : t('keys.enable') }}</span>
               </button>
               <button
-                class="key-action-menu-trigger flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white"
+                class="key-action-menu-trigger flex flex-col items-center gap-0.5 rounded-control p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white"
                 :class="{ 'bg-gray-100 text-gray-900 dark:bg-dark-700 dark:text-white': actionMenuKey?.id === row.id }"
                 aria-haspopup="menu"
                 :aria-expanded="actionMenuKey?.id === row.id"
@@ -589,7 +589,7 @@
           <div
             v-for="(binding, index) in formData.composite_groups"
             :key="binding.local_id"
-            class="grid min-w-0 grid-cols-1 items-start gap-2 rounded-md border border-gray-200 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(7rem,0.65fr)_auto] dark:border-dark-600"
+            class="grid min-w-0 grid-cols-1 items-start gap-2 rounded-control border border-gray-200 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(7rem,0.65fr)_auto] dark:border-dark-600"
           >
             <Select
               v-model="binding.group_id"
@@ -613,13 +613,13 @@
               </p>
             </div>
             <div class="flex items-center justify-end gap-1 sm:justify-start">
-              <button type="button" class="rounded p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-dark-700" :disabled="index === 0" :title="t('keys.composite.moveUp')" @click="moveCompositeBinding(index, -1)">
+              <button type="button" class="rounded-compact p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-dark-700" :disabled="index === 0" :title="t('keys.composite.moveUp')" @click="moveCompositeBinding(index, -1)">
                 <Icon name="arrowUp" size="sm" />
               </button>
-              <button type="button" class="rounded p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-dark-700" :disabled="index === formData.composite_groups.length - 1" :title="t('keys.composite.moveDown')" @click="moveCompositeBinding(index, 1)">
+              <button type="button" class="rounded-compact p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-dark-700" :disabled="index === formData.composite_groups.length - 1" :title="t('keys.composite.moveDown')" @click="moveCompositeBinding(index, 1)">
                 <Icon name="arrowDown" size="sm" />
               </button>
-              <button type="button" class="rounded p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-30 dark:hover:bg-red-900/20" :disabled="formData.composite_groups.length <= 1" :title="t('common.delete')" @click="removeCompositeBinding(index)">
+              <button type="button" class="rounded-compact p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-30 dark:hover:bg-red-900/20" :disabled="formData.composite_groups.length <= 1" :title="t('common.delete')" @click="removeCompositeBinding(index)">
                 <Icon name="trash" size="sm" />
               </button>
             </div>
@@ -676,7 +676,7 @@
 
           <p
             v-if="formData.model_mapping_rows.length === 0"
-            class="rounded-md border border-dashed border-gray-200 px-3 py-4 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-dark-400"
+            class="rounded-control border border-dashed border-gray-200 px-3 py-4 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-dark-400"
           >
             {{ t('keys.modelRedirect.empty') }}
           </p>
@@ -718,7 +718,7 @@
             </div>
             <button
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+              class="flex h-9 w-9 items-center justify-center rounded-compact text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
               :title="t('common.delete')"
               :aria-label="t('common.delete')"
               :data-test="`model-mapping-remove-${index}`"
@@ -777,7 +777,7 @@
           <p
             v-if="selectedKey?.team_owner_disabled"
             id="team-owner-disabled-hint"
-            class="mt-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300"
+            class="mt-2 flex items-start gap-2 rounded-control border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300"
           >
             <Icon name="lock" size="sm" class="mt-0.5 shrink-0" />
             <span>{{ t('keys.teamOwnerDisabledHint') }}</span>
@@ -874,7 +874,7 @@
             <div v-if="showEditModal && selectedKey && selectedKey.quota > 0">
               <label class="input-label">{{ t('keys.quotaUsed') }}</label>
               <div class="flex items-center gap-2">
-                <div class="flex-1 h-9 rounded-lg bg-gray-100 px-3 py-1.5 dark:bg-dark-700">
+                <div class="flex-1 h-9 rounded-control bg-gray-100 px-3 py-1.5 dark:bg-dark-700">
                   <span class="font-medium text-gray-900 dark:text-white">
                     {{ formatBalanceAmount(selectedKey.quota_used, { fractionDigits: 4 }) }}
                   </span>
@@ -936,7 +936,7 @@
               <!-- Usage info (edit mode only) -->
               <div v-if="showEditModal && selectedKey && selectedKey.rate_limit_5h > 0" class="mt-2">
                 <div class="flex items-center gap-2">
-                  <div class="flex-1 h-9 rounded-lg bg-gray-100 px-3 py-1.5 text-sm dark:bg-dark-700">
+                  <div class="flex-1 h-9 rounded-control bg-gray-100 px-3 py-1.5 text-sm dark:bg-dark-700">
                     <span :class="[
                       'font-medium',
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h ? 'text-red-500' :
@@ -982,7 +982,7 @@
               <!-- Usage info (edit mode only) -->
               <div v-if="showEditModal && selectedKey && selectedKey.rate_limit_1d > 0" class="mt-2">
                 <div class="flex items-center gap-2">
-                  <div class="flex-1 h-9 rounded-lg bg-gray-100 px-3 py-1.5 text-sm dark:bg-dark-700">
+                  <div class="flex-1 h-9 rounded-control bg-gray-100 px-3 py-1.5 text-sm dark:bg-dark-700">
                     <span :class="[
                       'font-medium',
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d ? 'text-red-500' :
@@ -1028,7 +1028,7 @@
               <!-- Usage info (edit mode only) -->
               <div v-if="showEditModal && selectedKey && selectedKey.rate_limit_7d > 0" class="mt-2">
                 <div class="flex items-center gap-2">
-                  <div class="flex-1 h-9 rounded-lg bg-gray-100 px-3 py-1.5 text-sm dark:bg-dark-700">
+                  <div class="flex-1 h-9 rounded-control bg-gray-100 px-3 py-1.5 text-sm dark:bg-dark-700">
                     <span :class="[
                       'font-medium',
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d ? 'text-red-500' :
@@ -1100,7 +1100,7 @@
                 type="button"
                 @click="setExpirationDays(parseInt(days))"
                 :class="[
-                  'rounded-lg px-3 py-1.5 text-sm transition-colors',
+                  'rounded-control px-3 py-1.5 text-sm transition-colors',
                   formData.expiration_preset === days
                     ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600'
@@ -1112,7 +1112,7 @@
                 type="button"
                 @click="formData.expiration_preset = 'custom'"
                 :class="[
-                  'rounded-lg px-3 py-1.5 text-sm transition-colors',
+                  'rounded-control px-3 py-1.5 text-sm transition-colors',
                   formData.expiration_preset === 'custom'
                     ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600'
@@ -1266,7 +1266,7 @@
 	        <div class="grid grid-cols-2 gap-3">
 	          <button
 	            @click="handleCcsClientSelect('claude')"
-	            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+	            class="flex flex-col items-center gap-2 p-4 rounded-control border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
 	          >
 	            <Icon name="terminal" size="xl" class="text-gray-600 dark:text-gray-400" />
 	            <span class="font-medium text-gray-900 dark:text-white">{{
@@ -1278,7 +1278,7 @@
 	          </button>
 	          <button
 	            @click="handleCcsClientSelect('gemini')"
-	            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+	            class="flex flex-col items-center gap-2 p-4 rounded-control border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
 	          >
 	            <Icon name="sparkles" size="xl" class="text-gray-600 dark:text-gray-400" />
 	            <span class="font-medium text-gray-900 dark:text-white">{{
@@ -1321,7 +1321,7 @@
             <input
               v-model="groupSearchQuery"
               type="text"
-              class="w-full rounded-lg border border-primary-900/10 bg-gray-50 py-1.5 pl-8 pr-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-primary-900/10 focus:ring-2 focus:ring-black/10 dark:border-dark-600 dark:bg-dark-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-primary-600 dark:focus:ring-primary-600"
+              class="w-full rounded-control border border-primary-900/10 bg-gray-50 py-1.5 pl-8 pr-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-primary-900/10 focus:ring-2 focus:ring-black/10 dark:border-dark-600 dark:bg-dark-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-primary-600 dark:focus:ring-primary-600"
               :placeholder="t('keys.searchGroup')"
               @click.stop
             />
@@ -1334,7 +1334,7 @@
             :key="option.value ?? 'null'"
             @click="changeGroup(selectedKeyForGroup!, option.value)"
             :class="[
-              'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
+              'flex w-full items-center justify-between rounded-control px-3 py-2.5 text-sm transition-colors',
               'border-b border-gray-100 last:border-0 dark:border-dark-700',
               selectedKeyForGroup?.group_id === option.value ||
               (!selectedKeyForGroup?.group_id && option.value === null)

@@ -1,7 +1,7 @@
 <template>
   <div class="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950">
     <div
-      class="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+      class="w-full max-w-md space-y-4 rounded-surface border border-slate-200 bg-white p-6 shadow-lg dark:border-slate-700 dark:bg-slate-900"
     >
       <!-- Amount + Order ID -->
       <div v-if="amount" class="text-center">
@@ -14,7 +14,7 @@
       <!-- Error -->
       <div v-if="error" class="space-y-3">
         <div
-          class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-400"
+          class="rounded-control border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-400"
         >
           {{ error }}
         </div>

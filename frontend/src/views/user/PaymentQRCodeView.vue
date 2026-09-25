@@ -4,7 +4,7 @@
       <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
         {{ qrUrl ? scanTitle : t('payment.qr.payInNewWindow') }}
       </h2>
-      <div v-if="qrUrl" class="rounded-2xl bg-white p-6 shadow-lg dark:bg-dark-800">
+      <div v-if="qrUrl" class="rounded-surface bg-white p-6 shadow-lg dark:bg-dark-800">
         <canvas ref="qrCanvas" class="mx-auto"></canvas>
       </div>
       <!-- Scan prompt for QR code -->
@@ -116,7 +116,7 @@ async function renderQR() {
     const logoSize = 48
     const x = (canvas.width - logoSize) / 2
     const y = (canvas.height - logoSize) / 2
-    // White background with rounded corners
+    // White background with rounded-compact corners
     const pad = 5
     ctx.fillStyle = '#FFFFFF'
     ctx.beginPath()

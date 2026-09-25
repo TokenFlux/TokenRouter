@@ -15,7 +15,7 @@
       <!-- No Data Warning -->
       <div
         v-if="!hasRegisterData"
-        class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20"
+        class="rounded-surface border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20"
       >
         <div class="flex items-start gap-3">
           <div class="flex-shrink-0">
@@ -54,7 +54,7 @@
         <!-- Code Status -->
         <div
           v-if="codeSent"
-          class="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800/50 dark:bg-green-900/20"
+          class="rounded-surface border border-green-200 bg-green-50 p-4 dark:border-green-800/50 dark:bg-green-900/20"
         >
           <div class="flex items-start gap-3">
             <div class="flex-shrink-0">

@@ -14,7 +14,7 @@
       <!-- Registration Disabled Message -->
       <div
         v-if="!registrationEnabled && settingsLoaded"
-        class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20"
+        class="rounded-surface border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20"
       >
         <div class="flex items-start gap-3">
           <div class="flex-shrink-0">
@@ -125,7 +125,7 @@
           </div>
           <!-- Invitation code validation result -->
           <transition name="fade">
-            <div v-if="invitationValidation.valid" class="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-900/20">
+            <div v-if="invitationValidation.valid" class="mt-2 flex items-center gap-2 rounded-control bg-green-50 px-3 py-2 dark:bg-green-900/20">
               <Icon name="checkCircle" size="sm" class="text-green-600 dark:text-green-400" />
               <span class="text-sm text-green-700 dark:text-green-400">
                 {{ t('auth.invitationCodeValid') }}
@@ -194,7 +194,7 @@
           </div>
           <!-- Promo code validation result -->
           <transition name="fade">
-            <div v-if="promoValidation.valid" class="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-900/20">
+            <div v-if="promoValidation.valid" class="mt-2 flex items-center gap-2 rounded-control bg-green-50 px-3 py-2 dark:bg-green-900/20">
               <Icon name="gift" size="sm" class="text-green-600 dark:text-green-400" />
               <span class="text-sm text-green-700 dark:text-green-400">
                 {{ t('auth.promoCodeValid', { amount: formatBalanceAmount(promoValidation.bonusAmount, { fractionDigits: 2 }) }) }}
