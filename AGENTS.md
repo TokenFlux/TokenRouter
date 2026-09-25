@@ -35,3 +35,6 @@
 ## 前端规范
 
 - 需要选择框时，必须使用项目自研的选择框组件，不得使用原生 `<select>`。
+- 圆角只用语义类名 `rounded-compact/control/surface/dialog`（另允许 `rounded-full/none`）；禁用 `rounded-sm/md/lg/xl` 等旧尺度名、裸 `rounded` 和 `rounded-[...]` 任意值。
+- 字号下限 `text-xs`（12px），禁止 `text-[9px]/[10px]/[11px]` 等任意小字号。
+- 修改前端样式后运行 `npm run check:ui` 校验上述规则，完整约定见 `docs/architecture/frontend_ui_conventions.md`。

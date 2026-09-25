@@ -13,3 +13,4 @@
 - [系统架构](system_architecture.md)：后端、前端、PostgreSQL、Redis 及后台运行时的组成和生命周期。读取时机：修改进程入口、依赖注入、模块边界、静态资源交付或启动关闭行为时读取。
 - [网关请求生命周期](gateway_request_lifecycle.md)：从网关入口鉴权到选组、模型改写、账号调度、故障转移和用量结算的完整链路。读取时机：修改网关中间件、协议处理器、调度或请求后处理时读取。
 - [账号调度与缓存一致性](account_scheduling_and_cache.md)：调度 bucket、账号快照、筛选评分、粘性等待、数据库回退和多实例失效。读取时机：修改调度器、快照/outbox、账号过滤、等待队列或缓存重建时读取。
+- [前端 UI 规范](frontend_ui_conventions.md)：圆角层级、间距网格、控件尺寸、表格密度和字号下限的强制约定与校验入口。读取时机：修改前端组件、样式、`tailwind.config.js` 或 `style.css` 时读取。
