@@ -21,7 +21,7 @@
     >
       <!-- Main Content -->
       <main
-        class="app-main min-w-0 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-5 lg:px-8 lg:pb-8 lg:pt-4"
+        class="app-main min-w-0 px-4 pb-4 pt-4 md:px-6 md:pb-6 lg:px-8 lg:pb-8"
         :class="{ 'has-page-heading': pageTitle }"
       >
         <div v-if="pageTitle" class="page-heading mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -119,9 +119,25 @@ defineExpose({ replayTour })
 /* 表格页需要知道内容区标题占用的固定空间，避免滚动区域向视口底部溢出。 */
 .app-main {
   --page-heading-space: 0px;
+  /* 主区上下内边距的镜像变量，供表格页计算可视高度；必须与 main 的 padding 类一致。 */
+  --main-pad-top: 1rem;
+  --main-pad-bottom: 1rem;
 }
 
+/* 5rem 由 text-2xl 标题、描述行和 mb-4 间距相加得出。 */
 .app-main.has-page-heading {
   --page-heading-space: 5rem;
+}
+
+@media (min-width: 768px) {
+  .app-main {
+    --main-pad-bottom: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-main {
+    --main-pad-bottom: 2rem;
+  }
 }
 </style>

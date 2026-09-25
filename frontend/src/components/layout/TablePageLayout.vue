@@ -47,9 +47,9 @@ onUnmounted(() => {
 /* 桌面端：Flexbox 布局 */
 .table-page-layout {
   @apply flex flex-col gap-4;
-  /* 扩大表格滚动区并抵消主区底部内边距，让分页条贴近视口底部。 */
-  height: calc(100vh - 64px - 1rem - var(--page-heading-space, 0px));
-  margin-bottom: -2rem;
+  /* 高度扣除顶栏、主区上下内边距和标题预留，分页条与视口底部保持主区底距。 */
+  height: calc(100vh - var(--header-h) - var(--main-pad-top, 1rem) - var(--main-pad-bottom, 1rem) - var(--page-heading-space, 0px));
+  height: calc(100dvh - var(--header-h) - var(--main-pad-top, 1rem) - var(--main-pad-bottom, 1rem) - var(--page-heading-space, 0px));
 }
 
 .layout-section-fixed {
@@ -164,7 +164,6 @@ onUnmounted(() => {
 .table-page-layout.mobile-mode {
   /* 移动端表格卡片高度由内容决定，避免固定视口高度导致后续区域被溢出内容覆盖。 */
   height: auto;
-  margin-bottom: 0;
 }
 
 .table-page-layout.mobile-mode .table-scroll-container {

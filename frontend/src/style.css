@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* 布局 token：顶栏高度供侧栏与表格页高度计算共用，调整时只需改这一处。 */
+    --header-h: 3.5rem;
+  }
+
   * {
     @apply border-primary-900/10 dark:border-dark-600/70;
   }
@@ -762,7 +767,7 @@
     @apply flex flex-col;
     @apply transition-transform duration-300;
     transition-property: width, transform;
-    top: 3.5rem;
+    top: var(--header-h);
   }
 
   .sidebar-nav {
