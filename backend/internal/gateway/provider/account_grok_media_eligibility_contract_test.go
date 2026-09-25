@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// 以下合同直接验证所属模块，保留原输入与断言。
 func TestGrokMediaCapabilityFiltersOnlyGeneration(t *testing.T) {
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Platform:    capability.PlatformGrok,

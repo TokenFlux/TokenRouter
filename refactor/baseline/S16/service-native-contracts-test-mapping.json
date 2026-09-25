@@ -1,0 +1,2361 @@
+{
+  "assertion_call_count_changes": 0,
+  "baseline_head": "0e11b605ee306132339dd19f1793a853ceefc8a1",
+  "missing": 0,
+  "moved": 85,
+  "note": "名称、构建条件、源与目标函数摘要和断言调用对应；构造/投影改写以及循环展开须结合源码核对。",
+  "tests": [
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_grok_media_eligibility_test.go",
+        "name": "TestGrokMediaCapabilityFiltersOnlyGeneration",
+        "tag": "unit",
+        "body_sha256": "37cd6da79dd0148d41ac80c6aa11d140d5492cc259501a3ca50e31e24371cf3b",
+        "assertions": {
+          "require.False": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/account_grok_media_eligibility_contract_test.go",
+          "name": "TestGrokMediaCapabilityFiltersOnlyGeneration",
+          "tag": "unit",
+          "body_sha256": "37cd6da79dd0148d41ac80c6aa11d140d5492cc259501a3ca50e31e24371cf3b",
+          "assertions": {
+            "require.False": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/api_key_model_mapping_test.go",
+        "name": "TestNormalizeAPIKeyModelMapping",
+        "tag": "normal",
+        "body_sha256": "3a0a9795f0b224e34b9db8028863cf476ec1d107aa197c022f42416de354b7bd",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/apikey/api_key_model_mapping_contract_test.go",
+          "name": "TestNormalizeAPIKeyModelMapping",
+          "tag": "normal",
+          "body_sha256": "3a0a9795f0b224e34b9db8028863cf476ec1d107aa197c022f42416de354b7bd",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/api_key_model_mapping_test.go",
+        "name": "TestNormalizeAPIKeyModelMappingRejectsInvalidRules",
+        "tag": "normal",
+        "body_sha256": "c7dedc82fb00f166ed4f1e8c26f014eada0b9995315fc4ad62ebe6fc57d19133",
+        "assertions": {
+          "require.Error": 2,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/apikey/api_key_model_mapping_contract_test.go",
+          "name": "TestNormalizeAPIKeyModelMappingRejectsInvalidRules",
+          "tag": "normal",
+          "body_sha256": "c7dedc82fb00f166ed4f1e8c26f014eada0b9995315fc4ad62ebe6fc57d19133",
+          "assertions": {
+            "require.Error": 2,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/api_key_model_mapping_test.go",
+        "name": "TestResolveAPIKeyModelMappingPriorityAndSinglePass",
+        "tag": "normal",
+        "body_sha256": "1136e63b2fbd19b30109bdfbc091a6045e7caeae31d86e4c4d2db6c2415fa255",
+        "assertions": {
+          "require.Equal": 4,
+          "require.False": 1,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/apikey/api_key_model_mapping_contract_test.go",
+          "name": "TestResolveAPIKeyModelMappingPriorityAndSinglePass",
+          "tag": "normal",
+          "body_sha256": "1136e63b2fbd19b30109bdfbc091a6045e7caeae31d86e4c4d2db6c2415fa255",
+          "assertions": {
+            "require.Equal": 4,
+            "require.False": 1,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/api_key_model_mapping_test.go",
+        "name": "TestAppendAPIKeyModelAliases",
+        "tag": "normal",
+        "body_sha256": "96a19ee3098805d2a205b6c96aa36e8616a6109db8173df64109a6ed0e006c67",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/apikey/api_key_model_mapping_contract_test.go",
+          "name": "TestAppendAPIKeyModelAliases",
+          "tag": "normal",
+          "body_sha256": "96a19ee3098805d2a205b6c96aa36e8616a6109db8173df64109a6ed0e006c67",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/api_key_model_mapping_test.go",
+        "name": "TestChannelMappingChainIncludesAPIKeyRedirectAndDeduplicatesStages",
+        "tag": "normal",
+        "body_sha256": "1869e3a1f8a36023bcc262a597836bee14a0b28517f82da2d2d918c564fce89e",
+        "assertions": {
+          "require.Equal": 5
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/api_key_model_mapping_contract_test.go",
+          "name": "TestChannelMappingChainIncludesAPIKeyRedirectAndDeduplicatesStages",
+          "tag": "normal",
+          "body_sha256": "1869e3a1f8a36023bcc262a597836bee14a0b28517f82da2d2d918c564fce89e",
+          "assertions": {
+            "require.Equal": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/api_key_model_mapping_test.go",
+        "name": "TestResolveAccountUpstreamModelRegistersFinalRedirectStage",
+        "tag": "normal",
+        "body_sha256": "27b1ddfea180480738e37a5443c548337fe7cbc6dbee3c52ad647e6907404e08",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/api_key_model_mapping_contract_test.go",
+          "name": "TestResolveAccountUpstreamModelRegistersFinalRedirectStage",
+          "tag": "normal",
+          "body_sha256": "de968bad87e4084e68350fc5248bc35697c0f87fcc6c6764d4b2b118971956e2",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestPrepareBedrockRequestBody_BasicFields",
+        "tag": "normal",
+        "body_sha256": "2bd358c3795e72f47939a7186a5fcc0dac29451204efc30c842e94eb10f077d1",
+        "assertions": {
+          "assert.Equal": 2,
+          "assert.False": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestPrepareBedrockRequestBody_BasicFields",
+          "tag": "normal",
+          "body_sha256": "2bd358c3795e72f47939a7186a5fcc0dac29451204efc30c842e94eb10f077d1",
+          "assertions": {
+            "assert.Equal": 2,
+            "assert.False": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestPrepareBedrockRequestBody_OutputFormatInlineSchema",
+        "tag": "normal",
+        "body_sha256": "f58993e3f4881b84ba0f8f773b9e95cc80c885a1bb3938a5bb299e75352dfe24",
+        "assertions": {
+          "assert.Contains": 2,
+          "assert.Equal": 2,
+          "assert.False": 4,
+          "require.Len": 2,
+          "require.NoError": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestPrepareBedrockRequestBody_OutputFormatInlineSchema",
+          "tag": "normal",
+          "body_sha256": "f58993e3f4881b84ba0f8f773b9e95cc80c885a1bb3938a5bb299e75352dfe24",
+          "assertions": {
+            "assert.Contains": 2,
+            "assert.Equal": 2,
+            "assert.False": 4,
+            "require.Len": 2,
+            "require.NoError": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestPrepareBedrockRequestBody_RemoveOutputConfig",
+        "tag": "normal",
+        "body_sha256": "8e73f0310140a844e19e34318ef03cf93098eef112574424b463f833e796cbd1",
+        "assertions": {
+          "assert.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestPrepareBedrockRequestBody_RemoveOutputConfig",
+          "tag": "normal",
+          "body_sha256": "8e73f0310140a844e19e34318ef03cf93098eef112574424b463f833e796cbd1",
+          "assertions": {
+            "assert.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestRemoveCustomFieldFromTools",
+        "tag": "normal",
+        "body_sha256": "09ab07466ce153054fc86c5a115c0994f2a1d02afed113494b9f3be8efcd2559",
+        "assertions": {
+          "assert.Equal": 4,
+          "assert.False": 2,
+          "require.Len": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestRemoveCustomFieldFromTools",
+          "tag": "normal",
+          "body_sha256": "09ab07466ce153054fc86c5a115c0994f2a1d02afed113494b9f3be8efcd2559",
+          "assertions": {
+            "assert.Equal": 4,
+            "assert.False": 2,
+            "require.Len": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestRemoveCustomFieldFromTools_NoTools",
+        "tag": "normal",
+        "body_sha256": "498aff7daba3d793ece8f660da20ad0798880bb16e4bb5d9f9304bc4b485f6ce",
+        "assertions": {
+          "assert.JSONEq": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestRemoveCustomFieldFromTools_NoTools",
+          "tag": "normal",
+          "body_sha256": "498aff7daba3d793ece8f660da20ad0798880bb16e4bb5d9f9304bc4b485f6ce",
+          "assertions": {
+            "assert.JSONEq": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockCacheControl_RemoveScope",
+        "tag": "normal",
+        "body_sha256": "7c9f2750b6fa1efa49a10e04faf684632fbe78d8d00bb872503886f971ab18e8",
+        "assertions": {
+          "assert.Equal": 2,
+          "assert.False": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockCacheControl_RemoveScope",
+          "tag": "normal",
+          "body_sha256": "7c9f2750b6fa1efa49a10e04faf684632fbe78d8d00bb872503886f971ab18e8",
+          "assertions": {
+            "assert.Equal": 2,
+            "assert.False": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockCacheControl_TTL_OldModel",
+        "tag": "normal",
+        "body_sha256": "528e6801d4c76c4da944ce5f7d1886b9b38cf0e7638cea5202dbb0d6f05977df",
+        "assertions": {
+          "assert.Equal": 1,
+          "assert.False": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockCacheControl_TTL_OldModel",
+          "tag": "normal",
+          "body_sha256": "528e6801d4c76c4da944ce5f7d1886b9b38cf0e7638cea5202dbb0d6f05977df",
+          "assertions": {
+            "assert.Equal": 1,
+            "assert.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockCacheControl_TTL_Claude45_Supported",
+        "tag": "normal",
+        "body_sha256": "760be56c4348a6518a9afab5e501516ad8a0e73a99039eed7c3579320e3526fb",
+        "assertions": {
+          "assert.Equal": 1,
+          "assert.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockCacheControl_TTL_Claude45_Supported",
+          "tag": "normal",
+          "body_sha256": "760be56c4348a6518a9afab5e501516ad8a0e73a99039eed7c3579320e3526fb",
+          "assertions": {
+            "assert.Equal": 1,
+            "assert.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockCacheControl_TTL_Claude45_UnsupportedValue",
+        "tag": "normal",
+        "body_sha256": "f8ca65c2fe290b2145f72f28d6ac51ccefc277e92fa703ac5a7089c52714bd64",
+        "assertions": {
+          "assert.False": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockCacheControl_TTL_Claude45_UnsupportedValue",
+          "tag": "normal",
+          "body_sha256": "f8ca65c2fe290b2145f72f28d6ac51ccefc277e92fa703ac5a7089c52714bd64",
+          "assertions": {
+            "assert.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockCacheControl_TTL_Claude46",
+        "tag": "normal",
+        "body_sha256": "f1ca7e8600dcc23240c41427c717950b4886abfbb7bc5f59e7d50ac16d859a48",
+        "assertions": {
+          "assert.Equal": 1,
+          "assert.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockCacheControl_TTL_Claude46",
+          "tag": "normal",
+          "body_sha256": "f1ca7e8600dcc23240c41427c717950b4886abfbb7bc5f59e7d50ac16d859a48",
+          "assertions": {
+            "assert.Equal": 1,
+            "assert.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockCacheControl_NoCacheControl",
+        "tag": "normal",
+        "body_sha256": "2b673a3dc4bab04a92d0d9cedb49589d22037b32432f01053acf0ad516846846",
+        "assertions": {
+          "assert.JSONEq": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockCacheControl_NoCacheControl",
+          "tag": "normal",
+          "body_sha256": "2b673a3dc4bab04a92d0d9cedb49589d22037b32432f01053acf0ad516846846",
+          "assertions": {
+            "assert.JSONEq": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestIsBedrockClaude45OrNewer",
+        "tag": "normal",
+        "body_sha256": "e3e6b366236d026ddcf31a5cb0aef0fcd44fdb52d5eecb004bfbf0101e716281",
+        "assertions": {
+          "assert.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestIsBedrockClaude45OrNewer",
+          "tag": "normal",
+          "body_sha256": "e3e6b366236d026ddcf31a5cb0aef0fcd44fdb52d5eecb004bfbf0101e716281",
+          "assertions": {
+            "assert.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestPrepareBedrockRequestBody_FullIntegration",
+        "tag": "normal",
+        "body_sha256": "9331984855a25134b49be8394cc43b6b21ef9420c55f4ccae5cd609d3ac1aeca",
+        "assertions": {
+          "assert.Contains": 1,
+          "assert.Equal": 10,
+          "assert.False": 6,
+          "require.Len": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestPrepareBedrockRequestBody_FullIntegration",
+          "tag": "normal",
+          "body_sha256": "9331984855a25134b49be8394cc43b6b21ef9420c55f4ccae5cd609d3ac1aeca",
+          "assertions": {
+            "assert.Contains": 1,
+            "assert.Equal": 10,
+            "assert.False": 6,
+            "require.Len": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestPrepareBedrockRequestBody_BetaHeader",
+        "tag": "normal",
+        "body_sha256": "3068c8c82b244e64754ba3a882cc17005e83af92aba20cc537c286510536872c",
+        "assertions": {
+          "assert.Equal": 5,
+          "assert.False": 1,
+          "require.Len": 3,
+          "require.NoError": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestPrepareBedrockRequestBody_BetaHeader",
+          "tag": "normal",
+          "body_sha256": "3068c8c82b244e64754ba3a882cc17005e83af92aba20cc537c286510536872c",
+          "assertions": {
+            "assert.Equal": 5,
+            "assert.False": 1,
+            "require.Len": 3,
+            "require.NoError": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestParseAnthropicBetaHeader",
+        "tag": "normal",
+        "body_sha256": "200eaf49e8bc02fdbc60798c59228d3837bcb9c3748b3ff87e57377702d99be8",
+        "assertions": {
+          "assert.Equal": 5,
+          "assert.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestParseAnthropicBetaHeader",
+          "tag": "normal",
+          "body_sha256": "200eaf49e8bc02fdbc60798c59228d3837bcb9c3748b3ff87e57377702d99be8",
+          "assertions": {
+            "assert.Equal": 5,
+            "assert.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestFilterBedrockBetaTokens",
+        "tag": "normal",
+        "body_sha256": "ffff1d1570edd776786d654727fcf1d7c78b38e73fdd2091cc66a83999eb7c9a",
+        "assertions": {
+          "assert.Contains": 4,
+          "assert.Equal": 4,
+          "assert.Nil": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestFilterBedrockBetaTokens",
+          "tag": "normal",
+          "body_sha256": "ffff1d1570edd776786d654727fcf1d7c78b38e73fdd2091cc66a83999eb7c9a",
+          "assertions": {
+            "assert.Contains": 4,
+            "assert.Equal": 4,
+            "assert.Nil": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestPrepareBedrockRequestBody_BetaFiltering",
+        "tag": "normal",
+        "body_sha256": "d40c1925a5cf7bb57e43cb642ee1590215c3bd8ecb6f5f4590a2d013c1b5aa43",
+        "assertions": {
+          "assert.Equal": 3,
+          "require.Len": 2,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestPrepareBedrockRequestBody_BetaFiltering",
+          "tag": "normal",
+          "body_sha256": "d40c1925a5cf7bb57e43cb642ee1590215c3bd8ecb6f5f4590a2d013c1b5aa43",
+          "assertions": {
+            "assert.Equal": 3,
+            "require.Len": 2,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestPrepareBedrockRequestBodyWithTokens_ContextManagementRequiresSupportedBeta",
+        "tag": "normal",
+        "body_sha256": "7a0beeae019430933d4654da6fa7dcb6a4089ef9042bdc8b184b8f45edad0c2f",
+        "assertions": {
+          "assert.Equal": 5,
+          "assert.False": 3,
+          "assert.True": 1,
+          "require.NoError": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestPrepareBedrockRequestBodyWithTokens_ContextManagementRequiresSupportedBeta",
+          "tag": "normal",
+          "body_sha256": "7a0beeae019430933d4654da6fa7dcb6a4089ef9042bdc8b184b8f45edad0c2f",
+          "assertions": {
+            "assert.Equal": 5,
+            "assert.False": 3,
+            "assert.True": 1,
+            "require.NoError": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestResolveBedrockModelID_OfficialVersionlessModels",
+        "tag": "normal",
+        "body_sha256": "208005d8405c7e9c7caf15885c4751d285b5420129c83779d8192ecca8e53c1b",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/bedrock_request_contract_test.go",
+          "name": "TestResolveBedrockModelID_OfficialVersionlessModels",
+          "tag": "normal",
+          "body_sha256": "208005d8405c7e9c7caf15885c4751d285b5420129c83779d8192ecca8e53c1b",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestAutoInjectBedrockBetaTokens",
+        "tag": "normal",
+        "body_sha256": "e700fcfdea1d7c620b9da0c78011d34bfb48d5111970cd6f390d08cd90227679",
+        "assertions": {
+          "assert.Contains": 7,
+          "assert.Empty": 3,
+          "assert.Equal": 1,
+          "assert.NotContains": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestAutoInjectBedrockBetaTokens",
+          "tag": "normal",
+          "body_sha256": "e700fcfdea1d7c620b9da0c78011d34bfb48d5111970cd6f390d08cd90227679",
+          "assertions": {
+            "assert.Contains": 7,
+            "assert.Empty": 3,
+            "assert.Equal": 1,
+            "assert.NotContains": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestResolveBedrockBetaTokens",
+        "tag": "normal",
+        "body_sha256": "16aa15748b0670471dfbb71a6c94d59f12d4a226eb47f5dc802afa4187ea04ab",
+        "assertions": {
+          "assert.Contains": 2,
+          "assert.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestResolveBedrockBetaTokens",
+          "tag": "normal",
+          "body_sha256": "16aa15748b0670471dfbb71a6c94d59f12d4a226eb47f5dc802afa4187ea04ab",
+          "assertions": {
+            "assert.Contains": 2,
+            "assert.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestPrepareBedrockRequestBody_AutoBetaInjection",
+        "tag": "normal",
+        "body_sha256": "ca5680ee8c15686b4ca868fd77ae5abdcdb8489aa4cea2aaa1f8f40f7c7ed461",
+        "assertions": {
+          "assert.Contains": 1,
+          "assert.False": 1,
+          "assert.NotContains": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestPrepareBedrockRequestBody_AutoBetaInjection",
+          "tag": "normal",
+          "body_sha256": "ca5680ee8c15686b4ca868fd77ae5abdcdb8489aa4cea2aaa1f8f40f7c7ed461",
+          "assertions": {
+            "assert.Contains": 1,
+            "assert.False": 1,
+            "assert.NotContains": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestIsBedrockOpus47OrNewer",
+        "tag": "normal",
+        "body_sha256": "31dd1a15593d3e4e08f48234eb2c6a9c5f9df123a26fce2737bca5b8e2791dfb",
+        "assertions": {
+          "assert.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestIsBedrockOpus47OrNewer",
+          "tag": "normal",
+          "body_sha256": "31dd1a15593d3e4e08f48234eb2c6a9c5f9df123a26fce2737bca5b8e2791dfb",
+          "assertions": {
+            "assert.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockThinking",
+        "tag": "normal",
+        "body_sha256": "cea874d687099b984f2c7ac2f1288fb5396ce2956338495af38371483c3c823c",
+        "assertions": {
+          "assert.Equal": 10,
+          "assert.False": 3,
+          "assert.JSONEq": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockThinking",
+          "tag": "normal",
+          "body_sha256": "cea874d687099b984f2c7ac2f1288fb5396ce2956338495af38371483c3c823c",
+          "assertions": {
+            "assert.Equal": 10,
+            "assert.False": 3,
+            "assert.JSONEq": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockToolUseIDs",
+        "tag": "normal",
+        "body_sha256": "18146d99dc2e6092701fc61337be7de3ac7f4c28c9d18d4be00f95084332f1ad",
+        "assertions": {
+          "assert.Equal": 7,
+          "assert.JSONEq": 2,
+          "assert.Regexp": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockToolUseIDs",
+          "tag": "normal",
+          "body_sha256": "18146d99dc2e6092701fc61337be7de3ac7f4c28c9d18d4be00f95084332f1ad",
+          "assertions": {
+            "assert.Equal": 7,
+            "assert.JSONEq": 2,
+            "assert.Regexp": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockThinking_EdgeCases",
+        "tag": "normal",
+        "body_sha256": "2c9a0cc4f976caf72951df51e9862b0dfd518ccbccda23983f66121de878df2a",
+        "assertions": {
+          "assert.Equal": 7,
+          "assert.False": 2,
+          "assert.JSONEq": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockThinking_EdgeCases",
+          "tag": "normal",
+          "body_sha256": "2c9a0cc4f976caf72951df51e9862b0dfd518ccbccda23983f66121de878df2a",
+          "assertions": {
+            "assert.Equal": 7,
+            "assert.False": 2,
+            "assert.JSONEq": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestIsBedrockOpus47OrNewer_EdgeCases",
+        "tag": "normal",
+        "body_sha256": "18fe3cc2b5b15b61f15a14630933049d5ac71832a5757381947ae8e08ab02898",
+        "assertions": {
+          "assert.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestIsBedrockOpus47OrNewer_EdgeCases",
+          "tag": "normal",
+          "body_sha256": "18fe3cc2b5b15b61f15a14630933049d5ac71832a5757381947ae8e08ab02898",
+          "assertions": {
+            "assert.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestPrepareBedrockRequestBodyWithTokens_CCCompat",
+        "tag": "normal",
+        "body_sha256": "a954173870aac66c785a92f7efb31df114ce6cd36d22eb2edfff4531daaa01e7",
+        "assertions": {
+          "assert.Equal": 8,
+          "assert.False": 2,
+          "require.NoError": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestPrepareBedrockRequestBodyWithTokens_CCCompat",
+          "tag": "normal",
+          "body_sha256": "a954173870aac66c785a92f7efb31df114ce6cd36d22eb2edfff4531daaa01e7",
+          "assertions": {
+            "assert.Equal": 8,
+            "assert.False": 2,
+            "require.NoError": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockCCFields",
+        "tag": "normal",
+        "body_sha256": "34c7fca692a145f52ff99cbe10c4b7669d3b576f7e375184b4b457e760003b1b",
+        "assertions": {
+          "assert.Equal": 9,
+          "assert.False": 9,
+          "assert.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockCCFields",
+          "tag": "normal",
+          "body_sha256": "34c7fca692a145f52ff99cbe10c4b7669d3b576f7e375184b4b457e760003b1b",
+          "assertions": {
+            "assert.Equal": 9,
+            "assert.False": 9,
+            "assert.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/bedrock_request_test.go",
+        "name": "TestSanitizeBedrockCCBetaTokens",
+        "tag": "normal",
+        "body_sha256": "3762bbcefd005990ede6534ed22d943d3068cf7e38826867dda70bbc4a18bbbd",
+        "assertions": {
+          "assert.Contains": 4,
+          "assert.Equal": 6,
+          "assert.False": 3,
+          "assert.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/bedrock/bedrock_request_contract_test.go",
+          "name": "TestSanitizeBedrockCCBetaTokens",
+          "tag": "normal",
+          "body_sha256": "3762bbcefd005990ede6534ed22d943d3068cf7e38826867dda70bbc4a18bbbd",
+          "assertions": {
+            "assert.Contains": 4,
+            "assert.Equal": 6,
+            "assert.False": 3,
+            "assert.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_stream_idle_test.go",
+        "name": "TestResolveGrokStreamIdleTimeout",
+        "tag": "unit",
+        "body_sha256": "44a76513948b5ccf0fed2c3e6cb5733648704ad02bd1a10da3d1fa55be7942fc",
+        "assertions": {
+          "require.Equal": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/grok/grok_stream_idle_contract_test.go",
+          "name": "TestResolveGrokStreamIdleTimeout",
+          "tag": "unit",
+          "body_sha256": "0751d95a691210b5a845cac1caecdda28b1ad4c815b96729ca750b2489694c04",
+          "assertions": {
+            "require.Equal": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_stream_idle_test.go",
+        "name": "TestGrokStreamIdleFailoverError",
+        "tag": "unit",
+        "body_sha256": "c7a6fdc1b7e5236e727ad76e7b870edacadae62bbe96c05172a724d0623a3195",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 2,
+          "require.NotNil": 1,
+          "require.True": 3,
+          "require.WithinDuration": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/grok_stream_idle_contract_test.go",
+          "name": "TestGrokStreamIdleFailoverError",
+          "tag": "unit",
+          "body_sha256": "c7a6fdc1b7e5236e727ad76e7b870edacadae62bbe96c05172a724d0623a3195",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 2,
+            "require.NotNil": 1,
+            "require.True": 3,
+            "require.WithinDuration": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/grok_stream_idle_test.go",
+        "name": "TestGrokStreamIdleFailoverErrorRequiresGrokAccount",
+        "tag": "unit",
+        "body_sha256": "d59c3028846fe6baaa29fdf28019c14a440cd60c24d716b301607390a916d8c9",
+        "assertions": {
+          "require.False": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/grok_stream_idle_contract_test.go",
+          "name": "TestGrokStreamIdleFailoverErrorRequiresGrokAccount",
+          "tag": "unit",
+          "body_sha256": "d59c3028846fe6baaa29fdf28019c14a440cd60c24d716b301607390a916d8c9",
+          "assertions": {
+            "require.False": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_codex_transform_additions_test.go",
+        "name": "TestEnsureCodexReasoningInclude",
+        "tag": "normal",
+        "body_sha256": "e826bdeae1efc80d1c2a5bea4a798fcfa61b32cc296ffcfc0f226f3ffba96a7d",
+        "assertions": {
+          "require.Equal": 2,
+          "require.False": 3,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_codex_transform_additions_contract_test.go",
+          "name": "TestEnsureCodexReasoningInclude",
+          "tag": "normal",
+          "body_sha256": "e826bdeae1efc80d1c2a5bea4a798fcfa61b32cc296ffcfc0f226f3ffba96a7d",
+          "assertions": {
+            "require.Equal": 2,
+            "require.False": 3,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_codex_transform_additions_test.go",
+        "name": "TestApplyCodexClientMetadata",
+        "tag": "normal",
+        "body_sha256": "2f9b6bd2d305e3982b40ca05dae5f53e9643af095f66d7fe65f7342d8717189d",
+        "assertions": {
+          "require.Equal": 3,
+          "require.False": 3,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openai_codex_transform_additions_contract_test.go",
+          "name": "TestApplyCodexClientMetadata",
+          "tag": "normal",
+          "body_sha256": "2f9b6bd2d305e3982b40ca05dae5f53e9643af095f66d7fe65f7342d8717189d",
+          "assertions": {
+            "require.Equal": 3,
+            "require.False": 3,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_codex_transform_additions_test.go",
+        "name": "TestDefaultCodexSynthInstructionsModelAware",
+        "tag": "normal",
+        "body_sha256": "7fc92908636877a6f4a9fd76a784349da45b2cc07f7d77baef1af42223b0265d",
+        "assertions": {
+          "require.False": 1,
+          "require.True": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_codex_transform_additions_contract_test.go",
+          "name": "TestDefaultCodexSynthInstructionsModelAware",
+          "tag": "normal",
+          "body_sha256": "7fc92908636877a6f4a9fd76a784349da45b2cc07f7d77baef1af42223b0265d",
+          "assertions": {
+            "require.False": 1,
+            "require.True": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_cursor_warmup_pipeline_test.go",
+        "name": "TestCursorMixedShapeDetection",
+        "tag": "normal",
+        "body_sha256": "57455cb682ee3e7cd30703b5a50d1ab28ad6c847eb018916d3219176d984379d",
+        "assertions": {
+          "assert.Equal": 9,
+          "assert.NotContains": 1,
+          "require.Len": 1,
+          "require.NoError": 1,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openaiforward/openai_cursor_warmup_pipeline_contract_test.go",
+          "name": "TestCursorMixedShapeDetection",
+          "tag": "normal",
+          "body_sha256": "57455cb682ee3e7cd30703b5a50d1ab28ad6c847eb018916d3219176d984379d",
+          "assertions": {
+            "assert.Equal": 9,
+            "assert.NotContains": 1,
+            "require.Len": 1,
+            "require.NoError": 1,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_cursor_warmup_pipeline_test.go",
+        "name": "TestCursorMixedShapeDetection_NormalChatCompletionsUnaffected",
+        "tag": "normal",
+        "body_sha256": "7be33abe6327a065e965b3270182fd1490521f232b3f7ef9c1f99502d222ec3e",
+        "assertions": {
+          "assert.False": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openaiforward/openai_cursor_warmup_pipeline_contract_test.go",
+          "name": "TestCursorMixedShapeDetection_NormalChatCompletionsUnaffected",
+          "tag": "normal",
+          "body_sha256": "7be33abe6327a065e965b3270182fd1490521f232b3f7ef9c1f99502d222ec3e",
+          "assertions": {
+            "assert.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_cursor_warmup_pipeline_test.go",
+        "name": "TestCursorMixedShapeDetection_BothFieldsPrefersMessages",
+        "tag": "normal",
+        "body_sha256": "fa74893c1115c99a6e23444a7cfc563f7410e5cf6c6cdd4ccaa9024c0bf75fd9",
+        "assertions": {
+          "assert.False": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openaiforward/openai_cursor_warmup_pipeline_contract_test.go",
+          "name": "TestCursorMixedShapeDetection_BothFieldsPrefersMessages",
+          "tag": "normal",
+          "body_sha256": "fa74893c1115c99a6e23444a7cfc563f7410e5cf6c6cdd4ccaa9024c0bf75fd9",
+          "assertions": {
+            "assert.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_cursor_warmup_pipeline_test.go",
+        "name": "TestCursorMixedShapeDetection_EmptyBody",
+        "tag": "normal",
+        "body_sha256": "4f2527e04236ef73d35a232f5ccbd655ffed0178cbc58b39f3cba202162d23a7",
+        "assertions": {
+          "assert.False": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openaiforward/openai_cursor_warmup_pipeline_contract_test.go",
+          "name": "TestCursorMixedShapeDetection_EmptyBody",
+          "tag": "normal",
+          "body_sha256": "4f2527e04236ef73d35a232f5ccbd655ffed0178cbc58b39f3cba202162d23a7",
+          "assertions": {
+            "assert.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_cursor_warmup_pipeline_test.go",
+        "name": "TestCursorMixedShape_JSONRoundtrip",
+        "tag": "normal",
+        "body_sha256": "9b39efad5400e368cd576cdefffa4be6a41e0b3e109d21dc8a54ff7534f1a40f",
+        "assertions": {
+          "assert.Equal": 2,
+          "require.Len": 1,
+          "require.NoError": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openaiforward/openai_cursor_warmup_pipeline_contract_test.go",
+          "name": "TestCursorMixedShape_JSONRoundtrip",
+          "tag": "normal",
+          "body_sha256": "9b39efad5400e368cd576cdefffa4be6a41e0b3e109d21dc8a54ff7534f1a40f",
+          "assertions": {
+            "assert.Equal": 2,
+            "require.Len": 1,
+            "require.NoError": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_cursor_warmup_pipeline_test.go",
+        "name": "TestCursorMixedShape_StripsUnsupportedFields",
+        "tag": "normal",
+        "body_sha256": "5e081556f774330172fc092a98b9f640521b3aac03cc26f026160d4a3d679a2f",
+        "assertions": {
+          "assert.Equal": 3,
+          "assert.False": 1,
+          "assert.True": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openaiforward/openai_cursor_warmup_pipeline_contract_test.go",
+          "name": "TestCursorMixedShape_StripsUnsupportedFields",
+          "tag": "normal",
+          "body_sha256": "5e081556f774330172fc092a98b9f640521b3aac03cc26f026160d4a3d679a2f",
+          "assertions": {
+            "assert.Equal": 3,
+            "assert.False": 1,
+            "assert.True": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestSanitizeGrokResponsesModelInputNormalizesReplayHistory",
+        "tag": "normal",
+        "body_sha256": "85b6209c37629aea85ef494231ec4865dc57f157def2f76ea5716e0452edeea0",
+        "assertions": {
+          "require.Equal": 5,
+          "require.False": 3,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/grok/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestSanitizeGrokResponsesModelInputNormalizesReplayHistory",
+          "tag": "normal",
+          "body_sha256": "85b6209c37629aea85ef494231ec4865dc57f157def2f76ea5716e0452edeea0",
+          "assertions": {
+            "require.Equal": 5,
+            "require.False": 3,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestSanitizeGrokResponsesModelInputStripsOnlyNonPairCallIDs",
+        "tag": "normal",
+        "body_sha256": "65b8aff0d54d341575cb3934cd10b15da3d826b84c8601210ecc9cb356bb4b7e",
+        "assertions": {
+          "require.Equal": 2,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/grok/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestSanitizeGrokResponsesModelInputStripsOnlyNonPairCallIDs",
+          "tag": "normal",
+          "body_sha256": "65b8aff0d54d341575cb3934cd10b15da3d826b84c8601210ecc9cb356bb4b7e",
+          "assertions": {
+            "require.Equal": 2,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestSanitizeGrokResponsesModelInputPairsCallsInTwoPasses",
+        "tag": "normal",
+        "body_sha256": "16d7be78325de8ba7215d16c12b759992b7f5d91dbbab312d3eb6b3f70f3dbbd",
+        "assertions": {
+          "require.Equal": 9,
+          "require.JSONEq": 5,
+          "require.NoError": 1,
+          "require.NotEmpty": 3,
+          "require.NotEqual": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/grok/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestSanitizeGrokResponsesModelInputPairsCallsInTwoPasses",
+          "tag": "normal",
+          "body_sha256": "16d7be78325de8ba7215d16c12b759992b7f5d91dbbab312d3eb6b3f70f3dbbd",
+          "assertions": {
+            "require.Equal": 9,
+            "require.JSONEq": 5,
+            "require.NoError": 1,
+            "require.NotEmpty": 3,
+            "require.NotEqual": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestSanitizeGrokResponsesModelInputMapsAllItemAliasesAndRejectsConflicts",
+        "tag": "normal",
+        "body_sha256": "b20e7c8e5921de3490d251cba4a96faceab7ce6be1660e4c94997b6f7b398e84",
+        "assertions": {
+          "require.Equal": 2,
+          "require.False": 1,
+          "require.NoError": 1,
+          "require.NotEmpty": 3,
+          "require.NotEqual": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/grok/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestSanitizeGrokResponsesModelInputMapsAllItemAliasesAndRejectsConflicts",
+          "tag": "normal",
+          "body_sha256": "b20e7c8e5921de3490d251cba4a96faceab7ce6be1660e4c94997b6f7b398e84",
+          "assertions": {
+            "require.Equal": 2,
+            "require.False": 1,
+            "require.NoError": 1,
+            "require.NotEmpty": 3,
+            "require.NotEqual": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestSanitizeGrokResponsesModelInputPreservesGrokShellOutputImages",
+        "tag": "normal",
+        "body_sha256": "cfd7f7c08f982f1b8fd95b1d936f1c9b3b7c04e54b183e0553c9923f66558cd9",
+        "assertions": {
+          "require.Equal": 10,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/grok/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestSanitizeGrokResponsesModelInputPreservesGrokShellOutputImages",
+          "tag": "normal",
+          "body_sha256": "cfd7f7c08f982f1b8fd95b1d936f1c9b3b7c04e54b183e0553c9923f66558cd9",
+          "assertions": {
+            "require.Equal": 10,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestSanitizeGrokResponsesModelInputPreservesGrok105StructuredOutputImages",
+        "tag": "normal",
+        "body_sha256": "1c6ee52c20de5d6dcf99c547b53f7e11f7cf7dbd628b30faa163dec7911d4214",
+        "assertions": {
+          "require.Equal": 5,
+          "require.NoError": 1,
+          "require.NotContains": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/grok/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestSanitizeGrokResponsesModelInputPreservesGrok105StructuredOutputImages",
+          "tag": "normal",
+          "body_sha256": "1c6ee52c20de5d6dcf99c547b53f7e11f7cf7dbd628b30faa163dec7911d4214",
+          "assertions": {
+            "require.Equal": 5,
+            "require.NoError": 1,
+            "require.NotContains": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestSanitizeGrokResponsesModelInputSkipsInvalidOutputImages",
+        "tag": "normal",
+        "body_sha256": "86bf5f3c3788bc810277acad8b0fc9a2e503d872ff6fa871177c49bd9b6ef50d",
+        "assertions": {
+          "require.Equal": 2,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/grok/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestSanitizeGrokResponsesModelInputSkipsInvalidOutputImages",
+          "tag": "normal",
+          "body_sha256": "86bf5f3c3788bc810277acad8b0fc9a2e503d872ff6fa871177c49bd9b6ef50d",
+          "assertions": {
+            "require.Equal": 2,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestPatchGrokResponsesBodyCombinesAdditionalToolsAndDropsOrphanControls",
+        "tag": "normal",
+        "body_sha256": "e7d2e66cf906f96f482a7b2f9c7bff63c9cda01a233ca47b14a3741136fcd01b",
+        "assertions": {
+          "require.Equal": 3,
+          "require.False": 4,
+          "require.NoError": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestPatchGrokResponsesBodyCombinesAdditionalToolsAndDropsOrphanControls",
+          "tag": "normal",
+          "body_sha256": "e7d2e66cf906f96f482a7b2f9c7bff63c9cda01a233ca47b14a3741136fcd01b",
+          "assertions": {
+            "require.Equal": 3,
+            "require.False": 4,
+            "require.NoError": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestSanitizeGrokCompactionReplayBodyPreservesVisibleSummary",
+        "tag": "normal",
+        "body_sha256": "79cad0c26fff1f461cb8ab2adee0c0aaaf71898a4aba7f784306239f9f6d21d9",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Equal": 1,
+          "require.False": 2,
+          "require.NoError": 1,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestSanitizeGrokCompactionReplayBodyPreservesVisibleSummary",
+          "tag": "normal",
+          "body_sha256": "79cad0c26fff1f461cb8ab2adee0c0aaaf71898a4aba7f784306239f9f6d21d9",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Equal": 1,
+            "require.False": 2,
+            "require.NoError": 1,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestGrokStructuredErrorCandidatesDoNotShadowTopLevelMessages",
+        "tag": "normal",
+        "body_sha256": "93fb70583b193b27bc41d905edcdf34748a7488210289261a3694a11adcf6beb",
+        "assertions": {
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestGrokStructuredErrorCandidatesDoNotShadowTopLevelMessages",
+          "tag": "normal",
+          "body_sha256": "93fb70583b193b27bc41d905edcdf34748a7488210289261a3694a11adcf6beb",
+          "assertions": {
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "name": "TestGrokDecoderCompatibility422FailsOverWithoutCooldown",
+        "tag": "normal",
+        "body_sha256": "fed028e7ecab5d49d59190b6536ef832dcf733e61d42e072871ff86b278e3e2d",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 4,
+          "require.True": 5
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openai_gateway_grok_model_input_contract_test.go",
+          "name": "TestGrokDecoderCompatibility422FailsOverWithoutCooldown",
+          "tag": "normal",
+          "body_sha256": "fed028e7ecab5d49d59190b6536ef832dcf733e61d42e072871ff86b278e3e2d",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 4,
+            "require.True": 5
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestTrimOpenAIEncryptedReasoningItems_ContentNull",
+        "tag": "normal",
+        "body_sha256": "021948f326aa7609ae7278ed01d4880fe0522eea63d999d27d867d904a0fcf89",
+        "assertions": {
+          "assert.Equal": 1,
+          "assert.False": 2,
+          "assert.NotNil": 1,
+          "require.Len": 1,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestTrimOpenAIEncryptedReasoningItems_ContentNull",
+          "tag": "normal",
+          "body_sha256": "021948f326aa7609ae7278ed01d4880fe0522eea63d999d27d867d904a0fcf89",
+          "assertions": {
+            "assert.Equal": 1,
+            "assert.False": 2,
+            "assert.NotNil": 1,
+            "require.Len": 1,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestTrimOpenAIEncryptedReasoningItems_ContentNullOnly",
+        "tag": "normal",
+        "body_sha256": "3155b0e4ae281f9875ccb7a6d3f50089ad7c9e4037c8fd1d4d6b0f73390d855e",
+        "assertions": {
+          "assert.False": 1,
+          "require.Len": 1,
+          "require.True": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestTrimOpenAIEncryptedReasoningItems_ContentNullOnly",
+          "tag": "normal",
+          "body_sha256": "3155b0e4ae281f9875ccb7a6d3f50089ad7c9e4037c8fd1d4d6b0f73390d855e",
+          "assertions": {
+            "assert.False": 1,
+            "require.Len": 1,
+            "require.True": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestTrimOpenAIEncryptedReasoningItems_ContentNonNull",
+        "tag": "normal",
+        "body_sha256": "ce1a2b9dbc74ca8beb5ef9c32256afb03052e6faff24f8018d06d61652d6c9e6",
+        "assertions": {
+          "assert.Equal": 1,
+          "assert.False": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestTrimOpenAIEncryptedReasoningItems_ContentNonNull",
+          "tag": "normal",
+          "body_sha256": "ce1a2b9dbc74ca8beb5ef9c32256afb03052e6faff24f8018d06d61652d6c9e6",
+          "assertions": {
+            "assert.Equal": 1,
+            "assert.False": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestTrimOpenAIEncryptedReasoningItems_NoReasoningItems",
+        "tag": "normal",
+        "body_sha256": "0128e24e21548fd91f64bd9472b93b76c0a51681ff2210711f2c33fea6f2c3b4",
+        "assertions": {
+          "assert.False": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestTrimOpenAIEncryptedReasoningItems_NoReasoningItems",
+          "tag": "normal",
+          "body_sha256": "0128e24e21548fd91f64bd9472b93b76c0a51681ff2210711f2c33fea6f2c3b4",
+          "assertions": {
+            "assert.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestTrimOpenAIEncryptedReasoningItems_Compaction",
+        "tag": "normal",
+        "body_sha256": "0d1d60641edb3678de5d83d61ff5279ea1f20e4b592eb6f89c08c029acd3559b",
+        "assertions": {
+          "assert.Equal": 3,
+          "require.Len": 2,
+          "require.NotEmpty": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestTrimOpenAIEncryptedReasoningItems_Compaction",
+          "tag": "normal",
+          "body_sha256": "0d1d60641edb3678de5d83d61ff5279ea1f20e4b592eb6f89c08c029acd3559b",
+          "assertions": {
+            "assert.Equal": 3,
+            "require.Len": 2,
+            "require.NotEmpty": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestSanitizeOpenAICrossModeFailoverReasoning_DropsWholeEncryptedItem",
+        "tag": "normal",
+        "body_sha256": "c1e378d333165719a7e1dcc8a81bbbe513ae9e708cdf61602062db7ad204b448",
+        "assertions": {
+          "require.Equal": 1,
+          "require.NoError": 1,
+          "require.NotContains": 3,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestSanitizeOpenAICrossModeFailoverReasoning_DropsWholeEncryptedItem",
+          "tag": "normal",
+          "body_sha256": "c1e378d333165719a7e1dcc8a81bbbe513ae9e708cdf61602062db7ad204b448",
+          "assertions": {
+            "require.Equal": 1,
+            "require.NoError": 1,
+            "require.NotContains": 3,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestSanitizeOpenAICrossModeFailoverReasoning_NoEncryptedIsNoop",
+        "tag": "normal",
+        "body_sha256": "d9236364c6ac21f515e22273f804829a11817b21f3f3e1d8c4dc88b04fdb23e1",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestSanitizeOpenAICrossModeFailoverReasoning_NoEncryptedIsNoop",
+          "tag": "normal",
+          "body_sha256": "d9236364c6ac21f515e22273f804829a11817b21f3f3e1d8c4dc88b04fdb23e1",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestSanitizeOpenAICrossModeFailoverReasoning_NoInputIsNoop",
+        "tag": "normal",
+        "body_sha256": "f97bf87411a62f99e4538c6a7d53c03b1a42f13533e18be2e0cde2b880f0d787",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestSanitizeOpenAICrossModeFailoverReasoning_NoInputIsNoop",
+          "tag": "normal",
+          "body_sha256": "f97bf87411a62f99e4538c6a7d53c03b1a42f13533e18be2e0cde2b880f0d787",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestSanitizeOpenAICrossModeFailoverReasoning_PreservesLargeIntegers",
+        "tag": "normal",
+        "body_sha256": "ffaca210ec2a290dcc230f89ea1e2f49e9ad1f2410732d769d5c753291a61262",
+        "assertions": {
+          "require.Contains": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestSanitizeOpenAICrossModeFailoverReasoning_PreservesLargeIntegers",
+          "tag": "normal",
+          "body_sha256": "ffaca210ec2a290dcc230f89ea1e2f49e9ad1f2410732d769d5c753291a61262",
+          "assertions": {
+            "require.Contains": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestTrimOpenAIEncryptedReasoningItems_ContentNullDropsBareSkeleton",
+        "tag": "normal",
+        "body_sha256": "95ea14c2ef551d46675526730db3392edd9ba5d9d06e06674366465f8830cc7a",
+        "assertions": {
+          "assert.False": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/protocol/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestTrimOpenAIEncryptedReasoningItems_ContentNullDropsBareSkeleton",
+          "tag": "normal",
+          "body_sha256": "95ea14c2ef551d46675526730db3392edd9ba5d9d06e06674366465f8830cc7a",
+          "assertions": {
+            "assert.False": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIAPIKeyStoreFalseReasoningReplay",
+        "tag": "normal",
+        "body_sha256": "09dfe75dcc5c3d0ebc23a0660504b9ebd983a0d8b1abdc5889cac9c28dff9c45",
+        "assertions": {
+          "require.Equal": 6,
+          "require.False": 2,
+          "require.NoError": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIAPIKeyStoreFalseReasoningReplay",
+          "tag": "normal",
+          "body_sha256": "09dfe75dcc5c3d0ebc23a0660504b9ebd983a0d8b1abdc5889cac9c28dff9c45",
+          "assertions": {
+            "require.Equal": 6,
+            "require.False": 2,
+            "require.NoError": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIAPIKeyStoreFalseReasoningReplayRequiresExplicitStoreFalse",
+        "tag": "normal",
+        "body_sha256": "dd6c47dd12e9104d408ef085cb3d4e6d2180f254ea1693d55087da249bdfa58f",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIAPIKeyStoreFalseReasoningReplayRequiresExplicitStoreFalse",
+          "tag": "normal",
+          "body_sha256": "dd6c47dd12e9104d408ef085cb3d4e6d2180f254ea1693d55087da249bdfa58f",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIAPIKeyStoreFalseReasoningReplayKnownCompactMode",
+        "tag": "normal",
+        "body_sha256": "6113dcdedb498ae20e32fc2a7b6b0e6810ffbf7951cb0a8bebe53a8bac0477d5",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIAPIKeyStoreFalseReasoningReplayKnownCompactMode",
+          "tag": "normal",
+          "body_sha256": "6113dcdedb498ae20e32fc2a7b6b0e6810ffbf7951cb0a8bebe53a8bac0477d5",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIAPIKeyStoreFalseReasoningReplayRejectsEmptyEncryptedContent",
+        "tag": "normal",
+        "body_sha256": "399324b0b353442ce268928fcb454c40b902780e9460947284a6e0b606df4623",
+        "assertions": {
+          "require.Equal": 2,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIAPIKeyStoreFalseReasoningReplayRejectsEmptyEncryptedContent",
+          "tag": "normal",
+          "body_sha256": "399324b0b353442ce268928fcb454c40b902780e9460947284a6e0b606df4623",
+          "assertions": {
+            "require.Equal": 2,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIParallelToolCallsWithoutTools",
+        "tag": "normal",
+        "body_sha256": "d055cf00c5a6975ee112393e27875983f8eb9987927f22e7a94e91cf54b854f8",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 2,
+          "require.NoError": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIParallelToolCallsWithoutTools",
+          "tag": "normal",
+          "body_sha256": "d055cf00c5a6975ee112393e27875983f8eb9987927f22e7a94e91cf54b854f8",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 2,
+            "require.NoError": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIParallelToolCallsWithoutTools_KeepsResponsesLiteAdditionalTools",
+        "tag": "normal",
+        "body_sha256": "210e27887f2c56525ea905699e12052a469d3d2677fa41754734059180f76077",
+        "assertions": {
+          "require.Equal": 2,
+          "require.False": 3,
+          "require.NoError": 3,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIParallelToolCallsWithoutTools_KeepsResponsesLiteAdditionalTools",
+          "tag": "normal",
+          "body_sha256": "210e27887f2c56525ea905699e12052a469d3d2677fa41754734059180f76077",
+          "assertions": {
+            "require.Equal": 2,
+            "require.False": 3,
+            "require.NoError": 3,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIParallelToolCallsWithoutTools_KeepsResponsesLiteAdditionalToolsUpstreamRegression",
+        "tag": "normal",
+        "body_sha256": "04ca6b0c3d72ae0925564fd88aca6972874f7fb97f4137b0dfbb00afd16cb949",
+        "assertions": {
+          "require.Equal": 2,
+          "require.False": 3,
+          "require.NoError": 3,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIParallelToolCallsWithoutTools_KeepsResponsesLiteAdditionalToolsUpstreamRegression",
+          "tag": "normal",
+          "body_sha256": "04ca6b0c3d72ae0925564fd88aca6972874f7fb97f4137b0dfbb00afd16cb949",
+          "assertions": {
+            "require.Equal": 2,
+            "require.False": 3,
+            "require.NoError": 3,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIResponsesReasoningContentReplayStripsCrossProviderArray",
+        "tag": "normal",
+        "body_sha256": "a786e454a921d3db924af7dd1bee546860333257e87aeef29cef85959438095d",
+        "assertions": {
+          "require.Equal": 4,
+          "require.False": 1,
+          "require.NoError": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIResponsesReasoningContentReplayStripsCrossProviderArray",
+          "tag": "normal",
+          "body_sha256": "a786e454a921d3db924af7dd1bee546860333257e87aeef29cef85959438095d",
+          "assertions": {
+            "require.Equal": 4,
+            "require.False": 1,
+            "require.NoError": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIResponsesReasoningContentReplayKeepsPortableShapes",
+        "tag": "normal",
+        "body_sha256": "8bedda585955aac93fc234938d0dd19d0218e7f098f8da4b3ca82e8c1b9f6825",
+        "assertions": {
+          "require.False": 1,
+          "require.JSONEq": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIResponsesReasoningContentReplayKeepsPortableShapes",
+          "tag": "normal",
+          "body_sha256": "8bedda585955aac93fc234938d0dd19d0218e7f098f8da4b3ca82e8c1b9f6825",
+          "assertions": {
+            "require.False": 1,
+            "require.JSONEq": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "name": "TestNormalizeOpenAIResponsesWebSocketCompatibilityBodyStripsReasoningContentOnlyForOpenAI",
+        "tag": "normal",
+        "body_sha256": "111fce356385eff6d6eb6e0c4051f1b594df27eaf79b5a4b58673c977e43b9a6",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 2,
+          "require.JSONEq": 1,
+          "require.NoError": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/openai_gateway_request_body_reasoning_contract_test.go",
+          "name": "TestNormalizeOpenAIResponsesWebSocketCompatibilityBodyStripsReasoningContentOnlyForOpenAI",
+          "tag": "normal",
+          "body_sha256": "111fce356385eff6d6eb6e0c4051f1b594df27eaf79b5a4b58673c977e43b9a6",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 2,
+            "require.JSONEq": 1,
+            "require.NoError": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/upstream_path_guard_test.go",
+        "name": "TestSanitizedUpstreamPathSuffixRejectsNonConformingSegments",
+        "tag": "normal",
+        "body_sha256": "0a647db158edc3b5522eccd44d58be64a440e42227772bc8259ef46f5e7c7c09",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/upstream_path_guard_contract_test.go",
+          "name": "TestSanitizedUpstreamPathSuffixRejectsNonConformingSegments",
+          "tag": "normal",
+          "body_sha256": "0a647db158edc3b5522eccd44d58be64a440e42227772bc8259ef46f5e7c7c09",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/upstream_path_guard_test.go",
+        "name": "TestSanitizedUpstreamPathSuffixEnforcesBounds",
+        "tag": "normal",
+        "body_sha256": "ffcbbfe2293395857d09a6491d075e7a10e28a37212be36639665f1c52987475",
+        "assertions": {
+          "require.False": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/upstream_path_guard_contract_test.go",
+          "name": "TestSanitizedUpstreamPathSuffixEnforcesBounds",
+          "tag": "normal",
+          "body_sha256": "ffcbbfe2293395857d09a6491d075e7a10e28a37212be36639665f1c52987475",
+          "assertions": {
+            "require.False": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/upstream_path_guard_test.go",
+        "name": "TestOpenAIResponsesRequestPathSuffixRejectsNonConformingSubpaths",
+        "tag": "normal",
+        "body_sha256": "61518ace938afe12c2550eb114da979c7f40e720118feed2b86e1697accadaf1",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 2,
+          "require.False": 2,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_path_guard_contract_test.go",
+          "name": "TestOpenAIResponsesRequestPathSuffixRejectsNonConformingSubpaths",
+          "tag": "normal",
+          "body_sha256": "be14ac9819586efa76773067d21cdf22771688ab1cf141bb2fad49f9cd82921e",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 2,
+            "require.False": 2,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/upstream_path_guard_test.go",
+        "name": "TestIsOpenAIResponsesInputTokensRequestPath",
+        "tag": "normal",
+        "body_sha256": "63713cc4c33bbb203d31c40addecd1ab7a80e2f93132db84ab00bdfa217bee38",
+        "assertions": {
+          "require.False": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/httpapi/upstream_path_guard_contract_test.go",
+          "name": "TestIsOpenAIResponsesInputTokensRequestPath",
+          "tag": "normal",
+          "body_sha256": "63713cc4c33bbb203d31c40addecd1ab7a80e2f93132db84ab00bdfa217bee38",
+          "assertions": {
+            "require.False": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/upstream_path_guard_test.go",
+        "name": "TestAppendOpenAIResponsesRequestPathSuffixRefusesUnsafeSuffix",
+        "tag": "normal",
+        "body_sha256": "01fc9c4524cb21e66e718cadcea1d07ccb156444e8b1d4dcf222016726102705",
+        "assertions": {
+          "require.Equal": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/upstream/openai/upstream_path_guard_contract_test.go",
+          "name": "TestAppendOpenAIResponsesRequestPathSuffixRefusesUnsafeSuffix",
+          "tag": "normal",
+          "body_sha256": "837fc824c638c20fc537dc75ca7fdb940e0fb011619f67f767ddd779630c2513",
+          "assertions": {
+            "require.Equal": 3
+          }
+        }
+      ]
+    }
+  ]
+}

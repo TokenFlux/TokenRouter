@@ -1,0 +1,136 @@
+{
+  "baseline_head": "0e11b605ee306132339dd19f1793a853ceefc8a1",
+  "scope": "按符号归属拆分混合协议/账号模型/入口路径测试，删除最后模型转接与流常量别名",
+  "before": {
+    "production": 24,
+    "tests": 97
+  },
+  "after": {
+    "production": 23,
+    "tests": 87
+  },
+  "retired_files": [
+    "backend/internal/service/account_grok_media_eligibility_test.go",
+    "backend/internal/service/api_key_model_mapping_test.go",
+    "backend/internal/service/bedrock_request_test.go",
+    "backend/internal/service/gateway_forward.go",
+    "backend/internal/service/grok_stream_idle_observation_compat_unit_test.go",
+    "backend/internal/service/grok_stream_idle_test.go",
+    "backend/internal/service/openai_codex_transform_additions_test.go",
+    "backend/internal/service/openai_cursor_warmup_pipeline_test.go",
+    "backend/internal/service/openai_gateway_grok_model_input_test.go",
+    "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+    "backend/internal/service/upstream_path_guard_test.go"
+  ],
+  "tests": [
+    {
+      "name": "normal",
+      "log": "service-native-contracts-normal.jsonl",
+      "events": {
+        "pass": 277
+      }
+    },
+    {
+      "name": "unit",
+      "log": "service-native-contracts-unit.jsonl",
+      "events": {
+        "pass": 281
+      }
+    },
+    {
+      "name": "race",
+      "log": "service-native-contracts-race.jsonl",
+      "events": {
+        "pass": 281
+      }
+    }
+  ],
+  "test_mapping": "service-native-contracts-test-mapping.json",
+  "path_map": "service-native-contracts-path-map.json",
+  "lint": [
+    {
+      "name": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/provider",
+        "./internal/gateway/provider/openaiforward",
+        "./internal/apikey",
+        "./internal/protocol/openai",
+        "./internal/upstream",
+        "./internal/upstream/openai",
+        "./internal/upstream/grok",
+        "./internal/upstream/bedrock",
+        "./internal/service"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 9.03
+    },
+    {
+      "name": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/provider",
+        "./internal/gateway/provider/openaiforward",
+        "./internal/apikey",
+        "./internal/protocol/openai",
+        "./internal/upstream",
+        "./internal/upstream/openai",
+        "./internal/upstream/grok",
+        "./internal/upstream/bedrock",
+        "./internal/service"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 11.12
+    },
+    {
+      "name": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/provider",
+        "./internal/gateway/provider/openaiforward",
+        "./internal/apikey",
+        "./internal/protocol/openai",
+        "./internal/upstream",
+        "./internal/upstream/openai",
+        "./internal/upstream/grok",
+        "./internal/upstream/bedrock",
+        "./internal/service"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 9.25
+    }
+  ],
+  "gates": {
+    "passed": 24,
+    "total": 24,
+    "config_sha256": "e42ef3c5827d0c7240e58c80030f9022b644b22c97141be38b0411ce5d4ed7f7"
+  },
+  "build_selection": "service-native-contracts-build-selection.json",
+  "protected_unchanged": 51,
+  "wire_ent_sql_unchanged": true,
+  "migration_feedback": [
+    "Bedrock原生unit测试已有同体Beta解析辅助，统一保留普通测试中的一份供两种集合使用，没有减少断言。"
+  ],
+  "remaining": [
+    "Grok/OAuth/身份/健康等旧聚合测试依赖",
+    "最终全仓、前端、平台、进程、资金及文档验收"
+  ],
+  "final_acceptance_pending": true
+}

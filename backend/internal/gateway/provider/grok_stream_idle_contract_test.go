@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"testing"
@@ -9,16 +9,10 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
 )
 
-func TestResolveGrokStreamIdleTimeout(t *testing.T) {
-	require.Equal(t, 90*time.Second, grok.ResolveStreamIdleTimeout(90))
-	require.Equal(t, defaultGrokStreamIdleTimeout, grok.ResolveStreamIdleTimeout(0))
-	require.Equal(t, defaultGrokStreamIdleTimeout, grok.ResolveStreamIdleTimeout(-1))
-}
-
+// 以下合同直接验证所属模块，保留原输入与断言。
 func TestGrokStreamIdleFailoverError(t *testing.T) {
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	err := gatewayprovider.GrokStreamIdleFailure(account, 180*time.Second)

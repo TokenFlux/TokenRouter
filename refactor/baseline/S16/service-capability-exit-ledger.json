@@ -2879,9 +2879,9 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 24,
-    "test_files": 97,
-    "verified_batch": "http-contracts"
+    "production_files": 23,
+    "test_files": 87,
+    "verified_batch": "native-contracts"
   },
   "latest_combined_validation": {
     "head": "a8a9fb4bd1cb6f0bb86adaa68ecbf33ca01cec8e",
@@ -2972,6 +2972,34 @@
         "gateway/provider",
         "gateway/testkit",
         "protocol/openai"
+      ]
+    },
+    "native-contracts": {
+      "status": "verified",
+      "retired_files": [
+        "backend/internal/service/account_grok_media_eligibility_test.go",
+        "backend/internal/service/api_key_model_mapping_test.go",
+        "backend/internal/service/bedrock_request_test.go",
+        "backend/internal/service/gateway_forward.go",
+        "backend/internal/service/grok_stream_idle_observation_compat_unit_test.go",
+        "backend/internal/service/grok_stream_idle_test.go",
+        "backend/internal/service/openai_codex_transform_additions_test.go",
+        "backend/internal/service/openai_cursor_warmup_pipeline_test.go",
+        "backend/internal/service/openai_gateway_grok_model_input_test.go",
+        "backend/internal/service/openai_gateway_request_body_reasoning_test.go",
+        "backend/internal/service/upstream_path_guard_test.go"
+      ],
+      "verification": "service-native-contracts-verification.json",
+      "owners": [
+        "backend/internal/apikey",
+        "backend/internal/gateway/httpapi",
+        "backend/internal/gateway/provider",
+        "backend/internal/gateway/provider/openaiforward",
+        "backend/internal/protocol/openai",
+        "backend/internal/upstream",
+        "backend/internal/upstream/bedrock",
+        "backend/internal/upstream/grok",
+        "backend/internal/upstream/openai"
       ]
     }
   }

@@ -75,13 +75,3 @@ func TestSanitizeBedrockCCFields_StripsFallbacksUnconditionally(t *testing.T) {
 	assert.False(t, gjson.GetBytes(result, "context_management").Exists())
 	assert.True(t, gjson.GetBytes(result, "messages").Exists())
 }
-
-// 读取断言所需的 wire 数组，保持原元素顺序。
-func bedrockAnthropicBetaNames(body []byte) []string {
-	arr := gjson.GetBytes(body, "anthropic_beta").Array()
-	names := make([]string, len(arr))
-	for i, token := range arr {
-		names[i] = token.String()
-	}
-	return names
-}

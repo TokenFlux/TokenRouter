@@ -1,4 +1,4 @@
-package service
+package openaiforward_test
 
 import (
 	"encoding/json"
@@ -12,6 +12,7 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+// 以下合同直接验证所属模块，保留原输入与断言。
 // TestCursorMixedShapeDetection covers the core invariant of the Cursor
 // compatibility fix in ForwardAsChatCompletions: when a client POSTs a
 // Responses-shaped body (has `input`, no `messages`) to /v1/chat/completions,
