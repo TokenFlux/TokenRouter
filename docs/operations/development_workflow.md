@@ -126,7 +126,7 @@ make -C backend test
 
 外部 E2E 测试位于 `backend/tests/integration`；`make -C backend test-e2e` 与 `test-e2e-local` 使用同一 Go 测试入口，继续读取原服务地址和测试凭据环境变量。未配置服务和供应商凭据时，只能报告测试入选或编译结果，不能据此声称行为通过。
 
-该目录也承接跨模块装配契约，具体执行集合由文件的构建标签决定。身份注册/邮箱绑定使用原生 identity 与 PostgreSQL Adapter 在 SQLite 夹具下验证既有规则，批量任务运行时使用原生 batchimage 与 miniredis；这些 `unit` 测试不能代替真实 PostgreSQL/Redis 的事务和竞争证据。
+该目录也承接跨模块装配契约，具体执行集合由文件的构建标签决定。`tests/integration/pricing_contract` 保存渠道/市场价卡、Key快照、完成处理和资金分配的跨模块合同，继续使用 unit 标签；纯账号统计匹配与计算测试位于 billing/pricing。测试直接调用原生模块与既有存储替身，目录名称不表示已运行真实数据库。身份注册/邮箱绑定使用原生 identity 与 PostgreSQL Adapter 在 SQLite 夹具下验证既有规则，批量任务运行时使用原生 batchimage 与 miniredis；这些 `unit` 测试不能代替真实 PostgreSQL/Redis 的事务和竞争证据。
 
 用量 HTTP、仪表盘和 DTO 契约测试直接构造 usage 与消费者侧查询投影，不通过旧 service 或完整设置服务装配。日期测试显式指定 Calendar，分别覆盖用户时区回退、DST 与各入口的结束边界；清理任务的存储缺失错误由 PostgreSQL Adapter 测试核对后，再以相同错误链输入 HTTP 夹具。
 

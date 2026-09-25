@@ -1,0 +1,135 @@
+{
+  "baseline_head": "24ba1ccb1058aeb4352e590b023c69a95ed10e86",
+  "scope": "S16资金定价合同与测试输入归属，生产算法未改",
+  "before": {
+    "production": 24,
+    "tests": 138
+  },
+  "after": {
+    "production": 24,
+    "tests": 117
+  },
+  "retired_files": [
+    "backend/internal/service/account_stats_pricing_s11_compat_unit_test.go",
+    "backend/internal/service/account_stats_pricing_test.go",
+    "backend/internal/service/calculator_shared_fixture_test.go",
+    "backend/internal/service/creative_price_fixture_test.go",
+    "backend/internal/service/custom_channel_time_pricing_test.go",
+    "backend/internal/service/gateway_completion_s11_unit_compat_test.go",
+    "backend/internal/service/gateway_service_subscription_billing_test.go",
+    "backend/internal/service/group_pricing_parity_test.go",
+    "backend/internal/service/group_pricing_ranges_test.go",
+    "backend/internal/service/marketplace_gateway_fixture_test.go",
+    "backend/internal/service/marketplace_price_fixture_test.go",
+    "backend/internal/service/max_reasoning_pricing_fork_test.go",
+    "backend/internal/service/media_billing_allocation_test.go",
+    "backend/internal/service/media_pricing_unification_test.go",
+    "backend/internal/service/openai_alpha_search_billing_test.go",
+    "backend/internal/service/openai_gateway_search_surcharge_test.go",
+    "backend/internal/service/openai_gateway_usage_integrity_test.go",
+    "backend/internal/service/openai_media_pricing_modifiers_test.go",
+    "backend/internal/service/pricing_legacy_unit_test.go",
+    "backend/internal/service/routing_s06_compat_test.go",
+    "backend/internal/service/s04_compat_unit_test.go"
+  ],
+  "tests": [
+    {
+      "name": "unit",
+      "log": "service-money-contracts-unit.jsonl",
+      "events": {
+        "pass": 1868
+      }
+    },
+    {
+      "name": "normal",
+      "log": "service-money-contracts-normal.jsonl",
+      "events": {
+        "pass": 617
+      }
+    },
+    {
+      "name": "final-race",
+      "log": "service-money-contracts-final-race.jsonl",
+      "events": {
+        "pass": 1190
+      }
+    }
+  ],
+  "test_mapping": "service-money-contracts-test-mapping.json",
+  "lint": [
+    {
+      "name": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./internal/billing/...",
+        "./internal/gateway/provider/...",
+        "./tests/integration/pricing_contract/...",
+        "./internal/service/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 4.97
+    },
+    {
+      "name": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./internal/billing/...",
+        "./internal/gateway/provider/...",
+        "./tests/integration/pricing_contract/...",
+        "./internal/service/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.76
+    },
+    {
+      "name": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./internal/billing/...",
+        "./internal/gateway/provider/...",
+        "./tests/integration/pricing_contract/...",
+        "./internal/service/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.13
+    }
+  ],
+  "gates": {
+    "passed": 24,
+    "total": 24,
+    "config_sha256": "fb3d057be3168c0383ae831cac6a0358ab1bc4eed5ca26dde4f798dfae9fcd8e"
+  },
+  "build_selection": "service-money-contracts-build-selection.json",
+  "protected_unchanged": 51,
+  "frozen_unchanged": true,
+  "wire_unchanged": true,
+  "contracts": [
+    "纯统计匹配/费用函数直接调用billing/pricing，值类型不再经routing别名进入纯规则测试",
+    "涉及渠道/市场、Key快照、完成器、任务价格与资金分配的应用合同位于tests/integration/pricing_contract，仍为unit标签，不计真实存储证据",
+    "时间计算显式加载原时区后调用实际MultiplierAt，保留零值/无效配置回退",
+    "输入夹具只组合原生Calculator/PriceResolver/Recorder/Marketplace，无第二份规则或资金状态",
+    "分组复制保留原CloneGroup(CloneGroupForDuplicate)的独立副本边界，未削弱断言"
+  ],
+  "gate_changes": [
+    "新合同目录增加默认旧包deny，覆盖同目录新文件；不扩大许可或忽略。纯规则目录继续拒绝业务、config和存储依赖。"
+  ],
+  "remaining": [
+    "旧service普通协议/账号/测试辅助入口",
+    "最终清包及全量/前端/平台/进程/资金销项验收"
+  ],
+  "final_acceptance_pending": true
+}

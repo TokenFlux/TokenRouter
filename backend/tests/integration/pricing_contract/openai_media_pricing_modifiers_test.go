@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package pricingcontract
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 
 	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
@@ -48,8 +49,8 @@ func TestOpenAIMediaPricingUsesModifierOnlyCards(t *testing.T) {
 						card.TimePricing = &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}}
 						factor *= 2
 					}
-					require.NoError(t, validatePricingEntries([]routing.ChannelModelPricing{card}))
-					billing := NewBillingService(nil, newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*pricing.LiteLLMModelPricing{
+					require.NoError(t, (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).PricingEntries([]routing.ChannelModelPricing{card}))
+					billing := newCalculator(nil, newCatalogFixture(catalogFixture{pricingData: map[string]*pricing.LiteLLMModelPricing{
 						model: {Mode: media, InputCostPerToken: 0.001, OutputCostPerToken: 0.002, OutputCostPerImageToken: 0.004},
 					}}))
 					group := &routing.Group{ID: 100, Platform: platform}
@@ -95,7 +96,7 @@ func TestOpenAIMediaModifiersPreserveInheritedRequestBilling(t *testing.T) {
 				result = &forwardcore.OpenAIResult{Model: model, VideoCount: 2, VideoDurationSeconds: 8}
 				wantTotal, rate = 4, 0.8
 			}
-			billing := NewBillingService(nil, nil)
+			billing := newCalculator(nil, nil)
 			resolver := billingtestkit.ResolverWithCards(t, billing, []routing.ChannelModelPricing{{Platform: platform, Models: []string{model}, BillingMode: mode, PerRequestPrice: testPtrFloat64(0.25)}})
 			group := &routing.Group{ID: 100, Platform: platform, ModelPricing: []routing.ChannelModelPricing{{Models: []string{model}, FastMultiplier: testPtrFloat64(3),
 				TimePricing: &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}}}}}
@@ -125,7 +126,7 @@ func TestCNProviderPricingModifiersDoNotCountAsExplicitPrices(t *testing.T) {
 				} else {
 					channelCards = []routing.ChannelModelPricing{card}
 				}
-				resolver := billingtestkit.ResolverWithCards(t, NewBillingService(nil, nil), channelCards)
+				resolver := billingtestkit.ResolverWithCards(t, newCalculator(nil, nil), channelCards)
 				svc := completion.NewRecorder(completion.Dependencies{Prices: resolver}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 				key := &apikey.APIKey{Group: group}

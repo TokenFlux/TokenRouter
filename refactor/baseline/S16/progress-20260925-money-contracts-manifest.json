@@ -1,0 +1,361 @@
+{
+  "format_version": 1,
+  "scope": "S16 资金定价与跨模块合同测试批次及受影响消费者检查，非最终验收",
+  "parent_manifest": "progress-20260925-root-assembly-manifest.json",
+  "parent_manifest_sha256": "ea4e21e8f8932b88b435f746c59119a5b8fb6e14403119230e5fec079c7a5a4a",
+  "source_file_count": 57,
+  "source_total_bytes": 4934214,
+  "collection": "仅本批 service-money-contracts-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260925-money-contracts-01.tar.gz",
+      "size": 291885,
+      "sha256": "1dec22db95ddf2c3447f35b687e850bc40afcda61e4ff3c41fb46ab70f7bdb90",
+      "verified_members": 57,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 144392,
+          "sha256": "b29319d66cfb17f264b5d26912633bcfef4a836956698276ae0dacca74da18b1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-all-unit-compile.log",
+          "size": 26694,
+          "sha256": "c25cc60bd908e4232cebb1f74540a068e88b8f8832b7c9fe33eccbc2105e9048",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-contract-no-child-integration.log",
+          "size": 360,
+          "sha256": "7554882bc0db65f7ba57bcb2186258cf3584a2f1ce8e25d1715b7f3f223eac0d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-contract-no-child-normal.log",
+          "size": 360,
+          "sha256": "7554882bc0db65f7ba57bcb2186258cf3584a2f1ce8e25d1715b7f3f223eac0d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-contract-no-child-unit.log",
+          "size": 360,
+          "sha256": "7554882bc0db65f7ba57bcb2186258cf3584a2f1ce8e25d1715b7f3f223eac0d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-contract-no-old-integration.log",
+          "size": 344,
+          "sha256": "b85dabdadb30b4ca6e25dbf376b8af804ece171100945cfa97264c17e02fa4cb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-contract-no-old-normal.log",
+          "size": 344,
+          "sha256": "b85dabdadb30b4ca6e25dbf376b8af804ece171100945cfa97264c17e02fa4cb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-contract-no-old-unit.log",
+          "size": 344,
+          "sha256": "b85dabdadb30b4ca6e25dbf376b8af804ece171100945cfa97264c17e02fa4cb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-contract-routing-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-contract-routing-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-contract-routing-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-new-contract-no-old-integration.log",
+          "size": 335,
+          "sha256": "7acf32f81635f9113cb2898416069222595173ce18a20bb5afb35a6ad781d1d4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-new-contract-no-old-normal.log",
+          "size": 335,
+          "sha256": "7acf32f81635f9113cb2898416069222595173ce18a20bb5afb35a6ad781d1d4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-new-contract-no-old-unit.log",
+          "size": 335,
+          "sha256": "7acf32f81635f9113cb2898416069222595173ce18a20bb5afb35a6ad781d1d4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-new-price-no-old-integration.log",
+          "size": 269,
+          "sha256": "4c374920322f9760cb5c5d689eba819017688951212380dd2e30893467c08b8f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-new-price-no-old-normal.log",
+          "size": 269,
+          "sha256": "4c374920322f9760cb5c5d689eba819017688951212380dd2e30893467c08b8f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-new-price-no-old-unit.log",
+          "size": 269,
+          "sha256": "4c374920322f9760cb5c5d689eba819017688951212380dd2e30893467c08b8f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-price-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-price-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-price-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-price-no-config-integration.log",
+          "size": 277,
+          "sha256": "d821315ebba70bf6e3663df7b6b45bc4dbc56ae7a1cb5453abd61ee227f5b94b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-price-no-config-normal.log",
+          "size": 277,
+          "sha256": "d821315ebba70bf6e3663df7b6b45bc4dbc56ae7a1cb5453abd61ee227f5b94b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-price-no-config-unit.log",
+          "size": 277,
+          "sha256": "d821315ebba70bf6e3663df7b6b45bc4dbc56ae7a1cb5453abd61ee227f5b94b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-price-no-old-integration.log",
+          "size": 279,
+          "sha256": "c8fca1873f5adf1f6d98e9b92b00c5830657a9c05f3dd6d2f7822319aaa8b999",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-price-no-old-normal.log",
+          "size": 279,
+          "sha256": "c8fca1873f5adf1f6d98e9b92b00c5830657a9c05f3dd6d2f7822319aaa8b999",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gate-price-no-old-unit.log",
+          "size": 279,
+          "sha256": "c8fca1873f5adf1f6d98e9b92b00c5830657a9c05f3dd6d2f7822319aaa8b999",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-boundary-gates.json",
+          "size": 18074,
+          "sha256": "4d812a02e896068b78302324af4701fbd264ea22eca9e6ed06f7fe9fdf2f7752",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-build-selection.json",
+          "size": 139174,
+          "sha256": "58208c8b5d87bccf758c5b944220fe75879ce6bb6ef6275d0ffd9689be54220e",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-compile-2.log",
+          "size": 1310,
+          "sha256": "921e1acb64589c42d2e97efa5a148477948a2dee9cd536a27477cd27bbd04999",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-compile-3.log",
+          "size": 2132,
+          "sha256": "1fd5477ac048c420dca2256804e5b214aa8fc7e212e38a59a60295d83117b71b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-compile-4.log",
+          "size": 178,
+          "sha256": "0a1c305f39ab0e5ab9b99955feb2e7b6711424b878b5bbaa5da2c01ded453127",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-compile-5.log",
+          "size": 266,
+          "sha256": "57e00127b5074491d44577ecc6a2e04375272b56ab6a440e53a5cdd3d43d6956",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-compile.log",
+          "size": 1288,
+          "sha256": "8b0bb6075d350e031db692bea47bf110be05fd865fa3b8dbbfcf8f6362c2d150",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-final-race.jsonl",
+          "size": 1435247,
+          "sha256": "b1da1f8eb58d0b5f972026d1716041591415324b46b9a0287231813503ab6042",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-final-race.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-final-unit-compile.log",
+          "size": 26698,
+          "sha256": "aec5db239c16c4a7768c4105b2664b64484b5153024a73f4cbb77e7cca1ca33b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-import-permissions.json",
+          "size": 17744,
+          "sha256": "93eede418df447b8f90c51d6cf50ce1af85e7cd104cb1bcdd6a01d089b425244",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint-initial.json",
+          "size": 383,
+          "sha256": "172b08e276bc11ea49a87e53e506dc3499093a5886b5d8aab223aea47529a60f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint-normal-initial.log",
+          "size": 1249,
+          "sha256": "2ecfd5416fa639b6ae5dc5483ec0f5b2be766cc45d471cec890185c670b20670",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint-owner-diagnostics.json",
+          "size": 788,
+          "sha256": "ef40cd147e5de55cd3dca66505ae2d55796fb0ac699fe7aa673592d2d8f09cf5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint-unit-owner-diagnostics.log",
+          "size": 8167,
+          "sha256": "ddc0b94f07dbab4b8d214c0c8d324b0a49b4c096c59ee7d8b1d2bf262587b56b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint-unit-unused.log",
+          "size": 872,
+          "sha256": "ed774a8beac096d3dd87c10e3cea748b12c1b00547c0d66055977f9fbb96d19b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint-unused.json",
+          "size": 788,
+          "sha256": "0246e50e05ae9342696f0da9cc94b46f838788325d31d67213d002ce97047780",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-lint.json",
+          "size": 1207,
+          "sha256": "b16ec9b5829d5ac1d4422189b22cbe612d6a4aed5e65e8ffd75bae34cbdc81e9",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-normal.jsonl",
+          "size": 674724,
+          "sha256": "63b1a53ac9a9eed7e0720622345388f864d341eca8d1d31d2e8fd39bdcf227b1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-normal.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-old-compile-2.log",
+          "size": 80,
+          "sha256": "88d36a9f0832e072d03ecb2a805bfc46e733d06a46b98883280fd1c2993b21e5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-old-compile.log",
+          "size": 282,
+          "sha256": "b6b818f7104b705ecdc39a67eb0f90eceb0ae9410212846bff7d6eaaee51ed15",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-race.jsonl",
+          "size": 196633,
+          "sha256": "fa7d330d1719a8c243561cc00dbe9036b3772e56db55d49c44a427ed22ee2e4d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-race.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-test-mapping.json",
+          "size": 95666,
+          "sha256": "f4ff8fba1f5406a1befbeb684c12f5a9626945ea3af2058dbc373d0383814610",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-unit.jsonl",
+          "size": 2129696,
+          "sha256": "1c2d92ebd176adcc337840935e47e862c0a335735de053b894c86603526b385e",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-unit.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-money-contracts-verification.json",
+          "size": 4800,
+          "sha256": "30e11365e9864f9469378ca219a617fcd060980cbd8fb6617c164cc6e61f07c3",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}

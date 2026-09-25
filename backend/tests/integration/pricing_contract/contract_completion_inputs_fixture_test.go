@@ -1,7 +1,7 @@
 //go:build unit
 
-// 历史 unit 测试入口只投影并调用唯一完成实现，不进入生产构建。
-package service
+// 合同输入只投影到实际完成与资金命令，不复制结算实现。
+package pricingcontract
 
 import (
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -14,20 +14,15 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-func buildUsageBillingCommand(requestID string, usageLog *usage.UsageLog, p *usageBillingParams) *billing.UsageBillingCommand {
-	return completion.BuildCommand(requestID, querycache.Clone(usageLog), completionSettlement(p))
+func buildContractBillingCommand(requestID string, usageLog *usage.UsageLog, p *contractSettlementInput) *billing.UsageBillingCommand {
+	return completion.BuildCommand(requestID, querycache.Clone(usageLog), projectContractSettlement(p))
 }
 
 // calculateOpenAIRecordUsageCost 保留旧 unit 测试的兼容入口。
 //
 
-// isUsagePricingUnavailableError 判断错误是否仅表示模型缺少可用定价。
-func isUsagePricingUnavailableError(err error) bool {
-	return completion.IsUsagePricingUnavailableError(err)
-}
-
-// usageBillingParams 统一扣费所需的参数
-type usageBillingParams struct {
+// contractSettlementInput 统一扣费所需的参数
+type contractSettlementInput struct {
 	Cost                            *pricing.CostBreakdown
 	User                            *identity.User
 	APIKey                          *apikey.APIKey
@@ -45,7 +40,7 @@ type usageBillingParams struct {
 	BillingBaseAmountUSD *float64
 }
 
-func completionSettlement(p *usageBillingParams) *completion.SettlementInput {
+func projectContractSettlement(p *contractSettlementInput) *completion.SettlementInput {
 	if p == nil {
 		return nil
 	}

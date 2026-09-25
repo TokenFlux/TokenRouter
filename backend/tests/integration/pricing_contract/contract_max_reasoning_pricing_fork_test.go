@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package pricingcontract
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 
 // 核对区间、缓存桶和分组倍率的组合，并确保按次费用不受推理倍率影响。
 func TestMaxReasoningPricing_IntervalsAndBillingModes(t *testing.T) {
-	bs := newTestBillingService()
+	bs := newCalculator(nil, nil)
 	resolver := billingtestkit.PriceResolver(nil, bs)
 	for _, factor := range []float64{1, 1.5, 3} {
 		resolved := &pricing.ResolvedPricing{
@@ -63,25 +63,25 @@ func TestMaxReasoningPricing_IntervalsAndBillingModes(t *testing.T) {
 
 // 账号自定义价和复用的用户费用均为最终成本，只有模型价兜底要按实际档位计价。
 func TestMaxReasoningPricing_AccountStatsPriority(t *testing.T) {
-	bs := newTestBillingService()
+	bs := newCalculator(nil, nil)
 	channel := &routing.Channel{ID: 1, Status: billing.StatusActive, AccountStatsPricingRules: []routing.AccountStatsPricingRule{{
 		GroupIDs: []int64{10}, Pricing: []routing.ChannelModelPricing{{Models: []string{"claude-fable-5-1"}, InputPrice: testPtrFloat64(0.01)}},
 	}}}
 	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformAnthropic)
 	tokens := pricing.UsageTokens{InputTokens: 100}
-	cost := resolveAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "priority", "max")
+	cost := contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "priority", "max")
 	require.NotNil(t, cost)
 	require.InDelta(t, 1, *cost, 1e-12)
 	channel.AccountStatsPricingRules = nil
 	channel.ApplyPricingToAccountStats = true
 	// 管理变更后通过读取入口建立新快照，不直接改已发布的缓存。
 	cs = newTestChannelServiceForStats(t, channel, 10, capability.PlatformAnthropic)
-	cost = resolveAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "priority", "max")
+	cost = contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "priority", "max")
 	require.InDelta(t, 9, *cost, 1e-12)
 	channel.ApplyPricingToAccountStats = false
 	cs = newTestChannelServiceForStats(t, channel, 10, capability.PlatformAnthropic)
-	standard := resolveAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "xhigh")
-	cost = resolveAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "max")
+	standard := contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "xhigh")
+	cost = contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "max")
 	require.NotNil(t, standard)
 	require.NotNil(t, cost)
 	require.InDelta(t, *standard*3, *cost, 1e-12)
@@ -89,7 +89,7 @@ func TestMaxReasoningPricing_AccountStatsPriority(t *testing.T) {
 
 // OpenAI 兼容转发的账单按结果档位计算，策略前的 max 仅用于审计。
 func TestMaxReasoningPricing_OpenAIUsageUsesFinalEffort(t *testing.T) {
-	bs := newTestBillingService()
+	bs := newCalculator(nil, nil)
 	for _, resolver := range []*billing.PriceResolver{nil, billingtestkit.PriceResolver(nil, bs)} {
 		svc := completion.NewRecorder(completion.Dependencies{Calculator: bs, Prices: resolver}, completion.RecorderOptions{DefaultMultiplier: 1})
 
@@ -109,7 +109,7 @@ func TestMaxReasoningPricing_OpenAIUsageUsesFinalEffort(t *testing.T) {
 
 func TestMaxReasoningPricing_RejectsInvalidMultipliers(t *testing.T) {
 	for _, factor := range []float64{0, -1, math.NaN(), math.Inf(1)} {
-		require.Error(t, checkBillingModeRequirements(routing.ChannelModelPricing{BillingMode: routing.BillingModeToken, MaxReasoningEffortMultiplier: &factor}))
+		require.Error(t, routing.CheckBillingModeRequirements(routing.ChannelModelPricing{BillingMode: routing.BillingModeToken, MaxReasoningEffortMultiplier: &factor}))
 	}
 }
 

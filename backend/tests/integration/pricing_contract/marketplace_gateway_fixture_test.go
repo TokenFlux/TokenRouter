@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package pricingcontract
 
 import (
 	"log/slog"
@@ -21,7 +21,7 @@ func newPricingMarketplaceFixture(groupRepo routing.GroupRepository, settingRepo
 	source := &routing.RequestableCatalogue{Models: &routing.ModelList{}, Resolver: projection, Warn: slog.Warn}
 	var prices routing.MarketplacePrices
 	if billingService != nil {
-		prices = legacyMarketplacePrices{billingService, resolver}
+		prices = marketplaceFixturePrices{billingService, resolver}
 	}
 	timezone := ""
 	if cfg != nil {
@@ -29,7 +29,7 @@ func newPricingMarketplaceFixture(groupRepo routing.GroupRepository, settingRepo
 	}
 	var groups routing.MarketplaceGroups
 	if groupRepo != nil {
-		groups = legacyMarketplaceGroups{groupRepo}
+		groups = marketplaceFixtureGroups{groupRepo}
 	}
 	var capacity routing.MarketplaceCapacity
 	if capacityService != nil {

@@ -1,12 +1,14 @@
 //go:build unit
 
-package service
+package pricingcontract
 
 import (
 	"math"
 	"strings"
 	"testing"
 	"time"
+
+	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/stretchr/testify/require"
@@ -48,7 +50,7 @@ func TestValidateChannelTimePricing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateChannelTimePricing(tt.config)
+			err := (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).TimePricing(tt.config)
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 				return
@@ -61,12 +63,12 @@ func TestValidateChannelTimePricing(t *testing.T) {
 
 func TestChannelTimePricingMultiplierAt(t *testing.T) {
 	config := channelTimePricingTestConfig(routing.ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 2})
-	require.Equal(t, 1.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 0, 59, 0, 0, time.UTC)))
-	require.Equal(t, 2.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 1, 0, 0, 0, time.UTC)))
-	require.Equal(t, 1.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 4, 0, 0, 0, time.UTC)))
+	require.Equal(t, 1.0, (config).MultiplierAt(time.Date(2026, 6, 29, 0, 59, 0, 0, time.UTC), contractTimeLocation(config)))
+	require.Equal(t, 2.0, (config).MultiplierAt(time.Date(2026, 6, 29, 1, 0, 0, 0, time.UTC), contractTimeLocation(config)))
+	require.Equal(t, 1.0, (config).MultiplierAt(time.Date(2026, 6, 29, 4, 0, 0, 0, time.UTC), contractTimeLocation(config)))
 
 	newYork := &routing.ChannelTimePricing{Timezone: "America/New_York", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}
-	require.Equal(t, 2.0, channelTimeMultiplierAt(newYork, time.Date(2026, 6, 29, 14, 0, 0, 0, time.UTC)))
+	require.Equal(t, 2.0, (newYork).MultiplierAt(time.Date(2026, 6, 29, 14, 0, 0, 0, time.UTC), contractTimeLocation(newYork)))
 }
 
 func TestChannelTimePricingMultiplierAtWeekdaysOnly(t *testing.T) {
@@ -89,7 +91,7 @@ func TestChannelTimePricingMultiplierAtWeekdaysOnly(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, channelTimeMultiplierAt(config, tt.at))
+			require.Equal(t, tt.want, (config).MultiplierAt(tt.at, contractTimeLocation(config)))
 		})
 	}
 }
@@ -101,19 +103,19 @@ func TestChannelTimePricingMultiplierAtMidnightSplit(t *testing.T) {
 	)
 	location, err := time.LoadLocation("Asia/Shanghai")
 	require.NoError(t, err)
-	require.Equal(t, 2.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 23, 59, 0, 0, location)))
-	require.Equal(t, 3.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 30, 0, 0, 0, 0, location)))
-	require.Equal(t, 1.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 30, 2, 0, 0, 0, location)))
+	require.Equal(t, 2.0, (config).MultiplierAt(time.Date(2026, 6, 29, 23, 59, 0, 0, location), contractTimeLocation(config)))
+	require.Equal(t, 3.0, (config).MultiplierAt(time.Date(2026, 6, 30, 0, 0, 0, 0, location), contractTimeLocation(config)))
+	require.Equal(t, 1.0, (config).MultiplierAt(time.Date(2026, 6, 30, 2, 0, 0, 0, location), contractTimeLocation(config)))
 }
 
 func TestChannelTimePricingMultiplierAtDegradesForInvalidConfiguration(t *testing.T) {
 	var nilConfig *routing.ChannelTimePricing
 	validAt := time.Date(2026, 6, 29, 1, 0, 0, 0, time.UTC)
-	require.Equal(t, 1.0, channelTimeMultiplierAt(nilConfig, validAt))
-	require.Equal(t, 1.0, channelTimeMultiplierAt(&routing.ChannelTimePricing{Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, validAt))
-	require.Equal(t, 1.0, channelTimeMultiplierAt(&routing.ChannelTimePricing{Timezone: "UTC+8", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, validAt))
+	require.Equal(t, 1.0, (nilConfig).MultiplierAt(validAt, contractTimeLocation(nilConfig)))
+	require.Equal(t, 1.0, (&routing.ChannelTimePricing{Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}).MultiplierAt(validAt, contractTimeLocation(&routing.ChannelTimePricing{Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}})))
+	require.Equal(t, 1.0, (&routing.ChannelTimePricing{Timezone: "UTC+8", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}).MultiplierAt(validAt, contractTimeLocation(&routing.ChannelTimePricing{Timezone: "UTC+8", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}})))
 
-	err := validateChannelTimePricing(&routing.ChannelTimePricing{Timezone: "Local", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}})
+	err := (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).TimePricing(&routing.ChannelTimePricing{Timezone: "Local", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}})
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "timezone"))
 }

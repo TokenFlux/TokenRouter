@@ -1,11 +1,13 @@
 //go:build unit
 
-package service
+package pricingcontract
 
 import (
 	"context"
 	"fmt"
 	"testing"
+
+	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
@@ -114,7 +116,7 @@ func TestPricingIntervalsDistinguishMissingBaseFromExplicitZero(t *testing.T) {
 				if kind == "zero_interval" {
 					card.Intervals[0].InputPrice = testPtrFloat64(0)
 				}
-				_, err := normalizeGroupModelPricing(capability.PlatformOpenAI, []routing.ChannelModelPricing{card})
+				_, err := (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).NormalizeGroupPricing(capability.PlatformOpenAI, []routing.ChannelModelPricing{card})
 				require.NoError(t, err)
 				group := &routing.Group{ID: 100, Platform: capability.PlatformOpenAI, RateMultiplier: 1, ModelPricing: []routing.ChannelModelPricing{card}}
 				rCalculator := billingtestkit.ResolverCalculator()

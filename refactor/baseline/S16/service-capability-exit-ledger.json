@@ -2880,8 +2880,8 @@
   },
   "current_remaining": {
     "production_files": 24,
-    "test_files": 138,
-    "verified_batch": "openai-ws"
+    "test_files": 117,
+    "verified_batch": "money-contracts"
   },
   "latest_combined_validation": {
     "head": "a8a9fb4bd1cb6f0bb86adaa68ecbf33ca01cec8e",
@@ -2908,5 +2908,39 @@
       "backend/internal/app/gateway_openai_responses.go",
       "backend/internal/app/egress_router_projection.go"
     ]
+  },
+  "test_exit_batches": {
+    "money-contracts": {
+      "status": "verified",
+      "retired_files": [
+        "backend/internal/service/account_stats_pricing_s11_compat_unit_test.go",
+        "backend/internal/service/account_stats_pricing_test.go",
+        "backend/internal/service/calculator_shared_fixture_test.go",
+        "backend/internal/service/creative_price_fixture_test.go",
+        "backend/internal/service/custom_channel_time_pricing_test.go",
+        "backend/internal/service/gateway_completion_s11_unit_compat_test.go",
+        "backend/internal/service/gateway_service_subscription_billing_test.go",
+        "backend/internal/service/group_pricing_parity_test.go",
+        "backend/internal/service/group_pricing_ranges_test.go",
+        "backend/internal/service/marketplace_gateway_fixture_test.go",
+        "backend/internal/service/marketplace_price_fixture_test.go",
+        "backend/internal/service/max_reasoning_pricing_fork_test.go",
+        "backend/internal/service/media_billing_allocation_test.go",
+        "backend/internal/service/media_pricing_unification_test.go",
+        "backend/internal/service/openai_alpha_search_billing_test.go",
+        "backend/internal/service/openai_gateway_search_surcharge_test.go",
+        "backend/internal/service/openai_gateway_usage_integrity_test.go",
+        "backend/internal/service/openai_media_pricing_modifiers_test.go",
+        "backend/internal/service/pricing_legacy_unit_test.go",
+        "backend/internal/service/routing_s06_compat_test.go",
+        "backend/internal/service/s04_compat_unit_test.go"
+      ],
+      "verification": "service-money-contracts-verification.json",
+      "owners": [
+        "billing/pricing",
+        "gateway/provider",
+        "tests/integration/pricing_contract"
+      ]
+    }
   }
 }

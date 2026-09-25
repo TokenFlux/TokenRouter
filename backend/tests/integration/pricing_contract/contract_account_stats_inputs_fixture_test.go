@@ -1,7 +1,7 @@
 //go:build unit
 
-// 仅保留既有测试的私有兼容入口；生产实现已迁出。
-package service
+// 账号统计合同按显式输入调用实际价格解析器。
+package pricingcontract
 
 import (
 	"context"
@@ -13,10 +13,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-// applyAccountStatsCost resolves the account stats cost for a usage log entry.
+// applyContractAccountStatsCost resolves the account stats cost for a usage log entry.
 // It resolves the upstream model (falling back to the requested model) and calls
-// the 4-level priority chain via resolveAccountStatsCost.
-func applyAccountStatsCost(
+// the 4-level priority chain via contractAccountStatsCost.
+func applyContractAccountStatsCost(
 	ctx context.Context,
 	usageLog *usage.UsageLog,
 	cs *routing.ChannelService, bs *billing.Calculator,
@@ -46,13 +46,13 @@ func applyAccountStatsCost(
 		usageLog.AccountStatsCost = resolvers[0].ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: model, RequestedModel: requestedModel, MappedModel: channelMappedModel, Tokens: tokens, RequestCount: requestCount, UserTotalCost: totalCost, ServiceTier: serviceTier, ReasoningEffort: reasoningEffort})
 		return
 	}
-	usageLog.AccountStatsCost = resolveAccountStatsCostWithMapped(
+	usageLog.AccountStatsCost = contractAccountStatsWithMapping(
 		ctx, cs, bs, accountID, groupID, model, requestedModel, channelMappedModel, tokens, requestCount, totalCost, serviceTier,
 		reasoningEffort,
 	)
 }
 
-// resolveAccountStatsCost 计算账号统计定价费用。
+// contractAccountStatsCost 计算账号统计定价费用。
 // 返回 nil 表示不覆盖，使用默认公式（total_cost × account_rate_multiplier）。
 //
 // 优先级（先命中为准）：
@@ -66,7 +66,7 @@ func applyAccountStatsCost(
 // Qoder 这类上游 route key 与公开 alias 分离的平台会按 requested → channelMapped → upstream 尝试。
 // totalCost 是本次请求的客户计费（倍率前），用于优先级 2。
 // serviceTier 是最终参与用户计费的服务层级，仅用于优先级 3。
-func resolveAccountStatsCost(
+func contractAccountStatsCost(
 	ctx context.Context,
 	channelService *routing.ChannelService,
 	billingService *billing.Calculator,
@@ -80,11 +80,11 @@ func resolveAccountStatsCost(
 	serviceTier string,
 	reasoningEfforts ...string,
 ) *float64 {
-	return resolveAccountStatsCostWithMapped(ctx, channelService, billingService, accountID, groupID, upstreamModel, requestedModel, "", tokens, requestCount, totalCost, serviceTier, reasoningEfforts...)
+	return contractAccountStatsWithMapping(ctx, channelService, billingService, accountID, groupID, upstreamModel, requestedModel, "", tokens, requestCount, totalCost, serviceTier, reasoningEfforts...)
 }
 
-// resolveAccountStatsCostWithMapped 委托 billing 的唯一账号统计规则。
-func resolveAccountStatsCostWithMapped(
+// contractAccountStatsWithMapping 委托 billing 的唯一账号统计规则。
+func contractAccountStatsWithMapping(
 	ctx context.Context,
 	channelService *routing.ChannelService,
 	billingService *billing.Calculator,

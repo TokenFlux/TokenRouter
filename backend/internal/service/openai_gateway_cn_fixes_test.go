@@ -81,7 +81,7 @@ func TestCalculateOpenAIRecordUsageCostEmptyCandidatesIsPricingUnavailable(t *te
 		1, 1, 1, 1, pricing.UsageTokens{InputTokens: 100}, "", time.Time{},
 	)
 	require.Error(t, err)
-	require.True(t, isUsagePricingUnavailableError(err), err)
+	require.True(t, completion.IsUsagePricingUnavailableError(err), err)
 }
 
 func TestHandle403_OtherCNProviderWithKimiConcurrencyMessageUsesNormalPolicy(t *testing.T) {

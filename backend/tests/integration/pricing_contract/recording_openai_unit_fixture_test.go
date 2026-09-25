@@ -1,8 +1,10 @@
 //go:build unit
 
-package service
+package pricingcontract
 
 import (
+	"testing"
+
 	completiontestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
@@ -10,10 +12,15 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 
 	usagecore "github.com/TokenFlux/TokenRouter/internal/usage"
+	"github.com/stretchr/testify/require"
 )
 
-func i64p(v int64) *int64 {
-	return &v
+func requireOpenAIRecordUsageBillingRepoStub(t *testing.T, svc *completiontestkit.Recording) *completiontestkit.SettlementStore {
+	t.Helper()
+
+	billingRepo, ok := svc.Dependencies.Funds.(*completiontestkit.SettlementStore)
+	require.True(t, ok)
+	return billingRepo
 }
 
 // 记录测试保留原存储替身与缓存作用域，核心直接使用 completion.Recorder。

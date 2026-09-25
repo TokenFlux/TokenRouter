@@ -1,0 +1,2773 @@
+{
+  "assertion_call_count_changes": 0,
+  "baseline_head": "24ba1ccb1058aeb4352e590b023c69a95ed10e86",
+  "missing": 0,
+  "moved": 105,
+  "note": "名称、构建条件、源与目标函数摘要和断言调用对应；构造/投影改写以及循环展开须结合源码核对。",
+  "tests": [
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestMatchAccountStatsRule_BothEmpty_NoMatch",
+        "tag": "unit",
+        "body_sha256": "222382c04c5376461c15eb4bc8d2a0cc77cff623401990b145a39e4523b3960b",
+        "assertions": {
+          "require.False": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestMatchAccountStatsRule_BothEmpty_NoMatch",
+          "tag": "unit",
+          "body_sha256": "cb2aadabaec66ca53ebc668ee2a251564a756cb433e01946b08fc2b3d08eb2b8",
+          "assertions": {
+            "require.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestMatchAccountStatsRule_AccountIDMatch",
+        "tag": "unit",
+        "body_sha256": "23c71ad73bb11ccc99aace0bfec8f69347e73832f6139a9c36e778edb663dd23",
+        "assertions": {
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestMatchAccountStatsRule_AccountIDMatch",
+          "tag": "unit",
+          "body_sha256": "1f71fd8af0370c815434778f4a41cabb29ac6142ad9a9d25a913bbe61ad067f3",
+          "assertions": {
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestMatchAccountStatsRule_GroupIDMatch",
+        "tag": "unit",
+        "body_sha256": "5de4277aee4d064297ae84163cec40ded8b75dcf4ffce0221ccf2d59493767b3",
+        "assertions": {
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestMatchAccountStatsRule_GroupIDMatch",
+          "tag": "unit",
+          "body_sha256": "b6738f77f3b0af365b4d7eba6369d5e52150088701d1e058b95a1ed9a61e018f",
+          "assertions": {
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestMatchAccountStatsRule_BothConfigured_AccountMatch",
+        "tag": "unit",
+        "body_sha256": "a85564f4fb0acdc0d2fa3d748bedbbcdbe3069a2674e877b831f4b34a06ba4d8",
+        "assertions": {
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestMatchAccountStatsRule_BothConfigured_AccountMatch",
+          "tag": "unit",
+          "body_sha256": "98c159ac51aa04e92fd9b1b2e53ddaffe18a302c1146c99cd4288774a1b1c169",
+          "assertions": {
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestMatchAccountStatsRule_BothConfigured_GroupMatch",
+        "tag": "unit",
+        "body_sha256": "eaafec76da89ffbefadab094c98f75390b8526c58dd8aac46cf679fdcd5d01f6",
+        "assertions": {
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestMatchAccountStatsRule_BothConfigured_GroupMatch",
+          "tag": "unit",
+          "body_sha256": "c0ef6f4b491fcd7c89bf9af1c0240199f20e497ba9ab9247e18bd205e4160a0a",
+          "assertions": {
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestMatchAccountStatsRule_BothConfigured_NeitherMatch",
+        "tag": "unit",
+        "body_sha256": "b5fa0777755383283e8ab36637bd820be6df596eda96b4c1a66e1b9e2ab6ac1a",
+        "assertions": {
+          "require.False": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestMatchAccountStatsRule_BothConfigured_NeitherMatch",
+          "tag": "unit",
+          "body_sha256": "601187985ab1fff291020d708bf13279f004f0c090af59f8a04472f6e0c1a244",
+          "assertions": {
+            "require.False": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestFindPricingForModel",
+        "tag": "unit",
+        "body_sha256": "0c691fdecbb6c0812263ea09dee30dc4586b12d4d76e7ba78d639345d244c6c7",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Nil": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestFindPricingForModel",
+          "tag": "unit",
+          "body_sha256": "ee9b20fde82360f3f50f553f03dfc97dfbd5394605faf79fc24fbecdd5630485",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Nil": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_NilPricing",
+        "tag": "unit",
+        "body_sha256": "c9989cfcdbf154956254810ae2dc52c005a4ccfe05b5f03dae6f89fe3afe25af",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_NilPricing",
+          "tag": "unit",
+          "body_sha256": "530005e533850230805ee0ca5af2968cf38d8749b1ee6ac576cfea4aee4e0795",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_TokenBilling",
+        "tag": "unit",
+        "body_sha256": "b01dfe8094d25f3c6de08db6c4591034df497ee1d71de3ba0e44207fbdbbf978",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_TokenBilling",
+          "tag": "unit",
+          "body_sha256": "21ec1cee881e9f82ac57432ed318ecaf49ea470ba819b4d2b921e045f7e48b0c",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_TokenBilling_WithCache",
+        "tag": "unit",
+        "body_sha256": "e1027a4b6ea3d1e80428e15e738adf77e4960ce57664c67dfdb7f0e44154e532",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_TokenBilling_WithCache",
+          "tag": "unit",
+          "body_sha256": "4e2d3d788b1f3f10dd374501a164dbfaabc638e67bf97037fcf8747f2d55cd7b",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_TokenBilling_WithCacheTTLPricing",
+        "tag": "unit",
+        "body_sha256": "8d818d6bb5ddd2dfc4d1d62803085d18a33bf04e1c86aa0098dddaa747f75611",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_TokenBilling_WithCacheTTLPricing",
+          "tag": "unit",
+          "body_sha256": "c70342a0cc5c8d9a42d39218816a98da95c9dc6de6f1a21b9897fec393bdc6cc",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_TokenBilling_WithImageOutput",
+        "tag": "unit",
+        "body_sha256": "ee379c98cb13b8db55b6d5b3de1cd9190674e7a20c1a47c4d03f85943b2cf01c",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_TokenBilling_WithImageOutput",
+          "tag": "unit",
+          "body_sha256": "1b183073574b902dc6c10e692838c8d81018352a5cf60d6de1676ddc3749b5dc",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_TokenBilling_PartialPricesNil",
+        "tag": "unit",
+        "body_sha256": "7767f8a5ec3b2d5f20612021b97b89e4f7dc174f01f69622db0e57e906e4aaaa",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_TokenBilling_PartialPricesNil",
+          "tag": "unit",
+          "body_sha256": "a443ea8f1baee9ee58e41d5b08b6dcf1edcf4829e4c13340cd0d75badde3a6e2",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_TokenBilling_AllTokensZero",
+        "tag": "unit",
+        "body_sha256": "693069d9071e00cb75f4a010c9ab6f1147c5eacda356f680853fdc5a4ae8993e",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_TokenBilling_AllTokensZero",
+          "tag": "unit",
+          "body_sha256": "91006264b37571a039c088eee447146d75c508f0d9aefd147b8c3aefebace436",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_TokenBilling_ExplicitZeroPriceOverrides",
+        "tag": "unit",
+        "body_sha256": "c0a1f05ddb1e44f77755373a0f290ef7a0f8e09eb197f2e7cc2c801058228ada",
+        "assertions": {
+          "require.NotNil": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_TokenBilling_ExplicitZeroPriceOverrides",
+          "tag": "unit",
+          "body_sha256": "8881602a4655430d7a3e7efbeab63576fa96598568a9091a89ca244fb71efdad",
+          "assertions": {
+            "require.NotNil": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_TokenBilling_BlankPricingDoesNotOverride",
+        "tag": "unit",
+        "body_sha256": "670feca05d50c1ed4117154bb9e149c4c38d012b0ae0ce6d3f9559629b96f9dc",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_TokenBilling_BlankPricingDoesNotOverride",
+          "tag": "unit",
+          "body_sha256": "7fcba983a9d257040b215d189c33cdd268285b534c03b621a7c3bd8d0d3fcab4",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_PerRequestBilling",
+        "tag": "unit",
+        "body_sha256": "63c3155c69d54c6894716ce77864b71bca0f2fda7f3d03996809714b45348afa",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_PerRequestBilling",
+          "tag": "unit",
+          "body_sha256": "1cd34aa45d6fcd127886c9eb80af86b7f54c34cbe3b98d03064ad68142c168e2",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_PerRequestBilling_PriceNil",
+        "tag": "unit",
+        "body_sha256": "f5d390dcc532f26ecd4cc8128eca24439588a5c98ebea11a6f039e853ad4b59d",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_PerRequestBilling_PriceNil",
+          "tag": "unit",
+          "body_sha256": "4c29e82fad1a83ebbb2530c98cc3097353fc41f373d92e4595c71e7ac3db250c",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_PerRequestBilling_ExplicitZeroPrice",
+        "tag": "unit",
+        "body_sha256": "0eddbd275b8840f08dfea299202e1c877cff4a45d93f102f5cf275d48334fce2",
+        "assertions": {
+          "require.NotNil": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_PerRequestBilling_ExplicitZeroPrice",
+          "tag": "unit",
+          "body_sha256": "4908511c4abff34b27691ddf9f48d982a5a89ad7f9e08df7063aca6e19cb0b32",
+          "assertions": {
+            "require.NotNil": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_ImageBilling",
+        "tag": "unit",
+        "body_sha256": "559be4f6c4a75ba1d11e4ab89dbdf2644ac3c4182eb66c8c72a5822f79af5e28",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_ImageBilling",
+          "tag": "unit",
+          "body_sha256": "de0dfd84724d04d91eb671730b68913428ffc63373d7b5f233711a4bd0c70630",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_ImageBilling_PriceNil",
+        "tag": "unit",
+        "body_sha256": "dc91503b60275d858e10031c80a7afaf7f05016ac2a068c88365ec6c34a40016",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_ImageBilling_PriceNil",
+          "tag": "unit",
+          "body_sha256": "8e1477928c9ba76a1b2724e93d71920f02a5ebedd80bf36594671b245eb7f249",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_AppliesPriceMultiplier",
+        "tag": "unit",
+        "body_sha256": "8fa67ec1f129950cd830338bb875b005475cb77165e1e8bd1b2b620e31bdda74",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 2,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_AppliesPriceMultiplier",
+          "tag": "unit",
+          "body_sha256": "c9a5cf1ed7e4b86f2b4032968aa8f44902cc523c656f4f460d6665203c775112",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 2,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestCalculateStatsCost_DefaultBillingMode_FallsToToken",
+        "tag": "unit",
+        "body_sha256": "6c93cabdb2a951792f131fc16b9f99b95ed10f537c46336aaaea385f1794c987",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestCalculateStatsCost_DefaultBillingMode_FallsToToken",
+          "tag": "unit",
+          "body_sha256": "28147418c0567bede141b1da044b62c972ee7042ad23aa4b0d331a8ae5ece8d4",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryCustomRules_FirstMatchWins",
+        "tag": "unit",
+        "body_sha256": "6330bba4621cb634014dadc8fd39b6163db71623122891033bbfa280b26a811f",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestTryCustomRules_FirstMatchWins",
+          "tag": "unit",
+          "body_sha256": "f22ac9f57de3c4348d6d2797a055faf5a828fd4a6f2cb95f6df3da66b991b733",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryCustomRules_SkipsNonMatchingRules",
+        "tag": "unit",
+        "body_sha256": "6492fd4f4d91ccc85e93967448f28eb95ffde6c97af274a525e8ab226bfb8a9f",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestTryCustomRules_SkipsNonMatchingRules",
+          "tag": "unit",
+          "body_sha256": "27c6f12b293fd1d9c2cd838c24c07b239ad88ef9f92cff5ae3e3e63cff0ea6c4",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryCustomRules_NoMatch_ReturnsNil",
+        "tag": "unit",
+        "body_sha256": "c5d9ed2683382f1d70fbdc038d409432f58e09f6e8c71536296e6e5ce0d3a2fa",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestTryCustomRules_NoMatch_ReturnsNil",
+          "tag": "unit",
+          "body_sha256": "83e47ec2609612b95b7e4f4c9e9eae1be506c31f79071fb466a7cc0f08ca614b",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryCustomRules_RuleMatchesButModelNot_ContinuesToNext",
+        "tag": "unit",
+        "body_sha256": "4c39ccfd51c58ecf72a79b16f61465e82364f2548337ab9247b3620c5d0000ef",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/billing/pricing/account_stats_contract_test.go",
+          "name": "TestTryCustomRules_RuleMatchesButModelNot_ContinuesToNext",
+          "tag": "unit",
+          "body_sha256": "01c909bcddc8873281d8041cd972c7e88fcebcb8bfa7f3ca937b66229faccf8f",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryModelFilePricing_Success",
+        "tag": "unit",
+        "body_sha256": "01f509cb44a53f13922d7b90181580f85ce9858cd7b17706965846f48a7d81a0",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestTryModelFilePricing_Success",
+          "tag": "unit",
+          "body_sha256": "bfc96bc4a520fd4098f7ca29227c0b46f7aca213ae9d3aafa32c64ac15f5d78c",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryModelFilePricing_AppliesLongContextPricing",
+        "tag": "unit",
+        "body_sha256": "624d8f863748bd0ea487901f8b2e2cb2d3fefe084e2d047c42e51443ea04f615",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestTryModelFilePricing_AppliesLongContextPricing",
+          "tag": "unit",
+          "body_sha256": "a4b6bd1b60462e9f276322c7a78c93f35e60542c6dc97779a8a2b8b35e499467",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryModelFilePricing_AppliesServiceTierPricing",
+        "tag": "unit",
+        "body_sha256": "0f5f169bd41a7d0609b71c3550bf9b56a8404e79a41995862efa5e6e47da0614",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestTryModelFilePricing_AppliesServiceTierPricing",
+          "tag": "unit",
+          "body_sha256": "3b558c30e70007ed5863387c7348f8f1ba5ba71ee501a90820a9c454c29128f6",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryModelFilePricing_CombinesPriorityAndLongContextPricing",
+        "tag": "unit",
+        "body_sha256": "edf0cc337c52ae9704f27b78a7ffab043677292e6005239dd587712c4412a083",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestTryModelFilePricing_CombinesPriorityAndLongContextPricing",
+          "tag": "unit",
+          "body_sha256": "264bd29b1160015163956d09531017dce5201c322e6afa6f3471e8e2d34f5157",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryModelFilePricing_PricingNotFound",
+        "tag": "unit",
+        "body_sha256": "d302debdbde9a4a55970aa11516fc5fac17d41e4acef9381e615b7e6446dfb46",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestTryModelFilePricing_PricingNotFound",
+          "tag": "unit",
+          "body_sha256": "8a778c91992b3652f9b7b518cc187a62623fec4498964869b1259878cda2cd1f",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryModelFilePricing_NilFallback",
+        "tag": "unit",
+        "body_sha256": "40e3f432e3b61bb4d95bfc6e5fc7de1a9c38ba20cbd16b84398a314521bf8b2c",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestTryModelFilePricing_NilFallback",
+          "tag": "unit",
+          "body_sha256": "0e371d13544e83e3a2f2b52f6072eaff2d07368f4c76d5bdb0ed98479e41ec6b",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryModelFilePricing_ZeroCost",
+        "tag": "unit",
+        "body_sha256": "3a0f514fc28b5f5bec480e78db73a228eb4e5b2fdf13bd2e7016550df9617718",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestTryModelFilePricing_ZeroCost",
+          "tag": "unit",
+          "body_sha256": "ffc78bd3a0384b8d701d9aa1b228a56a99b6b9d9390f43087841ae150b1046d5",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryModelFilePricing_WithImageOutput",
+        "tag": "unit",
+        "body_sha256": "674895ccb690c4f83aad5e9c569a5bb52118a52589a02c458d8803bf585b266d",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestTryModelFilePricing_WithImageOutput",
+          "tag": "unit",
+          "body_sha256": "0d40c87a3d3bc926fd3737d568aa19ebb789393c64a382dac5750da82bda632f",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestTryModelFilePricing_WithCacheTokens",
+        "tag": "unit",
+        "body_sha256": "479b018da8f5971a4f976a688153efd76a2414d363abf9a1c1df4aa8fcdfe939",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestTryModelFilePricing_WithCacheTokens",
+          "tag": "unit",
+          "body_sha256": "7234b68d54b1493163de1acffd6a24d2bcce4a64dff0291445dbc79c69755504",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_NilChannelService",
+        "tag": "unit",
+        "body_sha256": "6654d2d0ba8a55f5301d0b8e235c0a26736d1d2fb5088305ccacf13f08ec9851",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_NilChannelService",
+          "tag": "unit",
+          "body_sha256": "410f8aa42af7feb1cf8b75569c9f6257cfe87f8606fb585835cf167a732980b4",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_EmptyUpstreamModel",
+        "tag": "unit",
+        "body_sha256": "fac9ed8907ee7975a7cc5b9063f5e6c05292be69036e65d0feef2e0f39abff1a",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_EmptyUpstreamModel",
+          "tag": "unit",
+          "body_sha256": "ba9246e02302042afe3bd25a9dd7c2be310a0b6921a555a1df650d164ff5a951",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_GetChannelForGroupReturnsNil",
+        "tag": "unit",
+        "body_sha256": "8fed09442d9804b036de71a12d71900051518b993da08750f96b1ac2cc5d0407",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_GetChannelForGroupReturnsNil",
+          "tag": "unit",
+          "body_sha256": "64731c3218a8c35f55c97a33bcba1ed9c1309ee39a1ab04d484cdd405c304dea",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_HitsCustomRule",
+        "tag": "unit",
+        "body_sha256": "373ecaed55f342d181b675323edfc85e6a4e55d2bb6bca7d49dba25674e7f452",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_HitsCustomRule",
+          "tag": "unit",
+          "body_sha256": "7e8aebbde065a62fc38c9667f35fcef0a367b0dadb7c71bdaf2be912e82ef30b",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_ApplyPricingToAccountStats_UsesTotalCost",
+        "tag": "unit",
+        "body_sha256": "b523a08f49855ef0da27df907e1a80dfb345ea93c80cc64851a2dc1980f8b5e7",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_ApplyPricingToAccountStats_UsesTotalCost",
+          "tag": "unit",
+          "body_sha256": "fb1045d71f72d847204119471b0432c6c38a068dacbaf41786e92a1f4039fd1a",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_ApplyPricingToAccountStats_ZeroTotalCost_ReturnsNil",
+        "tag": "unit",
+        "body_sha256": "4a4c492f59b8cf8e81df55f77ad403a114e66d9c84c632bb068f3843d7f01c76",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_ApplyPricingToAccountStats_ZeroTotalCost_ReturnsNil",
+          "tag": "unit",
+          "body_sha256": "640fefe83436767dda36eae0b08b01563e7364cc68cf342d224d3041fb9a4f6b",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_FallsBackToLiteLLM",
+        "tag": "unit",
+        "body_sha256": "5cd2e7819c79c2176373c155a9c958b58441b68b69783b140934d1bbe793362b",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_FallsBackToLiteLLM",
+          "tag": "unit",
+          "body_sha256": "4cc0e122aee03b28bc3f5b748e25bbe6419c672f9fc6298ed4816fe58d34a107",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_QoderRouteKeyWithoutManualPricingReturnsNil",
+        "tag": "unit",
+        "body_sha256": "0bb66be10d753360edd5611b0ac6349607023228302db4d9ba7689e27eff4d05",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_QoderRouteKeyWithoutManualPricingReturnsNil",
+          "tag": "unit",
+          "body_sha256": "8bde2b69cfe03c2168994f90a19d4603f1d15e3b515407b9e0344c2b7171017d",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_QoderAliasUsesStandardUpstreamPricing",
+        "tag": "unit",
+        "body_sha256": "a88bb77ca823c7f2e31ac65918588b4d58b8570901b48c3afaabf0d16fc996ea",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_QoderAliasUsesStandardUpstreamPricing",
+          "tag": "unit",
+          "body_sha256": "ae2b08add4d5df49165cf649a23aa2a31f8e3c446acfc1480ef1c07eb3a164bb",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_QoderCustomRuleCanMatchRequestedAliasAfterRouteKeyMiss",
+        "tag": "unit",
+        "body_sha256": "f4031201caf6724e84b4ab88922d0267654a37afbedcd18f45fbbc9b938e26de",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_QoderCustomRuleCanMatchRequestedAliasAfterRouteKeyMiss",
+          "tag": "unit",
+          "body_sha256": "4bf3079493ef46fe158d785f5177ea859a70706677ac77eb5798c11047692bba",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesBeforeDifferentUpstream",
+        "tag": "unit",
+        "body_sha256": "c079a4e70e9211db2f9723438f2a88b37694eac690355daffa9b51ddff0fed83",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesBeforeDifferentUpstream",
+          "tag": "unit",
+          "body_sha256": "8ff4e3cb1fca45046d9b4482d5e8f210a447b0b8d88e97fb00024567324659e2",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesWhenUpstreamFallsBackToRequested",
+        "tag": "unit",
+        "body_sha256": "1f1cce4d30b62d6d8c31b1ff70352862a005dc2e79c3c8e96dd245022e5daba1",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesWhenUpstreamFallsBackToRequested",
+          "tag": "unit",
+          "body_sha256": "feee3764437b1199db375669f063adf362bff7d47d4efb50736c1e71bef14647",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_QoderRequestedAliasRuleOverridesRouteKeyRule",
+        "tag": "unit",
+        "body_sha256": "f0db4f7e49af73449fc761dfe70df6239a2605b694f980ec77584e42818c8c26",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_QoderRequestedAliasRuleOverridesRouteKeyRule",
+          "tag": "unit",
+          "body_sha256": "f38d3f0acdbf5682fe2fd66e3d63854a3aee60b21d983a122ddf0d5077c73cb8",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_QoderBlankRuleDoesNotMaskLaterAliasRule",
+        "tag": "unit",
+        "body_sha256": "54e4ad133a2e44e9524facf00a7007e33c6c4a53efdc570ffef905f939f1b6be",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_QoderBlankRuleDoesNotMaskLaterAliasRule",
+          "tag": "unit",
+          "body_sha256": "a87cd43185402ed99657a37219336182cbf257b12efb18a658864103d140ff0f",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_CustomRuleExplicitZeroOverridesTotalCost",
+        "tag": "unit",
+        "body_sha256": "907e84c4048ce77a7007489cb2bfdc9794d8ca3bf1114d5a23f1731892927c4c",
+        "assertions": {
+          "require.NotNil": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_CustomRuleExplicitZeroOverridesTotalCost",
+          "tag": "unit",
+          "body_sha256": "7794ed9242b6a7e9a0d88732e64010c6b4fcc3ab66d73763fb8c351ba2e82ecf",
+          "assertions": {
+            "require.NotNil": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_QoderUnknownUpstreamDoesNotUseRequestedPrice",
+        "tag": "unit",
+        "body_sha256": "56463640a2782df11b09e94dbae0f7a3350fefdee17cc1d7f957947b7f8ef497",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_QoderUnknownUpstreamDoesNotUseRequestedPrice",
+          "tag": "unit",
+          "body_sha256": "3aeef6273c0065e5cb309ea5d065228d89c66885e2be9c6833f37c10c7d322e3",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_Gemini36FlashTierUsesFallbackPricing",
+        "tag": "unit",
+        "body_sha256": "2aa67c4962bf45cd3dd17ceb4640faae5103130a7a8be00fc6387d7ab659d64b",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_Gemini36FlashTierUsesFallbackPricing",
+          "tag": "unit",
+          "body_sha256": "e7dca373b025f0d6693a8350f13e8ef7d5fdb39abd0c9995f545fecc7b417d68",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_AllMiss_ReturnsNil",
+        "tag": "unit",
+        "body_sha256": "588d1510463bbef6660f33c9625215963d7f6070597b8c7994246b31cdc0c121",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_AllMiss_ReturnsNil",
+          "tag": "unit",
+          "body_sha256": "bbd8c06366788ba51898a098efed5f016e21912b333f7a95d7f922971ca9f996",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_NilBillingService_SkipsLiteLLM",
+        "tag": "unit",
+        "body_sha256": "104db4889e8ef124dd97014877b883a5cab2445119d83a06cbcb7197f9bd128a",
+        "assertions": {
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_NilBillingService_SkipsLiteLLM",
+          "tag": "unit",
+          "body_sha256": "98ff0fb8a8050dc29a5e1cce7dacfffa530d2cf82e4786af0b0958b527cc7a6f",
+          "assertions": {
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestResolveAccountStatsCost_CustomRulePriorityOverApplyPricing",
+        "tag": "unit",
+        "body_sha256": "b86d6a39f6f67fe5d757924ab43cc79483f9466be02413d1798f9627d232a2c8",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestResolveAccountStatsCost_CustomRulePriorityOverApplyPricing",
+          "tag": "unit",
+          "body_sha256": "8ed515d5166635480eb523796ac8de14d542ae37416959dbbe24818436d12c12",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/account_stats_pricing_test.go",
+        "name": "TestApplyAccountStatsCost_UsesUsageLogServiceTier",
+        "tag": "unit",
+        "body_sha256": "ca7d7ffe3be67e51b7f1b326ffd997119febb04963dd0fd1f91e3e5f74cdf90c",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_account_stats_pricing_test.go",
+          "name": "TestApplyAccountStatsCost_UsesUsageLogServiceTier",
+          "tag": "unit",
+          "body_sha256": "d0b2d3b7b36678bc79f71b3b7ef6cc95afbaa1130a75e741b580353a6f031d9f",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/custom_channel_time_pricing_test.go",
+        "name": "TestValidateChannelTimePricing",
+        "tag": "unit",
+        "body_sha256": "451b1036b5d962bcea7f6ffe50ad36395c106e5ad08bfda005d658910bcfb4a2",
+        "assertions": {
+          "require.Contains": 1,
+          "require.Error": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_custom_channel_time_pricing_test.go",
+          "name": "TestValidateChannelTimePricing",
+          "tag": "unit",
+          "body_sha256": "b73f10984c9e4fdd23c3aa4aa7e812515372f6562fb9a3e2a2982fa15f9641f2",
+          "assertions": {
+            "require.Contains": 1,
+            "require.Error": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/custom_channel_time_pricing_test.go",
+        "name": "TestChannelTimePricingMultiplierAt",
+        "tag": "unit",
+        "body_sha256": "7f51ac379c5e3a571a043cca5caabe81476fbffe514fcc8a7c121b51b8f87003",
+        "assertions": {
+          "require.Equal": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_custom_channel_time_pricing_test.go",
+          "name": "TestChannelTimePricingMultiplierAt",
+          "tag": "unit",
+          "body_sha256": "c55e83b571b84985b651c85c37011756652a686488601b1d8e2e803db3680b99",
+          "assertions": {
+            "require.Equal": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/custom_channel_time_pricing_test.go",
+        "name": "TestChannelTimePricingMultiplierAtWeekdaysOnly",
+        "tag": "unit",
+        "body_sha256": "1d6d181ceebc06f0b48e42895b36daad72c0b310919c773567820ac28f409250",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_custom_channel_time_pricing_test.go",
+          "name": "TestChannelTimePricingMultiplierAtWeekdaysOnly",
+          "tag": "unit",
+          "body_sha256": "bc2602d7583b236e14df4ef4e515d3dc0dc74aac9229a2eec6748bc16a3fbade",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/custom_channel_time_pricing_test.go",
+        "name": "TestChannelTimePricingMultiplierAtMidnightSplit",
+        "tag": "unit",
+        "body_sha256": "8f0b60fe1be622d435a66998d6752d663f2f4e430e02a8c95ed1a3b8f0148d45",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_custom_channel_time_pricing_test.go",
+          "name": "TestChannelTimePricingMultiplierAtMidnightSplit",
+          "tag": "unit",
+          "body_sha256": "89bf2746168280ec1d05f3ac27084f630bcad1afcf90fe7306b7e307c0c2b2c3",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/custom_channel_time_pricing_test.go",
+        "name": "TestChannelTimePricingMultiplierAtDegradesForInvalidConfiguration",
+        "tag": "unit",
+        "body_sha256": "633793b826d2c082b673f9d0e9048f2357612ddbd07d0f2ce33d3da5eb401d04",
+        "assertions": {
+          "require.Equal": 3,
+          "require.Error": 1,
+          "require.True": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_custom_channel_time_pricing_test.go",
+          "name": "TestChannelTimePricingMultiplierAtDegradesForInvalidConfiguration",
+          "tag": "unit",
+          "body_sha256": "348984a2d46c8f5c0ce260e36fc3c41343802eb3c44c5a4b1a42070e20474cbd",
+          "assertions": {
+            "require.Equal": 3,
+            "require.Error": 1,
+            "require.True": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/gateway_service_subscription_billing_test.go",
+        "name": "TestBuildUsageBillingCommand_BillableAmountTracksActualCost",
+        "tag": "unit",
+        "body_sha256": "da5e27310b57516113c91b8cb7275c032d089d4407c0c676aa21ccb874c16721",
+        "assertions": {
+          "t.Errorf": 1,
+          "t.Fatal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/gateway_service_subscription_billing_test.go",
+          "name": "TestBuildUsageBillingCommand_BillableAmountTracksActualCost",
+          "tag": "unit",
+          "body_sha256": "d4e2c2023f6d65de4b72a2a96d7a0796c2e0fd126b844b6120c8a466ae1746eb",
+          "assertions": {
+            "t.Errorf": 1,
+            "t.Fatal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/gateway_service_subscription_billing_test.go",
+        "name": "TestBuildUsageBillingCommand_AccountQuotaUsesAccountStatsCost",
+        "tag": "unit",
+        "body_sha256": "09b8ecb94558df20a6c77019d296458b91ce22f32a1d4794cd4bbc1f4b8a86f6",
+        "assertions": {
+          "t.Errorf": 2,
+          "t.Fatal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/gateway_service_subscription_billing_test.go",
+          "name": "TestBuildUsageBillingCommand_AccountQuotaUsesAccountStatsCost",
+          "tag": "unit",
+          "body_sha256": "c1ba75013e3be3d534f4c70582cd974b5d4e409fda10bd87aa2f3e1e257f5d65",
+          "assertions": {
+            "t.Errorf": 2,
+            "t.Fatal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/gateway_service_subscription_billing_test.go",
+        "name": "TestBuildUsageBillingCommand_IncludesRequestGroupID",
+        "tag": "unit",
+        "body_sha256": "b111d2e9a1331ef098120eed717654d64b1772fad2e3d29718fafd7cc3bc863c",
+        "assertions": {
+          "t.Fatal": 2,
+          "t.Fatalf": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/gateway_service_subscription_billing_test.go",
+          "name": "TestBuildUsageBillingCommand_IncludesRequestGroupID",
+          "tag": "unit",
+          "body_sha256": "9837792dca99faf08bf133d1789843f76fe6bb36339c2abf956fbb0dde771644",
+          "assertions": {
+            "t.Fatal": 2,
+            "t.Fatalf": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/gateway_service_subscription_billing_test.go",
+        "name": "TestBuildUsageBillingCommand_NonTokenModesKeepAllocationRates",
+        "tag": "unit",
+        "body_sha256": "9581d7816a213d81372d3557ca3ed71c901da1b0f040bf5b401bda36afeef82a",
+        "assertions": {
+          "t.Errorf": 3,
+          "t.Fatal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/gateway_service_subscription_billing_test.go",
+          "name": "TestBuildUsageBillingCommand_NonTokenModesKeepAllocationRates",
+          "tag": "unit",
+          "body_sha256": "7944c1da5deff94cd92f872a1fc0e5395c793761a45ebdf35b1cec0621e6d193",
+          "assertions": {
+            "t.Errorf": 3,
+            "t.Fatal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/gateway_service_subscription_billing_test.go",
+        "name": "TestBuildUsageBillingCommand_TokenModeKeepsAllocationRates",
+        "tag": "unit",
+        "body_sha256": "b631be3504ea5534d62cf8b0ceaf5d9a0df286e74ed7d3402718935f3a1572c3",
+        "assertions": {
+          "t.Errorf": 3,
+          "t.Fatal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/gateway_service_subscription_billing_test.go",
+          "name": "TestBuildUsageBillingCommand_TokenModeKeepsAllocationRates",
+          "tag": "unit",
+          "body_sha256": "aaaf1c33235db5cf79c3cc10a13f1201ee4e4fbd16ca564d735c719147572018",
+          "assertions": {
+            "t.Errorf": 3,
+            "t.Fatal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/gateway_service_subscription_billing_test.go",
+        "name": "TestBuildUsageBillingCommand_UsesOverrideBaseAmountForFreeFast",
+        "tag": "unit",
+        "body_sha256": "97df8567f51571596f2c9efe7f8fe585fa4f47df83149c09cf0c5abdb4d1ab50",
+        "assertions": {
+          "t.Fatal": 1,
+          "t.Fatalf": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/gateway_service_subscription_billing_test.go",
+          "name": "TestBuildUsageBillingCommand_UsesOverrideBaseAmountForFreeFast",
+          "tag": "unit",
+          "body_sha256": "d18550460eee1203f3d26b4683cfe00a22d858f1f32cede334cd9658a96ad9bf",
+          "assertions": {
+            "t.Fatal": 1,
+            "t.Fatalf": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestGroupPricingModifiersInheritChannel",
+        "tag": "unit",
+        "body_sha256": "e79c6a93a6562dc95ccc5242079399dcb30283f14576c0d2b0b52bf95b616cf5",
+        "assertions": {
+          "require.Equal": 7,
+          "require.InDelta": 2,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestGroupPricingModifiersInheritChannel",
+          "tag": "unit",
+          "body_sha256": "182ff7a2114a84b885de02f806bf2afa893596ca703262894e980717460dcb01",
+          "assertions": {
+            "require.Equal": 7,
+            "require.InDelta": 2,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestGroupPricingModifiersPreserveInheritedModeAndMissingPrice",
+        "tag": "unit",
+        "body_sha256": "eb166496269ff3d721e4725b0fbbeb536ed66a2439c9c160f54d4db0154d0054",
+        "assertions": {
+          "require.Equal": 5,
+          "require.ErrorIs": 1,
+          "require.Nil": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestGroupPricingModifiersPreserveInheritedModeAndMissingPrice",
+          "tag": "unit",
+          "body_sha256": "99461c890cbc098c9ac31debeabed5412e4f2342b54178f2c58f12701099fd20",
+          "assertions": {
+            "require.Equal": 5,
+            "require.ErrorIs": 1,
+            "require.Nil": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestGroupAndChannelPricingParity",
+        "tag": "unit",
+        "body_sha256": "9985c62f2515652877a0490a5b24fc56de84d9102edb9560a8310c00d9f60902",
+        "assertions": {
+          "require.Equal": 1,
+          "require.False": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestGroupAndChannelPricingParity",
+          "tag": "unit",
+          "body_sha256": "595e77db2addf6341d32f0e97287da68a8b50b7c8abd510e7772cf9a8b424e4e",
+          "assertions": {
+            "require.Equal": 1,
+            "require.False": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestGroupPricingValidationAndCopy",
+        "tag": "unit",
+        "body_sha256": "25bd13556df6d4e5aa8d5bc032b9e4cea96b43d473939d85432a11931882743c",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Error": 1,
+          "require.NoError": 1,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestGroupPricingValidationAndCopy",
+          "tag": "unit",
+          "body_sha256": "05ab5d232638742a7ffb0cca215b325c3a1669d0f00d058e564d39af6fc9bdff",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Error": 1,
+            "require.NoError": 1,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestGroupPricingAuthSnapshotRoundTrip",
+        "tag": "unit",
+        "body_sha256": "d576c2416ad84be7a0d23c887d84f3aa03fcb6ec84a7680e8e79438eda3f0745",
+        "assertions": {
+          "require.Equal": 3,
+          "require.NoError": 2,
+          "require.True": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestGroupPricingAuthSnapshotRoundTrip",
+          "tag": "unit",
+          "body_sha256": "d576c2416ad84be7a0d23c887d84f3aa03fcb6ec84a7680e8e79438eda3f0745",
+          "assertions": {
+            "require.Equal": 3,
+            "require.NoError": 2,
+            "require.True": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestGroupPricingFreeFastWithIntervalsAndTurnTime",
+        "tag": "unit",
+        "body_sha256": "bbe6ddf449632b6874bbf37a401be8a21de481056e1d536948205bd499201199",
+        "assertions": {
+          "require.Equal": 1,
+          "require.InDelta": 5,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestGroupPricingFreeFastWithIntervalsAndTurnTime",
+          "tag": "unit",
+          "body_sha256": "bbe6ddf449632b6874bbf37a401be8a21de481056e1d536948205bd499201199",
+          "assertions": {
+            "require.Equal": 1,
+            "require.InDelta": 5,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestGroupPricingFreeFastDisplayRespectsModelSupport",
+        "tag": "unit",
+        "body_sha256": "0bfc8454d87a58946f718410403a97dd2995da92e05d69a795a91557001cf54c",
+        "assertions": {
+          "require.Equal": 2,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestGroupPricingFreeFastDisplayRespectsModelSupport",
+          "tag": "unit",
+          "body_sha256": "0bfc8454d87a58946f718410403a97dd2995da92e05d69a795a91557001cf54c",
+          "assertions": {
+            "require.Equal": 2,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestConfiguredIntervalsPreserveDefaultPrices",
+        "tag": "unit",
+        "body_sha256": "0544e3335705521ad444948b8a1a969a8bf9637fb5ea81bb45173b219b0d3bcb",
+        "assertions": {
+          "require.InDelta": 2,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestConfiguredIntervalsPreserveDefaultPrices",
+          "tag": "unit",
+          "body_sha256": "a56740b4d7184bd19b3c6b9d4949c174219c99806a388114714beb04f48fe614",
+          "assertions": {
+            "require.InDelta": 2,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestFreeFastIntervalOnlyDisplayMatchesStandard",
+        "tag": "unit",
+        "body_sha256": "8eb38b75b2febfa3c42c9c02a5b626c5de9d40d60a27fce6afbe73f8a0cfea96",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 1,
+          "require.InDelta": 7,
+          "require.Len": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestFreeFastIntervalOnlyDisplayMatchesStandard",
+          "tag": "unit",
+          "body_sha256": "b61a296a47b41becd27b6a701bfd2dc4b78b7babac931685d3d23c648f56ed04",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 1,
+            "require.InDelta": 7,
+            "require.Len": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestTimeOnlyPricingGroupChannelParity",
+        "tag": "unit",
+        "body_sha256": "a40ff862794ccb252fc599ad698ae2a056dcafd94bf8e80a3300c83cd25b92e7",
+        "assertions": {
+          "require.Equal": 1,
+          "require.InDelta": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestTimeOnlyPricingGroupChannelParity",
+          "tag": "unit",
+          "body_sha256": "ebce35b731a7b04ebc2a5dd559de51f5911af95041661311f9ccabfe57c2bf9c",
+          "assertions": {
+            "require.Equal": 1,
+            "require.InDelta": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestTierOnlyPricingPreservesImagePricesEqually",
+        "tag": "unit",
+        "body_sha256": "525ca176366ee2d1ce2d263a3b1f299663522a12807910996aeb857facbf85c1",
+        "assertions": {
+          "require.Equal": 1,
+          "require.InDelta": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestTierOnlyPricingPreservesImagePricesEqually",
+          "tag": "unit",
+          "body_sha256": "21d90553e722c2667ad0c75e4a3fb6c0c5449be26d40687ce63c608c5345a4d3",
+          "assertions": {
+            "require.Equal": 1,
+            "require.InDelta": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestGroupChannelAliasMatchingParity",
+        "tag": "unit",
+        "body_sha256": "51e84e100f13a1e8828d99d69313b6e823b43bd832871973fd614725e1c8ac96",
+        "assertions": {
+          "require.Equal": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestGroupChannelAliasMatchingParity",
+          "tag": "unit",
+          "body_sha256": "a720e0eb3882955d73b8ee2543712a1b768aa9e3a510ac83bf5b05ea4e214280",
+          "assertions": {
+            "require.Equal": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestQoderGroupChannelBlankPricesParity",
+        "tag": "unit",
+        "body_sha256": "6ce0776f32cb3c3faa03df21cc8deee478a5bd0659ebd10c49677093bf3e8a12",
+        "assertions": {
+          "require.Equal": 1,
+          "require.InDelta": 1,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestQoderGroupChannelBlankPricesParity",
+          "tag": "unit",
+          "body_sha256": "54e439e0b30c8a8fe4297b57b746182b4a9bf3f2f4787fff0561a40bb4910514",
+          "assertions": {
+            "require.Equal": 1,
+            "require.InDelta": 1,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestModifierCardsPreserveBuiltinPricingPolicy",
+        "tag": "unit",
+        "body_sha256": "2031a128443747cf3278ceda1a76d224505296c17ecbd41df777287cfcaccc3a",
+        "assertions": {
+          "require.Equal": 1,
+          "require.InDelta": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestModifierCardsPreserveBuiltinPricingPolicy",
+          "tag": "unit",
+          "body_sha256": "f5d7fbbc7efe1c324ef3414afd86a6637ac8f77984d52e5fa08413b757cb2461",
+          "assertions": {
+            "require.Equal": 1,
+            "require.InDelta": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_parity_test.go",
+        "name": "TestQoderPricingMatchesOtherPlatforms",
+        "tag": "unit",
+        "body_sha256": "580b1fc632a006ece7cc778813f277e5b07d781988909b3d09c98a660c5b8002",
+        "assertions": {
+          "require.Equal": 4,
+          "require.Positive": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_parity_test.go",
+          "name": "TestQoderPricingMatchesOtherPlatforms",
+          "tag": "unit",
+          "body_sha256": "7326c3f6486c1c8cbec8093f1af226ae58e7d13ae3b75ad5645f88dfe05eb263",
+          "assertions": {
+            "require.Equal": 4,
+            "require.Positive": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_ranges_test.go",
+        "name": "TestPricingDisplayPreservesDefaultRanges",
+        "tag": "unit",
+        "body_sha256": "d5de16c43fdc13af1560b21e6eac0b8ccd2bae31bfd69482cef4d34c173bad5b",
+        "assertions": {
+          "require.Equal": 3,
+          "require.InDelta": 2,
+          "require.Len": 1,
+          "require.Nil": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_ranges_test.go",
+          "name": "TestPricingDisplayPreservesDefaultRanges",
+          "tag": "unit",
+          "body_sha256": "d5de16c43fdc13af1560b21e6eac0b8ccd2bae31bfd69482cef4d34c173bad5b",
+          "assertions": {
+            "require.Equal": 3,
+            "require.InDelta": 2,
+            "require.Len": 1,
+            "require.Nil": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_ranges_test.go",
+        "name": "TestPricingDisplayOnlyFlattensCompleteUniformRanges",
+        "tag": "unit",
+        "body_sha256": "1de61dd5e74ffb6b261713cdb76498064b7f7f98ab0d0c2f7a12b3785f99359b",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 3,
+          "require.Len": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_ranges_test.go",
+          "name": "TestPricingDisplayOnlyFlattensCompleteUniformRanges",
+          "tag": "unit",
+          "body_sha256": "1de61dd5e74ffb6b261713cdb76498064b7f7f98ab0d0c2f7a12b3785f99359b",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 3,
+            "require.Len": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_ranges_test.go",
+        "name": "TestPricingIntervalsDistinguishMissingBaseFromExplicitZero",
+        "tag": "unit",
+        "body_sha256": "a370f93d39a0060d52cb74a9a6f9f058df9aa400a8303f3642896b372148b50c",
+        "assertions": {
+          "require.Equal": 2,
+          "require.ErrorIs": 1,
+          "require.InDelta": 1,
+          "require.Nil": 1,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_ranges_test.go",
+          "name": "TestPricingIntervalsDistinguishMissingBaseFromExplicitZero",
+          "tag": "unit",
+          "body_sha256": "59685d79388ba62b02a6c93279e3dfa627acfe57dc1807ac8ae32902e2168dbb",
+          "assertions": {
+            "require.Equal": 2,
+            "require.ErrorIs": 1,
+            "require.InDelta": 1,
+            "require.Nil": 1,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/group_pricing_ranges_test.go",
+        "name": "TestPricingMissingMultiplierRangeDoesNotBorrowOtherIntervalPrice",
+        "tag": "unit",
+        "body_sha256": "d0ed027fe84ce2adec56d0a527a4e4b3117c9f0ea90bace0326aa933f7ebd30b",
+        "assertions": {
+          "require.Equal": 2,
+          "require.ErrorIs": 1,
+          "require.Len": 1,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/group_pricing_ranges_test.go",
+          "name": "TestPricingMissingMultiplierRangeDoesNotBorrowOtherIntervalPrice",
+          "tag": "unit",
+          "body_sha256": "d0ed027fe84ce2adec56d0a527a4e4b3117c9f0ea90bace0326aa933f7ebd30b",
+          "assertions": {
+            "require.Equal": 2,
+            "require.ErrorIs": 1,
+            "require.Len": 1,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/max_reasoning_pricing_fork_test.go",
+        "name": "TestMaxReasoningPricing_IntervalsAndBillingModes",
+        "tag": "unit",
+        "body_sha256": "edc7e1ad240bbda65d46807076ac1739ca5258c3884e3ccb62385db17ecc7305",
+        "assertions": {
+          "require.InDelta": 6,
+          "require.NoError": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_max_reasoning_pricing_fork_test.go",
+          "name": "TestMaxReasoningPricing_IntervalsAndBillingModes",
+          "tag": "unit",
+          "body_sha256": "2540948df7ecda9260c923d4423996ef6ebe5d6eced49b23e01fcc4da48ec629",
+          "assertions": {
+            "require.InDelta": 6,
+            "require.NoError": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/max_reasoning_pricing_fork_test.go",
+        "name": "TestMaxReasoningPricing_AccountStatsPriority",
+        "tag": "unit",
+        "body_sha256": "a2a5ab3583ba3dd5e6db5de7e06ffa45062e215bfd9db1e81c5da1e6a6334bee",
+        "assertions": {
+          "require.InDelta": 3,
+          "require.NotNil": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_max_reasoning_pricing_fork_test.go",
+          "name": "TestMaxReasoningPricing_AccountStatsPriority",
+          "tag": "unit",
+          "body_sha256": "00e17240dbe9b73a738b960fdf8c73ca97a61fffcf92c552e70c9230c20647fe",
+          "assertions": {
+            "require.InDelta": 3,
+            "require.NotNil": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/max_reasoning_pricing_fork_test.go",
+        "name": "TestMaxReasoningPricing_OpenAIUsageUsesFinalEffort",
+        "tag": "unit",
+        "body_sha256": "56061f35c5cfced876c90fdb964e1fed46126f8238f6c4dd0f2fa57c5e9d9352",
+        "assertions": {
+          "require.InDelta": 2,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_max_reasoning_pricing_fork_test.go",
+          "name": "TestMaxReasoningPricing_OpenAIUsageUsesFinalEffort",
+          "tag": "unit",
+          "body_sha256": "411f2865df8c1519e1313ef42dd68cb606982dd41b9b4e854b325ed52464ff10",
+          "assertions": {
+            "require.InDelta": 2,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/max_reasoning_pricing_fork_test.go",
+        "name": "TestMaxReasoningPricing_RejectsInvalidMultipliers",
+        "tag": "unit",
+        "body_sha256": "ec6c6de2f58867e681a40dea083b2054380eb31af059bffa2b663124d8c91d4f",
+        "assertions": {
+          "require.Error": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/contract_max_reasoning_pricing_fork_test.go",
+          "name": "TestMaxReasoningPricing_RejectsInvalidMultipliers",
+          "tag": "unit",
+          "body_sha256": "d83abbfad1723d8888ab65c644cb1cc3fd6a324058660fac246e557968bf4c5b",
+          "assertions": {
+            "require.Error": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/media_billing_allocation_test.go",
+        "name": "TestMediaAllocationRatesPreserveBalanceMultiplier",
+        "tag": "unit",
+        "body_sha256": "21bd404b72151428a16510d4ff81fdfbc85c23c16ea38770a0d183e9d0988b57",
+        "assertions": {
+          "require.InDelta": 4,
+          "require.NoError": 2,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/media_billing_allocation_test.go",
+          "name": "TestMediaAllocationRatesPreserveBalanceMultiplier",
+          "tag": "unit",
+          "body_sha256": "21bd404b72151428a16510d4ff81fdfbc85c23c16ea38770a0d183e9d0988b57",
+          "assertions": {
+            "require.InDelta": 4,
+            "require.NoError": 2,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/media_pricing_unification_test.go",
+        "name": "TestMediaPricingCardsHaveSameGroupAndChannelSemantics",
+        "tag": "unit",
+        "body_sha256": "9f62cf70bd58f5911f2c7642f078f8c4c390e108d61bc7503abe25657944a2d4",
+        "assertions": {
+          "require.InDelta": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/media_pricing_unification_test.go",
+          "name": "TestMediaPricingCardsHaveSameGroupAndChannelSemantics",
+          "tag": "unit",
+          "body_sha256": "52acbab96641c550cb8bf7b99d1d1991574852f27559b1f77063dfe158be98a4",
+          "assertions": {
+            "require.InDelta": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/media_pricing_unification_test.go",
+        "name": "TestAsyncImageUnitPricingUsesCardsAndPerImageFallback",
+        "tag": "unit",
+        "body_sha256": "d8a61151fa30744912613a6dec86660f4866bd5d2f8241f0247a8270b91d5b40",
+        "assertions": {
+          "require.Equal": 1,
+          "require.InDelta": 4,
+          "require.NoError": 5,
+          "require.True": 1,
+          "require.Zero": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/media_pricing_unification_test.go",
+          "name": "TestAsyncImageUnitPricingUsesCardsAndPerImageFallback",
+          "tag": "unit",
+          "body_sha256": "7a6908eeb8b2b25d9d582bcf0892732c0734bb68fde867c9c5d740457b76dc21",
+          "assertions": {
+            "require.Equal": 1,
+            "require.InDelta": 4,
+            "require.NoError": 5,
+            "require.True": 1,
+            "require.Zero": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_alpha_search_billing_test.go",
+        "name": "TestCalculateWebSearchCostDefaultAndOverride",
+        "tag": "unit",
+        "body_sha256": "a733ec8c97078f1b63f2b362e04944b789f36f948ac9545e772aed434f9fc790",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 1,
+          "require.InDelta": 5,
+          "require.Zero": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/openai_alpha_search_billing_test.go",
+          "name": "TestCalculateWebSearchCostDefaultAndOverride",
+          "tag": "unit",
+          "body_sha256": "9f3da428a88a6141d28c4cca93f8519df5d0cfd28598100c8c025a920ab0239a",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 1,
+            "require.InDelta": 5,
+            "require.Zero": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_alpha_search_billing_test.go",
+        "name": "TestCalculateOpenAIRecordUsageCostWebSearchPerCall",
+        "tag": "unit",
+        "body_sha256": "3d6e544bad04613978c1fe46778e09ddcee3e9865b1f3e24818090f8ca83d9f9",
+        "assertions": {
+          "require.Equal": 1,
+          "require.Error": 1,
+          "require.InDelta": 4,
+          "require.NoError": 2
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/openai_alpha_search_billing_test.go",
+          "name": "TestCalculateOpenAIRecordUsageCostWebSearchPerCall",
+          "tag": "unit",
+          "body_sha256": "8eaf14579ec59f9810a64d5b33596d87c805f14020707336ba74ee263493ce09",
+          "assertions": {
+            "require.Equal": 1,
+            "require.Error": 1,
+            "require.InDelta": 4,
+            "require.NoError": 2
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_alpha_search_billing_test.go",
+        "name": "TestAPIKeyService_SnapshotRoundTrip_PreservesWebSearchPricePerCall",
+        "tag": "unit",
+        "body_sha256": "73bf164d70ef47b6580d5b0446b60b1e18a0b9f6d08541985f1a4cf7bdcfa424",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NotNil": 3
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/openai_alpha_search_billing_test.go",
+          "name": "TestAPIKeyService_SnapshotRoundTrip_PreservesWebSearchPricePerCall",
+          "tag": "unit",
+          "body_sha256": "832d82cddef040f51eb51e2cb3d3c8b25474a808cf7a520566624ae07460b498",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NotNil": 3
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_search_surcharge_test.go",
+        "name": "TestCalculateOpenAIRecordUsageCost_SearchIsAdditiveToTokens",
+        "tag": "unit",
+        "body_sha256": "76ec55e401d57eb2b976ff371cf9bab94e79703f4517907642a518373438bce7",
+        "assertions": {
+          "require.InDelta": 2,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/openai_gateway_search_surcharge_test.go",
+          "name": "TestCalculateOpenAIRecordUsageCost_SearchIsAdditiveToTokens",
+          "tag": "unit",
+          "body_sha256": "fa4ac6c342bd49ac006847a5b9b2b3396ea641e0d2266dbf3b27965af2d59b3b",
+          "assertions": {
+            "require.InDelta": 2,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_search_surcharge_test.go",
+        "name": "TestCalculateOpenAIRecordUsageCost_SearchOnlyWhenNoTokenPricing",
+        "tag": "unit",
+        "body_sha256": "89a16bf1c0f33b580186de91a37268bce5acec1f40f44f1072886903d6e419e3",
+        "assertions": {
+          "require.InDelta": 1,
+          "require.NoError": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/openai_gateway_search_surcharge_test.go",
+          "name": "TestCalculateOpenAIRecordUsageCost_SearchOnlyWhenNoTokenPricing",
+          "tag": "unit",
+          "body_sha256": "a8a08098d0f91f7d6a88bed3d47aba6eb5999ac9167a5f78b58b82a7c8f0536f",
+          "assertions": {
+            "require.InDelta": 1,
+            "require.NoError": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_search_surcharge_test.go",
+        "name": "TestCalculateOpenAIRecordUsageCost_TokenPricingErrorNotSwallowedBySearch",
+        "tag": "unit",
+        "body_sha256": "37784c979453dd1c44395d0f282fc6859a19c2b61df92cd935d3fc7e0afe0d6d",
+        "assertions": {
+          "require.Error": 1,
+          "require.Nil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/openai_gateway_search_surcharge_test.go",
+          "name": "TestCalculateOpenAIRecordUsageCost_TokenPricingErrorNotSwallowedBySearch",
+          "tag": "unit",
+          "body_sha256": "ac4bcc0503ac2fc688fb36c5c3a5951af51b739906c92267b704ca8361662287",
+          "assertions": {
+            "require.Error": 1,
+            "require.Nil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_usage_integrity_test.go",
+        "name": "TestRequiresBillableGrokChatUsage",
+        "tag": "unit",
+        "body_sha256": "23c481c66783d84b4c7829819139fb6a55a69522465a9751d8274ebc2dd71399",
+        "assertions": {
+          "require.Equal": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/usage_integrity_original_test.go",
+          "name": "TestRequiresBillableGrokChatUsage",
+          "tag": "unit",
+          "body_sha256": "23c481c66783d84b4c7829819139fb6a55a69522465a9751d8274ebc2dd71399",
+          "assertions": {
+            "require.Equal": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_gateway_usage_integrity_test.go",
+        "name": "TestHasBillableGrokChatUsageRequiresAggregateToken",
+        "tag": "unit",
+        "body_sha256": "14b3ff404e75ed6d83568e16a923863c98e5e0c5ce8dece1ac59be845fe07177",
+        "assertions": {
+          "require.False": 2,
+          "require.True": 4
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/internal/gateway/provider/usage_integrity_original_test.go",
+          "name": "TestHasBillableGrokChatUsageRequiresAggregateToken",
+          "tag": "unit",
+          "body_sha256": "14b3ff404e75ed6d83568e16a923863c98e5e0c5ce8dece1ac59be845fe07177",
+          "assertions": {
+            "require.False": 2,
+            "require.True": 4
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_media_pricing_modifiers_test.go",
+        "name": "TestOpenAIMediaPricingUsesModifierOnlyCards",
+        "tag": "unit",
+        "body_sha256": "b2fc1a8b502abda262a2752c6fcdfb81cc72b5965cd4b9f6c69d51af98e80e70",
+        "assertions": {
+          "require.Equal": 2,
+          "require.InDelta": 2,
+          "require.NoError": 2,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/openai_media_pricing_modifiers_test.go",
+          "name": "TestOpenAIMediaPricingUsesModifierOnlyCards",
+          "tag": "unit",
+          "body_sha256": "6b280d4c70c8e2fb8686f82a07e97abc369b164d94c510ce203a8e7b2feb58e1",
+          "assertions": {
+            "require.Equal": 2,
+            "require.InDelta": 2,
+            "require.NoError": 2,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_media_pricing_modifiers_test.go",
+        "name": "TestOpenAIMediaModifiersPreserveInheritedRequestBilling",
+        "tag": "unit",
+        "body_sha256": "fe112bdf369e10e70ef0b3a41de4d499af37853027f3534f032c5b74e5ee7e13",
+        "assertions": {
+          "require.Equal": 1,
+          "require.InDelta": 2,
+          "require.NoError": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/openai_media_pricing_modifiers_test.go",
+          "name": "TestOpenAIMediaModifiersPreserveInheritedRequestBilling",
+          "tag": "unit",
+          "body_sha256": "24d92762ae0ee86a7337ac8fec84511793d8f8b4c91fbc080a71137bedf34003",
+          "assertions": {
+            "require.Equal": 1,
+            "require.InDelta": 2,
+            "require.NoError": 1
+          }
+        }
+      ]
+    },
+    {
+      "assertion_call_counts_equal": true,
+      "source": {
+        "file": "backend/internal/service/openai_media_pricing_modifiers_test.go",
+        "name": "TestCNProviderPricingModifiersDoNotCountAsExplicitPrices",
+        "tag": "unit",
+        "body_sha256": "4a6c7837cf8ce6f273f894403c788bebb860686cc228f3e3b9eabc5c6f3e953b",
+        "assertions": {
+          "require.Empty": 1,
+          "require.Equal": 1,
+          "require.NotNil": 1
+        }
+      },
+      "status": "moved",
+      "targets": [
+        {
+          "file": "backend/tests/integration/pricing_contract/openai_media_pricing_modifiers_test.go",
+          "name": "TestCNProviderPricingModifiersDoNotCountAsExplicitPrices",
+          "tag": "unit",
+          "body_sha256": "14e019f87d40c10e685da9fbec41726a92db8c2fc11d1f0ae80af254b34921db",
+          "assertions": {
+            "require.Empty": 1,
+            "require.Equal": 1,
+            "require.NotNil": 1
+          }
+        }
+      ]
+    }
+  ]
+}

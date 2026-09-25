@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package pricingcontract
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 
 func TestCalculateWebSearchCostDefaultAndOverride(t *testing.T) {
 	t.Parallel()
-	s := newBillingServiceWithPrices(nil, nil, map[string]*pricing.ModelPricing{})
+	s := newCalculatorWithPrices(nil, nil, map[string]*pricing.ModelPricing{})
 
 	// 默认价：官方 $10/1000 次 = 0.01/次
 	cost := s.CalculateWebSearchCost(1, nil, 1.0)
@@ -32,12 +32,12 @@ func TestCalculateWebSearchCostDefaultAndOverride(t *testing.T) {
 	require.Equal(t, string(routing.BillingModePerRequest), cost.BillingMode)
 
 	// 分组覆盖价 + 倍率
-	cost = s.CalculateWebSearchCost(1, float64Ptr(0.02), 2.5)
+	cost = s.CalculateWebSearchCost(1, testPtrFloat64(0.02), 2.5)
 	require.InDelta(t, 0.02, cost.TotalCost, 1e-12)
 	require.InDelta(t, 0.05, cost.ActualCost, 1e-12)
 
 	// 0 = 免费（区别于 nil = 默认价）
-	cost = s.CalculateWebSearchCost(1, float64Ptr(0), 3.0)
+	cost = s.CalculateWebSearchCost(1, testPtrFloat64(0), 3.0)
 	require.Zero(t, cost.TotalCost)
 	require.Zero(t, cost.ActualCost)
 
@@ -47,14 +47,14 @@ func TestCalculateWebSearchCostDefaultAndOverride(t *testing.T) {
 	require.Zero(t, cost.ActualCost)
 
 	// 次数 <= 0 不产生费用
-	cost = s.CalculateWebSearchCost(0, float64Ptr(0.02), 1.0)
+	cost = s.CalculateWebSearchCost(0, testPtrFloat64(0.02), 1.0)
 	require.Zero(t, cost.TotalCost)
 	require.Empty(t, cost.BillingMode)
 }
 
 func TestCalculateOpenAIRecordUsageCostWebSearchPerCall(t *testing.T) {
 	t.Parallel()
-	svc := completion.NewRecorder(completion.Dependencies{Calculator: newBillingServiceWithPrices(nil, nil, map[string]*pricing.ModelPricing{})}, completion.RecorderOptions{DefaultMultiplier: 1})
+	svc := completion.NewRecorder(completion.Dependencies{Calculator: newCalculatorWithPrices(nil, nil, map[string]*pricing.ModelPricing{})}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 	groupID := int64(11)
 
@@ -69,7 +69,7 @@ func TestCalculateOpenAIRecordUsageCostWebSearchPerCall(t *testing.T) {
 	require.InDelta(t, 0.02, cost.ActualCost, 1e-12)
 
 	// 分组配置单价 0.005
-	apiKey.Group.WebSearchPricePerCall = float64Ptr(0.005)
+	apiKey.Group.WebSearchPricePerCall = testPtrFloat64(0.005)
 	cost, err = svc.CalculateOpenAIRecordUsageCostAt(context.Background(), gatewaycapture.ProjectOpenAICompletionResult(result, nil), gatewaycapture.ProjectCompletionKey(apiKey), []string{"gpt-5.6-sol"}, 1.0, 1.0, 1.0, 1.0, pricing.UsageTokens{}, "", time.Time{})
 	require.NoError(t, err)
 	require.InDelta(t, 0.005, cost.TotalCost, 1e-12)
@@ -99,7 +99,7 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesWebSearchPricePerCall(t *testi
 			Platform:              capability.PlatformOpenAI,
 			Status:                billing.StatusActive,
 			RateMultiplier:        1,
-			WebSearchPricePerCall: float64Ptr(0.008),
+			WebSearchPricePerCall: testPtrFloat64(0.008),
 		},
 	}
 

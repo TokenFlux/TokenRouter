@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package pricingcontract
 
 import (
 	"testing"
@@ -60,7 +60,7 @@ func TestBuildUsageBillingCommand_BillableAmountTracksActualCost(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			p := &usageBillingParams{
+			p := &contractSettlementInput{
 				Cost:         &pricing.CostBreakdown{TotalCost: tt.totalCost, ActualCost: tt.actualCost},
 				User:         &identity.User{ID: 1},
 				APIKey:       &apikey.APIKey{ID: 2, GroupID: &groupID},
@@ -68,9 +68,9 @@ func TestBuildUsageBillingCommand_BillableAmountTracksActualCost(t *testing.T) {
 				Subscription: &billing.UserSubscription{ID: subID},
 			}
 
-			cmd := buildUsageBillingCommand("req-1", nil, p)
+			cmd := buildContractBillingCommand("req-1", nil, p)
 			if cmd == nil {
-				t.Fatal("buildUsageBillingCommand returned nil")
+				t.Fatal("buildContractBillingCommand returned nil")
 			}
 			if cmd.BillableAmountUSD != tt.wantBillable {
 				t.Errorf("BillableAmountUSD = %v, want %v", cmd.BillableAmountUSD, tt.wantBillable)
@@ -121,7 +121,7 @@ func TestBuildUsageBillingCommand_AccountQuotaUsesAccountStatsCost(t *testing.T)
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			usageLog := &usage.UsageLog{AccountStatsCost: tt.accountStatsCost}
-			p := &usageBillingParams{
+			p := &contractSettlementInput{
 				Cost: &pricing.CostBreakdown{
 					TotalCost:  tt.totalCost,
 					ActualCost: tt.actualCost,
@@ -132,10 +132,10 @@ func TestBuildUsageBillingCommand_AccountQuotaUsesAccountStatsCost(t *testing.T)
 				AccountRateMultiplier: tt.accountRateMultiplier,
 			}
 
-			cmd := buildUsageBillingCommand("req-account-quota", usageLog, p)
+			cmd := buildContractBillingCommand("req-account-quota", usageLog, p)
 
 			if cmd == nil {
-				t.Fatal("buildUsageBillingCommand returned nil")
+				t.Fatal("buildContractBillingCommand returned nil")
 			}
 			if cmd.AccountQuotaCost != tt.wantAccountQuota {
 				t.Errorf("AccountQuotaCost = %v, want %v", cmd.AccountQuotaCost, tt.wantAccountQuota)
@@ -150,7 +150,7 @@ func TestBuildUsageBillingCommand_AccountQuotaUsesAccountStatsCost(t *testing.T)
 
 func TestBuildUsageBillingCommand_IncludesRequestGroupID(t *testing.T) {
 	groupID := int64(42)
-	p := &usageBillingParams{
+	p := &contractSettlementInput{
 		Cost: &pricing.CostBreakdown{ActualCost: 1.25},
 		User: &identity.User{ID: 10},
 		APIKey: &apikey.APIKey{
@@ -160,10 +160,10 @@ func TestBuildUsageBillingCommand_IncludesRequestGroupID(t *testing.T) {
 		Account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 30, Type: capability.AccountTypeAPIKey}},
 	}
 
-	cmd := buildUsageBillingCommand("req-group", nil, p)
+	cmd := buildContractBillingCommand("req-group", nil, p)
 
 	if cmd == nil {
-		t.Fatal("buildUsageBillingCommand returned nil")
+		t.Fatal("buildContractBillingCommand returned nil")
 	}
 	if cmd.GroupID == nil {
 		t.Fatal("GroupID is nil")
@@ -191,7 +191,7 @@ func TestBuildUsageBillingCommand_NonTokenModesKeepAllocationRates(t *testing.T)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			p := &usageBillingParams{
+			p := &contractSettlementInput{
 				Cost: &pricing.CostBreakdown{
 					TotalCost:   tt.totalCost,
 					ActualCost:  tt.actualCost,
@@ -205,10 +205,10 @@ func TestBuildUsageBillingCommand_NonTokenModesKeepAllocationRates(t *testing.T)
 				BalanceRateMultiplier:           2,
 			}
 
-			cmd := buildUsageBillingCommand("req-non-token", nil, p)
+			cmd := buildContractBillingCommand("req-non-token", nil, p)
 
 			if cmd == nil {
-				t.Fatal("buildUsageBillingCommand returned nil")
+				t.Fatal("buildContractBillingCommand returned nil")
 			}
 			if cmd.SubscriptionRateMultiplier != tt.wantRate {
 				t.Errorf("SubscriptionRateMultiplier = %v, want %v", cmd.SubscriptionRateMultiplier, tt.wantRate)
@@ -226,7 +226,7 @@ func TestBuildUsageBillingCommand_NonTokenModesKeepAllocationRates(t *testing.T)
 func TestBuildUsageBillingCommand_TokenModeKeepsAllocationRates(t *testing.T) {
 	t.Parallel()
 
-	p := &usageBillingParams{
+	p := &contractSettlementInput{
 		Cost: &pricing.CostBreakdown{
 			TotalCost:   1,
 			ActualCost:  0.5,
@@ -240,10 +240,10 @@ func TestBuildUsageBillingCommand_TokenModeKeepsAllocationRates(t *testing.T) {
 		BalanceRateMultiplier:           0.3,
 	}
 
-	cmd := buildUsageBillingCommand("req-token", nil, p)
+	cmd := buildContractBillingCommand("req-token", nil, p)
 
 	if cmd == nil {
-		t.Fatal("buildUsageBillingCommand returned nil")
+		t.Fatal("buildContractBillingCommand returned nil")
 	}
 	if cmd.SubscriptionRateMultiplier != 0.8 {
 		t.Errorf("SubscriptionRateMultiplier = %v, want 0.8", cmd.SubscriptionRateMultiplier)
@@ -266,7 +266,7 @@ func TestBuildUsageBillingCommand_UsesOverrideBaseAmountForFreeFast(t *testing.T
 	groupID := int64(88)
 	accountRate := 1.5
 
-	cmd := buildUsageBillingCommand("req-free-fast-base", &usage.UsageLog{AccountStatsCost: &accountStatsCost}, &usageBillingParams{
+	cmd := buildContractBillingCommand("req-free-fast-base", &usage.UsageLog{AccountStatsCost: &accountStatsCost}, &contractSettlementInput{
 		Cost: &pricing.CostBreakdown{
 			TotalCost:  fastTotal,
 			ActualCost: standardActual,
@@ -279,7 +279,7 @@ func TestBuildUsageBillingCommand_UsesOverrideBaseAmountForFreeFast(t *testing.T
 	})
 
 	if cmd == nil {
-		t.Fatal("buildUsageBillingCommand returned nil")
+		t.Fatal("buildContractBillingCommand returned nil")
 	}
 	if cmd.BaseAmountUSD != standardBase {
 		t.Fatalf("BaseAmountUSD = %v, want %v", cmd.BaseAmountUSD, standardBase)

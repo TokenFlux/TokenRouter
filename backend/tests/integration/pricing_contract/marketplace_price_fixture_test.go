@@ -1,7 +1,7 @@
-// 本文件维护 service 的所属能力；兼容入口复用唯一实现。
+// 跨模块合同通过只读投影使用实际目录与报价能力。
 //go:build unit
 
-package service
+package pricingcontract
 
 import (
 	context "context"
@@ -13,9 +13,9 @@ import (
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-type legacyMarketplaceGroups struct{ source routing.GroupRepository }
+type marketplaceFixtureGroups struct{ source routing.GroupRepository }
 
-func (g legacyMarketplaceGroups) ListActive(ctx context.Context) ([]routing.Group, error) {
+func (g marketplaceFixtureGroups) ListActive(ctx context.Context) ([]routing.Group, error) {
 	v, err := g.source.ListActive(ctx)
 	if v == nil {
 		return nil, err
@@ -27,12 +27,12 @@ func (g legacyMarketplaceGroups) ListActive(ctx context.Context) ([]routing.Grou
 	return out, err
 }
 
-type legacyMarketplacePrices struct {
+type marketplaceFixturePrices struct {
 	calculator *billing.Calculator
 	resolver   *billing.PriceResolver
 }
 
-func (p legacyMarketplacePrices) Quote(ctx context.Context, req routing.MarketplaceQuoteRequest) pricing.ModelDisplayPricing {
+func (p marketplaceFixturePrices) Quote(ctx context.Context, req routing.MarketplaceQuoteRequest) pricing.ModelDisplayPricing {
 	resolver := p.resolver
 	if resolver == nil {
 		resolver = billing.NewPriceResolver(nil, p.calculator, modelidentity.Identity, func(model string, err error) {
@@ -41,6 +41,6 @@ func (p legacyMarketplacePrices) Quote(ctx context.Context, req routing.Marketpl
 	}
 	return resolver.PublicQuote(ctx, billing.PublicQuoteInput{PricingInput: billing.PricingInput{Model: req.Model, GroupID: &req.GroupID, Group: &billing.PriceGroup{ModelPricing: req.ModelPricing, LongContextPricingEnabled: req.LongContextPricingEnabled}}, RateMultiplier: req.RateMultiplier, FreeFastApplicable: req.FreeFastApplicable})
 }
-func (p legacyMarketplacePrices) GetModelModalities(model string) ([]string, []string) {
+func (p marketplaceFixturePrices) GetModelModalities(model string) ([]string, []string) {
 	return p.calculator.GetModelModalities(model)
 }
