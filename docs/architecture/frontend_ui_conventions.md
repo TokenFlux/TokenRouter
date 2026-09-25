@@ -49,6 +49,7 @@
 
 - 营销与落地页（`HomeView`、`KeyUsageView` 等公开页）的 hero 标题可用展示级字号。
 - `onboarding.css` 覆盖 driver.js 第三方样式时的 `!important`。
+- i18n 文案中内嵌的导览 HTML（`src/i18n/**`）属于内容字符串，其 inline style 不参与 token 校验。
 - 测试文件里的负断言（断言某类名不存在）会命中扫描，行尾加 `check-ui-allow` 豁免。
 
 ## 校验

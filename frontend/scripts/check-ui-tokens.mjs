@@ -20,10 +20,13 @@ const srcRoot = join(frontendRoot, 'src')
 const SCAN_EXTENSIONS = new Set(['.vue', '.css', '.ts', '.tsx', '.js', '.jsx'])
 const EXTRA_FILES = [join(frontendRoot, 'index.html')]
 
+// i18n 文案里内嵌的导览 HTML 属于内容字符串(含历史 inline style),不按组件样式校验
+const EXCLUDED_DIRS = new Set(['i18n'])
+
 /** 递归收集目录下匹配扩展名的文件(自带遍历,避免依赖 Node 版本的 recursive 选项)。 */
 function collectFiles(dir, out = []) {
   for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry.startsWith('.')) continue
+    if (entry === 'node_modules' || entry.startsWith('.') || EXCLUDED_DIRS.has(entry)) continue
     const full = join(dir, entry)
     if (statSync(full).isDirectory()) {
       collectFiles(full, out)
