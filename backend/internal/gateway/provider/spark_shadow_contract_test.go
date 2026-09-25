@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -40,7 +39,7 @@ func TestSparkShadowIntegration(t *testing.T) {
 	pid := int64(100)
 
 	// 共享母账号：Credentials 为 map（引用型），可原地轮换而无需重建 stub。
-	parent := &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 100,
+	parent := &ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 100,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Status:      billing.StatusActive,
@@ -50,7 +49,7 @@ func TestSparkShadowIntegration(t *testing.T) {
 		}},
 	}
 	// 影子账号：不持凭据（与生产语义一致），QuotaDimensionSpark 标记 spark 维度。
-	shadow := &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 200,
+	shadow := &ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 200,
 		Platform:        capability.PlatformOpenAI,
 		Type:            capability.AccountTypeOAuth,
 		ParentAccountID: &pid,
@@ -62,6 +61,10 @@ func TestSparkShadowIntegration(t *testing.T) {
 	// repo：stubCredRepo（credential_shadow_test.go）保存原生执行目标指针，
 	// Credentials map 变更直接可见，无需重建 stub。
 	repo := newStubCredRepo(parent)
+	credentials := &account.OpenAIExecutionCredentials{Parent: func(ctx context.Context, id int64) (*account.Record, error) {
+		value, err := repo.GetByID(ctx, id)
+		return ExecutionRecord(value), err
+	}}
 
 	// ──────────────────────────────────────────────────────────────────────
 	// 属性 1：凭据轮换读透（脱钩命门）
@@ -69,7 +72,7 @@ func TestSparkShadowIntegration(t *testing.T) {
 
 	t.Run("credential_readthrough_initial_T1", func(t *testing.T) {
 		// 影子无凭据，resolveCredentialAccount 必须透传到母账号。
-		got, err := gatewayprovider.CredentialAccount(ctx, repo, shadow)
+		got, err := CredentialAccount(ctx, repo, shadow)
 		require.NoError(t, err)
 		require.Equal(t, int64(100), got.Record.ID, "解析结果应为母账号")
 		require.Equal(t, "T1", got.View().GetOpenAIAccessToken(),
@@ -81,30 +84,26 @@ func TestSparkShadowIntegration(t *testing.T) {
 		// 影子不持凭据、无本地缓存，下次解析必须见到新值。
 		parent.Record.Credentials["access_token"] = "T2"
 
-		got, err := gatewayprovider.CredentialAccount(ctx, repo, shadow)
+		got, err := CredentialAccount(ctx, repo, shadow)
 		require.NoError(t, err)
 		require.Equal(t, "T2", got.View().GetOpenAIAccessToken(),
 			"轮换后影子必须立即反映母账号新 token（零脱钩）")
 	})
 
 	t.Run("get_access_token_e2e_reads_through_T3", func(t *testing.T) {
-		// 端到端：经 OpenAIGatewayService.GetAccessToken 验证全路径读透。
+		// 端到端：经原生凭据源 Resolve 验证读透。
 		// openAITokenProvider=nil → 降级到直接读 account.GetOpenAIAccessToken()。
 		parent.Record.Credentials["access_token"] = "T3"
-
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-			accountRepo: repo,
-		}))
-		token, tokenType, err := svc.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(shadow))
+		token, tokenType, err := credentials.Resolve(ctx, ExecutionRecord(shadow))
 		require.NoError(t, err)
 		require.Equal(t, "T3", token,
-			"GetAccessToken(影子) 必须返回母账号当前 token")
+			"Resolve(影子) 必须返回母账号当前 token")
 		require.Equal(t, "oauth", tokenType)
 	})
 
 	t.Run("normal_account_returns_its_own_token", func(t *testing.T) {
 		// 对照组：普通账号（非影子）直接返回自身凭据，不经 resolveCredentialAccount。
-		ordinary := &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 300,
+		ordinary := &ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 300,
 			Platform:    capability.PlatformOpenAI,
 			Type:        capability.AccountTypeOAuth,
 			Status:      billing.StatusActive,
@@ -113,10 +112,7 @@ func TestSparkShadowIntegration(t *testing.T) {
 				"access_token": "ordinary-token",
 			}},
 		}
-		svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-			accountRepo: newStubCredRepo(ordinary),
-		}))
-		token, _, err := svc.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(ordinary))
+		token, _, err := credentials.Resolve(ctx, ExecutionRecord(ordinary))
 		require.NoError(t, err)
 		require.Equal(t, "ordinary-token", token)
 	})
@@ -132,16 +128,16 @@ func TestSparkShadowIntegration(t *testing.T) {
 		sparkCreds := map[string]any{"model_mapping": accountprovider.DefaultSparkShadowModels()}
 
 		pid := int64(1)
-		sparkShadow := &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 2, ParentAccountID: &pid, Platform: capability.PlatformOpenAI, Credentials: sparkCreds}}
-		require.True(t, gatewayprovider.ExecutionProtocolRecord(sparkShadow).IsModelSupported(sparkModel, accountprovider.ModelDefaults(), accountprovider.ModelRules(gatewayprovider.ExecutionProtocolRecord(sparkShadow))), "影子配 spark → 接 spark")
-		require.False(t, gatewayprovider.ExecutionProtocolRecord(sparkShadow).IsModelSupported(normalModel, accountprovider.ModelDefaults(), accountprovider.ModelRules(gatewayprovider.ExecutionProtocolRecord(sparkShadow))), "影子（仅 spark mapping）→ 拒非 spark")
+		sparkShadow := &ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 2, ParentAccountID: &pid, Platform: capability.PlatformOpenAI, Credentials: sparkCreds}}
+		require.True(t, ExecutionProtocolRecord(sparkShadow).IsModelSupported(sparkModel, accountprovider.ModelDefaults(), accountprovider.ModelRules(ExecutionProtocolRecord(sparkShadow))), "影子配 spark → 接 spark")
+		require.False(t, ExecutionProtocolRecord(sparkShadow).IsModelSupported(normalModel, accountprovider.ModelDefaults(), accountprovider.ModelRules(ExecutionProtocolRecord(sparkShadow))), "影子（仅 spark mapping）→ 拒非 spark")
 
-		normalWithSpark := &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformOpenAI, Credentials: sparkCreds}}
-		require.True(t, gatewayprovider.ExecutionProtocolRecord(normalWithSpark).IsModelSupported(sparkModel, accountprovider.ModelDefaults(), accountprovider.ModelRules(gatewayprovider.ExecutionProtocolRecord(normalWithSpark))), "普通账号配 spark → 接 spark（不再按类型排除）")
+		normalWithSpark := &ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformOpenAI, Credentials: sparkCreds}}
+		require.True(t, ExecutionProtocolRecord(normalWithSpark).IsModelSupported(sparkModel, accountprovider.ModelDefaults(), accountprovider.ModelRules(ExecutionProtocolRecord(normalWithSpark))), "普通账号配 spark → 接 spark（不再按类型排除）")
 
-		normalNoSpark := &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 4, Platform: capability.PlatformOpenAI,
+		normalNoSpark := &ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 4, Platform: capability.PlatformOpenAI,
 			Credentials: map[string]any{"model_mapping": map[string]any{normalModel: normalModel}}}}
-		require.False(t, gatewayprovider.ExecutionProtocolRecord(normalNoSpark).IsModelSupported(sparkModel, accountprovider.ModelDefaults(), accountprovider.ModelRules(gatewayprovider.ExecutionProtocolRecord(normalNoSpark))), "普通账号未配 spark → 拒 spark（按配置）")
+		require.False(t, ExecutionProtocolRecord(normalNoSpark).IsModelSupported(sparkModel, accountprovider.ModelDefaults(), accountprovider.ModelRules(ExecutionProtocolRecord(normalNoSpark))), "普通账号未配 spark → 拒 spark（按配置）")
 	})
 
 	// ──────────────────────────────────────────────────────────────────────
@@ -153,7 +149,7 @@ func TestSparkShadowIntegration(t *testing.T) {
 		parent.Record.Status = billing.StatusActive
 		parent.Record.Schedulable = true
 
-		lookup := func(id int64) *gatewayprovider.ExecutionAccount {
+		lookup := func(id int64) *ExecutionAccount {
 			if id == parent.Record.ID {
 				return parent
 			}
@@ -161,40 +157,40 @@ func TestSparkShadowIntegration(t *testing.T) {
 		}
 
 		// 母健康 → 影子健康
-		require.True(t, account.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(shadow), func(id int64) *account.Record {
-			return gatewayprovider.ExecutionRecord(lookup(id))
+		require.True(t, account.ParentHealthyForShadow(ExecutionRecord(shadow), func(id int64) *account.Record {
+			return ExecutionRecord(lookup(id))
 		}), "健康母账号时影子应健康")
 
 		// 母 Status=error(凭据不可用)→ 影子不健康
 		parent.Record.Status = account.StatusError
-		require.False(t, account.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(shadow), func(id int64) *account.Record {
-			return gatewayprovider.ExecutionRecord(lookup(id))
+		require.False(t, account.ParentHealthyForShadow(ExecutionRecord(shadow), func(id int64) *account.Record {
+			return ExecutionRecord(lookup(id))
 		}), "Status=error 母账号时影子应不健康")
 
 		// F1 决策 A:母 Schedulable=false (Status=active) 是手动调度暂停,不连坐影子(凭据仍可用)
 		parent.Record.Status = billing.StatusActive
 		parent.Record.Schedulable = false
-		require.True(t, account.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(shadow), func(id int64) *account.Record {
-			return gatewayprovider.ExecutionRecord(lookup(id))
+		require.True(t, account.ParentHealthyForShadow(ExecutionRecord(shadow), func(id int64) *account.Record {
+			return ExecutionRecord(lookup(id))
 		}), "母账号手动暂停不应连坐影子(凭据仍可用)")
 
 		// F1 核心:母 global 限流(RateLimitResetAt 未来)不连坐 spark 影子
 		parent.Record.Schedulable = true
 		resetAt := time.Now().Add(1 * time.Hour)
 		parent.Record.RateLimitResetAt = &resetAt
-		require.True(t, account.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(shadow), func(id int64) *account.Record {
-			return gatewayprovider.ExecutionRecord(lookup(id))
+		require.True(t, account.ParentHealthyForShadow(ExecutionRecord(shadow), func(id int64) *account.Record {
+			return ExecutionRecord(lookup(id))
 		}), "母账号 global 限流不应连坐 spark 影子")
 		parent.Record.RateLimitResetAt = nil
 
 		// 对照组：非影子账号 parentHealthyForShadow 始终 true，不调用 lookup
 		parent.Record.Schedulable = true
-		lookupNotCalled := func(_ int64) *gatewayprovider.ExecutionAccount {
+		lookupNotCalled := func(_ int64) *ExecutionAccount {
 			t.Error("非影子账号不应调用 lookup")
 			return nil
 		}
-		require.True(t, account.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(parent), func(id int64) *account.Record {
-			return gatewayprovider.ExecutionRecord(lookupNotCalled(id))
+		require.True(t, account.ParentHealthyForShadow(ExecutionRecord(parent), func(id int64) *account.Record {
+			return ExecutionRecord(lookupNotCalled(id))
 		}), "普通账号应直接返回 true")
 	})
 }

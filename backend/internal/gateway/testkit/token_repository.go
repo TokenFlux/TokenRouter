@@ -1,4 +1,4 @@
-package service
+package testkit
 
 import (
 	"context"
@@ -7,20 +7,20 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
-// 仅为尚未迁移的网关测试投影旧账号记录及实际存在的存储参与能力，不复制刷新实现。
-type tokenSourceFixtureReader struct {
+// tokenRepositoryReader 只投影测试账号，刷新规则仍由账号模块执行。
+type tokenRepositoryReader struct {
 	source gatewayprovider.ExecutionAccountStore
 }
 
-func (r tokenSourceFixtureReader) GetByID(ctx context.Context, id int64) (*acctcore.Record, error) {
+func (r tokenRepositoryReader) GetByID(ctx context.Context, id int64) (*acctcore.Record, error) {
 	v, err := r.source.GetByID(ctx, id)
 	return gatewayprovider.ExecutionRecord(v), err
 }
-func tokenSourceFixtureRepository(repo gatewayprovider.ExecutionAccountStore) acctcore.RefreshRepository {
+func TokenRepository(repo gatewayprovider.ExecutionAccountStore) acctcore.RefreshRepository {
 	if repo == nil {
 		return nil
 	}
-	reader := tokenSourceFixtureReader{repo}
+	reader := tokenRepositoryReader{repo}
 	writer, hasWriter := repo.(acctcore.CredentialRefreshWriter)
 	grok, hasGrok := repo.(acctcore.GrokRefreshSuccessWriter)
 	if hasWriter && hasGrok {

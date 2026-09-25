@@ -35,6 +35,7 @@ type responsesFixtureInputs struct {
 	routers         *egress.TLSFingerprintRouterService
 	credentials     *account.OpenAIExecutionCredentials
 	registerTaskURL string
+	grokTokens      *account.GrokTokenSource
 	readers         *provider.RuntimeReaders
 	cache           session.GatewayCache
 	compactModel    string
@@ -77,11 +78,11 @@ func newResponsesFixture(v responsesFixtureInputs) *OpenAIResponsesExecutor {
 	aux.Output.Turns = aux.Requests.Turns
 	history, _ := v.cache.(session.ReasoningContentCache)
 	aux.Output.Reasoning = &session.ReasoningHistory{Cache: history}
-	store := session.NewOpenAIWSStateStore(nil, provider.LogOpenAIWSModeInfo)
+	store := session.NewOpenAIWSStateStore(v.cache, provider.LogOpenAIWSModeInfo)
 	aux.Output.Responses = store
 	aux.Output.ResponseTTL = func() time.Duration { return time.Hour }
 	requests := aux.Requests
-	credentials := testkit.RequestCredentials(v.accounts, aux.Requests.Credentials, nil, aux.Output.Health.Runtime)
+	credentials := testkit.RequestCredentials(v.accounts, aux.Requests.Credentials, v.grokTokens, aux.Output.Health.Runtime)
 	routes := provider.GrokRoutes{Validate: options.Request.URLPolicy.Validate}
 	requests.GrokRoutes = routes
 	grok := &GrokExecutor{Credentials: credentials, Transport: v.transport, Output: aux.Output, Health: aux.Output.GrokHealth, Routes: routes, Failure: requests.Failure}

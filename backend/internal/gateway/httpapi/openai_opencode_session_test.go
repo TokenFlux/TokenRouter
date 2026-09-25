@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -9,10 +9,9 @@ import (
 	"testing"
 	time "time"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -32,12 +31,8 @@ func newOpenCodeSessionTestContext(t *testing.T, value string) *gin.Context {
 	return c
 }
 
-func openCodeSessionTestService() *OpenAIGatewayService {
-	return withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{
-		Security: config.SecurityConfig{
-			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
-		},
-	}})
+func openCodeSessionTestService() *OpenAIResponsesExecutor {
+	return newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 }
 
 func openCodeSessionTestAccount(baseURL string) *gatewayprovider.ExecutionAccount {
@@ -113,7 +108,7 @@ func TestApplyOpenCodeSessionHeaderTrustBoundary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			headers := make(http.Header)
-			gatewayhttp.ApplyOpenCodeSessionHeader(newOpenCodeSessionTestContext(t, tt.incoming), tt.account, tt.targetURL, headers)
+			ApplyOpenCodeSessionHeader(newOpenCodeSessionTestContext(t, tt.incoming), tt.account, tt.targetURL, headers)
 			require.Equal(t, tt.want, headers.Get("X-OpenCode-Session"))
 		})
 	}
@@ -188,12 +183,9 @@ func TestOpenCodeSessionForwardedByRawChatCompletionsAfterAccountOverride(t *tes
 
 	upstream := &openCodeSessionHTTPUpstream{}
 	svc := openCodeSessionTestService()
-	svc.httpUpstream = upstream
-	if svc.Requests != nil {
-		svc.Requests.Transport = svc.httpUpstream
-	}
+	svc.Requests.Transport = upstream
 	if svc.Grok != nil {
-		svc.Grok.Transport = svc.httpUpstream
+		svc.Grok.Transport = svc.Requests.Transport
 	}
 	account := openCodeSessionTestAccount("https://opencode.ai/zen/v1")
 	c := newOpenCodeSessionTestContext(t, "conversation-789")

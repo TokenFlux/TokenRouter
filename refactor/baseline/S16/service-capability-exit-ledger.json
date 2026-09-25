@@ -2879,9 +2879,9 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 23,
-    "test_files": 71,
-    "verified_batch": "http-identity"
+    "production_files": 22,
+    "test_files": 52,
+    "verified_batch": "grok-final"
   },
   "latest_combined_validation": {
     "head": "a8a9fb4bd1cb6f0bb86adaa68ecbf33ca01cec8e",
@@ -3025,6 +3025,42 @@
       "verification": "service-http-identity-verification.json",
       "owners": [
         "gateway/httpapi",
+        "gateway/testkit"
+      ]
+    },
+    "grok-final": {
+      "status": "verified",
+      "retired_files": [
+        "backend/internal/service/agent_identity_binding.go",
+        "backend/internal/service/credential_shadow_test.go",
+        "backend/internal/service/grok_health_store_fixture_test.go",
+        "backend/internal/service/grok_media_error_fixture_test.go",
+        "backend/internal/service/grok_media_s09_compat_unit_test.go",
+        "backend/internal/service/grok_token_source_fixture_test.go",
+        "backend/internal/service/openai_execution_credentials_fixture_test.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw_test.go",
+        "backend/internal/service/openai_gateway_grok_chat_bridge_s11_compat_unit_test.go",
+        "backend/internal/service/openai_gateway_grok_chat_bridge_test.go",
+        "backend/internal/service/openai_gateway_grok_compact_s11_compat_unit_test.go",
+        "backend/internal/service/openai_gateway_grok_inline_image_tool_test.go",
+        "backend/internal/service/openai_gateway_grok_s11_compat_unit_test.go",
+        "backend/internal/service/openai_gateway_grok_search_billing_test.go",
+        "backend/internal/service/openai_gateway_grok_test.go",
+        "backend/internal/service/openai_gateway_grok_text_compat_unit_test.go",
+        "backend/internal/service/openai_gateway_grok_tool_protocol_test.go",
+        "backend/internal/service/openai_opencode_session_test.go",
+        "backend/internal/service/spark_shadow_integration_test.go",
+        "backend/internal/service/token_source_repository_fixture_test.go"
+      ],
+      "verification": "service-grok-final-verification.json",
+      "owners": [
+        "gateway/httpapi",
+        "gateway/provider",
+        "gateway/requeststate",
+        "gateway/media",
+        "protocol/anthropic",
+        "upstream/grok",
+        "upstream",
         "gateway/testkit"
       ]
     }

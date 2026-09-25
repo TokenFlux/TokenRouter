@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -12,13 +12,15 @@ import (
 	"testing"
 	time "time"
 
+	grok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -33,20 +35,16 @@ func TestForwardGrokChatViaResponsesDropsRedundantViewImage(t *testing.T) {
 	c.Set("api_key", &apikey.APIKey{ID: 7991})
 
 	account := grokChatBridgeTestAccount(799)
-	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
+	repo := &grokQuotaAccountRepo{grokFixtureAccounts: &grokFixtureAccounts{
 		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
-	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_chat_image", 0)}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-
-		accountRepo: repo,
-	}), newGrokTokenSourceForTest(repo, nil))
+	upstream := &auxiliaryHTTPRecorder{resp: grokChatBridgeCompletedResponse("resp_chat_image", 0)}
+	svc := newResponsesFixture(responsesFixtureInputs{grokTokens: newHTTPGrokTokenFixture(repo, nil), transport: upstream, accounts: repo})
 
 	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, xai.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
+	require.Equal(t, grok.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
 	require.Equal(t, "input_image", gjson.GetBytes(upstream.lastBody, "input.0.content.1.type").String())
 	assertGrokInlineImageTools(t, upstream.lastBody, "tools.#(name==\"%s\")")
 }
@@ -61,14 +59,14 @@ func TestForwardGrokRawChatDropsRedundantViewImage(t *testing.T) {
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 800, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "test-key", "base_url": "https://grok.example.test/v1"}},
 	}
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body: io.NopCloser(strings.NewReader(
 			`{"id":"chatcmpl","object":"chat.completion","model":"grok-4.6","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1}}`,
 		)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	result, err := svc.Text.Chat(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -98,73 +96,18 @@ func TestForwardGrokMessagesDropsRedundantViewImage(t *testing.T) {
 	c.Set("api_key", &apikey.APIKey{ID: 7992})
 
 	account := gatewaytestkit.HealthyGrokOAuthAccount(801, "access-token")
-	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
+	repo := &grokQuotaAccountRepo{grokFixtureAccounts: &grokFixtureAccounts{
 		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
-	upstream := &httpUpstreamRecorder{resp: grokMessagesSSECompletedResponse("resp_messages_image", 0)}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-
-		accountRepo: repo,
-	}), newGrokTokenSourceForTest(repo, nil))
+	upstream := &auxiliaryHTTPRecorder{resp: grokMessagesSSECompletedResponse("resp_messages_image", 0)}
+	svc := newResponsesFixture(responsesFixtureInputs{grokTokens: newHTTPGrokTokenFixture(repo, nil), transport: upstream, accounts: repo})
 
 	result, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, xai.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
+	require.Equal(t, grok.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
 	require.Equal(t, "input_image", gjson.GetBytes(upstream.lastBody, "input.0.content.1.type").String())
 	assertGrokInlineImageTools(t, upstream.lastBody, "tools.#(name==\"%s\")")
-}
-
-func TestStripRedundantGrokChatViewImageToolLeavesNonTargetRequestsByteExact(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		body string
-	}{
-		{
-			name: "current turn has no inline image",
-			body: `{"messages":[{"role":"user","content":"Inspect a local image"}],"tools":[{"type":"function","function":{"name":"view_image"}}]}`,
-		},
-		{
-			name: "inline image is only historical",
-			body: `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AA=="}}]},{"role":"assistant","content":"Done"},{"role":"user","content":"Inspect another local image"}],"tools":[{"type":"function","function":{"name":"view_image"}}]}`,
-		},
-		{
-			name: "view image is explicitly selected",
-			body: `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AA=="}}]}],"tools":[{"type":"function","function":{"name":"view_image"}}],"tool_choice":{"type":"function","function":{"name":"view_image"}}}`,
-		},
-		{
-			name: "required with view image as the only tool",
-			body: `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AA=="}}]}],"tools":[{"type":"function","function":{"name":"view_image"}}],"tool_choice":"required"}`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			body := []byte(tt.body)
-			patched, err := xai.StripRedundantGrokChatViewImageTool(body)
-			require.NoError(t, err)
-			require.Equal(t, body, patched)
-		})
-	}
-}
-
-func TestStripRedundantGrokChatViewImageToolDropsOnlyToolMetadata(t *testing.T) {
-	t.Parallel()
-	body := []byte(`{
-		"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AA=="}}]}],
-		"tools":[{"type":"function","function":{"name":"view_image"}}],
-		"tool_choice":"auto",
-		"parallel_tool_calls":true
-	}`)
-
-	patched, err := xai.StripRedundantGrokChatViewImageTool(body)
-	require.NoError(t, err)
-	require.False(t, gjson.GetBytes(patched, "tools").Exists())
-	require.False(t, gjson.GetBytes(patched, "tool_choice").Exists())
-	require.False(t, gjson.GetBytes(patched, "parallel_tool_calls").Exists())
 }
 
 func grokInlineImageChatRequest() []byte {
