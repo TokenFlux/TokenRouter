@@ -3,9 +3,16 @@ export default {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
   darkMode: 'class',
   theme: {
-    // 对齐 OpenRouter 的圆角层级：紧凑元素、控件、内容表面和桌面弹窗。
+    // 语义圆角档位:紧凑元素、控件、内容表面、桌面弹窗。
+    // 数值统一由 style.css 的 :root --radius-* 变量定义,raw CSS 与工具类同源。
     borderRadius: {
       none: '0px',
+      compact: 'var(--radius-compact)',
+      control: 'var(--radius-control)',
+      surface: 'var(--radius-surface)',
+      dialog: 'var(--radius-dialog)',
+      full: '9999px',
+      // 旧尺度 key 仅迁移期保留,收尾提交统一删除
       sm: '4px',
       DEFAULT: '4px',
       md: '6px',
@@ -13,12 +20,7 @@ export default {
       xl: '8px',
       '2xl': '8px',
       '3xl': '8px',
-      '4xl': '8px',
-      full: '9999px',
-      compact: '4px',
-      control: '6px',
-      surface: '8px',
-      dialog: '12px'
+      '4xl': '8px'
     },
     extend: {
       colors: {
