@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	time "time"
+
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -81,7 +83,7 @@ func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 			c.Request.Header.Set("Content-Type", "application/json")
 
-			upstream := &httpUpstreamRecorder{responses: []*http.Response{
+			upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 				{
 					StatusCode: http.StatusTooManyRequests,
 					Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid-failover-a"}},
@@ -93,12 +95,12 @@ func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t
 					Body:       io.NopCloser(strings.NewReader(`{"id":"resp_123","status":"completed","model":"ok","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`)),
 				},
 			}}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+			svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 
 			firstAccount := openAIFailoverCachedBodyTestAccount(1, "account-a", tt.firstMapping)
 			secondAccount := openAIFailoverCachedBodyTestAccount(2, "account-b", tt.secondMapping)
 
-			_, err := svc.Responses.Forward(context.Background(), c, firstAccount, body)
+			_, err := svc.Forward(context.Background(), c, firstAccount, body)
 			require.Error(t, err)
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.True(t, errors.As(err, &failoverErr))
@@ -106,7 +108,7 @@ func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t
 			require.Equal(t, tt.wantFirst, gjson.GetBytes(upstream.bodies[0], "model").String())
 
 			c.Set("openai_parsed_request_body", map[string]any{"model": tt.wantFirst, "stream": true})
-			result, err := svc.Responses.Forward(context.Background(), c, secondAccount, body)
+			result, err := svc.Forward(context.Background(), c, secondAccount, body)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, upstream.bodies, 2)
@@ -116,7 +118,7 @@ func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t
 }
 
 func TestOpenAIGatewayService_HandleFailoverSideEffects_DoesNotRereadResponseBody(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc := newResponsesFixture(responsesFixtureInputs{})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 88,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth},
@@ -128,11 +130,11 @@ func TestOpenAIGatewayService_HandleFailoverSideEffects_DoesNotRereadResponseBod
 	}
 
 	require.NotPanics(t, func() {
-		svc.responseOutput.ApplyHTTPFailure(context.Background(), resp, account, []byte(`{"error":{"type":"rate_limit_error","message":"rate limited"}}`))
+		svc.Output.ApplyHTTPFailure(context.Background(), resp, account, []byte(`{"error":{"type":"rate_limit_error","message":"rate limited"}}`))
 	})
 
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
-	require.True(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(account, http.StatusTooManyRequests, false))
+	require.False(t, svc.Output.Health.Runtime.Blocked(account.Record.ID, func() string { return accountcore.RefreshCredentialIdentity(account.View()) }))
+	require.True(t, accountprovider.CanRetryOpenAI429(svc.Output.Health.Runtime, account.View(), nil, nil))
 }
 
 func openAIFailoverCachedBodyTestAccount(id int64, name string, mapping map[string]any) *gatewayprovider.ExecutionAccount {
@@ -148,6 +150,6 @@ func openAIFailoverCachedBodyTestAccount(id int64, name string, mapping map[stri
 		Credentials:    credentials,
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1)},
+		RateMultiplier: new(float64(1))},
 	}
 }

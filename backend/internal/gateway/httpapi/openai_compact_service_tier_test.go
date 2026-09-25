@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -56,7 +56,7 @@ func TestOpenAIOAuthCompactHTTPBuildersUsePreservedServiceTierInRoutingHint(t *t
 			"chatgpt_account_id": "test-account",
 		}},
 	}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc := newResponsesFixture(responsesFixtureInputs{})
 
 	tests := []struct {
 		name  string

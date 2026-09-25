@@ -2880,8 +2880,8 @@
   },
   "current_remaining": {
     "production_files": 23,
-    "test_files": 87,
-    "verified_batch": "native-contracts"
+    "test_files": 71,
+    "verified_batch": "http-identity"
   },
   "latest_combined_validation": {
     "head": "a8a9fb4bd1cb6f0bb86adaa68ecbf33ca01cec8e",
@@ -3000,6 +3000,32 @@
         "backend/internal/upstream/bedrock",
         "backend/internal/upstream/grok",
         "backend/internal/upstream/openai"
+      ]
+    },
+    "http-identity": {
+      "status": "verified",
+      "retired_files": [
+        "backend/internal/service/gateway_settings_store_fixture_test.go",
+        "backend/internal/service/keepalive_fixture_test.go",
+        "backend/internal/service/openai_account_runtime_block_fastpath_test.go",
+        "backend/internal/service/openai_agent_identity_compat_test.go",
+        "backend/internal/service/openai_agent_identity_test.go",
+        "backend/internal/service/openai_capacity_shed_test.go",
+        "backend/internal/service/openai_codex_account_identity_test.go",
+        "backend/internal/service/openai_codex_fingerprint_test.go",
+        "backend/internal/service/openai_compact_service_tier_test.go",
+        "backend/internal/service/openai_failover_cached_body_test.go",
+        "backend/internal/service/openai_first_output_timeout_test.go",
+        "backend/internal/service/openai_visible_ttft_test.go",
+        "backend/internal/service/rate_limit_429_cooldown_test.go",
+        "backend/internal/service/response_header_filter_fixture_test.go",
+        "backend/internal/service/runtime_block_fixture_test.go",
+        "backend/internal/service/tls_fingerprint_profile_service_test.go"
+      ],
+      "verification": "service-http-identity-verification.json",
+      "owners": [
+        "gateway/httpapi",
+        "gateway/testkit"
       ]
     }
   }

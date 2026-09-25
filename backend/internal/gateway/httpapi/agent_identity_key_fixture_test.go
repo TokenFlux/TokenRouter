@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"crypto/ed25519"

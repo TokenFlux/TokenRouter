@@ -1,3 +1,5 @@
+//go:build unit
+
 package service
 
 import (
@@ -11,23 +13,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
-// 原执行测试显式绑定原生凭据源；只投影存储替身，不复制认证、刷新或影子规则。
-func newOpenAIExecutionCredentialsForTest(repo gatewayprovider.ExecutionAccountStore, openai *account.OpenAITokenSource, grok *account.GrokTokenSource) *account.OpenAIExecutionCredentials {
-	out := &account.OpenAIExecutionCredentials{}
-	if repo != nil {
-		out.Parent = func(ctx context.Context, id int64) (*account.Record, error) {
-			value, err := repo.GetByID(ctx, id)
-			return gatewayprovider.ExecutionRecord(value), err
-		}
-	}
-	if openai != nil {
-		out.OpenAI = openai.GetAccessToken
-	}
-	if grok != nil {
-		out.Grok = grok.GetAccessToken
-	}
-	return out
-}
 func withOpenAIExecutionCredentialsForTest(s *OpenAIGatewayService, tokens ...*account.GrokTokenSource) *OpenAIGatewayService {
 	s.BindAgentIdentity(gatewayprovider.NewExecutionAgentIdentity(&agentTaskCoordinatorForTest, s.accountRepo, registerAgentTaskForTest, s.Connections.InvalidateAccount))
 	if s.executionCredentials == nil {

@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -56,7 +56,7 @@ func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 	profileSvc := provider.NewTLSProfiles(egress.NewTLSFingerprintProfileService(&tlsProfileTestStore{profiles: []*egress.TLSFingerprintProfile{{ID: 10, Name: "fixed"}, {ID: 20, Name: "router"}}}, nil))
 	profileSvc.Start()
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{tlsFPProfileService: profileSvc})
+	svc := newResponsesFixture(responsesFixtureInputs{profiles: profileSvc})
 
 	// 路由器命中优先使用规则目标模板。
 	routerProfile := svc.Requests.TLSProfile(account, egress.TLSFingerprintRouterMatchResult{

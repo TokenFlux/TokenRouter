@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -16,9 +16,7 @@ import (
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -50,7 +48,7 @@ func TestOpenAIAgentIdentityPassthroughKeepsSessionAndPromptCacheHeaders(t *test
 	c.Request.Header.Set("conversation_id", "client-conversation")
 	c.Request.Header.Set("Authorization", "Bearer inbound-must-not-forward")
 
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{}))
+	svc := newResponsesFixture(responsesFixtureInputs{})
 	req, err := svc.Requests.BuildPassthrough(context.Background(), c, account, body, "")
 	require.NoError(t, err)
 	require.Equal(t, "AgentAssertion", strings.SplitN(req.Header.Get("Authorization"), " ", 2)[0])
@@ -95,9 +93,9 @@ func TestOpenAIAgentIdentityErrorRedactionDoesNotLeakCredentialValues(t *testing
 			"access_token":      key.RuntimeID + "-oauth-value",
 		}},
 	}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{}))
+	svc := newResponsesFixture(responsesFixtureInputs{})
 	oauthValue := account.View().GetCredential("access_token")
-	redacted := svc.agentIdentity.Redact(context.Background(), account, []byte(`{"message":"runtime-test task-test `+oauthValue+` AgentAssertion abc123"}`))
+	redacted := svc.Requests.Identity.Redact(context.Background(), account, []byte(`{"message":"runtime-test task-test `+oauthValue+` AgentAssertion abc123"}`))
 	require.NotContains(t, string(redacted), key.RuntimeID)
 	require.NotContains(t, string(redacted), key.TaskID)
 	require.NotContains(t, string(redacted), oauthValue)
@@ -106,7 +104,7 @@ func TestOpenAIAgentIdentityErrorRedactionDoesNotLeakCredentialValues(t *testing
 }
 
 func TestOpenAIAuthenticationHeadersPreserveOAuthPATAndAPIKeyBearerModes(t *testing.T) {
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{}))
+	svc := newResponsesFixture(responsesFixtureInputs{})
 	tests := []struct {
 		name    string
 		account *gatewayprovider.ExecutionAccount
@@ -118,7 +116,7 @@ func TestOpenAIAuthenticationHeadersPreserveOAuthPATAndAPIKeyBearerModes(t *test
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			headers, err := svc.agentIdentity.Headers(context.Background(), tt.account, tt.token)
+			headers, err := svc.Requests.Identity.Headers(context.Background(), tt.account, tt.token)
 			require.NoError(t, err)
 			require.Equal(t, "Bearer "+tt.token, headers.Get("Authorization"))
 		})
@@ -161,22 +159,19 @@ func TestOpenAIAgentIdentityTaskInvalidRetriesExactlyOnce(t *testing.T) {
 		_, _ = io.WriteString(w, `{"task_id":"task-new"}`)
 	}))
 	defer registerServer.Close()
-	oldBase := openAIAgentIdentityAuthAPIBaseURL
-	openAIAgentIdentityAuthAPIBaseURL = registerServer.URL
-	t.Cleanup(func() { openAIAgentIdentityAuthAPIBaseURL = oldBase })
 
 	successBody := `{"id":"resp-agent-retry","object":"response","model":"gpt-5.4","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		{StatusCode: http.StatusUnauthorized, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"invalid_task_id"}}`))},
 		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(successBody))},
 	}}
 	require.True(t, openai.IsAgentTaskInvalidHTTPResponse(http.StatusUnauthorized, []byte(`{"error":{"code":"invalid_task_id"}}`)))
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, accountRepo: repo, httpUpstream: upstream}))
+	svc := newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{}, accounts: repo, registerTaskURL: registerServer.URL, transport: upstream})
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5.4","instructions":"Reply OK","input":[],"stream":false}`))
 
-	_, err := svc.Responses.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.4","instructions":"Reply OK","input":[],"stream":false}`))
+	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.4","instructions":"Reply OK","input":[],"stream":false}`))
 	require.NoError(t, err)
 	require.Equal(t, 1, registerCalls)
 	require.Len(t, upstream.requests, 2)
@@ -191,7 +186,7 @@ func TestOpenAIAgentIdentityTaskInvalidRetriesExactlyOnce(t *testing.T) {
 	rec2 := httptest.NewRecorder()
 	c2, _ := gin.CreateTestContext(rec2)
 	c2.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5.4","instructions":"Reply OK","input":[],"stream":false}`))
-	_, err = svc.Responses.Forward(context.Background(), c2, account, []byte(`{"model":"gpt-5.4","instructions":"Reply OK","input":[],"stream":false}`))
+	_, err = svc.Forward(context.Background(), c2, account, []byte(`{"model":"gpt-5.4","instructions":"Reply OK","input":[],"stream":false}`))
 	require.Error(t, err)
 	require.Equal(t, 2, registerCalls)
 	require.Len(t, upstream.requests, 4)
@@ -206,7 +201,7 @@ func TestOpenAIAgentIdentityTaskInvalidRetriesExactlyOnce(t *testing.T) {
 	rec3 := httptest.NewRecorder()
 	c3, _ := gin.CreateTestContext(rec3)
 	c3.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5.4","instructions":"Reply OK","input":[],"stream":false}`))
-	_, err = svc.Responses.Forward(context.Background(), c3, account, []byte(`{"model":"gpt-5.4","instructions":"Reply OK","input":[],"stream":false}`))
+	_, err = svc.Forward(context.Background(), c3, account, []byte(`{"model":"gpt-5.4","instructions":"Reply OK","input":[],"stream":false}`))
 	require.NoError(t, err)
 	require.Equal(t, 3, registerCalls)
 	require.Len(t, upstream.requests, 6)
@@ -218,13 +213,13 @@ func TestOpenAIAgentIdentityCompatRoutesRecoverInvalidTaskOnce(t *testing.T) {
 		name string
 		path string
 		body []byte
-		call func(*OpenAIGatewayService, context.Context, *gin.Context, *gatewayprovider.ExecutionAccount, []byte) (*forwardcore.OpenAIResult, error)
+		call func(*OpenAIResponsesExecutor, context.Context, *gin.Context, *gatewayprovider.ExecutionAccount, []byte) (*forwardcore.OpenAIResult, error)
 	}{
 		{
 			name: "chat completions",
 			path: "/v1/chat/completions",
 			body: []byte(`{"model":"gpt-5.4","stream":false,"messages":[{"role":"user","content":"hi"}]}`),
-			call: func(s *OpenAIGatewayService, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error) {
+			call: func(s *OpenAIResponsesExecutor, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error) {
 				return s.Text.Chat(ctx, c, account, body, "", "gpt-5.4")
 			},
 		},
@@ -232,7 +227,7 @@ func TestOpenAIAgentIdentityCompatRoutesRecoverInvalidTaskOnce(t *testing.T) {
 			name: "anthropic messages",
 			path: "/v1/messages",
 			body: []byte(`{"model":"gpt-5.4","stream":false,"max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`),
-			call: func(s *OpenAIGatewayService, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error) {
+			call: func(s *OpenAIResponsesExecutor, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error) {
 				return s.Text.Messages(ctx, c, account, body, "", "gpt-5.4")
 			},
 		},
@@ -263,15 +258,12 @@ func TestOpenAIAgentIdentityCompatRoutesRecoverInvalidTaskOnce(t *testing.T) {
 				_, _ = io.WriteString(w, `{"task_id":"task-compat-new"}`)
 			}))
 			defer registerServer.Close()
-			oldBase := openAIAgentIdentityAuthAPIBaseURL
-			openAIAgentIdentityAuthAPIBaseURL = registerServer.URL
-			t.Cleanup(func() { openAIAgentIdentityAuthAPIBaseURL = oldBase })
 
-			upstream := &httpUpstreamRecorder{responses: []*http.Response{
+			upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 				{StatusCode: http.StatusUnauthorized, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"invalid_task_id"}}`))},
 				{StatusCode: http.StatusUnauthorized, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"invalid_task_id"}}`))},
 			}}
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, accountRepo: repo, httpUpstream: upstream}))
+			svc := newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{}, accounts: repo, registerTaskURL: registerServer.URL, transport: upstream})
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, tt.path, bytes.NewReader(tt.body))
@@ -303,15 +295,12 @@ func TestOpenAIAgentIdentityChatRecoveryKeepsAutoDerivedSessionIsolationStable(t
 		_, _ = io.WriteString(w, `{"task_id":"task-cache-new"}`)
 	}))
 	defer registerServer.Close()
-	oldBase := openAIAgentIdentityAuthAPIBaseURL
-	openAIAgentIdentityAuthAPIBaseURL = registerServer.URL
-	t.Cleanup(func() { openAIAgentIdentityAuthAPIBaseURL = oldBase })
 
 	invalidTask := func() *http.Response {
 		return &http.Response{StatusCode: http.StatusUnauthorized, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"invalid_task_id"}}`))}
 	}
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{invalidTask(), invalidTask()}}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, accountRepo: repo, httpUpstream: upstream}))
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{invalidTask(), invalidTask()}}
+	svc := newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{}, accounts: repo, registerTaskURL: registerServer.URL, transport: upstream})
 	body := []byte(`{"model":"gpt-5.4","stream":false,"messages":[{"role":"user","content":"hi"}]}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -325,7 +314,7 @@ func TestOpenAIAgentIdentityChatRecoveryKeepsAutoDerivedSessionIsolationStable(t
 	secondKey := gjson.GetBytes(upstream.bodies[1], "prompt_cache_key").String()
 	require.NotEmpty(t, firstKey)
 	require.Equal(t, firstKey, secondKey)
-	require.Equal(t, upstreamcore.GenerateSessionUUID(openai.IsolateOpenAIUpstreamSessionID(99, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(c, account.View())), firstKey)), upstream.requests[0].Header.Get("session_id"))
+	require.Equal(t, upstreamcore.GenerateSessionUUID(openai.IsolateOpenAIUpstreamSessionID(99, accountprovider.CodexIdentityNamespace(CodexIdentityRecord(c, account.View())), firstKey)), upstream.requests[0].Header.Get("session_id"))
 	require.Equal(t, upstream.requests[0].Header.Get("session_id"), upstream.requests[1].Header.Get("session_id"))
 }
 

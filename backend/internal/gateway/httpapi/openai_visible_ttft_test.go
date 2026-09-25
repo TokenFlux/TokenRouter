@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	responseupstream "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -83,10 +84,7 @@ func TestOpenAIResponsesTTFTStartsAtCompletedImage(t *testing.T) {
 
 func TestOpenAINativeMetadataDoesNotDisarmFirstOutputTimeout(t *testing.T) {
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{settingService: newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{gateway.SettingKeyOpenAITTFTMode: gateway.OpenAITTFTModeVisible}}, &config.Config{}), cfg: &config.Config{Gateway: config.GatewayConfig{
-		MaxLineSize:                     defaultMaxLineSize,
-		OpenAIFirstOutputTimeoutSeconds: 1,
-	}}})
+	svc := newResponsesFixture(responsesFixtureInputs{readers: newHTTPReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{gateway.SettingKeyOpenAITTFTMode: gateway.OpenAITTFTModeVisible}}, nil), options: &responsesFixtureOptions{Response: OpenAIResponseOptions{MaxLineSize: openAIResponseDefaultMaxLineSize, OpenAIFirstOutputTimeoutSeconds: 1}}})
 	reader, writer := io.Pipe()
 	writerDone := make(chan struct{})
 	go func() {
@@ -103,7 +101,7 @@ func TestOpenAINativeMetadataDoesNotDisarmFirstOutputTimeout(t *testing.T) {
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: reader}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "account_test", Platform: capability.PlatformOpenAI}}
 
-	_, err := svc.responseOutput.Stream(context.Background(), resp, c, account, time.Now(), "test-model", "test-model", "")
+	_, err := svc.Output.Stream(context.Background(), resp, c, account, time.Now(), "test-model", "test-model", "")
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.True(t, failoverErr.SafeToFailoverAfterWrite)
@@ -118,10 +116,7 @@ func TestOpenAINativeMetadataDoesNotDisarmFirstOutputTimeout(t *testing.T) {
 func runSyntheticVisibleTTFTStream(t *testing.T, passthrough bool, visibleDelay time.Duration, timeoutSeconds int, visibleEvent string) *responseupstream.StreamingResult {
 	t.Helper()
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{settingService: newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{gateway.SettingKeyOpenAITTFTMode: gateway.OpenAITTFTModeVisible}}, &config.Config{}), cfg: &config.Config{Gateway: config.GatewayConfig{
-		MaxLineSize:                     defaultMaxLineSize,
-		OpenAIFirstOutputTimeoutSeconds: timeoutSeconds,
-	}}})
+	svc := newResponsesFixture(responsesFixtureInputs{readers: newHTTPReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{gateway.SettingKeyOpenAITTFTMode: gateway.OpenAITTFTModeVisible}}, nil), options: &responsesFixtureOptions{Response: OpenAIResponseOptions{MaxLineSize: openAIResponseDefaultMaxLineSize, OpenAIFirstOutputTimeoutSeconds: timeoutSeconds}}})
 	reader, writer := io.Pipe()
 	writerDone := make(chan struct{})
 	go func() {
@@ -145,12 +140,12 @@ func runSyntheticVisibleTTFTStream(t *testing.T, passthrough bool, visibleDelay 
 	var err error
 	if passthrough {
 		var passthroughResult *responseupstream.StreamingResult
-		passthroughResult, err = svc.responseOutput.PassthroughStream(context.Background(), resp, c, account, started, "test-model", "test-model")
+		passthroughResult, err = svc.Output.PassthroughStream(context.Background(), resp, c, account, started, "test-model", "test-model")
 		if passthroughResult != nil {
 			result = &responseupstream.StreamingResult{FirstTokenMs: passthroughResult.FirstTokenMs}
 		}
 	} else {
-		result, err = svc.responseOutput.Stream(context.Background(), resp, c, account, started, "test-model", "test-model", "")
+		result, err = svc.Output.Stream(context.Background(), resp, c, account, started, "test-model", "test-model", "")
 	}
 	require.NoError(t, err)
 	require.NotNil(t, result)

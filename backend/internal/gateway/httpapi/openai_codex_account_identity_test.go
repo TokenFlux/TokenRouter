@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -41,12 +40,12 @@ func TestCodexAccountIdentitySourceResolvesShadowAndOverwritesFailoverContext(t 
 		"chatgpt_user_id":    "user-1",
 	}}}
 	shadow := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 111, ParentAccountID: &parentID, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
-	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: &codexAccountIdentityRepoStub{account: parent}}))
+	service := newResponsesFixture(responsesFixtureInputs{accounts: &codexAccountIdentityRepoStub{account: parent}})
 
-	resolved, err := gatewayhttp.PrepareCodexIdentity(context.Background(), c, service.accountRepo, shadow)
+	resolved, err := PrepareCodexIdentity(context.Background(), c, service.Requests.Accounts, shadow)
 	require.NoError(t, err)
 	require.Same(t, parent.View(), resolved)
-	require.Same(t, parent.View(), gatewayhttp.CodexIdentityRecord(c, shadow.View()))
+	require.Same(t, parent.View(), CodexIdentityRecord(c, shadow.View()))
 
 	req, err := service.Requests.Build(
 		context.Background(), c, shadow,
@@ -60,15 +59,15 @@ func TestCodexAccountIdentitySourceResolvesShadowAndOverwritesFailoverContext(t 
 		"chatgpt_account_id": "other-account",
 		"chatgpt_user_id":    "user-2",
 	}}}
-	resolved, err = gatewayhttp.PrepareCodexIdentity(context.Background(), c, service.accountRepo, next)
+	resolved, err = PrepareCodexIdentity(context.Background(), c, service.Requests.Accounts, next)
 	require.NoError(t, err)
 	require.Same(t, next.View(), resolved)
-	require.Same(t, next.View(), gatewayhttp.CodexIdentityRecord(c, shadow.View()))
+	require.Same(t, next.View(), CodexIdentityRecord(c, shadow.View()))
 }
 
 func TestBuildUpstreamRequestNamespacesCodexIdentityByOAuthAccount(t *testing.T) {
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc := newResponsesFixture(responsesFixtureInputs{})
 	body := []byte(`{"model":"gpt-5.6-codex","stream":true,"prompt_cache_key":"client-session"}`)
 
 	build := func(accountID int64, chatgptAccountID string) http.Header {

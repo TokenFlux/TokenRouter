@@ -1,0 +1,152 @@
+{
+  "baseline_head": "59184102f160832817fa03136956d10e4bf27ce6",
+  "scope": "OAuth/PAT/Agent Identity/TLS、首输出、容量及透传合同直连原生HTTP组件",
+  "before": {
+    "production": 23,
+    "tests": 87
+  },
+  "after": {
+    "production": 23,
+    "tests": 71
+  },
+  "retired_files": [
+    "backend/internal/service/gateway_settings_store_fixture_test.go",
+    "backend/internal/service/keepalive_fixture_test.go",
+    "backend/internal/service/openai_account_runtime_block_fastpath_test.go",
+    "backend/internal/service/openai_agent_identity_compat_test.go",
+    "backend/internal/service/openai_agent_identity_test.go",
+    "backend/internal/service/openai_capacity_shed_test.go",
+    "backend/internal/service/openai_codex_account_identity_test.go",
+    "backend/internal/service/openai_codex_fingerprint_test.go",
+    "backend/internal/service/openai_compact_service_tier_test.go",
+    "backend/internal/service/openai_failover_cached_body_test.go",
+    "backend/internal/service/openai_first_output_timeout_test.go",
+    "backend/internal/service/openai_visible_ttft_test.go",
+    "backend/internal/service/rate_limit_429_cooldown_test.go",
+    "backend/internal/service/response_header_filter_fixture_test.go",
+    "backend/internal/service/runtime_block_fixture_test.go",
+    "backend/internal/service/tls_fingerprint_profile_service_test.go"
+  ],
+  "tests": [
+    {
+      "name": "focused",
+      "events": {
+        "pass": 160
+      },
+      "skips": [],
+      "log": "service-http-identity-focused.jsonl"
+    },
+    {
+      "name": "normal",
+      "events": {
+        "pass": 2584,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ],
+      "log": "service-http-identity-normal.jsonl"
+    },
+    {
+      "name": "unit",
+      "events": {
+        "pass": 3476,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ],
+      "log": "service-http-identity-unit.jsonl"
+    },
+    {
+      "name": "race",
+      "events": {
+        "pass": 160
+      },
+      "skips": [],
+      "log": "service-http-identity-race.jsonl"
+    },
+    {
+      "name": "final-race",
+      "events": {
+        "pass": 184
+      },
+      "skips": [],
+      "log": "service-http-identity-final-race.jsonl"
+    }
+  ],
+  "mapping": "service-http-identity-test-mapping.json",
+  "lint": [
+    {
+      "name": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./internal/gateway/httpapi",
+        "./internal/service",
+        "./internal/gateway/failover",
+        "./internal/gateway/testkit"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.15
+    },
+    {
+      "name": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./internal/gateway/httpapi",
+        "./internal/service",
+        "./internal/gateway/failover",
+        "./internal/gateway/testkit"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.53
+    },
+    {
+      "name": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./internal/gateway/httpapi",
+        "./internal/service",
+        "./internal/gateway/failover",
+        "./internal/gateway/testkit"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.14
+    }
+  ],
+  "gates": {
+    "passed": 33,
+    "total": 33,
+    "config_sha256": "783afdfecca87b7f56ac1999f594caf6bec0b1bc4ace41035e331c3e85cd04e8"
+  },
+  "build_selection": "service-http-identity-build-selection.json",
+  "preserved_files": 51,
+  "production_behavior_unchanged": true,
+  "wire_sql_ent_unchanged": true,
+  "migration_feedback": [
+    "普通测试使用的HealthStoreBase原为unit专用，已让该I/O替身正常入选；测试自身标签和断言未改。",
+    "同名指纹辅助改用明确执行投影名称，已有相同上下文与种子只复用一份。",
+    "旧OAuth测试文件只保留其他测试使用的HTTP记录器；其所有行为测试已迁出；日志、设置、心跳等无引用替身已删除。"
+  ],
+  "contracts": [
+    "Agent Identity注册地址显式注入测试实例，不再修改测试进程全局；实际签名/交换/凭据写回继续调用原生实现。",
+    "Header、TTL、动态设置与健康预算投影直接赋给原生组件；完成/资金与共享池无变化。"
+  ],
+  "final_acceptance_pending": true
+}

@@ -1,26 +1,20 @@
-package service
+package httpapi
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const testCodexFingerprintSeed = "11111111-1111-4111-8111-111111111111"
-
-func newTestOAuthAccount(id int64, extra map[string]any) *gatewayprovider.ExecutionAccount {
+func newFingerprintExecutionAccount(id int64, extra map[string]any) *gatewayprovider.ExecutionAccount {
 	if accountcore.CodexFingerprintModeRequiresSeed(accountcore.CodexFingerprintModeFromExtra(extra)) {
 		if extra == nil {
 			extra = make(map[string]any)
@@ -66,18 +60,10 @@ func newTestOAuthAccount(id int64, extra map[string]any) *gatewayprovider.Execut
 
 // --- context 暂存与出站头应用（透传/非透传共用 seam）---
 
-func newFingerprintStageTestContext(t *testing.T) *gin.Context {
-	t.Helper()
-
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	return c
-}
-
 func TestBuildUpstreamRequestOpenAIPassthrough_AppliesStagedFingerprint(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc := newResponsesFixture(responsesFixtureInputs{})
 	// 收敛是显式 opt-in（#5610）：显式开启后验证透传路径的出站头收敛。
-	account := newTestOAuthAccount(2001, map[string]any{
+	account := newFingerprintExecutionAccount(2001, map[string]any{
 		"openai_oauth_passthrough": true,
 		"codex_fingerprint_mode":   "session",
 	})
@@ -91,7 +77,7 @@ func TestBuildUpstreamRequestOpenAIPassthrough_AppliesStagedFingerprint(t *testi
 	// 复刻 forwardOpenAIPassthrough 的解析+暂存 seam（默认 session 模式）
 	ids := accountprovider.CodexFingerprintIDsFromRequest(account.View(), c.Request.Header)
 	require.NotNil(t, ids)
-	gatewayhttp.StageCodexFingerprintIDs(c, ids)
+	StageCodexFingerprintIDs(c, ids)
 
 	body := []byte(`{"model":"gpt-5.6-sol","input":[],"stream":true}`)
 	req, err := svc.Requests.BuildPassthrough(context.Background(), c, account, body, "test-token")
@@ -108,8 +94,8 @@ func TestBuildUpstreamRequestOpenAIPassthrough_AppliesStagedFingerprint(t *testi
 }
 
 func TestBuildUpstreamRequestOpenAIPassthrough_OffModeKeepsIsolatedSession(t *testing.T) {
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	account := newTestOAuthAccount(2002, map[string]any{
+	svc := newResponsesFixture(responsesFixtureInputs{})
+	account := newFingerprintExecutionAccount(2002, map[string]any{
 		"openai_oauth_passthrough": true,
 		"codex_fingerprint_mode":   "off",
 	})
@@ -120,7 +106,7 @@ func TestBuildUpstreamRequestOpenAIPassthrough_OffModeKeepsIsolatedSession(t *te
 
 	ids := accountprovider.CodexFingerprintIDsFromRequest(account.View(), c.Request.Header)
 	require.Nil(t, ids)
-	gatewayhttp.StageCodexFingerprintIDs(c, ids)
+	StageCodexFingerprintIDs(c, ids)
 
 	body := []byte(`{"model":"gpt-5.6-sol","input":[],"stream":true}`)
 	req, err := svc.Requests.BuildPassthrough(context.Background(), c, account, body, "test-token")
