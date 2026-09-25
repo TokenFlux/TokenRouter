@@ -23,9 +23,9 @@
       </button>
     </div>
 
-    <div class="pagination-desktop hidden lg:flex lg:flex-1 lg:items-center lg:justify-between">
+    <div class="pagination-desktop hidden lg:flex lg:flex-1 lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4 lg:gap-y-2">
       <!-- Desktop pagination info -->
-      <div class="flex items-center space-x-4">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         <p class="pagination-summary text-sm text-gray-700 dark:text-gray-300">
           {{ t('pagination.showing') }}
           <span class="font-medium">{{ fromItem }}</span>
@@ -41,7 +41,8 @@
           <span class="text-sm text-gray-700 dark:text-gray-300"
             >{{ t('pagination.perPage') }}:</span
           >
-          <div class="page-size-select w-20">
+          <!-- 96px 宽度:px-4 触发器内 padding + 下拉图标占 60px,给三位数页容量留足文本空间。 -->
+          <div class="page-size-select w-24">
             <Select
               :model-value="pageSize"
               :options="pageSizeSelectOptions"
@@ -89,7 +90,7 @@
           @click="typeof pageNum === 'number' && goToPage(pageNum)"
           :disabled="typeof pageNum !== 'number'"
           :class="[
-            'pagination-control pagination-page-button relative inline-flex h-9 items-center border px-4 py-0 text-sm font-medium',
+            'pagination-control pagination-page-button relative inline-flex h-9 min-w-9 items-center justify-center border px-2 py-0 text-sm font-medium',
             pageNum === page
               ? 'z-10 border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800',
