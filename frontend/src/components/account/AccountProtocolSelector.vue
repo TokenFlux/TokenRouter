@@ -1,5 +1,5 @@
 <template>
-  <section class="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+  <section class="space-y-3 rounded-control border border-gray-200 p-4 dark:border-dark-600">
     <label class="input-label">{{ t('admin.protocols.nativeTitle') }}</label>
     <p class="input-hint">{{ t('admin.protocols.nativeHint') }}</p>
     <div v-if="protocolCatalogError" class="flex items-center gap-2 text-sm text-red-500" role="alert">

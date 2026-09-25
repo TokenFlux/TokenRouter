@@ -1,9 +1,9 @@
 <template>
   <div
-    class="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-700 dark:bg-blue-900/30"
+    class="rounded-control border border-blue-200 bg-blue-50 p-4 dark:border-blue-700 dark:bg-blue-900/30"
   >
       <div class="flex items-start gap-4">
-      <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500">
+      <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-control bg-blue-500">
         <Icon name="link" size="md" class="text-white" />
       </div>
       <div class="flex-1">
@@ -131,7 +131,7 @@
         <!-- Refresh Token Input (OpenAI / Antigravity / Mobile RT) -->
         <div v-if="inputMethod === 'refresh_token' || inputMethod === 'mobile_refresh_token'" class="space-y-4">
           <div
-            class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+            class="rounded-surface border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
             <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
               {{ t(getOAuthKey('refreshTokenDesc')) }}
@@ -168,7 +168,7 @@
             <!-- Error Message -->
             <div
               v-if="error"
-              class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+              class="mb-4 rounded-control border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
             >
               <p class="whitespace-pre-line text-sm text-red-600 dark:text-red-400">
                 {{ error }}
@@ -215,7 +215,7 @@
         <!-- Grok Web SSO 转换为 Grok Build -->
         <div v-if="inputMethod === 'sso_cookie'" class="space-y-4">
           <div
-            class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+            class="rounded-surface border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
             <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
               {{ t(getOAuthKey('ssoCookieDesc')) }}
@@ -248,7 +248,7 @@
 
             <div
               v-if="error"
-              class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+              class="mb-4 rounded-control border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
             >
               <p class="whitespace-pre-line text-sm text-red-600 dark:text-red-400">
                 {{ error }}
@@ -290,7 +290,7 @@
         <!-- Codex auth.json、Agent Identity 与会话凭据共用批量导入表单。 -->
         <div v-if="inputMethod === 'codex_session' || inputMethod === 'agent_identity'" class="space-y-4">
           <div
-            class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+            class="rounded-surface border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
             <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
               {{ t(isAgentIdentityInput ? 'admin.accounts.oauth.openai.agentIdentityDesc' : 'admin.accounts.oauth.openai.codexSessionDesc') }}
@@ -323,7 +323,7 @@
 
             <div
               v-if="error"
-              class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+              class="mb-4 rounded-control border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
             >
               <p class="whitespace-pre-line text-sm text-red-600 dark:text-red-400">
                 {{ error }}
@@ -369,7 +369,7 @@
         <!-- Codex PAT 输入 -->
         <div v-if="inputMethod === 'codex_pat'" class="space-y-4">
           <div
-            class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+            class="rounded-surface border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
             <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
               {{ t('admin.accounts.oauth.openai.codexPatDesc') }}
@@ -397,7 +397,7 @@
 
             <div
               v-if="error"
-              class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+              class="mb-4 rounded-control border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
             >
               <p class="whitespace-pre-line text-sm text-red-600 dark:text-red-400">
                 {{ error }}
@@ -443,7 +443,7 @@
         <!-- Cookie Auto-Auth Form -->
         <div v-if="inputMethod === 'cookie'" class="space-y-4">
           <div
-            class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+            class="rounded-surface border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
             <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
               {{ t('admin.accounts.oauth.cookieAutoAuthDesc') }}
@@ -504,7 +504,7 @@
             <!-- Help Section -->
             <div
               v-if="showHelpDialog && showHelp"
-              class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30"
+              class="mb-4 rounded-control border border-amber-200 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30"
             >
               <h5 class="mb-2 font-semibold text-amber-800 dark:text-amber-200">
                 {{ t('admin.accounts.oauth.howToGetSessionKey') }}
@@ -528,7 +528,7 @@
             <!-- Error Message -->
             <div
               v-if="error"
-              class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+              class="mb-4 rounded-control border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
             >
               <p class="whitespace-pre-line text-sm text-red-600 dark:text-red-400">
                 {{ error }}
@@ -580,7 +580,7 @@
 
           <!-- Step 1: Generate Auth URL -->
           <div
-            class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+            class="rounded-surface border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
             <div class="flex items-start gap-3">
               <div
@@ -657,7 +657,7 @@
                     <div
                       v-for="(session, index) in openAIAuthSessions"
                       :key="session.sessionId"
-                      class="flex items-center gap-2 rounded-lg border border-blue-100 bg-gray-50 p-2 dark:border-blue-900/50 dark:bg-gray-700"
+                      class="flex items-center gap-2 rounded-control border border-blue-100 bg-gray-50 p-2 dark:border-blue-900/50 dark:bg-gray-700"
                     >
                       <span class="w-10 shrink-0 text-center text-xs font-semibold text-blue-700 dark:text-blue-300">
                         #{{ index + 1 }}
@@ -797,7 +797,7 @@
 
           <!-- 步骤 2：打开授权地址 -->
           <div
-            class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+            class="rounded-surface border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
             <div class="flex items-start gap-3">
               <div
@@ -815,7 +815,7 @@
                 <!-- 平台特定的重要提示和本地回调提示 -->
                 <div
                   v-if="showLocalCallbackNotice || oauthImportantNotice"
-                  class="mt-2 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30"
+                  class="mt-2 rounded-compact border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30"
                 >
                   <p
                     class="text-xs text-amber-800 dark:text-amber-300"
@@ -825,7 +825,7 @@
                 <!-- 非 OpenAI 平台代理提示 -->
                 <div
                   v-if="showProxyWarning"
-                  class="mt-2 rounded border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-900/30"
+                  class="mt-2 rounded-compact border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-900/30"
                 >
                   <p
                     class="text-xs text-yellow-800 dark:text-yellow-300"
@@ -838,7 +838,7 @@
 
           <!-- 步骤 3：输入授权码 -->
           <div
-            class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+            class="rounded-surface border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
             <div class="flex items-start gap-3">
               <div
@@ -888,7 +888,7 @@
                   <!-- Gemini-specific state parameter warning -->
                   <div
                     v-if="platform === 'gemini'"
-                    class="mt-3 rounded-lg border-2 border-amber-400 bg-amber-50 p-3 dark:border-amber-600 dark:bg-amber-900/30"
+                    class="mt-3 rounded-control border-2 border-amber-400 bg-amber-50 p-3 dark:border-amber-600 dark:bg-amber-900/30"
                   >
                     <div class="flex items-start gap-2">
                       <Icon
@@ -908,7 +908,7 @@
                 <!-- Error Message -->
                 <div
                   v-if="error"
-                  class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+                  class="mt-3 rounded-control border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
                 >
                   <p class="whitespace-pre-line text-sm text-red-600 dark:text-red-400">
                     {{ error }}

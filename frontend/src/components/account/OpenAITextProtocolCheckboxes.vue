@@ -1,8 +1,8 @@
 <template>
   <div>
     <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      <label v-for="option in options" :key="option.value" class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-dark-600">
-        <input type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+      <label v-for="option in options" :key="option.value" class="flex cursor-pointer items-center gap-2 rounded-control border border-gray-200 px-3 py-2 text-sm dark:border-dark-600">
+        <input type="checkbox" class="rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
           :data-testid="`openai-text-protocol-${option.value}`" :checked="selected.includes(option.value)"
           :disabled="disabled || (selected.length === 1 && selected.includes(option.value))" @change="toggle(option.value)" />
         <span>{{ option.label }}</span>

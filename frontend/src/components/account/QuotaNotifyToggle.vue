@@ -72,7 +72,7 @@ const onThresholdTypeChange = (value: string | number | boolean | null) => {
 
 <style scoped>
 .quota-threshold-type-select :deep(.select-trigger) {
-  @apply rounded-lg px-2 py-1 text-xs;
+  @apply rounded-control px-2 py-1 text-xs;
 }
 
 .quota-threshold-type-select :deep(.select-value) {

@@ -1,12 +1,12 @@
 <template>
   <div
-    class="overflow-hidden rounded-lg border border-sky-100 bg-sky-50/60 shadow-sm dark:border-sky-900/50 dark:bg-sky-950/20"
+    class="overflow-hidden rounded-control border border-sky-100 bg-sky-50/60 shadow-sm dark:border-sky-900/50 dark:bg-sky-950/20"
     role="radiogroup"
     :aria-label="t('admin.accounts.openai.codexImageTool')"
     :data-testid="`${testIdPrefix}-selector`"
   >
     <div class="flex items-start gap-3 px-4 py-3">
-      <div class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-white text-sky-600 shadow-sm ring-1 ring-sky-100 dark:bg-dark-800 dark:text-sky-300 dark:ring-sky-900/60">
+      <div class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-control bg-white text-sky-600 shadow-sm ring-1 ring-sky-100 dark:bg-dark-800 dark:text-sky-300 dark:ring-sky-900/60">
         <Icon name="sparkles" size="sm" />
       </div>
       <div class="min-w-0 flex-1">
@@ -31,7 +31,7 @@
           :aria-checked="modelValue === option.value"
           :data-testid="`${testIdPrefix}-${option.value}`"
           :class="[
-            'group flex min-h-[62px] items-start gap-2 rounded-md border px-3 py-2 text-left transition-all',
+            'group flex min-h-[62px] items-start gap-2 rounded-control border px-3 py-2 text-left transition-all',
             modelValue === option.value
               ? option.selectedCardClass
               : 'border-transparent bg-transparent text-slate-600 hover:border-gray-200 hover:bg-gray-50 dark:text-slate-300 dark:hover:border-dark-500 dark:hover:bg-dark-700'
