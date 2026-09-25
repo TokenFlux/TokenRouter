@@ -35,7 +35,9 @@
 <a id="gateway_pipeline"></a>
 ## 共同处理管线
 
-HTTP 入口由 app 固定构造。OpenAI Responses、Chat 与 Messages 的 HTTP 绑定直接接收唯一用户/图片槽资源、Cyber、审核、归属读取及资金端口，已不从旧 Handler 构造 HTTP 门面；`gateway/httpapi/openaiattempt.Runtime` 直接绑定平台单次能力、同一调度反馈、槽位和完成器，每次 Open 创建独立尝试状态；Responses、Chat、Messages 的生产执行也已不依赖旧 Handler。WS 的入站与每轮单步端口由 `gateway/httpapi/wsentry` 直接装配，与文本运行时共享同一份尝试绑定；图片、视频、音频、Embeddings 与 Alpha Search 的 HTTP 请求适配和完成捕获由 `gateway/httpapi/mediaentry` 直接装配，也共享原生失败输出与资源释放。Wire 已不再构造旧 Handler 或事后绑定其完成器；原合同测试直接使用实际原生绑定与函数句柄夹具，旧 handler 包已删除；平台单次交换与 WS relay 的剩余技术适配通过固定端口提供。图片单次执行直接绑定 OpenAIImagesExecutor，共用 OpenAIRequests、OpenAIResponseOutput 和应用活动屏障；图片工具冷却通过账号端口写入。图片意图提示由 HTTP 按尝试保存，渠道改写后重新判断，不把请求级提示误用于下一账号尝试。`gateway/text` 拥有文本账号循环与计数预检的独立预算，`gateway/requeststate` 拥有报文副本、引导规范化和请求内模型替换缓存；`gateway/modeltrace` 维护响应恢复链。`forward` 组织通用请求准备和转换推进，技术 provider/HTTP Adapter 执行交换、读写与 Flush。平台专有部分仍按 S11 阶段清单逐批从旧单步 Adapter 收敛，不创建第二套账号切换循环。
+HTTP 入口由 app 固定构造。OpenAI Responses、Chat 与 Messages 的 HTTP 绑定直接接收唯一用户/图片槽资源、Cyber、审核、归属读取及资金端口，已不从旧 Handler 构造 HTTP 门面；`gateway/httpapi/openaiattempt.Runtime` 直接绑定平台单次能力、同一调度反馈、槽位和完成器，每次 Open 创建独立尝试状态；Responses、Chat、Messages 的生产执行也已不依赖旧 Handler。WS 的入站与每轮单步端口由 `gateway/httpapi/wsentry` 直接装配，与文本运行时共享同一份尝试绑定；图片、视频、音频、Embeddings 与 Alpha Search 的 HTTP 请求适配和完成捕获由 `gateway/httpapi/mediaentry` 直接装配，也共享原生失败输出与资源释放。Wire 已不再构造旧 Handler 或事后绑定其完成器；原合同测试直接使用实际原生绑定与函数句柄夹具，旧 handler 包已删除；平台单次交换与 WS relay 直接绑定原生执行器的固定端口。图片单次执行直接绑定 OpenAIImagesExecutor，共用 OpenAIRequests、OpenAIResponseOutput 和应用活动屏障；图片工具冷却通过账号端口写入。图片意图提示由 HTTP 按尝试保存，渠道改写后重新判断，不把请求级提示误用于下一账号尝试。`gateway/text` 拥有文本账号循环与计数预检的独立预算，`gateway/requeststate` 拥有报文副本、引导规范化和请求内模型替换缓存；`gateway/modeltrace` 维护响应恢复链。`forward` 组织通用请求准备和转换推进，技术 provider/HTTP Adapter 执行交换、读写与 Flush。平台专有部分仍按 S11 阶段清单逐批从旧单步 Adapter 收敛，不创建第二套账号切换循环。
+
+WS执行使用明确的静态选项和请求、输出、会话及选择端口，核心不读取完整应用配置。连接池仍在首次使用时启动，关闭屏障使它在退出后不能被重新创建。Grok、Live和WS共用拨号器，Agent Identity凭据失效也作用于同一池。入站、池化、透传及HTTP桥接继续使用各自原有恢复和取消规则，测试直接验证原生帧执行与共享状态。
 
 Responses 的固定执行器拥有请求准备、转换和HTTP单次执行，复用已有 OpenAIRequests、OpenAITextExecutor 和输出实例。协议转换和Compact错误恢复不重新运行全局账号循环。失效密文读写在HTTP与WS间共享原会话存储及TTL，转入WS时不再重做模型映射或请求变换。
 

@@ -186,3 +186,15 @@ func TestLogOpenAIRemoteCompactOutcome_NonCompactSkips(t *testing.T) {
 }
 
 var handlerStructuredLogCaptureMu sync.Mutex
+
+// ContainsMessage 保留跨入口日志合同的子串匹配，不附加级别条件。
+func (s *handlerInMemoryLogSink) ContainsMessage(substr string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, event := range s.events {
+		if event != nil && strings.Contains(event.Message, substr) {
+			return true
+		}
+	}
+	return false
+}

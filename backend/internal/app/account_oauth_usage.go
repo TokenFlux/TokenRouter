@@ -12,9 +12,9 @@ import (
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
@@ -26,7 +26,7 @@ func provideOAuthUsageStats(store *usagepostgres.Store, cache *account.OAuthUsag
 }
 
 // provideOAuthUsageCore 直接绑定原生读取、平台查询和生命周期，不通过旧服务取回实例。
-func provideOAuthUsageCore(store *accountpostgres.AccountStore, usageStore *usagepostgres.Store, cache *account.OAuthUsageCache, stats *account.LocalUsageStatistics, gemini *account.GeminiQuotaService, antigravity *account.AntigravityQuota, grokView *account.GrokQuotaView, grok *account.GrokQuotaService, openAI *account.OpenAIQuotaService, fetcher accountprovider.ClaudeUsageClient, fingerprints anthropic.FingerprintCache, profiles *egressprovider.TLSProfiles, transport httpclient.UpstreamTransport, settings *account.QuotaSettingsCache, gateway *service.OpenAIGatewayService, manager *lifecycle.Manager, coordinator *account.OpenAITaskCoordinator) *account.OAuthUsageService {
+func provideOAuthUsageCore(store *accountpostgres.AccountStore, usageStore *usagepostgres.Store, cache *account.OAuthUsageCache, stats *account.LocalUsageStatistics, gemini *account.GeminiQuotaService, antigravity *account.AntigravityQuota, grokView *account.GrokQuotaView, grok *account.GrokQuotaService, openAI *account.OpenAIQuotaService, fetcher accountprovider.ClaudeUsageClient, fingerprints anthropic.FingerprintCache, profiles *egressprovider.TLSProfiles, transport httpclient.UpstreamTransport, settings *account.QuotaSettingsCache, connections *gatewayhttp.OpenAIWSConnections, manager *lifecycle.Manager, coordinator *account.OpenAITaskCoordinator) *account.OAuthUsageService {
 	taskOptions := account.OpenAITaskOptions{
 		Read: store.GetByID,
 		Register: func(ctx context.Context, value *account.Record) (string, error) {
@@ -36,7 +36,7 @@ func provideOAuthUsageCore(store *accountpostgres.AccountStore, usageStore *usag
 			_, err := account.PersistCredentials(ctx, store, value, credentials, slog.Warn)
 			return err
 		},
-		Invalidate: gateway.InvalidateAgentIdentityWSConnections,
+		Invalidate: connections.InvalidateAccount,
 	}
 	requests := &accountprovider.OAuthUsageTransport{
 		Transport: transport, Profiles: profiles, Fingerprints: fingerprints,

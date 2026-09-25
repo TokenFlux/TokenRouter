@@ -14,6 +14,7 @@ var gatewayExecutionProviders = wire.NewSet(
 	provideRequestCredentials,
 	provideGrokHealth,
 	provideGrokExecutor,
+	provideWSConnections,
 	provideGrokVideoTasks,
 	provideCompactExecutor,
 	provideOpenAIResponseHealth,

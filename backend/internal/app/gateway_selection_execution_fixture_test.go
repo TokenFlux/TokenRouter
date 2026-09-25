@@ -95,20 +95,21 @@ func newOpenAIExecutionAndSelectionFixture(
 		return (gatewayprovider.ModelPolicy{Record: value}).NormalizeOpenAI(model)
 	}}
 	output := provideOpenAIResponseOutput(cfg, provideOpenAIResponseHealth(healthObserver, blocks, modelTransient, deferredService), grokHealth, healthObserver, headerFilter, turnHeaders, proxyCircuit, settingService, stateStore, choices, provideReasoningHistory(cache))
-	source := service.NewOpenAIGatewayService(accountRepo, cache, cfg, concurrencyService,
+	connections := gatewayhttp.NewOpenAIWSConnections(openAIWSPoolOptions(cfg), nil)
+	source := service.NewOpenAIGatewayService(connections, accountRepo, cache, cfg, concurrencyService,
 		healthObserver, httpUpstream, tlsFPProfileService, deferredService,
 
 		executionCredentials, credentials, resolver, channelService,
 
 		settingService, prompts, headerFilter, stateStore, turnHeaders, modelTransient, proxyCircuit, choices, grokHealth, provideCompactExecutor(cfg), output, tlsFPRouterServices...)
-	source.BindGrokExecution(provideGrokExecutor(cfg, credentials, httpUpstream, output, grokHealth, tlsFPProfileService, settingService, blocks, deferredService, accountRepo, &gatewayRequestActivity{Operations: lifecycle.NewOperations("GatewayRequestsAndAttempts")}, resolver))
+	source.BindGrokExecution(provideGrokExecutor(cfg, credentials, httpUpstream, output, grokHealth, tlsFPProfileService, settingService, blocks, deferredService, accountRepo, &gatewayRequestActivity{Operations: lifecycle.NewOperations("GatewayRequestsAndAttempts")}, resolver, connections))
 	var routers *egress.TLSFingerprintRouterService
 	if len(tlsFPRouterServices) > 0 {
 		routers = tlsFPRouterServices[0]
 	}
 	source.BindTextExecution(openAITextExecution(cfg, accountRepo, nil, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, source.Grok, output, source.PromptCacheBindings(), choices.OpenAIHTTPResponseStickyTTL, provideCompactExecutor(cfg)))
 	source.Auxiliary = &gatewayhttp.OpenAIAuxiliary{Requests: source.Requests, Output: output, CodexUsage: source.Text.CodexUsage}
-	bindOpenAIResponses(source, cfg, channelService, choices)
+	bindOpenAIResponses(source, cfg, channelService, choices, cache, prompts)
 	source.BindRuntimeBlockState(blocks)
 	source.BindSchedulerStickyStats(sticky)
 	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}

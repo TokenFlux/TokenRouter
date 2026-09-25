@@ -1914,3 +1914,11 @@ S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶�
 - 在`a8a9fb4bd`串行完成全仓普通、unit、integration（-p=4）及三套lint；验证期间源码与HEAD保持不变。普通12,013、unit20,047、integration13,022条通过，跳过分别4/8/4，按测试名与上一次全仓记录逐项核对一致。三套lint均为0。
 - 本轮包含Images、创作任务目标、Responses及Live四个已提交能力批次。[合并验证摘要](baseline/S16/service-transport-group-verification.json)记录命令、包、测试事件及既有跳过。
 - 当前旧service仍有40个生产文件、169个测试文件，WS与旧共享装配尚未清零；该检查点不替代S16最终前端、跨平台、进程、资金销项和全量验收，不更新17/17。
+
+### WS资源、帧执行与跨能力消费者完整批次（2026-09-25）
+
+- OpenAIWSConnections 唯一持有按需连接池、共享拨号器与关闭屏障；Grok、Live、WS和账号授权/用量/探测直接改绑同一实例。原OpenAIGatewayService关闭hook由OpenAIWSConnections替代，990/10顺序不变。
+- OpenAIWebSocketExecutor 接收独立WS选项和固定原生端口，入站、ctx_pool、passthrough、HTTP桥接、健康及恢复适配同批退出旧service；gateway/ws继续唯一拥有循环。保留字段、帧次序、取消、池身份、每turn快照和实际输出后的重试边界。
+- 332个原测试按名称、构建标签和断言数量映射，无遗漏、无减少。普通3,422、unit4,699条通过，各2项既有跳过；定向race514条通过、1项既有跳过；WS基础358、关联健康/Flush368条定向验证通过。各集合重叠，不求和。
+- 48/48门禁、8个构建集合、三套受影响lint0/0/0、Wire两次稳定、生产构建及全仓unit测试编译通过。编译不计行为通过。[验证摘要](baseline/S16/service-openai-ws-owner-verification.json)记录初次迁移诊断及补验。SQL、Ent、早期冻结资料、原计划正文和51个保护文件保持。
+- 旧service生产40→24、测试169→138。剩余共享投影、Root聚合装配及普通协议/定价/账号测试继续退出；最终验收尚未完成。

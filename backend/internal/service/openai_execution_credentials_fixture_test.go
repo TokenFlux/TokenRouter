@@ -29,7 +29,7 @@ func newOpenAIExecutionCredentialsForTest(repo gatewayprovider.ExecutionAccountS
 	return out
 }
 func withOpenAIExecutionCredentialsForTest(s *OpenAIGatewayService, tokens ...*account.GrokTokenSource) *OpenAIGatewayService {
-	s.BindAgentIdentity(gatewayprovider.NewExecutionAgentIdentity(&agentTaskCoordinatorForTest, s.accountRepo, registerAgentTaskForTest, s.InvalidateAgentIdentityWSConnections))
+	s.BindAgentIdentity(gatewayprovider.NewExecutionAgentIdentity(&agentTaskCoordinatorForTest, s.accountRepo, registerAgentTaskForTest, s.Connections.InvalidateAccount))
 	if s.executionCredentials == nil {
 		s.executionCredentials = &account.OpenAIExecutionCredentials{}
 	}

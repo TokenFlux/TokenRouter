@@ -9,13 +9,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // provideOpenAIQuota 直接组合账号查询、原连接写入及共享 task 协调器。
-func provideOpenAIQuota(admin *account.Admin, store *postgres.AccountStore, proxies egress.ProxyRepository, transport httpclient.UpstreamTransport, token *account.OpenAITokenSource, profiles *egressprovider.TLSProfiles, routers *egress.TLSFingerprintRouterService, gateway *service.OpenAIGatewayService, coordinator *account.OpenAITaskCoordinator) *account.OpenAIQuotaService {
+func provideOpenAIQuota(admin *account.Admin, store *postgres.AccountStore, proxies egress.ProxyRepository, transport httpclient.UpstreamTransport, token *account.OpenAITokenSource, profiles *egressprovider.TLSProfiles, routers *egress.TLSFingerprintRouterService, connections *gatewayhttp.OpenAIWSConnections, coordinator *account.OpenAITaskCoordinator) *account.OpenAIQuotaService {
 	factory := &provider.OpenAIQuotaFactory{
 		Proxy: proxies.GetByID, Transport: transport, Profiles: profiles, Routers: routers,
 		Tasks: coordinator,
@@ -28,7 +28,7 @@ func provideOpenAIQuota(admin *account.Admin, store *postgres.AccountStore, prox
 				_, err := account.PersistCredentials(ctx, store, value, credentials, slog.Warn)
 				return err
 			},
-			Invalidate: gateway.InvalidateAgentIdentityWSConnections,
+			Invalidate: connections.InvalidateAccount,
 		},
 	}
 	return account.NewOpenAIQuotaService(account.OpenAIQuotaOptions{

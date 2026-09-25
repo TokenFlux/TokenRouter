@@ -40,8 +40,8 @@ func provideResponsesWSHTTP(
 func responsesWSOptions(cfg *config.Config) gatewayhttp.ResponsesWSOptions {
 	options := gatewayhttp.ResponsesWSOptions{
 		MaxAccountSwitches:  3,
-		ReadLimit:           service.ResolveOpenAIWSClientReadLimitBytes(cfg),
-		FirstMessageTimeout: service.ResolveOpenAIWSClientFirstMessageTimeout(cfg),
+		ReadLimit:           gatewayhttp.ResolveOpenAIWSClientReadLimitBytes(openAIWSExecutionOptions(cfg)),
+		FirstMessageTimeout: gatewayhttp.ResolveOpenAIWSClientFirstMessageTimeout(openAIWSExecutionOptions(cfg)),
 	}
 	if cfg != nil {
 		options.MaxIngressConnectionsPerAPIKey = cfg.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey
@@ -81,8 +81,8 @@ func responsesWSBindings(source *service.OpenAIGatewayService, credentials *gate
 		b.Stop429 = source.ShouldStopOpenAIOAuth429Failover
 		b.Credential = credentials.Resolve
 		b.ResolveRouting = choices.ResolveOpenAIWSRoutingModelForAccount
-		b.BeginPreemption = source.BeginOpenAIWSIngressSessionPreemption
-		b.Relay = source.ProxyResponsesWebSocketFromClient
+		b.BeginPreemption = source.WebSockets.BeginOpenAIWSIngressSessionPreemption
+		b.Relay = source.WebSockets.ProxyResponsesWebSocketFromClient
 	}
 	return b
 }

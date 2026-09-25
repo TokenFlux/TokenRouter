@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	sessiontestkit "github.com/TokenFlux/TokenRouter/internal/gateway/session/testkit"
+
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -1694,7 +1696,7 @@ func TestGrokMediaVideoRequestBindingIsScopedToUserAndAPIKey(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/video-request-123", nil)
 	c.Request.Header.Set("session_id", "shared-client-session")
 	groupID := int64(7)
-	cache := &stubGatewayCache{}
+	cache := &sessiontestkit.StickyCache{}
 	tasks := media.NewVideoTasks(cache, nil, media.VideoOptions{})
 	const userID int64 = 41
 	const apiKeyID int64 = 51
@@ -3020,106 +3022,6 @@ func TestGrokMediaPoolModeRetryFlagFollowsExplicitPolicies(t *testing.T) {
 		require.Equal(t, "vendor-image-model", repo.lastModelRateLimitScope)
 		require.Equal(t, "vendor-image-model", gjson.GetBytes(upstream.lastBody, "model").String())
 	})
-}
-
-func TestOpenAIWSHTTPBridgeGrok429PersistsRateLimit(t *testing.T) {
-	repo := &grokQuotaAccountRepo{}
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
-		StatusCode: http.StatusTooManyRequests,
-		Header:     http.Header{"Retry-After": []string{"45"}},
-		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
-	}}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, httpUpstream: upstream}))
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 68, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth, Concurrency: 1}}
-	before := time.Now()
-
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), nil, account, "token",
-		[]byte(`{"type":"response.create","model":"grok-4.3","input":"hi"}`),
-		64, "grok-4.3", "grok-4.3", "", "", "", "cache-id", 1,
-		func([]byte) error { return nil },
-	)
-
-	require.Error(t, err)
-	require.Nil(t, result)
-	require.Equal(t, 1, repo.rateLimitedCalls)
-	require.WithinDuration(t, before.Add(45*time.Second), repo.lastRateLimitResetAt, time.Second)
-	require.Zero(t, repo.tempUnschedCalls)
-	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
-}
-
-func TestOpenAIWSHTTPBridgeSSEErrorSideEffectsRunOncePerPlatform(t *testing.T) {
-
-	for _, platform := range []string{capability.PlatformOpenAI, capability.PlatformGrok} {
-		t.Run(platform, func(t *testing.T) {
-			repo := &grokQuotaAccountRepo{}
-			cfg := &config.Config{}
-			upstream := &httpUpstreamRecorder{resp: &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     make(http.Header),
-				Body: io.NopCloser(strings.NewReader(
-					"data: {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"code\":\"rate_limit_exceeded\",\"message\":\"limited\"}}\n\n",
-				)),
-			}}
-			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-				cfg:          cfg,
-				accountRepo:  repo,
-				httpUpstream: upstream,
-			}))
-			if platform == capability.PlatformOpenAI {
-				svc.healthObserver = newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil)
-				bindCompatibleSelectionFixture(svc)
-
-			}
-			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 70, Platform: platform, Type: capability.AccountTypeOAuth, Concurrency: 1}}
-			recorder := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(recorder)
-			c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
-			payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
-			writes := 0
-
-			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-				context.Background(), c, account, "sk-test", payload, len(payload),
-				"gpt-5", "gpt-5", "", "", "", "", 1,
-				func([]byte) error {
-					writes++
-					return nil
-				},
-			)
-
-			require.Nil(t, result)
-			var failoverErr *forwardcore.UpstreamFailoverError
-			require.ErrorAs(t, err, &failoverErr)
-			require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
-			require.Zero(t, writes)
-			require.Equal(t, 1, repo.rateLimitedCalls)
-		})
-	}
-}
-
-func TestOpenAIWSHTTPBridgeGrokExhaustedSuccessPersistsRateLimit(t *testing.T) {
-	repo := &grokQuotaAccountRepo{}
-	resetAt := time.Now().Add(20 * time.Minute).UTC().Truncate(time.Second)
-	resp := grokMessagesSSECompletedResponse("resp_ws_limited", 0)
-	resp.Header.Set("X-Ratelimit-Limit-Requests", "10")
-	resp.Header.Set("X-Ratelimit-Remaining-Requests", "0")
-	resp.Header.Set("X-Ratelimit-Reset-Requests", fmt.Sprintf("%d", resetAt.Unix()))
-	upstream := &httpUpstreamRecorder{resp: resp}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, httpUpstream: upstream}))
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 69, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth, Concurrency: 1}}
-
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), nil, account, "token",
-		[]byte(`{"type":"response.create","model":"grok-4.3","input":"hi"}`),
-		64, "grok-4.3", "grok-4.3", "", "", "", "cache-id", 1,
-		func([]byte) error { return nil },
-	)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Equal(t, 1, repo.rateLimitedCalls)
-	require.WithinDuration(t, resetAt, repo.lastRateLimitResetAt, time.Second)
-	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
 }
 
 func TestPatchGrokResponsesBody_StripsReasoningContentNull(t *testing.T) {

@@ -11,6 +11,8 @@ import (
 	"testing"
 	time "time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
@@ -255,7 +257,7 @@ func TestForwardAsChatCompletions_ServiceTierFastNormalizedToPriorityUpstream(t 
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{},
 		httpUpstream:   upstream,
-		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
+		settingService: newExecutionReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{}}, &config.Config{}),
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
 		Name:        "openai-compatible",
@@ -290,7 +292,7 @@ func TestForwardAsChatCompletions_ServiceTierPriorityPreservedUpstream(t *testin
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{},
 		httpUpstream:   upstream,
-		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
+		settingService: newExecutionReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{}}, &config.Config{}),
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 		Name:        "openai-compatible",
@@ -326,7 +328,7 @@ func TestForward_ResponsesServiceTierFastNormalizedToPriorityUpstream(t *testing
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
-		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
+		settingService: newExecutionReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{}}, &config.Config{}),
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
@@ -369,7 +371,7 @@ func TestForward_ResponsesServiceTierOmittedStaysOmitted(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
-		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
+		settingService: newExecutionReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{}}, &config.Config{}),
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
@@ -417,7 +419,7 @@ func TestForwardStreaming_ServiceTierPropagatedToResult(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
-		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
+		settingService: newExecutionReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{}}, &config.Config{}),
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
@@ -465,7 +467,7 @@ func TestForward_ResponsesKeepsOutboundAndObservedServiceTiersSeparate(t *testin
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
-		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
+		settingService: newExecutionReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{}}, &config.Config{}),
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
@@ -510,7 +512,7 @@ func TestForwardStreaming_KeepsOutboundAndObservedServiceTiersSeparate(t *testin
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
-		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
+		settingService: newExecutionReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{}}, &config.Config{}),
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
@@ -555,7 +557,7 @@ func TestForwardAsChatCompletions_KeepsOutboundAndObservedServiceTiersSeparate(t
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
-		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
+		settingService: newExecutionReadersFixture(&gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{}}, &config.Config{}),
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
 		Name:        "openai-compatible",
@@ -599,7 +601,7 @@ func TestForward_ServiceTierFilteredByPolicyBillsStandard(t *testing.T) {
 	}}}
 	raw, err := json.Marshal(settings)
 	require.NoError(t, err)
-	repo := &openAIFastPolicyRepoStub{values: map[string]string{gateway.SettingKeyOpenAIFastPolicySettings: string(raw)}}
+	repo := &gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{gateway.SettingKeyOpenAIFastPolicySettings: string(raw)}}
 
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,

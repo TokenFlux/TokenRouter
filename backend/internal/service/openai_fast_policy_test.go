@@ -7,6 +7,8 @@ import (
 	"testing"
 	time "time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -15,65 +17,18 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
-type openAIFastPolicyRepoStub struct {
-	values map[string]string
-}
-
-func (s *openAIFastPolicyRepoStub) Get(ctx context.Context, key string) (*settingscore.Setting, error) {
-	panic("unexpected Get call")
-}
-
-func (s *openAIFastPolicyRepoStub) GetValue(ctx context.Context, key string) (string, error) {
-	if v, ok := s.values[key]; ok {
-		return v, nil
-	}
-	return "", settingscore.ErrSettingNotFound
-}
-
-func (s *openAIFastPolicyRepoStub) Set(ctx context.Context, key, value string) error {
-	if s.values == nil {
-		s.values = map[string]string{}
-	}
-	s.values[key] = value
-	return nil
-}
-
-// GetMultiple 按请求键读取既有夹具数据，缺省设置继续由生产读取器处理。
-func (s *openAIFastPolicyRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
-	values := make(map[string]string, len(keys))
-	for _, key := range keys {
-		if value, ok := s.values[key]; ok {
-			values[key] = value
-		}
-	}
-	return values, nil
-}
-
-func (s *openAIFastPolicyRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {
-	panic("unexpected SetMultiple call")
-}
-
-func (s *openAIFastPolicyRepoStub) GetAll(ctx context.Context) (map[string]string, error) {
-	panic("unexpected GetAll call")
-}
-
-func (s *openAIFastPolicyRepoStub) Delete(ctx context.Context, key string) error {
-	panic("unexpected Delete call")
-}
-
 func newOpenAIGatewayServiceWithSettings(t *testing.T, settings *tierpolicy.OpenAIFastPolicySettings) *OpenAIGatewayService {
 	t.Helper()
-	repo := &openAIFastPolicyRepoStub{values: map[string]string{}}
+	repo := &gatewaytestkit.FastPolicySettingsRepo{Values: map[string]string{}}
 	if settings != nil {
 		raw, err := json.Marshal(settings)
 		require.NoError(t, err)
-		repo.values[gateway.SettingKeyOpenAIFastPolicySettings] = string(raw)
+		repo.Values[gateway.SettingKeyOpenAIFastPolicySettings] = string(raw)
 	}
 	return withSchedulerParametersForTest(&OpenAIGatewayService{
 		settingService: newExecutionReadersFixture(repo, &config.Config{}),

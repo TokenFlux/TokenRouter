@@ -56,6 +56,9 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 	if source == nil {
 		return
 	}
+	if source.Connections == nil {
+		source.Connections = gatewayhttp.NewOpenAIWSConnections(openAIWSPoolOptions(source.cfg), nil)
+	}
 	if source.requestCredentials == nil {
 		source.requestCredentials = gatewaytestkit.RequestCredentials(source.accountRepo, source.executionCredentials, nil, source.runtimeBlockState())
 		source.executionCredentials = source.requestCredentials.Source
@@ -113,8 +116,8 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 	if source.settingService != nil {
 		routes.DefaultMode = source.settingService.Gateway.GetGrokDefaultBaseURLMode
 	}
-	source.BindGrokExecution(&gatewayhttp.GrokExecutor{FastPolicy: &gatewayprovider.ExecutionFastPolicy{Readers: source.settingService, Prices: source.resolver}, Credentials: source.requestCredentials, Transport: source.httpUpstream, Output: source.responseOutput, Health: source.grokHealth, Routes: routes, TLS: source.tlsFPProfileService, Dialer: source.getOpenAIWSPassthroughDialer(), Enter: source.nativeAttemptActivity, Failure: &gatewayhttp.UpstreamTransportFailure{Health: &accountprovider.TransportHealth{Runtime: source.runtimeBlockState(), Deferred: source.deferredService, Store: source.accountRepo}}})
-	continuation := &session.CompatResponses{TTL: source.OpenAIHTTPResponseStickyTTL}
+	source.BindGrokExecution(&gatewayhttp.GrokExecutor{FastPolicy: &gatewayprovider.ExecutionFastPolicy{Readers: source.settingService, Prices: source.resolver}, Credentials: source.requestCredentials, Transport: source.httpUpstream, Output: source.responseOutput, Health: source.grokHealth, Routes: routes, TLS: source.tlsFPProfileService, Dialer: source.Connections.Dialer(), Enter: source.nativeAttemptActivity, Failure: &gatewayhttp.UpstreamTransportFailure{Health: &accountprovider.TransportHealth{Runtime: source.runtimeBlockState(), Deferred: source.deferredService, Store: source.accountRepo}}})
+	continuation := &session.CompatResponses{TTL: source.selection.OpenAIHTTPResponseStickyTTL}
 	if source.Text != nil && source.Text.Continuation != nil {
 		continuation = source.Text.Continuation
 	}
@@ -126,13 +129,14 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 	if source.Text != nil && source.Text.CodexUsage != nil && source.Text.CodexUsage.Throttle != nil {
 		usageThrottle = source.Text.CodexUsage.Throttle
 	}
-	executor := &gatewayhttp.OpenAITextExecutor{Requests: requests, Output: source.responseOutput, Grok: source.Grok, Credentials: source.requestCredentials, FastPolicy: source.fastPolicy, Continuation: continuation, PromptCache: source.PromptCacheBindings(), CodexUsage: &accountprovider.CodexUsageObserver{Store: source.accountRepo, Throttle: usageThrottle, Go: source.backgroundTasks}, ResponseTTL: source.OpenAIHTTPResponseStickyTTL, Compact: source.compactExecutor}
+	executor := &gatewayhttp.OpenAITextExecutor{Requests: requests, Output: source.responseOutput, Grok: source.Grok, Credentials: source.requestCredentials, FastPolicy: source.fastPolicy, Continuation: continuation, PromptCache: source.PromptCacheBindings(), CodexUsage: &accountprovider.CodexUsageObserver{Store: source.accountRepo, Throttle: usageThrottle, Go: source.backgroundTasks}, ResponseTTL: source.selection.OpenAIHTTPResponseStickyTTL, Compact: source.compactExecutor}
 	if source.cfg != nil {
 		v := source.cfg.Security.URLAllowlist
 		requests.Options = gatewayhttp.OpenAIRequestOptions{ForceCLI: source.cfg.Gateway.ForceCodexCLI, AllowTimeoutHeaders: source.cfg.Gateway.OpenAIPassthroughAllowTimeoutHeaders, URLPolicy: egress.OperatorURLPolicy{Enabled: v.Enabled, AllowInsecureHTTP: v.AllowInsecureHTTP, AllowPrivateHosts: v.AllowPrivateHosts, UpstreamHosts: v.UpstreamHosts}}
 		executor.ForcedTemplate = source.cfg.Gateway.ForcedCodexInstructionsTemplate
 	}
 	source.BindTextExecution(executor)
+
 	imagePolicy := &gatewayprovider.ResponseImagePolicy{}
 	if source.channelService != nil {
 		imagePolicy.Channels = source.channelService
@@ -141,7 +145,13 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 		imagePolicy.DefaultEnabled = source.cfg.Gateway.CodexImageGenerationBridgeEnabled
 	}
 	source.Lineage = &gatewayhttp.OpenAIEncryptedLineage{Store: source.ResponseStateStore(), TTL: source.selection.SessionStickyTTL}
-	source.Responses = &gatewayhttp.OpenAIResponsesExecutor{Requests: source.Requests, Output: source.responseOutput, Text: source.Text, Grok: source.Grok, Lineage: source.Lineage, ImageBridge: imagePolicy, ResolveTransport: source.selection.ResolveTransport, WebSocket: source.ForwardHTTPWebSocket}
+	source.WebSockets = &gatewayhttp.OpenAIWebSocketExecutor{OpenAIWSDependencies: gatewayhttp.OpenAIWSDependencies{
+		Options: wsExecutionOptionsForTest(source.cfg), Connections: source.Connections, Requests: source.Requests,
+		Output: source.responseOutput, Grok: source.Grok, FastPolicy: source.fastPolicy, Prompts: source.prompts,
+		Selection: source.selection, State: source.ResponseStateStore(), Lineage: source.Lineage,
+		ImageBridge: imagePolicy, Cache: source.cache,
+	}}
+	source.Responses = &gatewayhttp.OpenAIResponsesExecutor{Requests: source.Requests, Output: source.responseOutput, Text: source.Text, Grok: source.Grok, Lineage: source.Lineage, ImageBridge: imagePolicy, ResolveTransport: source.selection.ResolveTransport, WebSocket: source.WebSockets.ForwardHTTPWebSocket}
 
 	source.Auxiliary = &gatewayhttp.OpenAIAuxiliary{Requests: source.Requests, Output: source.responseOutput, CodexUsage: source.Text.CodexUsage, Enter: source.nativeAttemptActivity}
 

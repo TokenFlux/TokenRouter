@@ -22,6 +22,7 @@
     "openai-responses",
     "openai-execution",
     "openai-live",
+    "openai-ws",
     "ws-live",
     "shared-boundaries"
   ],
@@ -2123,23 +2124,7 @@
     },
     "ws-live": {
       "files": [
-        "backend/internal/service/openai_http_ws_forward_adapter.go",
-        "backend/internal/service/openai_ws_forwarder.go",
-        "backend/internal/service/openai_ws_forwarder_ingress.go",
-        "backend/internal/service/openai_ws_forwarder_payload.go",
-        "backend/internal/service/openai_ws_forwarder_support.go",
-        "backend/internal/service/openai_ws_forwarder_v2.go",
-        "backend/internal/service/openai_ws_http_bridge.go",
-        "backend/internal/service/openai_ws_ingress_adapter.go",
-        "backend/internal/service/openai_ws_ingress_execution_adapter.go",
-        "backend/internal/service/openai_ws_passthrough_execution_adapter.go",
-        "backend/internal/service/openai_ws_pool.go",
-        "backend/internal/service/openai_ws_relay_adapter.go",
-        "backend/internal/service/openai_ws_request_adapter.go",
-        "backend/internal/service/openai_ws_session_preemption.go",
-        "backend/internal/service/openai_ws_stream_adapter.go",
-        "backend/internal/service/openai_ws_transport_projection.go",
-        "backend/internal/service/openai_ws_v2_passthrough_adapter.go"
+        "backend/internal/service/openai_ws_transport_projection.go"
       ],
       "symbols": [
         "OpenAIGatewayService.BeginOpenAIWSIngressSessionPreemption",
@@ -2836,6 +2821,40 @@
       "test_mapping": "service-openai-live-test-mapping.json",
       "completed_at": "2026-09-25",
       "exit": "Live创建、sideband、观察者、密文、零费用记录及生产关闭直接绑定原生实例；旧返回实体和纯投影删除。WS/Live共用原生逐轮模型资格复核。"
+    },
+    "openai-ws": {
+      "status": "verified",
+      "files": [
+        "backend/internal/service/openai_http_ws_forward_adapter.go",
+        "backend/internal/service/openai_ws_forwarder.go",
+        "backend/internal/service/openai_ws_forwarder_ingress.go",
+        "backend/internal/service/openai_ws_forwarder_payload.go",
+        "backend/internal/service/openai_ws_forwarder_support.go",
+        "backend/internal/service/openai_ws_forwarder_v2.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "backend/internal/service/openai_ws_ingress_adapter.go",
+        "backend/internal/service/openai_ws_ingress_execution_adapter.go",
+        "backend/internal/service/openai_ws_passthrough_execution_adapter.go",
+        "backend/internal/service/openai_ws_pool.go",
+        "backend/internal/service/openai_ws_relay_adapter.go",
+        "backend/internal/service/openai_ws_request_adapter.go",
+        "backend/internal/service/openai_ws_session_preemption.go",
+        "backend/internal/service/openai_ws_stream_adapter.go",
+        "backend/internal/service/openai_ws_v2_passthrough_adapter.go"
+      ],
+      "native_owners": [
+        "gateway/httpapi.OpenAIWebSocketExecutor",
+        "gateway/httpapi.OpenAIWSConnections",
+        "gateway/ws",
+        "gateway/session",
+        "account/provider",
+        "upstream/openai",
+        "app"
+      ],
+      "verification": "service-openai-ws-owner-verification.json",
+      "test_mapping": "service-openai-ws-test-mapping.json",
+      "completed_at": "2026-09-25",
+      "exit": "WS连接资源、入站/池化/透传/HTTP桥接生产链直接使用原生拥有者；测试、I/O替身、配置投影、装配及门禁同批改绑。旧Root仍提供部分聚合取回与普通协议测试装配，后续清零。"
     }
   },
   "boundary_notes": {
@@ -2860,9 +2879,9 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 40,
-    "test_files": 169,
-    "verified_batch": "openai-live"
+    "production_files": 24,
+    "test_files": 138,
+    "verified_batch": "openai-ws"
   },
   "latest_combined_validation": {
     "head": "a8a9fb4bd1cb6f0bb86adaa68ecbf33ca01cec8e",

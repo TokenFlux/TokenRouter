@@ -103,13 +103,6 @@ func provideCoreRuntime(
 		return nil
 	}})
 
-	manager.Register(lifecycle.Hook{Name: "OpenAIGatewayService", StartOrder: 990, StopOrder: 10, Start: nil, Stop: func(ctx context.Context) error {
-		if openAIGateway != nil {
-			openAIGateway.CloseOpenAIWSPool()
-		}
-		return nil
-	}})
-
 	manager.Register(lifecycle.Hook{Name: "PaymentOrderExpiryService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if paymentOrderExpiry != nil {
 			paymentOrderExpiry.Start(ctx)

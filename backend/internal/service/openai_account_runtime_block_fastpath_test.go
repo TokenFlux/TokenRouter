@@ -298,7 +298,7 @@ func TestOpenAIPoolModeRetryable5xx_DoesNotCreateModelTransientBlock(t *testing.
 		require.False(t, shouldDisable)
 	}
 
-	require.False(t, gateway.isOpenAIAccountRequestRuntimeBlocked(account, "gpt-5.4"))
+	require.False(t, (gateway.isOpenAIAccountRuntimeBlocked(account) || gateway.getOpenAIAccountModelTransientState().IsBlocked(account.Record.ID, accountcore.NormalizeTransientModel(gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel("gpt-5.4")), time.Now())))
 }
 
 func TestOpenAIPoolModeNonRetryable5xx_DoesNotCreateModelTransientBlock(t *testing.T) {
@@ -320,7 +320,7 @@ func TestOpenAIPoolModeNonRetryable5xx_DoesNotCreateModelTransientBlock(t *testi
 		require.False(t, shouldDisable)
 	}
 
-	require.False(t, gateway.isOpenAIAccountRequestRuntimeBlocked(account, "gpt-5.4"))
+	require.False(t, (gateway.isOpenAIAccountRuntimeBlocked(account) || gateway.getOpenAIAccountModelTransientState().IsBlocked(account.Record.ID, accountcore.NormalizeTransientModel(gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel("gpt-5.4")), time.Now())))
 }
 
 func TestOpenAINonPoolAPIKey5xx_StillCreatesModelTransientBlock(t *testing.T) {
@@ -338,7 +338,7 @@ func TestOpenAINonPoolAPIKey5xx_StillCreatesModelTransientBlock(t *testing.T) {
 		require.False(t, shouldDisable)
 	}
 
-	require.True(t, gateway.isOpenAIAccountRequestRuntimeBlocked(account, "gpt-5.4"))
+	require.True(t, (gateway.isOpenAIAccountRuntimeBlocked(account) || gateway.getOpenAIAccountModelTransientState().IsBlocked(account.Record.ID, accountcore.NormalizeTransientModel(gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel("gpt-5.4")), time.Now())))
 }
 
 func TestOpenAIModelNotFound_DoesNotRuntimeBlockWholeAccount(t *testing.T) {

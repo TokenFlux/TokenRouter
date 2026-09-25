@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	sessiontestkit "github.com/TokenFlux/TokenRouter/internal/gateway/session/testkit"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -234,7 +236,7 @@ func forceChatResponsesFallbackAccount() *gatewayprovider.ExecutionAccount {
 }
 
 type reasoningCacheStub struct {
-	stubGatewayCache
+	sessiontestkit.StickyCache
 	sets    map[string]string
 	getResp map[string]string
 }

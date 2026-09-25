@@ -114,37 +114,6 @@ func (s *OpenAIGatewayService) getOpenAIAccountModelTransientState() *accountcor
 	return s.openaiModelTransient
 }
 
-func openAIAccountModelTransientModel(canonicalModel string) string {
-	return accountcore.NormalizeTransientModel(canonicalModel)
-}
-
-func (s *OpenAIGatewayService) recordOpenAIAccountModelTransientFailure(account *gatewayprovider.ExecutionAccount, canonicalModel string, now time.Time) accountcore.ModelTransientDecision {
-	if s == nil || account == nil {
-		return accountcore.ModelTransientDecision{}
-	}
-	state := s.getOpenAIAccountModelTransientState()
-	if state == nil {
-		return accountcore.ModelTransientDecision{}
-	}
-	return state.RecordFailure(account.Record.ID, openAIAccountModelTransientModel(canonicalModel), now)
-}
-
-func (s *OpenAIGatewayService) isOpenAIAccountModelRuntimeBlocked(account *gatewayprovider.ExecutionAccount, requestedModel string) bool {
-	if s == nil || account == nil {
-		return false
-	}
-	state := s.getOpenAIAccountModelTransientState()
-	if state == nil {
-		return false
-	}
-	canonicalModel := gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel(requestedModel)
-	return state.IsBlocked(account.Record.ID, openAIAccountModelTransientModel(canonicalModel), time.Now())
-}
-
-func (s *OpenAIGatewayService) isOpenAIAccountRequestRuntimeBlocked(account *gatewayprovider.ExecutionAccount, requestedModel string) bool {
-	return s != nil && (s.isOpenAIAccountRuntimeBlocked(account) || s.isOpenAIAccountModelRuntimeBlocked(account, requestedModel))
-}
-
 func (s *OpenAIGatewayService) ShouldStopOpenAIOAuth429Failover(account *gatewayprovider.ExecutionAccount, statusCode int, failedSwitches int, state *failover.OAuth429State) bool {
 	return failover.StopOAuth429(failover.OAuth429Account{OpenAI: isOpenAIOAuthAccount(account), Grok: isGrokOAuthAccount(account)}, statusCode, failedSwitches, state)
 }

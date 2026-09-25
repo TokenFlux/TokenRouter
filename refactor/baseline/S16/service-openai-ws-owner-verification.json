@@ -1,0 +1,232 @@
+{
+  "baseline_head": "551735120a10d92b83af63b9ea5caef39cee17b7",
+  "scope": "S16完整WS传输能力批次，非最终验收",
+  "before": {
+    "production": 40,
+    "tests": 169
+  },
+  "after": {
+    "production": 24,
+    "tests": 138
+  },
+  "owners": [
+    "gateway/httpapi.OpenAIWebSocketExecutor",
+    "gateway/httpapi.OpenAIWSConnections",
+    "gateway/ws",
+    "gateway/session",
+    "account/provider",
+    "upstream/openai",
+    "app"
+  ],
+  "retired_production": [
+    "backend/internal/service/openai_http_ws_forward_adapter.go",
+    "backend/internal/service/openai_ws_forwarder.go",
+    "backend/internal/service/openai_ws_forwarder_ingress.go",
+    "backend/internal/service/openai_ws_forwarder_payload.go",
+    "backend/internal/service/openai_ws_forwarder_support.go",
+    "backend/internal/service/openai_ws_forwarder_v2.go",
+    "backend/internal/service/openai_ws_http_bridge.go",
+    "backend/internal/service/openai_ws_ingress_adapter.go",
+    "backend/internal/service/openai_ws_ingress_execution_adapter.go",
+    "backend/internal/service/openai_ws_passthrough_execution_adapter.go",
+    "backend/internal/service/openai_ws_pool.go",
+    "backend/internal/service/openai_ws_relay_adapter.go",
+    "backend/internal/service/openai_ws_request_adapter.go",
+    "backend/internal/service/openai_ws_session_preemption.go",
+    "backend/internal/service/openai_ws_stream_adapter.go",
+    "backend/internal/service/openai_ws_v2_passthrough_adapter.go"
+  ],
+  "tests": [
+    {
+      "name": "normal",
+      "log": "service-openai-ws-normal.jsonl",
+      "events": {
+        "pass": 3422,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ]
+    },
+    {
+      "name": "combined-unit",
+      "log": "service-openai-ws-combined-unit.jsonl",
+      "events": {
+        "pass": 4699,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ]
+    },
+    {
+      "name": "contracts-race",
+      "log": "service-openai-ws-contracts-race.jsonl",
+      "events": {
+        "pass": 514,
+        "skip": 1
+      },
+      "skips": [
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ]
+    },
+    {
+      "name": "native-contracts-2",
+      "log": "service-openai-ws-native-contracts-2.jsonl",
+      "events": {
+        "pass": 358,
+        "skip": 1
+      },
+      "skips": [
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ]
+    },
+    {
+      "name": "health-contracts",
+      "log": "service-openai-ws-health-contracts.jsonl",
+      "events": {
+        "pass": 368
+      },
+      "skips": []
+    }
+  ],
+  "checks": [
+    {
+      "name": "normal",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/ws",
+        "./internal/gateway/session/...",
+        "./internal/service",
+        "./internal/app"
+      ],
+      "status": "finished",
+      "exit_code": 0,
+      "elapsed_seconds": 70.44
+    },
+    {
+      "name": "contracts-race",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "-tags=unit",
+        "-run",
+        "WS|WebSocket|PassthroughLifecycle|PolicyModel|RoutingHint|Flush|AccountRequestRuntime",
+        "./internal/gateway/httpapi",
+        "./internal/gateway/ws",
+        "./internal/service",
+        "./internal/app"
+      ],
+      "status": "finished",
+      "exit_code": 0,
+      "elapsed_seconds": 71.44
+    }
+  ],
+  "lint": [
+    {
+      "name": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/gateway/ws/...",
+        "./internal/gateway/session/...",
+        "./internal/gateway/testkit/...",
+        "./internal/account/provider/...",
+        "./internal/creative/provider/...",
+        "./internal/service/...",
+        "./internal/app/...",
+        "./internal/server/middleware/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 4.67
+    },
+    {
+      "name": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/gateway/ws/...",
+        "./internal/gateway/session/...",
+        "./internal/gateway/testkit/...",
+        "./internal/account/provider/...",
+        "./internal/creative/provider/...",
+        "./internal/service/...",
+        "./internal/app/...",
+        "./internal/server/middleware/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.44
+    },
+    {
+      "name": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/gateway/ws/...",
+        "./internal/gateway/session/...",
+        "./internal/gateway/testkit/...",
+        "./internal/account/provider/...",
+        "./internal/creative/provider/...",
+        "./internal/service/...",
+        "./internal/app/...",
+        "./internal/server/middleware/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 8.08
+    }
+  ],
+  "test_mapping": "service-openai-ws-test-mapping.json",
+  "gates": {
+    "passed": 48,
+    "total": 48,
+    "config_sha256": "346eb9dd03a20de7b500d5241ec99932ac840177f0ebd91b7ff9324d102514ac"
+  },
+  "wire": "service-openai-ws-wire-stability.json",
+  "build_selection": "service-openai-ws-build-selection.json",
+  "all_unit_compile": "service-openai-ws-all-unit-compile.json",
+  "protected_unchanged": 51,
+  "frozen_unchanged": true,
+  "contracts": [
+    "连接池保持原首次使用启动、关闭不可重开和账号失效行为；Grok/Live/WS与账号授权/探测/用量共用同一池/拨号器拥有者",
+    "OpenAIWebSocketExecutor仅持有传输所需固定端口、独立WS选项及本次资源状态；不接收完整config/旧service，逐轮与重连算法继续gateway/ws",
+    "HTTP桥接、ctx_pool、passthrough、前导/真实输出、取消、原模型映射及每turn定价/完成快照保持",
+    "原StopOrder10由OpenAIWSConnections直接登记，Liveobserver仍先于它停止；Wire再生成解释为依赖改绑与旧聚合依赖解除",
+    "332个原测试名称/标签/断言调用保持；S09WS原子模型测试直接调用实际UsageMeta；原Flush、内容审核拒绝和quota副作用公共入口仍实际执行"
+  ],
+  "diagnostics": [
+    "迁移初次nil夹具嵌入指针调用panic已改为直接验证nil原生WS执行器，原断言不变",
+    "普通构建中不依赖unit-only测试Store；使用原普通构建的模型状态替身",
+    "删除无消费者旧方法/常量和unit包装；unit-only夹具使用原标签；未扩大忽略或历史修复范围"
+  ],
+  "remaining": [
+    "旧共享投影、Root聚合构造与取回入口",
+    "剩余普通HTTP/定价/账号测试夹具退出",
+    "最终全仓、前端、跨平台、进程和十二组资金销项验收"
+  ]
+}

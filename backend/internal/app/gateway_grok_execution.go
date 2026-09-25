@@ -11,13 +11,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // provideGrokExecutor 复用凭据、HTTP 池、健康状态和应用活动屏障。
-func provideGrokExecutor(cfg *config.Config, credentials *provider.RequestCredentials, transport httpclient.UpstreamTransport, output *gatewayhttp.OpenAIResponseOutput, health *accountprovider.GrokHealth, tls *egressprovider.TLSProfiles, readers *provider.RuntimeReaders, blocks *account.RuntimeBlockState, deferred *account.DeferredService, store provider.ExecutionAccountStore, activity *gatewayRequestActivity, prices *billing.PriceResolver) *gatewayhttp.GrokExecutor {
+func provideGrokExecutor(cfg *config.Config, credentials *provider.RequestCredentials, transport httpclient.UpstreamTransport, output *gatewayhttp.OpenAIResponseOutput, health *accountprovider.GrokHealth, tls *egressprovider.TLSProfiles, readers *provider.RuntimeReaders, blocks *account.RuntimeBlockState, deferred *account.DeferredService, store provider.ExecutionAccountStore, activity *gatewayRequestActivity, prices *billing.PriceResolver, connections *gatewayhttp.OpenAIWSConnections) *gatewayhttp.GrokExecutor {
 	routes := provideGrokRoutes(cfg, readers)
-	return &gatewayhttp.GrokExecutor{FastPolicy: &provider.ExecutionFastPolicy{Readers: readers, Prices: prices}, Credentials: credentials, Transport: transport, Output: output, Health: health, Routes: routes, TLS: tls, Dialer: openai.NewDefaultWSClientDialer(), Enter: activity.Enter, Failure: &gatewayhttp.UpstreamTransportFailure{Health: &accountprovider.TransportHealth{Runtime: blocks, Deferred: deferred, Store: store}}}
+	return &gatewayhttp.GrokExecutor{FastPolicy: &provider.ExecutionFastPolicy{Readers: readers, Prices: prices}, Credentials: credentials, Transport: transport, Output: output, Health: health, Routes: routes, TLS: tls, Dialer: connections.Dialer(), Enter: activity.Enter, Failure: &gatewayhttp.UpstreamTransportFailure{Health: &accountprovider.TransportHealth{Runtime: blocks, Deferred: deferred, Store: store}}}
 }
 
 // provideGrokRoutes 只投影静态目标策略，动态默认模式仍在原查询位置读取。

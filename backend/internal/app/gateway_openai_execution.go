@@ -30,6 +30,7 @@ import (
 
 // provideOpenAIGatewayExecution 只连接旧执行原语与 app 持有的原生倍率、完成实例。
 func provideOpenAIGatewayExecution(
+	connections *gatewayhttp.OpenAIWSConnections,
 	accountRepo gatewayprovider.ExecutionAccountStore,
 	cache session.GatewayCache,
 	cfg *config.Config,
@@ -59,6 +60,7 @@ func provideOpenAIGatewayExecution(
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
 ) *service.OpenAIGatewayService {
 	source := service.NewOpenAIGatewayService(
+		connections,
 		accountRepo,
 		cache,
 		cfg,
@@ -90,7 +92,7 @@ func provideOpenAIGatewayExecution(
 	}
 	identity := gatewayprovider.NewExecutionAgentIdentity(taskCoordinator, accountRepo, func(ctx context.Context, value *accountcore.Record) (string, error) {
 		return accountprovider.RegisterAgentIdentityTask(ctx, value, "https://auth.openai.com/api/accounts")
-	}, source.InvalidateAgentIdentityWSConnections)
+	}, connections.InvalidateAccount)
 	source.BindAgentIdentity(identity)
 	source.BindCyberBlocks(cyberBlocks)
 	source.BindCompletionRecorder(recorders.OpenAI)
@@ -101,6 +103,6 @@ func provideOpenAIGatewayExecution(
 		routers = tlsFPRouterServices[0]
 	}
 	source.BindTextExecution(openAITextExecution(cfg, accountRepo, identity, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, grokExecutor, responseOutput, cacheBindings, choices.OpenAIHTTPResponseStickyTTL, compactExecutor))
-	bindOpenAIResponses(source, cfg, channelService, choices)
+	bindOpenAIResponses(source, cfg, channelService, choices, cache, prompts)
 	return source
 }

@@ -255,38 +255,6 @@ func TestOpenAIAPIKeyFastModeAppliesToRealtimeFrames(t *testing.T) {
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
 }
 
-// WebSocket 每个 turn 都应读取最新策略，不能永久复用握手时的策略快照。
-func TestOpenAIWSFastModePolicyContextRefreshesEachTurn(t *testing.T) {
-	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
-	svc.resolver = fastModeTestResolver()
-	if svc.fastPolicy != nil {
-		svc.fastPolicy.Prices = svc.resolver
-	}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
-	baseCtx := fastModeTestContext(apikey.APIKeyFastModePolicyForceOn, "gpt-5.5")
-	policies := map[int]string{
-		1: apikey.APIKeyFastModePolicyForceOn,
-		2: apikey.APIKeyFastModePolicyForceOff,
-	}
-	hooks := &gatewayws.OpenAIIngressHooks{
-		ResolveFastModePolicy: func(turn int) string {
-			return policies[turn]
-		},
-	}
-
-	turnOneCtx := openAIWSFastModePolicyContext(baseCtx, hooks, 1)
-	updated, blocked, err := gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5"}`), "gpt-5.5", svc.fastPolicy.Input(turnOneCtx, account, "gpt-5.5"))
-	require.NoError(t, err)
-	require.Nil(t, blocked)
-	require.Equal(t, tierpolicy.OpenAIFastTierPriority, gjson.GetBytes(updated, "service_tier").String())
-
-	turnTwoCtx := openAIWSFastModePolicyContext(baseCtx, hooks, 2)
-	updated, blocked, err = gatewayws.ApplyServiceTierFrame([]byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`), "gpt-5.5", svc.fastPolicy.Input(turnTwoCtx, account, "gpt-5.5"))
-	require.NoError(t, err)
-	require.Nil(t, blocked)
-	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
-}
-
 func TestAPIKeyFastModeIgnoresUnsupportedProviderAdapters(t *testing.T) {
 	openAISvc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
 	openAISvc.resolver = fastModeTestResolver()

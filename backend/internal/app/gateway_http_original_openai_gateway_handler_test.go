@@ -400,7 +400,7 @@ func TestOpenAIResponses_AcceptsHTTPContinuationPreviousResponseIDBeforeRouting(
 	})
 
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
-	require.NoError(t, h.Input.Source.ResponseStateStore().BindHTTPResponseOwner(context.Background(), groupID, "resp_123456", 1, 101, h.Input.Source.OpenAIHTTPResponseStickyTTL()))
+	require.NoError(t, h.Input.Source.ResponseStateStore().BindHTTPResponseOwner(context.Background(), groupID, "resp_123456", 1, 101, h.Input.Source.WebSockets.OpenAIHTTPResponseStickyTTL()))
 	h.Responses(c)
 
 	require.NotEqual(t, http.StatusBadRequest, w.Code)
@@ -426,7 +426,7 @@ func TestOpenAIResponses_RejectsHTTPContinuationOwnedByAnotherUser(t *testing.T)
 	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 2, Concurrency: 1})
 
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
-	require.NoError(t, h.Input.Source.ResponseStateStore().BindHTTPResponseOwner(context.Background(), groupID, "resp_other_tenant", 1, 101, h.Input.Source.OpenAIHTTPResponseStickyTTL()))
+	require.NoError(t, h.Input.Source.ResponseStateStore().BindHTTPResponseOwner(context.Background(), groupID, "resp_other_tenant", 1, 101, h.Input.Source.WebSockets.OpenAIHTTPResponseStickyTTL()))
 	h.Responses(c)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
