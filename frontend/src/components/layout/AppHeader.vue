@@ -17,7 +17,7 @@
         <div class="header-brand flex min-w-0 items-center gap-2.5 rounded-control px-1.5 py-1 transition-colors hover:bg-primary-100/70 dark:hover:bg-dark-800/80">
           <router-link
             :to="homePath"
-            class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary-100 dark:bg-dark-800"
+            class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-control bg-primary-100 dark:bg-dark-800"
             :aria-label="siteName"
           >
             <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" :alt="siteName" class="h-full w-full object-contain" />

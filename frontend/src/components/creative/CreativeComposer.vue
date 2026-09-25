@@ -2,7 +2,7 @@
   <!-- 聊天式输入框：底部居中或跟随选中图片；左下调参入口，右下费用 + 发送 -->
   <div
     ref="rootRef"
-    class="relative w-[min(600px,calc(100vw-2rem))] rounded-[24px] border border-primary-900/10 bg-white/95 shadow-xl backdrop-blur dark:border-dark-600 dark:bg-dark-900/95"
+    class="relative w-[min(600px,calc(100vw-2rem))] rounded-dialog border border-primary-900/10 bg-white/95 shadow-xl backdrop-blur dark:border-dark-600 dark:bg-dark-900/95"
   >
     <!-- 提示词输入区（高度随内容自适应，上限约 6 行） -->
     <div class="relative">
@@ -45,7 +45,7 @@
             class="chip-popover"
             :style="popoverStyle"
           >
-            <p v-if="showModelsEmptyHint" class="rounded-md bg-primary-900/5 px-3 py-2 text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
+            <p v-if="showModelsEmptyHint" class="rounded-control bg-primary-900/5 px-3 py-2 text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
               {{ modelsEmptyHintText }}
             </p>
             <button
@@ -425,7 +425,7 @@ function autosize(): void {
 /* 调参弹层：锚定在所点击 chip 的正上方，内容超过视口时由内层滚动。
    此处宽度仅为初始值，展开时由 layoutPopover 写入内联样式（宽度三路取小、位置钳制在输入框内，防止窄屏溢出屏幕） */
 .chip-popover {
-  @apply absolute bottom-full left-0 z-30 mb-2 w-[min(320px,calc(100vw-3.5rem))] overflow-hidden rounded-[16px] border border-primary-900/10 bg-white/95 shadow-xl backdrop-blur;
+  @apply absolute bottom-full left-0 z-30 mb-2 w-[min(320px,calc(100vw-3.5rem))] overflow-hidden rounded-surface border border-primary-900/10 bg-white/95 shadow-xl backdrop-blur;
   @apply p-1.5;
   @apply dark:border-dark-600 dark:bg-dark-900/95;
 }
@@ -447,7 +447,7 @@ function autosize(): void {
 }
 
 .composer-option {
-  @apply rounded-[12px];
+  @apply rounded-control;
 }
 
 .param-label {
@@ -455,7 +455,7 @@ function autosize(): void {
 }
 
 .param-chip {
-  @apply rounded-[12px] border border-primary-900/10 px-2.5 py-1 text-xs text-gray-600 transition-colors;
+  @apply rounded-compact border border-primary-900/10 px-2.5 py-1 text-xs text-gray-600 transition-colors;
   @apply hover:border-black/20 hover:text-gray-900;
   @apply dark:border-dark-600 dark:text-gray-300 dark:hover:border-dark-400 dark:hover:text-gray-100;
 }
@@ -466,7 +466,7 @@ function autosize(): void {
 
 /* 比例预览小方框：内联尺寸由 ratioPreviewStyle 计算 */
 .ratio-preview {
-  @apply inline-block flex-shrink-0 rounded-[3px] border-[1.5px] border-current opacity-70;
+  @apply inline-block flex-shrink-0 rounded-compact border-[1.5px] border-current opacity-70;
 }
 
 @media (prefers-reduced-motion: reduce) {

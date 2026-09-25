@@ -50,7 +50,7 @@
               :pattern="index === 0 ? '[0-9]{1,6}' : '[0-9]'"
               :autocomplete="index === 0 ? 'one-time-code' : 'off'"
               :name="index === 0 ? 'totp_login_code' : undefined"
-              class="h-12 w-10 rounded-lg border border-gray-300 text-center text-lg font-semibold focus:border-primary-500 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+              class="h-12 w-10 rounded-control border border-gray-300 text-center text-lg font-semibold focus:border-primary-500 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
               :disabled="verifying"
               @input="handleCodeInput($event, index)"
               @change="handleCodeInput($event, index)"

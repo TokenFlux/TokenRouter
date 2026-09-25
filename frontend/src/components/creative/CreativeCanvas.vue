@@ -11,7 +11,7 @@
     <!-- 拖放目标反馈不接收指针事件，避免覆盖 Fabric 画布交互。 -->
     <div
       v-if="dropTargetActive"
-      class="pointer-events-none absolute inset-2 z-[2] rounded-xl border-2 border-dashed border-primary-500/70 bg-primary-500/5"
+      class="pointer-events-none absolute inset-2 z-[2] rounded-surface border-2 border-dashed border-primary-500/70 bg-primary-500/5"
     ></div>
 
     <!-- 浮动工具栏（顶部居中，含移动端；窄屏限宽并换行，圆角保持与桌面端一致，避免与左上角设置、右上角历史按钮重叠）：上传 | 局部重绘画笔组 | 删除选中 / 清空 -->
@@ -1959,7 +1959,7 @@ defineExpose({
 }
 
 .canvas-tool-btn {
-  @apply inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition-colors;
+  @apply inline-flex h-8 w-8 items-center justify-center rounded-control text-gray-600 transition-colors;
   @apply hover:bg-gray-100 hover:text-gray-900;
   @apply disabled:cursor-not-allowed disabled:opacity-40;
   @apply dark:text-gray-300 dark:hover:bg-dark-700 dark:hover:text-gray-100;
