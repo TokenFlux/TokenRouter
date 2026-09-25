@@ -6,9 +6,9 @@
     @close="handleClose"
   >
     <div v-if="account" class="space-y-5">
-      <div class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-700 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex flex-col gap-3 rounded-surface border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-700 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-emerald-500 text-white">
             <Icon name="gift" size="md" :stroke-width="2" />
           </div>
           <div class="min-w-0">
@@ -30,7 +30,7 @@
 
       <template v-else>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-          <section class="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+          <section class="space-y-4 rounded-control border border-gray-200 p-4 dark:border-dark-600">
             <div class="flex items-center justify-between gap-3">
               <div>
                 <div class="text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -41,12 +41,12 @@
                   <span class="pb-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.accounts.inviteResetAvailableUnit') }}</span>
                 </div>
               </div>
-              <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300">
+              <div class="flex h-12 w-12 items-center justify-center rounded-control bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300">
                 <Icon name="refresh" size="md" :stroke-width="2" />
               </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-2 rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-800">
+            <div class="grid grid-cols-1 gap-2 rounded-control bg-gray-50 p-3 text-sm dark:bg-dark-800">
               <div class="flex items-center justify-between gap-3">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.inviteResetRewardType') }}</span>
                 <span class="text-right font-medium text-gray-900 dark:text-white">{{ rewardTypeLabel }}</span>
@@ -73,7 +73,7 @@
                 :placeholder="t('admin.accounts.inviteResetSelectCredit')"
                 :searchable="false"
               />
-              <div v-if="selectedCredit" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+              <div v-if="selectedCredit" class="rounded-control bg-gray-50 p-3 text-sm text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                 <div class="font-medium text-gray-900 dark:text-white">{{ creditTitle(selectedCredit) }}</div>
                 <div class="mt-1">{{ creditDescription(selectedCredit) }}</div>
                 <div v-if="selectedCredit.expires_at" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -91,7 +91,7 @@
                   <span
                     v-for="(expiresAt, index) in creditExpirations"
                     :key="`${expiresAt}-${index}`"
-                    class="inline-flex max-w-full items-center rounded bg-gray-100 px-2 py-1 tabular-nums dark:bg-dark-700"
+                    class="inline-flex max-w-full items-center rounded-compact bg-gray-100 px-2 py-1 tabular-nums dark:bg-dark-700"
                     :title="t('admin.accounts.inviteResetCreditExpiresAtFull', { time: formatCreditExpiry(expiresAt, 'full') })"
                   >
                     {{ formatCreditExpiry(expiresAt, 'short') }}
@@ -100,7 +100,7 @@
               </div>
             </div>
 
-            <div v-else class="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400">
+            <div v-else class="rounded-control border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400">
               {{ t(availableCount > 0 ? 'admin.accounts.inviteResetCreditDetailsUnavailable' : 'admin.accounts.inviteResetNoCredits') }}
             </div>
 
@@ -116,13 +116,13 @@
 
             <button
               type="button"
-              class="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-200 dark:hover:bg-dark-700"
+              class="flex w-full items-center justify-between rounded-control border border-gray-200 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-200 dark:hover:bg-dark-700"
               @click="showRules = !showRules"
             >
               <span>{{ t('admin.accounts.inviteResetRules') }}</span>
               <Icon name="chevronDown" size="sm" :class="['transition-transform', showRules && 'rotate-180']" />
             </button>
-            <div v-if="showRules" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+            <div v-if="showRules" class="rounded-control bg-gray-50 p-3 text-sm text-gray-600 dark:bg-dark-800 dark:text-gray-300">
               <ul v-if="rules.length > 0" class="list-disc space-y-1 pl-5">
                 <li v-for="rule in rules" :key="rule">{{ rule }}</li>
               </ul>
@@ -130,7 +130,7 @@
             </div>
           </section>
 
-          <section class="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+          <section class="space-y-4 rounded-control border border-gray-200 p-4 dark:border-dark-600">
             <div>
               <label class="input-label" for="codex-invite-reset-emails">
                 {{ t('admin.accounts.inviteResetInviteEmails') }}
@@ -147,20 +147,20 @@
               </p>
             </div>
 
-            <label class="flex items-start gap-2 rounded-lg border border-gray-200 p-3 text-sm text-gray-700 dark:border-dark-600 dark:text-gray-300">
+            <label class="flex items-start gap-2 rounded-control border border-gray-200 p-3 text-sm text-gray-700 dark:border-dark-600 dark:text-gray-300">
               <input
                 v-model="consentConfirmed"
                 type="checkbox"
-                class="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                class="mt-0.5 h-4 w-4 rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
               />
               <span>{{ t('admin.accounts.inviteResetConsent') }}</span>
             </label>
 
-            <div v-if="inviteUnavailableMessage" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+            <div v-if="inviteUnavailableMessage" class="rounded-control bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
               {{ inviteUnavailableMessage }}
             </div>
 
-            <div v-if="message" :class="['rounded-lg p-3 text-sm', messageClass]">
+            <div v-if="message" :class="['rounded-control p-3 text-sm', messageClass]">
               {{ message }}
             </div>
 

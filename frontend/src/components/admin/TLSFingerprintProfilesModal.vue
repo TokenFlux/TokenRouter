@@ -18,7 +18,7 @@
       </div>
 
       <!-- 收集器 -->
-      <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-800/60">
+      <div class="rounded-surface border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-800/60">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div class="flex items-center gap-2">
@@ -111,7 +111,7 @@
             </button>
           </div>
 
-          <div v-if="collectorSession" class="space-y-3 rounded-md border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-900/60">
+          <div v-if="collectorSession" class="space-y-3 rounded-surface border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-900/60">
             <div class="grid gap-3 text-xs sm:grid-cols-2">
               <div>
                 <div class="text-gray-500 dark:text-gray-400">{{ t('admin.tlsFingerprintProfiles.collector.captureURL') }}</div>
@@ -132,7 +132,7 @@
                     {{ t('common.copy') }}
                   </button>
                 </div>
-                <pre class="max-h-32 overflow-y-auto whitespace-pre-wrap break-all rounded bg-gray-900 p-2 text-xs leading-relaxed text-gray-100">{{ claudeCommand }}</pre>
+                <pre class="max-h-32 overflow-y-auto whitespace-pre-wrap break-all rounded-compact bg-gray-900 p-2 text-xs leading-relaxed text-gray-100">{{ claudeCommand }}</pre>
               </div>
               <div class="min-w-0">
                 <div class="mb-1 flex items-center justify-between">
@@ -142,7 +142,7 @@
                     {{ t('common.copy') }}
                   </button>
                 </div>
-                <pre class="max-h-32 overflow-y-auto whitespace-pre-wrap break-all rounded bg-gray-900 p-2 text-xs leading-relaxed text-gray-100">{{ codexCommand }}</pre>
+                <pre class="max-h-32 overflow-y-auto whitespace-pre-wrap break-all rounded-compact bg-gray-900 p-2 text-xs leading-relaxed text-gray-100">{{ codexCommand }}</pre>
               </div>
               <div class="min-w-0">
                 <div class="mb-1 flex items-center justify-between">
@@ -152,7 +152,7 @@
                     {{ t('common.copy') }}
                   </button>
                 </div>
-                <pre class="max-h-32 overflow-y-auto whitespace-pre-wrap break-all rounded bg-gray-900 p-2 text-xs leading-relaxed text-gray-100">{{ codexConfigSnippet }}</pre>
+                <pre class="max-h-32 overflow-y-auto whitespace-pre-wrap break-all rounded-compact bg-gray-900 p-2 text-xs leading-relaxed text-gray-100">{{ codexConfigSnippet }}</pre>
               </div>
             </div>
 
@@ -177,13 +177,13 @@
                 {{ t('admin.tlsFingerprintProfiles.collector.captureCount', { count: collectorCaptures.length }) }}
               </span>
             </div>
-            <div v-if="collectorCaptures.length === 0" class="rounded-md border border-dashed border-gray-300 px-3 py-4 text-center text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
+            <div v-if="collectorCaptures.length === 0" class="rounded-control border border-dashed border-gray-300 px-3 py-4 text-center text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
               {{ t('admin.tlsFingerprintProfiles.collector.noCaptures') }}
             </div>
             <div
               v-for="record in collectorCaptures"
               :key="record.id"
-              class="rounded-md border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-900/60"
+              class="rounded-surface border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-900/60"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="min-w-0 text-xs">
@@ -231,7 +231,7 @@
         </p>
       </div>
 
-      <div v-else class="max-h-96 overflow-auto rounded-lg border border-gray-200 dark:border-dark-600">
+      <div v-else class="max-h-96 overflow-auto rounded-control border border-gray-200 dark:border-dark-600">
         <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
           <thead class="sticky top-0 bg-gray-50 dark:bg-dark-700">
             <tr>

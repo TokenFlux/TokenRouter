@@ -8,7 +8,7 @@
     <div class="space-y-6">
       <div
         v-if="team"
-        class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-700 dark:bg-dark-800"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-control border border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-700 dark:bg-dark-800"
       >
         <div class="min-w-0">
           <p class="truncate font-semibold text-gray-900 dark:text-white">{{ team.name }}</p>
@@ -134,7 +134,7 @@ watch(
 
 <style scoped>
 .metric-card {
-  @apply rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900;
+  @apply rounded-surface border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900;
 }
 
 .metric-label {

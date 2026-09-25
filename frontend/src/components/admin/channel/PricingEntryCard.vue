@@ -1,6 +1,6 @@
 <template>
   <!-- 跨页校验定位价格字段时，先展开条目以便聚焦并显示错误。 -->
-  <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-800" @form-field-reveal="collapsed = false">
+  <div class="rounded-surface border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-800" @form-field-reveal="collapsed = false">
     <!-- Collapsed summary header (clickable) -->
     <div
       class="flex cursor-pointer select-none items-center gap-2"
@@ -20,7 +20,7 @@
           <span
             v-for="(m, i) in entry.models.slice(0, 3)"
             :key="i"
-            class="inline-flex shrink-0 rounded px-1.5 py-0.5 text-xs"
+            class="inline-flex shrink-0 rounded-compact px-1.5 py-0.5 text-xs"
             :class="getPlatformTagClass(props.platform || '')"
           >
             {{ m }}
@@ -47,31 +47,31 @@
         </span>
         <span
           v-if="entry.price_multiplier !== null && entry.price_multiplier !== undefined && entry.price_multiplier !== ''"
-          class="flex-shrink-0 rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-600 dark:text-gray-300"
+          class="flex-shrink-0 rounded-compact bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-600 dark:text-gray-300"
         >
           {{ entry.price_multiplier }}x
         </span>
         <span
           v-if="props.showFastModeMultiplier && entry.billing_mode === 'token' && entry.fast_mode_multiplier !== null && entry.fast_mode_multiplier !== undefined && entry.fast_mode_multiplier !== ''"
-          class="flex-shrink-0 rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+          class="flex-shrink-0 rounded-compact bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
         >
           Fast {{ entry.fast_mode_multiplier }}x
         </span>
         <span
           v-if="props.enableTierMultipliers && entry.billing_mode === 'token' && effectiveFastMultiplier !== null && effectiveFastMultiplier !== undefined && effectiveFastMultiplier !== ''"
-          class="flex-shrink-0 rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+          class="flex-shrink-0 rounded-compact bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
         >
           Fast {{ effectiveFastMultiplier }}x
         </span>
         <span
           v-if="props.enableTierMultipliers && entry.billing_mode === 'token' && entry.flex_multiplier !== null && entry.flex_multiplier !== undefined && entry.flex_multiplier !== ''"
-          class="flex-shrink-0 rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+          class="flex-shrink-0 rounded-compact bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
         >
           Flex {{ entry.flex_multiplier }}x
         </span>
         <span
           v-if="props.enableTierMultipliers && entry.billing_mode === 'token' && entry.max_reasoning_effort_multiplier !== null && entry.max_reasoning_effort_multiplier !== undefined && entry.max_reasoning_effort_multiplier !== ''"
-          class="flex-shrink-0 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+          class="flex-shrink-0 rounded-compact bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
         >
           Max {{ entry.max_reasoning_effort_multiplier }}x
         </span>
@@ -86,7 +86,7 @@
       <button
         type="button"
         @click.stop="emit('remove')"
-        class="flex-shrink-0 rounded p-1 text-gray-400 hover:text-red-500"
+        class="flex-shrink-0 rounded-compact p-1 text-gray-400 hover:text-red-500"
       >
         <Icon name="trash" size="sm" />
       </button>
@@ -314,7 +314,7 @@
               @remove="removeInterval(idx)"
             />
           </div>
-          <div v-else class="mt-2 rounded border border-dashed border-gray-300 p-3 text-center text-xs text-gray-400 dark:border-dark-500">
+          <div v-else class="mt-2 rounded-compact border border-dashed border-gray-300 p-3 text-center text-xs text-gray-400 dark:border-dark-500">
             {{ t('admin.channels.form.noTiersYet', '暂无层级，点击添加配置按次计费价格') }}
           </div>
         </div>

@@ -1,14 +1,14 @@
 <template>
   <BaseDialog :show="show" :title="t('admin.users.userApiKeys')" width="wide" @close="handleClose">
     <div v-if="user" class="space-y-4">
-      <div class="flex items-center gap-3 rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
+      <div class="flex items-center gap-3 rounded-surface bg-gray-50 p-4 dark:bg-dark-700">
         <UserAvatar :avatar-url="user.avatar_url || ''" :user-id="user.id" :alt="user.email" size-class="h-10 w-10" />
         <div><p class="font-medium text-gray-900 dark:text-white">{{ user.email }}</p><p class="text-sm text-gray-500 dark:text-dark-400">{{ user.username }}</p></div>
       </div>
       <div v-if="loading" class="flex justify-center py-8"><svg class="h-8 w-8 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
       <div v-else-if="apiKeys.length === 0" class="py-8 text-center"><p class="text-sm text-gray-500">{{ t('admin.users.noApiKeys') }}</p></div>
       <div v-else ref="scrollContainerRef" class="max-h-96 space-y-3 overflow-y-auto" @scroll="closeGroupSelector">
-        <div v-for="key in apiKeys" :key="key.id" class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+        <div v-for="key in apiKeys" :key="key.id" class="rounded-surface border border-gray-200 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
           <div class="flex items-start justify-between">
             <div class="min-w-0 flex-1">
               <div class="mb-1 flex items-center gap-2"><span class="font-medium text-gray-900 dark:text-white">{{ key.name }}</span><span :class="['badge text-xs', key.status === 'active' ? 'badge-success' : 'badge-danger']">{{ key.status }}</span></div>
@@ -27,7 +27,7 @@
                 <span
                   v-for="binding in key.composite_groups"
                   :key="`${key.id}-${binding.group_id}-${binding.prefix}`"
-                  class="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-1.5 py-1 dark:border-dark-600 dark:bg-dark-700"
+                  class="inline-flex max-w-full min-w-0 items-center gap-1 rounded-compact border border-gray-200 bg-gray-50 px-1.5 py-1 dark:border-dark-600 dark:bg-dark-700"
                 >
                   <span class="max-w-24 truncate font-mono font-semibold text-primary-700 dark:text-primary-300">{{ binding.prefix }}</span>
                   <span class="text-gray-300 dark:text-dark-500">/</span>
@@ -42,7 +42,7 @@
                 :ref="(el) => setGroupButtonRef(key.id, el)"
                 data-testid="api-key-group-selector"
                 @click="openGroupSelector(key)"
-                class="-mx-1 -my-0.5 flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
+                class="-mx-1 -my-0.5 flex cursor-pointer items-center gap-1 rounded-control px-1 py-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
                 :disabled="updatingKeyIds.has(key.id)"
               >
                 <GroupBadge
@@ -81,7 +81,7 @@
         <button
           @click="changeGroup(selectedKeyForGroup!, null)"
           :class="[
-            'flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors',
+            'flex w-full items-center rounded-control px-3 py-2 text-sm transition-colors',
             !selectedKeyForGroup?.group_id
               ? 'bg-primary-50 dark:bg-primary-900/20'
               : 'hover:bg-gray-100 dark:hover:bg-dark-700'
@@ -100,7 +100,7 @@
           :key="group.id"
           @click="changeGroup(selectedKeyForGroup!, group.id)"
           :class="[
-            'flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors',
+            'flex w-full items-center justify-between rounded-control px-3 py-2 text-sm transition-colors',
             selectedKeyForGroup?.group_id === group.id
               ? 'bg-primary-50 dark:bg-primary-900/20'
               : 'hover:bg-gray-100 dark:hover:bg-dark-700'

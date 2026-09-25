@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-start gap-2 rounded border p-2"
+  <div class="flex items-start gap-2 rounded-compact border p-2"
        :class="isEmpty ? 'border-red-400 bg-red-50 dark:border-red-500 dark:bg-red-950/20' : 'border-gray-200 bg-white dark:border-dark-500 dark:bg-dark-700'">
     <!-- Token 模式：上下文区间、价格和可选倍率。 -->
     <template v-if="mode === 'token'">
@@ -90,7 +90,7 @@
       </div>
     </template>
 
-    <button type="button" @click="emit('remove')" class="mt-4 rounded p-0.5 text-gray-400 hover:text-red-500">
+    <button type="button" @click="emit('remove')" class="mt-4 rounded-compact p-0.5 text-gray-400 hover:text-red-500">
       <Icon name="x" size="sm" />
     </button>
   </div>

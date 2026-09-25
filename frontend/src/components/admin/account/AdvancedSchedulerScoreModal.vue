@@ -7,10 +7,10 @@
   >
     <div class="min-h-[320px] space-y-5">
       <div v-if="loadingOverview && !response" class="space-y-4" aria-busy="true">
-        <div class="h-14 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-700"></div>
-        <div class="h-10 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-700"></div>
+        <div class="h-14 animate-pulse rounded-control bg-gray-100 dark:bg-dark-700"></div>
+        <div class="h-10 animate-pulse rounded-control bg-gray-100 dark:bg-dark-700"></div>
         <div class="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <div v-for="index in 5" :key="index" class="h-20 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-700"></div>
+          <div v-for="index in 5" :key="index" class="h-20 animate-pulse rounded-control bg-gray-100 dark:bg-dark-700"></div>
         </div>
       </div>
 
@@ -42,7 +42,7 @@
           </div>
           <button
             type="button"
-            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
             :title="t('admin.accounts.advancedSchedulerScore.refresh')"
             :aria-label="t('admin.accounts.advancedSchedulerScore.refresh')"
             :disabled="loadingOverview || loadingDetail"
@@ -67,7 +67,7 @@
                 role="tab"
                 :aria-selected="activeGroupID === group.id"
                 :class="[
-                  'flex min-h-12 flex-col justify-center rounded-lg border px-3 text-left transition-colors',
+                  'flex min-h-12 flex-col justify-center rounded-control border px-3 text-left transition-colors',
                   activeGroupID === group.id
                     ? 'border-primary-500 bg-primary-50 text-primary-800 dark:border-primary-500 dark:bg-primary-500/10 dark:text-primary-200'
                     : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300 dark:hover:border-dark-500'
@@ -83,11 +83,11 @@
           </div>
 
           <div v-if="loadingDetail && !detail" class="space-y-4 py-3" aria-busy="true">
-            <div class="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-700"></div>
+            <div class="h-12 animate-pulse rounded-control bg-gray-100 dark:bg-dark-700"></div>
             <div class="grid grid-cols-2 gap-3 md:grid-cols-5">
-              <div v-for="index in 5" :key="index" class="h-20 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-700"></div>
+              <div v-for="index in 5" :key="index" class="h-20 animate-pulse rounded-control bg-gray-100 dark:bg-dark-700"></div>
             </div>
-            <div class="h-48 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-700"></div>
+            <div class="h-48 animate-pulse rounded-control bg-gray-100 dark:bg-dark-700"></div>
           </div>
 
           <template v-else-if="detail">
@@ -142,7 +142,7 @@
             </section>
 
             <section v-if="!detail.eligible" class="border-b border-gray-200 py-5 dark:border-dark-600">
-              <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+              <div class="flex items-start gap-3 rounded-control border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
                 <Icon name="exclamationTriangle" size="md" class="mt-0.5 shrink-0" />
                 <div>
                   <p class="font-medium">{{ t('admin.accounts.advancedSchedulerScore.ineligible') }}</p>
@@ -155,7 +155,7 @@
               <section class="border-b border-gray-200 py-5 dark:border-dark-600">
                 <h5 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ t('admin.accounts.advancedSchedulerScore.scoreSummary') }}</h5>
                 <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                  <div v-for="item in scoreSummaryItems" :key="item.key" class="rounded-lg border border-gray-200 px-3 py-2.5 dark:border-dark-600">
+                  <div v-for="item in scoreSummaryItems" :key="item.key" class="rounded-control border border-gray-200 px-3 py-2.5 dark:border-dark-600">
                     <p class="text-xs text-gray-500 dark:text-dark-400">{{ item.label }}</p>
                     <p class="mt-1 font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{{ item.value }}</p>
                   </div>
@@ -168,7 +168,7 @@
                   <h5 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ t('admin.accounts.advancedSchedulerScore.formula') }}</h5>
                   <button
                     type="button"
-                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
                     :title="t('admin.accounts.advancedSchedulerScore.copyFormula')"
                     :aria-label="t('admin.accounts.advancedSchedulerScore.copyFormula')"
                     @click="copyFormula(detail.score.formula)"
@@ -176,7 +176,7 @@
                     <Icon name="copy" size="sm" />
                   </button>
                 </div>
-                <div class="mt-3 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 dark:border-dark-600 dark:bg-dark-900">
+                <div class="mt-3 overflow-x-auto rounded-control border border-gray-200 bg-gray-50 px-3 py-3 dark:border-dark-600 dark:bg-dark-900">
                   <code class="block min-w-max whitespace-pre font-mono text-xs leading-6 text-gray-800 dark:text-dark-200">{{ detail.score.formula }}</code>
                 </div>
               </section>
@@ -216,7 +216,7 @@
                   </table>
                 </div>
                 <div class="mt-3 space-y-2 lg:hidden">
-                  <details v-for="metric in detail.metrics" :key="metric.key" class="rounded-lg border border-gray-200 px-3 py-2 dark:border-dark-600">
+                  <details v-for="metric in detail.metrics" :key="metric.key" class="rounded-control border border-gray-200 px-3 py-2 dark:border-dark-600">
                     <summary class="flex cursor-pointer list-none items-center justify-between gap-3 text-sm">
                       <span class="font-medium text-gray-900 dark:text-gray-100">{{ metricLabel(metric.key) }}</span>
                       <span class="font-mono text-xs text-gray-600 dark:text-dark-300">{{ formatNumber(metric.weighted_contribution) }}</span>
@@ -234,10 +234,10 @@
             <section class="border-b border-gray-200 py-5 dark:border-dark-600">
               <h5 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ t('admin.accounts.advancedSchedulerScore.candidatePool') }}</h5>
               <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <div class="rounded-lg border border-gray-200 px-3 py-2.5 dark:border-dark-600"><p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.poolTotal') }}</p><p class="mt-1 font-mono text-sm font-semibold">{{ detail.candidate_pool.total_candidates }}</p></div>
-                <div class="rounded-lg border border-gray-200 px-3 py-2.5 dark:border-dark-600"><p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.poolEligible') }}</p><p class="mt-1 font-mono text-sm font-semibold">{{ detail.candidate_pool.eligible_candidates }}</p></div>
-                <div class="rounded-lg border border-gray-200 px-3 py-2.5 dark:border-dark-600"><p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.poolExcluded') }}</p><p class="mt-1 font-mono text-sm font-semibold">{{ detail.candidate_pool.excluded_candidates }}</p></div>
-                <div class="rounded-lg border border-gray-200 px-3 py-2.5 dark:border-dark-600"><p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.poolTopK') }}</p><p class="mt-1 font-mono text-sm font-semibold">{{ detail.candidate_pool.top_k }}</p></div>
+                <div class="rounded-control border border-gray-200 px-3 py-2.5 dark:border-dark-600"><p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.poolTotal') }}</p><p class="mt-1 font-mono text-sm font-semibold">{{ detail.candidate_pool.total_candidates }}</p></div>
+                <div class="rounded-control border border-gray-200 px-3 py-2.5 dark:border-dark-600"><p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.poolEligible') }}</p><p class="mt-1 font-mono text-sm font-semibold">{{ detail.candidate_pool.eligible_candidates }}</p></div>
+                <div class="rounded-control border border-gray-200 px-3 py-2.5 dark:border-dark-600"><p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.poolExcluded') }}</p><p class="mt-1 font-mono text-sm font-semibold">{{ detail.candidate_pool.excluded_candidates }}</p></div>
+                <div class="rounded-control border border-gray-200 px-3 py-2.5 dark:border-dark-600"><p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.poolTopK') }}</p><p class="mt-1 font-mono text-sm font-semibold">{{ detail.candidate_pool.top_k }}</p></div>
               </div>
               <p v-if="exclusionSummary" class="mt-3 text-xs leading-5 text-gray-500 dark:text-dark-400">{{ exclusionSummary }}</p>
               <div v-if="detail.candidate_pool.candidates.length" class="mt-4 max-h-56 overflow-auto border-t border-gray-100 pt-3 dark:border-dark-700">

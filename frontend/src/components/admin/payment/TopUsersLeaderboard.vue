@@ -15,7 +15,7 @@
         <div
           v-for="(user, idx) in currencyUsers"
           :key="user.user_id"
-          class="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-700"
+          class="flex items-center justify-between rounded-control px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-700"
         >
           <div class="flex items-center gap-3">
             <span

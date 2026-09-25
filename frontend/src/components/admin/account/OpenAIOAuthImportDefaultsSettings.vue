@@ -239,7 +239,7 @@
               />
               <button
                 type="button"
-                class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                class="rounded-control p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                 @click="removeDefaultModelMapping(index)"
               >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -255,7 +255,7 @@
           </div>
           <button
             type="button"
-            class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
+            class="w-full rounded-control border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
             @click="addDefaultModelMapping"
           >
             <svg
@@ -273,7 +273,7 @@
               v-for="preset in presetMappings"
               :key="preset.label"
               type="button"
-              :class="['rounded-lg px-3 py-1 text-xs transition-colors', preset.color]"
+              :class="['rounded-control px-3 py-1 text-xs transition-colors', preset.color]"
               @click="addDefaultPresetMapping(preset.from, preset.to)"
             >
               + {{ preset.label }}

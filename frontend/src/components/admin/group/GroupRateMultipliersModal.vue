@@ -2,7 +2,7 @@
   <BaseDialog :show="show" :title="t('admin.groups.rateMultipliersTitle')" width="wide" @close="handleClose">
     <div v-if="group" class="space-y-4">
       <!-- 分组信息 -->
-      <div class="flex flex-wrap items-center gap-3 rounded-lg bg-gray-50 px-4 py-2.5 text-sm dark:bg-dark-700">
+      <div class="flex flex-wrap items-center gap-3 rounded-control bg-gray-50 px-4 py-2.5 text-sm dark:bg-dark-700">
         <span class="inline-flex items-center gap-1.5" :class="platformColorClass">
           <PlatformIcon :platform="group.platform" size="sm" />
           {{ t('admin.groups.platforms.' + group.platform) }}
@@ -16,7 +16,7 @@
       </div>
 
       <!-- 操作区 -->
-      <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+      <div class="rounded-control border border-gray-200 p-3 dark:border-dark-600">
         <!-- 添加用户 -->
         <h4 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.groups.addUserRate') }}
@@ -34,7 +34,7 @@
             />
             <div
               v-if="showDropdown && searchResults.length > 0"
-              class="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-500 dark:bg-dark-700"
+              class="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-control border border-gray-200 bg-white shadow-lg dark:border-dark-500 dark:bg-dark-700"
             >
               <button
                 v-for="user in searchResults"
@@ -81,7 +81,7 @@
               step="0.1"
               min="0"
               autocomplete="off"
-              class="hide-spinner w-20 rounded border border-primary-900/10 bg-white px-2 py-1 text-center text-sm transition-colors focus:border-primary-900/10 focus:outline-none focus:ring-2 focus:ring-black/10 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500 dark:focus:ring-primary-500/20"
+              class="hide-spinner w-20 rounded-compact border border-primary-900/10 bg-white px-2 py-1 text-center text-sm transition-colors focus:border-primary-900/10 focus:outline-none focus:ring-2 focus:ring-black/10 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500 dark:focus:ring-primary-500/20"
               placeholder="0.5"
             />
             <button
@@ -96,7 +96,7 @@
           <div class="ml-auto">
             <button
               type="button"
-              class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+              class="rounded-control border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
               @click="clearAllLocal"
             >
               {{ t('admin.groups.clearAll') }}
@@ -125,7 +125,7 @@
 
         <div v-else>
           <!-- 表格 -->
-          <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600">
+          <div class="overflow-hidden rounded-control border border-gray-200 dark:border-dark-600">
             <div class="max-h-[420px] overflow-auto">
               <table class="w-full min-w-max text-sm">
                 <thead class="sticky top-0 z-[1]">
@@ -170,7 +170,7 @@
                         autocomplete="off"
                         :value="entry.rate_multiplier ?? ''"
                         :placeholder="String(props.group?.rate_multiplier ?? 1)"
-                        class="hide-spinner w-20 rounded border border-primary-900/10 bg-white px-2 py-1 text-center text-sm font-medium transition-colors focus:border-primary-900/10 focus:outline-none focus:ring-2 focus:ring-black/10 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500 dark:focus:ring-primary-500/20"
+                        class="hide-spinner w-20 rounded-compact border border-primary-900/10 bg-white px-2 py-1 text-center text-sm font-medium transition-colors focus:border-primary-900/10 focus:outline-none focus:ring-2 focus:ring-black/10 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500 dark:focus:ring-primary-500/20"
                         @change="updateLocalRate(entry.user_id, ($event.target as HTMLInputElement).value)"
                       />
                     </td>
@@ -180,7 +180,7 @@
                     <td class="px-2 py-2">
                       <button
                         type="button"
-                        class="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                        class="rounded-compact p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                         @click="removeLocal(entry.user_id)"
                       >
                         <Icon name="trash" size="sm" />

@@ -20,7 +20,7 @@ describe('GroupClientProtocolSelector', () => {
     const list = wrapper.get('[data-testid="client-protocol-list"]')
     expect(list.classes()).toContain('divide-y')
     expect(list.classes()).not.toContain('border')
-    expect(list.classes()).not.toContain('rounded-md')
+    expect(list.classes()).not.toContain('rounded-control')
   })
 
   it('shows the canonical endpoint for each supported protocol', () => {

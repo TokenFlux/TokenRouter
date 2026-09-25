@@ -1,11 +1,11 @@
 <template>
   <div>
     <!-- Tags display -->
-    <div class="flex flex-wrap gap-1.5 rounded-lg border border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-800 min-h-[2.5rem]">
+    <div class="flex flex-wrap gap-1.5 rounded-control border border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-800 min-h-[2.5rem]">
       <span
         v-for="(model, idx) in models"
         :key="idx"
-        class="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-sm"
+        class="inline-flex items-center gap-1 rounded-compact px-2 py-0.5 text-sm"
         :class="getPlatformTagClass(props.platform || '')"
       >
         {{ model }}

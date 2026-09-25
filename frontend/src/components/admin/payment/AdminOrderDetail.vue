@@ -77,7 +77,7 @@
 
       <div
         v-if="order.refund_amount"
-        class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20"
+        class="rounded-control border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20"
       >
         <h4 class="mb-2 text-sm font-semibold text-red-700 dark:text-red-400">
           {{ t('payment.admin.refundInfo') }}
@@ -98,7 +98,7 @@
         <button
           v-if="order.status === 'PENDING'"
           @click="emit('cancel', order)"
-          class="btn btn-sm rounded-md bg-yellow-50 px-3 py-1.5 text-sm text-yellow-600 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400 dark:hover:bg-yellow-900/30"
+          class="btn btn-sm rounded-control bg-yellow-50 px-3 py-1.5 text-sm text-yellow-600 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400 dark:hover:bg-yellow-900/30"
         >
           {{ t('payment.orders.cancel') }}
         </button>
@@ -112,7 +112,7 @@
         <button
           v-if="canRefund(order)"
           @click="emit('refund', order)"
-          class="btn btn-sm rounded-md bg-red-50 px-3 py-1.5 text-sm text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+          class="btn btn-sm rounded-control bg-red-50 px-3 py-1.5 text-sm text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
         >
           {{ t('payment.admin.refund') }}
         </button>

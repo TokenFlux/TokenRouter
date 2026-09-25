@@ -104,7 +104,7 @@
         </div>
         <button
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:text-red-500"
+          class="flex h-8 w-8 items-center justify-center rounded-compact text-gray-400 hover:text-red-500"
           :title="t('admin.channels.form.removeTimePeriod')"
           :aria-label="t('admin.channels.form.removeTimePeriod')"
           :data-testid="`remove-time-period-${index}`"
