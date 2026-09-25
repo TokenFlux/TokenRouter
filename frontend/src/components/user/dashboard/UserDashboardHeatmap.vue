@@ -10,7 +10,7 @@
       <!-- 色阶图例 -->
       <div class="flex shrink-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
         <span>{{ t('dashboard.heatmapLess') }}</span>
-        <span v-for="level in 5" :key="level" class="h-3 w-3 rounded-compact" :class="levelClass(level - 1)" />
+        <span v-for="level in 5" :key="level" class="heatmap-cell h-3 w-3" :class="levelClass(level - 1)" />
         <span>{{ t('dashboard.heatmapMore') }}</span>
       </div>
     </div>
@@ -52,7 +52,7 @@
           v-for="day in visibleDays"
           :key="day.date"
           data-testid="heatmap-cell"
-          class="h-3 w-3 rounded-compact"
+          class="heatmap-cell h-3 w-3"
           :class="day.future ? 'invisible' : levelClass(day.level)"
           :style="{ gridColumn: day.weekIndex + 2, gridRow: day.dayOfWeek + 2 }"
           @mouseenter="onCellHover(day, $event)"
@@ -349,3 +349,12 @@ onBeforeUnmount(() => {
 // 供仪表盘刷新按钮联动调用
 defineExpose({ reload: load })
 </script>
+
+<style scoped>
+/* 格子只有 12px,全局最小档 compact(6px)已达边长一半、近似椭圆;
+   保持迁移前 sm 尺度的 4px,用组件级局部变量承载,不占用全局档位。 */
+.heatmap-cell {
+  --radius-cell: 4px;
+  border-radius: var(--radius-cell);
+}
+</style>
