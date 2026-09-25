@@ -1,10 +1,7 @@
 <template>
   <AppLayout full-viewport>
-    <!-- 整个内容区即无限画布背景：负外边距抵消 app-main 四周内边距，画布铺满全幅（含顶部，点阵直达 header 边界） -->
-    <div
-      ref="stageRef"
-      class="relative -mx-4 -mb-4 -mt-4 h-[calc(100dvh-3.5rem)] md:-mx-6 md:-mb-6 md:-mt-5 lg:-mx-8 lg:-mb-8 lg:-mt-4"
-    >
+    <!-- 整个内容区即无限画布背景:fullViewport 模式下 app-main 无内边距,画布经 flex 链铺满全幅(含顶部,点阵直达 header 边界) -->
+    <div ref="stageRef" class="relative h-full min-h-0">
       <CreativeCanvas ref="canvasRef" class="absolute inset-0" :operation="studio.operation.value" :allowed-mimes="studio.capabilities.value.allowed_mime_types" @error="onCanvasError" />
       <CreativeRunHistory ref="historyRef" :studio="studio" :active-run-count="activeRunCount" />
 

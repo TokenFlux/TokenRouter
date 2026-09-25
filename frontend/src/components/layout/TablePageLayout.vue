@@ -44,12 +44,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 桌面端：Flexbox 布局 */
+/* 桌面端：Flexbox 布局。高度由 AppLayout 的 flex 链分配(flex-1 占满主区剩余空间),
+   不再自行计算视口高度;移动端恢复自然高度。 */
 .table-page-layout {
-  @apply flex flex-col gap-4;
-  /* 高度扣除顶栏、主区上下内边距和标题预留，分页条与视口底部保持主区底距。 */
-  height: calc(100vh - var(--header-h) - var(--main-pad-top, 1rem) - var(--main-pad-bottom, 1rem) - var(--page-heading-space, 0px));
-  height: calc(100dvh - var(--header-h) - var(--main-pad-top, 1rem) - var(--main-pad-bottom, 1rem) - var(--page-heading-space, 0px));
+  @apply flex flex-1 flex-col gap-4 min-h-0;
 }
 
 .layout-section-fixed {
@@ -120,7 +118,7 @@ onUnmounted(() => {
 /* 移动端：恢复正常滚动 */
 .table-page-layout.mobile-mode {
   /* 移动端表格卡片高度由内容决定，避免固定视口高度导致后续区域被溢出内容覆盖。 */
-  height: auto;
+  @apply h-auto flex-none;
 }
 
 .table-page-layout.mobile-mode .table-scroll-container {

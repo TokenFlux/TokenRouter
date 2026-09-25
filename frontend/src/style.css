@@ -4,8 +4,11 @@
 
 @layer base {
   :root {
-    /* 布局 token：顶栏高度供侧栏与表格页高度计算共用，调整时只需改这一处。 */
+    /* 布局尺寸唯一来源:顶栏高度与侧栏展开/折叠宽度,
+       布局组件与页面的高度、偏移计算一律引用这些变量,不再各自写字面量。 */
     --header-h: 3.5rem;
+    --sidebar-w: 14rem;
+    --sidebar-w-collapsed: 4.5rem;
     /* 圆角 token：语义档位的唯一数值来源,raw CSS 只允许引用这些变量;
        整体圆润取向:紧凑 6 / 控件 8 / 表面 12 / 弹窗 16。 */
     --radius-compact: 6px;
@@ -770,7 +773,8 @@
   /* ============ 侧边栏 ============ */
   .sidebar {
     @apply fixed bottom-0 left-0 z-40;
-    @apply w-56 bg-white dark:bg-dark-900/95;
+    width: var(--sidebar-w);
+    @apply bg-white dark:bg-dark-900/95;
     @apply border-r border-primary-900/10 dark:border-dark-600;
     @apply flex flex-col;
     @apply transition-transform duration-300;

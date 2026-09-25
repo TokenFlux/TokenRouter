@@ -367,8 +367,8 @@ onUnmounted(() => {
 
 <style scoped>
 .custom-page-layout {
-  @apply flex flex-col;
-  height: calc(100vh - 64px - 4rem);
+  /* 高度由 AppLayout 的 flex 链分配,不再手写视口差值(旧 calc 里的 64px 顶栏已过时)。 */
+  @apply flex min-h-0 flex-1 flex-col;
 }
 
 .toc-sidebar {

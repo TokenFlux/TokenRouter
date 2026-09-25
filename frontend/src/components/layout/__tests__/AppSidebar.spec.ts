@@ -16,9 +16,10 @@ describe('AppSidebar layout controls', () => {
     // 同时约束侧栏和内容偏移，避免宽度修改后出现空白或遮挡。
     expect(componentSource).not.toContain('@click="toggleTheme"')
     expect(componentSource).not.toContain('@click="toggleSidebar"')
-    expect(componentSource).toContain("sidebarCollapsed ? 'w-[72px]' : 'w-56'")
-    expect(layoutSource).toContain("sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-56'")
-    expect(styleSource).toMatch(/\.sidebar\s*\{[\s\S]*?@apply w-56 /)
+    expect(componentSource).toContain("sidebarCollapsed ? 'w-[var(--sidebar-w-collapsed)]' : 'w-[var(--sidebar-w)]'")
+    expect(layoutSource).toContain("'lg:ml-[var(--sidebar-w-collapsed)]'")
+    expect(layoutSource).toContain("'lg:ml-[var(--sidebar-w)]'")
+    expect(styleSource).toContain('width: var(--sidebar-w);')
   })
 
   it('renders the site logo without an outer glow', () => {
@@ -87,13 +88,13 @@ describe('global header and sidebar hierarchy', () => {
 
   it('starts the mobile overlay below the global header', () => {
     // 遮罩不能位于半透明顶栏下方，否则 glass 背景会透出黑色并使顶栏变灰。
-    expect(componentSource).toContain('fixed inset-x-0 bottom-0 top-14 z-30 bg-black/50 lg:hidden')
+    expect(componentSource).toContain('fixed inset-x-0 bottom-0 top-[var(--header-h)] z-30 bg-black/50 lg:hidden')
     expect(componentSource).not.toContain('fixed inset-0 z-30 bg-black/50 lg:hidden')
   })
 
   it('keeps the scrolling content below the fixed global header', () => {
     // 主内容不能与顶栏使用同级 z-index，否则滚动时后渲染内容会盖住顶栏。
-    expect(layoutSource).toContain('class="relative z-10 min-w-0 pt-14 transition-all duration-300"')
+    expect(layoutSource).toContain('class="relative z-10 flex min-w-0 flex-col pt-[var(--header-h)] transition-all duration-300"')
     expect(layoutSource).toContain("fullViewport ? 'h-full min-h-0' : 'min-h-screen'")
     expect(layoutSource).not.toContain('lg:z-50')
   })

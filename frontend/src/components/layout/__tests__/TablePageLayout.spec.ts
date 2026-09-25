@@ -29,6 +29,16 @@ describe('TablePageLayout responsive table scrolling', () => {
     wrapper.unmount()
   })
 
+  it('高度由 AppLayout flex 链分配,不再维护视口差值与镜像内边距变量', () => {
+    // 桌面模式:flex-1 占满主区剩余空间;移动模式:自然高度。
+    expect(componentSource).toContain('@apply flex flex-1 flex-col gap-4 min-h-0;')
+    expect(componentSource).not.toContain('--main-pad-top')
+    expect(componentSource).not.toContain('--main-pad-bottom')
+    expect(componentSource).not.toContain('--page-heading-space')
+    expect(componentSource).not.toContain('calc(100dvh')
+    expect(componentSource).not.toContain('calc(100vh')
+  })
+
   it('keeps shared sticky table headers opaque and free of blur filters', () => {
     expect(componentSource).toContain('@apply bg-gray-50 dark:bg-dark-950;')
     expect(componentSource).not.toContain('backdrop-blur-sm')

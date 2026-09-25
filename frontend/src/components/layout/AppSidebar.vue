@@ -2,7 +2,7 @@
   <aside
     class="sidebar"
     :class="[
-      sidebarCollapsed ? 'w-[72px]' : 'w-56',
+      sidebarCollapsed ? 'w-[var(--sidebar-w-collapsed)]' : 'w-[var(--sidebar-w)]',
       { '-translate-x-full lg:translate-x-0': !mobileOpen }
     ]"
   >
@@ -130,7 +130,7 @@
   <transition name="fade">
     <div
       v-if="mobileOpen"
-      class="fixed inset-x-0 bottom-0 top-14 z-30 bg-black/50 lg:hidden"
+      class="fixed inset-x-0 bottom-0 top-[var(--header-h)] z-30 bg-black/50 lg:hidden"
       @click="closeMobile"
     ></div>
   </transition>

@@ -11,9 +11,11 @@ describe('CreativeStudioView 移动端视口布局', () => {
     expect(viewSource).toContain('<AppLayout full-viewport>')
   })
 
-  it('stage 继续使用动态视口高度并从顶栏下方开始', () => {
-    expect(viewSource).toContain('h-[calc(100dvh-3.5rem)]')
-    expect(viewSource).toContain('md:-mt-5')
+  it('stage 高度由 AppLayout flex 链分配,不再复制顶栏尺寸或抵消父级内边距', () => {
+    expect(viewSource).toContain('class="relative h-full min-h-0"')
+    // 禁止负 margin 抵消 app-main 内边距、禁止写死顶栏高度的视口差值。
+    expect(viewSource).not.toMatch(/-m[txyblr]-/)
+    expect(viewSource).not.toContain('h-[calc(100dvh-3.5rem)]')
     expect(viewSource).not.toContain('h-[calc(100vh-')
   })
 })

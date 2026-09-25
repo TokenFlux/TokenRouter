@@ -107,4 +107,22 @@ describe('AppLayout 全屏视口模式', () => {
 
     wrapper.unmount()
   })
+
+  it('空间分配契约:主区始终 flex-1 flex-col,全屏模式无内边距,普通模式保留标准内边距链', () => {
+    const full = mountLayout(true)
+    const fullMain = full.element.querySelector('main.app-main')
+    expect(fullMain?.classList).toContain('flex-1')
+    expect(fullMain?.classList).toContain('flex-col')
+    expect(fullMain?.classList).toContain('p-0')
+    expect(fullMain?.classList).not.toContain('px-4')
+    full.unmount()
+
+    const normal = mountLayout(false)
+    const normalMain = normal.element.querySelector('main.app-main')
+    expect(normalMain?.classList).toContain('flex-1')
+    expect(normalMain?.classList).toContain('flex-col')
+    expect(normalMain?.classList).toContain('px-4')
+    expect(normalMain?.classList).not.toContain('p-0')
+    normal.unmount()
+  })
 })

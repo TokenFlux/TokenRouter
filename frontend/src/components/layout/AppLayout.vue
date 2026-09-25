@@ -13,18 +13,22 @@
     <AppSidebar v-if="!hideSidebar" />
 
     <div
-      class="relative z-10 min-w-0 pt-14 transition-all duration-300"
+      class="relative z-10 flex min-w-0 flex-col pt-[var(--header-h)] transition-all duration-300"
       :class="[
         fullViewport ? 'h-full min-h-0' : 'min-h-screen',
-        hideSidebar ? '' : sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-56',
+        hideSidebar
+          ? ''
+          : sidebarCollapsed
+            ? 'lg:ml-[var(--sidebar-w-collapsed)]'
+            : 'lg:ml-[var(--sidebar-w)]',
       ]"
     >
-      <!-- Main Content -->
+      <!-- Main Content：布局组件统一负责空间分配,子页面不再复制父级尺寸或抵消内边距。 -->
       <main
-        class="app-main min-w-0 px-4 pb-4 pt-4 md:px-6 md:pb-6 lg:px-8 lg:pb-8"
-        :class="{ 'has-page-heading': pageTitle }"
+        class="app-main flex min-w-0 flex-1 flex-col"
+        :class="fullViewport ? 'min-h-0 p-0' : 'px-4 pb-4 pt-4 md:px-6 md:pb-6 lg:px-8 lg:pb-8'"
       >
-        <div v-if="pageTitle" class="page-heading mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div v-if="pageTitle" class="page-heading mb-4 flex flex-shrink-0 flex-wrap items-start justify-between gap-3">
           <div>
             <h1 class="page-title">{{ pageTitle }}</h1>
             <p v-if="pageDescription" class="page-description">{{ pageDescription }}</p>
@@ -115,29 +119,6 @@ onBeforeUnmount(() => {
 defineExpose({ replayTour })
 </script>
 
-<style scoped>
-/* 表格页需要知道内容区标题占用的固定空间，避免滚动区域向视口底部溢出。 */
-.app-main {
-  --page-heading-space: 0px;
-  /* 主区上下内边距的镜像变量，供表格页计算可视高度；必须与 main 的 padding 类一致。 */
-  --main-pad-top: 1rem;
-  --main-pad-bottom: 1rem;
-}
-
-/* 5rem 由 text-2xl 标题、描述行和 mb-4 间距相加得出。 */
-.app-main.has-page-heading {
-  --page-heading-space: 5rem;
-}
-
-@media (min-width: 768px) {
-  .app-main {
-    --main-pad-bottom: 1.5rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  .app-main {
-    --main-pad-bottom: 2rem;
-  }
-}
-</style>
+<!-- 空间分配全部经模板 flex 链完成:wrapper(flex-col, min-h-screen 或全屏锁定)
+     → app-main(flex-1) → page-heading(自然高度) + 页面内容(需要撑满时自取 flex-1)。
+     不再维护 --main-pad-* / --page-heading-space 等与模板 padding 平行的镜像变量。 -->
