@@ -78,7 +78,7 @@
 
         <div
           v-if="selectedEventMeta"
-          class="rounded-lg border border-primary-100 bg-primary-50/70 p-4 dark:border-primary-900/50 dark:bg-primary-950/20"
+          class="rounded-surface border border-primary-100 bg-primary-50/70 p-4 dark:border-primary-900/50 dark:bg-primary-950/20"
         >
           <div class="flex flex-wrap items-center gap-2">
             <div class="text-sm font-semibold text-gray-900 dark:text-white">
@@ -113,7 +113,7 @@
 
         <div
           v-if="!eventOptions.length || !localeOptions.length"
-          class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+          class="rounded-control border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
         >
           {{ t("admin.settings.emailTemplates.empty") }}
         </div>
@@ -149,7 +149,7 @@
             </div>
 
             <div
-              class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60"
+              class="rounded-surface border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60"
             >
               <div class="text-sm font-medium text-gray-900 dark:text-white">
                 {{ t("admin.settings.emailTemplates.placeholders") }}
@@ -173,7 +173,7 @@
 
           <div class="space-y-4">
             <div
-              class="rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
+              class="rounded-control border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
             >
               <div
                 class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-dark-700"
@@ -195,7 +195,7 @@
               </div>
               <div class="bg-gray-100 p-3 dark:bg-dark-900">
                 <iframe
-                  class="h-[36rem] w-full rounded-md border border-gray-200 bg-white dark:border-dark-700"
+                  class="h-[36rem] w-full rounded-control border border-gray-200 bg-white dark:border-dark-700"
                   sandbox=""
                   :srcdoc="previewHtml"
                   :title="t('admin.settings.emailTemplates.livePreview')"

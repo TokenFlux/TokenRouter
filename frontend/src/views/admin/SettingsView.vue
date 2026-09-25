@@ -103,7 +103,7 @@
             <div class="space-y-4 p-6">
               <!-- Security Warning -->
               <div
-                class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+                class="rounded-control border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
               >
                 <div class="flex items-start">
                   <Icon
@@ -180,7 +180,7 @@
                       {{ t("admin.settings.adminApiKey.currentKey") }}
                     </label>
                     <code
-                      class="rounded bg-gray-100 px-2 py-1 font-mono text-sm text-gray-900 dark:bg-dark-700 dark:text-gray-100"
+                      class="rounded-compact bg-gray-100 px-2 py-1 font-mono text-sm text-gray-900 dark:bg-dark-700 dark:text-gray-100"
                     >
                       {{ adminApiKeyMasked }}
                     </code>
@@ -212,7 +212,7 @@
                 <!-- Newly Generated Key Display -->
                 <div
                   v-if="newAdminApiKey"
-                  class="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20"
+                  class="space-y-3 rounded-control border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20"
                 >
                   <p
                     class="text-sm font-medium text-green-700 dark:text-green-300"
@@ -221,7 +221,7 @@
                   </p>
                   <div class="flex items-center gap-2">
                     <code
-                      class="flex-1 select-all break-all rounded border border-green-300 bg-white px-3 py-2 font-mono text-sm dark:border-green-700 dark:bg-dark-800"
+                      class="flex-1 select-all break-all rounded-compact border border-green-300 bg-white px-3 py-2 font-mono text-sm dark:border-green-700 dark:bg-dark-800"
                     >
                       {{ newAdminApiKey }}
                     </code>
@@ -1018,7 +1018,7 @@
                 <div
                   v-for="rule in betaPolicyForm.rules"
                   :key="rule.beta_token"
-                  class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                  class="rounded-control border border-gray-200 p-4 dark:border-dark-600"
                 >
                   <div class="mb-3 flex items-center gap-2">
                     <span
@@ -1027,7 +1027,7 @@
                       {{ getBetaDisplayName(rule.beta_token) }}
                     </span>
                     <span
-                      class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-400"
+                      class="rounded-compact bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-400"
                     >
                       {{ rule.beta_token }}
                     </span>
@@ -1095,7 +1095,7 @@
                         v-for="preset in betaPresets[rule.beta_token]"
                         :key="preset.label"
                         type="button"
-                        class="inline-flex items-center gap-1 rounded-md border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300 dark:hover:bg-primary-900/50"
+                        class="inline-flex items-center gap-1 rounded-compact border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300 dark:hover:bg-primary-900/50"
                         @click="applyBetaPreset(rule, preset)"
                         :title="preset.description"
                       >
@@ -1131,7 +1131,7 @@
                       <button
                         type="button"
                         @click="rule.model_whitelist!.splice(index, 1)"
-                        class="shrink-0 rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                        class="shrink-0 rounded-compact p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                       >
                         <svg
                           class="h-4 w-4"
@@ -1183,7 +1183,7 @@
                         v-for="pattern in commonModelPatterns"
                         :key="pattern"
                         type="button"
-                        class="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-600 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-700 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
+                        class="rounded-compact border border-gray-200 px-2 py-0.5 text-xs text-gray-600 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-700 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
                         @click="addQuickPattern(rule, pattern)"
                       >
                         {{ pattern }}
@@ -1288,7 +1288,7 @@
               <!-- Empty state -->
               <div
                 v-if="openaiFastPolicyForm.rules.length === 0"
-                class="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+                class="rounded-control border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
               >
                 {{ t("admin.settings.openaiFastPolicy.empty") }}
               </div>
@@ -1297,7 +1297,7 @@
               <div
                 v-for="(rule, ruleIndex) in openaiFastPolicyForm.rules"
                 :key="ruleIndex"
-                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="rounded-control border border-gray-200 p-4 dark:border-dark-600"
               >
                 <div class="mb-3 flex items-center justify-between">
                   <span
@@ -1312,7 +1312,7 @@
                   <button
                     type="button"
                     @click="removeOpenAIFastPolicyRule(ruleIndex)"
-                    class="rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                    class="rounded-compact p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                     :title="t('admin.settings.openaiFastPolicy.removeRule')"
                   >
                     <svg
@@ -1346,7 +1346,7 @@
                   </span>
                   <span aria-hidden="true">→</span>
                   <span
-                    class="inline-flex items-center rounded bg-primary-50 px-2 py-0.5 font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+                    class="inline-flex items-center rounded-compact bg-primary-50 px-2 py-0.5 font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
                   >
                     {{ openaiFastPolicyActionSummary(rule.action) }}
                   </span>
@@ -1361,7 +1361,7 @@
                     </span>
                     <span aria-hidden="true">→</span>
                     <span
-                      class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300"
+                      class="inline-flex items-center rounded-compact bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300"
                     >
                       {{
                         openaiFastPolicyActionSummary(
@@ -1513,7 +1513,7 @@
                       @click="
                         removeOpenAIFastPolicyModelPattern(rule, patternIdx)
                       "
-                      class="shrink-0 rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      class="shrink-0 rounded-compact p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                     >
                       <svg
                         class="h-4 w-4"
@@ -1681,13 +1681,13 @@
                   }}
                 </p>
                 <div
-                  class="mt-3 rounded-lg border border-gray-300 bg-white p-2 dark:border-dark-500 dark:bg-dark-700"
+                  class="mt-3 rounded-control border border-gray-300 bg-white p-2 dark:border-dark-500 dark:bg-dark-700"
                 >
                   <div class="flex flex-wrap items-center gap-2">
                     <span
                       v-for="suffix in registrationEmailSuffixWhitelistTags"
                       :key="suffix"
-                      class="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-dark-600 dark:text-gray-200"
+                      class="inline-flex items-center gap-1 rounded-compact bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-dark-600 dark:text-gray-200"
                     >
                       <span>{{ suffix }}</span>
                       <button
@@ -1707,7 +1707,7 @@
                     </span>
 
                     <div
-                      class="flex min-w-[220px] flex-1 items-center gap-1 rounded border border-transparent px-2 py-1 focus-within:border-primary-900/10 focus-within:ring-2 focus-within:ring-black/10 dark:focus-within:border-primary-700 dark:focus-within:ring-0"
+                      class="flex min-w-[220px] flex-1 items-center gap-1 rounded-compact border border-transparent px-2 py-1 focus-within:border-primary-900/10 focus-within:ring-2 focus-within:ring-black/10 dark:focus-within:border-primary-700 dark:focus-within:ring-0"
                     >
                       <input
                         v-model="registrationEmailSuffixWhitelistDraft"
@@ -1972,14 +1972,14 @@
                   {{ t("admin.settings.apiKeyAcl.forwardedClientIpHeadersHint") }}
                 </p>
                 <div
-                  class="mt-3 rounded-lg border border-gray-300 bg-white p-2 dark:border-dark-500 dark:bg-dark-700"
+                  class="mt-3 rounded-control border border-gray-300 bg-white p-2 dark:border-dark-500 dark:bg-dark-700"
                 >
                   <div class="flex flex-wrap items-center gap-2">
                     <span
                       v-for="header in form.forwarded_client_ip_headers"
                       :key="header"
                       data-testid="forwarded-client-ip-header-tag"
-                      class="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-dark-600 dark:text-gray-200"
+                      class="inline-flex items-center gap-1 rounded-compact bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-dark-600 dark:text-gray-200"
                     >
                       <span>{{ header }}</span>
                       <button
@@ -1997,7 +1997,7 @@
                       </button>
                     </span>
                     <div
-                      class="flex min-w-[220px] flex-1 items-center gap-1 rounded border border-transparent px-2 py-1 focus-within:border-primary-900/10 focus-within:ring-2 focus-within:ring-black/10 dark:focus-within:border-primary-700 dark:focus-within:ring-0"
+                      class="flex min-w-[220px] flex-1 items-center gap-1 rounded-compact border border-transparent px-2 py-1 focus-within:border-primary-900/10 focus-within:ring-2 focus-within:ring-black/10 dark:focus-within:border-primary-700 dark:focus-within:ring-0"
                     >
                       <input
                         id="forwarded-client-ip-headers"
@@ -2053,7 +2053,7 @@
               <template v-else>
                 <!-- 计数维度说明：按账号计数，反代部署无误伤 -->
                 <div
-                  class="rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-900/20"
+                  class="rounded-control border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-900/20"
                 >
                   <div class="flex items-start">
                     <Icon
@@ -2253,12 +2253,12 @@
                     {{ t("admin.settings.captcha.provider") }}
                   </label>
                   <div
-                    class="grid grid-cols-3 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+                    class="grid grid-cols-3 gap-2 rounded-control bg-gray-100 p-1 dark:bg-dark-700"
                   >
                     <button
                       type="button"
                       data-testid="captcha-provider-turnstile"
-                      class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
+                      class="inline-flex items-center justify-center gap-2 rounded-control px-3 py-2 text-sm font-medium transition"
                       :class="
                         captchaProviderSelection === 'turnstile'
                           ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
@@ -2271,7 +2271,7 @@
                     <button
                       type="button"
                       data-testid="captcha-provider-tencent"
-                      class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
+                      class="inline-flex items-center justify-center gap-2 rounded-control px-3 py-2 text-sm font-medium transition"
                       :class="
                         captchaProviderSelection === 'tencent'
                           ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
@@ -2284,7 +2284,7 @@
                     <button
                       type="button"
                       data-testid="captcha-provider-aliyun"
-                      class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
+                      class="inline-flex items-center justify-center gap-2 rounded-control px-3 py-2 text-sm font-medium transition"
                       :class="
                         captchaProviderSelection === 'aliyun'
                           ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
@@ -2356,11 +2356,11 @@
                     <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                       {{ t("admin.settings.tencentCaptcha.region") }}
                     </label>
-                    <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
+                    <div class="grid grid-cols-2 gap-2 rounded-control bg-gray-100 p-1 dark:bg-dark-700">
                       <button
                         type="button"
                         data-testid="tencent-captcha-region-cn"
-                        class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition"
+                        class="inline-flex items-center justify-center rounded-control px-3 py-1.5 text-sm font-medium transition"
                         :class="
                           form.tencent_captcha_region !== 'intl'
                             ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
@@ -2373,7 +2373,7 @@
                       <button
                         type="button"
                         data-testid="tencent-captcha-region-intl"
-                        class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition"
+                        class="inline-flex items-center justify-center rounded-control px-3 py-1.5 text-sm font-medium transition"
                         :class="
                           form.tencent_captcha_region === 'intl'
                             ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
@@ -2507,11 +2507,11 @@
                         {{ t("admin.settings.aliyunCaptcha.region") }}
                       </label>
                       <div
-                        class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+                        class="grid grid-cols-2 gap-2 rounded-control bg-gray-100 p-1 dark:bg-dark-700"
                       >
                         <button
                           type="button"
-                          class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition"
+                          class="inline-flex items-center justify-center rounded-control px-3 py-1.5 text-sm font-medium transition"
                           :class="
                             form.aliyun_captcha_region !== 'sgp'
                               ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
@@ -2523,7 +2523,7 @@
                         </button>
                         <button
                           type="button"
-                          class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition"
+                          class="inline-flex items-center justify-center rounded-control px-3 py-1.5 text-sm font-medium transition"
                           :class="
                             form.aliyun_captcha_region === 'sgp'
                               ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
@@ -2719,7 +2719,7 @@
                       </button>
                       <code
                         v-if="linuxdoRedirectUrlSuggestion"
-                        class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                        class="select-all break-all rounded-compact bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
                       >
                         {{ linuxdoRedirectUrlSuggestion }}
                       </code>
@@ -2752,7 +2752,7 @@
             </div>
             <div class="space-y-6 p-6">
               <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
+                <div class="rounded-control border border-gray-200 p-4 dark:border-dark-700">
                   <div class="flex items-start justify-between gap-4">
                     <div>
                       <h3 class="font-medium text-gray-900 dark:text-white">
@@ -2771,7 +2771,7 @@
                   </div>
 
                   <div v-if="form.github_oauth_enabled" class="mt-4 space-y-4">
-                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                    <div class="rounded-control bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                       <template v-if="isZhLocale">
                         开通引导：GitHub Settings → Developer settings →
                         <a
@@ -2841,7 +2841,7 @@
                         </button>
                         <code
                           v-if="githubOAuthRedirectUrlSuggestion"
-                          class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                          class="select-all break-all rounded-compact bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
                         >
                           {{ githubOAuthRedirectUrlSuggestion }}
                         </code>
@@ -2862,7 +2862,7 @@
                   </div>
                 </div>
 
-                <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
+                <div class="rounded-control border border-gray-200 p-4 dark:border-dark-700">
                   <div class="flex items-start justify-between gap-4">
                     <div>
                       <h3 class="font-medium text-gray-900 dark:text-white">
@@ -2881,7 +2881,7 @@
                   </div>
 
                   <div v-if="form.google_oauth_enabled" class="mt-4 space-y-4">
-                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                    <div class="rounded-control bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                       {{
                         localText(
                           "开通引导：Google Cloud Console → APIs & Services → OAuth consent screen 完成同意屏幕；Credentials → Create Credentials → OAuth client ID，类型选择 Web application，并把下面地址加入 Authorized redirect URIs。",
@@ -2913,7 +2913,7 @@
                           Authorized JavaScript origin
                         </label>
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <code class="min-w-0 flex-1 select-all break-all rounded bg-gray-50 px-2 py-1.5 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                          <code class="min-w-0 flex-1 select-all break-all rounded-compact bg-gray-50 px-2 py-1.5 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                             {{ googleOneTapOriginSuggestion }}
                           </code>
                           <button
@@ -2982,7 +2982,7 @@
                         </button>
                         <code
                           v-if="googleOAuthRedirectUrlSuggestion"
-                          class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                          class="select-all break-all rounded-compact bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
                         >
                           {{ googleOAuthRedirectUrlSuggestion }}
                         </code>
@@ -3040,7 +3040,7 @@
               >
                 <div class="space-y-4">
                   <div
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                    class="rounded-control border border-gray-200 p-4 dark:border-dark-700"
                   >
                     <div class="flex items-start justify-between gap-4">
                       <div>
@@ -3113,7 +3113,7 @@
                   </div>
 
                   <div
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                    class="rounded-control border border-gray-200 p-4 dark:border-dark-700"
                   >
                     <div class="flex items-start justify-between gap-4">
                       <div>
@@ -3191,7 +3191,7 @@
                   </div>
 
                   <div
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                    class="rounded-control border border-gray-200 p-4 dark:border-dark-700"
                   >
                     <div class="flex items-start justify-between gap-4">
                       <div>
@@ -3270,7 +3270,7 @@
                     (form.wechat_connect_mp_enabled ||
                       form.wechat_connect_mobile_enabled)
                   "
-                  class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300"
+                  class="rounded-control border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300"
                 >
                   {{
                     localText(
@@ -3319,7 +3319,7 @@
                       </button>
                       <code
                         v-if="wechatRedirectUrlSuggestion"
-                        class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                        class="select-all break-all rounded-compact bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
                       >
                         {{ wechatRedirectUrlSuggestion }}
                       </code>
@@ -3866,7 +3866,7 @@
                       </button>
                       <code
                         v-if="oidcRedirectUrlSuggestion"
-                        class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                        class="select-all break-all rounded-compact bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
                       >
                         {{ oidcRedirectUrlSuggestion }}
                       </code>
@@ -3944,7 +3944,7 @@
 
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div
-                    class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    class="flex items-center justify-between rounded-compact border border-gray-200 px-4 py-3 dark:border-dark-700"
                   >
                     <div>
                       <label class="font-medium text-gray-900 dark:text-white">
@@ -3958,7 +3958,7 @@
                   </div>
 
                   <div
-                    class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    class="flex items-center justify-between rounded-compact border border-gray-200 px-4 py-3 dark:border-dark-700"
                   >
                     <div>
                       <label class="font-medium text-gray-900 dark:text-white">
@@ -3972,7 +3972,7 @@
                   </div>
 
                   <div
-                    class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    class="flex items-center justify-between rounded-compact border border-gray-200 px-4 py-3 dark:border-dark-700"
                   >
                     <div>
                       <label class="font-medium text-gray-900 dark:text-white">
@@ -4155,7 +4155,7 @@
 
                 <div
                   v-if="form.default_subscriptions.length === 0"
-                  class="rounded border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+                  class="rounded-compact border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
                 >
                   {{ t("admin.settings.defaults.defaultSubscriptionsEmpty") }}
                 </div>
@@ -4164,7 +4164,7 @@
                   <div
                     v-for="(item, index) in form.default_subscriptions"
                     :key="`default-sub-${index}`"
-                    class="grid grid-cols-1 gap-3 rounded border border-gray-200 p-3 md:grid-cols-[1fr_auto] dark:border-dark-600"
+                    class="grid grid-cols-1 gap-3 rounded-compact border border-gray-200 p-3 md:grid-cols-[1fr_auto] dark:border-dark-600"
                   >
                     <div>
                       <label
@@ -4274,7 +4274,7 @@
             </div>
             <div class="space-y-6 p-6">
               <div
-                class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                class="flex items-center justify-between rounded-compact border border-gray-200 px-4 py-3 dark:border-dark-700"
               >
                 <div>
                   <label class="font-medium text-gray-900 dark:text-white">
@@ -4291,7 +4291,7 @@
                 <div
                   v-for="authSource in authSourceDefaultsMeta"
                   :key="authSource.source"
-                  class="rounded-xl border border-gray-200 p-4 dark:border-dark-700"
+                  class="rounded-surface border border-gray-200 p-4 dark:border-dark-700"
                 >
                   <div class="flex items-center justify-between gap-4">
                     <div>
@@ -4356,7 +4356,7 @@
                     </div>
 
                     <div
-                      class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                      class="flex items-center justify-between rounded-compact border border-gray-200 px-4 py-3 dark:border-dark-700"
                     >
                       <div>
                         <label
@@ -4408,7 +4408,7 @@
                         authSourceDefaults[authSource.source].subscriptions
                           .length === 0
                       "
-                      class="rounded border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+                      class="rounded-compact border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
                     >
                       {{ t("admin.settings.authSourceDefaults.noSourceSubscriptions") }}
                     </div>
@@ -4419,7 +4419,7 @@
                           authSource.source
                         ].subscriptions"
                         :key="`${authSource.source}-sub-${index}`"
-                        class="grid grid-cols-1 gap-3 rounded border border-gray-200 p-3 md:grid-cols-[1fr_auto] dark:border-dark-600"
+                        class="grid grid-cols-1 gap-3 rounded-compact border border-gray-200 p-3 md:grid-cols-[1fr_auto] dark:border-dark-600"
                       >
                         <div>
                           <label
@@ -4756,7 +4756,7 @@
                     <div
                       v-for="platform in schedulingThresholdPlatforms"
                       :key="platform"
-                      class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                      class="rounded-control border border-gray-200 p-4 dark:border-dark-700"
                     >
                       <div class="flex items-start justify-between gap-3">
                         <div>
@@ -4774,7 +4774,7 @@
                           </p>
                         </div>
                         <span
-                          class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                          class="rounded-compact bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
                         >
                           %
                         </span>
@@ -4866,7 +4866,7 @@
                     <template #trigger>
                       <button
                         type="button"
-                        class="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500/40 dark:text-gray-500 dark:hover:bg-dark-800 dark:hover:text-primary-400"
+                        class="inline-flex h-7 w-7 items-center justify-center rounded-control text-gray-400 transition-colors hover:bg-gray-100 hover:text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500/40 dark:text-gray-500 dark:hover:bg-dark-800 dark:hover:text-primary-400"
                         :aria-label="t('admin.settings.scheduling.advancedHelp.trigger')"
                         :title="t('admin.settings.scheduling.advancedHelp.trigger')"
                       >
@@ -4880,7 +4880,7 @@
                       <p class="text-gray-200">
                         {{ t("admin.settings.scheduling.advancedHelp.summary") }}
                       </p>
-                      <p class="rounded-md bg-white/5 px-2 py-1.5 text-xs text-gray-200">
+                      <p class="rounded-control bg-white/5 px-2 py-1.5 text-xs text-gray-200">
                         {{ t("admin.settings.scheduling.advancedHelp.formula") }}
                       </p>
                       <ol class="list-decimal space-y-2 pl-4 text-gray-200">
@@ -5524,7 +5524,7 @@
 
               <div
                 v-if="form.user_prompt_replacement_config.rules.length === 0"
-                class="rounded-lg border border-dashed border-gray-300 p-4 text-center text-sm text-gray-400 dark:border-dark-600"
+                class="rounded-control border border-dashed border-gray-300 p-4 text-center text-sm text-gray-400 dark:border-dark-600"
               >
                 {{ t("admin.settings.userPromptReplacement.empty") }}
               </div>
@@ -5532,7 +5532,7 @@
               <div
                 v-for="(rule, index) in form.user_prompt_replacement_config.rules"
                 :key="rule.id || index"
-                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="rounded-control border border-gray-200 p-4 dark:border-dark-600"
               >
                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div class="flex min-w-0 flex-1 items-center gap-3">
@@ -5688,7 +5688,7 @@
 
                 <div
                   v-if="webSearchConfig.providers.length === 0"
-                  class="rounded-lg border border-dashed border-gray-300 p-4 text-center text-sm text-gray-400 dark:border-dark-600"
+                  class="rounded-control border border-dashed border-gray-300 p-4 text-center text-sm text-gray-400 dark:border-dark-600"
                 >
                   {{ t("admin.settings.webSearchEmulation.noProviders") }}
                 </div>
@@ -5696,7 +5696,7 @@
                 <div
                   v-for="(provider, pIdx) in webSearchConfig.providers"
                   :key="pIdx"
-                  class="rounded-lg border border-gray-200 dark:border-dark-600"
+                  class="rounded-control border border-gray-200 dark:border-dark-600"
                 >
                   <!-- Collapsible header -->
                   <div
@@ -5796,7 +5796,7 @@
                         >
                           <button
                             type="button"
-                            class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            class="rounded-compact p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                             :title="
                               apiKeyVisible[pIdx]
                                 ? t(
@@ -5845,7 +5845,7 @@
                           </button>
                           <button
                             type="button"
-                            class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            class="rounded-compact p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                             :class="{
                               'opacity-30 cursor-not-allowed':
                                 !provider.api_key,
@@ -6034,7 +6034,7 @@
               <!-- Test results -->
               <div
                 v-if="wsTestResult"
-                class="mt-4 max-h-80 overflow-y-auto rounded-lg bg-gray-50 p-4 dark:bg-dark-700"
+                class="mt-4 max-h-80 overflow-y-auto rounded-control bg-gray-50 p-4 dark:bg-dark-700"
               >
                 <p
                   class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -6187,7 +6187,7 @@
                   </p>
                 </div>
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div class="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 dark:border-dark-600">
+                  <div class="flex items-center justify-between rounded-control border border-gray-200 px-4 py-3 dark:border-dark-600">
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                       {{ t("admin.settings.usageRanking.totalTokens") }}
                     </span>
@@ -6197,7 +6197,7 @@
                       :disabled="!form.usage_ranking_enabled || form.usage_ranking_sort_by === 'total_tokens'"
                     />
                   </div>
-                  <div class="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 dark:border-dark-600">
+                  <div class="flex items-center justify-between rounded-control border border-gray-200 px-4 py-3 dark:border-dark-600">
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                       {{ t("admin.settings.usageRanking.requests") }}
                     </span>
@@ -6207,7 +6207,7 @@
                       :disabled="!form.usage_ranking_enabled || form.usage_ranking_sort_by === 'requests'"
                     />
                   </div>
-                  <div class="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 dark:border-dark-600">
+                  <div class="flex items-center justify-between rounded-control border border-gray-200 px-4 py-3 dark:border-dark-600">
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                       {{ t("admin.settings.usageRanking.actualCost") }}
                     </span>
@@ -6308,13 +6308,13 @@
                 </div>
               </div>
 
-              <div class="rounded-2xl border border-primary-100 bg-primary-50/60 p-5 dark:border-primary-900/40 dark:bg-primary-900/10">
+              <div class="rounded-surface border border-primary-100 bg-primary-50/60 p-5 dark:border-primary-900/40 dark:bg-primary-900/10">
                 <p class="text-xs font-medium uppercase tracking-[0.18em] text-primary-600 dark:text-primary-300">
                   {{ t('admin.settings.balanceDisplay.previewLabel') }}
                 </p>
-                <div class="mt-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-dark-800">
+                <div class="mt-4 rounded-surface bg-white p-4 shadow-sm dark:bg-dark-800">
                   <div class="flex items-center gap-3">
-                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
+                    <div class="flex h-11 w-11 items-center justify-center rounded-surface bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
                       <BalanceIcon
                         :svg="form.balance_icon_svg"
                         :use-global-fallback="false"
@@ -6414,7 +6414,7 @@
             <div class="space-y-6 p-6">
               <!-- Backend Mode -->
               <div
-                class="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+                class="flex items-center justify-between rounded-control border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
               >
                 <div>
                   <h3 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -6610,7 +6610,7 @@
                   <div
                     v-for="(ep, index) in form.custom_endpoints"
                     :key="index"
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                    class="rounded-control border border-gray-200 p-4 dark:border-dark-600"
                   >
                     <div class="mb-3 flex items-center justify-between">
                       <span
@@ -6624,7 +6624,7 @@
                       </span>
                       <button
                         type="button"
-                        class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                        class="rounded-compact p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                         @click="removeEndpoint(index)"
                       >
                         <svg
@@ -6706,7 +6706,7 @@
 
                 <button
                   type="button"
-                  class="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                  class="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-control border-2 border-dashed border-gray-300 px-4 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                   @click="addEndpoint"
                 >
                   <svg
@@ -6835,7 +6835,7 @@
               <div
                 v-for="(item, index) in form.custom_menu_items"
                 :key="item.id || index"
-                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="rounded-control border border-gray-200 p-4 dark:border-dark-600"
               >
                 <div class="mb-3 flex items-center justify-between">
                   <span
@@ -6850,7 +6850,7 @@
                     <button
                       v-if="index > 0"
                       type="button"
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                      class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
                       :title="t('admin.settings.customMenu.moveUp')"
                       @click="moveMenuItem(index, -1)"
                     >
@@ -6872,7 +6872,7 @@
                     <button
                       v-if="index < form.custom_menu_items.length - 1"
                       type="button"
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                      class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
                       :title="t('admin.settings.customMenu.moveDown')"
                       @click="moveMenuItem(index, 1)"
                     >
@@ -6893,7 +6893,7 @@
                     <!-- Delete -->
                     <button
                       type="button"
-                      class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      class="rounded-compact p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                       :title="t('admin.settings.customMenu.remove')"
                       @click="removeMenuItem(index)"
                     >
@@ -6981,7 +6981,7 @@
               <!-- Add button -->
               <button
                 type="button"
-                class="flex h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                class="flex h-9 w-full items-center justify-center gap-2 rounded-control border-2 border-dashed border-gray-300 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                 @click="addMenuItem"
               >
                 <svg
@@ -7045,7 +7045,7 @@
                 <button
                   v-if="mIndex > 0"
                   type="button"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                  class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
                   :title="t('admin.settings.customMenu.moveUp')"
                   @click="moveHomeFeaturedModel(mIndex, -1)"
                 >
@@ -7056,7 +7056,7 @@
                 <button
                   v-if="mIndex < form.home_featured_models.length - 1"
                   type="button"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                  class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
                   :title="t('admin.settings.customMenu.moveDown')"
                   @click="moveHomeFeaturedModel(mIndex, 1)"
                 >
@@ -7066,7 +7066,7 @@
                 </button>
                 <button
                   type="button"
-                  class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                  class="rounded-compact p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                   :title="localText('删除模型', 'Remove model')"
                   @click="removeHomeFeaturedModel(mIndex)"
                 >
@@ -7079,7 +7079,7 @@
               <!-- Add model button -->
               <button
                 type="button"
-                class="flex h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                class="flex h-9 w-full items-center justify-center gap-2 rounded-control border-2 border-dashed border-gray-300 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                 :disabled="form.home_featured_models.length >= homeFeaturedModelsMax"
                 @click="form.home_featured_models.push('')"
               >
@@ -7128,7 +7128,7 @@
               <div
                 v-for="(group, gIndex) in form.footer_links"
                 :key="gIndex"
-                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="rounded-control border border-gray-200 p-4 dark:border-dark-600"
               >
                 <div class="mb-3 flex items-center justify-between gap-3">
                   <input
@@ -7141,7 +7141,7 @@
                     <button
                       v-if="gIndex > 0"
                       type="button"
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                      class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
                       :title="t('admin.settings.customMenu.moveUp')"
                       @click="moveFooterGroup(gIndex, -1)"
                     >
@@ -7152,7 +7152,7 @@
                     <button
                       v-if="gIndex < form.footer_links.length - 1"
                       type="button"
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                      class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
                       :title="t('admin.settings.customMenu.moveDown')"
                       @click="moveFooterGroup(gIndex, 1)"
                     >
@@ -7162,7 +7162,7 @@
                     </button>
                     <button
                       type="button"
-                      class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      class="rounded-compact p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                       :title="localText('删除分组', 'Remove group')"
                       @click="removeFooterGroup(gIndex)"
                     >
@@ -7193,7 +7193,7 @@
                     />
                     <button
                       type="button"
-                      class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      class="rounded-compact p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                       :title="localText('删除链接', 'Remove link')"
                       @click="group.links.splice(lIndex, 1)"
                     >
@@ -7218,7 +7218,7 @@
               <!-- Add group button -->
               <button
                 type="button"
-                class="flex h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                class="flex h-9 w-full items-center justify-center gap-2 rounded-control border-2 border-dashed border-gray-300 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                 @click="addFooterGroup"
               >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -7277,10 +7277,10 @@
                   <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                     {{ localText("展示形式", "Display mode") }}
                   </label>
-                  <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
+                  <div class="grid grid-cols-2 gap-2 rounded-control bg-gray-100 p-1 dark:bg-dark-700">
                     <button
                       type="button"
-                      class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
+                      class="inline-flex items-center justify-center gap-2 rounded-control px-3 py-2 text-sm font-medium transition"
                       :class="
                         form.login_agreement_mode === 'modal'
                           ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
@@ -7293,7 +7293,7 @@
                     </button>
                     <button
                       type="button"
-                      class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
+                      class="inline-flex items-center justify-center gap-2 rounded-control px-3 py-2 text-sm font-medium transition"
                       :class="
                         form.login_agreement_mode === 'checkbox'
                           ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
@@ -7358,11 +7358,11 @@
                   <div
                     v-for="(doc, index) in form.login_agreement_documents"
                     :key="doc.id || index"
-                    class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-800/60"
+                    class="rounded-surface border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-800/60"
                   >
                     <div class="mb-3 flex items-center justify-between gap-3">
                       <div class="flex min-w-0 items-center gap-3">
-                        <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-dark-200">
+                        <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-control bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-dark-200">
                           <Icon
                             :name="
                               index === 1
@@ -7387,7 +7387,7 @@
                       </div>
                       <button
                         type="button"
-                        class="rounded-md p-2 text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-900/20"
+                        class="rounded-control p-2 text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-900/20"
                         :disabled="
                           form.login_agreement_enabled &&
                           form.login_agreement_documents.length <= 1
@@ -7414,7 +7414,7 @@
                         <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
                           {{ localText("路由标识", "Route slug") }}
                         </label>
-                        <div class="flex overflow-hidden rounded-lg border border-primary-900/10 bg-white focus-within:border-primary-900/10 focus-within:ring-2 focus-within:ring-black/10 dark:border-dark-600 dark:bg-dark-900 dark:focus-within:border-primary-500 dark:focus-within:ring-primary-500">
+                        <div class="flex overflow-hidden rounded-control border border-primary-900/10 bg-white focus-within:border-primary-900/10 focus-within:ring-2 focus-within:ring-black/10 dark:border-dark-600 dark:bg-dark-900 dark:focus-within:border-primary-500 dark:focus-within:ring-primary-500">
                           <span class="inline-flex flex-shrink-0 items-center border-r border-gray-200 bg-gray-50 px-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-400">
                             /legal/
                           </span>
@@ -7563,7 +7563,7 @@
                 <!-- 模型能力列表：列头与行共用同一网格分栏，模型选择、能力开关、删除操作对齐，避免行内松散留白。 -->
                 <div
                   v-if="form.creative_model_settings.length > 0"
-                  class="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-dark-600"
+                  class="mt-4 overflow-hidden rounded-surface border border-gray-200 dark:border-dark-600"
                 >
                   <div
                     class="hidden items-center gap-4 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_auto] dark:border-dark-700 dark:bg-dark-800/60 dark:text-dark-300"
@@ -7626,7 +7626,7 @@
                 </div>
                 <p
                   v-else
-                  class="mt-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-500 dark:border-dark-600 dark:text-dark-300"
+                  class="mt-4 flex items-center justify-center gap-2 rounded-surface border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-500 dark:border-dark-600 dark:text-dark-300"
                 >
                   <Icon name="infoCircle" size="sm" />
                   {{ t("admin.settings.features.creative.modelSettings.empty") }}
@@ -7895,7 +7895,7 @@
                       t("admin.settings.payment.preview")
                     }}</label>
                     <div
-                      class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300"
+                      class="rounded-control border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300"
                     >
                       {{
                         (form.payment_product_name_prefix || "Sub2API") +
@@ -8071,7 +8071,7 @@
                     </p>
                   </div>
                   <div class="col-span-2 sm:col-span-5">
-                    <div class="rounded-lg border border-gray-200 dark:border-dark-700">
+                    <div class="rounded-control border border-gray-200 dark:border-dark-700">
                       <div class="border-b border-gray-100 px-4 py-3 dark:border-dark-700">
                         <p
                           class="text-sm font-semibold text-gray-900 dark:text-white"
@@ -8105,7 +8105,7 @@
                           >
                             <input
                               type="checkbox"
-                              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                              class="rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
                               :checked="methodFeeEnabled(method.value)"
                               @change="setMethodFeeEnabled(method.value, ($event.target as HTMLInputElement).checked)"
                             />
@@ -8382,7 +8382,7 @@
                       type="button"
                       @click="togglePaymentType(pt.value)"
                       :class="[
-                        'rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
+                        'rounded-control border px-3 py-1.5 text-sm font-medium transition-all',
                         isPaymentTypeEnabled(pt.value)
                           ? 'border-primary-600 bg-primary-600 text-white shadow-sm'
                           : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500',
@@ -13418,7 +13418,7 @@ watch(
 }
 
 .settings-tab-icon {
-  @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors duration-200 dark:text-gray-400;
+  @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-control text-gray-500 transition-colors duration-200 dark:text-gray-400;
 }
 
 .settings-tab:hover .settings-tab-icon,
@@ -13451,7 +13451,7 @@ watch(
 }
 
 .gateway-section-tab {
-  @apply flex h-9 min-w-[7.75rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-3 text-sm font-medium text-gray-600 outline-none transition-colors duration-200 dark:text-gray-300;
+  @apply flex h-9 min-w-[7.75rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-control border border-transparent px-3 text-sm font-medium text-gray-600 outline-none transition-colors duration-200 dark:text-gray-300;
 }
 
 .gateway-section-tab:hover,

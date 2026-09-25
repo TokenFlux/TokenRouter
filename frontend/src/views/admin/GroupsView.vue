@@ -33,7 +33,7 @@
                 <Icon name="filter" size="sm" />
                 <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">{{ activeFilterCount }}</span>
               </button>
-              <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-[60] mt-2 w-72 rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
+              <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-[60] mt-2 w-72 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
                 <div class="mb-3 flex items-center justify-between">
                   <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
                   <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetGroupFilters">{{ t('common.reset') }}</button>
@@ -73,7 +73,7 @@
               </button>
               <div
                 v-if="showColumnDropdown"
-                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-control border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
               >
                 <button
                   v-for="col in toggleableColumns"
@@ -210,7 +210,7 @@
                   >{{ row.active_account_count || 0 }}</span
                 >
                 <span
-                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+                  class="ml-1 inline-flex items-center rounded-compact bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
                   >{{ t("admin.groups.accountsUnit") }}</span
                 >
               </div>
@@ -223,7 +223,7 @@
                   >{{ row.rate_limited_account_count }}</span
                 >
                 <span
-                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+                  class="ml-1 inline-flex items-center rounded-compact bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
                   >{{ t("admin.groups.accountsUnit") }}</span
                 >
               </div>
@@ -236,7 +236,7 @@
                   >{{ row.account_count || 0 }}</span
                 >
                 <span
-                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+                  class="ml-1 inline-flex items-center rounded-compact bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
                   >{{ t("admin.groups.accountsUnit") }}</span
                 >
               </div>
@@ -307,7 +307,7 @@
             <div class="flex items-center gap-1">
               <button
                 @click="handleEdit(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="flex flex-col items-center gap-0.5 rounded-control p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t("common.edit") }}</span>
@@ -321,7 +321,7 @@
                 :aria-expanded="actionMenuGroup?.id === row.id"
                 :aria-controls="actionMenuGroup?.id === row.id ? `group-action-menu-${row.id}` : undefined"
                 @click="openGroupActionMenu(row, $event)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white"
+                class="flex flex-col items-center gap-0.5 rounded-control p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white"
               >
                 <Icon name="more" size="sm" />
                 <span class="text-xs">{{ t("common.more") }}</span>
@@ -448,7 +448,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="mb-2 text-xs font-medium">
                         {{ t("admin.groups.exclusiveTooltip.title") }}
@@ -456,7 +456,7 @@
                       <p class="mb-2 text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.exclusiveTooltip.description") }}
                       </p>
-                      <div class="rounded bg-gray-800 p-2 dark:bg-gray-700">
+                      <div class="rounded-compact bg-gray-800 p-2 dark:bg-gray-700">
                         <p class="text-xs leading-relaxed text-gray-300">
                           <span
                             class="inline-flex items-center gap-1 text-primary-400"
@@ -525,7 +525,7 @@
               <p class="input-hint">{{ t("admin.groups.scheduler.hint") }}</p>
               <div
                 v-if="createForm.scheduler_type === 'advanced'"
-                class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary-900/10 bg-primary-50/60 px-3 py-2.5 dark:border-dark-600 dark:bg-dark-800/70"
+                class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-control border border-primary-900/10 bg-primary-50/60 px-3 py-2.5 dark:border-dark-600 dark:bg-dark-800/70"
               >
                 <div class="min-w-0 text-xs text-primary-900/70 dark:text-dark-200/80">
                   <span class="font-medium text-primary-900 dark:text-dark-50">{{ t('admin.groups.advancedSchedulerOverrides.label') }}</span>
@@ -557,7 +557,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.copyAccounts.tooltip") }}
@@ -661,7 +661,7 @@
               </div>
               <div
                 v-if="createForm.availability_probe_enabled"
-                class="grid gap-4 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-dark-600 dark:bg-dark-800/40 md:grid-cols-2"
+                class="grid gap-4 rounded-surface border border-gray-200 bg-gray-50/50 p-4 dark:border-dark-600 dark:bg-dark-800/40 md:grid-cols-2"
               >
                 <div>
                   <label class="input-label">{{ t("admin.groups.availabilityProbe.model") }}</label>
@@ -826,7 +826,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-80 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.modelRouting.tooltip") }}
@@ -868,7 +868,7 @@
                 <div
                   v-for="rule in createModelRoutingRules"
                   :key="getCreateRuleRenderKey(rule)"
-                  class="rounded-lg border border-gray-200 p-3 dark:border-dark-600"
+                  class="rounded-control border border-gray-200 p-3 dark:border-dark-600"
                 >
                   <div class="flex items-start gap-3">
                     <div class="flex-1 space-y-2">
@@ -932,7 +932,7 @@
                               accountSearchResults[getCreateRuleSearchKey(rule)]
                                 ?.length > 0
                             "
-                            class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                            class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-control border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
                           >
                             <button
                               v-for="account in accountSearchResults[
@@ -1020,7 +1020,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.supportedScopes.tooltip") }}
@@ -1084,7 +1084,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.mcpXml.tooltip") }}
@@ -1285,7 +1285,7 @@
                   {{ t("admin.groups.webSearchPricing.pricePerCallHint") }}
                 </p>
                 <div
-                  class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                  class="mt-2 rounded-control bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
                 >
                   {{
                     t("admin.groups.webSearchPricing.finalPricePreview", {
@@ -1480,7 +1480,7 @@
                       <div
                         v-for="row in createForm.exact_model_mappings"
                         :key="getCreateMessagesDispatchRowKey(row)"
-                        class="group relative rounded-lg border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800"
+                        class="group relative rounded-surface border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800"
                       >
                         <div class="flex items-center gap-4">
                           <div
@@ -1529,7 +1529,7 @@
                           <button
                             type="button"
                             @click="removeCreateMessagesDispatchMapping(row)"
-                            class="mt-6 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                            class="mt-6 flex h-9 w-9 shrink-0 items-center justify-center rounded-control text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                             :title="
                               t('admin.groups.openaiMessages.removeExactMapping')
                             "
@@ -1542,7 +1542,7 @@
                       <button
                         type="button"
                         @click="addCreateMessagesDispatchMapping"
-                        class="flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-white py-1.5 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                        class="flex min-h-9 w-full items-center justify-center gap-2 rounded-control border-2 border-dashed border-gray-300 bg-white py-1.5 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                       >
                         <Icon name="plus" size="sm" />
                         {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -1569,7 +1569,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.claudeCode.tooltip") }}
@@ -1638,7 +1638,7 @@
               </div>
               <div
                 v-if="createModelsListState.enabled"
-                class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50/50 dark:border-dark-600 dark:bg-dark-800/40"
+                class="overflow-hidden rounded-surface border border-gray-200 bg-gray-50/50 dark:border-dark-600 dark:bg-dark-800/40"
               >
                 <div
                   v-if="!createModelsListLoading && createModelsListState.items.length > 0"
@@ -1651,14 +1651,14 @@
                   <div class="flex items-center gap-1.5">
                     <button
                       type="button"
-                      class="rounded px-2 py-1 font-medium text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
+                      class="rounded-compact px-2 py-1 font-medium text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
                       @click="selectAllModelsListItems(createModelsListState)"
                     >
                       全选
                     </button>
                     <button
                       type="button"
-                      class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                      class="rounded-compact px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
                       @click="invertModelsListSelection(createModelsListState)"
                     >
                       反选
@@ -1680,7 +1680,7 @@
                   <div
                     v-for="(item, index) in createModelsListState.items"
                     :key="item.id"
-                    class="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
+                    class="flex items-center gap-2 rounded-compact border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
                   >
                     <span class="min-w-0 flex-1 break-all text-sm text-gray-700 dark:text-gray-300">
                       {{ item.id }}
@@ -1693,7 +1693,7 @@
                     <button
                       type="button"
                       :disabled="index === 0"
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                      class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
                       @click="moveCreateModelsListItem(index, index - 1)"
                     >
                       <Icon name="arrowUp" size="sm" />
@@ -1701,7 +1701,7 @@
                     <button
                       type="button"
                       :disabled="index === createModelsListState.items.length - 1"
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                      class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
                       @click="moveCreateModelsListItem(index, index + 1)"
                     >
                       <Icon name="arrowDown" size="sm" />
@@ -1858,7 +1858,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="mb-2 text-xs font-medium">
                         {{ t("admin.groups.exclusiveTooltip.title") }}
@@ -1866,7 +1866,7 @@
                       <p class="mb-2 text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.exclusiveTooltip.description") }}
                       </p>
-                      <div class="rounded bg-gray-800 p-2 dark:bg-gray-700">
+                      <div class="rounded-compact bg-gray-800 p-2 dark:bg-gray-700">
                         <p class="text-xs leading-relaxed text-gray-300">
                           <span
                             class="inline-flex items-center gap-1 text-primary-400"
@@ -1936,7 +1936,7 @@
               <p class="input-hint">{{ t("admin.groups.scheduler.hint") }}</p>
               <div
                 v-if="editForm.scheduler_type === 'advanced'"
-                class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary-900/10 bg-primary-50/60 px-3 py-2.5 dark:border-dark-600 dark:bg-dark-800/70"
+                class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-control border border-primary-900/10 bg-primary-50/60 px-3 py-2.5 dark:border-dark-600 dark:bg-dark-800/70"
               >
                 <div class="min-w-0 text-xs text-primary-900/70 dark:text-dark-200/80">
                   <span class="font-medium text-primary-900 dark:text-dark-50">{{ t('admin.groups.advancedSchedulerOverrides.label') }}</span>
@@ -1968,7 +1968,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.copyAccounts.tooltipEdit") }}
@@ -2074,7 +2074,7 @@
               </div>
               <div
                 v-if="editForm.availability_probe_enabled"
-                class="grid gap-4 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-dark-600 dark:bg-dark-800/40 md:grid-cols-2"
+                class="grid gap-4 rounded-surface border border-gray-200 bg-gray-50/50 p-4 dark:border-dark-600 dark:bg-dark-800/40 md:grid-cols-2"
               >
                 <div>
                   <label class="input-label">{{ t("admin.groups.availabilityProbe.model") }}</label>
@@ -2239,7 +2239,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-80 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.modelRouting.tooltip") }}
@@ -2281,7 +2281,7 @@
                 <div
                   v-for="rule in editModelRoutingRules"
                   :key="getEditRuleRenderKey(rule)"
-                  class="rounded-lg border border-gray-200 p-3 dark:border-dark-600"
+                  class="rounded-control border border-gray-200 p-3 dark:border-dark-600"
                 >
                   <div class="flex items-start gap-3">
                     <div class="flex-1 space-y-2">
@@ -2345,7 +2345,7 @@
                               accountSearchResults[getEditRuleSearchKey(rule)]
                                 ?.length > 0
                             "
-                            class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                            class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-control border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
                           >
                             <button
                               v-for="account in accountSearchResults[
@@ -2433,7 +2433,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.supportedScopes.tooltip") }}
@@ -2497,7 +2497,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.mcpXml.tooltip") }}
@@ -2697,7 +2697,7 @@
                   {{ t("admin.groups.webSearchPricing.pricePerCallHint") }}
                 </p>
                 <div
-                  class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                  class="mt-2 rounded-control bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
                 >
                   {{
                     t("admin.groups.webSearchPricing.finalPricePreview", {
@@ -2892,7 +2892,7 @@
                       <div
                         v-for="row in editForm.exact_model_mappings"
                         :key="getEditMessagesDispatchRowKey(row)"
-                        class="group relative rounded-lg border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800"
+                        class="group relative rounded-surface border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800"
                       >
                         <div class="flex items-center gap-4">
                           <div
@@ -2941,7 +2941,7 @@
                           <button
                             type="button"
                             @click="removeEditMessagesDispatchMapping(row)"
-                            class="mt-6 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                            class="mt-6 flex h-9 w-9 shrink-0 items-center justify-center rounded-control text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                             :title="
                               t('admin.groups.openaiMessages.removeExactMapping')
                             "
@@ -2954,7 +2954,7 @@
                       <button
                         type="button"
                         @click="addEditMessagesDispatchMapping"
-                        class="flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-white py-1.5 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                        class="flex min-h-9 w-full items-center justify-center gap-2 rounded-control border-2 border-dashed border-gray-300 bg-white py-1.5 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                       >
                         <Icon name="plus" size="sm" />
                         {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -2981,7 +2981,7 @@
                     class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 max-w-full opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
                   >
                     <div
-                      class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                      class="rounded-control bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
                     >
                       <p class="text-xs leading-relaxed text-gray-300">
                         {{ t("admin.groups.claudeCode.tooltip") }}
@@ -3050,7 +3050,7 @@
               </div>
               <div
                 v-if="editModelsListState.enabled"
-                class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50/50 dark:border-dark-600 dark:bg-dark-800/40"
+                class="overflow-hidden rounded-surface border border-gray-200 bg-gray-50/50 dark:border-dark-600 dark:bg-dark-800/40"
               >
                 <div
                   v-if="!editModelsListLoading && editModelsListState.items.length > 0"
@@ -3063,14 +3063,14 @@
                   <div class="flex items-center gap-1.5">
                     <button
                       type="button"
-                      class="rounded px-2 py-1 font-medium text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
+                      class="rounded-compact px-2 py-1 font-medium text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
                       @click="selectAllModelsListItems(editModelsListState)"
                     >
                       全选
                     </button>
                     <button
                       type="button"
-                      class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                      class="rounded-compact px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
                       @click="invertModelsListSelection(editModelsListState)"
                     >
                       反选
@@ -3092,7 +3092,7 @@
                   <div
                     v-for="(item, index) in editModelsListState.items"
                     :key="item.id"
-                    class="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
+                    class="flex items-center gap-2 rounded-compact border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
                   >
                     <span class="min-w-0 flex-1 break-all text-sm text-gray-700 dark:text-gray-300">
                       {{ item.id }}
@@ -3105,7 +3105,7 @@
                     <button
                       type="button"
                       :disabled="index === 0"
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                      class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
                       @click="moveEditModelsListItem(index, index - 1)"
                     >
                       <Icon name="arrowUp" size="sm" />
@@ -3113,7 +3113,7 @@
                     <button
                       type="button"
                       :disabled="index === editModelsListState.items.length - 1"
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                      class="rounded-compact p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
                       @click="moveEditModelsListItem(index, index + 1)"
                     >
                       <Icon name="arrowDown" size="sm" />
@@ -3210,7 +3210,7 @@
           <div
             v-for="group in sortableGroups"
             :key="group.id"
-            class="flex cursor-grab items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-700"
+            class="flex cursor-grab items-center gap-3 rounded-surface border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-700"
           >
             <div class="text-gray-400">
               <Icon name="menu" size="md" />

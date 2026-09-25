@@ -26,7 +26,7 @@
               </button>
               <div
                 v-if="showFilterDropdown"
-                class="absolute left-auto right-0 top-full z-[60] mt-2 w-72 rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto"
+                class="absolute left-auto right-0 top-full z-[60] mt-2 w-72 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto"
                 @click.stop
               >
                 <div class="mb-3 flex items-center justify-between">
@@ -84,7 +84,7 @@
             <input
               data-testid="select-all-codes"
               type="checkbox"
-              class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              class="h-4 w-4 cursor-pointer rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
               :checked="allVisibleSelected"
               @click.stop
               @change="toggleSelectAllVisible($event)"
@@ -95,7 +95,7 @@
             <input
               data-testid="select-code"
               type="checkbox"
-              class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              class="h-4 w-4 cursor-pointer rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
               :checked="selectedCodeIds.has(row.id)"
               @click.stop
               @change="toggleSelectRow(row.id, $event)"
@@ -195,7 +195,7 @@
               <button
                 v-if="canEditCode(row)"
                 @click="handleEdit(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                class="flex flex-col items-center gap-0.5 rounded-control p-1.5 text-gray-500 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                 :title="t('admin.redeem.editCode')"
               >
                 <Icon name="edit" size="sm" :stroke-width="2" />
@@ -204,7 +204,7 @@
               <button
                 v-if="row.status === 'unused'"
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="flex flex-col items-center gap-0.5 rounded-control p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -235,7 +235,7 @@
         <!-- 批量操作 -->
         <div
           v-if="selectedCount > 0"
-          class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-primary-50 p-3 dark:bg-primary-900/20"
+          class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-control bg-primary-50 p-3 dark:bg-primary-900/20"
         >
           <span class="text-sm font-medium text-primary-900 dark:text-primary-100">
             {{ t('admin.redeem.selectedCount', { count: selectedCount }) }}
@@ -339,7 +339,7 @@
               />
             </div>
             <!-- 邀请码类型：显示提示信息 -->
-            <div v-if="generateForm.type === 'invitation'" class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
+            <div v-if="generateForm.type === 'invitation'" class="rounded-control bg-blue-50 p-3 dark:bg-blue-900/20">
               <p class="text-sm text-blue-700 dark:text-blue-300">
                 {{ t('admin.redeem.invitationHint') }}
               </p>
@@ -459,7 +459,7 @@
           />
         </div>
 
-        <div v-if="editingCode && editingCode.used_count > 0" class="rounded-lg bg-yellow-50 p-3 dark:bg-yellow-900/20">
+        <div v-if="editingCode && editingCode.used_count > 0" class="rounded-control bg-yellow-50 p-3 dark:bg-yellow-900/20">
           <p class="text-sm text-yellow-700 dark:text-yellow-300">
             {{ t('admin.redeem.valueLockedHint') }}
           </p>
@@ -520,7 +520,7 @@
               data-testid="batch-field-status"
               v-model="batchUpdateForm.update_status"
               type="checkbox"
-              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              class="h-4 w-4 rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
             />
             {{ t('admin.redeem.batchFields.status') }}
           </label>
@@ -537,7 +537,7 @@
             <input
               v-model="batchUpdateForm.update_expires_at"
               type="checkbox"
-              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              class="h-4 w-4 rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
             />
             {{ t('admin.redeem.batchFields.expiresAt') }}
           </label>
@@ -558,7 +558,7 @@
               data-testid="batch-field-notes"
               v-model="batchUpdateForm.update_notes"
               type="checkbox"
-              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              class="h-4 w-4 rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
             />
             {{ t('admin.redeem.batchFields.notes') }}
           </label>
@@ -629,7 +629,7 @@
             </div>
             <button
               @click="closeResultDialog"
-              class="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300"
+              class="rounded-control p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300"
             >
               <Icon name="x" size="md" :stroke-width="2" />
             </button>
@@ -641,13 +641,13 @@
                 readonly
                 :value="generatedCodesText"
                 :style="{ height: textareaHeight }"
-                class="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-sm text-gray-800 focus:outline-none dark:border-dark-600 dark:bg-dark-700 dark:text-gray-200"
+                class="w-full resize-none rounded-control border border-gray-200 bg-gray-50 p-3 font-mono text-sm text-gray-800 focus:outline-none dark:border-dark-600 dark:bg-dark-700 dark:text-gray-200"
               ></textarea>
             </div>
           </div>
           <!-- 底部 -->
           <div
-            class="flex justify-end gap-2 rounded-b-xl border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-dark-600 dark:bg-dark-700/50"
+            class="flex justify-end gap-2 rounded-b-surface border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-dark-600 dark:bg-dark-700/50"
           >
             <button
               @click="copyGeneratedCodes"

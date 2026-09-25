@@ -74,7 +74,7 @@
 
           <template #cell-group_count="{ row }">
             <span
-              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+              class="inline-flex items-center rounded-compact bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
             >
               {{ (row.group_ids || []).length }}
               {{ t('admin.channels.groupsUnit', 'groups') }}
@@ -83,7 +83,7 @@
 
           <template #cell-pricing_count="{ row }">
             <span
-              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+              class="inline-flex items-center rounded-compact bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
             >
               {{ (row.model_pricing || []).length }}
               {{ t('admin.channels.pricingUnit', 'pricing rules') }}
@@ -100,14 +100,14 @@
             <div class="flex items-center gap-1">
               <button
                 @click="openEditDialog(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="flex flex-col items-center gap-0.5 rounded-control p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t('common.edit', 'Edit') }}</span>
               </button>
               <button
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="flex flex-col items-center gap-0.5 rounded-control p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
                 <Icon name="trash" size="sm" />
                 <span class="text-xs">{{ t('common.delete', 'Delete') }}</span>
@@ -210,7 +210,7 @@
                 <input
                   type="checkbox"
                   v-model="form.restrict_models"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  class="h-4 w-4 rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
                 />
                 <span class="input-label mb-0">{{ t('admin.channels.form.restrictModels', 'Only Allow Models in Channel Pricing') }}</span>
               </label>
@@ -235,7 +235,7 @@
                 <label
                   v-for="p in platformOrder"
                   :key="p"
-                  class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors"
+                  class="inline-flex cursor-pointer items-center gap-1.5 rounded-control border px-3 py-1.5 text-sm transition-colors"
                   :class="activePlatforms.includes(p)
                     ? 'bg-primary-50 border-primary-300 dark:bg-primary-900/20 dark:border-primary-700'
                     : 'border-gray-200 hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700'"
@@ -243,7 +243,7 @@
                   <input
                     type="checkbox"
                     :checked="activePlatforms.includes(p)"
-                    class="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    class="h-3.5 w-3.5 rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
                     @change="togglePlatform(p)"
                   />
                   <PlatformIcon :platform="p" size="xs" :class="platformTextClass(p)" />
@@ -286,7 +286,7 @@
                   ({{ t('admin.channels.form.selectedCount', { count: section.group_ids.length }, `已选 ${section.group_ids.length} 个`) }})
                 </span>
               </label>
-              <div class="max-h-40 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-dark-600 dark:bg-dark-900">
+              <div class="max-h-40 overflow-auto rounded-control border border-gray-200 bg-gray-50 p-2 dark:border-dark-600 dark:bg-dark-900">
                 <div v-if="groupsLoading" class="py-2 text-center text-xs text-gray-500">
                   {{ t('common.loading', 'Loading...') }}
                 </div>
@@ -297,7 +297,7 @@
                   <label
                     v-for="group in getGroupsForPlatform(section.platform)"
                     :key="group.id"
-                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 text-xs transition-colors hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
+                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-compact border border-gray-200 px-2 py-1 text-xs transition-colors hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
                     :class="[
                       section.group_ids.includes(group.id) ? 'bg-primary-50 border-primary-300 dark:bg-primary-900/20 dark:border-primary-700' : '',
                       isGroupInOtherChannel(group.id, section.platform) ? 'opacity-40' : ''
@@ -307,7 +307,7 @@
                       type="checkbox"
                       :checked="section.group_ids.includes(group.id)"
                       :disabled="isGroupInOtherChannel(group.id, section.platform)"
-                      class="h-3 w-3 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      class="h-3 w-3 rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
                       @change="toggleGroupInSection(sIdx, group.id)"
                     />
                     <span :class="['font-medium', platformTextClass(group.platform)]">{{ group.name }}</span>
@@ -382,7 +382,7 @@
               </p>
               <div
                 v-if="Object.keys(section.model_mapping).length === 0"
-                class="rounded border border-dashed border-gray-300 p-2 text-center text-xs text-gray-400 dark:border-dark-500"
+                class="rounded-compact border border-dashed border-gray-300 p-2 text-center text-xs text-gray-400 dark:border-dark-500"
               >
                 {{ t('admin.channels.form.noMappingRules', 'No mapping rules. Click "Add" to create one.') }}
               </div>
@@ -412,7 +412,7 @@
                   <button
                     type="button"
                     @click="removeMappingEntry(sIdx, srcModel)"
-                    class="rounded p-0.5 text-gray-400 hover:text-red-500"
+                    class="rounded-compact p-0.5 text-gray-400 hover:text-red-500"
                   >
                     <Icon name="trash" size="sm" />
                   </button>
@@ -440,7 +440,7 @@
               </div>
               <div
                 v-if="section.model_pricing.length === 0"
-                class="rounded border border-dashed border-gray-300 p-2 text-center text-xs text-gray-400 dark:border-dark-500"
+                class="rounded-compact border border-dashed border-gray-300 p-2 text-center text-xs text-gray-400 dark:border-dark-500"
               >
                 {{ t('admin.channels.form.noPricingRules', 'No pricing rules yet. Click "Add" to create one.') }}
               </div>
@@ -467,7 +467,7 @@
                 <button
                   type="button"
                   @click="addAccountStatsRule(sIdx)"
-                  class="rounded-lg border border-primary-300 px-3 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:border-primary-600 dark:text-primary-400 dark:hover:bg-primary-900/20"
+                  class="rounded-control border border-primary-300 px-3 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:border-primary-600 dark:text-primary-400 dark:hover:bg-primary-900/20"
                 >
                   + {{ t('admin.channels.form.addRule') }}
                 </button>
@@ -484,7 +484,7 @@
               <div
                 v-for="(rule, ruleIndex) in section.account_stats_pricing_rules"
                 :key="ruleIndex"
-                class="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="space-y-3 rounded-control border border-gray-200 p-4 dark:border-dark-600"
               >
                 <div class="flex items-center justify-between">
                   <input
@@ -503,12 +503,12 @@
                     <label
                       v-for="gid in section.group_ids"
                       :key="gid"
-                      class="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors"
+                      class="inline-flex cursor-pointer items-center gap-1 rounded-compact border px-2 py-1 text-xs transition-colors"
                       :class="rule.group_ids.includes(gid)
                         ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20'
                         : 'border-gray-200 hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700'"
                     >
-                      <input type="checkbox" :checked="rule.group_ids.includes(gid)" class="h-3 w-3 rounded border-gray-300 text-primary-600 focus:ring-primary-500" @change="rule.group_ids.includes(gid) ? rule.group_ids.splice(rule.group_ids.indexOf(gid), 1) : rule.group_ids.push(gid)" />
+                      <input type="checkbox" :checked="rule.group_ids.includes(gid)" class="h-3 w-3 rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500" @change="rule.group_ids.includes(gid) ? rule.group_ids.splice(rule.group_ids.indexOf(gid), 1) : rule.group_ids.push(gid)" />
                       <span :class="['font-medium', platformTextClass(section.platform)]">{{ getGroupNameById(gid) }}</span>
                     </label>
                   </div>
@@ -524,7 +524,7 @@
                     <span
                       v-for="accountId in rule.account_ids"
                       :key="accountId"
-                      class="inline-flex items-center gap-1 rounded-md border border-primary-300 bg-primary-50 px-2 py-0.5 text-xs dark:border-primary-700 dark:bg-primary-900/20"
+                      class="inline-flex items-center gap-1 rounded-compact border border-primary-300 bg-primary-50 px-2 py-0.5 text-xs dark:border-primary-700 dark:bg-primary-900/20"
                     >
                       <span :class="['font-medium', platformTextClass(section.platform)]">{{ getRuleAccountLabel(accountId) }}</span>
                       <button type="button" @click="removeRuleAccount(rule, accountId)" class="text-gray-400 hover:text-red-500">
@@ -545,7 +545,7 @@
                     <!-- Search results dropdown -->
                     <div
                       v-if="showRuleAccountDropdown[`${section.platform}-${ruleIndex}`] && (ruleAccountSearchResults[`${section.platform}-${ruleIndex}`]?.length ?? 0) > 0"
-                      class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                      class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-control border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
                     >
                       <button
                         v-for="account in ruleAccountSearchResults[`${section.platform}-${ruleIndex}`]"
@@ -573,7 +573,7 @@
                       + {{ t('common.add') }}
                     </button>
                   </div>
-                  <div v-if="rule.pricing.length === 0" class="rounded border border-dashed border-gray-300 p-2 text-center text-xs text-gray-400 dark:border-dark-500">
+                  <div v-if="rule.pricing.length === 0" class="rounded-compact border border-dashed border-gray-300 p-2 text-center text-xs text-gray-400 dark:border-dark-500">
                     {{ t('admin.channels.form.noPricingRules') }}
                   </div>
                   <div v-else class="space-y-2">

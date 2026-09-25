@@ -12,10 +12,10 @@
             </p>
           </div>
         </div>
-        <div class="mb-4 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm dark:border-dark-700 dark:bg-dark-900">
+        <div class="mb-4 inline-flex rounded-control border border-gray-200 bg-gray-50 p-1 text-sm dark:border-dark-700 dark:bg-dark-900">
           <button
             type="button"
-            class="rounded-md px-3 py-1.5 font-medium transition"
+            class="rounded-control px-3 py-1.5 font-medium transition"
             :class="storageForm.type === 'local' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-700 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'"
             @click="storageForm.type = 'local'"
           >
@@ -23,7 +23,7 @@
           </button>
           <button
             type="button"
-            class="rounded-md px-3 py-1.5 font-medium transition"
+            class="rounded-control px-3 py-1.5 font-medium transition"
             :class="storageForm.type === 's3' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-700 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'"
             @click="storageForm.type = 's3'"
           >
@@ -122,7 +122,7 @@
           <label
             v-for="option in contentOptions"
             :key="option.key"
-            class="flex items-start gap-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-dark-700"
+            class="flex items-start gap-3 rounded-control border border-gray-200 p-3 text-sm dark:border-dark-700"
           >
             <input v-model="contentForm[option.key]" type="checkbox" class="mt-1" />
             <span>
@@ -225,7 +225,7 @@
                 <td class="py-3 pr-4 font-mono text-xs">{{ record.id }}</td>
                 <td class="py-3 pr-4">
                   <span
-                    class="rounded px-2 py-0.5 text-xs"
+                    class="rounded-compact px-2 py-0.5 text-xs"
                     :class="statusClass(record.status)"
                   >
                     {{ record.status === 'running' && record.progress
@@ -322,7 +322,7 @@
                 <li>{{ t('admin.backup.r2Guide.step2.line3') }}</li>
                 <li>{{ t('admin.backup.r2Guide.step2.line4') }}</li>
               </ol>
-              <div class="mt-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+              <div class="mt-2 rounded-control bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                 {{ t('admin.backup.r2Guide.step2.warning') }}
               </div>
             </div>
@@ -334,7 +334,7 @@
                 {{ t('admin.backup.r2Guide.step3.title') }}
               </h3>
               <p class="ml-8 text-sm text-gray-600 dark:text-gray-300">{{ t('admin.backup.r2Guide.step3.desc') }}</p>
-              <code class="ml-8 mt-1 block rounded bg-gray-100 px-3 py-2 text-xs text-gray-800 dark:bg-dark-700 dark:text-gray-200">https://&lt;{{ t('admin.backup.r2Guide.step3.accountId') }}&gt;.r2.cloudflarestorage.com</code>
+              <code class="ml-8 mt-1 block rounded-compact bg-gray-100 px-3 py-2 text-xs text-gray-800 dark:bg-dark-700 dark:text-gray-200">https://&lt;{{ t('admin.backup.r2Guide.step3.accountId') }}&gt;.r2.cloudflarestorage.com</code>
             </div>
 
             <!-- 步骤 4：填写表单 -->
@@ -343,7 +343,7 @@
                 <span class="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">4</span>
                 {{ t('admin.backup.r2Guide.step4.title') }}
               </h3>
-              <div class="ml-8 overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600">
+              <div class="ml-8 overflow-hidden rounded-control border border-gray-200 dark:border-dark-600">
                 <table class="w-full text-sm">
                   <tbody>
                     <tr v-for="(row, i) in r2ConfigRows" :key="i" class="border-b border-gray-100 dark:border-dark-700 last:border-0">
@@ -356,7 +356,7 @@
             </div>
 
             <!-- 免费额度说明 -->
-            <div class="rounded-lg bg-green-50 p-3 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-300">
+            <div class="rounded-control bg-green-50 p-3 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-300">
               {{ t('admin.backup.r2Guide.freeTier') }}
             </div>
 
@@ -395,7 +395,7 @@
               <div
                 v-for="part in downloadParts"
                 :key="part.index"
-                class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-dark-600"
+                class="flex items-center justify-between gap-3 rounded-control border border-gray-200 px-3 py-2 dark:border-dark-600"
               >
                 <span class="text-sm text-gray-700 dark:text-gray-300">
                   {{ t('admin.backup.actions.partLabel', { index: part.index }) }}

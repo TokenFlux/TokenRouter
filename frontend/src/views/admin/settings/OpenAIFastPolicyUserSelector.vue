@@ -4,7 +4,7 @@
       <span
         v-for="userId in selectedUserIds"
         :key="userId"
-        class="inline-flex max-w-full items-center gap-1.5 rounded-md bg-gray-100 px-2.5 py-1.5 text-xs text-gray-700 dark:bg-dark-600 dark:text-gray-200"
+        class="inline-flex max-w-full items-center gap-1.5 rounded-compact bg-gray-100 px-2.5 py-1.5 text-xs text-gray-700 dark:bg-dark-600 dark:text-gray-200"
       >
         <span class="max-w-64 truncate font-medium" :title="selectedUserLabel(userId)">
           {{ selectedUserLabel(userId) }}
@@ -18,7 +18,7 @@
         </span>
         <button
           type="button"
-          class="shrink-0 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+          class="shrink-0 rounded-compact text-gray-400 hover:text-red-600 dark:hover:text-red-400"
           :aria-label="t('admin.settings.openaiFastPolicy.removeUser')"
           :title="t('admin.settings.openaiFastPolicy.removeUser')"
           @click="removeUser(userId)"
@@ -47,7 +47,7 @@
 
     <div
       v-if="showDropdown && searchQuery.trim()"
-      class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-600 dark:bg-dark-700"
+      class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-control border border-gray-200 bg-white shadow-lg dark:border-dark-600 dark:bg-dark-700"
     >
       <div v-if="searchLoading" class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
         {{ t("common.loading") }}

@@ -209,7 +209,7 @@
         <LoadingSpinner />
       </div>
       <div v-else-if="detailsTeam" class="space-y-6">
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-700 dark:bg-dark-800">
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-control border border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-700 dark:bg-dark-800">
           <div>
             <p class="font-semibold text-gray-900 dark:text-white">{{ detailsTeam.name }}</p>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -223,7 +223,7 @@
 
         <div>
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('team.members') }}</h3>
-          <div class="mt-3 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 dark:divide-dark-700 dark:border-dark-600">
+          <div class="mt-3 divide-y divide-gray-100 overflow-hidden rounded-control border border-gray-200 dark:divide-dark-700 dark:border-dark-600">
             <div
               v-for="member in detailsMembers"
               :key="member.user_id"
@@ -532,6 +532,6 @@ onMounted(loadTeams)
 
 <style scoped>
 .row-action {
-  @apply flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-700;
+  @apply flex flex-col items-center gap-0.5 rounded-control p-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-700;
 }
 </style>

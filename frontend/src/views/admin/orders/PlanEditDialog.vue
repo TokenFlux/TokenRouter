@@ -73,7 +73,7 @@
       <div>
         <label class="input-label">{{ t('payment.admin.planGroups') }}</label>
         <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.planGroupsGlobalHint') }}</p>
-        <div class="max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-800">
+        <div class="max-h-40 overflow-y-auto rounded-control border border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-800">
           <div class="mb-1 flex items-center px-2 text-xs text-gray-400">
             <span class="flex-1">{{ t('payment.admin.planGroups') }}</span>
             <span>{{ t('payment.admin.subscriptionRateMultiplier') }}</span>
@@ -81,14 +81,14 @@
           <div
             v-for="group in groups"
             :key="group.id"
-            class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-dark-700"
+            class="flex items-center gap-2 rounded-compact px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-dark-700"
           >
             <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
               <input
                 v-model="planForm.group_ids"
                 type="checkbox"
                 :value="group.id"
-                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                class="h-4 w-4 rounded-compact border-gray-300 text-primary-600 focus:ring-primary-500"
                 @change="ensureGroupRate(group.id)"
               />
               <span class="flex-1 truncate">{{ group.name }}</span>

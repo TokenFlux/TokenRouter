@@ -2,7 +2,7 @@
   <section class="card">
     <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700">
       <div class="flex min-w-0 items-start gap-3">
-        <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
+        <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
           <Icon name="database" size="md" />
         </span>
         <div class="min-w-0">
