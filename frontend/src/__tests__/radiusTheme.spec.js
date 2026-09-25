@@ -30,17 +30,10 @@ describe('OpenRouter 圆角主题', () => {
     expect(styleCss).toContain('--radius-dialog: 16px')
   })
 
-  it('迁移期暂时保留旧尺度兼容 key(收尾提交删除)', () => {
-    expect(radius).toMatchObject({
-      DEFAULT: '4px',
-      sm: '4px',
-      md: '6px',
-      lg: '6px',
-      xl: '8px',
-      '2xl': '8px',
-      '3xl': '8px',
-      '4xl': '8px'
-    })
+  it('旧尺度兼容 key 已删除(由 check:ui 门禁阻止复活)', () => {
+    for (const legacy of ['DEFAULT', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl']) {
+      expect(radius).not.toHaveProperty(legacy)
+    }
   })
 
   it('保留无圆角和全圆工具类', () => {
