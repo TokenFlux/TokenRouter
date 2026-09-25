@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
         v-show="show"
         role="tooltip"
         :class="[
-          'fixed z-[99999] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 rounded-lg bg-gray-900 text-white shadow-xl ring-1 ring-white/10 dark:bg-gray-800',
+          'fixed z-[99999] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 rounded-control bg-gray-900 text-white shadow-xl ring-1 ring-white/10 dark:bg-gray-800',
           resolvedPlacement === 'top' ? '-translate-y-full' : 'translate-y-0',
           props.widthClass,
         ]"
@@ -229,7 +229,7 @@ onBeforeUnmount(() => {
           <button
             v-if="clickEnabled() && closable"
             type="button"
-            class="absolute right-1.5 top-1.5 rounded p-1 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+            class="absolute right-1.5 top-1.5 rounded-compact p-1 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
             aria-label="Close"
             @click.stop="closeTooltip"
           >

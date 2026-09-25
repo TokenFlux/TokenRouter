@@ -12,7 +12,7 @@
         ? compact
           ? 'btn btn-secondary btn-sm h-[34px] w-[34px] p-0'
           : 'btn btn-secondary h-9 w-9 p-0'
-        : 'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-900/30'"
+        : 'inline-flex items-center gap-1 rounded-compact px-2 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-900/30'"
       :disabled="loading || pendingCount === 0"
       :aria-label="loading ? t('usage.ipGeo.batchFetching') : t('usage.ipGeo.batchFetch')"
       :title="loading ? t('usage.ipGeo.batchFetching') : t('usage.ipGeo.batchFetch')"

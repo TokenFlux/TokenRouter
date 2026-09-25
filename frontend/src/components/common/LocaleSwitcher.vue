@@ -20,7 +20,7 @@
     <transition name="dropdown">
       <div
         v-if="isOpen"
-        class="absolute right-0 z-50 mt-1 w-32 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
+        class="absolute right-0 z-50 mt-1 w-32 overflow-hidden rounded-control border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
       >
         <button
           v-for="locale in availableLocales"
@@ -67,7 +67,7 @@ const triggerClass = computed(() => {
   if (variant.value === 'status') {
     return 'flex h-9 items-center gap-2 rounded-control px-2.5 text-sm font-medium text-primary-900/75 transition-colors hover:bg-primary-100 hover:text-primary-900 disabled:cursor-not-allowed disabled:opacity-60 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white'
   }
-  return 'flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-300 dark:hover:bg-dark-700'
+  return 'flex items-center gap-1.5 rounded-control px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-300 dark:hover:bg-dark-700'
 })
 
 function toggleDropdown() {

@@ -23,7 +23,7 @@
             <button
               type="button"
               data-testid="announcement-popup-close"
-              class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-dark-100 dark:focus-visible:ring-primary-500/50 sm:right-4 sm:top-4"
+              class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-control text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-dark-100 dark:focus-visible:ring-primary-500/50 sm:right-4 sm:top-4"
               :aria-label="t('common.close')"
               @click="handleDismiss"
             >
@@ -78,7 +78,7 @@
             <button
               type="button"
               data-testid="announcement-popup-dismiss"
-              class="shrink-0 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-2 dark:bg-primary-500 dark:hover:bg-primary-600 dark:focus-visible:ring-offset-dark-900"
+              class="shrink-0 rounded-control bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-2 dark:bg-primary-500 dark:hover:bg-primary-600 dark:focus-visible:ring-offset-dark-900"
               @click="handleDismiss"
             >
               {{ t('common.close') }}
