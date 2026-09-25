@@ -12,6 +12,7 @@ generate:
 
 test:
 	go test ./...
+	golangci-lint config verify
 	golangci-lint run ./...
 
 test-unit:

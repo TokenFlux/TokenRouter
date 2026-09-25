@@ -120,7 +120,7 @@ Ent schema 不是生产迁移器。数据库权威变更仍须新增 `backend/mi
 make -C backend test-unit
 make -C backend test-integration
 
-# 普通测试加 lint
+# 普通测试、lint 配置校验及 lint
 make -C backend test
 ```
 

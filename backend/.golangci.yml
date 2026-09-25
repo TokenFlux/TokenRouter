@@ -31224,7 +31224,7 @@ linters:
           list-mode: strict
           files:
           - "**/internal/gateway/forward/agent_identity.go"
-          allow:
+          allow: []
           deny:
           - pkg: net/http
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -33001,7 +33001,7 @@ linters:
           list-mode: strict
           files:
           - "**/internal/billing/calculator_testhelpers_test.go"
-          allow:
+          allow: []
           deny:
           - pkg: net/http
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -33054,7 +33054,7 @@ linters:
           list-mode: strict
           files:
           - "**/internal/billing/calculator_pricing_catalog_fixture_test.go"
-          allow:
+          allow: []
           deny:
           - pkg: net/http
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -33476,7 +33476,7 @@ linters:
           list-mode: strict
           files:
           - "**/internal/gateway/forward/client_failures.go"
-          allow:
+          allow: []
           deny:
           - pkg: net/http
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -52454,7 +52454,7 @@ linters:
           - github.com/imroc/req/v3$
           - github.com/stretchr/testify/require$
           - maps$
-          deny:
+          deny: []
         # S16：原生额度与隐私契约测试只引用实际协议输入，保留所属角色基础限制。
         s16-internal-account-openai-spark-window-contract-test-go:
           list-mode: strict
