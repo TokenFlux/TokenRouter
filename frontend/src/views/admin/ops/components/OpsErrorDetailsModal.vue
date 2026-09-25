@@ -237,7 +237,7 @@ watch(
               <input
                 v-model="q"
                 type="text"
-                class="h-9 w-full rounded-lg border-gray-200 bg-gray-50/50 py-1.5 pl-9 pr-3 text-xs font-medium text-gray-700 transition-all focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 dark:border-dark-700 dark:bg-dark-950 dark:text-gray-300 dark:focus:bg-dark-800"
+                class="h-9 w-full rounded-control border-gray-200 bg-gray-50/50 py-1.5 pl-9 pr-3 text-xs font-medium text-gray-700 transition-all focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 dark:border-dark-700 dark:bg-dark-950 dark:text-gray-300 dark:focus:bg-dark-800"
                 :placeholder="t('admin.ops.errorDetails.searchPlaceholder')"
               />
             </div>
@@ -298,6 +298,6 @@ watch(
 
 <style>
 .compact-select .select-trigger {
-  @apply py-1.5 px-3 text-xs rounded-lg;
+  @apply py-1.5 px-3 text-xs rounded-control;
 }
 </style>
