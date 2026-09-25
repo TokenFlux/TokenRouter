@@ -124,7 +124,7 @@
             <template #trigger>
               <button
                 type="button"
-                class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-[11px] font-semibold text-gray-400 transition-colors hover:border-primary-500 hover:text-primary-600 dark:border-dark-500 dark:text-gray-500 dark:hover:border-primary-400 dark:hover:text-primary-400"
+                class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-xs font-semibold text-gray-400 transition-colors hover:border-primary-500 hover:text-primary-600 dark:border-dark-500 dark:text-gray-500 dark:hover:border-primary-400 dark:hover:text-primary-400"
                 :aria-label="t('admin.settings.payment.paymentGuideTrigger')"
                 :title="t('admin.settings.payment.paymentGuideTrigger')"
               >
@@ -143,7 +143,7 @@
                 <p><span class="text-gray-300">{{ t('admin.settings.payment.guideCallLabel') }}</span>{{ item.call }}</p>
                 <p><span class="text-gray-300">{{ t('admin.settings.payment.guideFallbackLabel') }}</span>{{ item.fallback }}</p>
               </div>
-              <p v-if="paymentGuide.note" class="border-t border-white/10 pt-2 text-[11px] text-gray-300">
+              <p v-if="paymentGuide.note" class="border-t border-white/10 pt-2 text-xs text-gray-300">
                 {{ paymentGuide.note }}
               </p>
             </div>

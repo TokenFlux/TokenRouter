@@ -24,7 +24,7 @@
             <span class="text-gray-900 dark:text-white">{{ row.key_name || '-' }}</span>
             <span
               v-if="row.key_deleted"
-              class="ml-1 inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-rose-100 text-rose-600 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:ring-rose-500/30"
+              class="ml-1 inline-flex items-center rounded px-1 py-px text-xs font-medium leading-tight bg-rose-100 text-rose-600 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:ring-rose-500/30"
             >{{ t('usage.errors.keyDeleted') }}</span>
           </div>
         </template>

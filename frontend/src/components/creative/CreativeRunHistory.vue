@@ -13,7 +13,7 @@
     <!-- 活动任务数量：保持在图标右上角，不展开历史也能感知后台进度。 -->
     <span
       v-if="props.activeRunCount > 0"
-      class="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-none text-white shadow-sm ring-2 ring-white dark:ring-dark-900"
+      class="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-xs font-semibold leading-none text-white shadow-sm ring-2 ring-white dark:ring-dark-900"
     >
       {{ props.activeRunCount > 99 ? '99+' : props.activeRunCount }}
     </span>
@@ -75,7 +75,7 @@
                 :class="expandedRunId === run.id && 'rotate-180'"
               />
             </div>
-            <div class="mt-1 flex items-center gap-2 text-[11px] text-gray-400 dark:text-dark-400">
+            <div class="mt-1 flex items-center gap-2 text-xs text-gray-400 dark:text-dark-400">
               <span>{{ formatRunTime(run.created_at) }}</span>
               <span
                 v-if="formatElapsed(run)"
@@ -104,7 +104,7 @@
                       <span
                         v-if="formatElapsed(run)"
                         data-testid="creative-run-elapsed"
-                        class="mt-1 inline-flex items-center gap-1 tabular-nums text-[11px] text-gray-400 dark:text-dark-400"
+                        class="mt-1 inline-flex items-center gap-1 tabular-nums text-xs text-gray-400 dark:text-dark-400"
                         :aria-label="t('creative.history.elapsed', { time: formatElapsed(run) })"
                         :title="t('creative.history.elapsed', { time: formatElapsed(run) })"
                       >
@@ -129,13 +129,13 @@
                         />
                         <div v-else class="flex h-24 w-full flex-col items-center justify-center gap-0.5 text-gray-300 dark:text-dark-600">
                           <Icon name="modalityImage" size="sm" />
-                          <span class="scale-90 text-[10px]">{{ t('creative.result.missing') }}</span>
+                          <span class="scale-90 text-xs">{{ t('creative.result.missing') }}</span>
                         </div>
                       </div>
                       <div class="flex gap-1.5">
                         <button
                           type="button"
-                          class="flex flex-1 items-center justify-center gap-1 rounded-md border border-primary-900/10 px-2 py-1 text-[11px] text-gray-600 transition-colors hover:border-primary-500 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:text-gray-300 dark:hover:border-primary-500 dark:hover:text-primary-300"
+                          class="flex flex-1 items-center justify-center gap-1 rounded-md border border-primary-900/10 px-2 py-1 text-xs text-gray-600 transition-colors hover:border-primary-500 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:text-gray-300 dark:hover:border-primary-500 dark:hover:text-primary-300"
                           :disabled="!assetFor(run.id, output.output_index)"
                           @click="importToCanvas(run.id, output.output_index)"
                         >
@@ -144,7 +144,7 @@
                         </button>
                         <button
                           type="button"
-                          class="flex flex-1 items-center justify-center gap-1 rounded-md border border-primary-900/10 px-2 py-1 text-[11px] text-gray-600 transition-colors hover:border-primary-500 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:text-gray-300 dark:hover:border-primary-500 dark:hover:text-primary-300"
+                          class="flex flex-1 items-center justify-center gap-1 rounded-md border border-primary-900/10 px-2 py-1 text-xs text-gray-600 transition-colors hover:border-primary-500 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600 dark:text-gray-300 dark:hover:border-primary-500 dark:hover:text-primary-300"
                           :disabled="!assetFor(run.id, output.output_index)"
                           @click="downloadOutput(run.id, output.output_index, output.mime_type)"
                         >
@@ -154,7 +154,7 @@
                       </div>
                     </div>
                   </template>
-                  <p v-else class="py-1 text-[11px] text-gray-400 dark:text-dark-400">{{ t('creative.history.noOutputs') }}</p>
+                  <p v-else class="py-1 text-xs text-gray-400 dark:text-dark-400">{{ t('creative.history.noOutputs') }}</p>
                 </div>
               </div>
             </div>
@@ -403,7 +403,7 @@ async function refresh(): Promise<void> {
 }
 
 .status-badge {
-  @apply inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium;
+  @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
   @apply bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-300;
 }
 

@@ -4774,7 +4774,7 @@
                           </p>
                         </div>
                         <span
-                          class="rounded bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                          class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
                         >
                           %
                         </span>
@@ -4880,7 +4880,7 @@
                       <p class="text-gray-200">
                         {{ t("admin.settings.scheduling.advancedHelp.summary") }}
                       </p>
-                      <p class="rounded-md bg-white/5 px-2 py-1.5 text-[11px] text-gray-200">
+                      <p class="rounded-md bg-white/5 px-2 py-1.5 text-xs text-gray-200">
                         {{ t("admin.settings.scheduling.advancedHelp.formula") }}
                       </p>
                       <ol class="list-decimal space-y-2 pl-4 text-gray-200">

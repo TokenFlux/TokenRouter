@@ -162,7 +162,7 @@
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="text-xs font-black text-gray-900 dark:text-white">
                 #{{ idx + 1 }}
-                <span v-if="ev.type" class="ml-2 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-bold text-gray-700 dark:bg-dark-950 dark:text-gray-200">{{ ev.type }}</span>
+                <span v-if="ev.type" class="ml-2 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-xs font-bold text-gray-700 dark:bg-dark-950 dark:text-gray-200">{{ ev.type }}</span>
               </div>
               <div class="flex items-center gap-2">
                 <div class="font-mono text-xs text-gray-500 dark:text-gray-400">
@@ -170,7 +170,7 @@
                 </div>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-bold text-primary-700 hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-primary-200 dark:hover:bg-dark-700"
+                  class="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-bold text-primary-700 hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-primary-200 dark:hover:bg-dark-700"
                   :disabled="!getUpstreamResponsePreview(ev)"
                   :title="getUpstreamResponsePreview(ev) ? '' : t('common.noData')"
                   @click="toggleUpstreamDetail(ev.id)"

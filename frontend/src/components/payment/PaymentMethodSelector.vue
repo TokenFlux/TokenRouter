@@ -32,7 +32,7 @@
             </span>
             <span
               v-if="methodFeeLabel(method)"
-              class="text-[10px] tracking-wide text-gray-500 dark:text-dark-400"
+              class="text-xs tracking-wide text-gray-500 dark:text-dark-400"
             >
               {{ methodFeeLabel(method) }}
             </span>

@@ -203,7 +203,7 @@
                       <tr v-for="metric in detail.metrics" :key="metric.key" class="border-b border-gray-100 align-top dark:border-dark-700">
                         <td class="px-2 py-2.5 font-medium text-gray-900 dark:text-gray-100">{{ metricLabel(metric.key) }}</td>
                         <td class="px-2 py-2.5 text-gray-600 dark:text-dark-300">{{ metric.raw_value }}</td>
-                        <td class="max-w-xs px-2 py-2.5 font-mono text-[11px] leading-5 text-gray-600 dark:text-dark-300">{{ metric.normalization }}</td>
+                        <td class="max-w-xs px-2 py-2.5 font-mono text-xs leading-5 text-gray-600 dark:text-dark-300">{{ metric.normalization }}</td>
                         <td class="px-2 py-2.5 font-mono text-gray-900 dark:text-gray-100">{{ formatNumber(metric.normalized_value) }}</td>
                         <td class="px-2 py-2.5 font-mono text-gray-900 dark:text-gray-100">{{ formatNumber(metric.weight) }}</td>
                         <td class="px-2 py-2.5 font-mono text-gray-900 dark:text-gray-100">{{ formatNumber(metric.weighted_contribution) }}</td>
@@ -223,7 +223,7 @@
                     </summary>
                     <dl class="mt-3 grid gap-2 border-t border-gray-100 pt-3 text-xs dark:border-dark-700">
                       <div><dt class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.metricColumns.raw') }}</dt><dd class="mt-0.5 text-gray-800 dark:text-dark-200">{{ metric.raw_value }}</dd></div>
-                      <div><dt class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.metricColumns.normalization') }}</dt><dd class="mt-0.5 break-words font-mono text-[11px] leading-5 text-gray-800 dark:text-dark-200">{{ metric.normalization }}</dd></div>
+                      <div><dt class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.metricColumns.normalization') }}</dt><dd class="mt-0.5 break-words font-mono text-xs leading-5 text-gray-800 dark:text-dark-200">{{ metric.normalization }}</dd></div>
                       <div class="grid grid-cols-3 gap-2"><div><dt class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.metricColumns.normalized') }}</dt><dd class="mt-0.5 font-mono">{{ formatNumber(metric.normalized_value) }}</dd></div><div><dt class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.metricColumns.weight') }}</dt><dd class="mt-0.5 font-mono">{{ formatNumber(metric.weight) }}</dd></div><div><dt class="text-gray-500 dark:text-dark-400">{{ t('admin.accounts.advancedSchedulerScore.metricColumns.contribution') }}</dt><dd class="mt-0.5 font-mono">{{ formatNumber(metric.weighted_contribution) }}</dd></div></div>
                     </dl>
                   </details>

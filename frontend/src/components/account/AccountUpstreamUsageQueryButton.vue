@@ -2,7 +2,7 @@
   <button
     v-if="queryEnabled"
     type="button"
-    class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+    class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
     :disabled="loading"
     :title="t('admin.accounts.upstreamUsage.query')"
     :aria-label="t('admin.accounts.upstreamUsage.query')"

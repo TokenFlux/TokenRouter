@@ -312,12 +312,12 @@
                     />
                     <span :class="['font-medium', platformTextClass(group.platform)]">{{ group.name }}</span>
                     <span
-                      :class="['rounded-full px-1 py-0 text-[10px]', platformBadgeLightClass(group.platform)]"
+                      :class="['rounded-full px-1 py-0 text-xs', platformBadgeLightClass(group.platform)]"
                     >{{ group.rate_multiplier }}x</span>
-                    <span class="text-[10px] text-gray-400">{{ group.account_count || 0 }}</span>
+                    <span class="text-xs text-gray-400">{{ group.account_count || 0 }}</span>
                     <span
                       v-if="isGroupInOtherChannel(group.id, section.platform)"
-                      class="text-[10px] text-gray-400"
+                      class="text-xs text-gray-400"
                     >{{ getGroupInOtherChannelLabel(group.id) }}</span>
                   </label>
                 </div>
@@ -331,7 +331,7 @@
                   <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
                     {{ t('admin.channels.form.webSearchEmulation') }}
                   </label>
-                  <p class="mt-0.5 text-[11px] text-red-500 dark:text-red-400">
+                  <p class="mt-0.5 text-xs text-red-500 dark:text-red-400">
                     {{ t('admin.channels.form.webSearchEmulationHint') }}
                   </p>
                 </div>
@@ -346,7 +346,7 @@
                   <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
                     {{ t('admin.channels.form.codexImageGenerationBridge') }}
                   </label>
-                  <p class="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+                  <p class="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
                     {{ t('admin.channels.form.codexImageGenerationBridgeHint') }}
                   </p>
                 </div>
@@ -361,7 +361,7 @@
                   <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
                     {{ t('admin.channels.form.bedrockCCCompat') }}
                   </label>
-                  <p class="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+                  <p class="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
                     {{ t('admin.channels.form.bedrockCCCompatHint') }}
                   </p>
                 </div>
@@ -377,7 +377,7 @@
                   + {{ t('common.add', 'Add') }}
                 </button>
               </div>
-              <p class="mb-2 text-[11px] text-gray-400" data-testid="channel-model-mapping-hint">
+              <p class="mb-2 text-xs text-gray-400" data-testid="channel-model-mapping-hint">
                 {{ t('admin.channels.form.modelMappingHint', 'Client request model -> channel mapping -> account mapping -> final upstream model') }}
               </p>
               <div

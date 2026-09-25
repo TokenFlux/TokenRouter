@@ -3,13 +3,13 @@
     <!-- Rate Limit Display (429) - Two-line layout -->
     <div v-if="isRateLimited" class="flex flex-col items-center gap-1">
       <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rateLimited') }}</span>
-      <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
+      <span class="text-xs text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
     </div>
 
     <!-- Overload Display (529) - Two-line layout -->
     <div v-else-if="isOverloaded" class="flex flex-col items-center gap-1">
       <span class="badge text-xs badge-danger">{{ t('admin.accounts.status.overloaded') }}</span>
-      <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ overloadCountdown }}</span>
+      <span class="text-xs text-gray-400 dark:text-gray-500">{{ overloadCountdown }}</span>
     </div>
 
     <!-- Main Status Badge (shown when not rate limited/overloaded) -->
@@ -23,7 +23,7 @@
         >
           {{ statusText }}
         </button>
-        <span class="max-w-[180px] text-center text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+        <span class="max-w-[180px] text-center text-xs leading-4 text-gray-500 dark:text-gray-400">
           {{ tempUnschedRecoveryText }}
         </span>
       </div>
@@ -99,7 +99,7 @@
         >
           <Icon name="exclamationTriangle" size="xs" :stroke-width="2" />
           {{ t('admin.accounts.status.creditsExhausted') }}
-          <span class="text-[10px] opacity-70">{{ formatCountdown(item.reset_at) }}</span>
+          <span class="text-xs opacity-70">{{ formatCountdown(item.reset_at) }}</span>
         </span>
         <!-- 正在走积分（模型限流但积分可用）-->
         <span
@@ -108,7 +108,7 @@
         >
           <span>⚡</span>
           {{ formatScopeName(item.model) }}
-          <span class="text-[10px] opacity-70">{{ formatCountdown(item.reset_at) }}</span>
+          <span class="text-xs opacity-70">{{ formatCountdown(item.reset_at) }}</span>
         </span>
         <!-- 普通模型限流 -->
         <span
@@ -117,7 +117,7 @@
         >
           <Icon name="exclamationTriangle" size="xs" :stroke-width="2" />
           {{ formatScopeName(item.model) }}
-          <span class="text-[10px] opacity-70">{{ formatCountdown(item.reset_at) }}</span>
+          <span class="text-xs opacity-70">{{ formatCountdown(item.reset_at) }}</span>
         </span>
         <!-- Tooltip -->
         <div

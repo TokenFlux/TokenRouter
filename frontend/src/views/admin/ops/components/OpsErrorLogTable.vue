@@ -89,7 +89,7 @@
             <span class="text-gray-900 dark:text-white">{{ row.api_key_name || '#' + row.api_key_id }}</span>
             <span
               v-if="row.api_key_deleted"
-              class="ml-1 inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-rose-100 text-rose-600 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:ring-rose-500/30"
+              class="ml-1 inline-flex items-center rounded px-1 py-px text-xs font-medium leading-tight bg-rose-100 text-rose-600 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:ring-rose-500/30"
             >{{ t('admin.ops.errorLog.keyDeletedBadge') }}</span>
           </div>
           <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
@@ -117,7 +117,7 @@
             </span>
             <span
               v-if="row.severity"
-              :class="['rounded px-1.5 py-0.5 text-[10px] font-medium', getSeverityClass(row.severity)]"
+              :class="['rounded px-1.5 py-0.5 text-xs font-medium', getSeverityClass(row.severity)]"
             >{{ row.severity }}</span>
             <span
               v-if="row.request_type != null && row.request_type > 0"

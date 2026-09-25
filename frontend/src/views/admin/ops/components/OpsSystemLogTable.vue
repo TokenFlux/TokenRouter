@@ -535,10 +535,10 @@ onMounted(async () => {
         <table class="min-w-full table-fixed divide-y divide-gray-200 dark:divide-dark-700">
           <thead class="bg-gray-50 dark:bg-dark-950/80">
             <tr>
-              <th class="w-[170px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500 dark:text-dark-300">时间</th>
-              <th class="w-[160px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500 dark:text-dark-300">{{ t('admin.ops.systemLogs.host') }}</th>
-              <th class="w-[80px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500 dark:text-dark-300">级别</th>
-              <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 dark:text-dark-300">日志详细信息</th>
+              <th class="w-[170px] px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-dark-300">时间</th>
+              <th class="w-[160px] px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-dark-300">{{ t('admin.ops.systemLogs.host') }}</th>
+              <th class="w-[80px] px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-dark-300">级别</th>
+              <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-dark-300">日志详细信息</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-dark-800 dark:bg-dark-900">

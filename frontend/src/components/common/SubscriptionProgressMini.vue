@@ -73,7 +73,7 @@
                   :key="window.key"
                   class="flex items-center gap-2"
                 >
-                  <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">
+                  <span class="w-8 flex-shrink-0 text-xs text-gray-500">
                     {{ window.label }}
                   </span>
                   <div class="h-1.5 min-w-0 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
@@ -83,7 +83,7 @@
                       :style="{ width: getProgressWidth(window.used, window.limit) }"
                     />
                   </div>
-                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
+                  <span class="w-24 flex-shrink-0 text-right text-xs text-gray-500">
                     {{ formatUsage(window.used, window.limit) }}
                   </span>
                 </div>

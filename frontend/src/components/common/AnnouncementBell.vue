@@ -51,7 +51,7 @@
                 <span
                   v-if="unreadCount > 0"
                   data-testid="announcement-list-unread-count"
-                  class="shrink-0 rounded-md bg-primary-50 px-2 py-1 text-[11px] font-medium leading-none text-primary-700 dark:bg-primary-500/10 dark:text-primary-300"
+                  class="shrink-0 rounded-md bg-primary-50 px-2 py-1 text-xs font-medium leading-none text-primary-700 dark:bg-primary-500/10 dark:text-primary-300"
                 >
                   {{ unreadCount }} {{ t('announcements.unread') }}
                 </span>

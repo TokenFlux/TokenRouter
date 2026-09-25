@@ -1,12 +1,12 @@
 <template>
   <div class="space-y-1" data-testid="account-upstream-usage">
     <div v-if="unsupportedCNQuery" class="flex min-h-5 items-center justify-end gap-1">
-      <span class="text-[9px] text-gray-400 dark:text-gray-500">
+      <span class="text-xs text-gray-400 dark:text-gray-500">
         {{ t('admin.accounts.cnProviders.noBalanceEndpoint') }}
       </span>
     </div>
     <div v-else-if="!queryEnabled" class="flex min-h-5 items-center justify-end gap-1">
-      <span class="text-[9px] text-gray-400 dark:text-gray-500">
+      <span class="text-xs text-gray-400 dark:text-gray-500">
         {{ t('admin.accounts.upstreamUsage.disabled') }}
       </span>
     </div>
@@ -14,7 +14,7 @@
       <div class="h-3 w-28 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
       <div class="h-3 w-36 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
     </div>
-    <div v-else-if="queryEnabled && error" class="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+    <div v-else-if="queryEnabled && error" class="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
       <span class="truncate" :title="error.message || error.code || ''">
         {{ errorLabel }}
       </span>
@@ -22,7 +22,7 @@
     <div v-else-if="queryEnabled && normalizedUsage" class="space-y-1">
       <div
         v-if="balanceLabel"
-        class="min-w-0 break-words text-[10px] leading-tight text-gray-600 dark:text-gray-300"
+        class="min-w-0 break-words text-xs leading-tight text-gray-600 dark:text-gray-300"
         :title="balanceTitle"
       >
         {{ balanceLabel }}
@@ -37,28 +37,28 @@
         />
         <div
           v-if="limit.hasAmount && limit.showAmount"
-          class="min-w-0 break-words pl-9 text-[9px] leading-tight text-gray-400 dark:text-gray-500"
+          class="min-w-0 break-words pl-9 text-xs leading-tight text-gray-400 dark:text-gray-500"
           :title="limitAmountTitle(limit)"
         >
           {{ formatAmount(limit.remaining, normalizedUsage?.unit) }} /
           {{ formatAmount(limit.limit, normalizedUsage?.unit) }}
         </div>
       </div>
-      <div v-if="subscriptionLabel || subscriptionExpiry" data-testid="upstream-subscription-row" class="flex flex-wrap items-center justify-end gap-1 text-[10px] text-gray-500 dark:text-gray-400 md:justify-start">
+      <div v-if="subscriptionLabel || subscriptionExpiry" data-testid="upstream-subscription-row" class="flex flex-wrap items-center justify-end gap-1 text-xs text-gray-500 dark:text-gray-400 md:justify-start">
         <span v-if="subscriptionLabel" class="rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
           {{ subscriptionLabel }}
         </span>
         <span v-if="subscriptionRemainingLabel">{{ subscriptionRemainingLabel }}</span>
         <span v-if="subscriptionExpiry">{{ subscriptionExpiry }}</span>
       </div>
-      <div class="text-[9px] text-gray-400 dark:text-gray-500" :title="effectiveResult?.observed_at || ''">
+      <div class="text-xs text-gray-400 dark:text-gray-500" :title="effectiveResult?.observed_at || ''">
         {{ t('admin.accounts.upstreamUsage.observedAt') }} {{ formatObservedAt(effectiveResult?.observed_at || '') }}
       </div>
     </div>
     <div v-if="queryEnabled && showQueryButton" class="mt-0.5 flex items-center gap-1.5">
       <button
         type="button"
-        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
         :disabled="loading"
         :title="t('admin.accounts.upstreamUsage.query')"
         :aria-label="t('admin.accounts.upstreamUsage.query')"

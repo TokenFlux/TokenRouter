@@ -21,7 +21,7 @@
             <div class="font-semibold text-gray-900 dark:text-gray-100">{{ account.name }}</div>
             <div class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
               <span
-                class="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium uppercase dark:bg-dark-500"
+                class="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium uppercase dark:bg-dark-500"
               >
                 {{ account.type }}
               </span>

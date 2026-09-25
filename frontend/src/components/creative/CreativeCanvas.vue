@@ -101,7 +101,7 @@
               class="brush-size h-8 w-16 cursor-pointer sm:w-24"
               :title="t('creative.canvas.brushSize')"
             />
-            <span class="w-6 text-center text-[11px] tabular-nums text-gray-500 dark:text-dark-400">{{ brushSize }}</span>
+            <span class="w-6 text-center text-xs tabular-nums text-gray-500 dark:text-dark-400">{{ brushSize }}</span>
           </div>
           <!-- 笔迹形状：圆头 / 方头 -->
           <button

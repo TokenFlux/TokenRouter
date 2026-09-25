@@ -46,7 +46,7 @@
         />
         <span
           v-if="group.status !== 'active'"
-          class="shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-dark-600 dark:text-dark-200"
+          class="shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-600 dark:text-dark-200"
         >
           {{ t('common.inactive') }}
         </span>

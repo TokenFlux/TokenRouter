@@ -269,7 +269,7 @@
                   :subscription-expires-at="row.credentials?.subscription_expires_at || row.parent_subscription_expires_at" />
                 <span
                   v-if="getAntigravityTierLabel(row)"
-                  :class="['inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', getAntigravityTierClass(row)]"
+                  :class="['inline-block rounded px-1.5 py-0.5 text-xs font-medium', getAntigravityTierClass(row)]"
                 >
                   {{ getAntigravityTierLabel(row) }}
                 </span>
@@ -361,7 +361,7 @@
             </div>
           </template>
           <template #cell-scheduler_score="{ row }">
-            <div v-if="getSchedulerScoreRows(row).length" class="flex min-w-[7rem] flex-col gap-0.5 font-mono text-[11px] leading-4">
+            <div v-if="getSchedulerScoreRows(row).length" class="flex min-w-[7rem] flex-col gap-0.5 font-mono text-xs leading-4">
               <div
                 v-for="score in getSchedulerScoreRows(row)"
                 :key="String(score.group_id)"

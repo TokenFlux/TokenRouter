@@ -12,7 +12,7 @@
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-2">
           <span class="input-label mb-0">{{ t('admin.accounts.openai.codexImageTool') }}</span>
-          <span class="rounded-full px-2 py-0.5 text-[11px] font-medium" :class="badgeClass">
+          <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="badgeClass">
             {{ badgeLabel }}
           </span>
         </div>

@@ -426,7 +426,7 @@ onMounted(() => {
             <div class="flex items-start justify-between gap-4">
               <div>
                 <div class="text-xs font-bold text-gray-900 dark:text-white">{{ t('admin.ops.runtime.silencing.entries.title') }}</div>
-                <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ t('admin.ops.runtime.silencing.entries.hint') }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.runtime.silencing.entries.hint') }}</p>
               </div>
               <button class="btn btn-sm btn-secondary" type="button" @click="addSilenceEntry">
                 {{ t('admin.ops.runtime.silencing.entries.add') }}
@@ -511,7 +511,7 @@ onMounted(() => {
           <div class="md:col-span-2">
             <div class="mb-1 text-xs font-medium text-gray-500">{{ t('admin.ops.runtime.lockKey') }}</div>
             <input v-model="draftAlert.distributed_lock.key" type="text" class="input text-xs font-mono" />
-            <p v-if="draftAlert.distributed_lock.enabled" class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+            <p v-if="draftAlert.distributed_lock.enabled" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.ops.runtime.validation.lockKeyHint', { prefix: 'ops:' }) }}
             </p>
           </div>

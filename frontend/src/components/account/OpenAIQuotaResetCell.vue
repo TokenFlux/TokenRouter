@@ -6,7 +6,7 @@
       <!-- fork 只保留查询和次数展示，避免在账号列表里误触真实上游重置。 -->
       <button
         type="button"
-        class="inline-flex min-w-[54px] items-center justify-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+        class="inline-flex min-w-[54px] items-center justify-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
         :disabled="loading"
         :title="countButtonTitle"
         @click="handleQuery"
@@ -27,7 +27,7 @@
     <div v-if="primaryResetCreditExpiry" class="space-y-1">
       <div class="flex flex-wrap items-center gap-1">
         <span
-          class="inline-flex max-w-full items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] leading-4 text-gray-600 tabular-nums dark:bg-dark-800 dark:text-gray-300"
+          class="inline-flex max-w-full items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs leading-4 text-gray-600 tabular-nums dark:bg-dark-800 dark:text-gray-300"
           :title="t('admin.accounts.openaiQuotaReset.expiresAtFull', { time: formatResetCreditExpiry(primaryResetCreditExpiry, 'full') })"
         >
           {{ t('admin.accounts.openaiQuotaReset.expiresAt', { time: formatResetCreditExpiry(primaryResetCreditExpiry, 'short') }) }}
@@ -36,7 +36,7 @@
           v-if="hiddenResetCreditCount > 0"
           type="button"
           data-testid="reset-credit-expiry-toggle"
-          class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium leading-4 text-gray-600 transition-colors hover:bg-gray-200 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700"
+          class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium leading-4 text-gray-600 transition-colors hover:bg-gray-200 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700"
           :aria-expanded="showResetCreditDetails"
           :aria-label="resetCreditDetailsToggleLabel"
           :title="resetCreditDetailsTitle"
@@ -49,7 +49,7 @@
       <div
         v-if="showResetCreditDetails && resetCreditExpirations.length > 1"
         data-testid="reset-credit-expiry-details"
-        class="inline-grid max-w-full gap-0.5 rounded border border-gray-200 bg-white px-1.5 py-1 text-[10px] leading-4 text-gray-600 shadow-sm dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300"
+        class="inline-grid max-w-full gap-0.5 rounded border border-gray-200 bg-white px-1.5 py-1 text-xs leading-4 text-gray-600 shadow-sm dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300"
       >
         <span class="sr-only">{{ t('admin.accounts.openaiQuotaReset.expirationDetails') }}</span>
         <span
@@ -66,14 +66,14 @@
 
     <div
       v-if="error"
-      class="max-w-[180px] truncate text-[10px] text-red-600 dark:text-red-400"
+      class="max-w-[180px] truncate text-xs text-red-600 dark:text-red-400"
       :title="error"
     >
       {{ truncatedError }}
     </div>
     <div
       v-else-if="warning"
-      class="max-w-[220px] text-[10px] text-amber-600 dark:text-amber-400"
+      class="max-w-[220px] text-xs text-amber-600 dark:text-amber-400"
     >
       {{ warning }}
     </div>

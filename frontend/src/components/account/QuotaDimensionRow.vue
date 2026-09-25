@@ -135,13 +135,13 @@ function getTimezoneOffsetLabel(tz: string): string {
           <Select :model-value="resetTimezone || 'UTC'" :options="resetTimezoneOptions" class="min-w-44 text-xs" searchable @change="emit('update:resetTimezone', String($event))" />
         </template>
       </template>
-      <span class="text-[11px] text-gray-500 dark:text-gray-400">
+      <span class="text-xs text-gray-500 dark:text-gray-400">
         <template v-if="resetMode === 'fixed'">{{ hintFixed }}</template>
         <template v-else>{{ hintRolling }}</template>
       </span>
     </div>
 
     <!-- Total dimension hint (no reset mode) -->
-    <p v-if="!hasResetMode" class="input-hint mb-0 text-[11px]">{{ hintRolling }}</p>
+    <p v-if="!hasResetMode" class="input-hint mb-0 text-xs">{{ hintRolling }}</p>
   </div>
 </template>

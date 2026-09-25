@@ -127,7 +127,7 @@ const options = computed(() => ({
       </h3>
       <button
         type="button"
-        class="inline-flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800"
+        class="inline-flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800"
         :disabled="state !== 'ready'"
         :title="t('admin.ops.errorTrend')"
         @click="emit('openDetails')"

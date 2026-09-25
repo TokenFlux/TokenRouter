@@ -35,7 +35,7 @@
         <div
           v-for="m in monthItems"
           :key="`m-${m.weekIndex}`"
-          class="overflow-visible whitespace-nowrap text-[10px] leading-4 text-gray-400 dark:text-gray-500"
+          class="overflow-visible whitespace-nowrap text-xs leading-4 text-gray-400 dark:text-gray-500"
           :style="{ gridColumn: m.weekIndex + 2, gridRow: 1 }"
         >{{ m.label }}</div>
 
@@ -43,7 +43,7 @@
         <div
           v-for="w in weekdayLabels"
           :key="`w-${w.row}`"
-          class="flex items-center pr-1 text-[10px] leading-none text-gray-400 dark:text-gray-500"
+          class="flex items-center pr-1 text-xs leading-none text-gray-400 dark:text-gray-500"
           :style="{ gridColumn: 1, gridRow: w.row + 2 }"
         >{{ w.label }}</div>
 

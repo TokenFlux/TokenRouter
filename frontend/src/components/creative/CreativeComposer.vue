@@ -59,7 +59,7 @@
               <ProviderIcon :brand="option.model" size="16px" class="flex-shrink-0" />
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-xs font-medium text-gray-800 dark:text-gray-100">{{ option.model }}</span>
-                <span class="block truncate text-[11px] text-gray-400 dark:text-dark-400">{{ option.group_name }}</span>
+                <span class="block truncate text-xs text-gray-400 dark:text-dark-400">{{ option.group_name }}</span>
               </span>
               <Icon v-if="studio.selectedOptionKey.value === creativeOptionKey(option)" name="check" size="sm" class="flex-shrink-0 text-primary-600 dark:text-primary-300" />
             </button>
@@ -101,7 +101,7 @@
                   >
                     {{ size }}
                   </button>
-                  <span v-if="!studio.imageSizeOptions.value.length" class="text-[11px] text-gray-400 dark:text-dark-400">—</span>
+                  <span v-if="!studio.imageSizeOptions.value.length" class="text-xs text-gray-400 dark:text-dark-400">—</span>
                 </div>
               </div>
               <div>
@@ -192,7 +192,7 @@
             class="chip-popover"
             :style="popoverStyle"
           >
-            <p v-if="!studio.operationOptions.value.length" class="px-2.5 py-2 text-[11px] text-gray-400 dark:text-dark-400">
+            <p v-if="!studio.operationOptions.value.length" class="px-2.5 py-2 text-xs text-gray-400 dark:text-dark-400">
               {{ t('creative.composer.selectModelFirst') }}
             </p>
             <button
@@ -205,7 +205,7 @@
             >
               <span class="min-w-0 flex-1">
                 <span class="block text-xs font-medium text-gray-800 dark:text-gray-100">{{ t(`creative.operations.${op}`, op) }}</span>
-                <span class="block text-[11px] text-gray-400 dark:text-dark-400">{{ t(`creative.operationsDesc.${op}`) }}</span>
+                <span class="block text-xs text-gray-400 dark:text-dark-400">{{ t(`creative.operationsDesc.${op}`) }}</span>
               </span>
               <Icon v-if="studio.operation.value === op" name="check" size="sm" class="flex-shrink-0 text-primary-600 dark:text-primary-300" />
             </button>
@@ -451,11 +451,11 @@ function autosize(): void {
 }
 
 .param-label {
-  @apply mb-1.5 text-[11px] font-medium text-gray-900 dark:text-white;
+  @apply mb-1.5 text-xs font-medium text-gray-900 dark:text-white;
 }
 
 .param-chip {
-  @apply rounded-[12px] border border-primary-900/10 px-2.5 py-1 text-[11px] text-gray-600 transition-colors;
+  @apply rounded-[12px] border border-primary-900/10 px-2.5 py-1 text-xs text-gray-600 transition-colors;
   @apply hover:border-black/20 hover:text-gray-900;
   @apply dark:border-dark-600 dark:text-gray-300 dark:hover:border-dark-400 dark:hover:text-gray-100;
 }

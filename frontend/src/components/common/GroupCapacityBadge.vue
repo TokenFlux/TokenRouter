@@ -4,7 +4,7 @@
     <div class="flex items-center gap-1">
       <span
         :class="[
-          'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+          'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium',
           capacityClass(concurrencyUsed, concurrencyMax)
         ]"
       >
@@ -21,7 +21,7 @@
     <div v-if="sessionsMax > 0" class="flex items-center gap-1">
       <span
         :class="[
-          'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+          'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium',
           capacityClass(sessionsUsed, sessionsMax)
         ]"
       >
@@ -38,7 +38,7 @@
     <div v-if="rpmMax > 0" class="flex items-center gap-1">
       <span
         :class="[
-          'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+          'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium',
           capacityClass(rpmUsed, rpmMax)
         ]"
       >
