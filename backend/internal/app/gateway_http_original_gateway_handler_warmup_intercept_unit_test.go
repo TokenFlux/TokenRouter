@@ -29,7 +29,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache/codec"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,14 @@ type fakeSchedulerCache struct {
 }
 
 func (f *fakeSchedulerCache) GetSnapshot(_ context.Context, _ scheduler.SchedulerBucket) ([]scheduler.SnapshotAccount, bool, error) {
-	return service.LegacySnapshotWrapPointers(f.accounts), true, nil
+	if f.accounts == nil {
+		return nil, true, nil
+	}
+	values := make([]scheduler.SnapshotAccount, len(f.accounts))
+	for i, value := range f.accounts {
+		values[i] = codec.WrapRecord(gatewayprovider.ExecutionRecord(value))
+	}
+	return values, true, nil
 }
 func (f *fakeSchedulerCache) CaptureBucketWriteToken(_ context.Context, bucket scheduler.SchedulerBucket) (scheduler.SchedulerBucketWriteToken, error) {
 	return scheduler.SchedulerBucketWriteToken{Bucket: bucket, Epoch: 1}, nil
@@ -66,7 +73,7 @@ func (f *fakeSchedulerCache) ReleaseGroupLifecycleLease(_ context.Context, _ sch
 func (f *fakeSchedulerCache) GetAccount(_ context.Context, id int64) (scheduler.SnapshotAccount, error) {
 	for _, account := range f.accounts {
 		if account != nil && account.Record.ID == id {
-			return service.LegacySnapshotWrap(account), nil
+			return codec.WrapRecord(gatewayprovider.ExecutionRecord(account)), nil
 		}
 	}
 	return nil, nil

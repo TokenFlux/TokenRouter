@@ -47,8 +47,8 @@ Go 模块路径为 `github.com/TokenFlux/TokenRouter`。后端以 `backend/go.mo
 | `backend/cmd/server/` | 参数、版本信息与最终退出 | 原生成入口委托 app 的 Wire 图 |
 | `backend/internal/app/` | 唯一组合根、精简初始化及生命周期 | 修改手写装配后生成 Wire，资源由原生模块唯一持有 |
 | `backend/internal/server/` | HTTP server、中间件顺序和路由注册 | 路由只负责接口装配，业务不变量由所属模块持有 |
-| `backend/internal/handler/` | 尚待清理的网关 HTTP 适配 | 面板接口已归所属模块，原生入口由 app 绑定 |
-| `backend/internal/service/` | 尚待清理的执行适配与调用绑定 | 资金、协议、账号、调度等规则已归原生模块，不再定义旧实体 |
+| `backend/internal/gateway/` | 入站编排、准入、会话、输出和完成处理 | HTTP Adapter 与单次平台执行分别绑定原生端口 |
+| `backend/internal/upstream/` | 平台交换、原生报文与连接资源 | 凭据持久化由 account 负责，资金由 billing 负责 |
 | `backend/internal/<module>/` | 原生用例及其 PostgreSQL、Redis、HTTP、provider 适配 | 旧 repository 包已删除；通用技术实现归 infra |
 | `backend/ent/schema/` | 主要持久实体的 Ent schema 源 | `backend/ent/` 下其余大部分文件为生成代码 |
 | `backend/migrations/` | 已发布数据库的前向演进 | SQL 被嵌入二进制并按文件名执行；已应用文件不可改写 |

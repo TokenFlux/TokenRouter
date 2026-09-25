@@ -37,14 +37,14 @@
 <a id="dependency_layers"></a>
 ## 依赖层次
 
-`backend/internal/app/wire.go` 是完整应用依赖图的手写入口，旁边的 `wire_gen.go` 是生成结果。 根入口按模块引用 `assembly_*_wire.go` 集合，保留现有子集合；跨模块接口绑定与具体提供者放在同一 Wire 集合内。生命周期登记另有独立集合，这些文件只参与 wireinject 构建。剩余执行构造在 app 的 `gatewayExecutionProviders` 分组，旧 service ProviderSet 已删除；响应头配置也由 app 投影给 egress，再把不可变编译结果注入各执行入口。`cmd/server` 保留参数解析、构建版本变量和原 `go generate ./cmd/server` 入口。配置只加载一次，日志、数据库引导和应用图共用该配置；JWT secret 在数据库引导完成后补齐并重新校验。
+`backend/internal/app/wire.go` 是完整应用依赖图的手写入口，旁边的 `wire_gen.go` 是生成结果。 根入口按模块引用 `assembly_*_wire.go` 集合，保留现有子集合；跨模块接口绑定与具体提供者放在同一 Wire 集合内。生命周期登记另有独立集合，这些文件只参与 wireinject 构建。执行构造在 app 的 `gatewayExecutionProviders` 分组，旧 service ProviderSet 已删除；响应头配置也由 app 投影给 egress，再把不可变编译结果注入各执行入口。`cmd/server` 保留参数解析、构建版本变量和原 `go generate ./cmd/server` 入口。配置只加载一次，日志、数据库引导和应用图共用该配置；JWT secret 在数据库引导完成后补齐并重新校验。
 
 | 层 | 主要路径 | 当前责任 |
 | --- | --- | --- |
 | 组合根 | `internal/app`、`app/bootstrap`、`app/lifecycle` | 配置投影、Wire 绑定、初始化、统一启停、失败回收和重启请求 |
 | 配置 | `internal/config` | 默认值、YAML/环境变量加载、归一化与启动校验 |
-| 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey`、`routing`、`account`、`egress`、`scheduler`、`usage`、`audit`、`ops`、`notification`、`moderation`、`search`、`creative`、`batchimage` | 设置、幂等、公告、资金与权益、身份/团队/Key、路由目录、账号管理与维护、出站策略、调度/并发/会话选择、用量/观测、通知、审核、搜索及创作/批量任务 |
-| 剩余执行适配 | `internal/service` | 平台单次执行、WS/Live 与少量请求策略适配通过 app 固定端口接入；旧聚合 ProviderSet 与 repository 包已删除 |
+| 业务用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey`、`routing`、`account`、`egress`、`scheduler`、`usage`、`audit`、`ops`、`notification`、`moderation`、`search`、`creative`、`batchimage` | 设置、幂等、公告、资金与权益、身份/团队/Key、路由目录、账号管理与维护、出站策略、调度/并发/会话选择、用量/观测、通知、审核、搜索及创作/批量任务 |
+| 网关编排 | `internal/gateway` | 准入、尝试、SSE/WS/Live、会话与完成处理；HTTP和平台端口由app固定绑定 |
 | 平台执行 | `internal/upstream` 与各平台子包 | 供应商交换、原生报文、媒体、单次执行和连接资源；业务凭据写入由 account 提供 |
 | 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
 | HTTP 适配与服务器 | `site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`gateway/httpapi`、`creative/httpapi`、`batchimage/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
@@ -84,7 +84,7 @@ creative 与 batchimage 各自拥有任务创建、状态、恢复、结果读�
 `app/http_transport.go` 按原读取时点投影传输参数，`gateway/provider/transport` 组合请求策略与平台传输原语，`infra/httpclient.UpstreamPool` 拥有唯一客户端缓存和请求释放。OpenAI HTTP/2 回退策略由 egress 提供，Grok CLI Header 与可重放 403 回退由 upstream/grok 提供；传输适配不引用旧 service 或完整 config。隐私请求仍使用原共享 req 池、30 秒超时和 Chrome 指纹。修改 provider 后运行保留的 Wire 生成命令，不编辑生成文件，也不因纯装配变化运行 Ent 生成。
 
 <a id="startup_and_shutdown"></a>
-promotion 拥有邀请码/关系、返利、转入余额及 Promo，payment 拥有配置、渠道绑定、下单、查单、履约和退款。各自 HTTP/PostgreSQL Adapter 只负责传输与存储；billing 同连接参与资金写入，notification 接收已确定的支付事件。app 持有唯一配置、注册表、选择器、订单用例与后台任务，旧 service/handler 名称只保留兼容投影。退款渠道调用位于短事务之间，恢复记录使用既有支付审计表，具体保证见[支付与权益](../domains/payments_and_entitlements.md#退款)。
+promotion 拥有邀请码/关系、返利、转入余额及 Promo，payment 拥有配置、渠道绑定、下单、查单、履约和退款。各自 HTTP/PostgreSQL Adapter 只负责传输与存储；billing 同连接参与资金写入，notification 接收已确定的支付事件。app 持有唯一配置、注册表、选择器、订单用例与后台任务，生产和测试直接引用原生模块，旧 service、handler 与 repository 包已删除。退款渠道调用位于短事务之间，恢复记录使用既有支付审计表，具体保证见[支付与权益](../domains/payments_and_entitlements.md#退款)。
 
 ## 启动与关闭
 
@@ -98,7 +98,7 @@ app 在 bootstrap 成功后固定共享 Calendar，显式传入用量、支付�
 
 Wire 构造对象并登记资源后，lifecycle 才启动后台工作。时间轮和设置/定价预热先完成，再启动缓存订阅及消费队列，最后启动周期生产者、任务拉取和 HTTP。原有首次执行、预热降级、功能开关和动态 worker 数量保持各模块语义。构造或部分启动失败时回收已取得及已尝试启动的资源，错误链保留原始原因。
 
-定价 provider 由 `app/pricing.go` 投影独立 Options，继续走原 PricingInitialization 与 PricingService hook 的 Initialize → Start → Stop 顺序。远端客户端和运行实例直接使用 billing/provider，旧 PricingService 包装已删除。Calculator、PriceResolver 和 ChannelService 也由 app 直接提供原生实例，计算与查价消费者不再通过旧服务取回内嵌对象。平台模型别名和动态 Grok 默认值由 gateway/provider/modelidentity 投影，每次查价只取得一次快照；纯定价不读取平台运行状态。Key 与渠道模型追踪由 gateway/modeltrace 组合。`app/legacybridge` 已删除，剩余旧 service 适配仍逐项清理。
+定价 provider 由 `app/pricing.go` 投影独立 Options，继续走原 PricingInitialization 与 PricingService hook 的 Initialize → Start → Stop 顺序。远端客户端和运行实例直接使用 billing/provider，旧 PricingService 包装已删除。Calculator、PriceResolver 和 ChannelService 也由 app 直接提供原生实例，计算与查价消费者不再通过旧服务取回内嵌对象。平台模型别名和动态 Grok 默认值由 gateway/provider/modelidentity 投影，每次查价只取得一次快照；纯定价不读取平台运行状态。Key 与渠道模型追踪由 gateway/modeltrace 组合。`app/legacybridge` 与旧 service 包均已删除。
 
 billing 的余额/Key 缓存队列、平台额度 flusher 和订阅过期提醒由 app 绑定到现有生命周期。提醒保留立即首轮、每分钟扫描和既有 Redis/数据库 leader 策略，停止时取消并等待在途操作。没有生产消费者的订阅维护队列不会因迁包自动启动。
 
@@ -163,6 +163,6 @@ Gin engine 的顺序为 Recovery、可信代理设置、全局日志/客户端�
 <a id="backup_and_maintenance"></a>
 ## 备份与系统维护装配
 
-app 构造唯一 backup 核心、归档执行器、动态存储工厂、ops/maintenance 更新用例与系统操作锁。维护的停止认领和取消先于 HTTP 请求等待，维护收尾及备份任务等待完成后才关闭共享 SQL/Redis。旧 service/repository/handler 入口只提供已登记的构造投影或委托，不持有第二个 cron、存储缓存或操作锁。
+app 构造唯一 backup 核心、归档执行器、动态存储工厂、ops/maintenance 更新用例与系统操作锁。维护的停止认领和取消先于 HTTP 请求等待，维护收尾及备份任务等待完成后才关闭共享 SQL/Redis。备份、维护和精简命令直接使用原生入口；cron、存储缓存及操作锁均由所属模块唯一持有。
 
 setup 只调用 app/bootstrap 的连接测试、迁移和身份初始化能力；identity/postgres 拥有首次管理员及 simple 管理员并发补齐，routing/postgres 拥有 simple 默认分组。它们不走普通注册或管理用例，不触发赠送、通知或后台 worker。两个维护命令在主体返回前关闭已取得连接，再由 main 决定退出码。

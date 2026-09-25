@@ -55,7 +55,11 @@ func applyCacheOverride(usage *TokenUsage, target string) bool {
 }
 
 // normalizeResult 只依据请求快照与实际观察降档，不查询平台或修改共享结果。
-func (s *Recorder) normalizeResult(r *Result, a *AccountSnapshot, openAI bool, observedAccount *AccountSnapshot) {
+func (s *Recorder) normalizeResult(r *Result, a *AccountSnapshot, openAI bool, observedAccount *AccountSnapshot) ServiceTierBillingResolution {
+	// 缺失结果不产生档位调整或观测事件。
+	if r == nil {
+		return ServiceTierBillingResolution{}
+	}
 	if r.ImageCount > 0 && (!openAI || r.VideoCount <= 0) {
 		input := strings.TrimSpace(r.ImageInputSize)
 		if input == "" && strings.TrimSpace(r.ImageSize) != pricing.ImageBillingSize2K {
@@ -92,6 +96,7 @@ func (s *Recorder) normalizeResult(r *Result, a *AccountSnapshot, openAI bool, o
 		}
 		s.observeEvent(event)
 	}
+	return resolution
 }
 
 // ResolveOpenAIServiceTierBilling 保留 OAuth default 回显的非权威性，其余响应只允许降档。

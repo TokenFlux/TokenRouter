@@ -437,13 +437,6 @@ func TestOpenAITempUnschedulable_UnknownModelKeepsAccountRuntimeBlock(t *testing
 	require.Empty(t, repo.ModelRateLimitCalls)
 }
 
-// httpFixtureRuntimeBlocked 只投影凭据身份，停调与恢复仍由账号运行状态判断。
-func httpFixtureRuntimeBlocked(s *OpenAIResponsesExecutor, target *gatewayprovider.ExecutionAccount) bool {
-	return s.Output.Health.Runtime.Blocked(target.Record.ID, func() string {
-		return accountcore.RefreshCredentialIdentity(target.View())
-	})
-}
-
 // httpRuntimeClock 为过期窗口提供显式时钟，不改写运行状态内部字段。
 type httpRuntimeClock struct{ nanos atomic.Int64 }
 

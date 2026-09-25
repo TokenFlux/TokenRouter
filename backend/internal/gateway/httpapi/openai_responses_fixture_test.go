@@ -67,6 +67,7 @@ func newResponsesFixture(v responsesFixtureInputs) *OpenAIResponsesExecutor {
 	}
 	aux.Output.Headers = v.headers
 	aux.Output.Observer = v.health
+	aux.Output.ProxyCircuit = egress.NewProxyStreamCircuit(egress.DefaultProxyStreamCircuitSettings())
 	aux.Output.Redact = aux.Requests.Identity.Redact
 	aux.Output.Options = options.Response
 	aux.Output.Options.Configured = v.options != nil
@@ -116,4 +117,12 @@ func newHTTPHealthFixture(store provider.ExecutionAccountStore, options *respons
 		health.CNIntervalMinutes = options.Health.CNIntervalMinutes
 	}
 	return testkit.NewHealthObserver(testkit.HealthInput{Store: store, Cache: cache, Options: health, Readers: readers})
+}
+
+// httpFixtureRuntimeBlocked 只投影身份，运行阻断仍由账号模块判断。
+// httpFixtureRuntimeBlocked 只投影凭据身份，停调与恢复仍由账号运行状态判断。
+func httpFixtureRuntimeBlocked(s *OpenAIResponsesExecutor, target *provider.ExecutionAccount) bool {
+	return s.Output.Health.Runtime.Blocked(target.Record.ID, func() string {
+		return account.RefreshCredentialIdentity(target.View())
+	})
 }

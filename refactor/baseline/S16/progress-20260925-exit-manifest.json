@@ -1,0 +1,355 @@
+{
+  "format_version": 1,
+  "scope": "S16 旧service图清零及原生合同验证批次及受影响消费者检查，非最终验收",
+  "parent_manifest": "progress-20260925-domain-contracts-manifest.json",
+  "parent_manifest_sha256": "f0f3440ba8e4b4d74929f3996d441c7cb34462fc009ef767d12c6422f9c94e6d",
+  "source_file_count": 56,
+  "source_total_bytes": 8189795,
+  "collection": "仅本批 service-exit-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260925-exit-01.tar.gz",
+      "size": 660499,
+      "sha256": "3b0da00c6eac613eb2116aeddcbdbde9e041d2bc3fac78f24fdb092d6e176b7c",
+      "verified_members": 56,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 156732,
+          "sha256": "8c432767ea6ebeaa724a54a0b30d51d77e99166e0e209413b5f733f498559144",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-app-no-bridge-integration.log",
+          "size": 363,
+          "sha256": "6f75a7b2e489285a1c6c993560d4b06d7740673afe411ad5a28e113064cdee3a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-app-no-bridge-normal.log",
+          "size": 363,
+          "sha256": "6f75a7b2e489285a1c6c993560d4b06d7740673afe411ad5a28e113064cdee3a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-app-no-bridge-unit.log",
+          "size": 363,
+          "sha256": "6f75a7b2e489285a1c6c993560d4b06d7740673afe411ad5a28e113064cdee3a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-app-no-old-integration.log",
+          "size": 323,
+          "sha256": "4746e8622dfc9cec8e7fcf7ad954e14745c9dfe63b20c3f2f0e89e781add354d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-app-no-old-normal.log",
+          "size": 323,
+          "sha256": "4746e8622dfc9cec8e7fcf7ad954e14745c9dfe63b20c3f2f0e89e781add354d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-app-no-old-unit.log",
+          "size": 323,
+          "sha256": "4746e8622dfc9cec8e7fcf7ad954e14745c9dfe63b20c3f2f0e89e781add354d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-core-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-core-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-core-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-core-no-http-integration.log",
+          "size": 256,
+          "sha256": "37e6908e319f3a8c0ce7d341cc7ace284a35f5dec70841ec95b2a17c6386a3e1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-core-no-http-normal.log",
+          "size": 256,
+          "sha256": "37e6908e319f3a8c0ce7d341cc7ace284a35f5dec70841ec95b2a17c6386a3e1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-core-no-http-unit.log",
+          "size": 256,
+          "sha256": "37e6908e319f3a8c0ce7d341cc7ace284a35f5dec70841ec95b2a17c6386a3e1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-core-no-old-integration.log",
+          "size": 273,
+          "sha256": "33dbccfed6e4783e9f1ff9b772e7a5c7fba4b89c4a385433f246de089c159400",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-core-no-old-normal.log",
+          "size": 273,
+          "sha256": "33dbccfed6e4783e9f1ff9b772e7a5c7fba4b89c4a385433f246de089c159400",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-core-no-old-unit.log",
+          "size": 273,
+          "sha256": "33dbccfed6e4783e9f1ff9b772e7a5c7fba4b89c4a385433f246de089c159400",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-http-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-http-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-http-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-http-old-integration.log",
+          "size": 379,
+          "sha256": "8516691eb58a3f737111c358f3955be564c1c1b42b2c3db192d41ac1ebdca7dd",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-http-old-normal.log",
+          "size": 379,
+          "sha256": "8516691eb58a3f737111c358f3955be564c1c1b42b2c3db192d41ac1ebdca7dd",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-http-old-repo-integration.log",
+          "size": 385,
+          "sha256": "980709235e4d7a607f2b7e42c8489558ecb08089fdf9ab13b076c34f305ff55a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-http-old-repo-normal.log",
+          "size": 385,
+          "sha256": "980709235e4d7a607f2b7e42c8489558ecb08089fdf9ab13b076c34f305ff55a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-http-old-repo-unit.log",
+          "size": 385,
+          "sha256": "980709235e4d7a607f2b7e42c8489558ecb08089fdf9ab13b076c34f305ff55a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-http-old-unit.log",
+          "size": 379,
+          "sha256": "8516691eb58a3f737111c358f3955be564c1c1b42b2c3db192d41ac1ebdca7dd",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-new-http-old-integration.log",
+          "size": 262,
+          "sha256": "f78646bc9cfa806cb56be5dd8fc35901fc17827f4bcc59f5b91462b2e2fbdc4c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-new-http-old-normal.log",
+          "size": 262,
+          "sha256": "f78646bc9cfa806cb56be5dd8fc35901fc17827f4bcc59f5b91462b2e2fbdc4c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-new-http-old-unit.log",
+          "size": 262,
+          "sha256": "f78646bc9cfa806cb56be5dd8fc35901fc17827f4bcc59f5b91462b2e2fbdc4c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-new-selection-no-exception-integration.log",
+          "size": 293,
+          "sha256": "f3dd507a6eb51b339cc628a2b5eac46981512ff581fbd5ea77e293228271793f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-new-selection-no-exception-normal.log",
+          "size": 293,
+          "sha256": "f3dd507a6eb51b339cc628a2b5eac46981512ff581fbd5ea77e293228271793f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-new-selection-no-exception-unit.log",
+          "size": 293,
+          "sha256": "f3dd507a6eb51b339cc628a2b5eac46981512ff581fbd5ea77e293228271793f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-selection-child-integration.log",
+          "size": 355,
+          "sha256": "b348180d02723d590dc3cf9160e8b2992b98b91f4658d309417dadcca39babcd",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-selection-child-normal.log",
+          "size": 355,
+          "sha256": "b348180d02723d590dc3cf9160e8b2992b98b91f4658d309417dadcca39babcd",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-selection-child-unit.log",
+          "size": 355,
+          "sha256": "b348180d02723d590dc3cf9160e8b2992b98b91f4658d309417dadcca39babcd",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-selection-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-selection-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gate-selection-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-boundary-gates.json",
+          "size": 26502,
+          "sha256": "458954c723c05c458f7df098be77c1c74db5ade708a580da16462ccceba9175c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-build-selection.json",
+          "size": 2137478,
+          "sha256": "658cb2f6b04ed083809dd7b47706f485aaa660aa02e7ef19c632fc0430683db3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-commands.json",
+          "size": 144780,
+          "sha256": "256da296193aa61cc533ccf3bb77ad0fb8a576851d736e2e64117a4b4a5127f5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-compile.jsonl",
+          "size": 26710,
+          "sha256": "20d800acf1b9dd21619c08d1f95f84da58fc0a22f8ef5ffd864558e58417fcef",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-import-permissions.json",
+          "size": 16667,
+          "sha256": "ce6f3902474d0eb4a42600b1cf67cd99e63a04f691482222dc2153a3be44729e",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-initial-normal.jsonl",
+          "size": 244968,
+          "sha256": "e2788bf6428cd58ccebbbb2dc66b94d8bdd482e900a4ee5a7a8d72a78039a68f",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-lint-before-rules.log",
+          "size": 11096,
+          "sha256": "40230ad189e86fc43007d96867cd68ca42b196e254106805982c2fa64aaa9abe",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-lint-selection-direction.log",
+          "size": 594,
+          "sha256": "31dd48c488e476b406b5ba1cdf44b64afb99ba1dc4a7738e344d622414a94c53",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-lint.json",
+          "size": 790,
+          "sha256": "3446727acf5abb7e965c8d6c9146244399b19d23c422dc8c08ee3602edf33456",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-normal.jsonl",
+          "size": 1315541,
+          "sha256": "3fe6ed308816d9341e1eef68b7f36d50e84399993f443e26bb7167c8efdbdbe3",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-race.jsonl",
+          "size": 1923351,
+          "sha256": "498343aab46eabb989d5af582237009a719b48641d5ef903ff59b4e999dcf4e2",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-retired-permissions.json",
+          "size": 865,
+          "sha256": "cc6c3c3a0fc6d769b314d1798cbe2c8b131589b9dcd1604e1e4767b2aa9f67ce",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-session-final.jsonl",
+          "size": 124845,
+          "sha256": "06d4b96b652728699934baf5c542735194aa1cb0dcb18bad362067b4c38a0716",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-test-mapping.json",
+          "size": 120415,
+          "sha256": "5d6ff3e10471a984f92f2710a25c63b390cd2196809184f3176bf362c54584b5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-unit.jsonl",
+          "size": 1923074,
+          "sha256": "911b542c8eca5c56a67e294d0e029d41bf18c92dc94e8f8239320db3448b58f8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-exit-verification.json",
+          "size": 6600,
+          "sha256": "2557f0bc8e8ed6b36990f830ee57ec9a767a20cfd9f9486915bb4c0552a7fffa",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}

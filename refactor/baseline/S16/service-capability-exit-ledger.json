@@ -2879,9 +2879,9 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 20,
-    "test_files": 35,
-    "verified_batch": "domain-contracts"
+    "production_files": 0,
+    "test_files": 0,
+    "verified_batch": "service-exit"
   },
   "latest_combined_validation": {
     "head": "b5299ff18c6f1d7fea57aa33b0e8cf8fae68f85c",
@@ -3099,6 +3099,70 @@
         "backend/tests/integration/account",
         "backend/tests/integration/pricing_contract"
       ]
+    },
+    "service-exit": {
+      "status": "verified",
+      "retired_files": [
+        "backend/internal/service/account_repository_refresh_candidates_unit_test.go",
+        "backend/internal/service/account_usage_service_batch_test.go",
+        "backend/internal/service/api_key_fast_mode_test.go",
+        "backend/internal/service/apikey_projection.go",
+        "backend/internal/service/calculator_fixture_test.go",
+        "backend/internal/service/channel_model_routing_consistency_test.go",
+        "backend/internal/service/gateway_background_adapter.go",
+        "backend/internal/service/gateway_completion_adapter.go",
+        "backend/internal/service/gateway_forward_as_responses.go",
+        "backend/internal/service/gateway_group_isolation_test.go",
+        "backend/internal/service/gateway_multiplatform_test.go",
+        "backend/internal/service/gateway_service.go",
+        "backend/internal/service/gateway_settings_fixture_test.go",
+        "backend/internal/service/gemini_multiplatform_test.go",
+        "backend/internal/service/group_default_selection.go",
+        "backend/internal/service/group_openai_fast_policy_test.go",
+        "backend/internal/service/health_observer_fixture_test.go",
+        "backend/internal/service/model_pricing_resolver_channel_normalized_test.go",
+        "backend/internal/service/openai_account_runtime_block_fastpath.go",
+        "backend/internal/service/openai_client_policy_fixture_test.go",
+        "backend/internal/service/openai_cyber_session_block.go",
+        "backend/internal/service/openai_fast_policy_test.go",
+        "backend/internal/service/openai_fast_service_tier_test.go",
+        "backend/internal/service/openai_gateway_403_reset_test.go",
+        "backend/internal/service/openai_gateway_service.go",
+        "backend/internal/service/openai_gateway_service_test.go",
+        "backend/internal/service/openai_guardian_affinity.go",
+        "backend/internal/service/openai_messages_digest_session.go",
+        "backend/internal/service/openai_oauth_passthrough_test.go",
+        "backend/internal/service/openai_proxy_stream_circuit.go",
+        "backend/internal/service/openai_refresh_failure_runtime.go",
+        "backend/internal/service/openai_sticky_compat.go",
+        "backend/internal/service/openai_sticky_compat_test.go",
+        "backend/internal/service/pricing_provider_fixture_test.go",
+        "backend/internal/service/prompts/codex_opencode_bridge.txt",
+        "backend/internal/service/prompts/tool_remap_message.txt",
+        "backend/internal/service/recording_openai_unit_fixture_test.go",
+        "backend/internal/service/recording_shared_fixture_test.go",
+        "backend/internal/service/route_plan.go",
+        "backend/internal/service/s06_managed_recovery_fence_test.go",
+        "backend/internal/service/s08_compat_unit_test.go",
+        "backend/internal/service/scheduler_cache_test.go",
+        "backend/internal/service/scheduler_parameters_fixture_test.go",
+        "backend/internal/service/scheduler_snapshot_fixture_test.go",
+        "backend/internal/service/scheduler_snapshot_legacy.go",
+        "backend/internal/service/scheduler_snapshot_ports_test.go",
+        "backend/internal/service/scheduler_snapshot_service_test.go",
+        "backend/internal/service/selection_fixture_test.go",
+        "backend/internal/service/service_tier_billing.go",
+        "backend/internal/service/service_tier_billing_test.go",
+        "backend/internal/service/session_isolation.go",
+        "backend/internal/service/session_isolation_test.go",
+        "backend/internal/service/test_main_test.go",
+        "backend/internal/service/testdata/security_monitor_system_prompt.txt",
+        "backend/internal/service/upstream_response_limit_test.go",
+        "backend/internal/service/upstream_response_options.go",
+        "backend/internal/service/value_helpers.go",
+        "backend/internal/service/ws_options_fixture_test.go"
+      ],
+      "verification": "service-exit-verification.json"
     }
   }
 }

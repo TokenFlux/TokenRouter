@@ -53,9 +53,9 @@ docker compose -f deploy/docker-compose.dev.yml up --build
 <a id="backend_dependency_rules"></a>
 ## 代码边界
 
-生产和生成代码已不再引用旧 service；HTTP、用例、存储和后台资源由 app 直接装配各模块的原生实现。service 目前只承接尚未迁完的测试及其构造辅助。billing 的核心、HTTP、PostgreSQL 和 Redis 已按角色分离；通用技术实现已分布在 `internal/infra`，HTTP 工具在 `server/httpx`、`server/clientip`，纯工具在明确列出的 pkg 包中。旧目录里的兼容入口不代表其中所有能力仍拥有独立实现。综合设置的新增字段必须在 app 静态参与者中声明唯一字段/键所有权，并保持一次原子保存、提交后应用失败明确标记已持久化。原生 HTTP/DTO 不引用旧聚合 handler；仅剩历史测试的转接移入测试文件，并精确登记 S16 退出项。
+生产和生成代码已不再引用旧 service；HTTP、用例、存储和后台资源由 app 直接装配各模块的原生实现。旧 service 包及其测试构造辅助已删除，业务测试位于实际所有者，跨模块合同位于 tests/integration。billing 的核心、HTTP、PostgreSQL 和 Redis 已按角色分离；通用技术实现已分布在 `internal/infra`，HTTP 工具在 `server/httpx`、`server/clientip`，纯工具在明确列出的 pkg 包中。旧目录里的兼容入口不代表其中所有能力仍拥有独立实现。综合设置的新增字段必须在 app 静态参与者中声明唯一字段/键所有权，并保持一次原子保存、提交后应用失败明确标记已持久化。原生 HTTP/DTO 不引用旧聚合 handler；仅剩历史测试的转接移入测试文件，并精确登记 S16 退出项。
 
-`.golangci.yml` 保留普通 handler/service 对 repository、Redis、GORM 的原有限制，并按职责约束新业务核心、纯叶子契约、protocol、upstream、infra 和具体 Adapter。核心不依赖旧业务或框架/存储实现，HTTP Adapter 不直接访问数据库；具体上游不能依赖其他平台实现，技术包不反向读取完整 config 或业务 service。规则同时匹配目录直属文件和嵌套文件；新增的未分类路径也有默认约束。
+`.golangci.yml` 按职责约束业务核心、纯叶子契约、protocol、upstream、infra 和具体 Adapter，旧包路径继续由禁止依赖规则封锁。核心不依赖旧业务或框架/存储实现，HTTP Adapter 不直接访问数据库；具体上游不能依赖其他平台实现，技术包不反向读取完整 config 或业务 service。规则同时匹配目录直属文件和嵌套文件；新增的未分类路径也有默认约束。
 
 protocol 的六组生产与测试规则使用精确的标准库白名单，允许内存解析、编码和调用方提供的流接口，不通过 `$gostd` 放行文件、进程或网络执行包。测试仅额外允许 `testing`；确需读取文件的测试应按实际源文件单独审核。`io` 的流接口可以使用，但允许包中的具体调用和间接副作用仍需代码审查。其他角色的标准库许可按各自职责维护，例如 ipmatch 的 `net` 地址解析依赖不受这项收紧影响。
 
@@ -90,7 +90,7 @@ creative、batchimage 的核心、HTTP、PostgreSQL、Redis 与平台 Adapter �
 - API 类型和调用放在 `src/api/`，跨页面状态进入 store/composable，避免在 view 复制协议。
 - 修改依赖必须同步 `frontend/pnpm-lock.yaml`，CI 使用 frozen lockfile。
 
-app 的旧图绑定许可精确到源文件与 import；legacybridge 已删除，其 import 由全局规则拒绝，原有文件许可与目录排除同步移除。repository 的 Wire 聚合已删除，原生存储、任务队列和上游客户端分别在 app 的 wireinject 集合中绑定；service/handler 的剩余聚合仍待清理。传输测试随 `gateway/provider/transport` 运行，旧 repository 测试许可不随路径迁移继承。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
+app 的旧图绑定许可精确到源文件与 import；legacybridge 已删除，其 import 由全局规则拒绝，原有文件许可与目录排除同步移除。repository 的 Wire 聚合已删除，原生存储、任务队列和上游客户端分别在 app 的 wireinject 集合中绑定；service、handler 及其聚合集合均已删除。传输测试随 `gateway/provider/transport` 运行，旧 repository 测试许可不随路径迁移继承。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
 
 协议哈希和 Gemini 迭代器的 `crypto/sha256`、`iter` 许可只匹配实际文件；clientmeta 的版本库、app 定价装配及目录 HTTP 契约测试也按文件许可。pricing、capability、clientmeta 使用明确标准库集合，不能增加文件/网络读取。纯规则的测试应直接传入值；平台选择、HTTP 失败/取消和目录热更新还要验证旧消费者。管理员目录的完整 JSON、24 项顺序及 TypeScript 类型由 app 组合测试对照前端 fixture，不能通过修改夹具掩盖输出差异。
 

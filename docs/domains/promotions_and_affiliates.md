@@ -10,7 +10,7 @@
 - [注册优惠码](#注册优惠码)：修改赠送余额、使用限制或并发控制时读取。
 - [幂等与审计](#幂等与审计)：修改支付履约或补偿流程时读取。
 
-推广规则、值类型、优惠码存取和 PostgreSQL 实现位于 `promotion`；管理员及用户 HTTP 位于 `promotion/httpapi`。app 构造唯一实例并绑定 identity、billing 与设置/缓存端口。旧 service/repository 名称只保留兼容转接，支付调用方仍在 S12 后续批次迁移。
+推广规则、值类型、优惠码存取和 PostgreSQL 实现位于 `promotion`；管理员及用户 HTTP 位于 `promotion/httpapi`。app 构造唯一实例并绑定 identity、billing 与设置/缓存端口。identity、billing 与 payment 通过原生窄接口调用推广能力，旧 service/repository 转接已删除。
 
 ## 邀请关系
 
