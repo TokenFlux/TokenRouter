@@ -1161,25 +1161,25 @@ git diff --check
 
 ## 8. 最终完成标准
 
-- [ ] 第 4 节 112 个旧目录全部核对；新增包/文件增量也已登记，迁移/合并/保留均有实际结果。
-- [ ] service/repository/handler/admin/dto/domain/model/第二处 middleware/util/旧 platform/routes 不再作为运行依赖；允许保留的目录只具有约定职责。
-- [ ] app/legacybridge、旧类型 alias、旧函数转接和临时财务任务耦合全部清理。
-- [ ] 每个业务模块拥有自己的用例、数据投影、必要 Adapter 和 Interface 测试；不存在把旧大包整体改名的模块。
-- [ ] 核心不依赖 Gin/Ent/Redis/SQL/具体 provider；protocol 不依赖业务和 I/O；depguard 覆盖新路径和允许的精确例外。
-- [ ] 新包及已有目标目录中新增文件从首次引入即受 depguard 检查；原路径旧文件的临时例外按所属子步骤清除，普通及适用构建标签均有实际命中证据，S15 只清理剩余过渡规则。
-- [ ] 资金、退款、团队所有权和任务投影原子性保持；没有因包拆分新增半提交状态或无保证事件。
-- [ ] 第 3.3 节资金写入逐项销项，外层事务回滚已验证；长期初始化/恢复权限有明确操作范围，不残留未登记的旧资金入口。
-- [ ] Key、routing、scheduler、upstream、gateway、billing、usage 各自职责明确，重复的准入/选路/结算实现已移除。
-- [ ] S09.1 的非流/SSE 完整链先于其余平台通过，Qoder 断开后用量收集及完成释放有回归证据；后续接口扩展保持已迁调用者兼容，并按各平台既有策略回归生命周期场景。
-- [ ] 全部 HTTP/协议/配置/缓存/数据库契约、standard/simple/setup/embed 与生命周期验证完成；环境限制明确列出且不冒充通过。
-- [ ] Ent/SQL 迁移和构建生成流程保持有效；手写源与生成物一致；没有改写已发布迁移。
-- [ ] 测试目录、构建标签、CI/脚本路径、Project Doc 与锚点完成同步。
-- [ ] 每个子步骤记录测试标签、关键测试入选及结果；必要测试未因缺标签、无匹配或环境 Skip 被误报通过。
-- [ ] 各阶段均有持久化子计划、验收证据及可审查的 Conventional Commit 或用户要求的等价变更记录；不提交 SYNC.md、其它任务的临时计划或无关文件。
+- [x] 第 4 节 112 个旧目录全部核对；新增包/文件增量也已登记，迁移/合并/保留均有实际结果。
+- [x] service/repository/handler/admin/dto/domain/model/第二处 middleware/util/旧 platform/routes 不再作为运行依赖；允许保留的目录只具有约定职责。
+- [x] app/legacybridge、旧类型 alias、旧函数转接和临时财务任务耦合全部清理。
+- [x] 每个业务模块拥有自己的用例、数据投影、必要 Adapter 和 Interface 测试；不存在把旧大包整体改名的模块。
+- [x] 核心不依赖 Gin/Ent/Redis/SQL/具体 provider；protocol 不依赖业务和 I/O；depguard 覆盖新路径和允许的精确例外。
+- [x] 新包及已有目标目录中新增文件从首次引入即受 depguard 检查；原路径旧文件的临时例外按所属子步骤清除，普通及适用构建标签均有实际命中证据，S15 只清理剩余过渡规则。
+- [x] 资金、退款、团队所有权和任务投影原子性保持；没有因包拆分新增半提交状态或无保证事件。
+- [x] 第 3.3 节资金写入逐项销项，外层事务回滚已验证；长期初始化/恢复权限有明确操作范围，不残留未登记的旧资金入口。
+- [x] Key、routing、scheduler、upstream、gateway、billing、usage 各自职责明确，重复的准入/选路/结算实现已移除。
+- [x] S09.1 的非流/SSE 完整链先于其余平台通过，Qoder 断开后用量收集及完成释放有回归证据；后续接口扩展保持已迁调用者兼容，并按各平台既有策略回归生命周期场景。
+- [x] 全部 HTTP/协议/配置/缓存/数据库契约、standard/simple/setup/embed 与生命周期验证完成；环境限制明确列出且不冒充通过。
+- [x] Ent/SQL 迁移和构建生成流程保持有效；手写源与生成物一致；没有改写已发布迁移。
+- [x] 测试目录、构建标签、CI/脚本路径、Project Doc 与锚点完成同步。
+- [x] 每个子步骤记录测试标签、关键测试入选及结果；必要测试未因缺标签、无匹配或环境 Skip 被误报通过。
+- [x] 各阶段均有持久化子计划、验收证据及可审查的 Conventional Commit 或用户要求的等价变更记录；不提交 SYNC.md、其它任务的临时计划或无关文件。
 
 ## 9. Roadmap
 
-当前 **16 / 17 个阶段完成**。S15 已完成；S16 正在实施。
+当前 **17 / 17 个阶段完成**。S16 已完成；后端包重构已完成最终验收，保留限制见 S16 完成记录。
 
 状态使用：未实施、规划中、计划就绪、实施中、待验、已完成。详细决策、执行记录和完成证据保存在子计划；文件创建后再补链接，必要验收通过后才更新为已完成。
 
@@ -1201,4 +1201,4 @@ git diff --check
 | S13 | creative、batchimage | 已完成 | [S13 阶段计划与完成证据](S13-creative-batchimage.md#s13_completion) |
 | S14 | backup、setup、维护入口 | 已完成 | [计划与验收](S14-backup-setup-maintenance.md#s14_completion) |
 | S15 | HTTP、DTO、设置聚合收尾 | 已完成 | [计划与验收](S15-http-settings.md#s15_completion) |
-| S16 | 旧包删除与全量验收 | 实施中 | [计划与执行记录](S16-final-cleanup.md) |
+| S16 | 旧包删除与全量验收 | 已完成 | [计划与执行记录](S16-final-cleanup.md) |

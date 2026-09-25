@@ -70,7 +70,7 @@ Spark 影子的母账号资格由 `account.ParentHealthyForShadow` 统一判断�
 
 协议统一后调度 Redis 命名空间升级为 `sched:v2:`，完整与轻量账号投影均携带 `upstream_protocols` 和认证方式，分组认证快照 v40 携带准入集合、转换映射和 Responses 图片策略。协议候选过滤在评分前执行，每次切号和 fresh/DB 复核重新检查；转发目标只保存在当次账号副本，不污染共享缓存。
 
-调度事件契约及去重编码、SQL 读写位于 `scheduler` 与 `scheduler/postgres`；同事务写入和提交后尽力发布的界限保持。`scheduler.SnapshotService` 拥有重建、事件消费与受限回退，网关读取和生命周期直接绑定这一实例，旧快照服务与 Redis 缓存包装已删除。`scheduler/rediscache` 拥有原 `sched:v2` 发布、epoch/tombstone 和锁协议。其 `codec.AccountCodec` 唯一负责完整/轻量账号的存储形状及字段过滤，保持历史 JSON 字段与 nil/空集合。app 直接把 account/routing 存储和凭据刷新后的原生记录绑定到同一缓存；旧 repository 的备用存储构造、事件绑定和快照发布器已删除，剩余执行形状转接只引用 app 注入的存储。编码器内部持有受控完整记录，核心只读取无凭据的候选元数据。尚未清理的旧执行实体只在读取边界转换，分组读取单独绑定原 routing 来源，保持查询次数。
+调度事件契约及去重编码、SQL 读写位于 `scheduler` 与 `scheduler/postgres`；同事务写入和提交后尽力发布的界限保持。`scheduler.SnapshotService` 拥有重建、事件消费与受限回退，网关读取和生命周期直接绑定这一实例，旧快照服务与 Redis 缓存包装已删除。`scheduler/rediscache` 拥有原 `sched:v2` 发布、epoch/tombstone 和锁协议。其 `codec.AccountCodec` 唯一负责完整/轻量账号的存储形状及字段过滤，保持历史 JSON 字段与 nil/空集合。app 直接把 account/routing 存储和凭据刷新后的原生记录绑定到同一缓存；旧 repository 的备用存储构造、事件绑定和快照发布器已删除，执行目标通过app注入的受控读取端口取得。编码器内部持有受控完整记录，核心只读取无凭据的候选元数据。选号只读取原生候选投影，执行凭据由account受控提供；分组读取绑定routing，保持查询次数。
 
 `scheduler.SnapshotService` 管理 bucket 快照和账号投影。启动时异步执行初始重建，outbox 立即执行首轮；运行中消费调度 outbox，并周期性做全量重建以修复漏通知或外部写入。账号状态热更新可以先发布快照，再通过 outbox/失效广播传播到其它实例。
 

@@ -53,7 +53,7 @@ docker compose -f deploy/docker-compose.dev.yml up --build
 <a id="backend_dependency_rules"></a>
 ## 代码边界
 
-生产和生成代码已不再引用旧 service；HTTP、用例、存储和后台资源由 app 直接装配各模块的原生实现。旧 service 包及其测试构造辅助已删除，业务测试位于实际所有者，跨模块合同位于 tests/integration。billing 的核心、HTTP、PostgreSQL 和 Redis 已按角色分离；通用技术实现已分布在 `internal/infra`，HTTP 工具在 `server/httpx`、`server/clientip`，纯工具在明确列出的 pkg 包中。旧目录里的兼容入口不代表其中所有能力仍拥有独立实现。综合设置的新增字段必须在 app 静态参与者中声明唯一字段/键所有权，并保持一次原子保存、提交后应用失败明确标记已持久化。原生 HTTP/DTO 不引用旧聚合 handler；仅剩历史测试的转接移入测试文件，并精确登记 S16 退出项。
+生产和生成代码已不再引用旧 service；HTTP、用例、存储和后台资源由 app 直接装配各模块的原生实现。旧 service 包及其测试构造辅助已删除，业务测试位于实际所有者，跨模块合同位于 tests/integration。billing 的核心、HTTP、PostgreSQL 和 Redis 已按角色分离；通用技术实现已分布在 `internal/infra`，HTTP 工具在 `server/httpx`、`server/clientip`，纯工具在明确列出的 pkg 包中。综合设置的新增字段必须在 app 静态参与者中声明唯一字段/键所有权，并保持一次原子保存、提交后应用失败明确标记已持久化。原生HTTP/DTO直接使用所属模块；测试夹具只提供数据或I/O替身，不重建旧服务图。
 
 `.golangci.yml` 按职责约束业务核心、纯叶子契约、protocol、upstream、infra 和具体 Adapter，旧包路径继续由禁止依赖规则封锁。核心不依赖旧业务或框架/存储实现，HTTP Adapter 不直接访问数据库；具体上游不能依赖其他平台实现，技术包不反向读取完整 config 或业务 service。规则同时匹配目录直属文件和嵌套文件；新增的未分类路径也有默认约束。
 
@@ -67,7 +67,7 @@ identity、team、apikey 的生产实例和同连接事务参与工厂由 app �
 
 usage、audit、ops 已使用各自核心和 Adapter；用户/Key/团队的用量 SQL 参与函数复用调用方连接，不能改成逐条查询或分页后排序。新核心不导入旧实体、Gin 或具体存储；纯 `querycache`、`logevent` 与已迁统计值拥有独立职责规则。历史构造、HTTP 上下文和测试适配许可继续精确到文件/import，普通新文件不会继承许可；验收需要真实队列/事务/取消事件和查询次数证据，不能用仅编译或跳过替代。
 
-upstream 的具体平台不能相互导入，也不接收旧 Account、Gin 或完整 config。共享 Google 认证原语位于 upstream/internal/googleauth，纯 wire/转换继续由 protocol 提供；账号授权会话及凭据持久化归 account。旧网关的参数投影与重试时机保留到入站迁移，测试需要分别验证 HTTP 提交、语义输出、可重试边界和已观测用量。平台迁移使用本地 HTTP/TLS/WS 及隔离存储夹具，不能把这些结果当作真实供应商账号验证。
+upstream 的具体平台不能相互导入，也不接收旧 Account、Gin 或完整 config。共享 Google 认证原语位于 upstream/internal/googleauth，纯 wire/转换继续由 protocol 提供；账号授权会话及凭据持久化归 account。app固定投影参数，gateway保持原重试时机；测试需要分别验证 HTTP 提交、语义输出、可重试边界和已观测用量。平台迁移使用本地 HTTP/TLS/WS 及隔离存储夹具，不能把这些结果当作真实供应商账号验证。
 
 notification、site、moderation、search 的核心、纯契约和 Adapter 按职责匹配现有 depguard。邮件凭据留 identity，阈值留 billing，通知接受已确定事件；审核跨身份事务沿用同一 SQL 连接；文件读取归 site/filesystem；搜索的 HTTP 与 Redis 分开。旧转接不得拥有第二份状态或算法，迁出文件的历史许可及原排除同时删除。角色夹具需覆盖新文件、精确历史 import、非法子包和迁出后的同名文件。
 

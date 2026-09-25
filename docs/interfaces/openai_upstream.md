@@ -44,7 +44,7 @@ OpenAI 兼容请求的显式粘性会话头按 `session-id`、`session_id`、`co
 <a id="openai_protocol_dispatch"></a>
 ## 协议与传输
 
-兼容文本的 Messages、Chat、Raw Chat、原生 Anthropic 与 passthrough 已由 `gateway/httpapi.OpenAITextExecutor` 接入；请求构造、Header、TLS 与客户端策略使用同一 `OpenAIRequests`。完整 Responses 主入口和 WS/Live 的剩余适配仍在退出旧服务，平台执行、重试边界及完成资格保持原约定。
+兼容文本的 Messages、Chat、Raw Chat、原生 Anthropic 与 passthrough 已由 `gateway/httpapi.OpenAITextExecutor` 接入；请求构造、Header、TLS 与客户端策略使用同一 `OpenAIRequests`。Responses、WS和Live分别由原生执行器负责，app固定绑定共享请求、输出、凭据与连接资源；平台执行、重试边界及完成资格保持原约定。
 
 Responses、Chat、Messages 的入站 HTTP 与单次尝试运行时由 app 直接装配；`gateway/httpapi/openaiattempt` 复用同一选择、反馈、完成及槽位能力。重试循环仍由 `gateway/text` 唯一拥有，跨模式切换从原始报文派生 reasoning 清理结果，不污染后续请求。WS 入站、每轮账号目标与完成 hooks 由原生 wsentry 绑定，Forward/WS 结果投影归 gateway/provider；保留终态、恢复报文、响应 turn-state 和每轮计费时刻。媒体和辅助入口由原生 mediaentry 直接绑定，沿用同一失败输出、槽位与完成快照；图片 mandatory 与搜索/音频提交策略保持各自原语义。
 
@@ -67,7 +67,7 @@ OpenAI 平台拥有以下正式协议族：
 <a id="images_url_backfill"></a>
 ### 图片结果回填
 
-图片 API Key/OAuth 的单次发送与响应释放由原生 ImagesExecutor 执行，旧网关仍决定账号恢复、失败重试与完成处理。图片真实产出、HTTP 提交和失败分别记录；原非流张数回退与部分结果返回保持各入口语义。
+图片 API Key/OAuth 的单次发送与响应释放由原生 ImagesExecutor 执行，gateway的原生入站编排决定账号恢复、失败重试与完成处理。图片真实产出、HTTP 提交和失败分别记录；原非流张数回退与部分结果返回保持各入口语义。
 
 OpenAI API Key 账号可通过 `extra.images_url_to_b64_json=true` 启用图片回填，默认关闭。非流式 `/images/generations` 与 `/images/edits` 响应中，只有缺少非空 `b64_json` 且含 URL 的图片项会被补全；已有 Base64、显式 `response_format=url` 和流式请求保持原行为。回填保留原 URL、修订提示词和所有上游元数据，下载失败只跳过该项；用量、图片数量和计费尺寸始终从回填前的上游响应读取。下载复用账号代理，不携带账号认证或客户端 Cookie；每张最多 20 MiB、60 秒，只接受字节嗅探确认的 PNG/JPEG/WebP/GIF，data URI 也执行内容与大小检查。目标检查见[上游传输安全](../operations/upstream_transport_security.md)。
 

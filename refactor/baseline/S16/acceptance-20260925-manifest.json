@@ -1,0 +1,355 @@
+{
+  "format_version": 1,
+  "scope": "S16 S16最终验收批次及受影响消费者检查，非最终验收",
+  "parent_manifest": "progress-20260925-exit-manifest.json",
+  "parent_manifest_sha256": "4a26fa03e94dc8300f34fe6e717ea712873526b5a67e38e1ccca9c331f8189c0",
+  "source_file_count": 56,
+  "source_total_bytes": 66917693,
+  "collection": "仅本批 acceptance-*与final-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "acceptance-20260925-01.tar.gz",
+      "size": 3773122,
+      "sha256": "3e662bd330a6ec0e4528534ba8ec6bd5872374e8aec7615f05203cf5ce8beedb",
+      "verified_members": 56,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/acceptance-build.log",
+          "size": 101,
+          "sha256": "0eacce05d26ed74fb8e5f527ee4895f25a8f861f92d7d5d4ee5682d190edabc1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-build.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-checks.json",
+          "size": 6306,
+          "sha256": "59a9968095403919dfb93d8f73d66f3580a85e4a1d3f4b3242eead61c9655f84",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-cleanup-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-cleanup-build.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-darwin-amd64.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-darwin-arm64.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-embed-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-embed-build.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-embed-tests.jsonl",
+          "size": 99310,
+          "sha256": "f8eab65a0504c99797e4fe3459136b75ebe6bdbe6d74ba9eb44c19c5d1dddd4d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-embed-tests.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-ent-generate.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-ent-generate.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-ent-regenerate.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-frontend-build.log",
+          "size": 29831,
+          "sha256": "44f107c75fb8675a7c639354ca08583ec1bb7fcd2c4c37a175884f30259f28c7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-frontend-build.stderr",
+          "size": 15774,
+          "sha256": "7a26c867b12895fa65033fff3a8e2d1ffe528c41946f23a0e959c3ac2b4a17d5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-frontend-tests.log",
+          "size": 2082,
+          "sha256": "755e2a571b83977ba068ce7c50ce12fc01d05c9703f819bf4e4ea4e7affe68e8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-frontend-tests.stderr",
+          "size": 38574,
+          "sha256": "adcc92635aaedfb88db30f317e89719edd51b646b841cf8230bfbd12f8641010",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-funds-race.json",
+          "size": 2817,
+          "sha256": "0793a75e942d262de23a6d43e3ff6b01eb1a4ac5ddb23d4af55503680b504d01",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-funds-race.jsonl",
+          "size": 31666,
+          "sha256": "cc422946200f23ccd8df5f69f123cc439a6d1561a572612235a259da6ca13e03",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-funds-race.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-integration.jsonl",
+          "size": 19286757,
+          "sha256": "b6cc04eda7bae27312ffc1a06213cf5ce3c7b37979e459e678a384fa43c3c11a",
+          "redacted": true
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-integration.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-jwtgen-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-jwtgen-build.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-lint-integration.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-lint-normal.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-lint-unit.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-linux-amd64.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-linux-arm64.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-linux-restart-initial.json",
+          "size": 169,
+          "sha256": "767d3e629a9bad454086b416b1be412cb3818a42f8c4d71f7dfa3fd7e5dec7cb",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-linux-restart-initial.log",
+          "size": 22929,
+          "sha256": "917e626e4ce07ecfe42450a8d19a3cfde00d69a1698b8ec7b55df5303a4842f2",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-linux-restart-startup-attempt.json",
+          "size": 122,
+          "sha256": "63004d71b28a2231a4d37a23dab87f729a441c0df8f631ac50beab6e3846e472",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-linux-restart-startup-attempt.log",
+          "size": 598,
+          "sha256": "bd658a30e51dfaedd9ebeaa507947fda4c932ee7bbd55a78fa25d6a12a7ba6cd",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-linux-restart.json",
+          "size": 350,
+          "sha256": "9e79d4d0c9779e6ef4bc5ae2fbd793541ac6748d4ac4fc3f420fdf6c9855ed08",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-linux-restart.log",
+          "size": 44178,
+          "sha256": "ec4eba888e8577fe7d462a6718c6a119f2811e1efd05ac12921e9bd715bf42cf",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-normal.jsonl",
+          "size": 18113586,
+          "sha256": "5737084e932a26923e900110840f1d1f4b955c164af0f668232d20910a282b61",
+          "redacted": true
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-normal.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-unit.jsonl",
+          "size": 27859340,
+          "sha256": "073ae4b299cde990412afe3e36bd4c7fd1e3149ed993a88d66852a88f15e6ab7",
+          "redacted": true
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-unit.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-windows-amd64.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-wire-generate.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-wire-generate.stderr",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/acceptance-wire-regenerate.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/final-e2e-dry-run.log",
+          "size": 59,
+          "sha256": "c0fca7bec5be2e8ac026d2c00bf3d319a0e510d97d58842d9646a231c9c0c8e6",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/final-funding-ownership.json",
+          "size": 572057,
+          "sha256": "de4ad3a99d72cf7d074e5a5e34101603e22d263fe28564cf6a790ecbf3bcbff2",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/final-funding-ownership.md",
+          "size": 4806,
+          "sha256": "7ac558b6019d0dc03c358c22aaa50f6b33b3ea5663840bc12243d1174ca7b33a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/final-integrity.json",
+          "size": 87584,
+          "sha256": "72fe845ff9e75b4e2bec640d21dbfd5443a311d3def7b849a43b9d452a436223",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/final-lint-closure.json",
+          "size": 463896,
+          "sha256": "57bdae3871ac772458c5932facc9f2278cf43650f2adebd4bb493dd3c9f4de7d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/final-package-ownership.json",
+          "size": 40702,
+          "sha256": "1a84cac30d9d31c777c5bec15a4921fe77f11781aaf2cf2bfea0555880e9c8c0",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/final-settings-participants.json",
+          "size": 23691,
+          "sha256": "83c71c34f62aa911107c61148d3fc8add50c6c2070c14f56ba87816197c1bd34",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/final-verification.json",
+          "size": 13171,
+          "sha256": "695fed2920ed5ed8bd354d0dfd25836ba57fb2272457a52377daaa8781db9f9a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 156933,
+          "sha256": "d824dd5a1cb6500b948835eb8d1569326eb41bd7a79f7233f2b16560bd3676e3",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}

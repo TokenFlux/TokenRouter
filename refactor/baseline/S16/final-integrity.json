@@ -1,0 +1,2376 @@
+{
+  "baseline": "bb3eaa22ced655dbac5c03126836ff2d160c976f",
+  "sql_files": 309,
+  "sql_checksums": [
+    {
+      "path": "backend/migrations/001_init.sql",
+      "sha256": "488ede96ff8cc8a0566b312eb3be2f7a383d11a243390ccb4c3bbdaa1793d51f"
+    },
+    {
+      "path": "backend/migrations/002_account_type_migration.sql",
+      "sha256": "351918909b6bcf9e0d8402cd5b840cf8e127f5f4aaa7c486ed12c98fff2d37ad"
+    },
+    {
+      "path": "backend/migrations/003_subscription.sql",
+      "sha256": "f6f317f073a808c1f841525b47e84e2cde87fa889137a37f275ccf1defa53170"
+    },
+    {
+      "path": "backend/migrations/004_add_redeem_code_notes.sql",
+      "sha256": "06e0488117658a3a3f7d9736ac0a1da6d70d261e70d0eb6b026e6281960fea36"
+    },
+    {
+      "path": "backend/migrations/005_schema_parity.sql",
+      "sha256": "1eb39443f407f1c09e132dda0022e5b911b7af9b4ddcdffa6accaec2d3bd49a2"
+    },
+    {
+      "path": "backend/migrations/006_add_users_allowed_groups_compat.sql",
+      "sha256": "663fec7eeca4337103b2a16fd74f5b65bbe246567bd2e74ae4407eccc3b9fc39"
+    },
+    {
+      "path": "backend/migrations/006_fix_invalid_subscription_expires_at.sql",
+      "sha256": "e21a5c3e12a31d3e734f85ed514970a0be21ebb8e56ae5088edf0946f1b48c4b"
+    },
+    {
+      "path": "backend/migrations/006b_guard_users_allowed_groups.sql",
+      "sha256": "0b5da3128a2a0c0d35fe42af8c065b87474e259e9cb22dbc6c407717694785fa"
+    },
+    {
+      "path": "backend/migrations/007_add_user_allowed_groups.sql",
+      "sha256": "2500e605b312bc7b7bbe5d3467d1f384d3db70861c494e03f4fa96711e3351a8"
+    },
+    {
+      "path": "backend/migrations/008_seed_default_group.sql",
+      "sha256": "144b0751fcd9babbc8146387f666732ec5075683c556f9c4784f65f533fe21b2"
+    },
+    {
+      "path": "backend/migrations/009_fix_usage_logs_cache_columns.sql",
+      "sha256": "44b93859b040c74c53d642761b60fac89071466c9c0bb77cef4c004107521cfe"
+    },
+    {
+      "path": "backend/migrations/010_add_usage_logs_aggregated_indexes.sql",
+      "sha256": "e23a13d65ab724b8c0a6c6d84b7354040c12cde8613a73511ec50edc0406d5c2"
+    },
+    {
+      "path": "backend/migrations/011_remove_duplicate_unique_indexes.sql",
+      "sha256": "a05f05153204add8c2e1e2eed8e0df9009eb245e3623d6987bdc97249b6871bb"
+    },
+    {
+      "path": "backend/migrations/012_add_user_subscription_soft_delete.sql",
+      "sha256": "b6080ebf4197f5fd99c4ce6eb3c38ee5b4615564538f1f51297435570d5094d3"
+    },
+    {
+      "path": "backend/migrations/013_log_orphan_allowed_groups.sql",
+      "sha256": "9fc92b80ad1722da0e6dffd7c1c76007ca1029a9870fc0652dc6d7b72b2a6b4e"
+    },
+    {
+      "path": "backend/migrations/014_drop_legacy_allowed_groups.sql",
+      "sha256": "9f4e9ad6e91d501e974a1ed1f923cda0b21c7f37651be37f95e88e95ecf0d175"
+    },
+    {
+      "path": "backend/migrations/015_fix_settings_unique_constraint.sql",
+      "sha256": "e9edb444c7044f9a6bb43e8f328e61d3f73f9bf7394d82bd3b0836b5f5c49184"
+    },
+    {
+      "path": "backend/migrations/016_soft_delete_partial_unique_indexes.sql",
+      "sha256": "04087d58014de7ad7d04352fd9267008a03b409427aed57da74181e70d407832"
+    },
+    {
+      "path": "backend/migrations/018_user_attributes.sql",
+      "sha256": "d033bc97e9d4b129d3dd21a5b42194d9bbcf36a4f548c3241a5d168a4f044300"
+    },
+    {
+      "path": "backend/migrations/019_migrate_wechat_to_attributes.sql",
+      "sha256": "c86186dc986b6e95e0dcd7674c98526b3966e97550a12a3c1af5ba988a357c6c"
+    },
+    {
+      "path": "backend/migrations/020_add_temp_unschedulable.sql",
+      "sha256": "ef6091c648892c53c87fb279eab96996ad7e4bad771f1309249e0f65629f3019"
+    },
+    {
+      "path": "backend/migrations/024_add_gemini_tier_id.sql",
+      "sha256": "bcf6e0023649eb6d693a78744eb9b8016704f713488c23f27d4caeb3e6a6d4d0"
+    },
+    {
+      "path": "backend/migrations/026_ops_metrics_aggregation_tables.sql",
+      "sha256": "d5af7c763da6360a29b6fd7e70222ace76cb20f9493aed25fd219891d13e91f6"
+    },
+    {
+      "path": "backend/migrations/027_usage_billing_consistency.sql",
+      "sha256": "5f49f4b6bf5ecf2e4439ba56d4b34d6f8bdfa53648854b2298c49ef4e9bbc893"
+    },
+    {
+      "path": "backend/migrations/028_add_account_notes.sql",
+      "sha256": "41664eeda57228838261f214fbadf02db3634f534a87317f6a04ba7bea6c279b"
+    },
+    {
+      "path": "backend/migrations/028_add_usage_logs_user_agent.sql",
+      "sha256": "ce224fc77aa93424e8f1f9d02a5a0a3f074d5b6feba8b547d43d425fed9a11c0"
+    },
+    {
+      "path": "backend/migrations/028_group_image_pricing.sql",
+      "sha256": "35a4c0c384cd41f10426f69e69b34263351b970b657f16a024e649edaaa1db4d"
+    },
+    {
+      "path": "backend/migrations/029_add_group_claude_code_restriction.sql",
+      "sha256": "96c87f770c5b7871769a10b805c6de96d261391ba8e22a05d6a4a5ee7349d29b"
+    },
+    {
+      "path": "backend/migrations/029_usage_log_image_fields.sql",
+      "sha256": "b86a2e0e09d61551d92c9d50c15e363dffdf4f61e32f4ba948a2960551cb05de"
+    },
+    {
+      "path": "backend/migrations/030_add_account_expires_at.sql",
+      "sha256": "d1f3d4cf904788609041c6fff902c63cb65dc77073647c1b709ba642107042aa"
+    },
+    {
+      "path": "backend/migrations/031_add_ip_address.sql",
+      "sha256": "c8bce7208540815f9b412360067bfea8097b4f5122a016dcb74b3c3ba376ab05"
+    },
+    {
+      "path": "backend/migrations/032_add_api_key_ip_restriction.sql",
+      "sha256": "c1b1646a92ba585adccdac8aea0e1a494d607bc1ac7c9a0486a3c8a02c40a599"
+    },
+    {
+      "path": "backend/migrations/033_add_promo_codes.sql",
+      "sha256": "e0a4e8f3ccb0fd2aabb64cf96c81b6aaa4721a3cbd6b3f6e1848f751fe29bacf"
+    },
+    {
+      "path": "backend/migrations/033_ops_monitoring_vnext.sql",
+      "sha256": "d268069183ad83d28de52ff05c357fa04ad473252d0d63f49f7e4486d57c70fb"
+    },
+    {
+      "path": "backend/migrations/034_ops_upstream_error_events.sql",
+      "sha256": "31d4146206909e8af7363e6464403eaf1e2a61bdf66d1315dda06ff51ac1f5da"
+    },
+    {
+      "path": "backend/migrations/034_usage_dashboard_aggregation_tables.sql",
+      "sha256": "4f5bf8963743b53da0f95801d3ba88a559752f6f6ee643053e0f88af6c2132fd"
+    },
+    {
+      "path": "backend/migrations/035_usage_logs_partitioning.sql",
+      "sha256": "e309adff12f914e643197e5cf0280a230ab18d220c2149661a0b589abf82b729"
+    },
+    {
+      "path": "backend/migrations/036_ops_error_logs_add_is_count_tokens.sql",
+      "sha256": "75864a7d7aec575a52e9de32a1f408852e66ce854a5eee3ceb68fd7fec170b12"
+    },
+    {
+      "path": "backend/migrations/036_scheduler_outbox.sql",
+      "sha256": "91c6abadb5eeabf89712273b2f67b87ce439391e4844c16ba5c774633912cb0e"
+    },
+    {
+      "path": "backend/migrations/037_add_account_rate_multiplier.sql",
+      "sha256": "99d4e6f8ee929bf6f66b72737203f772d0db6014046dca1d8e066496de213349"
+    },
+    {
+      "path": "backend/migrations/037_ops_alert_silences.sql",
+      "sha256": "738e58937dd9609ac6075617ca244803dbfc86771378cc5723d5c1f3295b1594"
+    },
+    {
+      "path": "backend/migrations/038_ops_errors_resolution_retry_results_and_standardize_classification.sql",
+      "sha256": "275839aa5a920b96194b58d64e04be0f21346087830b1c5b9e6dca6c86fca7ab"
+    },
+    {
+      "path": "backend/migrations/039_ops_job_heartbeats_add_last_result.sql",
+      "sha256": "5c8e46f7d172d7e90fd43e2ea9de221631b0c4f7ccc02cd6b1310f9c0b116fb1"
+    },
+    {
+      "path": "backend/migrations/040_add_group_model_routing.sql",
+      "sha256": "0364f5c2183416f2c68ed3c4a86280b00f36339737ad73c7b91de6e629f72e94"
+    },
+    {
+      "path": "backend/migrations/041_add_model_routing_enabled.sql",
+      "sha256": "6548a277232c3a2d719aaa78ecb62a8598a00ea45c1c389d205150450b4c7ac9"
+    },
+    {
+      "path": "backend/migrations/042_add_usage_cleanup_tasks.sql",
+      "sha256": "48aef6e99bb28605ec7b3404ed72e7a2edb9d09e34435f8e4c4634df718e231a"
+    },
+    {
+      "path": "backend/migrations/042b_add_ops_system_metrics_switch_count.sql",
+      "sha256": "d04d174f348f00da238da0de653fee4b41c2c0b4cc4d33789b37746a23275710"
+    },
+    {
+      "path": "backend/migrations/043_add_usage_cleanup_cancel_audit.sql",
+      "sha256": "2f7482d61c05708d2bc5e7b4617b16b32b162718b9a3fe532c75e40743edee91"
+    },
+    {
+      "path": "backend/migrations/043b_add_group_invalid_request_fallback.sql",
+      "sha256": "9f196fa7c92f03ae9c98e8e2f20791bf7c955b118df9c3175fcdb960d1b0951b"
+    },
+    {
+      "path": "backend/migrations/044_add_user_totp.sql",
+      "sha256": "50abefb1bb24c74745dcf40fc3bc00986c8ff0c73e3b06f33c552185c8542f59"
+    },
+    {
+      "path": "backend/migrations/044b_add_group_mcp_xml_inject.sql",
+      "sha256": "8969af294cc9fc76d4e8295d81b4d580a2bae76cb0f29ffc6d52cb37960f45ee"
+    },
+    {
+      "path": "backend/migrations/045_add_accounts_extra_index.sql",
+      "sha256": "2399e1c35835f38832ba911c858936b69fedd3489077a30605e6178b8e7d5366"
+    },
+    {
+      "path": "backend/migrations/045_add_announcements.sql",
+      "sha256": "4c39cfb07f7abfb814e914d4b0f81aff1871bbe9ca2b4ecf5f4f5e0fa4f1dceb"
+    },
+    {
+      "path": "backend/migrations/045_add_api_key_quota.sql",
+      "sha256": "4716568dedd30a541cf5a82e5a3c8cf29c6fee4a185c95c90567dfefb30c93bd"
+    },
+    {
+      "path": "backend/migrations/046_add_sora_accounts.sql",
+      "sha256": "87e5781996b02054688cbb8f5b26610cca433d4e01dba393b63eb624b4804f37"
+    },
+    {
+      "path": "backend/migrations/046_add_usage_log_reasoning_effort.sql",
+      "sha256": "89f1cef26afbf48b87c2518caf2ccd6b3f9f35386b7e24494dc88e0b95f9248c"
+    },
+    {
+      "path": "backend/migrations/046b_add_group_supported_model_scopes.sql",
+      "sha256": "9450f18b9cec1be83251278abb6fd4049fc6038bef98b081de2afef62ee179da"
+    },
+    {
+      "path": "backend/migrations/047_add_sora_pricing_and_media_type.sql",
+      "sha256": "0039b5824ed248c24b9bf6a55e94decaa9423178cc9c068774f851542086c292"
+    },
+    {
+      "path": "backend/migrations/047_add_user_group_rate_multipliers.sql",
+      "sha256": "126a0c1ed450ab6158d753f98efc75f9ba60f827a613cbd293d64ca866b4ae89"
+    },
+    {
+      "path": "backend/migrations/048_add_error_passthrough_rules.sql",
+      "sha256": "169f3da9ae1c2cd2d2d4f04e5e253a5efd1bb650fc4cff72ddbb56968c8e427f"
+    },
+    {
+      "path": "backend/migrations/049_unify_antigravity_model_mapping.sql",
+      "sha256": "1af43409db7e5dba020b741b0cdb89298a0336a4c189a47a39e25385b9e11df7"
+    },
+    {
+      "path": "backend/migrations/050_map_opus46_to_opus45.sql",
+      "sha256": "0593d9ab692586b8b4fb5af1d724d4ca12aaf8822689a00f4d6ae4409ca14775"
+    },
+    {
+      "path": "backend/migrations/051_migrate_opus45_to_opus46_thinking.sql",
+      "sha256": "a9f5b5ffeb4d323c8a08781c82e563fc47bb2f3735fa9de7a622e134357771c8"
+    },
+    {
+      "path": "backend/migrations/052_add_group_sort_order.sql",
+      "sha256": "e3930b0981a6cfbf9a9893dfbfca73cf1386ec7bd6a2cfd80b09eb1af01220e2"
+    },
+    {
+      "path": "backend/migrations/052_migrate_upstream_to_apikey.sql",
+      "sha256": "5e838f5eb02a494d88469b59d10acb0e1b44c2c50e0d97f3bead27206ff1ef9b"
+    },
+    {
+      "path": "backend/migrations/053_add_security_secrets.sql",
+      "sha256": "52bbd85fe71db38c9b2a8344165a79bdc44f5fabcf1c191339f718c6555f0ab4"
+    },
+    {
+      "path": "backend/migrations/053_add_skip_monitoring_to_error_passthrough.sql",
+      "sha256": "5f2007d9cd070a33e5703c8e3ca5ca4589e22fe1efd5d06f8c27dde0e507a29d"
+    },
+    {
+      "path": "backend/migrations/054_drop_legacy_cache_columns.sql",
+      "sha256": "7aacdd57d1243b48c32ddb1d6d2f24ee262b048509b0104f42dbdba507408481"
+    },
+    {
+      "path": "backend/migrations/054_ops_system_logs.sql",
+      "sha256": "0081ac76aa1072ad3c2bf836024e7d82bd7e0c0c8c22013a853fe4513ebccb5a"
+    },
+    {
+      "path": "backend/migrations/055_add_cache_ttl_overridden.sql",
+      "sha256": "0466f95e23d41e6d5a4c3f8e0995057d9f415f616d0e019231ff19b2f5aabbdf"
+    },
+    {
+      "path": "backend/migrations/056_add_api_key_last_used_at.sql",
+      "sha256": "e7a12c8e58980f7701ad8c5b89a12577fdb3c5a57f68dcac89e896ee950ba3da"
+    },
+    {
+      "path": "backend/migrations/057_add_idempotency_records.sql",
+      "sha256": "b6dc79f28976828e94e806df1b0c7bf05decbdae67c377a77179c3a6262f0926"
+    },
+    {
+      "path": "backend/migrations/058_add_sonnet46_to_model_mapping.sql",
+      "sha256": "dd34768a6d7f5043f5a29ee235a7d7774a3a812af34c8bcc803164bbc21530f5"
+    },
+    {
+      "path": "backend/migrations/059_add_gemini31_pro_to_model_mapping.sql",
+      "sha256": "7adb2e4c98f09c563aaed527762cbd47152e9099973570291c16feff76d6a189"
+    },
+    {
+      "path": "backend/migrations/060_add_gemini31_flash_image_to_model_mapping.sql",
+      "sha256": "e3b801643e696eec44c6d69b95bac268ef16f1e2bd4aa7953b2b7ba19c3c7358"
+    },
+    {
+      "path": "backend/migrations/060_add_usage_log_openai_ws_mode.sql",
+      "sha256": "0d4b799feaba1bf65e8773ccc733b3a742f70af2172f2ee760e12636b51a3383"
+    },
+    {
+      "path": "backend/migrations/061_add_usage_log_request_type.sql",
+      "sha256": "97bdd9a32d921986f74a0231ab90735567a9234fb7062f4d9d1baf108ba59769"
+    },
+    {
+      "path": "backend/migrations/062_add_scheduler_and_usage_composite_indexes_notx.sql",
+      "sha256": "7fbcd72d77417793c42403bbc90a88c439e2e3685e247853e717962fa23db954"
+    },
+    {
+      "path": "backend/migrations/063_add_sora_client_tables.sql",
+      "sha256": "ed8ae697b9b21672506f9c752f9671bc7c6e4d1d62e85aee510c48a8192cae7f"
+    },
+    {
+      "path": "backend/migrations/064_add_api_key_rate_limits.sql",
+      "sha256": "157995dec8113b922e7fd33410df3717f5e9a0647453762be089a9a2e6e7fcf6"
+    },
+    {
+      "path": "backend/migrations/065_add_search_trgm_indexes.sql",
+      "sha256": "6850a870e5d3db4d96515e366b68a19df72d98d2d6c2587c34b6ce2a56a3c601"
+    },
+    {
+      "path": "backend/migrations/066_add_scheduled_test_tables.sql",
+      "sha256": "d69c28566d717ccc72bd6aa3de2424e103b9666d6662cdc2dd5d998c25944c7e"
+    },
+    {
+      "path": "backend/migrations/067_add_account_load_factor.sql",
+      "sha256": "c622769a7f619dfae7b5c602a41b28ff1f334f410092d378aa45a7ab376b1f7e"
+    },
+    {
+      "path": "backend/migrations/068_add_announcement_notify_mode.sql",
+      "sha256": "4eb2302b3f83814608c5e7cbd52c38754e778ea7d3aea836938219350a16bd7b"
+    },
+    {
+      "path": "backend/migrations/069_add_group_messages_dispatch.sql",
+      "sha256": "09c7cf14a7f53ebfa64e71b96347a0405cb681dfba040c42eec2067504d10e5f"
+    },
+    {
+      "path": "backend/migrations/070_add_scheduled_test_auto_recover.sql",
+      "sha256": "444941c9e53ea1b1383580238042e454a1c7dae25e348a3d4db0348fa12c0474"
+    },
+    {
+      "path": "backend/migrations/070_add_usage_log_service_tier.sql",
+      "sha256": "f6e7a3043fdbfd518bd82dccba242ec053b6174d7076540b0a05ccbc410c3189"
+    },
+    {
+      "path": "backend/migrations/071_add_gemini25_flash_image_to_model_mapping.sql",
+      "sha256": "9f86c0caf0986933358e83f9ec5ef08784251d7aa92b118fbadca6d549e78afe"
+    },
+    {
+      "path": "backend/migrations/071_add_usage_billing_dedup.sql",
+      "sha256": "b8e4669b3169b37b90c537ba8ada1817c9ee43e2f001ff6ba9c6ba380a15e80b"
+    },
+    {
+      "path": "backend/migrations/072_add_usage_billing_dedup_created_at_brin_notx.sql",
+      "sha256": "0c85b50aea68b1a23bc4172fd0ec7cd160b12a0c03d01739f0cd7012b3248f57"
+    },
+    {
+      "path": "backend/migrations/073_add_usage_billing_dedup_archive.sql",
+      "sha256": "7b0e097e08f419f72365f250302b8570e5dc8d54f3d756d534f325698e82a521"
+    },
+    {
+      "path": "backend/migrations/074_add_usage_log_endpoints.sql",
+      "sha256": "3bb3413758de9b59a999d589f7cc3210fa9daa80910c047c07e3391fd1fb6844"
+    },
+    {
+      "path": "backend/migrations/075_add_usage_log_upstream_model.sql",
+      "sha256": "0eb0c29f374f4b38c898c527a9df62c6883b6aff2d8ba4187286ee0bc8921ba8"
+    },
+    {
+      "path": "backend/migrations/075_map_haiku45_to_sonnet46.sql",
+      "sha256": "3f9d4f6f01399057c2505b77b16219f915de6efeb810eaf2358f34270bbaaa3e"
+    },
+    {
+      "path": "backend/migrations/076_add_usage_log_upstream_model_index_notx.sql",
+      "sha256": "95250c93c93113506505956ab7aef502900fec25f986ce127158942c020cb5ba"
+    },
+    {
+      "path": "backend/migrations/077_add_usage_log_requested_model.sql",
+      "sha256": "57e1463bf2579976ce9dc6e9b0abda06cf17b8a444cfbf2b0804af0bfd19d074"
+    },
+    {
+      "path": "backend/migrations/078_add_usage_log_requested_model_index_notx.sql",
+      "sha256": "98ecaff14e5b5ace402b27469d33d4e9183d1d2c202f949b64f5e793fc15460c"
+    },
+    {
+      "path": "backend/migrations/079_ops_error_logs_add_endpoint_fields.sql",
+      "sha256": "7be3f9d615eaf7eaa171e970ae382a33f2785d36e7531aece41d647f4a8ad090"
+    },
+    {
+      "path": "backend/migrations/080_create_tls_fingerprint_profiles.sql",
+      "sha256": "b33391a102e71549c67db87addda3d253c74f7e2620ec5be9cae53865a90d8d6"
+    },
+    {
+      "path": "backend/migrations/081_add_group_account_filter.sql",
+      "sha256": "34e35e0a37d99a78a2eebb214de0b1c7914717c92a82f4ea1d553341fb054c66"
+    },
+    {
+      "path": "backend/migrations/081_create_channels.sql",
+      "sha256": "4eb880b780b2a1df07ec8dff5a9cd1ecf5cd0d35119051018f3ed3b4ae594285"
+    },
+    {
+      "path": "backend/migrations/082_refactor_channel_pricing.sql",
+      "sha256": "fffe03fdbe1c5341976d2eedcaaea988dde974539d374045c7dcadf6b554b6ca"
+    },
+    {
+      "path": "backend/migrations/083_channel_model_mapping.sql",
+      "sha256": "7d9caceeef2829e141279bf7be168a21ae80166316488902449b41fbf18d1173"
+    },
+    {
+      "path": "backend/migrations/084_channel_billing_model_source.sql",
+      "sha256": "e2cc9692d0d58563deec5a57d42546e461d6c41d2e733697cee00bc920933b28"
+    },
+    {
+      "path": "backend/migrations/085_channel_restrict_and_per_request_price.sql",
+      "sha256": "d2fa05f3d6f0d1f0108bd0a3c55e162841e0d115f433a16c0df29b8352dd6646"
+    },
+    {
+      "path": "backend/migrations/086_channel_platform_pricing.sql",
+      "sha256": "86ccfa03178144a658276c11ab0cd1bf8c6f435cf4ec6058bec727658b92e027"
+    },
+    {
+      "path": "backend/migrations/087_usage_log_billing_mode.sql",
+      "sha256": "392d0341e5f1481f8d6269dc20625e5e1fb452ff1caa57b9f5a35b221deeeea6"
+    },
+    {
+      "path": "backend/migrations/088_channel_billing_model_source_channel_mapped.sql",
+      "sha256": "f384ea6228cd862c80312c05a584c84617a3d68e223f71ee0d07d8bc6362e480"
+    },
+    {
+      "path": "backend/migrations/089_usage_log_image_output_tokens.sql",
+      "sha256": "36d70ff87a62a08137b4ef98f2ba10013982dd4f358b2d5cacb2eb8768c01c16"
+    },
+    {
+      "path": "backend/migrations/090_drop_sora.sql",
+      "sha256": "26b48c93b0ada0861f23b6fee715012f4094b57d879eecdf31bbfbef5762ebc0"
+    },
+    {
+      "path": "backend/migrations/091_add_group_messages_dispatch_model_config.sql",
+      "sha256": "d3e0c575fee449bf5427c50d37b16053d2503d7900886aada35c0a5d18a266d0"
+    },
+    {
+      "path": "backend/migrations/092_payment_orders.sql",
+      "sha256": "f4fa67bd0b246eb04b70ec23d2bcf5d1fc16f546c030a0df66fc2a6f3276f317"
+    },
+    {
+      "path": "backend/migrations/093_payment_audit_logs.sql",
+      "sha256": "fefa3b74154e5a26784e30ec4a738474fc217edd0e48a97e03914146b40f7f8a"
+    },
+    {
+      "path": "backend/migrations/094_removed_payment_channels.sql",
+      "sha256": "513c2ca43b4f050fa87b67b333feb9ee0ed5d736467e0f46b3fc34886ff7e1a9"
+    },
+    {
+      "path": "backend/migrations/095_channel_features.sql",
+      "sha256": "3f13e9f362f5c1f88a07f7db6374cd3f66a47798b865a50ba39160f4445edf81"
+    },
+    {
+      "path": "backend/migrations/095_subscription_plans.sql",
+      "sha256": "04121da82dd1f943c9414ec97921dc1b7217da7717bd0582c4647f77ae4cc34e"
+    },
+    {
+      "path": "backend/migrations/096_payment_provider_instances.sql",
+      "sha256": "680c46cd2b1917e985823bc433b7c053910b164f41ee764aceef433fe2830191"
+    },
+    {
+      "path": "backend/migrations/097_fix_settings_updated_at_default.sql",
+      "sha256": "3a86f3415b4806f9cb4e365074f4b6e042934f8e1630ce72f7a720dc7259a02b"
+    },
+    {
+      "path": "backend/migrations/098_migrate_purchase_subscription_to_custom_menu.sql",
+      "sha256": "192dde1129d0205619e6997f416b5a7141917107677d44ef8601efefa4372f11"
+    },
+    {
+      "path": "backend/migrations/099_fix_migrated_purchase_menu_label_icon.sql",
+      "sha256": "c8815fd51f8092d278b5164103124778ed9f4869e4bb12e886b6035b791d9571"
+    },
+    {
+      "path": "backend/migrations/100_remove_easypay_from_enabled_payment_types.sql",
+      "sha256": "ccbc6f34dddd025e0eba3e17dd72d37a52bac6ba8b550fff0b59a229e4290bee"
+    },
+    {
+      "path": "backend/migrations/101_add_account_stats_pricing.sql",
+      "sha256": "db59989be71ecd0a06901cfd0e9bdf067fd51e4eaa1aaa96b052309c3c063dcc"
+    },
+    {
+      "path": "backend/migrations/101_add_balance_notify_fields.sql",
+      "sha256": "051f53cd30537477ad0e3b273d3650a38e21829fcf6ec7877395ea053d0216a9"
+    },
+    {
+      "path": "backend/migrations/101_add_channel_features_config.sql",
+      "sha256": "dcf760366a073f33e0b6077fa8e5a5d262a9ec1d9eb37e8f1b99a666bd35ba50"
+    },
+    {
+      "path": "backend/migrations/101_add_payment_mode.sql",
+      "sha256": "acc645d43ca517904364e627244128a4124e50dd17b1ec092ab29c0b9e57333f"
+    },
+    {
+      "path": "backend/migrations/102_add_balance_notify_threshold_type.sql",
+      "sha256": "7d50e8df46ddd7a972ea9bb9de03c19d866a59ae9afc1259faa95e5f311afd9d"
+    },
+    {
+      "path": "backend/migrations/102_add_out_trade_no_to_payment_orders.sql",
+      "sha256": "6624aa0b8ad4cb23c89007d969482e6e94fc327390b6889018e01b0d6d2880e3"
+    },
+    {
+      "path": "backend/migrations/103_add_allow_user_refund.sql",
+      "sha256": "219ddeff9b85b5d1e4bf30e9d2c6cc85140ba6a540768bf5612fc2f6e92fb618"
+    },
+    {
+      "path": "backend/migrations/104_migrate_notify_emails_to_struct.sql",
+      "sha256": "104308686106cb2a8962d51fb9828cec8c7884fb34400a81e36ce8ba42021115"
+    },
+    {
+      "path": "backend/migrations/105_migrate_websearch_emulation_to_tristate.sql",
+      "sha256": "901bb147a3c14547fab73685586f5c28411d458c2f27574e6584ad01e5466841"
+    },
+    {
+      "path": "backend/migrations/106_add_account_stats_pricing_intervals.sql",
+      "sha256": "0b91b77e4c362c6b9c6144d0ba9f9cd7426849c6a01bb7adb9a951821bce0e7c"
+    },
+    {
+      "path": "backend/migrations/107_add_account_cost_to_dashboard_tables.sql",
+      "sha256": "aaffe3bc1522e854db2ff53907ac393eb6d55edb58b343459d2fecabdfd68ee8"
+    },
+    {
+      "path": "backend/migrations/108_add_redeem_code_usages.sql",
+      "sha256": "187d81e4e01e262e2de485fca8ca6d8fada4da4bb9ad34f0a056da1244b9cb2a"
+    },
+    {
+      "path": "backend/migrations/108_auth_identity_foundation_core.sql",
+      "sha256": "01f6f33b593927f43bec6ebe6cbab866a372dd7b1fe5873cd4619dcfb4baa3af"
+    },
+    {
+      "path": "backend/migrations/108a_widen_auth_identity_migration_report_type.sql",
+      "sha256": "115bf4e883b1e087eda1bdd6f7ee5a036f844b91b34c9098b6be1684713fe034"
+    },
+    {
+      "path": "backend/migrations/109_add_user_referrals.sql",
+      "sha256": "298ac8074208a80b9681cb24fe5ae9c46ac466c977e2ad0ca574b67f07f72cdf"
+    },
+    {
+      "path": "backend/migrations/109_auth_identity_compat_backfill.sql",
+      "sha256": "0580b4602d85435edf9aca1633db580bb3932f26517f75134106f80275ec2ace"
+    },
+    {
+      "path": "backend/migrations/110_add_referral_reward_granted_at.sql",
+      "sha256": "e3aa0c97cc0e524fd7ea78559092a243149d3015691323d7eed3866a66123baf"
+    },
+    {
+      "path": "backend/migrations/110_pending_auth_and_provider_default_grants.sql",
+      "sha256": "32cf87ee787b1bb36b5c691367c96eee37518fa3eed6f3322cf68795e3745279"
+    },
+    {
+      "path": "backend/migrations/111_global_plan_quota_packs.sql",
+      "sha256": "5c5795d6dc5fa06c259006614e9c3d9db8220bf817ddbf5b7fd49da2bc4a86ed"
+    },
+    {
+      "path": "backend/migrations/111_payment_routing_and_scheduler_flags.sql",
+      "sha256": "7e99ba24a6b4b23e3600d865fc38a8f21e5a7ee9c8ee5bea8e34770a38ceb461"
+    },
+    {
+      "path": "backend/migrations/112_add_group_default_flag.sql",
+      "sha256": "4a43d76e5f2aa60dfdf31d0180821496e7c4ab73d3b6af529da5339d8293e275"
+    },
+    {
+      "path": "backend/migrations/112_add_payment_order_provider_key_snapshot.sql",
+      "sha256": "b75f8f56d39455682787696a3d92ad25b055444ca328fb7fca9a460a15d68d99"
+    },
+    {
+      "path": "backend/migrations/113_normalize_legacy_wechat_provider_key.sql",
+      "sha256": "9025c2b21e211375018d65c1a03b43ef4e97715fe4afab0ba4929d576efc4092"
+    },
+    {
+      "path": "backend/migrations/114_auth_identity_migration_report_resolution.sql",
+      "sha256": "a7408eaad314dd86d2503192cb5e80c6f473545922786f8f75ceca5db88f72ef"
+    },
+    {
+      "path": "backend/migrations/115_auth_identity_legacy_external_backfill.sql",
+      "sha256": "08fdc18762d354ea2af7604af825a11db14d1335f3e88796f2bce53a2877c344"
+    },
+    {
+      "path": "backend/migrations/116_auth_identity_legacy_external_safety_reports.sql",
+      "sha256": "e9aeb79354a0da72b6567d1cdeddce9410c6bf39bcfe4b7a416220e3f0be7190"
+    },
+    {
+      "path": "backend/migrations/117_add_payment_order_provider_snapshot.sql",
+      "sha256": "69320a2f03662ea02b4a0f09ef293b1ee600dd55d474f20a1b0d6fe03f4482cc"
+    },
+    {
+      "path": "backend/migrations/118_wechat_dual_mode_and_auth_source_defaults.sql",
+      "sha256": "b54194d7a3e4fbf710e0a3590d22a2fe7966804c487052a356e0b55f53ef96b0"
+    },
+    {
+      "path": "backend/migrations/119_enforce_payment_orders_out_trade_no_unique.sql",
+      "sha256": "66ba0ae221454ca8742770428ede26695cc5b065d0119cc9fe33fd2a26a4d38f"
+    },
+    {
+      "path": "backend/migrations/120_enforce_payment_orders_out_trade_no_unique_notx.sql",
+      "sha256": "39f9323ace96b835c74e8de83ba15b977d4c65609c22eecc4e9afbf382f7667d"
+    },
+    {
+      "path": "backend/migrations/120a_align_payment_orders_out_trade_no_index_name.sql",
+      "sha256": "846d179e41eb1218698e2aa312bb280e7ed41c949dd0669ff45fc7e838a643bc"
+    },
+    {
+      "path": "backend/migrations/121_auth_identity_migration_report_type_widen.sql",
+      "sha256": "71431da8596e6a1a1e7ecae6ff2a0ce890bff870b4dc138eb5488c0624c33849"
+    },
+    {
+      "path": "backend/migrations/122_pending_auth_completion_token_cleanup.sql",
+      "sha256": "f36fd5f5ed86c77878d1f21c9e204b427e12db0ad5d19329d7c99cb1d1bfea00"
+    },
+    {
+      "path": "backend/migrations/123_fix_legacy_auth_source_grant_on_signup_defaults.sql",
+      "sha256": "dea22b2899ae6530daf44419e7f44e40ccdcdc96d2bea7584af0c6c4c0ee461b"
+    },
+    {
+      "path": "backend/migrations/124_backfill_legacy_oidc_security_flags.sql",
+      "sha256": "736b71647e56952153db5e0038a866ec57a6709b16b7a4772da587072cf7a384"
+    },
+    {
+      "path": "backend/migrations/125_add_group_rpm_limit.sql",
+      "sha256": "9141ae5d5a6375ecab32060333cc577f85a2d6cdf3e0230079efcefdebb24909"
+    },
+    {
+      "path": "backend/migrations/126_add_user_rpm_limit.sql",
+      "sha256": "1d010fbeb5bb280527b8591f9160456ca3db4e78329df4617b2852b1ddfaf920"
+    },
+    {
+      "path": "backend/migrations/127_add_user_group_rpm_override.sql",
+      "sha256": "1570190ecae9f8f63b8bf8701719388147cf554a772494852dbd17de04cff15d"
+    },
+    {
+      "path": "backend/migrations/128_add_group_display_brand.sql",
+      "sha256": "02136f727708d2cf4211e43e08c6a23b91c2bb38855b63d83795187ac243d34a"
+    },
+    {
+      "path": "backend/migrations/129_image_generation_group_controls.sql",
+      "sha256": "27edeb5f8a3c8ee34755ab1e23471a9fdbf45e7368ed5a55e32408fe11b6fa32"
+    },
+    {
+      "path": "backend/migrations/130_usage_ranking_covering_index_notx.sql",
+      "sha256": "34be83fd0f888ff57b7de26aabc4979c5ecfdf918b14d497118d4c58ad9f8ea8"
+    },
+    {
+      "path": "backend/migrations/131_add_payment_order_invoice_fields.sql",
+      "sha256": "944cd54835af27bd81e14e2ad545c9f6b659bd46ae738ea8c8202e22567f7700"
+    },
+    {
+      "path": "backend/migrations/132_add_payment_order_fee_breakdown.sql",
+      "sha256": "bdf11c9f7ea6b91cc2bc9985a3ff88395908db19ea0bb7853cb8c020b793a06c"
+    },
+    {
+      "path": "backend/migrations/133_content_moderation.sql",
+      "sha256": "950c1c87c98744472b7fa396cdad3b094713d895974697e487e78e04946954c2"
+    },
+    {
+      "path": "backend/migrations/134_allow_email_oauth_provider_types.sql",
+      "sha256": "ddfbd9aa9642d1d4323d8fbadef57fd08ce522e06c57a9e157da2095ec8555d4"
+    },
+    {
+      "path": "backend/migrations/135_content_moderation_cyber_warnings.sql",
+      "sha256": "a1707ea7408ecdad07bf29f759fdd54bf91a927401b59f4da40b8a3489776c81"
+    },
+    {
+      "path": "backend/migrations/136_add_cyber_warning_prompt_excerpt.sql",
+      "sha256": "65eb748a3d2f5b23f9181ba03b8988a3c94b23e40340dc19414e0da05d738f80"
+    },
+    {
+      "path": "backend/migrations/136_add_dingtalk_provider_type.sql",
+      "sha256": "6ccbb5cc60af94253962cec9131fcdcbb0cec2a69b623e472cb0cbc8fb6f83cf"
+    },
+    {
+      "path": "backend/migrations/136_remove_ops_retry_replay.sql",
+      "sha256": "3fda83415160ba6c71c83a3e5bce772df03a6ed939c2ecf750ffe1d642b53990"
+    },
+    {
+      "path": "backend/migrations/136_usage_log_image_size_metadata.sql",
+      "sha256": "1c2fd1bcdd5d635afc105fc8a16b1a07b63b69717b2f4c4a2d296a22b26f93ce"
+    },
+    {
+      "path": "backend/migrations/137_extend_user_provider_default_grants_check.sql",
+      "sha256": "f062a7c7e22246453073dfadcefd4dfd2fd7b5bde8f050e1b37370f35f9a3712"
+    },
+    {
+      "path": "backend/migrations/138_subscription_expiry_notify_enabled.sql",
+      "sha256": "24ee4baf3a41835ee46292ff0d1166114d672ae1f397f92a30dc95b8cb932ae3"
+    },
+    {
+      "path": "backend/migrations/139_add_user_affiliates.sql",
+      "sha256": "7f4b1be0e823010555854b81772c342d97a510ac018865904e1e14badebbf260"
+    },
+    {
+      "path": "backend/migrations/140_user_platform_quotas.sql",
+      "sha256": "d57e2c2cf1cd7a3ec2f608269600c04f4b8fbe959684df76454b5a6c3ac2e9df"
+    },
+    {
+      "path": "backend/migrations/141_data_sharing.sql",
+      "sha256": "182436a318316d402db97c1a300136d0cf86e181f4e348971a672f52ff774d24"
+    },
+    {
+      "path": "backend/migrations/142_data_sharing_request_path.sql",
+      "sha256": "3fccb8a80825a56ac3af53e4e3934a552db878a7c942fa90bb582214918b11a2"
+    },
+    {
+      "path": "backend/migrations/143_data_sharing_user_agent_stats.sql",
+      "sha256": "592222ba65f20cf0fd81d68608133ee517b576f113d9df27c1f84c5a1f01829b"
+    },
+    {
+      "path": "backend/migrations/144_normalize_data_sharing_user_agent.sql",
+      "sha256": "44547c33243343e7aaa4918c34f867b4ea40e5e30cb0047fbe359c91179d05a9"
+    },
+    {
+      "path": "backend/migrations/145_group_models_list_config.sql",
+      "sha256": "fbce2d531db1b1389e643d1fae08b767443c8f5cf700da61b86bbabd213805f6"
+    },
+    {
+      "path": "backend/migrations/146_data_sharing_compressed_payload.sql",
+      "sha256": "03527c11f27fd96659f9a1405735ddaf75d43c5688f597195e7ecccb37761627"
+    },
+    {
+      "path": "backend/migrations/147_add_ops_system_metrics_disk_usage.sql",
+      "sha256": "644cadf0069920d0aefe375a6a6714c042a717360592b443eadab159ac4d2d8d"
+    },
+    {
+      "path": "backend/migrations/148_add_user_disabled_public_groups.sql",
+      "sha256": "9a90ce8672dec9eb9994c1b47f234d0beac90184f0ff30527adb11d818a88836"
+    },
+    {
+      "path": "backend/migrations/149_data_share_session_actual_cost.sql",
+      "sha256": "f6e815661c2ae36e671ae022d36767ba4bee54d6a6da69a2ce1978867865279b"
+    },
+    {
+      "path": "backend/migrations/150_add_opus48_to_model_mapping.sql",
+      "sha256": "653097932317117663361875d17dc33a08833430c42fd786e1de5ce827c8c06a"
+    },
+    {
+      "path": "backend/migrations/151_add_tls_fingerprint_routers.sql",
+      "sha256": "593def72e6b391217f9c86078687f4e17fecf46ea16e05ea8cfc20a08f7b7fd3"
+    },
+    {
+      "path": "backend/migrations/152_add_group_session_isolation.sql",
+      "sha256": "135a519b1aaff887a5f070be83471a3e9bab589f4e7ebfabb83e6942e3cec950"
+    },
+    {
+      "path": "backend/migrations/153_add_chatgpt_oauth_token_tls_router_config.sql",
+      "sha256": "a76a73407369bba6f0672dc96d237a12ce07a0fd45254418579d836ce77d5543"
+    },
+    {
+      "path": "backend/migrations/154_deleted_api_key_audit.sql",
+      "sha256": "00815d0c2d67405876585497546216f08f536442004c7b098656904e615402e6"
+    },
+    {
+      "path": "backend/migrations/155_ops_error_log_api_key_prefix.sql",
+      "sha256": "71f9a5bb36bffb59295c106d205f91a4b47bad20ec67f04dbf5ad01afe21ce95"
+    },
+    {
+      "path": "backend/migrations/156_add_ops_error_logs_user_time_index_notx.sql",
+      "sha256": "352e171367700825a1fa9eb2c6be93407ef156b0e157ce1d671a285cb30922d8"
+    },
+    {
+      "path": "backend/migrations/157_ops_metrics_ttft_sample_count.sql",
+      "sha256": "d862fdca3614837876eb6cbfc7684e70edcac6ecb9169ad1103b5502cf9266e9"
+    },
+    {
+      "path": "backend/migrations/158_proxy_expiry_fallback.sql",
+      "sha256": "1fff0f0a7ca2a97babceb7b7e373a4adf3b8e0f851cd355ba319cf2bf308ef23"
+    },
+    {
+      "path": "backend/migrations/159_account_group_scheduler_indexes_notx.sql",
+      "sha256": "dc1ec51d954054393ed7fb16481aae9627566b727668cb87392fce89fe70de7d"
+    },
+    {
+      "path": "backend/migrations/160_add_api_key_group_unavailable_fallback.sql",
+      "sha256": "ec9d5180e65d6f1403cdb8aef4a2424f3a03369ee9131c069467ad8208a34da5"
+    },
+    {
+      "path": "backend/migrations/161_add_codex_invite_reset_tls_router_config.sql",
+      "sha256": "8b68348ee0df74e95ab3624ed2fb23a2299f83e16f49662220a69c7e935c935f"
+    },
+    {
+      "path": "backend/migrations/162_add_group_availability_probe.sql",
+      "sha256": "ef4f8bac11226563015de76e2ed34aed99daf5d6d27cdb41c56d6cf79591bcbe"
+    },
+    {
+      "path": "backend/migrations/163_account_autopause_expiry_index_notx.sql",
+      "sha256": "37765bc0793396483d5e5e730b1dedf4331c7c999d608fceb0bade5c03f3acac"
+    },
+    {
+      "path": "backend/migrations/164_scheduler_outbox_dedup_key.sql",
+      "sha256": "ea1baa0cf4375fdb847843f173f5a0321e601f8e19857eb77ae11ebee8caefd3"
+    },
+    {
+      "path": "backend/migrations/165_scheduler_outbox_pending_dedup_key_index_notx.sql",
+      "sha256": "92a8e566f373adb20f613d6575ff0707cff08edc9c346be556a282112f4869ae"
+    },
+    {
+      "path": "backend/migrations/166_data_share_export_artifacts.sql",
+      "sha256": "72cb1c173fed49690380991e608653d44af80d00ef5095708942189de2643e1c"
+    },
+    {
+      "path": "backend/migrations/167_data_share_export_artifact_remote_upload.sql",
+      "sha256": "486afc73550f4d659eccc94fba4a96fae1cd3c6fc9ba86395d8bc1838604f938"
+    },
+    {
+      "path": "backend/migrations/168_data_share_sessions_created_at_id_index.sql",
+      "sha256": "a815c158365ece2cbcb5615813c8bac98a447d69579a0046e3a133dcc4f22129"
+    },
+    {
+      "path": "backend/migrations/169_add_group_unavailable_fallback_group.sql",
+      "sha256": "a603a7ebed4b342e674aa4fcd848262e95493b6be35102e7bb05585bf8dcab7e"
+    },
+    {
+      "path": "backend/migrations/170_add_user_prompt_replacement_config.sql",
+      "sha256": "bd6d19008a9a93cb37b68c8b6eab5f1b048b3da5e622ae946e0a373976252b7f"
+    },
+    {
+      "path": "backend/migrations/171_allow_grok_user_platform_quotas.sql",
+      "sha256": "a0699104a0070ccb564155796fa08f1722b968f894c9da4935d7b60e1e344aaa"
+    },
+    {
+      "path": "backend/migrations/172_add_ops_system_logs_api_key_id.sql",
+      "sha256": "52ac56487e899618b760a0ecb830178f042ec6fbeaded81e85aafd49f7c26b9a"
+    },
+    {
+      "path": "backend/migrations/173_add_ops_system_logs_api_key_id_index_notx.sql",
+      "sha256": "7426f40a93219dc13fd3f60014c3672f9809270d06b2bc09ed278371be78c454"
+    },
+    {
+      "path": "backend/migrations/174_content_moderation_matched_keyword.sql",
+      "sha256": "ec5ee875959620461465e8dab8f71a09c7c81a48358accf13d381c2cb3d02e18"
+    },
+    {
+      "path": "backend/migrations/175_account_spark_shadow.sql",
+      "sha256": "cfb0ddf20985aa05e816891404a40b7a46009c5a9ec992be2e51052159f3a198"
+    },
+    {
+      "path": "backend/migrations/176_account_spark_shadow_indexes_notx.sql",
+      "sha256": "10e631905e0834b938f72f8d1c9ab7f86e068c1d3c1028060208a88a262fbef3"
+    },
+    {
+      "path": "backend/migrations/177_add_group_peak_rate_multiplier.sql",
+      "sha256": "a1655ac983c125d95cc9ebacf5ed61f253ba461755bb56102b052768f9b6e8d0"
+    },
+    {
+      "path": "backend/migrations/178_enable_grok_media_generation_groups.sql",
+      "sha256": "f91463a684373b53c7dd5356b0edd99148293c10606c1d227ea9a3ce249e6cef"
+    },
+    {
+      "path": "backend/migrations/179_allow_qoder_user_platform_quotas.sql",
+      "sha256": "741681bc3d6f935586a448ac730c081a293fa9dac0c2d2d25e19796e9e9c4ea5"
+    },
+    {
+      "path": "backend/migrations/180_batch_image_foundation.sql",
+      "sha256": "f23d2e71c4cdfe05c194183661828262deb60f52d9cfcfb9a3c98dcc29b2822e"
+    },
+    {
+      "path": "backend/migrations/181_add_user_frozen_balance.sql",
+      "sha256": "8c1e5cd3edfbee82a99fcd2913b18925bcc5be891d01dd3aa2399cca30301924"
+    },
+    {
+      "path": "backend/migrations/182_batch_image_provider_refs.sql",
+      "sha256": "b90f0fdce8d239c815cd4b9a2ec9bc4c0bbbf4cefee82537e4a82bc1632096c1"
+    },
+    {
+      "path": "backend/migrations/183_batch_image_pricing_snapshot.sql",
+      "sha256": "9e9f300fdef853e78c9a3e46f8f113713e96feb21eb1f78137e708050cac90af"
+    },
+    {
+      "path": "backend/migrations/184_add_group_batch_image_generation_gate.sql",
+      "sha256": "422f5b82d44163344b4b4abd17e66d470c7f61e1cdcd6e083149e4726fee6bbd"
+    },
+    {
+      "path": "backend/migrations/185_batch_image_default_discount_and_hold_ratio.sql",
+      "sha256": "463d81478086410cf7d72ebc09050ce94b9b30dabc4b40d56cbdd6e9d64a2143"
+    },
+    {
+      "path": "backend/migrations/186_batch_image_download_and_user_delete.sql",
+      "sha256": "8271a1b0b7e191cadb07e8ebf45b4541f72df302d1e0cab0135f3d23722a1c49"
+    },
+    {
+      "path": "backend/migrations/187_hide_pre_upstream_batch_image_failures.sql",
+      "sha256": "5e2c3b26e0e0ab0eccc7896161a91db7532d4cbb4e3582d6c35f5718497c115a"
+    },
+    {
+      "path": "backend/migrations/188_batch_image_task_name.sql",
+      "sha256": "419efff9b021c0420902de3d7c046fbb1b7dcd5ed386007c516870c61b8bed83"
+    },
+    {
+      "path": "backend/migrations/189_clear_auto_batch_image_task_names.sql",
+      "sha256": "74da5c901169b6bbf59dc92c106beadbbb8f4dfac0ddd3b7d735a6e610fb1039"
+    },
+    {
+      "path": "backend/migrations/190_restore_empty_batch_image_task_names.sql",
+      "sha256": "37daee62f0d392d30f3bbe3e480cc7a9e9d217a2bcf3b678607ede7829f89692"
+    },
+    {
+      "path": "backend/migrations/191_batch_image_parent_batch.sql",
+      "sha256": "4113a83a2d3560384b17fbaa46620ce1c8db952b4570501b7bdd97b08e057e52"
+    },
+    {
+      "path": "backend/migrations/192_add_grok_video_pricing_controls.sql",
+      "sha256": "2c32d06d2999a484742922600661534e9a7b998a36728be48de0c44c1332cb50"
+    },
+    {
+      "path": "backend/migrations/193_allow_video_usage_without_image_size.sql",
+      "sha256": "da583307e8cd836783f823f60a8387469fbe560e203cd633026ee0ebc7177220"
+    },
+    {
+      "path": "backend/migrations/194_video_per_second_billing_metadata.sql",
+      "sha256": "0a2e0935f4a2e69ff21dab69a485d9a8e82f82db9d5a97492fe0870072f840f3"
+    },
+    {
+      "path": "backend/migrations/195_allow_cyber_blocked_usage_request_type.sql",
+      "sha256": "b7b11de8d9a739ef75a2d0aae17b24712107adcba19c9df4c84c6254befb9b5d"
+    },
+    {
+      "path": "backend/migrations/196_subscription_plan_groups.sql",
+      "sha256": "e9d25a87e0bc8fae728055ab4fe5d68ad15907ea9cc2781fd34787a714717862"
+    },
+    {
+      "path": "backend/migrations/197_subscription_plan_group_rate_multipliers.sql",
+      "sha256": "1749185b0c17cd9a690723f8f15b81cff559e00e0a9655eaca492dc62d49639e"
+    },
+    {
+      "path": "backend/migrations/198_group_web_search_price_per_call.sql",
+      "sha256": "820c555a9804efc3c35a819bd8f6649439ce5ed16c321bb3233149400afbe310"
+    },
+    {
+      "path": "backend/migrations/199_add_api_key_fast_mode_policy.sql",
+      "sha256": "158ec0454e91ff5f4df15f1827854804b44ce6a7966421bc3880660c966f7109"
+    },
+    {
+      "path": "backend/migrations/200_expand_content_moderation_review_payloads.sql",
+      "sha256": "a60ebe88bf9dba80b789defe62ee1f0f16a2746901bd6453cdbceeef99f47bb9"
+    },
+    {
+      "path": "backend/migrations/201_add_usage_logs_api_key_latest_ip_index_notx.sql",
+      "sha256": "a3de8fb1566ce957ec17e18831c73246145e3751ebda81fac53509ad76fd13fb"
+    },
+    {
+      "path": "backend/migrations/202_add_usage_log_long_context_billing.sql",
+      "sha256": "6593f0a0c912c2d91395130ef5d7976ceb3af06752bef166e66282b81687573e"
+    },
+    {
+      "path": "backend/migrations/203_default_openai_long_context_billing.sql",
+      "sha256": "409142082d5b9b71ae240dca3ac9c87cfe32474c7fa5091946fe5f52427a82d2"
+    },
+    {
+      "path": "backend/migrations/204_add_ops_system_logs_host.sql",
+      "sha256": "d63ba154e3a2a3b05f2aa345d26ef69f2a8e04959f56c3af1924316bf3ad9c5e"
+    },
+    {
+      "path": "backend/migrations/204a_add_ops_system_logs_host_index_notx.sql",
+      "sha256": "02ba5a813b5278753d90aa1fc3509df8c3bd01223a2c35df2369723b0265d88d"
+    },
+    {
+      "path": "backend/migrations/205_add_subscription_plan_currency.sql",
+      "sha256": "77cc7a897e1c1e4c80fad68cfc7d18afbf0951ca15d149da8d12fab619430f30"
+    },
+    {
+      "path": "backend/migrations/206_channel_image_input_price.sql",
+      "sha256": "ff3cc0571e35e4859fb31016b647709e4664b6ff95b2f731fc65cfa47813b288"
+    },
+    {
+      "path": "backend/migrations/207_usage_log_image_input_tokens.sql",
+      "sha256": "132ed2c6c99b8ece4d72ab35f847f7ea5dc32bf8a33f215c918fc051d27e8bf7"
+    },
+    {
+      "path": "backend/migrations/208_audit_logs.sql",
+      "sha256": "1f202d51b17931e675cde6bde20e18d881dac23dfc4997d62d15012cf5cccb02"
+    },
+    {
+      "path": "backend/migrations/209_add_channel_model_price_multiplier.sql",
+      "sha256": "a8b8ba89f24f208cdd7a775da18be632846ad61a469afe06ef1fd741f94b47ed"
+    },
+    {
+      "path": "backend/migrations/210_group_duplicate_operation_id.sql",
+      "sha256": "2935860fd05aa89b1283409ec439ccbcb8a0d47ff2c19293a8d6f6d375b95fd3"
+    },
+    {
+      "path": "backend/migrations/211_ops_ingress_reject_aggregates.sql",
+      "sha256": "3e09aa2766b0bcd57bab0449e7e782829a1832cced23ffc53c9b27def8a77d2e"
+    },
+    {
+      "path": "backend/migrations/212_auth_cache_invalidation_outbox.sql",
+      "sha256": "58a2aac708afa36ab5a8daea797e41b532cad3ccac43b714220ad5f366db8404"
+    },
+    {
+      "path": "backend/migrations/213_add_user_api_key_limit.sql",
+      "sha256": "a2fdb3db406bafb8768896b3de6b4407bae9d795559841d3745baeb77a0d168f"
+    },
+    {
+      "path": "backend/migrations/214_group_reasoning_effort_policy.sql",
+      "sha256": "1ea6c4ee2963d531aea7e5fc42725526bd515a59b867f257dbd64068006838f5"
+    },
+    {
+      "path": "backend/migrations/215_group_auth_cache_image_generation.sql",
+      "sha256": "675df34ef467b23a70cadbc59f040ba82c76562332b7de76a65b884e4b0e4058"
+    },
+    {
+      "path": "backend/migrations/216_alipay_mobile_precreate_deep_link.sql",
+      "sha256": "dd81c0034bb55e2455f277647520d8ed915ce753d0c73c9d745c6e42a0e761fd"
+    },
+    {
+      "path": "backend/migrations/217_add_usage_log_session_id.sql",
+      "sha256": "fe99bf7eb758c20099c2f69c0a307a00d3f1f30ce5a81a8d5370b07e072df090"
+    },
+    {
+      "path": "backend/migrations/218_allow_live_usage_request_type.sql",
+      "sha256": "560621f05d6eac1aac605d9b096a24de62c8fe000f6778184fa4c1e8dfeffddd"
+    },
+    {
+      "path": "backend/migrations/219_add_group_allow_live.sql",
+      "sha256": "1544ee2544101619e3cc08f9246f5d524122f807f164cff6c1081c17c8880e2c"
+    },
+    {
+      "path": "backend/migrations/220_users_registration_email_normalized_index_notx.sql",
+      "sha256": "ddfa2e7bef0604d9d3c3f5b9a490c80bb44e3c38e52d79f7ae4d59f181ed8da2"
+    },
+    {
+      "path": "backend/migrations/221_add_teams.sql",
+      "sha256": "1b7d61f2df6b578d236c8cca8fd798fcc88be5c490900a3489a26e431a014bcd"
+    },
+    {
+      "path": "backend/migrations/222_add_team_default_member_limits.sql",
+      "sha256": "8652b4589c85a28f6061569ed66af216facfee43f68aaa63b69dcda1dc68d91a"
+    },
+    {
+      "path": "backend/migrations/223_harden_team_lifecycle_and_allowance.sql",
+      "sha256": "31adaf632978e720f6a820dd88e396f1b780fd94c1c64f46d33932f9166732be"
+    },
+    {
+      "path": "backend/migrations/224_batch_image_subscription_billing.sql",
+      "sha256": "e80cb1384174898a8aa44ca3558fd6ea23526e0ef12e064af5601170b303d421"
+    },
+    {
+      "path": "backend/migrations/225_content_moderation_team_attribution.sql",
+      "sha256": "bc1f096703b7fa509fcac951edde8ff62f22b1fc50fa0d6a96610bec90a9e74a"
+    },
+    {
+      "path": "backend/migrations/226_add_composite_api_keys.sql",
+      "sha256": "d2459e42bc325bbf34e60f2671b022cada6d66d31574b8a995e82e33d4dff8e3"
+    },
+    {
+      "path": "backend/migrations/227_add_channel_model_fast_mode_multiplier.sql",
+      "sha256": "c23769a22975aa2fa6f0a414890f372bba57167196b4b65b28949af84ccbd184"
+    },
+    {
+      "path": "backend/migrations/228_passkey_credentials.sql",
+      "sha256": "3e52fe1caa62bfd9b8f751b64e61188755135aa508edec57a34d40a44ffb175b"
+    },
+    {
+      "path": "backend/migrations/229_usage_analytics_rollups.sql",
+      "sha256": "7a0e6f2f607899b715c5fd132b97a15b239e39338b92d97375f9f257a0e53db9"
+    },
+    {
+      "path": "backend/migrations/230_pre_aggregation_manual_backfill.sql",
+      "sha256": "5da4a1fce505039d8ecfe640d8bcc9396cc1342564123788ce40e38456c7ded6"
+    },
+    {
+      "path": "backend/migrations/231_add_api_key_model_mapping.sql",
+      "sha256": "31fb5be100f376e704cef01f0a292837eda40e5d74339efe96d12e2155346b50"
+    },
+    {
+      "path": "backend/migrations/232_reset_usage_analytics_model_dimension.sql",
+      "sha256": "bd2b35ac2a02fdcecc002b355cbbfa92755d967a5e74be1868e0f0cf23e1e076"
+    },
+    {
+      "path": "backend/migrations/233_add_batch_image_internal_model.sql",
+      "sha256": "ec711d10cba3257b21726bc9855e4c2c275761dc186cf06c341fe6650c0ce57f"
+    },
+    {
+      "path": "backend/migrations/234_remove_async_image_storage_setting.sql",
+      "sha256": "f24ea092e967e798241ba72a5842de40ef21cba308b8ffcceb170d8b13cfa707"
+    },
+    {
+      "path": "backend/migrations/235_add_group_allowed_client_protocols.sql",
+      "sha256": "012cda3ea82cf0167f7980be5707431baaa6f9beae9b74fa98c95f661f7138c9"
+    },
+    {
+      "path": "backend/migrations/236_remove_upstream_billing_probe.sql",
+      "sha256": "560a6f378bc5b6c31a3b0d0bc4c893a88a2c8789c78e7fc8b17a45730521c419"
+    },
+    {
+      "path": "backend/migrations/237_add_api_key_billing_modes.sql",
+      "sha256": "ec8af4bf7e3f9ee569215540ad9c3ddbb2f8ab82bc5b14bdfc71e93a55708bfa"
+    },
+    {
+      "path": "backend/migrations/238_generalize_advanced_scheduler.sql",
+      "sha256": "5b4708e0e9288bcfc8a919ed119ba35a7fe4495749d6e8ac2e5b0514d65f72d6"
+    },
+    {
+      "path": "backend/migrations/239_add_group_advanced_scheduler_overrides.sql",
+      "sha256": "78c6ccab5b2ceae24d97d1de9c316899ad3863b18e44560e3e11459cf7c094e1"
+    },
+    {
+      "path": "backend/migrations/240_remove_account_group_priority.sql",
+      "sha256": "9200d8582c7424a8a44e81545a7326fd7aa8c2a3901cfef001782d9607a72be7"
+    },
+    {
+      "path": "backend/migrations/241_remove_openai_long_context_billing_toggle.sql",
+      "sha256": "07635f4cac3406a1d15c00f70e3b0bfc6a80d64e18a6cf1c06777eca9a02511a"
+    },
+    {
+      "path": "backend/migrations/242_group_video_model_prices.sql",
+      "sha256": "0d66ef9c919ad88d564071b89d6e332282e0ef04e49b67906c0bb03aa203ae52"
+    },
+    {
+      "path": "backend/migrations/243_group_audio_voice_pricing.sql",
+      "sha256": "a2d0a376366f545387214c12b79b0413c711aec911bbd51ead7a39a3f691531f"
+    },
+    {
+      "path": "backend/migrations/244_group_search_price_per_1k.sql",
+      "sha256": "9498b42098801f3faade01e546534aac6d62af12c0f639b80cff8075ed78f0c0"
+    },
+    {
+      "path": "backend/migrations/245_clear_non_grok_video_generation_config.sql",
+      "sha256": "516c9ab271f9fcfa1e4bb0a342ff8e9c53548a46830413fc4b06e129987f26a6"
+    },
+    {
+      "path": "backend/migrations/246_group_model_pricing.sql",
+      "sha256": "232b2976738800e117e18834887bd1c7a6c021660e2cc06b636f105b214982ed"
+    },
+    {
+      "path": "backend/migrations/247_migrate_openai_text_protocol_config.sql",
+      "sha256": "5a4c6b0fc07278b025a3ebdcbcee55b4a0b953eba4285894efb8724ddaff8159"
+    },
+    {
+      "path": "backend/migrations/248_allow_cn_user_platform_quotas.sql",
+      "sha256": "71bf8da11d910544fc83084e6f18b3d623515e2f80a4a1b0818d698c7bd1ae13"
+    },
+    {
+      "path": "backend/migrations/249_channel_model_time_pricing.sql",
+      "sha256": "de2b2e411c1b63c320abb76d11a7f482e8d4ae9fe465eb7949e6e1c92e1f69e0"
+    },
+    {
+      "path": "backend/migrations/250_backfill_codex_fingerprint_seed.sql",
+      "sha256": "2e0a0f6551d026227095394a2d254368d6128ce98a9dc29a7b8de4dcbe64d467"
+    },
+    {
+      "path": "backend/migrations/251_channel_pricing_tier_multipliers.sql",
+      "sha256": "e5e9553ace890e4188364ef0603e5b6e371b2ee6ad6a0e7fa7e14c65bacee32b"
+    },
+    {
+      "path": "backend/migrations/252_users_email_alias_dedup_index_notx.sql",
+      "sha256": "c920c9ad5839788aa74c13ead145318d79cbe612db552d2430d9e9e727dbc191"
+    },
+    {
+      "path": "backend/migrations/253_creative_studio_runs.sql",
+      "sha256": "54084c0a33e9a8fd3963071eff1e17687801e37a6925d7adb2b4de0a0c3b314a"
+    },
+    {
+      "path": "backend/migrations/254_creative_runs_allowance_reserved.sql",
+      "sha256": "0d032dbd0d7c9b9ae6fd46b852a410742c7313117eccadc291cfe18d429c146c"
+    },
+    {
+      "path": "backend/migrations/255_creative_runs_fingerprint_not_unique.sql",
+      "sha256": "6ed3ef3f7ad20474d53da3160a123414b541f667a403b2b2a33d966f8db4e639"
+    },
+    {
+      "path": "backend/migrations/256_creative_runs_workspace.sql",
+      "sha256": "3e2005353bb480d9df0fe5881fdfc93fc47c99bf1a35c247fc7db2ea61b37527"
+    },
+    {
+      "path": "backend/migrations/257_creative_run_durable_settlement.sql",
+      "sha256": "9e0daca9e64bb2060609147d03dde298262d3913c5bf413d343e36ed225c992f"
+    },
+    {
+      "path": "backend/migrations/258_extend_api_key_auth_cache_invalidation.sql",
+      "sha256": "c23a0d91a4738e7b2af031582dcef859faeed6a9e68f9e1ae435e87351e384b8"
+    },
+    {
+      "path": "backend/migrations/259_add_usage_log_requested_reasoning_effort.sql",
+      "sha256": "b3d9e93c4512dd1810ff1c5820e202d0551ff2624433c3437291e0220dcc6ecd"
+    },
+    {
+      "path": "backend/migrations/260_add_usage_log_native_compaction_v2.sql",
+      "sha256": "e0d2b1111c303e3b8ffc78a2cb676f97ec1802b4332061078b7a9476f7e0c16e"
+    },
+    {
+      "path": "backend/migrations/261_channel_cache_write_1h_pricing.sql",
+      "sha256": "f9ff955ff800d1f694da3038d7128703e8159ee166ac3469c13d1444058c9e05"
+    },
+    {
+      "path": "backend/migrations/262_group_force_openai_fast.sql",
+      "sha256": "a1bbec33ac63bf70b7c3dfec3fdb71a85f7192e4dcc6a97164eec86095e05d4c"
+    },
+    {
+      "path": "backend/migrations/263_group_reasoning_effort_over_limit.sql",
+      "sha256": "db31a32e1735aaec4923e007822e56b73290058c04fd4a5add361739efb15c88"
+    },
+    {
+      "path": "backend/migrations/264_group_free_openai_fast.sql",
+      "sha256": "6254469292f55e4c41b757ee7f039e6fdd00bc478ca393d7deb937569e65ac07"
+    },
+    {
+      "path": "backend/migrations/265_remove_data_sharing.sql",
+      "sha256": "442024e48f4fcc8c03f860e1af669128657f2264f7199562d09d3809b207676f"
+    },
+    {
+      "path": "backend/migrations/266_add_usage_log_upstream_request_id.sql",
+      "sha256": "d13ec35cdf8383c769a6a3046d34d7809860601918648def06bf82b8c28bb80b"
+    },
+    {
+      "path": "backend/migrations/267_add_usage_log_upstream_request_id_index_notx.sql",
+      "sha256": "41c32a383794730d2bfd88514bf999cfb156cb06324c46b54642736ac8f2fff6"
+    },
+    {
+      "path": "backend/migrations/268_channel_max_reasoning_effort_multiplier.sql",
+      "sha256": "9b3a1642248c28a013fa09f007ce022fb371916eccced4c1a542b3da033e18ad"
+    },
+    {
+      "path": "backend/migrations/269_group_openai_fast_policy.sql",
+      "sha256": "0d16f76b41291e31d18b00286c1d1b53761b0281b222f54ec74cc95e06dbf0e7"
+    },
+    {
+      "path": "backend/migrations/270_openai_manual_protocol_capabilities.sql",
+      "sha256": "e483b6307e7577c51607d51e8f9025dfc3073074b6abb53c7cd0addf4e1a1a8f"
+    },
+    {
+      "path": "backend/migrations/271_clean_openai_import_capability_state.sql",
+      "sha256": "c4b0010f41a380ce78fd71ea611a8ae15505abf40eb0146c4e761d0b886ef025"
+    },
+    {
+      "path": "backend/migrations/272_remove_group_media_pricing.sql",
+      "sha256": "c578dcb797996abcc693bb9738277e38ebc16da4fa6d89e3156f422e2917d87f"
+    },
+    {
+      "path": "backend/migrations/273_unify_protocol_capabilities.sql",
+      "sha256": "fd99dd7cd0dfc5a035503c38505f352659d5041a76a47e4ba21b53e262bbd0df"
+    }
+  ],
+  "ent_table_schema_unchanged": true,
+  "ent_table_sha256": "cb00ba160dc06c10bb23a04ff8f68a328c608bcb5ce0b920bf6c0b7ce8ba7504",
+  "protected_unchanged": 51,
+  "old_roots_removed": [
+    "service",
+    "repository",
+    "handler",
+    "domain",
+    "model",
+    "util",
+    "platform",
+    "middleware",
+    "app/legacybridge",
+    "server/routes",
+    "pkg/ctxkey",
+    "pkg/sysutil"
+  ],
+  "old_go_imports": 0,
+  "anchors_checked": 111,
+  "anchors": [
+    {
+      "source": "backend/internal/promotion/affiliate.go",
+      "target": "docs/domains/promotions_and_affiliates.md#affiliate_rebate_lifecycle",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/settings/store.go",
+      "target": "docs/interfaces/configuration.md#runtime_settings",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/settings/update.go",
+      "target": "docs/interfaces/configuration.md#runtime_settings",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/batchimage/public.go",
+      "target": "docs/domains/batch_image_jobs.md#job_lifecycle",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/app/route_legacy_auth_test.go",
+      "target": "docs/domains/identity_and_tenancy.md#authentication_boundaries",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/app/gateway_messages_execution.go",
+      "target": "docs/architecture/system_architecture.md#dependency_layers",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/app/settings_readers.go",
+      "target": "docs/interfaces/configuration.md#runtime_settings",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/app/storage.go",
+      "target": "docs/interfaces/configuration.md#runtime_settings",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/app/http_transport.go",
+      "target": "docs/architecture/system_architecture.md#dependency_layers",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/app/application.go",
+      "target": "docs/architecture/system_architecture.md#dependency_layers",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/app/application.go",
+      "target": "docs/architecture/system_architecture.md#startup_and_shutdown",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/identity/auth_options.go",
+      "target": "docs/domains/identity_and_tenancy.md#authentication_boundaries",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/identity/email_challenges.go",
+      "target": "docs/domains/identity_and_tenancy.md#email_challenges",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/egress/tls_router_service.go",
+      "target": "docs/operations/upstream_transport_security.md#upstream_tls_routing",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/egress/proxy_expiry.go",
+      "target": "docs/operations/upstream_transport_security.md#upstream_proxy_lifecycle",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/config/config.go",
+      "target": "docs/interfaces/configuration.md#configuration_sources",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/notification/service.go",
+      "target": "docs/interfaces/configuration.md#notification_delivery",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/payment/order_lifecycle.go",
+      "target": "docs/domains/payments_and_entitlements.md#forced_expiration_recovery",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/scheduler/scoring.go",
+      "target": "docs/architecture/account_scheduling_and_cache.md#advanced_scheduler_selection",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/scheduler/snapshot.go",
+      "target": "docs/architecture/account_scheduling_and_cache.md#scheduler_snapshot_consistency",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/scheduler/lease.go",
+      "target": "docs/architecture/gateway_request_lifecycle.md#account_selection_and_failover",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/idempotency/idempotency.go",
+      "target": "docs/interfaces/http_api.md#write_idempotency",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/server/http.go",
+      "target": "docs/operations/edge_security.md#http_ingress_limits",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/usage/usage_cleanup_service.go",
+      "target": "docs/operations/pre_aggregation.md#usage_state_ownership",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/usage/aggregation_state.go",
+      "target": "docs/operations/pre_aggregation.md#usage_state_ownership",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/search/config.go",
+      "target": "docs/interfaces/configuration.md#search_configuration",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/search/manager.go",
+      "target": "docs/architecture/gateway_request_lifecycle.md#moderation_search_boundaries",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/apikey/authenticate.go",
+      "target": "docs/architecture/gateway_request_lifecycle.md#apikey_authentication",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/audit/service.go",
+      "target": "docs/operations/observability_and_data_lifecycle.md#data_cleanup",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/site/service.go",
+      "target": "docs/interfaces/http_api.md#announcement_api",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/ops/ops_dashboard.go",
+      "target": "docs/operations/pre_aggregation.md#query_routing_and_fallback",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/ops/ops_metrics_collector.go",
+      "target": "docs/operations/ops_monitoring_and_alerting.md#ops_signal_pipeline",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/ops/release_query.go",
+      "target": "docs/operations/ops_monitoring_and_alerting.md#ops_release_and_maintenance",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/ops/error_queue.go",
+      "target": "docs/operations/observability_and_data_lifecycle.md#background_runtimes",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/creative/public.go",
+      "target": "docs/domains/creative_studio.md#creative_task_lifecycle",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/routing/client_group.go",
+      "target": "docs/domains/gateway_policy_controls.md#gateway_policy_layers",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/routing/marketplace.go",
+      "target": "docs/interfaces/model_catalog_and_marketplace.md#model_catalog_resolution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/routing/group_probe_runner.go",
+      "target": "docs/interfaces/model_catalog_and_marketplace.md#group_availability_probe",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/routing/group_openai_fast_policy.go",
+      "target": "docs/interfaces/openai_upstream.md#openai_fast_policy",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/routing/group_protocols.go",
+      "target": "docs/interfaces/protocol_capabilities.md#group_protocol_routes",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/gemini_authorization.go",
+      "target": "docs/interfaces/gemini_upstream.md#gemini_native_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/antigravity_token.go",
+      "target": "docs/interfaces/antigravity_upstream.md#antigravity_account_contract",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/background_refresh.go",
+      "target": "docs/operations/account_maintenance.md#account_credential_refresh",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/input_validation.go",
+      "target": "docs/interfaces/upstream_account_matrix.md#cn_provider_protocols",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/grok_credential_recovery.go",
+      "target": "docs/interfaces/grok_upstream.md#grok_account_contract",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/qoder_sessions.go",
+      "target": "docs/interfaces/qoder_upstream.md#qoder_account_contract",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/protocols.go",
+      "target": "docs/interfaces/protocol_capabilities.md#account_native_protocols",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/antigravity_authorization.go",
+      "target": "docs/interfaces/antigravity_upstream.md#antigravity_native_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/vertex_token.go",
+      "target": "docs/interfaces/gemini_upstream.md#vertex_service_account_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/grok_token.go",
+      "target": "docs/interfaces/grok_upstream.md#grok_account_contract",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/legacy_configuration.go",
+      "target": "docs/interfaces/openai_upstream.md#openai_account_configuration",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/message_credentials.go",
+      "target": "docs/interfaces/anthropic_upstream.md#anthropic_account_and_transport",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/backup/runtime.go",
+      "target": "docs/architecture/system_architecture.md#backup_and_maintenance",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/billing/subscription.go",
+      "target": "docs/domains/payments_and_entitlements.md#subscription_quota_windows",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/billing/subscription.go",
+      "target": "docs/domains/payments_and_entitlements.md#subscription_self_revoke",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/billing/quota_coordinator.go",
+      "target": "docs/domains/platform_quotas.md#platform_quota_settlement_and_flush",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/billing/subscription_allocation.go",
+      "target": "docs/domains/payments_and_entitlements.md#subscription_quota_windows",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/billing/price_resolver.go",
+      "target": "docs/domains/routing_and_billing.md#group_model_pricing",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/billing/price_resolver.go",
+      "target": "docs/interfaces/model_catalog_and_marketplace.md#model_catalog_metadata_lookup",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/qoder.go",
+      "target": "docs/architecture/gateway_request_lifecycle.md#qoder_gateway_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/upstream/attempt.go",
+      "target": "docs/architecture/gateway_request_lifecycle.md#upstream_attempt_ownership",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/moderation/service.go",
+      "target": "docs/domains/content_moderation.md#content_moderation_decision_pipeline",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/moderation/postgres/repository.go",
+      "target": "docs/domains/content_moderation.md#moderation_transactions",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/upstream/gemini/execute.go",
+      "target": "docs/interfaces/gemini_upstream.md#gemini_native_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/upstream/bedrock/model_routing.go",
+      "target": "docs/interfaces/anthropic_upstream.md#bedrock_region_routing",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/upstream/anthropic/billing_header.go",
+      "target": "docs/interfaces/anthropic_upstream.md#claude_billing_fingerprint",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/upstream/vertex/service_account.go",
+      "target": "docs/interfaces/gemini_upstream.md#vertex_service_account_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/upstream/antigravity/execute.go",
+      "target": "docs/interfaces/antigravity_upstream.md#antigravity_native_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/upstream/qoder/execute.go",
+      "target": "docs/interfaces/qoder_upstream.md#qoder_execution_boundary",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/upstream/openai/image_backfill.go",
+      "target": "docs/interfaces/openai_upstream.md#images_url_backfill",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/provider/model_availability.go",
+      "target": "docs/architecture/account_scheduling_and_cache.md#advanced_scheduler_selection",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/provider/compatible_eligibility.go",
+      "target": "docs/architecture/account_scheduling_and_cache.md#advanced_scheduler_selection",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/provider/request_credentials.go",
+      "target": "docs/interfaces/grok_upstream.md#grok_account_contract",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/completion/effects.go",
+      "target": "docs/domains/platform_quotas.md#platform_quota_settlement_and_flush",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/httpapi/codex_turn_state.go",
+      "target": "docs/interfaces/openai_upstream.md#openai_protocol_dispatch",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/httpapi/api_key_model_mapping.go",
+      "target": "docs/domains/api_key_model_redirects.md#redirect_order",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/httpapi/grok_executor.go",
+      "target": "docs/interfaces/grok_upstream.md#grok_account_contract",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/httpapi/openai_text_responses.go",
+      "target": "docs/interfaces/openai_upstream.md#openai_protocol_dispatch",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/httpapi/models_gemini.go",
+      "target": "docs/domains/api_key_model_redirects.md#model_list_projection",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/httpapi/routes.go",
+      "target": "docs/architecture/gateway_request_lifecycle.md#gateway_pipeline",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/httpapi/api_key_composite.go",
+      "target": "docs/domains/composite_api_keys.md#group_selection",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/httpapi/gemini_native.go",
+      "target": "docs/interfaces/gemini_upstream.md#gemini_protocol_dispatch",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/httpapi/gemini_native.go",
+      "target": "docs/interfaces/gemini_upstream.md#gemini_protocol_dispatch",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/errorpolicy/service.go",
+      "target": "docs/interfaces/gateway_error_policy.md#error_passthrough_rule_matching",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/ws/stream.go",
+      "target": "docs/domains/content_moderation.md#upstream_cyber_policy",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/provider/googleforward/antigravity_messages.go",
+      "target": "docs/interfaces/antigravity_upstream.md#antigravity_native_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/provider/googleforward/gemini_attempts.go",
+      "target": "docs/interfaces/gemini_upstream.md#gemini_native_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/provider/messageforward/runtime.go",
+      "target": "docs/architecture/gateway_request_lifecycle.md#protocol_conversion_boundary",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/provider/selection/runtime.go",
+      "target": "docs/architecture/account_scheduling_and_cache.md#advanced_scheduler_selection",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/gateway/provider/selection/generic.go",
+      "target": "docs/architecture/gateway_request_lifecycle.md#account_selection_and_failover",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/billing/postgres/task_projection.go",
+      "target": "docs/domains/routing_and_billing.md#usage_settlement",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/billing/pricing/catalog_rules.go",
+      "target": "docs/interfaces/model_catalog_and_marketplace.md#model_catalog_metadata_lookup",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/billing/pricing/card_resolution.go",
+      "target": "docs/domains/routing_and_billing.md#group_model_pricing",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/backup/provider/pg.go",
+      "target": "docs/operations/deployment_and_migrations.md#maintenance_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/provider/grok_health.go",
+      "target": "docs/interfaces/grok_upstream.md#grok_account_contract",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/account/provider/upstream_usage.go",
+      "target": "docs/interfaces/upstream_usage.md#native_usage_adapters",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/routing/capability/protocol.go",
+      "target": "docs/interfaces/protocol_capabilities.md#protocol_catalog",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/ops/maintenance/operations.go",
+      "target": "docs/operations/deployment_and_migrations.md#maintenance_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/site/filesystem/pages.go",
+      "target": "docs/interfaces/http_api.md#site_pages",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/protocol/bridge/runtime.go",
+      "target": "docs/architecture/gateway_request_lifecycle.md#protocol_conversion_boundary",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/usage/httpapi/public_handler.go",
+      "target": "docs/operations/observability_and_data_lifecycle.md#usage_query_contracts",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/server/middleware/security_headers.go",
+      "target": "docs/interfaces/tf_cli_web_import.md#browser_security_headers",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/server/httpx/error.go",
+      "target": "docs/interfaces/http_api.md#response_errors",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/server/clientip/clientip.go",
+      "target": "docs/operations/edge_security.md#trusted_client_ip",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/infra/httpclient/upstream_pool.go",
+      "target": "docs/operations/upstream_transport_security.md#upstream_client_pool",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/infra/redis/fixed_window.go",
+      "target": "docs/operations/edge_security.md#fixed_window_rate_limits",
+      "valid": true
+    },
+    {
+      "source": "backend/cmd/server/main.go",
+      "target": "docs/architecture/system_architecture.md#startup_and_shutdown",
+      "valid": true
+    },
+    {
+      "source": "frontend/src/utils/tfCliImport.ts",
+      "target": "docs/interfaces/tf_cli_web_import.md#session_fragment",
+      "valid": true
+    },
+    {
+      "source": "frontend/src/utils/tfCliImport.ts",
+      "target": "docs/interfaces/tf_cli_web_import.md#session_proof",
+      "valid": true
+    },
+    {
+      "source": "frontend/src/utils/upstreamUsage.ts",
+      "target": "docs/interfaces/upstream_usage.md#frontend_lifecycle",
+      "valid": true
+    },
+    {
+      "source": "frontend/src/components/keys/TfCliImportDialog.vue",
+      "target": "docs/interfaces/tf_cli_web_import.md#user_confirmation",
+      "valid": true
+    }
+  ],
+  "local_links": [
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "batch_image_jobs.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "../interfaces/http_api.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "content_moderation.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "batch_image_jobs.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "content_moderation.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "routing_and_billing.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "../interfaces/http_api.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "../interfaces/configuration.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "../architecture/system_architecture.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "../operations/observability_and_data_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/creative_studio.md",
+      "target": "index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "../guides/payments/configuration.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "../guides/payments/admin_integration_api.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "routing_and_billing.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "platform_quotas.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "promotions_and_affiliates.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "identity_and_tenancy.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "../../backend/internal/payment/checkout.go",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "../../backend/internal/payment/fulfillment.go",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "../../backend/internal/payment/refund_workflow.go",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "../../backend/internal/payment/postgres/refund.go",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "../../backend/internal/payment/httpapi/user.go",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/payments_and_entitlements.md",
+      "target": "../../backend/internal/app/payment_refund.go",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/gateway_error_policy.md",
+      "target": "../architecture/gateway_request_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/gateway_error_policy.md",
+      "target": "../domains/content_moderation.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/gateway_error_policy.md",
+      "target": "../operations/ops_monitoring_and_alerting.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/index.md",
+      "target": "../index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/index.md",
+      "target": "system_architecture.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/index.md",
+      "target": "gateway_request_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/index.md",
+      "target": "account_scheduling_and_cache.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "../index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "http_api.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "configuration.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "tf_cli_web_import.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "protocol_capabilities.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "upstream_account_matrix.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "upstream_usage.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "anthropic_upstream.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "openai_upstream.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "gemini_upstream.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "antigravity_upstream.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "grok_upstream.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "qoder_upstream.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "gateway_error_policy.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/index.md",
+      "target": "model_catalog_and_marketplace.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "deployment_and_migrations.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "../index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "../project_overview.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "../architecture/system_architecture.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "../interfaces/configuration.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "deployment_and_migrations.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/index.md",
+      "target": "../index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/index.md",
+      "target": "deployment_and_migrations.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/index.md",
+      "target": "observability_and_data_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/index.md",
+      "target": "account_maintenance.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/index.md",
+      "target": "upstream_transport_security.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/index.md",
+      "target": "ops_monitoring_and_alerting.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/index.md",
+      "target": "development_workflow.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/index.md",
+      "target": "edge_security.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/index.md",
+      "target": "pre_aggregation.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "../index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "identity_and_tenancy.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "routing_and_billing.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "gateway_policy_controls.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "platform_quotas.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "payments_and_entitlements.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "promotions_and_affiliates.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "content_moderation.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "api_key_model_redirects.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "composite_api_keys.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "batch_image_jobs.md",
+      "valid": true
+    },
+    {
+      "source": "docs/domains/index.md",
+      "target": "creative_studio.md",
+      "valid": true
+    },
+    {
+      "source": "docs/index.md",
+      "target": "project_overview.md",
+      "valid": true
+    },
+    {
+      "source": "docs/index.md",
+      "target": "architecture/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/index.md",
+      "target": "domains/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/index.md",
+      "target": "interfaces/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/index.md",
+      "target": "operations/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/openai_upstream.md",
+      "target": "upstream_account_matrix.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/openai_upstream.md",
+      "target": "../operations/upstream_transport_security.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/openai_upstream.md",
+      "target": "protocol_capabilities.md#account_native_protocols",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/openai_upstream.md",
+      "target": "model_catalog_and_marketplace.md#model_catalog_metadata_lookup",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/openai_upstream.md",
+      "target": "gateway_error_policy.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/openai_upstream.md",
+      "target": "../architecture/gateway_request_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/openai_upstream.md",
+      "target": "../architecture/account_scheduling_and_cache.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/openai_upstream.md",
+      "target": "model_catalog_and_marketplace.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/gateway_request_lifecycle.md",
+      "target": "../domains/content_moderation.md#content_moderation_decision_pipeline",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/gateway_request_lifecycle.md",
+      "target": "system_architecture.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/gateway_request_lifecycle.md",
+      "target": "account_scheduling_and_cache.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/gateway_request_lifecycle.md",
+      "target": "../domains/gateway_policy_controls.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/gateway_request_lifecycle.md",
+      "target": "../interfaces/upstream_account_matrix.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/gateway_request_lifecycle.md",
+      "target": "../interfaces/gateway_error_policy.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/gateway_request_lifecycle.md",
+      "target": "../domains/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/gateway_request_lifecycle.md",
+      "target": "../interfaces/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/account_scheduling_and_cache.md",
+      "target": "../interfaces/anthropic_upstream.md#bedrock_region_routing",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/account_scheduling_and_cache.md",
+      "target": "gateway_request_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/account_scheduling_and_cache.md",
+      "target": "../domains/gateway_policy_controls.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/account_scheduling_and_cache.md",
+      "target": "../operations/account_maintenance.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/account_scheduling_and_cache.md",
+      "target": "../domains/routing_and_billing.md#group_model_pricing",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/index.md",
+      "target": "../index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/index.md",
+      "target": "deployment/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/index.md",
+      "target": "deployment/apple_container.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/index.md",
+      "target": "deployment/datamanagementd.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/index.md",
+      "target": "../../deploy/DOCKER.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/index.md",
+      "target": "payments/configuration.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/index.md",
+      "target": "payments/admin_integration_api.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/deployment/index.md",
+      "target": "../../operations/deployment_and_migrations.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/deployment/index.md",
+      "target": "../index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/deployment/index.md",
+      "target": "../../../deploy/DOCKER.md",
+      "valid": true
+    },
+    {
+      "source": "docs/guides/deployment/index.md",
+      "target": "datamanagementd.md",
+      "valid": true
+    }
+  ],
+  "frozen_s00_s15_unchanged": true
+}

@@ -46,7 +46,7 @@ Kimi 返回精确文案 `You've reached your concurrent request limit. Please wa
 
 ## 缓存一致性
 
-规则唯一实现位于 `gateway/errorpolicy`，PostgreSQL/Redis 与管理 HTTP 分别由 gateway Adapter 提供。app 直接持有唯一实例，旧 service/model/handler 的规则别名和构造入口已删除；剩余执行适配只消费该原生实例。
+规则唯一实现位于 `gateway/errorpolicy`，PostgreSQL/Redis 与管理 HTTP 分别由 gateway Adapter 提供。app 直接持有唯一实例，旧 service/model/handler 的规则别名和构造入口已删除；执行适配只消费该原生实例。
 
 服务启动时从数据库加载有序规则，并维护进程缓存和 Redis 缓存。创建、更新、删除或排序后，写路径更新缓存并发布跨实例失效通知；订阅实例重新加载。数据库仍是权威来源，缓存/通知失败必须保留可诊断错误并允许后续重载收敛。
 

@@ -3164,5 +3164,9 @@
       ],
       "verification": "service-exit-verification.json"
     }
-  }
+  },
+  "s16_status": "complete",
+  "final_verification": "final-verification.json",
+  "final_funding_ownership": "final-funding-ownership.json",
+  "final_package_ownership": "final-package-ownership.json"
 }
