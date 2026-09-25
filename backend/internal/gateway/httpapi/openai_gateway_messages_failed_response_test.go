@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -32,15 +32,12 @@ func TestForwardAsAnthropic_BufferedResponseFailed_ReturnsError(t *testing.T) {
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	ssePayload := buildResponsesFailedSSEStream("invalid_request_error", "Content policy violation")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(ssePayload)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          rawChatCompletionsTestConfig(),
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
@@ -59,15 +56,12 @@ func TestForwardAsAnthropic_StreamingResponseFailed_ReturnsError(t *testing.T) {
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	ssePayload := buildResponsesFailedSSEStream("invalid_request_error", "Content policy violation")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(ssePayload)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          rawChatCompletionsTestConfig(),
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
@@ -95,15 +89,12 @@ func TestForwardAsAnthropic_StreamingBareErrorAfterOutputIsVisible(t *testing.T)
 		`data: [DONE]`,
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(ssePayload)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          rawChatCompletionsTestConfig(),
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
@@ -133,15 +124,12 @@ func TestForwardAsAnthropic_StreamingBareErrorBeforeOutputFailsOver(t *testing.T
 		`data: [DONE]`,
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(ssePayload)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          rawChatCompletionsTestConfig(),
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
@@ -163,12 +151,12 @@ func TestForwardAsAnthropic_StreamingGenericBareErrorBeforeOutputIsNotHiddenByFa
 	ssePayload := "event: error\n" +
 		`data: {"type":"error","error":{"type":"server_error","code":"upstream_error","message":"mixed tools failed"}}` + "\n\n" +
 		"data: [DONE]\n\n"
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(ssePayload)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 	_, err := svc.Text.Messages(context.Background(), c, rawChatCompletionsTestAccount(), body, "", "")
 
 	require.Error(t, err)
@@ -187,15 +175,12 @@ func TestForwardAsAnthropic_BufferedResponseFailed_Failover(t *testing.T) {
 
 	ssePayload := buildResponsesFailedSSEStream("rate_limit_error", "Rate limit reached")
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(ssePayload)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          rawChatCompletionsTestConfig(),
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")
@@ -214,15 +199,12 @@ func TestForwardAsAnthropic_StreamingResponseFailed_FailoverBeforeOutput(t *test
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	ssePayload := buildResponsesFailedSSEStream("rate_limit_error", "Rate limit reached")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(ssePayload)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          rawChatCompletionsTestConfig(),
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.Text.Messages(context.Background(), c, account, body, "", "")

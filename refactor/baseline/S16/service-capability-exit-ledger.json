@@ -2880,8 +2880,8 @@
   },
   "current_remaining": {
     "production_files": 24,
-    "test_files": 117,
-    "verified_batch": "money-contracts"
+    "test_files": 97,
+    "verified_batch": "http-contracts"
   },
   "latest_combined_validation": {
     "head": "a8a9fb4bd1cb6f0bb86adaa68ecbf33ca01cec8e",
@@ -2940,6 +2940,38 @@
         "billing/pricing",
         "gateway/provider",
         "tests/integration/pricing_contract"
+      ]
+    },
+    "http-contracts": {
+      "status": "verified",
+      "retired_files": [
+        "backend/internal/service/adaptive_api_protocol_test.go",
+        "backend/internal/service/openai_admin_protocol_routing_test.go",
+        "backend/internal/service/openai_compat_model_test.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw_s09_raw_compat_test.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw_s11_compat_unit_test.go",
+        "backend/internal/service/openai_gateway_chat_completions_test.go",
+        "backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go",
+        "backend/internal/service/openai_gateway_messages_anthropic_native_test.go",
+        "backend/internal/service/openai_gateway_messages_chat_fallback_test.go",
+        "backend/internal/service/openai_gateway_messages_failed_response_test.go",
+        "backend/internal/service/openai_gateway_messages_transport_failover_test.go",
+        "backend/internal/service/openai_gateway_ollama_cloud_cc_reasoning_test.go",
+        "backend/internal/service/openai_gateway_ollama_cloud_max_tokens_test.go",
+        "backend/internal/service/openai_gateway_passthrough_function_args_test.go",
+        "backend/internal/service/openai_gateway_responses_chat_fallback_test.go",
+        "backend/internal/service/openai_gateway_service_codex_cli_only_test.go",
+        "backend/internal/service/openai_raw_stream_truncation_s09_raw_compat_test.go",
+        "backend/internal/service/openai_request_body_limit_failover_test.go",
+        "backend/internal/service/openai_setup_token_compat_test.go",
+        "backend/internal/service/protocol_forward_test.go"
+      ],
+      "verification": "service-http-contracts-verification.json",
+      "owners": [
+        "gateway/httpapi",
+        "gateway/provider",
+        "gateway/testkit",
+        "protocol/openai"
       ]
     }
   }

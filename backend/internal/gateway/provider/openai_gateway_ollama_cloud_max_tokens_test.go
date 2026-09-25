@@ -1,10 +1,15 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -159,4 +164,39 @@ func TestApplyOllamaCloudRawChatCompletionsRequestClampsMaxTokens(t *testing.T) 
 	// 空 body → 原样返回。
 	require.Equal(t, []byte(nil), gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(ollama, nil))
 	require.Equal(t, []byte{}, gatewayprovider.ApplyOllamaCloudRawChatCompletionsRequest(ollama, []byte{}))
+}
+
+func ollamaUsageAccount(id int64) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id, Name: fmt.Sprintf("ollama-%d", id), Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
+		Credentials: map[string]any{"base_url": "https://ollama.com", "api_key": fmt.Sprintf("key-%d", id)},
+		Extra:       map[string]any{}, Status: billing.StatusActive, Schedulable: true, Concurrency: 1},
+	}
+}
+
+func ollamaCloudRawChatCompletionsTestAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 143,
+		Name:     "DeepSeek Ollama",
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://ollama.com",
+		},
+		Extra: map[string]any{
+			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
+		}},
+	}
+}
+
+func rawChatCompletionsTestAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 101,
+		Name:        "raw-openai-apikey",
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example",
+		}},
+	}
 }

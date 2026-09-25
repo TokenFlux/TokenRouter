@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -11,9 +11,10 @@ import (
 	"testing"
 	time "time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -37,8 +38,8 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 
 			const upstreamBody = `{"error":{"message":"request body exceeds this account's 16MB proxy limit; secret=must-not-leak","type":"invalid_request_error"}}`
-			body := &passthroughCloseTrackingReadCloser{Reader: strings.NewReader(upstreamBody)}
-			upstream := &httpUpstreamRecorder{resp: &http.Response{
+			body := &gatewaytestkit.CloseTrackingReader{Reader: strings.NewReader(upstreamBody)}
+			upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 				StatusCode: http.StatusRequestEntityTooLarge,
 				Header: http.Header{
 					"Content-Type": []string{"application/json"},
@@ -46,10 +47,7 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 				},
 				Body: body,
 			}}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
-				httpUpstream: upstream,
-			})
+			svc := newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{Request: OpenAIRequestOptions{ForceCLI: false}}, transport: upstream})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 161,
 				Name:        name,
 				Platform:    capability.PlatformOpenAI,
@@ -70,7 +68,7 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 				Schedulable: true},
 			}
 
-			result, err := svc.Responses.Forward(context.Background(), c, account, requestBody)
+			result, err := svc.Forward(context.Background(), c, account, requestBody)
 
 			require.Nil(t, result)
 			var failoverErr *forwardcore.UpstreamFailoverError
@@ -84,7 +82,7 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 			require.False(t, failoverErr.RetryableOnSameAccount, "a body limit requires another account, not another attempt on the same account")
 			require.False(t, c.Writer.Written(), "account failover must happen before downstream output is committed")
 			require.Empty(t, rec.Body.String())
-			require.True(t, body.closed)
+			require.True(t, body.Closed)
 			if passthrough {
 				require.Equal(t, requestBody, upstream.lastBody)
 			} else {
@@ -106,15 +104,12 @@ func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t 
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 
 			const upstreamBody = `{"error":{"message":"Your input exceeds the context window of this model. Please adjust your input and try again.","type":"invalid_request_error"}}`
-			body := &passthroughCloseTrackingReadCloser{Reader: strings.NewReader(upstreamBody)}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
-				httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
-					StatusCode: http.StatusRequestEntityTooLarge,
-					Header:     http.Header{"Content-Type": []string{"application/json"}},
-					Body:       body,
-				}},
-			})
+			body := &gatewaytestkit.CloseTrackingReader{Reader: strings.NewReader(upstreamBody)}
+			svc := newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{Request: OpenAIRequestOptions{ForceCLI: false}}, transport: &auxiliaryHTTPRecorder{resp: &http.Response{
+				StatusCode: http.StatusRequestEntityTooLarge,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       body,
+			}}})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 162, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://api.example.test"},
 				Extra: map[string]any{
@@ -123,7 +118,7 @@ func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t 
 				Status: billing.StatusActive, Schedulable: true},
 			}
 
-			result, err := svc.Responses.Forward(context.Background(), c, account, requestBody)
+			result, err := svc.Forward(context.Background(), c, account, requestBody)
 
 			require.Nil(t, result)
 			require.Error(t, err)
@@ -131,7 +126,7 @@ func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t 
 			require.False(t, errors.As(err, &failoverErr), "context-window failures are deterministic request errors")
 			require.True(t, c.Writer.Written())
 			require.Contains(t, rec.Body.String(), "exceeds the context window")
-			require.True(t, body.closed)
+			require.True(t, body.Closed)
 		})
 	}
 }

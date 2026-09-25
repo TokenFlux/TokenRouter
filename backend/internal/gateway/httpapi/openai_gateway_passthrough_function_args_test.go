@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bufio"
@@ -15,7 +15,7 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -53,8 +53,8 @@ func TestHandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments(t *
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	result, err := svc.responseOutput.PassthroughStream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.4", "gpt-5.4")
+	svc := newResponsesFixture(responsesFixtureInputs{})
+	result, err := svc.Output.PassthroughStream(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.4", "gpt-5.4")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -92,7 +92,7 @@ func TestForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle(t *
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_fallback_tool_args"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
@@ -101,12 +101,9 @@ func TestForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle(t *
 	account.Record.Extra = map[string]any{
 		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 	}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          passthroughArgsTestConfig(),
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: passthroughArgsTestConfig(), transport: upstream})
 
-	result, err := svc.Responses.Forward(context.Background(), c, account, body)
+	result, err := svc.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -179,15 +176,11 @@ func chatToolCallChunkJSON(includeIdentity bool, arguments string) string {
 	)
 }
 
-func passthroughArgsTestConfig() *config.Config {
-	return &config.Config{
-		Security: config.SecurityConfig{
-			URLAllowlist: config.URLAllowlistConfig{
-				Enabled:           false,
-				AllowInsecureHTTP: true,
-			},
-		},
-	}
+func passthroughArgsTestConfig() *responsesFixtureOptions {
+	return &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{
+		Enabled:           false,
+		AllowInsecureHTTP: true,
+	}}}
 }
 
 func passthroughArgsFallbackAccount() *gatewayprovider.ExecutionAccount {

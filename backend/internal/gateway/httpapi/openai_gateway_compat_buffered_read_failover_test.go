@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bufio"
@@ -45,7 +45,7 @@ func TestChatCompletionsBufferedResponsesReadErrorReturnsFailover(t *testing.T) 
 				Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Request-Id": []string{"upstream-rid"}},
 				Body:       &openAICompatBufferedReadErrorCloser{err: test.err},
 			}
-			result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).responseOutput.ChatBuffered(
+			result, err := (newResponsesFixture(responsesFixtureInputs{})).Output.ChatBuffered(
 				resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI}},
 				"gpt-5.6-sol", "gpt-5.6-sol", "gpt-5.6-sol", time.Now(),
 			)
@@ -70,7 +70,7 @@ func TestChatCompletionsBufferedResponsesReadErrorDoesNotFailoverAfterClientCanc
 	cancel()
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(requestContext)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: &openAICompatBufferedReadErrorCloser{err: io.ErrUnexpectedEOF}}
-	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).responseOutput.ChatBuffered(
+	result, err := (newResponsesFixture(responsesFixtureInputs{})).Output.ChatBuffered(
 		resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI}},
 		"gpt-5.6-sol", "gpt-5.6-sol", "gpt-5.6-sol", time.Now(),
 	)
@@ -86,7 +86,7 @@ func TestChatCompletionsBufferedResponsesOversizedLineDoesNotFailover(t *testing
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: &openAICompatBufferedReadErrorCloser{err: bufio.ErrTooLong}}
-	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).responseOutput.ChatBuffered(
+	result, err := (newResponsesFixture(responsesFixtureInputs{})).Output.ChatBuffered(
 		resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI}},
 		"gpt-5.6-sol", "gpt-5.6-sol", "gpt-5.6-sol", time.Now(),
 	)

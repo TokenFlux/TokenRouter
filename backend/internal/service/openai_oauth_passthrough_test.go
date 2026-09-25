@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	httptestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -59,16 +61,6 @@ type httpUpstreamRecorder struct {
 
 type passthroughErrReadCloser struct {
 	err error
-}
-
-type passthroughCloseTrackingReadCloser struct {
-	io.Reader
-	closed bool
-}
-
-func (r *passthroughCloseTrackingReadCloser) Close() error {
-	r.closed = true
-	return nil
 }
 
 func (r passthroughErrReadCloser) Read(_ []byte) (int, error) {
@@ -1620,7 +1612,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_Transient5xxTriggersFailover(t *
 			c.Request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
 
 			upstreamBody := fmt.Sprintf(`{"error":{"message":"temporary upstream failure","status":%d}}`, statusCode)
-			body := &passthroughCloseTrackingReadCloser{Reader: strings.NewReader(upstreamBody)}
+			body := &gatewaytestkit.CloseTrackingReader{Reader: strings.NewReader(upstreamBody)}
 			upstream := &httpUpstreamRecorder{resp: &http.Response{
 				StatusCode: statusCode,
 				Header: http.Header{
@@ -1656,7 +1648,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_Transient5xxTriggersFailover(t *
 			require.JSONEq(t, upstreamBody, string(failoverErr.ResponseBody))
 			require.Equal(t, "rid-api-key-5xx", http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 			require.False(t, c.Writer.Written(), "failover must happen before downstream output is committed")
-			require.True(t, body.closed, "the failed upstream response body must be closed")
+			require.True(t, body.Closed, "the failed upstream response body must be closed")
 			require.Equal(t, requestBody, upstream.lastBody, "the request body remains available for the outer account retry")
 
 			value, ok := c.Get(httpapi.OpsUpstreamErrorsKey)
@@ -1677,7 +1669,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ContextWindow502DoesNotFailover(
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 
 	const upstreamBody = `{"error":{"message":"Your input exceeds the context window of this model. Please adjust your input and try again.","type":"upstream_error"}}`
-	body := &passthroughCloseTrackingReadCloser{Reader: strings.NewReader(upstreamBody)}
+	body := &gatewaytestkit.CloseTrackingReader{Reader: strings.NewReader(upstreamBody)}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
@@ -1700,7 +1692,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ContextWindow502DoesNotFailover(
 	require.True(t, c.Writer.Written())
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 	require.Contains(t, gjson.Get(rec.Body.String(), "error.message").String(), "exceeds the context window")
-	require.True(t, body.closed)
+	require.True(t, body.Closed)
 }
 
 func TestOpenAIGatewayService_APIKeyPassthrough_PoolModeConfigured5xxRetriesSameAccount(t *testing.T) {

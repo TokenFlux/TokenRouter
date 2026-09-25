@@ -1,0 +1,143 @@
+{
+  "baseline_head": "6588a0d13c2d048931c780159b48325d958c62fd",
+  "scope": "Messages/Chat/Responses/Raw Chat协议、拒绝、故障转移和流取消合同直接使用原生执行器",
+  "before": {
+    "production": 24,
+    "tests": 117
+  },
+  "after": {
+    "production": 24,
+    "tests": 97
+  },
+  "retired_files": [
+    "backend/internal/service/adaptive_api_protocol_test.go",
+    "backend/internal/service/openai_admin_protocol_routing_test.go",
+    "backend/internal/service/openai_compat_model_test.go",
+    "backend/internal/service/openai_gateway_chat_completions_raw_s09_raw_compat_test.go",
+    "backend/internal/service/openai_gateway_chat_completions_raw_s11_compat_unit_test.go",
+    "backend/internal/service/openai_gateway_chat_completions_test.go",
+    "backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go",
+    "backend/internal/service/openai_gateway_messages_anthropic_native_test.go",
+    "backend/internal/service/openai_gateway_messages_chat_fallback_test.go",
+    "backend/internal/service/openai_gateway_messages_failed_response_test.go",
+    "backend/internal/service/openai_gateway_messages_transport_failover_test.go",
+    "backend/internal/service/openai_gateway_ollama_cloud_cc_reasoning_test.go",
+    "backend/internal/service/openai_gateway_ollama_cloud_max_tokens_test.go",
+    "backend/internal/service/openai_gateway_passthrough_function_args_test.go",
+    "backend/internal/service/openai_gateway_responses_chat_fallback_test.go",
+    "backend/internal/service/openai_gateway_service_codex_cli_only_test.go",
+    "backend/internal/service/openai_raw_stream_truncation_s09_raw_compat_test.go",
+    "backend/internal/service/openai_request_body_limit_failover_test.go",
+    "backend/internal/service/openai_setup_token_compat_test.go",
+    "backend/internal/service/protocol_forward_test.go"
+  ],
+  "tests": [
+    {
+      "name": "normal",
+      "events": {
+        "pass": 3667,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ],
+      "log": "service-http-contracts-normal.jsonl"
+    },
+    {
+      "name": "unit",
+      "events": {
+        "pass": 4962,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ],
+      "log": "service-http-contracts-unit.jsonl"
+    },
+    {
+      "name": "race",
+      "events": {
+        "pass": 336
+      },
+      "skips": [],
+      "log": "service-http-contracts-race.jsonl"
+    }
+  ],
+  "mapping": "service-http-contracts-test-mapping.json",
+  "lint": [
+    {
+      "name": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/gateway/testkit/...",
+        "./internal/protocol/openai/...",
+        "./internal/service/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 8.32
+    },
+    {
+      "name": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/gateway/testkit/...",
+        "./internal/protocol/openai/...",
+        "./internal/service/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 10.76
+    },
+    {
+      "name": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./internal/gateway/httpapi/...",
+        "./internal/gateway/provider/...",
+        "./internal/gateway/testkit/...",
+        "./internal/protocol/openai/...",
+        "./internal/service/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 9.63
+    }
+  ],
+  "gates": {
+    "passed": 27,
+    "total": 27,
+    "config_sha256": "4b76af137fe0a9e5a283f962ca327a867819dfaf970dbf5a627ee91c6d1eb2d6"
+  },
+  "build_selection": "service-http-contracts-build-selection.json",
+  "preserved_files": 51,
+  "production_behavior_unchanged": true,
+  "wire_sql_ent_unchanged": true,
+  "migration_feedback": [
+    "首轮Grok协议夹具漏投影HTTP许可导致6个子测试失败，已改为原Options.URLPolicy；原断言全部保留并race复验。",
+    "unit专用默认Options移入unit夹具；旧Raw Chat账号构造与三个协议/缓冲转接已无消费者并删除，未新增lint忽略。"
+  ],
+  "limits": [
+    "单测本地传输替身与取消合同不计真实供应商验证。",
+    "旧raw配置数据夹具仍被未迁测试使用；没有新增旧服务门面或生产测试API。",
+    "最终全仓、前端、平台、进程及资金销项验收尚未完成。"
+  ],
+  "final_acceptance_pending": true
+}

@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package httpapi
 
 import (
 	"context"
@@ -90,8 +90,8 @@ func TestNativeAnthropicPassthroughRecordsOutputConfigEffort(t *testing.T) {
 	body := []byte(`{"model":"k3","max_tokens":32,"stream":false,` +
 		`"output_config":{"effort":"low"},` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
-	upstream := &httpUpstreamRecorder{resp: nativeAnthropicBufferedResponse()}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
+	upstream := &auxiliaryHTTPRecorder{resp: nativeAnthropicBufferedResponse()}
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	result, err := svc.Text.Messages(context.Background(),
 		adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicTestAccount(), body, "", "")
@@ -107,8 +107,8 @@ func TestNativeAnthropicPassthroughThinkingEnabledFallback(t *testing.T) {
 	body := []byte(`{"model":"k3","max_tokens":32,"stream":false,` +
 		`"thinking":{"type":"enabled","budget_tokens":1024},` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
-	upstream := &httpUpstreamRecorder{resp: nativeAnthropicBufferedResponse()}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
+	upstream := &auxiliaryHTTPRecorder{resp: nativeAnthropicBufferedResponse()}
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	result, err := svc.Text.Messages(context.Background(),
 		adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicTestAccount(), body, "", "")
@@ -123,8 +123,8 @@ func TestNativeAnthropicPassthroughStreamRecordsEffort(t *testing.T) {
 	body := []byte(`{"model":"k3","max_tokens":32,"stream":true,` +
 		`"output_config":{"effort":"max"},` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
-	upstream := &httpUpstreamRecorder{resp: nativeAnthropicStreamResponse()}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
+	upstream := &auxiliaryHTTPRecorder{resp: nativeAnthropicStreamResponse()}
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	result, err := svc.Text.Messages(context.Background(),
 		adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicTestAccount(), body, "", "")
@@ -139,8 +139,8 @@ func TestNativeAnthropicPassthroughNoEffortStaysNil(t *testing.T) {
 	// 既无 output_config.effort 也未启用 thinking：保持 nil，不做语义注入。
 	body := []byte(`{"model":"k3","max_tokens":32,"stream":false,` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
-	upstream := &httpUpstreamRecorder{resp: nativeAnthropicBufferedResponse()}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
+	upstream := &auxiliaryHTTPRecorder{resp: nativeAnthropicBufferedResponse()}
+	svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 	result, err := svc.Text.Messages(context.Background(),
 		adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicTestAccount(), body, "", "")
@@ -181,8 +181,8 @@ func TestNativeAnthropicPassthroughNormalizesGLM53Thinking(t *testing.T) {
 			if tt.stream {
 				response = nativeAnthropicStreamResponse()
 			}
-			upstream := &httpUpstreamRecorder{resp: response}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
+			upstream := &auxiliaryHTTPRecorder{resp: response}
+			svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 
 			_, err := svc.Text.Messages(context.Background(),
 				adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicGLMTestAccount(), body, "", "")
@@ -206,8 +206,8 @@ func TestNativeAnthropicPassthroughLeavesOtherThinkingUntouched(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := []byte(tt.body)
-			upstream := &httpUpstreamRecorder{resp: nativeAnthropicBufferedResponse()}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
+			upstream := &auxiliaryHTTPRecorder{resp: nativeAnthropicBufferedResponse()}
+			svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 			_, err := svc.Text.Messages(context.Background(),
 				adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicGLMTestAccount(), body, "", "")
 			require.NoError(t, err)

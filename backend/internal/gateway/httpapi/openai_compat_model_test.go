@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -11,18 +11,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
+
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -48,37 +48,6 @@ func (w *openAICompatFailingWriter) Write(p []byte) (int, error) {
 	return w.ResponseWriter.Write(p)
 }
 
-type openAICompatBlockingReadCloser struct {
-	data      []byte
-	offset    int
-	closed    chan struct{}
-	closeOnce sync.Once
-}
-
-func newOpenAICompatBlockingReadCloser(data []byte) *openAICompatBlockingReadCloser {
-	return &openAICompatBlockingReadCloser{
-		data:   data,
-		closed: make(chan struct{}),
-	}
-}
-
-func (r *openAICompatBlockingReadCloser) Read(p []byte) (int, error) {
-	if r.offset < len(r.data) {
-		n := copy(p, r.data[r.offset:])
-		r.offset += n
-		return n, nil
-	}
-	<-r.closed
-	return 0, io.EOF
-}
-
-func (r *openAICompatBlockingReadCloser) Close() error {
-	r.closeOnce.Do(func() {
-		close(r.closed)
-	})
-	return nil
-}
-
 func TestForwardAsAnthropic_UsesExactFableMessagesDispatchModel(t *testing.T) {
 	t.Parallel()
 
@@ -94,16 +63,13 @@ func TestForwardAsAnthropic_UsesExactFableMessagesDispatchModel(t *testing.T) {
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_fable"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -141,16 +107,13 @@ func TestForwardAsAnthropic_NormalizesRoutingAndEffortForGpt54XHigh(t *testing.T
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_compat"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -249,11 +212,8 @@ func TestForwardAsAnthropic_PreservesMaxForFinalGPT56ResponsesModel(t *testing.T
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
 			c.Request.Header.Set("Content-Type", "application/json")
 
-			upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_gpt56_"+tt.name, tt.wantModel)}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				httpUpstream: upstream,
-				cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-			})
+			upstream := &auxiliaryHTTPRecorder{resp: openAICompatSSECompletedResponse("resp_gpt56_"+tt.name, tt.wantModel)}
+			svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 
 			result, err := svc.Text.Messages(context.Background(), c, tt.account, []byte(body), "", tt.defaultMapped)
 			require.NoError(t, err)
@@ -317,16 +277,13 @@ func TestForwardAsAnthropic_MappedClaudeModelAcceptsChatUsageShape(t *testing.T)
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_compact_usage"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -368,16 +325,13 @@ func TestForwardAsAnthropic_InjectsPromptCacheKeyForAPIKeyMessagesDispatch(t *te
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_cache_key"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -412,16 +366,13 @@ func TestForwardAsAnthropic_AutoDerivesPromptCacheKeyWhenMessagesDispatchHasNoSe
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_auto_cache_key"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -450,14 +401,11 @@ func TestForwardAsAnthropic_GPT6AstraPromptCacheIdentityStableAcrossAppendedTurn
 		t.Run(mappedModel, func(t *testing.T) {
 			t.Parallel()
 
-			upstream := &httpUpstreamRecorder{responses: []*http.Response{
+			upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 				openAICompatSSECompletedResponse("resp_gpt6_first", mappedModel),
 				openAICompatSSECompletedResponse("resp_gpt6_second", mappedModel),
 			}}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				httpUpstream: upstream,
-				cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-			})
+			svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6615,
 				Name:        "openai-apikey",
 				Platform:    capability.PlatformOpenAI,
@@ -515,16 +463,13 @@ func TestForwardAsAnthropic_DoesNotAutoDerivePromptCacheKeyForNonCodexModel(t *t
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_no_cache_key"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -554,11 +499,8 @@ func TestForwardAsAnthropic_OAuthNonCodexModelRestoresCodexIdentity(t *testing.T
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Request.Header.Set("User-Agent", "messages-bridge/1.0")
 
-	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_bridge_identity", "gpt-4o")}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{resp: openAICompatSSECompletedResponse("resp_bridge_identity", "gpt-4o")}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -600,16 +542,13 @@ func TestForwardAsAnthropic_TrimsFullReplayOnlyForCodexCompatModels(t *testing.T
 			"data: [DONE]",
 			"",
 		}, "\n")
-		upstream := &httpUpstreamRecorder{resp: &http.Response{
+		upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_trim"}},
 			Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 		}}
 
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-			httpUpstream: upstream,
-			cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-		})
+		svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 			Name:        "openai-apikey",
 			Platform:    capability.PlatformOpenAI,
@@ -653,11 +592,8 @@ func TestForwardAsAnthropic_OAuthCompatKeepsFullReplayForCacheGrowth(t *testing.
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_trim", "gpt-5.4")}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_trim", "gpt-5.4")}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -683,11 +619,8 @@ func TestForwardAsAnthropic_OAuthCompatKeepsFullReplayForCacheGrowth(t *testing.
 func TestForwardAsAnthropic_AttachesPreviousResponseIDForCompatContinuation(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -734,11 +667,8 @@ func TestForwardAsAnthropic_AttachesPreviousResponseIDForCompatContinuation(t *t
 func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDWhenCapabilityDisabled(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_disabled", "gpt-5.3-codex")}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{resp: openAICompatSSECompletedResponse("resp_disabled", "gpt-5.3-codex")}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "nested-sub2api",
 		Platform:    capability.PlatformOpenAI,
@@ -766,11 +696,8 @@ func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDWhenCapabilityDisable
 func TestForwardAsAnthropic_ReplaysWithoutContinuationWhenNestedOAuthRejectsHTTPPreviousResponseID(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "nested-sub2api",
 		Platform:    capability.PlatformOpenAI,
@@ -810,11 +737,8 @@ func TestForwardAsAnthropic_ReplaysWithoutContinuationWhenNestedOAuthRejectsHTTP
 func TestForwardAsAnthropic_PreviousResponseIDKeepsMultiToolCallContext(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -864,11 +788,8 @@ func TestForwardAsAnthropic_PreviousResponseIDKeepsMultiToolCallContext(t *testi
 func TestForwardAsAnthropic_ReplaysFullToolHistoryWhenPreviousResponseUnavailable(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -938,11 +859,8 @@ func TestForwardAsAnthropic_PreviousResponseUnavailableRetryFailureDoesNotLoop(t
 			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"previous_response_id is not available for this user","type":"invalid_request_error"}}`)),
 		}
 	}
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{unavailable(), unavailable()}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{unavailable(), unavailable()}}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -965,11 +883,8 @@ func TestForwardAsAnthropic_PreviousResponseUnavailableRetryFailureDoesNotLoop(t
 func TestForwardAsAnthropic_DisablesAPIKeyContinuationWhenUpstreamRequiresWebSocketV2(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -1032,14 +947,11 @@ func TestForwardAsAnthropic_APIKeyMetadataSessionSurvivesChangingCacheControlAnc
 	}
 	secondBody := []byte(`{"model":"claude-haiku-4-5-20251001","max_tokens":16,"metadata":` + metadata + `,"messages":[` + strings.Join(messages, ",") + `],"stream":false}`)
 
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		openAICompatSSECompletedResponse("resp_first", "gpt-5.4-mini"),
 		openAICompatSSECompletedResponse("resp_second", "gpt-5.4-mini"),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -1087,11 +999,8 @@ func TestForwardAsAnthropic_APIKeyMetadataSessionSurvivesChangingCacheControlAnc
 func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDForOAuthCompat(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_next", "gpt-5.4")}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_next", "gpt-5.4")}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1121,14 +1030,11 @@ func TestForwardAsAnthropic_ReusesOAuthCodexTurnState(t *testing.T) {
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_first", "gpt-5.4")
 	firstResp.Header.Set("x-codex-turn-state", "turn_state_first")
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		firstResp,
 		openAICompatSSECompletedResponse("resp_oauth_second", "gpt-5.4"),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1205,11 +1111,8 @@ func TestForwardAsAnthropic_OAuthRestoresCodexIdentityHeaders(t *testing.T) {
 			c.Request.Header.Set("User-Agent", tt.userAgent)
 			c.Request.Header.Set("originator", tt.originator)
 
-			upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_identity", "gpt-5.4")}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				httpUpstream: upstream,
-				cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-			})
+			upstream := &auxiliaryHTTPRecorder{resp: openAICompatSSECompletedResponse("resp_identity", "gpt-5.4")}
+			svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Name:        "openai-oauth",
 				Platform:    capability.PlatformOpenAI,
@@ -1234,14 +1137,11 @@ func TestForwardAsAnthropic_OAuthDigestFallbackReusesTurnStateWithoutExplicitKey
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_digest_first", "gpt-5.4")
 	firstResp.Header.Set("x-codex-turn-state", "turn_state_digest_first")
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		firstResp,
 		openAICompatSSECompletedResponse("resp_oauth_digest_second", "gpt-5.4"),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1290,14 +1190,11 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesDigestPrefixRewrite(t *t
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_metadata_first", "gpt-5.5")
 	firstResp.Header.Set("x-codex-turn-state", "turn_state_metadata_first")
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		firstResp,
 		openAICompatSSECompletedResponse("resp_oauth_metadata_second", "gpt-5.5"),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1345,14 +1242,11 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesChangingCacheControlAnch
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_cache_anchor_first", "gpt-5.5")
 	firstResp.Header.Set("x-codex-turn-state", "turn_state_cache_anchor_first")
-	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
 		firstResp,
 		openAICompatSSECompletedResponse("resp_oauth_cache_anchor_second", "gpt-5.5"),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1398,11 +1292,8 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesChangingCacheControlAnch
 func TestForwardAsAnthropic_OAuthKeepsSystemAsDeveloperInput(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_system", "gpt-5.4")}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_system", "gpt-5.4")}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1435,11 +1326,8 @@ func TestForwardAsAnthropic_OAuthKeepsSystemAsDeveloperInput(t *testing.T) {
 func TestForwardAsAnthropic_OAuthAddsClaudeCodeTodoGuardForCompatModel(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_todo_guard", "gpt-5.5")}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_todo_guard", "gpt-5.5")}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1470,11 +1358,8 @@ func TestForwardAsAnthropic_OAuthAddsClaudeCodeTodoGuardForCompatModel(t *testin
 func TestForwardAsAnthropic_OAuthPreservesClaudeCodeToolCallID(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_tool", "gpt-5.4")}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_tool", "gpt-5.4")}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1505,11 +1390,8 @@ func TestForwardAsAnthropic_OAuthPreservesClaudeCodeToolCallID(t *testing.T) {
 func TestForwardAsAnthropic_StoresStreamingResponseIDWithoutUsage(t *testing.T) {
 	t.Parallel()
 
-	upstream := &httpUpstreamRecorder{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		httpUpstream: upstream,
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-	})
+	upstream := &auxiliaryHTTPRecorder{}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream, options: &responsesFixtureOptions{Request: OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{Enabled: false}}}})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
@@ -1603,19 +1485,13 @@ func TestForwardAsAnthropic_ForcedCodexInstructionsTemplatePrependsRenderedInstr
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_forced"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg: &config.Config{Gateway: config.GatewayConfig{
-			ForcedCodexInstructionsTemplateFile: templatePath,
-			ForcedCodexInstructionsTemplate:     "server-prefix\n\n{{ .ExistingInstructions }}",
-		}},
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{ForcedTemplate: "server-prefix\n\n{{ .ExistingInstructions }}"}, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1648,19 +1524,13 @@ func TestForwardAsAnthropic_ForcedCodexInstructionsTemplateUsesCachedTemplateCon
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_forced_cached"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg: &config.Config{Gateway: config.GatewayConfig{
-			ForcedCodexInstructionsTemplateFile: "/path/that/should/not/be/read.tmpl",
-			ForcedCodexInstructionsTemplate:     "cached-prefix\n\n{{ .ExistingInstructions }}",
-		}},
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{ForcedTemplate: "cached-prefix\n\n{{ .ExistingInstructions }}"}, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1697,13 +1567,13 @@ func TestForwardAsAnthropic_ClientDisconnectDrainsUpstreamUsage(t *testing.T) {
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_disconnect"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1733,17 +1603,17 @@ func TestForwardAsAnthropic_TerminalUsageWithoutUpstreamCloseReturns(t *testing.
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	upstreamBody := []byte(`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.4","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":15,"output_tokens":6,"total_tokens":21,"input_tokens_details":{"cached_tokens":5}}}}` + "\n\n")
-	upstreamStream := newOpenAICompatBlockingReadCloser(upstreamBody)
+	upstreamStream := gatewaytestkit.NewBlockingReadCloser(upstreamBody)
 	defer func() {
 		require.NoError(t, upstreamStream.Close())
 	}()
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_terminal_no_close"}},
 		Body:       upstreamStream,
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1792,17 +1662,17 @@ func TestForwardAsAnthropic_EventNamedTerminalWithoutUpstreamCloseReturns(t *tes
 		``,
 		``,
 	}, "\n"))
-	upstreamStream := newOpenAICompatBlockingReadCloser(upstreamBody)
+	upstreamStream := gatewaytestkit.NewBlockingReadCloser(upstreamBody)
 	defer func() {
 		require.NoError(t, upstreamStream.Close())
 	}()
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_messages_event_named_terminal"}},
 		Body:       upstreamStream,
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1853,22 +1723,17 @@ func TestForwardAsAnthropic_EventNamedTerminalWithKeepaliveReturns(t *testing.T)
 		``,
 		``,
 	}, "\n"))
-	upstreamStream := newOpenAICompatBlockingReadCloser(upstreamBody)
+	upstreamStream := gatewaytestkit.NewBlockingReadCloser(upstreamBody)
 	defer func() {
 		require.NoError(t, upstreamStream.Close())
 	}()
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_messages_event_named_keepalive"}},
 		Body:       upstreamStream,
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg: &config.Config{Gateway: config.GatewayConfig{
-			StreamKeepaliveInterval: 5,
-		}},
-		httpUpstream: upstream,
-	})
+	svc := newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{Response: OpenAIResponseOptions{StreamKeepaliveInterval: 5}}, transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1911,17 +1776,17 @@ func TestForwardAsAnthropic_BufferedTerminalWithoutUpstreamCloseReturns(t *testi
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	upstreamBody := []byte(`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.4","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":15,"output_tokens":6,"total_tokens":21,"input_tokens_details":{"cached_tokens":5}}}}` + "\n\n")
-	upstreamStream := newOpenAICompatBlockingReadCloser(upstreamBody)
+	upstreamStream := gatewaytestkit.NewBlockingReadCloser(upstreamBody)
 	defer func() {
 		require.NoError(t, upstreamStream.Close())
 	}()
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_buffered_terminal_no_close"}},
 		Body:       upstreamStream,
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -1970,17 +1835,17 @@ func TestForwardAsAnthropic_BufferedEventNamedTerminalWithoutUpstreamCloseReturn
 		``,
 		``,
 	}, "\n"))
-	upstreamStream := newOpenAICompatBlockingReadCloser(upstreamBody)
+	upstreamStream := gatewaytestkit.NewBlockingReadCloser(upstreamBody)
 	defer func() {
 		require.NoError(t, upstreamStream.Close())
 	}()
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_messages_buffered_event_named"}},
 		Body:       upstreamStream,
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -2024,13 +1889,13 @@ func TestForwardAsAnthropic_MissingTerminalBeforeOutputReturnsFailoverAndOps(t *
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	upstreamBody := "data: [DONE]\n\n"
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Request-Id": []string{"rid_missing_terminal"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -2077,13 +1942,13 @@ func TestForwardAsAnthropic_MissingTerminalAfterOutputRecordsOpsWithoutFailover(
 		`data: {"type":"response.output_text.delta","delta":"partial"}`,
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Request-Id": []string{"rid_partial_missing_terminal"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -2128,13 +1993,13 @@ func TestForwardAsAnthropic_MissingTerminalAfterClientDisconnectSkipsOpsAndFailo
 		`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5.4","status":"in_progress","output":[]}}`,
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Request-Id": []string{"rid_client_disconnect_missing_terminal"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -2154,7 +2019,7 @@ func TestForwardAsAnthropic_MissingTerminalAfterClientDisconnectSkipsOpsAndFailo
 	require.NotNil(t, result)
 	require.True(t, result.ClientDisconnect)
 	require.Empty(t, rec.Body.String())
-	_, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
+	_, ok := c.Get(OpsUpstreamErrorsKey)
 	require.False(t, ok, "client disconnect must not be attributed as an upstream error")
 }
 
@@ -2176,13 +2041,13 @@ func TestForwardAsAnthropic_CompleteStreamDoesNotRecordMissingTerminalOps(t *tes
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Request-Id": []string{"rid_complete_terminal"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
@@ -2200,13 +2065,13 @@ func TestForwardAsAnthropic_CompleteStreamDoesNotRecordMissingTerminalOps(t *tes
 	require.Equal(t, 9, result.Usage.InputTokens)
 	require.Equal(t, 4, result.Usage.OutputTokens)
 	require.Contains(t, rec.Body.String(), "event: message_stop")
-	_, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
+	_, ok := c.Get(OpsUpstreamErrorsKey)
 	require.False(t, ok)
 }
 
 func openAICompatOpsEvents(t *testing.T, c *gin.Context) []*ops.OpsUpstreamErrorEvent {
 	t.Helper()
-	v, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
+	v, ok := c.Get(OpsUpstreamErrorsKey)
 	require.True(t, ok)
 	events, ok := v.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)
@@ -2229,13 +2094,13 @@ func TestForwardAsAnthropic_UpstreamRequestIgnoresClientCancel(t *testing.T) {
 		"data: [DONE]",
 		"",
 	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_ctx"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,

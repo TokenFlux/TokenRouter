@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -50,8 +50,8 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 					ctx := requeststate.WithClientProtocol(requeststate.WithGroup(context.Background(), group), source)
 					c := adaptiveProtocolTestContext(ingress.path, ingress.body)
 					c.Request = c.Request.WithContext(ctx)
-					upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
-					svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
+					upstream := &auxiliaryHTTPRecorder{err: errors.New("stop after capture")}
+					svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
 					var err error
 					switch source {
 					case protocol.ProtocolAnthropicMessages:
@@ -59,7 +59,7 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 					case protocol.ProtocolOpenAIChatCompletions:
 						_, err = svc.Text.Chat(ctx, c, &account, ingress.body, "", "")
 					default:
-						_, err = svc.Responses.Forward(ctx, c, &account, ingress.body)
+						_, err = svc.Forward(ctx, c, &account, ingress.body)
 					}
 					require.Error(t, err)
 					require.NotNil(t, upstream.lastReq, err)
@@ -116,9 +116,9 @@ func TestProtocolForwardConvertedResponsesRetainsWireContract(t *testing.T) {
 			if tc.stream {
 				contentType = "text/event-stream"
 			}
-			upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{contentType}}, Body: io.NopCloser(strings.NewReader(tc.response))}}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
-			result, err := svc.Responses.Forward(ctx, c, account, []byte(tc.body))
+			upstream := &auxiliaryHTTPRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{contentType}}, Body: io.NopCloser(strings.NewReader(tc.response))}}
+			svc := newResponsesFixture(responsesFixtureInputs{options: protocolHTTPOptions(), transport: upstream})
+			result, err := svc.Forward(ctx, c, account, []byte(tc.body))
 			require.NoError(t, err)
 			require.Equal(t, 3, result.Usage.InputTokens)
 			require.Equal(t, 2, result.Usage.OutputTokens)
