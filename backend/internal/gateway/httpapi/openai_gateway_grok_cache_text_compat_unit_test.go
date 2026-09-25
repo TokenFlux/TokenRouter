@@ -1,6 +1,6 @@
 //go:build unit
 
-// 生产消费者已迁出；原 unit 断言通过唯一实现的兼容入口验证。
+// unit 断言通过测试兼容入口验证生产实现。
 package httpapi
 
 import (

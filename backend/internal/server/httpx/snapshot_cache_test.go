@@ -67,7 +67,7 @@ func TestSnapshotCache_SetEmptyKey(t *testing.T) {
 }
 
 func TestSnapshotCache_DefaultTTL(t *testing.T) {
-	// 通过实际条目的有效期验证兼容边界，不访问已迁出的缓存内部字段。
+	// 通过实际条目的有效期验证兼容边界，不访问缓存内部字段。
 	for _, ttl := range []time.Duration{0, -time.Second} {
 		c := NewSnapshotCache(ttl)
 		before := time.Now()

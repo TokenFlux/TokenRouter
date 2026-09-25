@@ -97,7 +97,7 @@ func TestRevokeSubscriptionReusesCallerTransaction(t *testing.T) {
 	require.Same(t, tx, dbent.TxFromContext(repo.writeContexts[0]))
 }
 
-// SQLite 仅用于此测试的事务身份断言；真实锁与回滚由 S04 PostgreSQL 集成测试验收。
+// SQLite 仅用于此测试的事务身份断言；真实锁与回滚由 PostgreSQL 集成测试验证。
 type subscriptionContextTransactions struct {
 	*billingpostgres.SubscriptionMutations
 	t  *testing.T

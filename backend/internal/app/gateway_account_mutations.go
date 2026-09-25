@@ -10,7 +10,7 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
-// UpdateConfiguration 只投影本次配置意图；事务、锁和资金字段保护由唯一新存储执行。
+// UpdateConfiguration 只投影本次配置意图；事务、锁和资金字段保护由账号存储执行。
 func (r *executionAccountStore) UpdateConfiguration(ctx context.Context, value *gatewayprovider.ExecutionAccount, change accountcore.ConfigurationChange) error {
 	v := gatewayprovider.ExecutionRecord(value)
 	err := r.data.UpdateConfiguration(ctx, v, change)
@@ -23,7 +23,7 @@ func (r *executionAccountStore) ApplyManagedRecoveryStep(ctx context.Context, st
 	return r.data.ApplyManagedRecoveryStep(ctx, step, v)
 }
 
-// UpdateOAuthCredentialsIfUnchanged 过渡绑定唯一条件写入与原凭据/outbox 方法；不新增事务 key。
+// UpdateOAuthCredentialsIfUnchanged 委托账号存储比较凭据身份，并在同一事务中写入凭据和 outbox。
 func (r *executionAccountStore) UpdateOAuthCredentialsIfUnchanged(ctx context.Context, version accountcore.CredentialVersion, credentials map[string]any) (bool, error) {
 	return r.data.UpdateOAuthCredentialsIfUnchanged(ctx, version, credentials)
 }
@@ -138,7 +138,7 @@ func (r *executionAccountStore) BulkUpdate(ctx context.Context, ids []int64, upd
 	return r.data.BulkUpdate(ctx, ids, updates)
 }
 
-// 旧用量调用仅转交唯一账号存储的条件操作，S09/S16 清理旧适配。
+// 用量观察结果通过账号存储的条件操作写入，避免覆盖已变更的账号身份。
 func (r *executionAccountStore) UpdateUsageExtraIfUnchanged(ctx context.Context, v accountcore.UsageObservationVersion, updates map[string]any) (bool, error) {
 	return r.data.UpdateUsageExtraIfUnchanged(ctx, v, updates)
 }

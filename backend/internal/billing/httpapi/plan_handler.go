@@ -1,4 +1,3 @@
-// 本文件由 billing 拥有资金契约与规则；旧入口仅作过渡适配。
 package httpapi
 
 import (
@@ -10,7 +9,7 @@ import (
 	gin "github.com/gin-gonic/gin"
 )
 
-// PlanHandler 处理套餐展示与管理，订单和提供商 HTTP 留待 S12。
+// PlanHandler 处理套餐展示与管理；订单和支付渠道 HTTP 由 payment/httpapi 提供。
 type PlanHandler struct{ plans *billing.Plans }
 
 func NewPlanHandler(plans *billing.Plans) *PlanHandler { return &PlanHandler{plans: plans} }

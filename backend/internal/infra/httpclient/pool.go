@@ -1,14 +1,6 @@
 // Package httpclient 提供共享 HTTP 客户端池
 //
-// 性能优化说明：
-// 原实现在多个服务中重复创建 http.Client：
-// 1. proxy_probe_service.go: 每次探测创建新客户端
-// 2. pricing_service.go: 每次请求创建新客户端
-// 3. turnstile_service.go: 每次验证创建新客户端
-// 4. github_release_service.go: 每次请求创建新客户端
-// 5. claude_usage_service.go: 每次请求创建新客户端
-//
-// 新实现使用统一的客户端池：
+// 客户端池行为：
 // 1. 相同配置复用同一 http.Client 实例
 // 2. 复用 Transport 连接池，减少 TCP/TLS 握手开销
 // 3. 支持 HTTP/HTTPS/SOCKS5/SOCKS5H 代理

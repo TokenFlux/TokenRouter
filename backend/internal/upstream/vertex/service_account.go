@@ -1,4 +1,4 @@
-// Vertex 迁移保留原协议及取消边界，旧入口仅投影。
+// Vertex 服务账号凭据解析、令牌交换及端点构造。
 package vertex
 
 import (

@@ -92,7 +92,7 @@ func (r *Registry) Prepare(ctx context.Context, input Fields, current map[string
 	return changes, nil
 }
 
-// OwnedKeys 返回独立的静态键清单，供装配审计及旧聚合迁出时排除已经移交的写入。
+// OwnedKeys 返回独立的静态键清单，供装配检查键所有权。
 func (r *Registry) OwnedKeys() []string {
 	var keys []string
 	for _, p := range r.participants {

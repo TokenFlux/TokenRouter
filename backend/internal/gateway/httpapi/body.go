@@ -28,7 +28,7 @@ func NormalizeLenientJSONRequestBody(body []byte, limit int64) ([]byte, error) {
 	return result, err
 }
 
-// ReadRequestBodyWithPrealloc 读取及解压仍由 S01 的 HTTP 实现拥有。
+// ReadRequestBodyWithPrealloc 委托 httpx 读取和解压请求体。
 func ReadRequestBodyWithPrealloc(req *http.Request) ([]byte, error) {
 	return httpx.ReadRequestBodyWithPrealloc(req)
 }

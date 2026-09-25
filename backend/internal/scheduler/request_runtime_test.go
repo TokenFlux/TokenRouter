@@ -96,7 +96,7 @@ func TestSlotWaitObserverFailureDoesNotAcquire(t *testing.T) {
 	require.NoError(t, core.StopContext(context.Background()))
 }
 
-// 迁移契约：无上限槽位沿用原立即放行，取消策略由外层 ReleaseMode 决定。
+// 请求资源契约：无上限槽位沿用原立即放行，取消策略由外层 ReleaseMode 决定。
 func TestUnlimitedSlotPreservesCallerCancellation(t *testing.T) {
 	for _, user := range []bool{false, true} {
 		core := NewConcurrencyService(nil)

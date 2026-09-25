@@ -134,18 +134,14 @@ func MergeAnthropicBetaDropping(required []string, incoming string, drop map[str
 
 // ComputeFinalAnthropicBeta 计算发往上游的最终 anthropic-beta header 值。
 //
-// 设计动机：将原本在 buildUpstreamRequest 内联在一起、依赖 req.Header 的
-// anthropic-beta 计算逻辑抽成纯函数。这样调用方可以在 NewRequest 之前
-// 就提前拿到最终 beta header，进而能按它对 body 做能力维度 sanitize，避免
-// 之前因顺序依赖导致的能力维度 sanitize 无法部署问题。新版 Claude Code CLI
-// 已取消 cch 签名字段，本路径不再对 body 做 CCH 签名。
+// 调用方在创建上游请求前计算最终 beta header，再据此清理不支持的 body 字段。
+// Claude Code CLI 已取消 cch 签名字段，本路径不对 body 做 CCH 签名。
 //
 // 返回 (value, shouldSet)：
-//   - shouldSet=false 意为“不主动设置 anthropic-beta header”，与原代码“
-//     API-key 账号 + 客户端未传 anthropic-beta + InjectBetaForAPIKey 未开启或
-//     RequestNeedsBetaFeatures=false”的行为对齐。
+//   - shouldSet=false 表示不主动设置 anthropic-beta header。例如 API-key 账号的客户端
+//     未传该 Header，且 InjectBetaForAPIKey 未开启或 RequestNeedsBetaFeatures=false。
 //   - shouldSet=true 时 value 可能为空字符串（例如客户端透传的 beta 被 dropSet
-//     全部过滤掉），这与原代码中 SetHeaderRaw 的结果一致。
+//     全部过滤掉），调用方仍应设置该 Header。
 //
 // clientHeaders 是客户端原始 HTTP header（通常为 c.Request.Header）；nil 时按“客户端
 // 未传”处理。body 是已经 metadata 重写 / billing version sync 之后但未 sanitize 上游
@@ -214,10 +210,8 @@ func ComputeFinalCountTokensAnthropicBeta(
 
 	if tokenType == "oauth" {
 		if mimicClaudeCode {
-			// 与原代码严格等价：original buildCountTokensRequest 在 count_tokens mimic
-			// 分支上**不**会跳过白名单透传（与 messages mimic 路径不同），所以
-			// incomingBeta = req.Header[anthropic-beta] = 客户端透传过来的 client beta。
-			// 重构后直接从 clientHeaders 拿同一个值，保持行为一致。
+			// count_tokens mimic 保留白名单中的客户端 beta；messages mimic 不透传它。
+			// 此处将客户端 beta 与计数所需的 beta 合并，再应用删除集合。
 			requiredBetas := append(FullClaudeCodeMimicryBetas(), BetaTokenCounting)
 			return MergeAnthropicBetaDropping(requiredBetas, clientBeta, effectiveDropSet), true
 		}

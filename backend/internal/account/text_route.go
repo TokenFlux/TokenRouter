@@ -17,7 +17,7 @@ const (
 	TextRouteModeForceChatCompletions TextRouteMode = "force_chat_completions"
 )
 
-// TextProtocol 的 wire 值由新协议包唯一拥有，旧账号字段留 S06。
+// TextProtocol 复用 protocol/openai 定义的文本协议标识。
 type TextProtocol = openai.TextProtocol
 
 const TextProtocolChatCompletions = openai.TextProtocolChatCompletions

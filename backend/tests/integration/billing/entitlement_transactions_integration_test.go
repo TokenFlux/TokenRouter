@@ -56,7 +56,7 @@ func TestS04SubscriptionParticipantReadsUncommittedAndRollsBack(t *testing.T) {
 	}
 }
 
-// 此用例也原样在 S03 HEAD 执行，证明旧有效期修改独立提交的历史问题。
+// 验证订阅有效期修改参与外层事务，并随外层事务失败回滚。
 func TestS04ValidityChangeParticipatesInOuterTransaction(t *testing.T) {
 	ctx := context.Background()
 	client := committedEntitlementClient(t)

@@ -63,7 +63,7 @@ func TestPlatformQuotaCalendarOnPostgreSQL(t *testing.T) {
 			require.NotNil(t, value.MonthlyWindowStart)
 			require.True(t, before.Equal(*value.MonthlyWindowStart))
 
-			// 日历迁移不改变事务参与：外层回滚必须撤销本次平台消费写入。
+			// 验证日历窗口下的事务参与：外层回滚必须撤销本次平台消费写入。
 			tx, err := client.Tx(ctx)
 			require.NoError(t, err)
 			txCtx := ent.NewTxContext(ctx, tx)

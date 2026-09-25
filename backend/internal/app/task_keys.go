@@ -8,7 +8,7 @@ import (
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
 )
 
-// creativeManagedKeys 为尚未清零的任务消费者投影唯一 KeyStore，不另建存储实例。
+// creativeManagedKeys 为任务消费者投影唯一 KeyStore，不另建存储实例。
 type creativeManagedKeys struct {
 	store *keypostgres.KeyStore
 }

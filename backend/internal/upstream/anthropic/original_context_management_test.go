@@ -127,7 +127,7 @@ func TestComputeFinalAnthropicBeta_OAuthMimic_Haiku_IncludesFullClaudeCodeBetas(
 }
 
 func TestComputeFinalAnthropicBeta_OAuthMimic_IgnoresClientBeta(t *testing.T) {
-	// mimic 路径下原代码白名单透传被跳过，client beta 应被忽略
+	// messages mimic 跳过客户端 beta 的白名单透传。
 	s := false
 	hdr := http.Header{}
 	hdr.Set("anthropic-beta", "custom-experimental-beta")
@@ -201,9 +201,9 @@ func TestComputeFinalCountTokensAnthropicBeta_OAuthMimic_AlwaysIncludesContextMa
 		"count_tokens 路径必须含 token-counting beta")
 }
 
-// 重构等价性回归：
-// 原 main buildCountTokensRequest 在 count_tokens mimic 分支上不跳过白名单透传
-// （与 messages mimic 不同），incomingBeta 取自客户端透传。重构后必须从 clientHeaders
+// 验证两种 mimic 请求的 beta 来源：
+// count_tokens mimic 分支保留白名单透传
+// （与 messages mimic 不同），incomingBeta 取自客户端透传。必须从 clientHeaders
 // 拿同一个值并 merge，否则会丢失客户端 beta。
 
 func TestComputeFinalCountTokensAnthropicBeta_OAuthMimic_PreservesClientBeta(t *testing.T) {
@@ -222,8 +222,8 @@ func TestComputeFinalCountTokensAnthropicBeta_OAuthMimic_PreservesClientBeta(t *
 		"同时补齐 token-counting beta")
 }
 
-// messages mimic 路径反向验证：原代码会跳过白名单透传，
-// 客户端 beta 不会进入 mimic 计算。重构后 messages computeFinalAnthropicBeta
+// messages mimic 路径反向验证：该路径跳过白名单透传，
+// 客户端 beta 不会进入 mimic 计算。messages computeFinalAnthropicBeta
 // mimic 分支依然不该使用 clientBeta。
 
 func TestComputeFinalAnthropicBeta_OAuthMimic_IgnoresClientBetaExplicit(t *testing.T) {
@@ -263,7 +263,7 @@ func TestComputeFinalCountTokensAnthropicBeta_OAuthTransparent_AppendsBetaTokenC
 // normalizeClaudeOAuthRequestBody — 回归：context_management 补齐恢复原行为
 // ============================================================================
 //
-// 重构后该函数不再按 model 名短路：thinking=enabled/adaptive 时补齐 context_management，
+// 该函数不按 model 名短路：thinking=enabled/adaptive 时补齐 context_management，
 // 与 model 无关。strip 责任移交 sanitizeAnthropicBodyForBetaTokens（在
 // buildUpstreamRequest 层按最终 beta header 执行）。
 

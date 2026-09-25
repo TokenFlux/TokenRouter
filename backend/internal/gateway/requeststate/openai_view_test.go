@@ -7,7 +7,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// 视图迁移保留首个重复字段、宽松读取及不展开未知字段的补丁行为。
+// 验证视图保留首个重复字段、宽松读取及不展开未知字段的补丁行为。
 func TestOpenAIViewCompatibility(t *testing.T) {
 	body := []byte(`{"model":" first ","model":"second","stream":true,"input":[{"future":{"value":123456789012345678}}],"reasoning":{"effort":" high "},"service_tier":" priority "}`)
 	view := NewOpenAIRequestView(body)

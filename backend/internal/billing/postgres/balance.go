@@ -1,4 +1,3 @@
-// 本文件由 billing 拥有资金契约与规则；旧入口仅作过渡适配。
 package postgres
 
 import (
@@ -9,7 +8,7 @@ import (
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
-// BalanceStore 保存原子用户权益操作；身份并发数参与端口在 S05 继续解耦。
+// BalanceStore 提供原子余额操作和同事务的身份并发数写入端口。
 type BalanceStore struct{ client *dbent.Client }
 
 func NewBalanceStore(client *dbent.Client) *BalanceStore { return &BalanceStore{client: client} }

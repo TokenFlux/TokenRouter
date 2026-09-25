@@ -1,6 +1,6 @@
 //go:build unit
 
-// 仅保留既有测试的私有兼容入口；生产实现已迁出。
+// 测试私有兼容入口委托所属模块的生产实现。
 package httpapi
 
 import (

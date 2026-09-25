@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// countExecution 仅连接尚未清零的选择与计数执行原语，不拥有循环、缓存或规则。
+// countExecution 仅连接选择与计数执行原语，不拥有循环、缓存或规则。
 type countExecution struct {
 	planner  *gatewayprovider.RoutePlanner
 	choices  *selection.Generic

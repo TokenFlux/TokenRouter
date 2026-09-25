@@ -63,7 +63,7 @@ func (r *deliveryContractRepo) UpdateCreativeRunOutput(_ context.Context, _ stri
 	return nil
 }
 
-// B05：读取故障不能认定永久丢失，只有明确不存在才进入丢失分支。
+// 读取故障不能认定永久丢失，只有明确不存在才进入丢失分支。
 func TestResultDeliveryDistinguishesUnavailableFromMissing(t *testing.T) {
 	output := []*CreativeRunOutput{{Status: CreativeRunOutputStatusSucceeded, OutputIndex: 0}}
 	for _, test := range []struct {
@@ -87,7 +87,7 @@ func TestResultDeliveryDistinguishesUnavailableFromMissing(t *testing.T) {
 	}
 }
 
-// B05：只重试临时保存，成功事实必须先于首次保存，耗尽后保留丢失标记。
+// 只重试临时保存，成功事实必须先于首次保存，耗尽后保留丢失标记。
 func TestResultDeliveryRetriesOnlySaveAfterDurableFact(t *testing.T) {
 	for _, test := range []struct {
 		name               string

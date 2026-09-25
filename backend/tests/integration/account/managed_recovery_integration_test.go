@@ -127,7 +127,7 @@ func TestS06ManagedRecoveryIndependentCommitsAndIdentity(t *testing.T) {
 				} else if scenario == "error" {
 					require.Equal(t, "administrator error", current.ErrorMessage)
 				} else if scenario == "write_failure" || scenario == "cancel" {
-					// 失败前已完成的旧独立写入保留，不将本阶段修复变成更大的事务。
+					// 失败前已提交的独立写入仍保留，不随后续操作回滚。
 					if step > account.ManagedRecoveryError {
 						require.Equal(t, account.StatusActive, current.Status)
 					} else {

@@ -11,7 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/team"
 )
 
-// apiKeyTestDependencies 保留旧测试的依赖替身，实际状态只在新模块中创建。
+// apiKeyTestDependencies 提供测试依赖替身，实际状态由所属模块创建。
 type apiKeyTestDependencies struct {
 	apiKeyRepo            apikey.APIKeyRepository
 	userRepo              identity.UserRepository

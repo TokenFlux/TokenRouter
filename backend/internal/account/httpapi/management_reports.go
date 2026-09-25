@@ -15,7 +15,7 @@ import (
 	time "time"
 )
 
-// AccountReportOptions 仅保留 S08 的详细用量只读投影，HTTP 不接触仓储。
+// AccountReportOptions 提供详细用量的只读投影，HTTP 不接触仓储。
 type AccountReportOptions struct {
 	Now        func() time.Time
 	StartOfDay func(time.Time) time.Time

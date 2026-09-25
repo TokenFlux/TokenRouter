@@ -1,6 +1,6 @@
 //go:build integration
 
-// 固定 B01/B02/B05 使用与生产相同的 PostgreSQL 存储；不扩展历史问题排查。
+// 使用生产 PostgreSQL 存储验证回填并发、审计清空回滚与部分清理后的聚合修复。
 package postgres
 
 import (

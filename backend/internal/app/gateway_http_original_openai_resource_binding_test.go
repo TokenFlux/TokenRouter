@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 原生资源与仍在迁移的 HTTP 入口必须看到同一个已占用图片槽，不能各建一份 limiter。
+// 共享资源与 HTTP 入口必须看到同一个已占用图片槽，不能各建一份 limiter。
 func TestOpenAIHTTPResourceBindingSharesImageCapacity(t *testing.T) {
 	resources := &gatewayhttp.OpenAIHTTPResources{
 		Concurrency:  gatewayhttp.NewConcurrencyHelper(nil, gatewayhttp.SSEPingFormatNone, 0),

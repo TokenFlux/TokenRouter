@@ -18,7 +18,7 @@ func TestOpenAIRecordUsageInputsCarryQuotaPlatform(t *testing.T) {
 		{"openai_gateway_handler.go", []string{"openaiattempt/responses_attempts.go", "openaiattempt/openai_messages_attempts.go"}},
 		{"openai_chat_completions.go", []string{"openaiattempt/openai_chat_attempts.go"}},
 		{"openai_embeddings.go", []string{"mediaentry/openai_embeddings.go"}},
-		{"openai_images.go", []string{"mediaentry/media_s11_adapter.go"}},
+		{"openai_images.go", []string{"mediaentry/generation_request_adapter.go"}},
 	}
 
 	for _, item := range files {
@@ -44,7 +44,7 @@ func TestOpenAIRecordUsageInputsCarryQuotaPlatform(t *testing.T) {
 
 				// 后扣 worker 使用 background context，所有 OpenAI 用量入参必须显式带上请求时算定的平台。
 				require.Empty(t, missing, "OpenAI usage post-billing must receive request-time QuotaPlatform")
-				// 路径迁移后仍须检查到实际完成输入，不能以零命中作为通过。
+				// 必须检查到实际完成输入，不能以零命中作为通过。
 				require.Positive(t, matches, "must inspect actual OpenAI completion capture in %s", name)
 			}
 		})

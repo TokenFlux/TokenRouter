@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// configFixture 固定规划阶段的旧回源/新保存交错，写入可注入失败。
+// configFixture 控制配置回源与保存的交错，并可注入写入失败。
 type configFixture struct {
 	mu        sync.Mutex
 	raw       string

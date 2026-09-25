@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// B01：停止必须包含已经进入同步兜底的任务，而不只等待 pond 队列。
+// 停止必须包含已经进入同步兜底的任务，而不只等待 pond 队列。
 func TestStopWaitsForSynchronousOverflow(t *testing.T) {
 	pool := NewUsageRecordWorkerPoolWithOptions(UsageRecordWorkerPoolOptions{WorkerCount: 1, QueueSize: 1, TaskTimeout: time.Second, OverflowPolicy: "sync"})
 	first, releaseQueue := make(chan struct{}), make(chan struct{})
@@ -31,7 +31,7 @@ func TestStopWaitsForSynchronousOverflow(t *testing.T) {
 	require.Contains(t, err.Error(), "unfinished tasks")
 }
 
-// B02：停止是不可逆屏障，顺序与并发的重复调用都不能重开 worker。
+// 停止是不可逆屏障，顺序与并发的重复调用都不能重开 worker。
 func TestStartAfterStopDoesNotCreateWorker(t *testing.T) {
 	pool := NewUsageRecordWorkerPoolWithOptions(UsageRecordWorkerPoolOptions{WorkerCount: 1, QueueSize: 1, AutoScaleEnabled: true, AutoScaleMinWorkers: 1, AutoScaleMaxWorkers: 2})
 	pool.Stop()

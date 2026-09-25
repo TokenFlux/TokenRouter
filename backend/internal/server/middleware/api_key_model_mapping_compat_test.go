@@ -1,4 +1,4 @@
-// 旧网关中间件只委托 gateway/httpapi，后续随入口清零删除。
+// 中间件测试辅助函数委托 gateway/httpapi。
 package middleware
 
 import (

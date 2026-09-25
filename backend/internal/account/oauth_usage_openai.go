@@ -7,7 +7,7 @@ import (
 	time "time"
 )
 
-// OpenAIUsageOptions 提供供应商探测及影子账号的专有报文转换，S09 改绑具体执行。
+// OpenAIUsageOptions 提供供应商探测及影子账号的报文转换端口。
 type OpenAIUsageOptions struct {
 	Probe  func(context.Context, *Record) (map[string]any, error)
 	Shadow func(context.Context, int64, time.Time) (map[string]any, error)

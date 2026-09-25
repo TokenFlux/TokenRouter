@@ -57,7 +57,7 @@ func (a *Record) UpstreamProtocols() []capability.ProtocolID {
 	return a.UpstreamProtocolsForLegacy(a.ConfiguredAPIProtocol())
 }
 
-// UpstreamProtocolsForLegacy 仅供旧转发副本显式传入解析后的协议变体，S15 删除。
+// UpstreamProtocolsForLegacy 读取显式协议集合；历史记录缺少该字段时按传入的协议变体推导默认值。
 func (a *Record) UpstreamProtocolsForLegacy(legacyMode string) []capability.ProtocolID {
 	if a == nil {
 		return []capability.ProtocolID{}

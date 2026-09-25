@@ -1,4 +1,4 @@
-// 旧入站测试继续使用原 fake；连接池行为测试已随原生实现迁移。
+// 入站测试使用连接替身；连接池行为由 upstream/openai 的测试验证。
 package httpapi
 
 import (

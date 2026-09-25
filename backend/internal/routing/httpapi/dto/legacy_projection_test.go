@@ -5,7 +5,7 @@ import (
 
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
-	// 旧记录只作为迁移回归夹具输入，实际 DTO 由新模块生成。
+	// 记录作为回归夹具输入，实际 DTO 由所属模块生成。
 )
 
 func GroupFromService(v *routing.Group) *dto.Group {

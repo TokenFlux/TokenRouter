@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- Task 6.1 验证: math/rand/v2 迁移后 jitteredTTL 行为正确 ---
+// 验证 jitteredTTL 的随机过期范围。
 
 func TestJitteredTTL_WithinExpectedRange(t *testing.T) {
 	// jitteredTTL 使用减法抖动: billingCacheTTL - [0, billingCacheJitter)

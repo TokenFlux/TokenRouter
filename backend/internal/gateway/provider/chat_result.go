@@ -6,7 +6,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
-// ChatForwardResult 仅把供应商用量和名称投影回尚未迁移的入站完成处理。
+// ChatForwardResult 将供应商用量和模型名称投影给网关完成处理。
 func ChatForwardResult(result *openai.CompatResponseResult, billingModel string) *forwardcore.OpenAIResult {
 	if result == nil {
 		return nil

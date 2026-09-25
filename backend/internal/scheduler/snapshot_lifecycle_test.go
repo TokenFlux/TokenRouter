@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// 规划阶段夹具：记录停止后的重建调用，不改生产实现。
+// 记录快照重建调用，验证停止后不再启动重建。
 type s07PlanSnapshotCache struct {
 	SnapshotCache
 	calls chan struct{}

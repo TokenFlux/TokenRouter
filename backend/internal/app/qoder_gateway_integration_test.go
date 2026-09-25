@@ -241,7 +241,7 @@ func TestS09QoderHTTPStorageChain(t *testing.T) {
 				})
 			}
 
-			// S11 使用固定 Execute；HTTP 只投影认证和报文，依赖不在每请求内重组。
+			// 使用固定 Execute；HTTP 只投影认证和报文，依赖不在每请求内重组。
 			runtime := &s11StorageQoderRuntime{}
 			runtime.prepare = func(callCtx context.Context, request gateway.Request) (gateway.Request, error) {
 				grp, err := groups.GetByID(callCtx, group.ID)

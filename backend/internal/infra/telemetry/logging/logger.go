@@ -471,7 +471,7 @@ func inferStdLogLevel(msg string) Level {
 	return LevelInfo
 }
 
-// LegacyPrintf 用于平滑迁移历史的 printf 风格日志到结构化 logger。
+// LegacyPrintf 将 printf 风格日志转交给共享的结构化 logger。
 func LegacyPrintf(component, format string, args ...any) {
 	msg := normalizeStdLogMessage(fmt.Sprintf(format, args...))
 	if msg == "" {

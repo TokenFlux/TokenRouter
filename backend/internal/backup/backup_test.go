@@ -1286,7 +1286,7 @@ func TestRecoverStaleRecords_CleansRegisteredParts(t *testing.T) {
 	store.mu.Unlock()
 }
 
-// B02 停止应取消受 context 管理的备份，并等待最终失败记录落库。
+// 停止应取消受 context 管理的备份，并等待最终失败记录落库。
 func TestGracefulShutdown(t *testing.T) {
 	repo := newMockSettingRepo()
 	store := newMockObjectStore()

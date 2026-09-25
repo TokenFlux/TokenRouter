@@ -389,7 +389,7 @@ func (s *BasicAccounts) TestCredentials(ctx context.Context, id int64) error {
 }
 
 // BasicAccounts 保留旧基础入口的查询顺序和错误包装，无缓存或后台状态。
-// 生产管理链使用 Admin；旧入口消费者清零后在 S15 删除此兼容表面。
+// 生产管理链使用 Admin；此接口提供基础账号操作。
 type BasicAccounts struct {
 	accountRepo BasicAccountStore
 	groupRepo   BasicAccountGroups

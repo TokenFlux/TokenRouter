@@ -5,5 +5,5 @@ import (
 	"time"
 )
 
-// testRuntime 为迁移的原有契约测试提供与旧入口一致的运行依赖。
+// testRuntime 为协议转换契约测试提供时间、随机数和诊断依赖。
 func testRuntime() Runtime { return Runtime{Now: time.Now, ReadRandom: rand.Read} }

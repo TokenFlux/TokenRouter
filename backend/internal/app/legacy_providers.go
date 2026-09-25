@@ -36,7 +36,7 @@ import (
 	gin "github.com/gin-gonic/gin"
 )
 
-// 以下仅投影旧图需要的绑定；随对应模块迁移删除旧 import。
+// 以下构造函数将基础设施参数和模块接口绑定到应用依赖图。
 func provideSecretEncryptor(cfg *config.Config) (identitysettings.SecretEncryptor, error) {
 	return bootstrap.NewAESEncryptor(cfg)
 }

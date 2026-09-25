@@ -8,7 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-// routingGroupAccounts 直接投影唯一账号存储；平台默认目录仍通过 S09 的按需端口提供。
+// routingGroupAccounts 投影账号存储；平台默认目录通过按需查询端口提供。
 type routingGroupAccounts struct {
 	Store    *accountpostgres.AccountStore
 	Defaults account.ModelMappingDefaults

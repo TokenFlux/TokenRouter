@@ -51,7 +51,7 @@ func TestCompletionCaptureKeepsTurnTimeAndIndependentInputs(t *testing.T) {
 	require.Equal(t, "high", *out.RequestedReasoningEffort)
 }
 
-// 原接口中的带类型 nil 仍表示已提供能力；不能在迁移时按具体指针重解释。
+// 接口包含带类型的 nil 时仍表示已提供能力，不能按底层指针是否为空判断。
 func TestCompletionCapturePreservesQuotaCapabilityPresence(t *testing.T) {
 	var absent QuotaUpdater
 	var typedNil *apikey.APIKeyService

@@ -19,7 +19,7 @@ import (
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-// provideAccountManagement 将管理用例直接接入新 HTTP Adapter，展示投影在本阶段继续拆分。
+// provideAccountManagement 为账号管理 HTTP 接口绑定管理用例和展示参数。
 func provideAccountManagement(admin *account.Admin, presenter *accounthttp.RuntimePresenter, ollama *account.OllamaCloudUsageService, privacy *account.PrivacyService, probes *account.GrokImportProbeScheduler, quota *account.GrokQuotaService, managed *account.ManagedRefreshService, tasks *lifecycle.Tasks, recovery *account.RecoveryService, listing *account.ManagementList, catalog *routing.AdminCatalog, tier *account.TierManagement, models *account.ModelSyncService, usage *usagepostgres.Store, calendar timezone.Calendar) *accounthttp.ManagementHandler {
 	query := func(ctx context.Context, id int64, start, end time.Time) (*usagetypes.AccountUsageStatsResponse, error) {
 		value, err := usage.GetAccountUsageStats(ctx, id, start, end)

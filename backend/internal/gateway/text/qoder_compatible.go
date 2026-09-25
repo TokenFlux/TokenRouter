@@ -9,7 +9,7 @@ type QoderCompatibleOutcome struct {
 }
 type QoderRefreshResult struct{ Ready, Pending bool }
 
-// QoderCompatiblePorts 承接 Messages/Responses 的单步执行。Chat 的 S09 契约独立保留，
+// QoderCompatiblePorts 承接 Messages/Responses 的单步执行。Chat 使用独立执行契约，
 // 此入口不追加等待后权益复查，且任意实际输出都关闭当前尝试的重试窗口。
 type QoderCompatiblePorts interface {
 	Context() context.Context

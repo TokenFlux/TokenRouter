@@ -59,7 +59,7 @@ func provideAPIKeyAuth(keys *apikey.APIKeyService, subscriptions *billing.Subscr
 	return keyhttp.APIKeyAuthMiddleware(newGatewayAuthorization(keys, subscriptions, cfg, false))
 }
 
-// bindLegacyAuthorizationGroup 仅服务 S16 尚未清零的请求 context 消费者。
+// bindLegacyAuthorizationGroup 将有效分组写入请求状态，已有相同有效分组时保持原值。
 func bindLegacyAuthorizationGroup(c *gin.Context, group *routing.Group) {
 	if !routing.IsGroupContextValid(group) {
 		return

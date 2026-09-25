@@ -8,7 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
-// 原混合文件的分组回填断言归路由存储，不随历史 SQL 测试迁移。
+// 通过路由存储验证分组字段的保存与回读。
 func (s *GroupRepoSuite) TestMediaCardsRoundTrip() {
 	zero, price := 0.0, 0.15
 	group := &routing.Group{Name: "media-card-roundtrip", Platform: capability.PlatformGrok, Status: billing.StatusActive, RateMultiplier: 1.5, AllowImageGeneration: true, BatchImageDiscountMultiplier: 0.5, BatchImageHoldMultiplier: 0.6,

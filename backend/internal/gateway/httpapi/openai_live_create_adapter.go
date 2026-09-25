@@ -63,7 +63,7 @@ func (p *liveCreatePorts) Observe(record *session.LiveCallRecord) {
 	})
 }
 
-// liveCreateTarget 保存本次选择取得的凭据视图，避免迁移引入第二次账号查询。
+// liveCreateTarget 保存本次选择取得的凭据视图，后续执行不再查询账号。
 type liveCreateTarget struct {
 	service *OpenAILiveExecutor
 	account *gatewayprovider.ExecutionAccount

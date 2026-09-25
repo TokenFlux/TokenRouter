@@ -196,7 +196,7 @@ func TestS02ProcessModes(t *testing.T) {
 			require.NoError(t, p.cmd.Process.Signal(syscall.SIGTERM))
 			require.NoError(t, p.wait(t, 40*time.Second), p.output.text())
 			logs := p.output.text()
-			// 定价迁移后仍只有一个运行实例，初始化先于调度，信号退出等待其停止。
+			// 定价只使用一个运行实例，初始化先于调度，信号退出等待其停止。
 			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started PricingInitialization"))
 			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started PricingService"))
 			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped PricingService"))
@@ -205,7 +205,7 @@ func TestS02ProcessModes(t *testing.T) {
 			for _, name := range []string{"HTTPRequests", "DeferredService", "TimingWheelService", "UsageLogBatchers", "Redis", "Ent"} {
 				require.Contains(t, logs, "[Lifecycle] stopped "+name)
 			}
-			// S13 的任务入口先等待完整提交/下载，再停止 worker、恢复与清理，最后才关闭存储。
+			// 任务入口先等待完整提交/下载，再停止 worker、恢复与清理，最后才关闭存储。
 			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped TaskRequestsAndDownloads"))
 			require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped TaskRequestsAndDownloads"))
 			for _, name := range []string{"CreativeWorkerRuntime", "BatchImageWorkerRuntime", "BatchImageCleanupService"} {
@@ -214,13 +214,13 @@ func TestS02ProcessModes(t *testing.T) {
 				require.Less(t, strings.Index(logs, "stopped TaskRequestsAndDownloads"), strings.Index(logs, "stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 			}
-			// S04 的资金运行组件各启动一次，所有资金队列完成后才关闭 Redis。
+			// 资金运行组件各启动一次，所有资金队列完成后才关闭 Redis。
 			for _, name := range []string{"BillingCacheService", "UserPlatformQuotaUsageFlusher", "SubscriptionExpiryService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name))
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name))
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"))
 			}
-			// S05 认证资源在完整请求结束后退出；持久化延迟 outbox 不等同于全部排空。
+			// 认证资源在完整请求结束后退出；持久化延迟 outbox 不等同于全部排空。
 			for _, name := range []string{"APIKeyService", "AuthCacheInvalidationWorker"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name))
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name))
@@ -231,7 +231,7 @@ func TestS02ProcessModes(t *testing.T) {
 			require.Less(t, strings.Index(logs, "stopped BillingCacheService"), strings.Index(logs, "stopped UserPlatformQuotaUsageFlusher"))
 			require.Less(t, strings.Index(logs, "stopped TimingWheelService"), strings.Index(logs, "stopped Redis"))
 			require.Less(t, strings.Index(logs, "stopped Redis"), strings.Index(logs, "stopped Ent"))
-			// S06 的周期维护只启动一次；生产者停止后才结束共享刷新、查询与技术依赖。
+			// 周期维护只启动一次；生产者停止后才结束共享刷新、查询与技术依赖。
 			for _, name := range []string{"TokenRefreshService", "AccountExpiryService", "ProxyExpiryService", "ScheduledTestRunnerService", "GroupAvailabilityProbeRunnerService", "CNProviderBalanceCheckService", "OllamaCloudUsageService", "DeferredService", "TLSFingerprintProfileService", "TLSFingerprintRouterService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
@@ -245,7 +245,7 @@ func TestS02ProcessModes(t *testing.T) {
 			require.Less(t, strings.Index(logs, "stopped TokenRefreshService"), strings.Index(logs, "stopped AccountRefreshCoordinator"))
 			require.Less(t, strings.Index(logs, "stopped DeferredService"), strings.Index(logs, "stopped TimingWheelService"))
 
-			// S07 的快照、并发和串行队列各启动一次；实际请求结束后才停止，随后关闭存储。
+			// 快照、并发和串行队列各启动一次；实际请求结束后才停止，随后关闭存储。
 			for _, name := range []string{"SchedulerSnapshotService", "ConcurrencyService", "UserMessageQueueService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
@@ -253,7 +253,7 @@ func TestS02ProcessModes(t *testing.T) {
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 			}
 
-			// S08 的观测生产者、聚合和写入队列都在实际请求结束后停止，并先于共享存储关闭。
+			// 观测生产者、聚合和写入队列都在实际请求结束后停止，并先于共享存储关闭。
 			for _, name := range []string{"OpsMetricsCollector", "OpsAggregationService", "OpsAlertEvaluatorService", "OpsCleanupService", "OpsScheduledReportService", "OpsService", "OpsIngressRejectAggregator", "DashboardAggregationService", "UsageCleanupService", "AuditLogService", "OpsSystemLogSink"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
@@ -268,7 +268,7 @@ func TestS02ProcessModes(t *testing.T) {
 			require.Less(t, strings.Index(logs, "stopped UsageCleanupService"), strings.Index(logs, "stopped DashboardAggregationService"))
 			require.Less(t, strings.Index(logs, "stopped OpsErrorLogWorkers"), strings.Index(logs, "stopped OpsSystemLogSink"))
 
-			// S14 先取消维护，再等待 HTTP 与任务，最后关闭存储。
+			// 先取消维护，再等待 HTTP 与任务，最后关闭存储。
 			for _, name := range []string{"BackupAdmission", "SystemMaintenanceAdmission"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped HTTPRequests"), name)
@@ -279,7 +279,7 @@ func TestS02ProcessModes(t *testing.T) {
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Ent"), name)
 			}
 
-			// S10 搜索、审核与通知队列由唯一实例管理，在请求结束后且存储关闭前退出。
+			// 搜索、审核与通知队列由唯一实例管理，在请求结束后且存储关闭前退出。
 			for _, name := range []string{"WebSearchRuntime", "ContentModerationService", "EmailQueueService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
@@ -289,7 +289,7 @@ func TestS02ProcessModes(t *testing.T) {
 			}
 			require.Less(t, strings.Index(logs, "stopped ContentModerationService"), strings.Index(logs, "stopped EmailQueueService"))
 
-			// S12 支付生产者先退出，再等待通知任务，最后关闭共享存储。
+			// 支付生产者先退出，再等待通知任务，最后关闭共享存储。
 			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started PaymentOrderExpiryService"))
 			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped PaymentOrderExpiryService"))
 			require.Contains(t, logs, "[Lifecycle] stopped ApplicationBackgroundTasks")
@@ -297,7 +297,7 @@ func TestS02ProcessModes(t *testing.T) {
 				require.Less(t, strings.Index(logs, "stopped "+pair[0]), strings.Index(logs, "stopped "+pair[1]), pair)
 			}
 
-			// S11 完整请求与原生尝试共用入口屏障；授权/额度资源仍先于 Redis/SQL 停止。
+			// 完整请求与原生尝试共用入口屏障；授权/额度资源仍先于 Redis/SQL 停止。
 			for _, name := range []string{"GatewayRequestsAndAttempts", "QoderRequestsAndAttempts", "QoderCredentialSessions", "OpenAIQuotaActions", "OpenAIQuotaService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)

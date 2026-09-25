@@ -11,7 +11,7 @@ import (
 	site "github.com/TokenFlux/TokenRouter/internal/site"
 )
 
-// announcementUsers 直接投影 identity，替换 S02 的旧身份桥接。
+// announcementUsers 将身份查询结果转换为公告资格判断所需的只读投影。
 type announcementUsers struct{ Repository identity.UserRepository }
 
 func provideAnnouncementUsers(users *identitypostgres.UserStore) site.UserReader {
@@ -44,7 +44,7 @@ func (b billingIdentityUsers) GetByID(ctx context.Context, id int64) (*billing.U
 	return billingIdentitySummary(u), e
 }
 
-// BillingUserSummary 将旧用户投影为权益只读数据，S05 后由身份接口直接提供。
+// billingIdentitySummary 将身份用户转换为权益用例所需的只读数据。
 func billingIdentitySummary(u *identity.User) *billing.UserSummary {
 	if u == nil {
 		return nil

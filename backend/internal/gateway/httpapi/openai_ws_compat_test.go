@@ -149,7 +149,7 @@ func openAIWSPassthroughPolicyModelFromSessionFrame(account *gatewayprovider.Exe
 // 旧方法名仅委托原子会话元数据，不保留另一份状态。
 type openAIWSPassthroughUsageMeta struct {
 	*gatewayws.UsageMeta
-	// 旧测试与过渡调用方只取得同一原子字段的指针，不复制会话状态。
+	// 测试取得同一原子字段的指针，不复制会话状态。
 	reasoningEffort *atomic.Pointer[string]
 }
 
@@ -199,7 +199,7 @@ func (l *openAIWSPassthroughTurnLifecycle) finishTerminalWrite(ok bool, fn func(
 	}
 }
 
-// requestModelForFrame 保留 S09 固定竞争测试入口，仍读取唯一的原子元数据。
+// requestModelForFrame 为竞争测试读取会话的原子模型元数据。
 func (m *openAIWSPassthroughUsageMeta) requestModelForFrame(body []byte) string {
 	if m == nil {
 		return gatewayws.RequestModelForFrame(body)

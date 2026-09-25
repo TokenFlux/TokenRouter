@@ -34,7 +34,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// messageAttemptBridge 保存尚未迁完的执行适配，异步完成仅捕获 completion.Input。
+// messageAttemptBridge 适配 Messages 单次尝试，异步完成仅捕获 completion.Input。
 type messageAttemptBridge struct {
 	fixed                                          *messageExecutionDependencies
 	c                                              *gin.Context

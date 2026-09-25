@@ -45,7 +45,7 @@ func (e *Failure) Error() string {
 }
 func (e *Failure) Unwrap() error { return e.Cause }
 
-// Selection 的回调只提供当前目标的旧能力过渡端口，不拥有重试循环或共享状态。
+// Selection 的回调提供当前执行目标，不拥有重试循环或共享状态。
 type Selection struct {
 	WaitWithoutCounter bool
 	Snapshot           account.AccountSnapshot

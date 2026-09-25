@@ -262,7 +262,7 @@ type ReleaseOptions struct {
 	GitHubToken             string
 }
 
-// ReleaseClient 的下载技术方法仅供 S14 旧维护编排调用。
+// ReleaseClient 为系统维护提供发布资产下载方法。
 type ReleaseClient interface {
 	ops.ReleaseQueryClient
 	DownloadFile(context.Context, string, string, int64) error

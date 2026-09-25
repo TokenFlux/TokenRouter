@@ -10,7 +10,7 @@ import (
 	errgroup "golang.org/x/sync/errgroup"
 )
 
-// LocalUsageStats 只读取账号展示所需五个累计值；原 SQL 查询仍归 S08 用量适配。
+// LocalUsageStats 读取账号展示所需的五个累计值，SQL 查询由 usage 存储适配器执行。
 type LocalUsageStats interface {
 	GetAccountWindowStats(context.Context, int64, time.Time) (*WindowStats, error)
 	GetAccountTodayStats(context.Context, int64) (*WindowStats, error)

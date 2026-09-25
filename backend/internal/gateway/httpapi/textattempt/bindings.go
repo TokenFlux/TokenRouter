@@ -263,5 +263,5 @@ func New(b Bindings) *Runtime {
 	return &Runtime{dependencies: d}
 }
 
-// 构造期绑定不可替换为每请求工厂，避免重新组装旧图。
+// 依赖在构造时绑定，不在每个请求中重新创建执行器。
 func (b *messageAttemptBridge) binding() *messageExecutionDependencies { return b.fixed }

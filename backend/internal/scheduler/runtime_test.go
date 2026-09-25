@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// B01：同一运行实例不得重复启动，也不能在 Stop 后重新开启。
+// 同一运行实例不得重复启动，也不能在 Stop 后重新开启。
 func TestWorkerRuntimeStartsOnceAndCannotRestart(t *testing.T) {
 	var runtime WorkerRuntime
 	var calls atomic.Int64

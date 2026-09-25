@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 验证迁移后的 Cyber warning 与用户禁用仍处于同一数据库事务。
+// 验证 Cyber warning 与用户禁用仍处于同一数据库事务。
 func TestS10ModerationTransaction(t *testing.T) {
 	f := newDatabaseFixture(t)
 	ctx := context.Background()

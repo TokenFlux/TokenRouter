@@ -1,4 +1,4 @@
-// 激活诊断的原断言随唯一平台实现迁移。
+// 验证 Code Assist 激活诊断结果。
 package codeassist
 
 import "testing"

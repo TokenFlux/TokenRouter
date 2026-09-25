@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- Task 6.2 验证: math/rand/v2 迁移后 NextBackoff 行为正确 ---
+// 验证 NextBackoff 的随机退避范围。
 
 func TestNextBackoff_ExponentialGrowth(t *testing.T) {
 	// 验证退避时间指数增长（乘数 1.5）

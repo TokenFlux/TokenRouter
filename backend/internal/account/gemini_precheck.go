@@ -7,7 +7,7 @@ import (
 	time "time"
 )
 
-// GeminiQuotaUsageReader 只读账号配额预检所需的本地模型用量，SQL 归 S08。
+// GeminiQuotaUsageReader 读取账号配额预检所需的本地模型用量，SQL 查询由 usage 存储适配器执行。
 type GeminiQuotaUsageReader interface {
 	GetModelUsage(context.Context, int64, time.Time, time.Time) ([]GeminiModelUsage, error)
 }

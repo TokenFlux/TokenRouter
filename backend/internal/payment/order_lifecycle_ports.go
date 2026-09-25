@@ -23,7 +23,7 @@ func NewOrderLifecycle(core *Fulfillment, resume *PaymentResumeService, observe 
 	return &OrderLifecycle{Fulfillment: core, resume: resume, observe: observe}
 }
 
-// LifeStore 记录闭合操作与原批量查询，便于迁移清单核对。
+// LifeStore 提供订单闭合状态操作及后台处理所需的批量查询。
 type LifeStore interface {
 	ForceExpire(context.Context, int64, string) error
 	TouchPending(context.Context, int64, time.Time) error

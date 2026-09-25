@@ -93,5 +93,5 @@ func provideRouterRuntime(public *site.PublicService, pages *sitehttp.PageHandle
 	return rt, nil
 }
 
-// httpRouteMount 只组装已构造的 HTTP 能力，过渡旧图在专用装配处解析。
+// httpRouteMount 注册已构造的 HTTP 能力，具体依赖由 app 的各装配函数提供。
 type httpRouteMount func(*gin.Engine, httpRouteSecurity, gin.HandlerFunc, func(*gin.RouterGroup))

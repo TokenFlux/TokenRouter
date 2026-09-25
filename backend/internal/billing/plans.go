@@ -1,4 +1,3 @@
-// 本文件由 billing 拥有资金契约与规则；旧入口仅作过渡适配。
 package billing
 
 import (
@@ -17,7 +16,7 @@ type PlanRepository interface {
 	GetPlan(context.Context, int64) (*SubscriptionPlan, error)
 }
 
-// PlanOrders 只读取阻止删除的订单数量，支付状态归属仍在 S12。
+// PlanOrders 读取阻止套餐删除的订单数量，支付状态由 payment 管理。
 type PlanOrders interface {
 	CountInProgressByPlan(context.Context, int64) (int, error)
 }

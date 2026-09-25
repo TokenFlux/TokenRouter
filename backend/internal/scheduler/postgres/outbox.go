@@ -129,7 +129,7 @@ func (r *schedulerOutboxRepository) DeleteConsumedUpTo(ctx context.Context, wate
 		limit = schedulerOutboxDefaultCleanSize
 	}
 	// 十秒宽限只延后清理，不保证低 ID 的迟提交事件重新进入水位之后。
-	// 该既有恢复边界由周期全量重建收敛；S07 不增加写入屏障。
+	// 迟提交事件可能错过消费水位，由周期全量重建恢复；此处没有写入屏障。
 	result, err := r.db.ExecContext(ctx, `
 		WITH doomed AS (
 			SELECT id

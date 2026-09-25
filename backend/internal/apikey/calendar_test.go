@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// dailyUsageCalendarCache 只接收本次日期迁移涉及的计数与 TTL，不实现其他缓存行为。
+// dailyUsageCalendarCache 只接收日期计算涉及的计数与 TTL，不实现其他缓存行为。
 type dailyUsageCalendarCache struct {
 	APIKeyCache
 	key string

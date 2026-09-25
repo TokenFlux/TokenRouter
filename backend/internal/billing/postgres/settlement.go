@@ -25,7 +25,7 @@ type SettlementStore struct {
 	taskProjections TaskProjectionFactories
 }
 
-// AccountQuotaOutbox 是账号额度跨阈值时参与同一 SQL 事务的窄接口；S07 改绑新账号适配。
+// AccountQuotaOutbox 在账号额度跨阈值时参与同一 SQL 事务，写入调度事件。
 type AccountQuotaOutbox func(context.Context, *sql.Tx, int64) error
 
 // NewSettlementStore 构造唯一闭合资金存储，不启动后台任务。

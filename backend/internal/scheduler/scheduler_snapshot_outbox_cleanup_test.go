@@ -860,7 +860,7 @@ func int64Range(start, end int64) []int64 {
 	return values
 }
 
-// 夹具适配本次持有者句柄，继续沿用原锁失败/等待控制和断言。
+// 夹具提供锁持有者句柄，并控制获取失败与等待结果。
 func (c *outboxCleanupCache) AcquireBucketLease(ctx context.Context, bucket SchedulerBucket, ttl time.Duration) (*BucketLease, bool, error) {
 	ok, err := c.TryLockBucket(ctx, bucket, ttl)
 	if err != nil || !ok {

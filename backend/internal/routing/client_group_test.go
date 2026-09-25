@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 迁移必须保持先读取分组、再读取客户端标志，以及未受限目标的短路。
+// 先读取分组、再读取客户端标志，以及未受限目标的短路。
 func TestClientGroupResolutionKeepsReadOrder(t *testing.T) {
 	first, next := int64(1), int64(2)
 	var sequence []string

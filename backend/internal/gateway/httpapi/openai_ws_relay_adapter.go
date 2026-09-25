@@ -27,7 +27,7 @@ func relayExitProjection(e openaiwsv2.RelayExit) gatewayws.RelayExit {
 	return gatewayws.RelayExit{Stage: e.Stage, Err: e.Err, Graceful: e.Graceful, WroteDownstream: e.WroteDownstream}
 }
 
-// RunRelay 接入帧执行原语；回调中的网关资格、快照及完成规则全部由新核心提供。
+// RunRelay 接入帧执行原语；回调中的网关资格、快照及完成规则全部由网关核心提供。
 func (p *wsPassthroughAdapter) RunRelay(input gatewayws.RelayInput) (gatewayws.RelayResult, *gatewayws.RelayExit) {
 	o := input.Options
 	opts := openaiwsv2.RelayOptions{

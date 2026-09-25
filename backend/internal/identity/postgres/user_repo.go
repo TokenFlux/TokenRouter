@@ -1633,7 +1633,7 @@ func (r *UserStore) DisableTotp(ctx context.Context, userID int64) error {
 	return nil
 }
 
-// IdentityBillingBalance 明确复用身份、支付与维护入口持有的 Ent 事务，S05/S12/S14 退出。
+// IdentityBillingBalance 复用调用方持有的 Ent 事务执行余额操作。
 func (r *UserStore) IdentityBillingBalance(ctx context.Context) *billingpostgres.BalanceStore {
 	if tx := dbent.TxFromContext(ctx); tx != nil {
 		return billingpostgres.BalanceInTx(tx)

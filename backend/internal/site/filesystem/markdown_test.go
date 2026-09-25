@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// B04 保留普通页面和根内链接，只拒绝越出页面根的内容读取。
+// 保留普通页面和根内链接，只拒绝越出页面根的内容读取。
 func TestMarkdownRootAndSize(t *testing.T) {
 	root := t.TempDir()
 	store := New(root)

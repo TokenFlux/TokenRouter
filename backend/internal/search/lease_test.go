@@ -84,7 +84,7 @@ func TestS10SearchStopWaitsAndRejectsNewWork(t *testing.T) {
 	require.NoError(t, group.Stop(context.Background()))
 }
 
-// B07 清理预算耗尽时停止等待仍可报告未完成，不能把退额失败记成成功。
+// 清理预算耗尽时停止等待仍可报告未完成，不能把退额失败记成成功。
 type blockedQuotaCleanup struct {
 	quotaFixture
 	entered chan context.Context

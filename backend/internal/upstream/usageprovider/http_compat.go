@@ -1,4 +1,4 @@
-// 过渡期只暴露固定技术 helper，算法在共享读取器中唯一维护。
+// 导出共享 HTTP 读取器的技术辅助函数，解析算法由读取器维护。
 package usageprovider
 
 import (

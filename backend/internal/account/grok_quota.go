@@ -295,7 +295,7 @@ func (s *GrokQuotaService) RunProbeFlight(
 	return CloneGrokQuotaProbeResult(result), nil
 }
 
-// StopContext 等待共享探测与模型同步；供应商协议仍留此适配入口，S09 退出。
+// StopContext 等待共享探测与模型同步结束。
 func (s *GrokQuotaService) StopContext(ctx context.Context) error {
 	if s == nil {
 		return nil

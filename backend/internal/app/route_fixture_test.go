@@ -27,7 +27,7 @@ import (
 	usageadmin "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/admin"
 )
 
-// 路由迁移夹具保留旧测试构造形状；生产不存在这些聚合。
+// 路由夹具提供测试构造参数；生产不存在这些聚合。
 type routeTestAdminHandlers struct {
 	APIKey                *apikeyhttpapi.AdminAPIKeyHandler[routingdto.Group]
 	AccountArchive        *httpapi.ArchiveHandler

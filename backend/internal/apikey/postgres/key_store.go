@@ -741,7 +741,7 @@ func (r *KeyStore) KeyAttachLastUsedIPs(ctx context.Context, keys []keycore.APIK
 }
 
 func (r *KeyStore) KeyLatestUsageLogIPs(ctx context.Context, apiKeyIDs []int64) (result map[int64]string, err error) {
-	// 保留原空批次/无执行器的提前返回，避免迁移后提前读取 dialect。
+	// 空批次或没有执行器时提前返回，不读取 dialect。
 	if len(apiKeyIDs) == 0 || r.sql == nil {
 		return map[int64]string{}, nil
 	}
@@ -1131,7 +1131,7 @@ func (r *KeyStore) GetRateLimitData(ctx context.Context, id int64) (result *keyc
 	return billingpostgres.NewKeyUsageStore(r.client, r.sql).GetRateLimitData(ctx, id)
 }
 
-// UsageTotalsReader 保留用量排序整段查询的原过滤和回退，S08 改绑。
+// UsageTotalsReader 提供用量排序所需的完整查询，保留过滤与回退语义。
 type UsageTotalsReader func(context.Context, []int64) (map[int64]float64, error)
 
 func (r *KeyStore) KeyLoadAPIKeyUsageTotals(ctx context.Context, ids []int64) (map[int64]float64, error) {

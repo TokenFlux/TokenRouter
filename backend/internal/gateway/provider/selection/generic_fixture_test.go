@@ -58,7 +58,7 @@ func newGeminiSelectionForTest(deps GeminiDependencies, cfg *config.Config) *Gem
 
 // newCompatibleSelectionForTest 只注入原生参数，不初始化供应商执行器。
 func newCompatibleSelectionForTest(deps CompatibleDependencies, cfg *config.Config) *Compatible {
-	// 旧执行夹具惰性提供同一响应归属存储；迁移后由测试装配显式注入。
+	// 执行夹具惰性提供同一响应归属存储，并通过测试装配注入。
 	if deps.Responses == nil {
 		cache, _ := deps.Cache.(session.GatewayCache)
 		deps.Responses = session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)

@@ -230,7 +230,7 @@ func TestGatewaySelectAccountWithLoadAwareness_SkipsAntigravityGeminiFamilyRateL
 	}
 }
 
-// B03：已取得账号槽后读取完整账号失败，错误返回前必须归还一次。
+// 已取得账号槽后读取完整账号失败，错误返回前必须归还一次。
 func TestGatewayNewSelectionResultReleasesSlotWhenHydrationFails(t *testing.T) {
 	cache := &snapshotHydrationCache{accounts: map[int64]*gatewayprovider.ExecutionAccount{}}
 	snapshot := newHydrationSnapshotForTest(cache, selectionAccountFixture{})

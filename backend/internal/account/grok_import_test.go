@@ -1,6 +1,6 @@
 //go:build unit
 
-// 原 SSO panic 脱敏断言随所属 worker 迁移，保留失败项与索引语义。
+// 验证 SSO worker 的 panic 脱敏，以及失败项与输入索引的对应关系。
 package account
 
 import (

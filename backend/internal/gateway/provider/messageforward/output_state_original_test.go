@@ -1,6 +1,6 @@
 //go:build unit
 
-// 本文件验证迁移输出适配器继承已有 HTTP 状态，不改变原重试边界。
+// 验证输出适配器继承已有 HTTP 状态，并据此保持重试边界。
 package messageforward_test
 
 import (

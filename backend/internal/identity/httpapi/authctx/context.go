@@ -21,7 +21,7 @@ type AuthSubject struct {
 	Concurrency int
 }
 
-// authenticationRecord 是请求认证的唯一来源，旧字段仅为尚未迁出的直接读取者保留。
+// authenticationRecord 是请求认证的唯一来源，兼容字段供直接读取请求上下文的调用方使用。
 // API Key 的行为身份与旧付款用户投影分开保存，不能把付款人的管理员角色赋给 Key 身份。
 type authenticationRecord struct {
 	Principal  identity.Principal

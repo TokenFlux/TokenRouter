@@ -242,16 +242,8 @@ func DescribeInvalidJSON(body []byte) error {
 
 // ParsedRequest 保存网关请求的预解析结果
 //
-// 性能优化说明：
-// 原实现在多个位置重复解析请求体（Handler、Service 各解析一次）：
-// 1. gateway_handler.go 解析获取 model 和 stream
-// 2. gateway_service.go 再次解析获取 system、messages、metadata
-// 3. GenerateSessionHash 又一次解析获取会话哈希所需字段
-//
-// 新实现一次解析，多处复用：
-// 1. 在 Handler 层统一调用 ParseGatewayRequest 一次性解析
-// 2. 将解析结果 ParsedRequest 传递给 Service 层
-// 3. 避免重复 json.Unmarshal，减少 CPU 和内存开销
+// HTTP 入口通过 ParseGatewayRequest 解析一次，执行和会话计算复用同一结果，
+// 避免为读取 model、stream、messages 和 metadata 反复解析请求体。
 type ParsedRequest struct {
 	Body            *RequestBodyRef // 原始请求体引用（保留用于转发）；替换内容请走 ReplaceBody
 	Model           string          // 请求的模型名称

@@ -459,7 +459,7 @@ func (r *parallelCreativeRunRepo) CompleteProviderOutcome(ctx context.Context, i
 	return r.creativeFakeRunRepo.CompleteProviderOutcome(ctx, id, cost, lost, now)
 }
 
-// B05 的交付确认增加输出读取，读取必须与并行替身的保存共用屏障。
+// 交付确认增加输出读取，读取必须与并行替身的保存共用屏障。
 func (s *parallelCreativeTransient) LoadOutput(ctx context.Context, runID string, index int) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

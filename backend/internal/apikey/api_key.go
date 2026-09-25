@@ -50,7 +50,7 @@ func NormalizeAPIKeyBillingMode(value string) (string, bool) {
 }
 
 // APIKeyEffectiveBillingMode 返回 Key 实际生效的结算模式。
-// 历史记录在迁移前没有该字段时按 auto 处理，避免滚动升级期间错误拒绝请求。
+// 历史记录在缺少该字段时按 auto 处理，避免滚动升级期间错误拒绝请求。
 func APIKeyEffectiveBillingMode(key *APIKey) string {
 	if key == nil {
 		return APIKeyBillingModeAuto

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ollamaSettingsStore 仅提供配置迁移测试实际使用的单键读写。
+// ollamaSettingsStore 仅提供配置测试实际使用的单键读写。
 type ollamaSettingsStore struct{ values map[string]string }
 
 func (s *ollamaSettingsStore) GetValue(_ context.Context, key string) (string, error) {

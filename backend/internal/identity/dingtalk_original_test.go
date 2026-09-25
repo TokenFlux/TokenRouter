@@ -47,7 +47,7 @@ func TestBuildDingTalkUpstreamClaims_EmptyStaff(t *testing.T) {
 
 	require.Equal(t, "", claims["email"])
 	require.Equal(t, "", claims["username"])
-	// 重构后 subject = unionID（与 identityKey.ProviderSubject 保持一致）
+	// subject = unionID（与 identityKey.ProviderSubject 保持一致）
 	require.Equal(t, "UNION_AAA", claims["subject"])
 	require.Equal(t, "", claims["corp_user_id"]) // 企业 userid 跨组织时为空
 	require.Equal(t, "UNION_AAA", claims["union_id"])
@@ -188,14 +188,14 @@ func TestCompleteDingTalkRegistration_UsernameFromEmailLocalPart(t *testing.T) {
 	}
 }
 
-// TestBuildDingTalkUpstreamClaims_SubjectEqualsUnionID 验证重构后 subject = unionID
+// TestBuildDingTalkUpstreamClaims_SubjectEqualsUnionID 验证subject = unionID
 // 而非 staff.UserID，与 identityKey.ProviderSubject 保持一致。
 // §4.2: buildDingTalkUpstreamClaims subject 字段修正。
 func TestBuildDingTalkUpstreamClaims_SubjectEqualsUnionID(t *testing.T) {
 	staff := &identityprovider.DingTalkStaffInfo{UserID: "user123", Name: "张三", Email: "zhangsan@corp.com"}
 	claims := identitycore.DingTalkUpstreamClaims(staff, "union456", "dingcorp789")
 
-	// 重构后 subject = unionID（全局唯一，与 identityKey.ProviderSubject 一致）
+	// subject = unionID（全局唯一，与 identityKey.ProviderSubject 一致）
 	require.Equal(t, "union456", claims["subject"], "subject should equal unionID after refactor")
 	// 企业 userid 保留为独立字段，供 audit/debug 使用
 	require.Equal(t, "user123", claims["corp_user_id"], "corp_user_id should be staff.UserID")

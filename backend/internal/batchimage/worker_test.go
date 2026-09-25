@@ -46,7 +46,7 @@ func (p *leaseLossProcessor) Process(ctx context.Context, _ string) (BatchImageP
 	return BatchImageProcessResult{Terminal: true}, nil
 }
 
-// B04 的取消必须传到实际 processor；即便其迟到返回终态，也不能 ACK 或重排接管者任务。
+// 取消必须传到实际 processor；即便其迟到返回终态，也不能 ACK 或重排接管者任务。
 func TestWorkerLostLeaseCancelsProcessingWithoutQueueMutation(t *testing.T) {
 	for _, test := range []struct {
 		name               string

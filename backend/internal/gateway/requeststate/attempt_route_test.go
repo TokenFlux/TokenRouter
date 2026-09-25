@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 迁移原捕获断言：缺失值不补造，已捕获计划不被后续修改污染。
+// 请求快照断言：缺失值不补造，已捕获计划不被后续修改污染。
 func TestCapturedCandidatePlanDoesNotResolveMissingOrChangedCandidate(t *testing.T) {
 	var attempt AttemptRoute
 	_, ok := attempt.Candidate()

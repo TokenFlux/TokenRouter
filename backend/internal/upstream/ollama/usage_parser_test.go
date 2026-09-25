@@ -1,4 +1,4 @@
-// 原 HTML 契约测试随解析实现迁移，保留全部断言与同一脱敏夹具。
+// 使用脱敏 HTML 夹具验证用量解析。
 package ollama
 
 import (

@@ -1,4 +1,4 @@
-// 旧审计中间件入口委托所属 HTTP Adapter，S15/S16 清理。
+// 审计中间件和请求辅助函数委托 audit/httpapi。
 package middleware
 
 import (

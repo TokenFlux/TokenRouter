@@ -2,7 +2,7 @@ package openai
 
 import "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
 
-// 入站客户端解析转接；平台许可仍由旧 allowed_client 拥有，S11 清理。
+// 复用 clientmeta 的入站客户端解析，平台许可由请求准入逻辑判断。
 
 // IsBrowserUserAgent 委托纯客户端解析。
 func IsBrowserUserAgent(userAgent string) bool { return clientmeta.IsBrowserUserAgent(userAgent) }

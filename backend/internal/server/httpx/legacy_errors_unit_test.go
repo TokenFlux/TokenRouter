@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 旧构造器只用作错误身份夹具，HTTP 投影唯一入口已归 httpx，兼容夹具退出 S16。
+// 数值错误构造器用作错误身份夹具，HTTP 映射由 httpx 提供。
 func TestToHTTP_S15Legacy(t *testing.T) {
 	tests := []struct {
 		name           string

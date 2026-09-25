@@ -109,7 +109,7 @@ func TestS14B02StopBudget(t *testing.T) {
 	done()
 }
 
-// 迁移保留原启动降级，历史无效 cron 不得阻断整套应用启动。
+// 无效 cron 配置使定时备份降级，不得阻断整套应用启动。
 func TestS14StoredCronFailureDegrades(t *testing.T) {
 	repo := &runtimeSettings{values: map[string]string{settingKeyBackupSchedule: `{"enabled":true,"cron_expr":"not-a-cron"}`}}
 	s := runtimeBackup(repo, &runtimeArchive{})

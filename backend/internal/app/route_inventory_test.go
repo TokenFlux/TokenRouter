@@ -60,7 +60,7 @@ func routeInventoryMount[T any](t *testing.T, factory any) T {
 	return result
 }
 
-// TestS15NativeRouteInventory 对照迁移前冻结的 693 条路径，实际调用生产注册函数并由 Gin 检测重复注册。
+// TestS15NativeRouteInventory 对照固定的 693 条路由快照，实际调用生产注册函数并由 Gin 检测重复注册。
 func TestS15NativeRouteInventory(t *testing.T) {
 
 	r := gin.New()
@@ -76,7 +76,7 @@ func TestS15NativeRouteInventory(t *testing.T) {
 	routeInventoryMount[adminRouteMount](t, provideAdminRouteMount)(v1, security, noop)
 	routeInventoryMount[gatewayRouteMount](t, provideGatewayRouteMount)(r)
 	routeInventoryMount[paymentRouteMount](t, providePaymentRouteMount)(v1, security)
-	raw, err := os.ReadFile("testdata/s15_routes.json")
+	raw, err := os.ReadFile("testdata/routes.json")
 	require.NoError(t, err)
 	var expected []string
 	require.NoError(t, json.Unmarshal(raw, &expected))

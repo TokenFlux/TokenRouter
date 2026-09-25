@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 新核心与真实存储组合，确认资金、累计充值、usage 和次数的原子边界。
+// 组合推广用例与真实存储，验证资金、累计充值、usage 和次数的原子边界。
 func TestPromotionApplyCodeFundsAndUsageAtomicity(t *testing.T) {
 	for _, failure := range []string{"", "usage", "count"} {
 		t.Run("failure_"+failure, func(t *testing.T) {

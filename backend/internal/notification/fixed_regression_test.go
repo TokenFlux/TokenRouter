@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 这些行为断言来自规划阶段的原实现失败；并发夹具不依赖错误的双读屏障。
+// 并发夹具验证投递去重和退订初始化，不要求两个调用同时完成去重读取。
 func TestS10ConcurrentNotificationDelivery(t *testing.T) {
 	repo := mailtest.NewMemorySettings()
 	server := mailtest.StartSMTPServer(t)

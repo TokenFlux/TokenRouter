@@ -104,7 +104,7 @@ func subscriptionPlanIncludesGroup(plan *billing.SubscriptionPlan, id int64) boo
 	return billing.SubscriptionAllowsGroup(&billing.UserSubscription{Plan: plan}, id)
 }
 
-// SetGroupFastPolicy 注入旧分组策略的只读计算，S06 改绑其提供者。
+// SetGroupFastPolicy 注入分组 Fast 策略的只读计算。
 func (s *APIKeyService) SetGroupFastPolicy(policy func(string, bool) string) {
 	s.groupFastPolicy = policy
 }

@@ -33,7 +33,7 @@ type VertexTokenOptions struct {
 	Warn      func(string, ...any)
 }
 
-// GetVertexServiceAccountAccessToken 管理原缓存、锁及故障降级；B03 仅修正等锁取消。
+// GetVertexServiceAccountAccessToken 管理凭据缓存、刷新锁与故障降级，等锁响应 context 取消。
 // @project-doc docs/interfaces/gemini_upstream.md#vertex_service_account_execution
 func GetVertexServiceAccountAccessToken(ctx context.Context, options VertexTokenOptions) (string, error) {
 	if options.Cache != nil {
@@ -59,7 +59,7 @@ func GetVertexServiceAccountAccessToken(ctx context.Context, options VertexToken
 				return "", ctx.Err()
 			case <-timer.C:
 			}
-			// B03：即使定时器与取消同时就绪，也不能继续回读缓存或交换。
+			// 即使定时器与取消同时就绪，也不能继续回读缓存或交换。
 			if err := ctx.Err(); err != nil {
 				return "", err
 			}

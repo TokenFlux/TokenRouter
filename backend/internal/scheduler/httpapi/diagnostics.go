@@ -13,7 +13,7 @@ import (
 	gin "github.com/gin-gonic/gin"
 )
 
-// AccountSchedulerDiagnostics 只读无凭据的诊断输入输出，评分执行归 S07。
+// AccountSchedulerDiagnostics 使用无凭据的只读诊断投影，评分由 scheduler 执行。
 type AccountSchedulerDiagnostics interface {
 	GetOverview(context.Context, int64) (*policy.AdvancedSchedulerScoreDiagnosticResponse, error)
 	GetDetail(context.Context, int64, policy.AdvancedSchedulerScoreDiagnosticRequest) (*policy.AdvancedSchedulerScoreDiagnosticResponse, error)

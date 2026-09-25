@@ -1,4 +1,4 @@
-// 账号展示兼容入口委托中立用量值，S15/S16 清理。
+// 账号用量展示复用共享用量值和复制函数。
 package usageview
 
 import "github.com/TokenFlux/TokenRouter/internal/upstream/usageview"

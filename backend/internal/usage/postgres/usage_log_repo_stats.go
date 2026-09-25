@@ -829,7 +829,7 @@ func (r *Store) getStatsWithFilters(ctx context.Context, filters UsageLogFilters
 			return nil, err
 		}
 	} else {
-		// 事务路径(ent.Tx 不能并发查询):顺序执行,行为与重构前一致。
+		// Ent 事务不能并发查询，此处按顺序执行。
 		if err := runSummary(ctx); err != nil {
 			return nil, err
 		}

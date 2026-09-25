@@ -1,4 +1,4 @@
-// 这些查询原先采用 Get/Set；迁移不引入新的 singleflight 或查询时机。
+// 仪表盘报表使用 Get/Set 缓存查询结果，不合并并发回源。
 package usage
 
 import (

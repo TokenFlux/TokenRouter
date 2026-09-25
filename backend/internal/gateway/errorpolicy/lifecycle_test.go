@@ -50,7 +50,7 @@ func blockedRules() *controlledRules {
 	return &controlledRules{current: fixtureRule(), entered: make(chan struct{}), resume: make(chan struct{}), block: true}
 }
 
-// B03：旧回源和管理写入只能依次发布，不能在禁用完成后恢复旧规则。
+// 旧回源和管理写入只能依次发布，不能在禁用完成后恢复旧规则。
 func TestRuleUpdateCannotBeOverwrittenByOlderLoad(t *testing.T) {
 	repo := blockedRules()
 	svc := NewErrorPassthroughService(repo, nil)
@@ -89,7 +89,7 @@ func TestRuleUpdateCoordinatorWaitHonorsCancellation(t *testing.T) {
 	require.NotNil(t, svc.MatchRule("openai", 503, nil), "未成功写入不能发布禁用状态")
 }
 
-// B04：输入、结果和嵌套响应动作均与已编译快照独立。
+// 输入、结果和嵌套响应动作均与已编译快照独立。
 func TestRuleSnapshotOwnership(t *testing.T) {
 	source := fixtureRule()
 	svc := NewErrorPassthroughService(nil, nil)
@@ -113,7 +113,7 @@ func TestRuleSnapshotOwnership(t *testing.T) {
 	require.Empty(t, second.Keywords)
 }
 
-// B05：运行取消能够到达启动中的数据库调用，Stop 不必等外部释放夹具。
+// 运行取消能够到达启动中的数据库调用，Stop 不必等外部释放夹具。
 func TestStopCancelsStartupRuleLoad(t *testing.T) {
 	repo := blockedRules()
 	svc := NewErrorPassthroughService(repo, nil)

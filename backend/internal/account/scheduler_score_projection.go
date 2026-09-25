@@ -22,7 +22,7 @@ type SchedulerLoad struct {
 	CurrentConcurrency, WaitingCount, LoadRate int
 }
 
-// SchedulerScoreOptions 不持有评分状态，执行端口复用 S07 的唯一反馈实例。
+// SchedulerScoreOptions 不持有评分状态，执行端口复用 scheduler 的共享反馈实例。
 type SchedulerScoreOptions struct {
 	Load  func(context.Context, []SchedulerLoadRequest) (map[int64]*SchedulerLoad, error)
 	Score func(context.Context, *accessview.GroupConfig, []*Record, map[int64]*SchedulerLoad) map[int64]AccountSchedulerScore

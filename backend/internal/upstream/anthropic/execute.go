@@ -24,7 +24,7 @@ type Target struct {
 	StartedAt                    time.Time
 	Passthrough, MimicClaudeCode bool
 	Enter                        func() (func(), error)
-	// BeforeResponse 只衔接尚未迁移的 HTTP 错误/账号观测；stop 表示外层已处理响应。
+	// BeforeResponse 衔接 HTTP 错误处理与账号观测；stop 表示外层已处理响应。
 	BeforeResponse func(context.Context, *http.Response, []byte) (stop bool, err error)
 	BeforeStream   func()
 	OnStream       func(*StreamResult, error)

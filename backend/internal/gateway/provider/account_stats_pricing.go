@@ -8,7 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
-// AccountStatsSource 只投影旧渠道读取，规则由 billing 决定；S06 退出。
+// AccountStatsSource 提供渠道价格只读投影，账号成本规则由 billing 决定。
 type AccountStatsSource struct{ Service *routing.ChannelService }
 
 func (s AccountStatsSource) AccountStatsGroup(ctx context.Context, id int64) (*billing.AccountStatsChannel, error) {

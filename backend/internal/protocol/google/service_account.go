@@ -1,4 +1,4 @@
-// Vertex 迁移保留原协议及取消边界，旧入口仅投影。
+// Google 服务账号密钥与令牌响应的协议值。
 package google
 
 type ServiceAccountKey struct {

@@ -7,7 +7,7 @@ import (
 	"github.com/google/wire"
 )
 
-// gatewayExecutionProviders 只装配剩余执行入口；业务实现按已登记迁移账本继续清零。
+// gatewayExecutionProviders 绑定网关执行器、凭据、健康反馈和会话状态的构造函数。
 var gatewayExecutionProviders = wire.NewSet(
 	provideCodexTurnStateHeaders,
 	provideGrokCredentialRecovery,

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// cancelClaimStore 在成功取得控制权的边界取消，验证 B06 不执行后续账号查询。
+// cancelClaimStore 在成功取得控制权的边界取消，验证取消后不执行后续账号查询。
 type cancelClaimStore struct {
 	session.LiveCallStore
 	cancel   context.CancelFunc

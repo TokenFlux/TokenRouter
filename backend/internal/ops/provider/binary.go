@@ -336,4 +336,4 @@ func (s *BinaryInstaller) extractBinary(archivePath, destPath string) error {
 	return out.Close()
 }
 
-// WrapUpdateQuery 接入组合根的唯一发布查询实例，二进制操作仍留 S14。
+// WrapUpdateQuery 复用组合根的发布查询实例，二进制操作由维护执行器负责。

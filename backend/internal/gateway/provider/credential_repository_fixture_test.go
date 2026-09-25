@@ -9,7 +9,7 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
-// 仅为尚未迁移的网关测试投影旧账号记录及实际存在的存储参与能力，不复制刷新实现。
+// 为网关测试提供账号记录和存储参与能力，刷新逻辑由账号模块执行。
 type tokenSourceFixtureReader struct {
 	source gatewayprovider.ExecutionAccountStore
 }

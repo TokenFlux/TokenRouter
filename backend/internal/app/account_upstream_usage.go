@@ -37,7 +37,7 @@ func provideUpstreamUsage(store *accountpostgres.AccountStore, upstream httpclie
 	return core
 }
 
-// provideUpstreamUsageHTTP 直接绑定新核心，避免 HTTP 反向依赖旧服务。
+// provideUpstreamUsageHTTP 将账号用量查询用例绑定到 HTTP 接口。
 func provideUpstreamUsageHTTP(source *account.UpstreamUsageService) *accounthttp.UpstreamUsageHandler {
 	return accounthttp.NewUpstreamUsageHandler(source)
 }

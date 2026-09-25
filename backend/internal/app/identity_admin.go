@@ -30,7 +30,7 @@ import (
 	"time"
 )
 
-// identityAdminKeys 在新模块之间转换只读列表，保留原分页查询与排序。
+// identityAdminKeys 为身份管理转换 Key 只读列表，保留分页查询与排序。
 type identityAdminKeys struct{ *keypostgres.KeyStore }
 
 func (p identityAdminKeys) List(ctx context.Context, id int64, page, size int, sortBy, order string) ([]identity.AdminKeySummary, int64, error) {

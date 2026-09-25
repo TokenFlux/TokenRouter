@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// S09 固定回归来自规划阶段原实现复现；保留真实输出、usage 与失败的联合断言。
+// 联合验证 Qoder 的真实输出、已观测 usage 与失败结果。
 func TestS09QoderPartialUsageOnError(t *testing.T) {
 
 	body := qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{map[string]any{"delta": map[string]any{"content": "served"}}}}) + qoderWrappedSSELineForTest(t, map[string]any{"usage": map[string]any{"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15}}) + qoderWrappedErrorSSELineForTest(t, 502, map[string]any{"code": "500", "message": "local fixture upstream failure"})

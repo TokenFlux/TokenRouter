@@ -6,7 +6,7 @@ import (
 )
 
 // ObserverState 是已有进程观察者登记的明确技术投影。
-// 四个字段必须来自同一拥有者；过渡适配只传引用，不创建第二份取消表或等待计数。
+// 四个字段必须来自同一拥有者；适配层只传引用，不创建第二份取消表或等待计数。
 type ObserverState struct {
 	Mutex   *sync.Mutex
 	Stopped *bool

@@ -13,7 +13,7 @@ import (
 // 模式在并行 HTTP 契约开始前固定，测试本身不修改全局状态。
 func TestMain(m *testing.M) {
 	gin.SetMode(gin.TestMode)
-	// 原 service 测试进程使用 UTC；迁移后显式保留时间夹具前提。
+	// 测试进程使用 UTC，保证时间夹具不受本地时区影响。
 	time.Local = time.UTC
 	os.Exit(m.Run())
 }

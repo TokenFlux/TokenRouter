@@ -1,6 +1,6 @@
 package googleforward
 
-// 以下入口只在测试构建中开放私有边界，生产接口不因测试迁移扩大。
+// 以下入口仅在测试构建中开放私有边界。
 var ResolveProjectForTest = resolveAntigravityProjectID
 var EnsureSignatureForTest = ensureGeminiFunctionCallThoughtSignatures
 var ConvertClaudeForTest = convertClaudeMessagesToGeminiGenerateContent

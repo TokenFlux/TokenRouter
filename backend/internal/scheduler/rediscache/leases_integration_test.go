@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// B05：真实 Redis 中旧锁自然过期后，旧句柄不能释放继任持有者的锁。
+// 真实 Redis 中旧锁自然过期后，旧句柄不能释放继任持有者的锁。
 func TestS07BucketLeaseExpiredOwnerCannotReleaseSuccessor(t *testing.T) {
 	ctx := context.Background()
 	rdb := testRedis(t)
@@ -56,7 +56,7 @@ func (c s07WaitIncrementFault) IncrementAccountWaitCount(context.Context, int64,
 	return false, errors.New("增加账号等待计数未确认")
 }
 
-// B02：错误放行后立即退出，不能递减 Redis 中另一个请求持有的用户或账号计数。
+// 错误放行后立即退出，不能递减 Redis 中另一个请求持有的用户或账号计数。
 func TestS07WaitFailOpenDoesNotReleaseOtherRequest(t *testing.T) {
 	ctx := context.Background()
 	rdb := testRedis(t)
