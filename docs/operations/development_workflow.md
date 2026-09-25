@@ -138,6 +138,8 @@ Messages、Chat、Responses 与 Raw Chat 的协议合同直接构造 gateway/htt
 
 集成测试可能启动 PostgreSQL/Redis 容器；环境没有 Docker 时要明确报告未运行，不能用单元测试结果代替。涉及迁移时还要运行 migration runner 和对应 schema/data regression tests。
 
+备份恢复集成测试还需要 PATH 中的 `pg_dump` 和 `psql`。当前恢复夹具使用 PostgreSQL 18，CI 显式安装 PostgreSQL 18 客户端；本地也应使用同一主版本，避免 runner 自带旧客户端无法备份测试数据库。时间戳不变的断言应比较操作前后的数据库回读值，不能拿 Ent 创建返回的纳秒内存值与 PostgreSQL 的微秒存储值直接比较。
+
 前端门禁：
 
 ```bash
