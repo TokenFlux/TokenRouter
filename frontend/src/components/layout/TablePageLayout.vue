@@ -105,59 +105,16 @@ onUnmounted(() => {
 }
 
 .table-page-layout:not(.mobile-mode) .table-pagination-footer {
-  --pagination-control-height: 2rem;
   @apply border-t border-gray-200 bg-gray-50/80 dark:border-dark-700 dark:bg-dark-950;
 }
 
+/* 页脚内的分页器去掉自带边框与底色,与表格外框融为一体;控件保持全站 36px 基线。 */
 .table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.pagination-root),
 .table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.batch-pagination-root) {
   border-top: 0;
   background: transparent;
-  height: 2.25rem;
-  min-height: 2.25rem;
-  padding: 0 1rem;
-}
-
-/* 页码分段保持连续拼接并压到 28px 正方形；表格行内控件不受影响。 */
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.pagination-nav .pagination-control) {
-  width: 1.75rem;
-  height: 1.75rem;
-  min-height: 1.75rem;
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.page-size-select .select-trigger),
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.pagination-jump-input),
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.pagination-jump-button) {
-  height: 1.75rem;
-  min-height: 1.75rem;
-}
-
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.page-size-select) {
-  width: 4rem;
-}
-
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.page-size-select .select-trigger) {
-  gap: 0.25rem;
-  padding-left: 0.5rem;
-  padding-right: 0.5rem;
-}
-
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.pagination-summary) {
-  font-size: 0.8125rem;
-}
-
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.pagination-page-button) {
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.batch-pagination-root .select-trigger) {
-  height: var(--pagination-control-height);
-  min-height: var(--pagination-control-height);
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 /* 移动端：恢复正常滚动 */

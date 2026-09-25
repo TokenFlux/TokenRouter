@@ -47,7 +47,9 @@ describe('36px control sizing', () => {
     expect(proxySelectorSource).toContain('@apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;')
     expect(dateRangePickerSource).toContain('@apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;')
     expect(dateRangePickerSource).toContain('@apply inline-flex h-9 min-h-9 items-center justify-center rounded-control px-4 py-1.5 text-sm font-medium;')
-    expect(paginationSource).toContain('height: 2.25rem;')
+    // 分页控件直接由模板里的 h-9 提供 36px 基线,不再有局部高度覆盖。
+    expect(paginationSource).toContain('pagination-jump-button btn btn-ghost btn-sm h-9')
+    expect(paginationSource).not.toContain('--pagination-control-height')
   })
 
   it('renders every pagination button on the 36px baseline', () => {

@@ -61,7 +61,7 @@
             :placeholder="t('pagination.jumpPlaceholder')"
             @keyup.enter="submitJump"
           />
-          <button type="button" class="pagination-jump-button btn btn-ghost btn-sm" @click="submitJump">
+          <button type="button" class="pagination-jump-button btn btn-ghost btn-sm h-9" @click="submitJump">
             {{ t('pagination.jumpAction') }}
           </button>
         </div>
@@ -239,19 +239,3 @@ const submitJump = () => {
   goToPage(nextPage)
 }
 </script>
-
-<style scoped>
-.pagination-control,
-.pagination-jump-input,
-.pagination-jump-button {
-  height: var(--pagination-control-height, 2.25rem);
-  min-height: var(--pagination-control-height, 2.25rem);
-}
-
-.page-size-select :deep(.select-trigger) {
-  height: 2.25rem;
-  height: var(--pagination-control-height, 2.25rem);
-  min-height: 0;
-  @apply px-3 py-1.5 text-sm;
-}
-</style>
