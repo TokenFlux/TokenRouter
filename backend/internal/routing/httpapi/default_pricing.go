@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"log/slog"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -8,6 +10,21 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/gin-gonic/gin"
 )
+
+// UpdateDefaultPricing 只在管理员明确更新时重新加载目录，普通查询不触发同步。
+// @project-doc docs/interfaces/model_catalog_and_marketplace.md#gateway_default_pricing
+func (h *PricingHandler) UpdateDefaultPricing(c *gin.Context) {
+	if h.catalog == nil || h.catalog.Update == nil {
+		httpx.Error(c, http.StatusServiceUnavailable, "pricing catalog updater is unavailable")
+		return
+	}
+	if err := h.catalog.Update(); err != nil {
+		slog.Warn("failed to update pricing catalog", "error", err)
+		httpx.Error(c, http.StatusBadGateway, "failed to update pricing catalog")
+		return
+	}
+	httpx.Success(c, gin.H{"updated": true})
+}
 
 // @project-doc docs/interfaces/model_catalog_and_marketplace.md#gateway_default_pricing
 // ListDefaultPricing 只查询网关已加载的默认价，不触发目录同步。

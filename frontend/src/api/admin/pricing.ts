@@ -77,7 +77,6 @@ export interface PricingConfig {
   billing_model_source: string // "requested" | "group_mapped" | "upstream"
   group_ids: number[]
   model_pricing: ModelPricingEntry[]
-  apply_pricing_to_account_stats: boolean
   account_stats_pricing_rules: AccountStatsPricingRule[]
   created_at: string
   updated_at: string
@@ -89,7 +88,6 @@ export interface CreatePricingConfigRequest {
   group_ids?: number[]
   model_pricing?: ModelPricingEntry[]
   billing_model_source?: string
-  apply_pricing_to_account_stats?: boolean
   account_stats_pricing_rules?: AccountStatsPricingRule[]
 }
 
@@ -100,7 +98,6 @@ export interface UpdatePricingConfigRequest {
   group_ids?: number[]
   model_pricing?: ModelPricingEntry[]
   billing_model_source?: string
-  apply_pricing_to_account_stats?: boolean
   account_stats_pricing_rules?: AccountStatsPricingRule[]
 }
 
@@ -218,4 +215,9 @@ export interface DefaultModelPrice {
 export async function listDefaultPricing(params: { page: number; page_size: number; platform?: string; search?: string; billing_mode?: string }, signal?: AbortSignal): Promise<PaginatedResponse<DefaultModelPrice> & { last_updated: string; platforms?: string[] }> {
   const { data } = await apiClient.get('/admin/pricing/defaults', { params, signal })
   return data
+}
+
+// 手动更新可能包含远程哈希与目录下载，超时时间需覆盖完整更新过程。
+export async function updateDefaultPricing(signal?: AbortSignal): Promise<void> {
+  await apiClient.post('/admin/pricing/defaults/update', undefined, { signal, timeout: 120_000 })
 }

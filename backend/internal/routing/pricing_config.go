@@ -42,8 +42,7 @@ type PricingConfig struct {
 	ModelPricing []ModelPricingEntry
 
 	// 账号统计定价
-	ApplyPricingToAccountStats bool                      // 是否应用价格配置模型定价到账号统计
-	AccountStatsPricingRules   []AccountStatsPricingRule // 自定义账号统计定价规则（按 SortOrder 排序，先命中为准）
+	AccountStatsPricingRules []AccountStatsPricingRule // 自定义账号统计定价规则（按 SortOrder 排序，先命中为准）
 }
 
 // AccountStatsPricingRule 定义账号成本统计的定价规则。

@@ -119,7 +119,7 @@ Kimi、Zhipu、DeepSeek 账号的计费候选不能把客户端 `claude`、`opus
 
 模型广场公开的上下文区间价格必须与相同分组倍率下的 `ActualCost` 一致，调度到任何普通账号或 Spark 影子账号都不能改变结果。账号 `extra` 中已废弃的 OpenAI 开关不参与判断；`long_context_billing_applied` 只在该规则实际增加费用时记录为真。
 
-账号成本基数优先使用 Usage Log 的 `account_stats_cost`，仅在该字段为 `nil` 时回退 `total_cost`；显式 `0` 表示账号成本为零。账号统计和账号 `quota_used` 都把这个基数乘以账号 `rate_multiplier`，从而保持同一成本口径。用户余额、订阅和 API Key 配额始终使用 `ActualCost`，不受账号成本覆盖影响。账号成本回退到模型文件定价时，必须使用 Usage Log 最终记录的服务层级，并与模型长上下文倍率组合计算；自定义账号统计价格以及已经由 `ApplyPricingToAccountStats` 取得的用户计费结果都是最终成本基数，不得再次叠加服务层级倍率。
+账号成本基数优先使用 Usage Log 的 `account_stats_cost`，仅在该字段为 `nil` 时回退 `total_cost`；显式 `0` 表示账号成本为零。账号统计和账号 `quota_used` 都把这个基数乘以账号 `rate_multiplier`，从而保持同一成本口径。用户余额、订阅和 API Key 配额始终使用 `ActualCost`，不受账号成本覆盖影响。账号成本回退到模型文件定价时，必须使用 Usage Log 最终记录的服务层级，并与模型长上下文倍率组合计算；自定义账号统计价格是最终成本基数，不得再次叠加服务层级倍率。账号统计不再提供复用用户自定义价的开关：先匹配独立账号成本规则，再尝试网关默认模型价；缺价时保留日志层既有的 nil 回退语义。
 
 共享价格配置仅声明计费规则。分组白名单及其检查阶段见[分组模型与功能策略](gateway_policy_controls.md#group_routing_policy)。
 
@@ -138,7 +138,7 @@ Kimi、Zhipu、DeepSeek 账号的计费候选不能把客户端 `claude`、`opus
 
 管理员写入时由后端最终校验，价格配置存储在 `pricing_config_model_pricing.time_pricing` JSONB，分组存储在现有 `groups.model_pricing` JSONB 条目中；当前 fork 的迁移文件为 `249_channel_model_time_pricing.sql`。普通请求使用结算时刻，OpenAI WebSocket 使用对应 turn 开始时刻；配置损坏或无法加载时安全回退到 `1x`，不改变既有计费。
 
-Token 计费还支持独立的 `max_reasoning_effort_multiplier`。仅最终转发档位为 `max` 时生效；Fable 5.1 默认 `3x`，分组和价格配置可用有限正数覆盖（`1` 表示不加价），未配置时继承模型默认。该规则作用于全部 token 成本桶，并与当前价格、服务层级、区间及分时倍率组合；按次、图片/视频按次和搜索附加费用不乘此倍率。原始请求为 `max` 但策略降档后，按最终档位结算。账号统计使用模型文件默认价时同样应用最终档位；自定义统计价保持独立最终成本，`ApplyPricingToAccountStats` 复用已算出的 `total_cost`，两者均不重复叠加。
+Token 计费还支持独立的 `max_reasoning_effort_multiplier`。仅最终转发档位为 `max` 时生效；Fable 5.1 默认 `3x`，分组和价格配置可用有限正数覆盖（`1` 表示不加价），未配置时继承模型默认。该规则作用于全部 token 成本桶，并与当前价格、服务层级、区间及分时倍率组合；按次、图片/视频按次和搜索附加费用不乘此倍率。原始请求为 `max` 但策略降档后，按最终档位结算。账号统计使用模型文件默认价时同样应用最终档位；自定义统计价保持独立最终成本，不重复叠加用户侧倍率。
 
 价格配置字段通过 `268_channel_max_reasoning_effort_multiplier.sql` 持久化，账号统计规则不接受此字段。
 

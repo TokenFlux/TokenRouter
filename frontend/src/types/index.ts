@@ -807,6 +807,7 @@ export interface Group {
 export type GroupOpenAIFastPolicy = "follow_request" | "force_priority" | "force_ultrafast" | "force_off"
 
 export interface GroupRoutingPolicy {
+  /** 兼容历史停用策略，管理表单保存时固定为 true。 */
   enabled: boolean
   model_mapping: Record<string, Record<string, string>>
   restrict_models: boolean

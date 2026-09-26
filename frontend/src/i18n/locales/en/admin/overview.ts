@@ -807,8 +807,6 @@ affiliates: {
 // Groups
     groups: {
       routingPolicy: {
-        "enabled": "Enable model and feature policy",
-        "hint": "These settings belong to this group and stay independent of pricing. Disabling preserves the draft.",
         "mapping": "Model mapping",
         "mappingHint": "Group mapping runs before account mapping. Exact names and trailing * wildcards are supported.",
         "source": "Source model",
@@ -816,21 +814,13 @@ affiliates: {
         "restrict": "Enable model allowlist",
         "allowlistHint": "The allowlist is independent of prices. An enabled empty list rejects every model.",
         "webSearch": "Web search emulation",
-        "imageBridge": "Default Codex image bridge",
-        "imageBridgeHint": "Explicit group protocol and account settings take priority over this fallback.",
         "bedrock": "Bedrock Claude Code compatibility",
-        "features": "Display features",
         "incompleteMapping": "Enter both source and target models.",
         "conflict": "Model rules overlap or contain duplicates.",
         "basis": {
           "requested": "Client request model",
           "group_mapped": "Group-mapped model",
           "upstream": "Final upstream model"
-        },
-        "bridge": {
-          "inherit": "Follow global default",
-          "true": "Enabled",
-          "false": "Disabled"
         }
       },
       accountFilters: {

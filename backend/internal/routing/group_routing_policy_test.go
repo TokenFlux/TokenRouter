@@ -28,7 +28,7 @@ func TestPricingChangesDoNotChangeGroupPolicy(t *testing.T) {
 			Enabled: true, RestrictModels: true, RestrictionModelSource: BillingModelSourceGroupMapped,
 			AllowedModels:  map[string][]string{PlatformOpenAI: {"gpt-allowed"}},
 			ModelMapping:   map[string]map[string]string{PlatformOpenAI: {"alias": "gpt-allowed"}},
-			FeaturesConfig: map[string]any{"codex_image_generation_bridge": map[string]any{PlatformOpenAI: true}},
+			FeaturesConfig: map[string]any{"web_search_emulation": map[string]any{PlatformOpenAI: true}},
 		}}
 	}
 	service := NewPricingConfigService(store, nil, PricingConfigOptions{ReadGroup: func(_ context.Context, id int64) (*Group, error) { return groups[id], nil }})
@@ -42,7 +42,7 @@ func TestPricingChangesDoNotChangeGroupPolicy(t *testing.T) {
 		require.True(t, service.IsModelRestricted(ctx, id, "gpt-denied"))
 		policy, err := service.GetGroupPolicy(ctx, id)
 		require.NoError(t, err)
-		require.Equal(t, true, *policy.CodexImageGenerationBridgeOverride(PlatformOpenAI))
+		require.True(t, policy.IsWebSearchEmulationEnabled(PlatformOpenAI))
 	}
 	assertPolicy(1)
 	store.configs[0].ModelPricing = []ModelPricingEntry{{Platform: PlatformOpenAI, Models: []string{"gpt-denied"}}}

@@ -8,6 +8,7 @@ import Select from '@/components/common/Select.vue'
 import GroupClientProtocolSelector from '@/components/admin/group/GroupClientProtocolSelector.vue'
 import PricingEntryCard from '@/components/admin/pricing/PricingEntryCard.vue'
 import { pricingEntryFromAPI } from '@/components/admin/pricing/pricingForm'
+import { defaultRoutingPolicy } from '@/components/admin/group/routingPolicy'
 import type { ModelPricingEntry } from '@/api/admin/pricing'
 import type { AdminGroup, GroupPlatform } from '@/types'
 
@@ -96,6 +97,24 @@ beforeEach(() => {
 afterEach(() => {
   wrappers.splice(0).forEach(wrapper => wrapper.unmount())
   document.body.innerHTML = ''
+})
+
+it('编辑历史停用策略后保存即应用，打开表单时不提前更新服务端', async () => {
+  const policy = {
+    ...defaultRoutingPolicy(), enabled: false,
+    model_mapping: { openai: { alias: 'gpt-test' } }, features: '历史文字',
+  }
+  const wrapper = await open('edit', 'openai', { routing_policy: policy })
+  await tab(wrapper, 'routing')
+  expect(wrapper.get('input[aria-label="admin.groups.routingPolicy.source"]').isVisible()).toBe(true)
+  expect(wrapper.text()).not.toContain('admin.groups.routingPolicy.enabled')
+  expect(groups.update).not.toHaveBeenCalled()
+  expect(policy.enabled).toBe(false)
+  await wrapper.get('#edit-group-form').trigger('submit')
+  await flushPromises()
+  expect(groups.update.mock.calls[0]?.[1].routing_policy).toMatchObject({
+    enabled: true, model_mapping: policy.model_mapping, features: '历史文字',
+  })
 })
 
 describe.each(['create', 'edit'] as const)('GroupsView %s tabs', mode => {

@@ -9,8 +9,7 @@ import (
 
 // AccountStatsPricingConfig 不携带账号或共享价格配置实体，只包含统计价卡。
 type AccountStatsPricingConfig struct {
-	Rules          []purepricing.AccountStatsPricingRule
-	ApplyUserPrice bool
+	Rules []purepricing.AccountStatsPricingRule
 }
 type AccountStatsPlatform struct {
 	ID                   string
@@ -21,13 +20,12 @@ type AccountStatsSource interface {
 	AccountStatsPlatform(context.Context, int64) AccountStatsPlatform
 }
 
-// AccountStatsCostInput 固定客户总价和最终服务层级，账号倍率由结算快照另行处理。
+// AccountStatsCostInput 固定上游用量和最终服务层级，账号倍率由结算快照另行处理。
 type AccountStatsCostInput struct {
 	AccountID, GroupID                         int64
 	UpstreamModel, RequestedModel, MappedModel string
 	Tokens                                     UsageTokens
 	RequestCount                               int
-	UserTotalCost                              float64
 	ServiceTier, ReasoningEffort               string
 }
 
@@ -43,7 +41,7 @@ func (r *PriceResolver) ResolveAccountStats(ctx context.Context, input AccountSt
 	if cost, handled := purepricing.ResolveAccountStatsOverride(purepricing.AccountStatsInput{
 		Rules: configPricing.Rules, AccountID: input.AccountID, GroupID: input.GroupID, Platform: platform.ID,
 		Models: AccountStatsRuleModels(platform.PreferRequestedModel, input.UpstreamModel, input.RequestedModel, input.MappedModel),
-		Tokens: input.Tokens, RequestCount: input.RequestCount, UserTotalCost: input.UserTotalCost, ApplyUserPrice: configPricing.ApplyUserPrice,
+		Tokens: input.Tokens, RequestCount: input.RequestCount,
 	}); handled {
 		return cost
 	}

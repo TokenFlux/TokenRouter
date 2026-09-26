@@ -9,6 +9,7 @@ func RegisterPricingRoutes(admin *gin.RouterGroup, endpoint *PricingHandler) {
 	admin.GET("/pricing/defaults", endpoint.ListDefaultPricing)
 	admin.GET("/pricing/defaults/model", endpoint.GetModelDefaultPricing)
 	admin.GET("/pricing/defaults/models", endpoint.SyncPricingModels)
+	admin.POST("/pricing/defaults/update", endpoint.UpdateDefaultPricing)
 	pricingConfigs := admin.Group("/pricing/configs")
 	{
 		pricingConfigs.GET("", endpoint.List)

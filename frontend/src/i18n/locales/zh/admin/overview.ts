@@ -804,8 +804,6 @@ affiliates: {
 // Groups Management
     groups: {
       routingPolicy: {
-        "enabled": "启用模型与功能策略",
-        "hint": "这些设置仅属于当前分组，不随价格配置变化。关闭后保留设置。",
         "mapping": "模型映射",
         "mappingHint": "客户端模型先经过分组映射，再进入账号映射。支持模型名和末尾 * 通配符。",
         "source": "源模型",
@@ -813,21 +811,13 @@ affiliates: {
         "restrict": "启用模型白名单",
         "allowlistHint": "白名单独立于价格列表。启用后，空白名单会拒绝全部模型。",
         "webSearch": "网页搜索模拟",
-        "imageBridge": "Codex 图片桥接默认值",
-        "imageBridgeHint": "分组协议显式设置和账号设置优先；此处只决定后续兜底行为。",
         "bedrock": "Bedrock Claude Code 兼容",
-        "features": "展示特性",
         "incompleteMapping": "请填写完整的源模型和目标模型。",
         "conflict": "模型规则重复或通配范围重叠。",
         "basis": {
           "requested": "客户端请求模型",
           "group_mapped": "分组映射后模型",
           "upstream": "最终上游模型"
-        },
-        "bridge": {
-          "inherit": "跟随全局默认值",
-          "true": "开启",
-          "false": "关闭"
         }
       },
       accountFilters: {

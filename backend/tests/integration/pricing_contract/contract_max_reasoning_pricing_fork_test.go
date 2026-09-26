@@ -66,7 +66,7 @@ func TestMaxReasoningPricing_IntervalsAndBillingModes(t *testing.T) {
 	}
 }
 
-// 账号自定义价和复用的用户费用均为最终成本，只有模型价兜底要按实际档位计价。
+// 账号自定义价独立于用户费用，模型价兜底按实际档位计价。
 func TestMaxReasoningPricing_AccountStatsPriority(t *testing.T) {
 	bs := newCalculator(nil, nil)
 	pricingConfig := &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive, AccountStatsPricingRules: []routing.AccountStatsPricingRule{{
@@ -78,12 +78,6 @@ func TestMaxReasoningPricing_AccountStatsPriority(t *testing.T) {
 	require.NotNil(t, cost)
 	require.InDelta(t, 1, *cost, 1e-12)
 	pricingConfig.AccountStatsPricingRules = nil
-	pricingConfig.ApplyPricingToAccountStats = true
-	// 管理变更后通过读取入口建立新快照，不直接改已发布的缓存。
-	cs = newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformAnthropic)
-	cost = contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "priority", "max")
-	require.InDelta(t, 9, *cost, 1e-12)
-	pricingConfig.ApplyPricingToAccountStats = false
 	cs = newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformAnthropic)
 	standard := contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "xhigh")
 	cost = contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "max")

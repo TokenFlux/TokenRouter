@@ -21,7 +21,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -326,24 +325,19 @@ func TestOpenAIGatewayServiceForward_AccountPolicyStripsImageNamespaceTools(t *t
 	}
 }
 
-func TestOpenAIGatewayServiceForward_GroupBridgeOverrideEnablesCodexInjection(t *testing.T) {
+func TestOpenAIGatewayServiceForward_GroupProtocolEnablesCodexInjection(t *testing.T) {
 	upstream := &auxiliaryHTTPRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_channel_bridge","model":"gpt-5.4","usage":{"input_tokens":1,"output_tokens":1}}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_group_protocol","model":"gpt-5.4","usage":{"input_tokens":1,"output_tokens":1}}`)),
 		},
 	}
 	svc := newOpenAIImageGenerationControlTestService(upstream)
-	groupID := int64(4242)
-	svc.ImageBridge.GroupPolicies = newOpenAIImageGenerationControlPricingConfigService(groupID, &routingtestkit.Configuration{
-		ID:     9001,
-		Status: billing.StatusActive,
-		FeaturesConfig: map[string]any{
-			accountconfig.CodexImageGenerationBridgeKey: map[string]any{capability.PlatformOpenAI: true},
-		},
-	})
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.98.0")
+	key, ok := c.MustGet("api_key").(*apikey.APIKey)
+	require.True(t, ok)
+	key.Group.ResponsesImagePolicy = "enabled"
 	account := newOpenAIImageGenerationControlTestAccount()
 
 	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.4","input":"write code","stream":false}`))
@@ -486,95 +480,37 @@ func TestOpenAIGatewayServiceForward_CodexBridgeSkipsCompactRequests(t *testing.
 	require.NotContains(t, instructions, "image_generation")
 }
 
+// 分组协议设置优先于账号，旧分组功能默认值不再影响任何请求。
 func TestOpenAIGatewayService_CodexImageGenerationBridgeOverridePrecedence(t *testing.T) {
-	groupID := int64(4242)
-
-	tests := []struct {
-		name          string
-		global        bool
-		pricingConfig *routingtestkit.Configuration
-		account       *gatewayprovider.ExecutionAccount
-		want          bool
+	for _, tt := range []struct {
+		name    string
+		global  bool
+		group   string
+		account *bool
+		legacy  bool
+		want    bool
 	}{
-		{
-			name:    "global default enables bridge",
-			global:  true,
-			account: &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}},
-			want:    true,
-		},
-		{
-			name:   "channel true overrides disabled global",
-			global: false,
-			pricingConfig: &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive, FeaturesConfig: map[string]any{
-				accountconfig.CodexImageGenerationBridgeKey: map[string]any{capability.PlatformOpenAI: true},
-			}},
-			account: &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}},
-			want:    true,
-		},
-		{
-			name:   "channel false overrides enabled global",
-			global: true,
-			pricingConfig: &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive, FeaturesConfig: map[string]any{
-				accountconfig.CodexImageGenerationBridgeKey: map[string]any{capability.PlatformOpenAI: false},
-			}},
-			account: &gatewayprovider.ExecutionAccount{Record: accountconfig.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}},
-			want:    false,
-		},
-		{
-			name:   "account false overrides channel and global true",
-			global: true,
-			pricingConfig: &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive, FeaturesConfig: map[string]any{
-				accountconfig.CodexImageGenerationBridgeKey: map[string]any{capability.PlatformOpenAI: true},
-			}},
-			account: &gatewayprovider.ExecutionAccount{
-				Record: accountconfig.Record{
-					LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
-					Extra: map[string]any{accountconfig.CodexImageGenerationBridgeKey: false},
-				},
-			},
-			want: false,
-		},
-		{
-			name:   "nested account true overrides channel false",
-			global: false,
-			pricingConfig: &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive, FeaturesConfig: map[string]any{
-				accountconfig.CodexImageGenerationBridgeKey: map[string]any{capability.PlatformOpenAI: false},
-			}},
-			account: &gatewayprovider.ExecutionAccount{
-				Record: accountconfig.Record{
-					LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
-					Extra: map[string]any{
-						capability.PlatformOpenAI: map[string]any{"codex_image_generation_bridge_enabled": true},
-					},
-				},
-			},
-			want: true,
-		},
-		{
-			name:   "non openai account extra is ignored",
-			global: false,
-			account: &gatewayprovider.ExecutionAccount{
-				Record: accountconfig.Record{
-					LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
-					Extra: map[string]any{accountconfig.CodexImageGenerationBridgeKey: true},
-				},
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
+		{name: "全局开启", global: true, want: true},
+		{name: "忽略旧分组开启值", legacy: true, want: false},
+		{name: "忽略旧分组关闭值", global: true, want: true},
+		{name: "账号关闭覆盖全局", global: true, account: routing.BoolOverridePtr(false), want: false},
+		{name: "账号开启覆盖全局", account: routing.BoolOverridePtr(true), want: true},
+		{name: "分组协议开启优先于账号关闭", group: "enabled", account: routing.BoolOverridePtr(false), want: true},
+		{name: "分组协议关闭优先于账号开启", group: "disabled", account: routing.BoolOverridePtr(true), want: false},
+		{name: "分组协议屏蔽优先于账号开启", group: "block", account: routing.BoolOverridePtr(true), want: false},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := newOpenAIImageGenerationControlTestService(&auxiliaryHTTPRecorder{})
 			svc.ImageBridge.DefaultEnabled = tt.global
-			if tt.pricingConfig != nil {
-				svc.ImageBridge.GroupPolicies = newOpenAIImageGenerationControlPricingConfigService(groupID, tt.pricingConfig)
+			account := newOpenAIImageGenerationControlTestAccount()
+			if tt.account != nil {
+				account.Record.Extra = map[string]any{accountconfig.CodexImageGenerationBridgeKey: *tt.account}
 			}
-			apiKey := &apikey.APIKey{GroupID: &groupID}
-
-			got := svc.ImageBridge.Enabled(context.Background(), tt.account, apiKey)
-
-			require.Equal(t, tt.want, got)
+			groupID := int64(4242)
+			key := &apikey.APIKey{GroupID: &groupID, Group: &routing.Group{ID: groupID, ResponsesImagePolicy: tt.group, RoutingPolicy: routing.GroupRoutingPolicy{
+				Enabled: true, FeaturesConfig: map[string]any{accountconfig.CodexImageGenerationBridgeKey: map[string]any{capability.PlatformOpenAI: tt.legacy}},
+			}}}
+			require.Equal(t, tt.want, svc.ImageBridge.Enabled(context.Background(), account, key))
 		})
 	}
 }
@@ -700,17 +636,6 @@ func TestNormalizeCompletedImageGenerationStatus(t *testing.T) {
 
 func newOpenAIImageGenerationControlTestService(upstream *auxiliaryHTTPRecorder) *OpenAIResponsesExecutor {
 	return newResponsesFixture(responsesFixtureInputs{transport: upstream})
-}
-
-func newOpenAIImageGenerationControlPricingConfigService(groupID int64, ch *routingtestkit.Configuration) *routing.PricingConfigService {
-	cache := routingtestkit.NewModelConfigData()
-	if ch != nil {
-		cache.ByGroup[groupID] = ch
-		cache.ByID[ch.ID] = ch
-	}
-	cache.LoadedAt = time.Now()
-	svc := routingtestkit.ModelConfigFromData(cache)
-	return svc
 }
 
 func newOpenAIImageGenerationControlTestContext(allowImages bool, userAgent string) (*gin.Context, *httptest.ResponseRecorder) {

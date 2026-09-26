@@ -2,10 +2,8 @@ package provider
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
@@ -44,11 +42,8 @@ func APIKeyGroup(apiKey *apikey.APIKey) *routing.Group {
 	return apiKey.Group
 }
 
-// ResponseImagePolicy 按分组显式协议策略、账号覆盖、分组默认值和全局默认值的优先级读取图片桥接设置。
+// ResponseImagePolicy 按分组显式协议策略、账号覆盖和全局默认值的优先级读取图片桥接设置。
 type ResponseImagePolicy struct {
-	GroupPolicies interface {
-		GetGroupPolicy(context.Context, int64) (*routing.GroupPolicyView, error)
-	}
 	DefaultEnabled bool
 }
 
@@ -64,14 +59,6 @@ func (s *ResponseImagePolicy) Enabled(ctx context.Context, account *ExecutionAcc
 
 	if override := ExecutionProtocolRecord(account).CodexImageGenerationBridgeOverride(); override != nil {
 		return *override
-	}
-	if s != nil && s.GroupPolicies != nil && apiKey != nil && apiKey.GroupID != nil {
-		ch, err := s.GroupPolicies.GetGroupPolicy(ctx, *apiKey.GroupID)
-		if err != nil {
-			slog.Warn("failed to resolve codex image generation bridge group default override", "group_id", *apiKey.GroupID, "error", err)
-		} else if override := ch.CodexImageGenerationBridgeOverride(capability.PlatformOpenAI); override != nil {
-			return *override
-		}
 	}
 	return s != nil && s.DefaultEnabled
 }

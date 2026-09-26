@@ -106,7 +106,7 @@ func newOpenAIExecutionAndSelectionFixture(
 	}
 	text := openAITextExecution(cfg, accountRepo, identity, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, grokExecutor, output, provideAnthropicPromptCache(), choices.OpenAIHTTPResponseStickyTTL, provideCompactExecutor(cfg))
 	lineage := provideOpenAIEncryptedLineage(stateStore, choices)
-	imagePolicy := provideOpenAIImageBridgePolicy(cfg, pricingConfigService)
+	imagePolicy := provideOpenAIImageBridgePolicy(cfg)
 	sockets := provideOpenAIWebSockets(cfg, connections, text, prompts, choices, lineage, imagePolicy, cache)
 	responses := provideOpenAIResponses(text, sockets, choices, lineage, imagePolicy)
 	var read func(context.Context) (bool, time.Duration)

@@ -38,9 +38,9 @@ func (r *PricingConfigStore) runInTx(ctx context.Context, fn func(tx *sql.Tx) er
 func (r *PricingConfigStore) Create(ctx context.Context, pricingConfig *routing.PricingConfig) error {
 	return r.runInTx(ctx, func(tx *sql.Tx) error {
 		err := tx.QueryRowContext(ctx,
-			`INSERT INTO pricing_configs (name, description, status, billing_model_source, apply_pricing_to_account_stats) VALUES ($1, $2, $3, $4, $5)
+			`INSERT INTO pricing_configs (name, description, status, billing_model_source) VALUES ($1, $2, $3, $4)
 			 RETURNING id, created_at, updated_at`,
-			pricingConfig.Name, pricingConfig.Description, pricingConfig.Status, pricingConfig.BillingModelSource, pricingConfig.ApplyPricingToAccountStats,
+			pricingConfig.Name, pricingConfig.Description, pricingConfig.Status, pricingConfig.BillingModelSource,
 		).Scan(&pricingConfig.ID, &pricingConfig.CreatedAt, &pricingConfig.UpdatedAt)
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -78,9 +78,9 @@ func (r *PricingConfigStore) GetByID(ctx context.Context, id int64) (*routing.Pr
 	ch := &routing.PricingConfig{}
 
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, name, description, status, billing_model_source, apply_pricing_to_account_stats, created_at, updated_at
+		`SELECT id, name, description, status, billing_model_source, created_at, updated_at
 		 FROM pricing_configs WHERE id = $1`, id,
-	).Scan(&ch.ID, &ch.Name, &ch.Description, &ch.Status, &ch.BillingModelSource, &ch.ApplyPricingToAccountStats, &ch.CreatedAt, &ch.UpdatedAt)
+	).Scan(&ch.ID, &ch.Name, &ch.Description, &ch.Status, &ch.BillingModelSource, &ch.CreatedAt, &ch.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, routing.ErrPricingConfigNotFound
 	}
@@ -112,9 +112,9 @@ func (r *PricingConfigStore) GetByID(ctx context.Context, id int64) (*routing.Pr
 func (r *PricingConfigStore) Update(ctx context.Context, pricingConfig *routing.PricingConfig) error {
 	return r.runInTx(ctx, func(tx *sql.Tx) error {
 		result, err := tx.ExecContext(ctx,
-			`UPDATE pricing_configs SET name = $1, description = $2, status = $3, billing_model_source = $4, apply_pricing_to_account_stats = $5, updated_at = NOW()
-			 WHERE id = $6`,
-			pricingConfig.Name, pricingConfig.Description, pricingConfig.Status, pricingConfig.BillingModelSource, pricingConfig.ApplyPricingToAccountStats, pricingConfig.ID,
+			`UPDATE pricing_configs SET name = $1, description = $2, status = $3, billing_model_source = $4, updated_at = NOW()
+			 WHERE id = $5`,
+			pricingConfig.Name, pricingConfig.Description, pricingConfig.Status, pricingConfig.BillingModelSource, pricingConfig.ID,
 		)
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -198,7 +198,7 @@ func (r *PricingConfigStore) List(ctx context.Context, params pagination.Paginat
 
 	// 查询 pricingConfig 列表
 	dataQuery := fmt.Sprintf(
-		`SELECT c.id, c.name, c.description, c.status, c.billing_model_source, c.apply_pricing_to_account_stats, c.created_at, c.updated_at
+		`SELECT c.id, c.name, c.description, c.status, c.billing_model_source, c.created_at, c.updated_at
 		 FROM pricing_configs c WHERE %s ORDER BY %s LIMIT $%d OFFSET $%d`,
 		whereClause, pricingConfigListOrderBy(params), argIdx, argIdx+1,
 	)
@@ -215,7 +215,7 @@ func (r *PricingConfigStore) List(ctx context.Context, params pagination.Paginat
 	for rows.Next() {
 		var ch routing.PricingConfig
 
-		if err := rows.Scan(&ch.ID, &ch.Name, &ch.Description, &ch.Status, &ch.BillingModelSource, &ch.ApplyPricingToAccountStats, &ch.CreatedAt, &ch.UpdatedAt); err != nil {
+		if err := rows.Scan(&ch.ID, &ch.Name, &ch.Description, &ch.Status, &ch.BillingModelSource, &ch.CreatedAt, &ch.UpdatedAt); err != nil {
 			return nil, nil, fmt.Errorf("scan price configuration: %w", err)
 		}
 
@@ -289,7 +289,7 @@ func pricingConfigListOrderBy(params pagination.PaginationParams) string {
 
 func (r *PricingConfigStore) ListAll(ctx context.Context) ([]routing.PricingConfig, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, description, status, billing_model_source, apply_pricing_to_account_stats, created_at, updated_at FROM pricing_configs ORDER BY id`,
+		`SELECT id, name, description, status, billing_model_source, created_at, updated_at FROM pricing_configs ORDER BY id`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query all price configurations: %w", err)
@@ -301,7 +301,7 @@ func (r *PricingConfigStore) ListAll(ctx context.Context) ([]routing.PricingConf
 	for rows.Next() {
 		var ch routing.PricingConfig
 
-		if err := rows.Scan(&ch.ID, &ch.Name, &ch.Description, &ch.Status, &ch.BillingModelSource, &ch.ApplyPricingToAccountStats, &ch.CreatedAt, &ch.UpdatedAt); err != nil {
+		if err := rows.Scan(&ch.ID, &ch.Name, &ch.Description, &ch.Status, &ch.BillingModelSource, &ch.CreatedAt, &ch.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan price configuration: %w", err)
 		}
 

@@ -36,5 +36,3 @@ func PlatformBoolOverride(values map[string]any, key string, platform string) *b
 func BoolOverridePtr(v bool) *bool {
 	return &v
 }
-
-const featureKeyCodexImageGenerationBridge = "codex_image_generation_bridge"

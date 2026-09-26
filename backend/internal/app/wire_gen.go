@@ -471,7 +471,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	compatibleTextHandler := provideCompatibleTextHTTP(appMessageHTTPBindings, textattemptRuntime, appGatewayRequestActivity)
 	geminiNativeHandler := provideGeminiNativeHTTP(appMessageHTTPBindings, digestSessionStore, textattemptRuntime, appGatewayRequestActivity, generic)
 	openAIEncryptedLineage := provideOpenAIEncryptedLineage(openAIWSStateStore, compatible)
-	responseImagePolicy := provideOpenAIImageBridgePolicy(cfg, pricingConfigService)
+	responseImagePolicy := provideOpenAIImageBridgePolicy(cfg)
 	openAIWebSocketExecutor := provideOpenAIWebSockets(cfg, openAIWSConnections, openAITextExecutor, service, compatible, openAIEncryptedLineage, responseImagePolicy, gatewayCache)
 	openAIResponsesExecutor := provideOpenAIResponses(openAITextExecutor, openAIWebSocketExecutor, compatible, openAIEncryptedLineage, responseImagePolicy)
 	openAIHTTPResources := provideOpenAIHTTPResources(concurrencyService, cfg)

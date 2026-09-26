@@ -129,6 +129,7 @@ describe('PricingView model routing copy', () => {
     await createButton!.trigger('click')
     await flushPromises()
 
+    expect(wrapper.text()).not.toContain('admin.pricing.form.applyPricingToAccountStats')
     expect(wrapper.get('[data-testid="billing-model-source-hint"]').text()).toBe('admin.pricing.form.billingModelSourceHintGroupMapped')
 
     await wrapper.get('[data-option="requested"]').trigger('click')

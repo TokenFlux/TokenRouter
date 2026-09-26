@@ -40,7 +40,7 @@ func (s *Recorder) WriteUsage(ctx context.Context, usageLog *UsageLog, logKey st
 }
 
 // applyAccountStatsCost 保留原查价时机和账号基础成本与用户实扣的独立性。
-func (s *Recorder) applyAccountStatsCost(ctx context.Context, row *UsageLog, accountID, groupID int64, upstream, requested, mapped string, tokens UsageTokens, total float64) {
+func (s *Recorder) applyAccountStatsCost(ctx context.Context, row *UsageLog, accountID, groupID int64, upstream, requested, mapped string, tokens UsageTokens) {
 	if upstream == "" {
 		upstream = requested
 	}
@@ -55,5 +55,5 @@ func (s *Recorder) applyAccountStatsCost(ctx context.Context, row *UsageLog, acc
 	if source == nil {
 		return
 	}
-	row.AccountStatsCost = source.ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: upstream, RequestedModel: requested, MappedModel: mapped, Tokens: tokens, RequestCount: count, UserTotalCost: total, ServiceTier: stringValueOrEmpty(row.ServiceTier), ReasoningEffort: stringValueOrEmpty(row.ReasoningEffort)})
+	row.AccountStatsCost = source.ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: upstream, RequestedModel: requested, MappedModel: mapped, Tokens: tokens, RequestCount: count, ServiceTier: stringValueOrEmpty(row.ServiceTier), ReasoningEffort: stringValueOrEmpty(row.ReasoningEffort)})
 }

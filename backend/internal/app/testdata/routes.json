@@ -454,6 +454,7 @@
   "POST /api/v1/admin/payment/providers",
   "POST /api/v1/admin/payment/providers/test",
   "POST /api/v1/admin/pricing/configs",
+  "POST /api/v1/admin/pricing/defaults/update",
   "POST /api/v1/admin/promo-codes",
   "POST /api/v1/admin/proxies",
   "POST /api/v1/admin/proxies/:id/quality-check",

@@ -748,8 +748,7 @@ func (s *PricingConfigService) Create(ctx context.Context, input *CreatePricingC
 		GroupIDs:     input.GroupIDs,
 		ModelPricing: input.ModelPricing,
 
-		ApplyPricingToAccountStats: input.ApplyPricingToAccountStats,
-		AccountStatsPricingRules:   input.AccountStatsPricingRules,
+		AccountStatsPricingRules: input.AccountStatsPricingRules,
 	}
 	if pricingConfig.BillingModelSource == "" {
 		pricingConfig.BillingModelSource = BillingModelSourceGroupMapped
@@ -842,9 +841,6 @@ func (s *PricingConfigService) applyUpdateInput(ctx context.Context, pricingConf
 		pricingConfig.BillingModelSource = input.BillingModelSource
 	}
 
-	if input.ApplyPricingToAccountStats != nil {
-		pricingConfig.ApplyPricingToAccountStats = *input.ApplyPricingToAccountStats
-	}
 	if input.AccountStatsPricingRules != nil {
 		pricingConfig.AccountStatsPricingRules = *input.AccountStatsPricingRules
 	}
@@ -1039,8 +1035,7 @@ type CreatePricingConfigInput struct {
 
 	BillingModelSource string
 
-	ApplyPricingToAccountStats bool
-	AccountStatsPricingRules   []AccountStatsPricingRule
+	AccountStatsPricingRules []AccountStatsPricingRule
 }
 
 // UpdatePricingConfigInput 更新价格配置输入
@@ -1053,8 +1048,7 @@ type UpdatePricingConfigInput struct {
 
 	BillingModelSource string
 
-	ApplyPricingToAccountStats *bool
-	AccountStatsPricingRules   *[]AccountStatsPricingRule
+	AccountStatsPricingRules *[]AccountStatsPricingRule
 }
 
 // BuildModelMappingChain 按首次出现顺序生成去重后的模型映射链。

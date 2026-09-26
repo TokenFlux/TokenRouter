@@ -17,6 +17,7 @@ type ModelPriceReader interface {
 // PricingCatalog 只组合现有价格目录和平台默认列表，不构建第二份目录缓存。
 type PricingCatalog struct {
 	Snapshot        func() DefaultPricingSnapshot
+	Update          func() error
 	Prices          ModelPriceReader
 	NamesByProvider func(string) []string
 	QoderModels     func() []string

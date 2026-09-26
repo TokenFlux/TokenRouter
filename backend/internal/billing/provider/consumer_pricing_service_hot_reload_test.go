@@ -34,17 +34,32 @@ func newHotReloadPricingService(t *testing.T, fallbackJSON, overrideJSON string)
 	dir := t.TempDir()
 	svc := newPricingServiceFixture(pricingServiceFixture{options: Options{}})
 	svc.options.DataDir = dir
-	require.NoError(t, os.WriteFile(svc.GetPricingFilePath(), []byte(hotReloadCatalogJSON), 0644))
+	require.NoError(t, os.WriteFile(svc.GetPricingFilePath(), []byte(hotReloadCatalogJSON), 0o644))
 	if fallbackJSON != "" {
 		svc.options.FallbackFile = filepath.Join(dir, "fallback.json")
-		require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(fallbackJSON), 0644))
+		require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(fallbackJSON), 0o644))
 	}
 	if overrideJSON != "" {
 		svc.options.OverrideFile = filepath.Join(dir, "overrides.json")
-		require.NoError(t, os.WriteFile(svc.options.OverrideFile, []byte(overrideJSON), 0644))
+		require.NoError(t, os.WriteFile(svc.options.OverrideFile, []byte(overrideJSON), 0o644))
 	}
 	require.NoError(t, svc.LoadPricingData(svc.GetPricingFilePath()))
 	return svc
+}
+
+// 没有远程来源时，手动更新仍可重新加载本地覆盖；失败不能覆盖上次有效目录。
+func TestPricingForceUpdateLocalCatalog(t *testing.T) {
+	svc := newHotReloadPricingService(t, "", `{`+hotReloadModelJSON("remote-model", 4e-6, 8e-6)+`}`)
+	svc.options.RemoteURL = ""
+	require.NoError(t, os.WriteFile(svc.options.OverrideFile, []byte(`{`+hotReloadModelJSON("remote-model", 7e-6, 9e-6)+`}`), 0o644))
+	require.NoError(t, svc.ForceUpdate())
+	snapshot := svc.Snapshot()
+	require.InDelta(t, 7e-6, snapshot.Data["remote-model"].InputCostPerToken, 1e-12)
+	require.False(t, snapshot.LastUpdated.IsZero())
+	require.NoError(t, os.WriteFile(svc.options.OverrideFile, []byte(`invalid json`), 0o644))
+	require.Error(t, svc.ForceUpdate())
+	require.Equal(t, snapshot.LastUpdated, svc.Snapshot().LastUpdated)
+	require.InDelta(t, 7e-6, svc.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12)
 }
 
 func TestPricingCustomFilesFingerprint(t *testing.T) {
@@ -57,12 +72,12 @@ func TestPricingCustomFilesFingerprint(t *testing.T) {
 	require.NotEmpty(t, missing)
 	require.Equal(t, missing, svc.CustomPricingFilesFingerprint(), "同一状态下指纹稳定")
 
-	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{}`), 0644))
+	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{}`), 0o644))
 	present := svc.CustomPricingFilesFingerprint()
 	require.NotEqual(t, missing, present, "文件出现即视为变化")
 
 	svc.options.OverrideFile = filepath.Join(dir, "overrides.json")
-	require.NoError(t, os.WriteFile(svc.options.OverrideFile, []byte(`{}`), 0644))
+	require.NoError(t, os.WriteFile(svc.options.OverrideFile, []byte(`{}`), 0o644))
 	require.NotEqual(t, present, svc.CustomPricingFilesFingerprint(), "override 内容参与指纹")
 }
 
@@ -75,7 +90,7 @@ func TestPricingHotReload_FallbackChangeRebuildsWithoutTouchingSyncAnchor(t *tes
 
 	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{`+
 		hotReloadModelJSON("custom-a", 5e-6, 8e-6)+`,`+
-		hotReloadModelJSON("custom-b", 1e-6, 3e-6)+`}`), 0644))
+		hotReloadModelJSON("custom-b", 1e-6, 3e-6)+`}`), 0o644))
 	svc.ReloadIfCustomFilesChanged()
 
 	require.InDelta(t, 5e-6, svc.Snapshot().Data["custom-a"].InputCostPerToken, 1e-12, "改价即时生效")
@@ -105,7 +120,7 @@ func TestPricingHotReload_OverrideChangePatchesCatalogAndAddsModels(t *testing.T
 
 	require.NoError(t, os.WriteFile(svc.options.OverrideFile, []byte(`{
 		"remote-model": {"input_cost_per_token": 9e-06},
-		`+hotReloadModelJSON("override-new-model", 5e-6, 1e-5)+`}`), 0644))
+		`+hotReloadModelJSON("override-new-model", 5e-6, 1e-5)+`}`), 0o644))
 	svc.ReloadIfCustomFilesChanged()
 
 	require.InDelta(t, 9e-6, svc.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12)
@@ -113,7 +128,7 @@ func TestPricingHotReload_OverrideChangePatchesCatalogAndAddsModels(t *testing.T
 	require.NotNil(t, svc.Snapshot().Data["override-new-model"])
 
 	// 清空补丁：目录条目回到原价，补丁新增的模型随之消失。
-	require.NoError(t, os.WriteFile(svc.options.OverrideFile, []byte(`{}`), 0644))
+	require.NoError(t, os.WriteFile(svc.options.OverrideFile, []byte(`{}`), 0o644))
 	svc.ReloadIfCustomFilesChanged()
 
 	require.InDelta(t, 1e-6, svc.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12)
@@ -124,12 +139,12 @@ func TestPricingHotReload_InvalidFileKeepsCurrentDataUntilFixed(t *testing.T) {
 	svc := newHotReloadPricingService(t, `{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`, "")
 	before := svc.Snapshot().CustomFilesHash
 
-	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{"custom-a": {"input_cost_per_token": `), 0644))
+	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{"custom-a": {"input_cost_per_token": `), 0o644))
 	svc.ReloadIfCustomFilesChanged()
 	require.InDelta(t, 4e-6, svc.Snapshot().Data["custom-a"].InputCostPerToken, 1e-12, "半写文件不得替换数据")
 	require.Equal(t, before, svc.Snapshot().CustomFilesHash, "指纹不更新，下一轮继续尝试")
 
-	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{`+hotReloadModelJSON("custom-a", 6e-6, 8e-6)+`}`), 0644))
+	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{`+hotReloadModelJSON("custom-a", 6e-6, 8e-6)+`}`), 0o644))
 	svc.ReloadIfCustomFilesChanged()
 	require.InDelta(t, 6e-6, svc.Snapshot().Data["custom-a"].InputCostPerToken, 1e-12, "文件修好后正常重建")
 	require.NotEqual(t, before, svc.Snapshot().CustomFilesHash)
@@ -160,7 +175,7 @@ func TestPricingHotReload_DeletedFileDropsItsLayer(t *testing.T) {
 	svc.ReloadIfCustomFilesChanged()
 	require.Contains(t, svc.Snapshot().Data, "sentinel", "缺失状态已记录，不得每轮重建")
 
-	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`), 0644))
+	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`), 0o644))
 	svc.ReloadIfCustomFilesChanged()
 	require.NotNil(t, svc.Snapshot().Data["custom-a"], "文件重新出现即恢复")
 }
@@ -180,7 +195,7 @@ func TestPricingHotReload_DownloadRefreshesFingerprint(t *testing.T) {
 	svc := newHotReloadPricingService(t, `{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`, "")
 	svc.options.RemoteURL = "https://example.com/pricing.json"
 	setPricingFixtureRemote(svc, stubPricingRemoteClient{body: hotReloadCatalogJSON})
-	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{`+hotReloadModelJSON("custom-b", 1e-6, 3e-6)+`}`), 0644))
+	require.NoError(t, os.WriteFile(svc.options.FallbackFile, []byte(`{`+hotReloadModelJSON("custom-b", 1e-6, 3e-6)+`}`), 0o644))
 
 	require.NoError(t, svc.DownloadPricingData())
 

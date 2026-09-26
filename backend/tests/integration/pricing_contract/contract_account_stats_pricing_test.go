@@ -303,11 +303,10 @@ func TestResolveAccountStatsCost_HitsCustomRule(t *testing.T) {
 	require.InDelta(t, 2.0, *result, 1e-12)
 }
 
-func TestResolveAccountStatsCost_ApplyPricingToAccountStats_UsesTotalCost(t *testing.T) {
+func TestResolveAccountStatsCost_DoesNotUseUserPrice(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: true,
+		ID:     1,
+		Status: billing.StatusActive,
 		// No custom rules
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
@@ -316,19 +315,20 @@ func TestResolveAccountStatsCost_ApplyPricingToAccountStats_UsesTotalCost(t *tes
 
 	result := contractAccountStatsCost(
 		context.Background(),
-		cs, nil,
+		cs, newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{
+			"claude-sonnet-4": {InputPricePerToken: 0.001, OutputPricePerToken: 0.002},
+		}),
 		1, 10, "claude-sonnet-4", "",
-		tokens, 1, 0.75, "priority", // 已完成用户计费，不再重复应用服务层级倍率
+		tokens, 1, 0.75, "", // 用户售价不进入账号成本计算
 	)
 	require.NotNil(t, result)
-	require.InDelta(t, 0.75, *result, 1e-12)
+	require.InDelta(t, 0.2, *result, 1e-12)
 }
 
-func TestResolveAccountStatsCost_ApplyPricingToAccountStats_ZeroTotalCost_ReturnsNil(t *testing.T) {
+func TestResolveAccountStatsCost_NoCalculatorReturnsNil(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: true,
+		ID:     1,
+		Status: billing.StatusActive,
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
 
@@ -343,9 +343,8 @@ func TestResolveAccountStatsCost_ApplyPricingToAccountStats_ZeroTotalCost_Return
 
 func TestResolveAccountStatsCost_FallsBackToLiteLLM(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: false, // not enabled
+		ID:     1,
+		Status: billing.StatusActive,
 		// No custom rules
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
@@ -372,9 +371,8 @@ func TestResolveAccountStatsCost_FallsBackToLiteLLM(t *testing.T) {
 
 func TestResolveAccountStatsCost_QoderRouteKeyWithoutManualPricingReturnsNil(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: false,
+		ID:     1,
+		Status: billing.StatusActive,
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 
@@ -398,9 +396,8 @@ func TestResolveAccountStatsCost_QoderRouteKeyWithoutManualPricingReturnsNil(t *
 
 func TestResolveAccountStatsCost_QoderAliasUsesStandardUpstreamPricing(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: false,
+		ID:     1,
+		Status: billing.StatusActive,
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 	bs := newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{
@@ -622,9 +619,8 @@ func TestResolveAccountStatsCost_CustomRuleExplicitZeroOverridesTotalCost(t *tes
 
 func TestResolveAccountStatsCost_QoderUnknownUpstreamDoesNotUseRequestedPrice(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: false,
+		ID:     1,
+		Status: billing.StatusActive,
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 	bs := newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{
@@ -650,9 +646,8 @@ func TestResolveAccountStatsCost_QoderUnknownUpstreamDoesNotUseRequestedPrice(t 
 
 func TestResolveAccountStatsCost_Gemini36FlashTierUsesFallbackPricing(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: false,
+		ID:     1,
+		Status: billing.StatusActive,
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "antigravity")
 	bs := newCalculator(&config.Config{}, nil)
@@ -669,9 +664,8 @@ func TestResolveAccountStatsCost_Gemini36FlashTierUsesFallbackPricing(t *testing
 
 func TestResolveAccountStatsCost_AllMiss_ReturnsNil(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: false,
+		ID:     1,
+		Status: billing.StatusActive,
 		// No custom rules
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
@@ -692,9 +686,8 @@ func TestResolveAccountStatsCost_AllMiss_ReturnsNil(t *testing.T) {
 
 func TestResolveAccountStatsCost_NilBillingService_SkipsLiteLLM(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: false,
+		ID:     1,
+		Status: billing.StatusActive,
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
 
@@ -707,13 +700,11 @@ func TestResolveAccountStatsCost_NilBillingService_SkipsLiteLLM(t *testing.T) {
 	require.Nil(t, result)
 }
 
-func TestResolveAccountStatsCost_CustomRulePriorityOverApplyPricing(t *testing.T) {
-	// Both custom rule and ApplyPricingToAccountStats are configured;
-	// custom rule should take precedence.
+func TestResolveAccountStatsCost_CustomRuleDoesNotUseUserPrice(t *testing.T) {
+	// 账号成本规则独立于用户售价。
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: true,
+		ID:     1,
+		Status: billing.StatusActive,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{10},
@@ -735,7 +726,7 @@ func TestResolveAccountStatsCost_CustomRulePriorityOverApplyPricing(t *testing.T
 		context.Background(),
 		cs, nil,
 		1, 10, "claude-sonnet-4", "",
-		tokens, 1, 99.0, "", // totalCost = 99.0 (would be used if ApplyPricing wins)
+		tokens, 1, 99.0, "", // 用户售价不参与账号成本规则
 	)
 	require.NotNil(t, result)
 	// Custom rule: 100*0.05 = 5.0 (NOT 99.0 from totalCost)
@@ -744,9 +735,8 @@ func TestResolveAccountStatsCost_CustomRulePriorityOverApplyPricing(t *testing.T
 
 func TestApplyAccountStatsCost_UsesUsageLogServiceTier(t *testing.T) {
 	pricingConfig := &routingtestkit.Configuration{
-		ID:                         1,
-		Status:                     billing.StatusActive,
-		ApplyPricingToAccountStats: false,
+		ID:     1,
+		Status: billing.StatusActive,
 	}
 	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "openai")
 	bs := newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{

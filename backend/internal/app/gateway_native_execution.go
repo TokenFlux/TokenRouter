@@ -16,7 +16,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
-	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // provideExecutionAgentIdentity 与所有账号查询共用协调器和连接失效拥有者。
@@ -37,11 +36,8 @@ func provideOpenAITextExecutor(cfg *config.Config, store provider.ExecutionAccou
 	return text
 }
 
-func provideOpenAIImageBridgePolicy(cfg *config.Config, modelConfigs *routing.PricingConfigService) *provider.ResponseImagePolicy {
+func provideOpenAIImageBridgePolicy(cfg *config.Config) *provider.ResponseImagePolicy {
 	policy := &provider.ResponseImagePolicy{}
-	if modelConfigs != nil {
-		policy.GroupPolicies = modelConfigs
-	}
 	if cfg != nil {
 		policy.DefaultEnabled = cfg.Gateway.CodexImageGenerationBridgeEnabled
 	}

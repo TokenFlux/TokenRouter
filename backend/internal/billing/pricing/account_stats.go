@@ -233,8 +233,6 @@ type AccountStatsInput struct {
 	Models             []string
 	Tokens             UsageTokens
 	RequestCount       int
-	UserTotalCost      float64
-	ApplyUserPrice     bool
 }
 
 // ResolveAccountStatsOverride 返回 handled，区分明确不覆盖与继续查询模型目录。
@@ -243,13 +241,6 @@ func ResolveAccountStatsOverride(input AccountStatsInput) (*float64, bool) {
 		if cost := TryCustomRules(input.Rules, input.AccountID, input.GroupID, input.Platform, model, input.Tokens, input.RequestCount); cost != nil {
 			return cost, true
 		}
-	}
-	if input.ApplyUserPrice {
-		cost := input.UserTotalCost
-		if cost <= 0 {
-			return nil, true
-		}
-		return &cost, true
 	}
 	return nil, false
 }

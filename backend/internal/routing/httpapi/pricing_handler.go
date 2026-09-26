@@ -34,8 +34,7 @@ type createPricingConfigRequest struct {
 
 	BillingModelSource string `json:"billing_model_source" binding:"omitempty,oneof=requested upstream group_mapped"`
 
-	ApplyPricingToAccountStats bool                             `json:"apply_pricing_to_account_stats"`
-	AccountStatsPricingRules   []accountStatsPricingRuleRequest `json:"account_stats_pricing_rules"`
+	AccountStatsPricingRules []accountStatsPricingRuleRequest `json:"account_stats_pricing_rules"`
 }
 
 type updatePricingConfigRequest struct {
@@ -47,8 +46,7 @@ type updatePricingConfigRequest struct {
 
 	BillingModelSource string `json:"billing_model_source" binding:"omitempty,oneof=requested upstream group_mapped"`
 
-	ApplyPricingToAccountStats *bool                             `json:"apply_pricing_to_account_stats"`
-	AccountStatsPricingRules   *[]accountStatsPricingRuleRequest `json:"account_stats_pricing_rules"`
+	AccountStatsPricingRules *[]accountStatsPricingRuleRequest `json:"account_stats_pricing_rules"`
 }
 
 type modelPricingRequest struct {
@@ -119,10 +117,9 @@ type pricingConfigResponse struct {
 	GroupIDs     []int64                `json:"group_ids"`
 	ModelPricing []modelPricingResponse `json:"model_pricing"`
 
-	ApplyPricingToAccountStats bool                              `json:"apply_pricing_to_account_stats"`
-	AccountStatsPricingRules   []accountStatsPricingRuleResponse `json:"account_stats_pricing_rules"`
-	CreatedAt                  string                            `json:"created_at"`
-	UpdatedAt                  string                            `json:"updated_at"`
+	AccountStatsPricingRules []accountStatsPricingRuleResponse `json:"account_stats_pricing_rules"`
+	CreatedAt                string                            `json:"created_at"`
+	UpdatedAt                string                            `json:"updated_at"`
 }
 
 type modelPricingResponse struct {
@@ -221,7 +218,6 @@ func pricingConfigToResponse(ch *routing.PricingConfig) *pricingConfigResponse {
 		resp.ModelPricing = append(resp.ModelPricing, pricingToResponse(&p))
 	}
 
-	resp.ApplyPricingToAccountStats = ch.ApplyPricingToAccountStats
 	resp.AccountStatsPricingRules = make([]accountStatsPricingRuleResponse, 0, len(ch.AccountStatsPricingRules))
 	for _, rule := range ch.AccountStatsPricingRules {
 		ruleResp := accountStatsPricingRuleResponse{
@@ -492,8 +488,7 @@ func (h *PricingHandler) Create(c *gin.Context) {
 
 		BillingModelSource: req.BillingModelSource,
 
-		ApplyPricingToAccountStats: req.ApplyPricingToAccountStats,
-		AccountStatsPricingRules:   statsRules,
+		AccountStatsPricingRules: statsRules,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -525,8 +520,6 @@ func (h *PricingHandler) Update(c *gin.Context) {
 		GroupIDs:    req.GroupIDs,
 
 		BillingModelSource: req.BillingModelSource,
-
-		ApplyPricingToAccountStats: req.ApplyPricingToAccountStats,
 	}
 	if req.ModelPricing != nil {
 		pricing := pricingRequestToService(*req.ModelPricing)

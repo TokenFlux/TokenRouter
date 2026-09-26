@@ -36,7 +36,7 @@ func providePricingConfigService(repo *routingpostgres.PricingConfigStore, group
 }
 
 func providePricingCatalog(calculator *billing.Calculator, prices *pricingprovider.PricingService) *routing.PricingCatalog {
-	return &routing.PricingCatalog{Prices: calculator, NamesByProvider: prices.ListModelNamesByProvider, QoderModels: qoder.DefaultRequestModelIDs, Snapshot: func() routing.DefaultPricingSnapshot {
+	return &routing.PricingCatalog{Prices: calculator, Update: calculator.ForceUpdatePricing, NamesByProvider: prices.ListModelNamesByProvider, QoderModels: qoder.DefaultRequestModelIDs, Snapshot: func() routing.DefaultPricingSnapshot {
 		snapshot := prices.ReadOnlySnapshot()
 		data := snapshot.Snapshot()
 		frozen := calculator.WithPriceCatalog(snapshot)

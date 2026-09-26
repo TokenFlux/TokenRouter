@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,7 +18,7 @@ func TestPricingRoutesRejectPolicyFieldsAndRemoveOldEndpoints(t *testing.T) {
 	router := gin.New()
 	handler := NewPricingHandler(nil, &routing.PricingCatalog{})
 	RegisterPricingRoutes(router.Group("/api/v1/admin"), handler)
-	for _, field := range []string{"model_mapping", "restrict_models", "features_config", "features"} {
+	for _, field := range []string{"model_mapping", "restrict_models", "features_config", "features", "apply_pricing_to_account_stats"} {
 		response := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/pricing/configs", strings.NewReader(`{"name":"price","`+field+`":null}`))
 		req.Header.Set("Content-Type", "application/json")
@@ -29,6 +30,42 @@ func TestPricingRoutesRejectPolicyFieldsAndRemoveOldEndpoints(t *testing.T) {
 		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/admin"+path, nil))
 		require.Equal(t, http.StatusNotFound, response.Code, path)
 	}
+}
+
+func TestDefaultPricingManualUpdateIsSeparateFromQuery(t *testing.T) {
+	updates, reads := 0, 0
+	var updateErr error
+	catalog := &routing.PricingCatalog{
+		Snapshot: func() routing.DefaultPricingSnapshot {
+			reads++
+			return routing.DefaultPricingSnapshot{}
+		},
+		Update: func() error {
+			updates++
+			return updateErr
+		},
+	}
+	router := gin.New()
+	RegisterPricingRoutes(router.Group("/api/v1/admin"), NewPricingHandler(nil, catalog))
+	query := httptest.NewRecorder()
+	router.ServeHTTP(query, httptest.NewRequest(http.MethodGet, "/api/v1/admin/pricing/defaults", nil))
+	require.Equal(t, http.StatusOK, query.Code)
+	require.Equal(t, 1, reads)
+	require.Zero(t, updates, "普通刷新只能读取已加载目录")
+	update := httptest.NewRecorder()
+	router.ServeHTTP(update, httptest.NewRequest(http.MethodPost, "/api/v1/admin/pricing/defaults/update", nil))
+	require.Equal(t, http.StatusOK, update.Code)
+	require.True(t, gjson.Get(update.Body.String(), "data.updated").Bool())
+	require.Equal(t, 1, updates)
+	require.Equal(t, 1, reads)
+	updateErr = errors.New("remote unavailable")
+	failed := httptest.NewRecorder()
+	router.ServeHTTP(failed, httptest.NewRequest(http.MethodPost, "/api/v1/admin/pricing/defaults/update", nil))
+	require.Equal(t, http.StatusBadGateway, failed.Code)
+	catalog.Update = nil
+	unavailable := httptest.NewRecorder()
+	router.ServeHTTP(unavailable, httptest.NewRequest(http.MethodPost, "/api/v1/admin/pricing/defaults/update", nil))
+	require.Equal(t, http.StatusServiceUnavailable, unavailable.Code)
 }
 
 func TestDefaultPricingFiltersPaginationAndZero(t *testing.T) {

@@ -142,10 +142,3 @@ func (p *GroupPolicyView) IsBedrockCCCompatEnabled(platform string) bool {
 	value := PlatformBoolOverride(p.FeaturesConfig, featureKeyBedrockCCCompat, platform)
 	return value != nil && *value
 }
-
-func (p *GroupPolicyView) CodexImageGenerationBridgeOverride(platform string) *bool {
-	if p == nil {
-		return nil
-	}
-	return PlatformBoolOverride(p.FeaturesConfig, featureKeyCodexImageGenerationBridge, platform)
-}

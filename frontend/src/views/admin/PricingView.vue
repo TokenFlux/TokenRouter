@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <div class="mb-4 flex gap-2 border-b border-gray-200 dark:border-dark-700" role="tablist" :aria-label="t('admin.pricing.title')">
-      <button v-for="tab in ['configs', 'defaults'] as const" :key="tab" class="px-4 py-3 text-sm font-medium border-b-2" :class="pageTab === tab ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500'" role="tab" :aria-selected="pageTab === tab" @click="pageTab = tab">{{ t(`admin.pricing.tabs.${tab}`) }}</button>
+      <button v-for="tab in ['configs', 'defaults'] as const" :key="tab" class="px-4 py-3 text-sm font-medium border-b-2" :class="pageTab === tab ? 'border-primary-500 text-primary-700 dark:text-primary-300' : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'" role="tab" :aria-selected="pageTab === tab" @click="pageTab = tab">{{ t(`admin.pricing.tabs.${tab}`) }}</button>
     </div>
     <DefaultPricingPanel v-if="pageTab === 'defaults'" />
     <TablePageLayout v-show="pageTab === 'configs'">
@@ -241,23 +241,6 @@
               </div>
             </div>
 
-            <!-- Apply Pricing to Account Stats (toggle only in basic settings) -->
-            <div class="border-t border-gray-200 pt-4 dark:border-dark-700">
-              <div class="flex items-center justify-between">
-                <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.pricing.form.applyPricingToAccountStats') }}
-                  </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t('admin.pricing.form.applyPricingToAccountStatsDesc') }}
-                  </p>
-                </div>
-                <Toggle
-                  :modelValue="form.apply_pricing_to_account_stats"
-                  @update:modelValue="form.apply_pricing_to_account_stats = $event"
-                />
-              </div>
-            </div>
           </div>
 
           <!-- Platform Tab Content -->
@@ -644,7 +627,6 @@ const form = reactive({
 
   billing_model_source: 'group_mapped' as string,
   platforms: [] as PlatformSection[],
-  apply_pricing_to_account_stats: false,
 })
 
 // 计费模型来源只决定查价口径。
@@ -1153,7 +1135,6 @@ function resetForm() {
 
   form.billing_model_source = 'group_mapped'
   form.platforms = []
-  form.apply_pricing_to_account_stats = false
   activeTab.value = 'basic'
   ruleAccountSearchRunner.clearAll()
   clearAllRuleAccountSearchState()
@@ -1174,7 +1155,6 @@ async function openEditDialog(pricingConfig: PricingConfig) {
   form.status = pricingConfig.status
 
   form.billing_model_source = pricingConfig.billing_model_source || 'group_mapped'
-  form.apply_pricing_to_account_stats = pricingConfig.apply_pricing_to_account_stats || false
   // Must load groups first so apiToForm can map groupID → platform
   await Promise.all([loadGroups(), loadAllPricingConfigsForConflict()])
   form.platforms = apiToForm(pricingConfig)
@@ -1344,7 +1324,6 @@ async function handleSubmit() {
 
         billing_model_source: form.billing_model_source,
 
-        apply_pricing_to_account_stats: form.apply_pricing_to_account_stats,
         account_stats_pricing_rules: accountStatsRulesToAPI()
       }
       await adminAPI.pricing.update(editingPricingConfig.value.id, req)
@@ -1358,7 +1337,6 @@ async function handleSubmit() {
 
         billing_model_source: form.billing_model_source,
 
-        apply_pricing_to_account_stats: form.apply_pricing_to_account_stats,
         account_stats_pricing_rules: accountStatsRulesToAPI()
       }
       await adminAPI.pricing.create(req)

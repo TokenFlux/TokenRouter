@@ -43,7 +43,7 @@ func applyContractAccountStatsCost(
 		reasoningEffort = *usageLog.ReasoningEffort
 	}
 	if len(resolvers) > 0 && resolvers[0] != nil {
-		usageLog.AccountStatsCost = resolvers[0].ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: model, RequestedModel: requestedModel, MappedModel: groupMappedModel, Tokens: tokens, RequestCount: requestCount, UserTotalCost: totalCost, ServiceTier: serviceTier, ReasoningEffort: reasoningEffort})
+		usageLog.AccountStatsCost = resolvers[0].ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: model, RequestedModel: requestedModel, MappedModel: groupMappedModel, Tokens: tokens, RequestCount: requestCount, ServiceTier: serviceTier, ReasoningEffort: reasoningEffort})
 		return
 	}
 	usageLog.AccountStatsCost = contractAccountStatsWithMapping(
@@ -52,20 +52,10 @@ func applyContractAccountStatsCost(
 	)
 }
 
-// contractAccountStatsCost 计算账号统计定价费用。
-// 返回 nil 表示不覆盖，使用默认公式（total_cost × account_rate_multiplier）。
-//
-// 优先级（先命中为准）：
-//  1. 自定义规则（始终尝试，不依赖 ApplyPricingToAccountStats 开关）
-//  2. ApplyPricingToAccountStats 启用时，直接使用本次请求的客户计费（倍率前的 totalCost）
-//  3. 模型定价文件（LiteLLM）中的默认价格（Qoder 按 requested → upstream 尝试，但已知 alias/route key 不走模型价兜底）
-//  4. nil → 走默认公式（total_cost × account_rate_multiplier）
-//
-// upstreamModel 是最终发往上游的模型 ID。
-// requestedModel 是分组映射前的请求模型 ID；groupMappedModel 是分组映射后的 route key。
-// Qoder 这类上游 route key 与公开 alias 分离的平台会按 requested → channelMapped → upstream 尝试。
-// totalCost 是本次请求的客户计费（倍率前），用于优先级 2。
-// serviceTier 是最终参与用户计费的服务层级，仅用于优先级 3。
+// contractAccountStatsCost 计算独立账号成本，先匹配自定义规则，再查询模型默认价。
+// 无可用成本价时返回 nil，保留日志层的历史回退公式。
+// Qoder 自定义规则依次按请求模型、分组映射模型和最终上游模型匹配。
+// totalCost 仅作为测试输入，生产成本解析器不接收用户售价。
 func contractAccountStatsCost(
 	ctx context.Context,
 	pricingConfigService *routing.PricingConfigService,
@@ -112,5 +102,5 @@ func contractAccountStatsWithMapping(
 		calculator = billingService
 	}
 	resolver := billing.NewPriceResolver(nil, calculator, nil, nil, source)
-	return resolver.ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: upstreamModel, RequestedModel: requestedModel, MappedModel: groupMappedModel, Tokens: tokens, RequestCount: requestCount, UserTotalCost: totalCost, ServiceTier: serviceTier, ReasoningEffort: effort})
+	return resolver.ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: upstreamModel, RequestedModel: requestedModel, MappedModel: groupMappedModel, Tokens: tokens, RequestCount: requestCount, ServiceTier: serviceTier, ReasoningEffort: effort})
 }

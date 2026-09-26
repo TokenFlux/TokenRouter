@@ -749,8 +749,17 @@ func (s *PricingService) GetStatus() map[string]any {
 	}
 }
 
-// ForceUpdate 强制更新
+// ForceUpdate 立即更新远程目录；未配置远程来源时重新加载本地目录及覆盖层。
 func (s *PricingService) ForceUpdate() error {
+	if strings.TrimSpace(s.currentOptions().RemoteURL) == "" {
+		if err := s.ReloadCustomPricingLayers(); err != nil {
+			return err
+		}
+		s.mu.Lock()
+		s.lastUpdated = time.Now()
+		s.mu.Unlock()
+		return nil
+	}
 	return s.DownloadPricingData()
 }
 

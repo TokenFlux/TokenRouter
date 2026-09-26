@@ -108,7 +108,6 @@ func (s *Recorder) RecordAnthropic(ctx context.Context, input *Input, opts *Pric
 				CacheReadTokens:     result.Usage.CacheReadInputTokens,
 				ImageOutputTokens:   result.Usage.ImageOutputTokens,
 			},
-			cost.TotalCost,
 		)
 	}
 
@@ -511,7 +510,7 @@ func (s *Recorder) RecordOpenAI(ctx context.Context, input *Input) error {
 	if apiKey.GroupID != nil {
 		s.applyAccountStatsCost(ctx, usageLog,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, requestedModel, input.GroupMappedModel,
-			tokens, cost.TotalCost)
+			tokens)
 	}
 
 	if s.simple {

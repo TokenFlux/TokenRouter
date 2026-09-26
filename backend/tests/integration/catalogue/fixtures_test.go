@@ -92,7 +92,7 @@ func (s accountStatsSource) AccountStatsGroup(ctx context.Context, id int64) (*b
 	if e != nil || v == nil {
 		return nil, e
 	}
-	return &billing.AccountStatsPricingConfig{Rules: v.AccountStatsPricingRules, ApplyUserPrice: v.ApplyPricingToAccountStats}, nil
+	return &billing.AccountStatsPricingConfig{Rules: v.AccountStatsPricingRules}, nil
 }
 
 func (s accountStatsSource) AccountStatsPlatform(ctx context.Context, id int64) billing.AccountStatsPlatform {

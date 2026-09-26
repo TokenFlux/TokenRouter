@@ -31,7 +31,7 @@ Agent Identity 的任务锁、锁内复查和凭据登记由 account 协调；ap
 
 首输出暂存器拥有当前尝试的内存和临时文件；protocol 唯一提供工具参数、usage、终态重建和图片产出计数。Embeddings、Images 和 Alpha Search 的单次执行负责网络调用和响应资源，账号选择、健康写入及全局重试由入站适配。Alpha Search 在错误处理回卷响应体时仍关闭最初取得的上游 Body。计数查询保持原生完整 JSON 与 Anthropic 兼容响应的区别，不作为推理结算事实。 Embeddings、AlphaSearch、Messages count_tokens 和 Responses input_tokens 由 `gateway/httpapi.OpenAIAuxiliary` 直接接入；请求构造与健康/输出复用原实例，模型投影和计数请求准备归 gateway/provider。计数路由直接组合 RoutePlanner、选择器及受控账号目标。
 
-Responses 主请求由 `gateway/httpapi.OpenAIResponsesExecutor` 执行准备、模型与工具转换、HTTP 交换及协议分派。图片桥接按分组、账号、渠道、全局默认的原顺序求值；渠道仍在需要时读取。HTTP 与 WS使用同一 OpenAIEncryptedLineage 和会话存储，失效密文摘要只在上游明确拒绝后记录，后续请求按原会话键剥离。转入 WS时传递已固化的模型、计费投影、TLS 及请求体，继续使用原连接池和恢复循环；WS 资源已由同一 OpenAIWSConnections 持有，关闭后不能重新创建连接池。
+Responses 主请求由 `gateway/httpapi.OpenAIResponsesExecutor` 执行准备、模型与工具转换、HTTP 交换及协议分派。图片桥接依次使用分组显式协议设置、账号覆盖和全局默认值。分组「协议控制」中的 Responses 图片策略控制非 Responses Lite 的 Codex 请求是否自动补充 `image_generation` 工具及引导指令；关闭自动注入不会移除客户端已声明的生图工具，也不影响独立图片接口。HTTP 与 WS 使用同一 OpenAIEncryptedLineage 和会话存储，失效密文摘要只在上游明确拒绝后记录，后续请求按原会话键剥离。转入 WS 时传递已固化的模型、计费投影、TLS 及请求体，继续使用原连接池和恢复循环；WS 资源已由同一 OpenAIWSConnections 持有，关闭后不能重新创建连接池。
 
 app 分别装配原生文本、Responses、WS、Images 和辅助执行器，复用同一请求构造、输出、凭据及连接拥有者。
 
@@ -202,7 +202,7 @@ OpenAI API Key 账号以 `force_chat_completions` 承接 `/v1/messages` 时，Ch
 
 ## 模型与能力
 
-客户端模型先经过 Key、渠道和账号层映射。OpenAI 内置别名、reasoning effort 归一化、旧版 Compact 端点支持、图像/embedding 能力和传输能力会影响候选账号；模型列表只公开当前分组可请求的结果。
+客户端模型先经过 Key、分组和账号层映射。OpenAI 内置别名、reasoning effort 归一化、旧版 Compact 端点支持、图像/embedding 能力和传输能力会影响候选账号；模型列表只公开当前分组可请求的结果。
 
 GPT-5.6 的内置产品仅为 `gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`。裸 `gpt-5.6` 不作为预设型号或 Sol 别名，OAuth 归一化与用量计费候选也不再自动将它改为 Sol 或旧 GPT；未知名称沿用兼容上游的既有透传边界，不因此保证上游支持。管理员显式 Key、渠道和账号映射仍然有效，历史配置和用量记录不回写。模型目录查询与能力来源见[模型目录与市场](model_catalog_and_marketplace.md#model_catalog_metadata_lookup)。
 
