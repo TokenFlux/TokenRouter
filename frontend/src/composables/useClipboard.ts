@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { i18n } from '@/i18n'
 
 const { t } = i18n.global
@@ -59,7 +60,7 @@ export function useClipboard() {
       appStore.showSuccess(successMessage || t('common.copiedToClipboard'))
       setTimeout(() => {
         copied.value = false
-      }, 2000)
+      }, COPY_FEEDBACK_MS)
     } else {
       appStore.showError(t('common.copyFailed'))
     }

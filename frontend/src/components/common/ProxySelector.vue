@@ -5,7 +5,8 @@
       @click="toggle"
       :disabled="disabled"
       :class="[
-        'select-trigger',
+        'input input-trigger',
+        'text-gray-900 dark:text-gray-100',
         isOpen && 'select-trigger-open',
         disabled && 'select-trigger-disabled'
       ]"
@@ -22,7 +23,7 @@
       </span>
     </button>
 
-    <Transition name="select-dropdown">
+    <Transition name="dropdown-fade">
       <div v-if="isOpen" class="select-dropdown">
         <!-- Search and Batch Test Header -->
         <div class="select-header">
@@ -319,19 +320,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.select-trigger {
-  /* 普通选择器在浅色模式使用中性描边，暗色模式继续使用品牌强调。 */
-  @apply flex w-full items-center justify-between gap-2;
-  @apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;
-  @apply bg-white dark:bg-dark-950;
-  @apply border border-primary-900/10 dark:border-dark-600;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply transition-all duration-200;
-  @apply focus:border-primary-900/10 focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:border-primary-500 dark:focus:ring-primary-500/30;
-  @apply hover:border-black/20 dark:hover:border-primary-500;
-  @apply cursor-pointer;
-}
-
+/* 基线配方(h-9/px-4/py-1.5/边框/焦点环)已与 .input 同源,模板以 input input-trigger 组合;
+   这里只保留展开/禁用两个状态增量。 */
 .select-trigger-open {
   @apply border-primary-900/10 ring-2 ring-black/10 dark:border-primary-500 dark:ring-primary-500/30;
 }
@@ -349,7 +339,7 @@ onUnmounted(() => {
 }
 
 .select-dropdown {
-  @apply absolute z-[100] mt-2 w-full;
+  @apply absolute z-tooltip mt-2 w-full;
   @apply bg-white dark:bg-dark-900;
   @apply rounded-control;
   @apply border border-primary-900/10 dark:border-dark-600;
@@ -414,15 +404,4 @@ onUnmounted(() => {
   @apply transition-colors disabled:cursor-not-allowed disabled:opacity-50;
 }
 
-/* Dropdown animation */
-.select-dropdown-enter-active,
-.select-dropdown-leave-active {
-  transition: all 0.2s ease;
-}
-
-.select-dropdown-enter-from,
-.select-dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
 </style>

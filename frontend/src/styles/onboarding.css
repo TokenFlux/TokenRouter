@@ -4,7 +4,7 @@
 .driver-overlay {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 99999998 !important;
+  z-index: 99999998 !important; /* check-ui-allow: driver.js 第三方覆盖,层级受外部约束 */
   background-color: transparent !important;
   /*
    * 关键修复：让 overlay 不拦截点击事件
@@ -21,7 +21,7 @@
 
 .driver-active-element {
   position: relative !important;
-  z-index: 99999999 !important;
+  z-index: 99999999 !important; /* check-ui-allow: driver.js 第三方覆盖,层级受外部约束 */
   outline: 4px solid rgba(0, 210, 255, 0.24) !important;
   border-radius: var(--radius-compact) !important;
 }
@@ -30,7 +30,7 @@
 /* 宽度 440px 与内边距均落在 4px 网格上;!important 用于覆盖 driver.js 的内联默认样式,属合法例外。 */
 .driver-popover.theme-tour-popover {
   position: fixed !important;
-  z-index: 100000000 !important;
+  z-index: 100000000 !important; /* check-ui-allow: driver.js 第三方覆盖,层级受外部约束 */
   box-sizing: border-box !important;
   display: flex !important;
   flex-direction: column !important;
@@ -85,7 +85,7 @@
   color: #9ca3af !important;
   background-color: transparent !important;
   border: none !important;
-  z-index: 20 !important;
+  z-index: 20 !important; /* check-ui-allow: driver.js 第三方覆盖,层级受外部约束 */
   border-radius: var(--radius-compact) !important;
   display: flex !important;
   align-items: center !important;
@@ -221,7 +221,7 @@
 }
 
 /* Arrows */
-.driver-popover-arrow { z-index: 100000001 !important; }
+.driver-popover-arrow { z-index: 100000001 !important; } /* check-ui-allow: driver.js 第三方覆盖,层级受外部约束 */
 .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: #ffffff !important; }
 .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: #ffffff !important; }
 .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: #ffffff !important; }

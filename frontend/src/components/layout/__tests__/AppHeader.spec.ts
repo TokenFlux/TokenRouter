@@ -32,6 +32,6 @@ describe('AppHeader theme toggle', () => {
 
 describe('AppHeader positioning', () => {
   it('keeps the global header outside document scrolling', () => {
-    expect(componentSource).toContain('class="glass fixed inset-x-0 top-0 z-50')
+    expect(componentSource).toContain('class="glass fixed inset-x-0 top-0 z-header')
   })
 })

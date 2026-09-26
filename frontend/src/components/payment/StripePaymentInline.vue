@@ -47,7 +47,7 @@
       <div class="card p-6">
         <div ref="stripeMount" class="min-h-[200px]"></div>
         <p v-if="error" class="mt-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
-        <button class="btn btn-stripe h-9 mt-6 w-full py-0 text-base" :disabled="submitting || !ready" @click="handlePay">
+        <button class="btn btn-stripe mt-6 w-full py-0 text-base" :disabled="submitting || !ready" @click="handlePay">
           <span v-if="submitting" class="flex items-center justify-center gap-2">
             <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
             {{ t('common.processing') }}
@@ -64,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { extractI18nErrorMessage } from '@/utils/apiError'
@@ -72,6 +72,7 @@ import { paymentAPI } from '@/api/payment'
 import { useAppStore } from '@/stores'
 import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { useTheme } from '@/composables/useTheme'
 import { formatPaymentAmount } from '@/components/payment/currency'
 import type { Stripe, StripeElements } from '@stripe/stripe-js'
 import Icon from '@/components/icons/Icon.vue'
@@ -109,6 +110,15 @@ const selectedType = ref('')
 let stripeInstance: Stripe | null = null
 let elementsInstance: StripeElements | null = null
 
+// Stripe Elements 外观支持运行时 elements.update 重应用;主题切换即时跟随,无需重新挂载。
+const { isDark } = useTheme()
+const stripeAppearance = () =>
+  ({ theme: isDark.value ? 'night' : 'stripe', variables: { borderRadius: '8px' } }) as const
+
+watch(isDark, () => {
+  elementsInstance?.update({ appearance: stripeAppearance() })
+})
+
 function formatOrderAmount(amount: number): string {
   return props.orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : formatGatewayAmount(amount)
 }
@@ -128,10 +138,9 @@ onMounted(async () => {
     await nextTick()
     if (!stripeMount.value) return
 
-    const isDark = document.documentElement.classList.contains('dark')
     const elements = stripe.elements({
       clientSecret: props.clientSecret,
-      appearance: { theme: isDark ? 'night' : 'stripe', variables: { borderRadius: '8px' } },
+      appearance: stripeAppearance(),
     })
     elementsInstance = elements
     const paymentElement = elements.create('payment', {

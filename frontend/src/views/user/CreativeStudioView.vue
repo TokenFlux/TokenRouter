@@ -9,7 +9,7 @@
       <div class="absolute left-3 top-3 z-20">
         <button
           type="button"
-          class="flex h-9 w-9 items-center justify-center rounded-control border border-primary-900/10 bg-white/90 text-gray-600 shadow-md backdrop-blur transition-colors hover:text-gray-900 dark:border-dark-600 dark:bg-dark-900/90 dark:text-gray-300 dark:hover:text-gray-100"
+          class="flex rounded-control border border-primary-900/10 bg-white/90 text-gray-600 shadow-md backdrop-blur transition-colors hover:text-gray-900 dark:border-dark-600 dark:bg-dark-900/90 dark:text-gray-300 dark:hover:text-gray-100 btn-icon"
           :class="settingsOpen && 'text-primary-700 dark:text-primary-300'"
           :title="t('creative.canvas.settings')"
           :aria-expanded="settingsOpen"
@@ -18,10 +18,10 @@
           <Icon name="cog" size="md" />
         </button>
         <!-- 向下展开的设置面板：清空画布 / 清空本机创作数据 -->
-        <Transition name="settings-panel">
+        <Transition name="pop-float">
           <div
             v-if="settingsOpen"
-            class="absolute left-0 top-12 w-64 rounded-surface border border-primary-900/10 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-dark-600 dark:bg-dark-900/95"
+            class="settings-pop-float absolute left-0 top-12 w-64 rounded-surface border border-primary-900/10 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-dark-600 dark:bg-dark-900/95"
           >
             <button
               type="button"
@@ -57,6 +57,7 @@
         v-if="submissionAnimationVisible"
         class="creative-submit-flight"
         :style="submissionAnimationStyle"
+        @animationend="onSubmitFlightEnd"
         aria-hidden="true"
       >
         <Icon name="mail" size="sm" />
@@ -123,7 +124,6 @@ let pillHideTimer: ReturnType<typeof setTimeout> | null = null
 const pillHidden = ref(false)
 const submissionAnimationVisible = ref(false)
 const submissionAnimationStyle = ref<Record<string, string>>({})
-let submissionAnimationTimer: ReturnType<typeof setTimeout> | null = null
 let submissionAnimationFrame: number | null = null
 
 const activeRunCount = computed(
@@ -153,7 +153,6 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(submissionAnimationFrame)
     submissionAnimationFrame = null
   }
-  if (submissionAnimationTimer) clearTimeout(submissionAnimationTimer)
 })
 
 // 计算提交反馈的起点与终点，保证桌面端和移动端都从实际按钮飞向历史入口。
@@ -185,12 +184,14 @@ function playSubmissionAnimation(): void {
   } else {
     submissionAnimationVisible.value = true
   }
-  if (submissionAnimationTimer) clearTimeout(submissionAnimationTimer)
-  // 比 CSS 动画多留 100ms，确保末帧到达历史按钮后再移除节点。
-  submissionAnimationTimer = setTimeout(() => {
-    submissionAnimationVisible.value = false
-    submissionAnimationTimer = null
-  }, 1100)
+  // 节点移除由 CSS 动画的 animationend 事件驱动（见 onSubmitFlightEnd），
+  // 不再用定时器猜时长；reduced-motion 下动画缩到 1ms，事件同样触发。
+}
+
+function onSubmitFlightEnd(event: AnimationEvent): void {
+  // 只响应飞行动画本身，防御未来在元素上叠加其他动画时误收。
+  if (event.animationName !== 'creative-submit-flight') return
+  submissionAnimationVisible.value = false
 }
 
 function cancelSubmissionAnimation(): void {
@@ -199,8 +200,6 @@ function cancelSubmissionAnimation(): void {
     cancelAnimationFrame(submissionAnimationFrame)
     submissionAnimationFrame = null
   }
-  if (submissionAnimationTimer) clearTimeout(submissionAnimationTimer)
-  submissionAnimationTimer = null
 }
 
 // ==================== 生成状态胶囊 ====================
@@ -335,20 +334,10 @@ async function onClearLocalData(): Promise<void> {
 </script>
 
 <style scoped>
-/* 设置面板从齿轮下方向外展开，关闭时沿原路径收回。 */
-.settings-panel-enter-active,
-.settings-panel-leave-active {
-  transform-origin: top left;
-  transition:
-    opacity 200ms ease,
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
-}
-
-.settings-panel-enter-from,
-.settings-panel-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.97);
+/* 设置面板动效用全局 pop-float,锚点方向(左上锚、向上收起)用局部变量表达。 */
+.settings-pop-float {
+  --pop-origin: top left;
+  --pop-shift: -6px;
 }
 
 /* 信封沿运行时计算的向量匀速飞行，透明度收尾避免落到历史按钮上时产生遮挡。 */
@@ -386,9 +375,6 @@ async function onClearLocalData(): Promise<void> {
     animation-duration: 1ms;
   }
 
-  .settings-panel-enter-active,
-  .settings-panel-leave-active {
-    transition-duration: 1ms;
-  }
+  /* 设置面板走全局 pop-float,reduced-motion 由全局配方收敛。 */
 }
 </style>

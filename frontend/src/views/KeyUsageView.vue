@@ -202,6 +202,7 @@
                       stroke-width="10" stroke-linecap="round"
                       :stroke-dasharray="CIRCUMFERENCE.toFixed(2)"
                       :stroke-dashoffset="getRingOffset(ring)"
+                      :style="{ transitionDuration: `${RING_ANIMATION_MS}ms` }"
                     />
                     <defs>
                       <linearGradient :id="`ring-grad-${i}`" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -541,6 +542,9 @@ function setDailyUsageDays(days: 7 | 30 | 90) {
 // ==================== Ring Animation ====================
 
 const CIRCUMFERENCE = 2 * Math.PI * 68
+// 圆环描边过渡与百分比数字滚动共用的时长，模板内联注入 transitionDuration，
+// 避免 JS/CSS 两处各写一份再漂移（历史上 1000ms 对 1.2s，数字比圆环先停）。
+const RING_ANIMATION_MS = 1200
 const RING_GRADIENTS = [
   { from: '#00D2FF', to: '#8BDDF8' },
   { from: '#6366F1', to: '#A5B4FC' },
@@ -578,13 +582,12 @@ function triggerRingAnimation(items: RingItem[]) {
         ringAnimated.value = true
 
         // Animate percentage numbers
-        const duration = 1000
         const startTime = performance.now()
         const targets = items.map(item => item.isBalance ? 0 : item.pct)
 
         function tick() {
           const elapsed = performance.now() - startTime
-          const p = Math.min(elapsed / duration, 1)
+          const p = Math.min(elapsed / RING_ANIMATION_MS, 1)
           const ease = 1 - Math.pow(1 - p, 3)
           displayPcts.value = targets.map(target => Math.round(ease * target))
           if (p < 1) requestAnimationFrame(tick)
@@ -1011,9 +1014,10 @@ onUnmounted(() => {
   border-color: #00D2FF;
 }
 
-/* Ring animation */
+/* Ring animation — 时长不在此写死，由模板内联 transitionDuration 注入 RING_ANIMATION_MS。 */
 .progress-ring {
-  transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition-property: stroke-dashoffset;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
 }

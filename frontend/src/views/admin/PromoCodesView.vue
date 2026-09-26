@@ -20,12 +20,12 @@
             <button
               @click="loadCodes"
               :disabled="loading"
-              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+              class="btn btn-secondary shrink-0 btn-icon"
               :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
-            <button @click="showCreateDialog = true" class="btn btn-primary h-9 whitespace-nowrap px-3 sm:px-4">
+            <button @click="showCreateDialog = true" class="btn btn-primary whitespace-nowrap px-3 sm:px-4">
               <Icon name="plus" size="md" class="mr-1" />
               {{ t('admin.promo.createCode') }}
             </button>
@@ -385,6 +385,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
@@ -584,7 +585,7 @@ const copyToClipboard = async (text: string) => {
     copiedCode.value = text
     setTimeout(() => {
       copiedCode.value = null
-    }, 2000)
+    }, COPY_FEEDBACK_MS)
   }
 }
 

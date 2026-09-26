@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
+import { TABLE_DESKTOP_MEDIA_QUERY } from '@/constants/layout'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -15,8 +16,8 @@ import { formatDateTime } from '../utils/opsFormatters'
 const { t } = useI18n()
 const appStore = useAppStore()
 
-// 与 DataTable 一致：< 768px 切换为卡片视图，避免宽表在移动端被截断。
-const isDesktopViewport = useMediaQuery('(min-width: 768px)')
+// 与 DataTable 一致：< 1024px 切换为卡片视图，避免宽表在移动端被截断。
+const isDesktopViewport = useMediaQuery(TABLE_DESKTOP_MEDIA_QUERY)
 
 const loading = ref(false)
 const rules = ref<AlertRule[]>([])
@@ -424,8 +425,8 @@ function cancelDelete() {
       {{ t('admin.ops.alertRules.empty') }}
     </div>
 
-    <div v-else class="max-h-[520px] overflow-hidden rounded-surface border border-gray-200 dark:border-dark-700">
-      <div class="max-h-[520px] overflow-y-auto">
+    <div v-else class="max-h-[520px] overflow-hidden rounded-surface border border-gray-200 dark:border-dark-700"> <!-- check-ui-allow: 告警规则表局部高度 -->
+      <div class="max-h-[520px] overflow-y-auto"> <!-- check-ui-allow: 告警规则表局部高度 -->
         <div v-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
           <div v-for="row in sortedRules" :key="row.id" class="space-y-2 p-4">
             <div class="flex items-start justify-between gap-2">

@@ -47,5 +47,5 @@ export function buildEmbeddedUrl(
 
 export function detectTheme(): 'light' | 'dark' {
   if (typeof document === 'undefined') return 'light'
-  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light' // check-ui-allow: SSR 安全的一次性探测,供非组件 URL 构建
 }

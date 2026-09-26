@@ -754,6 +754,7 @@ import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'v
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import type {
   Account,
   AccountUsageInfo,
@@ -1515,7 +1516,7 @@ const copyValidationURL = async () => {
   try {
     await navigator.clipboard.writeText(validationURL.value)
     linkCopied.value = true
-    setTimeout(() => { linkCopied.value = false }, 2000)
+    setTimeout(() => { linkCopied.value = false }, COPY_FEEDBACK_MS)
   } catch {
     // fallback: ignore
   }

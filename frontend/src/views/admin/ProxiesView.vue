@@ -5,24 +5,24 @@
         <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <!-- Left: Search + Filters -->
           <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-3">
-            <div class="relative min-w-0 flex-1 sm:flex-none sm:w-64">
+            <div class="input-icon-wrap min-w-0 flex-1 sm:flex-none sm:w-64">
             <Icon
               name="search"
               size="md"
-              class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+              class="input-icon text-gray-400 dark:text-gray-500"
             />
             <input
               v-model="searchQuery"
               type="text"
               :placeholder="t('admin.proxies.searchProxies')"
-              class="input pl-10"
+              class="input input-has-icon"
               @input="handleSearch"
             />
             </div>
             <div ref="filterDropdownRef" class="relative shrink-0">
               <button
                 type="button"
-                class="btn btn-secondary relative h-9 w-9 p-0"
+                class="btn btn-secondary relative btn-icon"
                 :aria-expanded="showFilterDropdown"
                 :aria-label="t('common.filter')"
                 :title="t('common.filter')"
@@ -31,7 +31,7 @@
                 <Icon name="filter" size="sm" />
                 <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">{{ activeFilterCount }}</span>
               </button>
-              <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-[60] mt-2 w-72 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
+              <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-modal-nested mt-2 w-72 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
                 <div class="mb-3 flex items-center justify-between">
                   <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
                   <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetProxyFilters">{{ t('common.reset') }}</button>
@@ -49,7 +49,7 @@
             <button
               @click="loadProxies"
               :disabled="loading"
-              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+              class="btn btn-secondary shrink-0 btn-icon"
               :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
@@ -68,12 +68,12 @@
               </button>
               <div
                 v-if="showMoreActionsDropdown"
-                class="absolute right-0 top-full z-[60] mt-2 w-56 rounded-control border border-gray-200 bg-white p-1 shadow-xl dark:border-dark-600 dark:bg-dark-900"
+                class="absolute right-0 top-full z-modal-nested mt-2 w-56 rounded-control border border-gray-200 bg-white p-1 shadow-xl dark:border-dark-600 dark:bg-dark-900"
                 @click.stop
               >
                 <button
                   type="button"
-                  class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-dark-800"
+                  class="dropdown-item-sm rounded-control disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="batchTesting || loading"
                   @click="showMoreActionsDropdown = false; handleBatchTest()"
                 >
@@ -82,7 +82,7 @@
                 </button>
                 <button
                   type="button"
-                  class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-dark-800"
+                  class="dropdown-item-sm rounded-control disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="batchQualityChecking || loading"
                   @click="showMoreActionsDropdown = false; handleBatchQualityCheck()"
                 >
@@ -91,7 +91,7 @@
                 </button>
                 <button
                   type="button"
-                  class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-800"
+                  class="dropdown-item-sm rounded-control"
                   @click="showMoreActionsDropdown = false; showImportData = true"
                 >
                   <Icon name="upload" size="sm" />
@@ -99,7 +99,7 @@
                 </button>
                 <button
                   type="button"
-                  class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-800"
+                  class="dropdown-item-sm rounded-control"
                   @click="showMoreActionsDropdown = false; showExportDataDialog = true"
                 >
                   <Icon name="download" size="sm" />

@@ -72,6 +72,7 @@ import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, type TooltipItem } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
+import { CHART_PALETTE } from '@/composables/useChartTheme'
 import type { DashboardStats } from '@/types/payment'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
@@ -86,20 +87,7 @@ const props = defineProps<{
   items: PurchaseDistributionItem[]
 }>()
 
-const chartColors = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#00D2FF',
-  '#f97316',
-  '#6366f1',
-  '#84cc16',
-  '#06b6d4',
-  '#a855f7'
-]
+const chartColors = CHART_PALETTE
 
 const sortedItems = computed(() => {
   return [...(props.items || [])].sort((a, b) => {

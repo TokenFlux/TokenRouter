@@ -847,7 +847,7 @@ describe('admin RiskControlView', () => {
     expect(apiKeyLoadCard.get('h2').text()).toBe('admin.riskControl.preBlockAPIKeyLoad')
     expect(apiKeyLoadCard.text()).toContain('admin.riskControl.preBlockAPIKeyLoadHint')
     expect(wrapper.get('[data-test="pre-block-api-key-load-list"]').classes()).toEqual(expect.arrayContaining([
-      'max-h-[280px]',
+      'max-h-[280px]', // check-ui-allow: 规则列表局部高度属登记例外,与源文件豁免一致
       'overflow-y-auto',
     ]))
   })

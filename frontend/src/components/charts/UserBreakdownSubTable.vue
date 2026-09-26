@@ -43,6 +43,7 @@ import { useI18n } from 'vue-i18n'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { UserBreakdownItem } from '@/types'
+import { formatTokens } from '@/utils/format'
 
 const { t } = useI18n()
 const { balanceUnitSymbol, usdUnitSymbol } = useBalanceDisplay()
@@ -60,13 +61,6 @@ const props = withDefaults(defineProps<{
 
 const showAccountCost = computed(() => props.showAccountCost)
 const showStandardCost = computed(() => props.showStandardCost)
-
-const formatTokens = (value: number): string => {
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
-  if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`
-  return value.toLocaleString()
-}
 
 const formatCost = (value: number | undefined | null): string => {
   if (value == null) return '0.0000'

@@ -3,7 +3,7 @@
     <template #page-heading-actions>
       <button
         type="button"
-        class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+        class="btn btn-secondary shrink-0 btn-icon"
         :disabled="chartsLoading"
         :title="t('common.refresh')"
         @click="loadDashboardStats"
@@ -337,6 +337,8 @@ import {
   Filler
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
+import { formatTokens } from '@/utils/format'
+import { useChartTheme, CHART_TICK_FONT_SIZE, CHART_LEGEND_FONT_SIZE } from '@/composables/useChartTheme'
 
 // Register Chart.js components
 ChartJS.register(
@@ -401,15 +403,12 @@ const granularityOptions = computed(() => [
   { value: 'hour', label: t('admin.dashboard.hour') }
 ])
 
-// Dark mode detection
-const isDarkMode = computed(() => {
-  return document.documentElement.classList.contains('dark')
-})
-
-// Chart colors
+// 品牌调仪表盘:刻度/网格用品牌色系(dark-200/primary-900 字面值),不归 zinc 档位;
+// 修复为非一次性快照,主题切换即刻重绘。
+const { isDark } = useChartTheme()
 const chartColors = computed(() => ({
-  text: isDarkMode.value ? '#D9D9DE' : '#2D4F68',
-  grid: isDarkMode.value ? '#29292E' : '#DDF4FC'
+  text: isDark.value ? '#D9D9DE' : '#2D4F68',
+  grid: isDark.value ? '#29292E' : '#DDF4FC'
 }))
 
 // Line chart options (for user trend chart)
@@ -429,7 +428,7 @@ const lineOptions = computed(() => ({
         pointStyle: 'circle',
         padding: 15,
         font: {
-          size: 11
+          size: CHART_LEGEND_FONT_SIZE
         }
       }
     },
@@ -456,7 +455,7 @@ const lineOptions = computed(() => ({
       ticks: {
         color: chartColors.value.text,
         font: {
-          size: 10
+          size: CHART_TICK_FONT_SIZE
         }
       }
     },
@@ -467,7 +466,7 @@ const lineOptions = computed(() => ({
       ticks: {
         color: chartColors.value.text,
         font: {
-          size: 10
+          size: CHART_TICK_FONT_SIZE
         },
         callback: (value: string | number) => formatTokens(Number(value))
       }
@@ -538,18 +537,6 @@ const userTrendChartData = computed(() => {
 })
 
 // Format helpers
-const formatTokens = (value: number | undefined): string => {
-  if (value === undefined || value === null) return '0'
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(2)}B`
-  } else if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(2)}M`
-  } else if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(2)}K`
-  }
-  return value.toLocaleString()
-}
-
 const toFiniteNumber = (value: unknown): number => {
   const numberValue = Number(value)
   return Number.isFinite(numberValue) ? numberValue : 0

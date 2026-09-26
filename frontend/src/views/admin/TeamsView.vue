@@ -3,15 +3,15 @@
     <TablePageLayout>
       <template #filters>
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="relative w-full sm:w-72">
+          <div class="input-icon-wrap w-full sm:w-72">
             <Icon
               name="search"
               size="md"
-              class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              class="input-icon text-gray-400"
             />
             <input
               v-model="searchQuery"
-              class="input pl-10"
+              class="input input-has-icon"
               type="text"
               :placeholder="t('team.searchPlaceholder')"
             />
@@ -19,14 +19,14 @@
 
           <div class="flex w-full items-center justify-end gap-2 sm:w-auto">
             <button
-              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+              class="btn btn-secondary shrink-0 btn-icon"
               :disabled="loading"
               :title="t('common.refresh')"
               @click="loadTeams"
             >
               <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
             </button>
-            <button class="btn btn-primary h-9 whitespace-nowrap" @click="showCreate = true">
+            <button class="btn btn-primary whitespace-nowrap" @click="showCreate = true">
               <Icon name="plus" size="sm" />
               {{ t('team.create') }}
             </button>
@@ -306,6 +306,7 @@ import { useStepUp, isStepUpCancelled } from '@/composables/useStepUp'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime } from '@/utils/format'
+import { getFloatingPanelPosition } from '@/utils/floatingPanel'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -451,14 +452,17 @@ const openActionMenu = (team: AdminTeam, event: MouseEvent) => {
   const target = event.currentTarget as HTMLElement | null
   if (!target) return
   const rect = target.getBoundingClientRect()
-  const width = 208
-  const height = 142
-  const padding = 8
-  const left = Math.max(padding, Math.min(rect.right - width, window.innerWidth - width - padding))
-  let top = rect.bottom + 4
-  if (top + height > window.innerHeight - padding) top = Math.max(padding, rect.top - height - 4)
+  // 固定高菜单:下方放不下即整体上翻;窄屏保持右缘对齐触发器,不钉视口左缘。
+  const position = getFloatingPanelPosition(rect, window.innerWidth, window.innerHeight, {
+    maxWidth: 208,
+    fixedHeight: 142,
+    viewportPadding: 8,
+    gap: 4,
+    pinLeftOnMobile: false
+  })
+  // fixedHeight 模式下 top 恒非空。
+  menuPosition.value = { top: position.top ?? 8, left: position.left }
   menuTeam.value = team
-  menuPosition.value = { top, left }
 }
 
 const closeActionMenu = () => {

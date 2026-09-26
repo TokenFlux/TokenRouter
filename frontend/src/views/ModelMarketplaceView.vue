@@ -16,7 +16,7 @@
         <div ref="filterPanelRef" class="relative shrink-0">
           <button
             type="button"
-            class="btn btn-secondary relative h-9 w-9 p-0"
+            class="btn btn-secondary relative btn-icon"
             :aria-expanded="showFilterDropdown"
             :aria-label="t('common.filter')"
             :title="t('common.filter')"
@@ -27,7 +27,7 @@
               {{ activeFilterCount }}
             </span>
           </button>
-          <div v-show="showFilterDropdown" class="absolute right-0 top-full z-[60] mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
+          <div v-show="showFilterDropdown" class="absolute right-0 top-full z-modal-nested mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
             <div class="mb-3 flex items-center justify-between">
               <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
               <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetFilters">
@@ -57,7 +57,7 @@
       <div class="ba-theme-backdrop pointer-events-none fixed inset-0"></div>
 
       <header class="glass relative z-20 border-b border-primary-900/10 px-4 dark:border-dark-600/80 sm:px-6">
-        <nav class="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4">
+        <nav class="mx-auto flex h-[var(--header-h)] max-w-7xl items-center justify-between gap-4">
           <router-link to="/home" class="flex min-w-0 items-center gap-2.5">
             <span class="h-8 w-8 shrink-0 overflow-hidden rounded-control shadow-sm">
               <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
@@ -86,7 +86,7 @@
             <button
               type="button"
               @click="toggleTheme"
-              class="flex h-9 w-9 items-center justify-center rounded-control text-primary-900/90 transition-colors hover:bg-primary-100 hover:text-primary-900 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white"
+              class="flex rounded-control text-primary-900/90 transition-colors hover:bg-primary-100 hover:text-primary-900 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white btn-icon"
               :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
             >
               <Icon v-if="isDark" name="sun" size="md" />
@@ -126,7 +126,7 @@
           <div ref="filterPanelRef" class="relative shrink-0">
             <button
               type="button"
-              class="btn btn-secondary relative h-9 w-9 p-0"
+              class="btn btn-secondary relative btn-icon"
               :aria-expanded="showFilterDropdown"
               :aria-label="t('common.filter')"
               :title="t('common.filter')"
@@ -137,7 +137,7 @@
                 {{ activeFilterCount }}
               </span>
             </button>
-            <div v-show="showFilterDropdown" class="absolute right-0 top-full z-[60] mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
+            <div v-show="showFilterDropdown" class="absolute right-0 top-full z-modal-nested mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
               <div class="mb-3 flex items-center justify-between">
                 <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
                 <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetFilters">

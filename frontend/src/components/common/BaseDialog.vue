@@ -53,6 +53,7 @@ let openDialogCount = 0
 <script setup lang="ts">
 import { computed, watch, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
+import { Z_INDEX } from '@/constants/overlay'
 
 // 生成唯一ID以避免多个对话框时ID冲突
 const dialogId = `modal-title-${++dialogIdCounter}`
@@ -82,14 +83,14 @@ const props = withDefaults(defineProps<Props>(), {
   width: 'normal',
   closeOnEscape: true,
   closeOnClickOutside: false,
-  zIndex: 50
+  zIndex: Z_INDEX.MODAL
 })
 
 const emit = defineEmits<Emits>()
 
 // 自定义层级会覆盖 CSS 中默认的 z-50。
 const zIndexStyle = computed(() => {
-  return props.zIndex !== 50 ? { zIndex: props.zIndex } : undefined
+  return props.zIndex !== Z_INDEX.MODAL ? { zIndex: props.zIndex } : undefined
 })
 
 const widthClasses = computed(() => {

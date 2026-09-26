@@ -478,6 +478,8 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { adminAPI } from '@/api/admin'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import type { Account, AccountUsageStatsResponse } from '@/types'
+import { formatTokens } from '@/utils/format'
+import { useChartTheme, CHART_TICK_FONT_SIZE, CHART_LEGEND_FONT_SIZE } from '@/composables/useChartTheme'
 
 ChartJS.register(
   CategoryScale,
@@ -512,16 +514,8 @@ const emit = defineEmits<{
 const loading = ref(false)
 const stats = ref<AccountUsageStatsResponse | null>(null)
 
-// Dark mode detection
-const isDarkMode = computed(() => {
-  return document.documentElement.classList.contains('dark')
-})
-
-// Chart colors
-const chartColors = computed(() => ({
-  text: isDarkMode.value ? '#E4E4E7' : '#3F3F46',
-  grid: isDarkMode.value ? '#3F3F46' : '#E4E4E7'
-}))
+// 响应式图表主题:切换暗色即刻重绘,不再一次性快照。
+const { colors: chartColors } = useChartTheme()
 
 // Line chart data
 const trendChartData = computed(() => {
@@ -579,7 +573,7 @@ const lineChartOptions = computed(() => ({
         pointStyle: 'circle',
         padding: 15,
         font: {
-          size: 11
+          size: CHART_LEGEND_FONT_SIZE
         }
       }
     },
@@ -609,7 +603,7 @@ const lineChartOptions = computed(() => ({
       ticks: {
         color: chartColors.value.text,
         font: {
-          size: 10
+          size: CHART_TICK_FONT_SIZE
         },
         maxRotation: 45,
         minRotation: 0
@@ -625,7 +619,7 @@ const lineChartOptions = computed(() => ({
       ticks: {
         color: '#3b82f6',
         font: {
-          size: 10
+          size: CHART_TICK_FONT_SIZE
         },
         callback: (value: string | number) => formatCost(Number(value))
       },
@@ -634,7 +628,7 @@ const lineChartOptions = computed(() => ({
         text: t('usage.cost'),
         color: '#3b82f6',
         font: {
-          size: 11
+          size: CHART_LEGEND_FONT_SIZE
         }
       }
     },
@@ -648,7 +642,7 @@ const lineChartOptions = computed(() => ({
       ticks: {
         color: '#f97316',
         font: {
-          size: 10
+          size: CHART_TICK_FONT_SIZE
         },
         callback: (value: string | number) => formatNumber(Number(value))
       },
@@ -657,7 +651,7 @@ const lineChartOptions = computed(() => ({
         text: t('admin.accounts.stats.requests'),
         color: '#f97316',
         font: {
-          size: 11
+          size: CHART_LEGEND_FONT_SIZE
         }
       }
     }
@@ -717,17 +711,6 @@ const formatNumber = (value: number): string => {
     return (value / 1_000_000).toFixed(2) + 'M'
   } else if (value >= 1_000) {
     return (value / 1_000).toFixed(2) + 'K'
-  }
-  return value.toLocaleString()
-}
-
-const formatTokens = (value: number): string => {
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(2)}B`
-  } else if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(2)}M`
-  } else if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(2)}K`
   }
   return value.toLocaleString()
 }

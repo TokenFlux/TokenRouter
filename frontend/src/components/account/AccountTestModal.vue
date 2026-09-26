@@ -99,7 +99,7 @@
       <div class="group relative">
         <div
           ref="terminalRef"
-          class="max-h-[240px] min-h-[120px] overflow-y-auto rounded-surface border border-gray-700 bg-gray-900 p-4 font-mono text-sm dark:border-gray-800 dark:bg-black"
+          class="max-h-menu-sm min-h-[120px] overflow-y-auto rounded-surface border border-gray-700 bg-gray-900 p-4 font-mono text-sm dark:border-gray-800 dark:bg-black"
         >
           <!-- Status Line -->
           <div v-if="status === 'idle'" class="flex items-center gap-2 text-gray-500">
@@ -160,7 +160,7 @@
             class="group/img relative cursor-pointer overflow-hidden rounded-surface border border-gray-200 bg-white shadow-sm transition hover:border-black/20 hover:shadow-md dark:border-dark-500 dark:bg-dark-700 dark:hover:border-primary-300"
             @click="previewImageUrl = image.url"
           >
-            <img :src="image.url" :alt="`test-image-${index + 1}`" class="max-h-[360px] w-full object-contain" />
+            <img :src="image.url" :alt="`test-image-${index + 1}`" class="max-h-[360px] w-full object-contain" /> <!-- check-ui-allow: 图片预览局部约束 -->
             <div class="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/img:bg-black/20">
               <Icon name="eye" size="lg" class="text-white opacity-0 drop-shadow-lg transition-opacity group-hover/img:opacity-100" :stroke-width="2" />
             </div>
@@ -176,7 +176,7 @@
         <Transition name="fade">
           <div
             v-if="previewImageUrl"
-            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+            class="fixed inset-0 z-tooltip flex items-center justify-center bg-[var(--overlay-bg-strong)] p-4"
             @click.self="previewImageUrl = ''"
           >
             <button
@@ -618,14 +618,3 @@ const copyOutput = () => {
   copyToClipboard(text, t('admin.accounts.outputCopied'))
 }
 </script>
-
-<style>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>

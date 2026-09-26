@@ -7,17 +7,17 @@
           <!-- Left: Search + Active Filters -->
           <div class="flex min-w-0 w-full flex-1 flex-wrap items-center gap-3 sm:w-auto">
             <!-- Search Box -->
-            <div class="relative min-w-0 flex-1 sm:flex-none sm:w-64">
+            <div class="input-icon-wrap min-w-0 flex-1 sm:flex-none sm:w-64">
               <Icon
                 name="search"
                 size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                class="input-icon text-gray-400"
               />
               <input
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('admin.users.searchUsers')"
-                class="input pl-10"
+                class="input input-has-icon"
                 @input="handleSearch"
               />
             </div>
@@ -27,7 +27,7 @@
               <button
                 type="button"
                 @click="showFilterDropdown = !showFilterDropdown"
-                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                class="btn btn-secondary shrink-0 btn-icon"
                 :title="t('admin.users.filterSettings')"
                 :aria-label="t('admin.users.filterSettings')"
               >
@@ -42,7 +42,7 @@
                   v-for="filter in builtInFilters"
                   :key="filter.key"
                   @click="toggleBuiltInFilter(filter.key)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="dropdown-item justify-between"
                 >
                   <span>{{ filter.name }}</span>
                   <Icon v-if="visibleFilters.has(filter.key)" name="check" size="sm" class="text-primary-500" :stroke-width="2" />
@@ -52,7 +52,7 @@
                   v-for="attr in filterableAttributes"
                   :key="attr.id"
                   @click="toggleAttributeFilter(attr)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="dropdown-item justify-between"
                 >
                   <span>{{ attr.name }}</span>
                   <Icon v-if="visibleFilters.has(`attr_${attr.id}`)" name="check" size="sm" class="text-primary-500" :stroke-width="2" />
@@ -169,7 +169,7 @@
               <button
                 @click="loadUsers"
                 :disabled="loading"
-                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                class="btn btn-secondary shrink-0 btn-icon"
                 :title="t('common.refresh')"
               >
                 <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
@@ -178,7 +178,7 @@
               <div class="relative" ref="columnDropdownRef">
                 <button
                   @click="showColumnDropdown = !showColumnDropdown"
-                  class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                  class="btn btn-secondary shrink-0 btn-icon"
                   :title="t('admin.users.columnSettings')"
                 >
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -197,9 +197,9 @@
                     :disabled="isForcedVisibleColumn(col.key)"
                     @click="toggleColumn(col.key)"
                     :class="[
-                      'flex w-full items-center justify-between px-4 py-2 text-left text-sm',
+                      'dropdown-item justify-between',
                       isForcedVisibleColumn(col.key)
-                        ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
+                        ? 'cursor-not-allowed text-gray-400 hover:bg-transparent dark:text-gray-500 dark:hover:bg-transparent'
                         : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700'
                     ]"
                     :title="isForcedVisibleColumn(col.key) ? t('admin.users.columnAlwaysVisible') : ''"
@@ -218,7 +218,7 @@
               <!-- Attributes Config Button -->
               <button
                 @click="showAttributesModal = true"
-                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                class="btn btn-secondary shrink-0 btn-icon"
                 :title="t('admin.users.attributes.configButton')"
               >
                 <Icon name="cog" size="sm" />
@@ -228,7 +228,7 @@
 
             <button
               v-if="selectedCount > 0"
-              class="btn btn-secondary h-9 flex-none whitespace-nowrap px-3 md:flex-initial"
+              class="btn btn-secondary flex-none whitespace-nowrap px-3 md:flex-initial"
               data-test="bulk-edit-limits"
               @click="showBulkEditModal = true"
             >
@@ -237,7 +237,7 @@
             </button>
 
             <!-- Create User Button (full width on mobile, auto width on desktop) -->
-            <button @click="showCreateModal = true" class="btn btn-primary h-9 flex-none whitespace-nowrap px-3 md:flex-initial">
+            <button @click="showCreateModal = true" class="btn btn-primary flex-none whitespace-nowrap px-3 md:flex-initial">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.users.createUser') }}
             </button>
@@ -346,7 +346,7 @@
                   <div
                     v-for="g in getUserGroups(row).exclusive"
                     :key="g.id"
-                    class="flex cursor-pointer items-center gap-2 px-3 py-2 text-gray-700 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:text-dark-200 dark:hover:bg-primary-900/30 dark:hover:text-primary-400"
+                    class="dropdown-item-sm hover:bg-primary-50 hover:text-primary-600 dark:text-dark-200 dark:hover:bg-primary-900/30 dark:hover:text-primary-400"
                     @click.stop="openGroupReplace(row, g)"
                   >
                     <Icon name="swap" size="xs" class="h-3.5 w-3.5 flex-shrink-0 opacity-50" />
@@ -636,7 +636,7 @@
     <Teleport to="body">
       <div
         v-if="activeMenuId !== null && menuPosition"
-        class="action-menu-content fixed z-[9999] w-48 overflow-hidden rounded-control bg-white shadow-lg ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10"
+        class="action-menu action-menu-content w-48 overflow-hidden"
         :style="{ top: menuPosition.top + 'px', left: menuPosition.left + 'px' }"
       >
         <div class="py-1">
@@ -645,7 +645,7 @@
               <!-- View API Keys -->
               <button
                 @click="handleViewApiKeys(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="dropdown-item"
               >
                 <Icon name="key" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.apiKeys') }}
@@ -654,7 +654,7 @@
               <!-- Allowed Groups -->
               <button
                 @click="handleAllowedGroups(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="dropdown-item"
               >
                 <Icon name="users" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.groups') }}
@@ -665,7 +665,7 @@
               <!-- Deposit -->
               <button
                 @click="handleDeposit(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="dropdown-item"
               >
                 <Icon name="plus" size="sm" class="text-emerald-500" :stroke-width="2" />
                 {{ t('admin.users.deposit') }}
@@ -674,7 +674,7 @@
               <!-- Withdraw -->
               <button
                 @click="handleWithdraw(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="dropdown-item"
               >
                 <svg class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
@@ -685,7 +685,7 @@
               <!-- Platform Quotas -->
               <button
                 @click="handlePlatformQuota(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="dropdown-item"
               >
                 <Icon name="chartBar" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.platformQuota.menuItem') }}
@@ -694,7 +694,7 @@
               <!-- Balance History -->
               <button
                 @click="handleBalanceHistory(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="dropdown-item"
               >
                 <BalanceIcon size="sm" class="text-gray-400" />
                 {{ t('admin.users.balanceHistory') }}
@@ -706,7 +706,7 @@
               <button
                 v-if="user.role !== 'admin'"
                 @click="handleDelete(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                class="dropdown-item text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
               >
                 <Icon name="trash" size="sm" :stroke-width="2" />
                 {{ t('common.delete') }}

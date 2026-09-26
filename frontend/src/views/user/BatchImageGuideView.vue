@@ -281,7 +281,7 @@
     <Teleport to="body">
       <div
         v-if="openMoreJobId"
-        class="fixed z-[9999] w-44 overflow-hidden rounded-control bg-white py-1 text-sm shadow-lg ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10"
+        class="fixed z-teleport-tooltip w-44 overflow-hidden rounded-control bg-white py-1 text-sm shadow-lg ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10"
         :style="moreMenuStyle"
         @click.stop
       >
@@ -315,7 +315,7 @@
     <Teleport to="body">
       <div
         v-if="promptPopover.visible"
-        class="batch-prompt-popover fixed z-[9999] rounded-surface border border-gray-200 bg-white p-3 text-sm text-gray-800 shadow-xl ring-1 ring-black/5 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-100 dark:ring-white/10"
+        class="batch-prompt-popover fixed z-teleport-tooltip rounded-surface border border-gray-200 bg-white p-3 text-sm text-gray-800 shadow-xl ring-1 ring-black/5 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-100 dark:ring-white/10"
         :style="promptPopover.style"
         @mouseenter="cancelPromptPopoverClose"
         @mouseleave="schedulePromptPopoverClose"
@@ -618,16 +618,16 @@
                 v-model="customIdDraft"
                 type="text"
                 maxlength="255"
-                class="input h-9 text-sm"
+                class="input text-sm"
                 :placeholder="t('batchImage.create.customIdPlaceholder')"
               />
               <Select
                 v-model="outputCountDraft"
                 :options="outputCountSelectOptions"
-                class="batch-output-count-select w-full"
+                class="w-full"
               />
               <label
-                class="btn btn-secondary h-9 cursor-pointer justify-center text-sm"
+                class="btn btn-secondary cursor-pointer justify-center text-sm"
                 :class="referenceImageDrafts.length >= selectedModelReferenceLimit ? 'pointer-events-none opacity-60' : ''"
               >
                 <Icon name="upload" size="sm" class="mr-1.5" />
@@ -641,7 +641,7 @@
                   @change="handleReferenceImageFiles"
                 />
               </label>
-              <button type="button" class="btn btn-secondary h-9 justify-center whitespace-nowrap px-4 text-sm" :disabled="!promptDraft.trim()" @click="addPromptRow">
+              <button type="button" class="btn btn-secondary justify-center whitespace-nowrap px-4 text-sm" :disabled="!promptDraft.trim()" @click="addPromptRow">
                 <Icon name="plus" size="sm" class="mr-1.5" />
                 {{ t('common.add') }}
               </button>
@@ -2702,10 +2702,5 @@ onBeforeUnmount(() => {
 
 .batch-prompt-popover p {
   scrollbar-width: thin;
-}
-
-.batch-output-count-select :deep(.select-trigger) {
-  height: 36px;
-  min-height: 36px;
 }
 </style>

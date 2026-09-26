@@ -35,7 +35,7 @@ const isVisible = computed(() => isLoading.value)
   left: 0;
   right: 0;
   height: 3px;
-  z-index: 9999;
+  z-index: var(--z-toast);
   overflow: hidden;
   background: transparent;
 }

@@ -9,11 +9,11 @@
             <input v-model="orderSearch" type="text" :placeholder="t('payment.admin.searchOrders')" class="input" @input="debounceLoadOrders" />
           </div>
           <div ref="filterDropdownRef" class="relative shrink-0">
-            <button type="button" class="btn btn-secondary relative h-9 w-9 p-0" :aria-expanded="showFilterDropdown" :aria-label="t('common.filter')" :title="t('common.filter')" @click="showFilterDropdown = !showFilterDropdown">
+            <button type="button" class="btn btn-secondary relative btn-icon" :aria-expanded="showFilterDropdown" :aria-label="t('common.filter')" :title="t('common.filter')" @click="showFilterDropdown = !showFilterDropdown">
               <Icon name="filter" size="sm" />
               <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">{{ activeFilterCount }}</span>
             </button>
-            <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-[60] mt-2 w-80 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
+            <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-modal-nested mt-2 w-80 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
               <div class="mb-3 flex items-center justify-between">
                 <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
                 <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetOrderFilters">{{ t('common.reset') }}</button>
@@ -29,7 +29,7 @@
         <button
           @click="loadOrders"
           :disabled="ordersLoading"
-          class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+          class="btn btn-secondary shrink-0 btn-icon"
           :title="t('common.refresh')"
         >
           <Icon name="refresh" size="md" :class="ordersLoading ? 'animate-spin' : ''" />

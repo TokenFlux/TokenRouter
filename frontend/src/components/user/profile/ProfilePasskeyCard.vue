@@ -95,7 +95,7 @@
             <div class="flex shrink-0 gap-2">
               <button
                 type="button"
-                class="btn btn-secondary btn-sm h-8 w-8 p-0"
+                class="btn btn-secondary btn-icon-sm"
                 :disabled="busy"
                 :aria-label="t('common.edit')"
                 :title="t('common.edit')"
@@ -105,7 +105,7 @@
               </button>
               <button
                 type="button"
-                class="btn btn-ghost btn-sm h-8 w-8 p-0 text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                class="btn btn-ghost btn-sm text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30 btn-icon-sm"
                 :disabled="busy"
                 :aria-label="t('common.delete')"
                 :title="t('common.delete')"

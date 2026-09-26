@@ -42,7 +42,7 @@
           </div>
           <button
             type="button"
-            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
+            class="flex shrink-0 rounded-control border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white btn-icon-sm"
             :title="t('admin.accounts.advancedSchedulerScore.refresh')"
             :aria-label="t('admin.accounts.advancedSchedulerScore.refresh')"
             :disabled="loadingOverview || loadingDetail"
@@ -168,7 +168,7 @@
                   <h5 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ t('admin.accounts.advancedSchedulerScore.formula') }}</h5>
                   <button
                     type="button"
-                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
+                    class="flex shrink-0 rounded-control border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white btn-icon-sm"
                     :title="t('admin.accounts.advancedSchedulerScore.copyFormula')"
                     :aria-label="t('admin.accounts.advancedSchedulerScore.copyFormula')"
                     @click="copyFormula(detail.score.formula)"

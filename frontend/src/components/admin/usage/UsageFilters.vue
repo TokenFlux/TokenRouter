@@ -5,7 +5,7 @@
         <div ref="filterPanelRef" class="relative shrink-0">
           <button
             type="button"
-            class="btn btn-secondary relative h-9 w-9 p-0"
+            class="btn btn-secondary relative btn-icon"
             :aria-expanded="showFilterDropdown"
             :aria-label="t('common.filter')"
             :title="t('common.filter')"
@@ -17,7 +17,7 @@
             </span>
           </button>
 
-          <div v-show="showFilterDropdown" class="absolute left-0 top-full z-[60] mt-2 max-h-[min(70vh,42rem)] w-[min(48rem,calc(100vw-3rem))] overflow-y-auto rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
+          <div v-show="showFilterDropdown" class="absolute left-0 top-full z-modal-nested mt-2 max-h-[min(70vh,42rem)] w-[min(48rem,calc(100vw-3rem))] overflow-y-auto rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
             <div class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
             <div class="flex flex-wrap items-end gap-4">
         <div v-if="mode === 'usage'" class="w-full sm:w-auto sm:min-w-[200px]">
@@ -54,10 +54,10 @@
               :key="u.id"
               type="button"
               @click="selectUser(u)"
-              class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+              class="dropdown-item"
             >
               <span>{{ u.email }}<span v-if="u.deleted" class="ml-1 text-xs text-gray-400">（{{ t('admin.usage.userDeletedBadge') }}）</span></span>
-              <span class="ml-2 text-xs text-gray-400">#{{ u.id }}</span>
+              <span class="text-xs text-gray-400">#{{ u.id }}</span>
             </button>
           </div>
         </div>
@@ -91,10 +91,10 @@
               :key="k.id"
               type="button"
               @click="selectApiKey(k)"
-              class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+              class="dropdown-item"
             >
               <span class="truncate">{{ k.name || `#${k.id}` }}</span>
-              <span class="ml-2 text-xs text-gray-400">#{{ k.id }}</span>
+              <span class="text-xs text-gray-400">#{{ k.id }}</span>
             </button>
           </div>
         </div>
@@ -134,10 +134,10 @@
               :key="a.id"
               type="button"
               @click="selectAccount(a)"
-              class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+              class="dropdown-item"
             >
               <span class="truncate">{{ a.name }}</span>
-              <span class="ml-2 text-xs text-gray-400">#{{ a.id }}</span>
+              <span class="text-xs text-gray-400">#{{ a.id }}</span>
             </button>
           </div>
         </div>
@@ -194,15 +194,15 @@
         </div>
 
         <div v-if="showActions" class="flex flex-wrap items-center justify-end gap-2">
-          <button type="button" @click="$emit('refresh')" class="btn btn-secondary h-9 w-9 p-0" :title="t('common.refresh')">
+          <button type="button" @click="$emit('refresh')" class="btn btn-secondary btn-icon" :title="t('common.refresh')">
             <Icon name="refresh" size="sm" />
           </button>
           <slot name="after-reset" />
           <template v-if="mode === 'usage'">
-            <button type="button" @click="$emit('cleanup')" class="btn btn-danger h-9 whitespace-nowrap px-3 sm:px-4">
+            <button type="button" @click="$emit('cleanup')" class="btn btn-danger whitespace-nowrap px-3 sm:px-4">
               {{ t('admin.usage.cleanup.button') }}
             </button>
-            <button type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary h-9 whitespace-nowrap px-3 sm:px-4">
+            <button type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary whitespace-nowrap px-3 sm:px-4">
               {{ t('usage.exportExcel') }}
             </button>
           </template>
@@ -219,6 +219,7 @@ import { adminAPI } from '@/api/admin'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
+import { SEARCH_DEBOUNCE_MS } from '@/constants/ui'
 import type { SimpleApiKey, SimpleUser } from '@/api/admin/usage'
 
 type ModelValue = Record<string, any>
@@ -374,7 +375,7 @@ const debounceUserSearch = () => {
         userResults.value = []
       }
     }
-  }, 300)
+  }, SEARCH_DEBOUNCE_MS)
 }
 
 const debounceApiKeySearch = () => {
@@ -388,7 +389,7 @@ const debounceApiKeySearch = () => {
     } catch {
       apiKeyResults.value = []
     }
-  }, 300)
+  }, SEARCH_DEBOUNCE_MS)
 }
 
 const selectUser = async (u: SimpleUser) => {
@@ -450,7 +451,7 @@ const debounceAccountSearch = () => {
     } catch {
       accountResults.value = []
     }
-  }, 300)
+  }, SEARCH_DEBOUNCE_MS)
 }
 
 const selectAccount = (a: SimpleAccount) => {

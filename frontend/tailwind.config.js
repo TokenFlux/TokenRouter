@@ -15,6 +15,32 @@ export default {
       full: '9999px'
     },
     extend: {
+      // 浮层层级语义档:数值唯一来源是 style.css :root 的 --z-* 变量,这里只做 var() 引用。
+      // --z-tour(driver.js 外部约束)有意不暴露为工具类,防止业务代码依附第三方层级。
+      zIndex: {
+        'chart-tooltip': 'var(--z-chart-tooltip)',
+        'sidebar-overlay': 'var(--z-sidebar-overlay)',
+        sidebar: 'var(--z-sidebar)',
+        header: 'var(--z-header)',
+        modal: 'var(--z-modal)',
+        'modal-nested': 'var(--z-modal-nested)',
+        tooltip: 'var(--z-tooltip)',
+        announcement: 'var(--z-announcement)',
+        'announcement-raised': 'var(--z-announcement-raised)',
+        'announcement-top': 'var(--z-announcement-top)',
+        'menu-overlay': 'var(--z-menu-overlay)',
+        toast: 'var(--z-toast)',
+        'action-menu': 'var(--z-action-menu)',
+        'teleport-tooltip': 'var(--z-teleport-tooltip)',
+        'help-tooltip': 'var(--z-help-tooltip)',
+        'teleport-dropdown': 'var(--z-teleport-dropdown)'
+      },
+      // 浮层面板最大高度三档,数值同样由 style.css :root 变量承载。
+      maxHeight: {
+        'menu-sm': 'var(--max-h-menu-sm)',
+        menu: 'var(--max-h-menu)',
+        panel: 'var(--max-h-panel)'
+      },
       colors: {
         // 主色调 - Blue Archive 蓝白主题
         primary: {

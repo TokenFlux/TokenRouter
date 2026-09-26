@@ -42,7 +42,7 @@
                     required
                     :placeholder="t('redeem.redeemCodePlaceholder')"
                     :disabled="submitting"
-                    class="input h-9 py-0 pl-12 text-lg"
+                    class="input py-0 pl-12 text-lg"
                   />
                 </div>
               </div>
@@ -50,7 +50,7 @@
               <button
                 type="submit"
                 :disabled="!redeemCode || submitting"
-                class="btn btn-primary h-9 w-full py-1.5"
+                class="btn btn-primary w-full py-1.5"
               >
                 <svg
                   v-if="submitting"
@@ -80,7 +80,7 @@
         </div>
 
         <!-- Success Message -->
-        <transition name="fade">
+        <transition name="fade-slow">
           <div
             v-if="redeemResult"
             class="card border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/20"
@@ -134,7 +134,7 @@
         </transition>
 
         <!-- Error Message -->
-        <transition name="fade">
+        <transition name="fade-slow">
           <div
             v-if="errorMessage"
             class="card border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20"
@@ -455,14 +455,4 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: all 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
 </style>

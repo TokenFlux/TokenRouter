@@ -4174,7 +4174,7 @@
                       </label>
                       <Select
                         v-model="item.plan_id"
-                        class="default-sub-group-select"
+                        
                         :options="defaultSubscriptionPlanOptions"
                         :placeholder="
                           t('admin.settings.defaults.subscriptionGroup')
@@ -4184,7 +4184,7 @@
                     <div class="flex items-end">
                       <button
                         type="button"
-                        class="btn btn-secondary default-sub-delete-btn w-full text-red-600 hover:text-red-700 dark:text-red-400"
+                        class="btn btn-secondary w-full text-red-600 hover:text-red-700 dark:text-red-400"
                         @click="removeDefaultSubscription(index)"
                       >
                         {{ t("common.delete") }}
@@ -4429,7 +4429,7 @@
                           </label>
                           <Select
                             v-model="item.plan_id"
-                            class="default-sub-group-select"
+                            
                             :options="defaultSubscriptionPlanOptions"
                             :placeholder="
                               t('admin.settings.defaults.subscriptionGroup')
@@ -5995,87 +5995,81 @@
           </div>
 
           <!-- Web Search Test Dialog -->
-          <div
-            v-if="wsTestDialogOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-            @click.self="wsTestDialogOpen = false"
+          <BaseDialog
+            :show="wsTestDialogOpen"
+            :title="t('admin.settings.webSearchEmulation.testResultTitle')"
+            width="normal"
+            close-on-click-outside
+            @close="wsTestDialogOpen = false"
           >
-            <div
-              class="mx-4 w-full max-w-lg rounded-surface bg-white p-6 shadow-xl dark:bg-dark-800 sm:rounded-dialog"
-            >
-              <h3
-                class="mb-4 text-lg font-semibold text-gray-900 dark:text-white"
-              >
-                {{ t("admin.settings.webSearchEmulation.testResultTitle") }}
-              </h3>
-              <div class="flex items-center gap-2">
-                <input
-                  v-model="wsTestQuery"
-                  type="text"
-                  class="input flex-1 text-sm"
-                  :placeholder="
-                    t('admin.settings.webSearchEmulation.testDefaultQuery')
-                  "
-                  @keyup.enter="testWebSearchProvider()"
-                />
-                <button
-                  type="button"
-                  class="btn btn-primary btn-sm h-9"
-                  :disabled="wsTestLoading"
-                  @click="testWebSearchProvider()"
-                >
-                  {{
-                    wsTestLoading
-                      ? t("admin.settings.webSearchEmulation.testing")
-                      : t("admin.settings.webSearchEmulation.test")
-                  }}
-                </button>
-              </div>
-              <!-- Test results -->
-              <div
-                v-if="wsTestResult"
-                class="mt-4 max-h-80 overflow-y-auto rounded-control bg-gray-50 p-4 dark:bg-dark-700"
-              >
-                <p
-                  class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  {{
-                    t("admin.settings.webSearchEmulation.testResultProvider")
-                  }}: {{ wsTestResult.provider }}
-                </p>
-                <div
-                  v-if="wsTestResult.results.length === 0"
-                  class="text-sm text-gray-400"
-                >
-                  {{ t("admin.settings.webSearchEmulation.testNoResults") }}
-                </div>
-                <div
-                  v-for="(r, rIdx) in wsTestResult.results"
-                  :key="rIdx"
-                  class="mt-2 border-t border-gray-200 pt-2 first:mt-0 first:border-0 first:pt-0 dark:border-dark-600"
-                >
-                  <a
-                    :href="r.url"
-                    target="_blank"
-                    class="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
-                    >{{ r.title }}</a
-                  >
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ r.snippet }}
-                  </p>
-                </div>
-              </div>
-              <div class="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-sm h-9"
-                  @click="wsTestDialogOpen = false"
-                >
-                  {{ t("common.close") }}
-                </button>
-              </div>
-            </div>
+        <div class="flex items-center gap-2">
+          <input
+            v-model="wsTestQuery"
+            type="text"
+            class="input flex-1 text-sm"
+            :placeholder="
+              t('admin.settings.webSearchEmulation.testDefaultQuery')
+            "
+            @keyup.enter="testWebSearchProvider()"
+          />
+          <button
+            type="button"
+            class="btn btn-primary btn-sm h-9"
+            :disabled="wsTestLoading"
+            @click="testWebSearchProvider()"
+          >
+            {{
+              wsTestLoading
+                ? t("admin.settings.webSearchEmulation.testing")
+                : t("admin.settings.webSearchEmulation.test")
+            }}
+          </button>
+        </div>
+        <!-- Test results -->
+        <div
+          v-if="wsTestResult"
+          class="mt-4 max-h-80 overflow-y-auto rounded-control bg-gray-50 p-4 dark:bg-dark-700"
+        >
+          <p
+            class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            {{
+              t("admin.settings.webSearchEmulation.testResultProvider")
+            }}: {{ wsTestResult.provider }}
+          </p>
+          <div
+            v-if="wsTestResult.results.length === 0"
+            class="text-sm text-gray-400"
+          >
+            {{ t("admin.settings.webSearchEmulation.testNoResults") }}
           </div>
+          <div
+            v-for="(r, rIdx) in wsTestResult.results"
+            :key="rIdx"
+            class="mt-2 border-t border-gray-200 pt-2 first:mt-0 first:border-0 first:pt-0 dark:border-dark-600"
+          >
+            <a
+              :href="r.url"
+              target="_blank"
+              class="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+              >{{ r.title }}</a
+            >
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ r.snippet }}
+            </p>
+          </div>
+        </div>
+        <div class="mt-4 flex justify-end">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm h-9"
+            @click="wsTestDialogOpen = false"
+          >
+            {{ t("common.close") }}
+          </button>
+        </div>
+          </BaseDialog>
+
 
         <!-- 用量记录设置 -->
         <div
@@ -6102,10 +6096,7 @@
                   {{ t('admin.settings.user_error_view.description') }}
                 </p>
               </div>
-              <label class="toggle">
-                <input v-model="form.allow_user_view_error_requests" type="checkbox" />
-                <span class="toggle-slider"></span>
-              </label>
+              <Toggle v-model="form.allow_user_view_error_requests" />
             </div>
           </div>
         </div>
@@ -8125,7 +8116,7 @@
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                class="input h-9 w-full pl-8"
+                                class="input w-full pl-8"
                                 :disabled="!methodFeeEnabled(method.value)"
                                 :value="methodFeeValue(method.value, 'fixed_fee')"
                                 @input="setMethodFeeValue(method.value, 'fixed_fee', ($event.target as HTMLInputElement).value)"
@@ -8143,7 +8134,7 @@
                                 step="0.01"
                                 min="0"
                                 max="100"
-                                class="input h-9 w-full pr-8"
+                                class="input w-full pr-8"
                                 :disabled="!methodFeeEnabled(method.value)"
                                 :value="methodFeeValue(method.value, 'fee_rate')"
                                 @input="setMethodFeeValue(method.value, 'fee_rate', ($event.target as HTMLInputElement).value)"
@@ -8220,28 +8211,7 @@
                       t("admin.settings.payment.cancelRateLimit")
                     }}</label>
                     <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        :class="[
-                          'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                          form.payment_cancel_rate_limit_enabled
-                            ? 'bg-primary-500'
-                            : 'bg-gray-300 dark:bg-dark-600',
-                        ]"
-                        @click="
-                          form.payment_cancel_rate_limit_enabled =
-                            !form.payment_cancel_rate_limit_enabled
-                        "
-                      >
-                        <span
-                          :class="[
-                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                            form.payment_cancel_rate_limit_enabled
-                              ? 'translate-x-5'
-                              : 'translate-x-0',
-                          ]"
-                        />
-                      </button>
+                      <Toggle v-model="form.payment_cancel_rate_limit_enabled" variant="flush" on-class="bg-primary-500" />
                       <Select
                         v-model="form.payment_cancel_rate_limit_window_mode"
                         :options="cancelRateLimitModeOptions"
@@ -8310,28 +8280,12 @@
                       t("admin.settings.payment.alipayForceQRCode")
                     }}</label>
                     <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        :class="[
-                          'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                          form.payment_alipay_force_qrcode
-                            ? 'bg-primary-500'
-                            : 'bg-gray-300 dark:bg-dark-600',
-                        ]"
-                        @click="
-                          form.payment_alipay_force_qrcode =
-                            !form.payment_alipay_force_qrcode
-                        "
-                      >
-                        <span
-                          :class="[
-                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                            form.payment_alipay_force_qrcode
-                              ? 'translate-x-5'
-                              : 'translate-x-0',
-                          ]"
-                        />
-                      </button>
+                      <Toggle
+                        :model-value="!!form.payment_alipay_force_qrcode"
+                        variant="flush"
+                        on-class="bg-primary-500"
+                        @update:model-value="form.payment_alipay_force_qrcode = $event"
+                      />
                       <span class="text-sm text-gray-500 dark:text-gray-400">{{
                         t("admin.settings.payment.alipayForceQRCodeHint")
                       }}</span>
@@ -8342,28 +8296,12 @@
                       t("admin.settings.payment.alipayMobilePrecreateDeepLink")
                     }}</label>
                     <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        :class="[
-                          'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                          form.payment_alipay_mobile_precreate_deep_link
-                            ? 'bg-primary-500'
-                            : 'bg-gray-300 dark:bg-dark-600',
-                        ]"
-                        @click="
-                          form.payment_alipay_mobile_precreate_deep_link =
-                            !form.payment_alipay_mobile_precreate_deep_link
-                        "
-                      >
-                        <span
-                          :class="[
-                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                            form.payment_alipay_mobile_precreate_deep_link
-                              ? 'translate-x-5'
-                              : 'translate-x-0',
-                          ]"
-                        />
-                      </button>
+                      <Toggle
+                        :model-value="!!form.payment_alipay_mobile_precreate_deep_link"
+                        variant="flush"
+                        on-class="bg-primary-500"
+                        @update:model-value="form.payment_alipay_mobile_precreate_deep_link = $event"
+                      />
                       <span class="text-sm text-gray-500 dark:text-gray-400">{{
                         t("admin.settings.payment.alipayMobilePrecreateDeepLinkHint")
                       }}</span>
@@ -8782,14 +8720,14 @@
                 >
                 <div class="relative">
                   <span
-                    class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    class="input-icon text-gray-400"
                     >{{ previewBalanceUnitSymbol }}</span>
                   <input
                     v-model.number="form.balance_low_notify_threshold"
                     type="number"
                     min="0"
                     step="0.01"
-                    class="input pl-7"
+                    class="input input-has-icon input-icon-text"
                   />
                 </div>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -8849,15 +8787,12 @@
                     <label
                       class="relative inline-flex items-center cursor-pointer shrink-0"
                     >
-                      <input
-                        type="checkbox"
-                        :checked="!entry.disabled"
-                        @change="entry.disabled = !entry.disabled"
-                        class="sr-only peer"
+                      <Toggle
+                        :model-value="!entry.disabled"
+                        size="sm"
+                        off-class="bg-gray-200 dark:bg-gray-600"
+                        @update:model-value="entry.disabled = !entry.disabled"
                       />
-                      <div
-                        class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:after:border-gray-500 peer-checked:bg-primary-600"
-                      ></div>
                     </label>
                     <input
                       v-model="entry.email"
@@ -13334,18 +13269,11 @@ watch(
 </script>
 
 <style scoped>
-.default-sub-group-select :deep(.select-trigger) {
-  @apply h-9 min-h-9;
-}
-
-.default-sub-delete-btn {
-  @apply h-9 min-h-9;
-}
-
 /* ============ 系统设置 Tab 导航 ============ */
 .settings-tabs-shell {
   @apply sticky z-20 -mx-1 rounded-control border border-gray-200 bg-white/90 p-1.5 backdrop-blur-xl dark:border-dark-600/70 dark:bg-dark-900/90;
-  top: 4.75rem;
+  /* 顶栏高度 + 1.25rem 间距,合成原 4.75rem;顶栏调高时吸顶位置自动跟随。 */
+  top: calc(var(--header-h) + 1.25rem);
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.9) inset;
 }
 
@@ -13476,7 +13404,9 @@ watch(
 }
 
 .gateway-settings-content {
-  scroll-margin-top: 12.75rem;
+  /* 锚点跳转避开顶栏 + 吸顶 tabs 块:9.25rem = tabs 偏移 1.25rem + tabs 高度与下方留白(经验值),
+     合成原 12.75rem,数值不变。 */
+  scroll-margin-top: calc(var(--header-h) + 9.25rem);
 }
 
 @media (min-width: 768px) {

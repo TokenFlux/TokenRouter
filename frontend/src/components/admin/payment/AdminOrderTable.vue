@@ -137,6 +137,7 @@
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { SEARCH_DEBOUNCE_MS } from '@/constants/ui'
 import type { PaymentOrder } from '@/types/payment'
 import type { Column } from '@/components/common/types'
 import DataTable from '@/components/common/DataTable.vue'
@@ -174,7 +175,7 @@ const filters = reactive({ status: '', payment_type: '', order_type: '' })
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 function handleSearch() {
   if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => emitFiltersChanged(), 300)
+  debounceTimer = setTimeout(() => emitFiltersChanged(), SEARCH_DEBOUNCE_MS)
 }
 
 function emitFiltersChanged() {

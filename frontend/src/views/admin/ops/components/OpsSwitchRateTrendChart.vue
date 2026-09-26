@@ -19,6 +19,7 @@ import { formatHistoryLabel, sumNumbers } from '../utils/opsFormatters'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
+import { useChartTheme, CHART_TICK_FONT_SIZE, CHART_LEGEND_FONT_SIZE } from '@/composables/useChartTheme'
 
 ChartJS.register(Title, Tooltip, Legend, LineElement, LinearScale, PointElement, CategoryScale, Filler)
 
@@ -34,12 +35,13 @@ interface Props {
 const props = defineProps<Props>()
 const { t } = useI18n()
 
-const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
+// 品牌调图表:网格/刻度用品牌色系(dark-200/primary-900 字面值),不归 zinc 档位。
+const { isDark } = useChartTheme()
 const colors = computed(() => ({
   primary: '#00D2FF',
   primaryAlpha: '#00D2FF26',
-  grid: isDarkMode.value ? '#29292E' : '#DDF4FC',
-  text: isDarkMode.value ? '#D9D9DE' : '#2D4F68'
+  grid: isDark.value ? '#29292E' : '#DDF4FC',
+  text: isDark.value ? '#D9D9DE' : '#2D4F68'
 }))
 
 const totalRequests = computed(() => sumNumbers(props.points.map((p) => p.request_count)))
@@ -84,7 +86,7 @@ const options = computed(() => {
       legend: {
         position: 'top' as const,
         align: 'end' as const,
-        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 10 } }
+        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: CHART_LEGEND_FONT_SIZE } }
       },
       tooltip: {
         enabled: false,
@@ -103,7 +105,7 @@ const options = computed(() => {
         grid: { display: false },
         ticks: {
           color: c.text,
-          font: { size: 10 },
+          font: { size: CHART_TICK_FONT_SIZE },
           maxTicksLimit: 8,
           autoSkip: true,
           autoSkipPadding: 10
@@ -116,7 +118,7 @@ const options = computed(() => {
         grid: { color: c.grid, borderDash: [4, 4] },
         ticks: {
           color: c.text,
-          font: { size: 10 },
+          font: { size: CHART_TICK_FONT_SIZE },
           callback: (value: any) => Number(value).toFixed(3)
         }
       }

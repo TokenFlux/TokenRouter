@@ -2,7 +2,7 @@
   <div ref="dropdownRef" class="relative" data-tour="keys-scope-switch">
     <button
       type="button"
-      class="btn btn-secondary h-9 w-9 p-0 md:w-auto md:min-h-0 md:px-3 md:py-1.5"
+      class="btn btn-secondary md:w-auto md:min-h-0 md:px-3 md:py-1.5 btn-icon"
       :title="t('team.scopeSwitch')"
       :aria-expanded="open"
       aria-haspopup="menu"
@@ -26,7 +26,7 @@
         type="button"
         role="menuitemradio"
         :aria-checked="scope === option.value"
-        class="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+        class="dropdown-item-sm rounded-control"
         :data-test="`scope-option-${option.value}`"
         @click="setScope(option.value)"
       >

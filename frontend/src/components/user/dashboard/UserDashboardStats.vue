@@ -74,12 +74,12 @@
         </div>
         <div class="min-w-0">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.todayTokens') }}</p>
-          <p class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums text-gray-900 dark:text-white lg:text-xl">{{ formatTokens(stats?.today_tokens || 0) }}</p>
+          <p class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums text-gray-900 dark:text-white lg:text-xl">{{ formatTokensK(stats?.today_tokens || 0) }}</p>
           <!-- 明细拆成 nowrap 分段，只能在分段处换行，避免窄屏下中文（如“缓存”）被从中间折断 -->
           <div class="mt-0.5 flex flex-wrap gap-x-2 text-xs text-gray-500 dark:text-gray-400">
-            <span class="whitespace-nowrap">{{ t('dashboard.input') }}: {{ formatTokens(stats?.today_input_tokens || 0) }}</span>
-            <span class="whitespace-nowrap">{{ t('dashboard.output') }}: {{ formatTokens(stats?.today_output_tokens || 0) }}</span>
-            <span class="whitespace-nowrap">{{ t('dashboard.cache') }}: {{ formatTokens((stats?.today_cache_creation_tokens || 0) + (stats?.today_cache_read_tokens || 0)) }}</span>
+            <span class="whitespace-nowrap">{{ t('dashboard.input') }}: {{ formatTokensK(stats?.today_input_tokens || 0) }}</span>
+            <span class="whitespace-nowrap">{{ t('dashboard.output') }}: {{ formatTokensK(stats?.today_output_tokens || 0) }}</span>
+            <span class="whitespace-nowrap">{{ t('dashboard.cache') }}: {{ formatTokensK((stats?.today_cache_creation_tokens || 0) + (stats?.today_cache_read_tokens || 0)) }}</span>
           </div>
         </div>
       </div>
@@ -93,12 +93,12 @@
         </div>
         <div class="min-w-0">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.totalTokens') }}</p>
-          <p class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums text-gray-900 dark:text-white lg:text-xl">{{ formatTokens(stats?.total_tokens || 0) }}</p>
+          <p class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums text-gray-900 dark:text-white lg:text-xl">{{ formatTokensK(stats?.total_tokens || 0) }}</p>
           <!-- 明细拆成 nowrap 分段，只能在分段处换行，避免窄屏下中文（如“缓存”）被从中间折断 -->
           <div class="mt-0.5 flex flex-wrap gap-x-2 text-xs text-gray-500 dark:text-gray-400">
-            <span class="whitespace-nowrap">{{ t('dashboard.input') }}: {{ formatTokens(stats?.total_input_tokens || 0) }}</span>
-            <span class="whitespace-nowrap">{{ t('dashboard.output') }}: {{ formatTokens(stats?.total_output_tokens || 0) }}</span>
-            <span class="whitespace-nowrap">{{ t('dashboard.cache') }}: {{ formatTokens((stats?.total_cache_creation_tokens || 0) + (stats?.total_cache_read_tokens || 0)) }}</span>
+            <span class="whitespace-nowrap">{{ t('dashboard.input') }}: {{ formatTokensK(stats?.total_input_tokens || 0) }}</span>
+            <span class="whitespace-nowrap">{{ t('dashboard.output') }}: {{ formatTokensK(stats?.total_output_tokens || 0) }}</span>
+            <span class="whitespace-nowrap">{{ t('dashboard.cache') }}: {{ formatTokensK((stats?.total_cache_creation_tokens || 0) + (stats?.total_cache_read_tokens || 0)) }}</span>
           </div>
         </div>
       </div>
@@ -113,11 +113,11 @@
         <div class="min-w-0">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.performance') }}</p>
           <div class="mt-0.5 flex items-baseline gap-2">
-            <p class="whitespace-nowrap text-lg font-bold tabular-nums text-gray-900 dark:text-white lg:text-xl">{{ formatTokens(stats?.rpm || 0) }}</p>
+            <p class="whitespace-nowrap text-lg font-bold tabular-nums text-gray-900 dark:text-white lg:text-xl">{{ formatTokensK(stats?.rpm || 0) }}</p>
             <span class="text-xs text-gray-500 dark:text-gray-400">RPM</span>
           </div>
           <div class="mt-0.5 flex items-baseline gap-2">
-            <p class="whitespace-nowrap text-sm font-semibold tabular-nums text-violet-600 dark:text-violet-400">{{ formatTokens(stats?.tpm || 0) }}</p>
+            <p class="whitespace-nowrap text-sm font-semibold tabular-nums text-violet-600 dark:text-violet-400">{{ formatTokensK(stats?.tpm || 0) }}</p>
             <span class="text-xs text-gray-500 dark:text-gray-400">TPM</span>
           </div>
         </div>
@@ -147,6 +147,7 @@ import Icon from '@/components/icons/Icon.vue'
 import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { UserDashboardStats as UserStatsType } from '@/api/usage'
+import { formatTokensK } from '@/utils/format'
 
 defineProps<{
   stats: UserStatsType
@@ -157,10 +158,5 @@ const { t } = useI18n()
 const { formatBalanceAmount } = useBalanceDisplay()
 
 const formatNumber = (n: number) => n.toLocaleString()
-const formatTokens = (t: number) => {
-  if (t >= 1_000_000) return `${(t / 1_000_000).toFixed(1)}M`
-  if (t >= 1000) return `${(t / 1000).toFixed(1)}K`
-  return t.toString()
-}
 const formatDuration = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms.toFixed(0)}ms`
 </script>

@@ -39,7 +39,7 @@
           <span class="max-w-28 truncate">{{ modelChipLabel }}</span>
           <Icon name="chevronUp" size="xs" class="flex-shrink-0 transition-transform" :class="openPanel !== 'model' && 'rotate-180'" />
         </button>
-        <Transition name="composer-popover">
+        <Transition name="pop-float">
           <div
             v-if="openPanel === 'model'"
             class="chip-popover"
@@ -81,7 +81,7 @@
           <span class="max-w-24 truncate">{{ paramsChipLabel }}</span>
           <Icon name="chevronUp" size="xs" class="flex-shrink-0 transition-transform" :class="openPanel !== 'params' && 'rotate-180'" />
         </button>
-        <Transition name="composer-popover">
+        <Transition name="pop-float">
           <div
             v-if="openPanel === 'params'"
             class="chip-popover"
@@ -186,7 +186,7 @@
           <span class="max-w-24 truncate">{{ operationChipLabel }}</span>
           <Icon name="chevronUp" size="xs" class="flex-shrink-0 transition-transform" :class="openPanel !== 'operation' && 'rotate-180'" />
         </button>
-        <Transition name="composer-popover">
+        <Transition name="pop-float">
           <div
             v-if="openPanel === 'operation'"
             class="chip-popover"
@@ -220,7 +220,7 @@
         <button
           ref="sendButtonRef"
           type="button"
-          class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary-600 text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40"
+          class="flex flex-shrink-0 rounded-full bg-primary-600 text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 btn-icon"
           :disabled="!studio.canGenerate.value"
           :title="t('creative.composer.send')"
           @click="emit('generate')"
@@ -431,20 +431,7 @@ function autosize(): void {
 }
 
 /* 三类调参弹层共用同一套向上展开动效，离场也只用一条节奏，避免视觉顿点。 */
-.composer-popover-enter-active,
-.composer-popover-leave-active {
-  transform-origin: bottom center;
-  transition:
-    opacity 200ms ease,
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
-}
-
-.composer-popover-enter-from,
-.composer-popover-leave-to {
-  opacity: 0;
-  transform: translateY(8px) scale(0.97);
-}
+/* 弹层动效用全局 pop-float(默认值与本配方逐字一致),reduced-motion 由全局收敛。 */
 
 .composer-option {
   @apply rounded-control;
@@ -469,10 +456,4 @@ function autosize(): void {
   @apply inline-block flex-shrink-0 rounded-compact border-[1.5px] border-current opacity-70;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .composer-popover-enter-active,
-  .composer-popover-leave-active {
-    transition-duration: 1ms;
-  }
-}
 </style>

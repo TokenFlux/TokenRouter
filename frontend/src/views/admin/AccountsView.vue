@@ -25,7 +25,7 @@
                 <button
                   ref="autoRefreshButtonRef"
                   @click="toggleAutoRefreshDropdown"
-                  class="btn btn-secondary h-9 w-9 shrink-0 justify-center p-0"
+                  class="btn btn-secondary shrink-0 justify-center btn-icon"
                   :title="autoRefreshButtonTitle"
                 >
                   <Icon name="clock" size="sm" :class="autoRefreshEnabled ? 'text-primary-500' : ''" />
@@ -38,7 +38,7 @@
                   <div class="p-2">
                     <button
                       @click="setAutoRefreshEnabled(!autoRefreshEnabled)"
-                      class="flex w-full items-center justify-between rounded-control px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                      class="dropdown-item-sm justify-between rounded-control"
                     >
                       <span>{{ t('admin.accounts.enableAutoRefresh') }}</span>
                       <Icon v-if="autoRefreshEnabled" name="check" size="sm" class="text-primary-500" />
@@ -48,7 +48,7 @@
                       v-for="sec in autoRefreshIntervals"
                       :key="sec"
                       @click="setAutoRefreshInterval(sec)"
-                      class="flex w-full items-center justify-between rounded-control px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                      class="dropdown-item-sm justify-between rounded-control"
                     >
                       <span>{{ autoRefreshIntervalLabel(sec) }}</span>
                       <Icon v-if="autoRefreshIntervalSeconds === sec" name="check" size="sm" class="text-primary-500" />
@@ -62,7 +62,7 @@
                 <button
                   ref="accountToolsButtonRef"
                   @click="toggleAccountToolsDropdown"
-                  class="btn btn-secondary h-9 w-9 justify-center p-0 lg:w-auto lg:px-3 lg:py-1.5"
+                  class="btn btn-secondary justify-center lg:w-auto lg:px-3 lg:py-1.5 btn-icon"
                   :title="t('admin.accounts.moreActions')"
                   :aria-expanded="showAccountToolsDropdown"
                 >
@@ -73,7 +73,7 @@
                 <Teleport to="body">
                   <div
                     v-if="showAccountToolsDropdown"
-                    class="fixed z-[9999] origin-top-right overflow-hidden rounded-control border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                    class="fixed z-teleport-tooltip origin-top-right overflow-hidden rounded-control border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
                     :style="accountToolsDropdownStyle"
                     @click.stop
                   >
@@ -83,19 +83,19 @@
                         {{ t('admin.accounts.dataActions') }}
                       </div>
                     </div>
-                    <button class="account-tools-menu-item" @click="openSyncFromCrs">
+                    <button class="dropdown-item-sm gap-3 rounded-control" @click="openSyncFromCrs">
                       <span class="account-tools-menu-icon bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
                         <Icon name="sync" size="sm" />
                       </span>
                       <span class="flex-1 text-left">{{ t('admin.accounts.syncFromCrs') }}</span>
                     </button>
-                    <button class="account-tools-menu-item" @click="openImportData">
+                    <button class="dropdown-item-sm gap-3 rounded-control" @click="openImportData">
                       <span class="account-tools-menu-icon bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
                         <Icon name="upload" size="sm" />
                       </span>
                       <span class="flex-1 text-left">{{ t('admin.accounts.dataImport') }}</span>
                     </button>
-                    <button class="account-tools-menu-item" @click="openExportDataDialogFromMenu">
+                    <button class="dropdown-item-sm gap-3 rounded-control" @click="openExportDataDialogFromMenu">
                       <span class="account-tools-menu-icon bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
                         <Icon name="download" size="sm" />
                       </span>
@@ -116,19 +116,19 @@
                         {{ t('admin.accounts.toolActions') }}
                       </div>
                     </div>
-                    <button class="account-tools-menu-item" @click="openErrorPassthrough">
+                    <button class="dropdown-item-sm gap-3 rounded-control" @click="openErrorPassthrough">
                       <span class="account-tools-menu-icon bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
                         <Icon name="shield" size="sm" />
                       </span>
                       <span class="flex-1 text-left">{{ t('admin.errorPassthrough.title') }}</span>
                     </button>
-                    <button class="account-tools-menu-item" @click="openTLSFingerprintProfiles">
+                    <button class="dropdown-item-sm gap-3 rounded-control" @click="openTLSFingerprintProfiles">
                       <span class="account-tools-menu-icon bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
                         <Icon name="lock" size="sm" />
                       </span>
                       <span class="flex-1 text-left">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
                     </button>
-                    <button class="account-tools-menu-item" @click="openTLSFingerprintRouters">
+                    <button class="dropdown-item-sm gap-3 rounded-control" @click="openTLSFingerprintRouters">
                       <span class="account-tools-menu-icon bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300">
                         <Icon name="swap" size="sm" />
                       </span>
@@ -149,7 +149,7 @@
                         v-for="col in toggleableColumns"
                         :key="col.key"
                         @click="toggleColumn(col.key)"
-                        class="flex w-full items-center justify-between rounded-control px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                        class="dropdown-item-sm justify-between rounded-control"
                       >
                         <span class="truncate">{{ col.label }}</span>
                         <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
@@ -287,9 +287,16 @@
             </div>
           </template>
           <template #cell-schedulable="{ row }">
-            <button @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
-              <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
-            </button>
+            <!-- 异步保存,值由 handleToggleSchedulable 写回列表;保留本站点的 hover 配色。 -->
+            <Toggle
+              :model-value="row.schedulable"
+              size="sm"
+              :disabled="togglingSchedulable === row.id"
+              on-class="bg-primary-500 hover:bg-primary-600"
+              off-class="bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500"
+              :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')"
+              @update:model-value="handleToggleSchedulable(row)"
+            />
           </template>
           <template #cell-today_stats="{ row }">
             <AccountTodayStatsCell
@@ -480,6 +487,7 @@ import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import Toggle from '@/components/common/Toggle.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -513,6 +521,7 @@ import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import { sanitizeUrl } from '@/utils/url'
 import { getFloatingPanelPosition } from '@/utils/floatingPanel'
+import { MIN_COMFORTABLE_PANEL_HEIGHT } from '@/constants/overlay'
 import { TABLE_DESKTOP_MEDIA_QUERY } from '@/constants/layout'
 import type {
   Account,
@@ -1447,7 +1456,7 @@ const buildTopDropdownStyle = (trigger: HTMLElement | null, width: number, align
   return {
     top: `${rect.bottom + 8}px`,
     left: `${left}px`,
-    maxHeight: `${Math.max(240, window.innerHeight - rect.bottom - 24)}px`
+    maxHeight: `${Math.max(MIN_COMFORTABLE_PANEL_HEIGHT, window.innerHeight - rect.bottom - 24)}px`
   }
 }
 
@@ -2935,10 +2944,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.account-tools-menu-item {
-  @apply flex w-full items-center gap-3 rounded-control px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700;
-}
-
 .account-tools-menu-icon {
   @apply inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-control;
 }

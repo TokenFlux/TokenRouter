@@ -292,6 +292,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { OPENAI_CODEX_DEFAULT_MODEL } from '@/constants/openai'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import type { ApiKeyCompositeGroup, ProtocolID, GroupPlatform } from '@/types'
 import {
   effectiveGroupClientProtocols,
@@ -1947,7 +1948,7 @@ const copyContent = async (content: string, index: number) => {
     copiedIndex.value = index
     setTimeout(() => {
       copiedIndex.value = null
-    }, 2000)
+    }, COPY_FEEDBACK_MS)
   }
 }
 </script>

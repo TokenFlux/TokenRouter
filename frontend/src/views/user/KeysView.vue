@@ -8,13 +8,13 @@
               <SearchInput
                 v-model="filterSearch"
                 :placeholder="t('keys.searchPlaceholder')"
-                class="min-w-0 flex-1 sm:w-56 sm:flex-none lg:w-48 xl:w-64 [&>input]:h-9 [&>input]:min-h-0"
+                class="min-w-0 flex-1 sm:w-56 sm:flex-none lg:w-48 xl:w-64"
                 @search="onFilterChange"
               />
               <div ref="filterDropdownRef" class="relative shrink-0">
                 <button
                   type="button"
-                  class="btn btn-secondary relative h-9 w-9 p-0"
+                  class="btn btn-secondary relative btn-icon"
                   :aria-expanded="showFilterDropdown"
                   :aria-label="t('common.filter')"
                   :title="t('common.filter')"
@@ -25,7 +25,7 @@
                     {{ activeFilterCount }}
                   </span>
                 </button>
-                <div v-show="showFilterDropdown" class="absolute left-0 right-auto top-full z-[60] mt-2 w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 max-[639px]:left-auto max-[639px]:right-0" @click.stop>
+                <div v-show="showFilterDropdown" class="absolute left-0 right-auto top-full z-modal-nested mt-2 w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 max-[639px]:left-auto max-[639px]:right-0" @click.stop>
                   <div class="mb-3 flex items-center justify-between">
                     <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
                     <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetKeyFilters">
@@ -49,7 +49,7 @@
               <button
                 @click="loadApiKeys"
                 :disabled="loading"
-                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                class="btn btn-secondary shrink-0 btn-icon"
                 :title="t('common.refresh')"
               >
                 <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
@@ -57,7 +57,7 @@
               <div class="relative" ref="columnDropdownRef">
                 <button
                   @click.stop="showColumnDropdown = !showColumnDropdown"
-                  class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                  class="btn btn-secondary shrink-0 btn-icon"
                   :title="t('keys.columnSettings')"
                 >
                   <Icon name="grid" size="md" />
@@ -70,7 +70,7 @@
                     v-for="column in toggleableColumns"
                     :key="column.key"
                     @click="toggleColumn(column.key)"
-                    class="flex w-full items-center justify-between rounded-control px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                    class="dropdown-item-sm justify-between rounded-control"
                   >
                     <span>{{ column.label }}</span>
                     <Icon
@@ -84,7 +84,7 @@
                 </div>
               </div>
               <ScopeDropdown v-if="teamFeatureEnabled" v-model="scope" @change="onScopeChange" />
-              <button @click="openCreateModal" class="btn btn-primary h-9" data-tour="keys-create-btn">
+              <button @click="openCreateModal" class="btn btn-primary" data-tour="keys-create-btn">
                 <Icon name="plus" size="md" class="mr-2" />
                 {{ t('keys.createKey') }}
               </button>
@@ -718,7 +718,7 @@
             </div>
             <button
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-compact text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+              class="flex rounded-compact text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 btn-icon"
               :title="t('common.delete')"
               :aria-label="t('common.delete')"
               :data-test="`model-mapping-remove-${index}`"
@@ -733,21 +733,7 @@
         <div v-if="!showEditModal" class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.customKeyLabel') }}</label>
-            <button
-              type="button"
-              @click="formData.use_custom_key = !formData.use_custom_key"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.use_custom_key ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.use_custom_key ? 'translate-x-4' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="formData.use_custom_key" size="sm" off-tone="soft" />
           </div>
           <div v-if="formData.use_custom_key">
             <input
@@ -788,21 +774,7 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.ipRestriction') }}</label>
-            <button
-              type="button"
-              @click="formData.enable_ip_restriction = !formData.enable_ip_restriction"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_ip_restriction ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_ip_restriction ? 'translate-x-4' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="formData.enable_ip_restriction" size="sm" off-tone="soft" />
           </div>
 
           <div v-if="formData.enable_ip_restriction" class="space-y-4 pt-2">
@@ -836,34 +808,20 @@
           <!-- Switch commented out - always show input, 0 = unlimited
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.quotaLimit') }}</label>
-            <button
-              type="button"
-              @click="formData.enable_quota = !formData.enable_quota"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_quota ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_quota ? 'translate-x-4' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="formData.enable_quota" size="sm" off-tone="soft" />
           </div>
           -->
 
           <div class="space-y-4">
             <div>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ balanceUnitSymbol }}</span>
+                <span class="input-icon text-gray-500">{{ balanceUnitSymbol }}</span>
                 <input
                   v-model.number="formData.quota"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input input-has-icon input-icon-text"
                   :placeholder="t('keys.quotaAmountPlaceholder')"
                 />
               </div>
@@ -900,21 +858,7 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.rateLimitSection') }}</label>
-            <button
-              type="button"
-              @click="formData.enable_rate_limit = !formData.enable_rate_limit"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_rate_limit ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_rate_limit ? 'translate-x-4' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="formData.enable_rate_limit" size="sm" off-tone="soft" />
           </div>
 
           <div v-if="formData.enable_rate_limit" class="space-y-4 pt-2">
@@ -923,13 +867,13 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ balanceUnitSymbol }}</span>
+                <span class="input-icon text-gray-500">{{ balanceUnitSymbol }}</span>
                 <input
                   v-model.number="formData.rate_limit_5h"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input input-has-icon input-icon-text"
                   :placeholder="'0'"
                 />
               </div>
@@ -969,13 +913,13 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit1d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ balanceUnitSymbol }}</span>
+                <span class="input-icon text-gray-500">{{ balanceUnitSymbol }}</span>
                 <input
                   v-model.number="formData.rate_limit_1d"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input input-has-icon input-icon-text"
                   :placeholder="'0'"
                 />
               </div>
@@ -1015,13 +959,13 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit7d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ balanceUnitSymbol }}</span>
+                <span class="input-icon text-gray-500">{{ balanceUnitSymbol }}</span>
                 <input
                   v-model.number="formData.rate_limit_7d"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input input-has-icon input-icon-text"
                   :placeholder="'0'"
                 />
               </div>
@@ -1074,21 +1018,7 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('keys.expiration') }}</label>
-            <button
-              type="button"
-              @click="formData.enable_expiration = !formData.enable_expiration"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_expiration ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_expiration ? 'translate-x-4' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="formData.enable_expiration" size="sm" off-tone="soft" />
           </div>
 
           <div v-if="formData.enable_expiration" class="space-y-4 pt-2">
@@ -1145,14 +1075,14 @@
       </form>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <button @click="closeModals" type="button" class="btn btn-secondary h-9 py-1.5">
+          <button @click="closeModals" type="button" class="btn btn-secondary py-1.5">
             {{ t('common.cancel') }}
           </button>
           <button
             form="key-form"
             type="submit"
             :disabled="submitting"
-            class="btn btn-primary h-9 py-1.5"
+            class="btn btn-primary py-1.5"
             data-tour="key-form-submit"
           >
             <svg
@@ -1304,7 +1234,7 @@
       <div
         v-if="groupSelectorKeyId !== null && dropdownPosition"
         ref="dropdownRef"
-        class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-max max-w-[calc(100vw-16px)] overflow-hidden rounded-control bg-white shadow-lg ring-1 ring-black/5 duration-200 sm:min-w-[380px] dark:bg-dark-800 dark:ring-white/10"
+        class="animate-in fade-in slide-in-from-top-2 fixed z-teleport-dropdown w-max max-w-[calc(100vw-16px)] overflow-hidden rounded-control bg-white shadow-lg ring-1 ring-black/5 duration-200 sm:min-w-[380px] dark:bg-dark-800 dark:ring-white/10"
         style="pointer-events: auto !important;"
         :style="{
           top: dropdownPosition.top !== undefined ? dropdownPosition.top + 'px' : undefined,
@@ -1377,6 +1307,7 @@
 	import { useAppStore } from '@/stores/app'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { useClipboard } from '@/composables/useClipboard'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
@@ -1414,6 +1345,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
+import { getFloatingPanelPosition } from '@/utils/floatingPanel'
 import {
   buildCcSwitchImportDeeplink,
   buildCcSwitchUsageScript,
@@ -1999,7 +1931,7 @@ const copyToClipboard = async (text: string, keyId: number) => {
     copiedKeyId.value = keyId
     setTimeout(() => {
       copiedKeyId.value = null
-    }, 800)
+    }, COPY_FEEDBACK_MS)
   }
 }
 
@@ -2272,14 +2204,17 @@ const openKeyActionMenu = (key: ApiKey, event: MouseEvent) => {
   const target = event.currentTarget as HTMLElement | null
   if (!target) return
   const rect = target.getBoundingClientRect()
-  const width = 192
-  const height = publicSettings.value?.hide_ccs_import_button ? 138 : 178
-  const padding = 8
-  const left = Math.max(padding, Math.min(rect.right - width, window.innerWidth - width - padding))
-  let top = rect.bottom + 4
-  if (top + height > window.innerHeight - padding) top = Math.max(padding, rect.top - height - 4)
+  // 固定高菜单(高度随 CCS 导入项显隐):下方放不下即整体上翻;窄屏保持右缘对齐触发器。
+  const position = getFloatingPanelPosition(rect, window.innerWidth, window.innerHeight, {
+    maxWidth: 192,
+    fixedHeight: publicSettings.value?.hide_ccs_import_button ? 138 : 178,
+    viewportPadding: 8,
+    gap: 4,
+    pinLeftOnMobile: false
+  })
+  // fixedHeight 模式下 top 恒非空。
+  actionMenuPosition.value = { top: position.top ?? 8, left: position.left }
   actionMenuKey.value = key
-  actionMenuPosition.value = { top, left }
 }
 
 const closeKeyActionMenu = () => {
@@ -2299,25 +2234,21 @@ const openGroupSelector = (key: ApiKey) => {
     const buttonEl = groupButtonRefs.value.get(key.id)
     if (buttonEl) {
       const rect = buttonEl.getBoundingClientRect()
-      const dropdownEstHeight = 400 // 预估下拉框最大高度
-      const dropdownEstWidth = Math.min(380, window.innerWidth - 16)
-      const spaceBelow = window.innerHeight - rect.bottom
-      const spaceAbove = rect.top
-      // 夹取 left，避免窄屏下浮层超出视口右缘
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - dropdownEstWidth - 8))
-
-      if (spaceBelow < dropdownEstHeight && spaceAbove > spaceBelow) {
+      // 面板左缘对齐触发器,预估最大高度 400 决定翻转;窄屏面板近满宽,钉到视口左缘。
+      const position = getFloatingPanelPosition(rect, window.innerWidth, window.innerHeight, {
+        align: 'left',
+        maxWidth: 380,
+        viewportPadding: 8,
+        gap: 4,
+        maxHeightRatio: 1,
+        minComfortableHeight: 400
+      })
+      if (position.bottom !== null) {
         // 下方空间不足时向上弹出。
-        dropdownPosition.value = {
-          bottom: window.innerHeight - rect.top + 4,
-          left
-        }
+        dropdownPosition.value = { bottom: position.bottom, left: position.left }
       } else {
         // 默认向下弹出。
-        dropdownPosition.value = {
-          top: rect.bottom + 4,
-          left
-        }
+        dropdownPosition.value = { top: position.top ?? undefined, left: position.left }
       }
     }
     groupSelectorKeyId.value = key.id
@@ -2750,9 +2681,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 创建密钥弹窗的单行控件统一为 36px，多行文本域保留自然高度。 */
+/* 创建密钥弹窗的单行控件统一为 36px，多行文本域保留自然高度。
+   下拉触发器已由 .input 基线(min-h-9、py-1.5)提供同一尺寸，不再单列。 */
 .key-form-controls :deep(input.input),
-.key-form-controls :deep(.select-trigger),
 .key-form-controls :deep(.btn) {
   height: 2.25rem;
   min-height: 0;
@@ -2760,11 +2691,6 @@ onUnmounted(() => {
 
 .key-form-controls :deep(input.input),
 .key-form-controls :deep(.btn) {
-  padding-top: 0.375rem;
-  padding-bottom: 0.375rem;
-}
-
-.key-form-controls :deep(.select-trigger) {
   padding-top: 0.375rem;
   padding-bottom: 0.375rem;
 }

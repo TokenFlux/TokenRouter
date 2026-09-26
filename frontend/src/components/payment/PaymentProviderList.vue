@@ -16,7 +16,7 @@
             type="button"
             @click="emit('refresh')"
             :disabled="loading"
-            class="btn btn-secondary btn-sm h-9 w-9 p-0"
+            class="btn btn-secondary btn-icon"
             :title="t('common.refresh')"
           >
             <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />

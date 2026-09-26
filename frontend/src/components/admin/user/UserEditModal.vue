@@ -97,6 +97,7 @@ import { computed, ref, reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, UserAttributeValuesMap } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -133,7 +134,7 @@ const generatePassword = () => {
 }
 const copyPassword = async () => {
   if (form.password && await copyToClipboard(form.password, t('admin.users.passwordCopied'))) {
-    passwordCopied.value = true; setTimeout(() => passwordCopied.value = false, 2000)
+    passwordCopied.value = true; setTimeout(() => passwordCopied.value = false, COPY_FEEDBACK_MS)
   }
 }
 const stepUp = useStepUp()

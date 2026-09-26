@@ -1,10 +1,10 @@
 <template>
   <Teleport to="body">
     <div v-if="show && group && position">
-      <div class="fixed inset-0 z-[9998]" aria-hidden="true" @click="emit('close')"></div>
+      <div class="fixed inset-0 z-menu-overlay" aria-hidden="true" @click="emit('close')"></div>
       <div
         :id="`group-action-menu-${group.id}`"
-        class="fixed z-[9999] w-48 overflow-y-auto rounded-control bg-white shadow-lg ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10"
+        class="action-menu w-48 overflow-y-auto"
         :style="{ top: `${position.top}px`, left: `${position.left}px`, maxHeight: `calc(100dvh - ${position.top + 8}px)` }"
         role="menu"
         :aria-label="t('common.actions')"
@@ -14,7 +14,7 @@
           <button
             type="button"
             data-testid="group-duplicate"
-            class="menu-item disabled:cursor-not-allowed disabled:opacity-50"
+            class="dropdown-item min-h-9 disabled:cursor-not-allowed disabled:opacity-50"
             role="menuitem"
             :title="duplicating ? t('admin.groups.duplicating') : t('admin.groups.duplicate')"
             :disabled="duplicating"
@@ -23,16 +23,16 @@
             <Icon name="copy" size="sm" class="text-blue-500" />
             {{ duplicating ? t('admin.groups.duplicating') : t('admin.groups.duplicate') }}
           </button>
-          <button type="button" class="menu-item" role="menuitem" @click="emitAction('rate-multipliers')">
+          <button type="button" class="dropdown-item min-h-9" role="menuitem" @click="emitAction('rate-multipliers')">
             <Icon name="dollar" size="sm" class="text-violet-500" />
             {{ t('admin.groups.rateMultipliers') }}
           </button>
-          <button type="button" class="menu-item" role="menuitem" @click="emitAction('rpm-overrides')">
+          <button type="button" class="dropdown-item min-h-9" role="menuitem" @click="emitAction('rpm-overrides')">
             <Icon name="bolt" size="sm" class="text-amber-500" />
             {{ t('admin.groups.rpmOverrides') }}
           </button>
           <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
-          <button type="button" class="menu-item menu-item-danger" role="menuitem" @click="emitAction('delete')">
+          <button type="button" class="dropdown-item min-h-9 text-red-600 dark:text-red-400" role="menuitem" @click="emitAction('delete')">
             <Icon name="trash" size="sm" />
             {{ t('common.delete') }}
           </button>
@@ -81,12 +81,3 @@ watch(() => props.show, (visible) => {
 onUnmounted(() => window.removeEventListener('keydown', handleEscape))
 </script>
 
-<style scoped>
-.menu-item {
-  @apply flex min-h-9 w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700;
-}
-
-.menu-item-danger {
-  @apply text-red-600 dark:text-red-400;
-}
-</style>

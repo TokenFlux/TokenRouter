@@ -32,13 +32,13 @@
       <Icon
         name="search"
         size="sm"
-        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+        class="input-icon text-gray-400"
       />
       <input
         v-model="searchQuery"
         type="text"
         autocomplete="off"
-        class="input input-sm w-full pl-9"
+        class="input w-full input-has-icon [--input-icon-slot:1.5rem]"
         :placeholder="t('admin.settings.openaiFastPolicy.userSearchPlaceholder')"
         @input="debounceSearch"
         @focus="showDropdown = true"
@@ -63,7 +63,7 @@
           v-for="user in availableResults"
           :key="user.id"
           type="button"
-          class="flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-600"
+          class="dropdown-item justify-between gap-3"
           @click="selectUser(user)"
         >
           <span class="min-w-0 truncate font-medium text-gray-900 dark:text-white">

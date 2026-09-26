@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { QUOTA_THRESHOLD_TYPE_FIXED, QUOTA_THRESHOLD_TYPE_PERCENTAGE, type QuotaThresholdType } from '@/constants/account'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import Select from '@/components/common/Select.vue'
+import Toggle from '@/components/common/Toggle.vue'
 
 const { usdUnitSymbol } = useBalanceDisplay()
 
@@ -34,21 +35,12 @@ const onThresholdTypeChange = (value: string | number | boolean | null) => {
 
 <template>
   <div class="flex items-center gap-1.5">
-    <button
-      type="button"
-      @click="emit('update:enabled', !enabled)"
-      :class="[
-        'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-        enabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-      ]"
-    >
-      <span
-        :class="[
-          'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-          enabled ? 'translate-x-4' : 'translate-x-0'
-        ]"
-      />
-    </button>
+    <Toggle
+      :model-value="!!enabled"
+      size="sm"
+      off-tone="soft"
+      @update:model-value="emit('update:enabled', $event)"
+    />
     <template v-if="enabled">
       <input
         :value="threshold"
@@ -71,7 +63,7 @@ const onThresholdTypeChange = (value: string | number | boolean | null) => {
 </template>
 
 <style scoped>
-.quota-threshold-type-select :deep(.select-trigger) {
+.quota-threshold-type-select :deep(.input-trigger) {
   @apply rounded-control px-2 py-1 text-xs;
 }
 

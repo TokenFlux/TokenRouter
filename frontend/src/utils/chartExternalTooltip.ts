@@ -1,5 +1,6 @@
 import type { Chart, ChartType, FontSpec, TooltipModel } from 'chart.js'
 import { toFont, toPadding } from 'chart.js/helpers'
+import { Z_INDEX } from '@/constants/overlay'
 
 const TOOLTIP_ID = 'token-router-chart-tooltip'
 const VIEWPORT_PADDING = 8
@@ -130,7 +131,7 @@ const getTooltipElement = (canvas: HTMLCanvasElement): HTMLDivElement => {
   const host = canvas.closest<HTMLElement>('.modal-overlay') ?? document.body
   const existing = document.getElementById(TOOLTIP_ID)
   if (existing instanceof HTMLDivElement) {
-    existing.style.zIndex = '30'
+    existing.style.zIndex = String(Z_INDEX.CHART_TOOLTIP)
     if (existing.parentElement !== host) host.appendChild(existing)
     getTooltipParts(existing)
     return existing
@@ -142,7 +143,7 @@ const getTooltipElement = (canvas: HTMLCanvasElement): HTMLDivElement => {
   element.setAttribute('aria-hidden', 'true')
   element.className = 'hidden'
   element.style.position = 'fixed'
-  element.style.zIndex = '30'
+  element.style.zIndex = String(Z_INDEX.CHART_TOOLTIP)
   element.style.maxWidth = 'calc(100vw - 16px)'
   element.style.boxSizing = 'border-box'
   element.style.pointerEvents = 'none'

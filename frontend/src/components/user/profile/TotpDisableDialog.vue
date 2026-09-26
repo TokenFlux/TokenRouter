@@ -1,9 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-50 overflow-y-auto" @click.self="$emit('close')">
-    <div class="flex min-h-full items-center justify-center p-4">
-      <div class="fixed inset-0 bg-black/50 transition-opacity" @click="$emit('close')"></div>
-
-      <div class="relative w-full max-w-md transform rounded-surface bg-white p-6 shadow-xl transition-all dark:bg-dark-800 sm:rounded-dialog">
+  <AuthCardDialog @close="$emit('close')">
         <!-- Header -->
         <div class="mb-6">
           <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
@@ -77,12 +73,11 @@
             </button>
           </div>
         </form>
-      </div>
-    </div>
-  </div>
+  </AuthCardDialog>
 </template>
 
 <script setup lang="ts">
+import AuthCardDialog from '@/components/common/AuthCardDialog.vue'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

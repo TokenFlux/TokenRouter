@@ -1,9 +1,5 @@
 <template>
-  <div v-if="controller.visible.value" class="fixed inset-0 z-[60] overflow-y-auto">
-    <div class="flex min-h-full items-center justify-center p-4">
-      <div class="fixed inset-0 bg-black/50 transition-opacity" @click="handleCancel"></div>
-
-      <div class="relative w-full max-w-md transform rounded-surface bg-white p-6 shadow-xl transition-all dark:bg-dark-800 sm:rounded-dialog">
+  <AuthCardDialog :show="controller.visible.value" :z-index="60" @close="handleCancel">
         <div class="mb-6 text-center">
           <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
             <svg class="h-6 w-6 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -66,12 +62,11 @@
         >
           {{ t('common.cancel') }}
         </button>
-      </div>
-    </div>
-  </div>
+  </AuthCardDialog>
 </template>
 
 <script setup lang="ts">
+import AuthCardDialog from '@/components/common/AuthCardDialog.vue'
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'

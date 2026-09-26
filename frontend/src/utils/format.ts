@@ -363,6 +363,20 @@ export function formatTokensK(tokens: number): string {
 }
 
 /**
+ * 格式化 token 数量（K/M/B 两位小数，小于 1000 用千分位）
+ * 图表刻度与分布表共用此函数;与 formatTokensK(一位小数、无 B 档)语义不同,不要混用。
+ * @param value token 数量,null/undefined 归一为 "0"
+ * @returns 格式化后的字符串，如 "950", "1.50K", "3.25M", "1.20B"
+ */
+export function formatTokens(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '0'
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`
+  return value.toLocaleString()
+}
+
+/**
  * 格式化大数字（K/M/B，保留 1 位小数）
  * @param num 数字
  * @param options allowBillions=false 时最高只显示到 M

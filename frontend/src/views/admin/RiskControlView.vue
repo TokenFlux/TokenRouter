@@ -12,7 +12,7 @@
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.description') }}</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <button type="button" class="btn btn-secondary h-9 w-9 shrink-0 p-0" :disabled="statusLoading" :title="t('admin.riskControl.refreshStatus')" @click="loadStatus(false)">
+            <button type="button" class="btn btn-secondary shrink-0 btn-icon" :disabled="statusLoading" :title="t('admin.riskControl.refreshStatus')" @click="loadStatus(false)">
               <Icon name="refresh" size="sm" :class="statusLoading ? 'animate-spin' : ''" />
             </button>
             <button type="button" class="btn btn-primary inline-flex items-center gap-2" @click="openSettings">
@@ -98,11 +98,7 @@
             </div>
 
             <div class="p-6">
-              <div
-                v-if="preBlockAPIKeyLoads.length > 0"
-                data-test="pre-block-api-key-load-list"
-                class="max-h-[280px] space-y-3 overflow-y-auto pr-1"
-              >
+              <div v-if="preBlockAPIKeyLoads.length > 0" data-test="pre-block-api-key-load-list" class="max-h-[280px] space-y-3 overflow-y-auto pr-1"><!-- check-ui-allow: 规则列表局部高度,非菜单档位 -->
                 <div
                   v-for="item in preBlockAPIKeyLoads"
                   :key="item.key_hash || item.index"
@@ -769,7 +765,7 @@
                               data-test="api-key-priority"
                               min="1"
                               max="1000"
-                              class="input h-9 text-sm"
+                              class="input text-sm"
                               :disabled="isStoredApiKeyPendingDelete(row)"
                               @input="setApiKeyDraftPriority(row, $event)"
                             />
@@ -781,7 +777,7 @@
                               type="text"
                               data-test="api-key-note"
                               maxlength="200"
-                              class="input h-9 text-sm"
+                              class="input text-sm"
                               :placeholder="t('admin.riskControl.apiKeyNotePlaceholder')"
                               :disabled="isStoredApiKeyPendingDelete(row)"
                               @input="setApiKeyDraftNote(row, $event)"
@@ -872,10 +868,10 @@
 
             <div v-if="!configForm.all_groups" class="space-y-4">
               <div class="relative">
-                <Icon name="search" size="sm" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input v-model.trim="groupSearch" type="search" class="input pl-9" :placeholder="t('admin.riskControl.searchGroups')" />
+                <Icon name="search" size="sm" class="input-icon text-gray-400" />
+                <input v-model.trim="groupSearch" type="search" class="input input-has-icon [--input-icon-slot:1.5rem]" :placeholder="t('admin.riskControl.searchGroups')" />
               </div>
-              <div class="grid max-h-[420px] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
+              <div class="grid max-h-panel grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
                 <button
                   v-for="group in filteredGroups"
                   :key="group.id"
@@ -1025,12 +1021,12 @@
                   <input
                     v-model.trim="flaggedHashInput"
                     type="text"
-                    class="input h-9 min-w-0 flex-1 font-mono text-sm"
+                    class="input min-w-0 flex-1 font-mono text-sm"
                     :placeholder="t('admin.riskControl.flaggedHashPlaceholder')"
                   />
                   <button
                     type="button"
-                    class="btn btn-secondary h-9 shrink-0 whitespace-nowrap px-3 sm:min-w-[9rem]"
+                    class="btn btn-secondary shrink-0 whitespace-nowrap px-3 sm:min-w-[9rem]"
                     :disabled="hashActionLoading || !isFlaggedHashInputValid"
                     @click="deleteFlaggedHash"
                   >
@@ -1319,10 +1315,10 @@
                   <span>·</span>
                   <span>{{ detailTypeLabel(item.type) }}</span>
                 </div>
-                <pre class="max-h-[420px] overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ detailItemContent(item) }}</pre>
+                <pre class="max-h-panel overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ detailItemContent(item) }}</pre>
               </section>
             </div>
-            <pre v-else class="max-h-[420px] overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ inputDetailText }}</pre>
+            <pre v-else class="max-h-panel overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ inputDetailText }}</pre>
 
             <div v-if="inputDetailRow.media?.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <figure v-for="media in inputDetailRow.media" :key="media.id" class="overflow-hidden border border-gray-200 dark:border-dark-700">
@@ -1407,10 +1403,10 @@
                   <span>·</span>
                   <span>{{ detailTypeLabel(item.type) }}</span>
                 </div>
-                <pre class="max-h-[420px] overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ detailItemContent(item) }}</pre>
+                <pre class="max-h-panel overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ detailItemContent(item) }}</pre>
               </section>
             </div>
-            <pre v-else class="max-h-[320px] overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ cyberPromptText }}</pre>
+            <pre v-else class="max-h-menu overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ cyberPromptText }}</pre>
 
             <div v-if="cyberDetailRow.media?.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <figure v-for="media in cyberDetailRow.media" :key="media.id" class="overflow-hidden border border-gray-200 dark:border-dark-700">
@@ -1437,7 +1433,7 @@
                 {{ cyberDetailRow.group_name }}
               </span>
             </div>
-            <pre class="mt-4 max-h-[420px] overflow-auto whitespace-pre-wrap break-words rounded-control bg-gray-950 p-4 text-sm leading-6 text-gray-100 shadow-inner dark:bg-black/50">{{ cyberDetailText }}</pre>
+            <pre class="mt-4 max-h-panel overflow-auto whitespace-pre-wrap break-words rounded-control bg-gray-950 p-4 text-sm leading-6 text-gray-100 shadow-inner dark:bg-black/50">{{ cyberDetailText }}</pre>
           </div>
         </div>
 

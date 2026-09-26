@@ -1,9 +1,9 @@
 <template>
   <Teleport to="body">
-    <Transition name="popup-fade">
+    <Transition name="pop-fade" @after-leave="handleAfterLeave">
       <div
         v-if="displayedAnnouncement"
-        class="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-black/55 p-3 backdrop-blur-sm sm:p-6"
+        class="fixed inset-0 z-announcement-raised flex items-center justify-center overflow-y-auto bg-[var(--overlay-bg)] p-3 backdrop-blur-sm sm:p-6"
         @click.self="handleDismiss"
       >
         <section
@@ -23,7 +23,7 @@
             <button
               type="button"
               data-testid="announcement-popup-close"
-              class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-control text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-dark-100 dark:focus-visible:ring-primary-500/50 sm:right-4 sm:top-4"
+              class="absolute right-3 top-3 flex rounded-control text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-dark-100 dark:focus-visible:ring-primary-500/50 sm:right-4 sm:top-4 btn-icon-sm"
               :aria-label="t('common.close')"
               @click="handleDismiss"
             >
@@ -150,6 +150,13 @@ function handleDismiss() {
   announcementStore.dismissPopup()
 }
 
+// 离场动画结束后推进公告队列（取代 store 里 300ms 的时长猜测）。
+// 预览实例的显隐由父组件控制，与全局队列无关。
+function handleAfterLeave() {
+  if (props.preview) return
+  announcementStore.onPopupClosed()
+}
+
 function handleEscape(event: KeyboardEvent) {
   if (event.key === 'Escape' && displayedAnnouncement.value) {
     handleDismiss()
@@ -180,35 +187,16 @@ onBeforeUnmount(() => {
   if (props.lockBodyScroll) {
     document.body.style.overflow = ''
   }
+  // 若卸载发生在离场动画途中（如切回首页门面），after-leave 不会触发，
+  // 队列会停在已关闭状态；仅在弹窗已关闭时补推一次，展示中的弹窗不抢下一条。
+  if (!props.preview && !announcementStore.currentPopup) {
+    announcementStore.onPopupClosed()
+  }
 })
 </script>
 
 <style scoped>
-/* 浮层只做轻微缩放和位移，避免出现营销页式的大幅动效。 */
-.popup-fade-enter-active {
-  transition: opacity 0.18s ease;
-}
-
-.popup-fade-leave-active {
-  transition: opacity 0.14s ease;
-}
-
-.popup-fade-enter-active > section,
-.popup-fade-leave-active > section {
-  transition: transform 0.18s ease, opacity 0.18s ease;
-}
-
-.popup-fade-enter-from,
-.popup-fade-leave-to {
-  opacity: 0;
-}
-
-.popup-fade-enter-from > section,
-.popup-fade-leave-to > section {
-  transform: scale(0.98) translateY(4px);
-  opacity: 0;
-}
-
+/* 过渡配方用全局 pop-fade(数值与原 scoped 拷贝逐字一致),reduced-motion 也由全局收敛。 */
 /* 滚动条沿用中性色，避免正文区域出现额外强调色。 */
 .announcement-popup-scrollbar::-webkit-scrollbar {
   width: 8px;
@@ -229,14 +217,5 @@ onBeforeUnmount(() => {
   background: rgb(82 82 91 / 0.7);
   border: 2px solid transparent;
   background-clip: padding-box;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .popup-fade-enter-active,
-  .popup-fade-leave-active,
-  .popup-fade-enter-active > section,
-  .popup-fade-leave-active > section {
-    transition: none;
-  }
 }
 </style>

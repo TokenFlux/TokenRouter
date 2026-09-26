@@ -27,12 +27,12 @@
             <button
               @click="loadAnnouncements"
               :disabled="loading"
-              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+              class="btn btn-secondary shrink-0 btn-icon"
               :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
-            <button @click="openCreateDialog" class="btn btn-primary h-9 shrink-0 whitespace-nowrap">
+            <button @click="openCreateDialog" class="btn btn-primary shrink-0 whitespace-nowrap">
               <Icon name="plus" size="md" class="mr-1" />
               {{ t('admin.announcements.createAnnouncement') }}
             </button>

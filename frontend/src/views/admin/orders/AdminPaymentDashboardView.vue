@@ -7,7 +7,7 @@
           v-model:end-date="endDate"
           @change="onDateRangeChange"
         />
-        <button @click="loadDashboard" :disabled="loading" class="btn btn-secondary h-9 w-9 shrink-0 p-0" :title="t('common.refresh')">
+        <button @click="loadDashboard" :disabled="loading" class="btn btn-secondary shrink-0 btn-icon" :title="t('common.refresh')">
           <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
         </button>
       </div>

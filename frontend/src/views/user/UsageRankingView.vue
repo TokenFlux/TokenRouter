@@ -17,7 +17,7 @@
           />
           <button
             type="button"
-            class="btn btn-secondary h-9 w-9 p-0"
+            class="btn btn-secondary btn-icon"
             :disabled="loading"
             :title="t('common.refresh')"
             @click="loadRanking"

@@ -38,7 +38,7 @@
       </div>
       <button
         type="button"
-        class="btn btn-secondary h-9 self-start px-3 text-xs sm:self-end"
+        class="btn btn-secondary self-start px-3 text-xs sm:self-end"
         data-testid="add-time-period"
         @click="addPeriod"
       >
@@ -104,7 +104,7 @@
         </div>
         <button
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-compact text-gray-400 hover:text-red-500"
+          class="flex rounded-compact text-gray-400 hover:text-red-500 btn-icon-sm"
           :title="t('admin.channels.form.removeTimePeriod')"
           :aria-label="t('admin.channels.form.removeTimePeriod')"
           :data-testid="`remove-time-period-${index}`"

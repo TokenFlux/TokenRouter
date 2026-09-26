@@ -929,7 +929,7 @@ function handleToolbarRefresh() {
           <div ref="filterDropdownRef" class="relative">
             <button
               type="button"
-              class="flex h-8 w-8 items-center justify-center rounded-control bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800"
+              class="flex rounded-control bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800 btn-icon-sm"
               :aria-expanded="showFilterDropdown"
               :aria-label="t('common.filter')"
               :title="t('common.filter')"
@@ -942,7 +942,7 @@ function handleToolbarRefresh() {
             </button>
             <div
               v-if="showFilterDropdown"
-              class="absolute left-0 right-auto top-full z-[60] mt-2 w-[calc(100vw-4rem)] max-w-[calc(100vw-4rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:w-[min(34rem,calc(100vw-2rem))] sm:max-w-[calc(100vw-2rem)]"
+              class="absolute left-0 right-auto top-full z-modal-nested mt-2 w-[calc(100vw-4rem)] max-w-[calc(100vw-4rem)] rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:w-[min(34rem,calc(100vw-2rem))] sm:max-w-[calc(100vw-2rem)]"
               @click.stop
             >
               <div class="mb-3 flex items-center justify-between">
@@ -964,7 +964,7 @@ function handleToolbarRefresh() {
           <button
           v-if="!props.fullscreen"
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-control bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800"
+          class="flex rounded-control bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800 btn-icon-sm"
           :disabled="loading"
           :title="t('common.refresh')"
           @click="handleToolbarRefresh"
@@ -985,7 +985,7 @@ function handleToolbarRefresh() {
           <button
           v-if="!props.fullscreen"
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-control bg-blue-100 p-0 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-3"
+          class="flex rounded-control bg-blue-100 p-0 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-3 btn-icon-sm"
           :title="t('admin.ops.alertRules.title')"
           @click="emit('openAlertRules')"
         >
@@ -999,7 +999,7 @@ function handleToolbarRefresh() {
           <button
           v-if="!props.fullscreen"
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-control bg-gray-100 p-0 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-3"
+          class="flex rounded-control bg-gray-100 p-0 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-3 btn-icon-sm"
           :title="t('admin.ops.settings.title')"
           @click="emit('openSettings')"
         >
@@ -1014,7 +1014,7 @@ function handleToolbarRefresh() {
           <button
           v-if="!props.fullscreen"
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-control bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800"
+          class="flex rounded-control bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800 btn-icon-sm"
           :title="t('admin.ops.fullscreen.enter')"
           @click="emit('enterFullscreen')"
         >

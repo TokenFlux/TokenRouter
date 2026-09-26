@@ -73,8 +73,12 @@
     <div
       v-if="groupSelectorKeyId !== null && dropdownPosition"
       ref="dropdownRef"
-      class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-64 overflow-hidden rounded-control bg-white shadow-lg ring-1 ring-black/5 duration-200 dark:bg-dark-800 dark:ring-white/10"
-      :style="{ top: dropdownPosition.top + 'px', left: dropdownPosition.left + 'px' }"
+      class="animate-in fade-in slide-in-from-top-2 fixed z-teleport-dropdown w-64 overflow-hidden rounded-control bg-white shadow-lg ring-1 ring-black/5 duration-200 dark:bg-dark-800 dark:ring-white/10"
+      :style="{
+        top: dropdownPosition.top !== undefined ? dropdownPosition.top + 'px' : undefined,
+        bottom: dropdownPosition.bottom !== undefined ? dropdownPosition.bottom + 'px' : undefined,
+        left: dropdownPosition.left + 'px'
+      }"
     >
       <div class="max-h-64 overflow-y-auto p-1.5">
         <!-- Unbind option -->
@@ -130,6 +134,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime } from '@/utils/format'
+import { getFloatingPanelPosition } from '@/utils/floatingPanel'
 import type { AdminUser, AdminGroup, ApiKey } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
@@ -146,7 +151,7 @@ const allGroups = ref<AdminGroup[]>([])
 const loading = ref(false)
 const updatingKeyIds = ref(new Set<number>())
 const groupSelectorKeyId = ref<number | null>(null)
-const dropdownPosition = ref<{ top: number; left: number } | null>(null)
+const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
 const scrollContainerRef = ref<HTMLElement | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
@@ -196,9 +201,6 @@ const loadGroups = async () => {
   }
 }
 
-const DROPDOWN_HEIGHT = 272 // max-h-64 = 16rem = 256px + padding
-const DROPDOWN_GAP = 4
-
 const openGroupSelector = (key: ApiKey) => {
   // 复合 Key 的分组由前缀映射维护，不能通过普通分组选择器修改。
   if (key.is_composite) return
@@ -208,11 +210,20 @@ const openGroupSelector = (key: ApiKey) => {
     const buttonEl = groupButtonRefs.value.get(key.id)
     if (buttonEl) {
       const rect = buttonEl.getBoundingClientRect()
-      const spaceBelow = window.innerHeight - rect.bottom
-      const openUpward = spaceBelow < DROPDOWN_HEIGHT && rect.top > spaceBelow
+      // 面板左缘对齐触发器;翻转阈值 = 列表 max-h-64(256px)+ 上下 padding(16px)。
+      const position = getFloatingPanelPosition(rect, window.innerWidth, window.innerHeight, {
+        align: 'left',
+        maxWidth: 256,
+        viewportPadding: 8,
+        gap: 4,
+        maxHeightRatio: 1,
+        minComfortableHeight: 256 + 16,
+        pinLeftOnMobile: false
+      })
       dropdownPosition.value = {
-        top: openUpward ? rect.top - DROPDOWN_HEIGHT - DROPDOWN_GAP : rect.bottom + DROPDOWN_GAP,
-        left: rect.left
+        top: position.top ?? undefined,
+        bottom: position.bottom ?? undefined,
+        left: position.left
       }
     }
     groupSelectorKeyId.value = key.id

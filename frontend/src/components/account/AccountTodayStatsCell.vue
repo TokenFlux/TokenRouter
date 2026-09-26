@@ -74,6 +74,7 @@ const props = withDefaults(
 const { t } = useI18n()
 
 // Format large token numbers (e.g., 1234567 -> 1.23M)
+// 紧凑变体:K 档 1 位小数、M 档 2 位小数,与共享 formatTokens(K 档 2 位小数)精度不同,有意保留本地。
 const formatTokens = (tokens: number): string => {
   if (tokens >= 1000000) {
     return `${(tokens / 1000000).toFixed(2)}M`

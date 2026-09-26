@@ -11,7 +11,9 @@
       :aria-label="ariaLabel ?? 'Select option'"
       :aria-describedby="ariaDescribedby"
       :class="[
-        'select-trigger',
+        'input input-trigger',
+        // 触发器文字色沿用选择器既有的中性灰(比 .input 默认色略浅),保持现状视觉。
+        'text-gray-900 dark:text-gray-100',
         isOpen && 'select-trigger-open',
         error && 'select-trigger-error',
         disabled && 'select-trigger-disabled'
@@ -47,7 +49,7 @@
 
     <!-- Teleport dropdown to body to escape stacking context -->
     <Teleport to="body">
-      <Transition name="select-dropdown">
+      <Transition name="dropdown-fade">
         <div
           v-if="isOpen"
           ref="dropdownRef"
@@ -124,6 +126,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import { SELECT_PANEL_MAX_HEIGHT, Z_INDEX } from '@/constants/overlay'
 
 const { t } = useI18n()
 
@@ -210,7 +213,7 @@ const dropdownStyle = computed(() => {
     left: `${dropdownLeft.value ?? fallbackLeft}px`,
     minWidth: `${rect.width}px`,
     maxWidth: `${maxDropdownWidth}px`,
-    zIndex: '100000020'
+    zIndex: String(Z_INDEX.TELEPORT_DROPDOWN)
   }
 
   if (dropdownPosition.value === 'top') {
@@ -352,7 +355,7 @@ const calculateDropdownPosition = () => {
   nextTick(() => {
     if (!dropdownRef.value || !triggerRect.value) return
     updateDropdownLeft()
-    const dropdownHeight = dropdownRef.value.offsetHeight || 240
+    const dropdownHeight = dropdownRef.value.offsetHeight || SELECT_PANEL_MAX_HEIGHT
     const spaceBelow = window.innerHeight - triggerRect.value.bottom
     const spaceAbove = triggerRect.value.top
 
@@ -487,18 +490,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.select-trigger {
-  @apply flex w-full items-center justify-between gap-2;
-  @apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;
-  @apply bg-white dark:bg-dark-950;
-  @apply border border-primary-900/10 dark:border-dark-600;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply transition-all duration-200;
-  @apply focus:border-primary-900/10 focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:border-primary-500 dark:focus:ring-primary-500/30;
-  @apply hover:border-black/20 dark:hover:border-primary-500;
-  @apply cursor-pointer;
-}
-
+/* 基线配方(h-9/px-4/py-1.5/边框/焦点环)已与 .input 同源,模板以 input input-trigger 组合;
+   这里只保留展开/错误/禁用三个状态增量。 */
 .select-trigger-open {
   /* 浅色展开态使用中性灰描边和外圈，避免筛选控件出现蓝色光晕。 */
   @apply border-primary-900/10 ring-2 ring-black/10 dark:border-primary-500 dark:ring-primary-500/30;
@@ -597,15 +590,4 @@ onUnmounted(() => {
   @apply text-primary-900/90 dark:text-dark-400;
 }
 
-.select-dropdown-enter-active,
-.select-dropdown-leave-active {
-  /* 下拉层会在打开时根据触发器位置更新 left/top，只动画透明度和位移，避免定位值被过渡成侧向飞入。 */
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.select-dropdown-enter-from,
-.select-dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
 </style>

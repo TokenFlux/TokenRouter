@@ -27,7 +27,7 @@ describe('useTheme', () => {
   it('temporarily disables transitions while switching themes', () => {
     setTheme(true)
 
-    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(document.documentElement.classList.contains('dark')).toBe(true) // check-ui-allow: 主题原语测试,断言对象就是 classList
     expect(document.documentElement.classList.contains('theme-switching')).toBe(true)
 
     frameCallbacks[0]?.(0)

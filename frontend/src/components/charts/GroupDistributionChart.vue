@@ -120,8 +120,10 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import UserBreakdownSubTable from './UserBreakdownSubTable.vue'
 import { toLogarithmicDisplayValues } from '@/utils/chartDisplayScale'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
+import { CHART_PALETTE, CHART_TICK_FONT_SIZE } from '@/composables/useChartTheme'
 import type { GroupStat, UserBreakdownItem } from '@/types'
 import { getUserBreakdown } from '@/api/admin/dashboard'
+import { formatTokens } from '@/utils/format'
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LogarithmicScale, Tooltip, Legend)
 
@@ -191,18 +193,7 @@ const toggleBreakdown = async (type: string, id: number | string) => {
   }
 }
 
-const chartColors = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#00D2FF',
-  '#f97316',
-  '#6366f1',
-  '#84cc16'
-]
+const chartColors = CHART_PALETTE // 原 10 色拷贝前缀逐项一致,补齐 11/12 色
 
 const displayGroupStats = computed(() => {
   if (!props.groupStats?.length) return []
@@ -300,7 +291,7 @@ const barOptions = computed(() => ({
       ticks: {
         autoSkip: false,
         font: {
-          size: 10
+          size: CHART_TICK_FONT_SIZE
         },
         // 分组名可能较长，y 轴标签截断展示，全名见 tooltip 与表格。
         callback(this: any, value: any) {
@@ -323,17 +314,6 @@ const barOptions = computed(() => ({
     }
   }
 }))
-
-const formatTokens = (value: number): string => {
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(2)}B`
-  } else if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(2)}M`
-  } else if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(2)}K`
-  }
-  return value.toLocaleString()
-}
 
 const formatNumber = (value: number): string => {
   return toFiniteNumber(value).toLocaleString()

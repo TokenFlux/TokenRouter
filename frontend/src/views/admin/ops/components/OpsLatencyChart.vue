@@ -10,6 +10,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
+import { useChartTheme, CHART_TICK_FONT_SIZE } from '@/composables/useChartTheme'
 import {
   DEFAULT_LATENCY_BUCKET_BOUNDARIES,
   MAX_LATENCY_BUCKET_BOUNDARY_MS,
@@ -61,11 +62,11 @@ function applyBucketBoundaries() {
   showSettings.value = false
 }
 
-const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
+const { colors: themeColors } = useChartTheme()
 const colors = computed(() => ({
   blue: '#3b82f6',
-  grid: isDarkMode.value ? '#3F3F46' : '#F4F4F5',
-  text: isDarkMode.value ? '#A1A1AA' : '#71717A'
+  grid: themeColors.value.grid,
+  text: themeColors.value.muted
 }))
 
 const hasData = computed(() => (props.latencyData?.total_requests ?? 0) > 0)
@@ -108,12 +109,12 @@ const options = computed(() => {
     scales: {
       x: {
         grid: { display: false },
-        ticks: { color: c.text, font: { size: 10 } }
+        ticks: { color: c.text, font: { size: CHART_TICK_FONT_SIZE } }
       },
       y: {
         beginAtZero: true,
         grid: { color: c.grid, borderDash: [4, 4] },
-        ticks: { color: c.text, font: { size: 10 } }
+        ticks: { color: c.text, font: { size: CHART_TICK_FONT_SIZE } }
       }
     }
   }
@@ -137,7 +138,7 @@ const options = computed(() => {
       </h3>
       <button
         type="button"
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-dark-800 dark:hover:text-gray-100"
+        class="flex shrink-0 rounded-control text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-dark-800 dark:hover:text-gray-100 btn-icon-sm"
         :title="t('admin.ops.latencyBuckets.settings')"
         :aria-label="t('admin.ops.latencyBuckets.settings')"
         data-test="latency-bucket-settings"

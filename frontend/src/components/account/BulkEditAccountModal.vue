@@ -63,22 +63,7 @@
           role="group"
           aria-labelledby="bulk-edit-openai-passthrough-label"
         >
-          <button
-            id="bulk-edit-openai-passthrough-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openaiPassthroughEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="openaiPassthroughEnabled = !openaiPassthroughEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openaiPassthroughEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="openaiPassthroughEnabled" variant="flush" off-tone="soft" id="bulk-edit-openai-passthrough-toggle" />
         </div>
       </div>
 
@@ -114,23 +99,7 @@
           role="group"
           aria-labelledby="bulk-edit-openai-flatten-namespaces-label"
         >
-          <button
-            id="bulk-edit-openai-flatten-namespaces-toggle"
-            type="button"
-            :aria-pressed="openaiFlattenNamespacesEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openaiFlattenNamespacesEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="openaiFlattenNamespacesEnabled = !openaiFlattenNamespacesEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openaiFlattenNamespacesEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="openaiFlattenNamespacesEnabled" variant="flush" off-tone="soft" id="bulk-edit-openai-flatten-namespaces-toggle" />
         </div>
       </div>
 
@@ -598,21 +567,7 @@
           />
         </div>
         <div v-if="enableInterceptWarmup" id="bulk-edit-intercept-warmup-body" class="mt-3">
-          <button
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              interceptWarmupRequests ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="interceptWarmupRequests = !interceptWarmupRequests"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                interceptWarmupRequests ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="interceptWarmupRequests" variant="flush" off-tone="soft" />
         </div>
       </div>
 
@@ -640,21 +595,7 @@
           />
         </div>
         <div v-if="enableHeaderOverride" id="bulk-edit-header-override-body" class="mt-3 space-y-3">
-          <button
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              headerOverrideEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="headerOverrideEnabled = !headerOverrideEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                headerOverrideEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="headerOverrideEnabled" variant="flush" off-tone="soft" />
 
           <div v-if="headerOverrideEnabled" class="space-y-3">
             <div class="rounded-control bg-blue-50 p-3 dark:bg-blue-900/20">
@@ -954,22 +895,7 @@
           <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.openai.codexCLIOnlyAllowClaudeCodeDesc') }}
           </p>
-          <button
-            id="bulk-edit-openai-codex-allow-claude-code-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              codexCLIOnlyAllowClaudeCodeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="codexCLIOnlyAllowClaudeCodeEnabled = !codexCLIOnlyAllowClaudeCodeEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                codexCLIOnlyAllowClaudeCodeEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="codexCLIOnlyAllowClaudeCodeEnabled" variant="flush" off-tone="soft" id="bulk-edit-openai-codex-allow-claude-code-toggle" />
         </div>
         <p
           v-if="enableCodexCLIOnly && openAIOAuthClientPolicy !== 'codex_only'"
@@ -1034,22 +960,7 @@
               id="bulk-edit-openai-auto-pause-5h-disabled"
               :class="!enableAutoPause5hDisabled && 'pointer-events-none opacity-50'"
             >
-              <button
-                id="bulk-edit-openai-auto-pause-5h-disabled-toggle"
-                type="button"
-                :class="[
-                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                  autoPause5hDisabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-                ]"
-                @click="autoPause5hDisabled = !autoPause5hDisabled"
-              >
-                <span
-                  :class="[
-                    'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                    autoPause5hDisabled ? 'translate-x-5' : 'translate-x-0'
-                  ]"
-                />
-              </button>
+              <Toggle v-model="autoPause5hDisabled" variant="flush" off-tone="soft" id="bulk-edit-openai-auto-pause-5h-disabled-toggle" />
               <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.accounts.autoPauseDisabledHint') }}
               </p>
@@ -1109,22 +1020,7 @@
               id="bulk-edit-openai-auto-pause-7d-disabled"
               :class="!enableAutoPause7dDisabled && 'pointer-events-none opacity-50'"
             >
-              <button
-                id="bulk-edit-openai-auto-pause-7d-disabled-toggle"
-                type="button"
-                :class="[
-                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                  autoPause7dDisabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-                ]"
-                @click="autoPause7dDisabled = !autoPause7dDisabled"
-              >
-                <span
-                  :class="[
-                    'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                    autoPause7dDisabled ? 'translate-x-5' : 'translate-x-0'
-                  ]"
-                />
-              </button>
+              <Toggle v-model="autoPause7dDisabled" variant="flush" off-tone="soft" id="bulk-edit-openai-auto-pause-7d-disabled-toggle" />
               <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.accounts.autoPauseDisabledHint') }}
               </p>
@@ -1369,21 +1265,7 @@
         >
           <div class="mb-3 flex items-center justify-between">
             <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('admin.accounts.quotaControl.rpmLimit.hint') }}</span>
-            <button
-              type="button"
-              @click="rpmLimitEnabled = !rpmLimitEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                rpmLimitEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  rpmLimitEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="rpmLimitEnabled" variant="flush" off-tone="soft" />
           </div>
 
           <div v-if="rpmLimitEnabled" class="space-y-3">
@@ -1496,22 +1378,7 @@
             <span class="text-sm text-gray-700 dark:text-gray-300">
               {{ t('admin.accounts.quotaControl.tlsFingerprint.hint') }}
             </span>
-            <button
-              id="bulk-edit-tls-fingerprint-toggle"
-              type="button"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                tlsFingerprintEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-              @click="tlsFingerprintEnabled = !tlsFingerprintEnabled"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  tlsFingerprintEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="tlsFingerprintEnabled" variant="flush" off-tone="soft" id="bulk-edit-tls-fingerprint-toggle" />
           </div>
 
           <Select

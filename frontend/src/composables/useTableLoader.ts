@@ -1,5 +1,6 @@
 import { ref, reactive, onUnmounted, toRaw } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
+import { SEARCH_DEBOUNCE_MS } from '@/constants/ui'
 import type { BasePaginationResponse, FetchOptions } from '@/types'
 import { getPersistedPageSize, setPersistedPageSize } from './usePersistedPageSize'
 
@@ -22,7 +23,7 @@ interface TableLoaderOptions<T, P> {
  * 统一处理分页、筛选、搜索防抖和请求取消
  */
 export function useTableLoader<T, P extends Record<string, any>>(options: TableLoaderOptions<T, P>) {
-  const { fetchFn, initialParams, pageSize, debounceMs = 300 } = options
+  const { fetchFn, initialParams, pageSize, debounceMs = SEARCH_DEBOUNCE_MS } = options
 
   const items = ref<T[]>([])
   const loading = ref(false)

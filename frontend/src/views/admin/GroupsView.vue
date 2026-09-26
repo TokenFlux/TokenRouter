@@ -7,24 +7,24 @@
         >
           <!-- 左侧：模糊搜索和筛选项，可自动换行。 -->
           <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-3">
-            <div class="relative min-w-0 flex-1 sm:flex-none sm:w-64">
+            <div class="input-icon-wrap min-w-0 flex-1 sm:flex-none sm:w-64">
               <Icon
                 name="search"
                 size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                class="input-icon text-gray-400 dark:text-gray-500"
               />
               <input
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('admin.groups.searchGroups')"
-                class="input pl-10"
+                class="input input-has-icon"
                 @input="handleSearch"
               />
             </div>
             <div ref="filterDropdownRef" class="relative shrink-0">
               <button
                 type="button"
-                class="btn btn-secondary relative h-9 w-9 p-0"
+                class="btn btn-secondary relative btn-icon"
                 :aria-expanded="showFilterDropdown"
                 :aria-label="t('common.filter')"
                 :title="t('common.filter')"
@@ -33,7 +33,7 @@
                 <Icon name="filter" size="sm" />
                 <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">{{ activeFilterCount }}</span>
               </button>
-              <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-[60] mt-2 w-72 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
+              <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-modal-nested mt-2 w-72 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
                 <div class="mb-3 flex items-center justify-between">
                   <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
                   <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetGroupFilters">{{ t('common.reset') }}</button>
@@ -53,7 +53,7 @@
             <button
               @click="loadGroups"
               :disabled="loading"
-              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+              class="btn btn-secondary shrink-0 btn-icon"
               :title="t('common.refresh')"
             >
               <Icon
@@ -65,7 +65,7 @@
             <div class="relative" ref="columnDropdownRef">
               <button
                 @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                class="btn btn-secondary shrink-0 btn-icon"
                 :title="t('admin.groups.columnSettings')"
               >
                 <Icon name="grid" size="md" />
@@ -79,7 +79,7 @@
                   v-for="col in toggleableColumns"
                   :key="col.key"
                   @click="toggleColumn(col.key)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="dropdown-item justify-between"
                 >
                   <span>{{ col.label }}</span>
                   <Icon
@@ -94,14 +94,14 @@
             </div>
             <button
               @click="openSortModal"
-              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+              class="btn btn-secondary shrink-0 btn-icon"
               :title="t('admin.groups.sortOrder')"
             >
               <Icon name="arrowsUpDown" size="md" />
             </button>
             <button
               @click="openCreateModal"
-              class="btn btn-primary h-9 whitespace-nowrap"
+              class="btn btn-primary whitespace-nowrap"
               data-tour="groups-create-btn"
             >
               <Icon name="plus" size="md" class="mr-2" />
@@ -941,7 +941,7 @@
                               :key="account.id"
                               type="button"
                               @click="selectAccount(rule, account)"
-                              class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
+                              class="dropdown-item-sm"
                               :class="{
                                 'opacity-50': rule.accounts.some(
                                   (a) => a.id === account.id,
@@ -952,7 +952,7 @@
                               "
                             >
                               <span>{{ account.name }}</span>
-                              <span class="ml-2 text-xs text-gray-400"
+                              <span class="text-xs text-gray-400"
                                 >#{{ account.id }}</span
                               >
                             </button>
@@ -1529,7 +1529,7 @@
                           <button
                             type="button"
                             @click="removeCreateMessagesDispatchMapping(row)"
-                            class="mt-6 flex h-9 w-9 shrink-0 items-center justify-center rounded-control text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                            class="mt-6 flex shrink-0 rounded-control text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400 btn-icon"
                             :title="
                               t('admin.groups.openaiMessages.removeExactMapping')
                             "
@@ -2354,7 +2354,7 @@
                               :key="account.id"
                               type="button"
                               @click="selectAccount(rule, account, true)"
-                              class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
+                              class="dropdown-item-sm"
                               :class="{
                                 'opacity-50': rule.accounts.some(
                                   (a) => a.id === account.id,
@@ -2365,7 +2365,7 @@
                               "
                             >
                               <span>{{ account.name }}</span>
-                              <span class="ml-2 text-xs text-gray-400"
+                              <span class="text-xs text-gray-400"
                                 >#{{ account.id }}</span
                               >
                             </button>
@@ -2941,7 +2941,7 @@
                           <button
                             type="button"
                             @click="removeEditMessagesDispatchMapping(row)"
-                            class="mt-6 flex h-9 w-9 shrink-0 items-center justify-center rounded-control text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                            class="mt-6 flex shrink-0 rounded-control text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400 btn-icon"
                             :title="
                               t('admin.groups.openaiMessages.removeExactMapping')
                             "
@@ -3321,6 +3321,7 @@ import { useAppStore } from "@/stores/app";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
 import { useBalanceDisplay } from "@/composables/useBalanceDisplay";
+import { SEARCH_DEBOUNCE_MS } from "@/constants/ui";
 import type {
   AdminGroup,
   GroupAvailabilityProbeConfig,
@@ -3358,6 +3359,7 @@ import { pricingEntryFromAPI, pricingEntryToAPI, validatePricingForm } from "@/c
 import type { ChannelModelPricing } from "@/api/admin/channels";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
+import { getFloatingPanelPosition } from "@/utils/floatingPanel";
 import {
   defaultProviderBrandOptions,
   providerBrandDisplayName,
@@ -3888,14 +3890,17 @@ const openGroupActionMenu = (group: AdminGroup, event: MouseEvent) => {
   const target = event.currentTarget as HTMLElement | null;
   if (!target) return;
   const rect = target.getBoundingClientRect();
-  const width = 192;
-  const height = 162;
-  const padding = 8;
-  const left = Math.max(padding, Math.min(rect.right - width, window.innerWidth - width - padding));
-  let top = rect.bottom + 4;
-  if (top + height > window.innerHeight - padding) top = Math.max(padding, rect.top - height - 4);
+  // 固定高菜单:下方放不下即整体上翻;窄屏保持右缘对齐触发器,不钉视口左缘。
+  const position = getFloatingPanelPosition(rect, window.innerWidth, window.innerHeight, {
+    maxWidth: 192,
+    fixedHeight: 162,
+    viewportPadding: 8,
+    gap: 4,
+    pinLeftOnMobile: false
+  });
+  // fixedHeight 模式下 top 恒非空。
+  actionMenuPosition.value = { top: position.top ?? 8, left: position.left };
   actionMenuGroup.value = group;
-  actionMenuPosition.value = { top, left };
 };
 
 const closeGroupActionMenu = () => {
@@ -4093,7 +4098,7 @@ const clearAllAccountSearchState = () => {
 };
 
 const accountSearchRunner = useKeyedDebouncedSearch<SimpleAccount[]>({
-  delay: 300,
+  delay: SEARCH_DEBOUNCE_MS,
   search: async (keyword, { signal }) => {
     const res = await adminAPI.accounts.list(
       1,

@@ -1,12 +1,12 @@
 <template>
-  <div class="relative w-full">
-    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+  <div class="input-icon-wrap w-full">
+    <div class="input-icon">
       <Icon name="search" size="md" class="text-gray-400" />
     </div>
     <input
       :value="modelValue"
       type="text"
-      class="input pl-10"
+      class="input input-has-icon"
       :placeholder="placeholder"
       @input="handleInput"
     />
@@ -15,6 +15,7 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core'
+import { SEARCH_DEBOUNCE_MS } from '@/constants/ui'
 import Icon from '@/components/icons/Icon.vue'
 
 const props = withDefaults(defineProps<{
@@ -23,7 +24,7 @@ const props = withDefaults(defineProps<{
   debounceMs?: number
 }>(), {
   placeholder: 'Search...',
-  debounceMs: 300
+  debounceMs: SEARCH_DEBOUNCE_MS
 })
 
 const emit = defineEmits<{

@@ -29,7 +29,7 @@
         {{ t('payment.customAmount') }}
       </label>
       <div class="relative">
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
+        <span class="input-icon text-gray-400 dark:text-dark-500">
           $
         </span>
         <input
@@ -37,7 +37,7 @@
           inputmode="decimal"
           :value="customText"
           :placeholder="placeholderText"
-          class="input h-9 w-full py-1.5 pl-8 pr-4"
+          class="input w-full py-1.5 input-has-icon input-icon-text pr-4"
           @input="handleInput"
         />
       </div>

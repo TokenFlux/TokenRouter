@@ -3,7 +3,12 @@
     <button
       type="button"
       @click="toggle"
-      :class="['date-picker-trigger', isOpen && 'date-picker-trigger-open']"
+      :class="[
+        'input input-trigger',
+        // 日期控件文字沿用既有的中性灰(比 .input 默认色略浅),保持现状视觉。
+        'text-gray-700 dark:text-gray-300',
+        isOpen && 'date-picker-trigger-open'
+      ]"
     >
       <span class="date-picker-icon">
         <Icon name="calendar" size="sm" />
@@ -20,7 +25,7 @@
       </span>
     </button>
 
-    <Transition name="date-picker-dropdown">
+    <Transition name="dropdown-fade">
       <div v-if="isOpen" class="date-picker-dropdown" :style="dropdownStyle">
         <!-- Quick presets -->
         <div class="date-picker-presets">
@@ -66,7 +71,7 @@
 
         <!-- Apply button -->
         <div class="date-picker-actions">
-          <button @click="apply" class="date-picker-apply">
+          <button @click="apply" class="btn btn-primary">
             {{ t('dates.apply') }}
           </button>
         </div>
@@ -427,19 +432,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.date-picker-trigger {
-  /* 日期控件的结构边框使用中性灰，选中的快捷日期仍保留品牌蓝。 */
-  @apply flex items-center gap-2;
-  @apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;
-  @apply bg-white dark:bg-dark-950;
-  @apply border border-primary-900/10 dark:border-dark-600;
-  @apply text-gray-700 dark:text-gray-300;
-  @apply transition-all duration-200;
-  @apply focus:border-primary-900/10 focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:border-primary-500 dark:focus:ring-primary-500/30;
-  @apply hover:border-black/20 dark:hover:border-primary-500;
-  @apply cursor-pointer;
-}
-
+/* 基线配方已与 .input 同源(模板 input input-trigger 组合),这里只保留展开态增量。
+   日期控件的结构边框使用中性灰，选中的快捷日期仍保留品牌蓝。 */
 .date-picker-trigger-open {
   @apply border-primary-900/10 ring-2 ring-black/10 dark:border-primary-500 dark:ring-primary-500/30;
 }
@@ -457,7 +451,7 @@ onUnmounted(() => {
 }
 
 .date-picker-dropdown {
-  @apply fixed z-[100];
+  @apply fixed z-tooltip;
   @apply bg-white dark:bg-dark-900;
   @apply rounded-control;
   @apply border border-primary-900/10 dark:border-dark-600;
@@ -523,22 +517,4 @@ onUnmounted(() => {
   @apply flex justify-end p-2 pt-0;
 }
 
-.date-picker-apply {
-  @apply inline-flex h-9 min-h-9 items-center justify-center rounded-control px-4 py-1.5 text-sm font-medium;
-  @apply bg-primary-600 text-white;
-  @apply hover:bg-primary-700;
-  @apply transition-colors duration-150;
-}
-
-/* Dropdown animation */
-.date-picker-dropdown-enter-active,
-.date-picker-dropdown-leave-active {
-  transition: all 0.2s ease;
-}
-
-.date-picker-dropdown-enter-from,
-.date-picker-dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
 </style>

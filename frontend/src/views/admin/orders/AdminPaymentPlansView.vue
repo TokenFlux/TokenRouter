@@ -3,7 +3,7 @@
     <template #page-heading-actions>
       <div class="flex items-center justify-end gap-2">
         <button
-          class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+          class="btn btn-secondary shrink-0 btn-icon"
           :disabled="plansLoading"
           :title="t('common.refresh')"
           @click="loadPlans"
@@ -55,21 +55,13 @@
         </template>
 
         <template #cell-for_sale="{ value, row }">
-          <button
-            type="button"
-            :class="[
-              'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out',
-              value ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600'
-            ]"
-            @click="toggleForSale(row)"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                value ? 'translate-x-4' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <!-- 异步保存,值由 toggleForSale 写回 row,这里只做受控展示。 -->
+          <Toggle
+            :model-value="!!value"
+            size="sm"
+            on-class="bg-primary-500"
+            @update:model-value="toggleForSale(row)"
+          />
         </template>
 
         <template #cell-actions="{ row }">
@@ -123,6 +115,7 @@ import type { AdminPaymentConfig } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { Column } from '@/components/common/types'
+import Toggle from '@/components/common/Toggle.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'

@@ -126,9 +126,9 @@
         <div v-else>
           <!-- 表格 -->
           <div class="overflow-hidden rounded-control border border-gray-200 dark:border-dark-600">
-            <div class="max-h-[420px] overflow-auto">
+            <div class="max-h-panel overflow-auto">
               <table class="w-full min-w-max text-sm">
-                <thead class="sticky top-0 z-[1]">
+                <thead class="sticky top-0 z-[1]"> <!-- check-ui-allow: 弹窗内 sticky 表头局部层级 -->
                   <tr class="border-b border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-700">
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.columns.userEmail') }}</th>
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">ID</th>

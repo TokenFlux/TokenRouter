@@ -3,7 +3,7 @@
   <button
     ref="historyButtonRef"
     type="button"
-    class="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-control border border-primary-900/10 bg-white/90 text-gray-600 shadow-md backdrop-blur transition-colors hover:text-gray-900 dark:border-dark-600 dark:bg-dark-900/90 dark:text-gray-300 dark:hover:text-gray-100"
+    class="absolute right-3 top-3 z-20 flex rounded-control border border-primary-900/10 bg-white/90 text-gray-600 shadow-md backdrop-blur transition-colors hover:text-gray-900 dark:border-dark-600 dark:bg-dark-900/90 dark:text-gray-300 dark:hover:text-gray-100 btn-icon"
     :class="open && 'text-primary-700 dark:text-primary-300'"
     :title="t('creative.history.toggle')"
     :aria-expanded="open"
@@ -20,10 +20,10 @@
   </button>
 
   <!-- 悬浮历史列表：点击展开 / 收起，选择行后不自动收起 -->
-  <Transition name="history-panel">
+  <Transition name="pop-float">
     <div
       v-if="open"
-      class="absolute right-3 top-14 z-20 flex max-h-[70%] w-80 flex-col overflow-hidden rounded-surface border border-primary-900/10 bg-white/95 shadow-lg backdrop-blur dark:border-dark-600 dark:bg-dark-900/95"
+      class="history-pop-float absolute right-3 top-14 z-20 flex max-h-[70%] w-80 flex-col overflow-hidden rounded-surface border border-primary-900/10 bg-white/95 shadow-lg backdrop-blur dark:border-dark-600 dark:bg-dark-900/95"
     >
     <div class="flex items-center gap-2 border-b border-primary-900/10 px-3 py-2 dark:border-dark-600">
       <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-dark-400">
@@ -368,19 +368,11 @@ async function refresh(): Promise<void> {
 
 <style scoped>
 /* 历史面板从右上入口展开；条目详情使用网格轨道实现真实高度折叠。 */
-.history-panel-enter-active,
-.history-panel-leave-active {
-  transform-origin: top right;
-  transition:
-    opacity 200ms ease,
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
-}
-
-.history-panel-enter-from,
-.history-panel-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.97);
+/* 历史面板动效用全局 pop-float,锚点方向(右上锚、向上收起)用局部变量表达;
+   条目详情折叠(history-details)是网格轨道动画,保留本地。 */
+.history-pop-float {
+  --pop-origin: top right;
+  --pop-shift: -6px;
 }
 
 .history-details-grid {
@@ -438,8 +430,8 @@ async function refresh(): Promise<void> {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .history-panel-enter-active,
-  .history-panel-leave-active,
+  /* 历史面板走全局 pop-float,reduced-motion 由全局配方收敛;
+     这里只留本地 history-details 的折叠动画。 */
   .history-details-enter-active,
   .history-details-leave-active {
     transition-duration: 1ms;

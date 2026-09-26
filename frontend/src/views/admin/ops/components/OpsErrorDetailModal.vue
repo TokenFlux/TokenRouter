@@ -137,7 +137,7 @@
         <div v-else class="mt-4 space-y-4">
           <div v-for="section in diagnosticPayloadSections" :key="section.key">
             <div class="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ diagnosticPayloadLabel(section.key) }}</div>
-            <pre class="max-h-[520px] overflow-auto rounded-surface border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(section.value) }}</code></pre>
+            <pre class="max-h-[520px] overflow-auto rounded-surface border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(section.value) }}</code></pre> <!-- check-ui-allow: 错误详情 JSON 局部高度 -->
           </div>
         </div>
       </div>
@@ -206,7 +206,7 @@
 
             <pre
               v-if="expandedUpstreamDetailIds.has(ev.id)"
-              class="mt-3 max-h-[240px] overflow-auto rounded-surface border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-950 dark:text-gray-100"
+              class="mt-3 max-h-menu-sm overflow-auto rounded-surface border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-950 dark:text-gray-100"
             ><code>{{ prettyJSON(getUpstreamResponsePreview(ev)) }}</code></pre>
           </div>
         </div>
@@ -215,7 +215,7 @@
     <template v-if="backToList" #footer>
       <button
         type="button"
-        class="btn btn-secondary h-9"
+        class="btn btn-secondary"
         data-testid="error-detail-back-to-list"
         @click="goBack"
       >

@@ -130,7 +130,7 @@
   <transition name="fade">
     <div
       v-if="mobileOpen"
-      class="fixed inset-x-0 bottom-0 top-[var(--header-h)] z-30 bg-black/50 lg:hidden"
+      class="mobile-overlay fixed inset-x-0 bottom-0 top-[var(--header-h)] z-sidebar-overlay bg-black/50 lg:hidden"
       @click="closeMobile"
     ></div>
   </transition>
@@ -166,6 +166,15 @@ const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
+
+// 移动端抽屉的收起挂在导航完成事件上，取代原来 150ms 的定时器猜测：
+// 路由一变，抽屉里那份导航清单就过时了，所以不限于菜单点击引发的导航。
+watch(
+  () => route.fullPath,
+  () => {
+    if (mobileOpen.value) appStore.setMobileOpen(false)
+  }
+)
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
 
@@ -779,10 +788,9 @@ function closeMobile() {
 }
 
 function handleMenuItemClick(itemPath: string) {
-  if (mobileOpen.value) {
-    setTimeout(() => {
-      appStore.setMobileOpen(false)
-    }, 150)
+  // 点击当前路由不会触发导航（router-link 去重），上面的 route 监听不会命中，这里立即收起。
+  if (mobileOpen.value && itemPath === route.path) {
+    appStore.setMobileOpen(false)
   }
 
   // Map paths to tour selectors
@@ -852,24 +860,11 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.fade-enter-active {
-  transition: opacity 200ms ease-out;
-}
-
-.fade-leave-active {
-  transition: opacity 150ms ease-in;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fade-enter-active,
-  .fade-leave-active {
-    transition-duration: 1ms;
-  }
+/* 遮罩淡入 200ms / 淡出 150ms,变量由全局 fade 配方读取(默认档为 0.2s 双侧);
+   reduced-motion 收敛由全局配方统一处理。 */
+.mobile-overlay {
+  --fade-duration-enter: 200ms;
+  --fade-duration-leave: 150ms;
 }
 
 .sidebar-link-collapsed {

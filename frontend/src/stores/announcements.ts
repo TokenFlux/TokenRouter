@@ -82,9 +82,14 @@ export const useAnnouncementStore = defineStore('announcements', () => {
     // Mark as read (fire-and-forget, UI already updated)
     markAsRead(id)
 
-    // Show next popup after a short delay
+    // 下一条由 AnnouncementPopup 的离场结束事件触发 onPopupClosed，
+    // 不再用 300ms 定时器猜弹窗的离场时长。
+  }
+
+  // AnnouncementPopup 离场动画结束（或动画途中被卸载）时回调，推进连播队列。
+  function onPopupClosed() {
     if (popupQueue.value.length > 0) {
-      setTimeout(() => showNextPopup(), 300)
+      showNextPopup()
     }
   }
 
@@ -139,6 +144,7 @@ export const useAnnouncementStore = defineStore('announcements', () => {
     // Actions
     fetchAnnouncements,
     dismissPopup,
+    onPopupClosed,
     markAsRead,
     markAllAsRead,
     reset,

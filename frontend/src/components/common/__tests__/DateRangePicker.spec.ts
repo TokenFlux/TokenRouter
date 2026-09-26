@@ -73,14 +73,14 @@ describe('DateRangePicker', () => {
       }
     })
 
-    await wrapper.find('.date-picker-trigger').trigger('click')
+    await wrapper.find('.input-trigger').trigger('click')
     const presetButton = wrapper.findAll('.date-picker-preset').find((node) =>
       node.text().includes('Last 24 Hours')
     )
     expect(presetButton).toBeDefined()
 
     await presetButton!.trigger('click')
-    await wrapper.find('.date-picker-apply').trigger('click')
+    await wrapper.find('.date-picker-actions .btn-primary').trigger('click')
 
     const nowAfterClick = new Date()
     const yesterdayAfterClick = new Date(nowAfterClick.getTime() - 24 * 60 * 60 * 1000)
@@ -115,7 +115,7 @@ describe('DateRangePicker', () => {
       }
     })
 
-    await wrapper.find('.date-picker-trigger').trigger('click')
+    await wrapper.find('.input-trigger').trigger('click')
     const presetButton = wrapper.findAll('.date-picker-preset').find((node) =>
       node.text().includes('Last Month')
     )

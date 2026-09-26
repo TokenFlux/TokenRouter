@@ -97,7 +97,7 @@
               <button
                 type="button"
                 @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                class="btn btn-secondary shrink-0 btn-icon"
                 :aria-label="t('admin.users.columnSettings')"
                 :title="t('admin.users.columnSettings')"
               >
@@ -106,13 +106,13 @@
               </button>
               <div
                 v-if="showColumnDropdown"
-                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-control border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                class="dropdown right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto"
               >
                 <button
                   v-for="col in currentToggleableColumns"
                   :key="col.key"
                   @click="toggleCurrentColumn(col.key)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="dropdown-item justify-between"
                 >
                   <span>{{ col.label }}</span>
                   <Icon

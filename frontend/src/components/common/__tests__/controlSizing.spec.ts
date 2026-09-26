@@ -19,6 +19,7 @@ const SelectStub = defineComponent({
   name: 'PaginationSelectStub',
   props: ['modelValue', 'options'],
   setup(props) {
+    // 真实 Select 的 36px 由 .input 基线(min-h-9)提供,stub 以 h-9 顶替这一高度契约。
     return () => h('button', { class: 'select-trigger h-9' }, String(props.modelValue))
   }
 })
@@ -43,10 +44,16 @@ describe('36px control sizing', () => {
     expect(globalStyle).toContain('@apply inline-flex h-9 w-9 items-center justify-center rounded-control p-0;')
     expect(globalStyle).toContain('@apply w-full rounded-control px-4 py-1.5 text-sm;')
     expect(globalStyle).toContain('@apply flex h-9 items-center gap-3 rounded-control py-1.5;')
-    expect(selectSource).toContain('@apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;')
-    expect(proxySelectorSource).toContain('@apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;')
-    expect(dateRangePickerSource).toContain('@apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;')
-    expect(dateRangePickerSource).toContain('@apply inline-flex h-9 min-h-9 items-center justify-center rounded-control px-4 py-1.5 text-sm font-medium;')
+    // 三个下拉触发器以模板组合 input input-trigger 共享 36px 基线,不再各自复制配方。
+    expect(selectSource).toContain("'input input-trigger'")
+    expect(proxySelectorSource).toContain("'input input-trigger'")
+    expect(dateRangePickerSource).toContain("'input input-trigger'")
+    for (const source of [selectSource, proxySelectorSource, dateRangePickerSource]) {
+      expect(source).not.toContain('@apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;')
+    }
+    // 弹层内的确认按钮直接使用共享按钮配方。
+    expect(dateRangePickerSource).toContain('class="btn btn-primary"')
+    expect(dateRangePickerSource).not.toContain('.date-picker-apply')
     // 分页控件直接由模板里的 h-9 提供 36px 基线,不再有局部高度覆盖。
     expect(paginationSource).toContain('pagination-jump-button btn btn-ghost btn-sm h-9')
     expect(paginationSource).not.toContain('--pagination-control-height')
@@ -93,7 +100,7 @@ describe('36px control sizing', () => {
     expect(settingsSource).toContain('class="btn btn-secondary btn-sm h-9 w-fit"')
     expect(emailTemplateSource).toContain('class="btn btn-primary btn-sm h-9"')
     expect(backupSource).toContain('class="btn btn-primary btn-sm h-9"')
-    expect(providerListSource).toContain('class="btn btn-secondary btn-sm h-9 w-9 p-0"')
+    expect(providerListSource).toContain('class="btn btn-secondary btn-icon"')
     expect(adminOrdersSource).toContain('<TablePageLayout>')
     expect(adminOrdersSource).toContain('<template #table>')
     expect(adminPaymentPlansSource).toContain('<TablePageLayout>')

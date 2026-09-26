@@ -88,8 +88,8 @@ describe('global header and sidebar hierarchy', () => {
 
   it('starts the mobile overlay below the global header', () => {
     // 遮罩不能位于半透明顶栏下方，否则 glass 背景会透出黑色并使顶栏变灰。
-    expect(componentSource).toContain('fixed inset-x-0 bottom-0 top-[var(--header-h)] z-30 bg-black/50 lg:hidden')
-    expect(componentSource).not.toContain('fixed inset-0 z-30 bg-black/50 lg:hidden')
+    expect(componentSource).toContain('fixed inset-x-0 bottom-0 top-[var(--header-h)] z-sidebar-overlay bg-black/50 lg:hidden')
+    expect(componentSource).not.toContain('fixed inset-0 z-sidebar-overlay bg-black/50 lg:hidden')
   })
 
   it('keeps the scrolling content below the fixed global header', () => {
@@ -101,12 +101,10 @@ describe('global header and sidebar hierarchy', () => {
 
   it('fades the mobile overlay in and out', () => {
     // 遮罩应渐进显示和隐藏，避免打开侧栏时页面突然变暗。
-    expect(componentSource).toContain('.fade-enter-active')
-    expect(componentSource).toContain('transition: opacity 200ms ease-out;')
-    expect(componentSource).toContain('.fade-leave-active')
-    expect(componentSource).toContain('transition: opacity 150ms ease-in;')
-    expect(componentSource).toContain('.fade-enter-from,')
-    expect(componentSource).toContain('.fade-leave-to')
+    // 配方已收敛为全局 fade,本组件只用 --fade-duration-* 覆盖进/退时长。
+    expect(componentSource).toContain('<transition name="fade">')
+    expect(componentSource).toContain('--fade-duration-enter: 200ms;')
+    expect(componentSource).toContain('--fade-duration-leave: 150ms;')
   })
 })
 

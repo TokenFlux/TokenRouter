@@ -2,7 +2,7 @@ import { ref } from 'vue'
 
 const themeStorageKey = 'theme'
 const themeSwitchingClass = 'theme-switching'
-const isDark = ref(document.documentElement.classList.contains('dark'))
+const isDark = ref(document.documentElement.classList.contains('dark')) // check-ui-allow: 响应式主题原语本身
 let themeSwitchFrame: number | undefined
 
 function prefersDarkMode(): boolean {

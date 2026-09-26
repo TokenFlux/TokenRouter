@@ -322,7 +322,7 @@
       v-if="tokenTooltipVisible"
       ref="tokenTooltipRef"
       data-testid="token-detail-tooltip"
-      class="pointer-events-none fixed z-[9999]"
+      class="pointer-events-none fixed z-teleport-tooltip"
       :class="{ invisible: !tokenTooltipReady }"
       :style="{
         left: tokenTooltipPosition.x + 'px',
@@ -418,7 +418,7 @@
       v-if="timingTooltipVisible"
       ref="timingTooltipRef"
       data-testid="timing-detail-tooltip"
-      class="pointer-events-none fixed z-[9999]"
+      class="pointer-events-none fixed z-teleport-tooltip"
       :class="{ invisible: !timingTooltipReady }"
       :style="{
         left: timingTooltipPosition.x + 'px',
@@ -473,7 +473,7 @@
       v-if="tooltipVisible"
       ref="tooltipRef"
       data-testid="cost-detail-tooltip"
-      class="pointer-events-none fixed z-[9999]"
+      class="pointer-events-none fixed z-teleport-tooltip"
       :class="{ invisible: !tooltipReady }"
       :style="{
         left: tooltipPosition.x + 'px',
@@ -636,6 +636,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useClipboard } from '@/composables/useClipboard'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
@@ -798,14 +799,14 @@ const copyRequestId = async (requestId: string) => {
   copiedRequestId.value = requestId
   window.setTimeout(() => {
     if (copiedRequestId.value === requestId) copiedRequestId.value = null
-  }, 2000)
+  }, COPY_FEEDBACK_MS)
 }
 const copyUpstreamRequestId = async (upstreamRequestId: string) => {
   if (!await copyToClipboard(upstreamRequestId, t('admin.usage.upstreamRequestIdCopied'))) return
   copiedRequestId.value = upstreamRequestId
   window.setTimeout(() => {
     if (copiedRequestId.value === upstreamRequestId) copiedRequestId.value = null
-  }, 2000)
+  }, COPY_FEEDBACK_MS)
 }
 
 // 费用 Tooltip 状态。

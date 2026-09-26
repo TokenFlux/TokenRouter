@@ -81,7 +81,7 @@
           <div class="card p-6">
             <div id="stripe-payment-element" class="min-h-[200px]"></div>
             <p v-if="stripeError" class="mt-4 text-sm text-red-600 dark:text-red-400">{{ stripeError }}</p>
-            <button class="btn btn-stripe h-9 mt-6 w-full py-0 text-base" :disabled="stripeSubmitting || !stripeReady" @click="handleGenericPay">
+            <button class="btn btn-stripe mt-6 w-full py-0 text-base" :disabled="stripeSubmitting || !stripeReady" @click="handleGenericPay">
               <span v-if="stripeSubmitting" class="flex items-center justify-center gap-2">
                 <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                 {{ t('common.processing') }}
@@ -105,13 +105,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { usePaymentStore } from '@/stores/payment'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
+import { useTheme } from '@/composables/useTheme'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import { PAYMENT_RECOVERY_STORAGE_KEY, readPaymentRecoverySnapshot } from '@/components/payment/paymentFlow'
 import type { PaymentOrder } from '@/types/payment'
@@ -143,6 +144,15 @@ const showPaymentElement = ref(false)
 
 let stripeInstance: Stripe | null = null
 let elementsInstance: StripeElements | null = null
+
+// 与 StripePaymentInline 同一外观约定:主题切换用 elements.update 即时重应用。
+const { isDark } = useTheme()
+const stripeAppearance = () =>
+  ({ theme: isDark.value ? 'night' : 'stripe', variables: { borderRadius: '8px' } }) as const
+
+watch(isDark, () => {
+  elementsInstance?.update({ appearance: stripeAppearance() })
+})
 let redirectTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
@@ -253,10 +263,9 @@ async function confirmWechatPay(stripe: Stripe, clientSecret: string) {
 }
 
 function mountPaymentElement(stripe: Stripe, clientSecret: string) {
-  const isDark = document.documentElement.classList.contains('dark')
   const elements = stripe.elements({
     clientSecret,
-    appearance: { theme: isDark ? 'night' : 'stripe', variables: { borderRadius: '8px' } },
+    appearance: stripeAppearance(),
   })
   elementsInstance = elements
   const paymentElement = elements.create('payment', {

@@ -4,11 +4,12 @@
       {{ label }}
       <span v-if="required" class="text-red-500">*</span>
     </label>
-    <div class="relative">
+    <!-- 右侧操作位沿用本组件既有参数(inset 0.75rem / 留白 2.75rem),与左侧 lg 档不对称是有意保留。 -->
+    <div class="input-icon-wrap input-icon-lg [--input-icon-inset-r:0.75rem] [--input-icon-slot-r:2rem]">
       <!-- Prefix Icon Slot -->
       <div
         v-if="$slots.prefix"
-        class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 dark:text-dark-400"
+        class="input-icon text-gray-400 dark:text-dark-400"
       >
         <slot name="prefix"></slot>
       </div>
@@ -25,8 +26,8 @@
         :readonly="readonly"
         :class="[
           'input w-full transition-all duration-200',
-          $slots.prefix ? 'pl-11' : '',
-          $slots.suffix ? 'pr-11' : '',
+          $slots.prefix ? 'input-has-icon' : '',
+          $slots.suffix ? 'input-has-icon-right' : '',
           error ? 'input-error ring-2 ring-red-500/20' : '',
           disabled ? 'cursor-not-allowed bg-gray-100 opacity-60 dark:bg-dark-900' : ''
         ]"
@@ -40,7 +41,7 @@
       <!-- Suffix Slot (e.g. Password Toggle or Clear Button) -->
       <div
         v-if="$slots.suffix"
-        class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 dark:text-dark-400"
+        class="input-icon-right text-gray-400 dark:text-dark-400"
       >
         <slot name="suffix"></slot>
       </div>

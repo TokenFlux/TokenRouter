@@ -9,10 +9,7 @@
     <!-- 独立 mask 画布：先以不透明颜色合成，再整体设置透明度，避免笔迹重叠变深 -->
     <canvas ref="maskCanvasElRef" class="mask-overlay"></canvas>
     <!-- 拖放目标反馈不接收指针事件，避免覆盖 Fabric 画布交互。 -->
-    <div
-      v-if="dropTargetActive"
-      class="pointer-events-none absolute inset-2 z-[2] rounded-surface border-2 border-dashed border-primary-500/70 bg-primary-500/5"
-    ></div>
+    <div v-if="dropTargetActive" class="pointer-events-none absolute inset-2 z-[2] rounded-surface border-2 border-dashed border-primary-500/70 bg-primary-500/5"><!-- check-ui-allow: 画布内局部堆叠 --></div>
 
     <!-- 浮动工具栏（顶部居中，含移动端；窄屏限宽并换行，圆角保持与桌面端一致，避免与左上角设置、右上角历史按钮重叠）：上传 | 局部重绘画笔组 | 删除选中 / 清空 -->
     <div
@@ -1955,7 +1952,7 @@ defineExpose({
 
 /* mask 独立画布只展示，不拦截主画布的指针事件；整层透明度避免笔迹重叠变深 */
 .mask-overlay {
-  @apply pointer-events-none absolute inset-0 z-[1];
+  @apply pointer-events-none absolute inset-0 z-[1]; /* check-ui-allow: 画布内局部堆叠 */
 }
 
 .canvas-tool-btn {

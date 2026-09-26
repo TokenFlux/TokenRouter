@@ -12,7 +12,7 @@
       <button
         type="button"
         data-testid="account-filters-toggle"
-        class="btn btn-secondary relative h-9 w-9 p-0"
+        class="btn btn-secondary relative btn-icon"
         :class="activeFilterCount > 0 ? 'border-primary-400 text-primary-700 dark:border-primary-500 dark:text-primary-300' : ''"
         :aria-expanded="showFilters"
         :aria-label="t('common.filter')"
@@ -30,7 +30,7 @@
 
       <div
         v-if="showFilters"
-        class="absolute left-auto right-0 top-full z-[60] mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto"
+        class="absolute left-auto right-0 top-full z-modal-nested mt-2 w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-surface border border-gray-200 bg-white shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto"
         @click.stop
       >
         <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-dark-700">

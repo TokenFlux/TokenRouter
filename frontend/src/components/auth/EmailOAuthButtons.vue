@@ -14,7 +14,7 @@
         :key="provider"
         type="button"
         :disabled="disabled"
-        class="btn btn-secondary h-9 w-full justify-center gap-2"
+        class="btn btn-secondary w-full justify-center gap-2"
         @click="startLogin(provider)"
       >
         <GitHubMark v-if="provider === 'github'" class="h-5 w-5 text-gray-800 dark:text-gray-100" />

@@ -95,14 +95,14 @@
       <div>
         <label class="input-label">{{ t('payment.admin.refundAmount') }}</label>
         <div class="relative">
-          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ refundInputSymbol }}</span>
+          <span class="input-icon text-gray-500">{{ refundInputSymbol }}</span>
           <input
             v-model.number="form.amount"
             type="number"
             step="0.01"
             min="0.01"
             :max="maxRefundable"
-            class="input pl-7"
+            class="input input-has-icon input-icon-text"
             required
           />
         </div>

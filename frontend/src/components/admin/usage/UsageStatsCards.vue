@@ -96,6 +96,7 @@ import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import type { UsageStatsResponse } from '@/types'
 import Icon from '@/components/icons/Icon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { formatTokens } from '@/utils/format'
 
 const props = withDefaults(defineProps<{
   stats: (AdminUsageStatsResponse | UsageStatsResponse) | null
@@ -121,13 +122,6 @@ const showStandardCost = computed(() => props.showStandardCost)
 
 const formatDuration = (ms: number) =>
   ms < 1000 ? `${ms.toFixed(0)}ms` : `${(ms / 1000).toFixed(2)}s`
-
-const formatTokens = (value: number) => {
-  if (value >= 1e9) return (value / 1e9).toFixed(2) + 'B'
-  if (value >= 1e6) return (value / 1e6).toFixed(2) + 'M'
-  if (value >= 1e3) return (value / 1e3).toFixed(2) + 'K'
-  return value.toLocaleString()
-}
 
 const cacheLabel = () => t('usage.cacheTotal')
 const cacheDetailLabel = () => t('usage.cacheBreakdown')

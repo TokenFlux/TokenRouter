@@ -11,6 +11,7 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { formatNumber } from '@/utils/format'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
+import { useChartTheme, CHART_TICK_FONT_SIZE, CHART_LEGEND_FONT_SIZE } from '@/composables/useChartTheme'
 
 ChartJS.register(Title, Tooltip, Legend, LineElement, LinearScale, PointElement, CategoryScale, Filler)
 
@@ -46,14 +47,14 @@ watch(
   }
 )
 
-const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
+const { colors: themeColors } = useChartTheme()
 const colors = computed(() => ({
   blue: '#3b82f6',
   blueAlpha: '#3b82f620',
   green: '#10b981',
   greenAlpha: '#10b98120',
-  grid: isDarkMode.value ? '#3F3F46' : '#F4F4F5',
-  text: isDarkMode.value ? '#A1A1AA' : '#71717A'
+  grid: themeColors.value.grid,
+  text: themeColors.value.muted
 }))
 
 const totalRequests = computed(() => sumNumbers(props.points.map((p) => p.request_count)))
@@ -104,7 +105,7 @@ const options = computed(() => {
       legend: {
         position: 'top' as const,
         align: 'end' as const,
-        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 10 } }
+        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: CHART_LEGEND_FONT_SIZE } }
       },
       tooltip: {
         enabled: false,
@@ -130,7 +131,7 @@ const options = computed(() => {
         grid: { display: false },
         ticks: {
           color: c.text,
-          font: { size: 10 },
+          font: { size: CHART_TICK_FONT_SIZE },
           maxTicksLimit: 8,
           autoSkip: true,
           autoSkipPadding: 10
@@ -141,14 +142,14 @@ const options = computed(() => {
         display: true,
         position: 'left' as const,
         grid: { color: c.grid, borderDash: [4, 4] },
-        ticks: { color: c.text, font: { size: 10 } }
+        ticks: { color: c.text, font: { size: CHART_TICK_FONT_SIZE } }
       },
       y1: {
         type: 'linear' as const,
         display: true,
         position: 'right' as const,
         grid: { display: false },
-        ticks: { color: c.green, font: { size: 10 } }
+        ticks: { color: c.green, font: { size: CHART_TICK_FONT_SIZE } }
       }
     }
   }

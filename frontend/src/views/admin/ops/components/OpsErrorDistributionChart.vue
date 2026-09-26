@@ -8,6 +8,7 @@ import type { ChartState } from '../types'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -24,13 +25,13 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
+const { colors: themeColors } = useChartTheme()
 const colors = computed(() => ({
   blue: '#3b82f6',
   red: '#ef4444',
   orange: '#f59e0b',
   gray: '#A1A1AA',
-  text: isDarkMode.value ? '#A1A1AA' : '#71717A'
+  text: themeColors.value.muted
 }))
 
 const totalSlaErrors = computed(() =>

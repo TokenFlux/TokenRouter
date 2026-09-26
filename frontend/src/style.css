@@ -15,6 +15,36 @@
     --radius-control: 8px;
     --radius-surface: 12px;
     --radius-dialog: 16px;
+    /* 浮层层级语义阶梯:数值唯一来源,tailwind zIndex 扩展与 constants/overlay.ts 的
+       Z_INDEX 只引用/镜像这里的值(契约测试锁定三轨一致)。梯队由低到高:
+       图表 tooltip 与侧栏遮罩(30) → 侧栏(40) → 顶栏与弹窗(50,同级靠 DOM 顺序决胜) →
+       嵌套弹窗(60) → 提示与公告(100-140,公告梯队递增有意) → 菜单捕获层/通知(9998/9999) →
+       帮助提示(99999) → 引导层(driver.js 外部约束 100000000,仅登记) →
+       teleported 下拉(100000020,必须压过引导层)。 */
+    --z-chart-tooltip: 30;
+    --z-sidebar-overlay: 30;
+    --z-sidebar: 40;
+    --z-header: 50;
+    --z-modal: 50;
+    --z-modal-nested: 60;
+    --z-tooltip: 100;
+    --z-announcement: 100;
+    --z-announcement-raised: 120;
+    --z-announcement-top: 140;
+    --z-menu-overlay: 9998;
+    --z-toast: 9999;
+    --z-action-menu: 9999;
+    --z-teleport-tooltip: 9999; /* teleported 提示浮层,与 toast/action-menu 同层 */
+    --z-help-tooltip: 99999;
+    --z-tour: 100000000;
+    --z-teleport-dropdown: 100000020;
+    /* 遮罩透明度两档:标准 / 强调(破坏性操作与重要确认);dark 变体由调用点自行叠加。 */
+    --overlay-bg: rgb(0 0 0 / 0.5);
+    --overlay-bg-strong: rgb(0 0 0 / 0.7);
+    /* 浮层面板最大高度档位:紧凑菜单 240 / 常规菜单 320 / 内容面板 420。 */
+    --max-h-menu-sm: 15rem;
+    --max-h-menu: 20rem;
+    --max-h-panel: 26.25rem;
   }
 
   * {
@@ -377,12 +407,11 @@
     @apply min-h-0;
   }
 
-  /* 显式紧凑尺寸用于表单内的小控件，不被工具栏基线覆盖。 */
+  /* 显式紧凑尺寸用于表单内的小控件，不被工具栏基线覆盖。
+     h-9 与 .btn/.input 基线同高，不再单独豁免。 */
   .btn.h-8,
-  .btn.h-9,
   .btn.h-10,
   .input.h-8,
-  .input.h-9,
   .input.h-10 {
     @apply min-h-0;
   }
@@ -397,6 +426,11 @@
 
   .btn-icon {
     @apply inline-flex h-9 w-9 items-center justify-center rounded-control p-0;
+  }
+
+  /* 图标按钮两档:常规 36px(.btn-icon)与紧凑 32px(.btn-icon-sm),与控件基线同一体系。 */
+  .btn-icon-sm {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-control p-0;
   }
 
   /* ============ 输入框样式 ============ */
@@ -427,6 +461,63 @@
 
   .input-error-text {
     @apply mt-1 text-xs text-red-500;
+  }
+
+  /* 选择器/日期控件的触发器与 .input 共用同一份尺寸与边框配方(模板 class="input input-trigger"
+     组合引用),这里只承载触发器特有的布局与交互增量;两端对齐由内容的 flex-1 值位承担,
+     不在这里 justify-between(无 flex-1 的触发器会被撑散)。 */
+  .input-trigger {
+    @apply flex items-center gap-2;
+    @apply cursor-pointer;
+    @apply hover:border-black/20 dark:hover:border-primary-500;
+  }
+
+  /* 输入框图标区域:图标位与文本留白由同一组变量推导(留白 = inset + 图标占位 slot),
+     两侧对齐永不脱节;左右两侧的 inset/slot 各自独立成参,覆盖单侧不影响另一侧。
+     .input-icon/.input-icon-right 可直接挂在图标/字符元素上,也可挂包裹容器。
+     默认档对齐列表搜索框(左 inset 0.75rem / 左留白 2.5rem);
+     .input-icon-lg 对齐表单输入框(左 inset 0.875rem / 左留白 2.75rem)。 */
+  .input-icon-wrap {
+    @apply relative;
+  }
+
+  .input-icon {
+    @apply pointer-events-none absolute left-0 top-1/2 -translate-y-1/2;
+    margin-left: var(--input-icon-inset, 0.75rem);
+  }
+
+  /* 右侧图标/操作位;含可点击内容(清除、显隐切换)时用 .input-icon-action 恢复指针事件。 */
+  .input-icon-right {
+    @apply absolute right-0 top-1/2 -translate-y-1/2;
+    left: auto;
+    margin-left: 0;
+    margin-right: var(--input-icon-inset-r, 0.75rem);
+  }
+
+  .input-icon-action {
+    @apply pointer-events-auto;
+  }
+
+  .input-has-icon {
+    padding-left: calc(var(--input-icon-inset, 0.75rem) + var(--input-icon-slot, 1.75rem));
+  }
+
+  .input-has-icon-right {
+    padding-right: calc(var(--input-icon-inset-r, 0.75rem) + var(--input-icon-slot-r, 1.75rem));
+  }
+
+  /* 表单档(auth 页等):图标位 0.875rem、左右留白 2.75rem。
+     Input.vue 的右侧操作位更宽,由组件本地覆盖 --input-icon-inset-r/--input-icon-slot-r。 */
+  .input-icon-lg {
+    --input-icon-inset: 0.875rem;
+    --input-icon-inset-r: 0.875rem;
+    --input-icon-slot: 1.875rem;
+    --input-icon-slot-r: 1.875rem;
+  }
+
+  /* 文本前缀档($、¥ 等窄字符):slot 1.25rem,留白 2rem。 */
+  .input-icon-text {
+    --input-icon-slot: 1.25rem;
   }
 
   /* Hide number input spinner buttons for cleaner UI */
@@ -477,15 +568,6 @@
 
   .card-header {
     @apply border-b border-primary-900/10 dark:border-dark-600/80;
-    @apply px-6 py-4;
-  }
-
-  .card-body {
-    @apply p-6;
-  }
-
-  .card-footer {
-    @apply border-t border-primary-900/10 dark:border-dark-600/80;
     @apply px-6 py-4;
   }
 
@@ -601,28 +683,53 @@
   }
 
   /* ============ 下拉菜单 ============ */
+  /* 纯容器配方:定位(z-index/偏移/动画)由调用点按场景叠加。 */
   .dropdown {
-    @apply absolute z-50;
+    @apply absolute;
     @apply bg-white dark:bg-dark-900;
     @apply rounded-control;
     @apply border border-primary-900/10 dark:border-dark-600;
     @apply shadow-lg;
     @apply py-1;
-    @apply origin-top-right animate-scale-in;
+  }
+
+  /* 菜单项两档密度:常规 px-4 / 紧凑 px-3,其余配方一致。
+     基色是全站行动菜单的中性灰;品牌色导航菜单(AppHeader)叠加 .dropdown-item-brand。 */
+  .dropdown-item,
+  .dropdown-item-sm {
+    @apply flex w-full items-center gap-2 py-2 text-sm;
+    @apply text-gray-700 dark:text-gray-300;
+    @apply hover:bg-gray-100 dark:hover:bg-dark-700;
+    @apply cursor-pointer transition-colors;
   }
 
   .dropdown-item {
-    @apply px-4 py-2 text-sm;
+    @apply px-4;
+  }
+
+  .dropdown-item-sm {
+    @apply px-3;
+  }
+
+  /* 品牌色档:定义在基色之后,同优先级下覆盖文字与 hover 底色。 */
+  .dropdown-item-brand {
     @apply text-primary-900 dark:text-dark-100;
     @apply hover:bg-primary-100 dark:hover:bg-dark-800;
-    @apply cursor-pointer transition-colors;
-    @apply flex items-center gap-2;
+  }
+
+  /* 行动菜单容器(teleport 到 body 的表格行操作浮层):宽度/滚动由调用点补充。
+     action-menu-content 是外部点击关闭的 JS 钩子,迁移时保留。 */
+  .action-menu {
+    @apply fixed z-action-menu rounded-control;
+    @apply bg-white shadow-lg ring-1 ring-black/5;
+    @apply dark:bg-dark-800 dark:ring-white/10;
   }
 
   /* ============ 模态框 ============ */
   .modal-overlay {
-    @apply fixed inset-0 z-50;
-    @apply bg-black/50 backdrop-blur-sm;
+    @apply fixed inset-0 z-modal;
+    background-color: var(--overlay-bg);
+    @apply backdrop-blur-sm;
     @apply flex items-center justify-center p-2 sm:p-4;
   }
 
@@ -712,67 +819,127 @@
     }
   }
 
-  /* ============ Dialog ============ */
-  .dialog-overlay {
-    @apply fixed inset-0 z-50;
-    @apply bg-black/40 dark:bg-black/60;
-    @apply flex items-center justify-center p-4;
+  /* ============ 通用过渡配方(全局,供 <Transition name> 引用) ============ */
+  /* fade:通用淡入淡出,默认 0.2s;调用点可用 --fade-duration-enter/leave 覆盖单侧时长
+     (如侧栏遮罩 200ms 进 / 150ms 退)。 */
+  .fade-enter-active {
+    transition: opacity var(--fade-duration-enter, var(--fade-duration, 0.2s)) ease-out;
   }
 
-  .dialog-container {
-    @apply flex w-full flex-col;
-    @apply max-h-[90vh];
-    @apply rounded-surface bg-white dark:bg-dark-900 sm:rounded-dialog;
-    @apply border border-primary-900/10 dark:border-dark-600;
-    @apply shadow-xl;
+  .fade-leave-active {
+    transition: opacity var(--fade-duration-leave, var(--fade-duration, 0.2s)) ease-in;
   }
 
-  .dialog-header {
-    @apply border-b border-primary-900/10 px-6 py-4 dark:border-dark-600;
-    @apply flex items-center justify-between;
+  .fade-enter-from,
+  .fade-leave-to {
+    opacity: 0;
   }
 
-  .dialog-body {
-    @apply overflow-y-auto px-6 py-4;
+  /* fade-slow:页面级区块切换(auth 页、兑换页等),0.3s 并带轻微上移。 */
+  .fade-slow-enter-active,
+  .fade-slow-leave-active {
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease;
   }
 
-  .dialog-footer {
-    @apply border-t border-primary-900/10 px-6 py-4 dark:border-dark-600;
-    @apply bg-primary-50/70 dark:bg-dark-950/70;
-    @apply flex items-center justify-end gap-3;
+  .fade-slow-enter-from,
+  .fade-slow-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
   }
 
-  /* ============ Toast 通知 ============ */
-  .toast {
-    @apply fixed right-4 top-4 z-[100];
-    @apply min-w-[320px] max-w-md;
-    @apply bg-white dark:bg-dark-900;
-    @apply dark:border dark:border-dark-600;
-    @apply rounded-surface shadow-lg;
-    @apply border-l-4;
-    @apply p-4;
-    @apply animate-slide-in-right;
+  /* pop-fade:公告类浮层的淡入淡出,内层 section 面板同步轻微缩放位移。 */
+  .pop-fade-enter-active {
+    transition: opacity 0.18s ease;
   }
 
-  .toast-success {
-    @apply border-l-emerald-500;
+  .pop-fade-leave-active {
+    transition: opacity 0.14s ease;
   }
 
-  .toast-error {
-    @apply border-l-red-500;
+  .pop-fade-enter-active > section,
+  .pop-fade-leave-active > section {
+    transition:
+      transform 0.18s ease,
+      opacity 0.18s ease;
   }
 
-  .toast-warning {
-    @apply border-l-amber-500;
+  .pop-fade-enter-from,
+  .pop-fade-leave-to {
+    opacity: 0;
   }
 
-  .toast-info {
-    @apply border-l-primary-500;
+  .pop-fade-enter-from > section,
+  .pop-fade-leave-to > section {
+    transform: scale(0.98) translateY(4px);
+    opacity: 0;
+  }
+
+  /* dropdown-fade:下拉面板展开收起(0.2s,轻微下移)。
+     只动画透明度与位移,位置数值由 JS 按触发器计算,不参与过渡。 */
+  .dropdown-fade-enter-active,
+  .dropdown-fade-leave-active {
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  .dropdown-fade-enter-from,
+  .dropdown-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  /* pop-float:锚定浮层的展开动效(200ms 缓出,位移+缩放)。锚点方向由调用点用
+     --pop-origin 与 --pop-shift 表达,默认值对应"向上展开"的弹层。 */
+  .pop-float-enter-active,
+  .pop-float-leave-active {
+    transform-origin: var(--pop-origin, bottom center);
+    transition:
+      opacity 200ms ease,
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+
+  .pop-float-enter-from,
+  .pop-float-leave-to {
+    opacity: 0;
+    transform: translateY(var(--pop-shift, 8px)) scale(0.97);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fade-enter-active,
+    .fade-leave-active,
+    .fade-slow-enter-active,
+    .fade-slow-leave-active,
+    .pop-fade-enter-active,
+    .pop-fade-leave-active,
+    .pop-fade-enter-active > section,
+    .pop-fade-leave-active > section,
+    .dropdown-fade-enter-active,
+    .dropdown-fade-leave-active,
+    .pop-float-enter-active,
+    .pop-float-leave-active {
+      transition-duration: 1ms;
+      transition-delay: 0ms;
+    }
+
+    .fade-slow-enter-from,
+    .fade-slow-leave-to,
+    .pop-fade-enter-from > section,
+    .pop-fade-leave-to > section,
+    .dropdown-fade-enter-from,
+    .dropdown-fade-leave-to,
+    .pop-float-enter-from,
+    .pop-float-leave-to {
+      transform: none;
+    }
   }
 
   /* ============ 侧边栏 ============ */
   .sidebar {
-    @apply fixed bottom-0 left-0 z-40;
+    @apply fixed bottom-0 left-0 z-sidebar;
     width: var(--sidebar-w);
     @apply bg-white dark:bg-dark-900/95;
     @apply border-r border-primary-900/10 dark:border-dark-600;
@@ -910,27 +1077,6 @@
     @apply transition-all duration-300;
   }
 
-  /* ============ 开关 ============ */
-  .switch {
-    @apply relative h-6 w-11 cursor-pointer rounded-full;
-    @apply bg-primary-200 dark:bg-dark-950;
-    @apply transition-colors duration-200;
-  }
-
-  .switch-active {
-    @apply bg-primary-500;
-  }
-
-  .switch-thumb {
-    @apply absolute left-0.5 top-0.5 h-5 w-5 rounded-full;
-    @apply bg-white shadow-none;
-    @apply transition-transform duration-200;
-  }
-
-  .switch-active .switch-thumb {
-    @apply translate-x-5;
-  }
-
   /* ============ 代码块 ============ */
   .code {
     @apply font-mono text-sm;
@@ -1032,8 +1178,7 @@
 
   .dark .dropdown,
   .dark .modal-content,
-  .dark .dialog-container,
-  .dark .toast {
+  .dark .dialog-container {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.3) !important;
   }
 

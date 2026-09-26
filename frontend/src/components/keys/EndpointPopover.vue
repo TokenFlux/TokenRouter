@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useClipboard } from '@/composables/useClipboard'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import type { CustomEndpoint } from '@/types'
 
 const props = defineProps<{
@@ -43,7 +44,7 @@ async function copy(url: string) {
     if (copiedEndpoint.value === url) {
       copiedEndpoint.value = null
     }
-  }, 1800)
+  }, COPY_FEEDBACK_MS)
 }
 
 function tooltipHint(endpoint: string): string {

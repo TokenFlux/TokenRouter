@@ -23,10 +23,10 @@
 
     <!-- 公告列表弹窗与公告详情共用同一套轻量卡片风格。 -->
     <Teleport to="body">
-      <Transition name="modal-fade">
+      <Transition name="pop-fade">
         <div
           v-if="isModalOpen"
-          class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/55 p-3 backdrop-blur-sm sm:p-6"
+          class="fixed inset-0 z-announcement flex items-center justify-center overflow-y-auto bg-[var(--overlay-bg)] p-3 backdrop-blur-sm sm:p-6"
           @click.self="closeModal"
         >
           <section
@@ -72,7 +72,7 @@
                 <button
                   type="button"
                   data-testid="announcement-list-close"
-                  class="flex h-8 w-8 items-center justify-center rounded-control text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-dark-100 dark:focus-visible:ring-primary-500/50"
+                  class="flex rounded-control text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-dark-100 dark:focus-visible:ring-primary-500/50 btn-icon-sm"
                   :aria-label="t('common.close')"
                   @click="closeModal"
                 >
@@ -278,31 +278,7 @@ watch(
 </script>
 
 <style scoped>
-/* 列表弹窗沿用详情弹窗的轻微缩放和位移动效。 */
-.modal-fade-enter-active {
-  transition: opacity 0.18s ease;
-}
-
-.modal-fade-leave-active {
-  transition: opacity 0.14s ease;
-}
-
-.modal-fade-enter-active > section,
-.modal-fade-leave-active > section {
-  transition: transform 0.18s ease, opacity 0.18s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-
-.modal-fade-enter-from > section,
-.modal-fade-leave-to > section {
-  transform: scale(0.98) translateY(4px);
-  opacity: 0;
-}
-
+/* 过渡配方用全局 pop-fade(数值与原 scoped 拷贝逐字一致),reduced-motion 也由全局收敛。 */
 /* 滚动条使用中性色，避免列表区域产生额外强调。 */
 .announcement-list-scrollbar::-webkit-scrollbar {
   width: 8px;
@@ -323,14 +299,5 @@ watch(
   background: rgb(82 82 91 / 0.7);
   border: 2px solid transparent;
   background-clip: padding-box;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .modal-fade-enter-active,
-  .modal-fade-leave-active,
-  .modal-fade-enter-active > section,
-  .modal-fade-leave-active > section {
-    transition: none;
-  }
 }
 </style>

@@ -15,7 +15,7 @@
             <div ref="filterDropdownRef" class="relative shrink-0">
               <button
                 type="button"
-                class="btn btn-secondary relative h-9 w-9 p-0"
+                class="btn btn-secondary relative btn-icon"
                 :aria-expanded="showFilterDropdown"
                 :aria-label="t('common.filter')"
                 :title="t('common.filter')"
@@ -26,7 +26,7 @@
               </button>
               <div
                 v-if="showFilterDropdown"
-                class="absolute left-auto right-0 top-full z-[60] mt-2 w-72 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto"
+                class="absolute left-auto right-0 top-full z-modal-nested mt-2 w-72 rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto"
                 @click.stop
               >
                 <div class="mb-3 flex items-center justify-between">
@@ -46,7 +46,7 @@
             <button
               @click="loadCodes"
               :disabled="loading"
-              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+              class="btn btn-secondary shrink-0 btn-icon"
               :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
@@ -287,125 +287,121 @@
     />
 
     <!-- 生成兑换码弹窗 -->
-    <Teleport to="body">
-      <div v-if="showGenerateDialog" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="fixed inset-0 bg-black/50" @click="showGenerateDialog = false"></div>
-        <div
-          class="relative z-10 w-full max-w-md rounded-surface bg-white p-6 shadow-xl dark:bg-dark-800 sm:rounded-dialog"
-        >
-          <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-            {{ t('admin.redeem.generateCodesTitle') }}
-          </h2>
-          <form data-testid="generate-form" @submit.prevent="handleGenerateCodes" class="space-y-4">
-            <div>
-              <label class="input-label">
-                {{ t('admin.redeem.customCode') }}
-                <span class="ml-1 text-xs font-normal text-gray-400">
-                  ({{ t('common.optional') }})
-                </span>
-              </label>
-              <input
-                v-model="generateForm.code"
-                type="text"
-                maxlength="32"
-                class="input"
-                :placeholder="t('admin.redeem.customCodePlaceholder')"
-              />
-              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                {{ t('admin.redeem.customCodeHint') }}
-              </p>
-            </div>
-            <div>
-              <label class="input-label">{{ t('admin.redeem.codeType') }}</label>
-              <Select v-model="generateForm.type" :options="typeOptions" />
-            </div>
-
-            <!-- 余额/并发类型：显示数值输入 -->
-            <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
-              <label class="input-label">
-                {{
-                  generateForm.type === 'balance'
-                    ? t('admin.redeem.amount')
-                    : t('admin.redeem.columns.value')
-                }}
-              </label>
-              <input
-                v-model.number="generateForm.value"
-                type="number"
-                :step="generateForm.type === 'balance' ? '0.01' : '1'"
-                :min="generateForm.type === 'balance' ? '0.01' : '1'"
-                required
-                class="input"
-              />
-            </div>
-            <!-- 邀请码类型：显示提示信息 -->
-            <div v-if="generateForm.type === 'invitation'" class="rounded-control bg-blue-50 p-3 dark:bg-blue-900/20">
-              <p class="text-sm text-blue-700 dark:text-blue-300">
-                {{ t('admin.redeem.invitationHint') }}
-              </p>
-            </div>
-            <!-- 订阅类型：显示套餐选择 -->
-            <template v-if="generateForm.type === 'subscription'">
-              <div>
-                <label class="input-label">{{ t('payment.admin.planName') }}</label>
-                <Select
-                  v-model="generateForm.plan_id"
-                  :options="subscriptionPlanOptions"
-                  :placeholder="t('admin.announcements.form.selectPackages')"
-                />
-              </div>
-            </template>
-            <div>
-              <label class="input-label">{{ t('admin.redeem.maxUses') }}</label>
-              <input
-                data-testid="generate-max-uses"
-                v-model.number="generateForm.max_uses"
-                type="number"
-                min="0"
-                required
-                class="input"
-                :disabled="generateForm.type === 'invitation'"
-              />
-              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                {{ t('admin.redeem.maxUsesHint') }}
-              </p>
-            </div>
-            <div>
-              <label class="input-label">
-                {{ t('admin.redeem.expiresAt') }}
-                <span class="ml-1 text-xs font-normal text-gray-400">
-                  ({{ t('common.optional') }})
-                </span>
-              </label>
-              <input v-model="generateForm.expires_at_str" type="datetime-local" class="input" />
-            </div>
-            <div>
-              <label class="input-label">{{ t('admin.redeem.count') }}</label>
-              <input
-                v-model.number="generateForm.count"
-                type="number"
-                min="1"
-                max="100"
-                required
-                class="input"
-                :disabled="hasCustomCode"
-              />
-              <p v-if="hasCustomCode" class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                {{ t('admin.redeem.customCodeCountHint') }}
-              </p>
-            </div>
-            <div class="flex justify-end gap-3 pt-2">
-              <button type="button" @click="showGenerateDialog = false" class="btn btn-secondary">
-                {{ t('common.cancel') }}
-              </button>
-              <button type="submit" :disabled="generating" class="btn btn-primary">
-                {{ generating ? t('admin.redeem.generating') : t('admin.redeem.generate') }}
-              </button>
-            </div>
-          </form>
+    <BaseDialog
+      :show="showGenerateDialog"
+      :title="t('admin.redeem.generateCodesTitle')"
+      width="narrow"
+      close-on-click-outside
+      @close="showGenerateDialog = false"
+    >
+      <form data-testid="generate-form" @submit.prevent="handleGenerateCodes" class="space-y-4">
+        <div>
+          <label class="input-label">
+            {{ t('admin.redeem.customCode') }}
+            <span class="ml-1 text-xs font-normal text-gray-400">
+              ({{ t('common.optional') }})
+            </span>
+          </label>
+          <input
+            v-model="generateForm.code"
+            type="text"
+            maxlength="32"
+            class="input"
+            :placeholder="t('admin.redeem.customCodePlaceholder')"
+          />
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.redeem.customCodeHint') }}
+          </p>
         </div>
-      </div>
-    </Teleport>
+        <div>
+          <label class="input-label">{{ t('admin.redeem.codeType') }}</label>
+          <Select v-model="generateForm.type" :options="typeOptions" />
+        </div>
+
+        <!-- 余额/并发类型：显示数值输入 -->
+        <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
+          <label class="input-label">
+            {{
+              generateForm.type === 'balance'
+                ? t('admin.redeem.amount')
+                : t('admin.redeem.columns.value')
+            }}
+          </label>
+          <input
+            v-model.number="generateForm.value"
+            type="number"
+            :step="generateForm.type === 'balance' ? '0.01' : '1'"
+            :min="generateForm.type === 'balance' ? '0.01' : '1'"
+            required
+            class="input"
+          />
+        </div>
+        <!-- 邀请码类型：显示提示信息 -->
+        <div v-if="generateForm.type === 'invitation'" class="rounded-control bg-blue-50 p-3 dark:bg-blue-900/20">
+          <p class="text-sm text-blue-700 dark:text-blue-300">
+            {{ t('admin.redeem.invitationHint') }}
+          </p>
+        </div>
+        <!-- 订阅类型：显示套餐选择 -->
+        <template v-if="generateForm.type === 'subscription'">
+          <div>
+            <label class="input-label">{{ t('payment.admin.planName') }}</label>
+            <Select
+              v-model="generateForm.plan_id"
+              :options="subscriptionPlanOptions"
+              :placeholder="t('admin.announcements.form.selectPackages')"
+            />
+          </div>
+        </template>
+        <div>
+          <label class="input-label">{{ t('admin.redeem.maxUses') }}</label>
+          <input
+            data-testid="generate-max-uses"
+            v-model.number="generateForm.max_uses"
+            type="number"
+            min="0"
+            required
+            class="input"
+            :disabled="generateForm.type === 'invitation'"
+          />
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.redeem.maxUsesHint') }}
+          </p>
+        </div>
+        <div>
+          <label class="input-label">
+            {{ t('admin.redeem.expiresAt') }}
+            <span class="ml-1 text-xs font-normal text-gray-400">
+              ({{ t('common.optional') }})
+            </span>
+          </label>
+          <input v-model="generateForm.expires_at_str" type="datetime-local" class="input" />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.redeem.count') }}</label>
+          <input
+            v-model.number="generateForm.count"
+            type="number"
+            min="1"
+            max="100"
+            required
+            class="input"
+            :disabled="hasCustomCode"
+          />
+          <p v-if="hasCustomCode" class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.redeem.customCodeCountHint') }}
+          </p>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" @click="showGenerateDialog = false" class="btn btn-secondary">
+            {{ t('common.cancel') }}
+          </button>
+          <button type="submit" :disabled="generating" class="btn btn-primary">
+            {{ generating ? t('admin.redeem.generating') : t('admin.redeem.generate') }}
+          </button>
+        </div>
+      </form>
+    </BaseDialog>
 
     <!-- 编辑兑换码弹窗 -->
     <BaseDialog
@@ -593,8 +589,8 @@
 
     <!-- 生成结果弹窗 -->
     <Teleport to="body">
-      <div v-if="showResultDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="fixed inset-0 bg-black/50" @click="closeResultDialog"></div>
+      <div v-if="showResultDialog" class="fixed inset-0 z-modal flex items-center justify-center p-4">
+        <div class="fixed inset-0 bg-[var(--overlay-bg)]" @click="closeResultDialog"></div>
         <div class="relative z-10 w-full max-w-lg rounded-surface bg-white shadow-xl dark:bg-dark-800 sm:rounded-dialog">
           <!-- 头部 -->
           <div
@@ -683,6 +679,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -756,7 +753,7 @@ const copyGeneratedCodes = async () => {
     copiedAll.value = true
     setTimeout(() => {
       copiedAll.value = false
-    }, 2000)
+    }, COPY_FEEDBACK_MS)
   }
 }
 
@@ -1148,7 +1145,7 @@ const copyToClipboard = async (text: string) => {
     copiedCode.value = text
     setTimeout(() => {
       copiedCode.value = null
-    }, 2000)
+    }, COPY_FEEDBACK_MS)
   }
 }
 

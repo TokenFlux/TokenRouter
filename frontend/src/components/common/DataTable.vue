@@ -975,7 +975,7 @@ defineExpose({
 .table-wrapper .table-header {
   position: sticky;
   top: 0;
-  z-index: 200;
+  z-index: 200; /* check-ui-allow: 表格内部局部堆叠上下文(固定列/表头),不入全局阶梯 */
   background-color: rgb(249 250 251);
 }
 
@@ -986,14 +986,14 @@ defineExpose({
 /* 表体保持在表头下方 */
 .table-body {
   position: relative;
-  z-index: 0;
+  z-index: 0; /* check-ui-allow: 局部堆叠 */
 }
 
 /* 所有表头单元格固定在顶部 */
 .sticky-header-cell {
   position: sticky;
   top: 0;
-  z-index: 210; /* 必须高于所有表体内容 */
+  z-index: 210; /* 必须高于所有表体内容 */ /* check-ui-allow: 局部堆叠 */
   background-color: rgb(249 250 251);
 }
 
@@ -1004,7 +1004,7 @@ defineExpose({
 /* Sticky 列基础样式 */
 .sticky-col {
   position: sticky;
-  z-index: 20; /* 表体固定列 */
+  z-index: 20; /* 表体固定列 */ /* check-ui-allow: 局部堆叠 */
 }
 
 /* 单列固定（无勾选列时） */
@@ -1029,7 +1029,7 @@ defineExpose({
 
 /* 表头 sticky 列 - 需要比普通表头单元格更高的 z-index */
 .sticky-header-cell.sticky-col {
-  z-index: 220; /* 高于普通表头单元格和表体固定列 */
+  z-index: 220; /* 高于普通表头单元格和表体固定列 */ /* check-ui-allow: 局部堆叠 */
 }
 
 /* 表体 sticky 列背景 */

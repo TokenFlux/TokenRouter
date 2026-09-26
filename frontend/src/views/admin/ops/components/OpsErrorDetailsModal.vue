@@ -297,7 +297,8 @@ watch(
 </template>
 
 <style>
-.compact-select .select-trigger {
+/* 触发器基线类更名后沿用紧凑参数(py-1.5/px-3/text-xs)。 */
+.compact-select .input-trigger {
   @apply py-1.5 px-3 text-xs rounded-control;
 }
 </style>

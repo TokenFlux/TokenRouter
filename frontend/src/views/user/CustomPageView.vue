@@ -115,7 +115,10 @@ import { useAdminSettingsStore } from '@/stores/adminSettings'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildApiUrl } from '@/api/client'
+import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { buildEmbeddedUrl, detectTheme } from '@/utils/embedded-url'
+import { useMediaQuery } from '@vueuse/core'
+import { MEDIA_MIN_MD, MEDIA_MAX_SM } from '@/constants/layout'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -136,7 +139,8 @@ const pageTheme = ref<'light' | 'dark'>('light')
 const renderedHtml = ref('')
 const markdownContainer = ref<HTMLElement | null>(null)
 const tocItems = ref<TocItem[]>([])
-const tocVisible = ref(typeof window !== 'undefined' ? window.innerWidth > 768 : true)
+// 目录初始可见性按 md 断点取一次性快照;之后由用户手动开关,不随 resize 自动改。
+const tocVisible = ref(useMediaQuery(MEDIA_MIN_MD).value)
 const activeHeadingId = ref('')
 let themeObserver: MutationObserver | null = null
 let scrollRafId = 0
@@ -271,7 +275,8 @@ function scrollToHeading(id: string) {
   if (!el) return
   el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   activeHeadingId.value = id
-  if (window.innerWidth <= 640) {
+  // 小屏(低于 sm)跳转锚点后收起目录;max = min - 1px 约定,与 sm: 样式互斥。
+  if (window.matchMedia(MEDIA_MAX_SM).matches) {
     tocVisible.value = false
   }
 }
@@ -311,10 +316,10 @@ function injectCopyButtons() {
       try {
         await navigator.clipboard.writeText(code)
         btn.textContent = t('common.copied')
-        window.setTimeout(() => { btn.textContent = t('common.copy') }, 2000)
+        window.setTimeout(() => { btn.textContent = t('common.copy') }, COPY_FEEDBACK_MS)
       } catch {
         btn.textContent = t('common.copyFailed')
-        window.setTimeout(() => { btn.textContent = t('common.copy') }, 2000)
+        window.setTimeout(() => { btn.textContent = t('common.copy') }, COPY_FEEDBACK_MS)
       }
     })
     ;(pre as HTMLElement).style.position = 'relative'
@@ -379,12 +384,12 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 639px) { /* 639 = BREAKPOINT_SM(640) - 1,断点数值唯一来源在 constants/layout.ts */
   .toc-sidebar {
     position: absolute;
     left: 0;
     top: 0;
-    z-index: 20;
+    z-index: 20; /* check-ui-allow: 自定义页目录抽屉局部层级 */
     width: 70%;
     max-width: 240px;
     height: 100%;

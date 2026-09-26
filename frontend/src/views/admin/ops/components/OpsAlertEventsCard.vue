@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
+import { TABLE_DESKTOP_MEDIA_QUERY } from '@/constants/layout'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import Select from '@/components/common/Select.vue'
@@ -13,8 +14,8 @@ import { formatDateTime } from '../utils/opsFormatters'
 const { t } = useI18n()
 const appStore = useAppStore()
 
-// 与 DataTable 一致：< 768px 切换为卡片视图，避免宽表在移动端被截断。
-const isDesktopViewport = useMediaQuery('(min-width: 768px)')
+// 与 DataTable 一致：< 1024px 切换为卡片视图，避免宽表在移动端被截断。
+const isDesktopViewport = useMediaQuery(TABLE_DESKTOP_MEDIA_QUERY)
 
 const PAGE_SIZE = 10
 
@@ -397,7 +398,7 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
     </div>
 
     <div v-else class="overflow-hidden rounded-surface border border-gray-200 dark:border-dark-700">
-      <div class="max-h-[600px] overflow-y-auto" @scroll="onScroll">
+      <div class="max-h-[600px] overflow-y-auto" @scroll="onScroll"> <!-- check-ui-allow: 告警事件流局部高度 -->
         <div v-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
           <div
             v-for="row in events"

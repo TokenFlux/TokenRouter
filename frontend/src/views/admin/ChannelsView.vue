@@ -5,17 +5,17 @@
         <div class="flex flex-wrap items-center gap-2">
           <!-- Left: Search + Filters -->
           <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <div class="relative min-w-0 flex-1 sm:flex-none sm:w-64">
+            <div class="input-icon-wrap min-w-0 flex-1 sm:flex-none sm:w-64">
               <Icon
                 name="search"
                 size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                class="input-icon text-gray-400 dark:text-gray-500"
               />
               <input
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('admin.channels.searchChannels', 'Search channels...')"
-                class="input pl-10"
+                class="input input-has-icon"
                 @input="handleSearch"
               />
             </div>
@@ -34,12 +34,12 @@
             <button
               @click="loadChannels"
               :disabled="loading"
-              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+              class="btn btn-secondary shrink-0 btn-icon"
               :title="t('common.refresh', 'Refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
-            <button @click="openCreateDialog" class="btn btn-primary h-9 whitespace-nowrap px-3 sm:px-4">
+            <button @click="openCreateDialog" class="btn btn-primary whitespace-nowrap px-3 sm:px-4">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.channels.createChannel', 'Create Channel') }}
             </button>
@@ -552,12 +552,12 @@
                         :key="account.id"
                         type="button"
                         @click="selectRuleAccount(rule, account, section.platform, ruleIndex)"
-                        class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
+                        class="dropdown-item-sm"
                         :class="{ 'opacity-50': rule.account_ids.includes(account.id) }"
                         :disabled="rule.account_ids.includes(account.id)"
                       >
                         <span :class="platformTextClass(account.platform)">{{ account.name }}</span>
-                        <span class="ml-2 text-xs text-gray-400">#{{ account.id }}</span>
+                        <span class="text-xs text-gray-400">#{{ account.id }}</span>
                       </button>
                     </div>
                   </div>
@@ -634,6 +634,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { SEARCH_DEBOUNCE_MS } from '@/constants/ui'
 import { adminAPI } from '@/api/admin'
 import type { Channel, ChannelModelPricing, CreateChannelRequest, UpdateChannelRequest, AccountStatsPricingRule } from '@/api/admin/channels'
 import type { PricingFormEntry } from '@/components/admin/channel/types'
@@ -1054,7 +1055,7 @@ const showRuleAccountDropdown = ref<Record<string, boolean>>({})
 const ruleAccountNameCache = ref<Record<number, string>>({})
 
 const ruleAccountSearchRunner = useKeyedDebouncedSearch<SimpleAccount[]>({
-  delay: 300,
+  delay: SEARCH_DEBOUNCE_MS,
   search: async (keyword, { key, signal }) => {
     const platform = key.split('-')[0]
     const res = await adminAPI.accounts.list(1, 20, { platform, search: keyword }, { signal })

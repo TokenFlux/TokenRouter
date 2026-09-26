@@ -1,5 +1,6 @@
 import { ref, onMounted, onUnmounted, type Ref } from 'vue'
 import type { Virtualizer } from '@tanstack/vue-virtual'
+import { Z_INDEX } from '@/constants/overlay'
 
 /**
  * WeChat-style swipe/drag to select rows in a DataTable,
@@ -178,14 +179,14 @@ export function useSwipeSelect(
   function createMarquee() {
     removeMarquee() // defensive: remove any stale marquee
     marqueeEl = document.createElement('div')
-    const isDark = document.documentElement.classList.contains('dark')
+    const isDark = document.documentElement.classList.contains('dark') // check-ui-allow: 拖拽框选覆盖层,生命周期一次拖拽,重建即重读
     Object.assign(marqueeEl.style, {
       position: 'fixed',
       background: isDark ? 'rgba(96, 165, 250, 0.15)' : 'rgba(59, 130, 246, 0.12)',
       border: isDark ? '1.5px solid rgba(96, 165, 250, 0.5)' : '1.5px solid rgba(59, 130, 246, 0.4)',
       borderRadius: '4px',
       pointerEvents: 'none',
-      zIndex: '9999',
+      zIndex: String(Z_INDEX.TOAST), // 拖拽覆盖层与 toast 同层,压过页面内容
       transition: 'none',
     })
     document.body.appendChild(marqueeEl)

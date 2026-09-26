@@ -3,9 +3,9 @@
     <TablePageLayout>
       <template #filters>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div class="relative min-w-0 w-full flex-1 sm:w-64 sm:flex-none sm:max-w-none">
-            <Icon name="search" size="md" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input v-model="filters.search" type="text" class="input pl-10" :placeholder="t('admin.affiliates.records.searchPlaceholder')" @input="debounceLoad" />
+          <div class="input-icon-wrap min-w-0 w-full flex-1 sm:w-64 sm:flex-none sm:max-w-none">
+            <Icon name="search" size="md" class="input-icon text-gray-400" />
+            <input v-model="filters.search" type="text" class="input input-has-icon" :placeholder="t('admin.affiliates.records.searchPlaceholder')" @input="debounceLoad" />
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <DateRangePicker
@@ -13,7 +13,7 @@
               v-model:end-date="dateRangeEnd"
               @change="handleDateRangeChange"
             />
-            <button class="btn btn-secondary h-9 w-9 shrink-0 p-0" :disabled="loading" :title="t('common.refresh')" @click="loadRecords">
+            <button class="btn btn-secondary shrink-0 btn-icon" :disabled="loading" :title="t('common.refresh')" @click="loadRecords">
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
           </div>

@@ -7,7 +7,7 @@
             <div ref="filterPanelRef" class="relative shrink-0">
               <button
                 type="button"
-                class="btn btn-secondary relative h-9 w-9 p-0"
+                class="btn btn-secondary relative btn-icon"
                 :aria-expanded="showFilterDropdown"
                 :aria-label="t('common.filter')"
                 :title="t('common.filter')"
@@ -19,21 +19,21 @@
                 </span>
               </button>
 
-              <div v-show="showFilterDropdown" class="absolute -left-4 top-full z-[60] mt-2 max-h-[min(70vh,42rem)] w-[min(48rem,calc(100vw-3rem))] overflow-y-auto rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0" @click.stop>
+              <div v-show="showFilterDropdown" class="absolute -left-4 top-full z-modal-nested mt-2 max-h-[min(70vh,42rem)] w-[min(48rem,calc(100vw-3rem))] overflow-y-auto rounded-surface border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0" @click.stop>
                 <div class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
                 <div class="flex flex-wrap items-end gap-4">
               <div class="w-full sm:w-auto sm:min-w-[240px]">
                 <label class="input-label">{{ t('admin.audit.filters.q') }}</label>
-                <div class="relative">
+                <div class="input-icon-wrap">
                   <Icon
                     name="search"
                     size="md"
-                    class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    class="input-icon text-gray-400"
                   />
                   <input
                     v-model.trim="filters.q"
                     type="text"
-                    class="input pl-10"
+                    class="input input-has-icon"
                     :placeholder="t('admin.audit.filters.qPlaceholder')"
                     @keyup.enter="search"
                   />
@@ -83,10 +83,10 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-end gap-2">
-              <button type="button" class="btn btn-primary h-9 whitespace-nowrap px-3 sm:px-4" :disabled="loading" @click="search">
+              <button type="button" class="btn btn-primary whitespace-nowrap px-3 sm:px-4" :disabled="loading" @click="search">
                 {{ t('common.search') }}
               </button>
-              <button type="button" class="btn btn-danger h-9 whitespace-nowrap px-3 sm:px-4" @click="openClearDialog">
+              <button type="button" class="btn btn-danger whitespace-nowrap px-3 sm:px-4" @click="openClearDialog">
                 <Icon name="trash" size="sm" class="mr-1.5" />
                 {{ t('admin.audit.clearAll') }}
               </button>
