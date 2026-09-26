@@ -31,10 +31,10 @@ func provideGatewayRequestDebug(manager *lifecycle.Manager) *requestdebug.Trace 
 
 // provideMessagesExecution 固定绑定 Messages、兼容转换和计数的原生依赖。
 // @project-doc docs/architecture/system_architecture.md#dependency_layers
-func provideMessagesExecution(credentials *account.MessageCredentialSource, fingerprint *anthropic.RequestFingerprint, transport httpclient.UpstreamTransport, health *accountprovider.UpstreamHealth, tls *egressprovider.TLSProfiles, readers *provider.RuntimeReaders, prices *billing.PriceResolver, search *searchtools.Emulator, activity *gatewayRequestActivity, debug *requestdebug.Trace, accounts provider.ExecutionAccountStore, deferred *account.DeferredService, cfg *config.Config, filter *egress.CompiledHeaderFilter, channels *routing.ChannelService) *gatewayhttp.MessagesExecutor {
+func provideMessagesExecution(credentials *account.MessageCredentialSource, fingerprint *anthropic.RequestFingerprint, transport httpclient.UpstreamTransport, health *accountprovider.UpstreamHealth, tls *egressprovider.TLSProfiles, readers *provider.RuntimeReaders, prices *billing.PriceResolver, search *searchtools.Emulator, activity *gatewayRequestActivity, debug *requestdebug.Trace, accounts provider.ExecutionAccountStore, deferred *account.DeferredService, cfg *config.Config, filter *egress.CompiledHeaderFilter, modelConfigs *routing.PricingConfigService) *gatewayhttp.MessagesExecutor {
 	deps := messageforward.Dependencies{Credentials: credentials, Fingerprint: fingerprint, Transport: transport, Health: health, TLS: tls, Prices: prices, Search: search, AccountState: accounts, Deferred: deferred}
-	if channels != nil {
-		deps.Channels = channels
+	if modelConfigs != nil {
+		deps.GroupPolicies = modelConfigs
 	}
 	if debug != nil {
 		deps.Debug = debug

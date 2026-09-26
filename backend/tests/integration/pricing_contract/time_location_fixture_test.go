@@ -10,16 +10,17 @@ import (
 )
 
 // 合同测试只提供显式时区，校验与倍率计算使用实际定价实现。
-func contractTimeLocation(value *pricing.ChannelTimePricing) *time.Location {
+func contractTimeLocation(value *pricing.TimePricingConfig) *time.Location {
 	if value == nil {
 		return nil
 	}
 	location, _ := provider.LoadPricingLocation(value.Timezone)
 	return location
 }
+
 func contractResolvedTimeLocation(value *pricing.ResolvedPricing) *time.Location {
-	if value == nil || value.ChannelPricing == nil {
+	if value == nil || value.ConfigPricing == nil {
 		return nil
 	}
-	return contractTimeLocation(value.ChannelPricing.TimePricing)
+	return contractTimeLocation(value.ConfigPricing.TimePricing)
 }

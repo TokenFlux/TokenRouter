@@ -12,12 +12,14 @@ import (
 
 type ImageCapability = accountcore.OpenAIImagesCapability
 
-const ImageCapabilityBasic ImageCapability = "images-basic"
-const ImageCapabilityNative ImageCapability = "images-native"
+const (
+	ImageCapabilityBasic  ImageCapability = "images-basic"
+	ImageCapabilityNative ImageCapability = "images-native"
+)
 
 type ImageUpload = upstreamcore.ImageUpload
 
-// ParseImageRequest 保留结构解析与渠道映射后模型校验的不同阶段。
+// ParseImageRequest 保留结构解析与分组映射后模型校验的不同阶段。
 func ParseImageRequest(endpoint, contentType string, body []byte, validateModel bool) (*ImageRequest, error) {
 	value, err := upstreamcore.ParseImageRequest(endpoint, contentType, body)
 	if err != nil {
@@ -89,7 +91,7 @@ func (r *ImageRequest) StickySessionSeed() string {
 	return NativeImageRequest(r).StickySessionSeed()
 }
 
-// ValidateRoutingModel 使用渠道映射后的模型 C 校验 Images 端点，并同步账号选择所需的图片能力。
+// ValidateRoutingModel 使用分组映射后的模型 C 校验 Images 端点，并同步账号选择所需的图片能力。
 func (r *ImageRequest) ValidateRoutingModel(routingModel string) error {
 	if err := ValidateImageModel(routingModel); err != nil {
 		return err
@@ -107,7 +109,6 @@ func ApplyImageDefaults(req *ImageRequest) {
 	value := NativeImageRequest(req)
 	upstreamcore.ApplyOpenAIImagesDefaults(value)
 	ApplyNativeImageRequest(req, value)
-
 }
 
 func IsImageGenerationModel(model string) bool {
@@ -230,10 +231,10 @@ func ApplyNativeImageRequest(target *ImageRequest, value *upstreamcore.ImageRequ
 	target.BodyHash = value.BodyHash
 }
 
-// ResolveImageModels 在已选账号上按原顺序校验渠道模型、账号映射及上游模型。
-func ResolveImageModels(requested, channel, fallback string, resolve func(string) string) (string, string, error) {
+// ResolveImageModels 在已选账号上按原顺序校验分组映射模型、账号映射及上游模型。
+func ResolveImageModels(requested, groupMapped, fallback string, resolve func(string) string) (string, string, error) {
 	model := strings.TrimSpace(requested)
-	if mapped := strings.TrimSpace(channel); mapped != "" {
+	if mapped := strings.TrimSpace(groupMapped); mapped != "" {
 		model = mapped
 	}
 	if model == "" {

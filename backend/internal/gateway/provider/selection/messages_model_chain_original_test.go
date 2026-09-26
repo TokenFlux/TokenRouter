@@ -35,47 +35,52 @@ func TestOpenAIGatewayService_MessagesRoutingModelUsesFullMappingChain(t *testin
 			name = "高级调度"
 		}
 		t.Run(name, func(t *testing.T) {
-
 			groupID := int64(4211)
 			price := 0.01
-			channel := routing.Channel{
+			pricingConfig := routingtestkit.Configuration{
 				ID:                 77,
 				Status:             billing.StatusActive,
 				RestrictModels:     true,
 				BillingModelSource: routing.BillingModelSourceUpstream,
 				ModelMapping: map[string]map[string]string{
-					capability.PlatformOpenAI: {"client-alias": "channel-model"},
+					capability.PlatformOpenAI: {"client-alias": "group-model"},
 				},
-				ModelPricing: []routing.ChannelModelPricing{{
+				ModelPricing: []routing.ModelPricingEntry{{
 					Platform:   capability.PlatformOpenAI,
 					Models:     []string{"allowed-upstream"},
 					InputPrice: &price,
 				}},
 			}
 			accounts := []gatewayprovider.ExecutionAccount{
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 42111,
-					Platform:    capability.PlatformOpenAI,
-					Type:        capability.AccountTypeAPIKey,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Concurrency: 1,
-					Priority:    0,
-					Credentials: map[string]any{
-						"model_mapping":   map[string]any{"channel-model": "blocked-upstream"},
-						"model_whitelist": []any{"blocked-upstream"},
-					}},
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 42111,
+						Platform:    capability.PlatformOpenAI,
+						Type:        capability.AccountTypeAPIKey,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Concurrency: 1,
+						Priority:    0,
+						Credentials: map[string]any{
+							"model_mapping":   map[string]any{"group-model": "blocked-upstream"},
+							"model_whitelist": []any{"blocked-upstream"},
+						},
+					},
 				},
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 42112,
-					Platform:    capability.PlatformOpenAI,
-					Type:        capability.AccountTypeAPIKey,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Concurrency: 1,
-					Priority:    1,
-					Credentials: map[string]any{
-						"model_mapping":   map[string]any{"dispatch-model": "allowed-upstream"},
-						"model_whitelist": []any{"allowed-upstream"},
-					}},
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 42112,
+						Platform:    capability.PlatformOpenAI,
+						Type:        capability.AccountTypeAPIKey,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Concurrency: 1,
+						Priority:    1,
+						Credentials: map[string]any{
+							"model_mapping":   map[string]any{"dispatch-model": "allowed-upstream"},
+							"model_whitelist": []any{"allowed-upstream"},
+						},
+					},
 				},
 			}
 			cfg := &config.Config{}
@@ -86,8 +91,8 @@ func TestOpenAIGatewayService_MessagesRoutingModelUsesFullMappingChain(t *testin
 				Shared: Shared{
 					Cache:       cache,
 					Concurrency: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event}),
-					Channels: routingtestkit.Channel(groupID, capability.PlatformOpenAI,
-						channel),
+					GroupPolicies: routingtestkit.PricingConfig(groupID, capability.PlatformOpenAI,
+						pricingConfig),
 				},
 			}, cfg)
 
@@ -111,7 +116,7 @@ func TestOpenAIGatewayService_MessagesRoutingModelUsesFullMappingChain(t *testin
 			require.NotNil(t, selection)
 			require.NotNil(t, selection.Account)
 			require.Equal(t, int64(42112), selection.Account.Record.ID)
-			require.Equal(t, "allowed-upstream", gatewayprovider.ExecutionModelPolicy(selection.Account).ForwardModel("channel-model", "dispatch-model"))
+			require.Equal(t, "allowed-upstream", gatewayprovider.ExecutionModelPolicy(selection.Account).ForwardModel("group-model", "dispatch-model"))
 			if selection.ReleaseFunc != nil {
 				selection.ReleaseFunc()
 			}

@@ -7,8 +7,8 @@ import (
 	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
-// AccountStatsChannel 不携带账号或渠道实体，只包含统计价卡。
-type AccountStatsChannel struct {
+// AccountStatsPricingConfig 不携带账号或共享价格配置实体，只包含统计价卡。
+type AccountStatsPricingConfig struct {
 	Rules          []purepricing.AccountStatsPricingRule
 	ApplyUserPrice bool
 }
@@ -17,7 +17,7 @@ type AccountStatsPlatform struct {
 	PreferRequestedModel bool
 }
 type AccountStatsSource interface {
-	AccountStatsGroup(context.Context, int64) (*AccountStatsChannel, error)
+	AccountStatsGroup(context.Context, int64) (*AccountStatsPricingConfig, error)
 	AccountStatsPlatform(context.Context, int64) AccountStatsPlatform
 }
 
@@ -35,15 +35,15 @@ func (r *PriceResolver) ResolveAccountStats(ctx context.Context, input AccountSt
 	if r == nil || r.accountStats == nil || input.UpstreamModel == "" {
 		return nil
 	}
-	channel, err := r.accountStats.AccountStatsGroup(ctx, input.GroupID)
-	if err != nil || channel == nil {
+	configPricing, err := r.accountStats.AccountStatsGroup(ctx, input.GroupID)
+	if err != nil || configPricing == nil {
 		return nil
 	}
 	platform := r.accountStats.AccountStatsPlatform(ctx, input.GroupID)
 	if cost, handled := purepricing.ResolveAccountStatsOverride(purepricing.AccountStatsInput{
-		Rules: channel.Rules, AccountID: input.AccountID, GroupID: input.GroupID, Platform: platform.ID,
+		Rules: configPricing.Rules, AccountID: input.AccountID, GroupID: input.GroupID, Platform: platform.ID,
 		Models: AccountStatsRuleModels(platform.PreferRequestedModel, input.UpstreamModel, input.RequestedModel, input.MappedModel),
-		Tokens: input.Tokens, RequestCount: input.RequestCount, UserTotalCost: input.UserTotalCost, ApplyUserPrice: channel.ApplyUserPrice,
+		Tokens: input.Tokens, RequestCount: input.RequestCount, UserTotalCost: input.UserTotalCost, ApplyUserPrice: configPricing.ApplyUserPrice,
 	}); handled {
 		return cost
 	}
@@ -53,7 +53,7 @@ func (r *PriceResolver) ResolveAccountStats(ctx context.Context, input AccountSt
 	return r.calculator.ModelFileStatsCost(input.UpstreamModel, input.Tokens, input.ServiceTier, input.ReasoningEffort)
 }
 
-// ModelFileStatsCost 使用与用户计费相同的纯规则，但不读取渠道覆盖价。
+// ModelFileStatsCost 使用与用户计费相同的纯规则，但不读取共享价格配置覆盖价。
 func (s *Calculator) ModelFileStatsCost(model string, tokens UsageTokens, serviceTier, effort string) *float64 {
 	breakdown, err := s.CalculateCostUnified(CostInput{Model: model, Tokens: tokens, RateMultiplier: 1, ServiceTier: purepricing.NormalizeBillingServiceTier(serviceTier), ReasoningEffort: effort})
 	if err != nil || breakdown == nil || breakdown.TotalCost <= 0 {
@@ -61,12 +61,13 @@ func (s *Calculator) ModelFileStatsCost(model string, tokens UsageTokens, servic
 	}
 	return &breakdown.TotalCost
 }
-func AccountStatsRuleModels(preferRequested bool, upstreamModel, requestedModel string, channelMappedModel ...string) []string {
+
+func AccountStatsRuleModels(preferRequested bool, upstreamModel, requestedModel string, groupMappedModel ...string) []string {
 	upstreamModel = strings.TrimSpace(upstreamModel)
 	requestedModel = strings.TrimSpace(requestedModel)
 	mappedModel := ""
-	if len(channelMappedModel) > 0 {
-		mappedModel = strings.TrimSpace(channelMappedModel[0])
+	if len(groupMappedModel) > 0 {
+		mappedModel = strings.TrimSpace(groupMappedModel[0])
 	}
 	if !preferRequested || requestedModel == "" ||
 		(requestedModel == upstreamModel && (mappedModel == "" || mappedModel == requestedModel)) {

@@ -41,7 +41,7 @@ func ServiceTierCostMultiplier(serviceTier string) float64 {
 	}
 }
 
-// NormalizedFastModeMultiplier 返回渠道 Fast 倍率；负值按 0 防御处理。
+// NormalizedFastModeMultiplier 返回价卡 Fast 倍率；负值按 0 防御处理。
 func NormalizedFastModeMultiplier(pricing *ModelPricing) (float64, bool) {
 	if pricing == nil {
 		return 1, false
@@ -59,7 +59,7 @@ func NormalizedFastModeMultiplier(pricing *ModelPricing) (float64, bool) {
 	return *configured, true
 }
 
-// ConfiguredServiceTierMultiplier 返回渠道显式层级倍率；未配置时沿用官方默认倍率。
+// ConfiguredServiceTierMultiplier 返回价卡显式层级倍率；未配置时沿用官方默认倍率。
 func ConfiguredServiceTierMultiplier(serviceTier string, pricing *ModelPricing) float64 {
 	if pricing != nil {
 		switch NormalizeBillingServiceTier(serviceTier) {
@@ -76,14 +76,14 @@ func ConfiguredServiceTierMultiplier(serviceTier string, pricing *ModelPricing) 
 	return ServiceTierCostMultiplier(serviceTier)
 }
 
-// ApplyChannelFastModeMultiplier 将渠道 Fast 倍率写入最终定价元数据。
-func ApplyChannelFastModeMultiplier(pricing *ModelPricing, ChannelPricing *ChannelModelPricing) {
-	if pricing == nil || ChannelPricing == nil {
+// ApplyConfigFastModeMultiplier 将价卡 Fast 倍率写入最终定价元数据。
+func ApplyConfigFastModeMultiplier(pricing *ModelPricing, ConfigPricing *ModelPricingEntry) {
+	if pricing == nil || ConfigPricing == nil {
 		return
 	}
-	multiplierPtr := ChannelPricing.FastMultiplier
+	multiplierPtr := ConfigPricing.FastMultiplier
 	if multiplierPtr == nil {
-		multiplierPtr = ChannelPricing.FastModeMultiplier
+		multiplierPtr = ConfigPricing.FastModeMultiplier
 	}
 	if multiplierPtr == nil {
 		return
@@ -96,18 +96,18 @@ func ApplyChannelFastModeMultiplier(pricing *ModelPricing, ChannelPricing *Chann
 	pricing.FastMultiplier = &multiplier
 }
 
-func ApplyChannelFlexMultiplier(pricing *ModelPricing, ChannelPricing *ChannelModelPricing) {
-	if pricing == nil || ChannelPricing == nil || ChannelPricing.FlexMultiplier == nil {
+func ApplyConfigFlexMultiplier(pricing *ModelPricing, ConfigPricing *ModelPricingEntry) {
+	if pricing == nil || ConfigPricing == nil || ConfigPricing.FlexMultiplier == nil {
 		return
 	}
-	multiplier := *ChannelPricing.FlexMultiplier
+	multiplier := *ConfigPricing.FlexMultiplier
 	if multiplier < 0 {
 		multiplier = 0
 	}
 	pricing.FlexMultiplier = &multiplier
 }
 
-// ApplyCostBreakdownMultiplier 将渠道分时倍率应用到所有 token 费用桶。
+// ApplyCostBreakdownMultiplier 将价卡分时倍率应用到所有 token 费用桶。
 func ApplyCostBreakdownMultiplier(cost *CostBreakdown, multiplier float64) {
 	if cost == nil || multiplier == 1 {
 		return
@@ -146,7 +146,7 @@ func DefaultMaxReasoningEffortMultiplier(model string) *float64 {
 	return &multiplier
 }
 
-// MaxReasoningEffortBillingMultiplier 返回 max 档位的模型/渠道倍率。
+// MaxReasoningEffortBillingMultiplier 返回 max 档位的模型/价卡倍率。
 func MaxReasoningEffortBillingMultiplier(model, effort string, pricing *ModelPricing) float64 {
 	if protocol.NormalizeClaudeOutputEffort(effort) == nil || !strings.EqualFold(strings.TrimSpace(effort), "max") {
 		return 1
@@ -194,7 +194,7 @@ func DeepseekPeakMultiplierAt(now time.Time) float64 {
 }
 
 // ApplyDeepSeekOfficialPricing 用官方低谷价覆盖远端或旧的 DeepSeek 价卡，
-// 保留其它能力字段，确保渠道/分组显式价格不会经过此函数。
+// 保留其它能力字段，确保共享价格配置或分组显式价格不会经过此函数。
 func ApplyDeepSeekOfficialPricing(model string, pricing *ModelPricing) *ModelPricing {
 	if pricing == nil || !IsDeepSeekModel(model) {
 		return pricing
@@ -239,55 +239,55 @@ func IsGrokMediaFamilyModel(native string) bool {
 	return false
 }
 
-// ChannelTierOverridePrice 根据模型目录中的层级比例推导渠道层级价格。
-// 渠道只覆盖普通价时，不能把 priority/Fast 价格也压成普通价。
-func ChannelTierOverridePrice(baseStandard, baseTier, channelStandard float64) float64 {
+// ConfigTierOverridePrice 根据模型目录中的层级比例推导价卡层级价格。
+// 价卡只覆盖普通价时，不能把 priority/Fast 价格也压成普通价。
+func ConfigTierOverridePrice(baseStandard, baseTier, configStandard float64) float64 {
 	if baseStandard > 0 && baseTier > 0 {
-		return channelStandard * (baseTier / baseStandard)
+		return configStandard * (baseTier / baseStandard)
 	}
 	return 0
 }
 
-// ApplyChannelTokenPriceOverrides 应用渠道 token 价格，同时保留模型内置层级比例。
-func ApplyChannelTokenPriceOverrides(pricing *ModelPricing, ChannelPricing *ChannelModelPricing) {
-	if pricing == nil || ChannelPricing == nil {
+// ApplyConfigTokenPriceOverrides 应用价卡 token 价格，同时保留模型内置层级比例。
+func ApplyConfigTokenPriceOverrides(pricing *ModelPricing, ConfigPricing *ModelPricingEntry) {
+	if pricing == nil || ConfigPricing == nil {
 		return
 	}
-	if ChannelPricing.InputPrice != nil {
-		priority := ChannelTierOverridePrice(pricing.InputPricePerToken, pricing.InputPricePerTokenPriority, *ChannelPricing.InputPrice)
-		pricing.InputPricePerToken = *ChannelPricing.InputPrice
+	if ConfigPricing.InputPrice != nil {
+		priority := ConfigTierOverridePrice(pricing.InputPricePerToken, pricing.InputPricePerTokenPriority, *ConfigPricing.InputPrice)
+		pricing.InputPricePerToken = *ConfigPricing.InputPrice
 		pricing.InputPricePerTokenPriority = priority
 	}
-	if ChannelPricing.OutputPrice != nil {
-		priority := ChannelTierOverridePrice(pricing.OutputPricePerToken, pricing.OutputPricePerTokenPriority, *ChannelPricing.OutputPrice)
-		pricing.OutputPricePerToken = *ChannelPricing.OutputPrice
+	if ConfigPricing.OutputPrice != nil {
+		priority := ConfigTierOverridePrice(pricing.OutputPricePerToken, pricing.OutputPricePerTokenPriority, *ConfigPricing.OutputPrice)
+		pricing.OutputPricePerToken = *ConfigPricing.OutputPrice
 		pricing.OutputPricePerTokenPriority = priority
 	}
-	if ChannelPricing.CacheWritePrice != nil {
+	if ConfigPricing.CacheWritePrice != nil {
 		basePriority := pricing.CacheCreationPricePerTokenPriority
 		if pricing.CacheCreationPriorityDerived {
-			// 兜底推导的 priority 价不代表模型原生目录配置；渠道显式
+			// 兜底推导的 priority 价不代表模型原生目录配置；价卡显式
 			// 覆盖缓存写价时，应继续保持“未配置 priority”的 fork 语义。
 			basePriority = 0
 		}
-		priority := ChannelTierOverridePrice(pricing.CacheCreationPricePerToken, basePriority, *ChannelPricing.CacheWritePrice)
-		pricing.CacheCreationPricePerToken = *ChannelPricing.CacheWritePrice
+		priority := ConfigTierOverridePrice(pricing.CacheCreationPricePerToken, basePriority, *ConfigPricing.CacheWritePrice)
+		pricing.CacheCreationPricePerToken = *ConfigPricing.CacheWritePrice
 		pricing.CacheCreationPricePerTokenPriority = priority
 		pricing.CacheCreationPriceExplicit = true
 		pricing.CacheCreationPriorityDerived = false
-		pricing.CacheCreation5mPrice = *ChannelPricing.CacheWritePrice
-		if ChannelPricing.CacheWrite1hPrice == nil {
+		pricing.CacheCreation5mPrice = *ConfigPricing.CacheWritePrice
+		if ConfigPricing.CacheWrite1hPrice == nil {
 			// 兼容旧配置：未拆分时继续让 cache_write_price 覆盖两个 TTL 档位。
-			pricing.CacheCreation1hPrice = *ChannelPricing.CacheWritePrice
+			pricing.CacheCreation1hPrice = *ConfigPricing.CacheWritePrice
 		}
 	}
-	if ChannelPricing.CacheWrite1hPrice != nil {
-		pricing.CacheCreation1hPrice = *ChannelPricing.CacheWrite1hPrice
+	if ConfigPricing.CacheWrite1hPrice != nil {
+		pricing.CacheCreation1hPrice = *ConfigPricing.CacheWrite1hPrice
 		pricing.SupportsCacheBreakdown = true
 	}
-	if ChannelPricing.CacheReadPrice != nil {
-		priority := ChannelTierOverridePrice(pricing.CacheReadPricePerToken, pricing.CacheReadPricePerTokenPriority, *ChannelPricing.CacheReadPrice)
-		pricing.CacheReadPricePerToken = *ChannelPricing.CacheReadPrice
+	if ConfigPricing.CacheReadPrice != nil {
+		priority := ConfigTierOverridePrice(pricing.CacheReadPricePerToken, pricing.CacheReadPricePerTokenPriority, *ConfigPricing.CacheReadPrice)
+		pricing.CacheReadPricePerToken = *ConfigPricing.CacheReadPrice
 		pricing.CacheReadPricePerTokenPriority = priority
 	}
 }
@@ -310,7 +310,7 @@ func CalculateTokenCost(resolved *ResolvedPricing, input CostInput) (*CostBreakd
 	applyLongCtx := len(resolved.Intervals) == 0 && resolved.LongContextPricingEnabled
 
 	breakdown := ComputeTokenBreakdown(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx)
-	ApplyCostBreakdownMultiplier(breakdown, ResolvedChannelTimeMultiplier(resolved, input.PricingAt, input.TimePricingLocation))
+	ApplyCostBreakdownMultiplier(breakdown, ResolvedTimeMultiplier(resolved, input.PricingAt, input.TimePricingLocation))
 	ApplyCostBreakdownMultiplier(breakdown, MaxReasoningEffortBillingMultiplier(input.Model, input.ReasoningEffort, pricing))
 	return breakdown, nil
 }
@@ -337,7 +337,7 @@ func ComputeTokenBreakdown(
 	tier := NormalizeBillingServiceTier(serviceTier)
 	if tier == "priority" || tier == "fast" {
 		if fastMultiplier, configured := NormalizedFastModeMultiplier(pricing); configured {
-			// 渠道显式倍率以普通模式最终价为基准，避免和模型内置 priority 价重复叠乘。
+			// 价卡显式倍率以普通模式最终价为基准，避免和模型内置 priority 价重复叠乘。
 			tierMultiplier = fastMultiplier
 		} else if UsePriorityServiceTierPricing(serviceTier, pricing) {
 			if pricing.InputPricePerTokenPriority > 0 {
@@ -518,7 +518,7 @@ func ApplyModelSpecificPricingPolicy(model string, pricing *ModelPricing, policy
 }
 
 // ApplyModelSpecificPricingPolicyEx 应用模型专属定价修正；forceDeepSeekRates 为 false
-// 时保留分组/渠道对 DeepSeek 的显式价格，避免官方价覆盖运营者配置。
+// 时保留分组或共享价格配置对 DeepSeek 的显式价格，避免官方价覆盖运营者配置。
 func ApplyModelSpecificPricingPolicyEx(model string, pricing *ModelPricing, forceDeepSeekRates bool, policy ModelPolicy) *ModelPricing {
 	if pricing == nil {
 		return nil
@@ -585,7 +585,7 @@ func EnforceOpenAIFastPricingRatio(pricing *ModelPricing, ratio float64) {
 	if pricing.CacheReadPricePerToken > 0 {
 		pricing.CacheReadPricePerTokenPriority = pricing.CacheReadPricePerToken * ratio
 	}
-	// 渠道显式覆盖缓存写价格时，保留其是否配置 priority 的原语义，
+	// 价卡显式覆盖缓存写价格时，保留其是否配置 priority 的原语义，
 	// 不因模型 Fast 兜底倍率凭空生成未配置的档位价。
 	if !pricing.CacheCreationPriceExplicit && pricing.CacheCreationPricePerToken > 0 {
 		hadNativePriority := pricing.CacheCreationPricePerTokenPriority > 0
@@ -629,7 +629,7 @@ func DisplayPricingFromResolved(model string, rateMultiplier float64, resolved *
 		}
 		return ModelDisplayPricing{}, false
 	case BillingModeImage, BillingModePerRequest:
-		if resolved.Source != PricingSourceGroup && resolved.Source != PricingSourceChannel {
+		if resolved.Source != PricingSourceGroup && resolved.Source != PricingSourceConfig {
 			return ModelDisplayPricing{}, false
 		}
 		if resolved.Mode == BillingModePerRequest && !LooksLikeImageModel(model) {
@@ -981,7 +981,7 @@ const (
 	DefaultSearchPricePer1k = 5.0
 
 	// 通用实时语音默认采用 think-fast-1.0 价格；think-fast-2.0 可通过
-	// 分组或渠道逐模型价格独立配置。
+	// 分组或共享价格配置逐模型价格独立配置。
 	DefaultAudioRealtimePricePerMin     = 0.05
 	DefaultAudioTTSPricePerMillionChars = 15.0
 	DefaultAudioSTTPricePerHour         = 0.10

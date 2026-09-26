@@ -354,8 +354,9 @@ type smokeFakeGroupRepo struct {
 
 func (r *smokeFakeGroupRepo) GetByIDLite(ctx context.Context, id int64) (*creative.GroupView, error) {
 	price := r.price1k
-	return &creative.GroupView{ID: id, Name: "Smoke Group", Platform: capability.PlatformGemini, Active: true, AllowImageGeneration: true, RateMultiplier: 1, Operations: []string{creative.CreativeOperationGenerate, creative.CreativeOperationEdit}, Price: billingcore.PriceGroup{ModelPricing: []routing.ChannelModelPricing{{Models: []string{"*"}, BillingMode: routing.BillingModeImage, PerRequestPrice: &price}}}}, nil
+	return &creative.GroupView{ID: id, Name: "Smoke Group", Platform: capability.PlatformGemini, Active: true, AllowImageGeneration: true, RateMultiplier: 1, Operations: []string{creative.CreativeOperationGenerate, creative.CreativeOperationEdit}, Price: billingcore.PriceGroup{ModelPricing: []routing.ModelPricingEntry{{Models: []string{"*"}, BillingMode: routing.BillingModeImage, PerRequestPrice: &price}}}}, nil
 }
+
 func (r *smokeFakeGroupRepo) ListActive(context.Context) ([]creative.GroupView, error) {
 	return nil, nil
 }
@@ -425,7 +426,8 @@ func TestCreativeFullChainSmoke(t *testing.T) {
 	results := &creative.Results{Repo: repo, TransientStore: store, Queue: queue, Funding: creative.Funding{Store: billing}, TransientTTL: time.Duration(cfg.Creative.TransientTTLSeconds) * time.Second}
 	managed := apikey.ManagedKeys{Store: &smokeFakeManagedKeyRepo{}, Prefix: cfg.Default.APIKeyPrefix, ManagedBy: creative.CreativeManagedBy, NamePrefix: "creative-studio"}
 	prices := billingcore.NewPriceResolver(nil, billingtestkit.Calculator(0, nil, nil), modelidentity.Identity, nil)
-	svc := &creative.Public{Repo: repo, UserRepo: &smokeFakeUserRepo{}, AccountRepo: &smokeFakeAccountRepo{}, GroupRepo: &smokeFakeGroupRepo{price1k: 0.02}, UserGroupRateRepo: &smokeFakeRateRepo{}, Queue: queue, TransientStore: store, Results: results, Settings: smokeCreativeSettingReader{}, UserNotFound: identity.ErrUserNotFound,
+	svc := &creative.Public{
+		Repo: repo, UserRepo: &smokeFakeUserRepo{}, AccountRepo: &smokeFakeAccountRepo{}, GroupRepo: &smokeFakeGroupRepo{price1k: 0.02}, UserGroupRateRepo: &smokeFakeRateRepo{}, Queue: queue, TransientStore: store, Results: results, Settings: smokeCreativeSettingReader{}, UserNotFound: identity.ErrUserNotFound,
 		Options: creative.PublicOptions{Enabled: cfg.Creative.Enabled, MaxAssetBytes: cfg.Creative.MaxAssetBytes, MaxTotalInputBytes: cfg.Creative.MaxTotalInputBytes, MaxPromptChars: cfg.Creative.MaxPromptChars, DefaultImageSize: cfg.Creative.DefaultImageSize},
 		EnsureKey: func(ctx context.Context, u, g int64) (int64, error) {
 			key, err := managed.Ensure(ctx, u, g)
@@ -507,6 +509,7 @@ func (r *smokeFakeRunRepo) RecordProviderOutcome(ctx context.Context, id string,
 	r.outputs[id] = snapshots
 	return r.MarkCreativeRunProviderSucceeded(ctx, id, accountID, now)
 }
+
 func (r *smokeFakeRunRepo) CompleteProviderOutcome(ctx context.Context, id string, cost float64, lost bool, now time.Time) error {
 	if err := r.MarkCreativeRunSucceeded(ctx, id, cost, now); err != nil {
 		return err

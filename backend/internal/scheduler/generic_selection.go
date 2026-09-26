@@ -72,9 +72,9 @@ type GenericSelectionPorts struct {
 	SelectAccountForModelWithExclusions          func(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*FlowAccount, error)
 	AdvancedSchedulerEffectiveSettingsForRequest func(ctx context.Context, groupID *int64) policy.EffectiveSettings
 	AdvancedSchedulerStats                       func() *RuntimeStats
-	ChannelMappedModelForAccountLayer            func(ctx context.Context, requestedModel string) string
+	GroupMappedModelForAccountLayer              func(ctx context.Context, requestedModel string) string
 	CheckAndRegisterSession                      func(ctx context.Context, account *FlowAccount, session string) bool
-	CheckChannelPricingRestriction               func(ctx context.Context, groupID *int64, requestedModel string) bool
+	CheckGroupModelRestriction                   func(ctx context.Context, groupID *int64, requestedModel string) bool
 	CheckClaudeCodeRestriction                   func(ctx context.Context, groupID *int64) (*FlowGroup, *int64, error)
 	DebugModelRoutingEnabled                     func() bool
 	GroupModelUnsupportedErrorIfApplicable       func(ctx context.Context, accounts []FlowAccount, requestedModel string, platform string, excludedIDs map[int64]struct{}, useMixed bool, groupID *int64, schedGroup *FlowGroup) error
@@ -85,9 +85,9 @@ type GenericSelectionPorts struct {
 	IsAccountSchedulableForSelection             func(account *FlowAccount) bool
 	IsAccountSchedulableForWindowCost            func(ctx context.Context, account *FlowAccount, sticky bool) bool
 	IsModelSupportedByAccountWithContext         func(ctx context.Context, account *FlowAccount, requestedModel string) bool
-	IsUpstreamModelRestrictedByChannel           func(ctx context.Context, groupID int64, account *FlowAccount, requestedModel string) bool
+	IsUpstreamModelRestrictedByGroup             func(ctx context.Context, groupID int64, account *FlowAccount, requestedModel string) bool
 	ListSchedulableAccounts                      func(ctx context.Context, groupID *int64, platform string, hasForcePlatform bool) ([]FlowAccount, bool, error)
-	NeedsUpstreamChannelRestrictionCheck         func(ctx context.Context, groupID *int64) bool
+	NeedsUpstreamGroupRestrictionCheck           func(ctx context.Context, groupID *int64) bool
 	NewSelectionResult                           func(ctx context.Context, account *FlowAccount, acquired bool, release func(), waitPlan *AccountWaitPlan) (*FlowSelection, error)
 	ResolvePlatform                              func(ctx context.Context, groupID *int64, group *FlowGroup) (string, bool, error)
 	SchedulingConfig                             func() FlowOptions
@@ -123,6 +123,7 @@ func derefGroupID(id *int64) int64 {
 	}
 	return *id
 }
+
 func (s *GenericSelector) Select(ctx context.Context, input SelectionInput) (*FlowSelection, error) {
 	groupID, sessionHash, requestedModel, excludedIDs := input.GroupID, input.SessionHash, input.RequestedModel, input.ExcludedIDs
 
@@ -148,11 +149,11 @@ func (s *GenericSelector) Select(ctx context.Context, input SelectionInput) (*Fl
 	// 粘性不会作为统一候选评分的一部分。关闭加权时保留原有硬粘性语义。
 	advancedStickyWeighted := usesAdvancedScheduler && s.ports.AdvancedSchedulerEffectiveSettingsForRequest(ctx, groupID).StickyWeightedEnabled
 
-	if s.ports.CheckChannelPricingRestriction(ctx, groupID, requestedModel) {
-		s.diagnostics.event("warn", "channel pricing restriction blocked request",
+	if s.ports.CheckGroupModelRestriction(ctx, groupID, requestedModel) {
+		s.diagnostics.event("warn", "group model restriction blocked request",
 			"group_id", derefGroupID(groupID),
 			"model", requestedModel)
-		return nil, fmt.Errorf("%w supporting model: %s (channel pricing restriction)", ErrNoAvailableAccounts, requestedModel)
+		return nil, fmt.Errorf("%w supporting model: %s (group model restriction)", ErrNoAvailableAccounts, requestedModel)
 	}
 
 	var stickyAccountID int64
@@ -283,14 +284,14 @@ func (s *GenericSelector) Select(ctx context.Context, input SelectionInput) (*Fl
 		return excluded
 	}
 	// upstream 依据必须逐账号计算最终模型，所有负载感知选择入口共用同一过滤规则。
-	needsUpstreamCheck := s.ports.NeedsUpstreamChannelRestrictionCheck(ctx, groupID)
+	needsUpstreamCheck := s.ports.NeedsUpstreamGroupRestrictionCheck(ctx, groupID)
 	isUpstreamAllowed := func(account *FlowAccount) bool {
-		return !needsUpstreamCheck || !s.ports.IsUpstreamModelRestrictedByChannel(ctx, *groupID, account, requestedModel)
+		return !needsUpstreamCheck || !s.ports.IsUpstreamModelRestrictedByGroup(ctx, *groupID, account, requestedModel)
 	}
 
 	var routingAccountIDs []int64
 	if group != nil && requestedModel != "" && group.Platform == capability.PlatformAnthropic {
-		routingModel := s.ports.ChannelMappedModelForAccountLayer(ctx, requestedModel)
+		routingModel := s.ports.GroupMappedModelForAccountLayer(ctx, requestedModel)
 		routingAccountIDs = group.GetRoutingAccountIDs(routingModel)
 		if s.ports.DebugModelRoutingEnabled() {
 			s.diagnostics.printf("service.gateway", "[ModelRoutingDebug] context group routing: group_id=%d model=%s enabled=%v rules=%d matched_ids=%v session=%s sticky_account=%d",
@@ -387,7 +388,6 @@ func (s *GenericSelector) Select(ctx context.Context, input SelectionInput) (*Fl
 					"session", shortFlowSessionHash(sessionHash),
 				)
 				if slices.Contains(routingAccountIDs, stickyAccountID) && !isExcluded(stickyAccountID) {
-
 					if stickyAccount, ok := accountByID[stickyAccountID]; ok {
 						var stickyCacheMissReason string
 
@@ -404,7 +404,6 @@ func (s *GenericSelector) Select(ctx context.Context, input SelectionInput) (*Fl
 						if rpmPass {
 							result, err := s.ports.TryAcquireAccountSlot(ctx, stickyAccountID, stickyAccount.Concurrency)
 							if err == nil && result.Acquired {
-
 								if !s.ports.CheckAndRegisterSession(ctx, stickyAccount, sessionHash) {
 									result.ReleaseFunc()
 									stickyCacheMissReason = "session_limit"
@@ -425,10 +424,8 @@ func (s *GenericSelector) Select(ctx context.Context, input SelectionInput) (*Fl
 							if stickyCacheMissReason == "" {
 								waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, stickyAccountID)
 								if waitingCount < cfg.StickySessionMaxWaiting {
-
 									if !s.ports.CheckAndRegisterSession(ctx, stickyAccount, sessionHash) {
 										stickyCacheMissReason = "session_limit"
-
 									} else {
 										// 必须走 newSelectionResult 以 hydrate 账号凭证：
 										// 调度快照中的账号是精简版（OAuth token 等被剥离），
@@ -611,7 +608,6 @@ func (s *GenericSelector) Select(ctx context.Context, input SelectionInput) (*Fl
 				if !clearSticky && platformOK && modelSupported && upstreamAllowed && modelSchedulable && quotaOK && windowCostOK && rpmOK && schedulable {
 					result, err := s.ports.TryAcquireAccountSlot(ctx, accountID, account.Concurrency)
 					if err == nil && result.Acquired {
-
 						if !s.ports.CheckAndRegisterSession(ctx, account, sessionHash) {
 							result.ReleaseFunc()
 							s.diagnostics.event("debug", "sticky.layer1_5_no_routing_miss",
@@ -639,9 +635,7 @@ func (s *GenericSelector) Select(ctx context.Context, input SelectionInput) (*Fl
 
 					waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, accountID)
 					if waitingCount < cfg.StickySessionMaxWaiting {
-
 						if !s.ports.CheckAndRegisterSession(ctx, account, sessionHash) {
-
 						} else {
 							s.diagnostics.event("debug", "sticky.layer1_5_no_routing_hit",
 								"account_id", accountID,
@@ -816,7 +810,6 @@ func (s *GenericSelector) Select(ctx context.Context, input SelectionInput) (*Fl
 
 			result, err := s.ports.TryAcquireAccountSlot(ctx, selected.Account.ID, selected.Account.Concurrency)
 			if err == nil && result.Acquired {
-
 				if !s.ports.CheckAndRegisterSession(ctx, selected.Account, sessionHash) {
 					result.ReleaseFunc()
 				} else {
@@ -1004,6 +997,7 @@ func (s *GenericSelector) SortCandidatesForFallback(accounts []*FlowAccount, pre
 		flowSortAccountsByPriorityAndLastUsed(accounts, preferOAuth)
 	}
 }
+
 func shortFlowSessionHash(sessionHash string) string {
 	if sessionHash == "" {
 		return ""

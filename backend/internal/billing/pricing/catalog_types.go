@@ -3,6 +3,11 @@ package pricing
 // LiteLLMModelPricing LiteLLM价格数据结构
 // 只保留我们需要的字段，使用指针来处理可能缺失的值
 type LiteLLMModelPricing struct {
+	// 保留缓存桶是否显式存在，供默认价格页区分免费与不适用。
+	CacheCreationPricePresent           bool    `json:"-"`
+	CacheReadPricePresent               bool    `json:"-"`
+	ImageInputPricePresent              bool    `json:"-"`
+	ImageOutputPricePresent             bool    `json:"-"`
 	InputCostPerToken                   float64 `json:"input_cost_per_token"`
 	InputCostPerTokenPriority           float64 `json:"input_cost_per_token_priority"`
 	OutputCostPerToken                  float64 `json:"output_cost_per_token"`

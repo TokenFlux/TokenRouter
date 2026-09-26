@@ -42,13 +42,16 @@ func newNonStreamingFailoverService() *OpenAIResponseOutput {
 }
 
 func newNonStreamingFailoverAccount() *gatewayprovider.ExecutionAccount {
-	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Name:     "pool-account",
-		Credentials: map[string]any{
-			"pool_mode": true,
-		}},
+	return &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 1,
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeAPIKey,
+			Name:     "pool-account",
+			Credentials: map[string]any{
+				"pool_mode": true,
+			},
+		},
 	}
 }
 
@@ -72,7 +75,7 @@ func sseTerminalBody(eventType, data string) []byte {
 }
 
 // 主复现：issue 报告的容量错误，与流式兄弟用例
-// TestOpenAIStreamingResponseFailedBeforeOutputCapacityErrorReturnsFailover 逐项对齐。
+// TestNonStreamingSSEToJSON_CapacityFailedEventFailsOver 逐项对齐。
 func TestNonStreamingSSEToJSON_CapacityFailedEventFailsOver(t *testing.T) {
 	c, rec := newNonStreamingFailoverContext(t)
 	svc := newNonStreamingFailoverService()

@@ -106,6 +106,9 @@ func SanitizeGroupOpenAIFast(group *Group) {
 }
 
 func (s *GroupAdmin) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
+	if err := ValidateGroupRoutingPolicy(input.RoutingPolicy); err != nil {
+		return nil, err
+	}
 	fastPolicy, policyErr := ResolveGroupOpenAIFastPolicyInput(input.OpenAIFastPolicy, input.ForceOpenAIFast)
 	if policyErr != nil {
 		return nil, policyErr
@@ -280,6 +283,7 @@ func (s *GroupAdmin) CreateGroup(ctx context.Context, input *CreateGroupInput) (
 		Status:                          StatusActive,
 		LongContextPricingEnabled:       longContextPricingEnabled,
 		ModelPricing:                    modelPricing,
+		RoutingPolicy:                   input.RoutingPolicy.Clone(),
 		AllowImageGeneration:            allowImageGeneration,
 		AllowBatchImageGeneration:       allowBatchImageGeneration,
 		BatchImageDiscountMultiplier:    batchImageDiscountMultiplier,
@@ -560,6 +564,12 @@ func (s *GroupAdmin) UpdateGroup(ctx context.Context, id int64, input *UpdateGro
 	}
 	if input.LongContextPricingEnabled != nil {
 		group.LongContextPricingEnabled = *input.LongContextPricingEnabled
+	}
+	if input.RoutingPolicy != nil {
+		if err := ValidateGroupRoutingPolicy(*input.RoutingPolicy); err != nil {
+			return nil, err
+		}
+		group.RoutingPolicy = input.RoutingPolicy.Clone()
 	}
 	if input.ModelPricing != nil {
 		modelPricing, normalizeErr := s.options.Pricing.NormalizeGroupPricing(group.Platform, *input.ModelPricing)
@@ -871,10 +881,10 @@ func (s *GroupAdmin) UpdateGroup(ctx context.Context, id int64, input *UpdateGro
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, id)
 	}
-	// 渠道缓存持有分组平台，渠道定价、模型映射和模型白名单均依赖该值。
+	// 共享价格配置缓存按分组平台索引价卡；分组策略通过认证快照独立读取。
 	// 仅在平台实际变化且事务提交成功后失效，避免继续按旧平台匹配。
-	if group.Platform != previousPlatform && s.channelCacheInvalidator != nil {
-		s.channelCacheInvalidator.InvalidateCache()
+	if group.Platform != previousPlatform && s.pricingConfigCacheInvalidator != nil {
+		s.pricingConfigCacheInvalidator.InvalidateCache()
 	}
 
 	return group, nil

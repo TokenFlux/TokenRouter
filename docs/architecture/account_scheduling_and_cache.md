@@ -66,7 +66,7 @@ OpenAI/Grok 的请求资格与固定账号 WS 复核共用 `gateway/provider.Com
 
 管理员可通过 `scheduler/httpapi` 的账号高级调度评分诊断查看当前候选池的实时解释。`scheduler.DiagnosticService` 拥有候选、参数和解释计算，原生 selection 适配只在单次调用中关联执行投影，不把凭据带入核心。基准诊断不指定模型、会话粘性或上一响应粘性；模拟诊断只接受模型和两个账号 ID，不能接收 session hash、previous response 内容、凭据或代理认证信息。
 
-诊断使用无分页分组全集统计排除原因，并复用生产服务可安全执行的模型运行时封禁、额度、窗口费用、RPM、代理流隔离、OpenAI/Grok 配额自动暂停、影子母账号健康和渠道限制；它不会获取并发槽、注册会话、写入粘性或修改运行时统计。endpoint、transport、Compact、媒体等缺少请求输入的门禁以 `not_evaluated` 策略信号返回，真实请求仍会在完整上下文中追加检查。
+诊断使用无分页分组全集统计排除原因，并复用生产服务可安全执行的模型运行时封禁、额度、窗口费用、RPM、代理流隔离、OpenAI/Grok 配额自动暂停、影子母账号健康和分组白名单；它不会获取并发槽、注册会话、写入粘性或修改运行时统计。endpoint、transport、Compact、媒体等缺少请求输入的门禁以 `not_evaluated` 策略信号返回，真实请求仍会在完整上下文中追加检查。
 
 Spark 影子的母账号资格由 `account.ParentHealthyForShadow` 统一判断，调度、诊断和 WS 复核投影到同一规则：母账号须存在、仍为 OpenAI OAuth，且凭据未因状态、到期或临时停调失效；母账号自身的全局限流、过载和手动调度开关不连带禁用影子。`account/provider.DefaultSparkShadowModels` 在调用时从 OpenAI 的唯一 Codex 别名表构造独立的恒等映射，app 直接将它注入账号管理，不保存第二份模型表。
 
@@ -76,7 +76,7 @@ Spark 影子的母账号资格由 `account.ParentHealthyForShadow` 统一判断�
 
 错误率和 TTFT 使用共享的运行时 EWMA；错误率以 0% 为初始基线，没有反馈样本时按 0% 计算，归一化健康度为 1，首次失败会从该零基线更新 EWMA 并立即低于完全未观测账号。每个聚合值还保存样本数和最近观测时间。诊断对未观测错误率明确显示“0%（未观测）”，负载、TTFT、窗口重置或平台额度快照缺失时则标注“未观测，使用中性值”，而不是把账号表示为失败或不可调度。负载分母使用账号的 `EffectiveLoadFactor()`。分组覆盖、全局运行时设置与进程默认值均逐字段标注来源，保证诊断公式和实际高级调度路径共用相同有效参数。
 
-模型缺失错误的诊断直接由 `routing.ModelAvailability` 读取持久配置账号池，app 将同一 account 存储与渠道实例绑定到 Messages、兼容文本、已解析模型三种端口。该查询忽略临时限流、过载和停调，不能拿调度快照的空池证明模型不存在；standard/simple 的分组范围保持各自语义。HTTP 与计数执行端分别接收诊断和选择能力。已解析模型不再经过渠道映射；未解析模型使用 `ChannelService.ResolveRoutingModel` 的唯一规则。
+模型缺失错误的诊断直接由 `routing.ModelAvailability` 读取持久配置账号池，app 将同一 account 存储与分组策略读取实例绑定到 Messages、兼容文本、已解析模型三种端口。该查询忽略临时限流、过载和停调，不能拿调度快照的空池证明模型不存在；standard/simple 的分组范围保持各自语义。HTTP 与计数执行端分别接收诊断和选择能力。已解析模型不再经过分组映射；未解析模型使用 `PricingConfigService.ResolveRoutingModel` 的唯一规则。
 
 OpenAI 兼容选择、诊断与 WS 复核共用 `ModelPolicy.SupportsCompatibleRouting`，保留透传旁路与账号白名单规则。
 
@@ -118,7 +118,7 @@ Bedrock 账号的模型筛选包含型号、来源区域及全局推理开关的
 
 通过硬过滤后才比较优先级、近期使用、账号负载、排队、错误率、延迟、重置窗口或配额余量。高级核心提供跨平台的固定评分与 Top-K 选择机制，OpenAI/Grok 适配器只补充其请求确实具备的 Responses transport、WebSocket、旧版 `/responses/compact`、原生 `remote_compaction_v2`、previous response、订阅和额度信号。原生 V2 继续使用普通 Responses 模型路由，独立读取管理员配置的 `openai_native_compaction_v2_mode`；它不读取任何历史探测状态或旧版 Compact 开关。
 
-管理员关闭时才排除该压缩能力，开启仍不能绕过普通 Responses 端点能力。调度元数据投影必须保留两类压缩开关与文本路由配置。压缩资格只区分启用和关闭，不再维护未知能力等级。快照显示关闭的账号仍可在末尾进行数据库复核，管理员重新启用后不会因旧快照被永久漏选；数据库确认关闭的账号不得获取最终调度资格。上游声明倍率、OAuth 参考倍率和 `upstream_cost` 权重不再参与候选排序或评分；账户本地 `rate_multiplier` 与渠道上游计费模型来源只属于结算。新增评分项不能绕过硬资格，也不能因缺少观测把账号永久降为不可用。
+管理员关闭时才排除该压缩能力，开启仍不能绕过普通 Responses 端点能力。调度元数据投影必须保留两类压缩开关与文本路由配置。压缩资格只区分启用和关闭，不再维护未知能力等级。快照显示关闭的账号仍可在末尾进行数据库复核，管理员重新启用后不会因旧快照被永久漏选；数据库确认关闭的账号不得获取最终调度资格。上游声明倍率、OAuth 参考倍率和 `upstream_cost` 权重不再参与候选排序或评分；账户本地 `rate_multiplier` 与共享价格配置的上游计费模型来源只属于结算。新增评分项不能绕过硬资格，也不能因缺少观测把账号永久降为不可用。
 
 ## 账号自动停调阈值
 
@@ -174,7 +174,7 @@ API Key 上游用量是控制面查询，不属于调度快照。`UpstreamUsageS
 
 ### 分组定价快照
 
-当前认证缓存版本为 40，沿用已有 key、TTL/jitter、负缓存、发布订阅和 outbox 延迟二次失效协议；不根据旧媒体字段是否为空推断快照完整性。认证快照中的 `ModelPricing` 保存完整分组价卡，包括上下文区间、Fast/Flex、Max 推理和分时规则。普通 Key 与复合 Key 的分组投影使用独立副本；金额指针、模型列表、区间和分时段均不能被单次请求修改后污染缓存。分组更新事务提交后使用现有按分组失效机制，价格继承与展示共享相同解析规则，见[分组模型价卡与倍率继承](../domains/routing_and_billing.md#group_model_pricing)。
+当前认证缓存版本为 41，沿用已有 key、TTL/jitter、负缓存、发布订阅和 outbox 延迟二次失效协议；不根据旧媒体字段是否为空推断快照完整性。认证快照中的 `RoutingPolicy` 保存独立模型与功能策略，映射、白名单和嵌套功能值都按请求深拷贝。`ModelPricing` 保存完整分组价卡，包括上下文区间、Fast/Flex、Max 推理和分时规则。普通 Key 与复合 Key 的分组投影使用独立副本；金额指针、模型列表、区间和分时段均不能被单次请求修改后污染缓存。分组更新事务提交后使用现有按分组失效机制，价格继承与展示共享相同解析规则，见[分组模型价卡与倍率继承](../domains/routing_and_billing.md#group_model_pricing)。
 
 ### Key 认证快照的所有权
 

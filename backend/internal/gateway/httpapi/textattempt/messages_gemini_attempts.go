@@ -1,6 +1,10 @@
 package textattempt
 
 import (
+	"context"
+	"errors"
+	"net/http"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -9,10 +13,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-
-	"context"
-	"errors"
-	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
@@ -27,9 +27,9 @@ import (
 // geminiMessageAttemptBridge 不注册 Anthropic 空闲会话，不扩大部分失败完成资格。
 type geminiMessageAttemptBridge struct {
 	messageAttemptBridge
-	forwardModel   string
-	forwardBody    []byte
-	channelMapping routing.ChannelMappingResult
+	forwardModel string
+	forwardBody  []byte
+	groupMapping routing.GroupMappingResult
 }
 
 // Select 保留 Gemini Messages 的既有差异，循环复用 gateway/text。
@@ -42,12 +42,10 @@ func (b *geminiMessageAttemptBridge) Select(excluded map[int64]struct{}) (textfl
 	b.account = b.selection.Account
 	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
 	return gatewaycapture.CaptureTextSelection(b.account), nil
-
 }
 
 // FirstSelectionFailure 保留 Gemini Messages 的既有差异，循环复用 gateway/text。
 func (b *geminiMessageAttemptBridge) FirstSelectionFailure(err error, _ bool) {
-
 	if handleGroupSelectionBusinessError(b.c, err, *b.streamStarted, func(status int, errType string, message string, responseStarted bool) {
 		b.binding().handleStreamingAwareError(b.c, status, errType, message, responseStarted)
 	}) {
@@ -173,7 +171,6 @@ func (b *geminiMessageAttemptBridge) Forward(state textflow.AttemptState) textfl
 		out.Failure = &textflow.AttemptFailure{Cause: retry, Policy: retry.RetryFailure()}
 	}
 	return out
-
 }
 
 // Success 保留 Gemini Messages 的既有差异，循环复用 gateway/text。
@@ -186,7 +183,6 @@ func (b *geminiMessageAttemptBridge) Success() {
 			b.reqLog.Warn("gateway.rpm_increment_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 		}
 	}
-
 }
 
 // Complete 保留 Gemini Messages 的既有差异，循环复用 gateway/text。
@@ -232,7 +228,7 @@ func (b *geminiMessageAttemptBridge) Complete(state textflow.AttemptState) {
 		RequestBody:        append([]byte(nil), b.body...),
 		ForceCacheBilling:  forceCacheBilling,
 		APIKeyService:      b.binding().apiKeyService,
-		ChannelUsageFields: b.channelMapping.ToUsageFields(b.reqModel, b.result.UpstreamModel),
+		PricingUsageFields: b.groupMapping.ToUsageFields(b.reqModel, b.result.UpstreamModel),
 	})
 	completionUserID := b.subject.UserID
 	completionModel := b.reqModel

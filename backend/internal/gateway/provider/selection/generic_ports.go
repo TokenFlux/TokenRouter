@@ -34,6 +34,7 @@ func (g *projectionScope) account(value *gatewayprovider.ExecutionAccount) *sche
 	}
 	return &schedulercore.FlowAccount{Plan: plan, ProjectionID: id, ID: value.Record.ID, Name: value.Record.Name, Platform: value.Record.Platform, Type: value.Record.Type, Concurrency: value.Record.Concurrency, Priority: value.Record.Priority, LastUsedAt: cloneFlowTime(value.Record.LastUsedAt), SessionWindowEnd: cloneFlowTime(value.Record.SessionWindowEnd), LoadFactor: value.View().EffectiveLoadFactor(), BaseRPM: gatewayprovider.ExecutionRuntimeConfig(value).GetBaseRPM(), PrivacySet: value.View().IsPrivacySet(), MixedScheduling: value.View().IsMixedSchedulingEnabled()}
 }
+
 func (g *projectionScope) group(value *routing.Group) *schedulercore.FlowGroup {
 	if value == nil {
 		return nil
@@ -43,18 +44,21 @@ func (g *projectionScope) group(value *routing.Group) *schedulercore.FlowGroup {
 	g.groups[id] = value
 	return &schedulercore.FlowGroup{ProjectionID: id, Group: *routing.CloneGroup(value)}
 }
+
 func (g *projectionScope) oldAccount(v *schedulercore.FlowAccount) *gatewayprovider.ExecutionAccount {
 	if v == nil {
 		return nil
 	}
 	return g.accounts[v.ProjectionID]
 }
+
 func (g *projectionScope) oldGroup(v *schedulercore.FlowGroup) *routing.Group {
 	if v == nil {
 		return nil
 	}
 	return g.groups[v.ProjectionID]
 }
+
 func (g *projectionScope) values(values []gatewayprovider.ExecutionAccount) []schedulercore.FlowAccount {
 	if values == nil {
 		return nil
@@ -65,6 +69,7 @@ func (g *projectionScope) values(values []gatewayprovider.ExecutionAccount) []sc
 	}
 	return out
 }
+
 func (g *projectionScope) oldValues(values []schedulercore.FlowAccount) []gatewayprovider.ExecutionAccount {
 	if values == nil {
 		return nil
@@ -75,6 +80,7 @@ func (g *projectionScope) oldValues(values []schedulercore.FlowAccount) []gatewa
 	}
 	return out
 }
+
 func (g *projectionScope) pointers(values []*gatewayprovider.ExecutionAccount) []*schedulercore.FlowAccount {
 	if values == nil {
 		return nil
@@ -85,6 +91,7 @@ func (g *projectionScope) pointers(values []*gatewayprovider.ExecutionAccount) [
 	}
 	return out
 }
+
 func (g *projectionScope) loads(values []accountWithLoad) []schedulercore.FlowLoad {
 	if values == nil {
 		return nil
@@ -95,6 +102,7 @@ func (g *projectionScope) loads(values []accountWithLoad) []schedulercore.FlowLo
 	}
 	return out
 }
+
 func (g *projectionScope) selection(value *gatewayprovider.SelectionResult) *schedulercore.FlowSelection {
 	if value == nil {
 		return nil
@@ -105,6 +113,7 @@ func (g *projectionScope) selection(value *gatewayprovider.SelectionResult) *sch
 	}
 	return out
 }
+
 func (g *projectionScope) restore(value *schedulercore.FlowSelection) *gatewayprovider.SelectionResult {
 	if value == nil {
 		return nil
@@ -162,12 +171,12 @@ func (s *Generic) genericSelector() (*schedulercore.GenericSelector, *projection
 		AdvancedSchedulerEffectiveSettingsForRequest: func(ctx context.Context, id *int64) policy.EffectiveSettings {
 			return s.advancedSchedulerEffectiveSettingsForRequest(ctx, id)
 		},
-		CheckChannelPricingRestriction:       s.checkChannelPricingRestriction,
-		ChannelMappedModelForAccountLayer:    s.channelMappedModelForAccountLayer,
-		DebugModelRoutingEnabled:             s.debugModelRoutingEnabled,
-		NeedsUpstreamChannelRestrictionCheck: s.needsUpstreamChannelRestrictionCheck,
-		TryAcquireAccountSlot:                s.tryAcquireAccountSlot,
-		PrefetchedSticky:                     prefetchedStickyAccountIDFromContext,
+		CheckGroupModelRestriction:         s.checkGroupModelRestriction,
+		GroupMappedModelForAccountLayer:    s.groupMappedModelForAccountLayer,
+		DebugModelRoutingEnabled:           s.debugModelRoutingEnabled,
+		NeedsUpstreamGroupRestrictionCheck: s.needsUpstreamGroupRestrictionCheck,
+		TryAcquireAccountSlot:              s.tryAcquireAccountSlot,
+		PrefetchedSticky:                   prefetchedStickyAccountIDFromContext,
 		SetAccountError: func(ctx context.Context, id int64, message string) error {
 			return s.setAccountError(ctx, id, message)
 		},
@@ -215,8 +224,8 @@ func (s *Generic) genericSelector() (*schedulercore.GenericSelector, *projection
 		IsModelSupportedByAccountWithContext: func(ctx context.Context, a *schedulercore.FlowAccount, model string) bool {
 			return s.isModelSupportedByAccountWithContext(ctx, scope.oldAccount(a), model)
 		},
-		IsUpstreamModelRestrictedByChannel: func(ctx context.Context, id int64, a *schedulercore.FlowAccount, model string) bool {
-			return s.isUpstreamModelRestrictedByChannel(ctx, id, scope.oldAccount(a), model)
+		IsUpstreamModelRestrictedByGroup: func(ctx context.Context, id int64, a *schedulercore.FlowAccount, model string) bool {
+			return s.isUpstreamModelRestrictedByGroup(ctx, id, scope.oldAccount(a), model)
 		},
 		ShouldClearStickySessionForAccountLayer: func(ctx context.Context, a *schedulercore.FlowAccount, model string) bool {
 			return s.shouldClearStickySessionForAccountLayer(ctx, scope.oldAccount(a), model)

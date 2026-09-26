@@ -52,7 +52,7 @@ func normalizeCodexImageGenerationExplicitToolPolicy(value string) string {
 }
 
 // CodexImageGenerationBridgeOverride 返回账号级 Codex 图片桥接覆盖配置。
-// nil 表示继续跟随渠道级或全局配置。
+// nil 表示继续跟随分组默认值或全局配置。
 func (a *Record) CodexImageGenerationBridgeOverride() *bool {
 	if a == nil || a.Platform != capability.PlatformOpenAI || a.Extra == nil {
 		return nil

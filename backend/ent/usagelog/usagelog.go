@@ -32,8 +32,8 @@ const (
 	FieldRequestedModel = "requested_model"
 	// FieldUpstreamModel holds the string denoting the upstream_model field in the database.
 	FieldUpstreamModel = "upstream_model"
-	// FieldChannelID holds the string denoting the channel_id field in the database.
-	FieldChannelID = "channel_id"
+	// FieldPricingConfigID holds the string denoting the pricing_config_id field in the database.
+	FieldPricingConfigID = "pricing_config_id"
 	// FieldModelMappingChain holds the string denoting the model_mapping_chain field in the database.
 	FieldModelMappingChain = "model_mapping_chain"
 	// FieldBillingTier holds the string denoting the billing_tier field in the database.
@@ -184,7 +184,7 @@ var Columns = []string{
 	FieldModel,
 	FieldRequestedModel,
 	FieldUpstreamModel,
-	FieldChannelID,
+	FieldPricingConfigID,
 	FieldModelMappingChain,
 	FieldBillingTier,
 	FieldBillingMode,
@@ -365,9 +365,9 @@ func ByUpstreamModel(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUpstreamModel, opts...).ToFunc()
 }
 
-// ByChannelID orders the results by the channel_id field.
-func ByChannelID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldChannelID, opts...).ToFunc()
+// ByPricingConfigID orders the results by the pricing_config_id field.
+func ByPricingConfigID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPricingConfigID, opts...).ToFunc()
 }
 
 // ByModelMappingChain orders the results by the model_mapping_chain field.

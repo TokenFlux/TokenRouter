@@ -52,7 +52,7 @@ func TestFilterCNProviderBillingModelCandidatesKeepsExplicitGroupPricing(t *test
 	group := &routing.Group{
 		ID:       1,
 		Platform: capability.PlatformKimi,
-		ModelPricing: []routing.ChannelModelPricing{{
+		ModelPricing: []routing.ModelPricingEntry{{
 			Models:      []string{"claude-sonnet-4-5"},
 			BillingMode: routing.BillingModeToken,
 			InputPrice:  &inputPrice,

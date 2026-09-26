@@ -14,10 +14,11 @@ func GroupFromEnt(g *dbent.Group) *routing.Group {
 	if g == nil {
 		return nil
 	}
-	var modelPricing []routing.ChannelModelPricing
+	routingPolicy := routing.DecodeGroupRoutingPolicy(g.RoutingPolicy)
+	var modelPricing []routing.ModelPricingEntry
 	if len(g.ModelPricing) > 0 {
 		if err := json.Unmarshal(g.ModelPricing, &modelPricing); err != nil {
-			slog.Warn("group model_pricing unmarshal failed; falling back to channel/builtin pricing",
+			slog.Warn("group model_pricing unmarshal failed; falling back to shared/builtin pricing",
 				"group_id", g.ID, "error", err)
 			modelPricing = nil
 		}
@@ -48,6 +49,7 @@ func GroupFromEnt(g *dbent.Group) *routing.Group {
 		AudioSTTPricePerHour:            g.AudioSttPricePerHour,
 		LongContextPricingEnabled:       g.LongContextPricingEnabled,
 		ModelPricing:                    modelPricing,
+		RoutingPolicy:                   routingPolicy,
 		ClaudeCodeOnly:                  g.ClaudeCodeOnly,
 		FallbackGroupID:                 g.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: g.FallbackGroupIDOnInvalidRequest,
@@ -83,6 +85,7 @@ func GroupFromEnt(g *dbent.Group) *routing.Group {
 		UpdatedAt:                       g.UpdatedAt,
 	}
 }
+
 func derefString(s *string) string {
 	if s == nil {
 		return ""

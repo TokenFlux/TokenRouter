@@ -1,14 +1,14 @@
 package textattempt
 
 import (
+	"context"
+	"errors"
+	"net/http"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-
-	"context"
-	"errors"
-	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -25,9 +25,9 @@ import (
 // 单请求适配不另存缓存或重试状态。
 type genericResponsesAttemptBridge struct {
 	messageAttemptBridge
-	requestCtx     context.Context
-	forwardBody    []byte
-	channelMapping routing.ChannelMappingResult
+	requestCtx   context.Context
+	forwardBody  []byte
+	groupMapping routing.GroupMappingResult
 }
 
 // Select 保留通用 Responses 适配；循环复用 gateway/text。
@@ -40,12 +40,10 @@ func (b *genericResponsesAttemptBridge) Select(excluded map[int64]struct{}) (tex
 	b.account = b.selection.Account
 	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
 	return gatewaycapture.CaptureTextSelection(b.account), nil
-
 }
 
 // FirstSelectionFailure 保留通用 Responses 适配；循环复用 gateway/text。
 func (b *genericResponsesAttemptBridge) FirstSelectionFailure(err error, _ bool) {
-
 	cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, gatewayhttp.EffectiveAPIKeyPlatform(b.c, b.apiKey))
 	cls = gatewayhttp.RefineSelectionError(err, cls)
 	if !cls.ModelNotFound {
@@ -135,7 +133,6 @@ func (b *genericResponsesAttemptBridge) Forward(_ textflow.AttemptState) textflo
 		out.Failure = &textflow.AttemptFailure{Cause: err, Policy: retry.RetryFailure()}
 	}
 	return out
-
 }
 
 // OtherFailure 保留通用 Responses 适配；循环复用 gateway/text。
@@ -181,7 +178,7 @@ func (b *genericResponsesAttemptBridge) Complete(_ textflow.AttemptState) {
 		RequestBody:        b.body,
 		APIKeyService:      b.binding().apiKeyService,
 		ClientSessionID:    clientSessionID,
-		ChannelUsageFields: b.channelMapping.ToUsageFields(b.reqModel, b.result.UpstreamModel),
+		PricingUsageFields: b.groupMapping.ToUsageFields(b.reqModel, b.result.UpstreamModel),
 	})
 	completionRuntime := b.binding().recorder
 	completionLog := b.reqLog
@@ -210,6 +207,7 @@ func (b *genericResponsesAttemptBridge) Exhausted(err *textflow.AttemptFailure, 
 		b.binding().responsesErrorResponse(b.c, http.StatusBadGateway, "server_error", "All available accounts exhausted")
 	}
 }
+
 func (b *genericResponsesAttemptBridge) PolicyFailure(err error) {
 	var original *anthropic.BetaBlockedError
 	if errors.As(err, &original) {

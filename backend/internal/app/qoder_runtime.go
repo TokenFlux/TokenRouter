@@ -53,6 +53,7 @@ func (b *qoderRuntime) Prepare(ctx context.Context, request gateway.Request) (ga
 	}
 	return request, nil
 }
+
 func (b *qoderRuntime) Check(ctx context.Context, request gateway.Request, afterWait bool) error {
 	if b.Billing == nil {
 		return nil
@@ -65,7 +66,7 @@ func (b *qoderRuntime) Select(ctx context.Context, request gateway.Request, excl
 	ctx = requeststate.WithRoutePlan(ctx, request.Route)
 	key := apikey.CopyAPIKey(request.Funding.Key)
 	plan := request.Route
-	mapping := routing.ChannelMappingResult(plan.Mapping())
+	mapping := routing.GroupMappingResult(plan.Mapping())
 	body := request.AttemptBody
 	var project func(*gatewayprovider.SelectionResult, *gatewayprovider.ExecutionAccount, bool) *gateway.Selection
 	project = func(selection *gatewayprovider.SelectionResult, account *gatewayprovider.ExecutionAccount, refresh bool) *gateway.Selection {
@@ -110,7 +111,7 @@ func (b *qoderRuntime) Select(ctx context.Context, request gateway.Request, excl
 				InboundEndpoint: request.Metadata.InboundEndpoint, UpstreamEndpoint: request.Metadata.UpstreamEndpoint,
 				UserAgent: request.Metadata.UserAgent, IPAddress: request.Metadata.ClientIP,
 				RequestPayloadHash: billing.HashUsageRequestPayload(request.Body), RequestBody: request.Body,
-				APIKeyService: b.Keys, ChannelUsageFields: mapping.ToUsageFields(request.Model, result.UpstreamModel),
+				APIKeyService: b.Keys, PricingUsageFields: mapping.ToUsageFields(request.Model, result.UpstreamModel),
 			})
 			task := func(workerCtx context.Context) {
 				if err := b.Recorder.Record(workerCtx, snapshot, false); err != nil {
@@ -138,6 +139,7 @@ func (b *qoderRuntime) CanFailover(err error) bool { return qoder.MaySwitchAttem
 func (b *qoderRuntime) RefreshPending(err error) bool {
 	return errors.Is(err, accountcore.ErrQoderRefreshInProgress)
 }
+
 func (b *qoderRuntime) QueueFailure(kind string, err error) {
 	logging.LegacyPrintf("handler.qoder_gateway", "%s wait counter failed: %v", kind, err)
 }

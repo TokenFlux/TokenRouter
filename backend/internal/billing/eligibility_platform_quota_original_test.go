@@ -409,7 +409,7 @@ func TestMonthlyQuotaWindowExpired_CrossMonthBoundary(t *testing.T) {
 	}
 }
 
-// TestNextMonthlyResetFrom 验证 30 天滚动重置时间计算。
+// TestNextMonthlyResetFrom_WithStart 验证 30 天滚动重置时间计算。
 func TestNextMonthlyResetFrom_WithStart(t *testing.T) {
 	start := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	want := start.Add(30 * 24 * time.Hour)

@@ -1,5 +1,5 @@
 import overview from './overview'
-import channels from './channels'
+import pricing from './pricing'
 import accounts from './accounts'
 import resources from './resources'
 import ops from './ops'
@@ -18,7 +18,7 @@ export default {
       groupHint: 'Control each client entry. Use an enabled native protocol first, otherwise the configured conversion target.',
     },
   ...overview,
-  ...channels,
+  ...pricing,
   ...accounts,
   ...resources,
   ...ops,

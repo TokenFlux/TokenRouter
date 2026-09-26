@@ -7,10 +7,12 @@ import (
 )
 
 // 分组配置值沿用其唯一所有者，Key 只持有独立的读取快照。
-type GroupSchedulerType = accessview.GroupSchedulerType
-type GroupAdvancedSchedulerOverrides = accessview.GroupAdvancedSchedulerOverrides
-type OpenAIMessagesDispatchModelConfig = accessview.OpenAIMessagesDispatchModelConfig
-type GroupModelsListConfig = accessview.GroupModelsListConfig
-type GroupAvailabilityProbeConfig = accessview.GroupAvailabilityProbeConfig
-type ReasoningEffortMapping = routing.ReasoningEffortMapping
-type ChannelModelPricing = pricing.ChannelModelPricing
+type (
+	GroupSchedulerType                = accessview.GroupSchedulerType
+	GroupAdvancedSchedulerOverrides   = accessview.GroupAdvancedSchedulerOverrides
+	OpenAIMessagesDispatchModelConfig = accessview.OpenAIMessagesDispatchModelConfig
+	GroupModelsListConfig             = accessview.GroupModelsListConfig
+	GroupAvailabilityProbeConfig      = accessview.GroupAvailabilityProbeConfig
+	ReasoningEffortMapping            = routing.ReasoningEffortMapping
+	ModelPricingEntry                 = pricing.ModelPricingEntry
+)

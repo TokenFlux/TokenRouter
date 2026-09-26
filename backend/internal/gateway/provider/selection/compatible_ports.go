@@ -18,7 +18,8 @@ import (
 func (s *compatiblePicker) platformSelector() (*schedulercore.PlatformSelector, *projectionScope) {
 	scope := &projectionScope{accounts: map[uint64]*gatewayprovider.ExecutionAccount{}, groups: map[uint64]*routing.Group{}}
 	available := s != nil && s.service != nil
-	diagnostics := schedulercore.Diagnostics{Logf: logging.LegacyPrintf,
+	diagnostics := schedulercore.Diagnostics{
+		Logf:  logging.LegacyPrintf,
 		Event: logging.Event,
 	}
 
@@ -33,7 +34,7 @@ func (s *compatiblePicker) platformSelector() (*schedulercore.PlatformSelector, 
 		}
 	}
 	ports := schedulercore.PlatformSelectionPorts{
-		BasicStickyTTL: openaiStickySessionTTL, CheckPricing: s.service.CheckChannelPricingRestriction,
+		BasicStickyTTL: openaiStickySessionTTL, CheckPricing: s.service.CheckGroupModelRestriction,
 		Hydrate: func(ctx context.Context, a *schedulercore.FlowAccount) (*schedulercore.FlowAccount, error) {
 			v, err := s.service.hydrateSelectedAccount(ctx, scope.oldAccount(a))
 			return scope.account(v), err
@@ -54,8 +55,8 @@ func (s *compatiblePicker) platformSelector() (*schedulercore.PlatformSelector, 
 			lookup := s.service.parentAccountLookup(ctx)
 			return func(id int64) *schedulercore.FlowAccount { return scope.account(lookup(id)) }
 		},
-		NeedsChannelCheck: s.service.NeedsUpstreamChannelRestriction,
-		ChannelRestricted: func(ctx context.Context, id int64, a *schedulercore.FlowAccount, model string, compact bool) bool {
+		NeedsGroupCheck: s.service.NeedsUpstreamGroupRestriction,
+		GroupModelRestricted: func(ctx context.Context, id int64, a *schedulercore.FlowAccount, model string, compact bool) bool {
 			return s.service.UpstreamRoutingModelRestricted(ctx, id, scope.oldAccount(a), model, compact)
 		},
 		BasicEligible: func(ctx context.Context, a *schedulercore.FlowAccount, platform, model string, compact bool, capability account.OpenAIEndpointCapability) bool {

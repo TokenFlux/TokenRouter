@@ -25,15 +25,18 @@ import (
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Hit(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(23)
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 2,
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_enabled": true,
-		}},
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 2,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 2,
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_enabled": true,
+			},
+		},
 	}
 	cache := &responseCacheFixture{}
 	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -43,9 +46,11 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Hit(t *testing.T
 		Reads: Reads{Accounts: selectionAccountFixture{accounts: []gatewayprovider.ExecutionAccount{account}}},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
 			Parameters: responseSelectionParameters(),
 		},
@@ -68,17 +73,20 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Hit(t *testing.T
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_QuotaAutoPausedMiss(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(23)
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 77,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 2,
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_enabled": true,
-			"codex_5h_used_percent":                         96.0,
-			"auto_pause_5h_threshold":                       0.95,
-		}},
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 77,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 2,
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_enabled": true,
+				"codex_5h_used_percent":                         96.0,
+				"auto_pause_5h_threshold":                       0.95,
+			},
+		},
 	}
 	cache := &responseCacheFixture{}
 	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -87,9 +95,11 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_QuotaAutoPausedM
 		Reads: Reads{Accounts: selectionAccountFixture{accounts: []gatewayprovider.ExecutionAccount{account}}},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
 			Parameters: responseSelectionParameters(),
 		},
@@ -113,16 +123,19 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_RateLimitedMiss(
 	ctx := context.Background()
 	groupID := int64(23)
 	rateLimitedUntil := time.Now().Add(30 * time.Minute)
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12,
-		Platform:         capability.PlatformOpenAI,
-		Type:             capability.AccountTypeAPIKey,
-		Status:           billing.StatusActive,
-		Schedulable:      true,
-		Concurrency:      1,
-		RateLimitResetAt: &rateLimitedUntil,
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_enabled": true,
-		}},
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 12,
+			Platform:         capability.PlatformOpenAI,
+			Type:             capability.AccountTypeAPIKey,
+			Status:           billing.StatusActive,
+			Schedulable:      true,
+			Concurrency:      1,
+			RateLimitResetAt: &rateLimitedUntil,
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_enabled": true,
+			},
+		},
 	}
 	cache := &responseCacheFixture{}
 	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -131,9 +144,11 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_RateLimitedMiss(
 		Reads: Reads{Accounts: selectionAccountFixture{accounts: []gatewayprovider.ExecutionAccount{account}}},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
 			Parameters: responseSelectionParameters(),
 		},
@@ -154,26 +169,32 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_DBRuntimeRecheck
 	ctx := context.Background()
 	groupID := int64(24)
 	rateLimitedUntil := time.Now().Add(30 * time.Minute)
-	staleAccount := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 13,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_enabled": true,
-		}},
+	staleAccount := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 13,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_enabled": true,
+			},
+		},
 	}
-	dbAccount := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 13,
-		Platform:         capability.PlatformOpenAI,
-		Type:             capability.AccountTypeAPIKey,
-		Status:           billing.StatusActive,
-		Schedulable:      true,
-		Concurrency:      1,
-		RateLimitResetAt: &rateLimitedUntil,
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_enabled": true,
-		}},
+	dbAccount := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 13,
+			Platform:         capability.PlatformOpenAI,
+			Type:             capability.AccountTypeAPIKey,
+			Status:           billing.StatusActive,
+			Schedulable:      true,
+			Concurrency:      1,
+			RateLimitResetAt: &rateLimitedUntil,
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_enabled": true,
+			},
+		},
 	}
 	cache := &responseCacheFixture{}
 	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -188,9 +209,11 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_DBRuntimeRecheck
 		},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
 			Parameters: responseSelectionParameters(),
 		},
@@ -210,15 +233,18 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_DBRuntimeRecheck
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Excluded(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(23)
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_enabled": true,
-		}},
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 8,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_enabled": true,
+			},
+		},
 	}
 	cache := &responseCacheFixture{}
 	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -227,9 +253,11 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Excluded(t *test
 		Reads: Reads{Accounts: selectionAccountFixture{accounts: []gatewayprovider.ExecutionAccount{account}}},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
 			Parameters: responseSelectionParameters(),
 		},
@@ -246,16 +274,19 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Excluded(t *test
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_APIKeyForceHTTPHit(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(23)
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Extra: map[string]any{
-			"openai_ws_force_http":            true,
-			"responses_websockets_v2_enabled": true,
-		}},
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 11,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Extra: map[string]any{
+				"openai_ws_force_http":            true,
+				"responses_websockets_v2_enabled": true,
+			},
+		},
 	}
 	cache := &responseCacheFixture{}
 	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -264,9 +295,11 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_APIKeyForceHTTPH
 		Reads: Reads{Accounts: selectionAccountFixture{accounts: []gatewayprovider.ExecutionAccount{account}}},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
 			Parameters: responseSelectionParameters(),
 		},
@@ -288,16 +321,19 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_APIKeyForceHTTPH
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_OAuthForceHTTPIgnored(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(23)
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeOAuth,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Extra: map[string]any{
-			"openai_ws_force_http":            true,
-			"responses_websockets_v2_enabled": true,
-		}},
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 12,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeOAuth,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Extra: map[string]any{
+				"openai_ws_force_http":            true,
+				"responses_websockets_v2_enabled": true,
+			},
+		},
 	}
 	cache := &responseCacheFixture{}
 	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -305,9 +341,11 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_OAuthForceHTTPIg
 		Reads: Reads{Accounts: selectionAccountFixture{accounts: []gatewayprovider.ExecutionAccount{account}}},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
 			Parameters: responseSelectionParameters(),
 		},
@@ -325,27 +363,33 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_BusyKeepsSticky(
 	ctx := context.Background()
 	groupID := int64(23)
 	accounts := []gatewayprovider.ExecutionAccount{
-		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
-			Platform:    capability.PlatformOpenAI,
-			Type:        capability.AccountTypeAPIKey,
-			Status:      billing.StatusActive,
-			Schedulable: true,
-			Concurrency: 1,
-			Priority:    0,
-			Extra: map[string]any{
-				"openai_apikey_responses_websockets_v2_enabled": true,
-			}},
+		{
+			Record: accountcore.Record{
+				LoadLocation: time.LoadLocation, ID: 21,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    0,
+				Extra: map[string]any{
+					"openai_apikey_responses_websockets_v2_enabled": true,
+				},
+			},
 		},
-		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 22,
-			Platform:    capability.PlatformOpenAI,
-			Type:        capability.AccountTypeAPIKey,
-			Status:      billing.StatusActive,
-			Schedulable: true,
-			Concurrency: 1,
-			Priority:    9,
-			Extra: map[string]any{
-				"openai_apikey_responses_websockets_v2_enabled": true,
-			}},
+		{
+			Record: accountcore.Record{
+				LoadLocation: time.LoadLocation, ID: 22,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    9,
+				Extra: map[string]any{
+					"openai_apikey_responses_websockets_v2_enabled": true,
+				},
+			},
 		},
 	}
 
@@ -369,9 +413,11 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_BusyKeepsSticky(
 		Reads: Reads{Accounts: selectionAccountFixture{accounts: accounts}},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
 			Parameters: responseSelectionParameters(),
 		},
@@ -393,18 +439,21 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_BusyKeepsSticky(
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_CapabilityMismatchKeepsSticky(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(25)
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 31,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"openai_workload_capabilities": []any{"text_generation"},
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 31,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"openai_workload_capabilities": []any{"text_generation"},
+			},
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_enabled": true,
-		}},
 	}
 	cache := &responseCacheFixture{}
 	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -413,9 +462,11 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_CapabilityMismat
 		Reads: Reads{Accounts: selectionAccountFixture{accounts: []gatewayprovider.ExecutionAccount{account}}},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
 			Parameters: responseSelectionParameters(),
 		},
@@ -442,40 +493,42 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_CapabilityMismat
 
 // TestOpenAIGatewayService_SelectAccountByPreviousResponseIDUsesResolvedRoutingModel 验证响应链粘性检查不会把 D 重新解析成 C。
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseIDUsesResolvedRoutingModel(t *testing.T) {
-
 	ctx := context.Background()
 	groupID := int64(26)
 	price := 0.01
-	channel := routing.Channel{
+	pricingConfig := routingtestkit.Configuration{
 		ID:                 78,
 		Status:             billing.StatusActive,
 		RestrictModels:     true,
 		BillingModelSource: routing.BillingModelSourceUpstream,
 		ModelMapping: map[string]map[string]string{
-			capability.PlatformOpenAI: {"client-alias": "channel-model"},
+			capability.PlatformOpenAI: {"client-alias": "group-model"},
 		},
-		ModelPricing: []routing.ChannelModelPricing{{
+		ModelPricing: []routing.ModelPricingEntry{{
 			Platform:   capability.PlatformOpenAI,
 			Models:     []string{"allowed-upstream"},
 			InputPrice: &price,
 		}},
 	}
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 32,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{
-				"channel-model":  "blocked-upstream",
-				"dispatch-model": "allowed-upstream",
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 32,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"group-model":    "blocked-upstream",
+					"dispatch-model": "allowed-upstream",
+				},
+				"model_whitelist": []any{"blocked-upstream", "allowed-upstream"},
 			},
-			"model_whitelist": []any{"blocked-upstream", "allowed-upstream"},
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_enabled": true,
-		}},
 	}
 	cache := &responseCacheFixture{}
 	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -483,13 +536,15 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseIDUsesResolvedRouti
 		Reads: Reads{Accounts: selectionAccountFixture{accounts: []gatewayprovider.ExecutionAccount{account}}},
 		Shared: Shared{
 			Cache: cache,
-			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Concurrency: scheduler.NewConcurrencyService(selectionConcurrencyFixture{}, scheduler.Diagnostics{
+				Logf: logging.LegacyPrintf,
 
-				Event: logging.Event},
+				Event: logging.Event,
+			},
 			),
-			Channels:   routingtestkit.Channel(groupID, capability.PlatformOpenAI, channel),
-			Health:     gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{}),
-			Parameters: responseSelectionParameters(),
+			GroupPolicies: routingtestkit.PricingConfig(groupID, capability.PlatformOpenAI, pricingConfig),
+			Health:        gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{}),
+			Parameters:    responseSelectionParameters(),
 		},
 		Responses: store,
 	}, responseSelectionOptions())

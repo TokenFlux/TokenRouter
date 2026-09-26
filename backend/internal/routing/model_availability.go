@@ -118,8 +118,8 @@ func (s *ModelAvailability) DiagnoseCompatible(
 	return s.DiagnoseCompatibleRouting(ctx, groupID, routingModel, platform)
 }
 
-// DiagnoseCompatibleRouting 直接诊断已经完成渠道及分组映射的账号层模型。
-// Messages 错误路径使用该入口，避免把 D 再次当作客户端模型执行渠道映射。
+// DiagnoseCompatibleRouting 直接诊断已经完成分组映射及协议专用映射的账号层模型。
+// Messages 错误路径使用该入口，避免把 D 再次当作客户端模型执行分组映射。
 func (s *ModelAvailability) DiagnoseCompatibleRouting(
 	ctx context.Context,
 	groupID *int64,

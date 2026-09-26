@@ -5,12 +5,12 @@ package billing_test
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
 
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 
 	slog "log/slog"
-	"testing"
-	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 
@@ -26,8 +26,9 @@ import (
 
 func TestResolve_NoGroupID(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -51,8 +52,9 @@ func TestResolve_NoGroupID(t *testing.T) {
 
 func TestResolve_UnknownModel(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -73,8 +75,9 @@ func TestResolve_UnknownModel(t *testing.T) {
 
 func TestGetIntervalPricing_NoIntervals(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -95,8 +98,9 @@ func TestGetIntervalPricing_NoIntervals(t *testing.T) {
 
 func TestGetIntervalPricing_MatchesInterval(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -127,8 +131,9 @@ func TestGetIntervalPricing_MatchesInterval(t *testing.T) {
 
 func TestGetIntervalPricing_NoMatch_FallsBackToBase(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -162,7 +167,7 @@ func TestGPT56ExplicitZeroCacheWritePriceIsPreserved(t *testing.T) {
 				OutputPricePerToken: 30e-6,
 			},
 		}
-		billingpricing.ApplyTokenOverrides(&routing.ChannelModelPricing{CacheWritePrice: &zero}, resolved)
+		billingpricing.ApplyTokenOverrides(&routing.ModelPricingEntry{CacheWritePrice: &zero}, resolved)
 
 		require.True(t, resolved.BasePricing.CacheCreationPriceExplicit)
 		cost, err := bs.CalculateCostUnified(billing.CostInput{
@@ -197,8 +202,9 @@ func TestGPT56ExplicitZeroCacheWritePriceIsPreserved(t *testing.T) {
 
 func TestGetRequestTierPrice(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -226,8 +232,9 @@ func TestGetRequestTierPrice(t *testing.T) {
 
 func TestGetRequestTierPriceByContext(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -253,8 +260,9 @@ func TestGetRequestTierPriceByContext(t *testing.T) {
 
 func TestGetRequestTierPrice_NilPerRequestPrice(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -273,11 +281,11 @@ func TestGetRequestTierPrice_NilPerRequestPrice(t *testing.T) {
 }
 
 // ===========================================================================
-// Channel override tests — exercises applyChannelOverrides via Resolve
+// PricingConfig override tests — exercises applyChannelOverrides via Resolve
 // ===========================================================================
 
-// newResolverWithChannel 创建带指定渠道定价的解析器，分组平台跟随首条定价配置。
-func newResolverWithChannel(t *testing.T, pricing []routing.ChannelModelPricing) *billing.PriceResolver {
+// newResolverWithChannel 创建带指定共享价格配置定价的解析器，分组平台跟随首条定价配置。
+func newResolverWithPricingConfig(t *testing.T, pricing []routing.ModelPricingEntry) *billing.PriceResolver {
 	t.Helper()
 	return billingtestkit.ResolverWithCards(t, billingtestkit.ResolverCalculator(), pricing)
 }
@@ -286,8 +294,8 @@ func newResolverWithChannel(t *testing.T, pricing []routing.ChannelModelPricing)
 // 1. Token mode overrides
 // ---------------------------------------------------------------------------
 
-func TestResolve_WithChannelOverride_TokenFlat(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_TokenFlat(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -302,16 +310,16 @@ func TestResolve_WithChannelOverride_TokenFlat(t *testing.T) {
 
 	require.NotNil(t, resolved)
 	require.Equal(t, routing.BillingModeToken, resolved.Mode)
-	require.Equal(t, "channel", resolved.Source)
+	require.Equal(t, "pricing_config", resolved.Source)
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, 10e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
-	// claude-sonnet-4 没有目录 priority 价，渠道覆盖不能凭空制造 tier 价格。
+	// claude-sonnet-4 没有目录 priority 价，共享价格配置覆盖不能凭空制造 tier 价格。
 	require.Zero(t, resolved.BasePricing.InputPricePerTokenPriority)
 	require.InDelta(t, 50e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 	require.Zero(t, resolved.BasePricing.OutputPricePerTokenPriority)
 }
 
-func TestResolve_WithChannelOverride_TokenFlatPreservesNativeTierRatio(t *testing.T) {
+func TestResolve_WithPricingConfigOverride_TokenFlatPreservesNativeTierRatio(t *testing.T) {
 	prices := billingtestkit.ResolverFallbackPrices()
 	prices["gpt-5.4"] = &billingpricing.ModelPricing{
 		InputPricePerToken:             2e-6,
@@ -322,7 +330,7 @@ func TestResolve_WithChannelOverride_TokenFlatPreservesNativeTierRatio(t *testin
 		CacheReadPricePerTokenPriority: 1e-6,
 	}
 	bs := newCalculatorWithPrices(nil, nil, prices)
-	r := billingtestkit.ResolverWithCards(t, bs, []routing.ChannelModelPricing{{
+	r := billingtestkit.ResolverWithCards(t, bs, []routing.ModelPricingEntry{{
 		Platform:       "openai",
 		Models:         []string{"gpt-5.4"},
 		BillingMode:    routing.BillingModeToken,
@@ -338,9 +346,9 @@ func TestResolve_WithChannelOverride_TokenFlatPreservesNativeTierRatio(t *testin
 	require.InDelta(t, 4e-6, resolved.BasePricing.CacheReadPricePerTokenPriority, 1e-12)
 }
 
-func TestResolve_WithChannelOverride_TokenPartialOverride(t *testing.T) {
-	// Channel only sets InputPrice; OutputPrice should remain from the base (LiteLLM/fallback).
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_TokenPartialOverride(t *testing.T) {
+	// PricingConfig only sets InputPrice; OutputPrice should remain from the base (LiteLLM/fallback).
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -354,16 +362,16 @@ func TestResolve_WithChannelOverride_TokenPartialOverride(t *testing.T) {
 	})
 
 	require.NotNil(t, resolved)
-	require.Equal(t, "channel", resolved.Source)
+	require.Equal(t, "pricing_config", resolved.Source)
 	require.NotNil(t, resolved.BasePricing)
-	// InputPrice overridden by channel
+	// InputPrice overridden by configPricing
 	require.InDelta(t, 20e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
 	// OutputPrice kept from base (fallback: 15e-6)
 	require.InDelta(t, 15e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 }
 
-func TestResolve_WithChannelOverride_PriceMultiplierOnlyIsIgnored(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_PriceMultiplierOnlyIsIgnored(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:        "anthropic",
 		Models:          []string{"claude-sonnet-4"},
 		BillingMode:     routing.BillingModeToken,
@@ -378,14 +386,14 @@ func TestResolve_WithChannelOverride_PriceMultiplierOnlyIsIgnored(t *testing.T) 
 	// 非法的仅倍率存量数据不能改变默认模型价格。
 	require.NotNil(t, resolved)
 	require.Equal(t, billingpricing.PricingSourceLiteLLM, resolved.Source)
-	require.False(t, resolved.HasEffectiveChannelPricing())
+	require.False(t, resolved.HasEffectivePricing())
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, 3e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
 	require.InDelta(t, 15e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 }
 
-func TestResolve_BlankChannelPricingIsIgnoredForNonQoder(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_BlankConfigPricingIsIgnoredForNonQoder(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -398,20 +406,20 @@ func TestResolve_BlankChannelPricingIsIgnoredForNonQoder(t *testing.T) {
 
 	require.NotNil(t, resolved)
 	require.Equal(t, billingpricing.PricingSourceLiteLLM, resolved.Source)
-	require.False(t, resolved.HasEffectiveChannelPricing())
+	require.False(t, resolved.HasEffectivePricing())
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, 3e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
 	require.InDelta(t, 15e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 	require.False(t, resolved.BasePricing.ImageOutputPriceExplicit)
 }
 
-func TestResolve_QoderCustomAliasMappedToRouteKeyZerosMissingPartialChannelPricing(t *testing.T) {
+func TestResolve_QoderCustomAliasMappedToRouteKeyZerosMissingPartialConfigPricing(t *testing.T) {
 	groupID := int64(100)
 	inputPrice := 20e-6
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = &routing.Channel{ID: 1, Status: billing.StatusActive}
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"custom-qoder"},
 		BillingMode: routing.BillingModeToken,
@@ -420,9 +428,9 @@ func TestResolve_QoderCustomAliasMappedToRouteKeyZerosMissingPartialChannelPrici
 	cache.Models[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = "qmodel"
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 	billingService := newCalculator(nil, nil)
-	r := billingtestkit.PriceResolver(channelService, billingService)
+	r := billingtestkit.PriceResolver(pricingConfigService, billingService)
 
 	resolved := r.Resolve(context.Background(), billing.PricingInput{
 		Model:   "custom-qoder",
@@ -430,19 +438,19 @@ func TestResolve_QoderCustomAliasMappedToRouteKeyZerosMissingPartialChannelPrici
 	})
 
 	require.NotNil(t, resolved)
-	require.Equal(t, billingpricing.PricingSourceChannel, resolved.Source)
+	require.Equal(t, billingpricing.PricingSourceConfig, resolved.Source)
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
 	require.Zero(t, resolved.BasePricing.OutputPricePerToken)
 }
 
-func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialChannelPricing(t *testing.T) {
+func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialConfigPricing(t *testing.T) {
 	groupID := int64(100)
 	inputPrice := 20e-6
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = &routing.Channel{ID: 1, Status: billing.StatusActive}
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"gpt-5.4"},
 		BillingMode: routing.BillingModeToken,
@@ -451,9 +459,9 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialChannelPri
 	cache.Models[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = "qmodel"
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 	billingService := newCalculator(nil, nil)
-	r := billingtestkit.PriceResolver(channelService, billingService)
+	r := billingtestkit.PriceResolver(pricingConfigService, billingService)
 
 	basePricing, err := billingService.GetModelPricing("gpt-5.4")
 	require.NoError(t, err)
@@ -465,7 +473,7 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialChannelPri
 	})
 
 	require.NotNil(t, resolved)
-	require.Equal(t, billingpricing.PricingSourceChannel, resolved.Source)
+	require.Equal(t, billingpricing.PricingSourceConfig, resolved.Source)
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
 	require.InDelta(t, basePricing.OutputPricePerToken, resolved.BasePricing.OutputPricePerToken, 1e-12)
@@ -475,10 +483,10 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialIntervalPr
 	groupID := int64(100)
 	inputPrice := 20e-6
 	maxTokens := 1000
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = &routing.Channel{ID: 1, Status: billing.StatusActive}
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"gpt-5.4"},
 		BillingMode: routing.BillingModeToken,
@@ -489,9 +497,9 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialIntervalPr
 	cache.Models[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = "qmodel"
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 	billingService := newCalculator(nil, nil)
-	r := billingtestkit.PriceResolver(channelService, billingService)
+	r := billingtestkit.PriceResolver(pricingConfigService, billingService)
 
 	basePricing, err := billingService.GetModelPricing("gpt-5.4")
 	require.NoError(t, err)
@@ -502,7 +510,7 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialIntervalPr
 		GroupID: &groupID,
 	})
 	require.NotNil(t, resolved)
-	require.Equal(t, billingpricing.PricingSourceChannel, resolved.Source)
+	require.Equal(t, billingpricing.PricingSourceConfig, resolved.Source)
 
 	intervalPricing := r.GetIntervalPricing(resolved, 100)
 	require.NotNil(t, intervalPricing)
@@ -510,13 +518,13 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialIntervalPr
 	require.InDelta(t, basePricing.OutputPricePerToken, intervalPricing.OutputPricePerToken, 1e-12)
 }
 
-func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialChannelPricing(t *testing.T) {
+func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialConfigPricing(t *testing.T) {
 	groupID := int64(100)
 	inputPrice := 20e-6
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = &routing.Channel{ID: 1, Status: billing.StatusActive}
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"custom-qoder"},
 		BillingMode: routing.BillingModeToken,
@@ -524,9 +532,9 @@ func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialChannelPricing(t 
 	}
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 	billingService := newCalculator(nil, nil)
-	r := billingtestkit.PriceResolver(channelService, billingService)
+	r := billingtestkit.PriceResolver(pricingConfigService, billingService)
 
 	resolved := r.Resolve(context.Background(), billing.PricingInput{
 		Model:   "custom-qoder",
@@ -534,7 +542,7 @@ func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialChannelPricing(t 
 	})
 
 	require.NotNil(t, resolved)
-	require.Equal(t, billingpricing.PricingSourceChannel, resolved.Source)
+	require.Equal(t, billingpricing.PricingSourceConfig, resolved.Source)
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
 	require.Zero(t, resolved.BasePricing.OutputPricePerToken)
@@ -544,10 +552,10 @@ func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialIntervalPricing(t
 	groupID := int64(100)
 	inputPrice := 20e-6
 	maxTokens := 1000
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = &routing.Channel{ID: 1, Status: billing.StatusActive}
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"custom-qoder"},
 		BillingMode: routing.BillingModeToken,
@@ -557,16 +565,16 @@ func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialIntervalPricing(t
 	}
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 	billingService := newCalculator(nil, nil)
-	r := billingtestkit.PriceResolver(channelService, billingService)
+	r := billingtestkit.PriceResolver(pricingConfigService, billingService)
 
 	resolved := r.Resolve(context.Background(), billing.PricingInput{
 		Model:   "custom-qoder",
 		GroupID: &groupID,
 	})
 	require.NotNil(t, resolved)
-	require.Equal(t, billingpricing.PricingSourceChannel, resolved.Source)
+	require.Equal(t, billingpricing.PricingSourceConfig, resolved.Source)
 
 	intervalPricing := r.GetIntervalPricing(resolved, 100)
 	require.NotNil(t, intervalPricing)
@@ -577,15 +585,15 @@ func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialIntervalPricing(t
 func TestResolve_QoderBlankRouteKeyPricingIsUnpricedButAliasManualPricingWorks(t *testing.T) {
 	groupID := int64(100)
 	inputPrice := 20e-6
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = &routing.Channel{ID: 1, Status: billing.StatusActive}
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"qmodel"},
 		BillingMode: routing.BillingModeToken,
 	}
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"qwen3.7-plus"},
 		BillingMode: routing.BillingModeToken,
@@ -593,9 +601,9 @@ func TestResolve_QoderBlankRouteKeyPricingIsUnpricedButAliasManualPricingWorks(t
 	}
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 	billingService := newCalculator(nil, nil)
-	r := billingtestkit.PriceResolver(channelService, billingService)
+	r := billingtestkit.PriceResolver(pricingConfigService, billingService)
 
 	routeResolved := r.Resolve(context.Background(), billing.PricingInput{
 		Model:   "qmodel",
@@ -604,15 +612,15 @@ func TestResolve_QoderBlankRouteKeyPricingIsUnpricedButAliasManualPricingWorks(t
 	require.NotNil(t, routeResolved)
 	require.Equal(t, billingpricing.PricingSourceFallback, routeResolved.Source)
 	require.Nil(t, routeResolved.BasePricing)
-	require.False(t, routeResolved.HasEffectiveChannelPricing())
+	require.False(t, routeResolved.HasEffectivePricing())
 
 	aliasResolved := r.Resolve(context.Background(), billing.PricingInput{
 		Model:   "qwen3.7-plus",
 		GroupID: &groupID,
 	})
 	require.NotNil(t, aliasResolved)
-	require.Equal(t, billingpricing.PricingSourceChannel, aliasResolved.Source)
-	require.True(t, aliasResolved.HasEffectiveChannelPricing())
+	require.Equal(t, billingpricing.PricingSourceConfig, aliasResolved.Source)
+	require.True(t, aliasResolved.HasEffectivePricing())
 	require.InDelta(t, inputPrice, aliasResolved.BasePricing.InputPricePerToken, 1e-12)
 	require.Zero(t, aliasResolved.BasePricing.OutputPricePerToken)
 }
@@ -620,13 +628,13 @@ func TestResolve_QoderBlankRouteKeyPricingIsUnpricedButAliasManualPricingWorks(t
 func TestResolve_BlankWildcardPricingDoesNotMaskLaterEffectiveWildcard(t *testing.T) {
 	groupID := int64(100)
 	inputPrice := 20e-6
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = &routing.Channel{ID: 1, Status: billing.StatusActive}
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.PricePatterns[routingtestkit.GroupPlatform{GroupID: groupID, Platform: capability.PlatformQoder}] = []*routingtestkit.PricePattern{
 		{
 			Prefix: "qwen3.",
-			Pricing: &routing.ChannelModelPricing{
+			Pricing: &routing.ModelPricingEntry{
 				Platform:    capability.PlatformQoder,
 				Models:      []string{"qwen3.*"},
 				BillingMode: routing.BillingModeToken,
@@ -634,7 +642,7 @@ func TestResolve_BlankWildcardPricingDoesNotMaskLaterEffectiveWildcard(t *testin
 		},
 		{
 			Prefix: "qwen3.7-",
-			Pricing: &routing.ChannelModelPricing{
+			Pricing: &routing.ModelPricingEntry{
 				Platform:    capability.PlatformQoder,
 				Models:      []string{"qwen3.7-*"},
 				BillingMode: routing.BillingModeToken,
@@ -644,9 +652,9 @@ func TestResolve_BlankWildcardPricingDoesNotMaskLaterEffectiveWildcard(t *testin
 	}
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 	billingService := newCalculator(nil, nil)
-	r := billingtestkit.PriceResolver(channelService, billingService)
+	r := billingtestkit.PriceResolver(pricingConfigService, billingService)
 
 	resolved := r.Resolve(context.Background(), billing.PricingInput{
 		Model:   "qwen3.7-plus",
@@ -654,8 +662,8 @@ func TestResolve_BlankWildcardPricingDoesNotMaskLaterEffectiveWildcard(t *testin
 	})
 
 	require.NotNil(t, resolved)
-	require.Equal(t, billingpricing.PricingSourceChannel, resolved.Source)
-	require.True(t, resolved.HasEffectiveChannelPricing())
+	require.Equal(t, billingpricing.PricingSourceConfig, resolved.Source)
+	require.True(t, resolved.HasEffectivePricing())
 	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
 	require.Zero(t, resolved.BasePricing.OutputPricePerToken)
 }
@@ -664,10 +672,10 @@ func TestResolve_QoderPerRequestRouteKeyTokenOnlyIntervalIsUnpriced(t *testing.T
 	groupID := int64(100)
 	inputPrice := 20e-6
 	staleTokenPrice := 99e-6
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = &routing.Channel{ID: 1, Status: billing.StatusActive}
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"qmodel"},
 		BillingMode: routing.BillingModePerRequest,
@@ -675,7 +683,7 @@ func TestResolve_QoderPerRequestRouteKeyTokenOnlyIntervalIsUnpriced(t *testing.T
 			{MinTokens: 0, InputPrice: &staleTokenPrice},
 		},
 	}
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"qwen3.7-plus"},
 		BillingMode: routing.BillingModeToken,
@@ -683,9 +691,9 @@ func TestResolve_QoderPerRequestRouteKeyTokenOnlyIntervalIsUnpriced(t *testing.T
 	}
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 	billingService := newCalculator(nil, nil)
-	r := billingtestkit.PriceResolver(channelService, billingService)
+	r := billingtestkit.PriceResolver(pricingConfigService, billingService)
 
 	routeResolved := r.Resolve(context.Background(), billing.PricingInput{
 		Model:   "qmodel",
@@ -694,20 +702,20 @@ func TestResolve_QoderPerRequestRouteKeyTokenOnlyIntervalIsUnpriced(t *testing.T
 	require.NotNil(t, routeResolved)
 	require.Equal(t, billingpricing.PricingSourceFallback, routeResolved.Source)
 	require.Nil(t, routeResolved.BasePricing)
-	require.False(t, routeResolved.HasEffectiveChannelPricing())
+	require.False(t, routeResolved.HasEffectivePricing())
 
 	aliasResolved := r.Resolve(context.Background(), billing.PricingInput{
 		Model:   "qwen3.7-plus",
 		GroupID: &groupID,
 	})
 	require.NotNil(t, aliasResolved)
-	require.Equal(t, billingpricing.PricingSourceChannel, aliasResolved.Source)
-	require.True(t, aliasResolved.HasEffectiveChannelPricing())
+	require.Equal(t, billingpricing.PricingSourceConfig, aliasResolved.Source)
+	require.True(t, aliasResolved.HasEffectivePricing())
 	require.InDelta(t, inputPrice, aliasResolved.BasePricing.InputPricePerToken, 1e-12)
 }
 
-func TestResolve_WithChannelOverride_TokenWithIntervals(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_TokenWithIntervals(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -723,10 +731,10 @@ func TestResolve_WithChannelOverride_TokenWithIntervals(t *testing.T) {
 	})
 
 	require.NotNil(t, resolved)
-	require.Equal(t, "channel", resolved.Source)
+	require.Equal(t, "pricing_config", resolved.Source)
 	require.Len(t, resolved.Intervals, 2)
 
-	// GetIntervalPricing should use channel intervals
+	// GetIntervalPricing should use configPricing intervals
 	iv := r.GetIntervalPricing(resolved, 50000)
 	require.NotNil(t, iv)
 	require.InDelta(t, 2e-6, iv.InputPricePerToken, 1e-12)
@@ -738,8 +746,8 @@ func TestResolve_WithChannelOverride_TokenWithIntervals(t *testing.T) {
 	require.InDelta(t, 16e-6, iv2.OutputPricePerToken, 1e-12)
 }
 
-func TestResolve_WithChannelOverride_PriceMultiplierScalesIntervalsAndFallbackFields(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_PriceMultiplierScalesIntervalsAndFallbackFields(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:        "anthropic",
 		Models:          []string{"claude-sonnet-4"},
 		BillingMode:     routing.BillingModeToken,
@@ -761,9 +769,9 @@ func TestResolve_WithChannelOverride_PriceMultiplierScalesIntervalsAndFallbackFi
 	require.InDelta(t, 30e-6, pricing.OutputPricePerToken, 1e-12)
 }
 
-func TestResolve_WithChannelOverride_FastModeMultiplierAppliesToIntervals(t *testing.T) {
+func TestResolve_WithPricingConfigOverride_FastModeMultiplierAppliesToIntervals(t *testing.T) {
 	calculator := billingtestkit.ResolverCalculator()
-	r := billingtestkit.ResolverWithCards(t, calculator, []routing.ChannelModelPricing{{
+	r := billingtestkit.ResolverWithCards(t, calculator, []routing.ModelPricingEntry{{
 		Platform:           capability.PlatformOpenAI,
 		Models:             []string{"claude-sonnet-4"},
 		BillingMode:        routing.BillingModeToken,
@@ -810,9 +818,9 @@ func TestResolve_WithChannelOverride_FastModeMultiplierAppliesToIntervals(t *tes
 	require.InDelta(t, standard.TotalCost*2, fast.TotalCost, 1e-12)
 }
 
-func TestResolve_WithChannelOverride_TokenNilBasePricing(t *testing.T) {
-	// Base pricing is nil (unknown model), channel has flat prices → creates new BasePricing.
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_TokenNilBasePricing(t *testing.T) {
+	// Base pricing is nil (unknown model), configPricing has flat prices → creates new BasePricing.
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"unknown-model-xyz"},
 		BillingMode: routing.BillingModeToken,
@@ -826,7 +834,7 @@ func TestResolve_WithChannelOverride_TokenNilBasePricing(t *testing.T) {
 	})
 
 	require.NotNil(t, resolved)
-	require.Equal(t, "channel", resolved.Source)
+	require.Equal(t, "pricing_config", resolved.Source)
 	// BasePricing was nil from resolveBasePricing but applyTokenOverrides creates a new one
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, 7e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
@@ -837,8 +845,8 @@ func TestResolve_WithChannelOverride_TokenNilBasePricing(t *testing.T) {
 // 2. Per-request mode overrides
 // ---------------------------------------------------------------------------
 
-func TestResolve_WithChannelOverride_PerRequest(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_PerRequest(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:        "anthropic",
 		Models:          []string{"claude-sonnet-4"},
 		BillingMode:     routing.BillingModePerRequest,
@@ -856,7 +864,7 @@ func TestResolve_WithChannelOverride_PerRequest(t *testing.T) {
 
 	require.NotNil(t, resolved)
 	require.Equal(t, routing.BillingModePerRequest, resolved.Mode)
-	require.Equal(t, "channel", resolved.Source)
+	require.Equal(t, "pricing_config", resolved.Source)
 	require.InDelta(t, 0.05, resolved.DefaultPerRequestPrice, 1e-12)
 	require.Len(t, resolved.RequestTiers, 2)
 
@@ -865,8 +873,8 @@ func TestResolve_WithChannelOverride_PerRequest(t *testing.T) {
 	require.InDelta(t, 0.10, r.GetRequestTierPriceByContext(resolved, 200000), 1e-12)
 }
 
-func TestResolve_WithChannelOverride_PriceMultiplierScalesPerRequestPrices(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_PriceMultiplierScalesPerRequestPrices(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:        "anthropic",
 		Models:          []string{"claude-sonnet-4"},
 		BillingMode:     routing.BillingModePerRequest,
@@ -886,9 +894,9 @@ func TestResolve_WithChannelOverride_PriceMultiplierScalesPerRequestPrices(t *te
 	require.InDelta(t, 0.06, r.GetRequestTierPriceByContext(resolved, 50000), 1e-12)
 }
 
-func TestResolve_WithChannelOverride_PerRequestNilPrice(t *testing.T) {
+func TestResolve_WithPricingConfigOverride_PerRequestNilPrice(t *testing.T) {
 	// PerRequestPrice nil → DefaultPerRequestPrice stays 0.
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModePerRequest,
@@ -913,8 +921,8 @@ func TestResolve_WithChannelOverride_PerRequestNilPrice(t *testing.T) {
 // 3. Image mode overrides
 // ---------------------------------------------------------------------------
 
-func TestResolve_WithChannelOverride_Image(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_Image(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:        "anthropic",
 		Models:          []string{"claude-sonnet-4"},
 		BillingMode:     routing.BillingModeImage,
@@ -933,13 +941,13 @@ func TestResolve_WithChannelOverride_Image(t *testing.T) {
 
 	require.NotNil(t, resolved)
 	require.Equal(t, routing.BillingModeImage, resolved.Mode)
-	require.Equal(t, "channel", resolved.Source)
+	require.Equal(t, "pricing_config", resolved.Source)
 	require.InDelta(t, 0.08, resolved.DefaultPerRequestPrice, 1e-12)
 	require.Len(t, resolved.RequestTiers, 3)
 }
 
-func TestResolve_WithChannelOverride_ImageTierLabels(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_ImageTierLabels(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeImage,
@@ -965,8 +973,8 @@ func TestResolve_WithChannelOverride_ImageTierLabels(t *testing.T) {
 // 4. Source tracking & default mode
 // ---------------------------------------------------------------------------
 
-func TestResolve_WithChannelOverride_SourceIsChannel(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_SourceIsPricingConfig(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -978,12 +986,12 @@ func TestResolve_WithChannelOverride_SourceIsChannel(t *testing.T) {
 		GroupID: billingtestkit.GroupID(),
 	})
 
-	require.Equal(t, "channel", resolved.Source)
+	require.Equal(t, "pricing_config", resolved.Source)
 }
 
-func TestResolve_WithChannelOverride_DefaultMode(t *testing.T) {
-	// Channel pricing with empty BillingMode → defaults to BillingModeToken.
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_WithPricingConfigOverride_DefaultMode(t *testing.T) {
+	// PricingConfig pricing with empty BillingMode → defaults to BillingModeToken.
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: "", // intentionally empty
@@ -995,19 +1003,19 @@ func TestResolve_WithChannelOverride_DefaultMode(t *testing.T) {
 		GroupID: billingtestkit.GroupID(),
 	})
 
-	require.Equal(t, "channel", resolved.Source)
+	require.Equal(t, "pricing_config", resolved.Source)
 	require.Equal(t, routing.BillingModeToken, resolved.Mode)
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, 5e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
 }
 
 // ---------------------------------------------------------------------------
-// 5. GetIntervalPricing integration after channel override
+// 5. GetIntervalPricing integration after group default override
 // ---------------------------------------------------------------------------
 
-func TestGetIntervalPricing_WithChannelIntervals(t *testing.T) {
-	// Channel provides intervals that override the base pricing path.
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestGetIntervalPricing_WithPricingConfigIntervals(t *testing.T) {
+	// PricingConfig provides intervals that override the base pricing path.
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -1035,9 +1043,9 @@ func TestGetIntervalPricing_WithChannelIntervals(t *testing.T) {
 	require.InDelta(t, 10e-6, pricing2.OutputPricePerToken, 1e-12)
 }
 
-func TestGetIntervalPricing_ChannelIntervalsNoMatch(t *testing.T) {
-	// Channel intervals don't match token count → falls back to BasePricing.
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestGetIntervalPricing_PricingConfigIntervalsNoMatch(t *testing.T) {
+	// PricingConfig intervals don't match token count → falls back to BasePricing.
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -1064,16 +1072,17 @@ func TestGetIntervalPricing_ChannelIntervalsNoMatch(t *testing.T) {
 // 6. Error path tests
 // ===========================================================================
 
-func TestResolve_WithChannelOverride_CacheError(t *testing.T) {
-	// When ListAll returns an error, the ChannelService cache build fails.
+func TestResolve_WithPricingConfigOverride_CacheError(t *testing.T) {
+	// When ListAll returns an error, the PricingConfigService cache build fails.
 	// Resolve should gracefully fall back to base pricing without panicking.
-	repo := &routingtestkit.ChannelRepositoryStub{
-		ListAllFn: func(_ context.Context) ([]routing.Channel, error) {
+	repo := &routingtestkit.PricingConfigRepositoryStub{
+		ListAllFn: func(_ context.Context) ([]routingtestkit.Configuration, error) {
 			return nil, errors.New("database unavailable")
 		},
 	}
-	cs := routing.NewChannelService(repo, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	cs := routingtestkit.NewPricingConfigService(repo, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -1089,8 +1098,8 @@ func TestResolve_WithChannelOverride_CacheError(t *testing.T) {
 	})
 
 	require.NotNil(t, resolved)
-	// Should NOT panic, should NOT have source "channel"
-	require.NotEqual(t, "channel", resolved.Source)
+	// Should NOT panic, should NOT have source "configPricing"
+	require.NotEqual(t, "pricing_config", resolved.Source)
 	// Base pricing should still be present (from BillingService fallback)
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, 3e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
@@ -1102,8 +1111,9 @@ func TestResolve_WithChannelOverride_CacheError(t *testing.T) {
 
 func TestGetRequestTierPriceByContext_EmptyTiers(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -1131,8 +1141,9 @@ func TestGetRequestTierPriceByContext_EmptyTiers(t *testing.T) {
 
 func TestGetRequestTierPriceByContext_ExactBoundary(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
-	r := billingtestkit.PriceResolver(routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	r := billingtestkit.PriceResolver(routingtestkit.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -1288,39 +1299,39 @@ func TestFilterValidRequestIntervals(t *testing.T) {
 	}
 }
 
-func TestChannelModelPricingHasEffectivePricingIsModeAware(t *testing.T) {
-	require.False(t, (&routing.ChannelModelPricing{
+func TestModelPricingEntryHasEffectivePricingIsModeAware(t *testing.T) {
+	require.False(t, (&routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		Intervals: []routing.PricingInterval{
 			{TierLabel: "1K", PerRequestPrice: testPtrFloat64(0.04)},
 		},
 	}).HasEffectivePricing())
 
-	require.False(t, (&routing.ChannelModelPricing{
+	require.False(t, (&routing.ModelPricingEntry{
 		BillingMode: routing.BillingModePerRequest,
 		Intervals: []routing.PricingInterval{
 			{MinTokens: 0, InputPrice: testPtrFloat64(1e-6)},
 		},
 	}).HasEffectivePricing())
 
-	require.True(t, (&routing.ChannelModelPricing{
+	require.True(t, (&routing.ModelPricingEntry{
 		BillingMode: routing.BillingModePerRequest,
 		Intervals: []routing.PricingInterval{
 			{TierLabel: "1K", PerRequestPrice: testPtrFloat64(0)},
 		},
 	}).HasEffectivePricing())
 
-	require.True(t, (&routing.ChannelModelPricing{
+	require.True(t, (&routing.ModelPricingEntry{
 		BillingMode:     routing.BillingModeVideo,
 		PerRequestPrice: testPtrFloat64(0),
 	}).HasEffectivePricing())
 
-	require.True(t, (&routing.ChannelModelPricing{
+	require.True(t, (&routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  testPtrFloat64(0),
 	}).HasEffectivePricing())
 
-	require.True(t, (&routing.ChannelModelPricing{
+	require.True(t, (&routing.ModelPricingEntry{
 		BillingMode:    routing.BillingModeToken,
 		FastMultiplier: testPtrFloat64(1.5),
 	}).HasEffectivePricing())
@@ -1331,7 +1342,7 @@ func TestChannelModelPricingHasEffectivePricingIsModeAware(t *testing.T) {
 // ===========================================================================
 
 func TestApplyTokenOverrides_FlatSetsImageOutputPriceExplicit(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -1344,13 +1355,13 @@ func TestApplyTokenOverrides_FlatSetsImageOutputPriceExplicit(t *testing.T) {
 		GroupID: billingtestkit.GroupID(),
 	})
 
-	require.Equal(t, billingpricing.PricingSourceChannel, resolved.Source)
+	require.Equal(t, billingpricing.PricingSourceConfig, resolved.Source)
 	require.True(t, resolved.BasePricing.ImageOutputPriceExplicit)
 	require.Equal(t, 0.0, resolved.BasePricing.ImageOutputPricePerToken)
 }
 
 func TestApplyTokenOverrides_FlatWithImageOutputPriceSetsExplicit(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:         "anthropic",
 		Models:           []string{"claude-sonnet-4"},
 		BillingMode:      routing.BillingModeToken,
@@ -1367,8 +1378,8 @@ func TestApplyTokenOverrides_FlatWithImageOutputPriceSetsExplicit(t *testing.T) 
 	require.InDelta(t, 50e-6, resolved.BasePricing.ImageOutputPricePerToken, 1e-12)
 }
 
-func TestApplyTokenOverrides_FlatUsesChannelImageInputPrice(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestApplyTokenOverrides_FlatUsesPricingConfigImageInputPrice(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:        "anthropic",
 		Models:          []string{"claude-sonnet-4"},
 		BillingMode:     routing.BillingModeToken,
@@ -1380,16 +1391,16 @@ func TestApplyTokenOverrides_FlatUsesChannelImageInputPrice(t *testing.T) {
 		GroupID: billingtestkit.GroupID(),
 	})
 
-	require.Equal(t, billingpricing.PricingSourceChannel, resolved.Source)
+	require.Equal(t, billingpricing.PricingSourceConfig, resolved.Source)
 	require.InDelta(t, 8e-6, resolved.BasePricing.ImageInputPricePerToken, 1e-12)
 }
 
-func TestIntervalToModelPricingWithBaseClearsUnsetChannelImageInputPrice(t *testing.T) {
+func TestIntervalToModelPricingWithBaseClearsUnsetPricingConfigImageInputPrice(t *testing.T) {
 	base := &billingpricing.ModelPricing{ImageInputPricePerToken: 99e-6}
 	pricing := billingpricing.IntervalToModelPricingWithBase(
 		&routing.PricingInterval{MinTokens: 0, InputPrice: testPtrFloat64(3e-6)},
 		false,
-		&routing.ChannelModelPricing{BillingMode: routing.BillingModeToken},
+		&routing.ModelPricingEntry{BillingMode: routing.BillingModeToken},
 		base,
 	)
 
@@ -1415,7 +1426,7 @@ func TestIntervalToModelPricingWithBaseAppliesMultipliersAndPreservesTierRatio(t
 			CacheReadMultiplier:  testPtrFloat64(0.25),
 		},
 		false,
-		&routing.ChannelModelPricing{BillingMode: routing.BillingModeToken, FastMultiplier: testPtrFloat64(2), FlexMultiplier: testPtrFloat64(0.25)},
+		&routing.ModelPricingEntry{BillingMode: routing.BillingModeToken, FastMultiplier: testPtrFloat64(2), FlexMultiplier: testPtrFloat64(0.25)},
 		base,
 	)
 
@@ -1434,7 +1445,7 @@ func TestIntervalToModelPricingWithBaseAppliesMultipliersAndPreservesTierRatio(t
 }
 
 func TestApplyTokenOverrides_IntervalSetsImageOutputPriceExplicit(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -1458,7 +1469,7 @@ func TestApplyTokenOverrides_IntervalSetsImageOutputPriceExplicit(t *testing.T) 
 	require.Equal(t, 0.0, pricing.ImageOutputPricePerToken)
 }
 
-func TestIntervalToModelPricingWithBaseClearsImageOutputWhenChannelUnset(t *testing.T) {
+func TestIntervalToModelPricingWithBaseClearsImageOutputWhenPricingConfigUnset(t *testing.T) {
 	base := &billingpricing.ModelPricing{
 		ImageOutputPricePerToken: 99e-6,
 	}
@@ -1469,7 +1480,7 @@ func TestIntervalToModelPricingWithBaseClearsImageOutputWhenChannelUnset(t *test
 			OutputPrice: testPtrFloat64(15e-6),
 		},
 		false,
-		&routing.ChannelModelPricing{BillingMode: routing.BillingModeToken},
+		&routing.ModelPricingEntry{BillingMode: routing.BillingModeToken},
 		base,
 	)
 
@@ -1482,7 +1493,7 @@ func TestIntervalToModelPricingWithBaseClearsImageOutputWhenChannelUnset(t *test
 func TestApplyTokenOverrides_FlatDoesNotPolluteFallbackPrices(t *testing.T) {
 	prices := billingtestkit.ResolverFallbackPrices()
 	calculator := newCalculatorWithPrices(nil, nil, prices)
-	r := billingtestkit.ResolverWithCards(t, calculator, []routing.ChannelModelPricing{{
+	r := billingtestkit.ResolverWithCards(t, calculator, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -1495,7 +1506,7 @@ func TestApplyTokenOverrides_FlatDoesNotPolluteFallbackPrices(t *testing.T) {
 		GroupID: billingtestkit.GroupID(),
 	})
 
-	// 解析结果应采用渠道覆盖价格。
+	// 解析结果应采用共享价格配置覆盖价格。
 	require.NotNil(t, resolved)
 	require.InDelta(t, 10e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
 	require.InDelta(t, 50e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
@@ -1512,7 +1523,7 @@ func TestApplyTokenOverrides_FlatDoesNotPolluteFallbackPrices(t *testing.T) {
 func TestApplyTokenOverrides_IntervalDoesNotPolluteFallbackPrices(t *testing.T) {
 	prices := billingtestkit.ResolverFallbackPrices()
 	calculator := newCalculatorWithPrices(nil, nil, prices)
-	r := billingtestkit.ResolverWithCards(t, calculator, []routing.ChannelModelPricing{{
+	r := billingtestkit.ResolverWithCards(t, calculator, []routing.ModelPricingEntry{{
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: routing.BillingModeToken,
@@ -1536,12 +1547,12 @@ func TestApplyTokenOverrides_IntervalDoesNotPolluteFallbackPrices(t *testing.T) 
 	require.False(t, fp.ImageOutputPriceExplicit, "fallback ImageOutputPriceExplicit polluted")
 }
 
-func TestResolve_GroupPricingOverridesChannel(t *testing.T) {
-	r := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+func TestResolve_GroupPricingOverridesPricingConfig(t *testing.T) {
+	r := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform: "anthropic", Models: []string{"claude-sonnet-4"}, BillingMode: routing.BillingModeToken,
 		InputPrice: testPtrFloat64(10e-6), OutputPrice: testPtrFloat64(20e-6),
 	}})
-	group := &routing.Group{ID: 100, ModelPricing: []routing.ChannelModelPricing{{
+	group := &routing.Group{ID: 100, ModelPricing: []routing.ModelPricingEntry{{
 		Models: []string{"claude-sonnet-*"}, BillingMode: routing.BillingModeToken,
 		InputPrice: testPtrFloat64(1e-6), OutputPrice: testPtrFloat64(2e-6),
 	}}}
@@ -1560,7 +1571,7 @@ func TestResolve_GroupContextIntervalsOverridePresetRegardlessOfToggle(t *testin
 	prices["claude-sonnet-4"].LongContextOutputMultiplier = 2
 	bs := newCalculatorWithPrices(nil, nil, prices)
 	r := billingtestkit.PriceResolver(nil, bs)
-	group := &routing.Group{ID: 100, ModelPricing: []routing.ChannelModelPricing{{
+	group := &routing.Group{ID: 100, ModelPricing: []routing.ModelPricingEntry{{
 		Models: []string{"claude-sonnet-4"}, BillingMode: routing.BillingModeToken,
 		InputPrice: testPtrFloat64(1e-6), OutputPrice: testPtrFloat64(2e-6),
 		Intervals: []routing.PricingInterval{
@@ -1588,7 +1599,7 @@ func TestCalculateCostUnified_UsesContinuousMediaUnits(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
 	r := billingtestkit.PriceResolver(nil, bs)
 	price := 0.08
-	group := &routing.Group{ModelPricing: []routing.ChannelModelPricing{{
+	group := &routing.Group{ModelPricing: []routing.ModelPricingEntry{{
 		Models: []string{"grok-voice-think-fast-2.0"}, BillingMode: routing.BillingModePerRequest,
 		PerRequestPrice: &price,
 	}}}

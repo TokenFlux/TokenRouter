@@ -10,11 +10,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-// RoutePlanner 共享渠道读取器，只组合当前请求已经通过准入的分组和映射。
-type RoutePlanner struct{ channels *routing.ChannelService }
+// RoutePlanner 组合已通过准入的分组、分组映射及计费元数据。
+type RoutePlanner struct{ groupPolicies *routing.PricingConfigService }
 
-func NewRoutePlanner(channels *routing.ChannelService) *RoutePlanner {
-	return &RoutePlanner{channels: channels}
+func NewRoutePlanner(groupPolicies *routing.PricingConfigService) *RoutePlanner {
+	return &RoutePlanner{groupPolicies: groupPolicies}
 }
 
 func (p *RoutePlanner) PlanKey(ctx context.Context, key *apikey.APIKey, requested string) routing.RoutePlan {
@@ -27,16 +27,16 @@ func (p *RoutePlanner) PlanKey(ctx context.Context, key *apikey.APIKey, requeste
 }
 
 func (p *RoutePlanner) PlanRoute(ctx context.Context, group *routing.Group, id *int64, requested string) routing.RoutePlan {
-	mapping := routing.ChannelMappingResult{MappedModel: requested}
-	if p.channels != nil {
-		mapping, _ = p.channels.ResolveChannelMappingAndRestrict(ctx, id, requested)
+	mapping := routing.GroupMappingResult{MappedModel: requested}
+	if p.groupPolicies != nil && id != nil {
+		mapping = p.groupPolicies.ResolveGroupMapping(ctx, *id, requested)
 	}
-	mapping = modeltrace.WithChannelRedirect(mapping, ctx, requested)
+	mapping = modeltrace.WithGroupRedirect(mapping, ctx, requested)
 	return RoutePlanForMapping(ctx, group, id, requested, mapping)
 }
 
 // RoutePlanForMapping 保留请求分组回退、ID 复核和协议投影，不新增查询或 Key 改写。
-func RoutePlanForMapping(ctx context.Context, group *routing.Group, groupID *int64, requested string, mapping routing.ChannelMappingResult) routing.RoutePlan {
+func RoutePlanForMapping(ctx context.Context, group *routing.Group, groupID *int64, requested string, mapping routing.GroupMappingResult) routing.RoutePlan {
 	if group == nil {
 		group, _ = requeststate.GroupFromContext(ctx)
 	}
@@ -48,7 +48,7 @@ func RoutePlanForMapping(ctx context.Context, group *routing.Group, groupID *int
 		view = &routing.Group{ID: group.ID, Platform: group.Platform, SchedulerType: group.SchedulerType, AllowedProtocols: group.AllowedProtocols, ProtocolFallbacks: group.ProtocolFallbacks}
 	}
 	protocol, _ := requeststate.ClientProtocolFromContext(ctx)
-	return routing.Plan(routing.PlanInput{Group: view, GroupID: groupID, ClientProtocol: protocol, RequestedModel: requested, Channel: mapping})
+	return routing.Plan(routing.PlanInput{Group: view, GroupID: groupID, ClientProtocol: protocol, RequestedModel: requested, GroupMapping: mapping})
 }
 
 // AccountForProtocolAttempt 使用当前计划重新验证候选，模型规则仍在原匹配时机读取。

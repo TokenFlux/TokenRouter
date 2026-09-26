@@ -91,7 +91,6 @@ func (s *userUsageRepoCapture) GetGroupStatsWithUsageFilters(_ context.Context, 
 }
 
 func newUserUsageRequestTypeTestRouter(repo *userUsageRepoCapture) *gin.Engine {
-
 	usageSvc := usage.NewUsageService(repo)
 	handler := NewUsageHandler(usageSvc, nil, nil, nil, timezone.NewCalendar(time.Local))
 	router := gin.New()
@@ -146,7 +145,6 @@ func TestUserUsageListInvalidStream(t *testing.T) {
 }
 
 func TestParseUsageRankingTimeRangeDefaultsToToday(t *testing.T) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodGet, "/usage/ranking?timezone=Asia/Shanghai", nil)
 	now := time.Date(2026, 5, 6, 15, 30, 0, 0, time.FixedZone("CST", 8*3600))
@@ -159,7 +157,6 @@ func TestParseUsageRankingTimeRangeDefaultsToToday(t *testing.T) {
 }
 
 func TestParseUsageRankingTimeRangeDateOnlyEndIsInclusive(t *testing.T) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodGet, "/usage/ranking?start_date=2026-05-01&end_date=2026-05-03&timezone=Asia/Shanghai", nil)
 	now := time.Date(2026, 5, 6, 15, 30, 0, 0, time.UTC)
@@ -173,7 +170,6 @@ func TestParseUsageRankingTimeRangeDateOnlyEndIsInclusive(t *testing.T) {
 }
 
 func TestParseUsageRankingTimeRangeRejectsInvalidRange(t *testing.T) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodGet, "/usage/ranking?start_date=2026-05-03&end_date=2026-05-01&timezone=Asia/Shanghai", nil)
 	now := time.Date(2026, 5, 6, 15, 30, 0, 0, time.UTC)
@@ -230,7 +226,7 @@ func TestUserUsageListKeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) 
 	ipAddress := "203.0.113.10"
 	upstreamModel := "upstream-private-model"
 	billingTier := "internal-tier"
-	channelID := int64(99)
+	pricingConfigID := int64(99)
 	accountRateMultiplier := 1.7
 	accountStatsCost := 0.12
 	repo := &userUsageRepoCapture{
@@ -251,7 +247,7 @@ func TestUserUsageListKeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) 
 			IPAddress:             &ipAddress,
 			UpstreamModel:         &upstreamModel,
 			BillingTier:           &billingTier,
-			ChannelID:             &channelID,
+			PricingConfigID:       &pricingConfigID,
 			AccountRateMultiplier: &accountRateMultiplier,
 			AccountStatsCost:      &accountStatsCost,
 		}},
@@ -277,7 +273,7 @@ func TestUserUsageListKeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) 
 	require.NotContains(t, body, "account_stats_cost")
 	require.NotContains(t, body, "upstream_model")
 	require.NotContains(t, body, "billing_tier")
-	require.NotContains(t, body, "channel_id")
+	require.NotContains(t, body, "pricing_config_id")
 	require.NotContains(t, body, `"account":`)
 }
 

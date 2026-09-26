@@ -43,8 +43,8 @@ type UsageLog struct {
 	RequestedModel *string `json:"requested_model,omitempty"`
 	// UpstreamModel holds the value of the "upstream_model" field.
 	UpstreamModel *string `json:"upstream_model,omitempty"`
-	// 渠道 ID
-	ChannelID *int64 `json:"channel_id,omitempty"`
+	// 共享价格配置 ID
+	PricingConfigID *int64 `json:"pricing_config_id,omitempty"`
 	// 模型映射链
 	ModelMappingChain *string `json:"model_mapping_chain,omitempty"`
 	// 计费层级标签
@@ -227,7 +227,7 @@ func (*UsageLog) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case usagelog.FieldInputCost, usagelog.FieldOutputCost, usagelog.FieldCacheCreationCost, usagelog.FieldCacheReadCost, usagelog.FieldTotalCost, usagelog.FieldActualCost, usagelog.FieldSubscriptionAmountUsd, usagelog.FieldBalanceAmountUsd, usagelog.FieldRateMultiplier, usagelog.FieldAccountRateMultiplier:
 			values[i] = new(sql.NullFloat64)
-		case usagelog.FieldID, usagelog.FieldUserID, usagelog.FieldBillingUserID, usagelog.FieldTeamID, usagelog.FieldAPIKeyID, usagelog.FieldAccountID, usagelog.FieldChannelID, usagelog.FieldGroupID, usagelog.FieldSubscriptionID, usagelog.FieldInputTokens, usagelog.FieldOutputTokens, usagelog.FieldCacheCreationTokens, usagelog.FieldCacheReadTokens, usagelog.FieldCacheCreation5mTokens, usagelog.FieldCacheCreation1hTokens, usagelog.FieldBillingType, usagelog.FieldDurationMs, usagelog.FieldFirstTokenMs, usagelog.FieldImageCount, usagelog.FieldVideoCount, usagelog.FieldVideoDurationSeconds:
+		case usagelog.FieldID, usagelog.FieldUserID, usagelog.FieldBillingUserID, usagelog.FieldTeamID, usagelog.FieldAPIKeyID, usagelog.FieldAccountID, usagelog.FieldPricingConfigID, usagelog.FieldGroupID, usagelog.FieldSubscriptionID, usagelog.FieldInputTokens, usagelog.FieldOutputTokens, usagelog.FieldCacheCreationTokens, usagelog.FieldCacheReadTokens, usagelog.FieldCacheCreation5mTokens, usagelog.FieldCacheCreation1hTokens, usagelog.FieldBillingType, usagelog.FieldDurationMs, usagelog.FieldFirstTokenMs, usagelog.FieldImageCount, usagelog.FieldVideoCount, usagelog.FieldVideoDurationSeconds:
 			values[i] = new(sql.NullInt64)
 		case usagelog.FieldRequestID, usagelog.FieldModel, usagelog.FieldRequestedModel, usagelog.FieldUpstreamModel, usagelog.FieldModelMappingChain, usagelog.FieldBillingTier, usagelog.FieldBillingMode, usagelog.FieldUserAgent, usagelog.FieldIPAddress, usagelog.FieldImageSize, usagelog.FieldImageInputSize, usagelog.FieldImageOutputSize, usagelog.FieldImageSizeSource, usagelog.FieldVideoResolution:
 			values[i] = new(sql.NullString)
@@ -311,12 +311,12 @@ func (_m *UsageLog) assignValues(columns []string, values []any) error {
 				_m.UpstreamModel = new(string)
 				*_m.UpstreamModel = value.String
 			}
-		case usagelog.FieldChannelID:
+		case usagelog.FieldPricingConfigID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field channel_id", values[i])
+				return fmt.Errorf("unexpected type %T for field pricing_config_id", values[i])
 			} else if value.Valid {
-				_m.ChannelID = new(int64)
-				*_m.ChannelID = value.Int64
+				_m.PricingConfigID = new(int64)
+				*_m.PricingConfigID = value.Int64
 			}
 		case usagelog.FieldModelMappingChain:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -677,8 +677,8 @@ func (_m *UsageLog) String() string {
 		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")
-	if v := _m.ChannelID; v != nil {
-		builder.WriteString("channel_id=")
+	if v := _m.PricingConfigID; v != nil {
+		builder.WriteString("pricing_config_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

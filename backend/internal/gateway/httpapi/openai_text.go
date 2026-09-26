@@ -50,7 +50,7 @@ type OpenAITextCall struct {
 	Stream, NativeCompactionV2, LegacyCompact, RequireCompact      bool
 	StreamStarted                                                  *bool
 	SelectionContext                                               context.Context
-	Mapping                                                        routing.ChannelMappingResult
+	Mapping                                                        routing.GroupMappingResult
 	RoutingStart                                                   time.Time
 	RequiredCapability                                             account.OpenAIEndpointCapability
 	AccountLayerModel, PromptCacheKey                              string
@@ -80,7 +80,7 @@ type OpenAITextBackend interface {
 	Moderate(*gin.Context, *zap.Logger, *apikey.APIKey, authctx.AuthSubject, protocol.ProtocolID, string, []byte) *moderation.Decision
 	Plan(context.Context, *apikey.APIKey, string) routing.RoutePlan
 	BindPlan(*gin.Context, routing.RoutePlan)
-	ImageIntent(string, []byte, routing.ChannelMappingResult, string) ([]byte, string, bool)
+	ImageIntent(string, []byte, routing.GroupMappingResult, string) ([]byte, string, bool)
 	ExplicitImageIntent(string, string, []byte) bool
 	PassthroughContext(context.Context) context.Context
 	ImageContext(context.Context) context.Context
@@ -102,7 +102,7 @@ type OpenAITextBackend interface {
 	AllowsMessages(*apikey.APIKey) bool
 	MessageAccountModel(context.Context, *apikey.APIKey, string) string
 	MetadataSession(*gin.Context, string, string, string, []byte) (string, string)
-	ChatImageModel(string, routing.ChannelMappingResult) bool
+	ChatImageModel(string, routing.GroupMappingResult) bool
 	ErrorMetadata(*gin.Context) (string, string)
 	MarkStream(*gin.Context, string, string, int)
 	MarkStreamFailure(*gin.Context, string, string, string, int)
@@ -141,7 +141,8 @@ func (h *OpenAITextHandler) executeText(c *gin.Context, call OpenAITextCall, kin
 		SessionHash: call.SessionHash,
 		AttemptBody: call.ForwardBody,
 
-		Text: execution.TextState{Kind: kind, Platform: call.Platform, SelectionContext: call.SelectionContext, Mapping: call.Mapping, SessionHashBody: call.SessionHashBody, ForwardModel: call.ForwardModel, PreviousResponseID: call.PreviousResponseID, AccountLayerModel: call.AccountLayerModel, PromptCacheKey: call.PromptCacheKey, NativeCompactionV2: call.NativeCompactionV2, LegacyCompact: call.LegacyCompact, RequireCompact: call.RequireCompact, RequiredCapability: call.RequiredCapability, RoutingStart: call.RoutingStart}}
+		Text: execution.TextState{Kind: kind, Platform: call.Platform, SelectionContext: call.SelectionContext, Mapping: call.Mapping, SessionHashBody: call.SessionHashBody, ForwardModel: call.ForwardModel, PreviousResponseID: call.PreviousResponseID, AccountLayerModel: call.AccountLayerModel, PromptCacheKey: call.PromptCacheKey, NativeCompactionV2: call.NativeCompactionV2, LegacyCompact: call.LegacyCompact, RequireCompact: call.RequireCompact, RequiredCapability: call.RequiredCapability, RoutingStart: call.RoutingStart},
+	}
 	output := &MessagesOutput{ResponseSink: ResponseSink{Writer: c.Writer}, HTTP: c, Log: call.Log, StreamStarted: call.StreamStarted}
 	_, _ = h.executor.Execute(c.Request.Context(), request, output)
 }

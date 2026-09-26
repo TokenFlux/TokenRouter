@@ -58,7 +58,6 @@ func (r *ingressRejectOpsRepo) BatchInsertErrorLogs(_ context.Context, entries [
 }
 
 func TestOpsCaptureWriterPool_ResetOnRelease(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -472,7 +471,6 @@ func TestLogOpsStreamError_SkipWhenPassthroughSkipMonitoring(t *testing.T) {
 }
 
 func TestShouldSkipFinalOpsFailureUsesOnlyFinalAttemptRule(t *testing.T) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Set(OpsUpstreamErrorsKey, []*opscore.OpsUpstreamErrorEvent{
 		{UpstreamStatusCode: http.StatusBadGateway, Message: "hidden intermediate", SkipMonitoring: true},
@@ -490,7 +488,6 @@ func TestShouldSkipFinalOpsFailureUsesOnlyFinalAttemptRule(t *testing.T) {
 
 // MarkOpsStreamError 采用「首个标记生效」：后续的通用兜底帧不得覆盖根因错误。
 func TestMarkOpsStreamError_FirstWins(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	MarkOpsStreamError(c, "rate_limit_error", "Concurrency limit exceeded for account", http.StatusTooManyRequests)
@@ -549,7 +546,6 @@ func TestClassifyOpsNoAvailableAccountsExcludedFromSLA(t *testing.T) {
 }
 
 func TestClassifyOpsRoutingCapacityMarkerExcludesMaskedSelectionFailureFromSLA(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	MarkOpsRoutingCapacityLimited(c)
@@ -569,7 +565,6 @@ func TestClassifyOpsRoutingCapacityMarkerExcludesMaskedSelectionFailureFromSLA(t
 }
 
 func TestClassifyOpsLocalModelConfigurationRejection(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalModelConfiguration)
@@ -589,7 +584,6 @@ func TestClassifyOpsLocalModelConfigurationRejection(t *testing.T) {
 }
 
 func TestClassifyOpsLocalModelConfigurationOverridesStaleUpstreamMarkers(t *testing.T) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalModelConfiguration)
 	c.Set(OpsUpstreamStatusCodeKey, http.StatusUnauthorized)
@@ -607,7 +601,6 @@ func TestClassifyOpsLocalModelConfigurationOverridesStaleUpstreamMarkers(t *test
 }
 
 func TestClassifyOpsLocalModelConfigurationRequiresMarkerAndReason(t *testing.T) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Set(OpsClientBusinessLimitedReasonKey, OpsClientBusinessLimitedReasonLocalModelConfiguration)
 	c.Set(OpsUpstreamStatusCodeKey, http.StatusBadGateway)
@@ -785,7 +778,6 @@ func TestClassifyOpsAuthClientErrorsExcludedFromSLA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 
@@ -831,7 +823,6 @@ func TestClassifyOpsClientHTTPAuthStatusesUseQueryTimeExclusion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 
@@ -1120,7 +1111,6 @@ func TestClassifyOpsLocalBusinessLimitErrorsExcludedFromSLA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 
@@ -1137,7 +1127,6 @@ func TestClassifyOpsLocalBusinessLimitErrorsExcludedFromSLA(t *testing.T) {
 }
 
 func TestClassifyOpsIPRestrictionAccessDeniedExcludedFromSLA(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonIPRestriction)
@@ -1153,7 +1142,6 @@ func TestClassifyOpsIPRestrictionAccessDeniedExcludedFromSLA(t *testing.T) {
 }
 
 func TestClassifyOpsClientBusinessLimitedMarkerExcludesCustomPolicyDenialFromSLA(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
@@ -1169,7 +1157,6 @@ func TestClassifyOpsClientBusinessLimitedMarkerExcludesCustomPolicyDenialFromSLA
 }
 
 func TestClassifyOpsUpstreamInvalidRequest400ExcludedFromSLA(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	SetOpsUpstreamError(c, http.StatusBadRequest, "Invalid property name in input arguments", "")
@@ -1190,7 +1177,6 @@ func TestClassifyOpsUpstreamInvalidRequest400ExcludedFromSLA(t *testing.T) {
 }
 
 func TestClassifyOpsUpstreamServerErrorStillCountsForSLA(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	SetOpsUpstreamError(c, http.StatusBadGateway, "Upstream request failed", "")
@@ -1210,7 +1196,6 @@ func TestClassifyOpsUpstreamServerErrorStillCountsForSLA(t *testing.T) {
 }
 
 func TestClassifyOpsOtherUpstreamInvalidRequestStillCountsForSLA(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	SetOpsUpstreamError(c, http.StatusBadRequest, "Unknown parameter", "")
@@ -1230,7 +1215,6 @@ func TestClassifyOpsOtherUpstreamInvalidRequestStillCountsForSLA(t *testing.T) {
 }
 
 func TestClassifyOpsOtherErrorsStillCountForSLA(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -1249,12 +1233,11 @@ func TestClassifyOpsUnsupportedModelExcludedFromSLA(t *testing.T) {
 		"No available accounts: no available accounts supporting model: made-up-model",
 		"No available accounts: no available OpenAI accounts supporting model: made-up-model",
 		"No available Gemini accounts: no available Gemini accounts supporting model: made-up-model",
-		"No available accounts: no available accounts supporting model: made-up-model (channel pricing restriction)",
+		"No available accounts: no available accounts supporting model: made-up-model (group model restriction)",
 	}
 
 	for _, message := range tests {
 		t.Run(message, func(t *testing.T) {
-
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			MarkOpsRoutingCapacityLimited(c)
@@ -1272,7 +1255,6 @@ func TestClassifyOpsUnsupportedModelExcludedFromSLA(t *testing.T) {
 }
 
 func TestClassifyOpsUnmarkedNoAvailableTextStillCountsForSLA(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -1445,7 +1427,6 @@ func TestClassifyOpsUpstreamAuthTextStillCountsForSLA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			SetOpsUpstreamError(c, tt.status, tt.message, "")
@@ -1467,7 +1448,6 @@ func TestClassifyOpsUpstreamAuthTextStillCountsForSLA(t *testing.T) {
 }
 
 func TestClassifyOpsUpstreamNoAvailableTextStillCountsForSLA(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	SetOpsUpstreamError(c, http.StatusServiceUnavailable, "No available accounts", "")
@@ -1528,7 +1508,6 @@ func TestParseOpsErrorResponsePreservesStructuredTopLevelSemantics(t *testing.T)
 }
 
 func TestApplyOpsUpstreamFieldsUsesLastNonNilAttempt(t *testing.T) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	SetOpsUpstreamError(c, http.StatusUnauthorized, "stale context", "stale detail")
 	c.Set(OpsUpstreamErrorsKey, []*opscore.OpsUpstreamErrorEvent{
@@ -1551,7 +1530,6 @@ func TestApplyOpsUpstreamFieldsUsesLastNonNilAttempt(t *testing.T) {
 }
 
 func TestApplyOpsUpstreamFieldsFinalStatuslessAttemptClearsStaleContext(t *testing.T) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	SetOpsUpstreamError(c, http.StatusBadGateway, "stale response", "stale body")
 	c.Set(OpsUpstreamErrorsKey, []*opscore.OpsUpstreamErrorEvent{
@@ -1743,7 +1721,6 @@ func BenchmarkOpsCaptureWriterSuccessfulSSEFrames(b *testing.B) {
 }
 
 func TestSetOpsEndpointContext_SetsContextKeys(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -1763,7 +1740,6 @@ func TestSetOpsEndpointContext_SetsContextKeys(t *testing.T) {
 }
 
 func TestSetOpsEndpointContext_EmptyModelNotStored(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)

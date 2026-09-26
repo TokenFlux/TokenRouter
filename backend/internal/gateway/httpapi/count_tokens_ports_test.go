@@ -40,9 +40,11 @@ func (f *countHTTPContract) CheckKey(_ context.Context, _ *apikey.APIKey, _ *bil
 	require.False(f.t, simple)
 	return nil
 }
+
 func (f *countHTTPContract) ApplyUserPromptReplacementToBody(_ context.Context, body []byte, _ string) []byte {
 	return body
 }
+
 func (f *countHTTPContract) SelectCountTarget(_ context.Context, group *int64, _ string, model string, excluded map[int64]struct{}) (CountTarget, error) {
 	f.attempts++
 	f.events = append(f.events, "select")
@@ -53,10 +55,12 @@ func (f *countHTTPContract) SelectCountTarget(_ context.Context, group *int64, _
 	}
 	return countHTTPContractTarget{fixture: f, id: int64(f.attempts)}, nil
 }
+
 func (f *countHTTPContract) PlanCountRoute(_ context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 	f.events = append(f.events, "plan")
-	return routing.Plan(routing.PlanInput{GroupID: key.GroupID, RequestedModel: model, Channel: routing.ChannelMappingResult{Mapped: true, MappedModel: fmt.Sprintf("attempt-%d", f.attempts)}})
+	return routing.Plan(routing.PlanInput{GroupID: key.GroupID, RequestedModel: model, GroupMapping: routing.GroupMappingResult{Mapped: true, MappedModel: fmt.Sprintf("attempt-%d", f.attempts)}})
 }
+
 func (*countHTTPContract) TempUnscheduleRetryableError(context.Context, int64, *forwardcore.UpstreamFailoverError) {
 }
 
@@ -72,6 +76,7 @@ func (t countHTTPContractTarget) RetryLimit() int { return 0 }
 func (t countHTTPContractTarget) ReleaseSession(context.Context, string) {
 	t.fixture.events = append(t.fixture.events, "release")
 }
+
 func (t countHTTPContractTarget) ForwardCountTokens(_ context.Context, c *gin.Context, parsed *requeststate.ParsedRequest) error {
 	f := t.fixture
 	f.events = append(f.events, "forward")
@@ -88,7 +93,8 @@ func (t countHTTPContractTarget) ForwardCountTokens(_ context.Context, c *gin.Co
 func TestCountTokensNativeHTTPAttemptContract(t *testing.T) {
 	fixture := &countHTTPContract{t: t, group: 42}
 	key := &apikey.APIKey{ID: 7, GroupID: &fixture.group, Group: &routing.Group{Platform: "anthropic"}}
-	ports := CountHTTPPorts{Executor: fixture, Funding: fixture, Diagnoser: routing.ModelAvailabilityDiagnoserFunc(unexpectedCountModelDiagnosis),
+	ports := CountHTTPPorts{
+		Executor: fixture, Funding: fixture, Diagnoser: routing.ModelAvailabilityDiagnoserFunc(unexpectedCountModelDiagnosis),
 		ReadAccess:           func(*gin.Context) (*apikey.APIKey, bool) { return key, true },
 		ObserveCompatibility: func(*zap.Logger) {},
 		BusinessError: func(*gin.Context, error, bool, func(int, string, string, bool)) bool {

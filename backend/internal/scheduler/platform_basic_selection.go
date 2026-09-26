@@ -13,10 +13,10 @@ import (
 func (s *PlatformSelector) selectBasicOnlyRoutes(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, routingModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability account.OpenAIEndpointCapability) (*FlowAccount, error) {
 	platform = routing.NormalizeOpenAICompatiblePlatform(platform)
 	if s.ports.CheckPricing(ctx, groupID, requestedModel) {
-		s.diagnostics.event("warn", "channel pricing restriction blocked request",
+		s.diagnostics.event("warn", "group model restriction blocked request",
 			"group_id", derefGroupID(groupID),
 			"model", requestedModel)
-		return nil, fmt.Errorf("%w supporting model: %s (channel pricing restriction)", ErrNoAvailableAccounts, requestedModel)
+		return nil, fmt.Errorf("%w supporting model: %s (group model restriction)", ErrNoAvailableAccounts, requestedModel)
 	}
 
 	if account := s.tryBasicSticky(ctx, groupID, platform, sessionHash, requestedModel, routingModel, excludedIDs, requireCompact, stickyAccountID, requiredCapability); account != nil {
@@ -45,6 +45,7 @@ func (s *PlatformSelector) selectBasicOnlyRoutes(ctx context.Context, groupID *i
 
 	return hydrated, nil
 }
+
 func (s *PlatformSelector) tryBasicSticky(ctx context.Context, groupID *int64, platform string, sessionHash, requestedModel string, routingModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability account.OpenAIEndpointCapability) *FlowAccount {
 	if sessionHash == "" {
 		return nil
@@ -97,8 +98,8 @@ func (s *PlatformSelector) tryBasicSticky(ctx context.Context, groupID *int64, p
 		_ = s.ports.DeleteSticky(ctx, groupID, sessionHash)
 		return nil
 	}
-	if groupID != nil && s.ports.NeedsChannelCheck(ctx, groupID) &&
-		s.ports.ChannelRestricted(ctx, *groupID, account, routingModel, requireCompact) {
+	if groupID != nil && s.ports.NeedsGroupCheck(ctx, groupID) &&
+		s.ports.GroupModelRestricted(ctx, *groupID, account, routingModel, requireCompact) {
 		_ = s.ports.DeleteSticky(ctx, groupID, sessionHash)
 		return nil
 	}
@@ -108,10 +109,11 @@ func (s *PlatformSelector) tryBasicSticky(ctx context.Context, groupID *int64, p
 	_ = s.ports.RefreshSticky(ctx, groupID, sessionHash, s.ports.BasicStickyTTL)
 	return account
 }
+
 func (s *PlatformSelector) SelectBestBasic(ctx context.Context, groupID *int64, platform string, accounts []FlowAccount, requestedModel string, routingModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability account.OpenAIEndpointCapability) (*FlowAccount, bool) {
 	platform = routing.NormalizeOpenAICompatiblePlatform(platform)
 	compactBlocked := false
-	needsUpstreamCheck := s.ports.NeedsChannelCheck(ctx, groupID)
+	needsUpstreamCheck := s.ports.NeedsGroupCheck(ctx, groupID)
 	eligible := make([]*FlowAccount, 0, len(accounts))
 
 	for i := range accounts {
@@ -134,7 +136,7 @@ func (s *PlatformSelector) SelectBestBasic(ctx context.Context, groupID *int64, 
 		if !s.ports.PrivacyAllowed(ctx, groupID, fresh) {
 			continue
 		}
-		if needsUpstreamCheck && s.ports.ChannelRestricted(ctx, *groupID, fresh, routingModel, requireCompact) {
+		if needsUpstreamCheck && s.ports.GroupModelRestricted(ctx, *groupID, fresh, routingModel, requireCompact) {
 			continue
 		}
 		if requireCompact && !s.ports.CompactAllowed(fresh) {
@@ -154,6 +156,7 @@ func (s *PlatformSelector) SelectBestBasic(ctx context.Context, groupID *int64, 
 	})
 	return eligible[0], compactBlocked
 }
+
 func (s *PlatformSelector) isBetterBasic(candidate, current *FlowAccount) bool {
 	// 优先级更高（数值更小）
 	// Higher priority (lower value)
@@ -181,17 +184,18 @@ func (s *PlatformSelector) isBetterBasic(candidate, current *FlowAccount) bool {
 		return candidate.LastUsedAt.Before(*current.LastUsedAt)
 	}
 }
+
 func (s *PlatformSelector) selectBasicRoutes(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, routingModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability account.OpenAIEndpointCapability) (*FlowSelection, error) {
 	platform = routing.NormalizeOpenAICompatiblePlatform(platform)
 	if s.ports.CheckPricing(ctx, groupID, requestedModel) {
-		s.diagnostics.event("warn", "channel pricing restriction blocked request",
+		s.diagnostics.event("warn", "group model restriction blocked request",
 			"group_id", derefGroupID(groupID),
 			"model", requestedModel)
-		return nil, fmt.Errorf("%w supporting model: %s (channel pricing restriction)", ErrNoAvailableAccounts, requestedModel)
+		return nil, fmt.Errorf("%w supporting model: %s (group model restriction)", ErrNoAvailableAccounts, requestedModel)
 	}
 
 	cfg := s.ports.Options()
-	needsUpstreamCheck := s.ports.NeedsChannelCheck(ctx, groupID)
+	needsUpstreamCheck := s.ports.NeedsGroupCheck(ctx, groupID)
 	var stickyAccountID int64
 	if sessionHash != "" && s.ports.CacheAvailable {
 		if accountID, err := s.ports.GetSticky(ctx, groupID, sessionHash); err == nil {
@@ -272,7 +276,7 @@ func (s *PlatformSelector) selectBasicRoutes(ctx context.Context, groupID *int64
 						_ = s.ports.DeleteSticky(ctx, groupID, sessionHash)
 					} else if s.ports.RuntimeBlocked(account, routingModel) {
 						_ = s.ports.DeleteSticky(ctx, groupID, sessionHash)
-					} else if needsUpstreamCheck && s.ports.ChannelRestricted(ctx, *groupID, account, routingModel, requireCompact) {
+					} else if needsUpstreamCheck && s.ports.GroupModelRestricted(ctx, *groupID, account, routingModel, requireCompact) {
 						_ = s.ports.DeleteSticky(ctx, groupID, sessionHash)
 					} else if !s.ports.ShadowAllowed(ctx, account) || !s.ports.ParentHealthy(account, s.ports.ParentLookup(ctx)) {
 						_ = s.ports.DeleteSticky(ctx, groupID, sessionHash)
@@ -341,8 +345,8 @@ func (s *PlatformSelector) selectBasicRoutes(ctx context.Context, groupID *int64
 			filterStats.Exclude("runtime_blocked")
 			continue
 		}
-		if needsUpstreamCheck && s.ports.ChannelRestricted(ctx, *groupID, acc, routingModel, requireCompact) {
-			filterStats.Exclude("channel_upstream_restricted")
+		if needsUpstreamCheck && s.ports.GroupModelRestricted(ctx, *groupID, acc, routingModel, requireCompact) {
+			filterStats.Exclude("group_upstream_restricted")
 			continue
 		}
 		baseCandidateCount++
@@ -432,7 +436,7 @@ func (s *PlatformSelector) selectBasicRoutes(ctx context.Context, groupID *int64
 			if fresh == nil {
 				continue
 			}
-			if needsUpstreamCheck && s.ports.ChannelRestricted(ctx, *groupID, fresh, routingModel, requireCompact) {
+			if needsUpstreamCheck && s.ports.GroupModelRestricted(ctx, *groupID, fresh, routingModel, requireCompact) {
 				continue
 			}
 			result, err := s.ports.Acquire(ctx, fresh.ID, fresh.Concurrency)
@@ -466,7 +470,7 @@ func (s *PlatformSelector) selectBasicRoutes(ctx context.Context, groupID *int64
 			if fresh == nil {
 				continue
 			}
-			if needsUpstreamCheck && s.ports.ChannelRestricted(ctx, *groupID, fresh, routingModel, requireCompact) {
+			if needsUpstreamCheck && s.ports.GroupModelRestricted(ctx, *groupID, fresh, routingModel, requireCompact) {
 				continue
 			}
 			result, err := s.ports.Acquire(ctx, fresh.ID, fresh.Concurrency)
@@ -510,7 +514,7 @@ func (s *PlatformSelector) selectBasicRoutes(ctx context.Context, groupID *int64
 		if fresh == nil {
 			continue
 		}
-		if needsUpstreamCheck && s.ports.ChannelRestricted(ctx, *groupID, fresh, routingModel, requireCompact) {
+		if needsUpstreamCheck && s.ports.GroupModelRestricted(ctx, *groupID, fresh, routingModel, requireCompact) {
 			continue
 		}
 		return s.ports.Complete(ctx, fresh, false, nil, &AccountWaitPlan{
@@ -526,6 +530,7 @@ func (s *PlatformSelector) selectBasicRoutes(ctx context.Context, groupID *int64
 	}
 	return nil, s.ports.Unavailable(ctx, requestedModel, routingModel, false, "", accounts)
 }
+
 func (s *PlatformSelector) prioritizeBasicCompact(accounts []*FlowAccount) []*FlowAccount {
 	if len(accounts) == 0 {
 		return nil
@@ -546,6 +551,7 @@ func (s *PlatformSelector) prioritizeBasicCompact(accounts []*FlowAccount) []*Fl
 func (s *PlatformSelector) SelectBasicOnly(ctx context.Context, input PlatformSelectionInput) (*FlowAccount, error) {
 	return s.selectBasicOnlyRoutes(ctx, input.GroupID, input.Platform, input.SessionHash, input.RequestedModel, input.RoutingModel, input.ExcludedIDs, input.RequireCompact, input.StickyAccountID, input.RequiredCapability)
 }
+
 func (s *PlatformSelector) SelectBasic(ctx context.Context, input PlatformSelectionInput) (*FlowSelection, error) {
 	return s.selectBasicRoutes(ctx, input.GroupID, input.Platform, input.SessionHash, input.RequestedModel, input.RoutingModel, input.ExcludedIDs, input.RequireCompact, input.RequiredCapability)
 }

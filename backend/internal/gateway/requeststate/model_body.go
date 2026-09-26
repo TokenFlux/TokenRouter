@@ -10,8 +10,8 @@ import (
 // ModelBodyReplacer 由报文编码 Adapter 注入。
 type ModelBodyReplacer func([]byte, string) []byte
 
-// ChannelMappedModel 返回渠道模型 C；渠道没有有效结果时保留客户端模型 R。
-func ChannelMappedModel(requestedModel string, mapping routing.ChannelMappingResult) string {
+// GroupMappedModel 返回分组映射模型 G；分组映射没有有效结果时保留客户端模型 R。
+func GroupMappedModel(requestedModel string, mapping routing.GroupMappingResult) string {
 	routingModel := strings.TrimSpace(mapping.MappedModel)
 	if routingModel == "" {
 		return strings.TrimSpace(requestedModel)
@@ -19,7 +19,7 @@ func ChannelMappedModel(requestedModel string, mapping routing.ChannelMappingRes
 	return routingModel
 }
 
-// ModelMappedBody 在存在渠道映射时返回替换模型后的请求体。
+// ModelMappedBody 在存在分组映射时返回替换模型后的请求体。
 func ModelMappedBody(body []byte, mapped bool, mappedModel string, replace ModelBodyReplacer) []byte {
 	if !mapped || replace == nil {
 		return body

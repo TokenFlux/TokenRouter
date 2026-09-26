@@ -15,11 +15,14 @@ import (
 type Searcher interface {
 	SearchWithBestProvider(context.Context, contract.SearchRequest) (*contract.SearchResponse, string, error)
 }
-type SearchSource interface{ Current() Searcher }
-type Settings interface{ IsWebSearchEmulationEnabled(context.Context) bool }
-type ChannelPolicy interface {
-	Enabled(context.Context, int64, string) (bool, error)
-}
+type (
+	SearchSource interface{ Current() Searcher }
+	Settings     interface{ IsWebSearchEmulationEnabled(context.Context) bool }
+	GroupPolicy  interface {
+		Enabled(context.Context, int64, string) (bool, error)
+	}
+)
+
 type PolicyInput struct {
 	Body           []byte
 	Mode, Platform string
@@ -57,28 +60,29 @@ func (e *ProxyFailure) Error() string { return e.Cause.Error() }
 func (e *ProxyFailure) Unwrap() error { return e.Cause }
 
 type Emulator struct {
-	source   SearchSource
-	settings Settings
-	channels ChannelPolicy
-	now      func() time.Time
-	newID    func() string
-	observer func(Event)
+	source        SearchSource
+	settings      Settings
+	groupPolicies GroupPolicy
+	now           func() time.Time
+	newID         func() string
+	observer      func(Event)
 }
 
 // NewEmulator 不启动 worker，不复制搜索 Manager、客户端或配额状态。
-func NewEmulator(source SearchSource, settings Settings, channels ChannelPolicy, now func() time.Time, newID func() string, observe func(Event)) *Emulator {
+func NewEmulator(source SearchSource, settings Settings, groupPolicies GroupPolicy, now func() time.Time, newID func() string, observe func(Event)) *Emulator {
 	if now == nil {
 		now = time.Now
 	}
-	return &Emulator{source: source, settings: settings, channels: channels, now: now, newID: newID, observer: observe}
+	return &Emulator{source: source, settings: settings, groupPolicies: groupPolicies, now: now, newID: newID, observer: observe}
 }
+
 func (s *Emulator) observe(e Event) {
 	if s.observer != nil {
 		s.observer(e)
 	}
 }
 
-// ShouldEmulate 保留 Manager、工具形状、全局、账号及渠道的原短路顺序。
+// ShouldEmulate 按 Manager、工具形状、全局、账号和分组策略的顺序短路判断。
 func (s *Emulator) ShouldEmulate(ctx context.Context, in PolicyInput) bool {
 	if s.source.Current() == nil {
 		return false
@@ -95,13 +99,14 @@ func (s *Emulator) ShouldEmulate(ctx context.Context, in PolicyInput) bool {
 	case "disabled":
 		return false
 	default:
-		if in.GroupID == nil || s.channels == nil {
+		if in.GroupID == nil || s.groupPolicies == nil {
 			return false
 		}
-		enabled, err := s.channels.Enabled(ctx, *in.GroupID, in.Platform)
+		enabled, err := s.groupPolicies.Enabled(ctx, *in.GroupID, in.Platform)
 		return err == nil && enabled
 	}
 }
+
 func (s *Emulator) Search(ctx context.Context, proxyURL, query string) (*contract.SearchResponse, string, error) {
 	manager := s.source.Current()
 	if manager == nil {

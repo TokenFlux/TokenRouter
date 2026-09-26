@@ -94,6 +94,7 @@ func CloneGroupForDuplicate(source *Group, operationID string) *Group {
 		RateMultiplier:                  source.RateMultiplier,
 		LongContextPricingEnabled:       source.LongContextPricingEnabled,
 		ModelPricing:                    CloneGroupModelPricing(source.ModelPricing),
+		RoutingPolicy:                   source.RoutingPolicy.Clone(),
 		PeakRateEnabled:                 source.PeakRateEnabled,
 		PeakStart:                       source.PeakStart,
 		PeakEnd:                         source.PeakEnd,
@@ -221,11 +222,11 @@ func (s *GroupAdmin) DuplicateGroup(ctx context.Context, id int64, actorScope, o
 }
 
 // CloneGroupModelPricing 保持复制分组的模型、区间、分时配置与源分组互相独立。
-func CloneGroupModelPricing(pricing []ChannelModelPricing) []ChannelModelPricing {
+func CloneGroupModelPricing(pricing []ModelPricingEntry) []ModelPricingEntry {
 	if pricing == nil {
 		return nil
 	}
-	cloned := make([]ChannelModelPricing, len(pricing))
+	cloned := make([]ModelPricingEntry, len(pricing))
 	for i := range pricing {
 		cloned[i] = pricing[i].Clone()
 	}

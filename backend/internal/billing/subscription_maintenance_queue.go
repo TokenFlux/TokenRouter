@@ -11,7 +11,7 @@ type SubscriptionMaintenanceQueue struct {
 	queue       chan func()
 	wg          sync.WaitGroup
 	stop        sync.Once
-	mu          sync.RWMutex // 保护 closed 标志与 channel 操作的原子性
+	mu          sync.RWMutex // 保护 closed 标志与 Go 通道操作的原子性
 	closed      bool
 	started     bool
 	workerCount int
@@ -102,5 +102,4 @@ func (q *SubscriptionMaintenanceQueue) Start() {
 			}
 		}(i)
 	}
-
 }

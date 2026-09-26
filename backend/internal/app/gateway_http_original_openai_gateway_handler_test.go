@@ -1,13 +1,26 @@
 package app
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	httptestkit "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
-
-	"log/slog"
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 
@@ -23,19 +36,6 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 
 	"github.com/TokenFlux/TokenRouter/internal/usage"
-
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"testing"
-	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
 
@@ -69,7 +69,6 @@ import (
 
 // TestHandleGroupSelectionBusinessError 验证客户端策略拒绝不会被误报为服务不可用。
 func TestHandleGroupSelectionBusinessError(t *testing.T) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
@@ -128,7 +127,6 @@ func TestOpenAIResponsesRequiredCapability(t *testing.T) {
 }
 
 func TestOpenAIEnsureForwardErrorResponse_ResponsesRouteCyberWarningEmitsOriginalMessage(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointResponses, nil)
@@ -155,7 +153,6 @@ func TestOpenAIEnsureForwardErrorResponse_ResponsesRouteCyberWarningEmitsOrigina
 }
 
 func TestOpenAIForwardErrorAlreadyCommunicated(t *testing.T) {
-
 	t.Run("upstream response failed after write", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -195,7 +192,6 @@ data: {"type":"response.failed","error":{"message":"This content was flagged"}}
 }
 
 func TestOpenAIHandleFailoverExhausted_CyberWarningPassesThroughMessage(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -214,7 +210,6 @@ func TestOpenAIHandleFailoverExhausted_CyberWarningPassesThroughMessage(t *testi
 }
 
 func TestShouldLogOpenAIForwardFailureAsWarn(t *testing.T) {
-
 	t.Run("fallback_written_should_not_downgrade", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -243,7 +238,6 @@ func TestShouldLogOpenAIForwardFailureAsWarn(t *testing.T) {
 }
 
 func TestOpenAIGatewayMessagesProtocolPolicyAllowsGrokGroups(t *testing.T) {
-
 	t.Run("openai_group_without_messages_protocol_is_rejected", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
@@ -303,7 +297,6 @@ func TestOpenAIGatewayMessagesProtocolPolicyAllowsGrokGroups(t *testing.T) {
 }
 
 func TestOpenAIResponses_MissingDependencies_ReturnsServiceUnavailable(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5","stream":false}`))
@@ -338,7 +331,6 @@ func TestOpenAIResponses_MissingDependencies_ReturnsServiceUnavailable(t *testin
 }
 
 func TestOpenAIResponses_SetsClientTransportHTTP(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(`{"model":"gpt-5"}`))
@@ -352,7 +344,6 @@ func TestOpenAIResponses_SetsClientTransportHTTP(t *testing.T) {
 }
 
 func TestOpenAIResponses_RejectsMessageIDAsPreviousResponseID(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(
@@ -379,7 +370,6 @@ func TestOpenAIResponses_RejectsMessageIDAsPreviousResponseID(t *testing.T) {
 }
 
 func TestOpenAIResponses_AcceptsHTTPContinuationPreviousResponseIDBeforeRouting(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(
@@ -407,7 +397,6 @@ func TestOpenAIResponses_AcceptsHTTPContinuationPreviousResponseIDBeforeRouting(
 }
 
 func TestOpenAIResponses_RejectsHTTPContinuationOwnedByAnotherUser(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(
@@ -433,7 +422,6 @@ func TestOpenAIResponses_RejectsHTTPContinuationOwnedByAnotherUser(t *testing.T)
 }
 
 func TestOpenAIResponses_RejectsUnownedHTTPContinuation(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(
@@ -453,7 +441,6 @@ func TestOpenAIResponses_RejectsUnownedHTTPContinuation(t *testing.T) {
 }
 
 func TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousResponseReuse(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(
@@ -481,7 +468,6 @@ func TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousRes
 }
 
 func TestOpenAIResponsesWebSocket_SetsClientTransportWSWhenUpgradeValid(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/openai/v1/responses", nil)
@@ -496,7 +482,6 @@ func TestOpenAIResponsesWebSocket_SetsClientTransportWSWhenUpgradeValid(t *testi
 }
 
 func TestOpenAIResponsesWebSocket_InvalidUpgradeDoesNotSetTransport(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/openai/v1/responses", nil)
@@ -509,7 +494,6 @@ func TestOpenAIResponsesWebSocket_InvalidUpgradeDoesNotSetTransport(t *testing.T
 }
 
 func TestOpenAIResponsesWebSocket_IngressCapacityRejected(t *testing.T) {
-
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireIngressLeaseFn: func(context.Context, int64, int, string) (bool, error) {
 			return false, nil
@@ -532,7 +516,6 @@ func TestOpenAIResponsesWebSocket_IngressCapacityRejected(t *testing.T) {
 }
 
 func TestOpenAIResponsesWebSocket_IngressLeaseBackendUnavailableBeforeUpgrade(t *testing.T) {
-
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireIngressLeaseFn: func(context.Context, int64, int, string) (bool, error) {
 			return false, errors.New("redis unavailable")
@@ -555,7 +538,6 @@ func TestOpenAIResponsesWebSocket_IngressLeaseBackendUnavailableBeforeUpgrade(t 
 }
 
 func TestOpenAIResponsesWebSocket_FirstMessageTimeoutUsesConfig(t *testing.T) {
-
 	logSink, restore := captureHandlerStructuredLog(t)
 	defer restore()
 
@@ -589,7 +571,6 @@ func TestOpenAIResponsesWebSocket_FirstMessageTimeoutUsesConfig(t *testing.T) {
 }
 
 func TestOpenAIResponsesWebSocket_IngressLeaseReleasedOnEarlyReturn(t *testing.T) {
-
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireIngressLeaseFn: func(context.Context, int64, int, string) (bool, error) {
 			return true, nil
@@ -624,7 +605,6 @@ func TestOpenAIResponsesWebSocket_IngressLeaseReleasedOnEarlyReturn(t *testing.T
 }
 
 func TestOpenAIResponsesWebSocket_IngressLeaseReleasedWhenUpgradeFails(t *testing.T) {
-
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireIngressLeaseFn: func(context.Context, int64, int, string) (bool, error) {
 			return true, nil
@@ -651,7 +631,6 @@ func TestOpenAIResponsesWebSocket_IngressLeaseReleasedWhenUpgradeFails(t *testin
 }
 
 func TestOpenAIResponsesWebSocket_RejectsMessageIDAsPreviousResponseID(t *testing.T) {
-
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
 	wsServer := newOpenAIWSHandlerTestServer(t, h, authctx.AuthSubject{UserID: 1, Concurrency: 1})
 	defer wsServer.Close()
@@ -682,7 +661,6 @@ func TestOpenAIResponsesWebSocket_RejectsMessageIDAsPreviousResponseID(t *testin
 }
 
 func TestOpenAIResponsesWebSocket_PreviousResponseIDKindLoggedBeforeAcquireFailure(t *testing.T) {
-
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {
 			return false, errors.New("user slot unavailable")
@@ -897,7 +875,6 @@ func (r *contentModerationHandlerTestRepo) CleanupExpiredLogs(ctx context.Contex
 }
 
 func TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame(t *testing.T) {
-
 	moderationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/moderations", r.URL.Path)
 		_, _ = w.Write([]byte(`{"results":[{"category_scores":{"sexual":0.9}}]}`))
@@ -945,9 +922,11 @@ func TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame(t *testing.T
 		Funding:   &admission.FundingAdmission{},
 		Keys:      &apikey.APIKeyService{},
 		Moderator: moderationSvc,
-		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&httptestkit.ConcurrencyHooks{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&httptestkit.ConcurrencyHooks{}, scheduler.Diagnostics{
+			Logf: logging.LegacyPrintf,
 
-			Event: logging.Event},
+			Event: logging.Event,
+		},
 		), gatewayhttp.SSEPingFormatNone, time.Second), Availability: newExecutionAvailabilityForTest(nil, nil, nil), Choices: newEmptyCompatibleSelectionFixture(),
 	})
 	wsServer := newOpenAIWSHandlerTestServer(t, h, authctx.AuthSubject{UserID: 1, Concurrency: 1})
@@ -993,7 +972,6 @@ func TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame(t *testing.T
 }
 
 func TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody(t *testing.T) {
-
 	cfg := moderation.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
@@ -1020,8 +998,11 @@ func TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody(t *testing.T) {
 		UserID: 1001,
 		User:   &identity.User{ID: 1001, Email: "user@example.com"},
 	}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2001,
-		Name: "openai-1"},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 2001,
+			Name: "openai-1",
+		},
 	}
 
 	h.openAIAttemptSupport().RecordOpenAICyberWarning(
@@ -1045,7 +1026,6 @@ func TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody(t *testing.T) {
 }
 
 func TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt(t *testing.T) {
-
 	cfg := moderation.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
@@ -1087,7 +1067,6 @@ func TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt(t *testing.T) {
 }
 
 func TestOpenAIRecordCyberWarning_RequestSnapshotUsesCurrentToolOutput(t *testing.T) {
-
 	cfg := moderation.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
@@ -1140,7 +1119,6 @@ func TestOpenAIRecordCyberWarning_RequestSnapshotUsesCurrentToolOutput(t *testin
 }
 
 func TestOpenAIRecordForwardResultCyberWarning_RecordsWSV2TerminalWarning(t *testing.T) {
-
 	cfg := moderation.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
@@ -1166,8 +1144,11 @@ func TestOpenAIRecordForwardResultCyberWarning_RecordsWSV2TerminalWarning(t *tes
 		UserID: 1001,
 		User:   &identity.User{ID: 1001, Email: "user@example.com"},
 	}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2001,
-		Name: "openai-1"},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 2001,
+			Name: "openai-1",
+		},
 	}
 	result := &forwardcore.OpenAIResult{
 		Model: "gpt-5.1",
@@ -1214,7 +1195,6 @@ func (e *openAIHandlerTestWarningError) OpenAIUpstreamWarning() *forwardcore.Ups
 }
 
 func TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning(t *testing.T) {
-
 	cfg := moderation.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
@@ -1240,8 +1220,11 @@ func TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning(t *test
 		UserID: 1001,
 		User:   &identity.User{ID: 1001, Email: "user@example.com"},
 	}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2001,
-		Name: "openai-1"},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 2001,
+			Name: "openai-1",
+		},
 	}
 	err = fmt.Errorf("openai ws fallback: missing_final_response: %w", &openAIHandlerTestWarningError{
 		warning: &forwardcore.UpstreamWarning{
@@ -1264,7 +1247,6 @@ func TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning(t *test
 }
 
 func TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope(t *testing.T) {
-
 	cfg := moderation.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
@@ -1301,7 +1283,7 @@ func TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope(t *testing.T
 	}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2001, Name: "openai-1"}}
 
-	handled := h.openAIAttemptSupport().RecordCyberPolicyIfMarked(c, apiKey, account, nil, "gpt-5.1", true, "cyber-session-key", routing.ChannelUsageFields{}, "payload-hash")
+	handled := h.openAIAttemptSupport().RecordCyberPolicyIfMarked(c, apiKey, account, nil, "gpt-5.1", true, "cyber-session-key", routing.PricingUsageFields{}, "payload-hash")
 
 	require.False(t, handled)
 	require.Empty(t, repo.cyberWarnings)
@@ -1309,7 +1291,6 @@ func TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope(t *testing.T
 }
 
 func TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups(t *testing.T) {
-
 	selectedGroupID := int64(101)
 	outOfScopeGroupID := int64(202)
 	cfg := moderation.ContentModerationConfig{
@@ -1392,16 +1373,16 @@ func TestOpenAIResponsesWebSocket_PassthroughUsageLogInfersReasoningFromInitialR
 	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
 		firstPayload: `{"type":"response.create","model":"gpt-5.4-xhigh","stream":false}`,
 		userAgent:    testStringPtr("codex_cli_rs/0.125.0 mapped"),
-		channelMapping: map[string]string{
+		groupMapping: map[string]string{
 			"gpt-5.4-xhigh": "gpt-5.4",
 		},
 	})
 
 	require.Equal(t, "gpt-5.4", gjson.GetBytes(got.upstreamFirstPayload, "model").String(),
-		"上游首帧应使用渠道映射后的模型")
+		"上游首帧应使用分组映射后的模型")
 	require.NotNil(t, got.log.ReasoningEffort)
 	require.Equal(t, "xhigh", *got.log.ReasoningEffort,
-		"usage log reasoning effort 必须使用渠道映射前首帧模型后缀推导")
+		"usage log reasoning effort 必须使用分组映射前首帧模型后缀推导")
 }
 
 func TestOpenAIResponsesWebSocket_StripsPreviousResponseIDWhenStickyPreviousMisses(t *testing.T) {
@@ -1450,9 +1431,11 @@ func newOpenAIHandlerForPreviousResponseIDValidation(t *testing.T, cache *httpte
 		Source:  &gatewayExecutionFixture{},
 		Funding: &admission.FundingAdmission{},
 		Keys:    &apikey.APIKeyService{},
-		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{
+			Logf: logging.LegacyPrintf,
 
-			Event: logging.Event},
+			Event: logging.Event,
+		},
 		), gatewayhttp.SSEPingFormatNone, time.Second), Availability: newExecutionAvailabilityForTest(nil, nil, nil), Choices: newEmptyCompatibleSelectionFixture(),
 	})
 }
@@ -1476,9 +1459,9 @@ func newOpenAIWSHandlerTestServer(t *testing.T, h *gatewayHTTPEndpointsFixture, 
 }
 
 type openAIResponsesWSUsageLogCase struct {
-	firstPayload   string
-	userAgent      *string
-	channelMapping map[string]string
+	firstPayload string
+	userAgent    *string
+	groupMapping map[string]string
 }
 
 type openAIResponsesWSUsageLogResult struct {
@@ -1676,17 +1659,17 @@ func (s *openAIWSUsageHandlerUsageLogRepoStub) Create(ctx context.Context, log *
 	return true, nil
 }
 
-type openAIWSUsageHandlerChannelRepoStub struct {
-	routing.ChannelRepository
-	channels       []routing.Channel
+type openAIWSUsageHandlerPricingConfigRepoStub struct {
+	routing.PricingConfigRepository
+	modelConfigs   []routingtestkit.Configuration
 	groupPlatforms map[int64]string
 }
 
-func (s *openAIWSUsageHandlerChannelRepoStub) ListAll(ctx context.Context) ([]routing.Channel, error) {
-	return s.channels, nil
+func (s *openAIWSUsageHandlerPricingConfigRepoStub) ListAll(ctx context.Context) ([]routingtestkit.Configuration, error) {
+	return s.modelConfigs, nil
 }
 
-func (s *openAIWSUsageHandlerChannelRepoStub) GetGroupPlatforms(ctx context.Context, groupIDs []int64) (map[int64]string, error) {
+func (s *openAIWSUsageHandlerPricingConfigRepoStub) GetGroupPlatforms(ctx context.Context, groupIDs []int64) (map[int64]string, error) {
 	out := make(map[int64]string, len(groupIDs))
 	for _, groupID := range groupIDs {
 		if platform := strings.TrimSpace(s.groupPlatforms[groupID]); platform != "" {
@@ -1697,27 +1680,32 @@ func (s *openAIWSUsageHandlerChannelRepoStub) GetGroupPlatforms(ctx context.Cont
 }
 
 func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(t *testing.T) {
-
 	groupID := int64(4203)
 	accounts := []gatewayprovider.ExecutionAccount{
-		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9910, Name: "pool-api-key", Platform: capability.PlatformOpenAI,
-			Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 1,
-			Credentials: map[string]any{
-				"api_key":                      "sk-pool",
-				"base_url":                     "https://api.example.test",
-				"pool_mode":                    true,
-				"pool_mode_retry_count":        float64(1),
-				"pool_mode_retry_status_codes": []any{float64(http.StatusBadGateway)},
+		{
+			Record: accountcore.Record{
+				LoadLocation: time.LoadLocation, ID: 9910, Name: "pool-api-key", Platform: capability.PlatformOpenAI,
+				Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 1,
+				Credentials: map[string]any{
+					"api_key":                      "sk-pool",
+					"base_url":                     "https://api.example.test",
+					"pool_mode":                    true,
+					"pool_mode_retry_count":        float64(1),
+					"pool_mode_retry_status_codes": []any{float64(http.StatusBadGateway)},
+				},
+				Extra: map[string]any{"openai_passthrough": true},
 			},
-			Extra: map[string]any{"openai_passthrough": true}},
 		},
-		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9911, Name: "fallback-api-key", Platform: capability.PlatformOpenAI,
-			Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 2,
-			Credentials: map[string]any{
-				"api_key":  "sk-fallback",
-				"base_url": "https://api.example.test",
+		{
+			Record: accountcore.Record{
+				LoadLocation: time.LoadLocation, ID: 9911, Name: "fallback-api-key", Platform: capability.PlatformOpenAI,
+				Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 2,
+				Credentials: map[string]any{
+					"api_key":  "sk-fallback",
+					"base_url": "https://api.example.test",
+				},
+				Extra: map[string]any{"openai_passthrough": true},
 			},
-			Extra: map[string]any{"openai_passthrough": true}},
 		},
 	}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
@@ -1752,9 +1740,11 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput4, billingCacheSvc, completionInput5, nil, nil, true)
 
 	h := newGatewayHTTPEndpointsFromDeps(
-		gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{
+			Logf: logging.LegacyPrintf,
 
-			Event: logging.Event},
+			Event: logging.Event,
+		},
 		), newFundingAdmissionFixture(billingCacheSvc, cfg), testkit.NewService(nil, nil, nil, nil, nil, nil, cfg),
 		nil,
 		nil,
@@ -1796,27 +1786,32 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			groupID := int64(4203)
 			accounts := []gatewayprovider.ExecutionAccount{
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9910, Name: "pool-api-key", Platform: capability.PlatformOpenAI,
-					Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 1,
-					Credentials: map[string]any{
-						"api_key":                      "sk-pool",
-						"base_url":                     "https://api.example.test",
-						"pool_mode":                    true,
-						"pool_mode_retry_count":        float64(1),
-						"pool_mode_retry_status_codes": []any{float64(tt.statusCode)},
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 9910, Name: "pool-api-key", Platform: capability.PlatformOpenAI,
+						Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 1,
+						Credentials: map[string]any{
+							"api_key":                      "sk-pool",
+							"base_url":                     "https://api.example.test",
+							"pool_mode":                    true,
+							"pool_mode_retry_count":        float64(1),
+							"pool_mode_retry_status_codes": []any{float64(tt.statusCode)},
+						},
+						Extra: map[string]any{"openai_passthrough": true},
 					},
-					Extra: map[string]any{"openai_passthrough": true}},
 				},
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9911, Name: "fallback-api-key", Platform: capability.PlatformOpenAI,
-					Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 2,
-					Credentials: map[string]any{
-						"api_key":  "sk-fallback",
-						"base_url": "https://api.example.test",
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 9911, Name: "fallback-api-key", Platform: capability.PlatformOpenAI,
+						Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 2,
+						Credentials: map[string]any{
+							"api_key":  "sk-fallback",
+							"base_url": "https://api.example.test",
+						},
+						Extra: map[string]any{"openai_passthrough": true},
 					},
-					Extra: map[string]any{"openai_passthrough": true}},
 				},
 			}
 			cfg := &config.Config{RunMode: config.RunModeSimple}
@@ -1852,9 +1847,11 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput6, billingCacheSvc, completionInput7, nil, completionHealth{rateLimitSvc.Core}, true)
 
 			h := newGatewayHTTPEndpointsFromDeps(
-				gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+				gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{
+					Logf: logging.LegacyPrintf,
 
-					Event: logging.Event},
+					Event: logging.Event,
+				},
 				), newFundingAdmissionFixture(billingCacheSvc, cfg), testkit.NewService(nil, nil, nil, nil, nil, nil, cfg),
 				nil,
 				nil,
@@ -1886,19 +1883,21 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 }
 
 func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t *testing.T) {
-
 	groupID := int64(4204)
 	accounts := []gatewayprovider.ExecutionAccount{
-		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9912, Name: "pool-sse-rate-limit", Platform: capability.PlatformOpenAI,
-			Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 1,
-			Credentials: map[string]any{
-				"api_key":                      "sk-pool",
-				"base_url":                     "https://api.example.test",
-				"pool_mode":                    true,
-				"pool_mode_retry_count":        float64(1),
-				"pool_mode_retry_status_codes": []any{float64(http.StatusTooManyRequests)},
+		{
+			Record: accountcore.Record{
+				LoadLocation: time.LoadLocation, ID: 9912, Name: "pool-sse-rate-limit", Platform: capability.PlatformOpenAI,
+				Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Priority: 1,
+				Credentials: map[string]any{
+					"api_key":                      "sk-pool",
+					"base_url":                     "https://api.example.test",
+					"pool_mode":                    true,
+					"pool_mode_retry_count":        float64(1),
+					"pool_mode_retry_status_codes": []any{float64(http.StatusTooManyRequests)},
+				},
+				Extra: map[string]any{"openai_passthrough": true},
 			},
-			Extra: map[string]any{"openai_passthrough": true}},
 		},
 	}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
@@ -1933,9 +1932,11 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, nil, completionInput8, billingCacheSvc, completionInput9, nil, nil, true)
 
 	h := newGatewayHTTPEndpointsFromDeps(
-		gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		gatewaySvc, gatewaySvcCredentialPort, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{
+			Logf: logging.LegacyPrintf,
 
-			Event: logging.Event},
+			Event: logging.Event,
+		},
 		), newFundingAdmissionFixture(billingCacheSvc, cfg), testkit.NewService(nil, nil, nil, nil, nil, nil, cfg),
 		nil,
 		nil,
@@ -1968,7 +1969,6 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 }
 
 func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T) {
-
 	firstHitCh := make(chan []byte, 1)
 	secondHitCh := make(chan []byte, 1)
 
@@ -2015,39 +2015,45 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 
 	groupID := int64(4202)
 	accounts := []gatewayprovider.ExecutionAccount{
-		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9902,
-			Name:        "openai-ws-rate-limited",
-			Platform:    capability.PlatformOpenAI,
-			Type:        capability.AccountTypeAPIKey,
-			Status:      billing.StatusActive,
-			Schedulable: true,
-			Concurrency: 1,
-			Priority:    1,
-			Credentials: map[string]any{
-				"api_key":  "sk-first",
-				"base_url": firstUpstream.URL,
+		{
+			Record: accountcore.Record{
+				LoadLocation: time.LoadLocation, ID: 9902,
+				Name:        "openai-ws-rate-limited",
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    1,
+				Credentials: map[string]any{
+					"api_key":  "sk-first",
+					"base_url": firstUpstream.URL,
+				},
+				Extra: map[string]any{
+					"openai_apikey_responses_websockets_v2_enabled": true,
+					"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
+				},
 			},
-			Extra: map[string]any{
-				"openai_apikey_responses_websockets_v2_enabled": true,
-				"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
-			}},
 		},
-		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9903,
-			Name:        "openai-ws-healthy",
-			Platform:    capability.PlatformOpenAI,
-			Type:        capability.AccountTypeAPIKey,
-			Status:      billing.StatusActive,
-			Schedulable: true,
-			Concurrency: 1,
-			Priority:    2,
-			Credentials: map[string]any{
-				"api_key":  "sk-second",
-				"base_url": secondUpstream.URL,
+		{
+			Record: accountcore.Record{
+				LoadLocation: time.LoadLocation, ID: 9903,
+				Name:        "openai-ws-healthy",
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    2,
+				Credentials: map[string]any{
+					"api_key":  "sk-second",
+					"base_url": secondUpstream.URL,
+				},
+				Extra: map[string]any{
+					"openai_apikey_responses_websockets_v2_enabled": true,
+					"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
+				},
 			},
-			Extra: map[string]any{
-				"openai_apikey_responses_websockets_v2_enabled": true,
-				"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
-			}},
 		},
 	}
 
@@ -2102,9 +2108,11 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		Source: gatewaySvc, Credentials: gatewaySvcCredentialPort,
 		Funding: newFundingAdmissionFixture(billingCacheSvc, cfg),
 		Keys:    &apikey.APIKeyService{},
-		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{
+			Logf: logging.LegacyPrintf,
 
-			Event: logging.Event},
+			Event: logging.Event,
+		},
 		), gatewayhttp.SSEPingFormatNone, time.Second),
 		MaxSwitches: 3, Availability: newExecutionAvailabilityForTest(accountRepo,
 
@@ -2163,7 +2171,6 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 }
 
 func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClientForOneFailover(t *testing.T) {
-
 	firstHitCh := make(chan []byte, 1)
 	secondHitCh := make(chan []byte, 1)
 	var firstConnections atomic.Int32
@@ -2226,33 +2233,39 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 
 	groupID := int64(4212)
 	accounts := []gatewayprovider.ExecutionAccount{
-		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9912,
-			Name:        "openai-ws-first-semantic-timeout",
-			Platform:    capability.PlatformOpenAI,
-			Type:        capability.AccountTypeAPIKey,
-			Status:      billing.StatusActive,
-			Schedulable: true,
-			Concurrency: 1,
-			Priority:    1,
-			Credentials: map[string]any{"api_key": "sk-first", "base_url": firstUpstream.URL},
-			Extra: map[string]any{
-				"openai_apikey_responses_websockets_v2_enabled": true,
-				"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
-			}},
+		{
+			Record: accountcore.Record{
+				LoadLocation: time.LoadLocation, ID: 9912,
+				Name:        "openai-ws-first-semantic-timeout",
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    1,
+				Credentials: map[string]any{"api_key": "sk-first", "base_url": firstUpstream.URL},
+				Extra: map[string]any{
+					"openai_apikey_responses_websockets_v2_enabled": true,
+					"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
+				},
+			},
 		},
-		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9913,
-			Name:        "openai-ws-failover-healthy",
-			Platform:    capability.PlatformOpenAI,
-			Type:        capability.AccountTypeAPIKey,
-			Status:      billing.StatusActive,
-			Schedulable: true,
-			Concurrency: 1,
-			Priority:    2,
-			Credentials: map[string]any{"api_key": "sk-second", "base_url": secondUpstream.URL},
-			Extra: map[string]any{
-				"openai_apikey_responses_websockets_v2_enabled": true,
-				"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
-			}},
+		{
+			Record: accountcore.Record{
+				LoadLocation: time.LoadLocation, ID: 9913,
+				Name:        "openai-ws-failover-healthy",
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    2,
+				Credentials: map[string]any{"api_key": "sk-second", "base_url": secondUpstream.URL},
+				Extra: map[string]any{
+					"openai_apikey_responses_websockets_v2_enabled": true,
+					"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
+				},
+			},
 		},
 	}
 
@@ -2295,9 +2308,11 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 		Source: gatewaySvc, Credentials: gatewaySvcCredentialPort,
 		Funding: newFundingAdmissionFixture(billingCacheSvc, cfg),
 		Keys:    &apikey.APIKeyService{},
-		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{
+			Logf: logging.LegacyPrintf,
 
-			Event: logging.Event},
+			Event: logging.Event,
+		},
 		), gatewayhttp.SSEPingFormatNone, time.Second),
 		MaxSwitches: 3, Availability: newExecutionAvailabilityForTest(accountRepo,
 
@@ -2420,21 +2435,24 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	defer upstreamServer.Close()
 
 	groupID := int64(4201)
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9901,
-		Name:        "openai-ws-passthrough-usage-e2e",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key":  "sk-test",
-			"base_url": upstreamServer.URL,
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 9901,
+			Name:        "openai-ws-passthrough-usage-e2e",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key":  "sk-test",
+				"base_url": upstreamServer.URL,
+			},
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_enabled": true,
+				"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
+			},
 		},
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_enabled": true,
-			"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
-		}},
 	}
 
 	cfg := &config.Config{}
@@ -2453,18 +2471,18 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *usage.UsageLog, 1)}
 
-	var channelSvc *routing.ChannelService
-	if len(tc.channelMapping) > 0 {
-		channelSvc = routing.NewChannelService(&openAIWSUsageHandlerChannelRepoStub{
-			channels: []routing.Channel{{
+	var pricingConfigSvc *routing.PricingConfigService
+	if len(tc.groupMapping) > 0 {
+		pricingConfigSvc = routingtestkit.NewPricingConfigService(&openAIWSUsageHandlerPricingConfigRepoStub{
+			modelConfigs: []routingtestkit.Configuration{{
 				ID:           7701,
 				Name:         "openai-ws-e2e-channel",
 				Status:       billing.StatusActive,
 				GroupIDs:     []int64{groupID},
-				ModelMapping: map[string]map[string]string{capability.PlatformOpenAI: tc.channelMapping},
+				ModelMapping: map[string]map[string]string{capability.PlatformOpenAI: tc.groupMapping},
 			}},
 			groupPlatforms: map[int64]string{groupID: capability.PlatformOpenAI},
-		}, nil, routing.ChannelOptions{Warn: slog.Warn, Now: time.Now, LoadLocation: pricingprovider.LoadPricingLocation},
+		}, nil, routing.PricingConfigOptions{Warn: slog.Warn, Now: time.Now, LoadLocation: pricingprovider.LoadPricingLocation},
 		)
 	}
 
@@ -2484,14 +2502,14 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 
 			nil), nil,
 		nil,
-		channelSvc,
+		pricingConfigSvc,
 
 		nil,
 		nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 
 		// 用户平台配额仓库
 	)
-	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, usageRepo, completionInput14, billingCacheSvc, completionInput15, channelSvc, nil, true)
+	gatewaySvc.Recorder = newHTTPCompletionFixture(cfg, usageRepo, completionInput14, billingCacheSvc, completionInput15, pricingConfigSvc, nil, true)
 
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {
@@ -2505,12 +2523,14 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		Source: gatewaySvc, Credentials: gatewaySvcCredentialPort,
 		Funding: newFundingAdmissionFixture(billingCacheSvc, cfg),
 		Keys:    &apikey.APIKeyService{},
-		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{
+			Logf: logging.LegacyPrintf,
 
-			Event: logging.Event},
+			Event: logging.Event,
+		},
 		), gatewayhttp.SSEPingFormatNone, time.Second), Availability: newExecutionAvailabilityForTest(accountRepo,
 
-			channelSvc, cfg), Choices: gatewaySvcChoices,
+			pricingConfigSvc, cfg), Choices: gatewaySvcChoices,
 	})
 
 	apiKey := &apikey.APIKey{

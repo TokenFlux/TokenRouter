@@ -47,7 +47,7 @@ type MessagesCall struct {
 	StreamStarted                            *bool
 	Log                                      *zap.Logger
 	Route                                    routing.RoutePlan
-	Mapping                                  routing.ChannelMappingResult
+	Mapping                                  routing.GroupMappingResult
 }
 
 // MessagesBackend 只绑定已有用例的单步能力及同步观测，不另建循环或缓存。
@@ -168,11 +168,11 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 	reqStream := parsedReq.Stream
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 
-	// 解析渠道级模型映射
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
-	channelMapping := channelMappingRoutePlan.Mapping()
-	h.backend.BindPlan(c, channelMappingRoutePlan)
+	// 解析分组模型映射
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
+	groupMapping := groupMappingRoutePlan.Mapping()
+	h.backend.BindPlan(c, groupMappingRoutePlan)
 
 	// 设置 max_tokens=1 + haiku 探测请求标识到 context 中
 	// 必须在 SetClaudeCodeClientContext 之前设置，因为 ClaudeCodeValidator 需要读取此标识进行绕过判断
@@ -240,7 +240,7 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 		return
 	}
 
-	// 设置请求所属分组 ID（用于渠道级功能判断，如 WebSearch 模拟）
+	// 设置请求所属分组 ID（用于分组功能判断，如 WebSearch 模拟）
 	parsedReq.GroupID = apiKey.GroupID
 
 	// 计算粘性会话hash
@@ -296,13 +296,13 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 	// 判断是否真的绑定了粘性会话：有 sessionKey 且已经绑定到某个账号
 	hasBoundSession := sessionKey != "" && sessionBoundAccountID > 0
 
-	call := MessagesCall{Key: apiKey, Subject: subject, Subscription: subscription, Parsed: parsedReq, Body: body, Model: reqModel, Stream: reqStream, ClaudeCode: isClaudeCodeClient, Platform: platform, SessionKey: sessionKey, BoundAccountID: sessionBoundAccountID, HasBoundSession: hasBoundSession, StreamStarted: &streamStarted, Log: reqLog, Route: channelMappingRoutePlan, Mapping: channelMapping}
+	call := MessagesCall{Key: apiKey, Subject: subject, Subscription: subscription, Parsed: parsedReq, Body: body, Model: reqModel, Stream: reqStream, ClaudeCode: isClaudeCodeClient, Platform: platform, SessionKey: sessionKey, BoundAccountID: sessionBoundAccountID, HasBoundSession: hasBoundSession, StreamStarted: &streamStarted, Log: reqLog, Route: groupMappingRoutePlan, Mapping: groupMapping}
 	kind := execution.TextMessages
 	if platform == capability.PlatformGemini {
 		attempt, err := h.backend.PrepareGemini(c.Request.Context(), call)
 		if err != nil {
-			reqLog.Warn("gateway.prepare_gemini_channel_mapping_failed", zap.Error(err))
-			h.streamingError(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply channel model mapping", streamStarted)
+			reqLog.Warn("gateway.prepare_gemini_group_mapping_failed", zap.Error(err))
+			h.streamingError(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply group model mapping", streamStarted)
 			return
 		}
 		call.GeminiBody = attempt.Body.Bytes()
@@ -324,13 +324,16 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 func (h *MessagesHandler) errorResponse(c *gin.Context, status int, kind, message string) {
 	WriteAnthropicError(c, status, kind, "", message)
 }
+
 func (h *MessagesHandler) streamingError(c *gin.Context, status int, kind, message string, started bool) {
 	WriteAnthropicStreamError(c, status, kind, "", message, started, h.backend.MarkStream)
 }
+
 func (h *MessagesHandler) concurrencyError(c *gin.Context, err error, slot string, started bool) {
 	status, kind, code, message := ConcurrencyErrorResponse(err, slot)
 	WriteAnthropicStreamError(c, status, kind, code, message, started, h.backend.MarkStream)
 }
+
 func (h *MessagesHandler) isolationError(c *gin.Context, err error, started bool) bool {
 	if err == nil {
 		return false
@@ -342,6 +345,7 @@ func (h *MessagesHandler) isolationError(c *gin.Context, err error, started bool
 	}
 	return true
 }
+
 func (h *MessagesHandler) checkClientVersion(c *gin.Context, detected ClientDetection) bool {
 	if !detected.ClaudeCode || strings.HasSuffix(c.Request.URL.Path, "/count_tokens") {
 		return true
@@ -367,6 +371,7 @@ func SubscriptionFromContext(c *gin.Context) (*billing.UserSubscription, bool) {
 	sub, ok := value.(*billing.UserSubscription)
 	return sub, ok
 }
+
 func MetadataSessionID(raw string) string {
 	parsed := anthropic.ParseMetadataUserID(raw)
 	if parsed == nil {
@@ -374,6 +379,7 @@ func MetadataSessionID(raw string) string {
 	}
 	return strings.TrimSpace(parsed.SessionID)
 }
+
 func ModerationHTTPStatus(decision *moderation.Decision) int {
 	if decision == nil || decision.StatusCode < 400 || decision.StatusCode > 599 {
 		return http.StatusForbidden

@@ -2,13 +2,12 @@ package testkit
 
 import (
 	"context"
-
-	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
-
 	"log/slog"
 	"testing"
 	"time"
+
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 
@@ -37,19 +36,19 @@ func ResolverFallbackPrices() map[string]*billingpricing.ModelPricing {
 	}}
 }
 
-// ResolverWithCards 使用指定的基础定价构造渠道解析器。
-func ResolverWithCards(t *testing.T, bs *billing.Calculator, pricing []routing.ChannelModelPricing) *billing.PriceResolver {
+// ResolverWithCards 使用指定的基础定价构造共享价格配置解析器。
+func ResolverWithCards(t *testing.T, bs *billing.Calculator, pricing []routing.ModelPricingEntry) *billing.PriceResolver {
 	t.Helper()
 	const groupID = 100
 	platform := capability.PlatformAnthropic
 	if len(pricing) > 0 && pricing[0].Platform != "" {
 		platform = pricing[0].Platform
 	}
-	repo := &routingtestkit.ChannelRepositoryStub{
-		ListAllFn: func(_ context.Context) ([]routing.Channel, error) {
-			return []routing.Channel{{
+	repo := &routingtestkit.PricingConfigRepositoryStub{
+		ListAllFn: func(_ context.Context) ([]routingtestkit.Configuration, error) {
+			return []routingtestkit.Configuration{{
 				ID:           1,
-				Name:         "test-channel",
+				Name:         "test-price-config",
 				Status:       billing.StatusActive,
 				GroupIDs:     []int64{groupID},
 				ModelPricing: pricing,
@@ -59,8 +58,9 @@ func ResolverWithCards(t *testing.T, bs *billing.Calculator, pricing []routing.C
 			return map[int64]string{groupID: platform}, nil
 		},
 	}
-	cs := routing.NewChannelService(repo, nil, routing.ChannelOptions{Warn: slog.
-		Warn,
+	cs := routingtestkit.NewPricingConfigService(repo, nil, routing.PricingConfigOptions{
+		Warn: slog.
+			Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
@@ -73,12 +73,12 @@ func ResolverWithCards(t *testing.T, bs *billing.Calculator, pricing []routing.C
 func GroupID() *int64 { v := int64(100); return &v }
 
 // PriceResolver 仅组合测试输入，测试直接使用原生解析器。
-func PriceResolver(channels *routing.ChannelService, calculator *billing.Calculator) *billing.PriceResolver {
-	var source billing.ChannelPrices
+func PriceResolver(pricingConfigs *routing.PricingConfigService, calculator *billing.Calculator) *billing.PriceResolver {
+	var source billing.ConfigPrices
 	var stats billing.AccountStatsSource
-	if channels != nil {
-		source = channels
-		stats = gatewayprovider.AccountStatsSource{Service: channels}
+	if pricingConfigs != nil {
+		source = pricingConfigs
+		stats = gatewayprovider.AccountStatsSource{Service: pricingConfigs}
 	}
 	return billing.NewPriceResolver(source, calculator, modelidentity.Identity, func(model string, err error) {
 		slog.Debug("failed to get model pricing from LiteLLM, using fallback", "model", model, "error", err)

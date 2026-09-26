@@ -226,7 +226,7 @@ func TestTryModelFilePricing_WithCacheTokens(t *testing.T) {
 // contractAccountStatsCost — integration tests covering the 4-level priority chain
 // ---------------------------------------------------------------------------
 
-func TestResolveAccountStatsCost_NilChannelService(t *testing.T) {
+func TestResolveAccountStatsCost_NilPricingConfigService(t *testing.T) {
 	result := contractAccountStatsCost(
 		context.Background(),
 		nil, // channelService is nil
@@ -238,7 +238,7 @@ func TestResolveAccountStatsCost_NilChannelService(t *testing.T) {
 }
 
 func TestResolveAccountStatsCost_EmptyUpstreamModel(t *testing.T) {
-	cs := newTestChannelServiceForStats(t, &routing.Channel{
+	cs := newTestPricingConfigServiceForStats(t, &routingtestkit.Configuration{
 		ID:     1,
 		Status: billing.StatusActive,
 	}, 1, "")
@@ -253,9 +253,9 @@ func TestResolveAccountStatsCost_EmptyUpstreamModel(t *testing.T) {
 	require.Nil(t, result)
 }
 
-func TestResolveAccountStatsCost_GetChannelForGroupReturnsNil(t *testing.T) {
-	// Group 99 is NOT in the cache, so GetChannelForGroup returns nil
-	cs := newTestChannelServiceForStats(t, &routing.Channel{
+func TestResolveAccountStatsCost_GetPricingConfigForGroupReturnsNil(t *testing.T) {
+	// Group 99 is NOT in the cache, so GetPricingConfigForGroup returns nil
+	cs := newTestPricingConfigServiceForStats(t, &routingtestkit.Configuration{
 		ID:     1,
 		Status: billing.StatusActive,
 	}, 1, "")
@@ -271,13 +271,13 @@ func TestResolveAccountStatsCost_GetChannelForGroupReturnsNil(t *testing.T) {
 }
 
 func TestResolveAccountStatsCost_HitsCustomRule(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:     1,
 		Status: billing.StatusActive,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{10},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						ID:          100,
 						Models:      []string{"claude-sonnet-4"},
@@ -288,7 +288,7 @@ func TestResolveAccountStatsCost_HitsCustomRule(t *testing.T) {
 			},
 		},
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, "anthropic")
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
 
 	tokens := purepricing.UsageTokens{InputTokens: 100, OutputTokens: 50}
 
@@ -304,13 +304,13 @@ func TestResolveAccountStatsCost_HitsCustomRule(t *testing.T) {
 }
 
 func TestResolveAccountStatsCost_ApplyPricingToAccountStats_UsesTotalCost(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: true,
 		// No custom rules
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, "anthropic")
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
 
 	tokens := purepricing.UsageTokens{InputTokens: 100, OutputTokens: 50}
 
@@ -325,12 +325,12 @@ func TestResolveAccountStatsCost_ApplyPricingToAccountStats_UsesTotalCost(t *tes
 }
 
 func TestResolveAccountStatsCost_ApplyPricingToAccountStats_ZeroTotalCost_ReturnsNil(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: true,
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, "anthropic")
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
 
 	result := contractAccountStatsCost(
 		context.Background(),
@@ -342,13 +342,13 @@ func TestResolveAccountStatsCost_ApplyPricingToAccountStats_ZeroTotalCost_Return
 }
 
 func TestResolveAccountStatsCost_FallsBackToLiteLLM(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: false, // not enabled
 		// No custom rules
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, "anthropic")
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
 
 	bs := newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{
 		"claude-sonnet-4": {
@@ -371,12 +371,12 @@ func TestResolveAccountStatsCost_FallsBackToLiteLLM(t *testing.T) {
 }
 
 func TestResolveAccountStatsCost_QoderRouteKeyWithoutManualPricingReturnsNil(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: false,
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformQoder)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 
 	bs := newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{
 		"claude-opus-4.8": {
@@ -397,12 +397,12 @@ func TestResolveAccountStatsCost_QoderRouteKeyWithoutManualPricingReturnsNil(t *
 }
 
 func TestResolveAccountStatsCost_QoderAliasUsesStandardUpstreamPricing(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: false,
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformQoder)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 	bs := newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{
 		"gpt-5.4-mini": {
 			InputPricePerToken:  0.001,
@@ -421,13 +421,13 @@ func TestResolveAccountStatsCost_QoderAliasUsesStandardUpstreamPricing(t *testin
 }
 
 func TestResolveAccountStatsCost_QoderCustomRuleCanMatchRequestedAliasAfterRouteKeyMiss(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:     1,
 		Status: billing.StatusActive,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{10},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						ID:          100,
 						Models:      []string{"qwen3.7-plus"},
@@ -438,7 +438,7 @@ func TestResolveAccountStatsCost_QoderCustomRuleCanMatchRequestedAliasAfterRoute
 			},
 		},
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformQoder)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 
 	result := contractAccountStatsCost(
 		context.Background(),
@@ -451,14 +451,14 @@ func TestResolveAccountStatsCost_QoderCustomRuleCanMatchRequestedAliasAfterRoute
 	require.InDelta(t, 2.0, *result, 1e-12)
 }
 
-func TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesBeforeDifferentUpstream(t *testing.T) {
-	channel := &routing.Channel{
+func TestResolveAccountStatsCost_QoderGroupMappedRuleMatchesBeforeDifferentUpstream(t *testing.T) {
+	pricingConfig := &routingtestkit.Configuration{
 		ID:     1,
 		Status: billing.StatusActive,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{10},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						ID:          100,
 						Models:      []string{"qmodel"},
@@ -469,7 +469,7 @@ func TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesBeforeDifferentUps
 			},
 		},
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformQoder)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 
 	result := contractAccountStatsWithMapping(
 		context.Background(),
@@ -482,14 +482,14 @@ func TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesBeforeDifferentUps
 	require.InDelta(t, 2.0, *result, 1e-12)
 }
 
-func TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesWhenUpstreamFallsBackToRequested(t *testing.T) {
-	channel := &routing.Channel{
+func TestResolveAccountStatsCost_QoderGroupMappedRuleMatchesWhenUpstreamFallsBackToRequested(t *testing.T) {
+	pricingConfig := &routingtestkit.Configuration{
 		ID:     1,
 		Status: billing.StatusActive,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{10},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						ID:          100,
 						Models:      []string{"qmodel"},
@@ -500,7 +500,7 @@ func TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesWhenUpstreamFallsB
 			},
 		},
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformQoder)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 
 	result := contractAccountStatsWithMapping(
 		context.Background(),
@@ -514,13 +514,13 @@ func TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesWhenUpstreamFallsB
 }
 
 func TestResolveAccountStatsCost_QoderRequestedAliasRuleOverridesRouteKeyRule(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:     1,
 		Status: billing.StatusActive,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{10},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						ID:          100,
 						Models:      []string{"qmodel"},
@@ -537,7 +537,7 @@ func TestResolveAccountStatsCost_QoderRequestedAliasRuleOverridesRouteKeyRule(t 
 			},
 		},
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformQoder)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 
 	result := contractAccountStatsCost(
 		context.Background(),
@@ -551,13 +551,13 @@ func TestResolveAccountStatsCost_QoderRequestedAliasRuleOverridesRouteKeyRule(t 
 }
 
 func TestResolveAccountStatsCost_QoderBlankRuleDoesNotMaskLaterAliasRule(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:     1,
 		Status: billing.StatusActive,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{10},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						ID:     100,
 						Models: []string{"qwen3.7-plus"},
@@ -566,7 +566,7 @@ func TestResolveAccountStatsCost_QoderBlankRuleDoesNotMaskLaterAliasRule(t *test
 			},
 			{
 				GroupIDs: []int64{10},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						ID:          101,
 						Models:      []string{"qwen3.7-plus"},
@@ -577,7 +577,7 @@ func TestResolveAccountStatsCost_QoderBlankRuleDoesNotMaskLaterAliasRule(t *test
 			},
 		},
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformQoder)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 
 	result := contractAccountStatsCost(
 		context.Background(),
@@ -591,13 +591,13 @@ func TestResolveAccountStatsCost_QoderBlankRuleDoesNotMaskLaterAliasRule(t *test
 }
 
 func TestResolveAccountStatsCost_CustomRuleExplicitZeroOverridesTotalCost(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:     1,
 		Status: billing.StatusActive,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{10},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						ID:         100,
 						Models:     []string{"qwen3.7-plus"},
@@ -607,7 +607,7 @@ func TestResolveAccountStatsCost_CustomRuleExplicitZeroOverridesTotalCost(t *tes
 			},
 		},
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformQoder)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 
 	result := contractAccountStatsCost(
 		context.Background(),
@@ -621,12 +621,12 @@ func TestResolveAccountStatsCost_CustomRuleExplicitZeroOverridesTotalCost(t *tes
 }
 
 func TestResolveAccountStatsCost_QoderUnknownUpstreamDoesNotUseRequestedPrice(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: false,
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformQoder)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformQoder)
 	bs := newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{
 		"gpt-5.4": {
 			InputPricePerToken:  0.001,
@@ -649,12 +649,12 @@ func TestResolveAccountStatsCost_QoderUnknownUpstreamDoesNotUseRequestedPrice(t 
 }
 
 func TestResolveAccountStatsCost_Gemini36FlashTierUsesFallbackPricing(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: false,
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, "antigravity")
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "antigravity")
 	bs := newCalculator(&config.Config{}, nil)
 
 	result := contractAccountStatsCost(
@@ -668,13 +668,13 @@ func TestResolveAccountStatsCost_Gemini36FlashTierUsesFallbackPricing(t *testing
 }
 
 func TestResolveAccountStatsCost_AllMiss_ReturnsNil(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: false,
 		// No custom rules
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, "anthropic")
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
 
 	// BillingService with no pricing for the model
 	bs := newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{})
@@ -691,12 +691,12 @@ func TestResolveAccountStatsCost_AllMiss_ReturnsNil(t *testing.T) {
 }
 
 func TestResolveAccountStatsCost_NilBillingService_SkipsLiteLLM(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: false,
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, "anthropic")
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
 
 	result := contractAccountStatsCost(
 		context.Background(),
@@ -710,14 +710,14 @@ func TestResolveAccountStatsCost_NilBillingService_SkipsLiteLLM(t *testing.T) {
 func TestResolveAccountStatsCost_CustomRulePriorityOverApplyPricing(t *testing.T) {
 	// Both custom rule and ApplyPricingToAccountStats are configured;
 	// custom rule should take precedence.
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: true,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{10},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						ID:         100,
 						Models:     []string{"claude-sonnet-4"},
@@ -727,7 +727,7 @@ func TestResolveAccountStatsCost_CustomRulePriorityOverApplyPricing(t *testing.T
 			},
 		},
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, "anthropic")
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "anthropic")
 
 	tokens := purepricing.UsageTokens{InputTokens: 100}
 
@@ -743,12 +743,12 @@ func TestResolveAccountStatsCost_CustomRulePriorityOverApplyPricing(t *testing.T
 }
 
 func TestApplyAccountStatsCost_UsesUsageLogServiceTier(t *testing.T) {
-	channel := &routing.Channel{
+	pricingConfig := &routingtestkit.Configuration{
 		ID:                         1,
 		Status:                     billing.StatusActive,
 		ApplyPricingToAccountStats: false,
 	}
-	cs := newTestChannelServiceForStats(t, channel, 10, "openai")
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, "openai")
 	bs := newTestBillingServiceWithPrices(map[string]*purepricing.ModelPricing{
 		"gpt-5.6-sol": {
 			InputPricePerToken:          0.001,
@@ -774,15 +774,15 @@ func TestApplyAccountStatsCost_UsesUsageLogServiceTier(t *testing.T) {
 // helpers for contractAccountStatsCost tests
 // ---------------------------------------------------------------------------
 
-// newTestChannelServiceForStats creates a ChannelService with a single channel
+// newTestPricingConfigServiceForStats creates a PricingConfigService with a single channel
 // mapped to the given groupID, suitable for contractAccountStatsCost tests.
-func newTestChannelServiceForStats(t *testing.T, channel *routing.Channel, groupID int64, platform string) *routing.ChannelService {
+func newTestPricingConfigServiceForStats(t *testing.T, pricingConfig *routingtestkit.Configuration, groupID int64, platform string) *routing.PricingConfigService {
 	t.Helper()
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = channel
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = pricingConfig
 	cache.Platforms[groupID] = platform
 
 	cache.LoadedAt = time.Now()
-	cs := routingtestkit.ChannelFromData(cache)
+	cs := routingtestkit.ModelConfigFromData(cache)
 	return cs
 }

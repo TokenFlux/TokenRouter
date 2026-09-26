@@ -34,22 +34,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 纯倍率必须保留渠道区间及来源，同名倍率覆盖后仍以同一基础价格计算。
-func TestGroupPricingModifiersInheritChannel(t *testing.T) {
-	channel := routing.ChannelModelPricing{
+// 纯倍率必须保留共享价格配置区间及来源，同名倍率覆盖后仍以同一基础价格计算。
+func TestGroupPricingModifiersInheritPricingConfig(t *testing.T) {
+	pricingConfig := routing.ModelPricingEntry{
 		Platform: capability.PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: routing.BillingModeToken,
 		FastMultiplier: testPtrFloat64(2), FlexMultiplier: testPtrFloat64(0.5), MaxReasoningEffortMultiplier: testPtrFloat64(3),
 		Intervals:   []routing.PricingInterval{{MinTokens: 0, MaxTokens: testPtrInt(100), InputPrice: testPtrFloat64(0.01)}, {MinTokens: 100, InputPrice: testPtrFloat64(0.02)}},
-		TimePricing: &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}},
+		TimePricing: &routing.TimePricingConfig{Timezone: "UTC", Periods: []routing.TimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}},
 	}
 	rCalculator := billingtestkit.ResolverCalculator()
-	r := billingtestkit.ResolverWithCards(t, rCalculator, []routing.ChannelModelPricing{channel})
-	group := &routing.Group{ModelPricing: []routing.ChannelModelPricing{{Models: []string{"claude-sonnet-4"}, FastMultiplier: testPtrFloat64(1.5), MaxReasoningEffortMultiplier: testPtrFloat64(4)}}}
+	r := billingtestkit.ResolverWithCards(t, rCalculator, []routing.ModelPricingEntry{pricingConfig})
+	group := &routing.Group{ModelPricing: []routing.ModelPricingEntry{{Models: []string{"claude-sonnet-4"}, FastMultiplier: testPtrFloat64(1.5), MaxReasoningEffortMultiplier: testPtrFloat64(4)}}}
 	input := billing.PricingInput{Model: "claude-sonnet-4", GroupID: billingtestkit.GroupID(), Group: gatewaycapture.ProjectCompletionPriceGroup(group)}
 	resolved := r.Resolve(context.Background(), input)
-	require.Equal(t, purepricing.PricingSourceChannel, resolved.Source)
+	require.Equal(t, purepricing.PricingSourceConfig, resolved.Source)
 	require.Len(t, resolved.Intervals, 2)
-	require.Equal(t, channel.TimePricing, resolved.ChannelPricing.TimePricing)
+	require.Equal(t, pricingConfig.TimePricing, resolved.ConfigPricing.TimePricing)
 	for _, tier := range []struct {
 		name       string
 		multiplier float64
@@ -59,31 +59,33 @@ func TestGroupPricingModifiersInheritChannel(t *testing.T) {
 			if count > 100 {
 				base = 0.02
 			}
-			cost, err := rCalculator.CalculateCostUnified(billing.CostInput{Ctx: context.Background(), Model: input.Model, Group: gatewaycapture.ProjectCompletionPriceGroup(group),
+			cost, err := rCalculator.CalculateCostUnified(billing.CostInput{
+				Ctx: context.Background(), Model: input.Model, Group: gatewaycapture.ProjectCompletionPriceGroup(group),
 				GroupID: billingtestkit.GroupID(), Tokens: purepricing.UsageTokens{InputTokens: count}, RateMultiplier: 5, ServiceTier: tier.name, ReasoningEffort: "max",
-				PricingAt: time.Date(2026, 9, 9, 1, 0, 0, 0, time.UTC), Resolver: r})
+				PricingAt: time.Date(2026, 9, 9, 1, 0, 0, 0, time.UTC), Resolver: r,
+			})
 			require.NoError(t, err)
 			require.InDelta(t, float64(count)*base*tier.multiplier*4*2, cost.TotalCost, 1e-10)
 			require.InDelta(t, cost.TotalCost*5, cost.ActualCost, 1e-10)
 		}
 	}
-	group.ModelPricing[0].TimePricing = &routing.ChannelTimePricing{Timezone: "UTC", WeekdaysOnly: true, Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 0.5}}}
+	group.ModelPricing[0].TimePricing = &routing.TimePricingConfig{Timezone: "UTC", WeekdaysOnly: true, Periods: []routing.TimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 0.5}}}
 	resolved = r.Resolve(context.Background(), input)
-	require.Equal(t, 0.5, purepricing.ResolvedChannelTimeMultiplier(resolved, time.Date(2026, 9, 9, 1, 0, 0, 0, time.UTC), contractResolvedTimeLocation(resolved)))
-	require.Equal(t, 1.0, purepricing.ResolvedChannelTimeMultiplier(resolved, time.Date(2026, 9, 12, 1, 0, 0, 0, time.UTC), contractResolvedTimeLocation(resolved)))
-	require.Equal(t, 1.0, purepricing.ResolvedChannelTimeMultiplier(resolved, time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC), contractResolvedTimeLocation(resolved)))
-	// 第二个分组仍使用原渠道配置，覆盖不能污染共享缓存。
+	require.Equal(t, 0.5, purepricing.ResolvedTimeMultiplier(resolved, time.Date(2026, 9, 9, 1, 0, 0, 0, time.UTC), contractResolvedTimeLocation(resolved)))
+	require.Equal(t, 1.0, purepricing.ResolvedTimeMultiplier(resolved, time.Date(2026, 9, 12, 1, 0, 0, 0, time.UTC), contractResolvedTimeLocation(resolved)))
+	require.Equal(t, 1.0, purepricing.ResolvedTimeMultiplier(resolved, time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC), contractResolvedTimeLocation(resolved)))
+	// 第二个分组仍使用原共享价格配置配置，覆盖不能污染共享缓存。
 	original := r.Resolve(context.Background(), billing.PricingInput{Model: input.Model, GroupID: billingtestkit.GroupID()})
 	require.Equal(t, 2.0, *r.GetIntervalPricing(original, 101).FastMultiplier)
-	require.Equal(t, 2.0, purepricing.ResolvedChannelTimeMultiplier(original, time.Date(2026, 9, 9, 1, 0, 0, 0, time.UTC), contractResolvedTimeLocation(original)))
+	require.Equal(t, 2.0, purepricing.ResolvedTimeMultiplier(original, time.Date(2026, 9, 9, 1, 0, 0, 0, time.UTC), contractResolvedTimeLocation(original)))
 }
 
 func TestGroupPricingModifiersPreserveInheritedModeAndMissingPrice(t *testing.T) {
 	for _, mode := range []routing.BillingMode{routing.BillingModePerRequest, routing.BillingModeImage, routing.BillingModeVideo} {
 		t.Run(string(mode), func(t *testing.T) {
 			rCalculator := billingtestkit.ResolverCalculator()
-			r := billingtestkit.ResolverWithCards(t, rCalculator, []routing.ChannelModelPricing{{Platform: capability.PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: mode, PerRequestPrice: testPtrFloat64(0.3)}})
-			resolved := r.Resolve(context.Background(), billing.PricingInput{Model: "claude-sonnet-4", GroupID: billingtestkit.GroupID(), Group: gatewaycapture.ProjectCompletionPriceGroup(&routing.Group{ModelPricing: []routing.ChannelModelPricing{{Models: []string{"claude-sonnet-4"}, FastMultiplier: testPtrFloat64(3)}}})})
+			r := billingtestkit.ResolverWithCards(t, rCalculator, []routing.ModelPricingEntry{{Platform: capability.PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: mode, PerRequestPrice: testPtrFloat64(0.3)}})
+			resolved := r.Resolve(context.Background(), billing.PricingInput{Model: "claude-sonnet-4", GroupID: billingtestkit.GroupID(), Group: gatewaycapture.ProjectCompletionPriceGroup(&routing.Group{ModelPricing: []routing.ModelPricingEntry{{Models: []string{"claude-sonnet-4"}, FastMultiplier: testPtrFloat64(3)}}})})
 			require.Equal(t, mode, resolved.Mode)
 			require.Equal(t, 0.3, resolved.DefaultPerRequestPrice)
 		})
@@ -91,7 +93,7 @@ func TestGroupPricingModifiersPreserveInheritedModeAndMissingPrice(t *testing.T)
 	rCalculator := billingtestkit.ResolverCalculator()
 	r := billingtestkit.PriceResolver(nil, rCalculator)
 	for _, model := range []string{"claude-sonnet-4", "unknown-parity-model"} {
-		group := &routing.Group{LongContextPricingEnabled: true, ModelPricing: []routing.ChannelModelPricing{{Models: []string{model}, FastMultiplier: testPtrFloat64(1.5)}}}
+		group := &routing.Group{LongContextPricingEnabled: true, ModelPricing: []routing.ModelPricingEntry{{Models: []string{model}, FastMultiplier: testPtrFloat64(1.5)}}}
 		base := r.Resolve(context.Background(), billing.PricingInput{Model: model})
 		resolved := r.Resolve(context.Background(), billing.PricingInput{Model: model, Group: gatewaycapture.ProjectCompletionPriceGroup(group)})
 		require.Equal(t, base.Source, resolved.Source)
@@ -107,30 +109,35 @@ func TestGroupPricingModifiersPreserveInheritedModeAndMissingPrice(t *testing.T)
 	}
 }
 
-// 同一显式价卡放在分组或渠道时，包含缓存上下文的区间结算必须完全相同。
-func TestGroupAndChannelPricingParity(t *testing.T) {
-	card := routing.ChannelModelPricing{Platform: capability.PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: routing.BillingModeToken,
+// 同一显式价卡放在分组或共享价格配置时，包含缓存上下文的区间结算必须完全相同。
+func TestGroupAndConfigPricingParity(t *testing.T) {
+	card := routing.ModelPricingEntry{
+		Platform: capability.PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: routing.BillingModeToken,
 		FastMultiplier: testPtrFloat64(1.5), FlexMultiplier: testPtrFloat64(0.4), MaxReasoningEffortMultiplier: testPtrFloat64(2), PriceMultiplier: testPtrFloat64(1.2),
-		Intervals: []routing.PricingInterval{{MinTokens: 0, MaxTokens: testPtrInt(100), InputPrice: testPtrFloat64(0), CacheReadPrice: testPtrFloat64(0.01)},
-			{MinTokens: 100, InputPrice: testPtrFloat64(0.02), CacheWrite1hPrice: testPtrFloat64(0.03), OutputMultiplier: testPtrFloat64(2)}},
-		TimePricing: &routing.ChannelTimePricing{Timezone: "Asia/Tokyo", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "00:00:01", Multiplier: 0.5}, {StartTime: "23:00", EndTime: "00:00", Multiplier: 2}}},
+		Intervals: []routing.PricingInterval{
+			{MinTokens: 0, MaxTokens: testPtrInt(100), InputPrice: testPtrFloat64(0), CacheReadPrice: testPtrFloat64(0.01)},
+			{MinTokens: 100, InputPrice: testPtrFloat64(0.02), CacheWrite1hPrice: testPtrFloat64(0.03), OutputMultiplier: testPtrFloat64(2)},
+		},
+		TimePricing: &routing.TimePricingConfig{Timezone: "Asia/Tokyo", Periods: []routing.TimePricingPeriod{{StartTime: "00:00", EndTime: "00:00:01", Multiplier: 0.5}, {StartTime: "23:00", EndTime: "00:00", Multiplier: 2}}},
 	}
-	channelResolverCalculator := billingtestkit.ResolverCalculator()
-	channelResolver := billingtestkit.ResolverWithCards(t, channelResolverCalculator, []routing.ChannelModelPricing{card})
+	pricingConfigResolverCalculator := billingtestkit.ResolverCalculator()
+	pricingConfigResolver := billingtestkit.ResolverWithCards(t, pricingConfigResolverCalculator, []routing.ModelPricingEntry{card})
 	groupResolverCalculator := billingtestkit.ResolverCalculator()
 	groupResolver := billingtestkit.PriceResolver(nil, groupResolverCalculator)
 	for _, enabled := range []bool{true, false} {
-		group := &routing.Group{LongContextPricingEnabled: enabled, ModelPricing: []routing.ChannelModelPricing{card}}
+		group := &routing.Group{LongContextPricingEnabled: enabled, ModelPricing: []routing.ModelPricingEntry{card}}
 		for _, count := range []int{49, 50, 51, 200001} {
 			for _, tier := range []string{"default", "priority", "flex"} {
-				input := billing.CostInput{Ctx: context.Background(), Model: "claude-sonnet-4", Tokens: purepricing.UsageTokens{InputTokens: count, CacheReadTokens: 50, OutputTokens: 10},
-					RateMultiplier: 1.7, ServiceTier: tier, ReasoningEffort: "max", PricingAt: time.Date(2026, 9, 9, 14, 30, 0, 0, time.UTC), Resolver: groupResolver, Group: gatewaycapture.ProjectCompletionPriceGroup(group)}
+				input := billing.CostInput{
+					Ctx: context.Background(), Model: "claude-sonnet-4", Tokens: purepricing.UsageTokens{InputTokens: count, CacheReadTokens: 50, OutputTokens: 10},
+					RateMultiplier: 1.7, ServiceTier: tier, ReasoningEffort: "max", PricingAt: time.Date(2026, 9, 9, 14, 30, 0, 0, time.UTC), Resolver: groupResolver, Group: gatewaycapture.ProjectCompletionPriceGroup(group),
+				}
 				got, err := groupResolverCalculator.CalculateCostUnified(input)
 				require.NoError(t, err)
-				input.Resolver = channelResolver
+				input.Resolver = pricingConfigResolver
 				input.Group = gatewaycapture.ProjectCompletionPriceGroup(&routing.Group{LongContextPricingEnabled: enabled})
 				input.GroupID = billingtestkit.GroupID()
-				want, err := channelResolverCalculator.CalculateCostUnified(input)
+				want, err := pricingConfigResolverCalculator.CalculateCostUnified(input)
 				require.NoError(t, err)
 				require.Equal(t, want, got)
 				require.False(t, got.LongContextBillingApplied)
@@ -140,11 +147,12 @@ func TestGroupAndChannelPricingParity(t *testing.T) {
 }
 
 func TestGroupPricingValidationAndCopy(t *testing.T) {
-	config := routing.ChannelModelPricing{Models: []string{"test"}, BillingMode: routing.BillingModeToken, InputPrice: testPtrFloat64(0), FastMultiplier: testPtrFloat64(1),
+	config := routing.ModelPricingEntry{
+		Models: []string{"test"}, BillingMode: routing.BillingModeToken, InputPrice: testPtrFloat64(0), FastMultiplier: testPtrFloat64(1),
 		Intervals:   []routing.PricingInterval{{MaxTokens: testPtrInt(100), InputMultiplier: testPtrFloat64(2)}},
-		TimePricing: &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "01:00", Multiplier: 1.5}}},
+		TimePricing: &routing.TimePricingConfig{Timezone: "UTC", Periods: []routing.TimePricingPeriod{{StartTime: "00:00", EndTime: "01:00", Multiplier: 1.5}}},
 	}
-	normalized, err := (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).NormalizeGroupPricing(capability.PlatformOpenAI, []routing.ChannelModelPricing{config})
+	normalized, err := (routing.PricingConfigValidation{LoadLocation: pricingprovider.LoadPricingLocation}).NormalizeGroupPricing(capability.PlatformOpenAI, []routing.ModelPricingEntry{config})
 	require.NoError(t, err)
 	source := &routing.Group{LongContextPricingEnabled: true, FreeOpenAIFast: true, ModelPricing: normalized}
 	cloned := routing.CloneGroup(routing.CloneGroupForDuplicate(source, "test"))
@@ -168,7 +176,7 @@ func TestGroupPricingValidationAndCopy(t *testing.T) {
 			case "max":
 				bad.MaxReasoningEffortMultiplier = &invalid
 			}
-			_, err := (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).NormalizeGroupPricing(capability.PlatformOpenAI, []routing.ChannelModelPricing{bad})
+			_, err := (routing.PricingConfigValidation{LoadLocation: pricingprovider.LoadPricingLocation}).NormalizeGroupPricing(capability.PlatformOpenAI, []routing.ModelPricingEntry{bad})
 			require.Error(t, err)
 		}
 	}
@@ -176,10 +184,13 @@ func TestGroupPricingValidationAndCopy(t *testing.T) {
 
 // 认证快照经 JSON 往返后保留整张价卡，单次请求的修改不回写缓存。
 func TestGroupPricingAuthSnapshotRoundTrip(t *testing.T) {
-	source := &routing.Group{ID: 5, Platform: capability.PlatformOpenAI, LongContextPricingEnabled: true, FreeOpenAIFast: true,
-		ModelPricing: []routing.ChannelModelPricing{{Models: []string{"gpt-test"}, InputPrice: testPtrFloat64(0), FastMultiplier: testPtrFloat64(1.5), FlexMultiplier: testPtrFloat64(0.4), MaxReasoningEffortMultiplier: testPtrFloat64(2),
+	source := &routing.Group{
+		ID: 5, Platform: capability.PlatformOpenAI, LongContextPricingEnabled: true, FreeOpenAIFast: true,
+		ModelPricing: []routing.ModelPricingEntry{{
+			Models: []string{"gpt-test"}, InputPrice: testPtrFloat64(0), FastMultiplier: testPtrFloat64(1.5), FlexMultiplier: testPtrFloat64(0.4), MaxReasoningEffortMultiplier: testPtrFloat64(2),
 			Intervals:   []routing.PricingInterval{{MinTokens: 100, InputMultiplier: testPtrFloat64(2)}},
-			TimePricing: &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 0.5}}}}},
+			TimePricing: &routing.TimePricingConfig{Timezone: "UTC", Periods: []routing.TimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 0.5}}},
+		}},
 	}
 	svc := apikey.NewAPIKeyService(nil, nil, nil, nil, nil, nil, &apikey.Options{})
 	apiKey := &apikey.APIKey{GroupID: &source.ID, Group: source, User: &identity.User{ID: 1}}
@@ -207,16 +218,23 @@ func TestGroupPricingFreeFastWithIntervalsAndTurnTime(t *testing.T) {
 			svc.Dependencies.Prices = billingtestkit.PriceResolver(nil, svc.Dependencies.Calculator)
 			groupID := int64(88)
 			tier := "priority"
-			group := &routing.Group{ID: groupID, Hydrated: true, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, RateMultiplier: 0.5, FreeOpenAIFast: free,
-				LongContextPricingEnabled: true, ModelPricing: []routing.ChannelModelPricing{{Models: []string{"gpt-5.6-sol"}, BillingMode: routing.BillingModeToken,
+			group := &routing.Group{
+				ID: groupID, Hydrated: true, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, RateMultiplier: 0.5, FreeOpenAIFast: free,
+				LongContextPricingEnabled: true, ModelPricing: []routing.ModelPricingEntry{{
+					Models: []string{"gpt-5.6-sol"}, BillingMode: routing.BillingModeToken,
 					FastMultiplier: testPtrFloat64(3), MaxReasoningEffortMultiplier: testPtrFloat64(2),
-					Intervals: []routing.PricingInterval{{MinTokens: 0, MaxTokens: testPtrInt(50), InputPrice: testPtrFloat64(0.001), OutputPrice: testPtrFloat64(0)},
-						{MinTokens: 50, InputPrice: testPtrFloat64(0.002), OutputPrice: testPtrFloat64(0)}},
-					TimePricing: &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "01:00", EndTime: "02:00", Multiplier: 0.5}}}}},
+					Intervals: []routing.PricingInterval{
+						{MinTokens: 0, MaxTokens: testPtrInt(50), InputPrice: testPtrFloat64(0.001), OutputPrice: testPtrFloat64(0)},
+						{MinTokens: 50, InputPrice: testPtrFloat64(0.002), OutputPrice: testPtrFloat64(0)},
+					},
+					TimePricing: &routing.TimePricingConfig{Timezone: "UTC", Periods: []routing.TimePricingPeriod{{StartTime: "01:00", EndTime: "02:00", Multiplier: 0.5}}},
+				}},
 			}
 			err := svc.RecordOpenAI(context.Background(), &gatewaycapture.OpenAICapture{
-				Result: &forwardcore.OpenAIResult{RequestID: "resp_group_pricing", Model: "gpt-5.6-sol", ServiceTier: &tier,
-					Usage: openai.ForwardUsage{InputTokens: 100}, Duration: time.Second},
+				Result: &forwardcore.OpenAIResult{
+					RequestID: "resp_group_pricing", Model: "gpt-5.6-sol", ServiceTier: &tier,
+					Usage: openai.ForwardUsage{InputTokens: 100}, Duration: time.Second,
+				},
 				APIKey: &apikey.APIKey{ID: 1020, GroupID: &groupID, Group: group}, User: &identity.User{ID: 2020},
 				Account:   gatewaycapture.ExecutionCompletionRecord(&gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3020, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}),
 				PricingAt: time.Date(2026, 9, 9, 1, 30, 0, 0, time.UTC),
@@ -251,14 +269,15 @@ func TestGroupPricingFreeFastWithIntervalsAndTurnTime(t *testing.T) {
 func TestGroupPricingFreeFastDisplayRespectsModelSupport(t *testing.T) {
 	bs := billingtestkit.ResolverCalculator()
 	svc := newPricingMarketplaceFixture(nil, nil, billingtestkit.PriceResolver(nil, bs), bs, nil, nil, nil)
-	group := &routing.Group{ID: 1, Platform: capability.PlatformOpenAI, RateMultiplier: 1, FreeOpenAIFast: true,
-		ModelPricing: []routing.ChannelModelPricing{{Models: []string{"embedding-parity"}, InputPrice: testPtrFloat64(0.01)}},
+	group := &routing.Group{
+		ID: 1, Platform: capability.PlatformOpenAI, RateMultiplier: 1, FreeOpenAIFast: true,
+		ModelPricing: []routing.ModelPricingEntry{{Models: []string{"embedding-parity"}, InputPrice: testPtrFloat64(0.01)}},
 	}
 	display := svc.PublicModelPricing(context.Background(), group, "embedding-parity")
 	require.Equal(t, 0.01, display.InputPricePerToken)
 	require.Zero(t, display.FastInputPricePerToken)
 	// 旧零倍率仍是明确的 Fast 配置，启用免费 Fast 后展示实际收取的 Standard 价格。
-	group.ModelPricing = []routing.ChannelModelPricing{{Models: []string{"embedding-parity"}, InputPrice: testPtrFloat64(0.02), FastModeMultiplier: testPtrFloat64(0)}}
+	group.ModelPricing = []routing.ModelPricingEntry{{Models: []string{"embedding-parity"}, InputPrice: testPtrFloat64(0.02), FastModeMultiplier: testPtrFloat64(0)}}
 	display = svc.PublicModelPricing(context.Background(), group, "embedding-parity")
 	require.Equal(t, 0.02, display.FastInputPricePerToken)
 }
@@ -268,7 +287,8 @@ func TestConfiguredIntervalsPreserveDefaultPrices(t *testing.T) {
 	for _, source := range []string{"group", "channel"} {
 		for _, model := range []string{"claude-sonnet-4", "custom-priced"} {
 			t.Run(source+"/"+model, func(t *testing.T) {
-				card := routing.ChannelModelPricing{Platform: capability.PlatformOpenAI, Models: []string{model}, BillingMode: routing.BillingModeToken,
+				card := routing.ModelPricingEntry{
+					Platform: capability.PlatformOpenAI, Models: []string{model}, BillingMode: routing.BillingModeToken,
 					InputPrice: testPtrFloat64(0.001), OutputPrice: testPtrFloat64(0.002),
 					CacheWritePrice: testPtrFloat64(0.003), CacheWrite1hPrice: testPtrFloat64(0.004), CacheReadPrice: testPtrFloat64(0.005),
 					PriceMultiplier: testPtrFloat64(1.2), FastMultiplier: testPtrFloat64(1.5),
@@ -277,14 +297,14 @@ func TestConfiguredIntervalsPreserveDefaultPrices(t *testing.T) {
 						{MinTokens: 200, InputPrice: testPtrFloat64(0.008)},
 					},
 				}
-				_, err := (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).NormalizeGroupPricing(capability.PlatformOpenAI, []routing.ChannelModelPricing{card})
+				_, err := (routing.PricingConfigValidation{LoadLocation: pricingprovider.LoadPricingLocation}).NormalizeGroupPricing(capability.PlatformOpenAI, []routing.ModelPricingEntry{card})
 				require.NoError(t, err)
 				rCalculator := billingtestkit.ResolverCalculator()
 				r := billingtestkit.ResolverWithCards(t, rCalculator, nil)
-				group := &routing.Group{ID: 100, Platform: capability.PlatformOpenAI, ModelPricing: []routing.ChannelModelPricing{card}}
+				group := &routing.Group{ID: 100, Platform: capability.PlatformOpenAI, ModelPricing: []routing.ModelPricingEntry{card}}
 				if source == "channel" {
 					rCalculator = billingtestkit.ResolverCalculator()
-					r = billingtestkit.ResolverWithCards(t, rCalculator, []routing.ChannelModelPricing{card})
+					r = billingtestkit.ResolverWithCards(t, rCalculator, []routing.ModelPricingEntry{card})
 					group.ModelPricing = nil
 				}
 				for _, tc := range []struct {
@@ -292,9 +312,11 @@ func TestConfiguredIntervalsPreserveDefaultPrices(t *testing.T) {
 					standard float64
 				}{{10, 0.19}, {110, 0.38}, {210, 1.86}} {
 					for _, tier := range []string{"default", "priority"} {
-						cost, err := rCalculator.CalculateCostUnified(billing.CostInput{Ctx: context.Background(), Model: model, Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID,
+						cost, err := rCalculator.CalculateCostUnified(billing.CostInput{
+							Ctx: context.Background(), Model: model, Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID,
 							Tokens:         purepricing.UsageTokens{InputTokens: tc.input, OutputTokens: 5, CacheCreationTokens: 20, CacheCreation5mTokens: 10, CacheCreation1hTokens: 10, CacheReadTokens: 20},
-							RateMultiplier: 0.7, ServiceTier: tier, Resolver: r})
+							RateMultiplier: 0.7, ServiceTier: tier, Resolver: r,
+						})
 						require.NoError(t, err)
 						expected := tc.standard * 1.2
 						if tier == "priority" {
@@ -320,16 +342,18 @@ func TestFreeFastIntervalOnlyDisplayMatchesStandard(t *testing.T) {
 						intervals[0].MaxTokens = testPtrInt(100)
 						intervals = append(intervals, routing.PricingInterval{MinTokens: 100, InputPrice: testPtrFloat64(0.002), CacheReadPrice: testPtrFloat64(0.0002)})
 					}
-					card := routing.ChannelModelPricing{Platform: capability.PlatformOpenAI, Models: []string{"custom-priced"}, BillingMode: routing.BillingModeToken,
-						FastMultiplier: testPtrFloat64(3), Intervals: intervals}
-					_, err := (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).NormalizeGroupPricing(capability.PlatformOpenAI, []routing.ChannelModelPricing{card})
+					card := routing.ModelPricingEntry{
+						Platform: capability.PlatformOpenAI, Models: []string{"custom-priced"}, BillingMode: routing.BillingModeToken,
+						FastMultiplier: testPtrFloat64(3), Intervals: intervals,
+					}
+					_, err := (routing.PricingConfigValidation{LoadLocation: pricingprovider.LoadPricingLocation}).NormalizeGroupPricing(capability.PlatformOpenAI, []routing.ModelPricingEntry{card})
 					require.NoError(t, err)
-					group := &routing.Group{ID: 100, Platform: capability.PlatformOpenAI, RateMultiplier: 0.5, FreeOpenAIFast: free, ModelPricing: []routing.ChannelModelPricing{card}}
+					group := &routing.Group{ID: 100, Platform: capability.PlatformOpenAI, RateMultiplier: 0.5, FreeOpenAIFast: free, ModelPricing: []routing.ModelPricingEntry{card}}
 					rCalculator := billingtestkit.ResolverCalculator()
 					r := billingtestkit.ResolverWithCards(t, rCalculator, nil)
 					if source == "channel" {
 						rCalculator = billingtestkit.ResolverCalculator()
-						r = billingtestkit.ResolverWithCards(t, rCalculator, []routing.ChannelModelPricing{card})
+						r = billingtestkit.ResolverWithCards(t, rCalculator, []routing.ModelPricingEntry{card})
 						group.ModelPricing = nil
 					}
 					svc := newPricingMarketplaceFixture(nil, nil, r, rCalculator, nil, nil, nil)
@@ -353,8 +377,10 @@ func TestFreeFastIntervalOnlyDisplayMatchesStandard(t *testing.T) {
 						}
 					}
 					// 展示副本不能污染后续结算的 Fast 成本。
-					cost, err := rCalculator.CalculateCostUnified(billing.CostInput{Ctx: context.Background(), Model: "custom-priced", Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID,
-						Tokens: purepricing.UsageTokens{InputTokens: 50}, RateMultiplier: group.RateMultiplier, ServiceTier: "priority", Resolver: r})
+					cost, err := rCalculator.CalculateCostUnified(billing.CostInput{
+						Ctx: context.Background(), Model: "custom-priced", Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID,
+						Tokens: purepricing.UsageTokens{InputTokens: 50}, RateMultiplier: group.RateMultiplier, ServiceTier: "priority", Resolver: r,
+					})
 					require.NoError(t, err)
 					require.InDelta(t, 50*0.001*3, cost.TotalCost, 1e-12)
 				})
@@ -363,24 +389,27 @@ func TestFreeFastIntervalOnlyDisplayMatchesStandard(t *testing.T) {
 	}
 }
 
-// 分时配置独立生效，渠道不能忽略没有填写单价的有效价卡。
-func TestTimeOnlyPricingGroupChannelParity(t *testing.T) {
-	card := routing.ChannelModelPricing{Platform: capability.PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: routing.BillingModeToken,
-		TimePricing: &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 2}}},
+// 分时配置独立生效，共享价格配置不能忽略没有填写单价的有效价卡。
+func TestTimeOnlyPricingGroupPricingConfigParity(t *testing.T) {
+	card := routing.ModelPricingEntry{
+		Platform: capability.PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: routing.BillingModeToken,
+		TimePricing: &routing.TimePricingConfig{Timezone: "UTC", Periods: []routing.TimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 2}}},
 	}
-	require.NoError(t, (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).PricingEntries([]routing.ChannelModelPricing{card}))
+	require.NoError(t, (routing.PricingConfigValidation{LoadLocation: pricingprovider.LoadPricingLocation}).PricingEntries([]routing.ModelPricingEntry{card}))
 	var costs []float64
 	for _, source := range []string{"group", "channel"} {
-		group := &routing.Group{ID: 100, Platform: capability.PlatformAnthropic, ModelPricing: []routing.ChannelModelPricing{card}}
+		group := &routing.Group{ID: 100, Platform: capability.PlatformAnthropic, ModelPricing: []routing.ModelPricingEntry{card}}
 		rCalculator := billingtestkit.ResolverCalculator()
 		r := billingtestkit.ResolverWithCards(t, rCalculator, nil)
 		if source == "channel" {
 			rCalculator = billingtestkit.ResolverCalculator()
-			r = billingtestkit.ResolverWithCards(t, rCalculator, []routing.ChannelModelPricing{card})
+			r = billingtestkit.ResolverWithCards(t, rCalculator, []routing.ModelPricingEntry{card})
 			group.ModelPricing = nil
 		}
-		cost, err := rCalculator.CalculateCostUnified(billing.CostInput{Ctx: context.Background(), Model: "claude-sonnet-4", Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID,
-			Tokens: purepricing.UsageTokens{InputTokens: 100}, RateMultiplier: 1, PricingAt: time.Date(2026, 9, 9, 9, 30, 0, 0, time.UTC), Resolver: r})
+		cost, err := rCalculator.CalculateCostUnified(billing.CostInput{
+			Ctx: context.Background(), Model: "claude-sonnet-4", Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID,
+			Tokens: purepricing.UsageTokens{InputTokens: 100}, RateMultiplier: 1, PricingAt: time.Date(2026, 9, 9, 9, 30, 0, 0, time.UTC), Resolver: r,
+		})
 		require.NoError(t, err)
 		costs = append(costs, cost.ActualCost)
 	}
@@ -390,7 +419,7 @@ func TestTimeOnlyPricingGroupChannelParity(t *testing.T) {
 
 // Fast 只改变倍率，不能清空内置的图片输入和输出价格桶。
 func TestTierOnlyPricingPreservesImagePricesEqually(t *testing.T) {
-	card := routing.ChannelModelPricing{Platform: capability.PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: routing.BillingModeToken, FastMultiplier: testPtrFloat64(2)}
+	card := routing.ModelPricingEntry{Platform: capability.PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: routing.BillingModeToken, FastMultiplier: testPtrFloat64(2)}
 	var costs []float64
 	for _, source := range []string{"group", "channel"} {
 		prices := billingtestkit.ResolverFallbackPrices()
@@ -398,14 +427,16 @@ func TestTierOnlyPricingPreservesImagePricesEqually(t *testing.T) {
 		prices["claude-sonnet-4"].ImageInputPricePerToken = 0.003
 		prices["claude-sonnet-4"].ImageOutputPricePerToken = 0.004
 		bs := newCalculatorWithPrices(nil, nil, prices)
-		group := &routing.Group{ID: 100, Platform: capability.PlatformAnthropic, ModelPricing: []routing.ChannelModelPricing{card}}
+		group := &routing.Group{ID: 100, Platform: capability.PlatformAnthropic, ModelPricing: []routing.ModelPricingEntry{card}}
 		r := billingtestkit.ResolverWithCards(t, bs, nil)
 		if source == "channel" {
-			r = billingtestkit.ResolverWithCards(t, bs, []routing.ChannelModelPricing{card})
+			r = billingtestkit.ResolverWithCards(t, bs, []routing.ModelPricingEntry{card})
 			group.ModelPricing = nil
 		}
-		cost, err := bs.CalculateCostUnified(billing.CostInput{Ctx: context.Background(), Model: "claude-sonnet-4", Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID,
-			Tokens: purepricing.UsageTokens{InputTokens: 200, ImageInputTokens: 100, OutputTokens: 50, ImageOutputTokens: 50}, RateMultiplier: 1, ServiceTier: "priority", Resolver: r})
+		cost, err := bs.CalculateCostUnified(billing.CostInput{
+			Ctx: context.Background(), Model: "claude-sonnet-4", Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID,
+			Tokens: purepricing.UsageTokens{InputTokens: 200, ImageInputTokens: 100, OutputTokens: 50, ImageOutputTokens: 50}, RateMultiplier: 1, ServiceTier: "priority", Resolver: r,
+		})
 		require.NoError(t, err)
 		costs = append(costs, cost.ActualCost)
 	}
@@ -413,35 +444,35 @@ func TestTierOnlyPricingPreservesImagePricesEqually(t *testing.T) {
 	require.InDelta(t, 1.2, costs[0], 1e-12)
 }
 
-// 分组与渠道按同一个身份候选匹配型号档位别名。
-func TestGroupChannelAliasMatchingParity(t *testing.T) {
-	card := routing.ChannelModelPricing{Platform: capability.PlatformOpenAI, Models: []string{"gpt-5.6-luna"}, BillingMode: routing.BillingModeToken, InputPrice: testPtrFloat64(0.001)}
+// 分组与共享价格配置按同一个身份候选匹配型号档位别名。
+func TestGroupPricingConfigAliasMatchingParity(t *testing.T) {
+	card := routing.ModelPricingEntry{Platform: capability.PlatformOpenAI, Models: []string{"gpt-5.6-luna"}, BillingMode: routing.BillingModeToken, InputPrice: testPtrFloat64(0.001)}
 	bs := newCalculator(nil, nil)
-	group := &routing.Group{ID: 100, Platform: capability.PlatformOpenAI, ModelPricing: []routing.ChannelModelPricing{card}}
+	group := &routing.Group{ID: 100, Platform: capability.PlatformOpenAI, ModelPricing: []routing.ModelPricingEntry{card}}
 	groupResolverCalculator := bs
 	groupResolver := billingtestkit.PriceResolver(nil, groupResolverCalculator)
-	channelResolver := billingtestkit.ResolverWithCards(t, bs, []routing.ChannelModelPricing{card})
+	pricingConfigResolver := billingtestkit.ResolverWithCards(t, bs, []routing.ModelPricingEntry{card})
 	groupPrice := groupResolver.Resolve(context.Background(), billing.PricingInput{Model: "gpt-5.6-luna-high", Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID})
-	channelPrice := channelResolver.Resolve(context.Background(), billing.PricingInput{Model: "gpt-5.6-luna-high", GroupID: &group.ID})
-	require.Equal(t, channelPrice.BasePricing.InputPricePerToken, groupPrice.BasePricing.InputPricePerToken)
+	pricingConfigPrice := pricingConfigResolver.Resolve(context.Background(), billing.PricingInput{Model: "gpt-5.6-luna-high", GroupID: &group.ID})
+	require.Equal(t, pricingConfigPrice.BasePricing.InputPricePerToken, groupPrice.BasePricing.InputPricePerToken)
 	require.Equal(t, 0.001, groupPrice.BasePricing.InputPricePerToken)
 }
 
 // Qoder 与其他平台一样继承未填的基础价格桶，不再强制手工价。
-func TestQoderGroupChannelBlankPricesParity(t *testing.T) {
-	card := routing.ChannelModelPricing{Platform: capability.PlatformQoder, Models: []string{"claude-opus-4-6"}, BillingMode: routing.BillingModeToken, InputPrice: testPtrFloat64(0.001)}
+func TestQoderGroupPricingConfigBlankPricesParity(t *testing.T) {
+	card := routing.ModelPricingEntry{Platform: capability.PlatformQoder, Models: []string{"claude-opus-4-6"}, BillingMode: routing.BillingModeToken, InputPrice: testPtrFloat64(0.001)}
 	var costs []float64
 	for _, source := range []string{"group", "channel"} {
 		bs := newCalculator(nil, nil)
-		group := &routing.Group{ID: 100, Platform: capability.PlatformQoder, ModelPricing: []routing.ChannelModelPricing{card}}
+		group := &routing.Group{ID: 100, Platform: capability.PlatformQoder, ModelPricing: []routing.ModelPricingEntry{card}}
 		r := billingtestkit.ResolverWithCards(t, bs, nil)
 		if source == "channel" {
-			r = billingtestkit.ResolverWithCards(t, bs, []routing.ChannelModelPricing{card})
+			r = billingtestkit.ResolverWithCards(t, bs, []routing.ModelPricingEntry{card})
 			group.ModelPricing = nil
 		}
 		gateway := completion.NewRecorder(completion.Dependencies{Prices: r, Calculator: bs}, completion.RecorderOptions{DefaultMultiplier: 1})
 
-		resolved, model := gateway.ResolveChannelPricing(context.Background(), "claude-opus-4-6", gatewaycapture.ProjectCompletionKey(&apikey.APIKey{Group: group, GroupID: &group.ID})), "claude-opus-4-6"
+		resolved, model := gateway.ResolveConfigPricing(context.Background(), "claude-opus-4-6", gatewaycapture.ProjectCompletionKey(&apikey.APIKey{Group: group, GroupID: &group.ID})), "claude-opus-4-6"
 		require.NotNil(t, resolved)
 		cost, err := bs.CalculateCostUnified(billing.CostInput{Ctx: context.Background(), Model: model, Group: gatewaycapture.ProjectCompletionPriceGroup(group), GroupID: &group.ID, Tokens: purepricing.UsageTokens{OutputTokens: 100}, RateMultiplier: 1, Resolver: r, Resolved: resolved})
 		require.NoError(t, err)
@@ -451,31 +482,35 @@ func TestQoderGroupChannelBlankPricesParity(t *testing.T) {
 	require.InDelta(t, 0.0025, costs[0], 1e-12)
 }
 
-// 保留内置来源，确保纯倍率不会意外禁用内置峰值定价；渠道和分组只覆盖同名倍率。
+// 保留内置来源，确保纯倍率不会意外禁用内置峰值定价；共享价格配置和分组只覆盖同名倍率。
 func TestModifierCardsPreserveBuiltinPricingPolicy(t *testing.T) {
 	model := "deepseek-v4-flash"
-	card := routing.ChannelModelPricing{Platform: capability.PlatformDeepseek, Models: []string{model}, FastMultiplier: testPtrFloat64(3),
-		TimePricing: &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "01:00", EndTime: "04:00", Multiplier: 2}}}}
+	card := routing.ModelPricingEntry{
+		Platform: capability.PlatformDeepseek, Models: []string{model}, FastMultiplier: testPtrFloat64(3),
+		TimePricing: &routing.TimePricingConfig{Timezone: "UTC", Periods: []routing.TimePricingPeriod{{StartTime: "01:00", EndTime: "04:00", Multiplier: 2}}},
+	}
 	for _, scope := range []string{"group", "channel", "both"} {
 		t.Run(scope, func(t *testing.T) {
 			bs := newCalculator(nil, nil)
 			group := &routing.Group{ID: 100, Platform: capability.PlatformDeepseek, LongContextPricingEnabled: true}
-			var channelCards []routing.ChannelModelPricing
+			var pricingConfigCards []routing.ModelPricingEntry
 			if scope != "group" {
-				channelCards = []routing.ChannelModelPricing{card}
+				pricingConfigCards = []routing.ModelPricingEntry{card}
 			} else {
-				group.ModelPricing = []routing.ChannelModelPricing{card}
+				group.ModelPricing = []routing.ModelPricingEntry{card}
 			}
 			if scope == "both" {
-				group.ModelPricing = []routing.ChannelModelPricing{{Models: []string{model}, FastMultiplier: testPtrFloat64(1.5)}}
+				group.ModelPricing = []routing.ModelPricingEntry{{Models: []string{model}, FastMultiplier: testPtrFloat64(1.5)}}
 			}
-			r := billingtestkit.ResolverWithCards(t, bs, channelCards)
+			r := billingtestkit.ResolverWithCards(t, bs, pricingConfigCards)
 			for _, hour := range []int{0, 1, 3, 4} {
 				at := time.Date(2026, 9, 9, hour, 0, 0, 0, time.UTC)
 				resolved := r.Resolve(context.Background(), billing.PricingInput{Model: model, GroupID: &group.ID, Group: gatewaycapture.ProjectCompletionPriceGroup(group)})
 				require.Equal(t, purepricing.PricingSourceLiteLLM, resolved.Source)
-				cost, err := bs.CalculateCostUnified(billing.CostInput{Model: model, GroupID: &group.ID, Group: gatewaycapture.ProjectCompletionPriceGroup(group), Resolver: r,
-					Tokens: purepricing.UsageTokens{InputTokens: 100}, RateMultiplier: 1, PricingAt: at, ServiceTier: "priority"})
+				cost, err := bs.CalculateCostUnified(billing.CostInput{
+					Model: model, GroupID: &group.ID, Group: gatewaycapture.ProjectCompletionPriceGroup(group), Resolver: r,
+					Tokens: purepricing.UsageTokens{InputTokens: 100}, RateMultiplier: 1, PricingAt: at, ServiceTier: "priority",
+				})
 				require.NoError(t, err)
 				expected := 100 * purepricing.DeepseekFlashOffPeakInputPrice * 3
 				if scope == "both" {
@@ -499,16 +534,16 @@ func TestQoderPricingMatchesOtherPlatforms(t *testing.T) {
 				var costs []*purepricing.CostBreakdown
 				for _, platform := range []string{capability.PlatformQoder, capability.PlatformOpenAI} {
 					group := &routing.Group{ID: 100, Platform: platform, RateMultiplier: 1}
-					card := routing.ChannelModelPricing{Models: []string{model}, Platform: platform}
+					card := routing.ModelPricingEntry{Models: []string{model}, Platform: platform}
 					switch kind {
 					case "modifiers":
 						card.FastMultiplier = testPtrFloat64(2)
-						card.TimePricing = &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}}
+						card.TimePricing = &routing.TimePricingConfig{Timezone: "UTC", Periods: []routing.TimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}}
 					case "free":
 						card.InputPrice, card.OutputPrice = testPtrFloat64(0), testPtrFloat64(0)
 					}
 					bs := newCalculator(nil, nil)
-					r := billingtestkit.ResolverWithCards(t, bs, []routing.ChannelModelPricing{card})
+					r := billingtestkit.ResolverWithCards(t, bs, []routing.ModelPricingEntry{card})
 					gateway := completion.NewRecorder(completion.Dependencies{Prices: r, Calculator: bs}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 					market := newPricingMarketplaceFixture(nil, nil, r, bs, nil, nil, nil)

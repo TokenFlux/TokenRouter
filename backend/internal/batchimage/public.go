@@ -23,16 +23,19 @@ import (
 
 const PlatformGemini = "gemini"
 const (
-	BillingModelSourceRequested     = routing.BillingModelSourceRequested
-	BillingModelSourceUpstream      = routing.BillingModelSourceUpstream
-	BillingModelSourceChannelMapped = routing.BillingModelSourceChannelMapped
+	BillingModelSourceRequested   = routing.BillingModelSourceRequested
+	BillingModelSourceUpstream    = routing.BillingModelSourceUpstream
+	BillingModelSourceGroupMapped = routing.BillingModelSourceGroupMapped
 )
 
-type ChannelMappingResult = routing.ChannelMappingResult
-type ChannelReader interface {
-	ResolveChannelMapping(context.Context, int64, string) ChannelMappingResult
-	IsModelRestricted(context.Context, int64, string) bool
-}
+type (
+	GroupMappingResult = routing.GroupMappingResult
+	GroupMappingReader interface {
+		ResolveGroupMapping(context.Context, int64, string) GroupMappingResult
+		IsModelRestricted(context.Context, int64, string) bool
+	}
+)
+
 type CandidateRules interface {
 	IsSchedulable() bool
 	IsModelSupported(string) bool
@@ -86,7 +89,7 @@ type Public struct {
 	Now                    func() time.Time
 	Repo                   BatchImageRepository
 	AccountRepo            AccountReader
-	ChannelService         ChannelReader
+	PricingConfigService   GroupMappingReader
 	GroupRepo              GroupReader
 	UserGroupRateRepo      BatchImageUserGroupRateRepository
 	Queue                  BatchImageQueue
@@ -97,7 +100,7 @@ type Public struct {
 	InvalidateAuth         func(context.Context, int64)
 	Observe                func(string, ...any)
 	ClientModel            func(context.Context) string
-	WithModelTrace         func(context.Context, ChannelMappingResult, string) ChannelMappingResult
+	WithModelTrace         func(context.Context, GroupMappingResult, string) GroupMappingResult
 	RegisterModel          func(context.Context, string)
 	AutoSubscription       func(context.Context, int64, *int64) *billing.UserSubscription
 	PreferredSubscription  func(context.Context, int64, int64, *int64) *billing.UserSubscription
@@ -109,6 +112,7 @@ func (s *Public) warn(event string, values ...any) {
 		s.Observe(event, values...)
 	}
 }
+
 func mappedCandidateModel(c *Candidate, m string) string {
 	if c == nil {
 		return ""
@@ -178,7 +182,7 @@ func (s *Public) Submit(ctx context.Context, owner BatchImageOwner, req BatchIma
 		}
 	}
 
-	channelMapping, routingModel, err := s.ResolveBatchImageChannelModel(ctx, owner.GroupID, normalized.Model)
+	groupMapping, routingModel, err := s.ResolveBatchImageGroupModel(ctx, owner.GroupID, normalized.Model)
 	if err != nil {
 		return nil, err
 	}
@@ -187,13 +191,13 @@ func (s *Public) Submit(ctx context.Context, owner BatchImageOwner, req BatchIma
 		owner,
 		normalized.Provider,
 		routingModel,
-		channelMapping,
+		groupMapping,
 	)
 	if err != nil {
 		return nil, err
 	}
 	pricingRequest := normalized
-	pricingRequest.Model = BatchImagePricingModel(channelMapping, normalized.Model, routingModel, upstreamModel)
+	pricingRequest.Model = BatchImagePricingModel(groupMapping, normalized.Model, routingModel, upstreamModel)
 	pricingSnapshot, err := s.ResolvePricingSnapshot(ctx, owner, pricingRequest, provider.Name(), account)
 	if err != nil {
 		return nil, err
@@ -382,6 +386,7 @@ func BatchImageBillingHoldFailureCode(err error) string {
 		return "BILLING_HOLD_FAILED"
 	}
 }
+
 func (s *Public) ReleaseFailedSubmitHold(ctx context.Context, job *BatchImageJob, requestHash string) error {
 	if err := s.Funding.Release(ctx, job, requestHash); err != nil {
 		_ = s.Repo.RecordBatchImageJobSubmitFailure(ctx, job.BatchID, "BILLING_RELEASE_FAILED", SanitizeBatchImagePublicMessage(err.Error()), true)
@@ -413,6 +418,7 @@ func (s *Public) RunSubmitHeartbeat(ctx context.Context, batchID string, done ch
 		}
 	}
 }
+
 func (s *Public) SubmitHeartbeatInterval() time.Duration {
 	staleAfter := 10 * time.Minute
 	if s != nil && s.Options.StaleActiveAfterSeconds > 0 {
@@ -459,6 +465,7 @@ func (s *Public) AbortOrphanProviderJob(ctx context.Context, provider ExecutionP
 		)
 	}
 }
+
 func (s *Public) CreatePendingItems(ctx context.Context, batchID, requestHash string, items []BatchImageSubmitItem) error {
 	if s == nil || s.Repo == nil || len(items) == 0 {
 		return nil
@@ -477,6 +484,7 @@ func (s *Public) CreatePendingItems(ctx context.Context, batchID, requestHash st
 	}
 	return s.Repo.BulkCreateBatchImageItems(ctx, params)
 }
+
 func (s *Public) EnqueueBillingRetry(ctx context.Context, batchID string) {
 	if s == nil || s.Queue == nil {
 		return
@@ -497,6 +505,7 @@ func (s *Public) EnqueueBillingRetry(ctx context.Context, batchID string) {
 		}
 	}
 }
+
 func (s *Public) HidePreUpstreamSubmitFailure(ctx context.Context, owner BatchImageOwner, job *BatchImageJob) {
 	if s == nil || s.Repo == nil || job == nil || job.ProviderJobName != nil {
 		return
@@ -508,6 +517,7 @@ func (s *Public) HidePreUpstreamSubmitFailure(ctx context.Context, owner BatchIm
 		)
 	}
 }
+
 func (s *Public) Get(ctx context.Context, owner BatchImageOwner, batchID string) (*BatchImagePublicBatch, error) {
 	job, err := s.Repo.GetBatchImageJobByBatchIDForOwner(ctx, owner.UserID, owner.APIKeyID, batchID)
 	if err != nil {
@@ -515,6 +525,7 @@ func (s *Public) Get(ctx context.Context, owner BatchImageOwner, batchID string)
 	}
 	return BatchImageJobToPublic(job), nil
 }
+
 func (s *Public) List(ctx context.Context, owner BatchImageOwner, query BatchImageJobsQuery) (*BatchImagePublicListResponse, error) {
 	filter := BatchImageJobFilter{Limit: query.Limit, Offset: ParseBatchImageCursor(query.Cursor), ExcludeDeleted: true}
 	filter.TaskNameLike = strings.TrimSpace(query.TaskName)
@@ -569,6 +580,7 @@ func (s *Public) List(ctx context.Context, owner BatchImageOwner, query BatchIma
 		HasMore: len(data) == filter.Limit,
 	}, nil
 }
+
 func (s *Public) MarkDownloaded(ctx context.Context, owner BatchImageOwner, batchID string) error {
 	job, err := s.Repo.GetBatchImageJobByBatchIDForOwner(ctx, owner.UserID, owner.APIKeyID, batchID)
 	if err != nil {
@@ -576,6 +588,7 @@ func (s *Public) MarkDownloaded(ctx context.Context, owner BatchImageOwner, batc
 	}
 	return s.Repo.MarkBatchImageDownloaded(ctx, job.BatchID, s.now())
 }
+
 func (s *Public) DeleteRecord(ctx context.Context, owner BatchImageOwner, batchID string) error {
 	job, err := s.Repo.GetBatchImageJobByBatchIDForOwner(ctx, owner.UserID, owner.APIKeyID, batchID)
 	if err != nil {
@@ -586,6 +599,7 @@ func (s *Public) DeleteRecord(ctx context.Context, owner BatchImageOwner, batchI
 	}
 	return s.Repo.MarkBatchImageJobUserDeleted(ctx, owner.UserID, owner.APIKeyID, job.BatchID, s.now())
 }
+
 func (s *Public) ListModels(ctx context.Context, owner BatchImageOwner) (*BatchImagePublicModelsResponse, error) {
 	if !s.Enabled() {
 		return nil, ErrBatchImageDisabled
@@ -612,7 +626,7 @@ func (s *Public) ListModels(ctx context.Context, owner BatchImageOwner) (*BatchI
 				continue
 			}
 			for _, model := range BatchImageModelsFromAccountMapping(&account) {
-				mapping, routingModel, err := s.ResolveBatchImageChannelModel(ctx, owner.GroupID, model)
+				mapping, routingModel, err := s.ResolveBatchImageGroupModel(ctx, owner.GroupID, model)
 				if err != nil {
 					continue
 				}
@@ -649,6 +663,7 @@ func (s *Public) ListModels(ctx context.Context, owner BatchImageOwner) (*BatchI
 	}
 	return &BatchImagePublicModelsResponse{Object: "list", Data: out}, nil
 }
+
 func (s *Public) ListItems(ctx context.Context, owner BatchImageOwner, batchID string, query BatchImageItemsQuery) (*BatchImagePublicItemsResponse, error) {
 	filter := BatchImageItemFilter{Limit: query.Limit, Offset: ParseBatchImageCursor(query.Cursor)}
 	switch strings.TrimSpace(query.Status) {
@@ -679,6 +694,7 @@ func (s *Public) ListItems(ctx context.Context, owner BatchImageOwner, batchID s
 		HasMore: len(data) == filter.Limit,
 	}, nil
 }
+
 func (s *Public) Cancel(ctx context.Context, owner BatchImageOwner, batchID string) (*BatchImagePublicBatch, error) {
 	job, err := s.Repo.GetBatchImageJobByBatchIDForOwner(ctx, owner.UserID, owner.APIKeyID, batchID)
 	if err != nil {
@@ -742,6 +758,7 @@ func (s *Public) Cancel(ctx context.Context, owner BatchImageOwner, batchID stri
 	}
 	return BatchImageJobToPublic(updated), nil
 }
+
 func (s *Public) ValidateSubmitRequest(req BatchImageSubmitRequest) (BatchImageSubmitRequest, error) {
 	req.Model = strings.TrimSpace(req.Model)
 	req.TaskName = strings.TrimSpace(req.TaskName)
@@ -837,6 +854,7 @@ func (s *Public) ValidateSubmitRequest(req BatchImageSubmitRequest) (BatchImageS
 	req.Items = expandedItems
 	return req, nil
 }
+
 func NormalizeBatchImageReferenceInputs(model string, item *BatchImageSubmitItem) (int, int, error) {
 	if item == nil || len(item.ReferenceImages) == 0 {
 		return 0, 0, nil
@@ -873,12 +891,14 @@ func NormalizeBatchImageReferenceInputs(model string, item *BatchImageSubmitItem
 	item.ReferenceImages = out
 	return len(out), inlineBytes, nil
 }
+
 func BatchImageRepeatSuffixWidth(count int) int {
 	if count < 10 {
 		return 2
 	}
 	return len(strconv.Itoa(count))
 }
+
 func MaxBatchImageReferenceImagesForModel(model string) int {
 	model = strings.ToLower(strings.TrimSpace(model))
 	if strings.Contains(model, "pro-image") {
@@ -890,34 +910,34 @@ func MaxBatchImageReferenceImagesForModel(model string) int {
 	return 0
 }
 
-// ResolveBatchImageChannelModel 执行批量图片的渠道映射和渠道计费模型限制。
-func (s *Public) ResolveBatchImageChannelModel(ctx context.Context, groupID *int64, requestedModel string) (ChannelMappingResult, string, error) {
-	mapping := s.WithModelTrace(ctx, ChannelMappingResult{MappedModel: requestedModel}, requestedModel)
-	if s == nil || s.ChannelService == nil || groupID == nil || *groupID <= 0 {
+// ResolveBatchImageGroupModel 执行批量图片的分组映射和分组模型白名单。
+func (s *Public) ResolveBatchImageGroupModel(ctx context.Context, groupID *int64, requestedModel string) (GroupMappingResult, string, error) {
+	mapping := s.WithModelTrace(ctx, GroupMappingResult{MappedModel: requestedModel}, requestedModel)
+	if s == nil || s.PricingConfigService == nil || groupID == nil || *groupID <= 0 {
 		return mapping, requestedModel, nil
 	}
-	mapping = s.WithModelTrace(ctx, s.ChannelService.ResolveChannelMapping(ctx, *groupID, requestedModel), requestedModel)
+	mapping = s.WithModelTrace(ctx, s.PricingConfigService.ResolveGroupMapping(ctx, *groupID, requestedModel), requestedModel)
 	routingModel := strings.TrimSpace(mapping.MappedModel)
 	if routingModel == "" {
 		routingModel = requestedModel
 	}
-	billingModel := routing.BillingModelForRestriction(mapping.BillingModelSource, requestedModel, routingModel)
-	if billingModel != "" && s.ChannelService.IsModelRestricted(ctx, *groupID, billingModel) {
+	billingModel := routing.ModelForRestriction(mapping.RestrictionModelSource, requestedModel, routingModel)
+	if billingModel != "" && s.PricingConfigService.IsModelRestricted(ctx, *groupID, billingModel) {
 		return mapping, routingModel, ErrBatchImageNoAccountAvailable
 	}
 	return mapping, routingModel, nil
 }
 
-func BatchImagePricingModel(mapping ChannelMappingResult, requestedModel, channelMappedModel, upstreamModel string) string {
-	return routing.BillingModelForPrice(mapping, requestedModel, channelMappedModel, upstreamModel)
+func BatchImagePricingModel(mapping GroupMappingResult, requestedModel, groupMappedModel, upstreamModel string) string {
+	return routing.BillingModelForPrice(mapping, requestedModel, groupMappedModel, upstreamModel)
 }
 
-// SelectProviderAndAccount 按渠道模型选择账号，并返回账号映射后的实际上游模型。
+// SelectProviderAndAccount 按分组映射模型选择账号，并返回账号映射后的实际上游模型。
 func (s *Public) SelectProviderAndAccount(
 	ctx context.Context,
 	owner BatchImageOwner,
 	requestedProvider, routingModel string,
-	mapping ChannelMappingResult,
+	mapping GroupMappingResult,
 ) (ExecutionProvider, *Candidate, string, error) {
 	providers := BatchImageProviderSelectionOrder(requestedProvider)
 	for _, providerName := range providers {
@@ -949,9 +969,9 @@ func (s *Public) SelectProviderAndAccount(
 			if upstreamModel == "" {
 				continue
 			}
-			if owner.GroupID != nil && *owner.GroupID > 0 && s.ChannelService != nil &&
-				mapping.BillingModelSource == BillingModelSourceUpstream &&
-				s.ChannelService.IsModelRestricted(ctx, *owner.GroupID, upstreamModel) {
+			if owner.GroupID != nil && *owner.GroupID > 0 && s.PricingConfigService != nil &&
+				mapping.RestrictionModelSource == BillingModelSourceUpstream &&
+				s.PricingConfigService.IsModelRestricted(ctx, *owner.GroupID, upstreamModel) {
 				continue
 			}
 			s.RegisterModel(ctx, upstreamModel)
@@ -963,6 +983,7 @@ func (s *Public) SelectProviderAndAccount(
 	}
 	return nil, nil, "", ErrBatchImageNoAccountAvailable
 }
+
 func (s *Public) ListCandidateAccounts(ctx context.Context, groupID *int64, platform string) ([]Candidate, error) {
 	if s.AccountRepo == nil {
 		return nil, ErrBatchImageNoAccountAvailable
@@ -972,6 +993,7 @@ func (s *Public) ListCandidateAccounts(ctx context.Context, groupID *int64, plat
 	}
 	return s.AccountRepo.ListSchedulableByPlatform(ctx, platform)
 }
+
 func (s *Public) EnsureGroupAllowsBatchImage(ctx context.Context, groupID *int64) error {
 	if groupID == nil || *groupID <= 0 {
 		return nil
@@ -991,6 +1013,7 @@ func (s *Public) EnsureGroupAllowsBatchImage(ctx context.Context, groupID *int64
 	}
 	return nil
 }
+
 func (s *Public) ResolvePricingSnapshot(ctx context.Context, owner BatchImageOwner, req BatchImageSubmitRequest, provider string, account *Candidate) (*BatchImagePricingSnapshot, error) {
 	billingMode, ok := billing.NormalizeAPIKeyBillingMode(owner.BillingMode)
 	if !ok {
@@ -1116,62 +1139,73 @@ func (s *Public) ResolvePricingSnapshot(ctx context.Context, owner BatchImageOwn
 		HoldAmount:                 holdUnitPrice * float64(len(req.Items)),
 	}, nil
 }
+
 func (s *Public) Enabled() bool {
 	return s != nil && s.Repo != nil && s.AccountRepo != nil && s.Options.Enabled
 }
+
 func (s *Public) InvalidateAuthCache(ctx context.Context, userID int64) {
 	if s != nil && s.InvalidateAuth != nil && userID > 0 {
 		s.InvalidateAuth(ctx, userID)
 	}
 }
+
 func (s *Public) MaxItems() int {
 	if s != nil && s.Options.MaxItemsPerJobDefault > 0 {
 		return s.Options.MaxItemsPerJobDefault
 	}
 	return DefaultBatchImageMaxItems
 }
+
 func (s *Public) MaxOutputImagesPerJob() int {
 	if s != nil && s.Options.MaxOutputImagesPerJob > 0 {
 		return s.Options.MaxOutputImagesPerJob
 	}
 	return DefaultBatchImageMaxOutputImages
 }
+
 func (s *Public) MaxOutputImagesPerItem() int {
 	if s != nil && s.Options.MaxOutputImagesPerItem > 0 {
 		return s.Options.MaxOutputImagesPerItem
 	}
 	return DefaultBatchImageMaxOutputCount
 }
+
 func (s *Public) MaxPromptChars() int {
 	if s != nil && s.Options.MaxPromptCharsPerItem > 0 {
 		return s.Options.MaxPromptCharsPerItem
 	}
 	return DefaultBatchImageMaxPromptChars
 }
+
 func (s *Public) MaxReferenceImagesPerJob() int {
 	if s != nil && s.Options.MaxReferenceImagesPerJob > 0 {
 		return s.Options.MaxReferenceImagesPerJob
 	}
 	return DefaultBatchImageMaxReferenceImages
 }
+
 func (s *Public) MaxReferenceInlineBytesPerJob() int {
 	if s != nil && s.Options.MaxReferenceInlineBytesPerJob > 0 {
 		return s.Options.MaxReferenceInlineBytesPerJob
 	}
 	return DefaultBatchImageMaxReferenceBytes
 }
+
 func (s *Public) DefaultResponseMimeType() string {
 	if s != nil && strings.TrimSpace(s.Options.DefaultResponseMimeType) != "" {
 		return strings.TrimSpace(s.Options.DefaultResponseMimeType)
 	}
 	return DefaultBatchImageResponseMime
 }
+
 func (s *Public) DefaultImageSize() string {
 	if s != nil && strings.TrimSpace(s.Options.DefaultImageSize) != "" {
 		return strings.TrimSpace(s.Options.DefaultImageSize)
 	}
 	return DefaultBatchImageImageSize
 }
+
 func HashBatchImageSubmitRequest(req BatchImageSubmitRequest) string {
 	req.Metadata = SanitizeBatchImageMetadata(req.Metadata)
 	b, _ := json.Marshal(req)
@@ -1193,6 +1227,7 @@ func HashCompositeBatchImageSubmitRequest(req BatchImageSubmitRequest, groupID *
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
 }
+
 func BatchImageProviderPlatform(provider string) string {
 	switch provider {
 	case BatchImageProviderGeminiAPI, BatchImageProviderVertex:
@@ -1201,12 +1236,14 @@ func BatchImageProviderPlatform(provider string) string {
 		return PlatformGemini
 	}
 }
+
 func BatchImageProviderSelectionOrder(requestedProvider string) []string {
 	if strings.TrimSpace(requestedProvider) != "" {
 		return []string{strings.TrimSpace(requestedProvider)}
 	}
 	return []string{BatchImageProviderGeminiAPI, BatchImageProviderVertex}
 }
+
 func BatchImageModelsFromAccountMapping(account *Candidate) []string {
 	if account == nil {
 		return nil
@@ -1238,6 +1275,7 @@ func BatchImageModelsFromAccountMapping(account *Candidate) []string {
 	sort.Strings(out)
 	return out
 }
+
 func BatchImageProviderSubmitPublicError(err error) error {
 	reason := strings.TrimSpace(infraerrors.Reason(err))
 	switch reason {
@@ -1253,6 +1291,7 @@ func BatchImageProviderSubmitPublicError(err error) error {
 		return ErrBatchImageProviderSubmitFailed
 	}
 }
+
 func BatchImageProviderSubmitRecordCode(err error) string {
 	reason := strings.TrimSpace(infraerrors.Reason(err))
 	if reason == "" || reason == "BATCH_IMAGE_PROVIDER_SUBMIT_FAILED" {
@@ -1260,6 +1299,7 @@ func BatchImageProviderSubmitRecordCode(err error) string {
 	}
 	return reason
 }
+
 func ParseBatchImageListTime(raw string) *time.Time {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -1277,6 +1317,7 @@ func ParseBatchImageListTime(raw string) *time.Time {
 	}
 	return nil
 }
+
 func SanitizeBatchImageMetadata(in map[string]string) map[string]string {
 	if len(in) == 0 {
 		return nil
@@ -1303,6 +1344,7 @@ func SanitizeBatchImageMetadata(in map[string]string) map[string]string {
 	}
 	return out
 }
+
 func ParseBatchImageCursor(cursor string) int {
 	offset, err := strconv.Atoi(strings.TrimSpace(cursor))
 	if err != nil || offset < 0 {

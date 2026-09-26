@@ -125,8 +125,8 @@ func RegisterAdminRoutes(
 		// 定时测试计划
 		registerScheduledTestRoutes(admin, h)
 
-		// 渠道管理
-		registerChannelRoutes(admin, h)
+		// 价格管理
+		registerPricingConfigRoutes(admin, h)
 
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
@@ -283,8 +283,8 @@ func registerTLSFingerprintRouterRoutes(admin *gin.RouterGroup, h *routeTestHand
 	routeegress.RegisterTLSFingerprintRouterRoutes(admin, h.Admin.TLSFingerprintRouter)
 }
 
-func registerChannelRoutes(admin *gin.RouterGroup, h *routeTestHandlers) {
-	routerouting.RegisterChannelRoutes(admin, h.Admin.Channel)
+func registerPricingConfigRoutes(admin *gin.RouterGroup, h *routeTestHandlers) {
+	routerouting.RegisterPricingRoutes(admin, h.Admin.PricingConfig)
 }
 
 // registerSettingsRoutes 使用原生端点登记路由形状；此夹具不执行设置读写。

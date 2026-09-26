@@ -4,17 +4,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterChannelRoutes 注册所属管理路由；组鉴权、限流和审计由 app 预先安装。
-func RegisterChannelRoutes(admin *gin.RouterGroup, endpoint *ChannelHandler) {
-	channels := admin.Group("/channels")
+// RegisterPricingRoutes 注册所属管理路由；组鉴权、限流和审计由 app 预先安装。
+func RegisterPricingRoutes(admin *gin.RouterGroup, endpoint *PricingHandler) {
+	admin.GET("/pricing/defaults", endpoint.ListDefaultPricing)
+	admin.GET("/pricing/defaults/model", endpoint.GetModelDefaultPricing)
+	admin.GET("/pricing/defaults/models", endpoint.SyncPricingModels)
+	pricingConfigs := admin.Group("/pricing/configs")
 	{
-		channels.GET("", endpoint.List)
-		channels.GET("/model-pricing", endpoint.GetModelDefaultPricing)
-		channels.GET("/pricing/sync-models", endpoint.SyncPricingModels)
-		channels.GET("/:id", endpoint.GetByID)
-		channels.POST("", endpoint.Create)
-		channels.PUT("/:id", endpoint.Update)
-		channels.DELETE("/:id", endpoint.Delete)
+		pricingConfigs.GET("", endpoint.List)
+		pricingConfigs.GET("/:id", endpoint.GetByID)
+		pricingConfigs.POST("", endpoint.Create)
+		pricingConfigs.PUT("/:id", endpoint.Update)
+		pricingConfigs.DELETE("/:id", endpoint.Delete)
 	}
 }
 

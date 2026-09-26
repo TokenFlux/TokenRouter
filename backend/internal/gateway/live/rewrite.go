@@ -18,7 +18,7 @@ type ModelResolver interface {
 	ResolveModel(context.Context, *int64, string) (string, string, error)
 }
 
-// rewriteLiveSidebandClientPayload 对每轮 session.model 执行 Key、渠道和账号映射。
+// rewriteLiveSidebandClientPayload 对每轮 session.model 执行 Key、分组和账号映射。
 func RewriteClientPayload(
 	ctx context.Context,
 	record *session.LiveCallRecord,

@@ -93,7 +93,7 @@ backend/
 │   │   ├── media/                                       媒体生成、视频归属、搜索与 Realtime 用例
 │   │   │   └── provider/                                媒体归属与异步计量的任务适配
 │   │   ├── modeldisplay/                                公开模型目录的展示与能力投影
-│   │   ├── modeltrace/                                  Key、渠道、工具模型的变换追踪与响应恢复
+│   │   ├── modeltrace/                                  Key、分组、工具模型的变换追踪与响应恢复
 │   │   ├── moderationflow/                              网关审核主体、Cyber 标记与完成输入
 │   │   ├── postgres/                                    PostgreSQL 持久化及事务适配
 │   │   ├── promptpolicy/                                用户提示词替换及运行规则缓存
@@ -186,7 +186,7 @@ backend/
 │   │   ├── grok/                                        Grok token 估算的协议常量
 │   │   ├── openai/                                      Responses、Chat、媒体、WS、Codex 与用量报文
 │   │   └── wirejson/                                    保持报文结构的 JSON 读取与修改
-│   ├── routing/                                         分组、渠道、模型目录和请求路线
+│   ├── routing/                                         分组、价格配置、模型目录和请求路线
 │   │   ├── accessview/                                  分组访问、能力、模型与调度配置的只读投影
 │   │   ├── capability/                                  平台、账号、协议准入与单步转换纯规则
 │   │   ├── httpapi/                                     HTTP 路由、鉴权接入与输入输出适配
@@ -289,7 +289,7 @@ backend/
 │       ├── payment/                                     外部支付订单、渠道、履约与退款集成契约
 │       ├── pricing_contract/                            跨模块定价契约集成契约
 │       ├── promotion/                                   邀请、优惠码、返利和转入余额集成契约
-│       ├── routing/                                     分组、渠道、模型目录和请求路线集成契约
+│       ├── routing/                                     分组、价格配置、模型目录和请求路线集成契约
 │       ├── settings/                                    运行时设置存取、更新通知和管理组合集成契约
 │       ├── subscriptions/                               订阅集成契约
 │       └── team/                                        团队、成员、邀请和归属转移集成契约

@@ -76,6 +76,7 @@ func usageLogFromServiceUser(l *usage.UsageLog) UsageLog {
 		Subscription:              billinghttpapi.UserSubscriptionFromService(l.Subscription),
 	}
 }
+
 func cloneBillingAllocationsDTO(allocations []billing.BillingAllocation) []billing.BillingAllocation {
 	if len(allocations) == 0 {
 		return nil
@@ -119,7 +120,7 @@ func FromUsageAdmin(l *usage.UsageLog) *AdminUsageLog {
 		UsageLog:              usageLog,
 		UpstreamModel:         l.UpstreamModel,
 		UpstreamRequestID:     l.UpstreamRequestID,
-		ChannelID:             l.ChannelID,
+		PricingConfigID:       l.PricingConfigID,
 		ModelMappingChain:     l.ModelMappingChain,
 		BillingTier:           l.BillingTier,
 		AccountRateMultiplier: l.AccountRateMultiplier,
@@ -152,6 +153,7 @@ func TimingFromOps(timing *ops.OpsRequestTiming) *UsageLogTiming {
 		UpstreamWroteRequestError:      timing.UpstreamWroteRequestError,
 	}
 }
+
 func CleanupFromUsage(task *usage.UsageCleanupTask) *UsageCleanupTask {
 	if task == nil {
 		return nil
@@ -182,6 +184,7 @@ func CleanupFromUsage(task *usage.UsageCleanupTask) *UsageCleanupTask {
 		UpdatedAt:    task.UpdatedAt,
 	}
 }
+
 func RequestTypeStringPtr(requestType *int16) *string {
 	if requestType == nil {
 		return nil

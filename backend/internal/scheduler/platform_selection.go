@@ -107,12 +107,14 @@ func (m *PlatformMetrics) RecordSelect(decision PlatformDecision) {
 		m.loadBalanceSelectTotal.Add(1)
 	}
 }
+
 func (m *PlatformMetrics) RecordSwitch() {
 	if m == nil {
 		return
 	}
 	m.accountSwitchTotal.Add(1)
 }
+
 func (m *PlatformMetrics) Snapshot(accountCount int) PlatformMetricsSnapshot {
 	if m == nil {
 		return PlatformMetricsSnapshot{}
@@ -153,11 +155,13 @@ type ProbeBudget struct {
 func NewProbeBudget() *ProbeBudget {
 	return &ProbeBudget{attempted: make(map[int64]struct{})}
 }
+
 func (b *ProbeBudget) enableLimit() {
 	if b != nil {
 		b.limited = true
 	}
 }
+
 func (b *ProbeBudget) recordAcquire(accountID int64) bool {
 	if b == nil {
 		return false
@@ -175,6 +179,7 @@ func (b *ProbeBudget) recordAcquire(accountID int64) bool {
 	b.attempted[accountID] = struct{}{}
 	return true
 }
+
 func (b *ProbeBudget) recordRecheck() bool {
 	if b == nil {
 		return false
@@ -188,9 +193,11 @@ func (b *ProbeBudget) recordRecheck() bool {
 	b.rechecks++
 	return true
 }
+
 func (b *ProbeBudget) acquireExhausted() bool {
 	return b != nil && b.limited && b.acquires >= openAIAccountSelectionProbeLimit
 }
+
 func (b *ProbeBudget) wasAttempted(accountID int64) bool {
 	if b == nil {
 		return false
@@ -214,21 +221,21 @@ type PlatformCandidateScore struct {
 
 // PlatformSelectionPorts 负责平台特有资格，评分、绑定优先级、抢槽与等待由核心决定。
 type PlatformSelectionPorts struct {
-	BasicStickyTTL     time.Duration
-	CheckPricing       func(context.Context, *int64, string) bool
-	Hydrate            func(context.Context, *FlowAccount) (*FlowAccount, error)
-	SetSticky          func(context.Context, *int64, string, int64, time.Duration) error
-	PrivacyAllowed     func(context.Context, *int64, *FlowAccount) bool
-	ShadowAllowed      func(context.Context, *FlowAccount) bool
-	ParentHealthy      func(*FlowAccount, func(int64) *FlowAccount) bool
-	ParentLookup       func(context.Context) func(int64) *FlowAccount
-	ReadAccountDB      func(context.Context, int64) (*FlowAccount, error)
-	NeedsChannelCheck  func(context.Context, *int64) bool
-	ChannelRestricted  func(context.Context, int64, *FlowAccount, string, bool) bool
-	BasicEligible      func(context.Context, *FlowAccount, string, string, bool, account.OpenAIEndpointCapability) bool
-	BasicFailureReason func(context.Context, *FlowAccount, string, string, bool, account.OpenAIEndpointCapability) string
-	CompleteAcquired   func(context.Context, *FlowAccount, func()) (*FlowSelection, error)
-	Complete           func(context.Context, *FlowAccount, bool, func(), *AccountWaitPlan) (*FlowSelection, error)
+	BasicStickyTTL       time.Duration
+	CheckPricing         func(context.Context, *int64, string) bool
+	Hydrate              func(context.Context, *FlowAccount) (*FlowAccount, error)
+	SetSticky            func(context.Context, *int64, string, int64, time.Duration) error
+	PrivacyAllowed       func(context.Context, *int64, *FlowAccount) bool
+	ShadowAllowed        func(context.Context, *FlowAccount) bool
+	ParentHealthy        func(*FlowAccount, func(int64) *FlowAccount) bool
+	ParentLookup         func(context.Context) func(int64) *FlowAccount
+	ReadAccountDB        func(context.Context, int64) (*FlowAccount, error)
+	NeedsGroupCheck      func(context.Context, *int64) bool
+	GroupModelRestricted func(context.Context, int64, *FlowAccount, string, bool) bool
+	BasicEligible        func(context.Context, *FlowAccount, string, string, bool, account.OpenAIEndpointCapability) bool
+	BasicFailureReason   func(context.Context, *FlowAccount, string, string, bool, account.OpenAIEndpointCapability) string
+	CompleteAcquired     func(context.Context, *FlowAccount, func()) (*FlowSelection, error)
+	Complete             func(context.Context, *FlowAccount, bool, func(), *AccountWaitPlan) (*FlowSelection, error)
 
 	Available, CacheAvailable, SnapshotAvailable, RecheckAvailable bool
 	Effective                                                      func(context.Context, *int64) policy.EffectiveSettings
@@ -285,6 +292,7 @@ func (s *PlatformSelector) requestCompatible(ctx context.Context, a *FlowAccount
 	ok, _ := s.ports.RequestCompatible(ctx, a, input)
 	return ok
 }
+
 func (s *PlatformSelector) canRecheck(b *ProbeBudget) bool {
 	if !s.ports.RecheckAvailable {
 		return true
@@ -322,6 +330,7 @@ func (s *PlatformFilterStats) Exclude(reason string) {
 	}
 	s.Reasons[reason]++
 }
+
 func (s PlatformFilterStats) Summary(extra string) string {
 	var b strings.Builder
 	_, _ = b.WriteString("pool=")
@@ -346,6 +355,7 @@ func (s PlatformFilterStats) Summary(extra string) string {
 	}
 	return b.String()
 }
+
 func (s *PlatformSelector) Select(
 	ctx context.Context,
 	req PlatformSelectionInput,
@@ -465,6 +475,7 @@ func (s *PlatformSelector) Select(
 	}
 	return selection, decision, nil
 }
+
 func (s *PlatformSelector) SelectBySessionHash(
 	ctx context.Context,
 	req PlatformSelectionInput,
@@ -589,6 +600,7 @@ func (s *PlatformSelector) SelectBySessionHash(
 	}
 	return nil, false, nil
 }
+
 func (s *PlatformSelector) BuildPlan(
 	ctx context.Context,
 	req PlatformSelectionInput,
@@ -680,6 +692,7 @@ func (s *PlatformSelector) BuildPlan(
 	plan.selectionOrder = s.buildOpenAISelectionOrder(req, plan)
 	return plan
 }
+
 func (s *PlatformSelector) buildOpenAISelectionOrder(
 	req PlatformSelectionInput,
 	plan PlatformLoadPlan,
@@ -707,6 +720,7 @@ func (s *PlatformSelector) buildOpenAISelectionOrder(
 
 	return buildSelectionOrder(plan.candidates)
 }
+
 func (s *PlatformSelector) SelectByLoadBalance(
 	ctx context.Context,
 	req PlatformSelectionInput,
@@ -844,6 +858,7 @@ func (s *PlatformSelector) SelectByLoadBalance(
 	}
 	return s.finishLoadBalanceSelectionFallback(ctx, req, attempt, budget, filterStats)
 }
+
 func (s *PlatformSelector) trySelectByLoadBalancePool(
 	ctx context.Context,
 	req PlatformSelectionInput,
@@ -913,6 +928,7 @@ func (s *PlatformSelector) trySelectByLoadBalancePool(
 
 	return attempt
 }
+
 func (s *PlatformSelector) finishLoadBalanceSelectionFallback(
 	ctx context.Context,
 	req PlatformSelectionInput,
@@ -978,6 +994,7 @@ func (s *PlatformSelector) finishLoadBalanceSelectionFallback(
 
 	return nil, candidateCount, topK, loadSkew, s.ports.Unavailable(ctx, req.RequestedModel, req.routingModel(), compactBlocked, filterStats.Summary("selection_order_exhausted"))
 }
+
 func sortOpenAICompactRetryCandidates(pool []PlatformCandidateScore) []PlatformCandidateScore {
 	if len(pool) == 0 {
 		return nil
@@ -1007,6 +1024,7 @@ func sortOpenAICompactRetryCandidates(pool []PlatformCandidateScore) []PlatformC
 	})
 	return ordered
 }
+
 func buildOpenAIAccountLoadRequest(accounts []*FlowAccount) []AccountWithConcurrency {
 	loadReq := make([]AccountWithConcurrency, 0, len(accounts))
 	for _, account := range accounts {

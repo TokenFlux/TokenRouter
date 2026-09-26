@@ -17,7 +17,7 @@ type RequestableModel struct {
 }
 
 // RequestableModelsResult 是分组模型解析结果。
-// Restricted 用于区分渠道限制后的空结果与旧版“没有显式模型”语义。
+// Restricted 用于区分分组白名单后的空结果与旧版“没有显式模型”语义。
 type RequestableModelsResult struct {
 	Models                   []RequestableModel
 	Restricted               bool
@@ -33,7 +33,7 @@ func (s *RequestableResolver) ResolveWithAccounts(
 	accounts []CatalogueAccount,
 ) RequestableModelsResult {
 	accounts = filterRequestableModelAccounts(accounts, platform)
-	// 账号查询成功但没有平台匹配账号时必须保持空结果；渠道读取失败不能凭空补入默认模型。
+	// 账号查询成功但没有平台匹配账号时必须保持空结果；分组策略读取失败不能凭空补入默认模型。
 	if len(accounts) == 0 {
 		return RequestableModelsResult{}
 	}
@@ -44,28 +44,26 @@ func (s *RequestableResolver) ResolveWithAccounts(
 	accountCandidateModels = append(accountCandidateModels, baseModels...)
 	accountCandidateModels = append(accountCandidateModels, currentAccountModels...)
 
-	var channel *Channel
-	channelPlatform := strings.TrimSpace(platform)
+	var policy *GroupPolicyView
+	policyPlatform := strings.TrimSpace(platform)
 	var err error
-	if groupID != nil && s.Channels != nil {
-		channel, err = s.Channels.GetChannelForGroup(ctx, *groupID)
+	if groupID != nil && s.GroupPolicies != nil {
+		policy, err = s.GroupPolicies.GetGroupPolicy(ctx, *groupID)
 		if err != nil {
-			s.Warn("failed to load channel for requestable model resolution",
+			s.Warn("failed to load group policy for requestable model resolution",
 				"group_id", *groupID,
 				"platform", platform,
 				"error", err)
-			fallback := RequestableModelsFallback(mergeRequestableModelCandidates(accountCandidateModels, accounts, nil, channelPlatform, s.Defaults), platform, s.Defaults)
-			fallback.HadExplicitAccountModels = hadExplicitAccountModels
-			return fallback
+			return RequestableModelsResult{Restricted: true, HadExplicitAccountModels: hadExplicitAccountModels}
 		}
-		if cachedPlatform := strings.TrimSpace(s.Channels.GetGroupPlatform(ctx, *groupID)); cachedPlatform != "" {
-			channelPlatform = cachedPlatform
+		if cachedPlatform := strings.TrimSpace(s.GroupPolicies.GetGroupPlatform(ctx, *groupID)); cachedPlatform != "" {
+			policyPlatform = cachedPlatform
 		}
 	}
 
-	candidates := mergeRequestableModelCandidates(accountCandidateModels, accounts, channel, channelPlatform, s.Defaults)
+	candidates := mergeRequestableModelCandidates(accountCandidateModels, accounts, policy, policyPlatform, s.Defaults)
 	result := RequestableModelsResult{
-		Restricted:               channel != nil && channel.RestrictModels,
+		Restricted:               policy != nil && policy.RestrictModels,
 		HadExplicitAccountModels: hadExplicitAccountModels,
 	}
 	if len(candidates) == 0 || len(accounts) == 0 {
@@ -74,7 +72,7 @@ func (s *RequestableResolver) ResolveWithAccounts(
 
 	result.Models = make([]RequestableModel, 0, len(candidates))
 	for _, requestedModel := range candidates {
-		if resolved, ok := s.resolveRequestableModel(ctx, groupID, channel, accounts, requestedModel); ok {
+		if resolved, ok := s.resolveRequestableModel(ctx, groupID, policy, accounts, requestedModel); ok {
 			result.Models = append(result.Models, resolved)
 		}
 	}
@@ -124,9 +122,9 @@ func filterRequestableModelAccounts(accounts []CatalogueAccount, platform string
 	return filtered
 }
 
-// mergeRequestableModelCandidates 按既有候选、渠道配置、账号配置和默认模型的顺序合并候选。
+// mergeRequestableModelCandidates 按既有候选、分组策略、账号配置和默认模型的顺序合并候选。
 // 通配符只参与后续匹配，不会作为模型 ID 返回。
-func mergeRequestableModelCandidates(baseModels []string, accounts []CatalogueAccount, channel *Channel, platform string, defaults CatalogueDefaults) []string {
+func mergeRequestableModelCandidates(baseModels []string, accounts []CatalogueAccount, policy *GroupPolicyView, platform string, defaults CatalogueDefaults) []string {
 	candidates := make([]string, 0, len(baseModels)+16)
 	seen := make(map[string]struct{}, len(baseModels)+16)
 	appendModels := func(models ...string) {
@@ -145,14 +143,9 @@ func mergeRequestableModelCandidates(baseModels []string, accounts []CatalogueAc
 	}
 
 	appendModels(baseModels...)
-	if channel != nil {
-		for i := range channel.ModelPricing {
-			pricing := &channel.ModelPricing[i]
-			if pricing.Platform == platform {
-				appendModels(pricing.Models...)
-			}
-		}
-		if mapping := channel.ModelMapping[platform]; len(mapping) > 0 {
+	if policy != nil {
+		appendModels(policy.AllowedModels[platform]...)
+		if mapping := policy.ModelMapping[platform]; len(mapping) > 0 {
 			appendModels(sortedModelMappingSources(mapping)...)
 		}
 	}
@@ -232,25 +225,25 @@ func RequestableModelsFallback(models []string, platform string, defaults Catalo
 func (s *RequestableResolver) resolveRequestableModel(
 	ctx context.Context,
 	groupID *int64,
-	channel *Channel,
+	policy *GroupPolicyView,
 	accounts []CatalogueAccount,
 	requestedModel string,
 ) (RequestableModel, bool) {
-	channelMappedModel := requestedModel
+	groupMappedModel := requestedModel
 	billingSource := BillingModelSourceRequested
-	if groupID != nil && channel != nil && s.Channels != nil {
-		mapping := s.Channels.ResolveChannelMapping(ctx, *groupID, requestedModel)
+	if groupID != nil && s.GroupPolicies != nil {
+		mapping := s.GroupPolicies.ResolveGroupMapping(ctx, *groupID, requestedModel)
 		if mapped := strings.TrimSpace(mapping.MappedModel); mapped != "" {
-			channelMappedModel = mapped
+			groupMappedModel = mapped
 		}
 		billingSource = mapping.BillingModelSource
 		if billingSource == "" {
-			billingSource = BillingModelSourceChannelMapped
+			billingSource = BillingModelSourceGroupMapped
 		}
 	}
 
-	if channel != nil && channel.RestrictModels && billingSource != BillingModelSourceUpstream {
-		pricingModel := BillingModelForRestriction(billingSource, requestedModel, channelMappedModel)
+	if policy != nil && policy.RestrictModels && policy.RestrictionSource() != BillingModelSourceUpstream {
+		pricingModel := ModelForRestriction(policy.RestrictionSource(), requestedModel, groupMappedModel)
 		if s.requestableModelRestricted(ctx, groupID, pricingModel) {
 			return RequestableModel{}, false
 		}
@@ -259,11 +252,11 @@ func (s *RequestableResolver) resolveRequestableModel(
 	upstreamModels := make([]string, 0, len(accounts))
 	for i := range accounts {
 		account := &accounts[i]
-		if !account.Rules.Supports(ctx, channelMappedModel) {
+		if !account.Rules.Supports(ctx, groupMappedModel) {
 			continue
 		}
-		for _, upstreamModel := range account.Rules.UpstreamModels(ctx, channelMappedModel) {
-			if channel != nil && channel.RestrictModels && billingSource == BillingModelSourceUpstream &&
+		for _, upstreamModel := range account.Rules.UpstreamModels(ctx, groupMappedModel) {
+			if policy != nil && policy.RestrictModels && policy.RestrictionSource() == BillingModelSourceUpstream &&
 				s.requestableModelRestricted(ctx, groupID, upstreamModel) {
 				continue
 			}
@@ -281,17 +274,17 @@ func (s *RequestableResolver) resolveRequestableModel(
 	case BillingModelSourceUpstream:
 		resolved.PricingModel, resolved.PricingAmbiguous = uniquePricingModel(upstreamModels)
 	default:
-		resolved.PricingModel = channelMappedModel
+		resolved.PricingModel = groupMappedModel
 	}
 	return resolved, true
 }
 
 func (s *RequestableResolver) requestableModelRestricted(ctx context.Context, groupID *int64, pricingModel string) bool {
-	if groupID == nil || s == nil || s.Channels == nil {
+	if groupID == nil || s == nil || s.GroupPolicies == nil {
 		return false
 	}
 	pricingModel = strings.TrimSpace(pricingModel)
-	if pricingModel == "" || !s.Channels.IsModelRestricted(ctx, *groupID, pricingModel) {
+	if pricingModel == "" || !s.GroupPolicies.IsModelRestricted(ctx, *groupID, pricingModel) {
 		return false
 	}
 	return true
@@ -350,18 +343,18 @@ type CatalogueDefaults struct {
 	Platform func(string) []string
 	Qoder    func(bool) []string
 }
-type CatalogueChannels interface {
-	GetChannelForGroup(context.Context, int64) (*Channel, error)
+type CataloguePolicies interface {
+	GetGroupPolicy(context.Context, int64) (*GroupPolicyView, error)
 	GetGroupPlatform(context.Context, int64) string
-	ResolveChannelMapping(context.Context, int64, string) ChannelMappingResult
+	ResolveGroupMapping(context.Context, int64, string) GroupMappingResult
 	IsModelRestricted(context.Context, int64, string) bool
 }
 
 // RequestableResolver 只编排目录规则，缓存和数据取得均由现有唯一来源提供。
 type RequestableResolver struct {
-	Channels CatalogueChannels
-	Defaults CatalogueDefaults
-	Warn     func(string, ...any)
+	GroupPolicies CataloguePolicies
+	Defaults      CatalogueDefaults
+	Warn          func(string, ...any)
 }
 
 func matchesCataloguePlatform(account *CatalogueAccount, platform string) bool {

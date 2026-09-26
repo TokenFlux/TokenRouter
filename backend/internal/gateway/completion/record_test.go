@@ -43,6 +43,7 @@ func (w *recordWriter) CreateBestEffort(ctx context.Context, r *usage.UsageLog) 
 	w.rows = append(w.rows, r)
 	return w.bestErr
 }
+
 func (w *recordWriter) Create(ctx context.Context, r *usage.UsageLog) (bool, error) {
 	*w.events = append(*w.events, "sync")
 	w.contexts = append(w.contexts, ctx.Err())
@@ -52,8 +53,10 @@ func (w *recordWriter) Create(ctx context.Context, r *usage.UsageLog) (bool, err
 
 type recordEffects struct{ events *[]string }
 
-func (e recordEffects) AccountUsed(int64)                      { *e.events = append(*e.events, "used") }
+func (e recordEffects) AccountUsed(int64) { *e.events = append(*e.events, "used") }
+
 func (e recordEffects) InvalidateAuth(context.Context, string) { *e.events = append(*e.events, "auth") }
+
 func (e recordEffects) Settled(SettlementInput, *billing.UsageBillingApplyResult) {
 	*e.events = append(*e.events, "effects")
 }
@@ -76,6 +79,7 @@ func recordFixture(simple bool) (*Recorder, *recordStore, *recordWriter, *Input,
 	}
 	return recorder, funds, logs, input, &events
 }
+
 func TestRecordSettlementFailureRetainsUnsettledFact(t *testing.T) {
 	for _, openAI := range []bool{false, true} {
 		t.Run(map[bool]string{false: "anthropic", true: "openai"}[openAI], func(t *testing.T) {
@@ -100,6 +104,7 @@ func TestRecordSettlementFailureRetainsUnsettledFact(t *testing.T) {
 		})
 	}
 }
+
 func TestRecordLogFailureDoesNotResettle(t *testing.T) {
 	core, funds, logs, in, events := recordFixture(false)
 	logs.bestErr = errors.New("queue full")
@@ -109,12 +114,14 @@ func TestRecordLogFailureDoesNotResettle(t *testing.T) {
 	require.Equal(t, []string{"funds", "effects", "best", "sync"}, *events)
 	require.Greater(t, logs.rows[1].ActualCost, 0.0)
 }
+
 func TestRecordSimpleOnlyWritesAndUpdatesActivity(t *testing.T) {
 	core, funds, _, in, events := recordFixture(true)
 	require.NoError(t, core.Record(context.Background(), in, false))
 	require.Zero(t, funds.calls)
 	require.Equal(t, []string{"best", "used"}, *events)
 }
+
 func TestSnapshotIsolatesQueueInputs(t *testing.T) {
 	threshold := 2.0
 	group := int64(7)
@@ -122,7 +129,7 @@ func TestSnapshotIsolatesQueueInputs(t *testing.T) {
 	at := time.Date(2026, 9, 16, 3, 4, 5, 0, time.UTC)
 	in := &Input{
 		PricingAt:    at,
-		APIKey:       &KeySnapshot{GroupID: &group, Group: &GroupSnapshot{Price: &billing.PriceGroup{ModelPricing: []pricing.ChannelModelPricing{{Models: []string{"model"}}}}, AudioPrice: &pricing.AudioPriceConfig{RealtimePerMin: &threshold}}},
+		APIKey:       &KeySnapshot{GroupID: &group, Group: &GroupSnapshot{Price: &billing.PriceGroup{ModelPricing: []pricing.ModelPricingEntry{{Models: []string{"model"}}}}, AudioPrice: &pricing.AudioPriceConfig{RealtimePerMin: &threshold}}},
 		User:         &PayerSnapshot{Notification: &billing.UserSummary{BalanceNotifyThreshold: &threshold}},
 		Result:       &Result{ServiceTier: &tier, ImageOutputSizes: []string{"1K"}, ImageSizeBreakdown: map[string]int{"1K": 1}},
 		Subscription: &billing.UserSubscription{ID: 1, Plan: &billing.SubscriptionPlan{GroupIDs: []int64{7}, GroupRateMultipliers: map[int64]float64{7: 2}}},

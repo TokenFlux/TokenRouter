@@ -31,6 +31,7 @@ func (h *QoderCompatibleRuntime) Enter() (func(), error) {
 	}
 	return func() {}, nil
 }
+
 func (h *QoderCompatibleRuntime) Access(c *gin.Context) (*apikey.APIKey, bool) {
 	if key, ok := EffectiveAPIKey(c); ok {
 		return key, true
@@ -38,23 +39,29 @@ func (h *QoderCompatibleRuntime) Access(c *gin.Context) (*apikey.APIKey, bool) {
 	key, ok := h.options.ReadAccess(c)
 	return apikey.CopyAPIKey(key), ok
 }
+
 func (h *QoderCompatibleRuntime) BindErrors(c *gin.Context) {
 	if h.options.Rules != nil {
 		BindErrorPassthroughService(c, h.options.Rules)
 	}
 }
+
 func (h *QoderCompatibleRuntime) PrepareClient(c *gin.Context, body []byte, endpoint QoderEndpoint) {
 	prepareQoderRequestContext(c, body, QoderEndpoint(endpoint))
 }
+
 func (h *QoderCompatibleRuntime) ObserveRequest(c *gin.Context, model string, stream bool) {
 	SetOpsRequestContext(c, model, stream)
 }
+
 func (h *QoderCompatibleRuntime) ObserveEndpoint(c *gin.Context, stream bool) {
 	SetOpsEndpointContext(c, "", int16(usage.RequestTypeFromLegacy(stream, false)))
 }
+
 func (h *QoderCompatibleRuntime) ObserveAuthLatency(c *gin.Context, d time.Duration) {
 	SetOpsLatencyMs(c, OpsAuthLatencyMsKey, d.Milliseconds())
 }
+
 func (h *QoderCompatibleRuntime) Plan(c *gin.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 	if h.options.Execution == nil {
 		return routing.RoutePlan{}
@@ -64,6 +71,7 @@ func (h *QoderCompatibleRuntime) Plan(c *gin.Context, key *apikey.APIKey, model 
 	c.Request = c.Request.WithContext(requeststate.WithRoutePlan(c.Request.Context(), plan))
 	return plan
 }
+
 func (h *QoderCompatibleRuntime) AttemptBody(body []byte, plan routing.RoutePlan) []byte {
 	mapping := plan.Mapping()
 	if h.options.Execution != nil && mapping.Mapped {
@@ -71,6 +79,7 @@ func (h *QoderCompatibleRuntime) AttemptBody(body []byte, plan routing.RoutePlan
 	}
 	return body
 }
+
 func (h *QoderCompatibleRuntime) Eligibility(ctx context.Context, key *apikey.APIKey, sub *billing.UserSubscription) error {
 	if h.options.Funding == nil {
 		return nil
@@ -78,15 +87,19 @@ func (h *QoderCompatibleRuntime) Eligibility(ctx context.Context, key *apikey.AP
 	old := apikey.CopyAPIKey(key)
 	return h.options.Funding.CheckKey(ctx, old, sub, admission.QuotaPlatform(ctx, old), false)
 }
+
 func (h *QoderCompatibleRuntime) SessionHash(c *gin.Context, endpoint QoderEndpoint, body []byte, id int64) string {
 	return h.qoderSessionHash(c, QoderEndpoint(endpoint), body, id)
 }
+
 func (h *QoderCompatibleRuntime) Error(c *gin.Context, status int, kind, message string, endpoint QoderEndpoint) {
 	h.errorResponse(c, status, kind, message, QoderEndpoint(endpoint))
 }
+
 func (h *QoderCompatibleRuntime) ConcurrencyError(c *gin.Context, err error, kind string, started bool, endpoint QoderEndpoint) {
 	h.handleConcurrencyError(c, err, kind, started, QoderEndpoint(endpoint))
 }
+
 func (h *QoderCompatibleRuntime) Execution(c *gin.Context, call QoderCompatibleCall) textflow.QoderCompatiblePorts {
 	apiKey := apikey.CopyAPIKey(call.Key)
 	subscription := call.Subscription
@@ -94,7 +107,7 @@ func (h *QoderCompatibleRuntime) Execution(c *gin.Context, call QoderCompatibleC
 	reqModel := call.Model
 	reqLog := call.Log
 	endpoint := QoderEndpoint(call.Endpoint)
-	channelMapping := call.Plan.Mapping()
+	groupMapping := call.Plan.Mapping()
 
 	recordUsage := func(account QoderCompatibleTarget, result *forwardcore.MessagesResult) {
 		userAgent := c.GetHeader("User-Agent")
@@ -107,7 +120,7 @@ func (h *QoderCompatibleRuntime) Execution(c *gin.Context, call QoderCompatibleC
 		completionInput := account.Completion(CompletionContext(c), QoderCompletionCapture{
 			Result: result, QuotaPlatform: quotaPlatform, Key: apiKey, Subscription: subscription,
 			InboundEndpoint: inboundEndpoint, UpstreamEndpoint: upstreamEndpoint, UserAgent: userAgent, ClientIP: clientIP,
-			PayloadHash: requestPayloadHash, Body: append([]byte(nil), body...), Channel: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+			PayloadHash: requestPayloadHash, Body: append([]byte(nil), body...), Pricing: groupMapping.ToUsageFields(reqModel, result.UpstreamModel),
 		})
 		completionRuntime := h.options.Recorder
 		h.submitUsageRecordTask(c, func(ctx context.Context) {

@@ -45,7 +45,7 @@ func newOpenAIExecutionAndSelectionFixture(
 	executionCredentials *accountcore.OpenAIExecutionCredentials,
 	grokTokenProvider *accountcore.GrokTokenSource,
 	resolver *billing.PriceResolver,
-	channelService *routing.ChannelService,
+	pricingConfigService *routing.PricingConfigService,
 
 	settingService *gatewayprovider.RuntimeReaders,
 	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit,
@@ -57,8 +57,7 @@ func newOpenAIExecutionAndSelectionFixture(
 	}
 	if proxyCircuit ==
 		nil {
-		proxyCircuit =
-			provideSelectionProxyCircuit(cfg)
+		proxyCircuit = provideSelectionProxyCircuit(cfg)
 	}
 	if stateStore == nil {
 		stateStore = session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
@@ -75,9 +74,9 @@ func newOpenAIExecutionAndSelectionFixture(
 		Shared: selection.Shared{
 			Cache: cache,
 
-			Concurrency: concurrencyService,
-			Health:      healthObserver,
-			Channels:    channelService,
+			Concurrency:   concurrencyService,
+			Health:        healthObserver,
+			GroupPolicies: pricingConfigService,
 
 			Feedback: feedback,
 		},
@@ -107,14 +106,14 @@ func newOpenAIExecutionAndSelectionFixture(
 	}
 	text := openAITextExecution(cfg, accountRepo, identity, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, grokExecutor, output, provideAnthropicPromptCache(), choices.OpenAIHTTPResponseStickyTTL, provideCompactExecutor(cfg))
 	lineage := provideOpenAIEncryptedLineage(stateStore, choices)
-	imagePolicy := provideOpenAIImageBridgePolicy(cfg, channelService)
+	imagePolicy := provideOpenAIImageBridgePolicy(cfg, pricingConfigService)
 	sockets := provideOpenAIWebSockets(cfg, connections, text, prompts, choices, lineage, imagePolicy, cache)
 	responses := provideOpenAIResponses(text, sockets, choices, lineage, imagePolicy)
 	var read func(context.Context) (bool, time.Duration)
 	if settingService != nil {
 		read = settingService.Moderation.GetCyberSessionBlockRuntime
 	}
-	source := &gatewayExecutionFixture{Text: text, Requests: text.Requests, Responses: responses, WebSockets: sockets, Grok: grokExecutor, Cache: cache, Planner: gatewayprovider.NewRoutePlanner(channelService), Blocks: session.NewCyberBlocks(session.AdaptCyberSessionBlockStore(cache), read, func(format string, args ...any) { logging.LegacyPrintf("service.openai_gateway", format, args...) })}
+	source := &gatewayExecutionFixture{Text: text, Requests: text.Requests, Responses: responses, WebSockets: sockets, Grok: grokExecutor, Cache: cache, Planner: gatewayprovider.NewRoutePlanner(pricingConfigService), Blocks: session.NewCyberBlocks(session.AdaptCyberSessionBlockStore(cache), read, func(format string, args ...any) { logging.LegacyPrintf("service.openai_gateway", format, args...) })}
 	source.Auxiliary = provideOpenAIAuxiliary(text, nil, activity)
 
 	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}

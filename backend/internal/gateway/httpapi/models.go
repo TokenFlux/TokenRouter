@@ -36,13 +36,15 @@ type ModelHTTPResponse struct {
 	Headers    http.Header
 	Body       []byte
 }
-type ModelsCatalog = modeldisplay.Catalog
-type ModelsHandler struct {
-	requestLifetime
+type (
+	ModelsCatalog = modeldisplay.Catalog
+	ModelsHandler struct {
+		requestLifetime
 
-	backend ModelsBackend
-	catalog ModelsCatalog
-}
+		backend ModelsBackend
+		catalog ModelsCatalog
+	}
+)
 
 func NewModelsHandler(backend ModelsBackend, catalog ModelsCatalog) *ModelsHandler {
 	return &ModelsHandler{backend: backend, catalog: catalog}
@@ -56,11 +58,13 @@ func customListEnabled(g *routing.Group) bool {
 	return (&routing.Group{ModelsListConfig: g.ModelsListConfig}).CustomModelsListEnabled()
 }
 
-type ClaudeModel = modeldisplay.ClaudeModel
-type OpenAIModel = modeldisplay.OpenAIModel
-type GrokModel = modeldisplay.GrokModel
-type GeminiModel = modeldisplay.GeminiModel
-type GeminiModelsList = modeldisplay.GeminiModelsList
+type (
+	ClaudeModel      = modeldisplay.ClaudeModel
+	OpenAIModel      = modeldisplay.OpenAIModel
+	GrokModel        = modeldisplay.GrokModel
+	GeminiModel      = modeldisplay.GeminiModel
+	GeminiModelsList = modeldisplay.GeminiModelsList
+)
 
 func (h *ModelsHandler) Models(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "openai")
@@ -86,11 +90,11 @@ func (h *ModelsHandler) Models(c *gin.Context) {
 		platform = forcedPlatform
 	}
 
-	// 统一按渠道映射、账号映射和渠道限制解析真实可请求模型。
+	// 统一按分组映射、账号映射和分组白名单解析真实可请求模型。
 	resolution := h.backend.Resolve(c.Request.Context(), groupID, platform)
 	availableModels := routing.RequestableModelIDs(resolution.Models)
 	if apiKey != nil && apiKey.Group != nil && customListEnabled(apiKey.Group) {
-		// 自定义列表只能与已通过渠道和账号校验的模型取交集，不能重新加入被拒绝的模型。
+		// 自定义列表只能与已通过分组策略和账号校验的模型取交集，不能重新加入被拒绝的模型。
 		availableModels = FilterModelsByCustomList(availableModels, nil, apiKey.Group.ModelsListConfig.Models)
 		availableModels = apikey.AppendAPIKeyModelAliases(availableModels, apiKey.ModelMapping)
 		h.WriteCustomModelsList(c, platform, availableModels)

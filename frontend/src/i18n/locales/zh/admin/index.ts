@@ -1,5 +1,5 @@
 import overview from './overview'
-import channels from './channels'
+import pricing from './pricing'
 import accounts from './accounts'
 import resources from './resources'
 import ops from './ops'
@@ -18,7 +18,7 @@ export default {
       groupHint: '按入口控制访问。账号优先使用已启用的原生协议，否则使用指定转换目标。',
     },
   ...overview,
-  ...channels,
+  ...pricing,
   ...accounts,
   ...resources,
   ...ops,

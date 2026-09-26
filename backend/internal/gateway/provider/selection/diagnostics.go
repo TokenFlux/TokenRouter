@@ -19,6 +19,7 @@ func (s *Diagnostics) GetOverview(ctx context.Context, id int64) (*policy.Advanc
 	core, _ := s.diagnosticCore()
 	return core.GetOverview(ctx, id)
 }
+
 func (s *Diagnostics) GetDetail(ctx context.Context, id int64, request policy.AdvancedSchedulerScoreDiagnosticRequest) (*policy.AdvancedSchedulerScoreDiagnosticResponse, error) {
 	core, _ := s.diagnosticCore()
 	return core.GetDetail(ctx, id, request)
@@ -32,6 +33,7 @@ func (s *Diagnostics) effectiveSettings(ctx context.Context, group *routing.Grou
 	runtime := parameters.Runtime(ctx)
 	return parameters.Effective(ctx, schedulerGroupOverrides(group)), runtime
 }
+
 func (s *Diagnostics) prepareEligibilityContext(ctx context.Context, group *routing.Group, accounts []gatewayprovider.ExecutionAccount) context.Context {
 	if s == nil {
 		return ctx
@@ -46,6 +48,7 @@ func (s *Diagnostics) prepareEligibilityContext(ctx context.Context, group *rout
 	}
 	return ctx
 }
+
 func (s *Diagnostics) diagnosticPlatformFilterReason(
 	ctx context.Context,
 	account *gatewayprovider.ExecutionAccount,
@@ -85,9 +88,9 @@ func (s *Diagnostics) diagnosticPlatformFilterReason(
 				return "shadow_parent_unhealthy"
 			}
 			groupID := group.ID
-			if s.openAIGateway.NeedsUpstreamChannelRestriction(ctx, &groupID) &&
+			if s.openAIGateway.NeedsUpstreamGroupRestriction(ctx, &groupID) &&
 				s.openAIGateway.UpstreamRoutingModelRestricted(ctx, groupID, account, model, false) {
-				return "channel_upstream_restricted"
+				return "group_upstream_restricted"
 			}
 		}
 		return ""
@@ -111,9 +114,9 @@ func (s *Diagnostics) diagnosticPlatformFilterReason(
 			return "rpm_exceeded"
 		}
 		groupID := group.ID
-		if s.gatewayService.needsUpstreamChannelRestrictionCheck(ctx, &groupID) &&
-			s.gatewayService.isUpstreamModelRestrictedByChannel(ctx, groupID, account, model) {
-			return "channel_upstream_restricted"
+		if s.gatewayService.needsUpstreamGroupRestrictionCheck(ctx, &groupID) &&
+			s.gatewayService.isUpstreamModelRestrictedByGroup(ctx, groupID, account, model) {
+			return "group_upstream_restricted"
 		}
 		return ""
 	}

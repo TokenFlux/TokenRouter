@@ -11,10 +11,12 @@ import (
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 )
 
-type User = identitydto.User[APIKey]
-type APIKey = keydto.APIKey[Group]
-type Group = routingdto.Group
-type UserSubscription = billinghttp.UserSubscription
+type (
+	User             = identitydto.User[APIKey]
+	APIKey           = keydto.APIKey[Group]
+	Group            = routingdto.Group
+	UserSubscription = billinghttp.UserSubscription
+)
 
 // UsageLog 是普通用户接口使用的 usage log DTO（不包含管理员字段）。
 type UsageLog struct {
@@ -114,8 +116,8 @@ type AdminUsageLog struct {
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Omitted when no mapping was applied (requested model was used as-is).
 	UpstreamModel *string `json:"upstream_model,omitempty"`
-	// ChannelID 渠道 ID
-	ChannelID *int64 `json:"channel_id,omitempty"`
+	// PricingConfigID 共享价格配置 ID
+	PricingConfigID *int64 `json:"pricing_config_id,omitempty"`
 	// ModelMappingChain 模型映射链，如 "a→b→c"
 	ModelMappingChain *string `json:"model_mapping_chain,omitempty"`
 	// UpstreamRequestID 是直接上游声明的请求标识，仅管理端可见。

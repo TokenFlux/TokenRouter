@@ -48,7 +48,7 @@ func AsResponses(ctx context.Context, p ConversionPorts, in ConversionInput, bod
 	anthropicReq.Stream = true
 	reqStream := true
 
-	// 4. 模型映射：渠道映射已由 handler 写入 body，此处继续执行账号映射和平台规范化。
+	// 4. 模型映射：分组映射已由 handler 写入 body，此处继续执行账号映射和平台规范化。
 	mappedModel := p.ResolveModel(ctx, originalModel)
 	if mappedModel == "" {
 		mappedModel = originalModel
@@ -153,7 +153,7 @@ func AsChat(ctx context.Context, p ConversionPorts, in ConversionInput, body []b
 	anthropicReq.Stream = true
 	reqStream := true
 
-	// 4. 模型映射：渠道映射已由 handler 写入 body，此处继续执行账号映射和平台规范化。
+	// 4. 模型映射：分组映射已由 handler 写入 body，此处继续执行账号映射和平台规范化。
 	mappedModel := p.ResolveModel(ctx, originalModel)
 	if mappedModel == "" {
 		mappedModel = originalModel
@@ -233,6 +233,7 @@ func AsChat(ctx context.Context, p ConversionPorts, in ConversionInput, body []b
 	}
 	return result, handleErr
 }
+
 func AdaptResponsesClientToolsForAnthropic(body []byte) ([]byte, bridge.ResponsesClientToolMapping, error) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
@@ -260,6 +261,7 @@ func AdaptResponsesClientToolsForAnthropic(body []byte) ([]byte, bridge.Response
 	}
 	return rebuilt, mapping, nil
 }
+
 func LiftResponsesAdditionalTools(requestBody map[string]any) (bool, error) {
 	input, ok := requestBody["input"].([]any)
 	if !ok {

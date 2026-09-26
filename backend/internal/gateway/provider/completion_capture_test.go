@@ -20,15 +20,17 @@ func TestCompletionCaptureKeepsTurnTimeAndIndependentInputs(t *testing.T) {
 	price, multiplier := 0.25, 1.5
 	groupID := int64(17)
 	key := &apikey.APIKey{ID: 2, GroupID: &groupID, Group: &routing.Group{
-		ID: groupID, ModelPricing: []routing.ChannelModelPricing{{Models: []string{"model"}, InputPrice: &price}},
+		ID: groupID, ModelPricing: []routing.ModelPricingEntry{{Models: []string{"model"}, InputPrice: &price}},
 	}}
 	user := &identity.User{ID: 3, Balance: 9}
 	target := &account.Record{ID: 4, RateMultiplier: &multiplier, Extra: map[string]any{account.AccountExtraUpstreamRequestIDHeader: "X-Request-ID"}}
 	result := &forward.OpenAIResult{RequestID: "upstream", Model: "model", ImageOutputSizes: []string{"1K"}, ImageSizeBreakdown: map[string]int{"1K": 1}}
 	turnAt := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
 	ctx := context.WithValue(context.Background(), telemetry.RequestID, "local")
-	in := &OpenAICapture{APIKey: key, User: user, Account: target, Result: result, PricingAt: turnAt,
-		RequestBody: []byte(`{"reasoning":{"effort":"high"}}`), QuotaPlatform: "openai", Subscription: &billing.UserSubscription{ID: 5}}
+	in := &OpenAICapture{
+		APIKey: key, User: user, Account: target, Result: result, PricingAt: turnAt,
+		RequestBody: []byte(`{"reasoning":{"effort":"high"}}`), QuotaPlatform: "openai", Subscription: &billing.UserSubscription{ID: 5},
+	}
 	// 捕获之前的合法输入变化应生效，不能在构造输入时提前拍快照。
 	user.Balance = 10
 	out := CaptureOpenAI(ctx, in)

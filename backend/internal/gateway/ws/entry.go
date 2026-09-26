@@ -99,10 +99,10 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 		return
 	}
 
-	// 首轮账号选择必须按渠道模型 C 判断生图能力，避免别名映射绕过 Responses 能力检查。
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	ctx, channelMappingWS := p.Plan(ctx, reqModel)
-	mappedFirstMessage, routingModelWS, _ := p.ImageIntent(reqModel, firstMessage, channelMappingWS)
+	// 首轮账号选择必须按分组映射模型 G 判断生图能力，避免别名映射绕过 Responses 能力检查。
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	ctx, groupMappingWS := p.Plan(ctx, reqModel)
+	mappedFirstMessage, routingModelWS, _ := p.ImageIntent(reqModel, firstMessage, groupMappingWS)
 	imageIntent := p.ExplicitImage(routingModelWS, mappedFirstMessage)
 	initialSchedulingCtx := ctx
 	if imageIntent {
@@ -203,7 +203,7 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 			return false
 		}
 		if failoverErr.ReportScheduleFailure {
-			selection.Target.Report(selection.Target.MappedModel(channelMappingWS.MappedModel), false, nil)
+			selection.Target.Report(selection.Target.MappedModel(groupMappingWS.MappedModel), false, nil)
 		}
 		releaseAccountSlot()
 		if !failoverErr.RetryNext {
@@ -239,7 +239,7 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 
 	// 与 HTTP Responses 路径保持一致：生图意图请求要求账号支持 Responses API（#4417）。
 	// WSv2 传输本身已隐含 Responses 支持，此处为防御性对齐。
-	// 首轮显式意图已按渠道模型 C 判断，被动 namespace 不会误过滤账号（#4476）。
+	// 首轮显式意图已按分组映射模型 G 判断，被动 namespace 不会误过滤账号（#4476）。
 	requiredCapability := imageIntent && requestPlatform == "openai"
 
 	for {
@@ -248,7 +248,6 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 		}
 		reqLog.Debug("openai.websocket_account_selecting", EntryInt("excluded_account_count", len(failedAccountIDs)))
 		selection, scheduleDecision, err := p.Select(initialSchedulingCtx, previousResponseID, sessionHash, reqModel, failedAccountIDs, requiredCapability, previousResponseCanMove, requestPlatform)
-
 		if err != nil {
 			reqLog.Warn("openai.websocket_account_select_failed",
 				EntryError(p.SelectionLogError(err, requestPlatform)),
@@ -330,7 +329,7 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 			EntryInt("candidate_count", scheduleDecision.CandidateCount),
 		)
 
-		// 首帧保持客户端模型 R，由 service 层与后续 turn 一样逐轮执行 R -> C -> U。
+		// 首帧保持客户端模型 R，由 service 层与后续 turn 一样逐轮执行 R -> G -> U。
 		wsFirstMessageForUsageFallback := append([]byte(nil), firstMessage...)
 		// 每轮通过现有鉴权缓存刷新策略；刷新失败时沿用最近一次有效值，避免瞬时故障中断长连接。
 		var currentFastModePolicy atomic.Value
@@ -369,7 +368,7 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 					requestedModel = clientReqModel
 				}
 				turnCtx, redirectedModel := p.Redirect(ctx, requestedModel)
-				// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+				// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
 				turnCtx, turnMapping := p.Plan(turnCtx, redirectedModel)
 				mappedPayload, turnRoutingModel, _ := p.ImageIntent(redirectedModel, payload, turnMapping)
 				turnImageIntent := p.ExplicitImage(turnRoutingModel, mappedPayload)
@@ -485,15 +484,15 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 					turnClientModel = clientReqModel
 				}
 				turnCtx, turnModel := p.Redirect(ctx, turnClientModel)
-				// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-				turnCtx, turnChannelMapping := p.Plan(turnCtx, turnModel)
+				// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+				turnCtx, turnGroupMapping := p.Plan(turnCtx, turnModel)
 				releaseTurnSlots()
 				defer p.ClearCyber()
 				turnRequestBodyForCyber := capture.RequestBody
 				if len(turnRequestBodyForCyber) == 0 {
 					turnRequestBodyForCyber = wsFirstMessageForUsageFallback
 				}
-				cyberPolicyHandled := selection.Target.RecordMarked(turnCtx, turnModel, turnErr != nil, turnRequestBodyForCyber, turnChannelMapping.ToUsageFields(turnModel, ""), billing.HashUsageRequestPayload(turnRequestBodyForCyber))
+				cyberPolicyHandled := selection.Target.RecordMarked(turnCtx, turnModel, turnErr != nil, turnRequestBodyForCyber, turnGroupMapping.ToUsageFields(turnModel, ""), billing.HashUsageRequestPayload(turnRequestBodyForCyber))
 
 				if cyberPolicyHandled {
 					cyberBlockedThisConn.Store(true)
@@ -515,15 +514,15 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 				if result == nil {
 					return
 				}
-				// WS 每个 turn 的渠道映射可能覆盖默认计费模型，统一在记录用量前解析。
-				result.BillingModel = EntryBillingModel(result, turnChannelMapping, turnModel, result.UpstreamModel)
+				// WS 每个 turn 的分组映射可能覆盖默认计费模型，统一在记录用量前解析。
+				result.BillingModel = EntryBillingModel(result, turnGroupMapping, turnModel, result.UpstreamModel)
 				// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
 				if account.Type == "oauth" && !account.Shadow {
 					selection.Target.UpdateUsage(ctx, result.ResponseHeaders)
 				}
 				scheduleModel := strings.TrimSpace(result.UpstreamModel)
 				if scheduleModel == "" {
-					scheduleModel = selection.Target.MappedModel(turnChannelMapping.MappedModel)
+					scheduleModel = selection.Target.MappedModel(turnGroupMapping.MappedModel)
 				}
 				selection.Target.Report(scheduleModel, entrySucceeded(result), result.FirstTokenMs)
 
@@ -531,18 +530,17 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 				if len(turnRequestBody) == 0 {
 					turnRequestBody = wsFirstMessageForUsageFallback
 				}
-				completionInput := selection.Target.PrepareCompletion(turnCtx, result, capture, turnModel, turnChannelMapping, turnRequestBody, cyberPolicyHandled)
+				completionInput := selection.Target.PrepareCompletion(turnCtx, result, capture, turnModel, turnGroupMapping, turnRequestBody, cyberPolicyHandled)
 				recorder, report := p.CompletionRecorder(), p.CompletionObserver()
 				p.SubmitCompletion(result, func(taskCtx context.Context) {
 					if err := recorder.Record(taskCtx, completionInput, true); err != nil {
 						report(completionInput.Account.ID, completionInput.Result.RequestID, err)
 					}
 				})
-
 			},
 		}
 
-		// 原生 WS turn 执行器在解析首帧时执行渠道及账号映射，此处只处理会话链字段。
+		// 原生 WS turn 执行器在解析首帧时执行分组及账号映射，此处只处理会话链字段。
 		wsFirstMessage := append([]byte(nil), wsAttemptMessage...)
 		// 切组/会话失配防护：previous_response_id 未在当前分组命中粘连账号时，
 		// 说明该会话链不属于本次调度到的账号；原样转发会触发上游会话链鉴权失败。
@@ -621,7 +619,7 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 			}
 
 			if p.ReportFailure(err) {
-				selection.Target.Report(selection.Target.MappedModel(channelMappingWS.MappedModel), false, nil)
+				selection.Target.Report(selection.Target.MappedModel(groupMappingWS.MappedModel), false, nil)
 			}
 			selection.Target.LogFailure(err)
 			if hasClientCloseErr {
@@ -634,5 +632,4 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 		reqLog.Info("openai.websocket_ingress_closed", EntryInt64("account_id", account.ID))
 		return
 	}
-
 }

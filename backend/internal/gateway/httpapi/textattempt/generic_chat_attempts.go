@@ -1,14 +1,14 @@
 package textattempt
 
 import (
+	"context"
+	"errors"
+	"net/http"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-
-	"context"
-	"errors"
-	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -28,7 +28,7 @@ type genericChatAttemptBridge struct {
 	requestCtx                          context.Context
 	forwardBody                         []byte
 	groupPlatform, selectionSessionHash string
-	channelMapping                      routing.ChannelMappingResult
+	groupMapping                        routing.GroupMappingResult
 }
 
 // Select 保留通用 ChatCompletions 适配；循环复用 gateway/text。
@@ -41,12 +41,10 @@ func (b *genericChatAttemptBridge) Select(excluded map[int64]struct{}) (textflow
 	b.account = b.selection.Account
 	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
 	return gatewaycapture.CaptureTextSelection(b.account), nil
-
 }
 
 // FirstSelectionFailure 保留通用 ChatCompletions 适配；循环复用 gateway/text。
 func (b *genericChatAttemptBridge) FirstSelectionFailure(err error, _ bool) {
-
 	if handleGroupSelectionBusinessError(b.c, err, *b.streamStarted, func(status int, errType string, message string, responseStarted bool) {
 		b.binding().chatCompletionsErrorResponse(b.c, status, errType, message)
 	}) {
@@ -108,8 +106,8 @@ func (b *genericChatAttemptBridge) Forward(_ textflow.AttemptState) textflow.Out
 	// 5. Forward request
 	b.writerSizeBeforeForward = b.c.Writer.Size()
 	b.forwardBody = b.body
-	if b.channelMapping.Mapped {
-		b.forwardBody = b.binding().replaceModel(b.body, b.channelMapping.MappedModel)
+	if b.groupMapping.Mapped {
+		b.forwardBody = b.binding().replaceModel(b.body, b.groupMapping.MappedModel)
 	}
 	gatewayhttp.SetActualUpstreamEndpoint(b.c, "")
 	if b.account.Record.Platform == capability.PlatformGemini {
@@ -152,7 +150,6 @@ func (b *genericChatAttemptBridge) Forward(_ textflow.AttemptState) textflow.Out
 		out.Failure = &textflow.AttemptFailure{Cause: err, Policy: retry.RetryFailure()}
 	}
 	return out
-
 }
 
 // OtherFailure 保留通用 ChatCompletions 适配；循环复用 gateway/text。
@@ -198,7 +195,7 @@ func (b *genericChatAttemptBridge) Complete(_ textflow.AttemptState) {
 		RequestBody:        b.body,
 		APIKeyService:      b.binding().apiKeyService,
 		ClientSessionID:    clientSessionID,
-		ChannelUsageFields: b.channelMapping.ToUsageFields(b.reqModel, b.result.UpstreamModel),
+		PricingUsageFields: b.groupMapping.ToUsageFields(b.reqModel, b.result.UpstreamModel),
 	})
 	completionRuntime := b.binding().recorder
 	completionLog := b.reqLog
@@ -227,6 +224,7 @@ func (b *genericChatAttemptBridge) Exhausted(err *textflow.AttemptFailure, _ str
 		b.binding().chatCompletionsErrorResponse(b.c, http.StatusBadGateway, "server_error", "All available accounts exhausted")
 	}
 }
+
 func (b *genericChatAttemptBridge) PolicyFailure(err error) {
 	var original *anthropic.BetaBlockedError
 	if errors.As(err, &original) {

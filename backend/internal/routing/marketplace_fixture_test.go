@@ -26,10 +26,10 @@ func newMarketplaceCalculator(catalog *provider.PricingService, prices map[strin
 	return billingtestkit.Calculator(0, catalog, prices)
 }
 
-func NewModelPricingResolver(channels *routing.ChannelService, calculator *billing.Calculator) *billing.PriceResolver {
-	var source billing.ChannelPrices
-	if channels != nil {
-		source = channels
+func NewModelPricingResolver(pricingConfigs *routing.PricingConfigService, calculator *billing.Calculator) *billing.PriceResolver {
+	var source billing.ConfigPrices
+	if pricingConfigs != nil {
+		source = pricingConfigs
 	}
 	return billing.NewPriceResolver(source, calculator, modelidentity.Identity, func(model string, err error) {
 		slog.Debug("failed to get model pricing from LiteLLM, using fallback", "model", model, "error", err)

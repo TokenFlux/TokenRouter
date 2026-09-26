@@ -499,6 +499,24 @@ func (_u *GroupUpdate) SetNillableLongContextPricingEnabled(v *bool) *GroupUpdat
 	return _u
 }
 
+// SetRoutingPolicy sets the "routing_policy" field.
+func (_u *GroupUpdate) SetRoutingPolicy(v jsontext.Value) *GroupUpdate {
+	_u.mutation.SetRoutingPolicy(v)
+	return _u
+}
+
+// AppendRoutingPolicy appends value to the "routing_policy" field.
+func (_u *GroupUpdate) AppendRoutingPolicy(v jsontext.Value) *GroupUpdate {
+	_u.mutation.AppendRoutingPolicy(v)
+	return _u
+}
+
+// ClearRoutingPolicy clears the value of the "routing_policy" field.
+func (_u *GroupUpdate) ClearRoutingPolicy() *GroupUpdate {
+	_u.mutation.ClearRoutingPolicy()
+	return _u
+}
+
 // SetModelPricing sets the "model_pricing" field.
 func (_u *GroupUpdate) SetModelPricing(v jsontext.Value) *GroupUpdate {
 	_u.mutation.SetModelPricing(v)
@@ -1425,6 +1443,17 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.LongContextPricingEnabled(); ok {
 		_spec.SetField(group.FieldLongContextPricingEnabled, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.RoutingPolicy(); ok {
+		_spec.SetField(group.FieldRoutingPolicy, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedRoutingPolicy(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldRoutingPolicy, value)
+		})
+	}
+	if _u.mutation.RoutingPolicyCleared() {
+		_spec.ClearField(group.FieldRoutingPolicy, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.ModelPricing(); ok {
 		_spec.SetField(group.FieldModelPricing, field.TypeJSON, value)
 	}
@@ -2346,6 +2375,24 @@ func (_u *GroupUpdateOne) SetNillableLongContextPricingEnabled(v *bool) *GroupUp
 	if v != nil {
 		_u.SetLongContextPricingEnabled(*v)
 	}
+	return _u
+}
+
+// SetRoutingPolicy sets the "routing_policy" field.
+func (_u *GroupUpdateOne) SetRoutingPolicy(v jsontext.Value) *GroupUpdateOne {
+	_u.mutation.SetRoutingPolicy(v)
+	return _u
+}
+
+// AppendRoutingPolicy appends value to the "routing_policy" field.
+func (_u *GroupUpdateOne) AppendRoutingPolicy(v jsontext.Value) *GroupUpdateOne {
+	_u.mutation.AppendRoutingPolicy(v)
+	return _u
+}
+
+// ClearRoutingPolicy clears the value of the "routing_policy" field.
+func (_u *GroupUpdateOne) ClearRoutingPolicy() *GroupUpdateOne {
+	_u.mutation.ClearRoutingPolicy()
 	return _u
 }
 
@@ -3304,6 +3351,17 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.LongContextPricingEnabled(); ok {
 		_spec.SetField(group.FieldLongContextPricingEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RoutingPolicy(); ok {
+		_spec.SetField(group.FieldRoutingPolicy, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedRoutingPolicy(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldRoutingPolicy, value)
+		})
+	}
+	if _u.mutation.RoutingPolicyCleared() {
+		_spec.ClearField(group.FieldRoutingPolicy, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.ModelPricing(); ok {
 		_spec.SetField(group.FieldModelPricing, field.TypeJSON, value)

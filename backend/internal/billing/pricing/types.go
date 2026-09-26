@@ -9,7 +9,7 @@ type ModelPricing struct {
 	OutputPricePerTokenPriority        float64  // priority service tier 下每token输出价格 (USD)
 	CacheCreationPricePerToken         float64  // 缓存创建每token价格 (USD)
 	CacheCreationPricePerTokenPriority float64  // priority service tier 下缓存创建每token价格 (USD)
-	CacheCreationPriceExplicit         bool     // 是否由渠道/区间定价显式设定（为 true 时即使 == 0 也不回退）
+	CacheCreationPriceExplicit         bool     // 是否由价卡/区间定价显式设定（为 true 时即使 == 0 也不回退）
 	CacheCreationPriorityDerived       bool     `json:"-"` // priority 缓存写价是否由 Fast 兜底策略推导
 	CacheReadPricePerToken             float64  // 缓存读取每token价格 (USD)
 	CacheReadPricePerTokenPriority     float64  // priority service tier 下缓存读取每token价格 (USD)
@@ -17,9 +17,9 @@ type ModelPricing struct {
 	CacheCreation1hPrice               float64  // 1小时缓存创建每token价格 (USD)
 	SupportsCacheBreakdown             bool     // 是否支持详细的缓存分类
 	SupportsServiceTier                bool     // 是否支持 service_tier（Fast/Flex）
-	FastModeMultiplier                 *float64 // 渠道配置的 Fast 模式收费倍率；nil 表示沿用模型默认 Fast 定价
-	FastMultiplier                     *float64 // 新版渠道 Fast/priority 倍率
-	FlexMultiplier                     *float64 // 渠道配置的 Flex 倍率
+	FastModeMultiplier                 *float64 // 价卡配置的 Fast 模式收费倍率；nil 表示沿用模型默认 Fast 定价
+	FastMultiplier                     *float64 // 新版价卡 Fast/priority 倍率
+	FlexMultiplier                     *float64 // 价卡配置的 Flex 倍率
 	// MaxReasoningEffortMultiplier 仅在最终推理档位为 max 时应用。
 	MaxReasoningEffortMultiplier  *float64
 	LongContextInputThreshold     int     // 超过阈值后按整次会话提升输入价格
@@ -27,7 +27,7 @@ type ModelPricing struct {
 	LongContextInputMultiplier    float64 // 长上下文整次会话输入倍率
 	LongContextOutputMultiplier   float64 // 长上下文整次会话输出倍率
 	ImageOutputPricePerToken      float64 // 图片输出 token 价格 (USD)
-	ImageOutputPriceExplicit      bool    // 是否由渠道定价显式设定，显式设定后不再回退
+	ImageOutputPriceExplicit      bool    // 是否由价卡定价显式设定，显式设定后不再回退
 }
 
 // UsageTokens 使用的token数量

@@ -18,7 +18,7 @@ func TestModelMarketplaceQoderAccountMappedCustomModelUsesRouteKeyManualPricing(
 	groupID := int64(903)
 	inputPrice := 0.01
 	outputPrice := 0.02
-	channelService := routingtestkit.Channel(groupID, capability.PlatformQoder, routing.Channel{ID: groupID, Status: billing.StatusActive, BillingModelSource: routing.BillingModelSourceUpstream, ModelPricing: []routing.ChannelModelPricing{{Platform: capability.PlatformQoder, Models: []string{"qmodel"}, BillingMode: routing.BillingModeToken, InputPrice: &inputPrice, OutputPrice: &outputPrice}}})
+	pricingConfigService := routingtestkit.PricingConfig(groupID, capability.PlatformQoder, routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive, BillingModelSource: routing.BillingModelSourceUpstream, ModelPricing: []routing.ModelPricingEntry{{Platform: capability.PlatformQoder, Models: []string{"qmodel"}, BillingMode: routing.BillingModeToken, InputPrice: &inputPrice, OutputPrice: &outputPrice}}})
 
 	billingService := billingtestkit.Calculator(0, nil, nil)
 	svc := newCatalogueMarketplace(nil, newCatalogueFixture(&modelsListAccountRepoStub{byGroup: map[int64][]accountcore.Record{
@@ -34,7 +34,7 @@ func TestModelMarketplaceQoderAccountMappedCustomModelUsesRouteKeyManualPricing(
 				},
 			},
 		},
-	}}, channelService, cataloguePriceResolver(channelService, billingService)), billingService)
+	}}, pricingConfigService, cataloguePriceResolver(pricingConfigService, billingService)), billingService)
 	group := &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1}
 
 	models := svc.ModelsForGroup(context.Background(), group)

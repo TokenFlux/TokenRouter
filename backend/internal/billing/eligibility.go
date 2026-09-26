@@ -55,7 +55,7 @@ const (
 //
 // 固定大小的工作池限制并发写入：
 // 1. 预创建 10 个 worker goroutine，避免频繁创建销毁
-// 2. 使用带缓冲的 channel（1000）作为任务队列，平滑写入峰值
+// 2. 使用带缓冲的 Go 通道（1000）作为任务队列，平滑写入峰值
 // 3. 非阻塞写入，队列满时关键任务同步回退，非关键任务丢弃并告警
 // 4. 统一超时控制，避免慢操作阻塞工作池
 const (
@@ -1136,6 +1136,7 @@ func (s *Eligibility) HasUserPlatformQuotaLimit(ctx context.Context, userID int6
 	}
 	return entry.DailyLimitUSD != nil || entry.WeeklyLimitUSD != nil || entry.MonthlyLimitUSD != nil
 }
+
 func NewEligibility(cache BillingCache, users BalanceReader, keys APIKeyRateLimitLoader, quotas UserPlatformQuotaRepository, options func() EligibilityOptions, observe Observe, coordinator *QuotaCoordinator, background ...func(string, func())) *Eligibility {
 	if coordinator == nil {
 		coordinator = NewQuotaCoordinator()

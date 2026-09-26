@@ -42,6 +42,8 @@ func NormalizeGroupSchedulerType(value string) (GroupSchedulerType, error) {
 }
 
 // Group 在共享值契约上拥有分组规则，账号只读取 accessview 的值投影。
+type GroupRoutingPolicy = accessview.GroupRoutingPolicy
+
 type Group accessview.GroupConfig
 
 // UsesAdvancedScheduler 返回分组是否启用通用高级调度器。

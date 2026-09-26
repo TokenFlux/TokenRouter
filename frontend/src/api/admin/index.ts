@@ -28,7 +28,7 @@ import scheduledTestsAPI from './scheduledTests'
 import backupAPI from './backup'
 import tlsFingerprintProfileAPI from './tlsFingerprintProfile'
 import tlsFingerprintRouterAPI from './tlsFingerprintRouter'
-import channelsAPI from './channels'
+import channelsAPI from './pricing'
 import adminPaymentAPI from './payment'
 import riskControlAPI from './riskControl'
 import auditAPI from './audit'
@@ -63,7 +63,7 @@ export const adminAPI = {
   backup: backupAPI,
   tlsFingerprintProfiles: tlsFingerprintProfileAPI,
   tlsFingerprintRouters: tlsFingerprintRouterAPI,
-  channels: channelsAPI,
+  pricing: channelsAPI,
   payment: adminPaymentAPI,
   riskControl: riskControlAPI,
   audit: auditAPI,

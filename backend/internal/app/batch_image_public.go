@@ -17,11 +17,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-// provideS13BatchPublic 直接绑定原生提交用例，共享任务、账号、资金及渠道实例。
-func provideS13BatchPublic(repo batchimage.BatchImageRepository, accounts *accountpostgres.AccountStore, channels *routing.ChannelService, groups routing.GroupRepository, rates billing.UserGroupRateRepository, queue batchimage.BatchImageQueue, pricing *batchimage.Pricing, funds *billing.Funds, subscriptions *billingpostgres.SettlementStore, auth apikey.APIKeyAuthCacheInvalidator, cfg *config.Config, registry *batchimage.Registry[batchprovider.BatchImageProvider]) *batchimage.Public {
+// provideS13BatchPublic 直接绑定原生提交用例，共享任务、账号、资金和模型配置读取实例。
+func provideS13BatchPublic(repo batchimage.BatchImageRepository, accounts *accountpostgres.AccountStore, modelConfigs *routing.PricingConfigService, groups routing.GroupRepository, rates billing.UserGroupRateRepository, queue batchimage.BatchImageQueue, pricing *batchimage.Pricing, funds *billing.Funds, subscriptions *billingpostgres.SettlementStore, auth apikey.APIKeyAuthCacheInvalidator, cfg *config.Config, registry *batchimage.Registry[batchprovider.BatchImageProvider]) *batchimage.Public {
 	core := &batchimage.Public{Now: time.Now, Repo: repo, AccountRepo: &batchprovider.Candidates{Source: accounts, Registry: registry, ObserveModel: modeltrace.RegisterStage}, GroupRepo: batchPricingGroups{groups}, UserGroupRateRepo: rates, Queue: queue, Pricing: pricing, Funding: batchimage.Funding{Store: funds, Observe: creativeObserve}, Observe: creativeObserve}
-	if channels != nil {
-		core.ChannelService = channels
+	if modelConfigs != nil {
+		core.PricingConfigService = modelConfigs
 	}
 	if cfg != nil {
 		c := cfg.BatchImage
@@ -38,8 +38,8 @@ func provideS13BatchPublic(repo batchimage.BatchImageRepository, accounts *accou
 		value, _ := ctx.Value(telemetry.ClientModel).(string)
 		return value
 	}
-	core.WithModelTrace = func(ctx context.Context, m routing.ChannelMappingResult, requested string) routing.ChannelMappingResult {
-		return modeltrace.WithChannelRedirect(m, ctx, requested)
+	core.WithModelTrace = func(ctx context.Context, m routing.GroupMappingResult, requested string) routing.GroupMappingResult {
+		return modeltrace.WithGroupRedirect(m, ctx, requested)
 	}
 	core.RegisterModel = modeltrace.RegisterStage
 	core.AutoSubscription = func(ctx context.Context, userID int64, groupID *int64) *billing.UserSubscription {

@@ -37,7 +37,7 @@ func (s *OpenAIImagesExecutor) ForwardImages(
 	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	parsed *gatewaymedia.ImageRequest,
-	channelMappedModel string,
+	groupMappedModel string,
 	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
 ) (*forwardcore.OpenAIResult, error) {
 	if parsed == nil {
@@ -48,9 +48,9 @@ func (s *OpenAIImagesExecutor) ForwardImages(
 		return nil, err
 	}
 	if oauth {
-		return s.forwardOpenAIImagesOAuth(ctx, c, account, parsed, channelMappedModel)
+		return s.forwardOpenAIImagesOAuth(ctx, c, account, parsed, groupMappedModel)
 	}
-	return s.forwardOpenAIImagesAPIKey(ctx, c, account, body, parsed, channelMappedModel)
+	return s.forwardOpenAIImagesAPIKey(ctx, c, account, body, parsed, groupMappedModel)
 }
 
 func (s *OpenAIImagesExecutor) forwardOpenAIImagesAPIKey(
@@ -59,11 +59,11 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesAPIKey(
 	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	parsed *gatewaymedia.ImageRequest,
-	channelMappedModel string,
+	groupMappedModel string,
 	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
 ) (*forwardcore.OpenAIResult, error) {
 	startTime := time.Now()
-	requestModel, upstreamModel, err := gatewaymedia.ResolveImageModels(parsed.Model, channelMappedModel, "", func(model string) string {
+	requestModel, upstreamModel, err := gatewaymedia.ResolveImageModels(parsed.Model, groupMappedModel, "", func(model string) string {
 		return gatewayprovider.ExecutionModelPolicy(account).OpenAIUpstream(model, false, false)
 	})
 	if err != nil {
@@ -109,7 +109,6 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesAPIKey(
 	var legacyHTTPResult *forwardcore.OpenAIResult
 	httpFailure := false
 	target := &mediaprovider.ImagesOptions{
-
 		AccountID: account.Record.ID,
 		OAuth:     false,
 		Model:     upstreamModel,
@@ -158,7 +157,6 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesAPIKey(
 				},
 				Observe: func() {
 					AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-
 						Platform: account.Record.Platform,
 
 						AccountID: account.Record.ID,

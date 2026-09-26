@@ -21,7 +21,7 @@ import (
 type OpenAICountCall struct {
 	Key                                             *apikey.APIKey
 	Model, AccountLayerModel, SessionHash, Platform string
-	Mapping                                         routing.ChannelMappingResult
+	Mapping                                         routing.GroupMappingResult
 	MappedBody                                      func(bool, string) []byte
 	Log                                             *zap.Logger
 	StartedAt                                       time.Time
@@ -147,15 +147,15 @@ func (h *OpenAITokensHandler) CountTokens(c *gin.Context) {
 	h.backend.ObserveRequest(c, reqModel, false)
 	h.backend.ObserveEndpoint(c, false)
 
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
-	channelMapping := channelMappingRoutePlan.Mapping()
-	h.backend.BindPlan(c, channelMappingRoutePlan)
-	channelMappedModel := channelMapping.MappedModel
-	if channelMappedModel == "" {
-		channelMappedModel = reqModel
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
+	groupMapping := groupMappingRoutePlan.Mapping()
+	h.backend.BindPlan(c, groupMappingRoutePlan)
+	groupMappedModel := groupMapping.MappedModel
+	if groupMappedModel == "" {
+		groupMappedModel = reqModel
 	}
-	accountLayerModel := h.backend.MessageAccountModel(c.Request.Context(), apiKey, channelMappedModel)
+	accountLayerModel := h.backend.MessageAccountModel(c.Request.Context(), apiKey, groupMappedModel)
 	mappedBodyForMessages := h.backend.MappedBodyCache(body)
 
 	subscription, _ := SubscriptionFromContext(c)
@@ -174,6 +174,6 @@ func (h *OpenAITokensHandler) CountTokens(c *gin.Context) {
 	// 无槽、利润门豁免仍由专用选择能力执行；此链只尝试一次且不提交用量。
 	textflow.RunSingleCountTokens(h.backend.CountExecution(c, OpenAICountCall{
 		Key: apiKey, Model: reqModel, AccountLayerModel: accountLayerModel, SessionHash: sessionHash,
-		Platform: requestPlatform, Mapping: channelMapping, MappedBody: mappedBodyForMessages, Log: reqLog, StartedAt: requestStart,
+		Platform: requestPlatform, Mapping: groupMapping, MappedBody: mappedBodyForMessages, Log: reqLog, StartedAt: requestStart,
 	}))
 }

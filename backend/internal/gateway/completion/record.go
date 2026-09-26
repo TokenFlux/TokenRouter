@@ -67,21 +67,21 @@ func (s *Recorder) RecordAnthropic(ctx context.Context, input *Input, opts *Pric
 	if input.BillingModelSource == BillingModelSourceUpstream && result.UpstreamModel != "" {
 		billingModel = result.UpstreamModel
 	}
-	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" {
-		billingModel = input.ChannelMappedModel
+	if input.BillingModelSource == BillingModelSourceGroupMapped && input.GroupMappedModel != "" {
+		billingModel = input.GroupMappedModel
 	}
 	if input.BillingModelSource == BillingModelSourceRequested && input.OriginalModel != "" {
 		billingModel = input.OriginalModel
 	}
 
-	// 确定 RequestedModel（渠道映射前的原始模型）
+	// 确定 RequestedModel（分组映射前的原始模型）
 	requestedModel := result.Model
 	if input.OriginalModel != "" {
 		requestedModel = input.OriginalModel
 	}
 
 	// 计算费用
-	cost := s.CalculateRecordUsageCost(ctx, result, apiKey, account, billingModel, requestedModel, input.BillingModelSource, input.ChannelMappedModel, multiplier, imageMultiplier, opts)
+	cost := s.CalculateRecordUsageCost(ctx, result, apiKey, account, billingModel, requestedModel, input.BillingModelSource, input.GroupMappedModel, multiplier, imageMultiplier, opts)
 
 	// 预填 billing_type 仅用于 simple mode / 持久化前对象，真实扣费结果会在统一扣费后回填。
 	isSubscriptionBilling := subscription != nil
@@ -95,10 +95,10 @@ func (s *Recorder) RecordAnthropic(ctx context.Context, input *Input, opts *Pric
 	usageLog := s.BuildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
 		requestedModel, multiplier, imageMultiplier, accountRateMultiplier, billingType, cacheTTLOverridden, cost, opts)
 
-	// 计算账号统计定价费用（Qoder 会先按原始请求 alias、再按渠道 route key / 最终 upstream 匹配自定义规则）
+	// 计算账号统计定价费用（Qoder 会先按原始请求 alias、再按分组映射模型 / 最终 upstream 匹配自定义规则）
 	if apiKey.GroupID != nil {
 		s.applyAccountStatsCost(ctx, usageLog,
-			account.ID, *apiKey.GroupID, result.UpstreamModel, requestedModel, input.ChannelMappedModel,
+			account.ID, *apiKey.GroupID, result.UpstreamModel, requestedModel, input.GroupMappedModel,
 			// Anthropic's input_tokens excludes cache_read and cache_creation (billed separately);
 			// OpenAI gateway uses actualInputTokens which also excludes cache_read for the same reason.
 			UsageTokens{
@@ -212,7 +212,7 @@ func (s *Recorder) BuildRecordUsageLog(
 		ImageSizeSource:       OptionalTrimmedStringPtr(result.ImageSizeSource),
 		ImageSizeBreakdown:    result.ImageSizeBreakdown,
 		CacheTTLOverridden:    cacheTTLOverridden,
-		ChannelID:             OptionalInt64Ptr(input.ChannelID),
+		PricingConfigID:       OptionalInt64Ptr(input.PricingConfigID),
 		ModelMappingChain:     OptionalTrimmedStringPtr(input.ModelMappingChain),
 		UserAgent:             OptionalTrimmedStringPtr(input.UserAgent),
 		IPAddress:             OptionalTrimmedStringPtr(input.IPAddress),
@@ -309,8 +309,8 @@ func (s *Recorder) RecordOpenAI(ctx context.Context, input *Input) error {
 
 	var cost *CostBreakdown
 	var err error
-	billingModel := OpenAIUsageBillingModel(result, input.ChannelUsageFields)
-	billingModels := s.models.Candidates(billingModel, result.BillingModel, input.ChannelMappedModel, input.OriginalModel, result.UpstreamModel, result.Model)
+	billingModel := OpenAIUsageBillingModel(result, input.PricingUsageFields)
+	billingModels := s.models.Candidates(billingModel, result.BillingModel, input.GroupMappedModel, input.OriginalModel, result.UpstreamModel, result.Model)
 	billingModels = s.FilterCNProviderBillingModelCandidates(ctx, account, apiKey, billingModels)
 	serviceTier := ""
 	if result.ServiceTier != nil {
@@ -333,7 +333,7 @@ func (s *Recorder) RecordOpenAI(ctx context.Context, input *Input) error {
 		if !IsUsagePricingUnavailableError(err) {
 			return err
 		}
-		s.observeEvent(BillingEvent{Kind: "pricing_missing", Component: "service.openai_gateway", Models: billingModels, RequestedModel: input.OriginalModel, MappedModel: input.ChannelMappedModel, UpstreamModel: result.UpstreamModel, KeyID: apiKey.ID, AccountID: account.ID, Err: err})
+		s.observeEvent(BillingEvent{Kind: "pricing_missing", Component: "service.openai_gateway", Models: billingModels, RequestedModel: input.OriginalModel, MappedModel: input.GroupMappedModel, UpstreamModel: result.UpstreamModel, KeyID: apiKey.ID, AccountID: account.ID, Err: err})
 		cost = &CostBreakdown{BillingMode: string(BillingModeToken)}
 	}
 
@@ -396,7 +396,7 @@ func (s *Recorder) RecordOpenAI(ctx context.Context, input *Input) error {
 		}
 	}
 
-	// 确定 RequestedModel（渠道映射前的原始模型）
+	// 确定 RequestedModel（分组映射前的原始模型）
 	requestedModel := result.Model
 	if input.OriginalModel != "" {
 		requestedModel = input.OriginalModel
@@ -470,8 +470,8 @@ func (s *Recorder) RecordOpenAI(ctx context.Context, input *Input) error {
 	usageLog.DurationMs = &durationMs
 	usageLog.FirstTokenMs = result.FirstTokenMs
 	usageLog.CreatedAt = time.Now()
-	// 设置渠道信息
-	usageLog.ChannelID = OptionalInt64Ptr(input.ChannelID)
+	// 记录共享价格配置 ID、模型映射链和计费模式
+	usageLog.PricingConfigID = OptionalInt64Ptr(input.PricingConfigID)
 	usageLog.ModelMappingChain = OptionalTrimmedStringPtr(input.ModelMappingChain)
 	// 设置计费模式
 	if cost != nil && cost.BillingMode != "" {
@@ -507,10 +507,10 @@ func (s *Recorder) RecordOpenAI(ctx context.Context, input *Input) error {
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
-	// 计算账号统计定价费用（Qoder 会先按原始请求 alias、再按渠道 route key / 最终 upstream 匹配自定义规则）
+	// 计算账号统计定价费用（Qoder 会先按原始请求 alias、再按分组映射模型 / 最终 upstream 匹配自定义规则）
 	if apiKey.GroupID != nil {
 		s.applyAccountStatsCost(ctx, usageLog,
-			account.ID, *apiKey.GroupID, result.UpstreamModel, requestedModel, input.ChannelMappedModel,
+			account.ID, *apiKey.GroupID, result.UpstreamModel, requestedModel, input.GroupMappedModel,
 			tokens, cost.TotalCost)
 	}
 

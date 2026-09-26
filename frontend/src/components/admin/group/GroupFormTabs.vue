@@ -44,7 +44,7 @@ import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ platform: string; idPrefix: string }>()
 const { t } = useI18n()
-const allTabs = ['general', 'platform', 'pricing', 'protocol'] as const
+const allTabs = ['general', 'platform', 'routing', 'pricing', 'protocol'] as const
 type GroupFormTab = typeof allTabs[number]
 const activeTab = ref<GroupFormTab>('general')
 const rootRef = ref<HTMLElement | null>(null)

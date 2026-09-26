@@ -46,14 +46,14 @@ type Reads struct {
 	Snapshot Snapshots
 }
 
-// Shared 接收 app 已构造的原生拥有者；普通和高级选择不得复制反馈、计数或渠道缓存。
+// Shared 接收 app 已构造的原生拥有者；普通和高级选择不得复制反馈、计数或共享价格配置缓存。
 type Shared struct {
-	Cache       schedulercore.StickyCache
-	Concurrency *schedulercore.ConcurrencyService
-	Health      *accountprovider.UpstreamHealth
-	Channels    *routing.ChannelService
-	Parameters  *schedulercore.Parameters
-	Feedback    *schedulercore.RuntimeStats
+	Cache         schedulercore.StickyCache
+	Concurrency   *schedulercore.ConcurrencyService
+	Health        *accountprovider.UpstreamHealth
+	GroupPolicies *routing.PricingConfigService
+	Parameters    *schedulercore.Parameters
+	Feedback      *schedulercore.RuntimeStats
 }
 
 // GenericDependencies 保留窗口费用、RPM 与会话各自的作用域。
@@ -105,7 +105,6 @@ type Options struct {
 // DefaultOptions 对应原未提供进程配置的缺省值，不覆写已配置的显式零值。
 func DefaultOptions() Options {
 	return Options{
-
 		Scheduling: schedulercore.FlowOptions{StickySessionMaxWaiting: 3, StickySessionWaitTimeout: 45 * time.Second, FallbackWaitTimeout: 30 * time.Second, FallbackMaxWaiting: 100, LoadBatchEnabled: true},
 
 		StickyTTL:         time.Hour,

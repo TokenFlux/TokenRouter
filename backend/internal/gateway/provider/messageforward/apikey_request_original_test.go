@@ -2,10 +2,8 @@ package messageforward
 
 import (
 	"context"
-
 	"net/http"
 	"net/http/httptest"
-
 	"testing"
 	"time"
 
@@ -21,7 +19,6 @@ import (
 )
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_BearerAuthScheme(t *testing.T) {
-
 	c := &requestBoundaryFixture{}
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	c.Request.Header.Set("Authorization", "Bearer inbound-token")
@@ -29,16 +26,19 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_BearerAuthScheme(t *testing.T
 	c.Request.Header.Set("Cookie", "secret=1")
 
 	svc := NewRuntime(Dependencies{}, Options{Configured: true})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
-		Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key":  "ollama-key",
-			"base_url": "https://ollama.com",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+			Type: capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key":  "ollama-key",
+				"base_url": "https://ollama.com",
+			},
+			Extra: map[string]any{
+				"anthropic_passthrough":        true,
+				"anthropic_apikey_auth_scheme": accountcore.AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+			},
 		},
-		Extra: map[string]any{
-			"anthropic_passthrough":        true,
-			"anthropic_apikey_auth_scheme": accountcore.AnthropicAPIKeyAuthSchemeAuthorizationBearer,
-		}},
 	}
 
 	msgReq, wireBody, err := svc.buildPassthroughRequest(
@@ -65,19 +65,21 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_BearerAuthScheme(t *testing.T
 	require.Empty(t, claude.GetHeaderRaw(countReq.Header, "cookie"))
 }
 
-// TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingEdgeCases 覆盖透传模式下模型映射的各种边界情况
+// TestGatewayService_AnthropicAPIKeyPassthrough_BuildRequestRejectsInvalidBaseURL 覆盖透传模式下模型映射的各种边界情况
 func TestGatewayService_AnthropicAPIKeyPassthrough_BuildRequestRejectsInvalidBaseURL(t *testing.T) {
-
 	c := &requestBoundaryFixture{}
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	svc := NewRuntime(Dependencies{}, Options{Configured: true})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
-		Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key":  "k",
-			"base_url": "://invalid-url",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+			Type: capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key":  "k",
+				"base_url": "://invalid-url",
+			},
+		},
 	}
 
 	_, _, err := svc.buildPassthroughRequest(context.Background(), c, &AttemptState{}, account, []byte(`{}`), "k")
@@ -85,16 +87,18 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_BuildRequestRejectsInvalidBas
 }
 
 func TestGatewayService_AnthropicOAuth_NotAffectedByAPIKeyPassthroughToggle(t *testing.T) {
-
 	c := &requestBoundaryFixture{}
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	svc := NewRuntime(Dependencies{}, Options{Configured: true})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
-		Type: capability.AccountTypeOAuth,
-		Extra: map[string]any{
-			"anthropic_passthrough": true,
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+			Type: capability.AccountTypeOAuth,
+			Extra: map[string]any{
+				"anthropic_passthrough": true,
+			},
+		},
 	}
 
 	require.False(t, account.View().IsAnthropicAPIKeyPassthroughEnabled())

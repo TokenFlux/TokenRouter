@@ -28,6 +28,6 @@ func catalogueReader(store *accountpostgres.AccountStore) func(context.Context, 
 }
 
 // provideRequestableCatalogue 与市场、模型列表共享原缓存和同一账号存储，不经过旧网关查询。
-func provideRequestableCatalogue(models *routing.ModelList, store *accountpostgres.AccountStore, channels *routing.ChannelService) *routing.RequestableCatalogue {
-	return &routing.RequestableCatalogue{Models: models, Read: catalogueReader(store), Resolver: routing.RequestableResolver{Channels: channels, Defaults: gatewayprovider.CatalogueDefaults(), Warn: slog.Warn}, Warn: slog.Warn}
+func provideRequestableCatalogue(models *routing.ModelList, store *accountpostgres.AccountStore, modelConfigs *routing.PricingConfigService) *routing.RequestableCatalogue {
+	return &routing.RequestableCatalogue{Models: models, Read: catalogueReader(store), Resolver: routing.RequestableResolver{GroupPolicies: modelConfigs, Defaults: gatewayprovider.CatalogueDefaults(), Warn: slog.Warn}, Warn: slog.Warn}
 }

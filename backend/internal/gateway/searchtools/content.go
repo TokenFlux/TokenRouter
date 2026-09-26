@@ -22,7 +22,7 @@ const (
 	ToolUseIDPrefix            = "srvtoolu_ws_"
 	tokenEstimateDivisor       = 4
 
-	// FeatureKey is the key used in Account.Extra and Channel.FeaturesConfig.
+	// FeatureKey is the key used in Account.Extra and PricingConfig.FeaturesConfig.
 	FeatureKey = "web_search_emulation"
 )
 

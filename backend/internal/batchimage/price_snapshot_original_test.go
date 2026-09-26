@@ -28,11 +28,13 @@ func (r *changingMediaPricingGroupRepo) GetByIDLite(context.Context, int64) (*ro
 }
 
 func TestBatchImagePricingSnapshotUsesOneGroupVersion(t *testing.T) {
-	oldGroup := &routing.Group{ID: 7, Platform: capability.PlatformGemini, AllowBatchImageGeneration: true, RateMultiplier: 10, BatchImageDiscountMultiplier: 0.5, BatchImageHoldMultiplier: 0.6,
-		ModelPricing: []routing.ChannelModelPricing{{Models: []string{"gemini-3.1-flash-image"}, BillingMode: routing.BillingModeImage, PerRequestPrice: testPtrFloat64(1)}}}
+	oldGroup := &routing.Group{
+		ID: 7, Platform: capability.PlatformGemini, AllowBatchImageGeneration: true, RateMultiplier: 10, BatchImageDiscountMultiplier: 0.5, BatchImageHoldMultiplier: 0.6,
+		ModelPricing: []routing.ModelPricingEntry{{Models: []string{"gemini-3.1-flash-image"}, BillingMode: routing.BillingModeImage, PerRequestPrice: testPtrFloat64(1)}},
+	}
 	newGroup := *oldGroup
 	newGroup.RateMultiplier = 1
-	newGroup.ModelPricing = []routing.ChannelModelPricing{{Models: []string{"gemini-3.1-flash-image"}, BillingMode: routing.BillingModeImage, PerRequestPrice: testPtrFloat64(10)}}
+	newGroup.ModelPricing = []routing.ModelPricingEntry{{Models: []string{"gemini-3.1-flash-image"}, BillingMode: routing.BillingModeImage, PerRequestPrice: testPtrFloat64(10)}}
 	groups := &changingMediaPricingGroupRepo{oldGroup: oldGroup, newGroup: &newGroup}
 	svc := newBatchPublicFixture(nil, nil, nil, groups, nil, nil, nil, &batchimage.Pricing{Resolver: publicPriceResolverFixture(), GroupRepo: batchGroupReader{groups}}, nil, nil, nil)
 	snapshot, err := svc.ResolvePricingSnapshot(context.Background(), batchimage.BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &oldGroup.ID, BillingMode: apikey.APIKeyBillingModeBalance}, batchimage.BatchImageSubmitRequest{Model: "gemini-3.1-flash-image", ImageSize: "1K"}, "gemini_api", nil)

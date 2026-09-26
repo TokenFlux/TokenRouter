@@ -158,7 +158,7 @@ type openAIExecutionDependencies struct {
 	handleFailoverExhaustedSimple        func(c *gin.Context, statusCode int, streamStarted bool)
 	handleOpenAISelectionBusinessError   func(c *gin.Context, err error, streamStarted bool) bool
 	handleStreamingAwareError            func(c *gin.Context, status int, errType, message string, streamStarted bool)
-	recordCyberPolicyIfMarked            func(c *gin.Context, apiKey *apikey.APIKey, account *gatewaycapture.ExecutionAccount, subscription *billing.UserSubscription, model string, forwardErrored bool, cyberBlockArg []byte, channelFields routing.ChannelUsageFields, requestPayloadHash string, nativeCompaction ...bool) bool
+	recordCyberPolicyIfMarked            func(c *gin.Context, apiKey *apikey.APIKey, account *gatewaycapture.ExecutionAccount, subscription *billing.UserSubscription, model string, forwardErrored bool, cyberBlockArg []byte, pricingFields routing.PricingUsageFields, requestPayloadHash string, nativeCompaction ...bool) bool
 	recordOpenAICyberWarning             func(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewaycapture.ExecutionAccount, model string, statusCode int, responseBody []byte, warningText string)
 	recordOpenAIForwardErrorCyberWarning func(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewaycapture.ExecutionAccount, model string, statusCode int, err error) bool
 	submitOpenAIUsageRecordTask          func(c *gin.Context, result *forwardcore.OpenAIResult, task completion.UsageRecordTask)
@@ -168,7 +168,8 @@ type openAIExecutionDependencies struct {
 func New(b Bindings) *Runtime {
 	support := b.Support
 	output := gatewayhttp.DefaultOpenAIErrorOutput()
-	d := &openAIExecutionDependencies{recorder: b.Recorder, apiKeyService: support.Quota, diagnoser: b.Diagnoser, resolvedDiagnoser: b.ResolvedDiagnoser,
+	d := &openAIExecutionDependencies{
+		recorder: b.Recorder, apiKeyService: support.Quota, diagnoser: b.Diagnoser, resolvedDiagnoser: b.ResolvedDiagnoser,
 		enforceOpenAIClientPolicyForRequest:                    b.Forward.EnforceOpenAIClientPolicyForRequest,
 		forward:                                                b.Forward.Forward,
 		forwardAsAnthropic:                                     b.Forward.ForwardAsAnthropic,
@@ -194,7 +195,7 @@ func New(b Bindings) *Runtime {
 		ensureOpenAIForwardErrorResponse:                       output.EnsureResponse,
 		handleStreamingAwareError:                              output.StreamError,
 		deriveOpenAIForwardAttemptBody:                         deriveOpenAIForwardAttemptBody,
-		recordCyberPolicyIfMarked: func(c *gin.Context, key *apikey.APIKey, account *gatewaycapture.ExecutionAccount, sub *billing.UserSubscription, model string, failed bool, body []byte, fields routing.ChannelUsageFields, hash string, compact ...bool) bool {
+		recordCyberPolicyIfMarked: func(c *gin.Context, key *apikey.APIKey, account *gatewaycapture.ExecutionAccount, sub *billing.UserSubscription, model string, failed bool, body []byte, fields routing.PricingUsageFields, hash string, compact ...bool) bool {
 			return support.RecordCyberPolicyIfMarked(c, key, account, sub, model, failed, body, fields, hash, compact...)
 		},
 		submitOpenAIUsageRecordTask: func(c *gin.Context, result *forwardcore.OpenAIResult, task completion.UsageRecordTask) {

@@ -82,19 +82,25 @@ func TestGrokFinalUpstreamModelNormalization(t *testing.T) {
 
 // TestGrokExplicitMappingPrecedesBuiltinNormalization 验证账号映射目标随后才执行平台别名解析。
 func TestGrokExplicitMappingPrecedesBuiltinNormalization(t *testing.T) {
-	direct := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{"grok": "grok-4.3"},
-		}},
+	direct := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{"grok": "grok-4.3"},
+			},
+		},
 	}
 	require.Equal(t, "grok-4.3", gatewayprovider.ExecutionModelPolicy(direct).OpenAIUpstream("grok", false, true))
 
-	aliasTarget := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{"client-alias": "grok-latest"},
-		}},
+	aliasTarget := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{"client-alias": "grok-latest"},
+			},
+		},
 	}
 	require.Equal(t, xai.DefaultResponsesModel, gatewayprovider.ExecutionModelPolicy(aliasTarget).OpenAIUpstream("client-alias", false, true))
 	require.Equal(t, xai.DefaultResponsesModel, gatewayprovider.ExecutionModelPolicy(aliasTarget).UpstreamModel(context.Background(), "client-alias"))
@@ -102,14 +108,17 @@ func TestGrokExplicitMappingPrecedesBuiltinNormalization(t *testing.T) {
 
 // TestGrokRuntimeModelKeysUseFinalUpstreamID 验证封禁与限流状态不会按别名重复建键。
 func TestGrokRuntimeModelKeysUseFinalUpstreamID(t *testing.T) {
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{
-				"client-alias": "grok-latest",
-				"grok-4.5":     "grok-4.3",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"client-alias": "grok-latest",
+					"grok-4.5":     "grok-4.3",
+				},
 			},
-		}},
+		},
 	}
 
 	require.Equal(t, xai.DefaultResponsesModel, gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel("grok"))
@@ -124,15 +133,18 @@ func TestGrokRuntimeModelKeysUseFinalUpstreamID(t *testing.T) {
 func TestGrokModelNotFoundWritesFinalUpstreamID(t *testing.T) {
 	repo := &grokModelStateAccountRepo{}
 	svc := newWSFixture(wsFixtureInputs{health: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4511,
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{
-				"client-alias": "grok-latest",
-				"grok-4.5":     "grok-4.3",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 4511,
+			Platform: capability.PlatformGrok,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"client-alias": "grok-latest",
+					"grok-4.5":     "grok-4.3",
+				},
 			},
-		}},
+		},
 	}
 	accountMappedModel := gatewayprovider.ExecutionModelPolicy(account).Mapped("client-alias")
 	require.Equal(t, "grok-latest", accountMappedModel)
@@ -150,15 +162,18 @@ func TestGrokModelNotFoundWritesFinalUpstreamID(t *testing.T) {
 func TestGrokTransientErrorBlocksOnlyFinalModel(t *testing.T) {
 	repo := &grokModelStateAccountRepo{}
 	svc := newWSFixture(wsFixtureInputs{health: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4512,
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{
-				"client-alias": "grok-latest",
-				"grok-4.5":     "grok-4.3",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 4512,
+			Platform: capability.PlatformGrok,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"client-alias": "grok-latest",
+					"grok-4.5":     "grok-4.3",
+				},
 			},
-		}},
+		},
 	}
 	canonicalModel := gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(gatewayprovider.ExecutionModelPolicy(account).Mapped("client-alias"))
 	body := []byte(`{"error":{"message":"temporary upstream failure"}}`)
@@ -174,15 +189,18 @@ func TestGrokTransientErrorBlocksOnlyFinalModel(t *testing.T) {
 	require.Empty(t, repo.modelRateLimitCalls)
 }
 
-// TestGrokRequestableModelsExcludeBuiltinAliases 验证默认目录与内置别名表保持独立。
+// TestGrokCountTokensUsesCanonicalModel 验证默认目录与内置别名表保持独立。
 
 // TestGrokCountTokensUsesCanonicalModel 验证 count-tokens 转换记录映射模型并发送最终模型。
 func TestGrokCountTokensUsesCanonicalModel(t *testing.T) {
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{"claude-sonnet-4-5": "grok-latest"},
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{"claude-sonnet-4-5": "grok-latest"},
+			},
+		},
 	}
 	prepared, err := gatewayprovider.PrepareAnthropicInputTokens(
 		[]byte(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hello"}]}`),

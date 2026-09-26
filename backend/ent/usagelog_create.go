@@ -115,16 +115,16 @@ func (_c *UsageLogCreate) SetNillableUpstreamModel(v *string) *UsageLogCreate {
 	return _c
 }
 
-// SetChannelID sets the "channel_id" field.
-func (_c *UsageLogCreate) SetChannelID(v int64) *UsageLogCreate {
-	_c.mutation.SetChannelID(v)
+// SetPricingConfigID sets the "pricing_config_id" field.
+func (_c *UsageLogCreate) SetPricingConfigID(v int64) *UsageLogCreate {
+	_c.mutation.SetPricingConfigID(v)
 	return _c
 }
 
-// SetNillableChannelID sets the "channel_id" field if the given value is not nil.
-func (_c *UsageLogCreate) SetNillableChannelID(v *int64) *UsageLogCreate {
+// SetNillablePricingConfigID sets the "pricing_config_id" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillablePricingConfigID(v *int64) *UsageLogCreate {
 	if v != nil {
-		_c.SetChannelID(*v)
+		_c.SetPricingConfigID(*v)
 	}
 	return _c
 }
@@ -1037,9 +1037,9 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec.SetField(usagelog.FieldUpstreamModel, field.TypeString, value)
 		_node.UpstreamModel = &value
 	}
-	if value, ok := _c.mutation.ChannelID(); ok {
-		_spec.SetField(usagelog.FieldChannelID, field.TypeInt64, value)
-		_node.ChannelID = &value
+	if value, ok := _c.mutation.PricingConfigID(); ok {
+		_spec.SetField(usagelog.FieldPricingConfigID, field.TypeInt64, value)
+		_node.PricingConfigID = &value
 	}
 	if value, ok := _c.mutation.ModelMappingChain(); ok {
 		_spec.SetField(usagelog.FieldModelMappingChain, field.TypeString, value)
@@ -1485,27 +1485,27 @@ func (u *UsageLogUpsert) ClearUpstreamModel() *UsageLogUpsert {
 	return u
 }
 
-// SetChannelID sets the "channel_id" field.
-func (u *UsageLogUpsert) SetChannelID(v int64) *UsageLogUpsert {
-	u.Set(usagelog.FieldChannelID, v)
+// SetPricingConfigID sets the "pricing_config_id" field.
+func (u *UsageLogUpsert) SetPricingConfigID(v int64) *UsageLogUpsert {
+	u.Set(usagelog.FieldPricingConfigID, v)
 	return u
 }
 
-// UpdateChannelID sets the "channel_id" field to the value that was provided on create.
-func (u *UsageLogUpsert) UpdateChannelID() *UsageLogUpsert {
-	u.SetExcluded(usagelog.FieldChannelID)
+// UpdatePricingConfigID sets the "pricing_config_id" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdatePricingConfigID() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldPricingConfigID)
 	return u
 }
 
-// AddChannelID adds v to the "channel_id" field.
-func (u *UsageLogUpsert) AddChannelID(v int64) *UsageLogUpsert {
-	u.Add(usagelog.FieldChannelID, v)
+// AddPricingConfigID adds v to the "pricing_config_id" field.
+func (u *UsageLogUpsert) AddPricingConfigID(v int64) *UsageLogUpsert {
+	u.Add(usagelog.FieldPricingConfigID, v)
 	return u
 }
 
-// ClearChannelID clears the value of the "channel_id" field.
-func (u *UsageLogUpsert) ClearChannelID() *UsageLogUpsert {
-	u.SetNull(usagelog.FieldChannelID)
+// ClearPricingConfigID clears the value of the "pricing_config_id" field.
+func (u *UsageLogUpsert) ClearPricingConfigID() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldPricingConfigID)
 	return u
 }
 
@@ -2423,31 +2423,31 @@ func (u *UsageLogUpsertOne) ClearUpstreamModel() *UsageLogUpsertOne {
 	})
 }
 
-// SetChannelID sets the "channel_id" field.
-func (u *UsageLogUpsertOne) SetChannelID(v int64) *UsageLogUpsertOne {
+// SetPricingConfigID sets the "pricing_config_id" field.
+func (u *UsageLogUpsertOne) SetPricingConfigID(v int64) *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.SetChannelID(v)
+		s.SetPricingConfigID(v)
 	})
 }
 
-// AddChannelID adds v to the "channel_id" field.
-func (u *UsageLogUpsertOne) AddChannelID(v int64) *UsageLogUpsertOne {
+// AddPricingConfigID adds v to the "pricing_config_id" field.
+func (u *UsageLogUpsertOne) AddPricingConfigID(v int64) *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.AddChannelID(v)
+		s.AddPricingConfigID(v)
 	})
 }
 
-// UpdateChannelID sets the "channel_id" field to the value that was provided on create.
-func (u *UsageLogUpsertOne) UpdateChannelID() *UsageLogUpsertOne {
+// UpdatePricingConfigID sets the "pricing_config_id" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdatePricingConfigID() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.UpdateChannelID()
+		s.UpdatePricingConfigID()
 	})
 }
 
-// ClearChannelID clears the value of the "channel_id" field.
-func (u *UsageLogUpsertOne) ClearChannelID() *UsageLogUpsertOne {
+// ClearPricingConfigID clears the value of the "pricing_config_id" field.
+func (u *UsageLogUpsertOne) ClearPricingConfigID() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.ClearChannelID()
+		s.ClearPricingConfigID()
 	})
 }
 
@@ -3649,31 +3649,31 @@ func (u *UsageLogUpsertBulk) ClearUpstreamModel() *UsageLogUpsertBulk {
 	})
 }
 
-// SetChannelID sets the "channel_id" field.
-func (u *UsageLogUpsertBulk) SetChannelID(v int64) *UsageLogUpsertBulk {
+// SetPricingConfigID sets the "pricing_config_id" field.
+func (u *UsageLogUpsertBulk) SetPricingConfigID(v int64) *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.SetChannelID(v)
+		s.SetPricingConfigID(v)
 	})
 }
 
-// AddChannelID adds v to the "channel_id" field.
-func (u *UsageLogUpsertBulk) AddChannelID(v int64) *UsageLogUpsertBulk {
+// AddPricingConfigID adds v to the "pricing_config_id" field.
+func (u *UsageLogUpsertBulk) AddPricingConfigID(v int64) *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.AddChannelID(v)
+		s.AddPricingConfigID(v)
 	})
 }
 
-// UpdateChannelID sets the "channel_id" field to the value that was provided on create.
-func (u *UsageLogUpsertBulk) UpdateChannelID() *UsageLogUpsertBulk {
+// UpdatePricingConfigID sets the "pricing_config_id" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdatePricingConfigID() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.UpdateChannelID()
+		s.UpdatePricingConfigID()
 	})
 }
 
-// ClearChannelID clears the value of the "channel_id" field.
-func (u *UsageLogUpsertBulk) ClearChannelID() *UsageLogUpsertBulk {
+// ClearPricingConfigID clears the value of the "pricing_config_id" field.
+func (u *UsageLogUpsertBulk) ClearPricingConfigID() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.ClearChannelID()
+		s.ClearPricingConfigID()
 	})
 }
 

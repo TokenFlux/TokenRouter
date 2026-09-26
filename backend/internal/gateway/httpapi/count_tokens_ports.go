@@ -29,7 +29,7 @@ type CountTarget interface {
 	ReleaseSession(context.Context, string)
 }
 
-// CountExecutor 只暴露无槽选择、渠道解析和既有临时停调能力。
+// CountExecutor 只暴露无槽选择、分组策略解析和既有临时停调能力。
 type CountExecutor interface {
 	SelectCountTarget(context.Context, *int64, string, string, map[int64]struct{}) (CountTarget, error)
 	PlanCountRoute(context.Context, *apikey.APIKey, string) routing.RoutePlan
@@ -60,9 +60,11 @@ func (p CountHTTPPorts) CompatibilityMetrics(log *zap.Logger) { p.ObserveCompati
 func (p CountHTTPPorts) ObserveRequest(c *gin.Context, model string, stream bool) {
 	SetOpsRequestContext(c, model, stream)
 }
+
 func (p CountHTTPPorts) ObserveEndpoint(c *gin.Context, stream bool) {
 	SetOpsEndpointContext(c, "", int16(usage.RequestTypeFromLegacy(stream, false)))
 }
+
 func (p CountHTTPPorts) BindClient(c *gin.Context, d ClientDetection) {
 	ctx := requeststate.SetClaudeCodeClient(c.Request.Context(), d.ClaudeCode)
 	if d.ClaudeCode && d.Version != "" {
@@ -70,25 +72,29 @@ func (p CountHTTPPorts) BindClient(c *gin.Context, d ClientDetection) {
 	}
 	c.Request = c.Request.WithContext(ctx)
 }
+
 func (p CountHTTPPorts) BindThinking(c *gin.Context, thinking bool) {
 	c.Request = c.Request.WithContext(requeststate.WithThinkingEnabled(c.Request.Context(), thinking))
 }
+
 func (p CountHTTPPorts) Eligibility(ctx context.Context, key *apikey.APIKey, sub *billing.UserSubscription) error {
 	value := apikey.CopyAPIKey(key)
 	return p.Funding.CheckKey(ctx, value, sub, admission.QuotaPlatform(ctx, value), false)
 }
+
 func (p CountHTTPPorts) FailoverObservation(ctx context.Context, event string, values map[string]any) {
 	telemetry.Failover(ctx, event, values)
 }
+
 func (p CountHTTPPorts) Execution(c *gin.Context, key *apikey.APIKey, parsed *requeststate.ParsedRequest, hash string, log *zap.Logger) textflow.CountPorts {
 	return &countAttempt{ports: p, c: c, key: apikey.CopyAPIKey(key), parsed: parsed, hash: hash, log: log}
 }
 
-// PrepareChannelAttempt 从原报文克隆并按当前分组解析渠道，保留每次尝试独立改写。
-func PrepareChannelAttempt(ctx context.Context, parsed *requeststate.ParsedRequest, body []byte, key *apikey.APIKey, requested string, plan func(context.Context, *apikey.APIKey, string) routing.RoutePlan) (*requeststate.ParsedRequest, routing.ChannelMappingResult, error) {
+// PrepareGroupAttempt 从原报文克隆并解析当前分组的模型映射，保留每次尝试独立改写。
+func PrepareGroupAttempt(ctx context.Context, parsed *requeststate.ParsedRequest, body []byte, key *apikey.APIKey, requested string, plan func(context.Context, *apikey.APIKey, string) routing.RoutePlan) (*requeststate.ParsedRequest, routing.GroupMappingResult, error) {
 	attempt, err := parsed.CloneForBody(body)
 	if err != nil {
-		return nil, routing.ChannelMappingResult{}, err
+		return nil, routing.GroupMappingResult{}, err
 	}
 	var groupID *int64
 	if key != nil && key.GroupID != nil {
@@ -102,7 +108,7 @@ func PrepareChannelAttempt(ctx context.Context, parsed *requeststate.ParsedReque
 	}
 	attempt.Model = mapping.MappedModel
 	if err := attempt.ReplaceBody(openaiprotocol.ReplaceModelInBody(attempt.Body.Bytes(), mapping.MappedModel)); err != nil {
-		return nil, routing.ChannelMappingResult{}, err
+		return nil, routing.GroupMappingResult{}, err
 	}
 	return attempt, mapping, nil
 }
@@ -128,6 +134,7 @@ func (b *countAttempt) Select(excluded map[int64]struct{}) (textflow.Selection, 
 	SetOpsSelectedAccount(b.c, value.ID, value.Platform)
 	return textflow.Selection{Account: value, RetryLimit: target.RetryLimit()}, nil
 }
+
 func (b *countAttempt) SelectionFailed(err error, last *textflow.AttemptFailure) {
 	b.log.Warn("gateway.count_tokens_select_account_failed", zap.Error(err))
 	if last != nil {
@@ -145,15 +152,17 @@ func (b *countAttempt) SelectionFailed(err error, last *textflow.AttemptFailure)
 	}
 	WriteAnthropicError(b.c, result.Status, result.ErrType, "", result.Message)
 }
+
 func (b *countAttempt) Prepare(_ textflow.Selection) bool {
 	var err error
-	b.attempt, _, err = PrepareChannelAttempt(b.Context(), b.parsed, b.parsed.Body.Bytes(), b.key, b.parsed.Model, b.ports.Executor.PlanCountRoute)
+	b.attempt, _, err = PrepareGroupAttempt(b.Context(), b.parsed, b.parsed.Body.Bytes(), b.key, b.parsed.Model, b.ports.Executor.PlanCountRoute)
 	if err != nil {
 		WriteAnthropicError(b.c, http.StatusBadRequest, "invalid_request_error", "", "Failed to parse request body")
 		return false
 	}
 	return true
 }
+
 func (b *countAttempt) Forward(_ textflow.Selection) *textflow.AttemptFailure {
 	err := b.target.ForwardCountTokens(b.Context(), b.c, b.attempt)
 	if err == nil {
@@ -165,9 +174,11 @@ func (b *countAttempt) Forward(_ textflow.Selection) *textflow.AttemptFailure {
 	}
 	return &textflow.AttemptFailure{Cause: err}
 }
+
 func (b *countAttempt) ForwardFailed(selected textflow.Selection, err error) {
 	b.log.Error("gateway.count_tokens_forward_failed", zap.Int64("account_id", selected.Account.ID), zap.Error(err))
 }
+
 func (b *countAttempt) ReleaseSession(_ textflow.Selection) {
 	b.target.ReleaseSession(context.Background(), b.hash)
 }
@@ -175,6 +186,7 @@ func (b *countAttempt) Canceled() { FailoverClientGone(b.c) }
 func (b *countAttempt) Exhausted(selected textflow.Selection, last *textflow.AttemptFailure) {
 	b.exhausted(last, selected.Account.Platform)
 }
+
 func (b *countAttempt) exhausted(last *textflow.AttemptFailure, platform string) {
 	var original *forwardcore.UpstreamFailoverError
 	if last != nil {
@@ -182,6 +194,7 @@ func (b *countAttempt) exhausted(last *textflow.AttemptFailure, platform string)
 	}
 	b.ports.Failure(b.c, original, platform, false)
 }
+
 func (b *countAttempt) TempUnscheduleRetryableError(ctx context.Context, id int64, failure *textflow.AttemptFailure) {
 	var original *forwardcore.UpstreamFailoverError
 	if errors.As(failure.Cause, &original) {

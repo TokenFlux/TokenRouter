@@ -95,12 +95,12 @@ func (h *OpenAITextHandler) ChatCompletions(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	// Chat Completions 的端点能力以渠道模型 C 为准，客户端模型 R 仍用于日志和错误语义。
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
-	channelMapping := channelMappingRoutePlan.Mapping()
-	h.backend.BindPlan(c, channelMappingRoutePlan)
-	if h.backend.ChatImageModel(reqModel, channelMapping) {
+	// Chat Completions 的端点能力以分组映射模型 G 为准，客户端模型 R 仍用于日志和错误语义。
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
+	groupMapping := groupMappingRoutePlan.Mapping()
+	h.backend.BindPlan(c, groupMappingRoutePlan)
+	if h.backend.ChatImageModel(reqModel, groupMapping) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "This model is not supported on the Chat Completions endpoint")
 		return
 	}
@@ -154,10 +154,11 @@ func (h *OpenAITextHandler) ChatCompletions(c *gin.Context) {
 		}
 	}
 
-	call := OpenAITextCall{Route: channelMappingRoutePlan,
+	call := OpenAITextCall{
+		Route:    groupMappingRoutePlan,
 		Protocol: protocol.ProtocolOpenAIChatCompletions, Key: apiKey, Subject: subject, Subscription: subscription,
 		Body: body, Model: reqModel, SessionHash: sessionHash, Platform: requestPlatform, Stream: reqStream,
-		StreamStarted: &streamStarted, RoutingStart: routingStart, Mapping: channelMapping, Log: reqLog, PromptCacheKey: promptCacheKey,
+		StreamStarted: &streamStarted, RoutingStart: routingStart, Mapping: groupMapping, Log: reqLog, PromptCacheKey: promptCacheKey,
 	}
 	h.executeText(c, call, execution.TextOpenAIChat)
 }

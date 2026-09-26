@@ -11,8 +11,9 @@ import (
 // 通过路由存储验证分组字段的保存与回读。
 func (s *GroupRepoSuite) TestMediaCardsRoundTrip() {
 	zero, price := 0.0, 0.15
-	group := &routing.Group{Name: "media-card-roundtrip", Platform: capability.PlatformGrok, Status: billing.StatusActive, RateMultiplier: 1.5, AllowImageGeneration: true, BatchImageDiscountMultiplier: 0.5, BatchImageHoldMultiplier: 0.6,
-		ModelPricing: []routing.ChannelModelPricing{
+	group := &routing.Group{
+		Name: "media-card-roundtrip", Platform: capability.PlatformGrok, Status: billing.StatusActive, RateMultiplier: 1.5, AllowImageGeneration: true, BatchImageDiscountMultiplier: 0.5, BatchImageHoldMultiplier: 0.6,
+		ModelPricing: []routing.ModelPricingEntry{
 			{Models: []string{"grok-imagine-image"}, Platform: capability.PlatformGrok, BillingMode: routing.BillingModeImage, PerRequestPrice: &zero},
 			{Models: []string{"grok-imagine-video"}, Platform: capability.PlatformGrok, BillingMode: routing.BillingModeVideo, PerRequestPrice: &price, Intervals: []routing.PricingInterval{{TierLabel: "720p", PerRequestPrice: &zero}}},
 		},

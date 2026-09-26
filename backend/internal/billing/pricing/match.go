@@ -5,17 +5,16 @@ import (
 )
 
 // MatchPriceCard 在显式价卡列表中保留精确优先与首个通配规则。
-func MatchPriceCard(cards []ChannelModelPricing, candidate string) *ChannelModelPricing {
-
-	candidate = NormalizeChannelPricingModelName(candidate)
-	var wildcard *ChannelModelPricing
+func MatchPriceCard(cards []ModelPricingEntry, candidate string) *ModelPricingEntry {
+	candidate = NormalizePriceModelName(candidate)
+	var wildcard *ModelPricingEntry
 	for i := range cards {
 		entry := &cards[i]
 		if !entry.HasEffectivePricing() {
 			continue
 		}
 		for _, pattern := range entry.Models {
-			normalized := NormalizeChannelPricingModelName(pattern)
+			normalized := NormalizePriceModelName(pattern)
 			if normalized == candidate {
 				cp := entry.Clone()
 				return &cp

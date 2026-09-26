@@ -44,10 +44,10 @@ func APIKeyGroup(apiKey *apikey.APIKey) *routing.Group {
 	return apiKey.Group
 }
 
-// ResponseImagePolicy 按分组、账号、渠道和全局默认的既有优先级读取图片桥接设置。
+// ResponseImagePolicy 按分组显式协议策略、账号覆盖、分组默认值和全局默认值的优先级读取图片桥接设置。
 type ResponseImagePolicy struct {
-	Channels interface {
-		GetChannelForGroup(context.Context, int64) (*routing.Channel, error)
+	GroupPolicies interface {
+		GetGroupPolicy(context.Context, int64) (*routing.GroupPolicyView, error)
 	}
 	DefaultEnabled bool
 }
@@ -65,10 +65,10 @@ func (s *ResponseImagePolicy) Enabled(ctx context.Context, account *ExecutionAcc
 	if override := ExecutionProtocolRecord(account).CodexImageGenerationBridgeOverride(); override != nil {
 		return *override
 	}
-	if s != nil && s.Channels != nil && apiKey != nil && apiKey.GroupID != nil {
-		ch, err := s.Channels.GetChannelForGroup(ctx, *apiKey.GroupID)
+	if s != nil && s.GroupPolicies != nil && apiKey != nil && apiKey.GroupID != nil {
+		ch, err := s.GroupPolicies.GetGroupPolicy(ctx, *apiKey.GroupID)
 		if err != nil {
-			slog.Warn("failed to resolve codex image generation bridge channel override", "group_id", *apiKey.GroupID, "error", err)
+			slog.Warn("failed to resolve codex image generation bridge group default override", "group_id", *apiKey.GroupID, "error", err)
 		} else if override := ch.CodexImageGenerationBridgeOverride(capability.PlatformOpenAI); override != nil {
 			return *override
 		}

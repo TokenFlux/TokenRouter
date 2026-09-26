@@ -58,6 +58,7 @@ func (r creativeGroupReader) GetByIDLite(ctx context.Context, id int64) (*creati
 	value, err := r.source.GetByIDLite(ctx, id)
 	return creativeGroupProjection(value), err
 }
+
 func (r creativeGroupReader) ListActive(ctx context.Context) ([]creative.GroupView, error) {
 	values, err := r.source.ListActive(ctx)
 	if err != nil {
@@ -135,7 +136,7 @@ func (m creativeModerationFixture) Check(ctx context.Context, v creative.Moderat
 }
 
 // newCreativePublicFixture 固定同一 Public/Results 图，不保留旧服务的方法或状态副本。
-func newCreativePublicFixture(repo creative.CreativeRunRepository, keys creativeFixtureKeys, users creativeFixtureUsers, accounts creativeFixtureAccounts, groups creativeFixtureGroups, rates creative.UserRateReader, queue creative.CreativeRunQueue, outbox creative.CreativeRunOutboxRepository, transient creative.CreativeTransientStore, funds creative.FundingStore, logs usage.UsageLogRepository, calculator *billing.Calculator, resolver *billing.PriceResolver, channels *routing.ChannelService, moderator *moderation.ContentModerationService, auth apikey.APIKeyAuthCacheInvalidator, settings creative.SettingReader, cfg *config.Config) *creative.Public {
+func newCreativePublicFixture(repo creative.CreativeRunRepository, keys creativeFixtureKeys, users creativeFixtureUsers, accounts creativeFixtureAccounts, groups creativeFixtureGroups, rates creative.UserRateReader, queue creative.CreativeRunQueue, outbox creative.CreativeRunOutboxRepository, transient creative.CreativeTransientStore, funds creative.FundingStore, logs usage.UsageLogRepository, calculator *billing.Calculator, resolver *billing.PriceResolver, pricingConfigs *routing.PricingConfigService, moderator *moderation.ContentModerationService, auth apikey.APIKeyAuthCacheInvalidator, settings creative.SettingReader, cfg *config.Config) *creative.Public {
 	ttl := 30 * time.Minute
 	prefix := ""
 	if cfg != nil {
@@ -173,8 +174,8 @@ func newCreativePublicFixture(repo creative.CreativeRunRepository, keys creative
 		}
 		return value.ID, nil
 	}
-	if channels != nil {
-		core.ChannelMapping = channels.ResolveChannelMapping
+	if pricingConfigs != nil {
+		core.GroupMapping = pricingConfigs.ResolveGroupMapping
 	}
 	if moderator != nil {
 		core.Moderation = creativeModerationFixture{moderator}

@@ -104,9 +104,9 @@ type EntryTarget interface {
 	EnforceClient(context.Context, []byte) error
 	ResolveRouting(context.Context, string, bool) (string, error)
 	Warning(context.Context, string, int, []byte, string, EntryCyberSnapshot)
-	RecordMarked(context.Context, string, bool, []byte, routing.ChannelUsageFields, string) bool
+	RecordMarked(context.Context, string, bool, []byte, routing.PricingUsageFields, string) bool
 	UpdateUsage(context.Context, map[string][]string)
-	PrepareCompletion(context.Context, *ForwardResult, TurnCapture, string, routing.ChannelMappingResult, []byte, bool) *completion.Input
+	PrepareCompletion(context.Context, *ForwardResult, TurnCapture, string, routing.GroupMappingResult, []byte, bool) *completion.Input
 	BeginPreemption(context.Context, []byte) (context.Context, func(), bool)
 	Run(context.Context, ClientSocket, []byte, *EntryHooks) error
 	LogFailure(error)
@@ -133,8 +133,8 @@ type EntryPorts interface {
 	BlockedError(context.Context)
 	BlockedMessage() string
 	BlockedOps(string, string)
-	Plan(context.Context, string) (context.Context, routing.ChannelMappingResult)
-	ImageIntent(string, []byte, routing.ChannelMappingResult) ([]byte, string, bool)
+	Plan(context.Context, string) (context.Context, routing.GroupMappingResult)
+	ImageIntent(string, []byte, routing.GroupMappingResult) ([]byte, string, bool)
 	ImageContext(context.Context) context.Context
 	ExplicitImage(string, []byte) bool
 	ImagesAllowed() bool
@@ -186,11 +186,14 @@ func EntryString(key, value string) EntryField { return EntryField{Key: key, Tex
 func EntryInt(key string, value int) EntryField {
 	return EntryField{Key: key, Integer: int64(value), Kind: 2}
 }
+
 func EntryInt64(key string, value int64) EntryField {
 	return EntryField{Key: key, Integer: value, Kind: 2}
 }
+
 func EntryBool(key string, value bool) EntryField { return EntryField{Key: key, Flag: value, Kind: 3} }
-func EntryError(err error) EntryField             { return EntryField{Key: "error", Err: err, Kind: 4} }
+
+func EntryError(err error) EntryField { return EntryField{Key: "error", Err: err, Kind: 4} }
 
 type EntryLogger interface {
 	With(...EntryField) EntryLogger

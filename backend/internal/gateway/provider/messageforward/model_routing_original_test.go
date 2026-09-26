@@ -24,13 +24,12 @@ import (
 )
 
 func TestGatewayServiceForwardCountTokensAppliesOAuthAccountMappingBeforeNormalization(t *testing.T) {
-
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", nil)
 	c.Request.Header.Set("User-Agent", "third-party-client/1.0")
 
-	body := []byte(`{"model":"channel-model","messages":[{"role":"user","content":"hello"}]}`)
+	body := []byte(`{"model":"group-model","messages":[{"role":"user","content":"hello"}]}`)
 	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)
 
@@ -43,17 +42,20 @@ func TestGatewayServiceForwardCountTokensAppliesOAuthAccountMappingBeforeNormali
 	svc := newHTTPRuntimeFixture(
 		cfg, messageforward.Dependencies{Transport: upstream}, compileResponseHeaderFilter(cfg),
 	)
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 501,
-		Name:        "oauth-count-token-mapping",
-		Platform:    capability.PlatformAnthropic,
-		Type:        capability.AccountTypeOAuth,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"access_token":  "oauth-token",
-			"model_mapping": map[string]any{"channel-model": "claude-sonnet-4-5"},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 501,
+			Name:        "oauth-count-token-mapping",
+			Platform:    capability.PlatformAnthropic,
+			Type:        capability.AccountTypeOAuth,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"access_token":  "oauth-token",
+				"model_mapping": map[string]any{"group-model": "claude-sonnet-4-5"},
+			},
+			Status:      billing.StatusActive,
+			Schedulable: true,
 		},
-		Status:      billing.StatusActive,
-		Schedulable: true},
 	}
 
 	err = svc.ForwardCountTokens(context.Background(), c, account, parsed)
@@ -63,7 +65,6 @@ func TestGatewayServiceForwardCountTokensAppliesOAuthAccountMappingBeforeNormali
 }
 
 func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *testing.T) {
-
 	tests := []struct {
 		name string
 		path string
@@ -73,7 +74,7 @@ func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *tes
 		{
 			name: "chat completions",
 			path: "/v1/chat/completions",
-			body: []byte(`{"model":"channel-model","messages":[{"role":"user","content":"hello"}],"stream":false}`),
+			body: []byte(`{"model":"group-model","messages":[{"role":"user","content":"hello"}],"stream":false}`),
 			call: func(svc *gatewayhttp.MessagesExecutor, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) error {
 				_, err := svc.ForwardAsChatCompletions(ctx, c, account, body, nil)
 				return err
@@ -82,7 +83,7 @@ func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *tes
 		{
 			name: "responses",
 			path: "/v1/responses",
-			body: []byte(`{"model":"channel-model","input":"hello","stream":false}`),
+			body: []byte(`{"model":"group-model","input":"hello","stream":false}`),
 			call: func(svc *gatewayhttp.MessagesExecutor, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) error {
 				_, err := svc.ForwardAsResponses(ctx, c, account, body, nil)
 				return err
@@ -106,17 +107,20 @@ func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *tes
 			svc := newHTTPRuntimeFixture(
 				cfg, messageforward.Dependencies{Transport: upstream}, compileResponseHeaderFilter(cfg),
 			)
-			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 502,
-				Name:        "oauth-compat-mapping",
-				Platform:    capability.PlatformAnthropic,
-				Type:        capability.AccountTypeOAuth,
-				Concurrency: 1,
-				Credentials: map[string]any{
-					"access_token":  "oauth-token",
-					"model_mapping": map[string]any{"channel-model": "claude-sonnet-4-5"},
+			account := &gatewayprovider.ExecutionAccount{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, ID: 502,
+					Name:        "oauth-compat-mapping",
+					Platform:    capability.PlatformAnthropic,
+					Type:        capability.AccountTypeOAuth,
+					Concurrency: 1,
+					Credentials: map[string]any{
+						"access_token":  "oauth-token",
+						"model_mapping": map[string]any{"group-model": "claude-sonnet-4-5"},
+					},
+					Status:      billing.StatusActive,
+					Schedulable: true,
 				},
-				Status:      billing.StatusActive,
-				Schedulable: true},
 			}
 
 			err := tt.call(svc, context.Background(), c, account, tt.body)

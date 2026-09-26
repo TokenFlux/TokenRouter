@@ -623,10 +623,10 @@ func TestCreativeFilterImageSizesForModel(t *testing.T) {
 	}
 }
 
-// TestCreativePricingUsesResolvedChannelPrice 校验创作台与模型广场共用渠道图片定价。
-func TestCreativePricingUsesResolvedChannelPrice(t *testing.T) {
+// TestCreativePricingUsesResolvedPricingConfigPrice 校验创作台与模型广场共用共享价格配置图片定价。
+func TestCreativePricingUsesResolvedPricingConfigPrice(t *testing.T) {
 	price := 1.0
-	resolver := newResolverWithChannel(t, []routing.ChannelModelPricing{{
+	resolver := newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:        capability.PlatformOpenAI,
 		Models:          []string{"gpt-image-2"},
 		BillingMode:     routing.BillingModeImage,
@@ -643,10 +643,10 @@ func TestCreativePricingUsesResolvedChannelPrice(t *testing.T) {
 	require.InDelta(t, 1, svc.CreativePrice(context.Background(), creativeGroupProjection(group), "gpt-image-2", "2K"), 1e-9)
 	require.InDelta(t, 1, svc.CreativePrice(context.Background(), creativeGroupProjection(group), "gpt-image-2", "4K"), 1e-9)
 
-	// Gemini 512 优先匹配渠道自定义 tier；未配置 512 时回退渠道默认价格。
+	// Gemini 512 优先匹配共享价格配置自定义 tier；未配置 512 时回退共享价格配置默认价格。
 	price512 := 0.5
 	defaultPrice := 1.25
-	resolver = newResolverWithChannel(t, []routing.ChannelModelPricing{{
+	resolver = newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:        capability.PlatformGemini,
 		Models:          []string{"gemini-3.1-flash-image"},
 		BillingMode:     routing.BillingModeImage,
@@ -661,7 +661,7 @@ func TestCreativePricingUsesResolvedChannelPrice(t *testing.T) {
 	geminiGroup.ID = 100
 	geminiGroup.ModelPricing = nil
 	require.InDelta(t, price512, svc.CreativePrice(context.Background(), creativeGroupProjection(geminiGroup), "gemini-3.1-flash-image", "512"), 1e-9)
-	resolver = newResolverWithChannel(t, []routing.ChannelModelPricing{{
+	resolver = newResolverWithPricingConfig(t, []routing.ModelPricingEntry{{
 		Platform:        capability.PlatformGemini,
 		Models:          []string{"gemini-3.1-flash-image"},
 		BillingMode:     routing.BillingModeImage,

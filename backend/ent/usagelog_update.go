@@ -192,30 +192,30 @@ func (_u *UsageLogUpdate) ClearUpstreamModel() *UsageLogUpdate {
 	return _u
 }
 
-// SetChannelID sets the "channel_id" field.
-func (_u *UsageLogUpdate) SetChannelID(v int64) *UsageLogUpdate {
-	_u.mutation.ResetChannelID()
-	_u.mutation.SetChannelID(v)
+// SetPricingConfigID sets the "pricing_config_id" field.
+func (_u *UsageLogUpdate) SetPricingConfigID(v int64) *UsageLogUpdate {
+	_u.mutation.ResetPricingConfigID()
+	_u.mutation.SetPricingConfigID(v)
 	return _u
 }
 
-// SetNillableChannelID sets the "channel_id" field if the given value is not nil.
-func (_u *UsageLogUpdate) SetNillableChannelID(v *int64) *UsageLogUpdate {
+// SetNillablePricingConfigID sets the "pricing_config_id" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillablePricingConfigID(v *int64) *UsageLogUpdate {
 	if v != nil {
-		_u.SetChannelID(*v)
+		_u.SetPricingConfigID(*v)
 	}
 	return _u
 }
 
-// AddChannelID adds value to the "channel_id" field.
-func (_u *UsageLogUpdate) AddChannelID(v int64) *UsageLogUpdate {
-	_u.mutation.AddChannelID(v)
+// AddPricingConfigID adds value to the "pricing_config_id" field.
+func (_u *UsageLogUpdate) AddPricingConfigID(v int64) *UsageLogUpdate {
+	_u.mutation.AddPricingConfigID(v)
 	return _u
 }
 
-// ClearChannelID clears the value of the "channel_id" field.
-func (_u *UsageLogUpdate) ClearChannelID() *UsageLogUpdate {
-	_u.mutation.ClearChannelID()
+// ClearPricingConfigID clears the value of the "pricing_config_id" field.
+func (_u *UsageLogUpdate) ClearPricingConfigID() *UsageLogUpdate {
+	_u.mutation.ClearPricingConfigID()
 	return _u
 }
 
@@ -1238,14 +1238,14 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.UpstreamModelCleared() {
 		_spec.ClearField(usagelog.FieldUpstreamModel, field.TypeString)
 	}
-	if value, ok := _u.mutation.ChannelID(); ok {
-		_spec.SetField(usagelog.FieldChannelID, field.TypeInt64, value)
+	if value, ok := _u.mutation.PricingConfigID(); ok {
+		_spec.SetField(usagelog.FieldPricingConfigID, field.TypeInt64, value)
 	}
-	if value, ok := _u.mutation.AddedChannelID(); ok {
-		_spec.AddField(usagelog.FieldChannelID, field.TypeInt64, value)
+	if value, ok := _u.mutation.AddedPricingConfigID(); ok {
+		_spec.AddField(usagelog.FieldPricingConfigID, field.TypeInt64, value)
 	}
-	if _u.mutation.ChannelIDCleared() {
-		_spec.ClearField(usagelog.FieldChannelID, field.TypeInt64)
+	if _u.mutation.PricingConfigIDCleared() {
+		_spec.ClearField(usagelog.FieldPricingConfigID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.ModelMappingChain(); ok {
 		_spec.SetField(usagelog.FieldModelMappingChain, field.TypeString, value)
@@ -1828,30 +1828,30 @@ func (_u *UsageLogUpdateOne) ClearUpstreamModel() *UsageLogUpdateOne {
 	return _u
 }
 
-// SetChannelID sets the "channel_id" field.
-func (_u *UsageLogUpdateOne) SetChannelID(v int64) *UsageLogUpdateOne {
-	_u.mutation.ResetChannelID()
-	_u.mutation.SetChannelID(v)
+// SetPricingConfigID sets the "pricing_config_id" field.
+func (_u *UsageLogUpdateOne) SetPricingConfigID(v int64) *UsageLogUpdateOne {
+	_u.mutation.ResetPricingConfigID()
+	_u.mutation.SetPricingConfigID(v)
 	return _u
 }
 
-// SetNillableChannelID sets the "channel_id" field if the given value is not nil.
-func (_u *UsageLogUpdateOne) SetNillableChannelID(v *int64) *UsageLogUpdateOne {
+// SetNillablePricingConfigID sets the "pricing_config_id" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillablePricingConfigID(v *int64) *UsageLogUpdateOne {
 	if v != nil {
-		_u.SetChannelID(*v)
+		_u.SetPricingConfigID(*v)
 	}
 	return _u
 }
 
-// AddChannelID adds value to the "channel_id" field.
-func (_u *UsageLogUpdateOne) AddChannelID(v int64) *UsageLogUpdateOne {
-	_u.mutation.AddChannelID(v)
+// AddPricingConfigID adds value to the "pricing_config_id" field.
+func (_u *UsageLogUpdateOne) AddPricingConfigID(v int64) *UsageLogUpdateOne {
+	_u.mutation.AddPricingConfigID(v)
 	return _u
 }
 
-// ClearChannelID clears the value of the "channel_id" field.
-func (_u *UsageLogUpdateOne) ClearChannelID() *UsageLogUpdateOne {
-	_u.mutation.ClearChannelID()
+// ClearPricingConfigID clears the value of the "pricing_config_id" field.
+func (_u *UsageLogUpdateOne) ClearPricingConfigID() *UsageLogUpdateOne {
+	_u.mutation.ClearPricingConfigID()
 	return _u
 }
 
@@ -2904,14 +2904,14 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	if _u.mutation.UpstreamModelCleared() {
 		_spec.ClearField(usagelog.FieldUpstreamModel, field.TypeString)
 	}
-	if value, ok := _u.mutation.ChannelID(); ok {
-		_spec.SetField(usagelog.FieldChannelID, field.TypeInt64, value)
+	if value, ok := _u.mutation.PricingConfigID(); ok {
+		_spec.SetField(usagelog.FieldPricingConfigID, field.TypeInt64, value)
 	}
-	if value, ok := _u.mutation.AddedChannelID(); ok {
-		_spec.AddField(usagelog.FieldChannelID, field.TypeInt64, value)
+	if value, ok := _u.mutation.AddedPricingConfigID(); ok {
+		_spec.AddField(usagelog.FieldPricingConfigID, field.TypeInt64, value)
 	}
-	if _u.mutation.ChannelIDCleared() {
-		_spec.ClearField(usagelog.FieldChannelID, field.TypeInt64)
+	if _u.mutation.PricingConfigIDCleared() {
+		_spec.ClearField(usagelog.FieldPricingConfigID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.ModelMappingChain(); ok {
 		_spec.SetField(usagelog.FieldModelMappingChain, field.TypeString, value)

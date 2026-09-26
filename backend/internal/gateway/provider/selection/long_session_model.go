@@ -10,7 +10,7 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
-// ResolveOpenAIWSRoutingModelForAccount 为已选定的 WebSocket 账号逐轮解析并校验渠道模型。
+// ResolveOpenAIWSRoutingModelForAccount 为已选定的 WebSocket 账号逐轮解析并校验分组映射模型。
 // 长连接不能在后续 turn 重新调度账号，因此模型不再适配当前账号时直接拒绝该帧。
 func (s *Compatible) ResolveOpenAIWSRoutingModelForAccount(
 	ctx context.Context,
@@ -23,11 +23,11 @@ func (s *Compatible) ResolveOpenAIWSRoutingModelForAccount(
 	if requestedModel == "" {
 		return "", errors.New("websocket request model is empty")
 	}
-	if s.CheckChannelPricingRestriction(ctx, groupID, requestedModel) {
-		return "", fmt.Errorf("model %s is restricted by channel pricing", requestedModel)
+	if s.CheckGroupModelRestriction(ctx, groupID, requestedModel) {
+		return "", fmt.Errorf("model %s is restricted by group model policy", requestedModel)
 	}
 
-	routingModel := strings.TrimSpace(s.resolveChannelRoutingModel(ctx, groupID, requestedModel))
+	routingModel := strings.TrimSpace(s.resolveGroupRoutingModel(ctx, groupID, requestedModel))
 	if routingModel == "" {
 		routingModel = requestedModel
 	}
@@ -45,7 +45,7 @@ func (s *Compatible) ResolveOpenAIWSRoutingModelForAccount(
 	if s.isOpenAIAccountRequestRuntimeBlocked(account, routingModel) {
 		return "", fmt.Errorf("model %s is temporarily unavailable on the selected websocket account", requestedModel)
 	}
-	if groupID != nil && s.NeedsUpstreamChannelRestriction(ctx, groupID) &&
+	if groupID != nil && s.NeedsUpstreamGroupRestriction(ctx, groupID) &&
 		s.UpstreamRoutingModelRestricted(ctx, *groupID, account, routingModel, false) {
 		return "", fmt.Errorf("model %s is restricted after account mapping", requestedModel)
 	}

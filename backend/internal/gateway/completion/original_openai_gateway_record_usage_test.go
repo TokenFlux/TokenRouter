@@ -286,7 +286,7 @@ func TestOpenAIGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputToke
 	svc.Options.Now = func() time.Time {
 		return time.Date(2026, 7, 1, 12, 0, 0, 0, time.Local)
 	}
-	svc.Dependencies.Prices = newOpenAITokenImageChannelPricingResolverForTest(t, groupID, "gpt-5.1")
+	svc.Dependencies.Prices = newOpenAITokenImageConfigPricingResolverForTest(t, groupID, "gpt-5.1")
 
 	err := svc.RecordOpenAI(context.Background(), &gatewaycapture.OpenAICapture{
 		Result: &forwardcore.OpenAIResult{
@@ -1323,7 +1323,7 @@ func TestOpenAIGatewayServiceRecordUsage_PersistsRequestedReasoningEffort(t *tes
 	require.Equal(t, forwarded, *usageRepo.LastLog.ReasoningEffort)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_PreservesGroupMappedUpstreamModel(t *testing.T) {
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	userRepo := &completiontestkit.UserStore{}
 	subRepo := &completiontestkit.SubscriptionStore{}
@@ -1343,9 +1343,9 @@ func TestOpenAIGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *
 		APIKey:  &apikey.APIKey{ID: 10},
 		User:    &identity.User{ID: 20},
 		Account: &accountcore.Record{ID: 30},
-		ChannelUsageFields: routing.ChannelUsageFields{
-			OriginalModel:      "gpt-5.6-sol",
-			ChannelMappedModel: "gpt-5.6-terra",
+		PricingUsageFields: routing.PricingUsageFields{
+			OriginalModel:    "gpt-5.6-sol",
+			GroupMappedModel: "gpt-5.6-terra",
 		},
 	})
 
@@ -1357,7 +1357,7 @@ func TestOpenAIGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *
 	require.Equal(t, "gpt-5.6-terra", *usageRepo.LastLog.UpstreamModel)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_PreservesLoopedChannelAndAccountUpstreamModel(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_PreservesLoopedPricingConfigAndAccountUpstreamModel(t *testing.T) {
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	userRepo := &completiontestkit.UserStore{}
 	subRepo := &completiontestkit.SubscriptionStore{}
@@ -1374,9 +1374,9 @@ func TestOpenAIGatewayServiceRecordUsage_PreservesLoopedChannelAndAccountUpstrea
 		APIKey:  &apikey.APIKey{ID: 10},
 		User:    &identity.User{ID: 20},
 		Account: &accountcore.Record{ID: 30},
-		ChannelUsageFields: routing.ChannelUsageFields{
-			OriginalModel:      "gpt-5.6-sol",
-			ChannelMappedModel: "gpt-5.6-terra",
+		PricingUsageFields: routing.PricingUsageFields{
+			OriginalModel:    "gpt-5.6-sol",
+			GroupMappedModel: "gpt-5.6-terra",
 		},
 	})
 
@@ -1427,14 +1427,14 @@ func TestOpenAIGatewayServiceRecordUsage_BillsMappedRequestsUsingRequestedModel(
 	require.Equal(t, expectedCost.ActualCost, billingRepo.LastCmd.BillableAmountUSD)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_ChannelMappedDoesNotOverrideBillingModelWhenUnmapped(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_GroupMappedDoesNotOverrideBillingModelWhenUnmapped(t *testing.T) {
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	userRepo := &completiontestkit.UserStore{}
 	subRepo := &completiontestkit.SubscriptionStore{}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
 	usage := openai.ForwardUsage{InputTokens: 20, OutputTokens: 10}
 
-	// 渠道未发生模型映射时，应使用 result.BillingModel 中记录的实际上游计费模型，
+	// 分组未发生模型映射时，应使用 result.BillingModel 中记录的实际上游计费模型，
 	// 而不是未映射的原始请求模型。
 	expectedCost, err := svc.Dependencies.Calculator.CalculateCost("gpt-5.1", pricing.UsageTokens{
 		InputTokens:  20,
@@ -1454,11 +1454,11 @@ func TestOpenAIGatewayServiceRecordUsage_ChannelMappedDoesNotOverrideBillingMode
 		APIKey:  &apikey.APIKey{ID: 10},
 		User:    &identity.User{ID: 20},
 		Account: &accountcore.Record{ID: 30},
-		ChannelUsageFields: routing.ChannelUsageFields{
-			ChannelID:          1,
+		PricingUsageFields: routing.PricingUsageFields{
+			PricingConfigID:    1,
 			OriginalModel:      "glm",
-			ChannelMappedModel: "glm", // channel did NOT map
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "glm", // channel did NOT map
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -1468,14 +1468,14 @@ func TestOpenAIGatewayServiceRecordUsage_ChannelMappedDoesNotOverrideBillingMode
 	require.True(t, usageRepo.LastLog.ActualCost > 0, "cost must not be zero")
 }
 
-func TestOpenAIGatewayServiceRecordUsage_ChannelMappedOverridesBillingModelWhenMapped(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_GroupMappedOverridesBillingModelWhenMapped(t *testing.T) {
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	userRepo := &completiontestkit.UserStore{}
 	subRepo := &completiontestkit.SubscriptionStore{}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
 	usage := openai.ForwardUsage{InputTokens: 20, OutputTokens: 10}
 
-	// When channel DID map the model (ChannelMappedModel != OriginalModel),
+	// When channel DID map the model (GroupMappedModel != OriginalModel),
 	// billing should use the channel-mapped model, honoring admin intent.
 	expectedCost, err := svc.Dependencies.Calculator.CalculateCost("gpt-5.1", pricing.UsageTokens{
 		InputTokens:  20,
@@ -1485,7 +1485,7 @@ func TestOpenAIGatewayServiceRecordUsage_ChannelMappedOverridesBillingModelWhenM
 
 	err = svc.RecordOpenAI(context.Background(), &gatewaycapture.OpenAICapture{
 		Result: &forwardcore.OpenAIResult{
-			RequestID:     "resp_channel_mapped_billing",
+			RequestID:     "resp_group_mapped_billing",
 			Model:         "glm",
 			BillingModel:  "gpt-5.1-codex",
 			UpstreamModel: "gpt-5.1-codex",
@@ -1495,11 +1495,11 @@ func TestOpenAIGatewayServiceRecordUsage_ChannelMappedOverridesBillingModelWhenM
 		APIKey:  &apikey.APIKey{ID: 10},
 		User:    &identity.User{ID: 20},
 		Account: &accountcore.Record{ID: 30},
-		ChannelUsageFields: routing.ChannelUsageFields{
-			ChannelID:          1,
+		PricingUsageFields: routing.PricingUsageFields{
+			PricingConfigID:    1,
 			OriginalModel:      "glm",
-			ChannelMappedModel: "gpt-5.1", // channel mapped glm → gpt-5.1
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "gpt-5.1", // channel mapped glm → gpt-5.1
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -1534,10 +1534,10 @@ func TestOpenAIGatewayServiceRecordUsage_UpstreamBillingSourceOverridesRequested
 		APIKey:  &apikey.APIKey{ID: 10},
 		User:    &identity.User{ID: 20},
 		Account: &accountcore.Record{ID: 30},
-		ChannelUsageFields: routing.ChannelUsageFields{
-			ChannelID:          1,
+		PricingUsageFields: routing.PricingUsageFields{
+			PricingConfigID:    1,
 			OriginalModel:      "gpt-5.4",
-			ChannelMappedModel: "gpt-5.4",
+			GroupMappedModel:   "gpt-5.4",
 			BillingModelSource: routing.BillingModelSourceUpstream,
 		},
 	})
@@ -1591,9 +1591,9 @@ func TestOpenAIGatewayServiceRecordUsage_ResponsesMappedBillingModelHonorsBillin
 				APIKey:  &apikey.APIKey{ID: 10},
 				User:    &identity.User{ID: 20},
 				Account: &accountcore.Record{ID: 30},
-				ChannelUsageFields: routing.ChannelUsageFields{
+				PricingUsageFields: routing.PricingUsageFields{
 					OriginalModel:      "gpt-5.4",
-					ChannelMappedModel: "gpt-5.4",
+					GroupMappedModel:   "gpt-5.4",
 					BillingModelSource: tt.billingModelSource,
 				},
 			})
@@ -1616,7 +1616,7 @@ func TestOpenAIUsageBillingModelPreservesImagePricingModel(t *testing.T) {
 	tests := []struct {
 		name   string
 		result forwardcore.OpenAIResult
-		fields routing.ChannelUsageFields
+		fields routing.PricingUsageFields
 		want   string
 	}{
 		{
@@ -1627,7 +1627,7 @@ func TestOpenAIUsageBillingModelPreservesImagePricingModel(t *testing.T) {
 				BillingModel:  "gpt-image-2",
 				ImageCount:    1,
 			},
-			fields: routing.ChannelUsageFields{BillingModelSource: routing.BillingModelSourceUpstream},
+			fields: routing.PricingUsageFields{BillingModelSource: routing.BillingModelSourceUpstream},
 			want:   "gpt-image-2",
 		},
 		{
@@ -1635,23 +1635,23 @@ func TestOpenAIUsageBillingModelPreservesImagePricingModel(t *testing.T) {
 			result: forwardcore.OpenAIResult{
 				Model:         "public-alias",
 				UpstreamModel: "gpt-5.6-sol",
-				BillingModel:  "channel-model",
+				BillingModel:  "group-model",
 			},
-			fields: routing.ChannelUsageFields{BillingModelSource: routing.BillingModelSourceUpstream},
+			fields: routing.PricingUsageFields{BillingModelSource: routing.BillingModelSourceUpstream},
 			want:   "gpt-5.6-sol",
 		},
 		{
-			name: "未映射渠道计费保留图片模型",
+			name: "分组未映射时的计费保留图片模型",
 			result: forwardcore.OpenAIResult{
 				Model:         "gpt-5.6-sol",
 				UpstreamModel: "gpt-5.6-sol",
 				BillingModel:  "gpt-image-2",
 				ImageCount:    1,
 			},
-			fields: routing.ChannelUsageFields{
-				BillingModelSource: routing.BillingModelSourceChannelMapped,
+			fields: routing.PricingUsageFields{
+				BillingModelSource: routing.BillingModelSourceGroupMapped,
 				OriginalModel:      "gpt-5.6-sol",
-				ChannelMappedModel: "gpt-5.6-sol",
+				GroupMappedModel:   "gpt-5.6-sol",
 			},
 			want: "gpt-image-2",
 		},
@@ -1661,24 +1661,24 @@ func TestOpenAIUsageBillingModelPreservesImagePricingModel(t *testing.T) {
 				BillingModel: "gpt-image-2",
 				ImageCount:   1,
 			},
-			fields: routing.ChannelUsageFields{
+			fields: routing.PricingUsageFields{
 				BillingModelSource: routing.BillingModelSourceRequested,
 				OriginalModel:      "public-image-alias",
 			},
 			want: "public-image-alias",
 		},
 		{
-			name: "映射渠道来源覆盖图片模型",
+			name: "分组映射计费来源覆盖图片模型",
 			result: forwardcore.OpenAIResult{
 				BillingModel: "gpt-image-2",
 				ImageCount:   1,
 			},
-			fields: routing.ChannelUsageFields{
-				BillingModelSource: routing.BillingModelSourceChannelMapped,
+			fields: routing.PricingUsageFields{
+				BillingModelSource: routing.BillingModelSourceGroupMapped,
 				OriginalModel:      "public-image-alias",
-				ChannelMappedModel: "priced-channel-model",
+				GroupMappedModel:   "priced-group-model",
 			},
-			want: "priced-channel-model",
+			want: "priced-group-model",
 		},
 	}
 
@@ -2277,13 +2277,13 @@ func TestOpenAIGatewayServiceRecordUsage_GrokVideoUsesDefaultRateCard(t *testing
 	require.Equal(t, pricing.VideoBillingDefaultDurationSeconds, *usageRepo.LastLog.VideoDurationSeconds)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_GroupImagePriceOverridesChannelImagePrice(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_GroupImagePriceOverridesPricingConfigImagePrice(t *testing.T) {
 	groupID := int64(127)
-	channelPrice := 0.201
+	pricingConfigPrice := 0.201
 	groupImagePrice2K := 0.021
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{}, nil)
-	svc.Dependencies.Prices = newOpenAIImageChannelPricingResolverForTest(t, groupID, "grok-imagine-image-quality", channelPrice)
+	svc.Dependencies.Prices = newOpenAIImageConfigPricingResolverForTest(t, groupID, "grok-imagine-image-quality", pricingConfigPrice)
 
 	err := svc.RecordOpenAI(context.Background(), &gatewaycapture.OpenAICapture{
 		Result: &forwardcore.OpenAIResult{
@@ -2318,13 +2318,13 @@ func TestOpenAIGatewayServiceRecordUsage_GroupImagePriceOverridesChannelImagePri
 	require.Equal(t, string(routing.BillingModeImage), *usageRepo.LastLog.BillingMode)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_GroupVideoPriceOverridesChannelImagePrice(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_GroupVideoPriceOverridesPricingConfigImagePrice(t *testing.T) {
 	groupID := int64(128)
-	channelPrice := 0.201
+	pricingConfigPrice := 0.201
 	groupVideoPrice720P := 0.037
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{}, nil)
-	svc.Dependencies.Prices = newOpenAIImageChannelPricingResolverForTest(t, groupID, "grok-imagine-video", channelPrice)
+	svc.Dependencies.Prices = newOpenAIImageConfigPricingResolverForTest(t, groupID, "grok-imagine-video", pricingConfigPrice)
 
 	err := svc.RecordOpenAI(context.Background(), &gatewaycapture.OpenAICapture{
 		Result: &forwardcore.OpenAIResult{
@@ -2361,14 +2361,14 @@ func TestOpenAIGatewayServiceRecordUsage_GroupVideoPriceOverridesChannelImagePri
 	require.Equal(t, string(routing.BillingModeVideo), *usageRepo.LastLog.BillingMode)
 }
 
-// 视频请求命中渠道 token 计费时走 token 路径；此时行是 billing_mode='token'、image_count=1、
+// 视频请求命中共享价格配置 token 计费时走 token 路径；此时行是 billing_mode='token'、image_count=1、
 // image_size=NULL，必须携带 video_count>0 才能通过 usage_logs 的 image_size check 约束
 // （迁移 194），否则整个计费事务会因约束违反而丢失。
-func TestOpenAIGatewayServiceRecordUsage_GrokVideoWithTokenChannelPricingKeepsVideoMetadata(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_GrokVideoWithTokenConfigPricingKeepsVideoMetadata(t *testing.T) {
 	groupID := int64(132)
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{}, nil)
-	svc.Dependencies.Prices = newOpenAITokenImageChannelPricingResolverForTest(t, groupID, "grok-imagine-video")
+	svc.Dependencies.Prices = newOpenAITokenImageConfigPricingResolverForTest(t, groupID, "grok-imagine-video")
 
 	err := svc.RecordOpenAI(context.Background(), &gatewaycapture.OpenAICapture{
 		Result: &forwardcore.OpenAIResult{
@@ -2408,11 +2408,11 @@ func TestOpenAIGatewayServiceRecordUsage_GrokVideoWithTokenChannelPricingKeepsVi
 	require.Equal(t, 5, *usageRepo.LastLog.VideoDurationSeconds)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_ChannelImageBillingUsesImageCountAndSharedMultiplier(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_PricingConfigImageBillingUsesImageCountAndSharedMultiplier(t *testing.T) {
 	groupID := int64(123)
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{}, nil)
-	svc.Dependencies.Prices = newOpenAIImageChannelPricingResolverForTest(t, groupID, "gpt-image-2", 0.25)
+	svc.Dependencies.Prices = newOpenAIImageConfigPricingResolverForTest(t, groupID, "gpt-image-2", 0.25)
 
 	err := svc.RecordOpenAI(context.Background(), &gatewaycapture.OpenAICapture{
 		Result: &forwardcore.OpenAIResult{
@@ -2444,47 +2444,47 @@ func TestOpenAIGatewayServiceRecordUsage_ChannelImageBillingUsesImageCountAndSha
 	require.Equal(t, string(routing.BillingModeImage), *usageRepo.LastLog.BillingMode)
 }
 
-func newOpenAIImageChannelPricingResolverForTest(t *testing.T, groupID int64, model string, price float64) *billing.PriceResolver {
+func newOpenAIImageConfigPricingResolverForTest(t *testing.T, groupID int64, model string, price float64) *billing.PriceResolver {
 	t.Helper()
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Model: model}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Model: model}] = &routing.ModelPricingEntry{
 		BillingMode:     routing.BillingModeImage,
 		PerRequestPrice: &price,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = ""
 	cache.LoadedAt = time.Now()
 
-	cs := routingtestkit.ChannelFromData(cache)
+	cs := routingtestkit.ModelConfigFromData(cache)
 	return billingtestkit.PriceResolver(cs, NewBillingService(&config.Config{}, nil))
 }
 
-func newOpenAITokenImageChannelPricingResolverForTest(t *testing.T, groupID int64, model string) *billing.PriceResolver {
+func newOpenAITokenImageConfigPricingResolverForTest(t *testing.T, groupID int64, model string) *billing.PriceResolver {
 	t.Helper()
 	inputPrice := 3e-6
 	outputPrice := 15e-6
 	imageOutputPrice := 15e-6
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Model: model}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Model: model}] = &routing.ModelPricingEntry{
 		BillingMode:      routing.BillingModeToken,
 		InputPrice:       &inputPrice,
 		OutputPrice:      &outputPrice,
 		ImageOutputPrice: &imageOutputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = ""
 	cache.LoadedAt = time.Now()
 
-	cs := routingtestkit.ChannelFromData(cache)
+	cs := routingtestkit.ModelConfigFromData(cache)
 	return billingtestkit.PriceResolver(cs, NewBillingService(&config.Config{}, nil))
 }
 
-func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingUsesImageCount(t *testing.T) {
+func TestGatewayServiceCalculateRecordUsageCost_PricingConfigImageBillingUsesImageCount(t *testing.T) {
 	groupID := int64(126)
 	billingService := NewBillingService(&config.Config{}, nil)
 	svc := completion.NewRecorder(completion.Dependencies{
 		Calculator: billingService,
-		Prices:     newOpenAIImageChannelPricingResolverForTest(t, groupID, "gemini-image", 0.25),
+		Prices:     newOpenAIImageConfigPricingResolverForTest(t, groupID, "gemini-image", 0.25),
 	}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 	cost := svc.CalculateRecordUsageCost(
@@ -2505,12 +2505,12 @@ func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingUsesImageCoun
 	require.InDelta(t, 0.5, cost.ActualCost, 1e-12)
 }
 
-func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingUsesSizeTier(t *testing.T) {
+func TestGatewayServiceCalculateRecordUsageCost_PricingConfigImageBillingUsesSizeTier(t *testing.T) {
 	groupID := int64(127)
 	defaultPrice := 0.10
 	price4K := 0.40
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Model: "gemini-image"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Model: "gemini-image"}] = &routing.ModelPricingEntry{
 		BillingMode:     routing.BillingModeImage,
 		PerRequestPrice: &defaultPrice,
 		Intervals: []routing.PricingInterval{{
@@ -2518,14 +2518,14 @@ func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingUsesSizeTier(
 			PerRequestPrice: &price4K,
 		}},
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	svc := completion.NewRecorder(completion.Dependencies{
 		Calculator: NewBillingService(&config.Config{}, nil),
-		Prices:     billingtestkit.PriceResolver(channelService, NewBillingService(&config.Config{}, nil)),
+		Prices:     billingtestkit.PriceResolver(pricingConfigService, NewBillingService(&config.Config{}, nil)),
 	}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 	cost := svc.CalculateRecordUsageCost(
@@ -2546,14 +2546,14 @@ func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingUsesSizeTier(
 	require.InDelta(t, 0.80, cost.ActualCost, 1e-12)
 }
 
-func TestGatewayServiceCalculateRecordUsageCost_GroupImagePriceOverridesChannelImagePrice(t *testing.T) {
+func TestGatewayServiceCalculateRecordUsageCost_GroupImagePriceOverridesPricingConfigImagePrice(t *testing.T) {
 	groupID := int64(129)
-	channelPrice := 0.25
+	pricingConfigPrice := 0.25
 	groupImagePrice2K := 0.021
 
 	svc := completion.NewRecorder(completion.Dependencies{
 		Calculator: NewBillingService(&config.Config{}, nil),
-		Prices:     newOpenAIImageChannelPricingResolverForTest(t, groupID, "gemini-image", channelPrice),
+		Prices:     newOpenAIImageConfigPricingResolverForTest(t, groupID, "gemini-image", pricingConfigPrice),
 	}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 	cost := svc.CalculateRecordUsageCost(
@@ -2580,12 +2580,12 @@ func TestGatewayServiceCalculateRecordUsageCost_GroupImagePriceOverridesChannelI
 	require.InDelta(t, 0.042, cost.ActualCost, 1e-12)
 }
 
-func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingNormalizesMissingSizeTier(t *testing.T) {
+func TestGatewayServiceCalculateRecordUsageCost_PricingConfigImageBillingNormalizesMissingSizeTier(t *testing.T) {
 	groupID := int64(128)
 	defaultPrice := 0.10
 	price2K := 0.22
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Model: "gemini-image"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Model: "gemini-image"}] = &routing.ModelPricingEntry{
 		BillingMode:     routing.BillingModeImage,
 		PerRequestPrice: &defaultPrice,
 		Intervals: []routing.PricingInterval{{
@@ -2593,14 +2593,14 @@ func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingNormalizesMis
 			PerRequestPrice: &price2K,
 		}},
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	svc := completion.NewRecorder(completion.Dependencies{
 		Calculator: NewBillingService(&config.Config{}, nil),
-		Prices:     billingtestkit.PriceResolver(channelService, NewBillingService(&config.Config{}, nil)),
+		Prices:     billingtestkit.PriceResolver(pricingConfigService, NewBillingService(&config.Config{}, nil)),
 	}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 	cost := svc.CalculateRecordUsageCost(
@@ -2766,7 +2766,7 @@ func TestOpenAIGatewayServiceRecordUsage_FreeOpenAIFastChargesStandard(t *testin
 		Group: &routing.Group{
 			ID: groupID, Platform: capability.PlatformOpenAI, Status: billing.StatusActive,
 			Hydrated: true, RateMultiplier: 0.5, FreeOpenAIFast: true,
-			ModelPricing: []routing.ChannelModelPricing{{
+			ModelPricing: []routing.ModelPricingEntry{{
 				Models:         []string{"gpt-5.6-sol"},
 				BillingMode:    routing.BillingModeToken,
 				InputPrice:     &inputPrice,
@@ -2850,6 +2850,7 @@ func TestOpenAIGatewayServiceRecordUsage_ServiceTierNeverRaisedByUpstreamRespons
 func newOpenAIRecordUsageServiceForTest(logs usagecore.UsageLogRepository, _ identity.UserRepository, _ billing.UserSubscriptionRepository, rates billing.UserGroupRateRepository) *completiontestkit.Recording {
 	return completiontestkit.NewRecording(logs, &completiontestkit.SettlementStore{}, rates, true)
 }
+
 func newOpenAIRecordUsageServiceWithBillingRepoForTest(logs usagecore.UsageLogRepository, funds completion.Store, _ identity.UserRepository, _ billing.UserSubscriptionRepository, rates billing.UserGroupRateRepository) *completiontestkit.Recording {
 	return completiontestkit.NewRecording(logs, funds, rates, false)
 }

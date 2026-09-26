@@ -6,9 +6,10 @@ import (
 )
 
 type CreateGroupInput struct {
-	Name        string
-	Description string
-	Platform    string
+	RoutingPolicy GroupRoutingPolicy
+	Name          string
+	Description   string
+	Platform      string
 	// SchedulerType 为空时使用基础调度器，保持新分组的历史默认行为。
 	SchedulerType string
 	// AdvancedSchedulerOverrides 未设置字段继承网关通用高级调度设置。
@@ -22,7 +23,7 @@ type CreateGroupInput struct {
 	SessionIsolationEnabled bool
 	// LongContextPricingEnabled 为 nil 时默认开启，以兼容未发送新字段的客户端。
 	LongContextPricingEnabled *bool
-	ModelPricing              []ChannelModelPricing
+	ModelPricing              []ModelPricingEntry
 	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
 	AllowImageGeneration         bool
 	AllowBatchImageGeneration    bool
@@ -87,9 +88,10 @@ type CreateGroupInput struct {
 }
 
 type UpdateGroupInput struct {
-	Name        string
-	Description *string
-	Platform    string
+	RoutingPolicy *GroupRoutingPolicy
+	Name          string
+	Description   *string
+	Platform      string
 	// SchedulerType 为 nil 时保留原值。
 	SchedulerType *string
 	// AdvancedSchedulerOverrides 为 nil 时保留原值；空对象表示清除全部覆盖并恢复继承。
@@ -103,7 +105,7 @@ type UpdateGroupInput struct {
 	SessionIsolationEnabled   *bool
 	Status                    string
 	LongContextPricingEnabled *bool
-	ModelPricing              *[]ChannelModelPricing
+	ModelPricing              *[]ModelPricingEntry
 	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
 	AllowImageGeneration         *bool
 	AllowBatchImageGeneration    *bool

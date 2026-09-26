@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import enAdminAccounts from '../locales/en/admin/accounts'
-import enAdminChannels from '../locales/en/admin/channels'
+import enAdminPricing from '../locales/en/admin/pricing'
 import enAdminOps from '../locales/en/admin/ops'
 import enAdminOverview from '../locales/en/admin/overview'
 import enAdminResources from '../locales/en/admin/resources'
@@ -11,7 +11,7 @@ import enDashboard from '../locales/en/dashboard'
 import enLanding from '../locales/en/landing'
 import enMisc from '../locales/en/misc'
 import zhAdminAccounts from '../locales/zh/admin/accounts'
-import zhAdminChannels from '../locales/zh/admin/channels'
+import zhAdminPricing from '../locales/zh/admin/pricing'
 import zhAdminOps from '../locales/zh/admin/ops'
 import zhAdminOverview from '../locales/zh/admin/overview'
 import zhAdminResources from '../locales/zh/admin/resources'
@@ -49,7 +49,7 @@ const roots: Record<string, Modules> = {
 const admins: Record<string, Modules> = {
   zh: {
     overview: zhAdminOverview,
-    channels: zhAdminChannels,
+    channels: zhAdminPricing,
     accounts: zhAdminAccounts,
     resources: zhAdminResources,
     ops: zhAdminOps,
@@ -57,7 +57,7 @@ const admins: Record<string, Modules> = {
   },
   en: {
     overview: enAdminOverview,
-    channels: enAdminChannels,
+    channels: enAdminPricing,
     accounts: enAdminAccounts,
     resources: enAdminResources,
     ops: enAdminOps,

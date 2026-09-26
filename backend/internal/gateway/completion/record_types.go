@@ -108,28 +108,30 @@ type Input struct {
 	RequestedReasoningEffort                                                 *string
 	ForceCacheBilling, QuotaUpdates, CyberBlocked, NativeCompactionV2        bool
 	PricingAt                                                                time.Time
-	ChannelUsageFields
+	PricingUsageFields
 }
 
-type ChannelUsageFields = routing.ChannelUsageFields
-type UsageLog = usage.UsageLog
-type UsageTokens = pricing.UsageTokens
-type CostBreakdown = pricing.CostBreakdown
-type ResolvedPricing = pricing.ResolvedPricing
-type CostInput = billing.CostInput
-type PricingInput = billing.PricingInput
+type (
+	PricingUsageFields = routing.PricingUsageFields
+	UsageLog           = usage.UsageLog
+	UsageTokens        = pricing.UsageTokens
+	CostBreakdown      = pricing.CostBreakdown
+	ResolvedPricing    = pricing.ResolvedPricing
+	CostInput          = billing.CostInput
+	PricingInput       = billing.PricingInput
+)
 
 const (
-	BillingModeToken                = pricing.BillingModeToken
-	BillingModeImage                = pricing.BillingModeImage
-	BillingModeVideo                = pricing.BillingModeVideo
-	BillingModePerRequest           = pricing.BillingModePerRequest
-	BillingTypeBalance              = usage.BillingTypeBalance
-	BillingTypeSubscription         = usage.BillingTypeSubscription
-	RequestTypeCyberBlocked         = usage.RequestTypeCyberBlocked
-	BillingModelSourceRequested     = routing.BillingModelSourceRequested
-	BillingModelSourceUpstream      = routing.BillingModelSourceUpstream
-	BillingModelSourceChannelMapped = routing.BillingModelSourceChannelMapped
+	BillingModeToken              = pricing.BillingModeToken
+	BillingModeImage              = pricing.BillingModeImage
+	BillingModeVideo              = pricing.BillingModeVideo
+	BillingModePerRequest         = pricing.BillingModePerRequest
+	BillingTypeBalance            = usage.BillingTypeBalance
+	BillingTypeSubscription       = usage.BillingTypeSubscription
+	RequestTypeCyberBlocked       = usage.RequestTypeCyberBlocked
+	BillingModelSourceRequested   = routing.BillingModelSourceRequested
+	BillingModelSourceUpstream    = routing.BillingModelSourceUpstream
+	BillingModelSourceGroupMapped = routing.BillingModelSourceGroupMapped
 )
 
 var ErrModelPricingUnavailable = pricing.ErrModelPricingUnavailable
@@ -149,10 +151,13 @@ type RateReader interface {
 type AccountReader interface {
 	CredentialAccount(context.Context, AccountSnapshot) (*AccountSnapshot, error)
 }
-type HealthObserver interface{ ResetOpenAI403Counter(context.Context, int64) }
-type ModelCandidates interface {
-	Candidates(string, ...string) []string
-}
+type (
+	HealthObserver  interface{ ResetOpenAI403Counter(context.Context, int64) }
+	ModelCandidates interface {
+		Candidates(string, ...string) []string
+	}
+)
+
 type LogWriter interface {
 	Create(context.Context, *usage.UsageLog) (bool, error)
 }
@@ -258,6 +263,7 @@ func (s *Recorder) Record(ctx context.Context, input *Input, openAI bool) error 
 	}
 	return s.RecordAnthropic(ctx, input, &PricingOptions{})
 }
+
 func (s *Recorder) printf(component, format string, args ...any) {
 	if s.observe != nil {
 		s.observe(component, fmt.Sprintf(format, args...))

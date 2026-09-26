@@ -46,7 +46,7 @@ type GenerationHTTPInput struct {
 	Parsed                                         *media.ImageRequest
 	Body                                           []byte
 	RequestModel, RoutingModel, SessionHash        string
-	Mapping                                        routing.ChannelMappingResult
+	Mapping                                        routing.GroupMappingResult
 	Endpoint, RequestID, ContentType, VideoCreated string
 	BoundAccountID                                 int64
 }
@@ -60,7 +60,7 @@ type MediaHTTPPorts interface {
 	EnsureForwardError(*gin.Context, bool) bool
 	ObserveRequest(*gin.Context, string, bool, bool)
 	AuthLatency(*gin.Context, time.Duration)
-	Plan(*gin.Context, string, bool) (context.Context, routing.ChannelMappingResult)
+	Plan(*gin.Context, string, bool) (context.Context, routing.GroupMappingResult)
 	ImagePermissionMessage() string
 	ImagePolicyDenied(*gin.Context)
 	Moderate(*gin.Context, *zap.Logger, MediaSubject, string, []byte) bool
@@ -106,6 +106,7 @@ func (h *MediaHandler) readBody(c *gin.Context) ([]byte, bool) {
 	}
 	return body, true
 }
+
 func (h *MediaHandler) Images(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "openai")
 	if !accepted {
@@ -202,15 +203,19 @@ func (h *MediaHandler) GrokImages(c *gin.Context) {
 	}
 	h.GrokMedia(c, endpoint, "")
 }
+
 func (h *MediaHandler) GrokVideoGeneration(c *gin.Context) { h.GrokMedia(c, "videos_generations", "") }
 func (h *MediaHandler) GrokVideoEdit(c *gin.Context)       { h.GrokMedia(c, "videos_edits", "") }
 func (h *MediaHandler) GrokVideoExtension(c *gin.Context)  { h.GrokMedia(c, "videos_extensions", "") }
+
 func (h *MediaHandler) GrokVideoStatus(c *gin.Context) {
 	h.GrokMedia(c, "video_status", c.Param("request_id"))
 }
+
 func (h *MediaHandler) GrokVideoContent(c *gin.Context) {
 	h.GrokMedia(c, "video_content", c.Param("request_id"))
 }
+
 func (h *MediaHandler) GrokMedia(c *gin.Context, endpoint, requestID string) {
 	done, accepted := h.beginRequest(c, "openai")
 	if !accepted {

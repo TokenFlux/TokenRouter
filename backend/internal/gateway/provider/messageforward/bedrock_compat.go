@@ -9,13 +9,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
 )
 
-// PrepareBedrockCompatibility 保留渠道映射后的清理位置和 Header 原地更新行为。
+// PrepareBedrockCompatibility 保留分组映射后的清理位置和 Header 原地更新行为。
 func (r *Runtime) PrepareBedrockCompatibility(ctx context.Context, headers http.Header, body []byte, model string, target *provider.ExecutionAccount, groupID *int64) []byte {
-	if groupID == nil || r.dependencies.Channels == nil {
+	if groupID == nil || r.dependencies.GroupPolicies == nil {
 		return body
 	}
-	channel, err := r.dependencies.Channels.GetChannelForGroup(ctx, *groupID)
-	if err != nil || channel == nil || !channel.IsBedrockCCCompatEnabled(target.Record.Platform) {
+	policy, err := r.dependencies.GroupPolicies.GetGroupPolicy(ctx, *groupID)
+	if err != nil || policy == nil || !policy.IsBedrockCCCompatEnabled(target.Record.Platform) {
 		return body
 	}
 	body = bedrock.SanitizeBedrockCCFields(body)

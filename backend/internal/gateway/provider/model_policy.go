@@ -51,6 +51,7 @@ func (p ModelPolicy) ForwardModel(requested, dispatchMapped string) string {
 	}
 	return p.Mapped(model)
 }
+
 func (p ModelPolicy) NormalizeOpenAI(model string) string {
 	if p.Record == nil {
 		return strings.TrimSpace(model)
@@ -122,6 +123,7 @@ func (p ModelPolicy) OpenAIUpstream(requested string, compact, allowHTTPPassthro
 	}
 	return strings.TrimSpace(p.NormalizeOpenAI(model))
 }
+
 func (p ModelPolicy) CanonicalSchedulingModel(requested string) string {
 	model := strings.TrimSpace(requested)
 	if p.Record == nil || model == "" {
@@ -138,12 +140,14 @@ func (p ModelPolicy) CanonicalSchedulingModel(requested string) string {
 	}
 	return model
 }
+
 func (p ModelPolicy) bedrockInput(model string) *bedrock.RouteInput {
 	if p.Record == nil {
 		return nil
 	}
 	return &bedrock.RouteInput{Region: p.Record.GetCredential("aws_region"), ForceGlobal: p.Record.GetCredential("aws_force_global") == "true", Model: p.Mapped(model)}
 }
+
 func (p ModelPolicy) Bedrock(model string) (string, bool) {
 	return bedrock.ResolveBedrockModelID(p.bedrockInput(model), model)
 }
@@ -167,6 +171,7 @@ func (p ModelPolicy) AnthropicUpstream(mapped string) string {
 	}
 	return normalized
 }
+
 func modelThinking(ctx context.Context) *bool {
 	if value, ok := requeststate.ThinkingEnabledFromContext(ctx); ok {
 		return &value
@@ -174,7 +179,7 @@ func modelThinking(ctx context.Context) *bool {
 	return nil
 }
 
-// Supports 只检查已经过渠道映射的模型，不再执行渠道映射。
+// Supports 只检查已经过分组映射的模型，不再执行分组映射。
 func (p ModelPolicy) Supports(ctx context.Context, model string) bool {
 	value := p.Record
 	if value == nil {
@@ -280,6 +285,7 @@ func (p ModelPolicy) LimitKeys(ctx context.Context, requested string) []string {
 	}
 	return keys
 }
+
 func (p ModelPolicy) AllowsModel(ctx context.Context, model string) bool {
 	return p.Record.ModelRateLimitAllows(p.LimitKeys(ctx, model))
 }

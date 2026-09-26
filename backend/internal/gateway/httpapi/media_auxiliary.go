@@ -18,12 +18,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// AuxiliaryHTTPInput 固化渠道、原报文与客户端模型；实际认证实体留在调用方 Adapter。
+// AuxiliaryHTTPInput 固化分组映射、原报文与客户端模型；实际认证实体留在调用方 Adapter。
 type AuxiliaryHTTPInput struct {
 	Subject                      MediaSubject
 	Model, SessionHash, Endpoint string
 	Body                         []byte
-	Mapping                      routing.ChannelMappingResult
+	Mapping                      routing.GroupMappingResult
 }
 type RealtimeHTTPExecution interface {
 	media.RealtimePorts
@@ -58,6 +58,7 @@ type AuxiliaryHandler struct {
 func NewAuxiliaryHandler(ports AuxiliaryHTTPPorts) *AuxiliaryHandler {
 	return &AuxiliaryHandler{base: NewMediaHandler(ports), ports: ports}
 }
+
 func (h *AuxiliaryHandler) Embeddings(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "openai")
 	if !accepted {
@@ -117,6 +118,7 @@ func (h *AuxiliaryHandler) Embeddings(c *gin.Context) {
 	p := h.ports.NewEmbeddings(c, AuxiliaryHTTPInput{Subject: subject, Model: model, Body: body, Mapping: mapping}, log, &streamStarted)
 	p.EndEmbeddingFailure(media.RunEmbeddings(c.Request.Context(), body, h.ports.MaxSwitches(), p))
 }
+
 func (h *AuxiliaryHandler) AlphaSearch(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "openai")
 	if !accepted {
@@ -186,6 +188,7 @@ func (h *AuxiliaryHandler) AlphaSearch(c *gin.Context) {
 	p := h.ports.NewAlphaSearch(c, AuxiliaryHTTPInput{Subject: subject, Model: model, Body: body, Mapping: mapping, SessionHash: hash}, log, &streamStarted)
 	p.EndAlphaFailure(media.RunAlphaSearch(c.Request.Context(), forward, h.ports.MaxSwitches(), p))
 }
+
 func (h *AuxiliaryHandler) GrokVoice(c *gin.Context, endpoint string) {
 	done, accepted := h.beginRequest(c, "openai")
 	if !accepted {
@@ -236,6 +239,7 @@ func (h *AuxiliaryHandler) GrokVoice(c *gin.Context, endpoint string) {
 	p := h.ports.NewVoice(c, AuxiliaryHTTPInput{Endpoint: endpoint}, log)
 	h.ports.EndVoice(c, media.RunVoice(c.Request.Context(), media.VoiceRequest{Endpoint: endpoint, Body: body, ContentType: contentType}, p))
 }
+
 func (h *AuxiliaryHandler) GrokRealtime(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "openai")
 	if !accepted {
@@ -308,6 +312,7 @@ func (c mediaClientFrames) ReadFrame(ctx context.Context) (upstream.FrameKind, [
 	kind, data, err := c.conn.Read(ctx)
 	return upstream.FrameKind(kind), data, err
 }
+
 func (c mediaClientFrames) WriteFrame(ctx context.Context, kind upstream.FrameKind, data []byte) error {
 	return c.conn.Write(ctx, websocket.MessageType(kind), data)
 }

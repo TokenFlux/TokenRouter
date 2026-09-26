@@ -1147,13 +1147,18 @@ func (s *GroupRepoSuite) TestDelete_SoftDeletedGroup_lockForUpdate() {
 // TestModelPricingRoundTrip 验证分组完整价卡通过 JSONB 创建、更新和清空，不需要新增表列。
 func (s *GroupRepoSuite) TestModelPricingRoundTrip() {
 	fast, flex, max, price, outputMultiplier := 1.5, 0.4, 2.0, 0.0, 3.0
-	group := &routing.Group{Name: "pricing-roundtrip", Platform: capability.PlatformOpenAI, RateMultiplier: 1,
+	group := &routing.Group{
+		Name: "pricing-roundtrip", Platform: capability.PlatformOpenAI, RateMultiplier: 1,
 		Status: billing.StatusActive, LongContextPricingEnabled: true, FreeOpenAIFast: true,
-		ModelPricing: []routing.ChannelModelPricing{{Platform: capability.PlatformOpenAI, Models: []string{"gpt-test"}, BillingMode: routing.BillingModeToken,
+		ModelPricing: []routing.ModelPricingEntry{{
+			Platform: capability.PlatformOpenAI, Models: []string{"gpt-test"}, BillingMode: routing.BillingModeToken,
 			InputPrice: &price, FastMultiplier: &fast, FlexMultiplier: &flex, MaxReasoningEffortMultiplier: &max,
 			Intervals: []routing.PricingInterval{{MinTokens: 100, OutputMultiplier: &outputMultiplier}},
-			TimePricing: &routing.ChannelTimePricing{Timezone: "Asia/Tokyo", WeekdaysOnly: true,
-				Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 0.5}}}}},
+			TimePricing: &routing.TimePricingConfig{
+				Timezone: "Asia/Tokyo", WeekdaysOnly: true,
+				Periods: []routing.TimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 0.5}},
+			},
+		}},
 
 		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformOpenAI),
 		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformOpenAI),
@@ -1171,7 +1176,7 @@ func (s *GroupRepoSuite) TestModelPricingRoundTrip() {
 	updated, err := s.repo.GetByID(s.ctx, got.ID)
 	s.Require().NoError(err)
 	s.Require().Equal(got.ModelPricing, updated.ModelPricing)
-	updated.ModelPricing = []routing.ChannelModelPricing{}
+	updated.ModelPricing = []routing.ModelPricingEntry{}
 	s.Require().NoError(s.repo.Update(s.ctx, updated))
 	empty, err := s.repo.GetByID(s.ctx, updated.ID)
 	s.Require().NoError(err)
@@ -1180,6 +1185,7 @@ func (s *GroupRepoSuite) TestModelPricingRoundTrip() {
 
 // SetupSuite 保留同套件共享库、各测试独立事务的原隔离边界。
 func (s *GroupRepoSuite) SetupSuite() { s.client, _ = routingDatabase(s.T()) }
+
 func (s *GroupRepoSuite) transaction(t *testing.T) *dbent.Tx {
 	t.Helper()
 	tx, err := s.client.Tx(context.Background())

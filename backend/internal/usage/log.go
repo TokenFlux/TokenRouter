@@ -22,8 +22,8 @@ type UsageLog struct {
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Nil means no mapping was applied (requested model was used as-is).
 	UpstreamModel *string
-	// ChannelID 渠道 ID
-	ChannelID *int64
+	// PricingConfigID 共享价格配置 ID
+	PricingConfigID *int64
 	// ModelMappingChain 模型映射链，如 "a→b→c"
 	ModelMappingChain *string
 	// BillingTier 计费层级标签（per_request/image 模式）
@@ -123,6 +123,7 @@ type UsageLog struct {
 func (u *UsageLog) TotalTokens() int {
 	return u.InputTokens + u.OutputTokens + u.CacheCreationTokens + u.CacheReadTokens
 }
+
 func (u *UsageLog) EffectiveRequestType() RequestType {
 	if u == nil {
 		return RequestTypeUnknown
@@ -132,6 +133,7 @@ func (u *UsageLog) EffectiveRequestType() RequestType {
 	}
 	return RequestTypeFromLegacy(u.Stream, u.OpenAIWSMode)
 }
+
 func (u *UsageLog) SyncRequestTypeAndLegacyFields() {
 	if u == nil {
 		return

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 测试覆盖生产解析入口，渠道映射前允许别名、映射后仍校验原生能力。
+// 测试覆盖生产解析入口，分组映射前允许别名、映射后仍校验原生能力。
 func TestImageRequestRoutingAndMultipart(t *testing.T) {
 	request, err := ParseImageRequest("/v1/images/generations", "application/json", []byte(`{"model":"my-alias","prompt":"draw"}`), false)
 	require.NoError(t, err)

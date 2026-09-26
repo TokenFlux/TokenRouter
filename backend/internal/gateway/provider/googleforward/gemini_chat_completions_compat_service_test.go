@@ -26,7 +26,6 @@ import (
 )
 
 func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
-
 	upstreamBody := `{
 		"candidates":[{"content":{"parts":[
 			{"text":"inspect inputs","thought":true},
@@ -36,7 +35,6 @@ func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
 		"usageMetadata":{"promptTokenCount":7,"candidatesTokenCount":3,"thoughtsTokenCount":5}
 	}`
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
-
 		StatusCode: http.StatusOK,
 
 		Header: http.Header{"X-Request-Id": []string{"gemini-response-1"}},
@@ -44,25 +42,26 @@ func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
 		Body: io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	svc := newGeminiFixture(geminiDependencies{httpUpstream: httpStub, cfg: &googleforward.Options{}})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           201,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           201,
 
-		Platform: capability.PlatformGemini,
+			Platform: capability.PlatformGemini,
 
-		Type: capability.AccountTypeAPIKey,
+			Type: capability.AccountTypeAPIKey,
 
-		Concurrency: 1,
+			Concurrency: 1,
 
-		Credentials: map[string]any{
-			"api_key": "gemini-key",
-			"model_mapping": map[string]any{
-				"channel-model": "gemini-2.5-pro",
+			Credentials: map[string]any{
+				"api_key": "gemini-key",
+				"model_mapping": map[string]any{
+					"group-model": "gemini-2.5-pro",
+				},
 			},
 		},
-	},
 	}
-	body := []byte(`{"model":"channel-model","input":"weather","tools":[{"type":"function","name":"get_weather","parameters":{"type":"object"}}]}`)
+	body := []byte(`{"model":"group-model","input":"weather","tools":[{"type":"function","name":"get_weather","parameters":{"type":"object"}}]}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
@@ -72,13 +71,13 @@ func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, http.StatusOK, recorder.Code)
-	require.Equal(t, "channel-model", result.Model)
+	require.Equal(t, "group-model", result.Model)
 	require.Equal(t, "gemini-2.5-pro", result.UpstreamModel)
 	require.Equal(t, "gemini-response-1", result.RequestID)
 	require.Equal(t, 7, result.Usage.InputTokens)
 	require.Equal(t, 8, result.Usage.OutputTokens)
 	require.Equal(t, "response", gjson.GetBytes(recorder.Body.Bytes(), "object").String())
-	require.Equal(t, "channel-model", gjson.GetBytes(recorder.Body.Bytes(), "model").String())
+	require.Equal(t, "group-model", gjson.GetBytes(recorder.Body.Bytes(), "model").String())
 	require.Equal(t, "inspect inputs", gjson.GetBytes(recorder.Body.Bytes(), `output.#(type=="reasoning").summary.0.text`).String())
 	require.Equal(t, "get_weather", gjson.GetBytes(recorder.Body.Bytes(), `output.#(type=="function_call").name`).String())
 	require.Equal(t, "calling tool", gjson.GetBytes(recorder.Body.Bytes(), `output.#(type=="message").content.0.text`).String())
@@ -86,9 +85,7 @@ func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
 }
 
 func TestGeminiForwardAsResponsesOAuthCollectsReasoningTextAndTools(t *testing.T) {
-
 	upstreamBody := strings.Join([]string{
-
 		`data: {"response":{"candidates":[{"content":{"parts":[{"text":"plan ","thought":true}]}}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":1,"thoughtsTokenCount":1}}}`,
 
 		`data: {"response":{"candidates":[{"content":{"parts":[{"text":"carefully","thought":true}]}}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":1,"thoughtsTokenCount":2}}}`,
@@ -102,7 +99,6 @@ func TestGeminiForwardAsResponsesOAuthCollectsReasoningTextAndTools(t *testing.T
 		"",
 	}, "\n\n")
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
-
 		StatusCode: http.StatusOK,
 
 		Header: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -110,28 +106,28 @@ func TestGeminiForwardAsResponsesOAuthCollectsReasoningTextAndTools(t *testing.T
 		Body: io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	svc := newGeminiFixture(geminiDependencies{
-
 		tokenProvider: newGeminiTokenSourceForTest(),
 
 		httpUpstream: httpStub,
 
 		cfg: &googleforward.Options{},
 	})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           204,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           204,
 
-		Platform: capability.PlatformGemini,
+			Platform: capability.PlatformGemini,
 
-		Type: capability.AccountTypeOAuth,
+			Type: capability.AccountTypeOAuth,
 
-		Concurrency: 1,
+			Concurrency: 1,
 
-		Credentials: map[string]any{
-			"access_token": "ya29.test-token",
-			"project_id":   "project-1",
+			Credentials: map[string]any{
+				"access_token": "ya29.test-token",
+				"project_id":   "project-1",
+			},
 		},
-	},
 	}
 	body := []byte(`{"model":"gemini-2.5-pro","input":"hello","tools":[{"type":"function","name":"lookup","parameters":{"type":"object"}}]}`)
 	recorder := httptest.NewRecorder()
@@ -152,9 +148,7 @@ func TestGeminiForwardAsResponsesOAuthCollectsReasoningTextAndTools(t *testing.T
 }
 
 func TestGeminiForwardAsResponsesStreamsReasoningTextToolAndUsage(t *testing.T) {
-
 	upstreamBody := strings.Join([]string{
-
 		`data: {"candidates":[{"content":{"parts":[{"text":"plan","thought":true}]}}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":1,"thoughtsTokenCount":1}}`,
 
 		`data: {"candidates":[{"content":{"parts":[{"text":"hello"}]}}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":2,"thoughtsTokenCount":1}}`,
@@ -166,7 +160,6 @@ func TestGeminiForwardAsResponsesStreamsReasoningTextToolAndUsage(t *testing.T) 
 		"",
 	}, "\n\n")
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
-
 		StatusCode: http.StatusOK,
 
 		Header: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -222,9 +215,7 @@ func (r *geminiResponsesFailingStream) Read(p []byte) (int, error) {
 func (r *geminiResponsesFailingStream) Close() error { return nil }
 
 func TestGeminiForwardAsResponsesCommitsStreamBeforeReadFailure(t *testing.T) {
-
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
-
 		StatusCode: http.StatusOK,
 
 		Header: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -252,9 +243,7 @@ func TestGeminiForwardAsResponsesCommitsStreamBeforeReadFailure(t *testing.T) {
 }
 
 func TestGeminiForwardAsResponsesMapsUpstreamError(t *testing.T) {
-
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
-
 		StatusCode: http.StatusBadRequest,
 
 		Header: http.Header{"X-Goog-Request-Id": []string{"gemini-error-1"}},
@@ -287,13 +276,10 @@ func TestGeminiForwardAsResponsesMapsUpstreamError(t *testing.T) {
 }
 
 func TestGeminiForwardAsResponsesReturnsFailoverBeforeResponseStarts(t *testing.T) {
-
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
-
 		StatusCode: http.StatusForbidden,
 
 		Header: http.Header{
-
 			"Www-Authenticate": []string{`Bearer error="insufficient_scope"`},
 
 			"X-Goog-Request-Id": []string{"gemini-failover-1"},
@@ -332,9 +318,7 @@ func TestGeminiResponseToChatCompletionsPreservesInlineData(t *testing.T) {
 		parts []any
 		want  string
 	}{
-
 		{
-
 			name: "image only",
 
 			parts: []any{
@@ -345,11 +329,9 @@ func TestGeminiResponseToChatCompletionsPreservesInlineData(t *testing.T) {
 		},
 
 		{
-
 			name: "text and image",
 
 			parts: []any{
-
 				map[string]any{"text": "rendered image:\n"},
 
 				map[string]any{"inlineData": map[string]any{"mimeType": "image/webp", "data": "d2VicA=="}},
@@ -387,7 +369,6 @@ func TestGeminiResponseToChatCompletionsOmitsInvalidInlineData(t *testing.T) {
 		name       string
 		inlineData map[string]any
 	}{
-
 		{
 			name:       "unsupported MIME type",
 			inlineData: map[string]any{"mimeType": "image/svg+xml", "data": "PHN2Zz48L3N2Zz4="},
@@ -408,7 +389,6 @@ func TestGeminiResponseToChatCompletionsOmitsInvalidInlineData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			geminiResp := map[string]any{
 				"candidates": []any{map[string]any{
-
 					"content": map[string]any{"parts": []any{map[string]any{"text": "before"}, map[string]any{"inlineData": tt.inlineData}, map[string]any{"text": "after"}}},
 
 					"finishReason": "STOP",
@@ -430,9 +410,7 @@ func TestGeminiResponseToChatCompletionsOmitsInvalidInlineData(t *testing.T) {
 func TestConvertGeminiToClaudeMessageOmitsInlineDataForAnthropicMessages(t *testing.T) {
 	geminiResp := map[string]any{
 		"candidates": []any{map[string]any{
-
 			"content": map[string]any{"parts": []any{
-
 				map[string]any{"text": "before"},
 
 				map[string]any{"inlineData": map[string]any{"mimeType": "image/png", "data": "aW1hZ2U="}},
@@ -487,9 +465,7 @@ func TestGenerateAnthropicMsgID_FormatAndUniqueness(t *testing.T) {
 func TestGeminiResponseToChatCompletionsRetainsTextAndToolBehavior(t *testing.T) {
 	geminiResp := map[string]any{
 		"candidates": []any{map[string]any{
-
 			"content": map[string]any{"parts": []any{
-
 				map[string]any{"text": "checking"},
 
 				map[string]any{"functionCall": map[string]any{

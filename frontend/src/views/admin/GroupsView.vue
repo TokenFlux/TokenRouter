@@ -1711,6 +1711,7 @@
               </div>
             </div>
           </template>
+          <template #routing><GroupRoutingPolicyFields v-model="createForm.routing_policy" :platform="createForm.platform" /></template>
         </GroupFormTabs>
       </form>
 
@@ -3123,6 +3124,7 @@
               </div>
             </div>
           </template>
+          <template #routing><GroupRoutingPolicyFields v-model="editForm.routing_policy" :platform="editForm.platform" /></template>
         </GroupFormTabs>
       </form>
 
@@ -3351,12 +3353,14 @@ import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffor
 import { loadProtocolCatalog, protocolCatalog } from '@/api/admin/protocolCapabilities';
 import GroupClientProtocolSelector from "@/components/admin/group/GroupClientProtocolSelector.vue";
 import GroupAdvancedSchedulerOverridesModal from "@/components/admin/group/GroupAdvancedSchedulerOverridesModal.vue";
+import GroupRoutingPolicyFields from '@/components/admin/group/GroupRoutingPolicyFields.vue';
+import { defaultRoutingPolicy, cloneRoutingPolicy } from '@/components/admin/group/routingPolicy';
 import GroupFormTabs from "@/components/admin/group/GroupFormTabs.vue";
-import PricingEntryCard from "@/components/admin/channel/PricingEntryCard.vue";
-import type { PricingFormEntry } from "@/components/admin/channel/types";
-import { createDefaultTimePricingForm } from "@/components/admin/channel/types";
-import { pricingEntryFromAPI, pricingEntryToAPI, validatePricingForm } from "@/components/admin/channel/pricingForm";
-import type { ChannelModelPricing } from "@/api/admin/channels";
+import PricingEntryCard from "@/components/admin/pricing/PricingEntryCard.vue";
+import type { PricingFormEntry } from "@/components/admin/pricing/types";
+import { createDefaultTimePricingForm } from "@/components/admin/pricing/types";
+import { pricingEntryFromAPI, pricingEntryToAPI, validatePricingForm } from "@/components/admin/pricing/pricingForm";
+import type { ModelPricingEntry } from "@/api/admin/pricing";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
 import { getFloatingPanelPosition } from "@/utils/floatingPanel";
@@ -3417,9 +3421,9 @@ const emptyGroupPricing = (): PricingFormEntry => ({
   per_request_price: null, intervals: [], time_pricing: createDefaultTimePricingForm(),
 });
 const addGroupPricing = (entries: PricingFormEntry[]) => entries.push(emptyGroupPricing());
-const groupPricingFromAPI = (pricing: ChannelModelPricing[] | undefined): PricingFormEntry[] =>
+const groupPricingFromAPI = (pricing: ModelPricingEntry[] | undefined): PricingFormEntry[] =>
   (pricing || []).map(pricingEntryFromAPI);
-const groupPricingToAPI = (pricing: PricingFormEntry[], platform: string): ChannelModelPricing[] =>
+const groupPricingToAPI = (pricing: PricingFormEntry[], platform: string): ModelPricingEntry[] =>
   pricing.filter(entry => entry.models.length > 0).map(entry => pricingEntryToAPI(entry, platform));
 
 const { t } = useI18n();
@@ -3971,6 +3975,7 @@ const createForm = reactive({
   session_isolation_enabled: false,
   long_context_pricing_enabled: true,
   model_pricing: [] as PricingFormEntry[],
+  routing_policy: defaultRoutingPolicy(),
   // 图片生成计费配置
   allow_image_generation: false,
   allow_batch_image_generation: false,
@@ -4400,6 +4405,7 @@ const editForm = reactive({
   status: "active" as "active" | "inactive",
   long_context_pricing_enabled: true,
   model_pricing: [] as PricingFormEntry[],
+  routing_policy: defaultRoutingPolicy(),
   // 图片生成计费配置
   allow_image_generation: false,
   allow_batch_image_generation: false,
@@ -4798,6 +4804,7 @@ const closeCreateModal = () => {
   createForm.batch_image_hold_multiplier = 0.6;
   createForm.long_context_pricing_enabled = true;
   createForm.model_pricing = [];
+  createForm.routing_policy = defaultRoutingPolicy();
   createForm.web_search_price_per_call = null;
   createForm.search_price_per_1k = null;
   createForm.audio_realtime_price_per_min = null;
@@ -4896,6 +4903,7 @@ const handleCreateGroup = async () => {
       protocol_fallbacks: { ...createForm.protocol_fallbacks },
       responses_image_policy: createForm.responses_image_policy,
       display_brand: normalizeDisplayBrand(createForm.display_brand),
+      routing_policy: createForm.routing_policy,
       model_pricing: groupPricingToAPI(
         createForm.model_pricing,
         createForm.platform,
@@ -5011,6 +5019,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.long_context_pricing_enabled =
     group.long_context_pricing_enabled ?? true;
   editForm.model_pricing = groupPricingFromAPI(group.model_pricing);
+  editForm.routing_policy = cloneRoutingPolicy(group.routing_policy);
   editForm.allow_image_generation = group.allowed_protocols?.some(id => ['openai_images_generations','openai_images_edits','image_batches'].includes(id)) ?? false;
   editForm.allow_batch_image_generation =
     group.allowed_protocols?.includes('image_batches') ?? false;
@@ -5115,6 +5124,7 @@ const closeEditModal = () => {
 
   editForm.long_context_pricing_enabled = true;
   editForm.model_pricing = [];
+  editForm.routing_policy = defaultRoutingPolicy();
   editForm.web_search_price_per_call = null;
   editForm.search_price_per_1k = null;
   editForm.audio_realtime_price_per_min = null;
@@ -5145,6 +5155,7 @@ const handleUpdateGroup = async () => {
       protocol_fallbacks: { ...editForm.protocol_fallbacks },
       responses_image_policy: editForm.responses_image_policy,
       display_brand: normalizeDisplayBrand(editForm.display_brand),
+      routing_policy: editForm.routing_policy,
       model_pricing: groupPricingToAPI(
         editForm.model_pricing,
         editForm.platform,

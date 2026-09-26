@@ -41,7 +41,7 @@ type generationRequestAdapter struct {
 	parsed                                  *gatewaymedia.ImageRequest
 	body                                    []byte
 	requestModel, routingModel, sessionHash string
-	channelMapping                          routingerrors.ChannelMappingResult
+	groupMapping                            routingerrors.GroupMappingResult
 	endpoint                                upstreamgrok.GrokMediaEndpoint
 	requestID, contentType, videoCreated    string
 	boundAccountID                          int64
@@ -63,6 +63,7 @@ func (p *generationRequestAdapter) SelectGeneration(ctx context.Context, exclude
 	}
 	return gatewaymedia.GenerationSelection{Account: gatewaycapture.ExecutionSnapshot(p.selection.Account), RetryLimit: p.selection.Account.View().GetPoolModeRetryCount()}, true, err
 }
+
 func (p *generationRequestAdapter) ActivateGeneration(_ gatewaymedia.GenerationSelection) {
 	account := p.selection.Account
 	if !p.grok {
@@ -78,6 +79,7 @@ func (p *generationRequestAdapter) ActivateGeneration(_ gatewaymedia.GenerationS
 func (p *generationRequestAdapter) GenerationEligible(ctx context.Context, _ gatewaymedia.GenerationSelection) (bool, string, error) {
 	return p.h.ensureGrokMediaAccountEligibility(ctx, p.selection.Account)
 }
+
 func (p *generationRequestAdapter) AcquireGeneration(_ context.Context, _ gatewaymedia.GenerationSelection) (func(), bool) {
 	stream := false
 	if p.parsed != nil {
@@ -85,9 +87,11 @@ func (p *generationRequestAdapter) AcquireGeneration(_ context.Context, _ gatewa
 	}
 	return p.h.bindings.Common.Support.AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, stream, p.streamStarted, p.reqLog)
 }
+
 func (p *generationRequestAdapter) StartGenerationKeepalive() func() {
 	return gatewayhttp.StartOpenAIImagesJSONKeepalive(p.c, p.h.bindings.Options.ImageKeepalive)
 }
+
 func (p *generationRequestAdapter) ForwardGeneration(ctx context.Context, _ gatewaymedia.GenerationSelection, body []byte) gatewaymedia.GenerationOutcome {
 	account := p.selection.Account
 	var result *forwardcore.OpenAIResult
@@ -123,6 +127,7 @@ func (p *generationRequestAdapter) ForwardGeneration(ctx context.Context, _ gate
 	}
 	return outcome
 }
+
 func (p *generationRequestAdapter) ReportGeneration(_ context.Context, _ gatewaymedia.GenerationSelection, value *gatewaymedia.GenerationResult, success bool, err error) {
 	account := p.selection.Account
 	result := legacyGenerationResult(value)
@@ -136,15 +141,19 @@ func (p *generationRequestAdapter) ReportGeneration(_ context.Context, _ gateway
 	}
 	p.h.bindings.Common.Selection.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestModel, false, result), false, nil, err)
 }
+
 func (p *generationRequestAdapter) SwitchGeneration(gatewaymedia.GenerationSelection) {
 	p.h.bindings.Common.Selection.RecordOpenAIAccountSwitchForSelection(p.selection)
 }
+
 func (p *generationRequestAdapter) StopGeneration429(_ gatewaymedia.GenerationSelection, status, count int) bool {
 	return p.h.bindings.Platform.Stop429(p.selection.Account, status, count, &p.oauth429)
 }
+
 func (p *generationRequestAdapter) GenerationClientGone() bool {
 	return gatewayhttp.FailoverClientGone(p.c)
 }
+
 func (p *generationRequestAdapter) logSchedule() {
 	name := "openai.images"
 	if p.grok {
@@ -153,6 +162,7 @@ func (p *generationRequestAdapter) logSchedule() {
 	d := p.decision
 	p.reqLog.Debug(name+".account_schedule_decision", zap.String("layer", d.Layer), zap.Bool("sticky_session_hit", d.StickySessionHit), zap.Int("candidate_count", d.CandidateCount), zap.Int("top_k", d.TopK), zap.Int64("latency_ms", d.LatencyMs), zap.Float64("load_skew", d.LoadSkew))
 }
+
 func (p *generationRequestAdapter) ObserveGeneration(e gatewaymedia.GenerationEvent) {
 	name := "openai.images"
 	if p.grok {
@@ -205,6 +215,7 @@ func (p *generationRequestAdapter) ObserveGeneration(e gatewaymedia.GenerationEv
 		p.reqLog.Debug(name+".request_completed", zap.Int64("account_id", e.Selection.Account.ID), zap.Int("switch_count", e.Switches))
 	}
 }
+
 func (p *generationRequestAdapter) EndGeneration(f gatewaymedia.GenerationFailure) {
 	id := int64(0)
 	if p.selection != nil && p.selection.Account != nil {
@@ -220,8 +231,9 @@ func (p *generationRequestAdapter) CompleteGeneration(ctx context.Context, _ gat
 		p.completeImages(value)
 	}
 }
+
 func (p *generationRequestAdapter) completeImages(value *gatewaymedia.GenerationResult) {
-	h, c, apiKey, account, requestModel, parsed, body, subscription, subject, channelMapping := p.h, p.c, p.apiKey, p.selection.Account, p.requestModel, p.parsed, p.body, p.subscription, p.subject, p.channelMapping
+	h, c, apiKey, account, requestModel, parsed, body, subscription, subject, groupMapping := p.h, p.c, p.apiKey, p.selection.Account, p.requestModel, p.parsed, p.body, p.subscription, p.subject, p.groupMapping
 	result := legacyGenerationResult(value)
 	if result != nil {
 		// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
@@ -263,7 +275,7 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 		APIKeyService:      h.bindings.Quota,
 		QuotaPlatform:      quotaPlatform,
 		ClientSessionID:    clientSessionID,
-		ChannelUsageFields: channelMapping.ToUsageFields(requestModel, upstreamModel),
+		PricingUsageFields: groupMapping.ToUsageFields(requestModel, upstreamModel),
 	})
 	completionRecorder := h.bindings.Common.Recorder
 	completionLog := logging.L().With(
@@ -279,10 +291,10 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 			completionLog.Error("openai.images.record_usage_failed", zap.Error(err))
 		}
 	})
-
 }
+
 func (p *generationRequestAdapter) completeGrok(requestCtx context.Context, value *gatewaymedia.GenerationResult) {
-	h, c, apiKey, reqLog, account, requestModel, body, subscription, subject, channelMapping, endpoint, requestID, videoCreateStartedAt := p.h, p.c, p.apiKey, p.reqLog, p.selection.Account, p.requestModel, p.body, p.subscription, p.subject, p.channelMapping, p.endpoint, p.requestID, p.videoCreated
+	h, c, apiKey, reqLog, account, requestModel, body, subscription, subject, groupMapping, endpoint, requestID, videoCreateStartedAt := p.h, p.c, p.apiKey, p.reqLog, p.selection.Account, p.requestModel, p.body, p.subscription, p.subject, p.groupMapping, p.endpoint, p.requestID, p.videoCreated
 	result := legacyGenerationResult(value)
 	if isGrokVideoCreateEndpoint(endpoint) && strings.TrimSpace(result.ResponseID) != "" {
 		// 视频创建阶段暂不扣费，保存模型、时长和分辨率供完成查询定价。
@@ -301,10 +313,10 @@ func (p *generationRequestAdapter) completeGrok(requestCtx context.Context, valu
 	if endpoint == upstreamgrok.GrokMediaEndpointVideoStatus || endpoint == upstreamgrok.GrokMediaEndpointVideoContent {
 		taskID := strings.TrimSpace(requestID)
 		if billResult := prepareGrokVideoCompletionBilling(requestCtx, h, reqLog, apiKey, subject, taskID, result); billResult != nil {
-			recordGrokMediaUsage(c, h, reqLog, apiKey, subject, subscription, account, billResult, billResult.Model, channelMapping, body, taskID)
+			recordGrokMediaUsage(c, h, reqLog, apiKey, subject, subscription, account, billResult, billResult.Model, groupMapping, body, taskID)
 		}
 	} else if shouldRecordGrokMediaUsage(endpoint, requestModel, result) {
-		recordGrokMediaUsage(c, h, reqLog, apiKey, subject, subscription, account, result, requestModel, channelMapping, body, requestID)
+		recordGrokMediaUsage(c, h, reqLog, apiKey, subject, subscription, account, result, requestModel, groupMapping, body, requestID)
 	}
 }
 
@@ -334,9 +346,11 @@ func (p *generationRequestAdapter) MediaClassify() gatewayhttp.MediaNoAccount {
 	result := openaiattempt.ClassifyNoAccountErrorFromGin(p.c, p.h.bindings.Common.Diagnoser, p.apiKey, p.requestModel, routing, platform)
 	return gatewayhttp.MediaNoAccount{ModelNotFound: result.ModelNotFound, Status: result.Status, Type: result.ErrType, Message: result.Message}
 }
+
 func (p *generationRequestAdapter) MediaNoAvailable(err error) bool {
 	return errors.Is(err, scheduler.ErrNoAvailableAccounts)
 }
+
 func (p *generationRequestAdapter) MediaCapacity(err error, conditional bool) {
 	if conditional {
 		gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, err)
@@ -344,6 +358,7 @@ func (p *generationRequestAdapter) MediaCapacity(err error, conditional bool) {
 		gatewayhttp.MarkOpsRoutingCapacityLimited(p.c)
 	}
 }
+
 func (p *generationRequestAdapter) MediaError(status int, typ, message string, stream bool) {
 	if stream {
 		gatewayhttp.DefaultOpenAIErrorOutput().StreamError(p.c, status, typ, message, *p.streamStarted)
@@ -351,37 +366,46 @@ func (p *generationRequestAdapter) MediaError(status int, typ, message string, s
 		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, status, typ, message)
 	}
 }
+
 func (p *generationRequestAdapter) MediaFailover(err error, stream bool) {
 	var value *forwardcore.UpstreamFailoverError
 	if errors.As(err, &value) {
 		p.h.bindings.Common.Support.HandleFailoverExhausted(p.c, value, stream)
 	}
 }
+
 func (p *generationRequestAdapter) MediaSimpleExhausted() {
 	p.h.bindings.Common.Support.HandleFailoverExhaustedSimple(p.c, 502, *p.streamStarted)
 }
+
 func (p *generationRequestAdapter) mediaStatus() int {
 	status, _ := openaiattempt.GetContextInt64(p.c, gatewayhttp.OpsUpstreamStatusCodeKey)
 	return int(status)
 }
+
 func (p *generationRequestAdapter) MediaForwardCyber(err error) bool {
 	return p.h.bindings.Common.Support.RecordOpenAIForwardErrorCyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), err)
 }
+
 func (p *generationRequestAdapter) MediaCyber(err error) {
 	p.h.bindings.Common.Support.RecordOpenAICyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), nil, err.Error())
 }
+
 func (p *generationRequestAdapter) MediaReportUnexpected(result *gatewaymedia.GenerationResult, err error) {
 	p.ReportGeneration(p.c.Request.Context(), gatewaymedia.GenerationSelection{}, result, false, err)
 }
+
 func (p *generationRequestAdapter) MediaCommunicated(err error) bool {
 	if p.grok {
 		return gatewayhttp.IsResponseCommitted(p.c)
 	}
 	return gatewayhttp.OpenAIForwardErrorAlreadyCommunicated(p.c, p.writerBefore, err)
 }
+
 func (p *generationRequestAdapter) MediaEnsureFallback(err error) bool {
 	return gatewayhttp.DefaultOpenAIErrorOutput().EnsureResponse(p.c, *p.streamStarted, err)
 }
+
 func (p *generationRequestAdapter) MediaWarnFailure(wrote bool) bool {
 	return gatewayhttp.ShouldLogOpenAIForwardFailureAsWarn(p.c, wrote)
 }

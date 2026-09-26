@@ -17,6 +17,7 @@ func EntryFallbackSeed(userID, keyID int64, groupID *int64) string {
 	}
 	return fmt.Sprintf("openai_ws_ingress:%d:%d:%d", group, userID, keyID)
 }
+
 func entrySeedHash(seed string) string {
 	value, _ := scheduler.DeriveSessionHashes(seed)
 	return value
@@ -33,8 +34,8 @@ func EntryNextAttemptMessage(current, retry []byte, currentTurn bool) ([]byte, b
 	return append([]byte(nil), retry...), true
 }
 
-// EntryBillingModel 保留渠道价卡覆盖的原优先级。
-func EntryBillingModel(result *ForwardResult, mapping routing.ChannelMappingResult, requested, upstream string) string {
+// EntryBillingModel 保留共享价卡覆盖的原优先级。
+func EntryBillingModel(result *ForwardResult, mapping routing.GroupMappingResult, requested, upstream string) string {
 	model := ""
 	if result != nil {
 		model = strings.TrimSpace(result.BillingModel)
@@ -51,13 +52,14 @@ func EntryBillingModel(result *ForwardResult, mapping routing.ChannelMappingResu
 		if requested != "" {
 			model = requested
 		}
-	case routing.BillingModelSourceChannelMapped:
+	case routing.BillingModelSourceGroupMapped:
 		if mapped := strings.TrimSpace(mapping.MappedModel); mapped != "" && mapped != requested {
 			model = mapped
 		}
 	}
 	return model
 }
+
 func entrySucceeded(r *ForwardResult) bool {
 	if r == nil || !r.OpenAIWSMode || r.UpstreamTerminalEvent == "" {
 		return true
@@ -69,11 +71,13 @@ func entrySucceeded(r *ForwardResult) bool {
 var ErrEntryLocalRoutingRejected = errors.New("local websocket routing rejected")
 
 func EntryLocalRoutingReason(model string) string {
-	return fmt.Sprintf("model %s is not available for this websocket channel or account", strings.TrimSpace(model))
+	return fmt.Sprintf("model %s is not available for this websocket group or account", strings.TrimSpace(model))
 }
+
 func EntryLocalRoutingCause(err error) error {
 	return fmt.Errorf("%w: %w", ErrEntryLocalRoutingRejected, err)
 }
+
 func EntryShouldReportFailure(err error) bool {
 	if err == nil || errors.Is(err, ErrEntryLocalRoutingRejected) || IsSessionPreemptedError(err) {
 		return false

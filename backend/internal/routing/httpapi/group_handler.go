@@ -19,6 +19,7 @@ import (
 
 // CreateGroupRequest represents create group request
 type CreateGroupRequest struct {
+	RoutingPolicy              routing.GroupRoutingPolicy              `json:"routing_policy"`
 	Name                       string                                  `json:"name" binding:"required"`
 	Description                string                                  `json:"description"`
 	Platform                   string                                  `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity qoder grok kimi zhipu deepseek"`
@@ -30,9 +31,9 @@ type CreateGroupRequest struct {
 	IsExclusive                bool                                    `json:"is_exclusive"`
 	IsDefault                  bool                                    `json:"is_default"`
 	// 会话隔离开启后拒绝其它分组已归属的显式会话切入。
-	SessionIsolationEnabled   bool                          `json:"session_isolation_enabled"`
-	LongContextPricingEnabled *bool                         `json:"long_context_pricing_enabled"`
-	ModelPricing              []routing.ChannelModelPricing `json:"model_pricing"`
+	SessionIsolationEnabled   bool                        `json:"session_isolation_enabled"`
+	LongContextPricingEnabled *bool                       `json:"long_context_pricing_enabled"`
+	ModelPricing              []routing.ModelPricingEntry `json:"model_pricing"`
 	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
 	AllowImageGeneration            bool     `json:"allow_image_generation"`
 	AllowBatchImageGeneration       bool     `json:"allow_batch_image_generation"`
@@ -92,6 +93,7 @@ type CreateGroupRequest struct {
 
 // UpdateGroupRequest represents update group request
 type UpdateGroupRequest struct {
+	RoutingPolicy              *routing.GroupRoutingPolicy              `json:"routing_policy"`
 	Name                       string                                   `json:"name"`
 	Description                *string                                  `json:"description"`
 	Platform                   string                                   `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity qoder grok kimi zhipu deepseek"`
@@ -103,10 +105,10 @@ type UpdateGroupRequest struct {
 	IsExclusive                *bool                                    `json:"is_exclusive"`
 	IsDefault                  *bool                                    `json:"is_default"`
 	// nil 表示不修改会话隔离开关。
-	SessionIsolationEnabled   *bool                          `json:"session_isolation_enabled"`
-	Status                    string                         `json:"status" binding:"omitempty,oneof=active inactive"`
-	LongContextPricingEnabled *bool                          `json:"long_context_pricing_enabled"`
-	ModelPricing              *[]routing.ChannelModelPricing `json:"model_pricing"`
+	SessionIsolationEnabled   *bool                        `json:"session_isolation_enabled"`
+	Status                    string                       `json:"status" binding:"omitempty,oneof=active inactive"`
+	LongContextPricingEnabled *bool                        `json:"long_context_pricing_enabled"`
+	ModelPricing              *[]routing.ModelPricingEntry `json:"model_pricing"`
 	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
 	AllowImageGeneration            *bool    `json:"allow_image_generation"`
 	AllowBatchImageGeneration       *bool    `json:"allow_batch_image_generation"`
@@ -302,6 +304,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		SessionIsolationEnabled:         req.SessionIsolationEnabled,
 		LongContextPricingEnabled:       req.LongContextPricingEnabled,
 		ModelPricing:                    req.ModelPricing,
+		RoutingPolicy:                   req.RoutingPolicy,
 		AllowImageGeneration:            req.AllowImageGeneration,
 		AllowBatchImageGeneration:       req.AllowBatchImageGeneration,
 		BatchImageDiscountMultiplier:    req.BatchImageDiscountMultiplier,
@@ -433,6 +436,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		Status:                          req.Status,
 		LongContextPricingEnabled:       req.LongContextPricingEnabled,
 		ModelPricing:                    req.ModelPricing,
+		RoutingPolicy:                   req.RoutingPolicy,
 		AllowImageGeneration:            req.AllowImageGeneration,
 		AllowBatchImageGeneration:       req.AllowBatchImageGeneration,
 		BatchImageDiscountMultiplier:    req.BatchImageDiscountMultiplier,
@@ -584,6 +588,7 @@ func NewGroupHandler(admin GroupAdministration, resources ...GroupResources) *Gr
 	}
 	return handler
 }
+
 func float64ValueOrDefault(value *float64, fallback float64) float64 {
 	if value == nil {
 		return fallback

@@ -1,11 +1,11 @@
 package httpapi
 
 import (
-	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
-
 	"errors"
 	"fmt"
 	"testing"
+
+	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 
@@ -24,7 +24,7 @@ func TestShouldReportOpenAIWSProxyAccountFailure(t *testing.T) {
 		var closeErr *OpenAIWSClientCloseError
 		require.ErrorAs(t, err, &closeErr)
 		require.Equal(t, coderws.StatusPolicyViolation, closeErr.StatusCode())
-		require.Equal(t, "model gpt-unsupported is not available for this websocket channel or account", closeErr.Reason())
+		require.Equal(t, "model gpt-unsupported is not available for this websocket group or account", closeErr.Reason())
 	})
 
 	t.Run("上游策略错误仍惩罚账号", func(t *testing.T) {

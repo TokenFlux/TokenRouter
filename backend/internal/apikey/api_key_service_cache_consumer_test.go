@@ -108,6 +108,7 @@ func (s *authRepoStub) SearchAPIKeys(ctx context.Context, userID int64, keyword 
 func (s *authRepoStub) ClearGroupIDByGroupID(ctx context.Context, groupID int64) (int64, error) {
 	panic("unexpected ClearGroupIDByGroupID call")
 }
+
 func (s *authRepoStub) UpdateGroupIDByUserAndGroup(ctx context.Context, userID, oldGroupID, newGroupID int64) (int64, error) {
 	panic("unexpected UpdateGroupIDByUserAndGroup call")
 }
@@ -137,12 +138,15 @@ func (s *authRepoStub) IncrementQuotaUsed(ctx context.Context, id int64, amount 
 func (s *authRepoStub) UpdateLastUsed(ctx context.Context, id int64, usedAt time.Time) error {
 	panic("unexpected UpdateLastUsed call")
 }
+
 func (s *authRepoStub) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
 	panic("unexpected IncrementRateLimitUsage call")
 }
+
 func (s *authRepoStub) ResetRateLimitWindows(ctx context.Context, id int64) error {
 	panic("unexpected ResetRateLimitWindows call")
 }
+
 func (s *authRepoStub) GetRateLimitData(ctx context.Context, id int64) (*apikey.APIKeyRateLimitData, error) {
 	panic("unexpected GetRateLimitData call")
 }
@@ -810,7 +814,7 @@ func TestAPIKeyServiceSnapshotRoundTripPreservesGroupModelPricing(t *testing.T) 
 		Group: &routing.Group{
 			ID: groupID, Name: "openai", Platform: capability.PlatformOpenAI, Status: billing.StatusActive,
 			LongContextPricingEnabled: true,
-			ModelPricing: []routing.ChannelModelPricing{{
+			ModelPricing: []routing.ModelPricingEntry{{
 				Models: []string{"gpt-5.4"}, BillingMode: routing.BillingModeToken, InputPrice: &inputPrice,
 			}},
 		},
@@ -1182,4 +1186,33 @@ func TestAPIKeyServiceZeroValueLookup(t *testing.T) {
 	require.Nil(t, key)
 	require.ErrorIs(t, err, apikey.ErrAPIKeyNotFound)
 	require.Equal(t, "get api key: "+apikey.ErrAPIKeyNotFound.Error(), err.Error())
+}
+
+func TestAPIKeySnapshotPreservesIndependentRoutingPolicy(t *testing.T) {
+	svc := testkit.NewService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	groupID := int64(9)
+	key := &apikey.APIKey{
+		ID: 1, UserID: 2, GroupID: &groupID, Key: "policy-snapshot", Status: billing.StatusActive,
+		User: &identity.User{ID: 2, Status: billing.StatusActive}, Group: &routing.Group{
+			ID: groupID, Platform: capability.PlatformOpenAI,
+			RoutingPolicy: routing.GroupRoutingPolicy{
+				Enabled: true, RestrictModels: true, RestrictionModelSource: routing.BillingModelSourceUpstream,
+				ModelMapping: map[string]map[string]string{"openai": {"alias": "real"}}, AllowedModels: map[string][]string{"openai": {"real"}},
+				FeaturesConfig: map[string]any{"codex_image_generation_bridge": map[string]any{"openai": false}},
+			},
+		},
+	}
+	snapshot := svc.KeySnapshotFromAPIKey(context.Background(), key)
+	require.Equal(t, 41, snapshot.Version)
+	restored := svc.KeySnapshotToAPIKey(key.Key, snapshot)
+	require.Equal(t, key.Group.RoutingPolicy, restored.Group.RoutingPolicy)
+	restored.Group.RoutingPolicy.ModelMapping["openai"]["alias"] = "changed"
+	restored.Group.RoutingPolicy.AllowedModels["openai"][0] = "changed"
+	require.Equal(t, "real", snapshot.Group.RoutingPolicy.ModelMapping["openai"]["alias"])
+	require.Equal(t, "real", snapshot.Group.RoutingPolicy.AllowedModels["openai"][0])
+	snapshot.Version = 40
+	cached, ok, err := svc.KeyApplyAuthCacheEntry(key.Key, &apikey.APIKeyAuthCacheEntry{Snapshot: snapshot})
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Nil(t, cached)
 }

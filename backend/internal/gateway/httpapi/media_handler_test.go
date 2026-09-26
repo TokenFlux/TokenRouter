@@ -20,28 +20,32 @@ type mediaHTTPProbe struct {
 	t       *testing.T
 	access  *MediaAccess
 	steps   []string
-	mapping routing.ChannelMappingResult
+	mapping routing.GroupMappingResult
 }
 
 func (p *mediaHTTPProbe) Access(*gin.Context) (*MediaAccess, bool) {
 	p.steps = append(p.steps, "auth")
 	return p.access, p.access != nil
 }
+
 func (p *mediaHTTPProbe) Subject(*gin.Context) (MediaSubject, bool) {
 	return MediaSubject{UserID: 1, Concurrency: 1}, true
 }
+
 func (p *mediaHTTPProbe) Error(c *gin.Context, status int, kind, message string) {
 	c.JSON(status, gin.H{"error": gin.H{"type": kind, "message": message}})
 }
+
 func (p *mediaHTTPProbe) EnsureForwardError(*gin.Context, bool) bool {
 	p.t.Error("unexpected panic in media HTTP adapter")
 	return false
 }
+
 func (p *mediaHTTPProbe) Logger(*gin.Context, string, ...zap.Field) *zap.Logger { return zap.NewNop() }
 func (p *mediaHTTPProbe) Dependencies(*gin.Context, *zap.Logger) bool           { return true }
 func (p *mediaHTTPProbe) HTTPTransport(*gin.Context)                            {}
 func (p *mediaHTTPProbe) ObserveRequest(*gin.Context, string, bool, bool)       {}
-func (p *mediaHTTPProbe) Plan(c *gin.Context, _ string, _ bool) (context.Context, routing.ChannelMappingResult) {
+func (p *mediaHTTPProbe) Plan(c *gin.Context, _ string, _ bool) (context.Context, routing.GroupMappingResult) {
 	p.steps = append(p.steps, "plan")
 	return c.Request.Context(), p.mapping
 }
@@ -66,6 +70,7 @@ func mediaHTTPContext(method, path string, body io.Reader) (*gin.Context, *httpt
 	c.Request = httptest.NewRequest(method, path, body)
 	return c, rec
 }
+
 func TestMediaHTTPAuthenticationAndPlatformChecksDoNotReadBody(t *testing.T) {
 	for _, kind := range []string{"images", "embeddings", "alpha", "voice"} {
 		t.Run(kind, func(t *testing.T) {
@@ -92,14 +97,16 @@ func TestMediaHTTPAuthenticationAndPlatformChecksDoNotReadBody(t *testing.T) {
 		})
 	}
 }
+
 func TestImagesHTTPValidatesMappedModelBeforeFeatureDenial(t *testing.T) {
-	p := &mediaHTTPProbe{t: t, access: &MediaAccess{ID: 2}, mapping: routing.ChannelMappingResult{Mapped: true, MappedModel: "gpt-image-2"}}
+	p := &mediaHTTPProbe{t: t, access: &MediaAccess{ID: 2}, mapping: routing.GroupMappingResult{Mapped: true, MappedModel: "gpt-image-2"}}
 	c, rec := mediaHTTPContext(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"alias","prompt":"cat"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	NewMediaHandler(p).Images(c)
 	require.Equal(t, 403, rec.Code)
 	require.Equal(t, []string{"auth", "plan", "denied"}, p.steps)
 }
+
 func TestGrokVideoLookupSkipsBodyAndRequiresTaskID(t *testing.T) {
 	p := &mediaHTTPProbe{t: t, access: &MediaAccess{ID: 2}}
 	body := &unreadableMediaBody{}

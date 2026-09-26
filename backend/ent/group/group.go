@@ -74,6 +74,8 @@ const (
 	FieldAudioSttPricePerHour = "audio_stt_price_per_hour"
 	// FieldLongContextPricingEnabled holds the string denoting the long_context_pricing_enabled field in the database.
 	FieldLongContextPricingEnabled = "long_context_pricing_enabled"
+	// FieldRoutingPolicy holds the string denoting the routing_policy field in the database.
+	FieldRoutingPolicy = "routing_policy"
 	// FieldModelPricing holds the string denoting the model_pricing field in the database.
 	FieldModelPricing = "model_pricing"
 	// FieldClaudeCodeOnly holds the string denoting the claude_code_only field in the database.
@@ -242,6 +244,7 @@ var Columns = []string{
 	FieldAudioTtsPricePerMillionChars,
 	FieldAudioSttPricePerHour,
 	FieldLongContextPricingEnabled,
+	FieldRoutingPolicy,
 	FieldModelPricing,
 	FieldClaudeCodeOnly,
 	FieldFallbackGroupID,

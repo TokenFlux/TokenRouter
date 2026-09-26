@@ -7,12 +7,12 @@ import (
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
-func (v ChannelValidation) NormalizeGroupPricing(platform string, pricing []ChannelModelPricing) ([]ChannelModelPricing, error) {
-	out := make([]ChannelModelPricing, len(pricing))
+func (v PricingConfigValidation) NormalizeGroupPricing(platform string, pricing []ModelPricingEntry) ([]ModelPricingEntry, error) {
+	out := make([]ModelPricingEntry, len(pricing))
 	for i := range pricing {
 		out[i] = pricing[i].Clone()
 		out[i].ID = 0
-		out[i].ChannelID = 0
+		out[i].PricingConfigID = 0
 		if strings.TrimSpace(out[i].Platform) == "" {
 			out[i].Platform = platform
 		}

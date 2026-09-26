@@ -23571,6 +23571,8 @@ type GroupMutation struct {
 	audio_stt_price_per_hour                *float64
 	addaudio_stt_price_per_hour             *float64
 	long_context_pricing_enabled            *bool
+	routing_policy                          *jsontext.Value
+	appendrouting_policy                    jsontext.Value
 	model_pricing                           *jsontext.Value
 	appendmodel_pricing                     jsontext.Value
 	claude_code_only                        *bool
@@ -25026,6 +25028,71 @@ func (m *GroupMutation) OldLongContextPricingEnabled(ctx context.Context) (v boo
 // ResetLongContextPricingEnabled resets all changes to the "long_context_pricing_enabled" field.
 func (m *GroupMutation) ResetLongContextPricingEnabled() {
 	m.long_context_pricing_enabled = nil
+}
+
+// SetRoutingPolicy sets the "routing_policy" field.
+func (m *GroupMutation) SetRoutingPolicy(j jsontext.Value) {
+	m.routing_policy = &j
+	m.appendrouting_policy = nil
+}
+
+// RoutingPolicy returns the value of the "routing_policy" field in the mutation.
+func (m *GroupMutation) RoutingPolicy() (r jsontext.Value, exists bool) {
+	v := m.routing_policy
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRoutingPolicy returns the old "routing_policy" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldRoutingPolicy(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRoutingPolicy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRoutingPolicy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRoutingPolicy: %w", err)
+	}
+	return oldValue.RoutingPolicy, nil
+}
+
+// AppendRoutingPolicy adds j to the "routing_policy" field.
+func (m *GroupMutation) AppendRoutingPolicy(j jsontext.Value) {
+	m.appendrouting_policy = append(m.appendrouting_policy, j...)
+}
+
+// AppendedRoutingPolicy returns the list of values that were appended to the "routing_policy" field in this mutation.
+func (m *GroupMutation) AppendedRoutingPolicy() (jsontext.Value, bool) {
+	if len(m.appendrouting_policy) == 0 {
+		return nil, false
+	}
+	return m.appendrouting_policy, true
+}
+
+// ClearRoutingPolicy clears the value of the "routing_policy" field.
+func (m *GroupMutation) ClearRoutingPolicy() {
+	m.routing_policy = nil
+	m.appendrouting_policy = nil
+	m.clearedFields[group.FieldRoutingPolicy] = struct{}{}
+}
+
+// RoutingPolicyCleared returns if the "routing_policy" field was cleared in this mutation.
+func (m *GroupMutation) RoutingPolicyCleared() bool {
+	_, ok := m.clearedFields[group.FieldRoutingPolicy]
+	return ok
+}
+
+// ResetRoutingPolicy resets all changes to the "routing_policy" field.
+func (m *GroupMutation) ResetRoutingPolicy() {
+	m.routing_policy = nil
+	m.appendrouting_policy = nil
+	delete(m.clearedFields, group.FieldRoutingPolicy)
 }
 
 // SetModelPricing sets the "model_pricing" field.
@@ -26659,7 +26726,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 57)
+	fields := make([]string, 0, 58)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -26743,6 +26810,9 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.long_context_pricing_enabled != nil {
 		fields = append(fields, group.FieldLongContextPricingEnabled)
+	}
+	if m.routing_policy != nil {
+		fields = append(fields, group.FieldRoutingPolicy)
 	}
 	if m.model_pricing != nil {
 		fields = append(fields, group.FieldModelPricing)
@@ -26895,6 +26965,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.AudioSttPricePerHour()
 	case group.FieldLongContextPricingEnabled:
 		return m.LongContextPricingEnabled()
+	case group.FieldRoutingPolicy:
+		return m.RoutingPolicy()
 	case group.FieldModelPricing:
 		return m.ModelPricing()
 	case group.FieldClaudeCodeOnly:
@@ -27018,6 +27090,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldAudioSttPricePerHour(ctx)
 	case group.FieldLongContextPricingEnabled:
 		return m.OldLongContextPricingEnabled(ctx)
+	case group.FieldRoutingPolicy:
+		return m.OldRoutingPolicy(ctx)
 	case group.FieldModelPricing:
 		return m.OldModelPricing(ctx)
 	case group.FieldClaudeCodeOnly:
@@ -27280,6 +27354,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetLongContextPricingEnabled(v)
+		return nil
+	case group.FieldRoutingPolicy:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRoutingPolicy(v)
 		return nil
 	case group.FieldModelPricing:
 		v, ok := value.(jsontext.Value)
@@ -27709,6 +27790,9 @@ func (m *GroupMutation) ClearedFields() []string {
 	if m.FieldCleared(group.FieldAudioSttPricePerHour) {
 		fields = append(fields, group.FieldAudioSttPricePerHour)
 	}
+	if m.FieldCleared(group.FieldRoutingPolicy) {
+		fields = append(fields, group.FieldRoutingPolicy)
+	}
 	if m.FieldCleared(group.FieldModelPricing) {
 		fields = append(fields, group.FieldModelPricing)
 	}
@@ -27761,6 +27845,9 @@ func (m *GroupMutation) ClearField(name string) error {
 		return nil
 	case group.FieldAudioSttPricePerHour:
 		m.ClearAudioSttPricePerHour()
+		return nil
+	case group.FieldRoutingPolicy:
+		m.ClearRoutingPolicy()
 		return nil
 	case group.FieldModelPricing:
 		m.ClearModelPricing()
@@ -27868,6 +27955,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldLongContextPricingEnabled:
 		m.ResetLongContextPricingEnabled()
+		return nil
+	case group.FieldRoutingPolicy:
+		m.ResetRoutingPolicy()
 		return nil
 	case group.FieldModelPricing:
 		m.ResetModelPricing()
@@ -52344,8 +52434,8 @@ type UsageLogMutation struct {
 	model                        *string
 	requested_model              *string
 	upstream_model               *string
-	channel_id                   *int64
-	addchannel_id                *int64
+	pricing_config_id            *int64
+	addpricing_config_id         *int64
 	model_mapping_chain          *string
 	billing_tier                 *string
 	billing_mode                 *string
@@ -52920,74 +53010,74 @@ func (m *UsageLogMutation) ResetUpstreamModel() {
 	delete(m.clearedFields, usagelog.FieldUpstreamModel)
 }
 
-// SetChannelID sets the "channel_id" field.
-func (m *UsageLogMutation) SetChannelID(i int64) {
-	m.channel_id = &i
-	m.addchannel_id = nil
+// SetPricingConfigID sets the "pricing_config_id" field.
+func (m *UsageLogMutation) SetPricingConfigID(i int64) {
+	m.pricing_config_id = &i
+	m.addpricing_config_id = nil
 }
 
-// ChannelID returns the value of the "channel_id" field in the mutation.
-func (m *UsageLogMutation) ChannelID() (r int64, exists bool) {
-	v := m.channel_id
+// PricingConfigID returns the value of the "pricing_config_id" field in the mutation.
+func (m *UsageLogMutation) PricingConfigID() (r int64, exists bool) {
+	v := m.pricing_config_id
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// OldChannelID returns the old "channel_id" field's value of the UsageLog entity.
+// OldPricingConfigID returns the old "pricing_config_id" field's value of the UsageLog entity.
 // If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UsageLogMutation) OldChannelID(ctx context.Context) (v *int64, err error) {
+func (m *UsageLogMutation) OldPricingConfigID(ctx context.Context) (v *int64, err error) {
 	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldChannelID is only allowed on UpdateOne operations")
+		return v, errors.New("OldPricingConfigID is only allowed on UpdateOne operations")
 	}
 	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldChannelID requires an ID field in the mutation")
+		return v, errors.New("OldPricingConfigID requires an ID field in the mutation")
 	}
 	oldValue, err := m.oldValue(ctx)
 	if err != nil {
-		return v, fmt.Errorf("querying old value for OldChannelID: %w", err)
+		return v, fmt.Errorf("querying old value for OldPricingConfigID: %w", err)
 	}
-	return oldValue.ChannelID, nil
+	return oldValue.PricingConfigID, nil
 }
 
-// AddChannelID adds i to the "channel_id" field.
-func (m *UsageLogMutation) AddChannelID(i int64) {
-	if m.addchannel_id != nil {
-		*m.addchannel_id += i
+// AddPricingConfigID adds i to the "pricing_config_id" field.
+func (m *UsageLogMutation) AddPricingConfigID(i int64) {
+	if m.addpricing_config_id != nil {
+		*m.addpricing_config_id += i
 	} else {
-		m.addchannel_id = &i
+		m.addpricing_config_id = &i
 	}
 }
 
-// AddedChannelID returns the value that was added to the "channel_id" field in this mutation.
-func (m *UsageLogMutation) AddedChannelID() (r int64, exists bool) {
-	v := m.addchannel_id
+// AddedPricingConfigID returns the value that was added to the "pricing_config_id" field in this mutation.
+func (m *UsageLogMutation) AddedPricingConfigID() (r int64, exists bool) {
+	v := m.addpricing_config_id
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// ClearChannelID clears the value of the "channel_id" field.
-func (m *UsageLogMutation) ClearChannelID() {
-	m.channel_id = nil
-	m.addchannel_id = nil
-	m.clearedFields[usagelog.FieldChannelID] = struct{}{}
+// ClearPricingConfigID clears the value of the "pricing_config_id" field.
+func (m *UsageLogMutation) ClearPricingConfigID() {
+	m.pricing_config_id = nil
+	m.addpricing_config_id = nil
+	m.clearedFields[usagelog.FieldPricingConfigID] = struct{}{}
 }
 
-// ChannelIDCleared returns if the "channel_id" field was cleared in this mutation.
-func (m *UsageLogMutation) ChannelIDCleared() bool {
-	_, ok := m.clearedFields[usagelog.FieldChannelID]
+// PricingConfigIDCleared returns if the "pricing_config_id" field was cleared in this mutation.
+func (m *UsageLogMutation) PricingConfigIDCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldPricingConfigID]
 	return ok
 }
 
-// ResetChannelID resets all changes to the "channel_id" field.
-func (m *UsageLogMutation) ResetChannelID() {
-	m.channel_id = nil
-	m.addchannel_id = nil
-	delete(m.clearedFields, usagelog.FieldChannelID)
+// ResetPricingConfigID resets all changes to the "pricing_config_id" field.
+func (m *UsageLogMutation) ResetPricingConfigID() {
+	m.pricing_config_id = nil
+	m.addpricing_config_id = nil
+	delete(m.clearedFields, usagelog.FieldPricingConfigID)
 }
 
 // SetModelMappingChain sets the "model_mapping_chain" field.
@@ -55348,8 +55438,8 @@ func (m *UsageLogMutation) Fields() []string {
 	if m.upstream_model != nil {
 		fields = append(fields, usagelog.FieldUpstreamModel)
 	}
-	if m.channel_id != nil {
-		fields = append(fields, usagelog.FieldChannelID)
+	if m.pricing_config_id != nil {
+		fields = append(fields, usagelog.FieldPricingConfigID)
 	}
 	if m.model_mapping_chain != nil {
 		fields = append(fields, usagelog.FieldModelMappingChain)
@@ -55497,8 +55587,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.RequestedModel()
 	case usagelog.FieldUpstreamModel:
 		return m.UpstreamModel()
-	case usagelog.FieldChannelID:
-		return m.ChannelID()
+	case usagelog.FieldPricingConfigID:
+		return m.PricingConfigID()
 	case usagelog.FieldModelMappingChain:
 		return m.ModelMappingChain()
 	case usagelog.FieldBillingTier:
@@ -55606,8 +55696,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldRequestedModel(ctx)
 	case usagelog.FieldUpstreamModel:
 		return m.OldUpstreamModel(ctx)
-	case usagelog.FieldChannelID:
-		return m.OldChannelID(ctx)
+	case usagelog.FieldPricingConfigID:
+		return m.OldPricingConfigID(ctx)
 	case usagelog.FieldModelMappingChain:
 		return m.OldModelMappingChain(ctx)
 	case usagelog.FieldBillingTier:
@@ -55760,12 +55850,12 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetUpstreamModel(v)
 		return nil
-	case usagelog.FieldChannelID:
+	case usagelog.FieldPricingConfigID:
 		v, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.SetChannelID(v)
+		m.SetPricingConfigID(v)
 		return nil
 	case usagelog.FieldModelMappingChain:
 		v, ok := value.(string)
@@ -56058,8 +56148,8 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addbilling_user_id != nil {
 		fields = append(fields, usagelog.FieldBillingUserID)
 	}
-	if m.addchannel_id != nil {
-		fields = append(fields, usagelog.FieldChannelID)
+	if m.addpricing_config_id != nil {
+		fields = append(fields, usagelog.FieldPricingConfigID)
 	}
 	if m.addinput_tokens != nil {
 		fields = append(fields, usagelog.FieldInputTokens)
@@ -56137,8 +56227,8 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case usagelog.FieldBillingUserID:
 		return m.AddedBillingUserID()
-	case usagelog.FieldChannelID:
-		return m.AddedChannelID()
+	case usagelog.FieldPricingConfigID:
+		return m.AddedPricingConfigID()
 	case usagelog.FieldInputTokens:
 		return m.AddedInputTokens()
 	case usagelog.FieldOutputTokens:
@@ -56199,12 +56289,12 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddBillingUserID(v)
 		return nil
-	case usagelog.FieldChannelID:
+	case usagelog.FieldPricingConfigID:
 		v, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.AddChannelID(v)
+		m.AddPricingConfigID(v)
 		return nil
 	case usagelog.FieldInputTokens:
 		v, ok := value.(int)
@@ -56380,8 +56470,8 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldUpstreamModel) {
 		fields = append(fields, usagelog.FieldUpstreamModel)
 	}
-	if m.FieldCleared(usagelog.FieldChannelID) {
-		fields = append(fields, usagelog.FieldChannelID)
+	if m.FieldCleared(usagelog.FieldPricingConfigID) {
+		fields = append(fields, usagelog.FieldPricingConfigID)
 	}
 	if m.FieldCleared(usagelog.FieldModelMappingChain) {
 		fields = append(fields, usagelog.FieldModelMappingChain)
@@ -56463,8 +56553,8 @@ func (m *UsageLogMutation) ClearField(name string) error {
 	case usagelog.FieldUpstreamModel:
 		m.ClearUpstreamModel()
 		return nil
-	case usagelog.FieldChannelID:
-		m.ClearChannelID()
+	case usagelog.FieldPricingConfigID:
+		m.ClearPricingConfigID()
 		return nil
 	case usagelog.FieldModelMappingChain:
 		m.ClearModelMappingChain()
@@ -56555,8 +56645,8 @@ func (m *UsageLogMutation) ResetField(name string) error {
 	case usagelog.FieldUpstreamModel:
 		m.ResetUpstreamModel()
 		return nil
-	case usagelog.FieldChannelID:
-		m.ResetChannelID()
+	case usagelog.FieldPricingConfigID:
+		m.ResetPricingConfigID()
 		return nil
 	case usagelog.FieldModelMappingChain:
 		m.ResetModelMappingChain()

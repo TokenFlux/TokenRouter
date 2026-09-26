@@ -14,32 +14,31 @@ import (
 
 const openaiStickySessionTTL = time.Hour // 粘性会话TTL
 
-func (s *Compatible) CheckChannelPricingRestriction(ctx context.Context, groupID *int64, requestedModel string) bool {
-	if groupID == nil || s.channelService == nil || requestedModel == "" {
+func (s *Compatible) CheckGroupModelRestriction(ctx context.Context, groupID *int64, requestedModel string) bool {
+	if groupID == nil || s.groupPolicies == nil || requestedModel == "" {
 		return false
 	}
-	mapping := s.channelService.ResolveChannelMapping(ctx, *groupID, requestedModel)
-	billingModel := routing.BillingModelForRestriction(mapping.BillingModelSource, requestedModel, mapping.MappedModel)
+	mapping := s.groupPolicies.ResolveGroupMapping(ctx, *groupID, requestedModel)
+	billingModel := routing.ModelForRestriction(mapping.RestrictionModelSource, requestedModel, mapping.MappedModel)
 	if billingModel == "" {
 		return false
 	}
-	return s.channelService.IsModelRestricted(ctx, *groupID, billingModel)
+	return s.groupPolicies.IsModelRestricted(ctx, *groupID, billingModel)
 }
 
-// resolveChannelRoutingModel 返回 OpenAI 账号调度层使用的渠道映射后模型。
-func (s *Compatible) resolveChannelRoutingModel(ctx context.Context, groupID *int64, requestedModel string) string {
+// resolveGroupRoutingModel 返回 OpenAI 账号调度层使用的分组映射后模型。
+func (s *Compatible) resolveGroupRoutingModel(ctx context.Context, groupID *int64, requestedModel string) string {
 	if s == nil {
 		return requestedModel
-
 	}
-	return s.channelService.ResolveRoutingModel(ctx, groupID,
+	return s.groupPolicies.ResolveRoutingModel(ctx, groupID,
 		requestedModel,
 	)
 }
 
-// isUpstreamRoutingModelRestrictedByChannel 使用已经完成渠道及分组映射的账号层模型检查最终上游模型。
+// isUpstreamRoutingModelRestrictedByGroup 使用已经完成分组映射及协议专用映射的账号层模型检查最终上游模型。
 func (s *Compatible) UpstreamRoutingModelRestricted(ctx context.Context, groupID int64, account *gatewayprovider.ExecutionAccount, routingModel string, requireCompact bool) bool {
-	if s.channelService == nil {
+	if s.groupPolicies == nil {
 		return false
 	}
 	upstreamModel := gatewayprovider.ExecutionModelPolicy(account).OpenAIUpstream(
@@ -51,20 +50,20 @@ func (s *Compatible) UpstreamRoutingModelRestricted(ctx context.Context, groupID
 	if upstreamModel == "" {
 		return false
 	}
-	return s.channelService.IsModelRestricted(ctx, groupID, upstreamModel)
+	return s.groupPolicies.IsModelRestricted(ctx, groupID, upstreamModel)
 }
 
-func (s *Compatible) NeedsUpstreamChannelRestriction(ctx context.Context, groupID *int64) bool {
-	if groupID == nil || s.channelService == nil {
+func (s *Compatible) NeedsUpstreamGroupRestriction(ctx context.Context, groupID *int64) bool {
+	if groupID == nil || s.groupPolicies == nil {
 		return false
 	}
-	ch, err := s.channelService.GetChannelForGroup(ctx, *groupID)
+	ch, err := s.groupPolicies.GetGroupPolicy(ctx, *groupID)
 	if err != nil {
-		slog.Warn("failed to check openai channel upstream restriction", "group_id", *groupID, "error", err)
+		slog.Warn("failed to check openai group upstream model restriction", "group_id", *groupID, "error", err)
 		return false
 	}
 	if ch == nil || !ch.RestrictModels {
 		return false
 	}
-	return ch.BillingModelSource == routing.BillingModelSourceUpstream
+	return ch.RestrictionSource() == routing.BillingModelSourceUpstream
 }

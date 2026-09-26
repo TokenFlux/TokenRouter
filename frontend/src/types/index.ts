@@ -806,7 +806,18 @@ export interface Group {
 // 分组加速策略，新字段优先于兼容布尔开关。
 export type GroupOpenAIFastPolicy = "follow_request" | "force_priority" | "force_ultrafast" | "force_off"
 
+export interface GroupRoutingPolicy {
+  enabled: boolean
+  model_mapping: Record<string, Record<string, string>>
+  restrict_models: boolean
+  restriction_model_source: 'requested' | 'group_mapped' | 'upstream'
+  allowed_models: Record<string, string[]>
+  features: string
+  features_config: Record<string, unknown>
+}
+
 export interface AdminGroup extends Group {
+  routing_policy: GroupRoutingPolicy
   // 仅管理端可配置，公开分组接口不返回该策略。
   force_openai_fast?: boolean
   openai_fast_policy?: GroupOpenAIFastPolicy
@@ -815,7 +826,7 @@ export interface AdminGroup extends Group {
   // 仅管理端可配置，公开分组接口不返回调度器模式。
   scheduler_type: GroupSchedulerType
   advanced_scheduler_overrides?: GroupAdvancedSchedulerOverrides
-  model_pricing: import('@/api/admin/channels').ChannelModelPricing[]
+  model_pricing: import('@/api/admin/pricing').ModelPricingEntry[]
 
   // 模型路由配置（仅管理员可见，内部信息）
   model_routing: Record<string, number[]> | null
@@ -970,7 +981,8 @@ export interface CreateGroupRequest {
   force_openai_fast?: boolean
   openai_fast_policy?: GroupOpenAIFastPolicy
   free_openai_fast?: boolean
-  model_pricing?: import('@/api/admin/channels').ChannelModelPricing[]
+  routing_policy?: GroupRoutingPolicy
+  model_pricing?: import('@/api/admin/pricing').ModelPricingEntry[]
   allow_image_generation?: boolean
   allow_batch_image_generation?: boolean
   batch_image_discount_multiplier?: number
@@ -1028,7 +1040,8 @@ export interface UpdateGroupRequest {
   force_openai_fast?: boolean
   openai_fast_policy?: GroupOpenAIFastPolicy
   free_openai_fast?: boolean
-  model_pricing?: import('@/api/admin/channels').ChannelModelPricing[]
+  routing_policy?: GroupRoutingPolicy
+  model_pricing?: import('@/api/admin/pricing').ModelPricingEntry[]
   allow_image_generation?: boolean
   allow_batch_image_generation?: boolean
   batch_image_discount_multiplier?: number
@@ -1993,8 +2006,8 @@ export interface AdminUsageLog extends UsageLog {
   // 自定义定价规则计算的账号统计费用（nil 时使用 total_cost * multiplier）
   account_stats_cost?: number | null
 
-  // 渠道 ID 和计费等级（仅管理员可见）
-  channel_id?: number | null
+  // 共享价格配置 ID 和计费等级（仅管理员可见）
+  pricing_config_id?: number | null
   billing_tier?: string | null
 
   // 最小账号信息（仅管理员接口返回）

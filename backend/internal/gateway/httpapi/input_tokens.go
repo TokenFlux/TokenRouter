@@ -92,13 +92,13 @@ func (h *OpenAITokensHandler) ResponsesInputTokens(c *gin.Context) {
 	}
 	h.backend.AuthLatency(c, time.Since(requestStart).Milliseconds())
 
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
-	channelMapping := channelMappingRoutePlan.Mapping()
-	h.backend.BindPlan(c, channelMappingRoutePlan)
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
+	groupMapping := groupMappingRoutePlan.Mapping()
+	h.backend.BindPlan(c, groupMappingRoutePlan)
 	routingModel := reqModel
-	if strings.TrimSpace(channelMapping.MappedModel) != "" {
-		routingModel = strings.TrimSpace(channelMapping.MappedModel)
+	if strings.TrimSpace(groupMapping.MappedModel) != "" {
+		routingModel = strings.TrimSpace(groupMapping.MappedModel)
 		body = h.backend.MappedBodyCache(body)(true, routingModel)
 	}
 	requestPlatform := h.backend.Platform(apiKey)

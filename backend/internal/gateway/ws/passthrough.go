@@ -66,7 +66,7 @@ func (s *PassthroughSession) Run(ctx context.Context, clientConn ClientSocket, f
 	// FrameConn 包装器过滤，确保每个 client -> upstream 帧都经过与 HTTP 入口相同的
 	// 策略评估、归一化和 scope 处理。
 	//
-	// 这里从首帧分别捕获渠道模型 C 和最终模型 U，供后续省略 model 的帧回退使用。
+	// 这里从首帧分别捕获分组映射模型 G 和最终模型 U，供后续省略 model 的帧回退使用。
 	// Realtime 客户端允许发送不重复声明 model 的 response.create，此时上游会使用
 	// session.update 协商得到的 model。没有这个 fallback 时，空 model 会绕过管理员
 	// 配置的模型白名单并被静默透传，导致首帧之后的每一帧都无法命中该策略。
@@ -772,6 +772,7 @@ func (s *PassthroughSession) Run(ctx context.Context, clientConn ClientSocket, f
 	}
 	return turnErr
 }
+
 func replaceRequestModel(payload []byte, eventType, model string, closeError func(int, string, error) error) ([]byte, error) {
 	path := "model"
 	if eventType == "session.update" {
@@ -783,6 +784,7 @@ func replaceRequestModel(payload []byte, eventType, model string, closeError fun
 	}
 	return out, nil
 }
+
 func cloneHeaders(headers map[string][]string) map[string][]string {
 	if headers == nil {
 		return nil
@@ -793,12 +795,14 @@ func cloneHeaders(headers map[string][]string) map[string][]string {
 	}
 	return out
 }
+
 func firstTokenForLog(value *int) int {
 	if value == nil {
 		return -1
 	}
 	return *value
 }
+
 func errorText(err error) string {
 	if err == nil {
 		return ""

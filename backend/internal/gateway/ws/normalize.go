@@ -91,7 +91,7 @@ func (s *RequestNormalizer) Normalize(ctx context.Context, raw []byte, applyUser
 			)
 		}
 	}
-	// 渠道模型必须在账号映射之前逐轮解析；originalModel 继续保留客户端请求语义。
+	// 分组映射模型必须在账号映射之前逐轮解析；originalModel 继续保留客户端请求语义。
 	routingModel, upstreamModel, resolveModelErr := p.Models(turn, originalModel, normalized)
 	if resolveModelErr != nil {
 		return ClientPayload{}, resolveModelErr
@@ -165,7 +165,7 @@ func (s *RequestNormalizer) Normalize(ctx context.Context, raw []byte, applyUser
 		normalized = stripped
 		p.Log(fmt.Sprintf("ingress_ws_codex_spark_image_tool_stripped account_id=%d", o.AccountID))
 	}
-	// 生图能力必须按渠道模型 C 判断；账号最终模型 U 只用于真正的上游请求。
+	// 生图能力必须按分组映射模型 G 判断；账号最终模型 U 只用于真正的上游请求。
 	imageIntentBody, imageIntent, explicitImageIntent := p.ImageIntent(routingModel, upstreamModel, normalized)
 	if explicitImageIntent && !imageGenerationAllowed {
 		p.FeatureDenied()

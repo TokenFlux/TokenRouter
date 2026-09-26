@@ -2,17 +2,17 @@
 package textattempt
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"strconv"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	queuepolicy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
-
-	"context"
-	"errors"
-	"net/http"
-	"strconv"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -53,7 +53,7 @@ type messageAttemptBridge struct {
 	selection                                      *gatewaycapture.SelectionResult
 	account                                        *gatewaycapture.ExecutionAccount
 	accountReleaseFunc                             func()
-	attemptChannelMapping                          routing.ChannelMappingResult
+	attemptGroupMapping                            routing.GroupMappingResult
 	writerSizeBeforeForward                        int
 	result                                         *forwardcore.MessagesResult
 }
@@ -61,7 +61,7 @@ type messageAttemptBridge struct {
 // PrepareAttempt 只执行一次适配操作，重试与分组回退循环由 gateway/text 拥有。
 func (b *messageAttemptBridge) PrepareAttempt() bool {
 	var err error
-	b.attemptParsedReq, b.attemptChannelMapping, err = b.binding().prepareGatewayAttemptRequest(
+	b.attemptParsedReq, b.attemptGroupMapping, err = b.binding().prepareGatewayAttemptRequest(
 		b.c.Request.Context(), b.parsedReq, b.body, b.currentAPIKey, b.reqModel,
 	)
 	if err != nil {
@@ -107,7 +107,6 @@ func (b *messageAttemptBridge) Select(excluded map[int64]struct{}) (textflow.Sel
 
 // FirstSelectionFailure 只执行一次适配操作，重试与分组回退循环由 gateway/text 拥有。
 func (b *messageAttemptBridge) FirstSelectionFailure(err error, fallbackUsed bool) {
-
 	if handleGroupSelectionBusinessError(b.c, err, *b.streamStarted, func(status int, errType string, message string, responseStarted bool) {
 		b.binding().handleStreamingAwareError(b.c, status, errType, message, responseStarted)
 	}) {
@@ -330,7 +329,6 @@ func (b *messageAttemptBridge) Forward(state textflow.AttemptState) textflow.Out
 		out.Failure = &textflow.AttemptFailure{Cause: retry, Policy: retry.RetryFailure()}
 	}
 	return out
-
 }
 
 // Complete 只执行一次适配操作，重试与分组回退循环由 gateway/text 拥有。
@@ -379,7 +377,7 @@ func (b *messageAttemptBridge) Complete(state textflow.AttemptState) {
 		RequestBody:        append([]byte(nil), b.body...),
 		ForceCacheBilling:  forceCacheBilling,
 		APIKeyService:      b.binding().apiKeyService,
-		ChannelUsageFields: b.attemptChannelMapping.ToUsageFields(b.reqModel, usageResult.UpstreamModel),
+		PricingUsageFields: b.attemptGroupMapping.ToUsageFields(b.reqModel, usageResult.UpstreamModel),
 	})
 	completionUserID := b.subject.UserID
 	completionModel := b.reqModel
@@ -503,7 +501,6 @@ func (b *messageAttemptBridge) Success() {
 			b.reqLog.Warn("gateway.bind_sticky_session_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 		}
 	}
-
 }
 
 func (b *messageAttemptBridge) Context() context.Context { return b.c.Request.Context() }
@@ -518,11 +515,13 @@ func (b *messageAttemptBridge) Begin() {
 		b.SingleAccountRetry()
 	}
 }
+
 func (b *messageAttemptBridge) Finish(served bool) {
 	if b.sessionAttempts != nil {
 		b.sessionAttempts.Finish(scheduler.AttemptOutcome{Served: served})
 	}
 }
+
 func (b *messageAttemptBridge) SingleAccountRetry() {
 	b.c.Request = b.c.Request.WithContext(requeststate.WithSingleAccountRetry(b.Context(), true))
 }
@@ -540,6 +539,7 @@ func (b *messageAttemptBridge) Exhausted(err *textflow.AttemptFailure, platform 
 		b.binding().handleFailoverExhausted(b.c, original, platform, forceStream || *b.streamStarted)
 	}
 }
+
 func (b *messageAttemptBridge) PolicyFailure(err error) {
 	var original *anthropic.BetaBlockedError
 	if errors.As(err, &original) {
@@ -547,6 +547,7 @@ func (b *messageAttemptBridge) PolicyFailure(err error) {
 		b.binding().errorResponse(b.c, http.StatusBadRequest, "invalid_request_error", original.Message)
 	}
 }
+
 func (b *messageAttemptBridge) Switched() {
 	b.binding().accountSwitched(b.selection)
 }

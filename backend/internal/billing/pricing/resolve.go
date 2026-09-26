@@ -7,7 +7,7 @@ import (
 // PricingSource 定价来源标识
 const (
 	PricingSourceGroup    = "group"
-	PricingSourceChannel  = "channel"
+	PricingSourceConfig   = "pricing_config"
 	PricingSourceLiteLLM  = "litellm"
 	PricingSourceFallback = "fallback"
 	PricingSourceUnpriced = "unpriced"
@@ -31,7 +31,7 @@ type ResolvedPricing struct {
 	DefaultPerRequestPrice float64
 
 	// 来源标识
-	Source string // "channel", "litellm", "fallback", "unpriced"
+	Source string // "configPricing", "litellm", "fallback", "unpriced"
 
 	// 是否支持缓存细分
 	SupportsCacheBreakdown bool
@@ -39,8 +39,8 @@ type ResolvedPricing struct {
 	// 是否支持 service_tier（Fast/Flex）
 	SupportsServiceTier bool
 
-	// 渠道定价原始配置（用于区间模式下获取图片输出价格）
-	ChannelPricing *ChannelModelPricing `json:"-"`
+	// 价卡定价原始配置（用于区间模式下获取图片输出价格）
+	ConfigPricing *ModelPricingEntry `json:"-"`
 
 	LongContextPricingEnabled bool `json:"-"`
 	// 空结构仍可承载倍率元数据，但不代表存在基础价；显式零单价不设置此标记。
@@ -48,7 +48,7 @@ type ResolvedPricing struct {
 }
 
 // ApplyPricingModifiers 在独立副本上覆盖同名倍率；不创建基础价格，也不切换按次计费。
-func ApplyPricingModifiers(resolved *ResolvedPricing, config *ChannelModelPricing) {
+func ApplyPricingModifiers(resolved *ResolvedPricing, config *ModelPricingEntry) {
 	if resolved == nil || resolved.Mode != BillingModeToken || config == nil || resolved.BasePricing == nil {
 		return
 	}
@@ -58,11 +58,11 @@ func ApplyPricingModifiers(resolved *ResolvedPricing, config *ChannelModelPricin
 	}
 	pricing := *resolved.BasePricing
 	resolved.BasePricing = &pricing
-	merged := ChannelModelPricing{BillingMode: BillingModeToken}
-	if resolved.ChannelPricing != nil {
-		merged = resolved.ChannelPricing.Clone()
+	merged := ModelPricingEntry{BillingMode: BillingModeToken}
+	if resolved.ConfigPricing != nil {
+		merged = resolved.ConfigPricing.Clone()
 	}
-	// 区间解析会再次读取这些元数据，因此同步覆盖其副本，避免旧渠道倍率覆盖分组值。
+	// 区间解析会再次读取这些元数据，因此同步覆盖其副本，避免旧价卡倍率覆盖分组值。
 	if config.FastMultiplier != nil || config.FastModeMultiplier != nil {
 		merged.FastMultiplier = config.FastMultiplier
 		merged.FastModeMultiplier = config.FastModeMultiplier
@@ -77,7 +77,7 @@ func ApplyPricingModifiers(resolved *ResolvedPricing, config *ChannelModelPricin
 	if config.TimePricing != nil && len(config.TimePricing.Periods) > 0 {
 		merged.TimePricing = config.Clone().TimePricing
 	}
-	resolved.ChannelPricing = &merged
+	resolved.ConfigPricing = &merged
 	ApplyResolvedFastModeMultiplier(resolved, &merged)
 }
 
@@ -89,7 +89,7 @@ func (r *ResolvedPricing) IsUnpriced() bool {
 		return true
 	}
 	// 没有显式价卡时保留图片等独立价格回退；这里只阻止已配置但缺少基础价的倍率条目。
-	if r.Mode != BillingModeToken || r.ChannelPricing == nil || r.hasBaseTokenPricing() {
+	if r.Mode != BillingModeToken || r.ConfigPricing == nil || r.hasBaseTokenPricing() {
 		return false
 	}
 	for _, interval := range r.Intervals {
@@ -119,29 +119,29 @@ func (r *ResolvedPricing) tokenPricingForInterval(interval *PricingInterval) *Mo
 	if !r.hasBaseTokenPricing() && !PricingIntervalHasEffectiveTokenPricing(*interval) {
 		return nil
 	}
-	pricing := IntervalToModelPricingWithBase(interval, r.SupportsCacheBreakdown, r.ChannelPricing, r.BasePricing)
+	pricing := IntervalToModelPricingWithBase(interval, r.SupportsCacheBreakdown, r.ConfigPricing, r.BasePricing)
 	pricing.SupportsServiceTier = r.SupportsServiceTier
 	return pricing
 }
 
-func (r *ResolvedPricing) HasEffectiveChannelPricing() bool {
-	return r != nil && !r.IsUnpriced() && r.Source == PricingSourceChannel && r.ChannelPricing != nil && r.ChannelPricing.HasEffectivePricing()
+func (r *ResolvedPricing) HasEffectivePricing() bool {
+	return r != nil && !r.IsUnpriced() && r.Source == PricingSourceConfig && r.ConfigPricing != nil && r.ConfigPricing.HasEffectivePricing()
 }
 
 // HasConfiguredPricing 识别实际参与解析的价卡，包括保留内置来源的纯倍率配置。
 // 媒体计费按此结果分流，不能把基础价格来源当成“是否配置价卡”的标志。
 func (r *ResolvedPricing) HasConfiguredPricing() bool {
-	return r != nil && r.ChannelPricing != nil
+	return r != nil && r.ConfigPricing != nil
 }
 
-// HasEffectiveOverridePricing 判断分组或渠道是否提供了显式价格，包括显式零价。
+// HasEffectiveOverridePricing 判断分组或共享价格配置是否提供了显式价格，包括显式零价。
 func (r *ResolvedPricing) HasEffectiveOverridePricing() bool {
-	return r != nil && !r.IsUnpriced() && (r.Source == PricingSourceGroup || r.Source == PricingSourceChannel) &&
-		r.ChannelPricing != nil && r.ChannelPricing.HasEffectivePricing()
+	return r != nil && !r.IsUnpriced() && (r.Source == PricingSourceGroup || r.Source == PricingSourceConfig) &&
+		r.ConfigPricing != nil && r.ConfigPricing.HasEffectivePricing()
 }
 
-// ApplyTokenOverrides 应用 token 模式的渠道覆盖
-func ApplyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPricing) {
+// ApplyTokenOverrides 应用 token 模式的价卡覆盖
+func ApplyTokenOverrides(chPricing *ModelPricingEntry, resolved *ResolvedPricing) {
 	// 过滤掉所有价格字段都为空的无效 interval
 	validIntervals := FilterValidTokenIntervals(chPricing.Intervals)
 	// 配置独立的 1h 缓存写入价时，强制启用缓存 TTL 明细计费。
@@ -170,11 +170,11 @@ func ApplyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPrici
 		resolved.BasePricing = &cloned
 	}
 
-	ApplyChannelTokenPriceOverrides(resolved.BasePricing, chPricing)
+	ApplyConfigTokenPriceOverrides(resolved.BasePricing, chPricing)
 	if resolved.SupportsCacheBreakdown {
 		resolved.BasePricing.SupportsCacheBreakdown = true
 	}
-	// 图片输出价格与 token 价格不同：nil 表示该渠道未启用图片 token 计费，
+	// 图片输出价格与 token 价格不同：nil 表示该价卡未启用图片 token 计费，
 	// 因此显式归零，避免意外回退到模型默认图片价格。
 	if chPricing.ImageOutputPrice != nil {
 		resolved.BasePricing.ImageOutputPricePerToken = *chPricing.ImageOutputPrice
@@ -182,18 +182,18 @@ func ApplyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPrici
 		resolved.BasePricing.ImageOutputPricePerToken = 0
 	}
 	resolved.BasePricing.ImageOutputPriceExplicit = true
-	ApplyChannelImageInputPrice(chPricing, resolved.BasePricing)
+	ApplyConfigImageInputPrice(chPricing, resolved.BasePricing)
 	if chPricing.MaxReasoningEffortMultiplier != nil {
 		resolved.BasePricing.MaxReasoningEffortMultiplier = chPricing.MaxReasoningEffortMultiplier
 	}
 }
 
-// ApplyChannelImageInputPrice 应用渠道图片输入价：显式配置则用配置值；
+// ApplyConfigImageInputPrice 应用价卡图片输入价：显式配置则用配置值；
 // 未配置时归零，使 ComputeTokenBreakdown 回退到文本输入价（向后兼容，
-// 避免 LiteLLM 图片输入价泄漏进渠道自定义定价）。
+// 避免 LiteLLM 图片输入价泄漏进价卡自定义定价）。
 // 与 image_output 不同，此处不设 Explicit 标志——图片输入未配置应回退文本价，
 // 而非硬置 0。
-func ApplyChannelImageInputPrice(chPricing *ChannelModelPricing, pricing *ModelPricing) {
+func ApplyConfigImageInputPrice(chPricing *ModelPricingEntry, pricing *ModelPricing) {
 	if chPricing != nil && chPricing.ImageInputPrice != nil {
 		pricing.ImageInputPricePerToken = *chPricing.ImageInputPrice
 	} else {
@@ -201,17 +201,17 @@ func ApplyChannelImageInputPrice(chPricing *ChannelModelPricing, pricing *ModelP
 	}
 }
 
-// ApplyRequestTierOverrides 应用按次/图片模式的渠道覆盖
-func ApplyRequestTierOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPricing) {
+// ApplyRequestTierOverrides 应用按次/图片模式的价卡覆盖
+func ApplyRequestTierOverrides(chPricing *ModelPricingEntry, resolved *ResolvedPricing) {
 	resolved.RequestTiers = FilterValidRequestIntervals(chPricing.Intervals)
 	if chPricing.PerRequestPrice != nil {
 		resolved.DefaultPerRequestPrice = *chPricing.PerRequestPrice
 	}
 }
 
-// ApplyResolvedPriceMultiplier 在渠道价覆盖完成后缩放最终价格。
+// ApplyResolvedPriceMultiplier 在价卡价覆盖完成后缩放最终价格。
 // 配置校验保证倍率只会与至少一个显式价格同时存在。
-func ApplyResolvedPriceMultiplier(resolved *ResolvedPricing, chPricing *ChannelModelPricing) {
+func ApplyResolvedPriceMultiplier(resolved *ResolvedPricing, chPricing *ModelPricingEntry) {
 	multiplier, configured := NormalizedPriceMultiplier(chPricing)
 	if resolved == nil || !configured {
 		return
@@ -222,24 +222,24 @@ func ApplyResolvedPriceMultiplier(resolved *ResolvedPricing, chPricing *ChannelM
 	resolved.RequestTiers = MultiplyPricingIntervals(resolved.RequestTiers, multiplier)
 	resolved.DefaultPerRequestPrice *= multiplier
 
-	// 区间转模型价格时还会读取渠道级图片价格，因此保存一份同步缩放的副本。
-	scaledChannelPricing := chPricing.Clone()
-	scaledChannelPricing.PriceMultiplier = nil
-	MultiplyChannelPricingFields(&scaledChannelPricing, multiplier)
-	resolved.ChannelPricing = &scaledChannelPricing
+	// 区间转模型价格时还会读取价卡级图片价格，因此保存一份同步缩放的副本。
+	scaledConfigPricing := chPricing.Clone()
+	scaledConfigPricing.PriceMultiplier = nil
+	MultiplyPricingFields(&scaledConfigPricing, multiplier)
+	resolved.ConfigPricing = &scaledConfigPricing
 }
 
-// ApplyResolvedFastModeMultiplier 在普通渠道价完成覆盖和缩放后附加 Fast 计费倍率。
-func ApplyResolvedFastModeMultiplier(resolved *ResolvedPricing, chPricing *ChannelModelPricing) {
+// ApplyResolvedFastModeMultiplier 在普通价卡价完成覆盖和缩放后附加 Fast 计费倍率。
+func ApplyResolvedFastModeMultiplier(resolved *ResolvedPricing, chPricing *ModelPricingEntry) {
 	if resolved == nil || resolved.Mode != BillingModeToken {
 		return
 	}
-	ApplyChannelFastModeMultiplier(resolved.BasePricing, chPricing)
-	ApplyChannelFlexMultiplier(resolved.BasePricing, chPricing)
+	ApplyConfigFastModeMultiplier(resolved.BasePricing, chPricing)
+	ApplyConfigFlexMultiplier(resolved.BasePricing, chPricing)
 }
 
 // NormalizedPriceMultiplier 返回可安全用于计费的倍率；未配置时不触发任何缩放。
-func NormalizedPriceMultiplier(pricing *ChannelModelPricing) (float64, bool) {
+func NormalizedPriceMultiplier(pricing *ModelPricingEntry) (float64, bool) {
 	if pricing == nil || pricing.PriceMultiplier == nil {
 		return 1, false
 	}
@@ -288,8 +288,8 @@ func MultiplyPricingIntervals(intervals []PricingInterval, multiplier float64) [
 	return scaled
 }
 
-// MultiplyChannelPricingFields 缩放渠道配置副本中的显式价格字段。
-func MultiplyChannelPricingFields(pricing *ChannelModelPricing, multiplier float64) {
+// MultiplyPricingFields 缩放价卡配置副本中的显式价格字段。
+func MultiplyPricingFields(pricing *ModelPricingEntry, multiplier float64) {
 	if pricing == nil {
 		return
 	}
@@ -348,11 +348,11 @@ func GetIntervalPricing(resolved *ResolvedPricing, totalContextTokens int) *Mode
 // IntervalToModelPricing 将区间定价转换为 ModelPricing
 //
 //nolint:unused // 兼容旧测试入口；生产路径需要 base pricing fallback 并调用 WithBase 版本。
-func IntervalToModelPricing(iv *PricingInterval, supportsCacheBreakdown bool, chPricing *ChannelModelPricing) *ModelPricing {
+func IntervalToModelPricing(iv *PricingInterval, supportsCacheBreakdown bool, chPricing *ModelPricingEntry) *ModelPricing {
 	return IntervalToModelPricingWithBase(iv, supportsCacheBreakdown, chPricing, nil)
 }
 
-func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown bool, chPricing *ChannelModelPricing, base *ModelPricing) *ModelPricing {
+func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown bool, chPricing *ModelPricingEntry, base *ModelPricing) *ModelPricing {
 	if iv == nil {
 		return base
 	}
@@ -370,7 +370,7 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		pricing.LongContextOutputMultiplier = 0
 	}
 	if iv.InputPrice != nil {
-		priority := ChannelTierOverridePrice(pricing.InputPricePerToken, pricing.InputPricePerTokenPriority, *iv.InputPrice)
+		priority := ConfigTierOverridePrice(pricing.InputPricePerToken, pricing.InputPricePerTokenPriority, *iv.InputPrice)
 		pricing.InputPricePerToken = *iv.InputPrice
 		pricing.InputPricePerTokenPriority = priority
 	} else if iv.InputMultiplier != nil {
@@ -378,7 +378,7 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		pricing.InputPricePerTokenPriority *= *iv.InputMultiplier
 	}
 	if iv.OutputPrice != nil {
-		priority := ChannelTierOverridePrice(pricing.OutputPricePerToken, pricing.OutputPricePerTokenPriority, *iv.OutputPrice)
+		priority := ConfigTierOverridePrice(pricing.OutputPricePerToken, pricing.OutputPricePerTokenPriority, *iv.OutputPrice)
 		pricing.OutputPricePerToken = *iv.OutputPrice
 		pricing.OutputPricePerTokenPriority = priority
 	} else if iv.OutputMultiplier != nil {
@@ -386,7 +386,7 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		pricing.OutputPricePerTokenPriority *= *iv.OutputMultiplier
 	}
 	if iv.CacheWritePrice != nil {
-		priority := ChannelTierOverridePrice(pricing.CacheCreationPricePerToken, pricing.CacheCreationPricePerTokenPriority, *iv.CacheWritePrice)
+		priority := ConfigTierOverridePrice(pricing.CacheCreationPricePerToken, pricing.CacheCreationPricePerTokenPriority, *iv.CacheWritePrice)
 		pricing.CacheCreationPricePerToken = *iv.CacheWritePrice
 		pricing.CacheCreationPricePerTokenPriority = priority
 		pricing.CacheCreationPriceExplicit = true
@@ -406,14 +406,14 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		pricing.SupportsCacheBreakdown = true
 	}
 	if iv.CacheReadPrice != nil {
-		priority := ChannelTierOverridePrice(pricing.CacheReadPricePerToken, pricing.CacheReadPricePerTokenPriority, *iv.CacheReadPrice)
+		priority := ConfigTierOverridePrice(pricing.CacheReadPricePerToken, pricing.CacheReadPricePerTokenPriority, *iv.CacheReadPrice)
 		pricing.CacheReadPricePerToken = *iv.CacheReadPrice
 		pricing.CacheReadPricePerTokenPriority = priority
 	} else if iv.CacheReadMultiplier != nil {
 		pricing.CacheReadPricePerToken *= *iv.CacheReadMultiplier
 		pricing.CacheReadPricePerTokenPriority *= *iv.CacheReadMultiplier
 	}
-	// 渠道定价存在时显式覆盖图片输出价格；图片输入价格沿用渠道级配置，区间本身不携带该字段。
+	// 价卡定价存在时显式覆盖图片输出价格；图片输入价格沿用价卡级配置，区间本身不携带该字段。
 	if chPricing != nil {
 		pricing.ImageOutputPriceExplicit = true
 		if chPricing.ImageOutputPrice != nil {
@@ -421,9 +421,9 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		} else {
 			pricing.ImageOutputPricePerToken = 0
 		}
-		ApplyChannelImageInputPrice(chPricing, pricing)
-		ApplyChannelFastModeMultiplier(pricing, chPricing)
-		ApplyChannelFlexMultiplier(pricing, chPricing)
+		ApplyConfigImageInputPrice(chPricing, pricing)
+		ApplyConfigFastModeMultiplier(pricing, chPricing)
+		ApplyConfigFlexMultiplier(pricing, chPricing)
 	}
 	return pricing
 }
@@ -465,7 +465,7 @@ func GetRequestTierPriceByContextValue(resolved *ResolvedPricing, totalContextTo
 
 // HasExplicitPricingPrice 判断是否配置了实际价格，不把层级倍率当作基础价格。
 // 这样 price_multiplier 与旧版 fast_mode_multiplier 仍不能单独改变默认定价。
-func HasExplicitPricingPrice(p ChannelModelPricing) bool {
+func HasExplicitPricingPrice(p ModelPricingEntry) bool {
 	mode := p.BillingMode
 	if mode == "" {
 		mode = BillingModeToken
@@ -493,8 +493,8 @@ func HasExplicitPricingPrice(p ChannelModelPricing) bool {
 	return false
 }
 
-// NormalizeChannelPricingModelName 统一 Anthropic 模型名的点号与连字符写法。
-func NormalizeChannelPricingModelName(model string) string {
+// NormalizePriceModelName 统一 Anthropic 模型名的点号与连字符写法。
+func NormalizePriceModelName(model string) string {
 	model = strings.ToLower(strings.TrimSpace(model))
 	if strings.HasPrefix(model, "claude-") {
 		model = strings.ReplaceAll(model, ".", "-")

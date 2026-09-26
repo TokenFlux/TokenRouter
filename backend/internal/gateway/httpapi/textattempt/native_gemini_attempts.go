@@ -1,16 +1,16 @@
 package textattempt
 
 import (
+	"context"
+	"errors"
+	"net/http"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-
-	"context"
-	"errors"
-	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -33,13 +33,13 @@ type nativeGeminiAttemptBridge struct {
 	geminiConcurrency                                                          *gatewayhttp.ConcurrencyHelper
 	useDigestFallback                                                          bool
 	geminiDigestChain, geminiPrefixHash, geminiSessionUUID, matchedDigestChain string
-	channelMapping                                                             routing.ChannelMappingResult
+	groupMapping                                                               routing.GroupMappingResult
 	signatureState                                                             requeststate.GeminiSignatureState
 }
 
 // Select 保留 Gemini 原生适配，重试与完成资格由文本核心控制。
 func (b *nativeGeminiAttemptBridge) Select(excluded map[int64]struct{}) (textflow.Selection, error) {
-	// 通用调度器会自行执行 R -> C，这里必须传原始模型，避免把 C 再做一次渠道映射。
+	// 通用调度器会自行执行 R -> G，这里必须传原始模型，避免把 G 再做一次分组映射。
 	var err error
 	b.selection, err = b.binding().selectAccount(b.c.Request.Context(), b.apiKey.GroupID, b.sessionKey, b.reqModel, excluded, "", int64(0)) // Gemini 不使用会话限制
 	if err != nil {
@@ -57,12 +57,10 @@ func (b *nativeGeminiAttemptBridge) Select(excluded map[int64]struct{}) (textflo
 		b.body = protocolgemini.CleanNativeThoughtSignatures(b.body, bridge.DummyThoughtSignature)
 	}
 	return gatewaycapture.CaptureTextSelection(b.account), nil
-
 }
 
 // FirstSelectionFailure 保留 Gemini 原生适配，重试与完成资格由文本核心控制。
 func (b *nativeGeminiAttemptBridge) FirstSelectionFailure(err error, _ bool) {
-
 	if handleGeminiGroupModelUnsupportedError(b.c, err) {
 		return
 	}
@@ -172,7 +170,6 @@ func (b *nativeGeminiAttemptBridge) Forward(state textflow.AttemptState) textflo
 		out.Failure = &textflow.AttemptFailure{Cause: err, Policy: retry.RetryFailure()}
 	}
 	return out
-
 }
 
 // OtherFailure 保留 Gemini 原生适配，重试与完成资格由文本核心控制。
@@ -229,7 +226,7 @@ func (b *nativeGeminiAttemptBridge) Complete(state textflow.AttemptState) {
 		ForceCacheBilling:  forceCacheBilling,
 		APIKeyService:      b.binding().apiKeyService,
 		ClientSessionID:    clientSessionID,
-		ChannelUsageFields: b.channelMapping.ToUsageFields(b.reqModel, b.result.UpstreamModel),
+		PricingUsageFields: b.groupMapping.ToUsageFields(b.reqModel, b.result.UpstreamModel),
 	})
 	completionRuntime := b.binding().recorder
 	b.binding().submitUsageRecordTask(b.c, func(ctx context.Context) {

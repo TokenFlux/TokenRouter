@@ -97,8 +97,9 @@ type AdminGroup[A any] struct {
 	SchedulerType string `json:"scheduler_type"`
 	// AdvancedSchedulerOverrides 仅管理端可见；空字段继承网关通用设置。
 	AdvancedSchedulerOverrides routing.GroupAdvancedSchedulerOverrides `json:"advanced_scheduler_overrides"`
-	// ModelPricing 是分组覆盖渠道与内置价格的管理员价卡。
-	ModelPricing []routing.ChannelModelPricing `json:"model_pricing"`
+	// ModelPricing 是分组覆盖共享价格配置与内置价格的管理员价卡。
+	RoutingPolicy routing.GroupRoutingPolicy  `json:"routing_policy"`
+	ModelPricing  []routing.ModelPricingEntry `json:"model_pricing"`
 
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`

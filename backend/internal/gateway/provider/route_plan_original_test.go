@@ -18,10 +18,10 @@ import (
 func TestS06RoutePlanRebuildsCandidateAndKeepsModelReadTiming(t *testing.T) {
 	group := &routing.Group{ID: 7, Platform: capability.PlatformOpenAI, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages}, ProtocolFallbacks: map[protocol.ProtocolID]protocol.ProtocolID{protocol.ProtocolAnthropicMessages: protocol.ProtocolOpenAIResponses}}
 	ctx := requeststate.WithClientProtocol(requeststate.WithGroup(context.Background(), group), protocol.ProtocolAnthropicMessages)
-	mapping := routing.ChannelMappingResult{MappedModel: "channel-model", Mapped: true, ChannelID: 9, BillingModelSource: "requested"}
+	mapping := routing.GroupMappingResult{MappedModel: "group-model", Mapped: true, PricingConfigID: 9, BillingModelSource: "requested"}
 	plan := gatewayprovider.RoutePlanForMapping(ctx, group, &group.ID, "key-model", mapping)
 	ctx = requeststate.WithRoutePlan(ctx, plan)
-	shared := &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{account.UpstreamProtocolsKey: []string{"openai_responses"}, "model_mapping": map[string]any{"channel-model": "first"}}}}
+	shared := &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{account.UpstreamProtocolsKey: []string{"openai_responses"}, "model_mapping": map[string]any{"group-model": "first"}}}}
 	first, err := gatewayprovider.AccountForProtocolAttempt(ctx, shared)
 	require.NoError(t, err)
 	require.NotSame(t, shared, first)
@@ -29,10 +29,10 @@ func TestS06RoutePlanRebuildsCandidateAndKeepsModelReadTiming(t *testing.T) {
 	require.False(t, captured)
 	_, captured = first.Route.Candidate()
 	require.True(t, captured)
-	require.Equal(t, "first", gatewayprovider.ExecutionModelPolicy(first).Mapped("channel-model"))
-	first.Record.Credentials = map[string]any{account.UpstreamProtocolsKey: []string{"openai_responses"}, "model_mapping": map[string]any{"channel-model": "latest"}}
-	require.Equal(t, "latest", gatewayprovider.ExecutionModelPolicy(first).Mapped("channel-model"))
-	require.Equal(t, "first", gatewayprovider.ExecutionModelPolicy(shared).Mapped("channel-model"))
+	require.Equal(t, "first", gatewayprovider.ExecutionModelPolicy(first).Mapped("group-model"))
+	first.Record.Credentials = map[string]any{account.UpstreamProtocolsKey: []string{"openai_responses"}, "model_mapping": map[string]any{"group-model": "latest"}}
+	require.Equal(t, "latest", gatewayprovider.ExecutionModelPolicy(first).Mapped("group-model"))
+	require.Equal(t, "first", gatewayprovider.ExecutionModelPolicy(shared).Mapped("group-model"))
 	first.Record.Credentials = map[string]any{account.UpstreamProtocolsKey: []string{"openai_chat_completions"}}
 	_, err = gatewayprovider.AccountForProtocolAttempt(ctx, first)
 	require.Error(t, err, "已有尝试副本也须复核 fresh 能力")

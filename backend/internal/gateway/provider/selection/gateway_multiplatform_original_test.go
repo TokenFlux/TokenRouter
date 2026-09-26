@@ -67,6 +67,7 @@ func (m *mockAccountRepoForPlatform) ListSchedulableByGroupIDAndPlatform(ctx con
 func (m *mockAccountRepoForPlatform) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
+
 func (m *mockAccountRepoForPlatform) ListSchedulableByPlatforms(ctx context.Context, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	var result []gatewayprovider.ExecutionAccount
 	platformSet := make(map[string]bool)
@@ -80,12 +81,15 @@ func (m *mockAccountRepoForPlatform) ListSchedulableByPlatforms(ctx context.Cont
 	}
 	return result, nil
 }
+
 func (m *mockAccountRepoForPlatform) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	return m.ListSchedulableByPlatforms(ctx, platforms)
 }
+
 func (m *mockAccountRepoForPlatform) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return m.ListSchedulableByPlatform(ctx, platform)
 }
+
 func (m *mockAccountRepoForPlatform) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	return m.ListSchedulableByPlatforms(ctx, platforms)
 }
@@ -543,8 +547,10 @@ func TestGatewayService_SelectAccountForModelWithPlatform_RoutedStickySessionCle
 	}
 
 	svc := newGenericSelectionForTest(GenericDependencies{
-		Reads: Reads{Groups: groupRepo,
-			Accounts: repo},
+		Reads: Reads{
+			Groups:   groupRepo,
+			Accounts: repo,
+		},
 		Shared: Shared{Cache: cache},
 	}, testConfig())
 
@@ -593,8 +599,10 @@ func TestGatewayService_SelectAccountForModelWithPlatform_RoutedStickySessionHit
 	}
 
 	svc := newGenericSelectionForTest(GenericDependencies{
-		Reads: Reads{Groups: groupRepo,
-			Accounts: repo},
+		Reads: Reads{
+			Groups:   groupRepo,
+			Accounts: repo,
+		},
 		Shared: Shared{Cache: cache},
 	}, testConfig())
 
@@ -651,12 +659,15 @@ func TestGatewayService_SelectAccountForModelWithPlatform_NoModelSupport(t *test
 
 	repo := &mockAccountRepoForPlatform{
 		accounts: []gatewayprovider.ExecutionAccount{
-			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-				Platform:    capability.PlatformAnthropic,
-				Priority:    1,
-				Status:      billing.StatusActive,
-				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
+			{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, ID: 1,
+					Platform:    capability.PlatformAnthropic,
+					Priority:    1,
+					Status:      billing.StatusActive,
+					Schedulable: true,
+					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+				},
 			},
 		},
 		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
@@ -687,23 +698,30 @@ func TestGatewayService_SelectAccountForModelWithPlatform_ModelRateLimitedNotGro
 
 	repo := &mockAccountRepoForPlatform{
 		accounts: []gatewayprovider.ExecutionAccount{
-			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-				Platform:    capability.PlatformAnthropic,
-				Priority:    1,
-				Status:      billing.StatusActive,
-				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-sonnet-20241022": "claude-3-5-sonnet-20241022"}},
-				Extra: map[string]any{"model_rate_limits": map[string]any{
-					"claude-3-5-sonnet-20241022": map[string]any{"rate_limit_reset_at": resetAt},
+			{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, ID: 1,
+					Platform:    capability.PlatformAnthropic,
+					Priority:    1,
+					Status:      billing.StatusActive,
+					Schedulable: true,
+					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-sonnet-20241022": "claude-3-5-sonnet-20241022"}},
+					Extra: map[string]any{
+						"model_rate_limits": map[string]any{
+							"claude-3-5-sonnet-20241022": map[string]any{"rate_limit_reset_at": resetAt},
+						},
+					},
 				},
-				}},
 			},
-			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
-				Platform:    capability.PlatformAnthropic,
-				Priority:    2,
-				Status:      billing.StatusActive,
-				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
+			{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, ID: 2,
+					Platform:    capability.PlatformAnthropic,
+					Priority:    2,
+					Status:      billing.StatusActive,
+					Schedulable: true,
+					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+				},
 			},
 		},
 		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
@@ -754,21 +772,27 @@ func TestGatewayService_SelectAccountForModelWithPlatform_GeminiAPIKeyModelMappi
 
 	repo := &mockAccountRepoForPlatform{
 		accounts: []gatewayprovider.ExecutionAccount{
-			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-				Platform:    capability.PlatformGemini,
-				Type:        capability.AccountTypeAPIKey,
-				Priority:    1,
-				Status:      billing.StatusActive,
-				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-pro": "gemini-2.5-pro"}}},
+			{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, ID: 1,
+					Platform:    capability.PlatformGemini,
+					Type:        capability.AccountTypeAPIKey,
+					Priority:    1,
+					Status:      billing.StatusActive,
+					Schedulable: true,
+					Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-pro": "gemini-2.5-pro"}},
+				},
 			},
-			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
-				Platform:    capability.PlatformGemini,
-				Type:        capability.AccountTypeAPIKey,
-				Priority:    2,
-				Status:      billing.StatusActive,
-				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-flash": "gemini-2.5-flash"}}},
+			{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, ID: 2,
+					Platform:    capability.PlatformGemini,
+					Type:        capability.AccountTypeAPIKey,
+					Priority:    2,
+					Status:      billing.StatusActive,
+					Schedulable: true,
+					Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-flash": "gemini-2.5-flash"}},
+				},
 			},
 		},
 		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
@@ -830,12 +854,15 @@ func TestGatewayService_SelectAccountForModelWithPlatform_StickyModelMismatchFal
 
 	repo := &mockAccountRepoForPlatform{
 		accounts: []gatewayprovider.ExecutionAccount{
-			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-				Platform:    capability.PlatformAnthropic,
-				Priority:    1,
-				Status:      billing.StatusActive,
-				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
+			{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, ID: 1,
+					Platform:    capability.PlatformAnthropic,
+					Priority:    1,
+					Status:      billing.StatusActive,
+					Schedulable: true,
+					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+				},
 			},
 			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 		},
@@ -940,16 +967,22 @@ func TestGatewayService_isModelSupportedByAccount(t *testing.T) {
 		},
 		{
 			name: "Anthropic平台-有映射配置-未命中映射时按透传支持模型",
-			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-opus-4": "x"}}},
+			account: &gatewayprovider.ExecutionAccount{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+					Credentials: map[string]any{"model_mapping": map[string]any{"claude-opus-4": "x"}},
+				},
 			},
 			model:    "claude-3-5-sonnet-20241022",
 			expected: true,
 		},
 		{
 			name: "Anthropic平台-有映射配置-支持配置的模型",
-			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-sonnet-20241022": "x"}}},
+			account: &gatewayprovider.ExecutionAccount{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-sonnet-20241022": "x"}},
+				},
 			},
 			model:    "claude-3-5-sonnet-20241022",
 			expected: true,
@@ -962,22 +995,28 @@ func TestGatewayService_isModelSupportedByAccount(t *testing.T) {
 		},
 		{
 			name: "Gemini平台-有映射配置-未命中映射时按透传支持模型",
-			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGemini,
-				Type: capability.AccountTypeAPIKey,
-				Credentials: map[string]any{
-					"model_mapping": map[string]any{"gemini-2.5-pro": "upstream-model"},
-				}},
+			account: &gatewayprovider.ExecutionAccount{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, Platform: capability.PlatformGemini,
+					Type: capability.AccountTypeAPIKey,
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{"gemini-2.5-pro": "upstream-model"},
+					},
+				},
 			},
 			model:    "gemini-2.5-flash",
 			expected: true,
 		},
 		{
 			name: "Gemini平台-有映射配置-支持配置的模型",
-			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGemini,
-				Type: capability.AccountTypeAPIKey,
-				Credentials: map[string]any{
-					"model_mapping": map[string]any{"gemini-2.5-pro": "gemini-2.5-pro"},
-				}},
+			account: &gatewayprovider.ExecutionAccount{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, Platform: capability.PlatformGemini,
+					Type: capability.AccountTypeAPIKey,
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{"gemini-2.5-pro": "gemini-2.5-pro"},
+					},
+				},
 			},
 			model:    "gemini-2.5-pro",
 			expected: true,
@@ -1044,36 +1083,47 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 		resetAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
 		repo := &mockAccountRepoForPlatform{
 			accounts: []gatewayprovider.ExecutionAccount{
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-					Platform:    capability.PlatformAntigravity,
-					Priority:    1,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Extra: map[string]any{
-						"mixed_scheduling": true, "model_rate_limits": map[string]any{"antigravity:gemini": map[string]any{
-							"rate_limit_reset_at": resetAt,
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 1,
+						Platform:    capability.PlatformAntigravity,
+						Priority:    1,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Extra: map[string]any{
+							"mixed_scheduling": true, "model_rate_limits": map[string]any{
+								"antigravity:gemini": map[string]any{
+									"rate_limit_reset_at": resetAt,
+								},
+							},
 						},
-						},
-					}},
+					},
 				},
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
-					Platform:    capability.PlatformAntigravity,
-					Priority:    1,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Extra: map[string]any{
-						"mixed_scheduling": true, "model_rate_limits": map[string]any{"antigravity:gemini": map[string]any{
-							"rate_limit_reset_at": resetAt,
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 2,
+						Platform:    capability.PlatformAntigravity,
+						Priority:    1,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Extra: map[string]any{
+							"mixed_scheduling": true, "model_rate_limits": map[string]any{
+								"antigravity:gemini": map[string]any{
+									"rate_limit_reset_at": resetAt,
+								},
+							},
 						},
-						},
-					}},
+					},
 				},
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
-					Platform:    capability.PlatformAntigravity,
-					Priority:    2,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Extra:       map[string]any{"mixed_scheduling": true}},
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 3,
+						Platform:    capability.PlatformAntigravity,
+						Priority:    2,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Extra:       map[string]any{"mixed_scheduling": true},
+					},
 				},
 			},
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
@@ -1097,17 +1147,21 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 		resetAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
 		repo := &mockAccountRepoForPlatform{
 			accounts: []gatewayprovider.ExecutionAccount{
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-					Platform:    capability.PlatformAntigravity,
-					Priority:    1,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Extra: map[string]any{
-						"mixed_scheduling": true, "model_rate_limits": map[string]any{"antigravity:gemini": map[string]any{
-							"rate_limit_reset_at": resetAt,
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 1,
+						Platform:    capability.PlatformAntigravity,
+						Priority:    1,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Extra: map[string]any{
+							"mixed_scheduling": true, "model_rate_limits": map[string]any{
+								"antigravity:gemini": map[string]any{
+									"rate_limit_reset_at": resetAt,
+								},
+							},
 						},
-						},
-					}},
+					},
 				},
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 			},
@@ -1299,25 +1353,31 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false}},
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
-					Platform:    capability.PlatformAnthropic,
-					Priority:    1,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Extra: map[string]any{
-						"model_rate_limits": map[string]any{
-							"claude-3-5-sonnet-20241022": map[string]any{
-								"rate_limit_reset_at": resetAt.Format(time.RFC3339),
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 4,
+						Platform:    capability.PlatformAnthropic,
+						Priority:    1,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Extra: map[string]any{
+							"model_rate_limits": map[string]any{
+								"claude-3-5-sonnet-20241022": map[string]any{
+									"rate_limit_reset_at": resetAt.Format(time.RFC3339),
+								},
 							},
 						},
-					}},
+					},
 				},
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
-					Platform:    capability.PlatformAnthropic,
-					Priority:    1,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 5,
+						Platform:    capability.PlatformAnthropic,
+						Priority:    1,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+					},
 				},
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
@@ -1578,12 +1638,15 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 	t.Run("混合调度-不支持模型返回错误", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
 			accounts: []gatewayprovider.ExecutionAccount{
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-					Platform:    capability.PlatformAnthropic,
-					Priority:    1,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 1,
+						Platform:    capability.PlatformAnthropic,
+						Priority:    1,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+					},
 				},
 			},
 			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
@@ -1821,43 +1884,49 @@ func TestSelectAccountWithLoadAwareness_FiltersUpstreamRestrictedAccounts(t *tes
 			}
 			t.Run(loadMode+"/"+stickyMode, func(t *testing.T) {
 				groupID := int64(4210)
-				channel := routing.Channel{
+				pricingConfig := routingtestkit.Configuration{
 					ID:                 76,
 					Status:             billing.StatusActive,
 					RestrictModels:     true,
 					BillingModelSource: routing.BillingModelSourceUpstream,
 					ModelMapping: map[string]map[string]string{
-						capability.PlatformAnthropic: {"client-alias": "channel-model"},
+						capability.PlatformAnthropic: {"client-alias": "group-model"},
 					},
-					ModelPricing: []routing.ChannelModelPricing{{
+					ModelPricing: []routing.ModelPricingEntry{{
 						Platform: capability.PlatformAnthropic,
 						Models:   []string{"allowed-upstream"},
 					}},
 				}
 				accounts := []gatewayprovider.ExecutionAccount{
-					{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-						Platform:    capability.PlatformAnthropic,
-						Priority:    1,
-						Status:      billing.StatusActive,
-						Schedulable: true,
-						Concurrency: 5,
-						AccountGroups: []accountcore.GroupMembership{{
-							AccountID: 1,
-							GroupID:   groupID,
-						}},
-						Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "blocked-upstream"}}},
+					{
+						Record: accountcore.Record{
+							LoadLocation: time.LoadLocation, ID: 1,
+							Platform:    capability.PlatformAnthropic,
+							Priority:    1,
+							Status:      billing.StatusActive,
+							Schedulable: true,
+							Concurrency: 5,
+							AccountGroups: []accountcore.GroupMembership{{
+								AccountID: 1,
+								GroupID:   groupID,
+							}},
+							Credentials: map[string]any{"model_mapping": map[string]any{"group-model": "blocked-upstream"}},
+						},
 					},
-					{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
-						Platform:    capability.PlatformAnthropic,
-						Priority:    2,
-						Status:      billing.StatusActive,
-						Schedulable: true,
-						Concurrency: 5,
-						AccountGroups: []accountcore.GroupMembership{{
-							AccountID: 2,
-							GroupID:   groupID,
-						}},
-						Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "allowed-upstream"}}},
+					{
+						Record: accountcore.Record{
+							LoadLocation: time.LoadLocation, ID: 2,
+							Platform:    capability.PlatformAnthropic,
+							Priority:    2,
+							Status:      billing.StatusActive,
+							Schedulable: true,
+							Concurrency: 5,
+							AccountGroups: []accountcore.GroupMembership{{
+								AccountID: 2,
+								GroupID:   groupID,
+							}},
+							Credentials: map[string]any{"model_mapping": map[string]any{"group-model": "allowed-upstream"}},
+						},
 					},
 				}
 				accountRepo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{}}
@@ -1872,7 +1941,7 @@ func TestSelectAccountWithLoadAwareness_FiltersUpstreamRestrictedAccounts(t *tes
 					ModelRoutingEnabled: modelRoutingEnabled,
 				}
 				if modelRoutingEnabled {
-					group.ModelRouting = map[string][]int64{"channel-model": {1, 2}}
+					group.ModelRouting = map[string][]int64{"group-model": {1, 2}}
 				}
 
 				cfg := testConfig()
@@ -1884,12 +1953,15 @@ func TestSelectAccountWithLoadAwareness_FiltersUpstreamRestrictedAccounts(t *tes
 						Groups: &mockGroupRepoForGateway{groups: map[int64]*routing.Group{groupID: group}},
 					},
 					Shared: Shared{
-						Concurrency: scheduler.NewConcurrencyService(&mockConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-							Event: logging.Event}),
-						Channels: routingtestkit.Channel(groupID,
-							capability.PlatformAnthropic, channel),
+						Concurrency: scheduler.NewConcurrencyService(&mockConcurrencyCache{}, scheduler.Diagnostics{
+							Logf:  logging.LegacyPrintf,
+							Event: logging.Event,
+						}),
+						GroupPolicies: routingtestkit.PricingConfig(groupID,
+							capability.PlatformAnthropic, pricingConfig),
 						Cache: &mockGatewayCacheForPlatform{
-							sessionBindings: map[string]int64{"sticky": 1}},
+							sessionBindings: map[string]int64{"sticky": 1},
+						},
 					},
 				}, cfg)
 
@@ -1902,32 +1974,35 @@ func TestSelectAccountWithLoadAwareness_FiltersUpstreamRestrictedAccounts(t *tes
 	}
 }
 
-// TestSelectAccountWithLoadAwareness_AppliesChannelMappingOnce 验证调度入口只把客户端模型 R 映射为一次 C。
-func TestSelectAccountWithLoadAwareness_AppliesChannelMappingOnce(t *testing.T) {
+// TestSelectAccountWithLoadAwareness_AppliesGroupMappingOnce 验证调度入口只把客户端模型 R 映射为一次 C。
+func TestSelectAccountWithLoadAwareness_AppliesGroupMappingOnce(t *testing.T) {
 	groupID := int64(4212)
-	channel := routing.Channel{
+	pricingConfig := routingtestkit.Configuration{
 		ID:     78,
 		Status: billing.StatusActive,
 		ModelMapping: map[string]map[string]string{
 			capability.PlatformGemini: {
-				"client-alias":  "channel-model",
-				"channel-model": "double-mapped-model",
+				"client-alias": "group-model",
+				"group-model":  "double-mapped-model",
 			},
 		},
 	}
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-		Platform:    capability.PlatformGemini,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 5,
-		AccountGroups: []accountcore.GroupMembership{{
-			AccountID: 1,
-			GroupID:   groupID,
-		}},
-		Credentials: map[string]any{
-			"model_mapping":   map[string]any{"channel-model": "upstream-model"},
-			"model_whitelist": []any{"upstream-model"},
-		}},
+	account := gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 1,
+			Platform:    capability.PlatformGemini,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 5,
+			AccountGroups: []accountcore.GroupMembership{{
+				AccountID: 1,
+				GroupID:   groupID,
+			}},
+			Credentials: map[string]any{
+				"model_mapping":   map[string]any{"group-model": "upstream-model"},
+				"model_whitelist": []any{"upstream-model"},
+			},
+		},
 	}
 	accountRepo := &mockAccountRepoForPlatform{
 		accounts:     []gatewayprovider.ExecutionAccount{account},
@@ -1945,8 +2020,8 @@ func TestSelectAccountWithLoadAwareness_AppliesChannelMappingOnce(t *testing.T) 
 
 			Groups: &mockGroupRepoForGateway{groups: map[int64]*routing.Group{groupID: group}},
 		},
-		Shared: Shared{Channels: routingtestkit.Channel(groupID,
-			capability.PlatformGemini, channel)},
+		Shared: Shared{GroupPolicies: routingtestkit.PricingConfig(groupID,
+			capability.PlatformGemini, pricingConfig)},
 	}, testConfig())
 
 	result, err := svc.SelectAccountWithLoadAwareness(context.Background(), &groupID, "", "client-alias", nil, "", 0)
@@ -1974,43 +2049,49 @@ func TestLegacySchedulers_FilterUpstreamRestrictedAccountsInEveryShortcut(t *tes
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			groupID := int64(4211)
-			channel := routing.Channel{
+			pricingConfig := routingtestkit.Configuration{
 				ID:                 77,
 				Status:             billing.StatusActive,
 				RestrictModels:     true,
 				BillingModelSource: routing.BillingModelSourceUpstream,
 				ModelMapping: map[string]map[string]string{
-					capability.PlatformAnthropic: {"client-alias": "channel-model"},
+					capability.PlatformAnthropic: {"client-alias": "group-model"},
 				},
-				ModelPricing: []routing.ChannelModelPricing{{
+				ModelPricing: []routing.ModelPricingEntry{{
 					Platform: capability.PlatformAnthropic,
 					Models:   []string{"allowed-upstream"},
 				}},
 			}
 			accounts := []gatewayprovider.ExecutionAccount{
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
-					Platform:    capability.PlatformAnthropic,
-					Priority:    1,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Concurrency: 5,
-					AccountGroups: []accountcore.GroupMembership{{
-						AccountID: 1,
-						GroupID:   groupID,
-					}},
-					Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "blocked-upstream"}}},
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 1,
+						Platform:    capability.PlatformAnthropic,
+						Priority:    1,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Concurrency: 5,
+						AccountGroups: []accountcore.GroupMembership{{
+							AccountID: 1,
+							GroupID:   groupID,
+						}},
+						Credentials: map[string]any{"model_mapping": map[string]any{"group-model": "blocked-upstream"}},
+					},
 				},
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
-					Platform:    capability.PlatformAnthropic,
-					Priority:    2,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Concurrency: 5,
-					AccountGroups: []accountcore.GroupMembership{{
-						AccountID: 2,
-						GroupID:   groupID,
-					}},
-					Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "allowed-upstream"}}},
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 2,
+						Platform:    capability.PlatformAnthropic,
+						Priority:    2,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Concurrency: 5,
+						AccountGroups: []accountcore.GroupMembership{{
+							AccountID: 2,
+							GroupID:   groupID,
+						}},
+						Credentials: map[string]any{"model_mapping": map[string]any{"group-model": "allowed-upstream"}},
+					},
 				},
 			}
 			accountRepo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{}}
@@ -2025,7 +2106,7 @@ func TestLegacySchedulers_FilterUpstreamRestrictedAccountsInEveryShortcut(t *tes
 				ModelRoutingEnabled: tt.modelRoutingEnabled,
 			}
 			if tt.modelRoutingEnabled {
-				group.ModelRouting = map[string][]int64{"channel-model": {1, 2}}
+				group.ModelRouting = map[string][]int64{"group-model": {1, 2}}
 			}
 			cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{"sticky": 1}}
 			svc := newGenericSelectionForTest(GenericDependencies{
@@ -2035,8 +2116,8 @@ func TestLegacySchedulers_FilterUpstreamRestrictedAccountsInEveryShortcut(t *tes
 					Groups: &mockGroupRepoForGateway{groups: map[int64]*routing.Group{groupID: group}},
 				},
 				Shared: Shared{
-					Channels: routingtestkit.Channel(groupID,
-						capability.PlatformAnthropic, channel),
+					GroupPolicies: routingtestkit.PricingConfig(groupID,
+						capability.PlatformAnthropic, pricingConfig),
 					Cache: cache,
 				},
 			}, testConfig())
@@ -2525,8 +2606,10 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			Shared: Shared{
 				Concurrency: scheduler.NewConcurrencyService(concurrencyCache,
 
-					scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-						Event: logging.Event}),
+					scheduler.Diagnostics{
+						Logf:  logging.LegacyPrintf,
+						Event: logging.Event,
+					}),
 				Cache: cache,
 			},
 		}, cfg)
@@ -2633,8 +2716,10 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		concurrencyCache := &mockConcurrencyCache{}
 
 		svc := newGenericSelectionForTest(GenericDependencies{
-			Reads: Reads{Groups: groupRepo,
-				Accounts: repo},
+			Reads: Reads{
+				Groups:   groupRepo,
+				Accounts: repo,
+			},
 			Shared: Shared{
 				Cache: cache,
 				Concurrency: scheduler.NewConcurrencyService(
@@ -2697,8 +2782,10 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			Shared: Shared{
 				Concurrency: scheduler.NewConcurrencyService(concurrencyCache,
 
-					scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-						Event: logging.Event}),
+					scheduler.Diagnostics{
+						Logf:  logging.LegacyPrintf,
+						Event: logging.Event,
+					}),
 				Cache: cache,
 			},
 		}, cfg)
@@ -2758,8 +2845,10 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			Shared: Shared{
 				Concurrency: scheduler.NewConcurrencyService(concurrencyCache,
 
-					scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-						Event: logging.Event}),
+					scheduler.Diagnostics{
+						Logf:  logging.LegacyPrintf,
+						Event: logging.Event,
+					}),
 				Cache: cache,
 			},
 		}, cfg)
@@ -2931,27 +3020,33 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false, Concurrency: 5}},
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
-					Platform:    capability.PlatformAnthropic,
-					Priority:    1,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Concurrency: 5,
-					Extra: map[string]any{
-						"model_rate_limits": map[string]any{
-							"claude-3-5-sonnet-20241022": map[string]any{
-								"rate_limit_reset_at": now.Format(time.RFC3339),
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 5,
+						Platform:    capability.PlatformAnthropic,
+						Priority:    1,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Concurrency: 5,
+						Extra: map[string]any{
+							"model_rate_limits": map[string]any{
+								"claude-3-5-sonnet-20241022": map[string]any{
+									"rate_limit_reset_at": now.Format(time.RFC3339),
+								},
 							},
 						},
-					}},
+					},
 				},
-				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6,
-					Platform:    capability.PlatformAnthropic,
-					Priority:    1,
-					Status:      billing.StatusActive,
-					Schedulable: true,
-					Concurrency: 5,
-					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
+				{
+					Record: accountcore.Record{
+						LoadLocation: time.LoadLocation, ID: 6,
+						Platform:    capability.PlatformAnthropic,
+						Priority:    1,
+						Status:      billing.StatusActive,
+						Schedulable: true,
+						Concurrency: 5,
+						Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+					},
 				},
 				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},

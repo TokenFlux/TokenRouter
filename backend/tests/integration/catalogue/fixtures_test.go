@@ -43,6 +43,7 @@ func (s *modelsListAccountRepoStub) ListSchedulableByGroupID(_ context.Context, 
 	copy(out, values)
 	return out, nil
 }
+
 func (s *modelsListAccountRepoStub) ListSchedulable(context.Context) ([]account.Record, error) {
 	s.listAllCalls.Add(1)
 	if s.err != nil {
@@ -59,7 +60,7 @@ type catalogueFixture struct {
 }
 
 // newCatalogueFixture 构造原无缓存手工装配，读取和资格均使用原生实现。
-func newCatalogueFixture(rows catalogueRows, channels *routing.ChannelService, prices *billing.PriceResolver) *catalogueFixture {
+func newCatalogueFixture(rows catalogueRows, pricingConfigs *routing.PricingConfigService, prices *billing.PriceResolver) *catalogueFixture {
 	var read func(context.Context, *int64) ([]routing.CatalogueAccount, error)
 	if rows != nil {
 		read = func(ctx context.Context, id *int64) ([]routing.CatalogueAccount, error) {
@@ -76,33 +77,35 @@ func newCatalogueFixture(rows catalogueRows, channels *routing.ChannelService, p
 			return gatewayprovider.CatalogueAccounts(values), nil
 		}
 	}
-	var channelPort routing.CatalogueChannels
-	if channels != nil {
-		channelPort = channels
+	var pricingConfigPort routing.CataloguePolicies
+	if pricingConfigs != nil {
+		pricingConfigPort = pricingConfigs
 	}
-	core := &routing.RequestableCatalogue{Models: &routing.ModelList{Read: read}, Read: read, Resolver: routing.RequestableResolver{Channels: channelPort, Defaults: gatewayprovider.CatalogueDefaults(), Warn: slog.Warn}, Warn: slog.Warn}
+	core := &routing.RequestableCatalogue{Models: &routing.ModelList{Read: read}, Read: read, Resolver: routing.RequestableResolver{GroupPolicies: pricingConfigPort, Defaults: gatewayprovider.CatalogueDefaults(), Warn: slog.Warn}, Warn: slog.Warn}
 	return &catalogueFixture{RequestableCatalogue: core, prices: prices}
 }
 
-type accountStatsSource struct{ channels *routing.ChannelService }
+type accountStatsSource struct{ pricingConfigs *routing.PricingConfigService }
 
-func (s accountStatsSource) AccountStatsGroup(ctx context.Context, id int64) (*billing.AccountStatsChannel, error) {
-	v, e := s.channels.GetChannelForGroup(ctx, id)
+func (s accountStatsSource) AccountStatsGroup(ctx context.Context, id int64) (*billing.AccountStatsPricingConfig, error) {
+	v, e := s.pricingConfigs.GetPricingConfigForGroup(ctx, id)
 	if e != nil || v == nil {
 		return nil, e
 	}
-	return &billing.AccountStatsChannel{Rules: v.AccountStatsPricingRules, ApplyUserPrice: v.ApplyPricingToAccountStats}, nil
+	return &billing.AccountStatsPricingConfig{Rules: v.AccountStatsPricingRules, ApplyUserPrice: v.ApplyPricingToAccountStats}, nil
 }
+
 func (s accountStatsSource) AccountStatsPlatform(ctx context.Context, id int64) billing.AccountStatsPlatform {
-	v := s.channels.GetGroupPlatform(ctx, id)
+	v := s.pricingConfigs.GetGroupPlatform(ctx, id)
 	return billing.AccountStatsPlatform{ID: v, PreferRequestedModel: v == routing.PlatformQoder}
 }
-func cataloguePriceResolver(channels *routing.ChannelService, calculator *billing.Calculator) *billing.PriceResolver {
-	var source billing.ChannelPrices
+
+func cataloguePriceResolver(pricingConfigs *routing.PricingConfigService, calculator *billing.Calculator) *billing.PriceResolver {
+	var source billing.ConfigPrices
 	var stats billing.AccountStatsSource
-	if channels != nil {
-		source = channels
-		stats = accountStatsSource{channels}
+	if pricingConfigs != nil {
+		source = pricingConfigs
+		stats = accountStatsSource{pricingConfigs}
 	}
 	return billing.NewPriceResolver(source, calculator, modelidentity.Identity, func(model string, err error) {
 		slog.Debug("failed to get model pricing from LiteLLM, using fallback", "model", model, "error", err)
@@ -117,9 +120,11 @@ type cataloguePrices struct {
 func (p cataloguePrices) Quote(ctx context.Context, request routing.MarketplaceQuoteRequest) pricing.ModelDisplayPricing {
 	return p.resolver.PublicQuote(ctx, billing.PublicQuoteInput{PricingInput: billing.PricingInput{Model: request.Model, GroupID: &request.GroupID, Group: &billing.PriceGroup{ModelPricing: request.ModelPricing, LongContextPricingEnabled: request.LongContextPricingEnabled}}, RateMultiplier: request.RateMultiplier, FreeFastApplicable: request.FreeFastApplicable})
 }
+
 func (p cataloguePrices) GetModelModalities(model string) ([]string, []string) {
 	return p.calculator.GetModelModalities(model)
 }
+
 func newCatalogueMarketplace(groups routing.MarketplaceGroups, catalogue *catalogueFixture, calculator *billing.Calculator) *routing.Marketplace {
 	var source routing.MarketplaceModels
 	resolver := routing.RequestableResolver{Defaults: gatewayprovider.CatalogueDefaults(), Warn: slog.Warn}

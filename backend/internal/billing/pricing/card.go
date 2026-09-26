@@ -40,21 +40,21 @@ func (m BillingMode) IsValidUsageFilter() bool {
 // 每条规则包含匹配条件（分组/账号）和独立的模型定价。
 // 多条规则按 SortOrder 排序，先命中为准。
 type AccountStatsPricingRule struct {
-	ID         int64
-	ChannelID  int64
-	Name       string
-	GroupIDs   []int64
-	AccountIDs []int64
-	SortOrder  int
-	Pricing    []ChannelModelPricing // 规则内的模型定价（复用现有定价结构）
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID              int64
+	PricingConfigID int64
+	Name            string
+	GroupIDs        []int64
+	AccountIDs      []int64
+	SortOrder       int
+	Pricing         []ModelPricingEntry // 规则内的模型定价（复用现有定价结构）
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
-// ChannelModelPricing 渠道模型定价条目
-type ChannelModelPricing struct {
+// ModelPricingEntry 价卡模型定价条目
+type ModelPricingEntry struct {
 	ID                 int64       `json:"id,omitempty"`
-	ChannelID          int64       `json:"channel_id,omitempty"`
+	PricingConfigID    int64       `json:"pricing_config_id,omitempty"`
 	Platform           string      `json:"platform"` // 所属平台（anthropic/openai/gemini/...）
 	Models             []string    `json:"models"`
 	BillingMode        BillingMode `json:"billing_mode"`
@@ -62,7 +62,7 @@ type ChannelModelPricing struct {
 	FastModeMultiplier *float64    `json:"fast_mode_multiplier"` // OpenAI Fast 模式收费倍率；nil 表示沿用模型默认 Fast 定价
 	// FastMultiplier 是新的通用 Fast/priority 倍率；为空时兼容旧字段。
 	FastMultiplier *float64 `json:"fast_multiplier,omitempty"`
-	// FlexMultiplier 是渠道级 Flex 倍率；为空时使用系统默认 0.5。
+	// FlexMultiplier 是价卡级 Flex 倍率；为空时使用系统默认 0.5。
 	FlexMultiplier *float64 `json:"flex_multiplier,omitempty"`
 	// MaxReasoningEffortMultiplier 仅在最终转发档位为 max 时应用；nil 沿用模型默认倍率。
 	MaxReasoningEffortMultiplier *float64 `json:"max_reasoning_effort_multiplier,omitempty"`
@@ -70,26 +70,26 @@ type ChannelModelPricing struct {
 	OutputPrice                  *float64 `json:"output_price"`
 	CacheWritePrice              *float64 `json:"cache_write_price"`
 	// CacheWrite1hPrice 是可选的 1 小时缓存写入单价；为空时沿用 CacheWritePrice。
-	CacheWrite1hPrice *float64            `json:"cache_write_1h_price"`
-	CacheReadPrice    *float64            `json:"cache_read_price"`
-	ImageInputPrice   *float64            `json:"image_input_price"`
-	ImageOutputPrice  *float64            `json:"image_output_price"`
-	PerRequestPrice   *float64            `json:"per_request_price"`
-	Intervals         []PricingInterval   `json:"intervals"`
-	TimePricing       *ChannelTimePricing `json:"time_pricing,omitempty"`
-	CreatedAt         time.Time           `json:"created_at,omitempty"`
-	UpdatedAt         time.Time           `json:"updated_at,omitempty"`
+	CacheWrite1hPrice *float64           `json:"cache_write_1h_price"`
+	CacheReadPrice    *float64           `json:"cache_read_price"`
+	ImageInputPrice   *float64           `json:"image_input_price"`
+	ImageOutputPrice  *float64           `json:"image_output_price"`
+	PerRequestPrice   *float64           `json:"per_request_price"`
+	Intervals         []PricingInterval  `json:"intervals"`
+	TimePricing       *TimePricingConfig `json:"time_pricing,omitempty"`
+	CreatedAt         time.Time          `json:"created_at,omitempty"`
+	UpdatedAt         time.Time          `json:"updated_at,omitempty"`
 }
 
-// ChannelTimePricing 渠道模型定价的分时倍率配置。
-type ChannelTimePricing struct {
-	Timezone     string                     `json:"timezone"`
-	WeekdaysOnly bool                       `json:"weekdays_only,omitempty"`
-	Periods      []ChannelTimePricingPeriod `json:"periods"`
+// TimePricingConfig 价卡模型定价的分时倍率配置。
+type TimePricingConfig struct {
+	Timezone     string              `json:"timezone"`
+	WeekdaysOnly bool                `json:"weekdays_only,omitempty"`
+	Periods      []TimePricingPeriod `json:"periods"`
 }
 
-// ChannelTimePricingPeriod 是秒级左闭右开区间，并兼容历史 HH:mm 数据。
-type ChannelTimePricingPeriod struct {
+// TimePricingPeriod 是秒级左闭右开区间，并兼容历史 HH:mm 数据。
+type TimePricingPeriod struct {
 	StartTime  string  `json:"start_time"`
 	EndTime    string  `json:"end_time"`
 	Multiplier float64 `json:"multiplier"`
@@ -132,12 +132,12 @@ func FindMatchingInterval(intervals []PricingInterval, totalTokens int) *Pricing
 }
 
 // GetIntervalForContext 根据总 context token 数查找匹配的区间。
-func (p *ChannelModelPricing) GetIntervalForContext(totalTokens int) *PricingInterval {
+func (p *ModelPricingEntry) GetIntervalForContext(totalTokens int) *PricingInterval {
 	return FindMatchingInterval(p.Intervals, totalTokens)
 }
 
 // GetTierByLabel 根据标签查找层级（用于 per_request / image 模式）
-func (p *ChannelModelPricing) GetTierByLabel(label string) *PricingInterval {
+func (p *ModelPricingEntry) GetTierByLabel(label string) *PricingInterval {
 	labelLower := strings.ToLower(label)
 	for i := range p.Intervals {
 		if strings.ToLower(p.Intervals[i].TierLabel) == labelLower {
@@ -149,7 +149,7 @@ func (p *ChannelModelPricing) GetTierByLabel(label string) *PricingInterval {
 
 // HasEffectivePricing 判断该行是否配置了价格或可继承基础价的倍率。
 // nil 价格指针表示“未配置”；指向 0 的指针表示显式免费价格，因此仍然有效。
-func (p *ChannelModelPricing) HasEffectivePricing() bool {
+func (p *ModelPricingEntry) HasEffectivePricing() bool {
 	if p == nil {
 		return false
 	}
@@ -200,8 +200,8 @@ func (p *ChannelModelPricing) HasEffectivePricing() bool {
 	return false
 }
 
-// Clone 返回 ChannelModelPricing 的拷贝；模型、区间和分时配置切片彼此独立。
-func (p ChannelModelPricing) Clone() ChannelModelPricing {
+// Clone 返回 ModelPricingEntry 的拷贝；模型、区间和分时配置切片彼此独立。
+func (p ModelPricingEntry) Clone() ModelPricingEntry {
 	cp := p
 	// 金额指针也必须独立，复制分组或覆盖倍率时不能修改源价卡。
 	ClonePricingAmounts(&cp.PriceMultiplier, &cp.FastModeMultiplier, &cp.FastMultiplier, &cp.FlexMultiplier,
@@ -226,12 +226,12 @@ func (p ChannelModelPricing) Clone() ChannelModelPricing {
 		}
 	}
 	if p.TimePricing != nil {
-		cp.TimePricing = &ChannelTimePricing{
+		cp.TimePricing = &TimePricingConfig{
 			Timezone:     p.TimePricing.Timezone,
 			WeekdaysOnly: p.TimePricing.WeekdaysOnly,
 		}
 		if p.TimePricing.Periods != nil {
-			cp.TimePricing.Periods = append([]ChannelTimePricingPeriod(nil), p.TimePricing.Periods...)
+			cp.TimePricing.Periods = append([]TimePricingPeriod(nil), p.TimePricing.Periods...)
 		}
 	}
 	return cp

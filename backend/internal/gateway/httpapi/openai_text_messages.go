@@ -101,16 +101,16 @@ func (h *OpenAITextHandler) Messages(c *gin.Context) {
 		return
 	}
 
-	// 解析渠道级模型映射
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingMsgRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
-	channelMappingMsg := channelMappingMsgRoutePlan.Mapping()
-	h.backend.BindPlan(c, channelMappingMsgRoutePlan)
-	channelMappedModel := strings.TrimSpace(channelMappingMsg.MappedModel)
-	if channelMappedModel == "" {
-		channelMappedModel = reqModel
+	// 解析分组模型映射
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	groupMappingMsgRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
+	groupMappingMsg := groupMappingMsgRoutePlan.Mapping()
+	h.backend.BindPlan(c, groupMappingMsgRoutePlan)
+	groupMappedModel := strings.TrimSpace(groupMappingMsg.MappedModel)
+	if groupMappedModel == "" {
+		groupMappedModel = reqModel
 	}
-	accountLayerModel := h.backend.MessageAccountModel(c.Request.Context(), apiKey, channelMappedModel)
+	accountLayerModel := h.backend.MessageAccountModel(c.Request.Context(), apiKey, groupMappedModel)
 
 	// 绑定错误透传服务，允许 service 层在非 failover 错误场景复用规则。
 	h.backend.BindErrors(c)
@@ -159,10 +159,11 @@ func (h *OpenAITextHandler) Messages(c *gin.Context) {
 		}
 	}
 
-	call := OpenAITextCall{Route: channelMappingMsgRoutePlan,
+	call := OpenAITextCall{
+		Route:    groupMappingMsgRoutePlan,
 		Protocol: protocol.ProtocolAnthropicMessages, Key: apiKey, Subject: subject, Subscription: subscription,
 		Body: body, Model: reqModel, SessionHash: sessionHash, Platform: requestPlatform, Stream: reqStream,
-		StreamStarted: &streamStarted, RoutingStart: routingStart, Log: reqLog, Mapping: channelMappingMsg,
+		StreamStarted: &streamStarted, RoutingStart: routingStart, Log: reqLog, Mapping: groupMappingMsg,
 		AccountLayerModel: accountLayerModel, PromptCacheKey: promptCacheKey,
 	}
 	h.executeText(c, call, execution.TextOpenAIMessages)

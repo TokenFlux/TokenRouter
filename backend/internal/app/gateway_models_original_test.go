@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/testkit"
+
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
@@ -43,20 +45,20 @@ type gatewayModelsAccountRepoStub struct {
 	byGroup map[int64][]account.Record
 }
 
-type gatewayModelsChannelRepoStub struct {
-	routing.ChannelRepository
+type gatewayModelsPricingConfigRepoStub struct {
+	routing.PricingConfigRepository
 
-	channels       []routing.Channel
+	modelConfigs   []testkit.Configuration
 	groupPlatforms map[int64]string
 }
 
-func (s *gatewayModelsChannelRepoStub) ListAll(ctx context.Context) ([]routing.Channel, error) {
-	channels := make([]routing.Channel, len(s.channels))
-	copy(channels, s.channels)
-	return channels, nil
+func (s *gatewayModelsPricingConfigRepoStub) ListAll(ctx context.Context) ([]testkit.Configuration, error) {
+	modelConfigs := make([]testkit.Configuration, len(s.modelConfigs))
+	copy(modelConfigs, s.modelConfigs)
+	return modelConfigs, nil
 }
 
-func (s *gatewayModelsChannelRepoStub) GetGroupPlatforms(ctx context.Context, groupIDs []int64) (map[int64]string, error) {
+func (s *gatewayModelsPricingConfigRepoStub) GetGroupPlatforms(ctx context.Context, groupIDs []int64) (map[int64]string, error) {
 	platforms := make(map[int64]string, len(groupIDs))
 	for _, groupID := range groupIDs {
 		if platform, ok := s.groupPlatforms[groupID]; ok {
@@ -101,11 +103,11 @@ func (s *gatewayModelsAccountRepoStub) ListSchedulableByGroupID(ctx context.Cont
 }
 
 func newGatewayModelsHandlerForTest(repo modelHTTPAccountRows) *gatewayhttp.ModelsHandler {
-	return newGatewayModelsHandlerWithChannelForTest(repo, nil)
+	return newGatewayModelsHandlerWithPricingConfigForTest(repo, nil)
 }
 
-// newGatewayModelsHandlerWithChannelForTest 构造可选渠道配置的模型接口处理器。
-func newGatewayModelsHandlerWithChannelForTest(repo modelHTTPAccountRows, channels *routing.ChannelService) *gatewayhttp.ModelsHandler {
+// newGatewayModelsHandlerWithPricingConfigForTest 构造可选模型配置的模型接口处理器。
+func newGatewayModelsHandlerWithPricingConfigForTest(repo modelHTTPAccountRows, modelConfigs *routing.PricingConfigService) *gatewayhttp.ModelsHandler {
 	var read func(context.Context, *int64) ([]routing.CatalogueAccount, error)
 	if repo != nil {
 		read = func(ctx context.Context, id *int64) ([]routing.CatalogueAccount, error) {
@@ -122,30 +124,30 @@ func newGatewayModelsHandlerWithChannelForTest(repo modelHTTPAccountRows, channe
 			return gatewayprovider.CatalogueAccounts(values), nil
 		}
 	}
-	var channelPort routing.CatalogueChannels
-	if channels != nil {
-		channelPort = channels
+	var pricingConfigPort routing.CataloguePolicies
+	if modelConfigs != nil {
+		pricingConfigPort = modelConfigs
 	}
-	catalogue := &routing.RequestableCatalogue{Models: &routing.ModelList{Read: read}, Read: read, Resolver: routing.RequestableResolver{Channels: channelPort, Defaults: gatewayprovider.CatalogueDefaults(), Warn: slog.Warn}, Warn: slog.Warn}
+	catalogue := &routing.RequestableCatalogue{Models: &routing.ModelList{Read: read}, Read: read, Resolver: routing.RequestableResolver{GroupPolicies: pricingConfigPort, Defaults: gatewayprovider.CatalogueDefaults(), Warn: slog.Warn}, Warn: slog.Warn}
 	return provideModelsHTTP(catalogue, nil, nil, nil)
 }
 
-// newGatewayModelsChannelServiceForTest 构造模型接口测试使用的渠道服务。
-func newGatewayModelsChannelServiceForTest(groupID int64, platform string, channel routing.Channel) *routing.ChannelService {
-	channel.GroupIDs = []int64{groupID}
-	repo := &gatewayModelsChannelRepoStub{
-		channels:       []routing.Channel{channel},
+// newGatewayModelsPricingConfigServiceForTest 构造模型接口测试使用的模型配置服务。
+func newGatewayModelsPricingConfigServiceForTest(groupID int64, platform string, pricingConfig testkit.Configuration) *routing.PricingConfigService {
+	pricingConfig.GroupIDs = []int64{groupID}
+	repo := &gatewayModelsPricingConfigRepoStub{
+		modelConfigs:   []testkit.Configuration{pricingConfig},
 		groupPlatforms: map[int64]string{groupID: platform},
 	}
-	return routing.NewChannelService(repo, nil, routing.ChannelOptions{Warn: slog.Warn,
-		Now: time.Now, LoadLocation: pricingprovider.
+	return testkit.NewPricingConfigService(repo, nil, routing.PricingConfigOptions{
+		Warn: slog.Warn,
+		Now:  time.Now, LoadLocation: pricingprovider.
 			LoadPricingLocation,
 	},
 	)
 }
 
 func TestGatewayModels_GeminiGroupFallsBackToGeminiModels(t *testing.T) {
-
 	groupID := int64(20)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -179,7 +181,6 @@ func TestGatewayModels_GeminiGroupFallsBackToGeminiModels(t *testing.T) {
 }
 
 func TestAntigravityModelsIncludesRequestableExactAPIKeyAlias(t *testing.T) {
-
 	defaults := antigravity.DefaultModels()
 	require.NotEmpty(t, defaults)
 	targetModel := defaults[0].ID
@@ -206,7 +207,6 @@ func TestAntigravityModelsIncludesRequestableExactAPIKeyAlias(t *testing.T) {
 }
 
 func TestAntigravityModelsExcludesAliasWhoseTargetIsUnavailableToBoundGroup(t *testing.T) {
-
 	defaults := antigravity.DefaultModels()
 	require.GreaterOrEqual(t, len(defaults), 2)
 	availableModel := defaults[0].ID
@@ -251,7 +251,6 @@ func TestAntigravityModelsExcludesAliasWhoseTargetIsUnavailableToBoundGroup(t *t
 }
 
 func TestGatewayModelsCompositeKeyAggregatesMappingsInOrder(t *testing.T) {
-
 	openAIGroupID := int64(50)
 	anthropicGroupID := int64(51)
 	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{byGroup: map[int64][]account.Record{
@@ -311,7 +310,6 @@ func TestGatewayModelsCompositeKeyAggregatesMappingsInOrder(t *testing.T) {
 }
 
 func TestGatewayModelsCompositeKeyFiltersPreferredSubscriptionMappings(t *testing.T) {
-
 	allowedGroupID := int64(52)
 	blockedGroupID := int64(53)
 	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{byGroup: map[int64][]account.Record{
@@ -358,7 +356,6 @@ func TestGatewayModelsCompositeKeyFiltersPreferredSubscriptionMappings(t *testin
 }
 
 func TestGatewayModelsCompositeKeyFiltersRevokedMappings(t *testing.T) {
-
 	publicGroupID := int64(60)
 	exclusiveGroupID := int64(61)
 	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{byGroup: map[int64][]account.Record{
@@ -396,7 +393,6 @@ func TestGatewayModelsCompositeKeyFiltersRevokedMappings(t *testing.T) {
 
 // TestGatewayModels_AntigravityGroupKeepsDefaultModelMetadata 验证默认候选仍使用 Antigravity 的展示元数据。
 func TestGatewayModels_AntigravityGroupKeepsDefaultModelMetadata(t *testing.T) {
-
 	groupID := int64(32)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -435,7 +431,6 @@ func TestGatewayModels_AntigravityGroupKeepsDefaultModelMetadata(t *testing.T) {
 }
 
 func TestGatewayModels_QoderGroupFallsBackToQoderModels(t *testing.T) {
-
 	groupID := int64(28)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -541,7 +536,6 @@ func assertGrokGatewayReasoningEfforts(t *testing.T, groupID int64, modelID stri
 
 // TestGatewayModels_GrokDefaultsExcludeBuiltinAliases 验证无显式账号范围时只展示默认模型目录。
 func TestGatewayModels_GrokDefaultsExcludeBuiltinAliases(t *testing.T) {
-
 	groupID := int64(4410)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -601,7 +595,6 @@ func TestGatewayModels_GrokDefaultsExcludeBuiltinAliases(t *testing.T) {
 }
 
 func TestGatewayModels_GeminiGroupFiltersMappedModelsByPlatform(t *testing.T) {
-
 	groupID := int64(21)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -647,7 +640,6 @@ func TestGatewayModels_GeminiGroupFiltersMappedModelsByPlatform(t *testing.T) {
 }
 
 func TestGatewayModels_CustomModelsListDisabledKeepsOriginalModels(t *testing.T) {
-
 	groupID := int64(22)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -696,7 +688,6 @@ func TestGatewayModels_CustomModelsListDisabledKeepsOriginalModels(t *testing.T)
 }
 
 func TestGatewayModels_CustomModelsListFiltersAndOrdersMappedModels(t *testing.T) {
-
 	groupID := int64(23)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -742,7 +733,6 @@ func TestGatewayModels_CustomModelsListFiltersAndOrdersMappedModels(t *testing.T
 }
 
 func TestGatewayModels_CustomModelsListKeepsConcreteModelAllowedByWildcardMapping(t *testing.T) {
-
 	groupID := int64(26)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -786,7 +776,6 @@ func TestGatewayModels_CustomModelsListKeepsConcreteModelAllowedByWildcardMappin
 }
 
 func TestGatewayModels_AnthropicCustomModelsListIncludesOAuthClaudeAndMappedDeepSeek(t *testing.T) {
-
 	groupID := int64(28)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -836,7 +825,6 @@ func TestGatewayModels_AnthropicCustomModelsListIncludesOAuthClaudeAndMappedDeep
 }
 
 func TestGatewayModels_AnthropicCustomModelsListDisabledIncludesUnrestrictedDefaults(t *testing.T) {
-
 	groupID := int64(29)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -888,7 +876,6 @@ func TestGatewayModels_AnthropicCustomModelsListDisabledIncludesUnrestrictedDefa
 }
 
 func TestGatewayModels_AnthropicCustomModelsListDoesNotAddModelsOutsideResolvedCandidates(t *testing.T) {
-
 	groupID := int64(30)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -928,7 +915,6 @@ func TestGatewayModels_AnthropicCustomModelsListDoesNotAddModelsOutsideResolvedC
 }
 
 func TestGatewayModels_CustomModelsListCanReturnEmptyWhenSelectionsUnavailable(t *testing.T) {
-
 	groupID := int64(24)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -972,7 +958,6 @@ func TestGatewayModels_CustomModelsListCanReturnEmptyWhenSelectionsUnavailable(t
 }
 
 func TestGatewayModels_CustomModelsListFiltersDefaultFallbackModels(t *testing.T) {
-
 	groupID := int64(25)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -1008,7 +993,6 @@ func TestGatewayModels_CustomModelsListFiltersDefaultFallbackModels(t *testing.T
 }
 
 func TestGatewayModels_OpenAICustomModelsListKeepsOpenAIResponseShapeForDefaultFallback(t *testing.T) {
-
 	groupID := int64(27)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -1048,7 +1032,6 @@ func TestGatewayModels_OpenAICustomModelsListKeepsOpenAIResponseShapeForDefaultF
 }
 
 func TestGatewayModels_OpenAIUnrestrictedListKeepsOpenAIResponseShape(t *testing.T) {
-
 	groupID := int64(31)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -1078,7 +1061,6 @@ func TestGatewayModels_OpenAIUnrestrictedListKeepsOpenAIResponseShape(t *testing
 }
 
 func TestGatewayModels_QoderCustomModelsListFiltersDefaultFallbackModels(t *testing.T) {
-
 	groupID := int64(29)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
@@ -1113,19 +1095,18 @@ func TestGatewayModels_QoderCustomModelsListFiltersDefaultFallbackModels(t *test
 	require.Equal(t, []string{"deepseek-v4-pro", "lite"}, modelIDsForTest(got.Data))
 }
 
-func TestGatewayModels_ChannelRestrictionEmptyDoesNotFallBackToDefaults(t *testing.T) {
-
+func TestGatewayModels_GroupRestrictionEmptyDoesNotFallBackToDefaults(t *testing.T) {
 	groupID := int64(31)
 	accountRepo := &gatewayModelsAccountRepoStub{byGroup: map[int64][]account.Record{
 		groupID: {{ID: 1, Platform: capability.PlatformOpenAI}},
 	}}
-	channelService := newGatewayModelsChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
+	pricingConfigService := newGatewayModelsPricingConfigServiceForTest(groupID, capability.PlatformOpenAI, testkit.Configuration{
 		ID:                 81,
 		Status:             billing.StatusActive,
 		RestrictModels:     true,
 		BillingModelSource: routing.BillingModelSourceRequested,
 	})
-	h := newGatewayModelsHandlerWithChannelForTest(accountRepo, channelService)
+	h := newGatewayModelsHandlerWithPricingConfigForTest(accountRepo, pricingConfigService)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1141,8 +1122,7 @@ func TestGatewayModels_ChannelRestrictionEmptyDoesNotFallBackToDefaults(t *testi
 	require.Empty(t, got.Data)
 }
 
-func TestGatewayModels_CustomListIntersectsChannelFilteredModels(t *testing.T) {
-
+func TestGatewayModels_CustomListIntersectsPricingConfigFilteredModels(t *testing.T) {
 	groupID := int64(32)
 	price := 0.01
 	accountRepo := &gatewayModelsAccountRepoStub{byGroup: map[int64][]account.Record{
@@ -1157,18 +1137,18 @@ func TestGatewayModels_CustomListIntersectsChannelFilteredModels(t *testing.T) {
 			},
 		}},
 	}}
-	channelService := newGatewayModelsChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
+	pricingConfigService := newGatewayModelsPricingConfigServiceForTest(groupID, capability.PlatformOpenAI, testkit.Configuration{
 		ID:                 82,
 		Status:             billing.StatusActive,
 		RestrictModels:     true,
 		BillingModelSource: routing.BillingModelSourceRequested,
-		ModelPricing: []routing.ChannelModelPricing{{
+		ModelPricing: []routing.ModelPricingEntry{{
 			Platform:   capability.PlatformOpenAI,
 			Models:     []string{"allowed-model"},
 			InputPrice: &price,
 		}},
 	})
-	h := newGatewayModelsHandlerWithChannelForTest(accountRepo, channelService)
+	h := newGatewayModelsHandlerWithPricingConfigForTest(accountRepo, pricingConfigService)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)

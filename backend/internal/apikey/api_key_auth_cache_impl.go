@@ -16,7 +16,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const KeyApiKeyAuthSnapshotVersion = 40
+const KeyApiKeyAuthSnapshotVersion = 41
 
 type KeyApiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -470,7 +470,8 @@ func (s *APIKeyService) KeySnapshotFromAPIKey(ctx context.Context, apiKey *APIKe
 			AudioTTSPricePerMillionChars:    clonePointer(apiKey.Group.AudioTTSPricePerMillionChars),
 			AudioSTTPricePerHour:            clonePointer(apiKey.Group.AudioSTTPricePerHour),
 			LongContextPricingEnabled:       apiKey.Group.LongContextPricingEnabled,
-			ModelPricing:                    KeyCloneChannelModelPricingEntries(apiKey.Group.ModelPricing),
+			ModelPricing:                    CloneModelPricingEntries(apiKey.Group.ModelPricing),
+			RoutingPolicy:                   apiKey.Group.RoutingPolicy.Clone(),
 			ClaudeCodeOnly:                  apiKey.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 clonePointer(apiKey.Group.FallbackGroupID),
 			FallbackGroupIDOnInvalidRequest: clonePointer(apiKey.Group.FallbackGroupIDOnInvalidRequest),
@@ -599,7 +600,8 @@ func (s *APIKeyService) KeySnapshotToAPIKey(key string, snapshot *APIKeyAuthSnap
 			AudioTTSPricePerMillionChars:    clonePointer(snapshot.Group.AudioTTSPricePerMillionChars),
 			AudioSTTPricePerHour:            clonePointer(snapshot.Group.AudioSTTPricePerHour),
 			LongContextPricingEnabled:       snapshot.Group.LongContextPricingEnabled,
-			ModelPricing:                    KeyCloneChannelModelPricingEntries(snapshot.Group.ModelPricing),
+			ModelPricing:                    CloneModelPricingEntries(snapshot.Group.ModelPricing),
+			RoutingPolicy:                   snapshot.Group.RoutingPolicy.Clone(),
 			ClaudeCodeOnly:                  snapshot.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 clonePointer(snapshot.Group.FallbackGroupID),
 			FallbackGroupIDOnInvalidRequest: clonePointer(snapshot.Group.FallbackGroupIDOnInvalidRequest),
@@ -661,7 +663,8 @@ func KeyAuthGroupSnapshotFromGroup(group *routing.Group) *APIKeyAuthGroupSnapsho
 		WebSearchPricePerCall:     clonePointer(group.WebSearchPricePerCall),
 		SearchPricePer1k:          clonePointer(group.SearchPricePer1k), AudioRealtimePricePerMin: clonePointer(group.AudioRealtimePricePerMin),
 		AudioTTSPricePerMillionChars: clonePointer(group.AudioTTSPricePerMillionChars), AudioSTTPricePerHour: clonePointer(group.AudioSTTPricePerHour),
-		LongContextPricingEnabled: group.LongContextPricingEnabled, ModelPricing: KeyCloneChannelModelPricingEntries(group.ModelPricing),
+		LongContextPricingEnabled: group.LongContextPricingEnabled, ModelPricing: CloneModelPricingEntries(group.ModelPricing),
+		RoutingPolicy:   group.RoutingPolicy.Clone(),
 		ClaudeCodeOnly:  group.ClaudeCodeOnly,
 		FallbackGroupID: clonePointer(group.FallbackGroupID), FallbackGroupIDOnInvalidRequest: clonePointer(group.FallbackGroupIDOnInvalidRequest),
 		UnavailableFallbackGroupID: clonePointer(group.UnavailableFallbackGroupID), ModelRouting: cloneModelRouting(group.ModelRouting),
@@ -693,7 +696,8 @@ func KeyGroupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *routing.Group 
 		AudioTTSPricePerMillionChars: clonePointer(snapshot.AudioTTSPricePerMillionChars),
 		AudioSTTPricePerHour:         clonePointer(snapshot.AudioSTTPricePerHour),
 		LongContextPricingEnabled:    snapshot.LongContextPricingEnabled,
-		ModelPricing:                 KeyCloneChannelModelPricingEntries(snapshot.ModelPricing),
+		ModelPricing:                 CloneModelPricingEntries(snapshot.ModelPricing),
+		RoutingPolicy:                snapshot.RoutingPolicy.Clone(),
 		ClaudeCodeOnly:               snapshot.ClaudeCodeOnly, FallbackGroupID: clonePointer(snapshot.FallbackGroupID),
 		FallbackGroupIDOnInvalidRequest: clonePointer(snapshot.FallbackGroupIDOnInvalidRequest),
 		UnavailableFallbackGroupID:      clonePointer(snapshot.UnavailableFallbackGroupID), ModelRouting: cloneModelRouting(snapshot.ModelRouting),
@@ -709,12 +713,12 @@ func KeyGroupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *routing.Group 
 	}
 }
 
-// KeyCloneChannelModelPricingEntries 复制认证快照中的价卡切片，避免请求对象修改缓存内容。
-func KeyCloneChannelModelPricingEntries(entries []ChannelModelPricing) []ChannelModelPricing {
+// CloneModelPricingEntries 复制认证快照中的价卡切片，避免请求对象修改缓存内容。
+func CloneModelPricingEntries(entries []ModelPricingEntry) []ModelPricingEntry {
 	if entries == nil {
 		return nil
 	}
-	cloned := make([]ChannelModelPricing, len(entries))
+	cloned := make([]ModelPricingEntry, len(entries))
 	for i := range entries {
 		cloned[i] = entries[i].Clone()
 	}

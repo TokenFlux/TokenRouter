@@ -27,38 +27,41 @@ type creativeUserCacheFixture struct {
 func (c *creativeUserCacheFixture) AcquireUserSlot(context.Context, int64, int, string) (bool, error) {
 	return c.acquireResult, nil
 }
+
 func (c *creativeUserCacheFixture) ReleaseUserSlot(context.Context, int64, string) error { return nil }
 
-func testImageModelPricing(prices map[string]*float64) []routing.ChannelModelPricing {
-	card := routing.ChannelModelPricing{Models: []string{"*"}, BillingMode: routing.BillingModeImage}
+func testImageModelPricing(prices map[string]*float64) []routing.ModelPricingEntry {
+	card := routing.ModelPricingEntry{Models: []string{"*"}, BillingMode: routing.BillingModeImage}
 	for tier, price := range prices {
 		card.Intervals = append(card.Intervals, routing.PricingInterval{TierLabel: tier, PerRequestPrice: price})
 	}
-	return []routing.ChannelModelPricing{card}
+	return []routing.ModelPricingEntry{card}
 }
 
 // 价卡数据和原基础价格保持一致，缓存编译与报价使用真实模块。
-type creativeChannelFixture struct {
-	routing.ChannelRepository
-	cards    []routing.ChannelModelPricing
+type creativePricingConfigFixture struct {
+	routing.PricingConfigRepository
+	cards    []routing.ModelPricingEntry
 	platform string
 }
 
-func (r *creativeChannelFixture) ListAll(context.Context) ([]routing.Channel, error) {
-	return []routing.Channel{{ID: 1, Name: "test-channel", Status: billing.StatusActive, GroupIDs: []int64{100}, ModelPricing: r.cards}}, nil
+func (r *creativePricingConfigFixture) ListAll(context.Context) ([]routing.PricingConfig, error) {
+	return []routing.PricingConfig{{ID: 1, Name: "test-price-config", Status: billing.StatusActive, GroupIDs: []int64{100}, ModelPricing: r.cards}}, nil
 }
-func (r *creativeChannelFixture) GetGroupPlatforms(context.Context, []int64) (map[int64]string, error) {
+
+func (r *creativePricingConfigFixture) GetGroupPlatforms(context.Context, []int64) (map[int64]string, error) {
 	return map[int64]string{100: r.platform}, nil
 }
-func newResolverWithChannel(t *testing.T, cards []routing.ChannelModelPricing) *billing.PriceResolver {
+
+func newResolverWithPricingConfig(t *testing.T, cards []routing.ModelPricingEntry) *billing.PriceResolver {
 	t.Helper()
 	platform := capability.PlatformAnthropic
 	if len(cards) > 0 && cards[0].Platform != "" {
 		platform = cards[0].Platform
 	}
 	calculator := billingtestkit.Calculator(0, nil, map[string]*pricing.ModelPricing{"claude-sonnet-4": {InputPricePerToken: 3e-6, OutputPricePerToken: 15e-6, CacheCreationPricePerToken: 3.75e-6, CacheReadPricePerToken: 0.3e-6, SupportsCacheBreakdown: false}})
-	channels := routing.NewChannelService(&creativeChannelFixture{cards: cards, platform: platform}, nil, routing.ChannelOptions{Warn: slog.Warn, Now: time.Now, LoadLocation: pricingprovider.LoadPricingLocation})
-	return billing.NewPriceResolver(channels, calculator, modelidentity.Identity, func(model string, err error) {
+	pricingConfigs := routing.NewPricingConfigService(&creativePricingConfigFixture{cards: cards, platform: platform}, nil, routing.PricingConfigOptions{Warn: slog.Warn, Now: time.Now, LoadLocation: pricingprovider.LoadPricingLocation})
+	return billing.NewPriceResolver(pricingConfigs, calculator, modelidentity.Identity, func(model string, err error) {
 		slog.Debug("failed to get model pricing from LiteLLM, using fallback", "model", model, "error", err)
 	})
 }

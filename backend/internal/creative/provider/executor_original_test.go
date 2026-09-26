@@ -199,7 +199,7 @@ func TestBuildCreativeGrokEditRequest(t *testing.T) {
 	require.NotContains(t, one, "images")
 }
 
-// TestExecuteCreativeGrokEditUsesJSONEditEndpoint 校验编辑端点、鉴权请求和 b64 输出解析。
+// TestBuildCreativeOpenAIRequestBody 校验编辑端点、鉴权请求和 b64 输出解析。
 func TestBuildCreativeOpenAIRequestBody(t *testing.T) {
 	// generate：JSON。
 	run := creative.CreativeRun{Operation: creative.CreativeOperationGenerate, ImageSize: "1K", RequestedOutputCount: 2}
@@ -286,7 +286,7 @@ func TestBuildCreativeGeminiRequest(t *testing.T) {
 	require.JSONEq(t, `{"contents":[{"parts":[{"text":"重绘"},{"inlineData":{"mimeType":"image/jpeg","data":"c3Jj"}}]}],"generationConfig":{"responseModalities":["TEXT","IMAGE"],"imageConfig":{"imageSize":"2K","aspectRatio":"16:9"},"thinkingConfig":{"thinkingLevel":"high","includeThoughts":false}}}`, string(body))
 }
 
-// TestCreativeGeminiInpaintIsRejectedBeforeUpstream 校验历史 Gemini inpaint 任务不会触发上游请求。
+// TestParseCreativeGeminiImageOutputsUsesFinalImagePart 校验历史 Gemini inpaint 任务不会触发上游请求。
 func TestParseCreativeGeminiImageOutputsUsesFinalImagePart(t *testing.T) {
 	thought := base64.StdEncoding.EncodeToString([]byte("thought-image"))
 	final := base64.StdEncoding.EncodeToString([]byte("final-image"))

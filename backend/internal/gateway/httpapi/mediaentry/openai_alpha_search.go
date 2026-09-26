@@ -32,7 +32,7 @@ func (h *Runtime) recordAlphaSearchUsage(
 	apiKey *apikey.APIKey,
 	account *gatewaycapture.ExecutionAccount,
 	subscription *billing.UserSubscription,
-	channelMapping routing.ChannelMappingResult,
+	groupMapping routing.GroupMappingResult,
 	requestedModel string,
 	body []byte,
 	result *forwardcore.OpenAIResult,
@@ -60,7 +60,7 @@ func (h *Runtime) recordAlphaSearchUsage(
 		APIKeyService:      h.bindings.Quota,
 		QuotaPlatform:      quotaPlatform,
 		ClientSessionID:    sessionID,
-		ChannelUsageFields: channelMapping.ToUsageFields(requestedModel, result.UpstreamModel),
+		PricingUsageFields: groupMapping.ToUsageFields(requestedModel, result.UpstreamModel),
 	})
 	completionRecorder := h.bindings.Common.Recorder
 	completionLog := logging.L().With(
@@ -84,7 +84,7 @@ type alphaRequestAdapter struct {
 	c                           *gin.Context
 	apiKey                      *apikey.APIKey
 	subscription                *billing.UserSubscription
-	channelMapping              routing.ChannelMappingResult
+	groupMapping                routing.GroupMappingResult
 	requestedModel, sessionHash string
 	originalBody                []byte
 	userID                      int64
@@ -102,9 +102,11 @@ func (p *alphaRequestAdapter) SelectAlpha(ctx context.Context, excluded map[int6
 	}
 	return gatewaymedia.AlphaSelection{Account: gatewaycapture.ExecutionSnapshot(selected.Account), RetryLimit: selected.Account.View().GetPoolModeRetryCount()}, true, err
 }
+
 func (p *alphaRequestAdapter) AcquireAlpha(_ context.Context, _ gatewaymedia.AlphaSelection) (func(), bool) {
 	return p.h.bindings.Common.Support.AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, false, p.streamStarted, p.reqLog)
 }
+
 func (p *alphaRequestAdapter) ForwardAlpha(ctx context.Context, _ gatewaymedia.AlphaSelection, body []byte) gatewaymedia.AlphaOutcome {
 	size := p.c.Writer.Size()
 	account := p.selection.Account
@@ -121,6 +123,7 @@ func (p *alphaRequestAdapter) ForwardAlpha(ctx context.Context, _ gatewaymedia.A
 	}
 	return outcome
 }
+
 func (p *alphaRequestAdapter) ReportAlpha(_ context.Context, _ gatewaymedia.AlphaSelection, result *gatewaymedia.AlphaResult, success bool, err error) {
 	account := p.selection.Account
 	if success {
@@ -129,12 +132,15 @@ func (p *alphaRequestAdapter) ReportAlpha(_ context.Context, _ gatewaymedia.Alph
 	}
 	p.h.bindings.Common.Selection.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestedModel, false, legacyAlphaResult(result)), false, nil, err)
 }
+
 func (p *alphaRequestAdapter) CompleteAlpha(_ context.Context, _ gatewaymedia.AlphaSelection, result *gatewaymedia.AlphaResult) {
-	p.h.recordAlphaSearchUsage(p.c, p.apiKey, p.selection.Account, p.subscription, p.channelMapping, p.requestedModel, p.originalBody, legacyAlphaResult(result), p.userID)
+	p.h.recordAlphaSearchUsage(p.c, p.apiKey, p.selection.Account, p.subscription, p.groupMapping, p.requestedModel, p.originalBody, legacyAlphaResult(result), p.userID)
 }
+
 func (p *alphaRequestAdapter) SwitchAlpha(gatewaymedia.AlphaSelection) {
 	p.h.bindings.Platform.ReportSwitch()
 }
+
 func (p *alphaRequestAdapter) StopAlpha429(_ gatewaymedia.AlphaSelection, status, count int) bool {
 	return p.h.bindings.Platform.Stop429(p.selection.Account, status, count, &p.oauth429)
 }
@@ -157,6 +163,7 @@ func (p *alphaRequestAdapter) ObserveAlpha(e gatewaymedia.AlphaEvent) {
 		p.reqLog.Warn("openai_alpha_search.upstream_failover_switching", zap.Int64("account_id", e.Account.ID), zap.Int("upstream_status", e.Outcome.Failure.StatusCode), zap.Int("switch_count", e.Switches), zap.Int("max_switches", e.MaxSwitches))
 	}
 }
+
 func (p *alphaRequestAdapter) renderFailure(f *gatewaymedia.AlphaFailure) {
 	if f == nil {
 		return
@@ -192,12 +199,14 @@ func (p *alphaRequestAdapter) renderFailure(f *gatewaymedia.AlphaFailure) {
 		}
 	}
 }
+
 func alphaResultView(result *forwardcore.OpenAIResult) *gatewaymedia.AlphaResult {
 	if result == nil {
 		return nil
 	}
 	return &gatewaymedia.AlphaResult{RequestID: result.RequestID, Model: result.Model, UpstreamModel: result.UpstreamModel, UpstreamEndpoint: result.UpstreamEndpoint, Headers: http.Header(result.UpstreamHeaders).Clone(), ResponseHeaders: http.Header(result.ResponseHeaders).Clone(), Duration: result.Duration, Calls: result.WebSearchCalls}
 }
+
 func legacyAlphaResult(result *gatewaymedia.AlphaResult) *forwardcore.OpenAIResult {
 	if result == nil {
 		return nil

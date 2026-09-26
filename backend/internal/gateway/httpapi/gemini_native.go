@@ -29,15 +29,18 @@ import (
 	"go.uber.org/zap"
 )
 
-type GeminiNativeOptions struct{ MaxSwitches int }
-type GeminiNativeCall struct {
-	MessagesCall
-	ModelName, Action                                        string
-	Concurrency                                              *ConcurrencyHelper
-	UseDigestFallback                                        bool
-	DigestChain, PrefixHash, SessionUUID, MatchedDigestChain string
-	SignatureState                                           requeststate.GeminiSignatureState
-}
+type (
+	GeminiNativeOptions struct{ MaxSwitches int }
+	GeminiNativeCall    struct {
+		MessagesCall
+		ModelName, Action                                        string
+		Concurrency                                              *ConcurrencyHelper
+		UseDigestFallback                                        bool
+		DigestChain, PrefixHash, SessionUUID, MatchedDigestChain string
+		SignatureState                                           requeststate.GeminiSignatureState
+	}
+)
+
 type GeminiNativeBackend interface {
 	Access(*gin.Context) (*apikey.APIKey, bool)
 	HasForcedPlatform(*gin.Context) bool
@@ -78,6 +81,7 @@ func NewGeminiNativeHandler(options GeminiNativeOptions, backend GeminiNativeBac
 func WriteGoogleError(c *gin.Context, status int, message string) {
 	c.JSON(status, gin.H{"error": gin.H{"code": status, "message": message, "status": HTTPStatusToGoogleStatus(status)}})
 }
+
 func geminiNativeIsolationError(c *gin.Context, err error) bool {
 	if err == nil {
 		return false
@@ -170,14 +174,14 @@ func (h *GeminiNativeHandler) GeminiV1BetaModels(c *gin.Context) {
 		return
 	}
 
-	// 解析渠道级模型映射
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, modelName)
-	channelMapping := channelMappingRoutePlan.Mapping()
-	h.backend.BindPlan(c, channelMappingRoutePlan)
+	// 解析分组模型映射
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, modelName)
+	groupMapping := groupMappingRoutePlan.Mapping()
+	h.backend.BindPlan(c, groupMappingRoutePlan)
 	reqModel := modelName // 保存映射前的原始模型名
-	if channelMapping.Mapped {
-		modelName = channelMapping.MappedModel
+	if groupMapping.Mapped {
+		modelName = groupMapping.MappedModel
 	}
 
 	// 读取可为空的订阅投影
@@ -333,8 +337,8 @@ func (h *GeminiNativeHandler) GeminiV1BetaModels(c *gin.Context) {
 			BoundAccountID:  sessionBoundAccountID,
 			StreamStarted:   &streamStarted,
 			Log:             reqLog,
-			Route:           channelMappingRoutePlan,
-			Mapping:         channelMapping,
+			Route:           groupMappingRoutePlan,
+			Mapping:         groupMapping,
 		},
 		ModelName:          modelName,
 		Action:             action,
@@ -363,7 +367,8 @@ func (h *GeminiNativeHandler) GeminiV1BetaModels(c *gin.Context) {
 		},
 		SessionHash: call.SessionKey,
 
-		Text: execution.TextState{Kind: execution.TextNativeGemini, Platform: call.Platform, BoundAccountID: call.BoundAccountID, HasBoundSession: call.HasBoundSession, GeminiModel: call.ModelName, Action: call.Action, UseDigestFallback: call.UseDigestFallback, DigestChain: call.DigestChain, PrefixHash: call.PrefixHash, SessionUUID: call.SessionUUID, MatchedDigestChain: call.MatchedDigestChain, SignatureState: call.SignatureState, Mapping: call.Mapping}}
+		Text: execution.TextState{Kind: execution.TextNativeGemini, Platform: call.Platform, BoundAccountID: call.BoundAccountID, HasBoundSession: call.HasBoundSession, GeminiModel: call.ModelName, Action: call.Action, UseDigestFallback: call.UseDigestFallback, DigestChain: call.DigestChain, PrefixHash: call.PrefixHash, SessionUUID: call.SessionUUID, MatchedDigestChain: call.MatchedDigestChain, SignatureState: call.SignatureState, Mapping: call.Mapping},
+	}
 	output := &MessagesOutput{ResponseSink: ResponseSink{Writer: c.Writer}, HTTP: c, Log: call.Log, StreamStarted: call.StreamStarted, Concurrency: call.Concurrency}
 	_, _ = h.executor.Execute(c.Request.Context(), request, output)
 }

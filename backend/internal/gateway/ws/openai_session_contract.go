@@ -14,7 +14,7 @@ type OpenAIIngressHooks struct {
 	// ClientLifecycleContext 是叠加 ingress 租约取消信号前的客户端请求上下文。
 	// 下行写使用它保留客户端断连和服务关闭信号，同时避免租约丢失中断当前帧。
 	ClientLifecycleContext context.Context
-	// InitialRequestModel 是首帧渠道映射前的请求模型，只用于 usage metadata
+	// InitialRequestModel 是首帧分组映射前的请求模型，只用于 usage metadata
 	// 的 reasoning effort 后缀推导，禁止用于上游请求或计费模型。
 	InitialRequestModel string
 	// InitialTurnStartedAt 是首轮 response.create 被接受时的时间快照。
@@ -25,8 +25,8 @@ type OpenAIIngressHooks struct {
 	MaxReasoningEffortOverLimit string
 	// ReasoningEffortMappings 在当前 WS 会话中改写显式指定的推理强度。
 	ReasoningEffortMappings []routing.ReasoningEffortMapping
-	// ResolveRoutingModel 在账号映射前逐轮把客户端模型 R 解析为渠道模型 C。
-	// payload 用于按渠道映射后的完整请求判断该轮能力；返回错误时当前帧不得发送上游。
+	// ResolveRoutingModel 在账号映射前逐轮把客户端模型 R 解析为分组映射模型 G。
+	// payload 用于按分组映射后的完整请求判断该轮能力；返回错误时当前帧不得发送上游。
 	ResolveRoutingModel func(turn int, requestedModel string, payload []byte) (string, error)
 	// ResolveFastModePolicy 逐轮刷新 API Key Fast 策略，避免长连接永久沿用握手快照。
 	ResolveFastModePolicy func(turn int) string

@@ -105,8 +105,8 @@ func (b *openAIChatAttemptBridge) Forward() textflow.ResponseOutcome {
 	forwardStart := time.Now()
 
 	b.forwardBody = b.body
-	if b.channelMapping.Mapped {
-		b.forwardBody = b.binding().replaceModelInBody(b.body, b.channelMapping.MappedModel)
+	if b.groupMapping.Mapped {
+		b.forwardBody = b.binding().replaceModelInBody(b.body, b.groupMapping.MappedModel)
 	}
 	b.writerSizeBeforeForward = b.c.Writer.Size()
 	b.result, err = func() (*forwardcore.OpenAIResult, error) {
@@ -125,7 +125,7 @@ func (b *openAIChatAttemptBridge) Forward() textflow.ResponseOutcome {
 	if gatewayhttp.GetOpsCyberPolicy(b.c) != nil {
 		cyberBlockBodyChat = b.body
 	}
-	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyChat, gatewayhttp.ClientRequestedUsageFields(b.c, b.channelMapping, b.reqModel, ""), billing.HashUsageRequestPayload(b.body))
+	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyChat, gatewayhttp.ClientRequestedUsageFields(b.c, b.groupMapping, b.reqModel, ""), billing.HashUsageRequestPayload(b.body))
 
 	forwardDurationMs := time.Since(forwardStart).Milliseconds()
 	upstreamLatencyMs, _ := GetContextInt64(b.c, gatewayhttp.OpsUpstreamLatencyMsKey)
@@ -144,7 +144,6 @@ func (b *openAIChatAttemptBridge) Forward() textflow.ResponseOutcome {
 		out.Failure = &textflow.AttemptFailure{Cause: err, Policy: retry.RetryFailure()}
 	}
 	return out
-
 }
 
 // Complete 保留 OpenAI Chat 适配差异，循环复用 gateway/text。
@@ -176,7 +175,7 @@ func (b *openAIChatAttemptBridge) Complete() {
 		APIKeyService:      b.binding().apiKeyService,
 		QuotaPlatform:      quotaPlatform,
 		ClientSessionID:    clientSessionID,
-		ChannelUsageFields: b.channelMapping.ToUsageFields(b.reqModel, res.UpstreamModel),
+		PricingUsageFields: b.groupMapping.ToUsageFields(b.reqModel, res.UpstreamModel),
 		CyberBlocked:       b.cyberPolicyHandled,
 	})
 	completionUserID := b.subject.UserID
@@ -290,7 +289,6 @@ func (b *openAIChatAttemptBridge) Success() {
 	} else {
 		b.binding().reportOpenAIAccountScheduleResult(b.account, OpenAIAccountScheduleModel(b.c, b.account, b.reqModel, false, b.result), true, nil)
 	}
-
 }
 
 // Completed 保留 OpenAI Chat 适配差异，循环复用 gateway/text。

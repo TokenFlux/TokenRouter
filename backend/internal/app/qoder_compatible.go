@@ -40,6 +40,7 @@ func (p *qoderCompatibleExecution) Select(ctx context.Context, id *int64, hash, 
 	}
 	return &qoderCompatibleSelection{owner: p, value: value}, nil
 }
+
 func (p *qoderCompatibleExecution) Plan(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 	return p.PlanKey(ctx, key, model)
 }
@@ -58,6 +59,7 @@ func (s *qoderCompatibleSelection) WaitPlan() *scheduler.AccountWaitPlan { retur
 func (s *qoderCompatibleSelection) Report(id int64, ok bool, result *forward.MessagesResult) {
 	s.owner.choices.ReportAdvancedAccountScheduleResult(s.value, id, ok, result)
 }
+
 func (s *qoderCompatibleSelection) Switched() { s.owner.choices.RecordAdvancedAccountSwitch(s.value) }
 
 // qoderCompatibleTarget 把旧执行账号限制在单次调用目标内；HTTP 只取得原生快照。
@@ -69,9 +71,11 @@ type qoderCompatibleTarget struct {
 func (t *qoderCompatibleTarget) Snapshot() account.AccountSnapshot {
 	return gatewayprovider.ExecutionSnapshot(t.value)
 }
+
 func (t *qoderCompatibleTarget) Forward(ctx context.Context, c *gin.Context, body []byte, wire protocol.ProtocolID, model string) (*forward.MessagesResult, error) {
 	return gatewayhttp.ForwardQoderAttempt(ctx, c, t.owner.runtime, gatewayprovider.ExecutionRecord(t.value), body, wire, model)
 }
+
 func (t *qoderCompatibleTarget) Refresh(ctx context.Context) (gatewayhttp.QoderCompatibleTarget, error) {
 	value, err := t.owner.refresh.RefreshAccountSession(ctx, gatewayprovider.ExecutionRecord(t.value))
 	if value == nil {
@@ -79,12 +83,13 @@ func (t *qoderCompatibleTarget) Refresh(ctx context.Context) (gatewayhttp.QoderC
 	}
 	return &qoderCompatibleTarget{owner: t.owner, value: gatewayprovider.NewExecutionAccount(value)}, err
 }
+
 func (t *qoderCompatibleTarget) Completion(ctx context.Context, capture gatewayhttp.QoderCompletionCapture) *completion.Input {
 	return gatewayprovider.CaptureMessages(ctx, &gatewayprovider.MessagesCapture{
 		Result: capture.Result, QuotaPlatform: capture.QuotaPlatform, APIKey: capture.Key, User: capture.Key.User, Account: gatewayprovider.ExecutionCompletionRecord(t.value),
 		Subscription: capture.Subscription, InboundEndpoint: capture.InboundEndpoint, UpstreamEndpoint: capture.UpstreamEndpoint,
 		UserAgent: capture.UserAgent, IPAddress: capture.ClientIP, RequestPayloadHash: capture.PayloadHash, RequestBody: capture.Body,
-		APIKeyService: t.owner.keys, ChannelUsageFields: capture.Channel,
+		APIKeyService: t.owner.keys, PricingUsageFields: capture.Pricing,
 	})
 }
 

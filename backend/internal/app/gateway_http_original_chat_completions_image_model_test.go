@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
@@ -32,7 +34,6 @@ import (
 )
 
 func TestChatCompletionsRejectsGPTImageModelsBeforeScheduling(t *testing.T) {
-
 	for _, model := range []string{"gpt-image-1", "gpt-image-1.5", "gpt-image-2"} {
 		for _, tc := range []struct {
 			name string
@@ -66,11 +67,10 @@ func TestChatCompletionsRejectsGPTImageModelsBeforeScheduling(t *testing.T) {
 	}
 }
 
-// TestChatCompletionsRejectsChannelMappedImageModel 验证两个 Chat Completions 入口都按渠道模型 C 校验端点能力。
-func TestChatCompletionsRejectsChannelMappedImageModel(t *testing.T) {
-
+// TestChatCompletionsRejectsGroupMappedImageModel 验证两个 Chat Completions 入口都按分组映射模型 G 校验端点能力。
+func TestChatCompletionsRejectsGroupMappedImageModel(t *testing.T) {
 	groupID := int64(4349)
-	channelService := newGatewayExecutionChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
+	pricingConfigService := newGatewayExecutionPricingConfigServiceForTest(groupID, capability.PlatformOpenAI, routingtestkit.Configuration{
 		ID:     4349,
 		Status: billing.StatusActive,
 		ModelMapping: map[string]map[string]string{
@@ -84,11 +84,11 @@ func TestChatCompletionsRejectsChannelMappedImageModel(t *testing.T) {
 	}{
 		{
 			name: "gateway",
-			call: newGatewayExecutionHandlerWithChannelForTest(nil, channelService).ChatCompletions,
+			call: newGatewayExecutionHandlerWithPricingConfigForTest(nil, pricingConfigService).ChatCompletions,
 		},
 		{
 			name: "openai_gateway",
-			call: newOpenAIImageChatRejectionHandlerWithChannel(t, channelService).ChatCompletions,
+			call: newOpenAIImageChatRejectionHandlerWithPricingConfig(t, pricingConfigService).ChatCompletions,
 		},
 	}
 
@@ -105,7 +105,7 @@ func TestChatCompletionsRejectsChannelMappedImageModel(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, recorder.Code)
 			require.Contains(t, gjson.Get(recorder.Body.String(), "error.message").String(), "Chat Completions")
 			_, selected := c.Get(gatewayhttp.OpsAccountIDKey)
-			require.False(t, selected, "渠道映射后的端点拒绝必须发生在账号选择之前")
+			require.False(t, selected, "分组映射后的端点拒绝必须发生在账号选择之前")
 		})
 	}
 }
@@ -142,23 +142,23 @@ func newOpenAIImageChatRejectionHandlerWithCache(t *testing.T, cache *httptestki
 	t.Helper()
 	return newOpenAIImageChatRejectionHandlerWithService(t, cache, &gatewayExecutionFixture{}, newExecutionAvailabilityForTest(
 
-		// newOpenAIImageChatRejectionHandlerWithChannel 构造带渠道映射的 OpenAI Chat 测试处理器。
+		// newOpenAIImageChatRejectionHandlerWithChannel 构造带分组映射的 OpenAI Chat 测试处理器。
 		nil, nil, nil), newEmptyCompatibleSelectionFixture())
 }
 
-func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService *routing.ChannelService) *gatewayHTTPEndpointsFixture {
+func newOpenAIImageChatRejectionHandlerWithPricingConfig(t *testing.T, pricingConfigService *routing.PricingConfigService) *gatewayHTTPEndpointsFixture {
 	t.Helper()
 	gatewayService, gatewayServiceChoices, _ := newOpenAIExecutionAndSelectionFixture(
 		nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
-			nil), nil, nil, channelService, nil, nil, responseHeaderFilterForTest(nil), nil, nil, nil,
+			nil), nil, nil, pricingConfigService, nil, nil, responseHeaderFilterForTest(nil), nil, nil, nil,
 	)
 	gatewayService.Recorder = newHTTPCompletionFixture(nil, nil, nil,
-		nil, nil, channelService, nil, true)
+		nil, nil, pricingConfigService, nil, true)
 
 	return newOpenAIImageChatRejectionHandlerWithService(t, &httptestkit.ConcurrencyHooks{}, gatewayService, newExecutionAvailabilityForTest(nil,
 
-		channelService, nil), gatewayServiceChoices,
+		pricingConfigService, nil), gatewayServiceChoices,
 	)
 }
 
@@ -170,8 +170,10 @@ func newOpenAIImageChatRejectionHandlerWithService(t *testing.T, cache *httptest
 		Source: gatewayService, Availability: availability, Choices: choices,
 		Funding: &admission.FundingAdmission{},
 		Keys:    &apikey.APIKeyService{},
-		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-			Event: logging.Event},
+		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{
+			Logf:  logging.LegacyPrintf,
+			Event: logging.Event,
+		},
 		), gatewayhttp.SSEPingFormatNone, time.Second),
 	})
 }

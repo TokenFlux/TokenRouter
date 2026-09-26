@@ -4,10 +4,11 @@ package pricingcontract
 
 import (
 	"context"
-
 	"math"
-
 	"testing"
+
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
+
 	time "time"
 
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
@@ -38,9 +39,11 @@ func TestMaxReasoningPricing_IntervalsAndBillingModes(t *testing.T) {
 				CacheWritePrice: testPtrFloat64(0.03), CacheReadPrice: testPtrFloat64(0.001),
 			}},
 		}
-		input := billing.CostInput{Ctx: context.Background(), Model: "claude-fable-5-1", RateMultiplier: 2,
+		input := billing.CostInput{
+			Ctx: context.Background(), Model: "claude-fable-5-1", RateMultiplier: 2,
 			Tokens:   pricing.UsageTokens{InputTokens: 100, OutputTokens: 20, CacheCreationTokens: 10, CacheReadTokens: 50},
-			Resolver: resolver, Resolved: resolved, ReasoningEffort: "max"}
+			Resolver: resolver, Resolved: resolved, ReasoningEffort: "max",
+		}
 		maxCost, err := bs.CalculateCostUnified(input)
 		require.NoError(t, err)
 		input.ReasoningEffort = "xhigh"
@@ -53,9 +56,11 @@ func TestMaxReasoningPricing_IntervalsAndBillingModes(t *testing.T) {
 		require.InDelta(t, 0.05*factor, maxCost.CacheReadCost, 1e-12)
 	}
 	for _, mode := range []routing.BillingMode{routing.BillingModePerRequest, routing.BillingModeImage, routing.BillingModeVideo} {
-		cost, err := bs.CalculateCostUnified(billing.CostInput{Model: "claude-fable-5-1", ReasoningEffort: "max",
+		cost, err := bs.CalculateCostUnified(billing.CostInput{
+			Model: "claude-fable-5-1", ReasoningEffort: "max",
 			RequestCount: 2, RateMultiplier: 2, Resolver: resolver,
-			Resolved: &pricing.ResolvedPricing{Mode: mode, DefaultPerRequestPrice: 0.1}})
+			Resolved: &pricing.ResolvedPricing{Mode: mode, DefaultPerRequestPrice: 0.1},
+		})
 		require.NoError(t, err)
 		require.InDelta(t, 0.2, cost.TotalCost, 1e-12)
 	}
@@ -64,22 +69,22 @@ func TestMaxReasoningPricing_IntervalsAndBillingModes(t *testing.T) {
 // 账号自定义价和复用的用户费用均为最终成本，只有模型价兜底要按实际档位计价。
 func TestMaxReasoningPricing_AccountStatsPriority(t *testing.T) {
 	bs := newCalculator(nil, nil)
-	channel := &routing.Channel{ID: 1, Status: billing.StatusActive, AccountStatsPricingRules: []routing.AccountStatsPricingRule{{
-		GroupIDs: []int64{10}, Pricing: []routing.ChannelModelPricing{{Models: []string{"claude-fable-5-1"}, InputPrice: testPtrFloat64(0.01)}},
+	pricingConfig := &routingtestkit.Configuration{ID: 1, Status: billing.StatusActive, AccountStatsPricingRules: []routing.AccountStatsPricingRule{{
+		GroupIDs: []int64{10}, Pricing: []routing.ModelPricingEntry{{Models: []string{"claude-fable-5-1"}, InputPrice: testPtrFloat64(0.01)}},
 	}}}
-	cs := newTestChannelServiceForStats(t, channel, 10, capability.PlatformAnthropic)
+	cs := newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformAnthropic)
 	tokens := pricing.UsageTokens{InputTokens: 100}
 	cost := contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "priority", "max")
 	require.NotNil(t, cost)
 	require.InDelta(t, 1, *cost, 1e-12)
-	channel.AccountStatsPricingRules = nil
-	channel.ApplyPricingToAccountStats = true
+	pricingConfig.AccountStatsPricingRules = nil
+	pricingConfig.ApplyPricingToAccountStats = true
 	// 管理变更后通过读取入口建立新快照，不直接改已发布的缓存。
-	cs = newTestChannelServiceForStats(t, channel, 10, capability.PlatformAnthropic)
+	cs = newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformAnthropic)
 	cost = contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "priority", "max")
 	require.InDelta(t, 9, *cost, 1e-12)
-	channel.ApplyPricingToAccountStats = false
-	cs = newTestChannelServiceForStats(t, channel, 10, capability.PlatformAnthropic)
+	pricingConfig.ApplyPricingToAccountStats = false
+	cs = newTestPricingConfigServiceForStats(t, pricingConfig, 10, capability.PlatformAnthropic)
 	standard := contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "xhigh")
 	cost = contractAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "max")
 	require.NotNil(t, standard)
@@ -109,7 +114,7 @@ func TestMaxReasoningPricing_OpenAIUsageUsesFinalEffort(t *testing.T) {
 
 func TestMaxReasoningPricing_RejectsInvalidMultipliers(t *testing.T) {
 	for _, factor := range []float64{0, -1, math.NaN(), math.Inf(1)} {
-		require.Error(t, routing.CheckBillingModeRequirements(routing.ChannelModelPricing{BillingMode: routing.BillingModeToken, MaxReasoningEffortMultiplier: &factor}))
+		require.Error(t, routing.CheckBillingModeRequirements(routing.ModelPricingEntry{BillingMode: routing.BillingModeToken, MaxReasoningEffortMultiplier: &factor}))
 	}
 }
 

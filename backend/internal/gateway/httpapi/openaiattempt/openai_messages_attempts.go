@@ -25,7 +25,7 @@ import (
 type openAIMessageAttemptBridge struct {
 	responsesAttemptBridge
 	accountLayerModel, currentRoutingModel, promptCacheKey string
-	channelMappingMsg                                      routing.ChannelMappingResult
+	groupMappingMsg                                        routing.GroupMappingResult
 	mappedBodyForMessages                                  func(bool, string) []byte
 }
 
@@ -109,8 +109,8 @@ func (b *openAIMessageAttemptBridge) Forward() textflow.ResponseOutcome {
 	gatewayhttp.SetOpsLatencyMs(b.c, gatewayhttp.OpsRoutingLatencyMsKey, time.Since(b.routingStart).Milliseconds())
 	forwardStart := time.Now()
 
-	// 应用渠道模型映射到请求体
-	attemptBody := b.mappedBodyForMessages(b.channelMappingMsg.Mapped, b.channelMappingMsg.MappedModel)
+	// 应用分组模型映射到请求体
+	attemptBody := b.mappedBodyForMessages(b.groupMappingMsg.Mapped, b.groupMappingMsg.MappedModel)
 	b.writerSizeBeforeForward = b.c.Writer.Size()
 	b.result, err = func() (*forwardcore.OpenAIResult, error) {
 		defer func() {
@@ -128,7 +128,7 @@ func (b *openAIMessageAttemptBridge) Forward() textflow.ResponseOutcome {
 	if gatewayhttp.GetOpsCyberPolicy(b.c) != nil {
 		cyberBlockBodyMsg = b.body
 	}
-	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyMsg, gatewayhttp.ClientRequestedUsageFields(b.c, b.channelMappingMsg, b.reqModel, ""), billing.HashUsageRequestPayload(b.body))
+	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyMsg, gatewayhttp.ClientRequestedUsageFields(b.c, b.groupMappingMsg, b.reqModel, ""), billing.HashUsageRequestPayload(b.body))
 	forwardDurationMs := time.Since(forwardStart).Milliseconds()
 	upstreamLatencyMs, _ := GetContextInt64(b.c, gatewayhttp.OpsUpstreamLatencyMsKey)
 	responseLatencyMs := forwardDurationMs
@@ -154,7 +154,6 @@ func (b *openAIMessageAttemptBridge) Forward() textflow.ResponseOutcome {
 		out.Failure = &textflow.AttemptFailure{Cause: err, Policy: retry.RetryFailure()}
 	}
 	return out
-
 }
 
 // Complete 保留 OpenAI Messages 适配差异；账号重试复用同一核心。
@@ -188,7 +187,7 @@ func (b *openAIMessageAttemptBridge) Complete() {
 		APIKeyService:      b.binding().apiKeyService,
 		QuotaPlatform:      quotaPlatform,
 		ClientSessionID:    clientSessionID,
-		ChannelUsageFields: b.channelMappingMsg.ToUsageFields(b.reqModel, res.UpstreamModel),
+		PricingUsageFields: b.groupMappingMsg.ToUsageFields(b.reqModel, res.UpstreamModel),
 		CyberBlocked:       b.cyberPolicyHandled,
 	})
 	completionUserID := b.subject.UserID
@@ -306,7 +305,6 @@ func (b *openAIMessageAttemptBridge) Success() {
 	} else {
 		b.binding().reportOpenAIAccountScheduleResult(b.account, OpenAIAccountScheduleModel(b.c, b.account, b.currentRoutingModel, false, b.result), true, nil)
 	}
-
 }
 
 // Completed 保留 OpenAI Messages 适配差异；账号重试复用同一核心。

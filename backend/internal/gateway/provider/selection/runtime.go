@@ -25,7 +25,7 @@ type Generic struct {
 	cache                   schedulercore.StickyCache
 	concurrencyService      *schedulercore.ConcurrencyService
 	healthObserver          *accountprovider.UpstreamHealth
-	channelService          *routing.ChannelService
+	groupPolicies           *routing.PricingConfigService
 	schedulerParameters     *schedulercore.Parameters
 	advancedAccountStats    *schedulercore.RuntimeStats
 	freeQuotaGate           *account.FreeQuotaGate
@@ -51,7 +51,7 @@ func NewGeneric(deps GenericDependencies, options Options) *Generic {
 
 		concurrencyService:  deps.Concurrency,
 		healthObserver:      deps.Health,
-		channelService:      deps.Channels,
+		groupPolicies:       deps.GroupPolicies,
 		schedulerParameters: deps.Parameters,
 
 		advancedAccountStats:    deps.Feedback,
@@ -74,7 +74,7 @@ type Compatible struct {
 	cache               schedulercore.StickyCache
 	concurrencyService  *schedulercore.ConcurrencyService
 	healthObserver      *accountprovider.UpstreamHealth
-	channelService      *routing.ChannelService
+	groupPolicies       *routing.PricingConfigService
 	schedulerParameters *schedulercore.Parameters
 	openaiAccountStats  *schedulercore.RuntimeStats
 	quotaSettings       *account.QuotaSettingsCache
@@ -116,7 +116,7 @@ func NewCompatible(deps CompatibleDependencies, options Options) *Compatible {
 
 		concurrencyService:  deps.Concurrency,
 		healthObserver:      deps.Health,
-		channelService:      deps.Channels,
+		groupPolicies:       deps.GroupPolicies,
 		schedulerParameters: deps.Parameters,
 
 		openaiAccountStats: deps.Feedback,

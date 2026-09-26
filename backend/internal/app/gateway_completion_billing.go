@@ -31,7 +31,7 @@ func ProvideGatewayCompletionRecorders(
 	prices *billing.PriceResolver,
 	funds completion.Store,
 	logs usage.UsageLogRepository,
-	channels *routing.ChannelService,
+	modelConfigs *routing.PricingConfigService,
 	eligibility *billing.Eligibility,
 	quotas billing.UserPlatformQuotaRepository,
 	deferred *account.DeferredService,
@@ -54,8 +54,8 @@ func ProvideGatewayCompletionRecorders(
 	}
 	stats := func() *billing.PriceResolver {
 		var source billing.AccountStatsSource
-		if channels != nil {
-			source = gatewayprovider.AccountStatsSource{Service: channels}
+		if modelConfigs != nil {
+			source = gatewayprovider.AccountStatsSource{Service: modelConfigs}
 		}
 		return billing.NewPriceResolver(nil, calculator, nil, nil, source)
 	}

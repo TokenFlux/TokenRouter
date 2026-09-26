@@ -19,7 +19,6 @@ import (
 )
 
 func newCyberBlockTestCtx(headers map[string]string, body string) (*gin.Context, []byte) {
-
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	req := httptest.NewRequest("POST", "/openai/v1/responses", strings.NewReader(body))
 	for k, v := range headers {
@@ -155,21 +154,27 @@ func (r *fakeSettingRepo) GetValue(_ context.Context, key string) (string, error
 	}
 	return v, nil
 }
+
 func (r *fakeSettingRepo) Get(_ context.Context, _ string) (*settings.Setting, error) {
 	panic("fakeSettingRepo.Get not implemented")
 }
+
 func (r *fakeSettingRepo) Set(_ context.Context, _, _ string) error {
 	panic("fakeSettingRepo.Set not implemented")
 }
+
 func (r *fakeSettingRepo) GetMultiple(_ context.Context, _ []string) (map[string]string, error) {
 	panic("fakeSettingRepo.GetMultiple not implemented")
 }
+
 func (r *fakeSettingRepo) SetMultiple(_ context.Context, _ map[string]string) error {
 	panic("fakeSettingRepo.SetMultiple not implemented")
 }
+
 func (r *fakeSettingRepo) GetAll(_ context.Context) (map[string]string, error) {
 	panic("fakeSettingRepo.GetAll not implemented")
 }
+
 func (r *fakeSettingRepo) Delete(_ context.Context, _ string) error {
 	panic("fakeSettingRepo.Delete not implemented")
 }
@@ -183,18 +188,23 @@ type comboCacheAndStore struct {
 	store fakeCyberBlockStore
 }
 
-var _ session.GatewayCache = (*comboCacheAndStore)(nil)
-var _ session.CyberSessionBlockStore = (*comboCacheAndStore)(nil)
+var (
+	_ session.GatewayCache           = (*comboCacheAndStore)(nil)
+	_ session.CyberSessionBlockStore = (*comboCacheAndStore)(nil)
+)
 
 func (c *comboCacheAndStore) GetSessionAccountID(_ context.Context, _ int64, _ string) (int64, error) {
 	return 0, errors.New("stub")
 }
+
 func (c *comboCacheAndStore) SetSessionAccountID(_ context.Context, _ int64, _ string, _ int64, _ time.Duration) error {
 	return nil
 }
+
 func (c *comboCacheAndStore) RefreshSessionTTL(_ context.Context, _ int64, _ string, _ time.Duration) error {
 	return nil
 }
+
 func (c *comboCacheAndStore) DeleteSessionAccountID(_ context.Context, _ int64, _ string) error {
 	return nil
 }
@@ -202,9 +212,11 @@ func (c *comboCacheAndStore) DeleteSessionAccountID(_ context.Context, _ int64, 
 func (c *comboCacheAndStore) SetSessionOwnerGroupID(_ context.Context, _ int64, _, _ string, _ int64, _ time.Duration) (bool, error) {
 	return false, nil
 }
+
 func (c *comboCacheAndStore) GetSessionOwnerGroupID(_ context.Context, _ int64, _, _ string) (int64, error) {
 	return 0, nil
 }
+
 func (c *comboCacheAndStore) RefreshSessionOwnerTTL(_ context.Context, _ int64, _, _ string, _ time.Duration) error {
 	return nil
 }
@@ -212,9 +224,11 @@ func (c *comboCacheAndStore) RefreshSessionOwnerTTL(_ context.Context, _ int64, 
 func (c *comboCacheAndStore) SetGrokVideoPendingBilling(_ context.Context, _ string, _ []byte, _ time.Duration) error {
 	return nil
 }
+
 func (c *comboCacheAndStore) GetGrokVideoPendingBilling(_ context.Context, _ string) ([]byte, error) {
 	return nil, nil
 }
+
 func (c *comboCacheAndStore) ClaimGrokVideoBilled(_ context.Context, _ string, _ time.Duration) (bool, error) {
 	return true, nil
 }
@@ -226,6 +240,7 @@ func (c *comboCacheAndStore) ReleaseGrokVideoBilled(_ context.Context, _ string)
 func (c *comboCacheAndStore) SetReasoningContent(_ context.Context, _ string, _ string, _ time.Duration) error {
 	return nil
 }
+
 func (c *comboCacheAndStore) GetReasoningContent(_ context.Context, _ string) (string, error) {
 	return "", session.ErrReasoningContentNotFound
 }
@@ -233,16 +248,18 @@ func (c *comboCacheAndStore) GetReasoningContent(_ context.Context, _ string) (s
 func (c *comboCacheAndStore) SetCyberSessionBlocked(ctx context.Context, scopeKey string, keys []string, ttl time.Duration) error {
 	return c.store.SetCyberSessionBlocked(ctx, scopeKey, keys, ttl)
 }
+
 func (c *comboCacheAndStore) IsCyberSessionScopeActive(ctx context.Context, scopeKey string) (bool, error) {
 	return c.store.IsCyberSessionScopeActive(ctx, scopeKey)
 }
+
 func (c *comboCacheAndStore) FindCyberSessionBlocked(ctx context.Context, keys []string) (string, error) {
 	return c.store.FindCyberSessionBlocked(ctx, keys)
 }
 
 // --- tests ---
 
-// TestIsCyberSessionBlocked_EmptyKeyAndNilService covers the fail-open paths:
+// TestFindCyberSessionBlocked_EmptyAndNilService covers the fail-open paths:
 // empty key, nil service, store missing → always false / no panic.
 func TestFindCyberSessionBlocked_EmptyAndNilService(t *testing.T) {
 	var nilSvc *session.CyberBlocks

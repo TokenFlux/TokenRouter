@@ -2,6 +2,9 @@
 package app
 
 import (
+	"context"
+	"database/sql"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routingprovider "github.com/TokenFlux/TokenRouter/internal/routing/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -9,10 +12,6 @@ import (
 	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-
-	"context"
-
-	"database/sql"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 
@@ -53,9 +52,9 @@ func provideGroupReader(store *routingpostgres.GroupStore) routing.GroupReposito
 	return store
 }
 
-func provideRoutingGroupAdmin(store *routingpostgres.GroupStore, accounts *accountpostgres.AccountStore, keys *apikeypostgres.KeyStore, invalidator apikey.APIKeyAuthCacheInvalidator, channels *routing.ChannelService, settings *settingscore.Store, defaults *scheduler.AdminDefaults) *routing.GroupAdmin {
-	return routing.NewGroupAdmin(store, store, store, routingGroupAccounts{Store: accounts, Defaults: accountprovider.ModelDefaults()}, keys, invalidator, channels, routing.GroupAdminOptions{
-		Pricing:       routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation},
+func provideRoutingGroupAdmin(store *routingpostgres.GroupStore, accounts *accountpostgres.AccountStore, keys *apikeypostgres.KeyStore, invalidator apikey.APIKeyAuthCacheInvalidator, modelConfigs *routing.PricingConfigService, settings *settingscore.Store, defaults *scheduler.AdminDefaults) *routing.GroupAdmin {
+	return routing.NewGroupAdmin(store, store, store, routingGroupAccounts{Store: accounts, Defaults: accountprovider.ModelDefaults()}, keys, invalidator, modelConfigs, routing.GroupAdminOptions{
+		Pricing:       routing.PricingConfigValidation{LoadLocation: pricingprovider.LoadPricingLocation},
 		DefaultModels: routingprovider.DefaultGroupModelCandidates, NormalizeMappedModel: gatewayprovider.NormalizeOpenAICompatRequestedModel,
 		GlobalWeights: func(ctx context.Context) (policy.ScoreWeights, error) {
 			return scheduler.LoadValidationWeights(ctx, settings, *defaults)

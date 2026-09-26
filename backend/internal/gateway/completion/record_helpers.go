@@ -53,6 +53,7 @@ func ClaudeServiceTier(speed string) string {
 	}
 	return ""
 }
+
 func ForwardServiceTier(result *Result) string {
 	if result == nil {
 		return ""
@@ -62,6 +63,7 @@ func ForwardServiceTier(result *Result) string {
 	}
 	return ClaudeServiceTier(result.Usage.Speed)
 }
+
 func ResolveBillingMode(result *Result, cost *CostBreakdown) *string {
 	var mode string
 	switch {
@@ -74,12 +76,14 @@ func ResolveBillingMode(result *Result, cost *CostBreakdown) *string {
 	}
 	return &mode
 }
+
 func optionalSubscriptionID(subscription *billing.UserSubscription) *int64 {
 	if subscription != nil {
 		return &subscription.ID
 	}
 	return nil
 }
+
 func RatesForMode(apiKey *KeySnapshot, cost *CostBreakdown, subscriptionBase, balanceBase float64, pricingAt time.Time) (subscriptionRate, balanceRate, scale float64) {
 	scale = 1
 	if cost == nil || cost.BillingMode == "" || cost.BillingMode == string(BillingModeToken) {
@@ -89,12 +93,14 @@ func RatesForMode(apiKey *KeySnapshot, cost *CostBreakdown, subscriptionBase, ba
 	}
 	return subscriptionBase * scale, balanceBase * scale, scale
 }
+
 func RateOrFallback(value, fallback float64) float64 {
 	if value > 0 || fallback == 0 {
 		return value
 	}
 	return fallback
 }
+
 func SubscriptionPlanIncludesGroup(plan *billing.SubscriptionPlan, groupID int64) bool {
 	if plan == nil || groupID <= 0 {
 		return false
@@ -109,6 +115,7 @@ func SubscriptionPlanIncludesGroup(plan *billing.SubscriptionPlan, groupID int64
 	}
 	return false
 }
+
 func SubscriptionPlanGroupRateMultiplier(plan *billing.SubscriptionPlan, groupID int64) (float64, bool) {
 	if plan == nil || groupID <= 0 {
 		return 0, false
@@ -121,6 +128,7 @@ func SubscriptionPlanGroupRateMultiplier(plan *billing.SubscriptionPlan, groupID
 	}
 	return 0, false
 }
+
 func ResolveUsageRateMultiplier(
 	ctx context.Context,
 	userID int64,
@@ -149,6 +157,7 @@ func ResolveUsageRateMultiplier(
 	}
 	return resolveUserGroupRate(ctx, userID, *groupID, groupDefault)
 }
+
 func ComputePeakAwareMultipliers(apiKey *KeySnapshot, base float64, now time.Time) (text, image float64) {
 	image = base
 	peak := 1.0
@@ -158,6 +167,7 @@ func ComputePeakAwareMultipliers(apiKey *KeySnapshot, base float64, now time.Tim
 	text = base * peak
 	return
 }
+
 func firstUsageBillingModel(candidates []string) string {
 	for _, candidate := range candidates {
 		if trimmed := strings.TrimSpace(candidate); trimmed != "" {
@@ -197,33 +207,39 @@ func (s *Recorder) resolveSubscription(ctx context.Context, key *KeySnapshot, cu
 	}
 	return ResolveSubscription(ctx, current, s.subscriptions, userID, groupID)
 }
+
 func (s *Recorder) resolveUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, fallback float64) float64 {
 	if s.rates == nil {
 		return fallback
 	}
 	return s.rates.Resolve(ctx, userID, groupID, fallback)
 }
-func (s *Recorder) resolveChannelPricingForUsage(ctx context.Context, model string, key *KeySnapshot) (*ResolvedPricing, string) {
-	return s.ResolveChannelPricing(ctx, model, key), model
+
+func (s *Recorder) resolveConfigPricingForUsage(ctx context.Context, model string, key *KeySnapshot) (*ResolvedPricing, string) {
+	return s.ResolveConfigPricing(ctx, model, key), model
 }
+
 func actorID(key *KeySnapshot, user *PayerSnapshot) int64 {
 	if key.ActorUserPresent || key.ActorUserID != 0 {
 		return key.ActorUserID
 	}
 	return user.ID
 }
+
 func platformFromKey(key *KeySnapshot) string {
 	if key == nil || key.Group == nil {
 		return ""
 	}
 	return key.Group.Platform
 }
+
 func stringValueOrEmpty(v *string) string {
 	if v == nil {
 		return ""
 	}
 	return *v
 }
+
 func firstNonEmpty(values ...string) string {
 	for _, v := range values {
 		if v != "" {
@@ -232,6 +248,7 @@ func firstNonEmpty(values ...string) string {
 	}
 	return ""
 }
+
 func stableVideoRequestID(id string) string {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -242,12 +259,15 @@ func stableVideoRequestID(id string) string {
 	}
 	return "grok-video:" + id
 }
+
 func NormalizeImageBillingTierOrDefault(v string) string {
 	return pricing.NormalizeImageBillingTierOrDefault(v)
 }
+
 func NormalizeVideoBillingResolutionOrDefault(v string) string {
 	return pricing.NormalizeVideoBillingResolutionOrDefault(v)
 }
+
 func NormalizeVideoBillingDurationSecondsOrDefault(v int) int {
 	return pricing.NormalizeVideoBillingDurationSecondsOrDefault(v)
 }
@@ -255,6 +275,7 @@ func normalizeBillingServiceTier(v string) string { return pricing.NormalizeBill
 func applyCostBreakdownMultiplier(v *CostBreakdown, m float64) {
 	pricing.ApplyCostBreakdownMultiplier(v, m)
 }
+
 func maxReasoningEffortBillingMultiplier(model, effort string, p *pricing.ModelPricing) float64 {
 	return pricing.MaxReasoningEffortBillingMultiplier(model, effort, p)
 }

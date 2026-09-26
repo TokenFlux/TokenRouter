@@ -27,15 +27,15 @@ func provideSelectionReads(accounts provider.ExecutionAccountStore, groups routi
 	return selection.Reads{Accounts: accounts, Groups: groups, Snapshot: snapshots}
 }
 
-// provideSelectionShared 发布同一反馈、参数、计数、健康和渠道实例。
-func provideSelectionShared(cache session.GatewayCache, concurrency *scheduler.ConcurrencyService, health *accountprovider.UpstreamHealth, channels *routing.ChannelService, shared *schedulerSharedState) selection.Shared {
+// provideSelectionShared 发布共享的反馈、参数、计数、健康和分组策略读取实例。
+func provideSelectionShared(cache session.GatewayCache, concurrency *scheduler.ConcurrencyService, health *accountprovider.UpstreamHealth, modelConfigs *routing.PricingConfigService, shared *schedulerSharedState) selection.Shared {
 	return selection.Shared{
-		Cache:       cache,
-		Concurrency: concurrency,
-		Health:      health,
-		Channels:    channels,
-		Parameters:  shared.Parameters,
-		Feedback:    shared.Feedback,
+		Cache:         cache,
+		Concurrency:   concurrency,
+		Health:        health,
+		GroupPolicies: modelConfigs,
+		Parameters:    shared.Parameters,
+		Feedback:      shared.Feedback,
 	}
 }
 

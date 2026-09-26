@@ -76,9 +76,11 @@ type Group struct {
 	AudioTtsPricePerMillionChars *float64 `json:"audio_tts_price_per_million_chars,omitempty"`
 	// STT 每小时价格（USD）
 	AudioSttPricePerHour *float64 `json:"audio_stt_price_per_hour,omitempty"`
-	// 是否按上下文长度应用模型阶梯价格；默认开启以保持官方/渠道长上下文价
+	// 是否应用内置模型的长上下文阶梯价格；不影响自定义价卡区间
 	LongContextPricingEnabled bool `json:"long_context_pricing_enabled,omitempty"`
-	// 分组逐模型定价；优先级高于渠道和内置定价
+	// 分组独立模型与功能策略
+	RoutingPolicy jsontext.Value `json:"routing_policy,omitempty"`
+	// 分组逐模型定价；优先级高于共享价格配置和网关默认价
 	ModelPricing jsontext.Value `json:"model_pricing,omitempty"`
 	// 是否仅允许 Claude Code 客户端
 	ClaudeCodeOnly bool `json:"claude_code_only,omitempty"`
@@ -253,7 +255,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case group.FieldAdvancedSchedulerOverrides, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldAllowedProtocols, group.FieldProtocolFallbacks, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldAvailabilityProbeConfig, group.FieldReasoningEffortMappings:
+		case group.FieldAdvancedSchedulerOverrides, group.FieldRoutingPolicy, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldAllowedProtocols, group.FieldProtocolFallbacks, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldAvailabilityProbeConfig, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
 		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldIsDefault, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldSessionIsolationEnabled:
 			values[i] = new(sql.NullBool)
@@ -463,6 +465,14 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field long_context_pricing_enabled", values[i])
 			} else if value.Valid {
 				_m.LongContextPricingEnabled = value.Bool
+			}
+		case group.FieldRoutingPolicy:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field routing_policy", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.RoutingPolicy); err != nil {
+					return fmt.Errorf("unmarshal field routing_policy: %w", err)
+				}
 			}
 		case group.FieldModelPricing:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -839,6 +849,9 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("long_context_pricing_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.LongContextPricingEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("routing_policy=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RoutingPolicy))
 	builder.WriteString(", ")
 	builder.WriteString("model_pricing=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ModelPricing))

@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import GroupsView from '../GroupsView.vue'
 import Select from '@/components/common/Select.vue'
 import GroupClientProtocolSelector from '@/components/admin/group/GroupClientProtocolSelector.vue'
-import PricingEntryCard from '@/components/admin/channel/PricingEntryCard.vue'
-import { pricingEntryFromAPI } from '@/components/admin/channel/pricingForm'
-import type { ChannelModelPricing } from '@/api/admin/channels'
+import PricingEntryCard from '@/components/admin/pricing/PricingEntryCard.vue'
+import { pricingEntryFromAPI } from '@/components/admin/pricing/pricingForm'
+import type { ModelPricingEntry } from '@/api/admin/pricing'
 import type { AdminGroup, GroupPlatform } from '@/types'
 
 const { groups, showError } = vi.hoisted(() => ({
@@ -103,7 +103,7 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', mode => {
     const wrapper = await open(mode, platform)
     const keys = wrapper.findAll('[data-group-tab-button]').map(button => button.attributes('data-group-tab-button'))
     expect(keys).toEqual(['anthropic', 'openai', 'gemini', 'antigravity'].includes(platform)
-      ? ['general', 'platform', 'pricing', 'protocol'] : ['general', 'pricing', 'protocol'])
+      ? ['general', 'platform', 'routing', 'pricing', 'protocol'] : ['general', 'routing', 'pricing', 'protocol'])
     expect(wrapper.get('[data-group-tab="general"]').isVisible()).toBe(true)
     expect(wrapper.get('[data-tour="group-form-multiplier"]').element.closest('[data-group-tab]')?.getAttribute('data-group-tab')).toBe('pricing')
     expect(wrapper.getComponent(GroupClientProtocolSelector).element.closest('[data-group-tab]')?.getAttribute('data-group-tab')).toBe('protocol')
@@ -112,7 +112,7 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', mode => {
   })
 
   it('完整价卡在创建和编辑中开放区间及倍率，提交后可重新回填', async () => {
-    const pricing: ChannelModelPricing = {
+    const pricing: ModelPricingEntry = {
       platform: 'openai', models: ['gpt-test'], billing_mode: 'token', price_multiplier: 1.2,
       fast_multiplier: 1.5, flex_multiplier: 0.4, max_reasoning_effort_multiplier: 2,
       input_price: 0, output_price: 0.000003, cache_write_price: null, cache_write_1h_price: 0.000005,

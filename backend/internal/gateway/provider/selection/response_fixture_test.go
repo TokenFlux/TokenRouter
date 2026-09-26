@@ -16,7 +16,6 @@ import (
 // responseSelectionOptions 保留原 WSv2 夹具的显式开关和零值等待配置。
 func responseSelectionOptions() Options {
 	return Options{
-
 		WS: &egress.OpenAIWSOptions{Enabled: true, OAuthEnabled: true, APIKeyEnabled: true, ResponsesWebsocketsV2: true},
 
 		StickyTTL:   time.Hour,
@@ -31,7 +30,7 @@ func responseSelectionParameters() *scheduler.Parameters {
 // selectPreviousResponseForTest 组合原入口的上下文及模型投影，不为私有合同扩大生产 API。
 func selectPreviousResponseForTest(s *Compatible, ctx context.Context, group *int64, previous, model string, excluded map[int64]struct{}, compact bool) (*provider.SelectionResult, error) {
 	ctx = s.withOpenAIGroupPrivacyRequirement(ctx, group)
-	model = s.resolveChannelRoutingModel(ctx, group, model)
+	model = s.resolveGroupRoutingModel(ctx, group, model)
 	return s.selectAccountByPreviousResponseIDForCapability(ctx, group, previous, model, excluded, "", compact)
 }
 
@@ -76,12 +75,15 @@ type responseCacheFixture struct {
 func (c *responseCacheFixture) GetSessionAccountID(ctx context.Context, group int64, key string) (int64, error) {
 	return c.stickyCacheFixture.GetSessionAccountID(ctx, group, key)
 }
+
 func (c *responseCacheFixture) SetSessionAccountID(ctx context.Context, group int64, key string, id int64, ttl time.Duration) error {
 	return c.stickyCacheFixture.SetSessionAccountID(ctx, group, key, id, ttl)
 }
+
 func (c *responseCacheFixture) RefreshSessionTTL(ctx context.Context, group int64, key string, ttl time.Duration) error {
 	return c.stickyCacheFixture.RefreshSessionTTL(ctx, group, key, ttl)
 }
+
 func (c *responseCacheFixture) DeleteSessionAccountID(ctx context.Context, group int64, key string) error {
 	return c.stickyCacheFixture.DeleteSessionAccountID(ctx, group, key)
 }
@@ -101,12 +103,15 @@ func (c selectionConcurrencyFixture) AcquireAccountSlot(_ context.Context, id in
 	}
 	return true, nil
 }
+
 func (selectionConcurrencyFixture) ReleaseAccountSlot(context.Context, int64, string) error {
 	return nil
 }
+
 func (c selectionConcurrencyFixture) GetAccountWaitingCount(_ context.Context, id int64) (int, error) {
 	return c.waitCounts[id], nil
 }
+
 func (c selectionConcurrencyFixture) GetAccountsLoadBatch(ctx context.Context, accounts []scheduler.AccountWithConcurrency) (map[int64]*scheduler.AccountLoadInfo, error) {
 	if c.loadBatchErr != nil {
 		return nil, c.loadBatchErr

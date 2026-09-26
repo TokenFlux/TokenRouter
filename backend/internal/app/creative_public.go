@@ -27,7 +27,7 @@ import (
 )
 
 // provideS13CreativePublic 直接组合原生任务、资金及只读投影，所有存储使用已有实例。
-func provideS13CreativePublic(repo creative.CreativeRunRepository, keys *keypostgres.KeyStore, users *identitypostgres.UserStore, accounts *accountpostgres.AccountStore, groups *routingpostgres.GroupStore, rates billing.UserGroupRateRepository, queue creative.CreativeRunQueue, transient creative.CreativeTransientStore, funds *billing.Funds, subscriptions *billingpostgres.SettlementStore, logs usage.UsageLogRepository, pricing *billing.PriceResolver, channels *routing.ChannelService, moderation *moderation.ContentModerationService, auth apikey.APIKeyAuthCacheInvalidator, settings *creative.RuntimeSettings, cfg *config.Config, outbox creative.CreativeRunOutboxRepository) *creative.Public {
+func provideS13CreativePublic(repo creative.CreativeRunRepository, keys *keypostgres.KeyStore, users *identitypostgres.UserStore, accounts *accountpostgres.AccountStore, groups *routingpostgres.GroupStore, rates billing.UserGroupRateRepository, queue creative.CreativeRunQueue, transient creative.CreativeTransientStore, funds *billing.Funds, subscriptions *billingpostgres.SettlementStore, logs usage.UsageLogRepository, pricing *billing.PriceResolver, modelConfigs *routing.PricingConfigService, moderation *moderation.ContentModerationService, auth apikey.APIKeyAuthCacheInvalidator, settings *creative.RuntimeSettings, cfg *config.Config, outbox creative.CreativeRunOutboxRepository) *creative.Public {
 	ttl := 30 * time.Minute
 	if cfg.Creative.TransientTTLSeconds > 0 {
 		ttl = time.Duration(cfg.Creative.TransientTTLSeconds) * time.Second
@@ -38,21 +38,27 @@ func provideS13CreativePublic(repo creative.CreativeRunRepository, keys *keypost
 		TransientStore: transient,
 		Queue:          queue,
 		Outbox:         outbox,
-		Funding: creative.Funding{Store: funds,
-			Observe: creativeObserve},
+		Funding: creative.Funding{
+			Store:   funds,
+			Observe: creativeObserve,
+		},
 		TransientTTL:   ttl,
 		Observe:        creativeObserve,
 		InvalidateAuth: auth.InvalidateAuthCacheByUserID,
 	}
-	recorder := completion.NewRecorder(completion.Dependencies{Logs: completion.SnapshotLogWriter(logs),
-		Observe: func(component, message string) { logging.LegacyPrintf(component, "%s", message) }}, completion.RecorderOptions{})
+	recorder := completion.NewRecorder(completion.Dependencies{
+		Logs:    completion.SnapshotLogWriter(logs),
+		Observe: func(component, message string) { logging.LegacyPrintf(component, "%s", message) },
+	}, completion.RecorderOptions{})
 	results.RecordUsage = func(ctx context.Context, row *usage.UsageLog) {
 		recorder.WriteUsage(ctx, querycache.Clone(row), "service.creative_settlement")
 	}
-	managed := apikey.ManagedKeys{Store: creativeManagedKeys{store: keys},
+	managed := apikey.ManagedKeys{
+		Store:      creativeManagedKeys{store: keys},
 		Prefix:     cfg.Default.APIKeyPrefix,
 		ManagedBy:  creative.CreativeManagedBy,
-		NamePrefix: "creative-studio"}
+		NamePrefix: "creative-studio",
+	}
 	return &creative.Public{
 		Now:               time.Now,
 		Repo:              repo,
@@ -71,7 +77,8 @@ func provideS13CreativePublic(repo creative.CreativeRunRepository, keys *keypost
 			MaxPromptChars:     cfg.Creative.MaxPromptChars,
 			MaxAssetBytes:      cfg.Creative.MaxAssetBytes,
 			MaxTotalInputBytes: cfg.Creative.MaxTotalInputBytes,
-			DefaultImageSize:   cfg.Creative.DefaultImageSize},
+			DefaultImageSize:   cfg.Creative.DefaultImageSize,
+		},
 		EnsureKey: func(ctx context.Context, u, g int64) (int64, error) {
 			key, err := managed.Ensure(ctx, u, g)
 			if err != nil {
@@ -79,11 +86,13 @@ func provideS13CreativePublic(repo creative.CreativeRunRepository, keys *keypost
 			}
 			return key.ID, nil
 		},
-		ChannelMapping: channels.ResolveChannelMapping,
+		GroupMapping: modelConfigs.ResolveGroupMapping,
 		ImageUnitPrice: func(ctx context.Context, g *creative.GroupView, model, size string) (float64, bool) {
-			price, err := pricing.ResolveImageUnitPrice(ctx, billing.PricingInput{Model: model,
+			price, err := pricing.ResolveImageUnitPrice(ctx, billing.PricingInput{
+				Model:   model,
 				GroupID: &g.ID,
-				Group:   &g.Price}, size)
+				Group:   &g.Price,
+			}, size)
 			return price, err == nil
 		},
 		SubscriptionMultiplier: func(ctx context.Context, u int64, g *creative.GroupView, fallback float64) (float64, bool) {
@@ -91,8 +100,10 @@ func provideS13CreativePublic(repo creative.CreativeRunRepository, keys *keypost
 			if sub == nil {
 				return 0, false
 			}
-			return completion.ResolveUsageRateMultiplier(ctx, u, &g.ID, &completion.GroupSnapshot{ID: g.ID,
-				RateMultiplier: g.RateMultiplier}, fallback, sub, nil), true
+			return completion.ResolveUsageRateMultiplier(ctx, u, &g.ID, &completion.GroupSnapshot{
+				ID:             g.ID,
+				RateMultiplier: g.RateMultiplier,
+			}, fallback, sub, nil), true
 		},
 		Moderation: creativeModeration{moderation},
 		RequestID:  func(ctx context.Context) string { v, _ := ctx.Value(telemetry.RequestID).(string); return v },
@@ -130,6 +141,7 @@ func (r creativeGroups) GetByIDLite(ctx context.Context, id int64) (*creative.Gr
 	v, err := r.store.GetByIDLite(ctx, id)
 	return creativeGroupView(v), err
 }
+
 func (r creativeGroups) ListActive(ctx context.Context) ([]creative.GroupView, error) {
 	v, err := r.store.ListActive(ctx)
 	if err != nil {
@@ -141,11 +153,13 @@ func (r creativeGroups) ListActive(ctx context.Context) ([]creative.GroupView, e
 	}
 	return out, nil
 }
+
 func creativeGroupView(g *routing.Group) *creative.GroupView {
 	if g == nil {
 		return nil
 	}
-	return &creative.GroupView{ID: g.ID,
+	return &creative.GroupView{
+		ID:                   g.ID,
 		Name:                 g.Name,
 		Platform:             g.Platform,
 		IsExclusive:          g.IsExclusive,
@@ -153,8 +167,11 @@ func creativeGroupView(g *routing.Group) *creative.GroupView {
 		Active:               g.IsActive(),
 		RateMultiplier:       g.RateMultiplier,
 		Operations:           creative.OperationsForGroup(g.Platform, g.ResponsesImagePolicy != "" || g.ProtocolFallbacks != nil, g.AllowsClientProtocol),
-		Price: billing.PriceGroup{ModelPricing: g.ModelPricing,
-			LongContextPricingEnabled: g.LongContextPricingEnabled}}
+		Price: billing.PriceGroup{
+			ModelPricing:              g.ModelPricing,
+			LongContextPricingEnabled: g.LongContextPricingEnabled,
+		},
+	}
 }
 
 type creativeModeration struct {
@@ -162,7 +179,8 @@ type creativeModeration struct {
 }
 
 func (m creativeModeration) Check(ctx context.Context, v creative.ModerationInput) (*creative.ModerationDecision, error) {
-	out, err := m.service.Check(ctx, moderation.ContentModerationCheckInput{RequestID: v.RequestID,
+	out, err := m.service.Check(ctx, moderation.ContentModerationCheckInput{
+		RequestID:        v.RequestID,
 		UserID:           v.UserID,
 		BillingUserID:    v.BillingUserID,
 		GroupID:          v.GroupID,
@@ -172,12 +190,14 @@ func (m creativeModeration) Check(ctx context.Context, v creative.ModerationInpu
 		Model:            v.Model,
 		Protocol:         v.Protocol,
 		Body:             v.Body,
-		NoMediaRetention: v.NoMediaRetention})
+		NoMediaRetention: v.NoMediaRetention,
+	})
 	if out == nil {
 		return nil, err
 	}
 	return &creative.ModerationDecision{Allowed: out.Allowed}, err
 }
+
 func creativeObserve(event string, values ...any) {
 	fields := make([]zap.Field, 0, len(values)/2)
 	for i := 0; i+1 < len(values); i += 2 {

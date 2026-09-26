@@ -32,10 +32,13 @@ const (
 	PlatformGrok   = "grok"
 )
 
-type UserAccess interface{ CanBindGroup(int64, bool) bool }
-type UserReader interface {
-	GetByID(context.Context, int64) (UserAccess, error)
-}
+type (
+	UserAccess interface{ CanBindGroup(int64, bool) bool }
+	UserReader interface {
+		GetByID(context.Context, int64) (UserAccess, error)
+	}
+)
+
 type GroupView struct {
 	ID                                        int64
 	Name, Platform                            string
@@ -73,10 +76,13 @@ type ModerationInput struct {
 	Body                                           []byte
 	NoMediaRetention                               bool
 }
-type ModerationDecision struct{ Allowed bool }
-type Moderator interface {
-	Check(context.Context, ModerationInput) (*ModerationDecision, error)
-}
+type (
+	ModerationDecision struct{ Allowed bool }
+	Moderator          interface {
+		Check(context.Context, ModerationInput) (*ModerationDecision, error)
+	}
+)
+
 type PublicOptions struct {
 	Enabled                           bool
 	MaxPromptChars                    int
@@ -97,7 +103,7 @@ type Public struct {
 	Options                PublicOptions
 	UserNotFound           error
 	EnsureKey              func(context.Context, int64, int64) (int64, error)
-	ChannelMapping         func(context.Context, int64, string) routing.ChannelMappingResult
+	GroupMapping           func(context.Context, int64, string) routing.GroupMappingResult
 	ImageUnitPrice         func(context.Context, *GroupView, string, string) (float64, bool)
 	SubscriptionMultiplier func(context.Context, int64, *GroupView, float64) (float64, bool)
 	Moderation             Moderator
@@ -110,33 +116,39 @@ func (s *Public) warn(event string, values ...any) {
 		s.Observe(event, values...)
 	}
 }
+
 func (s *Public) Enabled(ctx context.Context) bool {
 	return s != nil && s.Repo != nil && s.GroupRepo != nil && s.Options.Enabled && s.Settings != nil && s.Settings.IsCreativeEnabled(ctx)
 }
+
 func (s *Public) MaxPromptChars() int {
 	if s != nil && s.Options.MaxPromptChars > 0 {
 		return s.Options.MaxPromptChars
 	}
 	return 8000
 }
+
 func (s *Public) MaxAssetBytes() int64 {
 	if s != nil && s.Options.MaxAssetBytes > 0 {
 		return s.Options.MaxAssetBytes
 	}
 	return 33554432
 }
+
 func (s *Public) MaxTotalInputBytes() int64 {
 	if s != nil && s.Options.MaxTotalInputBytes > 0 {
 		return s.Options.MaxTotalInputBytes
 	}
 	return 67108864
 }
+
 func (s *Public) DefaultImageSize() string {
 	if s != nil && strings.TrimSpace(s.Options.DefaultImageSize) != "" {
 		return strings.TrimSpace(s.Options.DefaultImageSize)
 	}
 	return "1K"
 }
+
 func mappedCatalogModel(a CatalogAccount, m string) string {
 	if a == nil {
 		return ""
@@ -215,7 +227,7 @@ func (s *Public) ListModels(ctx context.Context, userID int64) (*CreativeModelsR
 			if !configured || len(operations) == 0 {
 				continue
 			}
-			// 尺寸按“分组+模型”解析：渠道/分组未配置覆盖价时回退平台默认档位。
+			// 尺寸按“分组+模型”解析：共享价格配置/分组未配置覆盖价时回退平台默认档位。
 			finalModel := models[model]
 			if finalModel == "" {
 				finalModel = model
@@ -300,6 +312,7 @@ func (s *Public) ListCreativeModelCandidates(ctx context.Context) ([]CreativeMod
 	}
 	return out, nil
 }
+
 func (s *Public) CreativeModelSettings(ctx context.Context) []CreativeModelSetting {
 	if s == nil || s.Settings == nil {
 		return []CreativeModelSetting{}
@@ -407,13 +420,16 @@ func CreativeCapabilitiesForModel(platform, model string) CreativeModelCapabilit
 	}
 	return capabilities
 }
+
 func CreativeNormalizedModelID(model string) string {
 	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(model)), "models/")
 }
+
 func IsCreativeGeminiThinkingLevelModel(model string) bool {
 	model = CreativeNormalizedModelID(model)
 	return strings.HasPrefix(model, "gemini-3.1-flash-image") || strings.HasPrefix(model, "gemini-3.1-flash-lite-image")
 }
+
 func CreativeGeminiMaxReferenceImages(model string) int {
 	model = CreativeNormalizedModelID(model)
 	switch {
@@ -504,9 +520,11 @@ func IsCreativeGemini1KOnlyModel(model string) bool {
 		return false
 	}
 }
+
 func IsCreativeGPTImage2Model(model string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-image-2")
 }
+
 func ContainsCreativeImageSize(sizes []string, target string) bool {
 	for _, size := range sizes {
 		if strings.EqualFold(strings.TrimSpace(size), strings.TrimSpace(target)) {
@@ -515,6 +533,7 @@ func ContainsCreativeImageSize(sizes []string, target string) bool {
 	}
 	return false
 }
+
 func CreativeCanonicalOption(value string, options []string) (string, bool) {
 	value = strings.TrimSpace(value)
 	for _, option := range options {
@@ -524,6 +543,7 @@ func CreativeCanonicalOption(value string, options []string) (string, bool) {
 	}
 	return "", false
 }
+
 func CreativeContainsOption(options []string, value string) bool {
 	_, ok := CreativeCanonicalOption(value, options)
 	return ok
@@ -701,6 +721,7 @@ func CreativeExpandAccountModels(account CatalogAccount, candidates []string, ma
 	sort.Strings(out)
 	return out
 }
+
 func DefaultCreativeOpenAIModelCandidates() []string {
 	return []string{"gpt-image-1", "gpt-image-2"}
 }
@@ -711,6 +732,7 @@ func DefaultCreativeGeminiModelCandidates() []string {
 	candidates := append([]string(nil), upstream.DefaultImageTaskGeminiModels()...)
 	return append(candidates, "nano-banana-pro", "nano-banana-2")
 }
+
 func DefaultCreativeGrokModelCandidates() []string {
 	return []string{"grok-imagine", "grok-imagine-edit", "grok-imagine-image", "grok-imagine-image-quality", "grok-imagine-image-1.0", "grok-imagine-image-2.0"}
 }
@@ -1216,6 +1238,7 @@ func BuildCreativeRequestFingerprint(payload CreativeFingerprintPayload) string 
 	}
 	return Sha256Hex(body)
 }
+
 func CreativeImageHashes(sources []CreativeInputImage) []string {
 	hashes := make([]string, 0, len(sources))
 	for i := range sources {
@@ -1223,12 +1246,14 @@ func CreativeImageHashes(sources []CreativeInputImage) []string {
 	}
 	return hashes
 }
+
 func CreativeImageHash(image *CreativeInputImage) string {
 	if image == nil {
 		return ""
 	}
 	return Sha256Hex(image.Bytes)
 }
+
 func Sha256Hex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
@@ -1345,16 +1370,16 @@ func (s *Public) ResolveCreativePricing(ctx context.Context, userID int64, valid
 
 // MaxTotalInputBytes 返回 handler 与参数校验共用的单次任务素材总量上限。
 
-// BillingModel 在需要时才读取渠道映射，保留渠道缺省时的原上游模型口径。
+// BillingModel 在需要时才读取分组映射，未关联有效价格配置时使用最终上游模型查价。
 func (s *Public) BillingModel(ctx context.Context, group *GroupView, requested, upstream string) string {
 	if upstream == "" {
 		upstream = requested
 	}
-	if s.ChannelMapping == nil || group == nil {
+	if s.GroupMapping == nil || group == nil {
 		return upstream
 	}
-	mapping := s.ChannelMapping(ctx, group.ID, requested)
-	if mapping.ChannelID == 0 {
+	mapping := s.GroupMapping(ctx, group.ID, requested)
+	if mapping.PricingConfigID == 0 {
 		return upstream
 	}
 	mapped := mapping.MappedModel

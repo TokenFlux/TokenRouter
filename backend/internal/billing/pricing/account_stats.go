@@ -68,21 +68,21 @@ func MatchAccountStatsRule(rule *AccountStatsPricingRule, accountID, groupID int
 // 先精确匹配，再通配符匹配（按配置顺序，先匹配先使用）。
 //
 //nolint:unused // 兼容旧测试入口；生产路径需要过滤空定价行并调用 FindEffectivePricingForModel。
-func FindPricingForModel(pricingList []ChannelModelPricing, platform, modelLower string) *ChannelModelPricing {
+func FindPricingForModel(pricingList []ModelPricingEntry, platform, modelLower string) *ModelPricingEntry {
 	return FindPricingForModelByPredicate(pricingList, platform, modelLower, nil)
 }
 
 // FindEffectivePricingForModel 用于账号统计成本规则。
 // 空定价行只是配置占位，不是成本规则；显式 0 指针仍视为有效，返回 0 成本覆盖。
-func FindEffectivePricingForModel(pricingList []ChannelModelPricing, platform, modelLower string) *ChannelModelPricing {
-	return FindPricingForModelByPredicate(pricingList, platform, modelLower, func(p *ChannelModelPricing) bool {
+func FindEffectivePricingForModel(pricingList []ModelPricingEntry, platform, modelLower string) *ModelPricingEntry {
+	return FindPricingForModelByPredicate(pricingList, platform, modelLower, func(p *ModelPricingEntry) bool {
 		return p != nil && p.HasEffectivePricing()
 	})
 }
 
-func FindPricingForModelByPredicate(pricingList []ChannelModelPricing, platform, modelLower string, include func(*ChannelModelPricing) bool) *ChannelModelPricing {
+func FindPricingForModelByPredicate(pricingList []ModelPricingEntry, platform, modelLower string, include func(*ModelPricingEntry) bool) *ModelPricingEntry {
 	if include == nil {
-		include = func(*ChannelModelPricing) bool { return true }
+		include = func(*ModelPricingEntry) bool { return true }
 	}
 	// 精确匹配优先
 	for i := range pricingList {
@@ -125,7 +125,7 @@ func IsPlatformMatch(queryPlatform, pricingPlatform string) bool {
 }
 
 // CalculateStatsCost 使用给定的定价计算费用，并在最后应用可选的定价倍率。
-func CalculateStatsCost(pricing *ChannelModelPricing, tokens UsageTokens, requestCount int) *float64 {
+func CalculateStatsCost(pricing *ModelPricingEntry, tokens UsageTokens, requestCount int) *float64 {
 	if pricing == nil {
 		return nil
 	}
@@ -139,7 +139,7 @@ func CalculateStatsCost(pricing *ChannelModelPricing, tokens UsageTokens, reques
 	if cost == nil {
 		return nil
 	}
-	// 账号统计规则与实际渠道计费共用同一倍率语义。
+	// 账号统计规则与实际价卡计费共用同一倍率语义。
 	if multiplier, configured := NormalizedPriceMultiplier(pricing); configured {
 		scaled := *cost * multiplier
 		cost = &scaled
@@ -148,7 +148,7 @@ func CalculateStatsCost(pricing *ChannelModelPricing, tokens UsageTokens, reques
 }
 
 // CalculatePerRequestStatsCost 按次/图片计费。
-func CalculatePerRequestStatsCost(pricing *ChannelModelPricing, requestCount int) *float64 {
+func CalculatePerRequestStatsCost(pricing *ModelPricingEntry, requestCount int) *float64 {
 	if pricing.PerRequestPrice == nil {
 		return nil
 	}
@@ -165,12 +165,12 @@ func CalculatePerRequestStatsCost(pricing *ChannelModelPricing, requestCount int
 // CalculateTokenStatsCost Token 计费。
 // If the pricing has intervals, find the matching interval by total token count
 // and use its prices instead of the flat pricing fields.
-func CalculateTokenStatsCost(pricing *ChannelModelPricing, tokens UsageTokens) *float64 {
+func CalculateTokenStatsCost(pricing *ModelPricingEntry, tokens UsageTokens) *float64 {
 	p := pricing
 	if validIntervals := FilterValidTokenIntervals(pricing.Intervals); len(validIntervals) > 0 {
 		totalTokens := tokens.InputTokens + tokens.OutputTokens + tokens.CacheCreationTokens + tokens.CacheReadTokens
 		if iv := FindMatchingInterval(validIntervals, totalTokens); iv != nil {
-			p = &ChannelModelPricing{
+			p = &ModelPricingEntry{
 				InputPrice:        iv.InputPrice,
 				OutputPrice:       iv.OutputPrice,
 				CacheWritePrice:   iv.CacheWritePrice,
@@ -208,7 +208,7 @@ func CalculateTokenStatsCost(pricing *ChannelModelPricing, tokens UsageTokens) *
 	return &cost
 }
 
-func HasAnyTokenStatsPrice(pricing *ChannelModelPricing) bool {
+func HasAnyTokenStatsPrice(pricing *ModelPricingEntry) bool {
 	return pricing != nil && (pricing.InputPrice != nil ||
 		pricing.OutputPrice != nil ||
 		pricing.CacheWritePrice != nil ||
@@ -225,7 +225,7 @@ func HasAnyStatsTokenUsage(tokens UsageTokens) bool {
 		tokens.ImageOutputTokens > 0
 }
 
-// AccountStatsInput 是已查询渠道的只读投影，nil 成本与显式零价保持不同。
+// AccountStatsInput 是已查询价卡的只读投影，nil 成本与显式零价保持不同。
 type AccountStatsInput struct {
 	Rules              []AccountStatsPricingRule
 	AccountID, GroupID int64

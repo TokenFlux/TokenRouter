@@ -18,7 +18,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// HTTPInput 只携带已完成账号和渠道处理的请求快照，不包含业务实体或凭据。
+// HTTPInput 只携带已完成分组及账号处理的请求快照，不包含业务实体或凭据。
 type HTTPInput struct {
 	Body, LineageEntryBody                                     []byte
 	AccountID                                                  int64
@@ -233,10 +233,12 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 		if usage == nil {
 			usage = &wire.ForwardUsage{}
 		}
-		result := &Result{RequestID: resp.Header.Get("x-request-id"), ResponseID: responseID, Headers: resp.Header,
+		result := &Result{
+			RequestID: resp.Header.Get("x-request-id"), ResponseID: responseID, Headers: resp.Header,
 			Usage: *usage, Model: input.OriginalModel, BillingModel: input.BillingModel, UpstreamModel: upstreamModel,
 			UpstreamResponseServiceTier: o.ObservedServiceTier(), ServiceTier: o.ResolvedServiceTier(tier), ReasoningEffort: input.ReasoningEffort,
-			Stream: input.Stream, Duration: time.Since(input.StartedAt), FirstTokenMs: firstToken}
+			Stream: input.Stream, Duration: time.Since(input.StartedAt), FirstTokenMs: firstToken,
+		}
 		if imageCount > 0 {
 			result.ImageCount = imageCount
 			result.ImageSize = input.ImageSizeTier

@@ -63,7 +63,6 @@ func (s *Gemini) validateUpstreamBaseURL(raw string) (string, error) {
 		return normalized, nil
 	}
 	normalized, err := egress.ValidateHTTPSURL(raw, egress.ValidationOptions{
-
 		AllowedHosts: s.Options.AllowedHosts,
 
 		RequireAllowlist: true,
@@ -154,7 +153,6 @@ func (s *Gemini) Forward(ctx context.Context, output Output, account *gatewaypro
 	target.BeforeResponse = func(ctx context.Context, resp *http.Response, requestIDHeader string) (bool, error) {
 		var callbackErr error
 		compatibilityResult, callbackErr = func() (*forwardcore.MessagesResult, error) {
-
 			if resp.StatusCode >= 400 {
 				respBody := s.readUpstreamErrorBody(resp)
 				decision := s.applyGeminiUpstreamErrorPolicy(ctx, account, resp.StatusCode, resp.Header, respBody, mappedModel)
@@ -192,7 +190,6 @@ func (s *Gemini) Forward(ctx context.Context, output Output, account *gatewaypro
 						upstreamDetail = logredact.TruncateUTF8(string(respBody), maxBytes)
 					}
 					c.Observe(ops.OpsUpstreamErrorEvent{
-
 						Platform: account.Record.Platform,
 
 						AccountID: account.Record.ID,
@@ -213,7 +210,6 @@ func (s *Gemini) Forward(ctx context.Context, output Output, account *gatewaypro
 						log.Printf("[Gemini] status=400 google_config_error failover=true upstream_message=%q account=%d", upstreamMsg, account.Record.ID)
 					}
 					return nil, &forwardcore.UpstreamFailoverError{
-
 						StatusCode: resp.StatusCode,
 
 						ResponseBody: respBody,
@@ -260,7 +256,6 @@ func (s *Gemini) Forward(ctx context.Context, output Output, account *gatewaypro
 	imageCount := c.imageCount(originalModel, mappedModel)
 
 	return &forwardcore.MessagesResult{
-
 		RequestID: requestID,
 
 		UpstreamHeaders: result.UpstreamHeaders,
@@ -316,7 +311,7 @@ func (s *Gemini) ForwardNative(ctx context.Context, output Output, account *gate
 	// 补齐 functionCall 的既有占位签名，保留上游严格校验下的兼容行为。
 	body = ensureGeminiFunctionCallThoughtSignatures(body)
 
-	// 渠道映射后的模型进入账号后统一解析为最终上游模型，不按凭据类型跳过。
+	// 分组映射后的模型进入账号后统一解析为最终上游模型，不按凭据类型跳过。
 	mappedModel := accountcore.ResolveForwardMappedModel(gatewayprovider.ExecutionRecord(account), originalModel, accountprovider.ModelDefaults())
 
 	proxyURL := ""
@@ -369,7 +364,6 @@ func (s *Gemini) ForwardNative(ctx context.Context, output Output, account *gate
 	target.BeforeResponse = func(ctx context.Context, resp *http.Response, requestIDHeader string) (bool, error) {
 		var callbackErr error
 		compatibilityResult, callbackErr = func() (*forwardcore.MessagesResult, error) {
-
 			requestID = resp.Header.Get(requestIDHeader)
 			if requestID == "" {
 				requestID = resp.Header.Get("x-goog-request-id")
@@ -388,7 +382,6 @@ func (s *Gemini) ForwardNative(ctx context.Context, output Output, account *gate
 					estimated := gemininative.EstimateGeminiCountTokens(body)
 					c.Count(estimated)
 					return &forwardcore.MessagesResult{
-
 						RequestID: requestID,
 
 						UpstreamHeaders: resp.Header,
@@ -439,7 +432,6 @@ func (s *Gemini) ForwardNative(ctx context.Context, output Output, account *gate
 						upstreamDetail = logredact.TruncateUTF8(string(evBody), maxBytes)
 					}
 					c.Observe(ops.OpsUpstreamErrorEvent{
-
 						Platform: account.Record.Platform,
 
 						AccountID: account.Record.ID,
@@ -460,7 +452,6 @@ func (s *Gemini) ForwardNative(ctx context.Context, output Output, account *gate
 						log.Printf("[Gemini] status=400 google_config_error failover=true upstream_message=%q account=%d", upstreamMsg, account.Record.ID)
 					}
 					return nil, &forwardcore.UpstreamFailoverError{
-
 						StatusCode: resp.StatusCode,
 
 						ResponseBody: evBody,
@@ -509,7 +500,6 @@ func (s *Gemini) ForwardNative(ctx context.Context, output Output, account *gate
 	imageCount := c.imageCount(originalModel, mappedModel)
 
 	return &forwardcore.MessagesResult{
-
 		RequestID: requestID,
 
 		UpstreamHeaders: result.UpstreamHeaders,
@@ -597,7 +587,6 @@ func (s *Gemini) skippedErrorPolicyFailoverError(c *attempt, account *gatewaypro
 	}
 	upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 	c.Observe(ops.OpsUpstreamErrorEvent{
-
 		Platform: account.Record.Platform,
 
 		AccountID: account.Record.ID,
@@ -615,7 +604,6 @@ func (s *Gemini) skippedErrorPolicyFailoverError(c *attempt, account *gatewaypro
 		Detail: s.upstreamErrorDetail(respBody),
 	})
 	return &forwardcore.UpstreamFailoverError{
-
 		StatusCode: statusCode,
 
 		ResponseBody: respBody,

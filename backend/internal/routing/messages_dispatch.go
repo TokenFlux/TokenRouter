@@ -40,7 +40,7 @@ func ResolveMessagesDispatchModel(g *Group, requestedModel string, options Messa
 		return options.CrossClientModel()
 	}
 
-	// 国产供应商不使用 OpenAI Messages 的分组级模型映射；模型改写由渠道与
+	// 国产供应商不使用 OpenAI Messages 的分组级模型映射；模型改写由分组通用映射与
 	// 账号 model_mapping 完成，避免历史脏配置把 GPT 模型发送给 CN 上游。
 	if options.SkipGroupMapping {
 		return ""

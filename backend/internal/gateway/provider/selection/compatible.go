@@ -165,7 +165,7 @@ func (s *Compatible) withOpenAIQuotaAutoPauseContext(ctx context.Context) contex
 }
 
 func (s *Compatible) selectAccountForModelWithExclusions(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability accountcore.OpenAIEndpointCapability) (*gatewayprovider.ExecutionAccount, error) {
-	routingModel := s.resolveChannelRoutingModel(ctx, groupID, requestedModel)
+	routingModel := s.resolveGroupRoutingModel(ctx, groupID, requestedModel)
 	return s.selectAccountForModelWithExclusionsForRouting(ctx, groupID, platform, sessionHash, requestedModel, routingModel, excludedIDs, requireCompact, stickyAccountID, requiredCapability)
 }
 
@@ -182,7 +182,7 @@ func (s *Compatible) SelectAccountWithLoadAwareness(ctx context.Context, groupID
 }
 
 func (s *Compatible) selectAccountWithLoadAwareness(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) (*gatewayprovider.SelectionResult, error) {
-	routingModel := s.resolveChannelRoutingModel(ctx, groupID, requestedModel)
+	routingModel := s.resolveGroupRoutingModel(ctx, groupID, requestedModel)
 	return s.selectAccountWithLoadAwarenessForRouting(ctx, groupID, platform, sessionHash, requestedModel, routingModel, excludedIDs, requireCompact, requiredCapability)
 }
 
@@ -406,7 +406,6 @@ func (s *Compatible) isOpenAIAccountBlockedBySchedulingThreshold(ctx context.Con
 		return false
 	}
 	return gatewayprovider.ApplyExecutionSchedulingThreshold(ctx, s.healthObserver, account)
-
 }
 
 func (s *Compatible) hydrateSelectedAccount(ctx context.Context, account *gatewayprovider.ExecutionAccount) (*gatewayprovider.ExecutionAccount, error) {
@@ -446,5 +445,4 @@ func (s *Compatible) newAcquiredSelectionResult(ctx context.Context, account *ga
 
 func (s *Compatible) schedulingConfig() schedulercore.FlowOptions {
 	return s.options.Scheduling
-
 }

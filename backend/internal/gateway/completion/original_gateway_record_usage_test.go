@@ -158,7 +158,7 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	require.Equal(t, mappedModel, *usageRepo.LastLog.UpstreamModel)
 }
 
-func TestGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *testing.T) {
+func TestGatewayServiceRecordUsage_PreservesGroupMappedUpstreamModel(t *testing.T) {
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
 
@@ -173,9 +173,9 @@ func TestGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *testin
 		APIKey:  &apikey.APIKey{ID: 501, Quota: 100},
 		User:    &identity.User{ID: 601},
 		Account: &accountcore.Record{ID: 701},
-		ChannelUsageFields: routing.ChannelUsageFields{
-			OriginalModel:      "gpt-5.6-sol",
-			ChannelMappedModel: "gpt-5.6-terra",
+		PricingUsageFields: routing.PricingUsageFields{
+			OriginalModel:    "gpt-5.6-sol",
+			GroupMappedModel: "gpt-5.6-terra",
 		},
 	})
 
@@ -187,7 +187,7 @@ func TestGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *testin
 	require.Equal(t, "gpt-5.6-terra", *usageRepo.LastLog.UpstreamModel)
 }
 
-func TestGatewayServiceRecordUsage_PreservesLoopedChannelAndAccountUpstreamModel(t *testing.T) {
+func TestGatewayServiceRecordUsage_PreservesLoopedPricingConfigAndAccountUpstreamModel(t *testing.T) {
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
 
@@ -202,9 +202,9 @@ func TestGatewayServiceRecordUsage_PreservesLoopedChannelAndAccountUpstreamModel
 		APIKey:  &apikey.APIKey{ID: 501, Quota: 100},
 		User:    &identity.User{ID: 601},
 		Account: &accountcore.Record{ID: 701},
-		ChannelUsageFields: routing.ChannelUsageFields{
-			OriginalModel:      "gpt-5.6-sol",
-			ChannelMappedModel: "gpt-5.6-terra",
+		PricingUsageFields: routing.PricingUsageFields{
+			OriginalModel:    "gpt-5.6-sol",
+			GroupMappedModel: "gpt-5.6-terra",
 		},
 	})
 
@@ -263,7 +263,7 @@ func TestGatewayServiceRecordUsage_QoderUsesStandardRequestedModelPricing(t *tes
 	require.Zero(t, billingRepo.LastCmd.AccountQuotaCost)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseRequestedStandardPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedBasisDoesNotUseRequestedStandardPricing(t *testing.T) {
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{Result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
@@ -272,7 +272,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseRequestedSta
 	groupID := int64(42)
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
-			RequestID:     "qoder_channel_mapped_standard_requested_model_pricing",
+			RequestID:     "qoder_group_mapped_standard_requested_model_pricing",
 			Usage:         usage,
 			Model:         "gpt-5.4",
 			UpstreamModel: "ultimate",
@@ -286,10 +286,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseRequestedSta
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "gpt-5.4",
-			ChannelMappedModel: "ultimate",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "ultimate",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -303,7 +303,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseRequestedSta
 	require.Zero(t, billingRepo.LastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisUsesGlobalFallback(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedImageBasisUsesGlobalFallback(t *testing.T) {
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{Result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
@@ -311,7 +311,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisUsesGlobalFallbac
 	groupID := int64(43)
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
-			RequestID:     "qoder_channel_mapped_standard_requested_image_pricing",
+			RequestID:     "qoder_group_mapped_standard_requested_image_pricing",
 			Model:         "gpt-image-1",
 			UpstreamModel: "ultimate",
 			ImageCount:    2,
@@ -326,10 +326,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisUsesGlobalFallbac
 		},
 		User:    &identity.User{ID: 603},
 		Account: &accountcore.Record{ID: 703, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "gpt-image-1",
-			ChannelMappedModel: "ultimate",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "ultimate",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -347,7 +347,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisUsesGlobalFallbac
 	require.InDelta(t, expected.ActualCost, billingRepo.LastCmd.BillableAmountUSD, 1e-12)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedImageUsesGlobalFallback(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedImageUsesGlobalFallback(t *testing.T) {
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{Result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
@@ -355,7 +355,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageUsesGlobalFallback(t *
 	groupID := int64(44)
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
-			RequestID:     "qoder_channel_mapped_custom_alias_image_unpriced",
+			RequestID:     "qoder_group_mapped_custom_alias_image_unpriced",
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
 			ImageCount:    1,
@@ -370,10 +370,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageUsesGlobalFallback(t *
 		},
 		User:    &identity.User{ID: 604},
 		Account: &accountcore.Record{ID: 704, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "my-qoder-image",
-			ChannelMappedModel: "qmodel",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "qmodel",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -391,31 +391,31 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageUsesGlobalFallback(t *
 	require.InDelta(t, expected.ActualCost, billingRepo.LastCmd.BillableAmountUSD, 1e-12)
 }
 
-func TestGatewayServiceRecordUsage_QoderRequestedBasisDoesNotFallBackToChannelMappedPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderRequestedBasisDoesNotFallBackToGroupMappedPricing(t *testing.T) {
 	groupID := int64(45)
 	inputPrice := 0.01
 	outputPrice := 0.02
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{Result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 200}
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
-			RequestID:     "qoder_requested_source_channel_mapped_manual_pricing",
+			RequestID:     "qoder_requested_source_group_mapped_manual_pricing",
 			Usage:         usage,
 			Model:         "ultimate",
 			UpstreamModel: "ultimate",
@@ -429,9 +429,9 @@ func TestGatewayServiceRecordUsage_QoderRequestedBasisDoesNotFallBackToChannelMa
 		},
 		User:    &identity.User{ID: 605},
 		Account: &accountcore.Record{ID: 705, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "qwen3.7-plus",
-			ChannelMappedModel: "qmodel",
+			GroupMappedModel:   "qmodel",
 			BillingModelSource: routing.BillingModelSourceRequested,
 		},
 	})
@@ -469,9 +469,9 @@ func TestGatewayServiceRecordUsage_QoderRequestedImageUsesGlobalFallback(t *test
 		},
 		User:    &identity.User{ID: 606},
 		Account: &accountcore.Record{ID: 706, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "custom-image-alias",
-			ChannelMappedModel: "qmodel",
+			GroupMappedModel:   "qmodel",
 			BillingModelSource: routing.BillingModelSourceRequested,
 		},
 	})
@@ -542,7 +542,7 @@ func TestGatewayServiceRecordUsage_QoderAliasesInheritAvailableBuiltinPrices(t *
 	}
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedRouteKeyWithoutManualPricingUsesZeroCost(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedRouteKeyWithoutManualPricingUsesZeroCost(t *testing.T) {
 	groupID := int64(902)
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
@@ -551,7 +551,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedRouteKeyWithoutManualPricin
 	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
-			RequestID:     "qoder_channel_mapped_route_key",
+			RequestID:     "qoder_group_mapped_route_key",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
@@ -565,10 +565,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedRouteKeyWithoutManualPricin
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "qwen3.7-plus",
-			ChannelMappedModel: "qmodel",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "qmodel",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -582,31 +582,31 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedRouteKeyWithoutManualPricin
 	require.Zero(t, billingRepo.LastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseOriginalAliasPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedBasisDoesNotUseOriginalAliasPricing(t *testing.T) {
 	groupID := int64(902)
 	inputPrice := 0.01
 	outputPrice := 0.02
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
-			RequestID:     "qoder_channel_mapped_route_key_original_alias_pricing",
+			RequestID:     "qoder_group_mapped_route_key_original_alias_pricing",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
@@ -620,10 +620,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseOriginalAlia
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "qwen3.7-plus",
-			ChannelMappedModel: "qmodel",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "qmodel",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -637,33 +637,33 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseOriginalAlia
 	require.Zero(t, billingRepo.LastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedBasisUsesRouteKeyPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedBasisUsesRouteKeyPricing(t *testing.T) {
 	groupID := int64(902)
 	aliasInputPrice := 0.01
 	aliasOutputPrice := 0.02
 	routeInputPrice := 0.50
 	routeOutputPrice := 0.75
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &routeInputPrice,
 		OutputPrice: &routeOutputPrice,
 	}
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &aliasInputPrice,
 		OutputPrice: &aliasOutputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	expectedCost := float64(usage.InputTokens)*routeInputPrice + float64(usage.OutputTokens)*routeOutputPrice
@@ -683,10 +683,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisUsesRouteKeyPricing(t 
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "qwen3.7-plus",
-			ChannelMappedModel: "qmodel",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "qmodel",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -704,22 +704,22 @@ func TestGatewayServiceRecordUsage_QoderImplicitRequestedBasisDoesNotInferRouteK
 	groupID := int64(902)
 	inputPrice := 0.01
 	outputPrice := 0.02
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
@@ -750,33 +750,33 @@ func TestGatewayServiceRecordUsage_QoderImplicitRequestedBasisDoesNotInferRouteK
 	require.Zero(t, billingRepo.LastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedBlankRouteKeyDoesNotUseOriginalAliasPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedBlankRouteKeyDoesNotUseOriginalAliasPricing(t *testing.T) {
 	groupID := int64(902)
 	inputPrice := 0.01
 	outputPrice := 0.02
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"qmodel"},
 		BillingMode: routing.BillingModeToken,
 	}
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ModelPricingEntry{
 		Platform:    capability.PlatformQoder,
 		Models:      []string{"qwen3.7-plus"},
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
@@ -795,10 +795,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBlankRouteKeyDoesNotUseOrig
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "qwen3.7-plus",
-			ChannelMappedModel: "qmodel",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "qmodel",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -812,30 +812,30 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBlankRouteKeyDoesNotUseOrig
 	require.Zero(t, billingRepo.LastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedCustomPartialPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedBasisIgnoresRequestedCustomPartialPricing(t *testing.T) {
 	groupID := int64(902)
 	inputPrice := 0.01
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 100000}
 
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
-			RequestID:     "qoder_channel_mapped_custom_alias_partial_pricing",
+			RequestID:     "qoder_group_mapped_custom_alias_partial_pricing",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
@@ -849,10 +849,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedCustom
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "custom-qoder",
-			ChannelMappedModel: "qmodel",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "qmodel",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -866,29 +866,29 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedCustom
 	require.Zero(t, billingRepo.LastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedStandardPartialPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedBasisIgnoresRequestedStandardPartialPricing(t *testing.T) {
 	groupID := int64(902)
 	inputPrice := 0.01
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 100000}
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
-			RequestID:     "qoder_channel_mapped_standard_model_partial_pricing",
+			RequestID:     "qoder_group_mapped_standard_model_partial_pricing",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
@@ -902,10 +902,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedStanda
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "gpt-5.4",
-			ChannelMappedModel: "qmodel",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "qmodel",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -922,21 +922,21 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedStanda
 func TestGatewayServiceRecordUsage_QoderAccountMappedCustomAliasPartialManualPricingZerosMissingFields(t *testing.T) {
 	groupID := int64(902)
 	inputPrice := 0.01
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-qoder"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 100000}
 	expectedCost := float64(usage.InputTokens) * inputPrice
@@ -957,10 +957,10 @@ func TestGatewayServiceRecordUsage_QoderAccountMappedCustomAliasPartialManualPri
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "custom-qoder",
-			ChannelMappedModel: "custom-qoder",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "custom-qoder",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -1030,10 +1030,10 @@ func TestGatewayServiceRecordUsage_QoderAccountMappedImageUsesGlobalFallback(t *
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "custom-qoder-image",
-			ChannelMappedModel: "custom-qoder-image",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "custom-qoder-image",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -1075,9 +1075,9 @@ func TestGatewayServiceRecordUsage_QoderUpstreamBasisDoesNotUseRequestedStandard
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "gpt-5.4-mini",
-			ChannelMappedModel: "gpt-5.4-mini",
+			GroupMappedModel:   "gpt-5.4-mini",
 			BillingModelSource: routing.BillingModelSourceUpstream,
 		},
 	})
@@ -1121,9 +1121,9 @@ func TestGatewayServiceRecordUsage_QoderUpstreamBasisUsesStandardUpstreamPricing
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "qwen3.7-plus",
-			ChannelMappedModel: "qwen3.7-plus",
+			GroupMappedModel:   "qwen3.7-plus",
 			BillingModelSource: routing.BillingModelSourceUpstream,
 		},
 	})
@@ -1138,18 +1138,18 @@ func TestGatewayServiceRecordUsage_QoderUpstreamBasisUsesStandardUpstreamPricing
 	require.InDelta(t, expectedCost.ActualCost, billingRepo.LastCmd.BillableAmountUSD, 1e-12)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedAccountStatsUsesOriginalAliasRule(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderGroupMappedAccountStatsUsesOriginalAliasRule(t *testing.T) {
 	groupID := int64(902)
 	inputPrice := 0.01
 	outputPrice := 0.02
-	cache := routingtestkit.NewChannelData()
-	cache.ByGroup[groupID] = &routing.Channel{
+	cache := routingtestkit.NewModelConfigData()
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{
 		ID:     groupID,
 		Status: billing.StatusActive,
 		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{groupID},
-				Pricing: []routing.ChannelModelPricing{
+				Pricing: []routing.ModelPricingEntry{
 					{
 						Models:      []string{"qwen3.7-plus"},
 						InputPrice:  &inputPrice,
@@ -1162,17 +1162,17 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedAccountStatsUsesOriginalAli
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Channels = channelService
+	svc.GroupPolicies = pricingConfigService
 
 	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 50}
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
-			RequestID:     "qoder_channel_mapped_account_stats_alias",
+			RequestID:     "qoder_group_mapped_account_stats_alias",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
@@ -1186,10 +1186,10 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedAccountStatsUsesOriginalAli
 		},
 		User:    &identity.User{ID: 602},
 		Account: &accountcore.Record{ID: 702, Platform: capability.PlatformQoder},
-		ChannelUsageFields: routing.ChannelUsageFields{
+		PricingUsageFields: routing.PricingUsageFields{
 			OriginalModel:      "qwen3.7-plus",
-			ChannelMappedModel: "qmodel",
-			BillingModelSource: routing.BillingModelSourceChannelMapped,
+			GroupMappedModel:   "qmodel",
+			BillingModelSource: routing.BillingModelSourceGroupMapped,
 		},
 	})
 
@@ -1200,22 +1200,22 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedAccountStatsUsesOriginalAli
 	require.InDelta(t, 2.0, *usageRepo.LastLog.AccountStatsCost, 1e-12)
 }
 
-func TestGatewayServiceRecordUsage_QoderBlankChannelPricingUsesZeroCost(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderBlankConfigPricingUsesZeroCost(t *testing.T) {
 	groupID := int64(902)
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "auto"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "auto"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
@@ -1246,26 +1246,26 @@ func TestGatewayServiceRecordUsage_QoderBlankChannelPricingUsesZeroCost(t *testi
 	require.Zero(t, billingRepo.LastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderManualChannelPricingOverridesDefaultAliasPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderManualConfigPricingOverridesDefaultAliasPricing(t *testing.T) {
 	groupID := int64(902)
 	inputPrice := 0.01
 	outputPrice := 0.02
-	cache := routingtestkit.NewChannelData()
-	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "auto"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewModelConfigData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "auto"}] = &routing.ModelPricingEntry{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.ByGroup[groupID] = &routingtestkit.Configuration{ID: groupID, Status: billing.StatusActive}
 	cache.Platforms[groupID] = capability.PlatformQoder
 	cache.LoadedAt = time.Now()
 
-	channelService := routingtestkit.ChannelFromData(cache)
+	pricingConfigService := routingtestkit.ModelConfigFromData(cache)
 
 	usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 	billingRepo := &completiontestkit.SettlementStore{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &completiontestkit.UserStore{}, &completiontestkit.SubscriptionStore{})
-	svc.Dependencies.Prices = billingtestkit.PriceResolver(channelService, svc.Dependencies.Calculator)
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(pricingConfigService, svc.Dependencies.Calculator)
 
 	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
@@ -1357,7 +1357,7 @@ func TestGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputTokens(t *
 	svc.Options.Now = func() time.Time {
 		return time.Date(2026, 7, 1, 12, 0, 0, 0, time.Local)
 	}
-	svc.Dependencies.Prices = newOpenAITokenImageChannelPricingResolverForTest(t, groupID, "gemini-image")
+	svc.Dependencies.Prices = newOpenAITokenImageConfigPricingResolverForTest(t, groupID, "gemini-image")
 
 	err := svc.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
 		Result: &forwardcore.MessagesResult{
@@ -1753,6 +1753,7 @@ func TestGatewayServiceRecordUsage_FastSpeedHonouredKeepsPremium(t *testing.T) {
 func newGatewayRecordUsageServiceForTest(logs usagecore.UsageLogRepository, _ identity.UserRepository, _ billing.UserSubscriptionRepository) *completiontestkit.Recording {
 	return completiontestkit.NewRecording(logs, &completiontestkit.SettlementStore{}, nil, true)
 }
+
 func newGatewayRecordUsageServiceWithBillingRepoForTest(logs usagecore.UsageLogRepository, funds completion.Store, _ identity.UserRepository, _ billing.UserSubscriptionRepository) *completiontestkit.Recording {
 	return completiontestkit.NewRecording(logs, funds, nil, false)
 }

@@ -10,9 +10,11 @@ import (
 
 // 每个候选独立验证启用集合，旧计划不受之后的配置或返回切片修改影响。
 func TestRoutePlanCandidateRecalculationAndIsolation(t *testing.T) {
-	group := &Group{ID: 7, Platform: capability.PlatformOpenAI, SchedulerType: GroupSchedulerTypeAdvanced,
+	group := &Group{
+		ID: 7, Platform: capability.PlatformOpenAI, SchedulerType: GroupSchedulerTypeAdvanced,
 		AllowedProtocols:  []capability.ProtocolID{capability.ProtocolAnthropicMessages},
-		ProtocolFallbacks: map[capability.ProtocolID]capability.ProtocolID{capability.ProtocolAnthropicMessages: capability.ProtocolOpenAIResponses}}
+		ProtocolFallbacks: map[capability.ProtocolID]capability.ProtocolID{capability.ProtocolAnthropicMessages: capability.ProtocolOpenAIResponses},
+	}
 	plan := Plan(PlanInput{Group: group, ClientProtocol: capability.ProtocolAnthropicMessages})
 	responses := account.AccountSnapshot{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, EnabledProtocols: []capability.ProtocolID{capability.ProtocolOpenAIResponses}}
 	chat := account.AccountSnapshot{ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, EnabledProtocols: []capability.ProtocolID{capability.ProtocolOpenAIChatCompletions}}
@@ -38,11 +40,11 @@ func TestRoutePlanCandidateRecalculationAndIsolation(t *testing.T) {
 	require.Equal(t, []capability.ProtocolID{capability.ProtocolAnthropicMessages}, plan.AllowedProtocols())
 }
 
-// 模型链的客户端/Key/渠道事实固定，但账号映射在每次匹配时读取独立快照。
+// 模型链的客户端/Key/分组模型事实固定，但账号映射在每次匹配时读取独立快照。
 func TestRoutePlanModelChainAndAttemptSnapshots(t *testing.T) {
 	groupID := int64(7)
-	mapping := ChannelMappingResult{MappedModel: "channel-model", ChannelID: 9, Mapped: true, BillingModelSource: "requested", ClientModel: "prefix/client-model", APIKeyRedirected: true}
-	plan := Plan(PlanInput{GroupID: &groupID, RequestedModel: "key-model", Channel: mapping, ClientProtocol: capability.ProtocolOpenAIResponses})
+	mapping := GroupMappingResult{MappedModel: "group-model", PricingConfigID: 9, Mapped: true, BillingModelSource: "requested", RestrictModels: true, RestrictionModelSource: BillingModelSourceUpstream, ClientModel: "prefix/client-model", APIKeyRedirected: true}
+	plan := Plan(PlanInput{GroupID: &groupID, RequestedModel: "key-model", GroupMapping: mapping, ClientProtocol: capability.ProtocolOpenAIResponses})
 	groupID = 8
 	require.Equal(t, int64(7), plan.GroupID())
 	require.Equal(t, mapping, plan.Mapping())
@@ -50,16 +52,18 @@ func TestRoutePlanModelChainAndAttemptSnapshots(t *testing.T) {
 	require.Equal(t, "key-model", plan.Models().RequestedModel)
 	candidate, ok := plan.ResolveCandidate(account.AccountSnapshot{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, EnabledProtocols: []capability.ProtocolID{capability.ProtocolOpenAIResponses}})
 	require.True(t, ok)
-	rules := map[string]string{"channel-model": "upstream-one", "upstream-one": "must-not-recurse"}
+	rules := map[string]string{"group-model": "upstream-one", "upstream-one": "must-not-recurse"}
 	snapshot := account.AccountSnapshot{ID: 1, ModelPolicy: account.NewModelRoutingSnapshot(capability.PlatformOpenAI, rules)}
-	rules["channel-model"] = "upstream-two"
-	first, matched := candidate.ResolveModel(snapshot, "channel-model")
+	rules["group-model"] = "upstream-two"
+	first, matched := candidate.ResolveModel(snapshot, "group-model")
 	require.True(t, matched)
 	require.Equal(t, "upstream-one", first.Models.AccountMappedModel)
+	require.True(t, first.Models.RestrictModels)
+	require.Equal(t, BillingModelSourceUpstream, first.Models.RestrictionModelSource)
 	require.Empty(t, candidate.Models.AccountMappedModel)
 	require.Empty(t, plan.Models().AccountMappedModel)
 	fresh := account.AccountSnapshot{ID: 1, ModelPolicy: account.NewModelRoutingSnapshot(capability.PlatformOpenAI, rules)}
-	second, matched := candidate.ResolveModel(fresh, "channel-model")
+	second, matched := candidate.ResolveModel(fresh, "group-model")
 	require.True(t, matched)
 	require.Equal(t, "upstream-two", second.Models.AccountMappedModel)
 }

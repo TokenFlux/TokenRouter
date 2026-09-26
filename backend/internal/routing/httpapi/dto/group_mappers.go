@@ -67,6 +67,7 @@ func AdminGroupFromRouting[A any](g *routing.Group) *AdminGroup[A] {
 		SchedulerType:               string(g.SchedulerType),
 		AdvancedSchedulerOverrides:  policy.CloneGroupAdvancedSchedulerOverrides(g.AdvancedSchedulerOverrides),
 		ModelPricing:                g.ModelPricing,
+		RoutingPolicy:               g.RoutingPolicy.Clone(),
 		ModelRouting:                g.ModelRouting,
 		ModelRoutingEnabled:         g.ModelRoutingEnabled,
 		MCPXMLInject:                g.MCPXMLInject,

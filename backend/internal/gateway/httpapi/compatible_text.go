@@ -46,9 +46,9 @@ type CompatibleTextBackend interface {
 	PolicyDenied(*gin.Context)
 	Plan(context.Context, *apikey.APIKey, string) routing.RoutePlan
 	BindPlan(*gin.Context, routing.RoutePlan)
-	ImageIntent(*apikey.APIKey, string, []byte, routing.ChannelMappingResult) ([]byte, bool)
+	ImageIntent(*apikey.APIKey, string, []byte, routing.GroupMappingResult) ([]byte, bool)
 	ImageContext(context.Context) context.Context
-	ChatImageModel(string, routing.ChannelMappingResult) bool
+	ChatImageModel(string, routing.GroupMappingResult) bool
 	Moderate(*gin.Context, *zap.Logger, *apikey.APIKey, authctx.AuthSubject, string, string, []byte) *moderation.Decision
 	BindErrors(*gin.Context)
 	AuthLatency(*gin.Context, int64)
@@ -70,27 +70,34 @@ type CompatibleTextHandler struct {
 func NewCompatibleTextHandler(options MessagesHTTPOptions, backend CompatibleTextBackend, prompt MessagesPrompt, concurrency *ConcurrencyHelper, executor execution.Executor) *CompatibleTextHandler {
 	return &CompatibleTextHandler{executor: executor, options: options, backend: backend, prompt: prompt, concurrency: concurrency}
 }
+
 func compatibleMaxBytesError(err error) (*http.MaxBytesError, bool) {
 	var limit *http.MaxBytesError
 	ok := errors.As(err, &limit)
 	return limit, ok
 }
+
 func WriteCompatibleResponsesError(c *gin.Context, status int, kind, message string) {
 	c.JSON(status, gin.H{"error": gin.H{"code": kind, "message": message}})
 }
+
 func WriteCompatibleChatError(c *gin.Context, status int, kind, message string) {
 	c.JSON(status, gin.H{"error": gin.H{"type": kind, "message": message}})
 }
+
 func (h *CompatibleTextHandler) responsesErrorResponse(c *gin.Context, status int, kind, message string) {
 	WriteCompatibleResponsesError(c, status, kind, message)
 }
+
 func (h *CompatibleTextHandler) chatCompletionsErrorResponse(c *gin.Context, status int, kind, message string) {
 	WriteCompatibleChatError(c, status, kind, message)
 }
+
 func (h *CompatibleTextHandler) concurrencyError(c *gin.Context, err error, slot string, started bool) {
 	status, kind, code, message := ConcurrencyErrorResponse(err, slot)
 	WriteAnthropicStreamError(c, status, kind, code, message, started, h.backend.MarkStream)
 }
+
 func (h *CompatibleTextHandler) Responses(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "openai")
 	if !accepted {
@@ -172,12 +179,12 @@ func (h *CompatibleTextHandler) Responses(c *gin.Context) {
 
 	h.backend.ObserveRequest(c, reqModel, reqStream)
 	h.backend.ObserveEndpoint(c, reqStream)
-	// 生图能力和模型级限流以渠道模型 C 及其请求体为准。
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
-	channelMapping := channelMappingRoutePlan.Mapping()
-	h.backend.BindPlan(c, channelMappingRoutePlan)
-	forwardBody, imageIntent := h.backend.ImageIntent(apiKey, reqModel, body, channelMapping)
+	// 生图能力和模型级限流以分组映射模型 G 及其请求体为准。
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
+	groupMapping := groupMappingRoutePlan.Mapping()
+	h.backend.BindPlan(c, groupMappingRoutePlan)
+	forwardBody, imageIntent := h.backend.ImageIntent(apiKey, reqModel, body, groupMapping)
 	requestCtx := c.Request.Context()
 	if imageIntent {
 		requestCtx = h.backend.ImageContext(requestCtx)
@@ -264,8 +271,8 @@ func (h *CompatibleTextHandler) Responses(c *gin.Context) {
 			SessionKey:    sessionHash,
 			StreamStarted: &streamStarted,
 			Log:           reqLog,
-			Route:         channelMappingRoutePlan,
-			Mapping:       channelMapping,
+			Route:         groupMappingRoutePlan,
+			Mapping:       groupMapping,
 		},
 		RequestContext: requestCtx,
 		ForwardBody:    forwardBody,
@@ -351,12 +358,12 @@ func (h *CompatibleTextHandler) ChatCompletions(c *gin.Context) {
 		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", InvalidStreamFieldTypeMessage)
 		return
 	}
-	// Chat Completions 的端点能力以渠道模型 C 为准，客户端模型 R 仍用于日志和错误语义。
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
-	channelMapping := channelMappingRoutePlan.Mapping()
-	h.backend.BindPlan(c, channelMappingRoutePlan)
-	if h.backend.ChatImageModel(reqModel, channelMapping) {
+	// Chat Completions 的端点能力以分组映射模型 G 为准，客户端模型 R 仍用于日志和错误语义。
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
+	groupMapping := groupMappingRoutePlan.Mapping()
+	h.backend.BindPlan(c, groupMappingRoutePlan)
+	if h.backend.ChatImageModel(reqModel, groupMapping) {
 		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "This model is not supported on the Chat Completions endpoint")
 		return
 	}
@@ -450,8 +457,8 @@ func (h *CompatibleTextHandler) ChatCompletions(c *gin.Context) {
 			SessionKey:    sessionHash,
 			StreamStarted: &streamStarted,
 			Log:           reqLog,
-			Route:         channelMappingRoutePlan,
-			Mapping:       channelMapping,
+			Route:         groupMappingRoutePlan,
+			Mapping:       groupMapping,
 		},
 		RequestContext:       c.Request.Context(),
 		GroupPlatform:        groupPlatform,
@@ -477,7 +484,8 @@ func (h *CompatibleTextHandler) executeCompatible(c *gin.Context, call Compatibl
 		SessionHash: call.SessionKey,
 		AttemptBody: call.ForwardBody,
 
-		Text: execution.TextState{Kind: kind, Parsed: call.Parsed, Platform: call.GroupPlatform, SelectionContext: call.RequestContext, SelectionSessionHash: call.SelectionSessionHash, Mapping: call.Mapping, AlternateBudget: kind == execution.TextGenericChat && call.GroupPlatform == capability.PlatformGemini}}
+		Text: execution.TextState{Kind: kind, Parsed: call.Parsed, Platform: call.GroupPlatform, SelectionContext: call.RequestContext, SelectionSessionHash: call.SelectionSessionHash, Mapping: call.Mapping, AlternateBudget: kind == execution.TextGenericChat && call.GroupPlatform == capability.PlatformGemini},
+	}
 	output := &MessagesOutput{ResponseSink: ResponseSink{Writer: c.Writer}, HTTP: c, Log: call.Log, StreamStarted: call.StreamStarted}
 	_, _ = h.executor.Execute(c.Request.Context(), request, output)
 }

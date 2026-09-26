@@ -23,8 +23,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
-const openAIAccountScheduleLayerLoadBalance = "load_balance"
-const openAIAccountScheduleLayerGuardianParent = "guardian_parent"
+const (
+	openAIAccountScheduleLayerLoadBalance    = "load_balance"
+	openAIAccountScheduleLayerGuardianParent = "guardian_parent"
+)
 
 type openAIAccountSchedulerMetrics struct {
 	schedulercore.PlatformMetrics
@@ -35,6 +37,7 @@ func (m *openAIAccountSchedulerMetrics) recordSelect(v schedulercore.PlatformDec
 		m.RecordSelect(v)
 	}
 }
+
 func (m *openAIAccountSchedulerMetrics) recordSwitch() {
 	if m != nil {
 		m.RecordSwitch()
@@ -170,9 +173,9 @@ func (s *compatiblePicker) isAccountRequestCompatibleReason(ctx context.Context,
 		return false, "model_not_supported"
 	}
 	if req.GroupID != nil && s != nil && s.service != nil &&
-		s.service.NeedsUpstreamChannelRestriction(ctx, req.GroupID) &&
+		s.service.NeedsUpstreamGroupRestriction(ctx, req.GroupID) &&
 		s.service.UpstreamRoutingModelRestricted(ctx, *req.GroupID, account, requestRoutingModel(req), req.RequireCompact) {
-		return false, "channel_upstream_restricted"
+		return false, "group_upstream_restricted"
 	}
 	if !accountSupportsOpenAICapabilities(ctx, account, req.RequiredCapability, req.RequiredImageCapability) {
 		return false, "capability_mismatch"
@@ -288,7 +291,7 @@ func (s *Compatible) SelectAccountWithSchedulerForCapability(
 }
 
 // SelectAccountWithSchedulerForCapabilityAndRoutingModel 同时保留客户端模型 R 与已解析的账号层模型。
-// 该入口供 /v1/messages 使用，使渠道限制按 R/C 检查，账号能力与账号映射按 D 检查。
+// 该入口供 /v1/messages 使用，使分组白名单按 R/C 检查，账号能力与账号映射按 D 检查。
 func (s *Compatible) SelectAccountWithSchedulerForCapabilityAndRoutingModel(
 	ctx context.Context,
 	groupID *int64,
@@ -309,7 +312,7 @@ func (s *Compatible) SelectAccountWithSchedulerForCapabilityAndRoutingModel(
 	}
 	routingModel = strings.TrimSpace(routingModel)
 	if routingModel == "" {
-		routingModel = s.resolveChannelRoutingModel(ctx, groupID, requestedModel)
+		routingModel = s.resolveGroupRoutingModel(ctx, groupID, requestedModel)
 	}
 	return s.selectAccountWithSchedulerForRouting(ctx, groupID, previousResponseID, sessionHash, requestedModel, routingModel, excludedIDs, requiredTransport, requiredCapability, "", requireCompact, platform, previousResponseCanMove)
 }
@@ -347,7 +350,7 @@ func (s *Compatible) selectAccountWithScheduler(
 	platform string,
 	previousResponseCanMove bool,
 ) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
-	routingModel := s.resolveChannelRoutingModel(ctx, groupID, requestedModel)
+	routingModel := s.resolveGroupRoutingModel(ctx, groupID, requestedModel)
 	return s.selectAccountWithSchedulerForRouting(ctx, groupID, previousResponseID, sessionHash, requestedModel, routingModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove)
 }
 
@@ -377,8 +380,7 @@ func (s *Compatible) selectAccountWithSchedulerForRouting(
 	ctx = resolvedCtx
 	groupID = resolvedGroupID
 	if derefGroupID(groupID) != originalGroupID {
-
-		routingModel = s.resolveChannelRoutingModel(ctx, groupID, requestedModel)
+		routingModel = s.resolveGroupRoutingModel(ctx, groupID, requestedModel)
 	}
 	selection, decision, err := s.selectAccountWithSchedulerForRoutingOnce(ctx, groupID, previousResponseID, sessionHash, requestedModel, routingModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove)
 	if err == nil || openAIProxyStreamQuarantineBypassed(ctx) {
@@ -401,7 +403,7 @@ func (s *Compatible) selectAccountWithSchedulerForRouting(
 
 // resolveOpenAISchedulerGroup 解析 OpenAI 路径最终实际使用的分组。
 // 与通用网关保持一致：Claude Code 专属分组会在非 Claude Code 请求时沿回退链解析，
-// 因此高级调度器模式、渠道映射和粘性缓存均绑定到最终目标分组。
+// 因此高级调度器模式、分组映射和粘性缓存均绑定到最终目标分组。
 func (s *Compatible) resolveOpenAISchedulerGroup(ctx context.Context, groupID *int64) (context.Context, *int64, error) {
 	if groupID == nil || *groupID <= 0 {
 		return ctx, groupID, nil
@@ -459,7 +461,6 @@ func (s *Compatible) loadOpenAIGroupRequiresPrivacySet(ctx context.Context, grou
 	}
 	group, err := s.readSchedulingGroup(ctx, *groupID)
 	if err != nil {
-
 		return true
 	}
 	return group != nil && group.RequirePrivacySet
@@ -576,11 +577,11 @@ func (s *Compatible) selectAccountWithSchedulerForRoutingOnce(
 		}
 	}
 
-	if s.CheckChannelPricingRestriction(ctx, groupID, requestedModel) {
-		slog.Warn("channel pricing restriction blocked request",
+	if s.CheckGroupModelRestriction(ctx, groupID, requestedModel) {
+		slog.Warn("group model restriction blocked request",
 			"group_id", derefGroupID(groupID),
 			"model", requestedModel)
-		return nil, decision, fmt.Errorf("%w supporting model: %s (channel pricing restriction)", schedulercore.ErrNoAvailableAccounts, requestedModel)
+		return nil, decision, fmt.Errorf("%w supporting model: %s (group model restriction)", schedulercore.ErrNoAvailableAccounts, requestedModel)
 	}
 
 	var stickyAccountID int64
@@ -691,7 +692,6 @@ func (s *Compatible) ReportOpenAIAccountScheduleResult(accountOrID any, model st
 
 	healthTripped := false
 	if account != nil && s != nil && s.healthObserver != nil {
-
 		if !success && len(observedErr) > 0 && observedErr[0] != nil {
 			healthTripped = s.ObserveOpenAIAccountHealthFailure(context.Background(), account, observedErr[0])
 		}
@@ -765,7 +765,6 @@ func (s *Compatible) reportOpenAIAccountScheduleResultWithFeedback(accountID int
 }
 
 func (s *Compatible) RecordOpenAIAccountSwitch() {
-
 	if s == nil || s.healthObserver == nil {
 		return
 	}

@@ -86,23 +86,23 @@ func TestCalculateCostUnified_Fable51MaxReasoningMultiplier(t *testing.T) {
 	require.InDelta(t, standard.ActualCost*3, max.ActualCost, 1e-12)
 }
 
-func TestCalculateCostUnified_ChannelOverridesFable51MaxReasoningMultiplier(t *testing.T) {
+func TestCalculateCostUnified_PricingConfigOverridesFable51MaxReasoningMultiplier(t *testing.T) {
 	configured := 1.5
 	groupID := int64(7)
-	cs := newTestChannelServiceWithCache(t, &routingtestkit.ChannelData{
-		Prices: map[routingtestkit.ModelKey]*routing.ChannelModelPricing{
+	cs := newTestPricingConfigServiceWithCache(t, &routingtestkit.ModelConfigData{
+		Prices: map[routingtestkit.ModelKey]*routing.ModelPricingEntry{
 			{GroupID: groupID, Platform: capability.PlatformAnthropic, Model: "claude-fable-5-1"}: {
 				Platform: capability.PlatformAnthropic, BillingMode: routing.BillingModeToken,
 				InputPrice: testPtrFloat64(10e-6), OutputPrice: testPtrFloat64(50e-6),
 				MaxReasoningEffortMultiplier: &configured,
 			},
 		},
-		ByGroup:       map[int64]*routing.Channel{groupID: {ID: 1, Status: billing.StatusActive}},
+		ByGroup:       map[int64]*routingtestkit.Configuration{groupID: {ID: 1, Status: billing.StatusActive}},
 		Platforms:     map[int64]string{groupID: capability.PlatformAnthropic},
 		PricePatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.PricePattern{},
 		Models:        map[routingtestkit.ModelKey]string{},
 		ModelPatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.ModelPattern{},
-		ByID:          map[int64]*routing.Channel{},
+		ByID:          map[int64]*routingtestkit.Configuration{},
 	})
 	bs := newTestCalculator()
 	resolver := billingtestkit.PriceResolver(cs, bs)
@@ -115,23 +115,23 @@ func TestCalculateCostUnified_ChannelOverridesFable51MaxReasoningMultiplier(t *t
 	require.InDelta(t, 1000*10e-6*configured, cost.TotalCost, 1e-12)
 }
 
-func TestCalculateCostUnified_AppliesChannelPriceMultiplierBeforeRateMultiplier(t *testing.T) {
-	cs := newTestChannelServiceWithCache(t, &routingtestkit.ChannelData{
-		Prices: map[routingtestkit.ModelKey]*routing.ChannelModelPricing{
+func TestCalculateCostUnified_AppliesPricingConfigPriceMultiplierBeforeRateMultiplier(t *testing.T) {
+	cs := newTestPricingConfigServiceWithCache(t, &routingtestkit.ModelConfigData{
+		Prices: map[routingtestkit.ModelKey]*routing.ModelPricingEntry{
 			{GroupID: 2, Model: "claude-sonnet-4"}: {
 				BillingMode:     routing.BillingModeToken,
 				PriceMultiplier: testPtrFloat64(2),
 				InputPrice:      testPtrFloat64(5e-6),
 			},
 		},
-		ByGroup: map[int64]*routing.Channel{
+		ByGroup: map[int64]*routingtestkit.Configuration{
 			2: {ID: 2, Status: billing.StatusActive},
 		},
 		Platforms:     map[int64]string{2: ""},
 		PricePatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.PricePattern{},
 		Models:        map[routingtestkit.ModelKey]string{},
 		ModelPatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.ModelPattern{},
-		ByID:          map[int64]*routing.Channel{},
+		ByID:          map[int64]*routingtestkit.Configuration{},
 	})
 
 	bs := newTestCalculator()
@@ -147,7 +147,7 @@ func TestCalculateCostUnified_AppliesChannelPriceMultiplierBeforeRateMultiplier(
 	})
 	require.NoError(t, err)
 
-	// 输入价 5e-6、继承输出价 15e-6，先乘渠道 2x，再乘分组 3x。
+	// 输入价 5e-6、继承输出价 15e-6，先乘共享价格配置 2x，再乘分组 3x。
 	expectedTotal := 100*10e-6 + 10*30e-6
 	require.InDelta(t, expectedTotal, cost.TotalCost, 1e-12)
 	require.InDelta(t, expectedTotal*3, cost.ActualCost, 1e-12)
@@ -176,22 +176,22 @@ func TestCalculateCostUnified_TokenModeAppliesRateMultiplierToImageTokens(t *tes
 }
 
 func TestCalculateCostUnified_PerRequestMode(t *testing.T) {
-	// Set up a ChannelService with a per-request pricing channel
-	cs := newTestChannelServiceWithCache(t, &routingtestkit.ChannelData{
-		Prices: map[routingtestkit.ModelKey]*routing.ChannelModelPricing{
+	// Set up a PricingConfigService with a per-request pricing configPricing
+	cs := newTestPricingConfigServiceWithCache(t, &routingtestkit.ModelConfigData{
+		Prices: map[routingtestkit.ModelKey]*routing.ModelPricingEntry{
 			{GroupID: 1, Model: "claude-sonnet-4"}: {
 				BillingMode:     routing.BillingModePerRequest,
 				PerRequestPrice: testPtrFloat64(0.05),
 			},
 		},
-		ByGroup: map[int64]*routing.Channel{
+		ByGroup: map[int64]*routingtestkit.Configuration{
 			1: {ID: 1, Status: billing.StatusActive},
 		},
 		Platforms:     map[int64]string{1: ""},
 		PricePatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.PricePattern{},
 		Models:        map[routingtestkit.ModelKey]string{},
 		ModelPatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.ModelPattern{},
-		ByID:          map[int64]*routing.Channel{},
+		ByID:          map[int64]*routingtestkit.Configuration{},
 	})
 
 	bs := newTestCalculator()
@@ -221,8 +221,8 @@ func TestCalculateCostUnified_PerRequestMode(t *testing.T) {
 func TestCalculateCostUnified_PerRequestTierExplicitZeroDoesNotFallbackToDefault(t *testing.T) {
 	zero := 0.0
 	defaultPrice := 0.10
-	cs := newTestChannelServiceWithCache(t, &routingtestkit.ChannelData{
-		Prices: map[routingtestkit.ModelKey]*routing.ChannelModelPricing{
+	cs := newTestPricingConfigServiceWithCache(t, &routingtestkit.ModelConfigData{
+		Prices: map[routingtestkit.ModelKey]*routing.ModelPricingEntry{
 			{GroupID: 3, Model: "qoder-image"}: {
 				BillingMode:     routing.BillingModeImage,
 				PerRequestPrice: &defaultPrice,
@@ -231,14 +231,14 @@ func TestCalculateCostUnified_PerRequestTierExplicitZeroDoesNotFallbackToDefault
 				},
 			},
 		},
-		ByGroup: map[int64]*routing.Channel{
+		ByGroup: map[int64]*routingtestkit.Configuration{
 			3: {ID: 3, Status: billing.StatusActive},
 		},
 		Platforms:     map[int64]string{3: ""},
 		PricePatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.PricePattern{},
 		Models:        map[routingtestkit.ModelKey]string{},
 		ModelPatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.ModelPattern{},
-		ByID:          map[int64]*routing.Channel{},
+		ByID:          map[int64]*routingtestkit.Configuration{},
 	})
 
 	bs := newTestCalculator()
@@ -265,8 +265,8 @@ func TestCalculateCostUnified_PerRequestContextTierExplicitZeroDoesNotFallbackTo
 	zero := 0.0
 	defaultPrice := 0.10
 	maxTokens := 1000
-	cs := newTestChannelServiceWithCache(t, &routingtestkit.ChannelData{
-		Prices: map[routingtestkit.ModelKey]*routing.ChannelModelPricing{
+	cs := newTestPricingConfigServiceWithCache(t, &routingtestkit.ModelConfigData{
+		Prices: map[routingtestkit.ModelKey]*routing.ModelPricingEntry{
 			{GroupID: 4, Model: "qoder-request"}: {
 				BillingMode:     routing.BillingModePerRequest,
 				PerRequestPrice: &defaultPrice,
@@ -275,14 +275,14 @@ func TestCalculateCostUnified_PerRequestContextTierExplicitZeroDoesNotFallbackTo
 				},
 			},
 		},
-		ByGroup: map[int64]*routing.Channel{
+		ByGroup: map[int64]*routingtestkit.Configuration{
 			4: {ID: 4, Status: billing.StatusActive},
 		},
 		Platforms:     map[int64]string{4: ""},
 		PricePatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.PricePattern{},
 		Models:        map[routingtestkit.ModelKey]string{},
 		ModelPatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.ModelPattern{},
-		ByID:          map[int64]*routing.Channel{},
+		ByID:          map[int64]*routingtestkit.Configuration{},
 	})
 
 	bs := newTestCalculator()
@@ -306,21 +306,21 @@ func TestCalculateCostUnified_PerRequestContextTierExplicitZeroDoesNotFallbackTo
 }
 
 func TestCalculateCostUnified_ImageMode(t *testing.T) {
-	cs := newTestChannelServiceWithCache(t, &routingtestkit.ChannelData{
-		Prices: map[routingtestkit.ModelKey]*routing.ChannelModelPricing{
+	cs := newTestPricingConfigServiceWithCache(t, &routingtestkit.ModelConfigData{
+		Prices: map[routingtestkit.ModelKey]*routing.ModelPricingEntry{
 			{GroupID: 2, Model: "gemini-image"}: {
 				BillingMode:     routing.BillingModeImage,
 				PerRequestPrice: testPtrFloat64(0.10),
 			},
 		},
-		ByGroup: map[int64]*routing.Channel{
+		ByGroup: map[int64]*routingtestkit.Configuration{
 			2: {ID: 2, Status: billing.StatusActive},
 		},
 		Platforms:     map[int64]string{2: ""},
 		PricePatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.PricePattern{},
 		Models:        map[routingtestkit.ModelKey]string{},
 		ModelPatterns: map[routingtestkit.GroupPlatform][]*routingtestkit.ModelPattern{},
-		ByID:          map[int64]*routing.Channel{},
+		ByID:          map[int64]*routingtestkit.Configuration{},
 	})
 
 	bs := newCalculatorWithPrices(&config.Config{}, nil, map[string]*pricing.ModelPricing{})
@@ -432,12 +432,12 @@ func TestCalculateCostUnified_UsesPreResolvedPricing(t *testing.T) {
 // helpers
 // ---------------------------------------------------------------------------
 
-// newTestChannelServiceWithCache creates a ChannelService with a pre-populated
+// newTestPricingConfigServiceWithCache creates a PricingConfigService with a pre-populated
 // cache snapshot, bypassing the repository layer entirely.
-func newTestChannelServiceWithCache(t *testing.T, cache *routingtestkit.ChannelData) *routing.ChannelService {
+func newTestPricingConfigServiceWithCache(t *testing.T, cache *routingtestkit.ModelConfigData) *routing.PricingConfigService {
 	t.Helper()
 
 	cache.LoadedAt = time.Now()
-	cs := routingtestkit.ChannelFromData(cache)
+	cs := routingtestkit.ModelConfigFromData(cache)
 	return cs
 }

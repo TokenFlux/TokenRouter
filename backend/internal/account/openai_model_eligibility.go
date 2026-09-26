@@ -10,11 +10,8 @@ import (
 // Codex 上游不可能服务这些模型：转发阶段 normalizeOpenAIModelForUpstream
 // 对未知模型原样透传，上游必然返回不可重试的 400。
 //
-// 采用保守黑名单而非 Codex 模型白名单：已知 bare ID 做等值排除，
-// 未知/自定义别名仍保持“允许”，
-// 以兼容渠道级模型映射等“账号选定之后才改写模型名”的部署方式
-// （调度过滤看到的是改写前的原始模型名）。前缀分类的先例见
-// ResolveThinkingProtocol（thinking_protocol.go）。
+// 已知的其他厂商模型在此排除；未知或自定义别名继续交给后续模型规则和上游校验。
+// 本函数只按传入的模型名筛选，不在此执行分组或账号映射。
 var oauthForeignModelPrefixes = []string{
 	"deepseek-",
 	"glm-",

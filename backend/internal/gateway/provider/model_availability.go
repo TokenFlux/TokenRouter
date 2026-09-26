@@ -15,12 +15,12 @@ type AvailabilityAccounts interface {
 	ListModelAvailabilityCandidates(context.Context, *int64, []string, bool) ([]account.Record, error)
 }
 
-// NewModelAvailability 固定查询和渠道来源；每次诊断仍按原时点读取，无独立缓存。
+// NewModelAvailability 绑定账号查询与分组映射读取端口，不维护独立缓存。
 // @project-doc docs/architecture/account_scheduling_and_cache.md#advanced_scheduler_selection
-func NewModelAvailability(source AvailabilityAccounts, channels *routing.ChannelService, simple, compatible bool) *routing.ModelAvailability {
+func NewModelAvailability(source AvailabilityAccounts, groupPolicies *routing.PricingConfigService, simple, compatible bool) *routing.ModelAvailability {
 	result := &routing.ModelAvailability{
 		Simple:   simple,
-		MapModel: channels.ResolveRoutingModel,
+		MapModel: groupPolicies.ResolveRoutingModel,
 	}
 	if source == nil {
 		return result

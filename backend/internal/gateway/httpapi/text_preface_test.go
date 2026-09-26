@@ -38,11 +38,14 @@ func (p *prefaceBackend) Access(*gin.Context) (*apikey.APIKey, bool) { return p.
 func (p *prefaceBackend) ObserveRequest(_ *gin.Context, m string, _ bool) {
 	p.events = append(p.events, "request:"+m)
 }
+
 func (p *prefaceBackend) ObserveEndpoint(*gin.Context, bool) { p.events = append(p.events, "endpoint") }
+
 func (p *prefaceBackend) ApplyUserPromptReplacementToBody(_ context.Context, b []byte, protocol string) []byte {
 	p.events = append(p.events, "prompt:"+protocol)
 	return b
 }
+
 func (p *prefaceBackend) Reasoning(_ *gin.Context, _ *apikey.APIKey, b []byte) ([]byte, bool, error) {
 	p.events = append(p.events, "reasoning")
 	return b, false, p.policyErr
@@ -50,19 +53,23 @@ func (p *prefaceBackend) Reasoning(_ *gin.Context, _ *apikey.APIKey, b []byte) (
 func (p *prefaceBackend) PolicyDenied(*gin.Context) { p.events = append(p.events, "denied") }
 func (p *prefaceBackend) Plan(_ context.Context, k *apikey.APIKey, m string) routing.RoutePlan {
 	p.events = append(p.events, "plan")
-	return routing.Plan(routing.PlanInput{RequestedModel: m, GroupID: k.GroupID, Channel: routing.ChannelMappingResult{Mapped: true, MappedModel: "mapped-model"}})
+	return routing.Plan(routing.PlanInput{RequestedModel: m, GroupID: k.GroupID, GroupMapping: routing.GroupMappingResult{Mapped: true, MappedModel: "mapped-model"}})
 }
+
 func (p *prefaceBackend) BindPlan(*gin.Context, routing.RoutePlan) {
 	p.events = append(p.events, "bind")
 }
-func (p *prefaceBackend) ImageIntent(_ *apikey.APIKey, _ string, b []byte, _ routing.ChannelMappingResult) ([]byte, bool) {
+
+func (p *prefaceBackend) ImageIntent(_ *apikey.APIKey, _ string, b []byte, _ routing.GroupMappingResult) ([]byte, bool) {
 	p.events = append(p.events, "image")
 	return b, false
 }
-func (p *prefaceBackend) ChatImageModel(string, routing.ChannelMappingResult) bool {
+
+func (p *prefaceBackend) ChatImageModel(string, routing.GroupMappingResult) bool {
 	p.events = append(p.events, "image")
 	return false
 }
+
 func (p *prefaceBackend) Moderate(_ *gin.Context, _ *zap.Logger, _ *apikey.APIKey, _ authctx.AuthSubject, protocol, _ string, _ []byte) *moderation.Decision {
 	p.events = append(p.events, "moderate:"+protocol)
 	return &moderation.Decision{Blocked: p.block, Message: "blocked"}
@@ -76,7 +83,9 @@ func (p *prefaceBackend) Eligibility(ctx context.Context, _ *apikey.APIKey, _ *b
 	p.events = append(p.events, "eligibility")
 	return nil
 }
+
 func (p *prefaceBackend) Isolate(context.Context, *apikey.APIKey, int64, string) error { return nil }
+
 func (p *prefaceBackend) Execution(c *gin.Context, call CompatibleTextCall, _ CompatibleTextKind) textflow.MessagePorts {
 	p.call = call
 	p.events = append(p.events, "execution")
@@ -95,20 +104,22 @@ func (p *prefaceLoop) Begin()                   {}
 func (p *prefaceLoop) Finish(bool)              {}
 func (p *prefaceLoop) PrepareAttempt() bool     { return false }
 func prefaceContext(body string) (*gin.Context, *httptest.ResponseRecorder) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/test", strings.NewReader(body))
 	c.Set(authctx.ContextKeyUser, authctx.AuthSubject{UserID: 42, Concurrency: 0})
 	return c, w
 }
+
 func prefaceKey() *apikey.APIKey {
 	id := int64(7)
 	return &apikey.APIKey{ID: 9, GroupID: &id, Group: &routing.Group{ID: id, Platform: "gemini"}}
 }
+
 func prefaceConcurrency() *ConcurrencyHelper {
 	return NewConcurrencyHelper(scheduler.NewConcurrencyService(nil), SSEPingFormatNone, 0)
 }
+
 func TestCompatiblePrefaceOrderingAndEnvelope(t *testing.T) {
 	for _, responses := range []bool{true, false} {
 		name, protocol, field := "chat", "chat_completions", "type"
@@ -140,6 +151,7 @@ func TestCompatiblePrefaceOrderingAndEnvelope(t *testing.T) {
 		})
 	}
 }
+
 func TestCompatiblePrefaceValidationBeforeScheduling(t *testing.T) {
 	for _, tc := range []struct {
 		name, body, message string
@@ -172,6 +184,7 @@ func TestCompatiblePrefaceValidationBeforeScheduling(t *testing.T) {
 		})
 	}
 }
+
 func TestCompatiblePrefacePassesRequestLeaseAndOriginalModel(t *testing.T) {
 	for _, responses := range []bool{true, false} {
 		p := &prefaceBackend{key: prefaceKey()}
@@ -204,24 +217,33 @@ func (p *geminiPrefaceBackend) SafeModelSegment(string) bool                 { r
 func (p *geminiPrefaceBackend) ObserveRequest(c *gin.Context, m string, s bool) {
 	p.base.ObserveRequest(c, m, s)
 }
+
 func (p *geminiPrefaceBackend) ObserveEndpoint(c *gin.Context, s bool) { p.base.ObserveEndpoint(c, s) }
+
 func (p *geminiPrefaceBackend) Moderate(c *gin.Context, l *zap.Logger, k *apikey.APIKey, a authctx.AuthSubject, m string, b []byte) *moderation.Decision {
 	return p.base.Moderate(c, l, k, a, "gemini", m, b)
 }
+
 func (p *geminiPrefaceBackend) Plan(c context.Context, k *apikey.APIKey, m string) routing.RoutePlan {
 	return p.base.Plan(c, k, m)
 }
+
 func (p *geminiPrefaceBackend) BindPlan(c *gin.Context, r routing.RoutePlan) { p.base.BindPlan(c, r) }
-func (p *geminiPrefaceBackend) BindErrors(c *gin.Context)                    { p.base.BindErrors(c) }
+
+func (p *geminiPrefaceBackend) BindErrors(c *gin.Context) { p.base.BindErrors(c) }
+
 func (p *geminiPrefaceBackend) Eligibility(c context.Context, k *apikey.APIKey, s *billing.UserSubscription) error {
 	return p.base.Eligibility(c, k, s)
 }
+
 func (p *geminiPrefaceBackend) Isolate(context.Context, *apikey.APIKey, int64, string) error {
 	return nil
 }
+
 func (p *geminiPrefaceBackend) CachedSession(context.Context, *int64, string) (int64, error) {
 	return p.bound, nil
 }
+
 func (p *geminiPrefaceBackend) Prefetch(_ *gin.Context, _, _ int64) {
 	p.base.events = append(p.base.events, "prefetch")
 }
@@ -229,6 +251,7 @@ func (p *geminiPrefaceBackend) DigestChain(*protocolgemini.GeminiRequest) string
 func (p *geminiPrefaceBackend) PrefixHash(int64, int64, string, string, string, string) string {
 	return "prefix"
 }
+
 func (p *geminiPrefaceBackend) FindSession(context.Context, int64, string, string) (string, int64, string, bool) {
 	return "session-id", 87, "previous", true
 }
@@ -237,6 +260,7 @@ func (p *geminiPrefaceBackend) BindSticky(context.Context, *int64, string, int64
 	p.base.events = append(p.base.events, "sticky")
 	return nil
 }
+
 func (p *geminiPrefaceBackend) Execution(c *gin.Context, call GeminiNativeCall) textflow.MessagePorts {
 	p.call = call
 	return &prefaceLoop{ctx: c.Request.Context()}
@@ -252,6 +276,7 @@ func TestGeminiNativePrefacePreservesModerationBeforeMapping(t *testing.T) {
 	require.Equal(t, []string{"request:m", "endpoint", "prompt:gemini", "moderate:gemini"}, base.events)
 	require.Contains(t, w.Body.String(), "blocked")
 }
+
 func TestGeminiNativePrefaceCarriesSignatureAndDigestState(t *testing.T) {
 	for _, bound := range []int64{65, 0} {
 		t.Run(map[bool]string{true: "sticky", false: "digest"}[bound > 0], func(t *testing.T) {
@@ -285,6 +310,7 @@ func (p *prefaceBackend) Execute(_ context.Context, in execution.Request, _ upst
 	p.events = append(p.events, "execution")
 	return execution.ExecutionResult{}, nil
 }
+
 func (p *geminiPrefaceBackend) Execute(_ context.Context, in execution.Request, _ upstream.OutputSink) (execution.ExecutionResult, error) {
 	p.call = GeminiNativeCall{MessagesCall: MessagesCall{Key: in.Funding.Key, Model: in.Model, Stream: in.Stream, HasBoundSession: in.Text.HasBoundSession, BoundAccountID: in.Text.BoundAccountID}, ModelName: in.Text.GeminiModel, SignatureState: in.Text.SignatureState, MatchedDigestChain: in.Text.MatchedDigestChain, SessionUUID: in.Text.SessionUUID, UseDigestFallback: in.Text.UseDigestFallback}
 	return execution.ExecutionResult{}, nil

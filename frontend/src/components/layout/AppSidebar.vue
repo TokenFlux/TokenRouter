@@ -378,7 +378,7 @@ const FolderIcon = {
     )
 }
 
-const ChannelIcon = {
+const PricingIcon = {
   render: () =>
     h(
       'svg',
@@ -715,7 +715,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/teams', label: t('nav.teams'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagTeamAccess },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon, hideInSimpleMode: true },
-    { path: '/admin/channels', label: t('nav.channels', '渠道管理'), icon: ChannelIcon, hideInSimpleMode: true },
+    { path: '/admin/pricing', label: t('nav.pricing', '价格管理'), icon: PricingIcon, hideInSimpleMode: true },
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },

@@ -376,7 +376,7 @@ func (s *Marketplace) resolveGroupModels(ctx context.Context, group *Group) []Ma
 		if len(resolution.Models) > 0 {
 			return buildMarketplaceModelDefsFromRequestable(resolution.Models, s.options.DisplayNames(group.Platform))
 		}
-		// 已完成账号和渠道解析后，空结果必须保持为空，不能再次回退平台默认模型。
+		// 已完成账号和分组策略解析后，空结果必须保持为空，不能再次回退平台默认模型。
 		return nil
 	}
 
@@ -386,7 +386,7 @@ func (s *Marketplace) resolveGroupModels(ctx context.Context, group *Group) []Ma
 	return s.options.DefaultModels(group.Platform)
 }
 
-// resolveGroupModelsWithAccounts 直接使用预取账号生成候选和执行 R -> C -> U 校验。
+// resolveGroupModelsWithAccounts 直接使用预取账号生成候选和执行 R -> G -> U 校验。
 func (s *Marketplace) resolveGroupModelsWithAccounts(ctx context.Context, group *Group, accounts []CatalogueAccount) []MarketplaceModelDef {
 	if s == nil || s.models == nil || group == nil {
 		return nil
@@ -495,7 +495,7 @@ type MarketplaceAvailability interface {
 type MarketplaceQuoteRequest struct {
 	Model                     string
 	GroupID                   int64
-	ModelPricing              []ChannelModelPricing
+	ModelPricing              []ModelPricingEntry
 	LongContextPricingEnabled bool
 	RateMultiplier            float64
 	FreeFastApplicable        bool

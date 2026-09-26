@@ -51,12 +51,10 @@ func (s *geminiCompatHTTPUpstreamStub) DoWithTLS(req *http.Request, proxyURL str
 }
 
 func TestGeminiForwardAsChatCompletions_OAuthRoutesToGeminiAndReturnsChatFormat(t *testing.T) {
-
 	upstreamBody := `data: {"response":{"candidates":[{"content":{"parts":[{"text":"hello from gemini"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":7,"candidatesTokenCount":3}}}` + "\n\n" +
 		"data: [DONE]\n\n"
 	httpStub := &geminiCompatHTTPUpstreamStub{
 		response: &http.Response{
-
 			StatusCode: http.StatusOK,
 
 			Header: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -65,34 +63,33 @@ func TestGeminiForwardAsChatCompletions_OAuthRoutesToGeminiAndReturnsChatFormat(
 		},
 	}
 	svc := newGeminiFixture(geminiDependencies{
-
 		tokenProvider: newGeminiTokenSourceForTest(),
 
 		httpUpstream: httpStub,
 
 		cfg: &googleforward.Options{},
 	})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           101,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           101,
 
-		Platform: capability.PlatformGemini,
+			Platform: capability.PlatformGemini,
 
-		Type: capability.AccountTypeOAuth,
+			Type: capability.AccountTypeOAuth,
 
-		Credentials: map[string]any{
+			Credentials: map[string]any{
+				"access_token": "ya29.test-token",
 
-			"access_token": "ya29.test-token",
+				"project_id": "project-1",
 
-			"project_id": "project-1",
-
-			"model_mapping": map[string]any{
-				"gemini-2.5-flash": "gemini-2.5-flash-upstream",
+				"model_mapping": map[string]any{
+					"gemini-2.5-flash": "gemini-2.5-flash-upstream",
+				},
 			},
-		},
 
-		Concurrency: 1,
-	},
+			Concurrency: 1,
+		},
 	}
 
 	rec := httptest.NewRecorder()
@@ -146,11 +143,9 @@ func TestGeminiForwardAsChatCompletions_OAuthRoutesToGeminiAndReturnsChatFormat(
 
 // TestGeminiMessagesCompatServiceForward_OAuthAppliesAccountModelMapping 验证 Messages 兼容入口的 OAuth 账号也执行 C -> U。
 func TestGeminiMessagesCompatServiceForward_OAuthAppliesAccountModelMapping(t *testing.T) {
-
 	upstreamBody := `data: {"response":{"candidates":[{"content":{"parts":[{"text":"hello"}]} ,"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":4,"candidatesTokenCount":2}}}` + "\n\n" +
 		"data: [DONE]\n\n"
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
-
 		StatusCode: http.StatusOK,
 
 		Header: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -158,45 +153,44 @@ func TestGeminiMessagesCompatServiceForward_OAuthAppliesAccountModelMapping(t *t
 		Body: io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	svc := newGeminiFixture(geminiDependencies{
-
 		tokenProvider: newGeminiTokenSourceForTest(),
 
 		httpUpstream: httpStub,
 
 		cfg: &googleforward.Options{},
 	})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           103,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           103,
 
-		Platform: capability.PlatformGemini,
+			Platform: capability.PlatformGemini,
 
-		Type: capability.AccountTypeOAuth,
+			Type: capability.AccountTypeOAuth,
 
-		Credentials: map[string]any{
+			Credentials: map[string]any{
+				"access_token": "ya29.test-token",
 
-			"access_token": "ya29.test-token",
+				"project_id": "project-1",
 
-			"project_id": "project-1",
-
-			"model_mapping": map[string]any{
-				"channel-model": "oauth-upstream-model",
+				"model_mapping": map[string]any{
+					"group-model": "oauth-upstream-model",
+				},
 			},
-		},
 
-		Concurrency: 1,
-	},
+			Concurrency: 1,
+		},
 	}
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
-	body := []byte(`{"model":"channel-model","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}`)
+	body := []byte(`{"model":"group-model","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}`)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
 
 	result, err := svc.Forward(context.Background(), gatewayhttp.NewGoogleBoundary(c, svc.Options, false), account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, "channel-model", result.Model)
+	require.Equal(t, "group-model", result.Model)
 	require.Equal(t, "oauth-upstream-model", result.UpstreamModel)
 	require.NotNil(t, httpStub.lastReq)
 	sentBody, err := io.ReadAll(httpStub.lastReq.Body)
@@ -206,11 +200,9 @@ func TestGeminiMessagesCompatServiceForward_OAuthAppliesAccountModelMapping(t *t
 
 // TestGeminiMessagesCompatServiceForwardNative_OAuthAppliesAccountModelMapping 验证原生 Gemini 入口的 OAuth 账号执行 C -> U。
 func TestGeminiMessagesCompatServiceForwardNative_OAuthAppliesAccountModelMapping(t *testing.T) {
-
 	upstreamBody := `data: {"response":{"candidates":[{"content":{"parts":[{"text":"hello"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":4,"candidatesTokenCount":2}}}` + "\n\n" +
 		"data: [DONE]\n\n"
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
-
 		StatusCode: http.StatusOK,
 
 		Header: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -218,45 +210,44 @@ func TestGeminiMessagesCompatServiceForwardNative_OAuthAppliesAccountModelMappin
 		Body: io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	svc := newGeminiFixture(geminiDependencies{
-
 		tokenProvider: newGeminiTokenSourceForTest(),
 
 		httpUpstream: httpStub,
 
 		cfg: &googleforward.Options{},
 	})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           104,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           104,
 
-		Platform: capability.PlatformGemini,
+			Platform: capability.PlatformGemini,
 
-		Type: capability.AccountTypeOAuth,
+			Type: capability.AccountTypeOAuth,
 
-		Credentials: map[string]any{
+			Credentials: map[string]any{
+				"access_token": "ya29.test-token",
 
-			"access_token": "ya29.test-token",
+				"project_id": "project-1",
 
-			"project_id": "project-1",
-
-			"model_mapping": map[string]any{
-				"channel-model": "oauth-upstream-model",
+				"model_mapping": map[string]any{
+					"group-model": "oauth-upstream-model",
+				},
 			},
-		},
 
-		Concurrency: 1,
-	},
+			Concurrency: 1,
+		},
 	}
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/channel-model:generateContent", bytes.NewReader(body))
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/group-model:generateContent", bytes.NewReader(body))
 
-	result, err := svc.ForwardNative(context.Background(), gatewayhttp.NewGoogleBoundary(c, svc.Options, false), account, "channel-model", "generateContent", false, body)
+	result, err := svc.ForwardNative(context.Background(), gatewayhttp.NewGoogleBoundary(c, svc.Options, false), account, "group-model", "generateContent", false, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, "channel-model", result.Model)
+	require.Equal(t, "group-model", result.Model)
 	require.Equal(t, "oauth-upstream-model", result.UpstreamModel)
 	require.NotNil(t, httpStub.lastReq)
 	sentBody, err := io.ReadAll(httpStub.lastReq.Body)
@@ -265,13 +256,11 @@ func TestGeminiMessagesCompatServiceForwardNative_OAuthAppliesAccountModelMappin
 }
 
 func TestGeminiForwardAsChatCompletions_StreamsOpenAIChunksFromGeminiSSE(t *testing.T) {
-
 	upstreamBody := `data: {"candidates":[{"content":{"parts":[{"text":"hel"}]}}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":1}}` + "\n\n" +
 		`data: {"candidates":[{"content":{"parts":[{"text":"hello"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":2}}` + "\n\n" +
 		"data: [DONE]\n\n"
 	httpStub := &geminiCompatHTTPUpstreamStub{
 		response: &http.Response{
-
 			StatusCode: http.StatusOK,
 
 			Header: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -283,20 +272,21 @@ func TestGeminiForwardAsChatCompletions_StreamsOpenAIChunksFromGeminiSSE(t *test
 		httpUpstream: httpStub,
 		cfg:          &googleforward.Options{},
 	})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           102,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           102,
 
-		Platform: capability.PlatformGemini,
+			Platform: capability.PlatformGemini,
 
-		Type: capability.AccountTypeAPIKey,
+			Type: capability.AccountTypeAPIKey,
 
-		Credentials: map[string]any{
-			"api_key": "gemini-api-key",
+			Credentials: map[string]any{
+				"api_key": "gemini-api-key",
+			},
+
+			Concurrency: 1,
 		},
-
-		Concurrency: 1,
-	},
 	}
 
 	rec := httptest.NewRecorder()
@@ -326,13 +316,11 @@ func TestGeminiForwardAsChatCompletions_StreamsOpenAIChunksFromGeminiSSE(t *test
 }
 
 func TestGeminiMessagesCompatServiceForward_StreamingClosesToolUseBeforeText(t *testing.T) {
-
 	upstreamBody := `data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"lookup","args":{"query":"weather"}}}]}}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":1}}` + "\n\n" +
 		`data: {"candidates":[{"content":{"parts":[{"text":"done"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":2}}` + "\n\n" +
 		"data: [DONE]\n\n"
 	httpStub := &geminiCompatHTTPUpstreamStub{
 		response: &http.Response{
-
 			StatusCode: http.StatusOK,
 
 			Header: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -344,20 +332,21 @@ func TestGeminiMessagesCompatServiceForward_StreamingClosesToolUseBeforeText(t *
 		httpUpstream: httpStub,
 		cfg:          &googleforward.Options{},
 	})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           103,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           103,
 
-		Platform: capability.PlatformGemini,
+			Platform: capability.PlatformGemini,
 
-		Type: capability.AccountTypeAPIKey,
+			Type: capability.AccountTypeAPIKey,
 
-		Credentials: map[string]any{
-			"api_key": "gemini-api-key",
+			Credentials: map[string]any{
+				"api_key": "gemini-api-key",
+			},
+
+			Concurrency: 1,
 		},
-
-		Concurrency: 1,
-	},
 	}
 
 	rec := httptest.NewRecorder()
@@ -376,7 +365,6 @@ func TestGeminiMessagesCompatServiceForward_StreamingClosesToolUseBeforeText(t *
 	require.GreaterOrEqual(t, toolStart, 0, "应先开始 tool_use 块")
 	require.Greater(t, toolStop, toolStart, "tool_use 块应被关闭")
 	require.Greater(t, textStart, toolStop, "文本块必须在 tool_use 块关闭后开始")
-
 }
 
 func parseSSEEventsForTest(t *testing.T, stream string) []map[string]any {
@@ -429,10 +417,8 @@ func findSSEEventForTest(events []map[string]any, event string, index int, block
 }
 
 func TestGeminiForwardAsChatCompletions_FunctionNamedWebSearchStaysClientSide(t *testing.T) {
-
 	httpStub := &geminiCompatHTTPUpstreamStub{
 		response: &http.Response{
-
 			StatusCode: http.StatusOK,
 
 			Header: http.Header{"Content-Type": []string{"application/json"}},
@@ -446,20 +432,21 @@ func TestGeminiForwardAsChatCompletions_FunctionNamedWebSearchStaysClientSide(t 
 		httpUpstream: httpStub,
 		cfg:          &googleforward.Options{},
 	})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           103,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           103,
 
-		Platform: capability.PlatformGemini,
+			Platform: capability.PlatformGemini,
 
-		Type: capability.AccountTypeAPIKey,
+			Type: capability.AccountTypeAPIKey,
 
-		Credentials: map[string]any{
-			"api_key": "gemini-api-key",
+			Credentials: map[string]any{
+				"api_key": "gemini-api-key",
+			},
+
+			Concurrency: 1,
 		},
-
-		Concurrency: 1,
-	},
 	}
 
 	rec := httptest.NewRecorder()
@@ -512,14 +499,11 @@ func TestConvertClaudeToolsToGeminiTools_CustomType(t *testing.T) {
 		expectedLen int
 		description string
 	}{
-
 		{
-
 			name: "Standard tools",
 
 			tools: []any{
 				map[string]any{
-
 					"name": "get_weather",
 
 					"description": "Get weather info",
@@ -534,12 +518,10 @@ func TestConvertClaudeToolsToGeminiTools_CustomType(t *testing.T) {
 		},
 
 		{
-
 			name: "Custom type tool (MCP format)",
 
 			tools: []any{
 				map[string]any{
-
 					"type": "custom",
 
 					"name": "mcp_tool",
@@ -557,13 +539,10 @@ func TestConvertClaudeToolsToGeminiTools_CustomType(t *testing.T) {
 		},
 
 		{
-
 			name: "Mixed standard and custom tools",
 
 			tools: []any{
-
 				map[string]any{
-
 					"name": "standard_tool",
 
 					"description": "Standard",
@@ -572,7 +551,6 @@ func TestConvertClaudeToolsToGeminiTools_CustomType(t *testing.T) {
 				},
 
 				map[string]any{
-
 					"type": "custom",
 
 					"name": "custom_tool",
@@ -590,7 +568,6 @@ func TestConvertClaudeToolsToGeminiTools_CustomType(t *testing.T) {
 		},
 
 		{
-
 			name: "Custom tool without custom field",
 
 			tools: []any{
@@ -663,7 +640,6 @@ func TestConvertClaudeToolsToGeminiTools_CustomType(t *testing.T) {
 
 func TestCleanToolSchema_NormalizesGeminiUnsupportedSchemaFields(t *testing.T) {
 	schema := map[string]any{
-
 		"type": "object",
 
 		"$defs": map[string]any{
@@ -675,7 +651,6 @@ func TestCleanToolSchema_NormalizesGeminiUnsupportedSchemaFields(t *testing.T) {
 		},
 
 		"properties": map[string]any{
-
 			"path": map[string]any{
 				"type": []any{"string", "null"},
 			},
@@ -715,13 +690,10 @@ func TestCleanToolSchema_NormalizesGeminiUnsupportedSchemaFields(t *testing.T) {
 // TestCleanToolSchema_ConvertsNestedIntegerExclusiveMinimum 验证嵌套整数独占下界可无损转换。
 func TestCleanToolSchema_ConvertsNestedIntegerExclusiveMinimum(t *testing.T) {
 	schema := map[string]any{
-
 		"type": "object",
 
 		"properties": map[string]any{
-
 			"counts": map[string]any{
-
 				"type": "array",
 
 				"items": map[string]any{
@@ -769,7 +741,6 @@ func TestCleanToolSchema_ConvertsNestedIntegerExclusiveMinimum(t *testing.T) {
 // TestCleanToolSchema_DropsAmbiguousExclusiveMinimumWithoutConversion 验证无法等价转换的边界只被清理。
 func TestCleanToolSchema_DropsAmbiguousExclusiveMinimumWithoutConversion(t *testing.T) {
 	for name, schema := range map[string]map[string]any{
-
 		"number schema": {
 			"type":             "number",
 			"exclusiveMinimum": 0,
@@ -792,7 +763,6 @@ func TestCleanToolSchema_DropsAmbiguousExclusiveMinimumWithoutConversion(t *test
 func TestCleanToolSchema_RemovesNestedDeprecatedAndNormalizesMixedScalarEnum(t *testing.T) {
 	schema := map[string]any{
 		"anyOf": []any{
-
 			map[string]any{
 				"type":       "string",
 				"deprecated": true,
@@ -831,9 +801,7 @@ func TestCleanToolSchema_DropsEnumWithNonScalarValue(t *testing.T) {
 
 func TestConvertClaudeToolsToGeminiTools_PreservesWebSearchAlongsideFunctions(t *testing.T) {
 	tools := []any{
-
 		map[string]any{
-
 			"name": "get_weather",
 
 			"description": "Get weather info",
@@ -864,7 +832,6 @@ func TestConvertClaudeToolsToGeminiTools_PreservesWebSearchAlongsideFunctions(t 
 }
 
 func TestGeminiHandleNativeNonStreamingResponse_DebugDisabledDoesNotEmitHeaderLogs(t *testing.T) {
-
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
@@ -877,7 +844,6 @@ func TestGeminiHandleNativeNonStreamingResponse_DebugDisabledDoesNotEmitHeaderLo
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	resp := &http.Response{
-
 		StatusCode: http.StatusOK,
 
 		Header: http.Header{
@@ -896,14 +862,12 @@ func TestGeminiHandleNativeNonStreamingResponse_DebugDisabledDoesNotEmitHeaderLo
 }
 
 func TestGeminiMessagesCompatServiceForward_PreservesRequestedModelAndMappedUpstreamModel(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	httpStub := &geminiCompatHTTPUpstreamStub{
 		response: &http.Response{
-
 			StatusCode: http.StatusOK,
 
 			Header: http.Header{"x-request-id": []string{"gemini-req-1"}},
@@ -912,19 +876,20 @@ func TestGeminiMessagesCompatServiceForward_PreservesRequestedModelAndMappedUpst
 		},
 	}
 	svc := newGeminiFixture(geminiDependencies{httpUpstream: httpStub, cfg: &googleforward.Options{}})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           1,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           1,
 
-		Type: capability.AccountTypeAPIKey,
+			Type: capability.AccountTypeAPIKey,
 
-		Credentials: map[string]any{
-			"api_key": "test-key",
-			"model_mapping": map[string]any{
-				"claude-sonnet-4": "claude-sonnet-4-20250514",
+			Credentials: map[string]any{
+				"api_key": "test-key",
+				"model_mapping": map[string]any{
+					"claude-sonnet-4": "claude-sonnet-4-20250514",
+				},
 			},
 		},
-	},
 	}
 	body := []byte(`{"model":"claude-sonnet-4","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}`)
 
@@ -940,14 +905,12 @@ func TestGeminiMessagesCompatServiceForward_PreservesRequestedModelAndMappedUpst
 }
 
 func TestGeminiMessagesCompatServiceForward_NormalizesWebSearchToolForAIStudio(t *testing.T) {
-
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	httpStub := &geminiCompatHTTPUpstreamStub{
 		response: &http.Response{
-
 			StatusCode: http.StatusOK,
 
 			Header: http.Header{"x-request-id": []string{"gemini-req-2"}},
@@ -956,16 +919,17 @@ func TestGeminiMessagesCompatServiceForward_NormalizesWebSearchToolForAIStudio(t
 		},
 	}
 	svc := newGeminiFixture(geminiDependencies{httpUpstream: httpStub, cfg: &googleforward.Options{}})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{
-		LoadLocation: time.LoadLocation,
-		ID:           1,
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           1,
 
-		Type: capability.AccountTypeAPIKey,
+			Type: capability.AccountTypeAPIKey,
 
-		Credentials: map[string]any{
-			"api_key": "test-key",
+			Credentials: map[string]any{
+				"api_key": "test-key",
+			},
 		},
-	},
 	}
 	body := []byte(`{"model":"claude-sonnet-4","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"tools":[{"name":"get_weather","description":"Get weather info","input_schema":{"type":"object"}},{"type":"web_search_20250305","name":"web_search"}]}`)
 
@@ -995,13 +959,11 @@ func TestGeminiMessagesCompatServiceForward_NormalizesWebSearchToolForAIStudio(t
 
 func TestConvertClaudeMessagesToGeminiGenerateContent_AddsThoughtSignatureForToolUse(t *testing.T) {
 	claudeReq := map[string]any{
-
 		"model": "claude-haiku-4-5-20251001",
 
 		"max_tokens": 10,
 
 		"messages": []any{
-
 			map[string]any{
 				"role": "user",
 				"content": []any{
@@ -1010,15 +972,12 @@ func TestConvertClaudeMessagesToGeminiGenerateContent_AddsThoughtSignatureForToo
 			},
 
 			map[string]any{
-
 				"role": "assistant",
 
 				"content": []any{
-
 					map[string]any{"type": "text", "text": "ok"},
 
 					map[string]any{
-
 						"type": "tool_use",
 
 						"id": "toolu_123",
@@ -1035,7 +994,6 @@ func TestConvertClaudeMessagesToGeminiGenerateContent_AddsThoughtSignatureForToo
 
 		"tools": []any{
 			map[string]any{
-
 				"name": "default_api:write_file",
 
 				"description": "write file",
@@ -1066,7 +1024,6 @@ func TestEnsureGeminiFunctionCallThoughtSignatures_InsertsWhenMissing(t *testing
 	geminiReq := map[string]any{
 		"contents": []any{
 			map[string]any{
-
 				"role": "user",
 
 				"parts": []any{
@@ -1102,9 +1059,7 @@ func TestUnwrapGeminiResponse(t *testing.T) {
 		expected string
 		wantErr  bool
 	}{
-
 		{
-
 			name: "正常 response 包装（JSON 对象）",
 
 			input: []byte(`{"response":{"key":"val"}}`),
@@ -1137,7 +1092,6 @@ func TestUnwrapGeminiResponse(t *testing.T) {
 		},
 
 		{
-
 			name: "response 为基础类型 string 返回原始 body",
 
 			input: []byte(`{"response":"hello"}`),
@@ -1146,7 +1100,6 @@ func TestUnwrapGeminiResponse(t *testing.T) {
 		},
 
 		{
-
 			name: "嵌套 response 只解一层",
 
 			input: []byte(`{"response":{"response":{"inner":true}}}`),
@@ -1185,9 +1138,7 @@ func TestExtractGeminiUsage(t *testing.T) {
 		wantNil   bool
 		wantUsage *upstream.TokenUsage
 	}{
-
 		{
-
 			name: "完整 usageMetadata",
 
 			input: `{"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":50,"cachedContentTokenCount":20}}`,
@@ -1202,7 +1153,6 @@ func TestExtractGeminiUsage(t *testing.T) {
 		},
 
 		{
-
 			name: "包含 thoughtsTokenCount",
 
 			input: `{"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":20,"thoughtsTokenCount":50}}`,
@@ -1217,7 +1167,6 @@ func TestExtractGeminiUsage(t *testing.T) {
 		},
 
 		{
-
 			name: "包含 thoughtsTokenCount 与缓存",
 
 			input: `{"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":20,"cachedContentTokenCount":30,"thoughtsTokenCount":50}}`,
@@ -1232,7 +1181,6 @@ func TestExtractGeminiUsage(t *testing.T) {
 		},
 
 		{
-
 			name: "缺失 cachedContentTokenCount",
 
 			input: `{"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":50}}`,
@@ -1270,7 +1218,6 @@ func TestExtractGeminiUsage(t *testing.T) {
 		},
 
 		{
-
 			name: "零值字段",
 
 			input: `{"usageMetadata":{"promptTokenCount":0,"candidatesTokenCount":0,"cachedContentTokenCount":0}}`,
@@ -1323,9 +1270,7 @@ func TestEstimateGeminiCountTokens(t *testing.T) {
 		wantGt0   bool // 期望结果 > 0
 		wantExact *int // 如果非 nil，期望精确匹配
 	}{
-
 		{
-
 			name: "含 systemInstruction 和 contents",
 
 			input: `{
@@ -1337,7 +1282,6 @@ func TestEstimateGeminiCountTokens(t *testing.T) {
 		},
 
 		{
-
 			name: "仅 contents，无 systemInstruction",
 
 			input: `{
@@ -1355,7 +1299,6 @@ func TestEstimateGeminiCountTokens(t *testing.T) {
 		},
 
 		{
-
 			name: "非文本 parts（inlineData）",
 
 			input: `{"contents":[{"parts":[{"inlineData":{"mimeType":"image/png"}}]}]}`,
@@ -1403,9 +1346,7 @@ func TestParseGeminiRateLimitResetTime(t *testing.T) {
 		wantNil     bool
 		approxDelta int64 // 预期的 (返回值 - now) 大约是多少秒
 	}{
-
 		{
-
 			name: "正常 quotaResetDelay",
 
 			input: `{"error":{"details":[{"metadata":{"quotaResetDelay":"12.345s"}}]}}`,
@@ -1417,7 +1358,6 @@ func TestParseGeminiRateLimitResetTime(t *testing.T) {
 		},
 
 		{
-
 			name: "daily quota",
 
 			input: `{"error":{"message":"quota per day exceeded"}}`,
@@ -1448,7 +1388,6 @@ func TestParseGeminiRateLimitResetTime(t *testing.T) {
 		},
 
 		{
-
 			name: "非法 JSON 但 regex 回退仍工作",
 
 			input: `not json but Please retry in 10s`,

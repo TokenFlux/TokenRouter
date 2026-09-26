@@ -933,6 +933,7 @@ var (
 		{Name: "audio_tts_price_per_million_chars", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "audio_stt_price_per_hour", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "long_context_pricing_enabled", Type: field.TypeBool, Default: true},
+		{Name: "routing_policy", Type: field.TypeJSON, Nullable: true},
 		{Name: "model_pricing", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "claude_code_only", Type: field.TypeBool, Default: false},
 		{Name: "fallback_group_id", Type: field.TypeInt64, Nullable: true},
@@ -997,12 +998,12 @@ var (
 			{
 				Name:    "group_sort_order",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[38]},
+				Columns: []*schema.Column{GroupsColumns[39]},
 			},
 			{
 				Name:    "group_session_isolation_enabled",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[57]},
+				Columns: []*schema.Column{GroupsColumns[58]},
 			},
 			{
 				Name:    "idx_groups_duplicate_operation_id_active",
@@ -1895,7 +1896,7 @@ var (
 		{Name: "model", Type: field.TypeString, Size: 100},
 		{Name: "requested_model", Type: field.TypeString, Nullable: true, Size: 100},
 		{Name: "upstream_model", Type: field.TypeString, Nullable: true, Size: 100},
-		{Name: "channel_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "pricing_config_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "model_mapping_chain", Type: field.TypeString, Nullable: true, Size: 500},
 		{Name: "billing_tier", Type: field.TypeString, Nullable: true, Size: 50},
 		{Name: "billing_mode", Type: field.TypeString, Nullable: true, Size: 20},

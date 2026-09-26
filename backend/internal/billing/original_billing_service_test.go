@@ -454,7 +454,7 @@ func TestCalculateCostUnified_ExplicitIntervalsDoNotReapplyLongContextMultiplier
 	resolved := &billingpricing.ResolvedPricing{
 		Mode:        routing.BillingModeToken,
 		BasePricing: basePricing,
-		Source:      billingpricing.PricingSourceChannel,
+		Source:      billingpricing.PricingSourceConfig,
 		Intervals: []routing.PricingInterval{
 			{
 				MinTokens: 0, MaxTokens: &shortMax,
@@ -1430,17 +1430,17 @@ func TestServiceTierCostMultiplier(t *testing.T) {
 	require.InDelta(t, 1.0, billingpricing.ServiceTierCostMultiplier("default"), 1e-12)
 }
 
-func TestCalculateCostWithServiceTier_ChannelFlexMultiplier(t *testing.T) {
+func TestCalculateCostWithServiceTier_PricingConfigFlexMultiplier(t *testing.T) {
 	svc := newTestCalculator()
-	channelPricing := &routing.ChannelModelPricing{
+	configPricing := &routing.ModelPricingEntry{
 		FlexMultiplier: testPtrFloat64(0.25),
 		InputPrice:     testPtrFloat64(10e-6),
 		OutputPrice:    testPtrFloat64(20e-6),
 	}
 	tokens := billingpricing.UsageTokens{InputTokens: 100, OutputTokens: 50}
-	standard, err := svc.CalculateCostInternal("claude-sonnet-4", tokens, 1, "", channelPricing)
+	standard, err := svc.CalculateCostInternal("claude-sonnet-4", tokens, 1, "", configPricing)
 	require.NoError(t, err)
-	flex, err := svc.CalculateCostInternal("claude-sonnet-4", tokens, 1, "flex", channelPricing)
+	flex, err := svc.CalculateCostInternal("claude-sonnet-4", tokens, 1, "flex", configPricing)
 	require.NoError(t, err)
 	require.InDelta(t, standard.TotalCost*0.25, flex.TotalCost, 1e-12)
 }
@@ -1692,13 +1692,13 @@ func TestGetModelPricing_MapsDynamicPriorityFieldsIntoBillingPricing(t *testing.
 }
 
 // ---------------------------------------------------------------------------
-// GetModelPricingWithChannel
+// GetModelPricingWithConfig
 // ---------------------------------------------------------------------------
 
-func TestGetModelPricingWithChannel_NilChannelPricing_ReturnsOriginal(t *testing.T) {
+func TestGetModelPricingWithConfig_NilConfigPricing_ReturnsOriginal(t *testing.T) {
 	svc := newTestCalculator()
 
-	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", nil)
+	pricing, err := svc.GetModelPricingWithConfig("claude-sonnet-4", nil)
 	require.NoError(t, err)
 	require.NotNil(t, pricing)
 
@@ -1711,13 +1711,13 @@ func TestGetModelPricingWithChannel_NilChannelPricing_ReturnsOriginal(t *testing
 	require.InDelta(t, original.CacheReadPricePerToken, pricing.CacheReadPricePerToken, 1e-12)
 }
 
-func TestGetModelPricingWithChannel_OverrideInputPriceOnly(t *testing.T) {
+func TestGetModelPricingWithConfig_OverrideInputPriceOnly(t *testing.T) {
 	svc := newTestCalculator()
 
-	chPricing := &routing.ChannelModelPricing{
+	chPricing := &routing.ModelPricingEntry{
 		InputPrice: testPtrFloat64(99e-6),
 	}
-	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
+	pricing, err := svc.GetModelPricingWithConfig("claude-sonnet-4", chPricing)
 	require.NoError(t, err)
 
 	// InputPrice overridden; this fallback model has no catalog priority price.
@@ -1728,14 +1728,14 @@ func TestGetModelPricingWithChannel_OverrideInputPriceOnly(t *testing.T) {
 	require.InDelta(t, 15e-6, pricing.OutputPricePerToken, 1e-12)
 }
 
-func TestGetModelPricingWithChannel_PriceMultiplierAppliesAfterOverrides(t *testing.T) {
+func TestGetModelPricingWithConfig_PriceMultiplierAppliesAfterOverrides(t *testing.T) {
 	svc := newTestCalculator()
 
-	chPricing := &routing.ChannelModelPricing{
+	chPricing := &routing.ModelPricingEntry{
 		PriceMultiplier: testPtrFloat64(2),
 		InputPrice:      testPtrFloat64(10e-6),
 	}
-	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
+	pricing, err := svc.GetModelPricingWithConfig("claude-sonnet-4", chPricing)
 	require.NoError(t, err)
 
 	// 手动输入价和继承的默认输出价都在最终阶段应用倍率。
@@ -1743,10 +1743,10 @@ func TestGetModelPricingWithChannel_PriceMultiplierAppliesAfterOverrides(t *test
 	require.InDelta(t, 30e-6, pricing.OutputPricePerToken, 1e-12)
 }
 
-func TestGetModelPricingWithChannel_PreservesNativeTierRatio(t *testing.T) {
+func TestGetModelPricingWithConfig_PreservesNativeTierRatio(t *testing.T) {
 	svc := newTestCalculator()
 
-	pricing, err := svc.GetModelPricingWithChannel("gpt-5.4", &routing.ChannelModelPricing{
+	pricing, err := svc.GetModelPricingWithConfig("gpt-5.4", &routing.ModelPricingEntry{
 		InputPrice:      testPtrFloat64(10e-6),
 		OutputPrice:     testPtrFloat64(40e-6),
 		CacheWritePrice: testPtrFloat64(8e-6),
@@ -1761,9 +1761,9 @@ func TestGetModelPricingWithChannel_PreservesNativeTierRatio(t *testing.T) {
 	require.InDelta(t, 2e-6, pricing.CacheReadPricePerTokenPriority, 1e-12)
 }
 
-func TestCalculateCostWithChannelFastModeMultiplierUsesFinalStandardPrice(t *testing.T) {
+func TestCalculateCostWithPricingConfigFastModeMultiplierUsesFinalStandardPrice(t *testing.T) {
 	svc := newTestCalculator()
-	channelPricing := &routing.ChannelModelPricing{
+	configPricing := &routing.ModelPricingEntry{
 		Platform:           capability.PlatformOpenAI,
 		PriceMultiplier:    testPtrFloat64(1.25),
 		FastModeMultiplier: testPtrFloat64(1.5),
@@ -1783,12 +1783,12 @@ func TestCalculateCostWithChannelFastModeMultiplierUsesFinalStandardPrice(t *tes
 		CacheReadTokens:     40,
 	}
 
-	standard, err := svc.CalculateCostInternal("gpt-5.4", tokens, 1, "", channelPricing)
+	standard, err := svc.CalculateCostInternal("gpt-5.4", tokens, 1, "", configPricing)
 	require.NoError(t, err)
-	fast, err := svc.CalculateCostInternal("gpt-5.4", tokens, 1, "priority", channelPricing)
+	fast, err := svc.CalculateCostInternal("gpt-5.4", tokens, 1, "priority", configPricing)
 	require.NoError(t, err)
 
-	// 显式渠道倍率覆盖模型内置 priority 单价，并统一作用于文本、图片和缓存费用。
+	// 显式共享价格配置倍率覆盖模型内置 priority 单价，并统一作用于文本、图片和缓存费用。
 	require.InDelta(t, standard.InputCost*1.5, fast.InputCost, 1e-12)
 	require.InDelta(t, standard.ImageInputCost*1.5, fast.ImageInputCost, 1e-12)
 	require.InDelta(t, standard.OutputCost*1.5, fast.OutputCost, 1e-12)
@@ -1798,13 +1798,13 @@ func TestCalculateCostWithChannelFastModeMultiplierUsesFinalStandardPrice(t *tes
 	require.InDelta(t, standard.TotalCost*1.5, fast.TotalCost, 1e-12)
 }
 
-func TestGetModelPricingWithChannel_DoesNotMutateFallbackPricing(t *testing.T) {
+func TestGetModelPricingWithConfig_DoesNotMutateFallbackPricing(t *testing.T) {
 	svc := newTestCalculator()
 
-	chPricing := &routing.ChannelModelPricing{
+	chPricing := &routing.ModelPricingEntry{
 		InputPrice: testPtrFloat64(99e-6),
 	}
-	_, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
+	_, err := svc.GetModelPricingWithConfig("claude-sonnet-4", chPricing)
 	require.NoError(t, err)
 
 	pricing, err := svc.GetModelPricing("claude-sonnet-4")
@@ -1813,13 +1813,13 @@ func TestGetModelPricingWithChannel_DoesNotMutateFallbackPricing(t *testing.T) {
 	require.InDelta(t, 15e-6, pricing.OutputPricePerToken, 1e-12)
 }
 
-func TestGetModelPricingWithChannel_OverrideOutputPriceOnly(t *testing.T) {
+func TestGetModelPricingWithConfig_OverrideOutputPriceOnly(t *testing.T) {
 	svc := newTestCalculator()
 
-	chPricing := &routing.ChannelModelPricing{
+	chPricing := &routing.ModelPricingEntry{
 		OutputPrice: testPtrFloat64(88e-6),
 	}
-	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
+	pricing, err := svc.GetModelPricingWithConfig("claude-sonnet-4", chPricing)
 	require.NoError(t, err)
 
 	// OutputPrice overridden; this fallback model has no catalog priority price.
@@ -1830,17 +1830,17 @@ func TestGetModelPricingWithChannel_OverrideOutputPriceOnly(t *testing.T) {
 	require.InDelta(t, 3e-6, pricing.InputPricePerToken, 1e-12)
 }
 
-func TestGetModelPricingWithChannel_OverrideAllFields(t *testing.T) {
+func TestGetModelPricingWithConfig_OverrideAllFields(t *testing.T) {
 	svc := newTestCalculator()
 
-	chPricing := &routing.ChannelModelPricing{
+	chPricing := &routing.ModelPricingEntry{
 		InputPrice:       testPtrFloat64(10e-6),
 		OutputPrice:      testPtrFloat64(20e-6),
 		CacheWritePrice:  testPtrFloat64(5e-6),
 		CacheReadPrice:   testPtrFloat64(1e-6),
 		ImageOutputPrice: testPtrFloat64(50e-6),
 	}
-	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
+	pricing, err := svc.GetModelPricingWithConfig("claude-sonnet-4", chPricing)
 	require.NoError(t, err)
 
 	require.InDelta(t, 10e-6, pricing.InputPricePerToken, 1e-12)
@@ -1855,13 +1855,13 @@ func TestGetModelPricingWithChannel_OverrideAllFields(t *testing.T) {
 	require.InDelta(t, 50e-6, pricing.ImageOutputPricePerToken, 1e-12)
 }
 
-func TestGetModelPricingWithChannel_CacheWritePriceAffects5mAnd1h(t *testing.T) {
+func TestGetModelPricingWithConfig_CacheWritePriceAffects5mAnd1h(t *testing.T) {
 	svc := newTestCalculator()
 
-	chPricing := &routing.ChannelModelPricing{
+	chPricing := &routing.ModelPricingEntry{
 		CacheWritePrice: testPtrFloat64(7e-6),
 	}
-	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
+	pricing, err := svc.GetModelPricingWithConfig("claude-sonnet-4", chPricing)
 	require.NoError(t, err)
 
 	// CacheWritePrice should set all three: CacheCreationPricePerToken, 5m, and 1h
@@ -1870,10 +1870,10 @@ func TestGetModelPricingWithChannel_CacheWritePriceAffects5mAnd1h(t *testing.T) 
 	require.InDelta(t, 7e-6, pricing.CacheCreation1hPrice, 1e-12)
 }
 
-func TestGetModelPricingWithChannel_CacheWriteTTLPricesCanDiffer(t *testing.T) {
+func TestGetModelPricingWithConfig_CacheWriteTTLPricesCanDiffer(t *testing.T) {
 	svc := newTestCalculator()
 
-	pricing, err := svc.GetModelPricingWithChannel("claude-fable-5-1", &routing.ChannelModelPricing{
+	pricing, err := svc.GetModelPricingWithConfig("claude-fable-5-1", &routing.ModelPricingEntry{
 		CacheWritePrice:   testPtrFloat64(13e-6),
 		CacheWrite1hPrice: testPtrFloat64(21e-6),
 	})
@@ -1898,13 +1898,13 @@ func TestGetModelPricing_Fable51FallbackPricing(t *testing.T) {
 	require.Equal(t, 3.0, *pricing.MaxReasoningEffortMultiplier)
 }
 
-func TestGetModelPricingWithChannel_CacheReadPriceAffectsPriority(t *testing.T) {
+func TestGetModelPricingWithConfig_CacheReadPriceAffectsPriority(t *testing.T) {
 	svc := newTestCalculator()
 
-	chPricing := &routing.ChannelModelPricing{
+	chPricing := &routing.ModelPricingEntry{
 		CacheReadPrice: testPtrFloat64(2e-6),
 	}
-	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
+	pricing, err := svc.GetModelPricingWithConfig("claude-sonnet-4", chPricing)
 	require.NoError(t, err)
 
 	// CacheReadPrice 覆盖普通价；该 fallback 模型没有原生 priority 价。
@@ -1912,27 +1912,27 @@ func TestGetModelPricingWithChannel_CacheReadPriceAffectsPriority(t *testing.T) 
 	require.Zero(t, pricing.CacheReadPricePerTokenPriority)
 }
 
-func TestGetModelPricingWithChannel_UnknownModelReturnsError(t *testing.T) {
+func TestGetModelPricingWithConfig_UnknownModelReturnsError(t *testing.T) {
 	svc := newTestCalculator()
 
-	chPricing := &routing.ChannelModelPricing{
+	chPricing := &routing.ModelPricingEntry{
 		InputPrice: testPtrFloat64(1e-6),
 	}
-	pricing, err := svc.GetModelPricingWithChannel("totally-unknown-model", chPricing)
+	pricing, err := svc.GetModelPricingWithConfig("totally-unknown-model", chPricing)
 	require.Error(t, err)
 	require.Nil(t, pricing)
 	require.Contains(t, err.Error(), "pricing not found")
 }
 
-func TestGetModelPricingWithChannel_NilImageOutputPriceZerosAndMarksExplicit(t *testing.T) {
+func TestGetModelPricingWithConfig_NilImageOutputPriceZerosAndMarksExplicit(t *testing.T) {
 	svc := newTestCalculator()
 
-	chPricing := &routing.ChannelModelPricing{
+	chPricing := &routing.ModelPricingEntry{
 		InputPrice:  testPtrFloat64(10e-6),
 		OutputPrice: testPtrFloat64(20e-6),
 		// 图片输出价格有意保持为空
 	}
-	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
+	pricing, err := svc.GetModelPricingWithConfig("claude-sonnet-4", chPricing)
 	require.NoError(t, err)
 
 	require.Equal(t, 0.0, pricing.ImageOutputPricePerToken)

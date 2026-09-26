@@ -160,7 +160,7 @@ type messageExecutionDependencies struct {
 	handleCCFailoverExhausted        func(c *gin.Context, lastErr *forwardcore.UpstreamFailoverError, streamStarted bool)
 	handleGeminiFailoverExhausted    func(c *gin.Context, failoverErr *forwardcore.UpstreamFailoverError)
 
-	prepareGatewayAttemptRequest      func(context.Context, *requeststate.ParsedRequest, []byte, *apikey.APIKey, string) (*requeststate.ParsedRequest, routing.ChannelMappingResult, error)
+	prepareGatewayAttemptRequest      func(context.Context, *requeststate.ParsedRequest, []byte, *apikey.APIKey, string) (*requeststate.ParsedRequest, routing.GroupMappingResult, error)
 	selectAccount                     func(context.Context, *int64, string, string, map[int64]struct{}, string, int64) (*gatewaycapture.SelectionResult, error)
 	trackSession                      func(*scheduler.SessionAttempts, *gatewaycapture.ExecutionAccount, string)
 	newSessionAttempts                func() *scheduler.SessionAttempts
@@ -246,8 +246,8 @@ func New(b Bindings) *Runtime {
 		handleFailoverExhaustedSimple:     output.ExhaustedStatus,
 		ensureForwardErrorResponse:        output.EnsureResponse,
 		submitUsageRecordTask:             b.Submission.Submit,
-		prepareGatewayAttemptRequest: func(ctx context.Context, parsed *requeststate.ParsedRequest, body []byte, key *apikey.APIKey, model string) (*requeststate.ParsedRequest, routing.ChannelMappingResult, error) {
-			return gatewayhttp.PrepareChannelAttempt(ctx, parsed, body, key, model, b.PlanRoute)
+		prepareGatewayAttemptRequest: func(ctx context.Context, parsed *requeststate.ParsedRequest, body []byte, key *apikey.APIKey, model string) (*requeststate.ParsedRequest, routing.GroupMappingResult, error) {
+			return gatewayhttp.PrepareGroupAttempt(ctx, parsed, body, key, model, b.PlanRoute)
 		},
 		getUserMsgQueueMode: func(value *gatewaycapture.ExecutionAccount, parsed *requeststate.ParsedRequest) string {
 			if b.Queue == nil || !value.View().IsAnthropicOAuthOrSetupToken() || !requeststate.IsRealUserMessage(parsed) {

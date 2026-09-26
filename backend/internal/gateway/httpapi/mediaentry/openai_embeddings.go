@@ -25,16 +25,16 @@ import (
 
 // embeddingRequestAdapter 只适配当前请求、已选账号和 HTTP；尝试循环由 media 唯一拥有。
 type embeddingRequestAdapter struct {
-	userID         int64
-	h              *Runtime
-	c              *gin.Context
-	apiKey         *apikey.APIKey
-	subscription   *billing.UserSubscription
-	reqModel       string
-	channelMapping routing.ChannelMappingResult
-	reqLog         *zap.Logger
-	streamStarted  *bool
-	selection      *gatewaycapture.SelectionResult
+	userID        int64
+	h             *Runtime
+	c             *gin.Context
+	apiKey        *apikey.APIKey
+	subscription  *billing.UserSubscription
+	reqModel      string
+	groupMapping  routing.GroupMappingResult
+	reqLog        *zap.Logger
+	streamStarted *bool
+	selection     *gatewaycapture.SelectionResult
 }
 
 func (p *embeddingRequestAdapter) SelectEmbedding(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
@@ -45,13 +45,15 @@ func (p *embeddingRequestAdapter) SelectEmbedding(ctx context.Context, excluded 
 	}
 	return gatewaycapture.ExecutionSnapshot(selection.Account), true, err
 }
+
 func (p *embeddingRequestAdapter) AcquireEmbedding(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
 	return p.h.bindings.Common.Support.AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, p.streamStarted, p.reqLog)
 }
+
 func (p *embeddingRequestAdapter) ForwardEmbedding(ctx context.Context, _ accountcore.AccountSnapshot, body []byte) gatewaymedia.EmbeddingOutcome {
 	forwardBody := body
-	if p.channelMapping.Mapped {
-		forwardBody = p.h.bindings.Common.Forward.ReplaceModelInBody(body, p.channelMapping.MappedModel)
+	if p.groupMapping.Mapped {
+		forwardBody = p.h.bindings.Common.Forward.ReplaceModelInBody(body, p.groupMapping.MappedModel)
 	}
 	size := p.c.Writer.Size()
 	result, err := p.h.bindings.Platform.Embeddings(ctx, p.c, p.selection.Account, forwardBody, "")
@@ -63,6 +65,7 @@ func (p *embeddingRequestAdapter) ForwardEmbedding(ctx context.Context, _ accoun
 	}
 	return outcome
 }
+
 func (p *embeddingRequestAdapter) ReportEmbedding(_ context.Context, _ accountcore.AccountSnapshot, result *gatewaymedia.EmbeddingResult, success bool, err error) {
 	account := p.selection.Account
 	if success {
@@ -71,6 +74,7 @@ func (p *embeddingRequestAdapter) ReportEmbedding(_ context.Context, _ accountco
 	}
 	p.h.bindings.Common.Selection.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.reqModel, false, legacyEmbeddingResult(result)), false, nil, err)
 }
+
 func (p *embeddingRequestAdapter) SwitchEmbedding(_ accountcore.AccountSnapshot) {
 	p.h.bindings.Common.Selection.RecordOpenAIAccountSwitchForSelection(p.selection)
 }
@@ -100,6 +104,7 @@ func (p *embeddingRequestAdapter) ObserveEmbedding(event gatewaymedia.EmbeddingE
 		p.reqLog.Debug("openai_embeddings.request_completed", zap.Int64("account_id", event.Account.ID), zap.Int("switch_count", event.Switches))
 	}
 }
+
 func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure) {
 	if f == nil {
 		return
@@ -148,12 +153,14 @@ func embeddingResultView(result *forwardcore.OpenAIResult) *gatewaymedia.Embeddi
 	}
 	return &gatewaymedia.EmbeddingResult{RequestID: result.RequestID, Model: result.Model, BillingModel: result.BillingModel, UpstreamModel: result.UpstreamModel, Headers: http.Header(result.UpstreamHeaders).Clone(), Usage: result.Usage, Duration: result.Duration}
 }
+
 func legacyEmbeddingResult(result *gatewaymedia.EmbeddingResult) *forwardcore.OpenAIResult {
 	if result == nil {
 		return nil
 	}
 	return &forwardcore.OpenAIResult{RequestID: result.RequestID, Model: result.Model, BillingModel: result.BillingModel, UpstreamModel: result.UpstreamModel, UpstreamHeaders: http.Header(result.Headers).Clone(), Usage: result.Usage, Duration: result.Duration}
 }
+
 func (p *embeddingRequestAdapter) CompleteEmbedding(_ context.Context, _ accountcore.AccountSnapshot, value *gatewaymedia.EmbeddingResult) {
 	c, h, apiKey, account := p.c, p.h, p.apiKey, p.selection.Account
 	result := legacyEmbeddingResult(value)
@@ -163,10 +170,10 @@ func (p *embeddingRequestAdapter) CompleteEmbedding(_ context.Context, _ account
 	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Record.Platform)
 	quotaPlatform := admission.QuotaPlatform(c.Request.Context(), apiKey)
 	clientSessionID := gatewayhttp.ExtractClientSessionID(c)
-	// 异步任务只读取此处固化的渠道结果，不能再读取可变 HTTP Context。
-	channelFields := p.channelMapping.ToUsageFields(p.reqModel, result.UpstreamModel)
+	// 异步任务只读取此处固化的分组映射结果，不能再读取可变 HTTP Context。
+	pricingFields := p.groupMapping.ToUsageFields(p.reqModel, result.UpstreamModel)
 	subscription, reqModel, userID := p.subscription, p.reqModel, p.userID
-	completionInput := gatewaycapture.CaptureOpenAI(c.Request.Context(), &gatewaycapture.OpenAICapture{Result: result, APIKey: apiKey, User: apiKey.User, Account: gatewaycapture.ExecutionCompletionRecord(account), Subscription: subscription, InboundEndpoint: inboundEndpoint, UpstreamEndpoint: upstreamEndpoint, UserAgent: userAgent, IPAddress: clientIP, APIKeyService: h.bindings.Quota, QuotaPlatform: quotaPlatform, ClientSessionID: clientSessionID, ChannelUsageFields: channelFields})
+	completionInput := gatewaycapture.CaptureOpenAI(c.Request.Context(), &gatewaycapture.OpenAICapture{Result: result, APIKey: apiKey, User: apiKey.User, Account: gatewaycapture.ExecutionCompletionRecord(account), Subscription: subscription, InboundEndpoint: inboundEndpoint, UpstreamEndpoint: upstreamEndpoint, UserAgent: userAgent, IPAddress: clientIP, APIKeyService: h.bindings.Quota, QuotaPlatform: quotaPlatform, ClientSessionID: clientSessionID, PricingUsageFields: pricingFields})
 	completionRecorder := h.bindings.Common.Recorder
 	completionLog := logging.L().With(zap.String("component", "handler.openai_gateway.embeddings"), zap.Int64("user_id", userID), zap.Int64("api_key_id", apiKey.ID), zap.Any("group_id", apiKey.GroupID), zap.String("model", reqModel), zap.Int64("account_id", account.Record.ID))
 	h.submitOpenAIUsageRecordTask(c, result, func(ctx context.Context) {

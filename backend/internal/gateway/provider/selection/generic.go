@@ -1,14 +1,14 @@
 package selection
 
 import (
-	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
-
 	"context"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
+
+	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -161,7 +161,7 @@ func (s *Generic) routingAccountIDsForRequest(ctx context.Context, groupID *int6
 		}
 		return nil
 	}
-	routingModel := s.channelMappedModelForGroup(ctx, groupID, requestedModel)
+	routingModel := s.groupMappedModelForGroup(ctx, groupID, requestedModel)
 	ids := group.GetRoutingAccountIDs(routingModel)
 	if s.debugModelRoutingEnabled() {
 		logging.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routing lookup: group_id=%d model=%s enabled=%v rules=%d matched_ids=%v",
@@ -295,7 +295,6 @@ func (s *Generic) listSchedulableAccounts(ctx context.Context, groupID *int64, p
 		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, platform)
 	} else if groupID != nil {
 		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, platform)
-
 	} else {
 		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, platform)
 	}
@@ -363,13 +362,13 @@ func (s *Generic) isAccountSchedulableForModelSelection(ctx context.Context, acc
 	if account == nil {
 		return false
 	}
-	routingModel := s.channelMappedModelForAccountLayer(ctx, requestedModel)
+	routingModel := s.groupMappedModelForAccountLayer(ctx, requestedModel)
 	return gatewayprovider.ExecutionModelPolicy(account).Schedulable(ctx, routingModel)
 }
 
-// shouldClearStickySessionForAccountLayer 使用渠道映射后的模型检查粘性账号模型限流。
+// shouldClearStickySessionForAccountLayer 使用分组映射后的模型检查粘性账号模型限流。
 func (s *Generic) shouldClearStickySessionForAccountLayer(ctx context.Context, account *gatewayprovider.ExecutionAccount, requestedModel string) bool {
-	routingModel := s.channelMappedModelForAccountLayer(ctx, requestedModel)
+	routingModel := s.groupMappedModelForAccountLayer(ctx, requestedModel)
 	return shouldClearStickySession(account, routingModel)
 }
 
@@ -395,8 +394,8 @@ func (s *Generic) isAccountEligibleExceptModelSupport(ctx context.Context, accou
 	if !s.isAccountSchedulableForQuota(account) || !s.isAccountSchedulableForWindowCost(ctx, account, false) || !s.isAccountSchedulableForRPM(ctx, account, false) {
 		return false
 	}
-	if groupID != nil && s.needsUpstreamChannelRestrictionCheck(ctx, groupID) &&
-		s.isUpstreamModelRestrictedByChannel(ctx, *groupID, account, requestedModel) {
+	if groupID != nil && s.needsUpstreamGroupRestrictionCheck(ctx, groupID) &&
+		s.isUpstreamModelRestrictedByGroup(ctx, *groupID, account, requestedModel) {
 		return false
 	}
 	return true
@@ -439,7 +438,6 @@ func (s *Generic) isAccountInGroup(account *gatewayprovider.ExecutionAccount, gr
 		return false
 	}
 	if groupID == nil {
-
 		return len(account.Record.AccountGroups) == 0
 	}
 	for _, ag := range account.Record.AccountGroups {
@@ -539,12 +537,14 @@ func (s *Generic) ReleaseAccountSession(ctx context.Context, account *gatewaypro
 	if s == nil {
 		return
 	}
-	schedulercore.FinishSession(ctx, s.sessionLimitCache, schedulerSessionBinding(account, session), schedulercore.AttemptOutcome{}, schedulercore.Diagnostics{Logf: logging.LegacyPrintf,
+	schedulercore.FinishSession(ctx, s.sessionLimitCache, schedulerSessionBinding(account, session), schedulercore.AttemptOutcome{}, schedulercore.Diagnostics{
+		Logf: logging.LegacyPrintf,
 
 		Event: logging.Event,
 	},
 	)
 }
+
 func schedulerSessionBinding(account *gatewayprovider.ExecutionAccount, session string) schedulercore.SessionBinding {
 	if account == nil {
 		return schedulercore.SessionBinding{}
@@ -597,7 +597,6 @@ func (s *Generic) isAccountBlockedBySchedulingThreshold(ctx context.Context, acc
 		return false
 	}
 	return gatewayprovider.ApplyExecutionSchedulingThreshold(ctx, s.healthObserver, account)
-
 }
 
 func (s *Generic) hydrateSelectedAccount(ctx context.Context, account *gatewayprovider.ExecutionAccount) (*gatewayprovider.ExecutionAccount, error) {
@@ -615,7 +614,6 @@ func (s *Generic) hydrateSelectedAccount(ctx context.Context, account *gatewaypr
 }
 
 func (s *Generic) newSelectionResult(ctx context.Context, account *gatewayprovider.ExecutionAccount, acquired bool, release func(), waitPlan *schedulercore.AccountWaitPlan) (*gatewayprovider.SelectionResult, error) {
-
 	attempt := schedulercore.NewAttemptLease(schedulercore.RequestLease(ctx), nil, release)
 	if release != nil {
 		release = attempt.Release
@@ -721,7 +719,7 @@ func (s *Generic) collectSelectionFailureStats(
 			stats.SampleMappingIDs = appendSelectionFailureSampleID(stats.SampleMappingIDs, acc.Record.ID)
 		case "model_rate_limited":
 			stats.ModelRateLimited++
-			routingModel := s.channelMappedModelForAccountLayer(ctx, requestedModel)
+			routingModel := s.groupMappedModelForAccountLayer(ctx, requestedModel)
 			remaining := gatewayprovider.ExecutionModelPolicy(acc).LimitRemaining(ctx, routingModel).Truncate(time.Second)
 			stats.SampleRateLimitIDs = appendSelectionFailureRateSample(stats.SampleRateLimitIDs, acc.Record.ID, remaining)
 		default:
@@ -762,7 +760,7 @@ func (s *Generic) diagnoseSelectionFailure(
 		}
 	}
 	if !s.isAccountSchedulableForModelSelection(ctx, acc, requestedModel) {
-		routingModel := s.channelMappedModelForAccountLayer(ctx, requestedModel)
+		routingModel := s.groupMappedModelForAccountLayer(ctx, requestedModel)
 		remaining := gatewayprovider.ExecutionModelPolicy(acc).LimitRemaining(ctx, routingModel).Truncate(time.Second)
 		return selectionFailureDiagnosis{
 			Category: "model_rate_limited",
@@ -817,19 +815,19 @@ func summarizeSelectionFailureStats(stats selectionFailureStats) string {
 	)
 }
 
-// isModelSupportedByAccountWithContext 根据渠道映射后的模型检查账号支持能力。
+// isModelSupportedByAccountWithContext 根据分组映射后的模型检查账号支持能力。
 func (s *Generic) isModelSupportedByAccountWithContext(ctx context.Context, account *gatewayprovider.ExecutionAccount, requestedModel string) bool {
-	routingModel := s.channelMappedModelForAccountLayer(ctx, requestedModel)
+	routingModel := s.groupMappedModelForAccountLayer(ctx, requestedModel)
 	return s.isRoutingModelSupportedByAccountWithContext(ctx, account, routingModel)
 }
 
-// isRoutingModelSupportedByAccountWithContext 检查已经过渠道映射的模型，避免重复执行渠道映射。
+// isRoutingModelSupportedByAccountWithContext 检查已经过分组映射的模型，避免重复执行分组映射。
 func (s *Generic) isRoutingModelSupportedByAccountWithContext(ctx context.Context, account *gatewayprovider.ExecutionAccount, routingModel string) bool {
 	return gatewayprovider.ExecutionModelPolicy(account).Supports(ctx, routingModel)
 }
 
-func (s *Generic) channelMappedModelForAccountLayer(ctx context.Context, requestedModel string) string {
-	if s == nil || s.channelService == nil || strings.TrimSpace(requestedModel) == "" {
+func (s *Generic) groupMappedModelForAccountLayer(ctx context.Context, requestedModel string) string {
+	if s == nil || s.groupPolicies == nil || strings.TrimSpace(requestedModel) == "" {
 		return requestedModel
 	}
 	group, ok := requeststate.GroupFromContext(ctx)
@@ -837,7 +835,7 @@ func (s *Generic) channelMappedModelForAccountLayer(ctx context.Context, request
 		return requestedModel
 	}
 	groupID := group.ID
-	return s.channelMappedModelForGroup(ctx, &groupID, requestedModel)
+	return s.groupMappedModelForGroup(ctx, &groupID, requestedModel)
 }
 
 // isModelSupportedByAccount 根据账户平台检查模型支持（无 context，用于非 Antigravity 平台）
@@ -847,7 +845,8 @@ func (s *Generic) isModelSupportedByAccount(account *gatewayprovider.ExecutionAc
 
 // NewSessionAttempts 为一次请求提供唯一会话完成集合，不保存全局副本。
 func (s *Generic) NewSessionAttempts() *schedulercore.SessionAttempts {
-	return schedulercore.NewSessionAttempts(s.sessionLimitCache, schedulercore.Diagnostics{Logf: logging.LegacyPrintf,
+	return schedulercore.NewSessionAttempts(s.sessionLimitCache, schedulercore.Diagnostics{
+		Logf: logging.LegacyPrintf,
 
 		Event: logging.Event,
 	},

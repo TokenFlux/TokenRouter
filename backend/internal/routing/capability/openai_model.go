@@ -145,7 +145,7 @@ func ParseOpenAIModelVersion(model string) (major int, minor int, ok bool) {
 	return major, minor, true
 }
 
-// IsOpenAIGPT6AstraModel 判断是否 GPT-6 Astra 模型；支持带渠道前缀和版本后缀的名称。
+// IsOpenAIGPT6AstraModel 判断是否 GPT-6 Astra 模型；支持带供应商前缀和版本后缀的名称。
 func IsOpenAIGPT6AstraModel(model string) bool {
 	normalized := CanonicalizeOpenAIModelAliasSpelling(model)
 	return normalized == "gpt-6-astra" || strings.HasPrefix(normalized, "gpt-6-astra-")

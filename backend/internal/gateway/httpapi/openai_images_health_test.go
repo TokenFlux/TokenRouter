@@ -41,7 +41,6 @@ func TestOpenAIGatewayService_HandleOpenAIAccountUpstreamError_ImageRateLimitDoe
 }
 
 func TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCoolsCapability(t *testing.T) {
-
 	repo := &gatewaytestkit.ModelHealthStore{}
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
 	errorBody := `{"error":{"type":"rate_limit_exceeded","message":"Rate limit reached for gpt-image-2-codex (for limit gpt-image) in organization org on input-images per min: Limit 4000, Used 4000. Please try again in 1s."}}`
@@ -61,13 +60,16 @@ func TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCools
 	}})
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 204,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 204,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -84,9 +86,8 @@ func TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCools
 // issue #6171：上游"回文字没回图"是**这一轮**的结果（模型选择了说话），不是账号能力
 // 失效。它同时被判为可重试（502）并驱动 failover，若还写 30 分钟账号级冷却，一次闲聊
 // 回复就会沿号池把每个被重试到的账号依次冷却掉。冷却仍保留给结构化上游证据，见
-// TestOpenAIGatewayServiceForwardImages_StructuredUnavailableCoolsImageCapability。
+// TestOpenAIGatewayServiceForwardImages_TextFallbackDoesNotCoolImageCapability。
 func TestOpenAIGatewayServiceForwardImages_TextFallbackDoesNotCoolImageCapability(t *testing.T) {
-
 	repo := &gatewaytestkit.ModelHealthStore{}
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
 	upstreamSSE := "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"r\",\"status\":\"completed\",\"model\":\"gpt-5.4-mini\",\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"Here's a polished image prompt for your request.\"}]}]}}\n\n"
@@ -106,13 +107,16 @@ func TestOpenAIGatewayServiceForwardImages_TextFallbackDoesNotCoolImageCapabilit
 	}})
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 205,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 205,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -132,7 +136,6 @@ func TestOpenAIGatewayServiceForwardImages_TextFallbackDoesNotCoolImageCapabilit
 // 对照不变式：上游 error 帧点名 image_generation_unavailable 时仍写冷却，
 // 保证 #6171 的修复没有把这项能力保护整个废掉。
 func TestOpenAIGatewayServiceForwardImages_StructuredUnavailableCoolsImageCapability(t *testing.T) {
-
 	repo := &gatewaytestkit.ModelHealthStore{}
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
 	upstreamSSE := "data: {\"type\":\"response.failed\",\"response\":{\"id\":\"r\",\"error\":" +
@@ -154,13 +157,16 @@ func TestOpenAIGatewayServiceForwardImages_StructuredUnavailableCoolsImageCapabi
 	}})
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 206,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 206,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	before := time.Now()
@@ -191,7 +197,6 @@ func TestOpenAIGatewayService_CoolOpenAIImagesOAuthToolUsesConfiguredCooldown(t 
 }
 
 func TestOpenAIGatewayServiceForwardImages_CapabilityLossCoolsImageScope(t *testing.T) {
-
 	repo := &gatewaytestkit.ModelHealthStore{}
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
 	errorBody := `{"error":{"message":"Tool choice 'image_generation' not found in 'tools' parameter.","param":"tool_choice","type":"invalid_request_error"}}`
@@ -211,13 +216,16 @@ func TestOpenAIGatewayServiceForwardImages_CapabilityLossCoolsImageScope(t *test
 	}})
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 205,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 205,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	before := time.Now()

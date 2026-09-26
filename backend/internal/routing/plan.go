@@ -12,7 +12,7 @@ import (
 type PlanInput struct {
 	GroupID        *int64
 	RequestedModel string
-	Channel        ChannelMappingResult
+	GroupMapping   GroupMappingResult
 	Group          *Group
 	ClientProtocol capability.ProtocolID
 }
@@ -31,7 +31,20 @@ type RoutePlan struct {
 
 // Plan 复制已完成入口准入的分组投影，不改变原权限、模型或资金检查顺序。
 func Plan(input PlanInput) RoutePlan {
-	plan := RoutePlan{clientProtocol: input.ClientProtocol, models: ModelChain{RequestedModel: input.RequestedModel, ClientModel: input.Channel.ClientModel, APIKeyRedirected: input.Channel.APIKeyRedirected, ChannelModel: input.Channel.MappedModel, ChannelMapped: input.Channel.Mapped, ChannelID: input.Channel.ChannelID, BillingModelSource: input.Channel.BillingModelSource}}
+	plan := RoutePlan{
+		clientProtocol: input.ClientProtocol,
+		models: ModelChain{
+			RequestedModel:         input.RequestedModel,
+			ClientModel:            input.GroupMapping.ClientModel,
+			APIKeyRedirected:       input.GroupMapping.APIKeyRedirected,
+			GroupMappedModel:       input.GroupMapping.MappedModel,
+			GroupMapped:            input.GroupMapping.Mapped,
+			RestrictModels:         input.GroupMapping.RestrictModels,
+			RestrictionModelSource: input.GroupMapping.RestrictionModelSource,
+			PricingConfigID:        input.GroupMapping.PricingConfigID,
+			BillingModelSource:     input.GroupMapping.BillingModelSource,
+		},
+	}
 	if input.Group != nil {
 		plan.groupID = input.Group.ID
 		plan.platform = input.Group.Platform

@@ -113,7 +113,7 @@ func TestOpenAIWSDownstreamWriteContext_CancellationOwnership(t *testing.T) {
 	})
 }
 
-// TestOpenAIWSImageIntentForRoutingModel 验证 WebSocket 生图判断只使用渠道模型 C。
+// TestOpenAIWSImageIntentForRoutingModel 验证 WebSocket 生图判断只使用分组映射模型 G。
 func TestOpenAIWSImageIntentForRoutingModel(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -122,8 +122,8 @@ func TestOpenAIWSImageIntentForRoutingModel(t *testing.T) {
 		wantIntent    bool
 		wantExplicit  bool
 	}{
-		{name: "渠道普通模型映射为上游生图模型", routingModel: "gpt-5.4", upstreamModel: "gpt-image-1"},
-		{name: "渠道生图模型映射为上游普通模型", routingModel: "gpt-image-1", upstreamModel: "gpt-5.4", wantIntent: true, wantExplicit: true},
+		{name: "分组普通模型映射为上游生图模型", routingModel: "gpt-5.4", upstreamModel: "gpt-image-1"},
+		{name: "分组生图模型映射为上游普通模型", routingModel: "gpt-image-1", upstreamModel: "gpt-5.4", wantIntent: true, wantExplicit: true},
 	}
 
 	for _, tt := range tests {
@@ -153,7 +153,6 @@ func TestOpenAIWSImageIntentForRoutingModel_PassiveNamespaceIsNotExplicit(t *tes
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossTurns(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -182,24 +181,27 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 114,
-		Name:        "openai-ingress-session-lease",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
-			"model_mapping": map[string]any{
-				"channel-turn-1": "upstream-turn-1",
-				"channel-turn-2": "upstream-turn-2",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 114,
+			Name:        "openai-ingress-session-lease",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+				"model_mapping": map[string]any{
+					"channel-turn-1": "upstream-turn-1",
+					"channel-turn-2": "upstream-turn-2",
+				},
+				"model_whitelist": []any{"upstream-turn-1", "upstream-turn-2"},
 			},
-			"model_whitelist": []any{"upstream-turn-1", "upstream-turn-2"},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -326,7 +328,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 // TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRetryClose
 // 验证租约丢失发生在上游终态读取后时，客户端先收到终态事件，再收到 1013 关闭帧。
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRetryClose(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -355,15 +356,18 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRe
 	defer pool.Close()
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 118,
-		Name:        "openai-ingress-lease-loss",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{"api_key": "sk-test"},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 118,
+			Name:        "openai-ingress-lease-loss",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{"api_key": "sk-test"},
+			Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -444,7 +448,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRe
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutReleasesStoreDisabledSession(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -468,15 +471,18 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutRelea
 	pool.SetClientDialerForTest(captureDialer)
 	defer pool.Close()
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 116,
-		Name:        "openai-ingress-idle-timeout",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{"api_key": "sk-test"},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 116,
+			Name:        "openai-ingress-idle-timeout",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{"api_key": "sk-test"},
+			Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -544,7 +550,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutRelea
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCanOmitModel(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -570,22 +575,25 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCa
 	pool := newOpenAIWSConnPool(options)
 	pool.SetClientDialerForTest(captureDialer)
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 115,
-		Name:        "openai-ingress-omit-model",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
-			"model_mapping": map[string]any{
-				"client-model": "gpt-5.1",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 115,
+			Name:        "openai-ingress-omit-model",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+				"model_mapping": map[string]any{
+					"client-model": "gpt-5.1",
+				},
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
 			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -669,7 +677,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCa
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReplacesFollowupUserPrompt(t *testing.T) {
-
 	promptpolicy.SharedCache().Store((*promptpolicy.CompiledConfig)(nil))
 	t.Cleanup(func() {
 		promptpolicy.SharedCache().Store((*promptpolicy.CompiledConfig)(nil))
@@ -705,19 +712,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReplacesFollowup
 	pool := newOpenAIWSConnPool(options)
 	pool.SetClientDialerForTest(captureDialer)
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, readers: settingService, prompts: promptpolicy.New(settingService.Scheduler, settings.ErrSettingNotFound, slog.Warn), corrector: openai.NewCodexToolCorrector(), pool: pool})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 116,
-		Name:        "openai-ingress-user-prompt-replacement",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 116,
+			Name:        "openai-ingress-user-prompt-replacement",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -802,7 +812,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReplacesFollowup
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridgeRespectsResponsesLite(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -841,20 +850,23 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridge
 			AllowImageGeneration: true,
 		},
 	}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 31,
-		Name:        "openai-codex-image-ws",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeOAuth,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"access_token": "test-token",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 31,
+			Name:        "openai-codex-image-ws",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeOAuth,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"access_token": "test-token",
+			},
+			Extra: map[string]any{
+				"openai_oauth_responses_websockets_v2_enabled": true,
+				"codex_image_generation_bridge":                true,
+			},
 		},
-		Extra: map[string]any{
-			"openai_oauth_responses_websockets_v2_enabled": true,
-			"codex_image_generation_bridge":                true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1015,7 +1027,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridge
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoesNotReuseConnAcrossSessions(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -1051,19 +1062,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoe
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 441,
-		Name:        "openai-ingress-dedicated",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 441,
+			Name:        "openai-ingress-dedicated",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeDedicated,
+			},
 		},
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeDedicated,
-		}},
 	}
 
 	serverErrCh := make(chan error, 2)
@@ -1140,7 +1154,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoe
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -1166,23 +1179,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 	captureDialer := &openAIWSCaptureDialer{conn: upstreamConn}
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), dialer: captureDialer})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 452,
-		Name:        "openai-ingress-passthrough",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
-			"model_mapping": map[string]any{
-				"channel-turn-1": "upstream-turn-1",
-				"channel-turn-2": "upstream-turn-2",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 452,
+			Name:        "openai-ingress-passthrough",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+				"model_mapping": map[string]any{
+					"channel-turn-1": "upstream-turn-1",
+					"channel-turn-2": "upstream-turn-2",
+				},
+			},
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
 			},
 		},
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1350,7 +1366,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRelaysHTTPStream(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -1376,22 +1391,25 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 	}
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: upstream, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector()})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 552,
-		Name:        "openai-ingress-http-bridge",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
-			"model_mapping": map[string]any{
-				"channel-bridge-model": "upstream-bridge-model",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 552,
+			Name:        "openai-ingress-http-bridge",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+				"model_mapping": map[string]any{
+					"channel-bridge-model": "upstream-bridge-model",
+				},
+			},
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeHTTPBridge,
 			},
 		},
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeHTTPBridge,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1574,16 +1592,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridg
 			dialer := &openAIWSCaptureDialer{conn: upstreamConn}
 			httpUpstream := &auxiliaryHTTPRecorder{}
 			svc := newWSFixture(wsFixtureInputs{options: options, transport: httpUpstream, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), dialer: dialer})
-			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 453,
-				Platform:    capability.PlatformOpenAI,
-				Type:        capability.AccountTypeAPIKey,
-				Status:      billing.StatusActive,
-				Schedulable: true,
-				Concurrency: 1,
-				Credentials: map[string]any{"api_key": "sk-test"},
-				Extra: map[string]any{
-					"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
-				}},
+			account := &gatewayprovider.ExecutionAccount{
+				Record: accountcore.Record{
+					LoadLocation: time.LoadLocation, ID: 453,
+					Platform:    capability.PlatformOpenAI,
+					Type:        capability.AccountTypeAPIKey,
+					Status:      billing.StatusActive,
+					Schedulable: true,
+					Concurrency: 1,
+					Credentials: map[string]any{"api_key": "sk-test"},
+					Extra: map[string]any{
+						"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
+					},
+				},
 			}
 
 			errCh := make(chan error, 1)
@@ -1642,7 +1663,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridg
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeadersUsePromptCacheAndTurnState(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -1663,19 +1683,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: upstreamConn}
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), dialer: captureDialer})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 453,
-		Name:        "openai-ingress-passthrough-headers",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeOAuth,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"access_token": "oauth-token",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 453,
+			Name:        "openai-ingress-passthrough-headers",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeOAuth,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"access_token": "oauth-token",
+			},
+			Extra: map[string]any{
+				"openai_oauth_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
+			},
 		},
-		Extra: map[string]any{
-			"openai_oauth_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1772,7 +1795,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPolicyViolation(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -1785,19 +1807,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPo
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: newOpenAIWSConnPool(options)})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 442,
-		Name:        "openai-ingress-off",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 442,
+			Name:        "openai-ingress-off",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeOff,
+			},
 		},
-		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeOff,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1861,7 +1886,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPo
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPrevResponseStrictDropToFullCreate(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -1889,19 +1913,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 140,
-		Name:        "openai-ingress-prev-preflight-rewrite",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 140,
+			Name:        "openai-ingress-prev-preflight-rewrite",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1988,7 +2015,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPrevResponseStrictDropBeforePreflightPingFailReconnects(t *testing.T) {
-
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -2028,19 +2054,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 142,
-		Name:        "openai-ingress-prev-strict-drop-before-ping",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 142,
+			Name:        "openai-ingress-prev-strict-drop-before-ping",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2132,7 +2161,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreEnabledSkipsStrictPrevResponseEval(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -2160,19 +2188,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreEnabledSkip
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 143,
-		Name:        "openai-ingress-store-enabled-skip-strict",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 143,
+			Name:        "openai-ingress-store-enabled-skip-strict",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2255,7 +2286,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreEnabledSkip
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPrevResponsePreflightSkipForFunctionCallOutput(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -2283,19 +2313,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 141,
-		Name:        "openai-ingress-prev-preflight-skip-fco",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 141,
+			Name:        "openai-ingress-prev-preflight-skip-fco",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2378,7 +2411,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFunctionCallOutputAutoAttachPreviousResponseID(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -2406,19 +2438,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 143,
-		Name:        "openai-ingress-fco-auto-prev",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 143,
+			Name:        "openai-ingress-fco-auto-prev",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2501,7 +2536,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledToolSearchOutputAutoAttachesPreviousResponseID(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -2529,19 +2563,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledToo
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 145,
-		Name:        "openai-ingress-tool-search-output-auto-prev",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 145,
+			Name:        "openai-ingress-tool-search-output-auto-prev",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2627,7 +2664,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledToo
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFunctionCallOutputSkipsAutoAttachWhenLastResponseIDMissing(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -2655,19 +2691,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 144,
-		Name:        "openai-ingress-fco-auto-prev-skip",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 144,
+			Name:        "openai-ingress-fco-auto-prev-skip",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2751,7 +2790,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFunctionCallOutputSkipsAutoAttachWhenToolCallContextPresent(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -2781,19 +2819,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 114,
-		Name:        "openai-ingress-tool-context",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 114,
+			Name:        "openai-ingress-tool-context",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2876,7 +2917,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFunctionCallOutputAutoAttachWhenOnlyItemReferencesPresent(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -2906,19 +2946,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 115,
-		Name:        "openai-ingress-item-reference",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 115,
+			Name:        "openai-ingress-item-reference",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3001,7 +3044,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFailReconnectsBeforeTurn(t *testing.T) {
-
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3041,19 +3083,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFai
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 116,
-		Name:        "openai-ingress-preflight-ping",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 116,
+			Name:        "openai-ingress-preflight-ping",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3135,7 +3180,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFai
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStrictAffinityPreflightPingFailAutoRecoveryReconnects(t *testing.T) {
-
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3175,19 +3219,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 121,
-		Name:        "openai-ingress-preflight-ping-strict-affinity",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 121,
+			Name:        "openai-ingress-preflight-ping-strict-affinity",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3279,7 +3326,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPreflightPingFailReplaysFunctionCallOutputWithContext(t *testing.T) {
-
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3319,19 +3365,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 128,
-		Name:        "openai-ingress-preflight-replay-function-output-with-context",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 128,
+			Name:        "openai-ingress-preflight-replay-function-output-with-context",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3426,7 +3475,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPreflightPingFailClosesWhenFunctionCallOutputNeedsPreviousResponseID(t *testing.T) {
-
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3466,19 +3514,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 129,
-		Name:        "openai-ingress-preflight-replay-function-output",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 129,
+			Name:        "openai-ingress-preflight-replay-function-output",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3564,7 +3615,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPreflightPingFailClosesWhenReplayHasFunctionCallOutput(t *testing.T) {
-
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3604,19 +3654,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 130,
-		Name:        "openai-ingress-preflight-replay-only-function-output",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 130,
+			Name:        "openai-ingress-preflight-replay-only-function-output",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3702,7 +3755,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeDownstreamRetriesOnce(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -3736,19 +3788,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 117,
-		Name:        "openai-ingress-write-retry",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 117,
+			Name:        "openai-ingress-write-retry",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 	var hooksMu sync.Mutex
 	beforeTurnCalls := make(map[int]int)
@@ -3860,7 +3915,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponseNotFoundRecoversByDroppingPrevID(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -3896,19 +3950,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 118,
-		Name:        "openai-ingress-prev-recovery",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 118,
+			Name:        "openai-ingress-prev-recovery",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4002,7 +4059,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStrictAffinityPreviousResponseNotFoundLayer2Recovery(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -4038,19 +4094,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 122,
-		Name:        "openai-ingress-prev-strict-layer2",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 122,
+			Name:        "openai-ingress-prev-strict-layer2",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4149,7 +4208,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponseNotFoundRecoveryRemovesDuplicatePrevID(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -4185,19 +4243,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 120,
-		Name:        "openai-ingress-prev-recovery-once",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 120,
+			Name:        "openai-ingress-prev-recovery-once",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4291,7 +4352,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageIDAsPreviousResponseID(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -4302,19 +4362,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageID
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector()})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 119,
-		Name:        "openai-ingress-prev-validation",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 119,
+			Name:        "openai-ingress-prev-validation",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4508,7 +4571,6 @@ func (c *openAIWSWriteFailAfterFirstTurnConn) Close() error {
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ClientDisconnectStillDrainsUpstream(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -4540,22 +4602,25 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ClientDisconnect
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 115,
-		Name:        "openai-ingress-client-disconnect",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
-			"model_mapping": map[string]any{
-				"custom-original-model": "gpt-5.1",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 115,
+			Name:        "openai-ingress-client-disconnect",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+				"model_mapping": map[string]any{
+					"custom-original-model": "gpt-5.1",
+				},
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
 			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4636,7 +4701,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ClientDisconnect
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErrorEvent(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -4659,19 +4723,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErro
 	pool.SetClientDialerForTest(dialer)
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 119,
-		Name:        "openai-ingress-cyber-error",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 119,
+			Name:        "openai-ingress-cyber-error",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4761,7 +4828,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErro
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFailedEvent(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -4784,19 +4850,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFail
 	pool.SetClientDialerForTest(dialer)
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 120,
-		Name:        "openai-ingress-cyber-failed",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 120,
+			Name:        "openai-ingress-cyber-failed",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4880,7 +4949,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFail
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_InvalidEncryptedContentLineageStripsNextTurn(t *testing.T) {
-
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
 	options.Request.URLPolicy.AllowInsecureHTTP = true
@@ -4911,19 +4979,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_InvalidEncrypted
 
 	svc := newWSFixture(wsFixtureInputs{options: options, transport: &auxiliaryHTTPRecorder{}, cache: &sessiontestkit.StickyCache{}, corrector: openai.NewCodexToolCorrector(), pool: pool})
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 119,
-		Name:        "openai-ingress-enc-lineage",
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeAPIKey,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 119,
+			Name:        "openai-ingress-enc-lineage",
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			Extra: map[string]any{
+				"responses_websockets_v2_enabled": true,
+			},
 		},
-		Extra: map[string]any{
-			"responses_websockets_v2_enabled": true,
-		}},
 	}
 
 	serverErrCh := make(chan error, 1)

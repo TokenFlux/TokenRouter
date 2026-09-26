@@ -63,7 +63,7 @@ func NewPricingService(options Options, remoteClient PricingRemoteClient) *Prici
 // Initialize 初始化价格服务
 func (s *PricingService) Initialize() error {
 	// 确保数据目录存在
-	if err := os.MkdirAll(s.currentOptions().DataDir, 0755); err != nil {
+	if err := os.MkdirAll(s.currentOptions().DataDir, 0o755); err != nil {
 		logging.LegacyPrintf("service.pricing", "[Pricing] Failed to create data directory: %v", err)
 	}
 
@@ -383,7 +383,7 @@ func (s *PricingService) DownloadPricingData() error {
 
 	// 保存到本地文件
 	pricingFile := s.GetPricingFilePath()
-	if err := os.WriteFile(pricingFile, body, 0644); err != nil {
+	if err := os.WriteFile(pricingFile, body, 0o644); err != nil {
 		logging.LegacyPrintf("service.pricing", "[Pricing] Failed to save file: %v", err)
 	}
 
@@ -394,7 +394,7 @@ func (s *PricingService) DownloadPricingData() error {
 		syncHash = remoteHash
 	}
 	hashFile := s.GetHashFilePath()
-	if err := os.WriteFile(hashFile, []byte(syncHash+"\n"), 0644); err != nil {
+	if err := os.WriteFile(hashFile, []byte(syncHash+"\n"), 0o644); err != nil {
 		logging.LegacyPrintf("service.pricing", "[Pricing] Failed to save hash: %v", err)
 	}
 
@@ -638,7 +638,7 @@ func (s *PricingService) UseFallbackPricing() error {
 
 	pricingFile := s.GetPricingFilePath()
 	//nolint:gosec // 价格文件路径来自管理员配置，仅用于同步本地回退数据。
-	if err := os.WriteFile(pricingFile, data, 0644); err != nil {
+	if err := os.WriteFile(pricingFile, data, 0o644); err != nil {
 		logging.LegacyPrintf("service.pricing", "[Pricing] Failed to copy fallback: %v", err)
 	}
 
@@ -787,8 +787,10 @@ func (s *PricingService) Start() {
 }
 
 // 目录值属于纯定价包，provider 只持有一个可替换的缓存实例。
-type LiteLLMModelPricing = purepricing.LiteLLMModelPricing
-type LiteLLMRawEntry = purepricing.LiteLLMRawEntry
+type (
+	LiteLLMModelPricing = purepricing.LiteLLMModelPricing
+	LiteLLMRawEntry     = purepricing.LiteLLMRawEntry
+)
 
 // Options 由 app 从一次加载的配置投影，provider 不接收 config 或业务实体。
 type Options struct {
@@ -873,6 +875,7 @@ func (s *PricingService) catalogQuery() *purepricing.CatalogQuery {
 		DefaultOpenAIModel: options.DefaultOpenAIModel,
 	}
 }
+
 func (s *PricingService) emitCatalogDiagnostics(query *purepricing.CatalogQuery) {
 	for _, diagnostic := range query.Diagnostics {
 		if diagnostic.Structured {
@@ -881,4 +884,9 @@ func (s *PricingService) emitCatalogDiagnostics(query *purepricing.CatalogQuery)
 			logging.LegacyPrintf("service.pricing", "%s", diagnostic.Message)
 		}
 	}
+}
+
+// ReadOnlySnapshot 返回固定目录供一次管理查询使用，不加载文件、不访问网络。
+func (s *PricingService) ReadOnlySnapshot() *PricingService {
+	return NewPricingServiceFromSnapshot(s.currentOptions(), nil, s.Snapshot())
 }

@@ -22,16 +22,16 @@ func TestRecordGrokMediaUsageIgnoresNilResult(t *testing.T) {
 	require.NotPanics(t, func() {
 		recordGrokMediaUsage(
 			nil, nil, nil, nil, authctx.AuthSubject{}, nil, nil, nil,
-			"", routing.ChannelMappingResult{}, nil, "",
+			"", routing.GroupMappingResult{}, nil, "",
 		)
 	})
 }
 
-func TestApplyGrokMediaChannelMappingRewritesForwardBody(t *testing.T) {
-	jsonBody, contentType, err := applyGrokMediaChannelMapping(
+func TestApplyGrokMediaGroupMappingRewritesForwardBody(t *testing.T) {
+	jsonBody, contentType, err := applyGrokMediaGroupMapping(
 		[]byte(`{"model":"key-target","prompt":"keep key-target in text"}`),
 		"application/json",
-		routing.ChannelMappingResult{Mapped: true, MappedModel: "channel-target"},
+		routing.GroupMappingResult{Mapped: true, MappedModel: "channel-target"},
 	)
 	require.NoError(t, err)
 	require.Equal(t, "application/json", contentType)
@@ -42,10 +42,10 @@ func TestApplyGrokMediaChannelMappingRewritesForwardBody(t *testing.T) {
 	require.NoError(t, writer.WriteField("model", "key-target"))
 	require.NoError(t, writer.WriteField("prompt", "keep key-target in text"))
 	require.NoError(t, writer.Close())
-	rewritten, rewrittenType, err := applyGrokMediaChannelMapping(
+	rewritten, rewrittenType, err := applyGrokMediaGroupMapping(
 		multipartBody.Bytes(),
 		writer.FormDataContentType(),
-		routing.ChannelMappingResult{Mapped: true, MappedModel: "channel-target"},
+		routing.GroupMappingResult{Mapped: true, MappedModel: "channel-target"},
 	)
 	require.NoError(t, err)
 	reader, err := multipart.NewReader(bytes.NewReader(rewritten), multipartBoundaryForTest(t, rewrittenType)).ReadForm(1 << 20)
@@ -147,13 +147,16 @@ func TestGrokMediaRequiredCapability(t *testing.T) {
 }
 
 func TestGrokMediaScheduleModelUsesNormalizedMappedUpstream(t *testing.T) {
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{
-				"grok-imagine-video-1.5": "wrong-raw-model",
-				"grok-imagine-video":     "mapped-video-model",
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"grok-imagine-video-1.5": "wrong-raw-model",
+					"grok-imagine-video":     "mapped-video-model",
+				},
 			},
-		}},
+		},
 	}
 
 	require.Equal(t, "mapped-video-model", grokMediaScheduleModel(account, "grok-imagine-video", nil))

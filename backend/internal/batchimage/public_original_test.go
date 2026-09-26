@@ -132,17 +132,17 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 				BatchImageHoldMultiplier:     0.6,
 			},
 		}}}
-		svc.ChannelService = newPublicChannelFixture(makePublicChannelFixture(routing.Channel{
+		svc.PricingConfigService = newPublicPricingConfigFixture(makePublicPricingConfigFixture(routing.PricingConfig{
 			ID:       31,
 			Status:   billingcore.StatusActive,
 			GroupIDs: []int64{groupID},
-			ModelMapping: map[string]map[string]string{
-				capability.PlatformGemini: {"gemini-2.5-flash-image": "channel-image-model"},
-			},
-		}, map[int64]string{groupID: capability.PlatformGemini}))
+		}, map[int64]string{groupID: capability.PlatformGemini}, routing.GroupRoutingPolicy{
+			Enabled:      true,
+			ModelMapping: map[string]map[string]string{capability.PlatformGemini: {"gemini-2.5-flash-image": "group-image-model"}},
+		}))
 		svc.AccountRepo = rebindBatchFixtureAccounts(svc, &publicBatchImageAccountRepo{accounts: []accountcore.Record{
 			testBatchImageMappedAccount(301, capability.AccountTypeAPIKey, map[string]any{
-				"channel-image-model": "upstream-image-model",
+				"group-image-model": "upstream-image-model",
 			}),
 		}})
 		trace := modeltrace.NewAPIKeyModelRedirectTrace("image-alias", "image-alias", "gemini-2.5-flash-image")
@@ -159,9 +159,9 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		require.Equal(t, "upstream-image-model", job.Model)
 		require.Equal(t, "image-alias", job.RequestedModel)
 		require.Equal(t, "gemini-2.5-flash-image", job.InternalModel)
-		require.ElementsMatch(t, []string{"gemini-2.5-flash-image", "channel-image-model", "upstream-image-model"}, trace.ResponseModels())
+		require.ElementsMatch(t, []string{"gemini-2.5-flash-image", "group-image-model", "upstream-image-model"}, trace.ResponseModels())
 		pricing := testassert.MustType[*fakeBatchImagePricingResolver](svc.Pricing)
-		require.Equal(t, []string{"channel-image-model"}, pricing.models)
+		require.Equal(t, []string{"group-image-model"}, pricing.models)
 	})
 
 	t.Run("selects batch pricing model from channel billing source", func(t *testing.T) {
@@ -170,13 +170,13 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 			want   string
 		}{
 			{source: routing.BillingModelSourceRequested, want: "key-target"},
-			{source: routing.BillingModelSourceChannelMapped, want: "channel-target"},
+			{source: routing.BillingModelSourceGroupMapped, want: "channel-target"},
 			{source: routing.BillingModelSourceUpstream, want: "upstream-target"},
 			{source: "", want: "channel-target"},
 		}
 		for _, test := range tests {
 			require.Equal(t, test.want, batchimage.BatchImagePricingModel(
-				routing.ChannelMappingResult{BillingModelSource: test.source},
+				routing.GroupMappingResult{BillingModelSource: test.source},
 				"key-target",
 				"channel-target",
 				"upstream-target",
@@ -191,7 +191,8 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		accountRepo := testassert.MustType[*publicBatchImageAccountRepo](testassert.MustType[*batchAccountFixture](svc.AccountRepo).source)
 		accountRepo.accounts[1].RateMultiplier = &accountMultiplier
 		svc.GroupRepo = batchGroupReader{&publicBatchImageGroupRepo{groups: map[int64]*routing.Group{
-			groupID: {ID: groupID,
+			groupID: {
+				ID:                           groupID,
 				Platform:                     capability.PlatformGemini,
 				RateMultiplier:               2.0,
 				AllowImageGeneration:         true,
@@ -273,7 +274,8 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		groupID := int64(7)
 		imagePrice := 0.134
 		svc.GroupRepo = batchGroupReader{&publicBatchImageGroupRepo{groups: map[int64]*routing.Group{
-			groupID: {ID: groupID,
+			groupID: {
+				ID:                           groupID,
 				Platform:                     capability.PlatformGemini,
 				RateMultiplier:               1.0,
 				AllowImageGeneration:         true,
@@ -1071,9 +1073,11 @@ func (q *publicBatchImageQueue) TryAcquireJobLock(context.Context, string, time.
 	return nil, false, nil
 }
 
-var _ batchAccountsFixtureSource = (*publicBatchImageAccountRepo)(nil)
-var _ batchimage.BatchImageQueue = (*publicBatchImageQueue)(nil)
-var _ batchimageprovider.BatchImageProvider = (*publicBatchImageProvider)(nil)
+var (
+	_ batchAccountsFixtureSource            = (*publicBatchImageAccountRepo)(nil)
+	_ batchimage.BatchImageQueue            = (*publicBatchImageQueue)(nil)
+	_ batchimageprovider.BatchImageProvider = (*publicBatchImageProvider)(nil)
+)
 
 type publicBatchImageGroupRepo struct {
 	groups map[int64]*routing.Group
@@ -1099,5 +1103,7 @@ func (r *publicBatchImageUserGroupRateRepo) GetByUserAndGroup(_ context.Context,
 	return nil, nil
 }
 
-var _ batchGroupFixtureSource = (*publicBatchImageGroupRepo)(nil)
-var _ batchimage.BatchImageUserGroupRateRepository = (*publicBatchImageUserGroupRateRepo)(nil)
+var (
+	_ batchGroupFixtureSource                      = (*publicBatchImageGroupRepo)(nil)
+	_ batchimage.BatchImageUserGroupRateRepository = (*publicBatchImageUserGroupRateRepo)(nil)
+)

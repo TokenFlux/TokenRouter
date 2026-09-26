@@ -39,12 +39,12 @@ type settingStub struct {
 
 func (s *settingStub) IsWebSearchEmulationEnabled(context.Context) bool { s.calls++; return s.enabled }
 
-type channelStub struct {
+type pricingConfigStub struct {
 	calls   int
 	enabled bool
 }
 
-func (s *channelStub) Enabled(context.Context, int64, string) (bool, error) {
+func (s *pricingConfigStub) Enabled(context.Context, int64, string) (bool, error) {
 	s.calls++
 	return s.enabled, nil
 }
@@ -72,6 +72,7 @@ func (o *outputStub) Flush()                { o.flushes++ }
 func newTestEmulator(provider *searchStub) *Emulator {
 	return NewEmulator(sourceStub{provider}, &settingStub{enabled: true}, nil, time.Now, func() string { return "12345678-1234-1234-1234-123456789abc" }, nil)
 }
+
 func TestEmulatorSyntheticUsageAndEventOrder(t *testing.T) {
 	for _, stream := range []bool{false, true} {
 		t.Run(map[bool]string{false: "json", true: "sse"}[stream], func(t *testing.T) {
@@ -112,6 +113,7 @@ func TestEmulatorSyntheticUsageAndEventOrder(t *testing.T) {
 		})
 	}
 }
+
 func TestEmulatorWriteFailureStopsEventsWithoutInventingBillableUsage(t *testing.T) {
 	provider := &searchStub{}
 	out := &outputStub{failAt: 3}
@@ -122,6 +124,7 @@ func TestEmulatorWriteFailureStopsEventsWithoutInventingBillableUsage(t *testing
 	require.Zero(t, result.Usage.InputTokens)
 	require.Zero(t, result.Usage.OutputTokens)
 }
+
 func TestEmulatorProxyFailureRetainsCause(t *testing.T) {
 	provider := &searchStub{err: search.ErrProxyUnavailable}
 	out := &outputStub{}
@@ -133,11 +136,12 @@ func TestEmulatorProxyFailureRetainsCause(t *testing.T) {
 	require.Empty(t, out.events)
 	require.Empty(t, out.json)
 }
+
 func TestEmulatorPolicyShortCircuit(t *testing.T) {
 	settings := &settingStub{enabled: true}
-	channel := &channelStub{enabled: true}
+	pricingConfig := &pricingConfigStub{enabled: true}
 	id := int64(1)
-	core := NewEmulator(sourceStub{}, settings, channel, nil, nil, nil)
+	core := NewEmulator(sourceStub{}, settings, pricingConfig, nil, nil, nil)
 	input := PolicyInput{Body: []byte(`{"tools":[{"type":"web_search"}]}`), GroupID: &id}
 	require.False(t, core.ShouldEmulate(context.Background(), input))
 	require.Zero(t, settings.calls)
@@ -148,11 +152,11 @@ func TestEmulatorPolicyShortCircuit(t *testing.T) {
 	input.Body = []byte(`{"tools":[{"type":"web_search"}]}`)
 	input.Mode = "enabled"
 	require.True(t, core.ShouldEmulate(context.Background(), input))
-	require.Zero(t, channel.calls)
+	require.Zero(t, pricingConfig.calls)
 	input.Mode = "disabled"
 	require.False(t, core.ShouldEmulate(context.Background(), input))
-	require.Zero(t, channel.calls)
+	require.Zero(t, pricingConfig.calls)
 	input.Mode = "default"
 	require.True(t, core.ShouldEmulate(context.Background(), input))
-	require.Equal(t, 1, channel.calls)
+	require.Equal(t, 1, pricingConfig.calls)
 }

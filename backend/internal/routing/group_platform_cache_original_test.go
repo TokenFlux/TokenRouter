@@ -34,15 +34,15 @@ func (r *groupPlatformRepoStub) Update(_ context.Context, group *routing.Group) 
 	return nil
 }
 
-type channelCacheInvalidatorSpy struct {
+type pricingConfigCacheInvalidatorSpy struct {
 	calls int
 }
 
-func (s *channelCacheInvalidatorSpy) InvalidateCache() { s.calls++ }
+func (s *pricingConfigCacheInvalidatorSpy) InvalidateCache() { s.calls++ }
 
-// 渠道缓存持有 groupID → platform，而渠道定价/模型映射/模型白名单都按平台严格隔离。
+// 共享价格配置缓存持有 groupID → platform，而共享价格配置定价/模型映射/模型白名单都按平台严格隔离。
 // 改了分组平台却不失效缓存，最长 10 分钟内这些查找仍按旧平台匹配（静默走错价）。
-func TestUpdateGroupInvalidatesChannelCacheOnPlatformChange(t *testing.T) {
+func TestUpdateGroupInvalidatesPricingConfigCacheOnPlatformChange(t *testing.T) {
 	tests := []struct {
 		name          string
 		fromPlatform  string
@@ -73,7 +73,7 @@ func TestUpdateGroupInvalidatesChannelCacheOnPlatformChange(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &groupPlatformRepoStub{group: &routing.Group{ID: 7, Name: "g", Platform: tt.fromPlatform}}
-			spy := &channelCacheInvalidatorSpy{}
+			spy := &pricingConfigCacheInvalidatorSpy{}
 			svc := newOriginalGroupAdmin(repo, nil, spy)
 
 			got, err := svc.UpdateGroup(context.Background(), 7, &routing.UpdateGroupInput{Platform: tt.inputPlatform})
@@ -85,7 +85,7 @@ func TestUpdateGroupInvalidatesChannelCacheOnPlatformChange(t *testing.T) {
 }
 
 // 依赖可以不注入（例如测试或裁剪构建），此时不应 panic——缓存靠 TTL 自然重建。
-func TestUpdateGroupWithoutChannelCacheInvalidator(t *testing.T) {
+func TestUpdateGroupWithoutPricingConfigCacheInvalidator(t *testing.T) {
 	repo := &groupPlatformRepoStub{group: &routing.Group{ID: 7, Name: "g", Platform: capability.PlatformAnthropic}}
 	svc := newOriginalGroupAdmin(repo, nil, nil)
 
@@ -94,13 +94,13 @@ func TestUpdateGroupWithoutChannelCacheInvalidator(t *testing.T) {
 	require.Equal(t, capability.PlatformOpenAI, got.Platform)
 }
 
-// 分组事务失败时数据库仍是旧平台，因此不能提前失效并重建渠道缓存。
-func TestUpdateGroupDoesNotInvalidateChannelCacheWhenUpdateFails(t *testing.T) {
+// 分组事务失败时数据库仍是旧平台，因此不能提前失效并重建共享价格配置缓存。
+func TestUpdateGroupDoesNotInvalidatePricingConfigCacheWhenUpdateFails(t *testing.T) {
 	repo := &groupPlatformRepoStub{
 		group:     &routing.Group{ID: 7, Name: "g", Platform: capability.PlatformAnthropic},
 		updateErr: errors.New("update failed"),
 	}
-	spy := &channelCacheInvalidatorSpy{}
+	spy := &pricingConfigCacheInvalidatorSpy{}
 	svc := newOriginalGroupAdmin(repo, nil, spy)
 
 	got, err := svc.UpdateGroup(context.Background(), 7, &routing.UpdateGroupInput{Platform: capability.PlatformOpenAI})

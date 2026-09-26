@@ -5,18 +5,29 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
-// ModelChain 分开保存客户端、Key 后请求、渠道与账号模型；不对已解析的一跳映射递归。
-// 最终供应商规范化与响应恢复仍由旧执行层完成，并按原时机传给用量记录。
+// ModelChain 分开保存客户端、Key 重定向后、分组映射后与账号映射后的模型；不对已解析的一跳映射递归。
+// 执行层完成供应商名称规范化和响应恢复，用量记录读取本次模型链。
 type ModelChain struct {
-	ClientModel, RequestedModel, ChannelModel, AccountMappedModel string
-	APIKeyRedirected, ChannelMapped                               bool
-	ChannelID                                                     int64
-	BillingModelSource                                            string
+	ClientModel, RequestedModel, GroupMappedModel, AccountMappedModel string
+	APIKeyRedirected, GroupMapped                                     bool
+	RestrictionModelSource                                            string
+	RestrictModels                                                    bool
+	PricingConfigID                                                   int64
+	BillingModelSource                                                string
 }
 
-// Mapping 只投影原渠道输出，不增加查价、限制检查或读取。
-func (p RoutePlan) Mapping() ChannelMappingResult {
-	return ChannelMappingResult{MappedModel: p.models.ChannelModel, ChannelID: p.models.ChannelID, Mapped: p.models.ChannelMapped, BillingModelSource: p.models.BillingModelSource, ClientModel: p.models.ClientModel, APIKeyRedirected: p.models.APIKeyRedirected}
+// Mapping 投影本次映射、独立白名单阶段及计费元数据，不重新读取配置。
+func (p RoutePlan) Mapping() GroupMappingResult {
+	return GroupMappingResult{
+		MappedModel:            p.models.GroupMappedModel,
+		PricingConfigID:        p.models.PricingConfigID,
+		Mapped:                 p.models.GroupMapped,
+		BillingModelSource:     p.models.BillingModelSource,
+		ClientModel:            p.models.ClientModel,
+		APIKeyRedirected:       p.models.APIKeyRedirected,
+		RestrictModels:         p.models.RestrictModels,
+		RestrictionModelSource: p.models.RestrictionModelSource,
+	}
 }
 func (p RoutePlan) Models() ModelChain { return p.models }
 

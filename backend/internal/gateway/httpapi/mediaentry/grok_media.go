@@ -130,7 +130,7 @@ func recordGrokMediaUsage(
 	account *gatewaycapture.ExecutionAccount,
 	result *forwardcore.OpenAIResult,
 	requestModel string,
-	channelMapping routing.ChannelMappingResult,
+	groupMapping routing.GroupMappingResult,
 	body []byte,
 	requestID string,
 ) {
@@ -148,7 +148,7 @@ func recordGrokMediaUsage(
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
 	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Record.Platform)
 	quotaPlatform := admission.QuotaPlatform(c.Request.Context(), apiKey)
-	channelUsageFields := gatewayhttp.ClientRequestedUsageFields(c, channelMapping, requestModel, result.UpstreamModel)
+	pricingUsageFields := gatewayhttp.ClientRequestedUsageFields(c, groupMapping, requestModel, result.UpstreamModel)
 	videoTaskID := ""
 	if result.VideoCount > 0 {
 		videoTaskID = strings.TrimSpace(firstNonEmptyString(requestID, result.ResponseID))
@@ -174,7 +174,7 @@ func recordGrokMediaUsage(
 		APIKeyService:      h.bindings.Quota,
 		QuotaPlatform:      quotaPlatform,
 		ClientSessionID:    sessionID,
-		ChannelUsageFields: channelUsageFields,
+		PricingUsageFields: pricingUsageFields,
 	})
 	completionRecorder := h.bindings.Common.Recorder
 	completionLog := logging.L().With(

@@ -44,29 +44,29 @@ func (s *Calculator) GetModelPricing(model string) (*ModelPricing, error) {
 	return price, err
 }
 
-// GetModelPricingWithChannel 保留目录查价失败语义，覆盖计算由纯包完成。
-func (s *Calculator) GetModelPricingWithChannel(model string, channelPricing *ChannelModelPricing) (*ModelPricing, error) {
+// GetModelPricingWithConfig 保留目录查价失败语义，覆盖计算由纯包完成。
+func (s *Calculator) GetModelPricingWithConfig(model string, configPricing *ModelPricingEntry) (*ModelPricing, error) {
 	pricing, err := s.GetModelPricing(model)
 	if err != nil {
 		return nil, err
 	}
-	return purepricing.ApplyChannelPrice(pricing, channelPricing), nil
+	return purepricing.ApplyConfigPrice(pricing, configPricing), nil
 }
 
 // CostInput 统一计费输入
 type CostInput struct {
 	Ctx             context.Context
 	Model           string
-	GroupID         *int64 // 用于渠道定价查找
+	GroupID         *int64 // 用于共享价格配置定价查找
 	Group           *PriceGroup
 	Tokens          UsageTokens
 	RequestCount    int     // 按次计费时使用
 	UsageUnits      float64 // 音频等连续计量单位（分钟/小时/百万字符）
 	SizeTier        string  // 按次/图片模式的层级标签（"1K","2K","4K","HD" 等）
 	RateMultiplier  float64
-	PricingAt       time.Time        // 渠道分时定价使用的计费时刻
+	PricingAt       time.Time        // 共享价格配置分时定价使用的计费时刻
 	ServiceTier     string           // "priority","flex","" 等
-	ReasoningEffort string           // 最终转发的推理档位；max 可触发模型/渠道倍率
+	ReasoningEffort string           // 最终转发的推理档位；max 可触发模型/共享价格配置倍率
 	Resolver        *PriceResolver   // 定价解析器
 	Resolved        *ResolvedPricing // 可选：预解析的定价结果（避免重复 Resolve 调用）
 }
@@ -114,18 +114,18 @@ func (s *Calculator) CalculateCostWithServiceTier(model string, tokens UsageToke
 	return s.CalculateCostInternal(model, tokens, rateMultiplier, serviceTier, nil)
 }
 
-func (s *Calculator) CalculateCostInternal(model string, tokens UsageTokens, rateMultiplier float64, serviceTier string, ChannelPricing *ChannelModelPricing) (*CostBreakdown, error) {
+func (s *Calculator) CalculateCostInternal(model string, tokens UsageTokens, rateMultiplier float64, serviceTier string, ConfigPricing *ModelPricingEntry) (*CostBreakdown, error) {
 	var pricing *ModelPricing
 	var err error
-	if ChannelPricing != nil {
-		pricing, err = s.GetModelPricingWithChannel(model, ChannelPricing)
+	if ConfigPricing != nil {
+		pricing, err = s.GetModelPricingWithConfig(model, ConfigPricing)
 	} else {
 		pricing, err = s.GetModelPricing(model)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if ChannelPricing == nil {
+	if ConfigPricing == nil {
 		pricing = purepricing.ApplyDeepSeekPeakPricing(model, pricing, s.options.Now())
 	}
 
@@ -264,7 +264,7 @@ func (s *Calculator) DisplayPricing(model string, rateMultiplier float64) ModelD
 	return buildTokenDisplayPricing(pricing, rateMultiplier)
 }
 
-// DisplayPricingWithResolvedMultipliers 优先使用已解析的渠道价格计算展示价格。
+// DisplayPricingWithResolvedMultipliers 优先使用已解析的共享价格配置价格计算展示价格。
 func (s *Calculator) DisplayPricingWithResolvedMultipliers(model string, rateMultiplier float64, resolved *ResolvedPricing) ModelDisplayPricing {
 	if rateMultiplier < 0 {
 		rateMultiplier = 0
@@ -426,8 +426,8 @@ func NewCalculator(catalog PriceCatalog, options CalculatorOptions) *Calculator 
 // ProjectCostInput 只投影已解析结果，保持查价懒加载与请求固定的取时点。
 func (s *Calculator) ProjectCostInput(input CostInput, resolved *ResolvedPricing) purepricing.CostInput {
 	var location *time.Location
-	if resolved != nil && resolved.ChannelPricing != nil && resolved.ChannelPricing.TimePricing != nil {
-		location, _ = s.options.LoadLocation(resolved.ChannelPricing.TimePricing.Timezone)
+	if resolved != nil && resolved.ConfigPricing != nil && resolved.ConfigPricing.TimePricing != nil {
+		location, _ = s.options.LoadLocation(resolved.ConfigPricing.TimePricing.Timezone)
 	}
 	modelAt := input.PricingAt
 	if modelAt.IsZero() {
@@ -436,8 +436,10 @@ func (s *Calculator) ProjectCostInput(input CostInput, resolved *ResolvedPricing
 	return purepricing.CostInput{Model: input.Model, Tokens: input.Tokens, RequestCount: input.RequestCount, UsageUnits: input.UsageUnits, SizeTier: input.SizeTier, RateMultiplier: input.RateMultiplier, PricingAt: input.PricingAt, ModelPricingAt: modelAt, ModelPolicy: s.options.ModelPolicy(input.Model), ServiceTier: input.ServiceTier, ReasoningEffort: input.ReasoningEffort, TimePricingLocation: location}
 }
 
-type LiteLLMModelPricing = purepricing.LiteLLMModelPricing
-type ChannelModelPricing = purepricing.ChannelModelPricing
+type (
+	LiteLLMModelPricing = purepricing.LiteLLMModelPricing
+	ModelPricingEntry   = purepricing.ModelPricingEntry
+)
 
 // GetModelModalities 直接走目录的身份元数据查询，不能继承价格回退。
 func (s *Calculator) GetModelModalities(model string) ([]string, []string) {

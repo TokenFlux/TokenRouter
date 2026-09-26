@@ -43,10 +43,12 @@ func (p *openAITextEntryProbe) Access(*gin.Context) (*apikey.APIKey, bool) {
 	p.mark("access")
 	return p.key, p.key != nil
 }
+
 func (p *openAITextEntryProbe) Dependencies(*gin.Context, *zap.Logger) bool {
 	p.mark("dependencies")
 	return true
 }
+
 func (p *openAITextEntryProbe) AllowsMessages(*apikey.APIKey) bool {
 	p.mark("messages-policy")
 	return p.allowed
@@ -56,6 +58,7 @@ func (p *openAITextEntryProbe) StartCompact(*gin.Context, time.Duration) func() 
 	p.mark("keepalive-start")
 	return func() { p.mark("keepalive-stop") }
 }
+
 func (p *openAITextEntryProbe) Reasoning(_ *gin.Context, _ *apikey.APIKey, body []byte) ([]byte, bool, error) {
 	p.mark("reasoning")
 	if p.rewrite != nil {
@@ -63,37 +66,46 @@ func (p *openAITextEntryProbe) Reasoning(_ *gin.Context, _ *apikey.APIKey, body 
 	}
 	return body, false, nil
 }
+
 func (p *openAITextEntryProbe) MessageReasoning(*gin.Context, *apikey.APIKey, []byte) {
 	p.mark("message-reasoning")
 }
+
 func (p *openAITextEntryProbe) ApplyUserPromptReplacementToBody(_ context.Context, body []byte, format string) []byte {
 	p.mark("prompt:" + format)
 	return body
 }
+
 func (p *openAITextEntryProbe) ValidateOwner(context.Context, int64, string, int64, int64) (bool, error) {
 	p.mark("owner-check")
 	return p.owned, nil
 }
+
 func (p *openAITextEntryProbe) SetOwner(c *gin.Context, u, k int64) {
 	p.mark("owner-set")
 	p.openAITextHTTPBackend.SetOwner(c, u, k)
 }
+
 func (p *openAITextEntryProbe) Moderate(*gin.Context, *zap.Logger, *apikey.APIKey, authctx.AuthSubject, protocol.ProtocolID, string, []byte) *moderation.Decision {
 	p.mark("moderate")
 	return p.decision
 }
+
 func (p *openAITextEntryProbe) Plan(context.Context, *apikey.APIKey, string) routing.RoutePlan {
 	p.mark("plan")
 	return routing.RoutePlan{}
 }
-func (p *openAITextEntryProbe) ChatImageModel(string, routing.ChannelMappingResult) bool {
+
+func (p *openAITextEntryProbe) ChatImageModel(string, routing.GroupMappingResult) bool {
 	p.mark("chat-model")
 	return p.image
 }
-func (p *openAITextEntryProbe) ImageIntent(model string, body []byte, _ routing.ChannelMappingResult, _ string) ([]byte, string, bool) {
+
+func (p *openAITextEntryProbe) ImageIntent(model string, body []byte, _ routing.GroupMappingResult, _ string) ([]byte, string, bool) {
 	p.mark("image-intent")
 	return body, model, false
 }
+
 func (p *openAITextEntryProbe) UserSlot(c *gin.Context, _ int64, _ int, _ bool, _ *bool, _ *zap.Logger) (func(), bool) {
 	p.mark("user-slot")
 	if p.canceled {
@@ -102,35 +114,43 @@ func (p *openAITextEntryProbe) UserSlot(c *gin.Context, _ int64, _ int, _ bool, 
 	}
 	return func() { p.mark("user-release") }, true
 }
+
 func (p *openAITextEntryProbe) Eligibility(context.Context, *apikey.APIKey, *billing.UserSubscription) error {
 	p.mark("eligibility")
 	return p.eligibility
 }
+
 func (p *openAITextEntryProbe) SessionHash(_ *gin.Context, kind OpenAISessionInput, _ []byte) string {
 	if kind == OpenAIExplicitSession {
 		return "explicit"
 	}
 	return "session"
 }
+
 func (p *openAITextEntryProbe) RejectCyber(*gin.Context, *apikey.APIKey, []byte, string, protocol.ProtocolID) bool {
 	p.mark("cyber-check")
 	return false
 }
+
 func (p *openAITextEntryProbe) Isolate(context.Context, *apikey.APIKey, int64, string, string) error {
 	p.mark("isolation")
 	return nil
 }
+
 func (p *openAITextEntryProbe) GuardianContext(ctx context.Context, _ *gin.Context, _ []byte, _ string) context.Context {
 	p.mark("guardian")
 	return ctx
 }
+
 func (p *openAITextEntryProbe) MappedBodyCache(body []byte) func(bool, string) []byte {
 	p.mark("mapped-cache")
 	return func(bool, string) []byte { return body }
 }
+
 func (p *openAITextEntryProbe) MessageAccountModel(_ context.Context, _ *apikey.APIKey, model string) string {
 	return model
 }
+
 func (p *openAITextEntryProbe) Execution(_ *gin.Context, call OpenAITextCall) textflow.ResponsePorts {
 	p.mark("execution")
 	p.call = &call
@@ -220,6 +240,7 @@ func TestOpenAITextHTTPPreludeErrorOrder(t *testing.T) {
 		require.Contains(t, w.Body.String(), "invalid stream field type")
 	})
 }
+
 func TestOpenAITextHTTPWaitAndSnapshot(t *testing.T) {
 	for _, entry := range []string{"responses", "messages", "chat"} {
 		t.Run(entry, func(t *testing.T) {

@@ -31,7 +31,7 @@ func TestOpenAIMediaPricingUsesModifierOnlyCards(t *testing.T) {
 		for _, scope := range []string{"group", "channel"} {
 			for _, kind := range []string{"fast", "flex", "max", "time", "combined"} {
 				t.Run(media+"/"+scope+"/"+kind, func(t *testing.T) {
-					card := routing.ChannelModelPricing{Platform: platform, Models: []string{model}, BillingMode: routing.BillingModeToken}
+					card := routing.ModelPricingEntry{Platform: platform, Models: []string{model}, BillingMode: routing.BillingModeToken}
 					factor, tier, effort := 1.0, "", ""
 					if kind == "fast" || kind == "combined" {
 						card.FastMultiplier, tier = testPtrFloat64(2), "priority"
@@ -46,25 +46,25 @@ func TestOpenAIMediaPricingUsesModifierOnlyCards(t *testing.T) {
 						factor *= 3
 					}
 					if kind == "time" || kind == "combined" {
-						card.TimePricing = &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}}
+						card.TimePricing = &routing.TimePricingConfig{Timezone: "UTC", Periods: []routing.TimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}}
 						factor *= 2
 					}
-					require.NoError(t, (routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation}).PricingEntries([]routing.ChannelModelPricing{card}))
+					require.NoError(t, (routing.PricingConfigValidation{LoadLocation: pricingprovider.LoadPricingLocation}).PricingEntries([]routing.ModelPricingEntry{card}))
 					billing := newCalculator(nil, newCatalogFixture(catalogFixture{pricingData: map[string]*pricing.LiteLLMModelPricing{
 						model: {Mode: media, InputCostPerToken: 0.001, OutputCostPerToken: 0.002, OutputCostPerImageToken: 0.004},
 					}}))
 					group := &routing.Group{ID: 100, Platform: platform}
-					var channelCards []routing.ChannelModelPricing
+					var pricingConfigCards []routing.ModelPricingEntry
 					if scope == "group" {
-						group.ModelPricing = []routing.ChannelModelPricing{card}
+						group.ModelPricing = []routing.ModelPricingEntry{card}
 					} else {
-						channelCards = []routing.ChannelModelPricing{card}
+						pricingConfigCards = []routing.ModelPricingEntry{card}
 					}
-					resolver := billingtestkit.ResolverWithCards(t, billing, channelCards)
+					resolver := billingtestkit.ResolverWithCards(t, billing, pricingConfigCards)
 					svc := completion.NewRecorder(completion.Dependencies{Calculator: billing, Prices: resolver}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 					key := &apikey.APIKey{GroupID: &group.ID, Group: group}
-					resolved := svc.ResolveOpenAIChannelPricing(context.Background(), model, gatewaycapture.ProjectCompletionKey(key))
+					resolved := svc.ResolveOpenAIConfigPricing(context.Background(), model, gatewaycapture.ProjectCompletionKey(key))
 					require.NotNil(t, resolved)
 					require.Equal(t, pricing.PricingSourceLiteLLM, resolved.Source)
 					result := &forwardcore.OpenAIResult{Model: model, ReasoningEffort: &effort, ImageCount: 1}
@@ -97,9 +97,11 @@ func TestOpenAIMediaModifiersPreserveInheritedRequestBilling(t *testing.T) {
 				wantTotal, rate = 4, 0.8
 			}
 			billing := newCalculator(nil, nil)
-			resolver := billingtestkit.ResolverWithCards(t, billing, []routing.ChannelModelPricing{{Platform: platform, Models: []string{model}, BillingMode: mode, PerRequestPrice: testPtrFloat64(0.25)}})
-			group := &routing.Group{ID: 100, Platform: platform, ModelPricing: []routing.ChannelModelPricing{{Models: []string{model}, FastMultiplier: testPtrFloat64(3),
-				TimePricing: &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}}}}}
+			resolver := billingtestkit.ResolverWithCards(t, billing, []routing.ModelPricingEntry{{Platform: platform, Models: []string{model}, BillingMode: mode, PerRequestPrice: testPtrFloat64(0.25)}})
+			group := &routing.Group{ID: 100, Platform: platform, ModelPricing: []routing.ModelPricingEntry{{
+				Models: []string{model}, FastMultiplier: testPtrFloat64(3),
+				TimePricing: &routing.TimePricingConfig{Timezone: "UTC", Periods: []routing.TimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}},
+			}}}
 			svc := completion.NewRecorder(completion.Dependencies{Calculator: billing, Prices: resolver}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 			cost, err := svc.CalculateOpenAIRecordUsageCostAt(context.Background(), gatewaycapture.ProjectOpenAICompletionResult(result, nil), gatewaycapture.ProjectCompletionKey(&apikey.APIKey{Group: group}), []string{model}, 1.5, 0.7, 0.8, 1,
@@ -118,22 +120,22 @@ func TestCNProviderPricingModifiersDoNotCountAsExplicitPrices(t *testing.T) {
 		for _, scope := range []string{"group", "channel"} {
 			t.Run(platform+"/"+scope, func(t *testing.T) {
 				model := "claude-sonnet-4"
-				card := routing.ChannelModelPricing{Platform: platform, Models: []string{model}, FastMultiplier: testPtrFloat64(2)}
+				card := routing.ModelPricingEntry{Platform: platform, Models: []string{model}, FastMultiplier: testPtrFloat64(2)}
 				group := &routing.Group{ID: 100, Platform: platform}
-				var channelCards []routing.ChannelModelPricing
+				var pricingConfigCards []routing.ModelPricingEntry
 				if scope == "group" {
-					group.ModelPricing = []routing.ChannelModelPricing{card}
+					group.ModelPricing = []routing.ModelPricingEntry{card}
 				} else {
-					channelCards = []routing.ChannelModelPricing{card}
+					pricingConfigCards = []routing.ModelPricingEntry{card}
 				}
-				resolver := billingtestkit.ResolverWithCards(t, newCalculator(nil, nil), channelCards)
+				resolver := billingtestkit.ResolverWithCards(t, newCalculator(nil, nil), pricingConfigCards)
 				svc := completion.NewRecorder(completion.Dependencies{Prices: resolver}, completion.RecorderOptions{DefaultMultiplier: 1})
 
 				key := &apikey.APIKey{Group: group}
-				require.NotNil(t, svc.ResolveOpenAIChannelPricing(context.Background(), model, gatewaycapture.ProjectCompletionKey(key)))
+				require.NotNil(t, svc.ResolveOpenAIConfigPricing(context.Background(), model, gatewaycapture.ProjectCompletionKey(key)))
 				require.Empty(t, svc.FilterCNProviderBillingModelCandidates(context.Background(), gatewaycapture.ProjectCompletionAccount(gatewaycapture.ExecutionCompletionRecord(&gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: platform}})), gatewaycapture.ProjectCompletionKey(key), []string{model}))
 				// 显式零价仍是管理员的定价合同，应允许候选进入结算。
-				group.ModelPricing = []routing.ChannelModelPricing{{Models: []string{model}, InputPrice: testPtrFloat64(0)}}
+				group.ModelPricing = []routing.ModelPricingEntry{{Models: []string{model}, InputPrice: testPtrFloat64(0)}}
 				require.Equal(t, []string{model}, svc.FilterCNProviderBillingModelCandidates(context.Background(), gatewaycapture.ProjectCompletionAccount(gatewaycapture.ExecutionCompletionRecord(&gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: platform}})), gatewaycapture.ProjectCompletionKey(key), []string{model}))
 			})
 		}

@@ -20,12 +20,12 @@ type CostInput struct {
 	TimePricingLocation *time.Location
 }
 
-// ResolvedChannelTimeMultiplier 只计算显式 Location 下的分时倍率。
-func ResolvedChannelTimeMultiplier(resolved *ResolvedPricing, at time.Time, location *time.Location) float64 {
-	if resolved == nil || resolved.Mode != BillingModeToken || resolved.ChannelPricing == nil {
+// ResolvedTimeMultiplier 只计算显式 Location 下的分时倍率。
+func ResolvedTimeMultiplier(resolved *ResolvedPricing, at time.Time, location *time.Location) float64 {
+	if resolved == nil || resolved.Mode != BillingModeToken || resolved.ConfigPricing == nil {
 		return 1
 	}
-	return resolved.ChannelPricing.TimePricing.MultiplierAt(at, location)
+	return resolved.ConfigPricing.TimePricing.MultiplierAt(at, location)
 }
 
 // ModelPolicy 是旧模型能力解析得到的价格策略投影，不携带模型目录或平台实现。

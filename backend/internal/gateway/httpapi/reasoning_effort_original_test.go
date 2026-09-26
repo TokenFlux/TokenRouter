@@ -18,9 +18,8 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// TestApplyOpenAIReasoningEffortPolicyForRequest 验证分组可自行决定不兼容档位的目标值。
+// TestApplyOpenAIReasoningEffortPolicyForRequest_MapsConfiguredNoneForAstra 验证分组可自行决定不兼容档位的目标值。
 func TestApplyOpenAIReasoningEffortPolicyForRequest_MapsConfiguredNoneForAstra(t *testing.T) {
-
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -54,7 +53,6 @@ func TestApplyOpenAIReasoningEffortPolicyForRequest_MapsConfiguredNoneForAstra(t
 }
 
 func TestApplyAnthropicReasoningEffortPolicyForRequest_CapsOutputConfigEffort(t *testing.T) {
-
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)

@@ -521,15 +521,15 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/channels',
-    name: 'AdminChannels',
-    component: () => import('@/views/admin/ChannelsView.vue'),
+    path: '/admin/pricing',
+    name: 'AdminPricing',
+    component: () => import('@/views/admin/PricingView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Channel Management',
-      titleKey: 'admin.channels.title',
-      descriptionKey: 'admin.channels.description'
+      title: 'Price Management',
+      titleKey: 'admin.pricing.title',
+      descriptionKey: 'admin.pricing.description'
     }
   },
   {

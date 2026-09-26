@@ -37,12 +37,14 @@ func (f *qoderRuntimeContract) CheckKey(context.Context, *apikey.APIKey, *billin
 	f.events = append(f.events, "funding")
 	return nil
 }
+
 func (f *qoderRuntimeContract) Select(context.Context, *int64, string, string, map[int64]struct{}, int64) (QoderCompatibleSelection, error) {
 	f.events = append(f.events, "select")
 	return f, nil
 }
+
 func (f *qoderRuntimeContract) Plan(_ context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-	return routing.Plan(routing.PlanInput{GroupID: key.GroupID, RequestedModel: model, Channel: routing.ChannelMappingResult{Mapped: true, MappedModel: "upstream-model"}})
+	return routing.Plan(routing.PlanInput{GroupID: key.GroupID, RequestedModel: model, GroupMapping: routing.GroupMappingResult{Mapped: true, MappedModel: "upstream-model"}})
 }
 
 func (f *qoderRuntimeContract) BindStickySession(context.Context, *int64, string, int64) error {
@@ -63,6 +65,7 @@ func (f *qoderRuntimeContract) Switched() { f.t.Fatal("已有用量不得再次�
 func (*qoderRuntimeContract) Snapshot() account.AccountSnapshot {
 	return account.AccountSnapshot{ID: 1, Platform: "qoder", Concurrency: 1}
 }
+
 func (f *qoderRuntimeContract) Forward(_ context.Context, c *gin.Context, body []byte, wire protocol.ProtocolID, model string) (*forward.MessagesResult, error) {
 	f.events = append(f.events, "forward")
 	require.Equal(f.t, f.wire, wire)
@@ -78,16 +81,19 @@ func (f *qoderRuntimeContract) Forward(_ context.Context, c *gin.Context, body [
 	c.JSON(http.StatusOK, gin.H{"result": "complete"})
 	return result, nil
 }
+
 func (f *qoderRuntimeContract) Refresh(context.Context) (QoderCompatibleTarget, error) {
 	f.refreshes++
 	return f, nil
 }
+
 func (f *qoderRuntimeContract) Completion(_ context.Context, capture QoderCompletionCapture) *completion.Input {
 	f.captures++
 	require.Equal(f.t, "client-model", gjson.GetBytes(capture.Body, "model").String())
 	require.Equal(f.t, 3, capture.Result.Usage.InputTokens)
 	return &completion.Input{Account: &completion.AccountSnapshot{ID: 1}, Result: &completion.Result{}}
 }
+
 func (f *qoderRuntimeContract) Record(ctx context.Context, _ *completion.Input, openAI bool) error {
 	require.NoError(f.t, ctx.Err())
 	require.False(f.t, openAI)

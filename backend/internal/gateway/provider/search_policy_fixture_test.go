@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/testkit"
+
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/search"
 )
@@ -24,19 +26,21 @@ func newSearchSettingsFixture(enabled bool, registry *search.Registry) *search.C
 	return search.NewConfigService(searchSettingRows{data: string(data)}, nil, nil, registry)
 }
 
-type searchChannelRows struct {
-	routing.ChannelRepository
-	channels []routing.Channel
+type searchPricingConfigRows struct {
+	routing.PricingConfigRepository
+	pricingConfigs []testkit.Configuration
 }
 
-func (r searchChannelRows) ListAll(context.Context) ([]routing.Channel, error) {
-	return r.channels, nil
+func (r searchPricingConfigRows) ListAll(context.Context) ([]testkit.Configuration, error) {
+	return r.pricingConfigs, nil
 }
-func (r searchChannelRows) GetGroupPlatforms(context.Context, []int64) (map[int64]string, error) {
+
+func (r searchPricingConfigRows) GetGroupPlatforms(context.Context, []int64) (map[int64]string, error) {
 	return map[int64]string{}, nil
 }
-func newChannelServiceWithCache(groupID int64, ch *routing.Channel) *routing.ChannelService {
+
+func newPricingConfigServiceWithCache(groupID int64, ch *testkit.Configuration) *routing.PricingConfigService {
 	value := ch.Clone()
 	value.GroupIDs = []int64{groupID}
-	return routing.NewChannelService(searchChannelRows{channels: []routing.Channel{*value}}, nil, routing.ChannelOptions{Now: time.Now})
+	return testkit.NewPricingConfigService(searchPricingConfigRows{pricingConfigs: []testkit.Configuration{*value}}, nil, routing.PricingConfigOptions{Now: time.Now})
 }

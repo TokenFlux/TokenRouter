@@ -181,12 +181,12 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 		return
 	}
 
-	// 渠道模型 C 决定生图并发和账号端点能力，客户端模型 R 继续用于日志与会话语义。
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
-	channelMapping := channelMappingRoutePlan.Mapping()
-	h.backend.BindPlan(c, channelMappingRoutePlan)
-	forwardBody, routingModel, forwardImageIntent := h.backend.ImageIntent(reqModel, body, channelMapping, h.backend.Platform(apiKey))
+	// 分组映射模型 G 决定生图并发和账号端点能力，客户端模型 R 继续用于日志与会话语义。
+	// 当前分组和分组映射结果进入独立计划，不改变原解析位置。
+	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
+	groupMapping := groupMappingRoutePlan.Mapping()
+	h.backend.BindPlan(c, groupMappingRoutePlan)
+	forwardBody, routingModel, forwardImageIntent := h.backend.ImageIntent(reqModel, body, groupMapping, h.backend.Platform(apiKey))
 	forwardModel := strings.TrimSpace(routingModel)
 	if forwardModel == "" {
 		forwardModel = reqModel
@@ -198,7 +198,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 	// 错误诊断也必须看到相同入口语义，避免把可透传模型误报为 model_not_found。
 	c.Request = c.Request.WithContext(selectionCtx)
 	if imageIntent {
-		// 生图家族限流依赖上下文标记，必须使用渠道映射后的显式意图结果。
+		// 生图家族限流依赖上下文标记，必须使用分组映射后的显式意图结果。
 		selectionCtx = h.backend.ImageContext(selectionCtx)
 	}
 	if imageIntent && !h.backend.AllowsImages(apiKey) {
@@ -218,7 +218,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 		}
 	}
 
-	h.backend.SeedImageIntent(c, channelMapping.Mapped, forwardImageIntent)
+	h.backend.SeedImageIntent(c, groupMapping.Mapped, forwardImageIntent)
 
 	// 提前校验 function_call_output 是否具备可关联上下文，避免上游 400。
 	if !h.backend.ValidateTools(c, body, reqLog) {
@@ -278,7 +278,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 	// 生图意图的 /v1/responses 请求必须调度到确实支持 Responses API 的账号，否则
 	// 会在 forward 阶段被静默降级为无法生图的 Chat Completions 直转（#4417）。
 	// 仅对 OpenAI 平台生效：Grok 生图走独立的 forwardGrokResponses 路径，不应被过滤。
-	// 复用前置权限与并发阶段按渠道模型 C 和未再修改的 forwardBody 确认的显式生图意图，
+	// 复用前置权限与并发阶段按分组映射模型 G 和未再修改的 forwardBody 确认的显式生图意图，
 	// 避免大 tools 请求重复扫描。
 	// 该判断已排除 Codex 被动 image_gen namespace，避免 CC-only 账号被误过滤（#4476）。
 	requiredCapability := textflow.RequiredResponsesCapability(
@@ -288,13 +288,14 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 		requestPlatform,
 	)
 
-	call := OpenAITextCall{Route: channelMappingRoutePlan,
+	call := OpenAITextCall{
+		Route:    groupMappingRoutePlan,
 		Protocol: protocol.ProtocolOpenAIResponses, Key: apiKey, Subject: subject, Subscription: subscription,
 		Body: body, ForwardBody: forwardBody, SessionHashBody: sessionHashBody,
 		Model: reqModel, ForwardModel: forwardModel, SessionHash: sessionHash, PreviousResponseID: previousResponseID,
 		Platform: requestPlatform, Stream: reqStream, NativeCompactionV2: nativeCompactionV2, LegacyCompact: legacyCompact,
 		RequireCompact: requireCompact, StreamStarted: &streamStarted, SelectionContext: selectionCtx,
-		Mapping: channelMapping, RoutingStart: routingStart, RequiredCapability: requiredCapability, Log: reqLog,
+		Mapping: groupMapping, RoutingStart: routingStart, RequiredCapability: requiredCapability, Log: reqLog,
 	}
 	h.executeText(c, call, execution.TextOpenAIResponses)
 }

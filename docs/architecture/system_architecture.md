@@ -87,7 +87,7 @@ app 在 bootstrap 成功后固定共享 Calendar，显式传入用量、支付�
 
 Wire 构造对象并登记资源后，lifecycle 才启动后台工作。时间轮和设置/定价预热先完成，再启动缓存订阅及消费队列，最后启动周期生产者、任务拉取和 HTTP。原有首次执行、预热降级、功能开关和动态 worker 数量保持各模块语义。构造或部分启动失败时回收已取得及已尝试启动的资源，错误链保留原始原因。
 
-定价 provider 由 `app/pricing.go` 投影独立 Options，按初始化、启动、停止的顺序接入生命周期。远端客户端和运行实例直接使用 billing/provider。Calculator、PriceResolver 和 ChannelService 也由 app 直接提供实例，供计算与查价消费者共享。平台模型别名和动态 Grok 默认值由 gateway/provider/modelidentity 投影，每次查价只取得一次快照；纯定价不读取平台运行状态。Key 与渠道模型追踪由 gateway/modeltrace 组合。
+定价 provider 由 `app/pricing.go` 投影独立 Options，按初始化、启动、停止的顺序接入生命周期。远端客户端和运行实例直接使用 billing/provider。Calculator、PriceResolver 和 PricingConfigService 也由 app 直接提供实例，供计算与查价消费者共享。平台模型别名和动态 Grok 默认值由 gateway/provider/modelidentity 投影，每次查价只取得一次快照；纯定价不读取平台运行状态。Key 与分组模型追踪由 gateway/modeltrace 组合。
 
 billing 的余额/Key 缓存队列、平台额度 flusher 和订阅过期提醒由 app 绑定到现有生命周期。提醒保留立即首轮、每分钟扫描和既有 Redis/数据库 leader 策略，停止时取消并等待在途操作。未接入生产图的订阅维护队列不启动。
 
@@ -119,7 +119,7 @@ usage 聚合器在停止时取消运行 context 和重试等待，拒绝新重�
 
 | 存储 | 所有权与使用方式 | 失败或丢失影响 |
 | --- | --- | --- |
-| PostgreSQL | 用户、身份、团队、Key、分组、渠道、账号、设置、订单、订阅、持久任务、用量和审计的权威状态 | 连接、迁移或密钥初始化失败会阻止完整应用启动；写失败不得由缓存结果伪装成成功 |
+| PostgreSQL | 用户、身份、团队、Key、分组、价格配置、账号、设置、订单、订阅、持久任务、用量和审计的权威状态 | 连接、迁移或密钥初始化失败会阻止完整应用启动；写失败不得由缓存结果伪装成成功 |
 | Redis | 缓存、限流、并发槽、会话/粘性、分布式锁、调度快照、队列及跨实例失效；个别短期任务按 TTL 保存在 Redis | 影响依功能而异：安全入口可 fail-close，调度可受控回源，缓存可重建，在途短期任务可能丢失；必须由具体契约定义 |
 | 本地数据目录 | 定价快照、日志、前端覆盖及部分部署配置 | 多实例默认不共享；容器部署必须挂载持久卷并在备份计划中显式纳入 |
 | S3 兼容存储 | 备份等可选大对象 | 备份客户端按运行时设置构造，不能在启动时固定旧凭据；对象可用性与数据库元数据生命周期必须协同 |
@@ -149,7 +149,7 @@ Gin engine 的顺序为 Recovery、可信代理设置、全局日志/客户端�
 
 出站、路由与账号的运行接口分别为 EgressPolicy、RoutePlan 和 AccountSnapshot。策略与模型配置跨请求边界提供独立副本；候选协议和账号映射在原 attempt/使用时点重新求值。account 的刷新协调、管理/用量查询、周期维护与 Deferred 由 app 持有并登记停止，egress 的采集监听仍按需开启。`account/postgres`、`routing/postgres`、`egress/postgres` 拥有各自存储，Redis 健康计数与 TLS 缓存在所属 Adapter 中；共享 SQL/Redis/HTTP 池仍只有原技术实例。
 
-分组管理直接读取 AccountStore 与 KeyStore，容量查询直接读取账号轻量投影，身份/Key/billing 的分组和渠道读取直接绑定 routing。平台目录、动态设置和调度来源由 app 按职责直接组合，执行消费者共享已装配的规则与缓存实例。`account_groups`、代理联动及账号资金重置由同连接参与能力协作，不新增事务 context；配置更新不覆盖独立消费与运行字段。具体契约见[路由与计费](../domains/routing_and_billing.md)、[账号维护](../operations/account_maintenance.md)和[出站传输](../operations/upstream_transport_security.md)。
+分组管理直接读取 AccountStore 与 KeyStore，容量查询直接读取账号轻量投影，身份/Key/billing 的分组策略和价格配置读取直接绑定 routing。平台目录、动态设置和调度来源由 app 按职责直接组合，执行消费者共享已装配的规则与缓存实例。`account_groups`、代理联动及账号资金重置由同连接参与能力协作，不新增事务 context；配置更新不覆盖独立消费与运行字段。具体契约见[路由与计费](../domains/routing_and_billing.md)、[账号维护](../operations/account_maintenance.md)和[出站传输](../operations/upstream_transport_security.md)。
 
 <a id="backup_and_maintenance"></a>
 ## 备份与系统维护装配

@@ -30,10 +30,9 @@ import (
 )
 
 func setupModelDefaultPricingRouter(billingSvc *billing.Calculator) *gin.Engine {
-
 	router := gin.New()
-	h := routinghttp.NewChannelHandler(nil, &routing.ChannelCatalog{Prices: billingSvc})
-	router.GET("/channels/model-pricing", h.GetModelDefaultPricing)
+	h := routinghttp.NewPricingHandler(nil, &routing.PricingCatalog{Prices: billingSvc})
+	router.GET("/pricing/defaults/model", h.GetModelDefaultPricing)
 	return router
 }
 
@@ -45,7 +44,7 @@ func TestGetModelDefaultPricing_QoderMatchesOtherPlatforms(t *testing.T) {
 			var responses []string
 			for _, platform := range []string{"qoder", "anthropic"} {
 				w := httptest.NewRecorder()
-				router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform="+platform+"&model="+model, nil))
+				router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/pricing/defaults/model?platform="+platform+"&model="+model, nil))
 				require.Equal(t, http.StatusOK, w.Code)
 				responses = append(responses, w.Body.String())
 			}
@@ -60,7 +59,7 @@ func TestGetModelDefaultPricing_QoderMatchesOtherPlatforms(t *testing.T) {
 func TestGetModelDefaultPricing_Fable51ReturnsCacheTTLs(t *testing.T) {
 	billingSvc := billingtestkit.Calculator(0, nil, nil)
 	router := setupModelDefaultPricingRouter(billingSvc)
-	req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?model=claude-fable-5-1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/pricing/defaults/model?model=claude-fable-5-1", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -84,7 +83,7 @@ func TestGetModelDefaultPricing_UnknownQoderRouteKeysRemainUnpriced(t *testing.T
 	router := setupModelDefaultPricingRouter(billingSvc)
 
 	for _, model := range []string{"qmodel", "qmodel_38max", "ultimate", "q35model", "gmodel"} {
-		req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model="+model, nil)
+		req := httptest.NewRequest(http.MethodGet, "/pricing/defaults/model?platform=qoder&model="+model, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -104,10 +103,9 @@ func TestGetModelDefaultPricing_UnknownQoderRouteKeysRemainUnpriced(t *testing.T
 }
 
 func setupSyncPricingModelsRouter(pricingSvc *provider.PricingService) *gin.Engine {
-
 	router := gin.New()
-	h := routinghttp.NewChannelHandler(nil, provideChannelCatalog(nil, pricingSvc))
-	router.GET("/channels/pricing/sync-models", h.SyncPricingModels)
+	h := routinghttp.NewPricingHandler(nil, providePricingCatalog(nil, pricingSvc))
+	router.GET("/pricing/defaults/models", h.SyncPricingModels)
 	return router
 }
 
@@ -115,7 +113,7 @@ func TestSyncPricingModels_MissingPlatform(t *testing.T) {
 	svc := provider.NewPricingService(provider.Options{}, nil)
 	router := setupSyncPricingModelsRouter(svc)
 
-	req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models", nil)
+	req := httptest.NewRequest(http.MethodGet, "/pricing/defaults/models", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -126,7 +124,7 @@ func TestSyncPricingModels_UnsupportedPlatform(t *testing.T) {
 	svc := provider.NewPricingService(provider.Options{}, nil)
 	router := setupSyncPricingModelsRouter(svc)
 
-	req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform=unknown", nil)
+	req := httptest.NewRequest(http.MethodGet, "/pricing/defaults/models?platform=unknown", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -138,7 +136,7 @@ func TestSyncPricingModels_ValidPlatform_EmptyService(t *testing.T) {
 	router := setupSyncPricingModelsRouter(svc)
 
 	for _, platform := range []string{"anthropic", "openai", "gemini", "antigravity", "grok", "qoder", "kimi", "zhipu", "deepseek"} {
-		req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform="+platform, nil)
+		req := httptest.NewRequest(http.MethodGet, "/pricing/defaults/models?platform="+platform, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -158,7 +156,7 @@ func TestSyncPricingModels_QoderUsesDefaultAliases(t *testing.T) {
 	svc := provider.NewPricingService(provider.Options{}, nil)
 	router := setupSyncPricingModelsRouter(svc)
 
-	req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform=qoder", nil)
+	req := httptest.NewRequest(http.MethodGet, "/pricing/defaults/models?platform=qoder", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

@@ -17,7 +17,7 @@ func (s *Recorder) CalculateRecordUsageCost(
 	billingModel string,
 	requestedModel string,
 	billingModelSource string,
-	channelMappedModel string,
+	groupMappedModel string,
 	multiplier float64,
 	imageMultiplier float64,
 	opts *PricingOptions,
@@ -25,19 +25,19 @@ func (s *Recorder) CalculateRecordUsageCost(
 	if opts == nil {
 		opts = &PricingOptions{}
 	}
-	// 图片生成：渠道定价为令牌计费时走令牌路径，否则走图片计费
+	// 图片生成：共享价格配置定价为令牌计费时走令牌路径，否则走图片计费
 	if result.ImageCount > 0 {
-		if resolved, pricingModel := s.resolveChannelPricingForUsage(ctx, billingModel, apiKey); resolved != nil && resolved.Mode == BillingModeToken {
-			return s.CalculateTokenCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, multiplier, opts)
+		if resolved, pricingModel := s.resolveConfigPricingForUsage(ctx, billingModel, apiKey); resolved != nil && resolved.Mode == BillingModeToken {
+			return s.CalculateTokenCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, groupMappedModel, multiplier, opts)
 		} else if resolved != nil {
-			return s.CalculateImageCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, pricingModel, resolved, imageMultiplier, opts.PricingAt)
+			return s.CalculateImageCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, groupMappedModel, pricingModel, resolved, imageMultiplier, opts.PricingAt)
 		}
-		return s.CalculateImageCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, billingModel, nil, imageMultiplier, opts.PricingAt)
+		return s.CalculateImageCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, groupMappedModel, billingModel, nil, imageMultiplier, opts.PricingAt)
 	}
 
 	// 语音用量优先按分组模型的连续单位价格结算，未配置时沿用分组通用音频价。
 	if result.AudioUsage != nil {
-		resolved, pricingModel := s.resolveChannelPricingForUsage(
+		resolved, pricingModel := s.resolveConfigPricingForUsage(
 			ctx, billingModel, apiKey,
 		)
 		if resolved != nil && resolved.Mode == BillingModePerRequest {
@@ -63,7 +63,7 @@ func (s *Recorder) CalculateRecordUsageCost(
 	}
 
 	// Token 费用与搜索附加费分别计算，搜索不会替代模型本身的 token 费用。
-	tokenCost := s.CalculateTokenCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, multiplier, opts)
+	tokenCost := s.CalculateTokenCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, groupMappedModel, multiplier, opts)
 	if result.SearchCount > 0 {
 		price := groupSearchPricePer1kFromAPIKey(apiKey)
 		if price != nil && *price == 0 {
@@ -81,7 +81,7 @@ func (s *Recorder) CalculateRecordUsageCost(
 	return tokenCost
 }
 
-func (s *Recorder) ResolveChannelPricing(ctx context.Context, billingModel string, apiKey *KeySnapshot) *ResolvedPricing {
+func (s *Recorder) ResolveConfigPricing(ctx context.Context, billingModel string, apiKey *KeySnapshot) *ResolvedPricing {
 	if s.resolver == nil || apiKey == nil || apiKey.Group == nil {
 		return nil
 	}
@@ -101,7 +101,7 @@ func (s *Recorder) CalculateImageCost(
 	billingModel string,
 	requestedModel string,
 	billingModelSource string,
-	channelMappedModel string,
+	groupMappedModel string,
 	resolvedModel string,
 	resolved *ResolvedPricing,
 	multiplier float64,
@@ -109,7 +109,7 @@ func (s *Recorder) CalculateImageCost(
 ) *CostBreakdown {
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
 	if resolved == nil {
-		resolved, resolvedModel = s.resolveChannelPricingForUsage(ctx, billingModel, apiKey)
+		resolved, resolvedModel = s.resolveConfigPricingForUsage(ctx, billingModel, apiKey)
 	}
 	if resolved != nil {
 		tokens := UsageTokens{
@@ -149,7 +149,7 @@ func (s *Recorder) CalculateTokenCost(
 	billingModel string,
 	requestedModel string,
 	billingModelSource string,
-	channelMappedModel string,
+	groupMappedModel string,
 	multiplier float64,
 	opts *PricingOptions,
 ) *CostBreakdown {
@@ -170,8 +170,8 @@ func (s *Recorder) CalculateTokenCost(
 		opts = &PricingOptions{}
 	}
 
-	// 分组或渠道显式价格优先，并保留渠道选定的计费模型来源。
-	if resolved, resolvedModel := s.resolveChannelPricingForUsage(ctx, billingModel, apiKey); resolved != nil {
+	// 分组或共享价格配置显式价格优先，并按价格配置选择计费模型。
+	if resolved, resolvedModel := s.resolveConfigPricingForUsage(ctx, billingModel, apiKey); resolved != nil {
 		gid := apiKey.Group.ID
 		cost, err = s.billingService.CalculateCostUnified(CostInput{
 			Ctx:             ctx,
@@ -234,18 +234,18 @@ func (s *Recorder) CalculateOpenAIRecordUsageCostAt(
 	billingModel := firstUsageBillingModel(billingModels)
 	if result != nil && result.WebSearchCalls > 0 {
 		// Codex alpha/search 网页搜索按次计费：上游不返回 usage/token 字段，单价只取
-		// 分组覆盖价（nil 时默认 0.01 = 官方 $10/1000 次），不参与渠道级模型定价。
+		// 分组覆盖价（nil 时默认 0.01 = 官方 $10/1000 次），不参与共享模型价卡定价。
 		// 倍率与 image/video 按次口径一致：使用不含高峰因子的基础倍率
 		//（用户专属 > 分组 rate_multiplier > 系统默认），与分组表单的价格预览承诺一致。
 		return s.billingService.CalculateWebSearchCost(result.WebSearchCalls, webSearchPricePerCallFromAPIKey(apiKey), webSearchMultiplier), nil
 	}
 	if IsGrokVideoUsageResult(result, billingModels) {
-		if resolved := s.ResolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved == nil || resolved.Mode != BillingModeToken {
+		if resolved := s.ResolveOpenAIConfigPricing(ctx, billingModel, apiKey); resolved == nil || resolved.Mode != BillingModeToken {
 			return s.CalculateOpenAIVideoCost(ctx, billingModel, apiKey, result, videoMultiplier), nil
 		}
 	}
 	if result != nil && result.AudioUsage != nil {
-		if resolved := s.ResolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved != nil &&
+		if resolved := s.ResolveOpenAIConfigPricing(ctx, billingModel, apiKey); resolved != nil &&
 			(resolved.Mode == BillingModePerRequest) {
 			gid := apiKey.Group.ID
 			return s.billingService.CalculateCostUnified(CostInput{
@@ -259,8 +259,8 @@ func (s *Recorder) CalculateOpenAIRecordUsageCostAt(
 	}
 
 	if result != nil && result.ImageCount > 0 {
-		// 渠道定价为令牌计费时走令牌路径，否则走图片计费
-		if resolved := s.ResolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved == nil || resolved.Mode != BillingModeToken {
+		// 共享价格配置定价为令牌计费时走令牌路径，否则走图片计费
+		if resolved := s.ResolveOpenAIConfigPricing(ctx, billingModel, apiKey); resolved == nil || resolved.Mode != BillingModeToken {
 			return s.CalculateOpenAIImageCost(ctx, billingModel, apiKey, result, imageMultiplier), nil
 		}
 	}
@@ -399,7 +399,7 @@ func ForwardResultReasoningEffort(result *Result) string {
 
 func (s *Recorder) CalculateOpenAIImageCost(ctx context.Context, billingModel string, apiKey *KeySnapshot, result *Result, multiplier float64) *CostBreakdown {
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
-	resolved := s.ResolveOpenAIChannelPricing(ctx, billingModel, apiKey)
+	resolved := s.ResolveOpenAIConfigPricing(ctx, billingModel, apiKey)
 	if resolved != nil {
 		cost, err := s.billingService.CalculateCostUnified(CostInput{
 			Ctx: ctx, Model: billingModel, GroupID: apiKey.GroupID, Group: apiKey.Group.Price,
@@ -422,7 +422,7 @@ func (s *Recorder) CalculateOpenAIVideoCost(ctx context.Context, billingModel st
 	}
 	resolution := NormalizeVideoBillingResolutionOrDefault(result.VideoResolution)
 	durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
-	resolved := s.ResolveOpenAIChannelPricing(ctx, billingModel, apiKey)
+	resolved := s.ResolveOpenAIConfigPricing(ctx, billingModel, apiKey)
 	if resolved != nil {
 		units := float64(videoCount)
 		if resolved.Mode == BillingModeVideo {
@@ -459,7 +459,7 @@ func (s *Recorder) FilterCNProviderBillingModelCandidates(
 		}
 		if IsCNProviderClaudeFallbackCandidate(candidate) {
 			// 纯倍率可以参与媒体计费，但不能替国产模型建立 Claude 的显式基础价。
-			resolved := s.ResolveOpenAIChannelPricing(ctx, candidate, apiKey)
+			resolved := s.ResolveOpenAIConfigPricing(ctx, candidate, apiKey)
 			if !resolved.HasEffectiveOverridePricing() {
 				continue
 			}
@@ -477,7 +477,7 @@ func IsCNProviderClaudeFallbackCandidate(model string) bool {
 		strings.Contains(model, "haiku")
 }
 
-func (s *Recorder) ResolveOpenAIChannelPricing(ctx context.Context, billingModel string, apiKey *KeySnapshot) *ResolvedPricing {
+func (s *Recorder) ResolveOpenAIConfigPricing(ctx context.Context, billingModel string, apiKey *KeySnapshot) *ResolvedPricing {
 	if s.resolver == nil || apiKey == nil || apiKey.Group == nil {
 		return nil
 	}
@@ -489,7 +489,7 @@ func (s *Recorder) ResolveOpenAIChannelPricing(ctx context.Context, billingModel
 	return nil
 }
 
-func OpenAIUsageBillingModel(result *Result, fields ChannelUsageFields) string {
+func OpenAIUsageBillingModel(result *Result, fields PricingUsageFields) string {
 	if result == nil {
 		return ""
 	}
@@ -505,8 +505,8 @@ func OpenAIUsageBillingModel(result *Result, fields ChannelUsageFields) string {
 		if upstreamModel := strings.TrimSpace(result.UpstreamModel); upstreamModel != "" && (result.ImageCount <= 0 || explicitBillingModel == "") {
 			billingModel = upstreamModel
 		}
-	case BillingModelSourceChannelMapped:
-		mappedModel := strings.TrimSpace(fields.ChannelMappedModel)
+	case BillingModelSourceGroupMapped:
+		mappedModel := strings.TrimSpace(fields.GroupMappedModel)
 		if mappedModel != "" && mappedModel != strings.TrimSpace(fields.OriginalModel) {
 			billingModel = mappedModel
 		}

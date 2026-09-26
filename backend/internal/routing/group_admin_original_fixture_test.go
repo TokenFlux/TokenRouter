@@ -16,12 +16,12 @@ import (
 )
 
 // newOriginalGroupAdmin 保留原测试的存储副本边界及默认策略，直接构造唯一分组用例。
-func newOriginalGroupAdmin(repo routing.GroupRepository, duplicate routing.GroupDuplicateRepository, channels routing.GroupChannelInvalidator) *routing.GroupAdmin {
-	return newOriginalGroupAdminPorts(repo, duplicate, channels, nil, nil, nil, nil)
+func newOriginalGroupAdmin(repo routing.GroupRepository, duplicate routing.GroupDuplicateRepository, pricingConfigs routing.GroupPricingInvalidator) *routing.GroupAdmin {
+	return newOriginalGroupAdminPorts(repo, duplicate, pricingConfigs, nil, nil, nil, nil)
 }
 
 // newOriginalGroupAdminPorts 只装配原测试需要的窄端口，不复制管理规则。
-func newOriginalGroupAdminPorts(repo routing.GroupRepository, duplicate routing.GroupDuplicateRepository, channels routing.GroupChannelInvalidator, sortOrder routing.GroupSortOrderRepository, accounts routing.GroupAccounts, invalidator routing.GroupAdminInvalidator, weights *policy.ConfigScoreWeights, keyReaders ...routing.GroupKeyReader) *routing.GroupAdmin {
+func newOriginalGroupAdminPorts(repo routing.GroupRepository, duplicate routing.GroupDuplicateRepository, pricingConfigs routing.GroupPricingInvalidator, sortOrder routing.GroupSortOrderRepository, accounts routing.GroupAccounts, invalidator routing.GroupAdminInvalidator, weights *policy.ConfigScoreWeights, keyReaders ...routing.GroupKeyReader) *routing.GroupAdmin {
 	var keys routing.GroupKeyReader
 	if len(keyReaders) > 0 {
 		keys = keyReaders[0]
@@ -30,8 +30,8 @@ func newOriginalGroupAdminPorts(repo routing.GroupRepository, duplicate routing.
 	if duplicate != nil {
 		duplicates = originalGroupDuplicatePort{duplicate}
 	}
-	return routing.NewGroupAdmin(originalGroupPort{repo}, duplicates, sortOrder, accounts, keys, invalidator, channels, routing.GroupAdminOptions{
-		Pricing:              routing.ChannelValidation{LoadLocation: pricingprovider.LoadPricingLocation},
+	return routing.NewGroupAdmin(originalGroupPort{repo}, duplicates, sortOrder, accounts, keys, invalidator, pricingConfigs, routing.GroupAdminOptions{
+		Pricing:              routing.PricingConfigValidation{LoadLocation: pricingprovider.LoadPricingLocation},
 		DefaultModels:        routingprovider.DefaultGroupModelCandidates,
 		NormalizeMappedModel: gatewayprovider.NormalizeOpenAICompatRequestedModel,
 		GlobalWeights: func(ctx context.Context) (policy.ScoreWeights, error) {
@@ -57,42 +57,51 @@ func originalTestGroups(values []routing.Group) []routing.Group {
 	}
 	return out
 }
+
 func (r originalGroupPort) Create(ctx context.Context, value *routing.Group) error {
 	old := routing.CloneGroup(value)
 	err := r.GroupRepository.Create(ctx, old)
 	*value = *routing.CloneGroup(old)
 	return err
 }
+
 func (r originalGroupPort) Update(ctx context.Context, value *routing.Group) error {
 	old := routing.CloneGroup(value)
 	err := r.GroupRepository.Update(ctx, old)
 	*value = *routing.CloneGroup(old)
 	return err
 }
+
 func (r originalGroupPort) GetByID(ctx context.Context, id int64) (*routing.Group, error) {
 	value, err := r.GroupRepository.GetByID(ctx, id)
 	return routing.CloneGroup(value), err
 }
+
 func (r originalGroupPort) GetByIDLite(ctx context.Context, id int64) (*routing.Group, error) {
 	value, err := r.GroupRepository.GetByIDLite(ctx, id)
 	return routing.CloneGroup(value), err
 }
+
 func (r originalGroupPort) List(ctx context.Context, params pagination.PaginationParams) ([]routing.Group, *pagination.PaginationResult, error) {
 	v, p, e := r.GroupRepository.List(ctx, params)
 	return originalTestGroups(v), p, e
 }
+
 func (r originalGroupPort) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]routing.Group, *pagination.PaginationResult, error) {
 	v, p, e := r.GroupRepository.ListWithFilters(ctx, params, platform, status, search, isExclusive)
 	return originalTestGroups(v), p, e
 }
+
 func (r originalGroupPort) ListActive(ctx context.Context) ([]routing.Group, error) {
 	v, e := r.GroupRepository.ListActive(ctx)
 	return originalTestGroups(v), e
 }
+
 func (r originalGroupPort) ListActiveByPlatform(ctx context.Context, platform string) ([]routing.Group, error) {
 	v, e := r.GroupRepository.ListActiveByPlatform(ctx, platform)
 	return originalTestGroups(v), e
 }
+
 func (r originalGroupPort) ListActiveByPlatformLite(ctx context.Context, platform string) ([]routing.Group, error) {
 	v, e := r.GroupRepository.ListActiveByPlatformLite(ctx, platform)
 	return originalTestGroups(v), e
@@ -106,6 +115,7 @@ func (p originalGroupDuplicatePort) FindByDuplicateOperationID(ctx context.Conte
 	value, err := p.GroupDuplicateRepository.FindByDuplicateOperationID(ctx, id)
 	return routing.CloneGroup(value), err
 }
+
 func (p originalGroupDuplicatePort) CreateFromSource(ctx context.Context, value *routing.Group, id int64) error {
 	copy := routing.CloneGroup(value)
 	err := p.GroupDuplicateRepository.CreateFromSource(ctx, copy, id)
@@ -114,10 +124,10 @@ func (p originalGroupDuplicatePort) CreateFromSource(ctx context.Context, value 
 }
 
 // originalImagePricing 仅构造原单张价格夹具，不计算费用。
-func originalImagePricing(prices map[string]*float64) []routing.ChannelModelPricing {
-	card := routing.ChannelModelPricing{Models: []string{"*"}, BillingMode: routing.BillingModeImage}
+func originalImagePricing(prices map[string]*float64) []routing.ModelPricingEntry {
+	card := routing.ModelPricingEntry{Models: []string{"*"}, BillingMode: routing.BillingModeImage}
 	for tier, price := range prices {
 		card.Intervals = append(card.Intervals, routing.PricingInterval{TierLabel: tier, PerRequestPrice: price})
 	}
-	return []routing.ChannelModelPricing{card}
+	return []routing.ModelPricingEntry{card}
 }

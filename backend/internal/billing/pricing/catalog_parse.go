@@ -37,6 +37,10 @@ func ParsePricingEntries(rawData map[string]json.RawMessage) (map[string]*LiteLL
 		}
 
 		pricing := &LiteLLMModelPricing{
+			CacheCreationPricePresent: entry.CacheCreationInputTokenCost != nil,
+			CacheReadPricePresent:     entry.CacheReadInputTokenCost != nil,
+			ImageInputPricePresent:    entry.InputCostPerImageToken != nil,
+			ImageOutputPricePresent:   entry.OutputCostPerImageToken != nil,
 			LiteLLMProvider:           entry.LiteLLMProvider,
 			Mode:                      entry.Mode,
 			SupportsPromptCaching:     entry.SupportsPromptCaching,

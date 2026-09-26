@@ -100,9 +100,9 @@ func UpstreamModel(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamModel, v))
 }
 
-// ChannelID applies equality check predicate on the "channel_id" field. It's identical to ChannelIDEQ.
-func ChannelID(v int64) predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldEQ(FieldChannelID, v))
+// PricingConfigID applies equality check predicate on the "pricing_config_id" field. It's identical to PricingConfigIDEQ.
+func PricingConfigID(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldPricingConfigID, v))
 }
 
 // ModelMappingChain applies equality check predicate on the "model_mapping_chain" field. It's identical to ModelMappingChainEQ.
@@ -715,54 +715,54 @@ func UpstreamModelContainsFold(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldContainsFold(FieldUpstreamModel, v))
 }
 
-// ChannelIDEQ applies the EQ predicate on the "channel_id" field.
-func ChannelIDEQ(v int64) predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldEQ(FieldChannelID, v))
+// PricingConfigIDEQ applies the EQ predicate on the "pricing_config_id" field.
+func PricingConfigIDEQ(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldPricingConfigID, v))
 }
 
-// ChannelIDNEQ applies the NEQ predicate on the "channel_id" field.
-func ChannelIDNEQ(v int64) predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldNEQ(FieldChannelID, v))
+// PricingConfigIDNEQ applies the NEQ predicate on the "pricing_config_id" field.
+func PricingConfigIDNEQ(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldPricingConfigID, v))
 }
 
-// ChannelIDIn applies the In predicate on the "channel_id" field.
-func ChannelIDIn(vs ...int64) predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldIn(FieldChannelID, vs...))
+// PricingConfigIDIn applies the In predicate on the "pricing_config_id" field.
+func PricingConfigIDIn(vs ...int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldPricingConfigID, vs...))
 }
 
-// ChannelIDNotIn applies the NotIn predicate on the "channel_id" field.
-func ChannelIDNotIn(vs ...int64) predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldNotIn(FieldChannelID, vs...))
+// PricingConfigIDNotIn applies the NotIn predicate on the "pricing_config_id" field.
+func PricingConfigIDNotIn(vs ...int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldPricingConfigID, vs...))
 }
 
-// ChannelIDGT applies the GT predicate on the "channel_id" field.
-func ChannelIDGT(v int64) predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldGT(FieldChannelID, v))
+// PricingConfigIDGT applies the GT predicate on the "pricing_config_id" field.
+func PricingConfigIDGT(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldPricingConfigID, v))
 }
 
-// ChannelIDGTE applies the GTE predicate on the "channel_id" field.
-func ChannelIDGTE(v int64) predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldGTE(FieldChannelID, v))
+// PricingConfigIDGTE applies the GTE predicate on the "pricing_config_id" field.
+func PricingConfigIDGTE(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldPricingConfigID, v))
 }
 
-// ChannelIDLT applies the LT predicate on the "channel_id" field.
-func ChannelIDLT(v int64) predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldLT(FieldChannelID, v))
+// PricingConfigIDLT applies the LT predicate on the "pricing_config_id" field.
+func PricingConfigIDLT(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldPricingConfigID, v))
 }
 
-// ChannelIDLTE applies the LTE predicate on the "channel_id" field.
-func ChannelIDLTE(v int64) predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldLTE(FieldChannelID, v))
+// PricingConfigIDLTE applies the LTE predicate on the "pricing_config_id" field.
+func PricingConfigIDLTE(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldPricingConfigID, v))
 }
 
-// ChannelIDIsNil applies the IsNil predicate on the "channel_id" field.
-func ChannelIDIsNil() predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldIsNull(FieldChannelID))
+// PricingConfigIDIsNil applies the IsNil predicate on the "pricing_config_id" field.
+func PricingConfigIDIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldPricingConfigID))
 }
 
-// ChannelIDNotNil applies the NotNil predicate on the "channel_id" field.
-func ChannelIDNotNil() predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldNotNull(FieldChannelID))
+// PricingConfigIDNotNil applies the NotNil predicate on the "pricing_config_id" field.
+func PricingConfigIDNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldPricingConfigID))
 }
 
 // ModelMappingChainEQ applies the EQ predicate on the "model_mapping_chain" field.

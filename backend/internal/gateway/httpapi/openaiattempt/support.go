@@ -204,23 +204,27 @@ func (h *Support) EnsureOpenAIStreamReadErrorResponse(c *gin.Context, err error,
 	return true
 }
 
-func (h *Support) RecordCyberPolicyIfMarked(c *gin.Context, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, subscription *billing.UserSubscription, model string, forwardErrored bool, cyberBlockArg any, channelFields routing.ChannelUsageFields, requestPayloadHash string, nativeCompaction ...bool) bool {
+func (h *Support) RecordCyberPolicyIfMarked(c *gin.Context, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, subscription *billing.UserSubscription, model string, forwardErrored bool, cyberBlockArg any, pricingFields routing.PricingUsageFields, requestPayloadHash string, nativeCompaction ...bool) bool {
 	mark := gatewayhttp.GetOpsCyberPolicy(c)
 	if mark == nil || c == nil {
 		return false
 	}
-	call := gatewayhttp.CyberPolicyCall{Key: apikey.CopyAPIKey(apiKey),
+	call := gatewayhttp.CyberPolicyCall{
+		Key:            apikey.CopyAPIKey(apiKey),
 		Account:        moderationAccountView(account),
 		Model:          model,
-		ForwardErrored: forwardErrored}
+		ForwardErrored: forwardErrored,
+	}
 	switch value := cyberBlockArg.(type) {
 	case string:
 		call.BlockKey = value
 	case []byte:
 		if apiKey != nil {
 			plan := buildCyberSessionBlockWritePlan(apiKey.ID, c, value)
-			call.Plan = moderationflow.BlockPlan{ScopeKey: plan.scopeKey,
-				Keys: plan.keys}
+			call.Plan = moderationflow.BlockPlan{
+				ScopeKey: plan.scopeKey,
+				Keys:     plan.keys,
+			}
 			call.HasPlan = true
 		}
 	}
@@ -251,7 +255,7 @@ func (h *Support) RecordCyberPolicyIfMarked(c *gin.Context, apiKey *apikey.APIKe
 		APIKeyService:      h.Quota,
 		QuotaPlatform:      admission.QuotaPlatform(c.Request.Context(), apiKey),
 		NativeCompactionV2: compaction,
-		ChannelUsageFields: channelFields,
+		PricingUsageFields: pricingFields,
 	})
 	return h.Cyber.RecordPolicy(c, call)
 }

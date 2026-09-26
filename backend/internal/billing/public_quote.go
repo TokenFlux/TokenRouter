@@ -19,7 +19,7 @@ func (r *PriceResolver) PublicQuote(ctx context.Context, input PublicQuoteInput)
 	if input.FreeFastApplicable && pricing.ResolvedHasFastModeDisplayPricing(resolved) {
 		cloned := *resolved
 		standardMultiplier := 1.0
-		pricing.ApplyPricingModifiers(&cloned, &ChannelModelPricing{FastMultiplier: &standardMultiplier})
+		pricing.ApplyPricingModifiers(&cloned, &ModelPricingEntry{FastMultiplier: &standardMultiplier})
 		resolved = &cloned
 	}
 	return r.calculator.DisplayPricingWithResolvedMultipliers(input.Model, input.RateMultiplier, resolved)

@@ -21,7 +21,7 @@ import (
 type Recording struct {
 	Dependencies  completion.Dependencies
 	Options       completion.RecorderOptions
-	Channels      *routing.ChannelService
+	GroupPolicies *routing.PricingConfigService
 	Effects       completion.CommitEffects
 	AccountLookup func(context.Context, int64) (*account.Record, error)
 }
@@ -36,7 +36,8 @@ func NewRecording(logs usage.UsageLogRepository, funds completion.Store, rates b
 			Rates:  billing.NewGroupRateResolver(rates, nil, 30*time.Second, nil, "service.openai_gateway.test", logging.LegacyPrintf),
 			Models: provider.CompletionModels{}, Emit: gatewaytelemetry.CompletionBillingEvent, Observe: gatewaytelemetry.ObserveCompletion,
 		},
-		Effects: completion.CommitEffects{Activity: &account.DeferredService{}, Observe: gatewaytelemetry.ObserveCompletion,
+		Effects: completion.CommitEffects{
+			Activity: &account.DeferredService{}, Observe: gatewaytelemetry.ObserveCompletion,
 			Funds: billing.SettlementEffects{
 				Background: func(_ string, fn func()) bool { go fn(); return true },
 				Observe:    logging.LegacyPrintf,
@@ -57,8 +58,8 @@ func (f *Recording) Core(updater provider.QuotaUpdater, openAI bool) *completion
 	deps := f.Dependencies
 	deps.Subscriptions, _ = deps.Funds.(completion.SubscriptionReader)
 	var stats billing.AccountStatsSource
-	if f.Channels != nil {
-		stats = provider.AccountStatsSource{Service: f.Channels}
+	if f.GroupPolicies != nil {
+		stats = provider.AccountStatsSource{Service: f.GroupPolicies}
 	}
 	deps.AccountStats = billing.NewPriceResolver(nil, deps.Calculator, nil, nil, stats)
 	effects := f.Effects

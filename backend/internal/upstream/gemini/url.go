@@ -20,7 +20,7 @@ var geminiAIStudioActions = map[string]struct{}{
 // /v1beta/models/{model}:{action} 上游 URL。
 //
 // model 是客户端可控的（native 路由取自 URL 片段，compat 路由取自请求体的 model
-// 字段，之后可能再经渠道映射），因此必须先过路径片段护栏才能拼进 path，
+// 字段，之后可能再经分组映射），因此必须先过路径片段护栏才能拼进 path，
 // 见 upstream_path_guard.go。新增 AI Studio 端点请一律走本函数。
 func BuildGeminiAIStudioModelActionURL(baseURL, model, action string, stream bool) (string, error) {
 	trimmedBase := strings.TrimRight(strings.TrimSpace(baseURL), "/")

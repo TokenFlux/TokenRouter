@@ -25,8 +25,8 @@ import (
 )
 
 // ProvideGatewaySearchTools 由组合根为请求链持有唯一工具编排器；不创建新 Manager 或配额状态。
-func ProvideGatewaySearchTools(settings *search.ConfigService, channels *routing.ChannelService) *searchtools.Emulator {
-	runtime := gatewayprovider.NewSearchTools(settings, channels)
+func ProvideGatewaySearchTools(settings *search.ConfigService, modelConfigs *routing.PricingConfigService) *searchtools.Emulator {
+	runtime := gatewayprovider.NewSearchTools(settings, modelConfigs)
 	return runtime
 }
 
@@ -57,6 +57,7 @@ type standaloneSearchTarget struct {
 func (t standaloneSearchTarget) CompletionRecord() *account.Record {
 	return t.account
 }
+
 func (t standaloneSearchTarget) Execute(ctx context.Context, body []byte) ([]byte, error) {
 	return t.source.Execute(ctx, t.account, body)
 }

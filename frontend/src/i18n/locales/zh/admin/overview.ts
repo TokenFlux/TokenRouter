@@ -22,7 +22,7 @@ export default {
       accountCost: '成本',
       actualDescription: '用户实际消耗的费用。按分组倍率和用户专属倍率计算，用于扣减用户余额或订阅配额。',
       accountCostDescription: '账号口径的费用。按账号侧定价与账号计费倍率计算，用于账号配额统计和账号成本分析，不影响用户实际扣费。',
-      standardDescription: '标准计费费用。按当前模型或渠道的基础定价计算，不受分组倍率、用户专属倍率和账号计费倍率影响。',
+      standardDescription: '标准计费费用。按当前模型或共享价格配置的基础定价计算，不受分组倍率、用户专属倍率和账号计费倍率影响。',
       todayTokens: '今日 Token',
       totalTokens: '总 Token',
       input: '输入',
@@ -803,12 +803,40 @@ affiliates: {
     },
 // Groups Management
     groups: {
+      routingPolicy: {
+        "enabled": "启用模型与功能策略",
+        "hint": "这些设置仅属于当前分组，不随价格配置变化。关闭后保留设置。",
+        "mapping": "模型映射",
+        "mappingHint": "客户端模型先经过分组映射，再进入账号映射。支持模型名和末尾 * 通配符。",
+        "source": "源模型",
+        "target": "目标模型",
+        "restrict": "启用模型白名单",
+        "allowlistHint": "白名单独立于价格列表。启用后，空白名单会拒绝全部模型。",
+        "webSearch": "网页搜索模拟",
+        "imageBridge": "Codex 图片桥接默认值",
+        "imageBridgeHint": "分组协议显式设置和账号设置优先；此处只决定后续兜底行为。",
+        "bedrock": "Bedrock Claude Code 兼容",
+        "features": "展示特性",
+        "incompleteMapping": "请填写完整的源模型和目标模型。",
+        "conflict": "模型规则重复或通配范围重叠。",
+        "basis": {
+          "requested": "客户端请求模型",
+          "group_mapped": "分组映射后模型",
+          "upstream": "最终上游模型"
+        },
+        "bridge": {
+          "inherit": "跟随全局默认值",
+          "true": "开启",
+          "false": "关闭"
+        }
+      },
       accountFilters: {
         title: '账号过滤控制',
         oauthOnly: '仅允许 OAuth 账号',
         privacyRequired: '仅允许隐私保护已设置的账号'
       },
       tabs: {
+        routing: "\u6a21\u578b\u4e0e\u529f\u80fd",
         label: '分组设置',
         general: '通用',
         platform: '平台设置',
@@ -1111,9 +1139,9 @@ affiliates: {
       },
       modelPricing: {
         title: '分组逐模型定价',
-        description: '配置基础单价或上下文区间后覆盖渠道价格；仅设置 Fast/Flex、Max 或分时倍率时继承渠道价格，无渠道价格则使用内置价格。同名倍率由分组覆盖。音频可用按次层级配置 realtime、tts、stt。',
+        description: '配置基础单价或上下文区间后覆盖共享价格配置价格；仅设置 Fast/Flex、Max 或分时倍率时继承共享价格配置价格，无共享价格配置价格则使用内置价格。同名倍率由分组覆盖。音频可用按次层级配置 realtime、tts、stt。',
         longContext: '启用长上下文阶梯定价',
-        longContextHint: '仅控制模型默认长上下文阶梯；分组或渠道手动配置的上下文区间始终生效，不重复叠加默认阶梯。',
+        longContextHint: '仅控制模型默认长上下文阶梯；分组或共享价格配置手动配置的上下文区间始终生效，不重复叠加默认阶梯。',
         add: '添加模型价格'
       },
       voicePricing: {

@@ -148,11 +148,12 @@ func (Group) Fields() []ent.Field {
 			Comment("STT 每小时价格（USD）"),
 		field.Bool("long_context_pricing_enabled").
 			Default(true).
-			Comment("是否按上下文长度应用模型阶梯价格；默认开启以保持官方/渠道长上下文价"),
+			Comment("是否应用内置模型的长上下文阶梯价格；不影响自定义价卡区间"),
+		field.JSON("routing_policy", json.RawMessage{}).Optional().Comment("分组独立模型与功能策略"),
 		field.JSON("model_pricing", json.RawMessage{}).
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
-			Comment("分组逐模型定价；优先级高于渠道和内置定价"),
+			Comment("分组逐模型定价；优先级高于共享价格配置和网关默认价"),
 
 		// Claude Code 客户端限制 (added by migration 029)
 		field.Bool("claude_code_only").

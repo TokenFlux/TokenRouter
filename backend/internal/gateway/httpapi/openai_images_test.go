@@ -57,7 +57,6 @@ func (w *failingOpenAIImageWriter) Write(p []byte) (int, error) {
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSON(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"1024x1024","quality":"high","stream":true}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -80,7 +79,6 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSON(t *testing.T) {
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEdit(t *testing.T) {
-
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
@@ -126,7 +124,6 @@ func TestOpenAIImagesRequestModerationBody_JSONEditIncludesInputImageURLs(t *tes
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_NormalizesOfficialAndCustomSizes(t *testing.T) {
-
 	tests := []struct {
 		size     string
 		wantTier string
@@ -165,7 +162,6 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_NormalizesOfficialAndCusto
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_UnknownSizesDoNotBlockPassthrough(t *testing.T) {
-
 	tests := []struct {
 		size     string
 		wantTier string
@@ -198,7 +194,6 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_UnknownSizesDoNotBlockPass
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_LegacyImageModelUnknownSizePassthrough(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-1.5","prompt":"draw a cat","size":"2048x1152"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -215,7 +210,6 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_LegacyImageModelUnknownSiz
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEditWithMaskAndNativeOptions(t *testing.T) {
-
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
@@ -265,7 +259,6 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEditWithMaskAndNa
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_PromptOnlyDefaultsRemainBasic(t *testing.T) {
-
 	body := []byte(`{"prompt":"draw a cat"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -282,7 +275,6 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_PromptOnlyDefaultsRemainBa
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_ExplicitSizeRequiresNativeCapability(t *testing.T) {
-
 	body := []byte(`{"prompt":"draw a cat","size":"1024x1024"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -298,7 +290,6 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_ExplicitSizeRequiresNative
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_RejectsNonImageModel(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-5.4","prompt":"draw a cat"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -312,9 +303,8 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_RejectsNonImageModel(t *te
 	require.ErrorContains(t, err, `images endpoint requires an image model, got "gpt-5.4"`)
 }
 
-// TestOpenAIGatewayServiceParseOpenAIImagesRequestForRouting 延后模型校验，确保渠道别名能先完成 R -> C。
+// TestOpenAIGatewayServiceParseOpenAIImagesRequestForRouting 延后模型校验，确保分组模型别名能先完成 R -> G。
 func TestOpenAIGatewayServiceParseOpenAIImagesRequestForRouting(t *testing.T) {
-
 	body := []byte(`{"model":"draw-alias","prompt":"draw a cat"}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -332,7 +322,6 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequestForRouting(t *testing.T) {
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_AllowsGrokImageModels(t *testing.T) {
-
 	for _, model := range []string{"grok-imagine", "grok-imagine-image", "grok-imagine-image-quality", "grok-imagine-edit"} {
 		t.Run(model, func(t *testing.T) {
 			body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"draw a cat","response_format":"b64_json"}`, model))
@@ -352,7 +341,6 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_AllowsGrokImageModels(t *t
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSONEditURLs(t *testing.T) {
-
 	body := []byte(`{
 		"model":"gpt-image-2",
 		"prompt":"replace the background",
@@ -440,8 +428,11 @@ func TestNewOpenAIImageStatusError_UsesProvidedReadLimit(t *testing.T) {
 }
 
 func TestAccountSupportsOpenAIImageCapability_OAuthSupportsNative(t *testing.T) {
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
-		Type: capability.AccountTypeOAuth},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+			Type: capability.AccountTypeOAuth,
+		},
 	}
 
 	require.True(t, account.View().SupportsOpenAIImageCapability(accountimages.OpenAIImagesCapabilityBasic))
@@ -449,8 +440,11 @@ func TestAccountSupportsOpenAIImageCapability_OAuthSupportsNative(t *testing.T) 
 }
 
 func TestAccountSupportsOpenAIImageCapability_SetupTokenSupportsNative(t *testing.T) {
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
-		Type: capability.AccountTypeSetupToken},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+			Type: capability.AccountTypeSetupToken,
+		},
 	}
 
 	require.True(t, account.View().SupportsOpenAIImageCapability(accountimages.OpenAIImagesCapabilityBasic))
@@ -459,8 +453,11 @@ func TestAccountSupportsOpenAIImageCapability_SetupTokenSupportsNative(t *testin
 }
 
 func TestAccountSupportsOpenAIImageCapability_EmptyRequirementDoesNotRejectGrok(t *testing.T) {
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
-		Type: capability.AccountTypeOAuth},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeOAuth,
+		},
 	}
 
 	require.True(t, account.View().SupportsOpenAIImageCapability(""))
@@ -529,7 +526,6 @@ func findOpenAIImageTestSSEEvent(events []openAIImageTestSSEEvent, name string) 
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsAllImages(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-1","prompt":"draw a cat","size":"1024x1024","quality":"high","n":3}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -558,15 +554,18 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsA
 	}
 	svc.Requests.Transport = upstream
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 1,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token":       "token-123",
-			"chatgpt_account_id": "acct-123",
-			"model_mapping":      map[string]any{"gpt-image-1": "gpt-image-2"},
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 1,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token":       "token-123",
+				"chatgpt_account_id": "acct-123",
+				"model_mapping":      map[string]any{"gpt-image-1": "gpt-image-2"},
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -609,7 +608,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsA
 }
 
 func TestParseOpenAIImagesSSEUsageBytes_ToolUsagePrecedenceAndFallback(t *testing.T) {
-
 	fallback := openai.ForwardUsage{InputTokens: 3, ImageInputTokens: 2, OutputTokens: 4, ImageOutputTokens: 2}
 	tests := []struct {
 		name      string
@@ -651,7 +649,6 @@ func TestParseOpenAIImagesSSEUsageBytes_ToolUsagePrecedenceAndFallback(t *testin
 }
 
 func TestParseOpenAIImagesSSEUsageBytes_MalformedCompletedDoesNotOverrideUsage(t *testing.T) {
-
 	var usage openai.ForwardUsage
 
 	upstreamopenai.ParseOpenAIImagesSSEUsageBytes([]byte(`{"type":"response.output_item.done","item":{"type":"image_generation_call","result":"aW1hZ2U="}}`), &usage)
@@ -690,7 +687,6 @@ func TestBoundedJSONNonNegativeInt(t *testing.T) {
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealError(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -717,13 +713,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealErr
 		},
 	}
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 1,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 1,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -743,7 +742,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealErr
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturnsClientError(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw blocked image","response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -772,13 +770,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturn
 		},
 	}
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 1,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 1,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -795,7 +796,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturn
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamServerErrorReturnsFailoverBeforeFlush(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -819,13 +819,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamServerErrorReturnsFailo
 	}})
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 21,
-		Name:     "openai-oauth-server-error",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 21,
+			Name:     "openai-oauth-server-error",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -849,7 +852,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamServerErrorReturnsFailo
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuth429CarriesSameAccountRetryWindow(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -877,7 +879,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuth429CarriesSameAccountRetryWindow
 }
 
 func TestOpenAIImagesOAuthBodyReadTransportErrorFailover(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
@@ -937,7 +938,7 @@ func TestOpenAIImagesOAuthBodyReadErrorsNotMisclassified(t *testing.T) {
 				err = upstreamopenai.NewUpstreamStreamReadError(err)
 			}
 
-			got := (newImagesFixture(imagesFixtureInputs{})).handleOpenAIImagesOAuthResponseError(context.Background(), c, &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}}, "gpt-image-2", "", resp, OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), err)
+			got := newImagesFixture(imagesFixtureInputs{}).handleOpenAIImagesOAuthResponseError(context.Background(), c, &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}}, "gpt-image-2", "", resp, OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), err)
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.False(t, errors.As(got, &failoverErr))
 			require.ErrorIs(t, got, tt.err)
@@ -947,7 +948,6 @@ func TestOpenAIImagesOAuthBodyReadErrorsNotMisclassified(t *testing.T) {
 
 // TestOpenAIImagesOAuthTransportErrorAfterDownstreamWriteDoesNotFailover 验证首个真实下游字节后不再换号。
 func TestOpenAIImagesOAuthTransportErrorAfterDownstreamWriteDoesNotFailover(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
@@ -958,7 +958,7 @@ func TestOpenAIImagesOAuthTransportErrorAfterDownstreamWriteDoesNotFailover(t *t
 	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 5401, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	resp := &http.Response{Header: http.Header{"X-Request-Id": []string{"req_after_write"}}}
 
-	err := (newImagesFixture(imagesFixtureInputs{})).handleOpenAIImagesOAuthResponseError(context.Background(), c, account, "gpt-image-2", "", resp, before, classifiedErr)
+	err := newImagesFixture(imagesFixtureInputs{}).handleOpenAIImagesOAuthResponseError(context.Background(), c, account, "gpt-image-2", "", resp, before, classifiedErr)
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
@@ -985,7 +985,6 @@ func TestShouldClassifyOpenAIUpstreamStreamReadErrorTransportStrings(t *testing.
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseURL(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1007,14 +1006,17 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 6,
-		Name:     "openai-apikey",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key":  "test-api-key",
-			"base_url": "https://image-upstream.example/v1",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 6,
+			Name:     "openai-apikey",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key":  "test-api-key",
+				"base_url": "https://image-upstream.example/v1",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1036,7 +1038,6 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyAccessStateUsesTypedFailover(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-1","prompt":"draw a cat"}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1055,12 +1056,15 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyAccessStateUsesTypedFailover(t 
 	svc := newImagesFixture(imagesFixtureInputs{transport: upstream})
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 51,
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key": "sk-test",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 51,
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1081,7 +1085,6 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyAccessStateUsesTypedFailover(t 
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyStreamJSONResponseBillsImage(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1103,14 +1106,17 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamJSONResponseBillsImage(t 
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 7,
-		Name:     "openai-apikey",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key":  "test-api-key",
-			"base_url": "https://image-upstream.example/v1",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 7,
+			Name:     "openai-apikey",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key":  "test-api-key",
+				"base_url": "https://image-upstream.example/v1",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1126,7 +1132,6 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamJSONResponseBillsImage(t 
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyStreamRawJSONEventStreamFallbackBillsImage(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1148,14 +1153,17 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamRawJSONEventStreamFallbac
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 8,
-		Name:     "openai-apikey",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key":  "test-api-key",
-			"base_url": "https://image-upstream.example/v1",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 8,
+			Name:     "openai-apikey",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key":  "test-api-key",
+				"base_url": "https://image-upstream.example/v1",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1170,7 +1178,6 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamRawJSONEventStreamFallbac
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyStreamMultilineSSEDataBillsImage(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1197,13 +1204,16 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamMultilineSSEDataBillsImag
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 8,
-		Name:     "openai-apikey",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key": "test-api-key",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 8,
+			Name:     "openai-apikey",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key": "test-api-key",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1225,7 +1235,6 @@ func TestExtractOpenAIImagesBillableCountFromJSONBytes_CompletedEvent(t *testing
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL(t *testing.T) {
-
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
@@ -1255,14 +1264,17 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL(t *
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body.Bytes(), true)
 	require.NoError(t, err)
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 7,
-		Name:     "openai-apikey",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key":  "test-api-key",
-			"base_url": "https://image-upstream.example/v1/",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 7,
+			Name:     "openai-apikey",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key":  "test-api-key",
+				"base_url": "https://image-upstream.example/v1/",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body.Bytes(), parsed, "")
@@ -1283,7 +1295,6 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL(t *
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"url"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1313,13 +1324,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents(t *tes
 	}
 	svc.Requests.Transport = upstream
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 2,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 2,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1357,7 +1371,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents(t *tes
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingModerationBlockedEmitsError(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw blocked image","stream":true,"response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1383,13 +1396,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingModerationBlockedEmitsE
 		},
 	}
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 2,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 2,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1409,7 +1425,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingModerationBlockedEmitsE
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorBeforeFlushReturnsFailover(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1432,13 +1447,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorBeforeFlushR
 	}})
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 23,
-		Name:     "openai-oauth-stream-server-error",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 23,
+			Name:     "openai-oauth-stream-server-error",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1453,7 +1471,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorBeforeFlushR
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorAfterFlushDoesNotFailover(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1477,13 +1494,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorAfterFlushDo
 	}})
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 22,
-		Name:     "openai-oauth-partial-server-error",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 22,
+			Name:     "openai-oauth-partial-server-error",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1530,7 +1550,6 @@ func TestOpenAIImagesSSEErrorStatus(t *testing.T) {
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyStreamingDrainsAfterClientDisconnect(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1557,13 +1576,16 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamingDrainsAfterClientDisco
 	parsed, err := media.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, true)
 	require.NoError(t, err)
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 8,
-		Name:     "openai-apikey",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key": "test-api-key",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 8,
+			Name:     "openai-apikey",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key": "test-api-key",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1576,7 +1598,6 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamingDrainsAfterClientDisco
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI(t *testing.T) {
-
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
@@ -1629,13 +1650,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI(t
 	}
 	svc.Requests.Transport = upstream
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 3,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 3,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body.Bytes(), parsed, "")
@@ -1654,7 +1678,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI(t
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthEditsStreamingTransformsEvents(t *testing.T) {
-
 	body := []byte(`{
 		"model":"gpt-image-2",
 		"prompt":"replace background with aurora",
@@ -1690,13 +1713,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsStreamingTransformsEvents(t
 	}
 	svc.Requests.Transport = upstream
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 4,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 4,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1850,7 +1876,6 @@ func TestCollectOpenAIImagesFromResponsesBody_MultilineSSE(t *testing.T) {
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesOutputItemDoneFallback(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"url"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1879,13 +1904,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesOutputItemDoneFa
 	}
 	svc.Requests.Transport = upstream
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 5,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 5,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1906,7 +1934,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesOutputItemDoneFa
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesMultilineSSE(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"b64_json"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1934,13 +1961,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesMultilineSSE(t *
 		},
 	}
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 11,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 11,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1960,7 +1990,6 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesMultilineSSE(t *
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingDrainsAfterClientDisconnect(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":true,"response_format":"url"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -1990,13 +2019,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingDrainsAfterClientDiscon
 	}
 	svc.Requests.Transport = upstream
 
-	account := &gatewayprovider.ExecutionAccount{Record: accountimages.Record{LoadLocation: time.LoadLocation, ID: 9,
-		Name:     "openai-oauth",
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Credentials: map[string]any{
-			"access_token": "token-123",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountimages.Record{
+			LoadLocation: time.LoadLocation, ID: 9,
+			Name:     "openai-oauth",
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token": "token-123",
+			},
+		},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")

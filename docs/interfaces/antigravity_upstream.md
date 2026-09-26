@@ -80,7 +80,7 @@ Antigravity 账号 `extra.mixed_scheduling` 为布尔 `true` 时，可以作为 
 
 ## 模型与额度
 
-Antigravity 同时提供 Claude 与 Gemini 模型族。Gemini 3.6 Flash 的基础、high、low、medium 与 tiered 五种模型 ID 均进入默认模型目录和身份映射；账号存在自定义映射时，只要没有覆盖它们的通配符，这些精确直通映射仍会自动保留。可见模型来自默认映射、分组/渠道限制、账号资格和当前可请求解析；API Key 精确别名可投影到列表，目标不可请求时不展示。模型能力不能只由名称前缀推断，thinking/image 等能力由适配器与账号详情共同约束。
+Antigravity 同时提供 Claude 与 Gemini 模型族。Gemini 3.6 Flash 的基础、high、low、medium 与 tiered 五种模型 ID 均进入默认模型目录和身份映射；账号存在自定义映射时，只要没有覆盖它们的通配符，这些精确直通映射仍会自动保留。可见模型来自默认映射、分组白名单、账号资格和当前可请求解析；API Key 精确别名可投影到列表，目标不可请求时不展示。模型能力不能只由名称前缀推断，thinking/image 等能力由适配器与账号详情共同约束。
 
 额度查询按账号和模型 scope 保存上游 reset/remaining 状态，并可包含 AI Credits。429/503 分类区分模型限流、credits 耗尽和共享容量不足；请求期由 `gateway/admission.QuotaPlatform` 固定额度平台：强制平台入口使用 Antigravity，其他入口使用最终分组平台；不能仅因选到 Antigravity 账号就改变额度归属。账号成本和用户扣费仍遵守渠道计价与分组倍率边界。
 

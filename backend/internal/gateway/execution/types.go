@@ -44,7 +44,7 @@ type TextState struct {
 	NativeCompactionV2, LegacyCompact, RequireCompact                   bool
 	RequiredCapability                                                  account.OpenAIEndpointCapability
 	RoutingStart                                                        time.Time
-	Mapping                                                             routing.ChannelMappingResult
+	Mapping                                                             routing.GroupMappingResult
 
 	Kind            TextKind
 	Parsed          *requeststate.ParsedRequest

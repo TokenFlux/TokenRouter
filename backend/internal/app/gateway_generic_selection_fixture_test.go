@@ -1,6 +1,10 @@
 package app
 
 import (
+	"context"
+	"log/slog"
+	"time"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -10,10 +14,6 @@ import (
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
-
-	"context"
-	"log/slog"
-	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
@@ -53,7 +53,7 @@ func newGenericExecutionAndSelectionFixture(
 	digestStore *session.DigestSessionStore,
 	settingService *gatewayprovider.RuntimeReaders,
 	tlsFPProfileService *provider.TLSProfiles,
-	channelService *routing.ChannelService,
+	pricingConfigService *routing.PricingConfigService,
 	resolver *billing.PriceResolver,
 
 	headerFilter *egress.CompiledHeaderFilter,
@@ -62,8 +62,10 @@ func newGenericExecutionAndSelectionFixture(
 	if accountRepo != nil {
 		retryStore = fixtureRetryStore{accountRepo}
 	}
-	source := &messageExecutionFixture{Routes: gatewayprovider.NewRoutePlanner(channelService), Cache: cache, Digest: digestStore,
-		Cooldown: accountcore.NewRetryCooldown(retryStore, accountcore.RetryCooldownOptions{})}
+	source := &messageExecutionFixture{
+		Routes: gatewayprovider.NewRoutePlanner(pricingConfigService), Cache: cache, Digest: digestStore,
+		Cooldown: accountcore.NewRetryCooldown(retryStore, accountcore.RetryCooldownOptions{}),
+	}
 	feedback := scheduler.NewRuntimeStats(time.Now)
 	window := billing.NewWindowCostGuard(windowCostCache, gatewaytestkit.WindowCosts(usageLogRepo), billing.WindowCostGuardOptions{Now: time.Now, Stats: billing.SharedWindowCostMetrics(), Log: func(format string, args ...any) {
 		logging.LegacyPrintf("service.gateway", format, args...)
@@ -79,10 +81,10 @@ func newGenericExecutionAndSelectionFixture(
 			Snapshot: provideSelectionSnapshots(schedulerSnapshot),
 		},
 		Shared: selection.Shared{
-			Cache:       cache,
-			Concurrency: concurrencyService,
-			Health:      healthObserver,
-			Channels:    channelService,
+			Cache:         cache,
+			Concurrency:   concurrencyService,
+			Health:        healthObserver,
+			GroupPolicies: pricingConfigService,
 
 			Feedback: feedback,
 		},
@@ -97,8 +99,8 @@ func newGenericExecutionAndSelectionFixture(
 	if settingService != nil {
 		searchSettings = settingService.Search
 	}
-	searchTools := ProvideGatewaySearchTools(searchSettings, channelService)
-	messages := provideMessagesExecution(messageCredentials, identityService, httpUpstream, healthObserver, tlsFPProfileService, settingService, resolver, searchTools, nil, nil, accountRepo, deferredService, cfg, headerFilter, channelService)
+	searchTools := ProvideGatewaySearchTools(searchSettings, pricingConfigService)
+	messages := provideMessagesExecution(messageCredentials, identityService, httpUpstream, healthObserver, tlsFPProfileService, settingService, resolver, searchTools, nil, nil, accountRepo, deferredService, cfg, headerFilter, pricingConfigService)
 	return source, choices, messages
 }
 

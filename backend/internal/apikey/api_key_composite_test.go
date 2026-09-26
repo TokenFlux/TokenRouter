@@ -115,7 +115,7 @@ func TestCompositeAPIKeyAuthSnapshotRoundTrip(t *testing.T) {
 					ID: 40, Name: "OpenAI", Platform: capability.PlatformOpenAI, Status: billing.StatusActive, IsExclusive: true,
 					RateMultiplier: 1.25, AllowImageGeneration: true, RPMLimit: 80,
 					LongContextPricingEnabled: true,
-					ModelPricing: []routing.ChannelModelPricing{{
+					ModelPricing: []routing.ModelPricingEntry{{
 						Models: []string{"gpt-5.4"}, BillingMode: routing.BillingModeToken,
 					}},
 					AllowedProtocols: []protocol.ProtocolID{

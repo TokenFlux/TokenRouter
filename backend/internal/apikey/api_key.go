@@ -94,7 +94,7 @@ type APIKey struct {
 	// BillingMode 控制该 Key 的资金来源；subscription 模式必须携带 PreferredSubscriptionID。
 	BillingMode             string
 	PreferredSubscriptionID *int64
-	// ModelMapping 在渠道和账号映射前把客户端模型重定向到内部目标模型。
+	// ModelMapping 在分组和账号映射前把客户端模型重定向到内部目标模型。
 	ModelMapping map[string]string
 	IPWhitelist  []string
 	IPBlacklist  []string

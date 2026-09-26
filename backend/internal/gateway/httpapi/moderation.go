@@ -28,9 +28,11 @@ type ModerationPort interface {
 	CyberSessionBlockGroupInScope(context.Context, *int64) (bool, error)
 }
 
-const CyberWarningRecordedKey = "openai_cyber_warning_recorded"
-const CyberWarningSnapshotKey = "openai_cyber_warning_snapshot"
-const CyberWarningPromptExcerptKey = "openai_cyber_warning_prompt_excerpt"
+const (
+	CyberWarningRecordedKey      = "openai_cyber_warning_recorded"
+	CyberWarningSnapshotKey      = "openai_cyber_warning_snapshot"
+	CyberWarningPromptExcerptKey = "openai_cyber_warning_prompt_excerpt"
+)
 
 func ContentModerationStatus(decision *moderation.ContentModerationDecision) int {
 	if decision == nil || decision.StatusCode < 400 || decision.StatusCode > 599 {
@@ -61,7 +63,7 @@ func ClientRequestedModel(c *gin.Context, fallback string) string {
 	return fallback
 }
 
-func ClientRequestedUsageFields(c *gin.Context, mapping routing.ChannelMappingResult, fallbackModel, upstreamModel string) routing.ChannelUsageFields {
+func ClientRequestedUsageFields(c *gin.Context, mapping routing.GroupMappingResult, fallbackModel, upstreamModel string) routing.PricingUsageFields {
 	return mapping.ToUsageFields(ClientRequestedModel(c, fallbackModel), upstreamModel)
 }
 

@@ -50,7 +50,7 @@ RequestLogger
 | `/api/event_logging/batch` | 无 | Claude Code 遥测兼容空接收，固定返回成功 |
 | `/api/v1/auth/*` | 大多公开，账户管理子流程按路由加 JWT/短期状态 | `app/http_routes_auth.go`；注册、登录、刷新、密码恢复、OAuth、Passkey 登录和身份完成 |
 | `/api/v1/user/*`、`/keys`、`/team`、`/groups`、`/subscriptions`、`/redeem` 等 | 用户 JWT | `app/http_routes_user.go`；用户面板资源、团队、Key、用量和权益自省 |
-| `/api/v1/admin/*` | 管理员 JWT 或受限管理密钥；部分操作另需 step-up | `app/http_routes_admin.go`；用户、分组、账号、渠道、设置、运维、备份、支付和安全管理 |
+| `/api/v1/admin/*` | 管理员 JWT 或受限管理密钥；部分操作另需 step-up | `app/http_routes_admin.go`；用户、分组、账号、价格配置、设置、运维、备份、支付和安全管理 |
 | `/api/v1/payment/*` | 用户 JWT | `app/http_routes_payment.go`；配置/套餐读取、下单、查单、取消、invoice 和退款申请 |
 | `/api/v1/payment/public/*` | 签名 resume token 或遗留订单验证约束 | 支付结果恢复；不得扩展为匿名订单枚举接口 |
 | `/api/v1/payment/webhook/*` | 提供商验签 | EasyPay、Alipay、WeChat Pay、Stripe、Airwallex 通知 |
@@ -291,3 +291,9 @@ app 为所有需要幂等的用户和管理员 HTTP 处理器显式绑定同一�
 - 是否无意新增冲突的动态路由；例如 wildcard/subpath 不得吞掉已明确移除或专用的固定 endpoint。
 
 相关文档：[上游账号能力矩阵](upstream_account_matrix.md)、[网关错误响应策略](gateway_error_policy.md)、[身份与租户](../domains/identity_and_tenancy.md)、[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[支付与权益](../domains/payments_and_entitlements.md)、[接口目录](index.md)。
+
+## 价格管理与分组策略
+
+`/api/v1/admin/pricing/configs` 及其 `/:id` 子路由提供共享价格配置 CRUD。请求只接受价格字段，模型映射、白名单和功能字段必须通过分组的 `routing_policy` 保存；未知价格配置字段返回 400。原 `/api/v1/admin/channels` 路由已移除并返回 404，管理脚本需要切换地址。
+
+默认价只读查询位于 `/api/v1/admin/pricing/defaults`、`/model` 和 `/models`，具体价格口径见[管理员默认价格查询](model_catalog_and_marketplace.md#gateway_default_pricing)。模型链字段使用 `group_mapped` 语义；历史用量中的共享价格关联字段为 `pricing_config_id`，数值沿用原 ID。

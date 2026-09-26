@@ -26,8 +26,8 @@ var routingAssemblyProviders = wire.NewSet(
 	provideRoutingGroupStore,
 	provideGroupReader,
 	provideRoutingGroupAdmin,
-	provideRoutingChannels,
-	provideChannelCatalog,
-	routingpostgres.NewChannelStore,
-	routinghttp.NewChannelHandler,
+	providePricingConfigService,
+	providePricingCatalog,
+	routingpostgres.NewPricingConfigStore,
+	routinghttp.NewPricingHandler,
 )

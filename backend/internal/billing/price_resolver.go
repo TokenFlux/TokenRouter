@@ -10,7 +10,7 @@ import (
 
 const PricingSourceGroup = purepricing.PricingSourceGroup
 
-const PricingSourceChannel = purepricing.PricingSourceChannel
+const PricingSourceConfig = purepricing.PricingSourceConfig
 
 const PricingSourceLiteLLM = purepricing.PricingSourceLiteLLM
 
@@ -24,32 +24,32 @@ type ResolvedPricing = purepricing.ResolvedPricing
 // PricingInput 定价解析输入
 type PricingInput struct {
 	Model   string
-	GroupID *int64 // nil 表示不检查渠道
+	GroupID *int64 // nil 表示不检查共享价格配置
 	Group   *PriceGroup
 }
 
-// Resolve 获取旧分组/渠道输入，纯包唯一决定价卡优先级和金额策略。
+// Resolve 获取旧分组/共享价格配置输入，纯包唯一决定价卡优先级和金额策略。
 // @project-doc docs/domains/routing_and_billing.md#group_model_pricing
 func (r *PriceResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
 	group := MatchGroupModelPricing(input.Group, input.Model, r.lookup)
-	var channel *ChannelModelPricing
-	if !purepricing.PriceCardOverrides(group) && input.GroupID != nil && r.channels != nil {
-		channel = r.LookupChannelPricingNormalized(ctx, *input.GroupID, input.Model)
+	var configPricing *ModelPricingEntry
+	if !purepricing.PriceCardOverrides(group) && input.GroupID != nil && r.pricingConfigs != nil {
+		configPricing = r.LookupConfigPricingNormalized(ctx, *input.GroupID, input.Model)
 	}
 	var base *ModelPricing
 	source := PricingSourceUnpriced
-	if purepricing.PriceCardNeedsBase(purepricing.SelectPriceCard(group, channel)) {
+	if purepricing.PriceCardNeedsBase(purepricing.SelectPriceCard(group, configPricing)) {
 		base, source = r.ResolveBasePricing(input.Model)
 	}
-	return purepricing.ResolvePriceCards(group, channel, base, source, input.Group == nil || input.Group.LongContextPricingEnabled)
+	return purepricing.ResolvePriceCards(group, configPricing, base, source, input.Group == nil || input.Group.LongContextPricingEnabled)
 }
 
 // MatchGroupModelPricing 获取旧分组输入，具体匹配由纯定价唯一执行。
-func MatchGroupModelPricing(group *PriceGroup, model string, candidates ModelCandidates) *ChannelModelPricing {
+func MatchGroupModelPricing(group *PriceGroup, model string, candidates ModelCandidates) *ModelPricingEntry {
 	if group == nil {
 		return nil
 	}
-	return LookupPricingForModel(model, func(candidate string) *ChannelModelPricing {
+	return LookupPricingForModel(model, func(candidate string) *ModelPricingEntry {
 		return purepricing.MatchPriceCard(group.ModelPricing, candidate)
 	}, candidates)
 }
@@ -64,20 +64,20 @@ func (r *PriceResolver) ResolveBasePricing(model string) (*ModelPricing, string)
 	return pricing, PricingSourceLiteLLM
 }
 
-// LookupChannelPricingNormalized 优先匹配原始请求，再复用目录的明确身份候选。
-// 候选不依赖内置价存在，避免新型号的基础名渠道价被目录回退绕过。
+// LookupConfigPricingNormalized 优先匹配原始请求，再复用目录的明确身份候选。
+// 候选不依赖内置价存在，避免新型号的基础名共享价格配置价被目录回退绕过。
 // @project-doc docs/interfaces/model_catalog_and_marketplace.md#model_catalog_metadata_lookup
-func (r *PriceResolver) LookupChannelPricingNormalized(ctx context.Context, groupID int64, model string) *ChannelModelPricing {
-	if r == nil || r.channels == nil {
+func (r *PriceResolver) LookupConfigPricingNormalized(ctx context.Context, groupID int64, model string) *ModelPricingEntry {
+	if r == nil || r.pricingConfigs == nil {
 		return nil
 	}
-	return LookupPricingForModel(model, func(candidate string) *ChannelModelPricing {
-		return r.channels.GetEffectiveChannelModelPricing(ctx, groupID, candidate)
+	return LookupPricingForModel(model, func(candidate string) *ModelPricingEntry {
+		return r.pricingConfigs.GetEffectiveConfigModelPricing(ctx, groupID, candidate)
 	}, r.lookup)
 }
 
-// LookupPricingForModel 统一分组与渠道的候选顺序，完整请求名的精确/通配价卡优先。
-func LookupPricingForModel(model string, lookup func(string) *ChannelModelPricing, identities ModelCandidates) *ChannelModelPricing {
+// LookupPricingForModel 统一分组与共享价格配置的候选顺序，完整请求名的精确/通配价卡优先。
+func LookupPricingForModel(model string, lookup func(string) *ModelPricingEntry, identities ModelCandidates) *ModelPricingEntry {
 	if pricing := lookup(model); pricing != nil {
 		return pricing
 	}
@@ -129,11 +129,11 @@ func (r *PriceResolver) GetRequestTierPriceByContextValue(resolved *ResolvedPric
 
 // PriceGroup 只包含定价规则所需字段，nil 与显式空集合保持区别。
 type PriceGroup struct {
-	ModelPricing              []ChannelModelPricing
+	ModelPricing              []ModelPricingEntry
 	LongContextPricingEnabled bool
 }
-type ChannelPrices interface {
-	GetEffectiveChannelModelPricing(context.Context, int64, string) *ChannelModelPricing
+type ConfigPrices interface {
+	GetEffectiveConfigModelPricing(context.Context, int64, string) *ModelPricingEntry
 }
 type ModelIdentity struct {
 	Candidates       []string
@@ -141,16 +141,16 @@ type ModelIdentity struct {
 }
 type ModelCandidates func(string) ModelIdentity
 
-// PriceResolver 保留分组、渠道、目录的按需读取顺序。
+// PriceResolver 保留分组、共享价格配置、目录的按需读取顺序。
 type PriceResolver struct {
-	channels     ChannelPrices
-	calculator   *Calculator
-	lookup       ModelCandidates
-	observe      func(string, error)
-	accountStats AccountStatsSource
+	pricingConfigs ConfigPrices
+	calculator     *Calculator
+	lookup         ModelCandidates
+	observe        func(string, error)
+	accountStats   AccountStatsSource
 }
 
-func NewPriceResolver(channels ChannelPrices, calculator *Calculator, lookup ModelCandidates, observe func(string, error), stats ...AccountStatsSource) *PriceResolver {
+func NewPriceResolver(pricingConfigs ConfigPrices, calculator *Calculator, lookup ModelCandidates, observe func(string, error), stats ...AccountStatsSource) *PriceResolver {
 	if observe == nil {
 		observe = func(string, error) {}
 	}
@@ -158,5 +158,5 @@ func NewPriceResolver(channels ChannelPrices, calculator *Calculator, lookup Mod
 	if len(stats) > 0 {
 		accountStats = stats[0]
 	}
-	return &PriceResolver{channels: channels, calculator: calculator, lookup: lookup, observe: observe, accountStats: accountStats}
+	return &PriceResolver{pricingConfigs: pricingConfigs, calculator: calculator, lookup: lookup, observe: observe, accountStats: accountStats}
 }

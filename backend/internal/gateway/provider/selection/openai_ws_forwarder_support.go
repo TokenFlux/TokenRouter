@@ -12,7 +12,7 @@ import (
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
-// selectAccountByPreviousResponseIDForCapability 使用已完成渠道及分组映射的账号层模型校验响应链账号。
+// selectAccountByPreviousResponseIDForCapability 使用已完成分组映射及协议专用映射的账号层模型校验响应链账号。
 func (s *Compatible) selectAccountByPreviousResponseIDForCapability(
 	ctx context.Context,
 	groupID *int64,
@@ -91,7 +91,7 @@ func (s *Compatible) ResolveAccountIDByPreviousResponseIDForScheduler(
 	return accountID
 }
 
-// resolveAccountByPreviousResponseIDForCapability 校验响应链绑定账号的模型、能力和渠道限制。
+// resolveAccountByPreviousResponseIDForCapability 校验响应链绑定账号的模型、能力和分组白名单。
 func (s *Compatible) resolveAccountByPreviousResponseIDForCapability(
 	ctx context.Context,
 	groupID *int64,
@@ -194,7 +194,7 @@ func (s *Compatible) resolveAccountByPreviousResponseIDForCapability(
 		_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
 		return 0, nil, "", nil
 	}
-	if groupID != nil && s.NeedsUpstreamChannelRestriction(ctx, groupID) &&
+	if groupID != nil && s.NeedsUpstreamGroupRestriction(ctx, groupID) &&
 		s.UpstreamRoutingModelRestricted(ctx, *groupID, account, routingModel, requireCompact) {
 		return 0, nil, "", nil
 	}

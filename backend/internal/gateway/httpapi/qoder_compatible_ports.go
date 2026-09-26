@@ -47,7 +47,7 @@ type QoderCompletionCapture struct {
 	Subscription                                                                       *billing.UserSubscription
 	QuotaPlatform, InboundEndpoint, UpstreamEndpoint, UserAgent, ClientIP, PayloadHash string
 	Body                                                                               []byte
-	Channel                                                                            routing.ChannelUsageFields
+	Pricing                                                                            routing.PricingUsageFields
 }
 
 // QoderCompatibleOptions 注入唯一实例，不在 HTTP 构造时启动资源或复制缓存。

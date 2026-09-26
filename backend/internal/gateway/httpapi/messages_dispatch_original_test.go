@@ -72,18 +72,18 @@ func TestResolveOpenAIMessagesDispatchMappedModel(t *testing.T) {
 	})
 }
 
-func TestResolveOpenAIMessagesAccountLayerModel_ChannelMappingPrecedesGroupDispatch(t *testing.T) {
+func TestResolveOpenAIMessagesAccountLayerModel_GroupMappingPrecedesGroupDispatch(t *testing.T) {
 	apiKey := &apikey.APIKey{
 		Group: &routing.Group{
 			MessagesDispatchModelConfig: routing.OpenAIMessagesDispatchModelConfig{
 				ExactModelMappings: map[string]string{
-					"channel-model": "dispatch-model",
+					"group-model": "dispatch-model",
 				},
 			},
 		},
 	}
 
-	require.Equal(t, "dispatch-model", ResolveOpenAIMessagesAccountLayerModel(apiKey, "channel-model"))
+	require.Equal(t, "dispatch-model", ResolveOpenAIMessagesAccountLayerModel(apiKey, "group-model"))
 	require.Equal(t, "client-alias", ResolveOpenAIMessagesAccountLayerModel(apiKey, "client-alias"))
 	require.Equal(t, "gpt-5.4", ResolveOpenAIMessagesAccountLayerModel(apiKey, "gpt-5.4-high"))
 }

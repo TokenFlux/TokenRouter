@@ -941,7 +941,7 @@ func (s *HTTPUpstreamSuite) TestAccountConcurrencyFallbackToDefault() {
 	require.Equal(s.T(), 55, transport.MaxIdleConnsPerHost, "MaxIdleConnsPerHost fallback mismatch")
 }
 
-// TestEvictOverLimitRemovesOldestIdle 测试超出数量限制时的 LRU 淘汰
+// TestHTTPUpstreamSuite 测试超出数量限制时的 LRU 淘汰
 // 验证优先淘汰最久未使用的空闲客户端
 
 // TestIdleTTLDoesNotEvictActive 测试活跃请求保护

@@ -26,9 +26,11 @@ func (r *Runtime) Open(ctx context.Context, in execution.Request, sink upstream.
 		return nil, errors.New("openai text execution requires its HTTP output adapter")
 	}
 	output.HTTP.Request = output.HTTP.Request.WithContext(ctx)
-	base := responsesAttemptBridge{fixed: r.dependencies, c: output.HTTP, apiKey: apikey.CopyAPIKey(in.Funding.Key), subject: authctx.AuthSubject{UserID: in.UserID, Concurrency: in.Concurrency}, subscription: in.Funding.Subscription, reqLog: output.Log,
+	base := responsesAttemptBridge{
+		fixed: r.dependencies, c: output.HTTP, apiKey: apikey.CopyAPIKey(in.Funding.Key), subject: authctx.AuthSubject{UserID: in.UserID, Concurrency: in.Concurrency}, subscription: in.Funding.Subscription, reqLog: output.Log,
 		body: in.Body, forwardBody: in.AttemptBody, sessionHashBody: in.Text.SessionHashBody, reqModel: in.Model, forwardModel: in.Text.ForwardModel, sessionHash: in.SessionHash, previousResponseID: in.Text.PreviousResponseID, requestPlatform: in.Text.Platform, reqStream: in.Stream,
-		nativeCompactionV2: in.Text.NativeCompactionV2, legacyCompact: in.Text.LegacyCompact, requireCompact: in.Text.RequireCompact, streamStarted: output.StreamStarted, selectionCtx: in.Text.SelectionContext, channelMapping: routing.ChannelMappingResult(in.Text.Mapping), routingStart: in.Text.RoutingStart, requiredCapability: in.Text.RequiredCapability}
+		nativeCompactionV2: in.Text.NativeCompactionV2, legacyCompact: in.Text.LegacyCompact, requireCompact: in.Text.RequireCompact, streamStarted: output.StreamStarted, selectionCtx: in.Text.SelectionContext, groupMapping: routing.GroupMappingResult(in.Text.Mapping), routingStart: in.Text.RoutingStart, requiredCapability: in.Text.RequiredCapability,
+	}
 	switch in.Text.Kind {
 	case execution.TextOpenAIChat:
 		return &openAIChatAttemptBridge{responsesAttemptBridge: base, promptCacheKey: in.Text.PromptCacheKey}, nil
@@ -40,13 +42,14 @@ func (r *Runtime) Open(ctx context.Context, in execution.Request, sink upstream.
 			accountLayerModel:      in.Text.AccountLayerModel,
 			currentRoutingModel:    in.Text.AccountLayerModel,
 			promptCacheKey:         in.Text.PromptCacheKey,
-			channelMappingMsg:      routing.ChannelMappingResult(in.Text.Mapping),
+			groupMappingMsg:        routing.GroupMappingResult(in.Text.Mapping),
 			mappedBodyForMessages:  mapped,
 		}, nil
 	default:
 		return &base, nil
 	}
 }
+
 func openAIObservedAttempt(result *forwardcore.OpenAIResult, err error) upstream.AttemptResult {
 	if result == nil {
 		return upstream.AttemptResult{Cancelled: errors.Is(err, context.Canceled)}

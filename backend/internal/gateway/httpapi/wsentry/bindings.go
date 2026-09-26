@@ -84,15 +84,19 @@ func (p openAIWSHTTPBackend) Access(c *gin.Context) (*gatewayws.EntryKey, bool) 
 	}
 	return out, true
 }
+
 func (p openAIWSHTTPBackend) Transport(c *gin.Context) {
 	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportWS)
 }
+
 func (p openAIWSHTTPBackend) Error(c *gin.Context, status int, kind, message string) {
 	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, status, kind, message)
 }
+
 func (p openAIWSHTTPBackend) Dependencies(c *gin.Context, log *zap.Logger) bool {
 	return p.bindings.Dependencies.Ensure(c, log)
 }
+
 func (p openAIWSHTTPBackend) SummarizeRead(err error) (string, string) {
 	var closed *gatewayws.ClientCloseError
 	if errors.As(err, &closed) {
@@ -100,6 +104,7 @@ func (p openAIWSHTTPBackend) SummarizeRead(err error) (string, string) {
 	}
 	return gatewayhttp.SummarizeWSCloseErrorForLog(err)
 }
+
 func (p openAIWSHTTPBackend) Entry(c *gin.Context, call gatewayhttp.ResponsesWSCall) gatewayws.EntryPorts {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	subject, _ := authctx.GetAuthSubjectFromContext(c)
@@ -126,105 +131,138 @@ func (p *openAIWSEntryAdapter) SetLogger(log gatewayws.EntryLogger) {
 	}
 	p.log = typed.log
 }
+
 func (p *openAIWSEntryAdapter) ClassifyPrevious(id string) string {
 	return openai.ClassifyOpenAIPreviousResponseIDKind(id)
 }
+
 func (p *openAIWSEntryAdapter) Platform() string {
 	return gatewayhttp.OpenAICompatibleRequestPlatform(p.key)
 }
+
 func (p *openAIWSEntryAdapter) Prompt(ctx context.Context, body []byte) []byte {
 	return p.bindings.Prompt.ApplyUserPromptReplacementToBody(ctx, body, "openai_responses")
 }
+
 func (p *openAIWSEntryAdapter) Redirect(ctx context.Context, model string) (context.Context, string) {
 	return gatewayhttp.APIKeyModelRedirectContext(ctx, p.key, model)
 }
+
 func (p *openAIWSEntryAdapter) BindContext(ctx context.Context) {
 	p.c.Request = p.c.Request.WithContext(ctx)
 }
+
 func (p *openAIWSEntryAdapter) ObserveFirst(model string) {
 	gatewayhttp.SetOpsRequestContext(p.c, model, true)
 	gatewayhttp.SetOpsEndpointContext(p.c, "", int16(usage.RequestTypeWSV2))
 }
+
 func (p *openAIWSEntryAdapter) CaptureCyber(body []byte) gatewayws.EntryCyberSnapshot {
 	gatewayhttp.SetOpenAICyberWarningRequestSnapshot(p.c, moderation.ContentModerationProtocolOpenAIResponses, body)
 	return gatewayws.EntryCyberSnapshot{Excerpt: gatewayhttp.CurrentOpenAICyberWarningPromptExcerpt(p.c), Input: gatewayhttp.CurrentOpenAICyberWarningSnapshot(p.c)}
 }
+
 func (p *openAIWSEntryAdapter) Moderate(_ context.Context, model string, body []byte) *moderation.Decision {
 	return gatewayhttp.RunContentModeration(gatewayhttp.GatewayModerationEndpoints{}, p.c, p.log, p.bindings.Common.Support.Moderation, p.key, p.subject, moderation.ContentModerationProtocolOpenAIResponses, model, body)
 }
+
 func (p *openAIWSEntryAdapter) ModerationError(ctx context.Context, d *moderation.Decision) {
 	gatewayhttp.WriteResponsesWSModeration(ctx, p.call.Conn, d)
 }
+
 func (p *openAIWSEntryAdapter) BlockedSession(ctx context.Context, body []byte) string {
 	return gatewayhttp.FindBlockedCyberSession(ctx, p.bindings.Blocks, p.key.ID, p.c, body)
 }
+
 func (p *openAIWSEntryAdapter) BlockedError(ctx context.Context) {
 	gatewayhttp.WriteResponsesWSCyberBlocked(ctx, p.call.Conn, moderationflow.SessionBlockedClientMessage)
 }
+
 func (p *openAIWSEntryAdapter) BlockedMessage() string {
 	return moderationflow.SessionBlockedClientMessage
 }
+
 func (p *openAIWSEntryAdapter) BlockedOps(model, key string) {
 	p.bindings.Common.Support.Cyber.EnqueueBlocked(p.c, p.key, model, key)
 }
-func (p *openAIWSEntryAdapter) Plan(ctx context.Context, model string) (context.Context, routing.ChannelMappingResult) {
+
+func (p *openAIWSEntryAdapter) Plan(ctx context.Context, model string) (context.Context, routing.GroupMappingResult) {
 	plan := p.bindings.PlanRoute(ctx, p.key, model)
 	return requeststate.WithRoutePlan(ctx, plan), plan.Mapping()
 }
-func (p *openAIWSEntryAdapter) ImageIntent(model string, body []byte, mapping routing.ChannelMappingResult) ([]byte, string, bool) {
-	return gatewayhttp.ChannelMappedImageIntent("/v1/responses", model, body, routing.ChannelMappingResult(mapping), p.Platform(), p.bindings.Common.Forward.ReplaceModelInBody)
+
+func (p *openAIWSEntryAdapter) ImageIntent(model string, body []byte, mapping routing.GroupMappingResult) ([]byte, string, bool) {
+	return gatewayhttp.GroupMappedImageIntent("/v1/responses", model, body, routing.GroupMappingResult(mapping), p.Platform(), p.bindings.Common.Forward.ReplaceModelInBody)
 }
+
 func (p *openAIWSEntryAdapter) ExplicitImage(model string, body []byte) bool {
 	return gatewayprovider.ImageIntent().IsExplicitImageGenerationIntent("/v1/responses", model, body)
 }
+
 func (p *openAIWSEntryAdapter) ImageContext(ctx context.Context) context.Context {
 	return requeststate.WithOpenAIImageGenerationIntent(ctx)
 }
+
 func (p *openAIWSEntryAdapter) ImagesAllowed() bool {
 	return routing.GroupAllowsResponsesImages(p.key.Group)
 }
+
 func (p *openAIWSEntryAdapter) ImageDeniedMessage() string {
 	return gatewaymedia.ImageGenerationPermissionMessage
 }
+
 func (p *openAIWSEntryAdapter) PolicyDenied() {
 	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 }
+
 func (p *openAIWSEntryAdapter) FeatureDenied() {
 	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
+
 func (p *openAIWSEntryAdapter) AcquireUser(ctx context.Context) (func(), bool, error) {
 	return p.bindings.Common.Support.Concurrency.TryAcquireUserSlotForAPIKey(ctx, p.subject.UserID, p.subject.Concurrency, p.key.ID)
 }
+
 func (p *openAIWSEntryAdapter) AcquireAccount(ctx context.Context, id int64, limit int) (func(), bool, error) {
 	return p.bindings.Common.Support.Concurrency.TryAcquireAccountSlot(ctx, id, limit)
 }
+
 func (p *openAIWSEntryAdapter) WrapRelease(ctx context.Context, release func()) func() {
 	return scheduler.WrapRelease(ctx, scheduler.ReleaseOnCancel, release)
 }
+
 func (p *openAIWSEntryAdapter) LoadSubscription() {
 	p.subscription, _ = gatewayhttp.SubscriptionFromContext(p.c)
 }
+
 func (p *openAIWSEntryAdapter) Eligibility(ctx context.Context) error {
 	return p.bindings.CheckFunding(ctx, p.key, p.subscription, admission.QuotaPlatform(p.c.Request.Context(), p.key), false)
 }
+
 func (p *openAIWSEntryAdapter) SessionHash(body []byte, seed string) string {
 	return gatewayhttp.GenerateOpenAISessionHashWithFallback(p.c, body, seed)
 }
+
 func (p *openAIWSEntryAdapter) ExplicitHash(body []byte) string {
 	return gatewayhttp.GenerateExplicitOpenAISessionHash(p.c, body)
 }
+
 func (p *openAIWSEntryAdapter) Isolate(ctx context.Context, source, hash string) error {
 	return p.bindings.Isolate(ctx, p.key, p.subject.UserID, source, hash)
 }
+
 func (p *openAIWSEntryAdapter) IsolationError(ctx context.Context, err error) {
 	gatewayhttp.WriteResponsesWSIsolation(ctx, p.call.Conn, err)
 }
+
 func (p *openAIWSEntryAdapter) IsolationReason(err error) string {
 	return gatewayhttp.ResponsesWSIsolationCloseReason(err)
 }
+
 func (p *openAIWSEntryAdapter) Guardian(ctx context.Context, body []byte, model string) context.Context {
 	return gatewayhttp.WithOpenAIGuardianParentAffinity(ctx, p.c, body, model)
 }
+
 func (p *openAIWSEntryAdapter) Select(ctx context.Context, previous, hash, model string, excluded map[int64]struct{}, responses, move bool, platform string) (*gatewayws.EntrySelection, gatewayws.EntryDecision, error) {
 	capability := account.OpenAIEndpointCapabilityTextGeneration
 	if responses {
@@ -246,12 +284,15 @@ func (p *openAIWSEntryAdapter) Select(ctx context.Context, previous, hash, model
 	}
 	return out, d, err
 }
+
 func (p *openAIWSEntryAdapter) SelectionLogError(err error, platform string) error {
 	return gatewayhttp.OpenAICompatibleSelectionErrorForLog(err, platform)
 }
+
 func (p *openAIWSEntryAdapter) BindSticky(ctx context.Context, hash string, id int64) error {
 	return p.bindings.Common.Support.Sticky.BindStickySession(ctx, p.key.GroupID, hash, id)
 }
+
 func (p *openAIWSEntryAdapter) RefreshFast(ctx context.Context) (string, bool) {
 	key, err := p.bindings.Keys.GetByKey(ctx, p.key.Key)
 	if err != nil || key == nil {
@@ -259,6 +300,7 @@ func (p *openAIWSEntryAdapter) RefreshFast(ctx context.Context) (string, bool) {
 	}
 	return apikey.NormalizeAPIKeyFastModePolicy(key.FastModePolicy)
 }
+
 func (p *openAIWSEntryAdapter) Failover(err error) (*gatewayws.EntryFailure, bool) {
 	var failure *forwardcore.UpstreamFailoverError
 	if !errors.As(err, &failure) || failure == nil {
@@ -266,6 +308,7 @@ func (p *openAIWSEntryAdapter) Failover(err error) (*gatewayws.EntryFailure, boo
 	}
 	return &gatewayws.EntryFailure{Err: failure, StatusCode: failure.StatusCode, ReportScheduleFailure: failure.ShouldReportAccountScheduleFailure(), RetryNext: failure.ShouldRetryNextAccount()}, true
 }
+
 func (p *openAIWSEntryAdapter) CloseFailover(failure *gatewayws.EntryFailure) {
 	var old *forwardcore.UpstreamFailoverError
 	if failure != nil {
@@ -273,12 +316,15 @@ func (p *openAIWSEntryAdapter) CloseFailover(failure *gatewayws.EntryFailure) {
 	}
 	gatewayhttp.CloseResponsesWSFailure(p.c, p.call.Conn, FailoverPresentation(old), gatewayhttp.MarkOpsStreamFailure)
 }
+
 func (p *openAIWSEntryAdapter) Close(status int, reason string) {
 	gatewayhttp.CloseResponsesWS(p.call.Conn, coderws.StatusCode(status), reason)
 }
+
 func (p *openAIWSEntryAdapter) CloseError(status int, reason string, err error) error {
 	return gatewayhttp.NewOpenAIWSClientCloseError(coderws.StatusCode(status), reason, err)
 }
+
 func (p *openAIWSEntryAdapter) CloseInfo(err error) gatewayws.EntryClose {
 	return gatewayhttp.ResponsesWSCloseInfo(err)
 }
@@ -286,6 +332,7 @@ func (p *openAIWSEntryAdapter) CloseInfo(err error) gatewayws.EntryClose {
 func (p *openAIWSEntryAdapter) SessionPreempted(err error) bool {
 	return gatewayws.IsSessionPreemptedError(err)
 }
+
 func (p *openAIWSEntryAdapter) RemovePrevious(body []byte) []byte {
 	return openai.RemovePreviousResponseIDFromBody(body)
 }
@@ -294,24 +341,30 @@ func (p *openAIWSEntryAdapter) LocalPolicyError(err error) bool {
 	var policy *routing.ReasoningEffortOverLimitError
 	return errors.As(err, &policy)
 }
+
 func (p *openAIWSEntryAdapter) ReportFailure(err error) bool {
 	return gatewayws.EntryShouldReportFailure(err)
 }
+
 func (p *openAIWSEntryAdapter) EndedByClient(err error) bool {
 	return gatewayhttp.ResponsesWSEndedByClient(err, p.CloseInfo(err))
 }
+
 func (p *openAIWSEntryAdapter) ClearCyber() {
 	gatewayhttp.ClearCyberTurnState(p.c, gatewayhttp.ClearOpsCyberPolicy)
 }
+
 func (p *openAIWSEntryAdapter) CompletionRecorder() gatewayws.EntryCompletion {
 	return p.bindings.Common.Recorder
 }
+
 func (p *openAIWSEntryAdapter) CompletionObserver() func(int64, string, error) {
 	log := p.log
 	return func(id int64, requestID string, err error) {
 		log.Error("openai.websocket_record_usage_failed", zap.Int64("account_id", id), zap.String("request_id", requestID), zap.Error(err))
 	}
 }
+
 func (p *openAIWSEntryAdapter) SubmitCompletion(result *gatewayws.ForwardResult, task func(context.Context)) {
 	images := 0
 	if result != nil {
@@ -331,15 +384,19 @@ type openAIWSEntryTarget struct {
 func (t *openAIWSEntryTarget) MappedModel(model string) string {
 	return gatewayprovider.ExecutionModelPolicy(t.account).Mapped(model)
 }
+
 func (t *openAIWSEntryTarget) Report(model string, ok bool, first *int) {
 	t.root.bindings.ReportSelection(t.selection, t.account.Record.ID, model, ok, first)
 }
+
 func (t *openAIWSEntryTarget) Switched() {
 	t.root.bindings.Common.Selection.RecordOpenAIAccountSwitchForSelection(t.selection)
 }
+
 func (t *openAIWSEntryTarget) Stop429(status, count int, state *failover.OAuth429State) bool {
 	return t.root.bindings.Stop429(t.account, status, count, state)
 }
+
 func (t *openAIWSEntryTarget) Credential(ctx context.Context) error {
 	token, _, err := t.root.bindings.Credential(ctx, t.root.c, t.account)
 	if err == nil {
@@ -347,10 +404,12 @@ func (t *openAIWSEntryTarget) Credential(ctx context.Context) error {
 	}
 	return err
 }
+
 func (t *openAIWSEntryTarget) EnforceClient(ctx context.Context, first []byte) error {
 	router := t.root.bindings.Common.Forward.MatchOpenAITLSFingerprintRouterForRequest(t.root.c, t.account)
 	return t.root.bindings.Common.Forward.EnforceOpenAIClientPolicyForRequest(ctx, t.root.c, t.account, first, router)
 }
+
 func (t *openAIWSEntryTarget) ResolveRouting(ctx context.Context, model string, responses bool) (string, error) {
 	capability := account.OpenAIEndpointCapabilityTextGeneration
 	if responses {
@@ -358,18 +417,22 @@ func (t *openAIWSEntryTarget) ResolveRouting(ctx context.Context, model string, 
 	}
 	return t.root.bindings.ResolveRouting(ctx, t.root.key.GroupID, t.account, model, capability)
 }
+
 func (t *openAIWSEntryTarget) Warning(_ context.Context, model string, status int, body []byte, message string, snapshot gatewayws.EntryCyberSnapshot) {
 	p := t.root
 	p.bindings.Common.Support.RecordOpenAICyberWarningWithSnapshot(p.c, p.log, p.key, t.account, model, status, body, message, snapshot.Excerpt, snapshot.Input)
 }
-func (t *openAIWSEntryTarget) RecordMarked(_ context.Context, model string, failed bool, body []byte, mapping routing.ChannelUsageFields, hash string) bool {
+
+func (t *openAIWSEntryTarget) RecordMarked(_ context.Context, model string, failed bool, body []byte, mapping routing.PricingUsageFields, hash string) bool {
 	p := t.root
 	return p.bindings.Common.Support.RecordCyberPolicyIfMarked(p.c, p.key, t.account, p.subscription, model, failed, body, mapping, hash)
 }
+
 func (t *openAIWSEntryTarget) UpdateUsage(ctx context.Context, headers map[string][]string) {
 	t.root.bindings.Common.Selection.UpdateCodexUsageSnapshotFromHeaders(ctx, t.account.Record.ID, headers)
 }
-func (t *openAIWSEntryTarget) PrepareCompletion(ctx context.Context, result *gatewayws.ForwardResult, capture gatewayws.TurnCapture, model string, mapping routing.ChannelMappingResult, body []byte, cyber bool) *completion.Input {
+
+func (t *openAIWSEntryTarget) PrepareCompletion(ctx context.Context, result *gatewayws.ForwardResult, capture gatewayws.TurnCapture, model string, mapping routing.GroupMappingResult, body []byte, cyber bool) *completion.Input {
 	p := t.root
 	legacy := gatewayprovider.ForwardResultFromWS(result)
 	// 这里只转换已有资金/用量字段；复制发生在提交前，回调不捕获 Gin。
@@ -377,12 +440,14 @@ func (t *openAIWSEntryTarget) PrepareCompletion(ctx context.Context, result *gat
 		Result: legacy, APIKey: p.key, User: p.key.User, Account: gatewayprovider.ExecutionCompletionRecord(t.account), Subscription: p.subscription,
 		InboundEndpoint: gatewayhttp.GetInboundEndpoint(p.c), UpstreamEndpoint: openaiattempt.ResolveOpenAIUpstreamEndpoint(p.c, t.account, legacy), UserAgent: p.call.UserAgent, IPAddress: p.call.ClientIP,
 		RequestPayloadHash: billing.HashUsageRequestPayload(body), RequestBody: append([]byte(nil), body...), PricingAt: capture.StartedAt, APIKeyService: p.bindings.Common.Support.Quota,
-		QuotaPlatform: admission.QuotaPlatform(p.c.Request.Context(), p.key), ClientSessionID: gatewayhttp.ExtractClientSessionID(p.c), ChannelUsageFields: mapping.ToUsageFields(model, result.UpstreamModel), CyberBlocked: cyber,
+		QuotaPlatform: admission.QuotaPlatform(p.c.Request.Context(), p.key), ClientSessionID: gatewayhttp.ExtractClientSessionID(p.c), PricingUsageFields: mapping.ToUsageFields(model, result.UpstreamModel), CyberBlocked: cyber,
 	})
 }
+
 func (t *openAIWSEntryTarget) BeginPreemption(ctx context.Context, first []byte) (context.Context, func(), bool) {
 	return t.root.bindings.BeginPreemption(ctx, t.root.c, t.account, first)
 }
+
 func (t *openAIWSEntryTarget) Run(ctx context.Context, client gatewayws.ClientSocket, first []byte, hooks *gatewayws.EntryHooks) error {
 	frames, ok := client.(gatewayhttp.WSClientFrames)
 	if !ok {
@@ -409,6 +474,7 @@ func (t *openAIWSEntryTarget) Run(ctx context.Context, client gatewayws.ClientSo
 	}
 	return t.root.bindings.Relay(ctx, t.root.c, frames.Conn, t.account, t.token, first, old)
 }
+
 func (t *openAIWSEntryTarget) LogFailure(err error) {
 	status, reason := gatewayhttp.SummarizeWSCloseErrorForLog(err)
 	fields := []zap.Field{zap.Int64("account_id", t.account.Record.ID), zap.Error(err), zap.String("close_status", status), zap.String("close_reason", reason)}
@@ -435,18 +501,23 @@ func wsEntryLogFields(fields []gatewayws.EntryField) []zap.Field {
 	}
 	return out
 }
+
 func (l wsEntryLogger) With(fields ...gatewayws.EntryField) gatewayws.EntryLogger {
 	return wsEntryLogger{l.log.With(wsEntryLogFields(fields)...)}
 }
+
 func (l wsEntryLogger) Info(message string, fields ...gatewayws.EntryField) {
 	l.log.Info(message, wsEntryLogFields(fields)...)
 }
+
 func (l wsEntryLogger) Warn(message string, fields ...gatewayws.EntryField) {
 	l.log.Warn(message, wsEntryLogFields(fields)...)
 }
+
 func (l wsEntryLogger) Error(message string, fields ...gatewayws.EntryField) {
 	l.log.Error(message, wsEntryLogFields(fields)...)
 }
+
 func (l wsEntryLogger) Debug(message string, fields ...gatewayws.EntryField) {
 	l.log.Debug(message, wsEntryLogFields(fields)...)
 }

@@ -31,7 +31,6 @@ import (
 const qoderCachedUsageSSEForTest = "data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":66637,\\\"completion_tokens\\\":6,\\\"total_tokens\\\":66643,\\\"prompt_tokens_details\\\":{\\\"cached_tokens\\\":66612,\\\"cacheable_tokens\\\":19},\\\"completion_tokens_details\\\":{\\\"reasoning_tokens\\\":0}}}\"}\n\n"
 
 func TestQoderGatewayAllowsExplicitPreviewCompatibilityMapping(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	account := &accountcore.Record{
@@ -71,7 +70,7 @@ func TestQoderGatewayAllowsExplicitPreviewCompatibilityMapping(t *testing.T) {
 	assertQoderContextCapabilityForTest(t, qoderLastUpstreamPayloadForTest(t, client), 1000000, true)
 }
 
-func TestQoderGatewayForwardUsesOriginalModelAfterChannelMapping(t *testing.T) {
+func TestQoderGatewayForwardUsesOriginalModelAfterGroupMapping(t *testing.T) {
 	tests := []struct {
 		name string
 		path string
@@ -1608,7 +1607,6 @@ func TestQoderGatewayDoesNotAttachAmbiguousArgumentDeltaToParallelToolCall(t *te
 }
 
 func TestQoderGatewayForwardChatCompletionsHonorsCanceledContext(t *testing.T) {
-
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	ctx, cancel := context.WithCancel(context.Background())

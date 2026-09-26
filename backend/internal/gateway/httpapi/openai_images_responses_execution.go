@@ -1,14 +1,14 @@
 package httpapi
 
 import (
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
@@ -141,11 +141,11 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 	c *gin.Context,
 	account *gatewayprovider.ExecutionAccount,
 	parsed *gatewaymedia.ImageRequest,
-	channelMappedModel string,
+	groupMappedModel string,
 	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
 ) (*forwardcore.OpenAIResult, error) {
 	startTime := time.Now()
-	requestModel, upstreamModel, err := gatewaymedia.ResolveImageModels(parsed.Model, channelMappedModel, "gpt-image-2", func(model string) string {
+	requestModel, upstreamModel, err := gatewaymedia.ResolveImageModels(parsed.Model, groupMappedModel, "gpt-image-2", func(model string) string {
 		return gatewayprovider.ExecutionModelPolicy(account).OpenAIUpstream(model, false, false)
 	})
 	if err != nil {
@@ -191,7 +191,6 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 	httpFailure := false
 	retryAgent := false
 	target := &mediaprovider.ImagesOptions{
-
 		AccountID: account.Record.ID,
 		OAuth:     true,
 		Model:     upstreamModel,
@@ -247,7 +246,6 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 				},
 				Observe: func() {
 					AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-
 						Platform: account.Record.Platform,
 
 						AccountID: account.Record.ID,
@@ -283,7 +281,6 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 						)
 					}
 					return &forwardcore.UpstreamFailoverError{
-
 						StatusCode: resp.StatusCode,
 
 						ResponseBody: respBody,
@@ -311,7 +308,7 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 	}
 	result, err := (mediaprovider.Images{Options: *target}).Execute(upstreamCtx, upstream.AttemptInput{Protocol: protocolID, ResponseModel: requestModel, Stream: parsed.Stream}, ResponseSink{Writer: c.Writer})
 	if retryAgent {
-		return s.forwardOpenAIImagesOAuth(requeststate.WithAgentTaskRecovery(ctx), c, account, parsed, channelMappedModel)
+		return s.forwardOpenAIImagesOAuth(requeststate.WithAgentTaskRecovery(ctx), c, account, parsed, groupMappedModel)
 	}
 	if httpFailure {
 		return legacyHTTPResult, err
@@ -370,7 +367,6 @@ func (s *OpenAIImagesExecutor) handleOpenAIImagesOAuthResponseError(
 			}
 		}
 		AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-
 			Platform: account.Record.Platform,
 
 			AccountID: account.Record.ID,
@@ -391,7 +387,6 @@ func (s *OpenAIImagesExecutor) handleOpenAIImagesOAuthResponseError(
 			return err
 		}
 		return &forwardcore.UpstreamFailoverError{
-
 			StatusCode: statusCode,
 
 			ResponseBody: responseBody,
@@ -426,7 +421,6 @@ func (s *OpenAIImagesExecutor) handleOpenAIImagesOAuthResponseError(
 		}
 	}
 	AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-
 		Platform: account.Record.Platform,
 
 		AccountID: account.Record.ID,

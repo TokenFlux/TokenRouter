@@ -30,6 +30,7 @@ type mediaHTTPAdapter struct{ h *Runtime }
 func (h *Runtime) MediaHTTPHandler() *gatewayhttp.MediaHandler {
 	return gatewayhttp.NewMediaHandler(mediaHTTPAdapter{h})
 }
+
 func mediaAccessView(key *apikey.APIKey) *gatewayhttp.MediaAccess {
 	if key == nil {
 		return nil
@@ -45,39 +46,49 @@ func mediaAccessView(key *apikey.APIKey) *gatewayhttp.MediaAccess {
 	}
 	return &gatewayhttp.MediaAccess{HasGroup: key.Group != nil, Platform: platform, ID: key.ID, GroupID: group, Composite: key.IsComposite, ImagesAllowed: key.Group == nil || key.Group.AllowImageGeneration}
 }
+
 func (p mediaHTTPAdapter) Access(c *gin.Context) (*gatewayhttp.MediaAccess, bool) {
 	key, ok := keyhttp.GetAPIKeyFromContext(c)
 	return mediaAccessView(key), ok
 }
+
 func (p mediaHTTPAdapter) Subject(c *gin.Context) (gatewayhttp.MediaSubject, bool) {
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	return gatewayhttp.MediaSubject{UserID: subject.UserID, Concurrency: subject.Concurrency}, ok
 }
+
 func (p mediaHTTPAdapter) Logger(c *gin.Context, name string, fields ...zap.Field) *zap.Logger {
 	return gatewayhttp.RequestLogger(c, name, fields...)
 }
+
 func (p mediaHTTPAdapter) Dependencies(c *gin.Context, log *zap.Logger) bool {
 	return p.h.bindings.Dependencies.Ensure(c, log)
 }
+
 func (p mediaHTTPAdapter) Error(c *gin.Context, status int, code, message string) {
 	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, status, code, message)
 }
+
 func (p mediaHTTPAdapter) StreamingError(c *gin.Context, status int, code, message string, stream bool) {
 	gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, status, code, message, stream)
 }
+
 func (p mediaHTTPAdapter) EnsureForwardError(c *gin.Context, stream bool) bool {
 	return gatewayhttp.DefaultOpenAIErrorOutput().EnsureFallback(c, stream)
 }
+
 func (p mediaHTTPAdapter) ObserveRequest(c *gin.Context, model string, stream, endpoint bool) {
 	gatewayhttp.SetOpsRequestContext(c, model, stream)
 	if endpoint {
 		gatewayhttp.SetOpsEndpointContext(c, "", int16(usage.RequestTypeFromLegacy(stream, false)))
 	}
 }
+
 func (p mediaHTTPAdapter) AuthLatency(c *gin.Context, elapsed time.Duration) {
 	gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsAuthLatencyMsKey, elapsed.Milliseconds())
 }
-func (p mediaHTTPAdapter) Plan(c *gin.Context, model string, bind bool) (context.Context, routing.ChannelMappingResult) {
+
+func (p mediaHTTPAdapter) Plan(c *gin.Context, model string, bind bool) (context.Context, routing.GroupMappingResult) {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	plan := p.h.bindings.PlanRoute(c.Request.Context(), key, model)
 	ctx := requeststate.WithRoutePlan(c.Request.Context(), plan)
@@ -86,12 +97,15 @@ func (p mediaHTTPAdapter) Plan(c *gin.Context, model string, bind bool) (context
 	}
 	return ctx, plan.Mapping()
 }
+
 func (p mediaHTTPAdapter) ImagePermissionMessage() string {
 	return media.ImageGenerationPermissionMessage
 }
+
 func (p mediaHTTPAdapter) ImagePolicyDenied(c *gin.Context) {
 	gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
+
 func (p mediaHTTPAdapter) Moderate(c *gin.Context, log *zap.Logger, subject gatewayhttp.MediaSubject, model string, body []byte) bool {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	oldSubject, _ := authctx.GetAuthSubjectFromContext(c)
@@ -102,20 +116,25 @@ func (p mediaHTTPAdapter) Moderate(c *gin.Context, log *zap.Logger, subject gate
 	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, gatewayhttp.ContentModerationStatus(decision), gatewayhttp.ContentModerationErrorCode(decision), decision.Message)
 	return true
 }
+
 func (p mediaHTTPAdapter) CyberSnapshot(c *gin.Context, body []byte) {
 	gatewayhttp.SetOpenAICyberWarningRequestSnapshot(c, moderation.ContentModerationProtocolOpenAIImages, body)
 }
+
 func (p mediaHTTPAdapter) AcquireImage(c *gin.Context, stream bool) (func(), bool) {
 	return p.h.bindings.Resources.AcquireImage(c, stream)
 }
+
 func (p mediaHTTPAdapter) AcquireUser(c *gin.Context, s gatewayhttp.MediaSubject, stream bool, started *bool, log *zap.Logger) (func(), bool) {
 	return p.h.bindings.Resources.AcquireUser(c, s.UserID, s.Concurrency, stream, started, log)
 }
+
 func (p mediaHTTPAdapter) BindErrors(c *gin.Context) {
 	if p.h.bindings.Common.Support.Rules != nil {
 		gatewayhttp.BindErrorPassthroughService(c, p.h.bindings.Common.Support.Rules)
 	}
 }
+
 func (p mediaHTTPAdapter) Billing(c *gin.Context) *gatewayhttp.MediaHTTPFailure {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
@@ -126,31 +145,37 @@ func (p mediaHTTPAdapter) Billing(c *gin.Context) *gatewayhttp.MediaHTTPFailure 
 	status, code, message, retry := gatewayhttp.BillingErrorDetails(err)
 	return &gatewayhttp.MediaHTTPFailure{Status: status, Code: code, Message: message, RetryAfter: retry, Err: err}
 }
+
 func (p mediaHTTPAdapter) ExplicitSession(c *gin.Context, body []byte) string {
 	return gatewayhttp.GenerateExplicitOpenAISessionHash(c, body)
 }
+
 func (p mediaHTTPAdapter) Isolate(c *gin.Context, userID int64, hash string, stream bool) bool {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	err := p.h.bindings.Isolate(c.Request.Context(), key, userID, session.SessionIsolationSourceOpenAI, hash)
 	return p.h.handleOpenAISessionIsolationError(c, err, stream)
 }
+
 func (p mediaHTTPAdapter) ImageContext(c *gin.Context) context.Context {
 	return requeststate.WithOpenAIImagesEndpoint(requeststate.WithOpenAIImageGenerationIntent(c.Request.Context()))
 }
+
 func (p mediaHTTPAdapter) NewGenerationPorts(c *gin.Context, in gatewayhttp.GenerationHTTPInput, log *zap.Logger, stream *bool) media.GenerationPorts {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	subject, _ := authctx.GetAuthSubjectFromContext(c)
 	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
-	return &generationRequestAdapter{grok: in.Grok, h: p.h, c: c, apiKey: key, subject: subject, subscription: subscription, reqLog: log, streamStarted: stream, parsed: in.Parsed, body: in.Body, requestModel: in.RequestModel, routingModel: in.RoutingModel, sessionHash: in.SessionHash, channelMapping: routing.ChannelMappingResult(in.Mapping), endpoint: grok.GrokMediaEndpoint(in.Endpoint), requestID: in.RequestID, contentType: in.ContentType, boundAccountID: in.BoundAccountID, videoCreated: in.VideoCreated}
+	return &generationRequestAdapter{grok: in.Grok, h: p.h, c: c, apiKey: key, subject: subject, subscription: subscription, reqLog: log, streamStarted: stream, parsed: in.Parsed, body: in.Body, requestModel: in.RequestModel, routingModel: in.RoutingModel, sessionHash: in.SessionHash, groupMapping: routing.GroupMappingResult(in.Mapping), endpoint: grok.GrokMediaEndpoint(in.Endpoint), requestID: in.RequestID, contentType: in.ContentType, boundAccountID: in.BoundAccountID, videoCreated: in.VideoCreated}
 }
 func (p mediaHTTPAdapter) MaxSwitches() int { return p.h.bindings.Options.MaxSwitches }
 func (p mediaHTTPAdapter) ParseGrok(contentType string, body []byte) gatewayhttp.GrokMediaInput {
 	value := provider.GrokMediaCodec().ParseGrokMediaRequest(contentType, body)
 	return gatewayhttp.GrokMediaInput{Model: value.Model, HasInputImage: value.HasInputImage(), ModerationBody: value.ModerationBody()}
 }
+
 func (p mediaHTTPAdapter) NormalizeGrok(endpoint, model string, hasImage bool) string {
 	return provider.GrokMediaCodec().NormalizeGrokMediaModelForEndpoint(grok.GrokMediaEndpoint(endpoint), model, hasImage)
 }
+
 func (p mediaHTTPAdapter) ResolveCompositeVideo(c *gin.Context, requestID string, userID int64) (*gatewayhttp.MediaAccess, int64, error) {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	key, account, err := p.h.resolveCompositeGrokVideoAPIKey(c.Request.Context(), key, requestID, userID)
@@ -162,9 +187,11 @@ func (p mediaHTTPAdapter) ResolveCompositeVideo(c *gin.Context, requestID string
 	c.Request = c.Request.WithContext(requeststate.WithGroup(c.Request.Context(), key.Group))
 	return mediaAccessView(key), account, nil
 }
+
 func (p mediaHTTPAdapter) ResolveVideoAccount(ctx context.Context, groupID *int64, id string, userID, keyID int64) (int64, error) {
 	return p.h.bindings.VideoTasks().ResolveGrokMediaVideoRequestAccount(ctx, groupID, id, userID, keyID)
 }
+
 func (p mediaHTTPAdapter) RewriteGrok(body []byte, contentType, model string) ([]byte, string, error) {
 	return provider.GrokMediaCodec().RewriteGrokMediaRequestModel(body, contentType, model)
 }
@@ -173,28 +200,35 @@ func (p mediaHTTPAdapter) RewriteGrok(body []byte, contentType, model string) ([
 func (h *Runtime) AuxiliaryHTTPHandler() *gatewayhttp.AuxiliaryHandler {
 	return gatewayhttp.NewAuxiliaryHandler(mediaHTTPAdapter{h})
 }
+
 func (p mediaHTTPAdapter) HTTPTransport(c *gin.Context) {
 	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 }
+
 func (p mediaHTTPAdapter) ParseFailure(log *zap.Logger, body []byte) {
 	gatewayhttp.LogRequestBodyParseFailure(log, body, nil)
 }
+
 func (p mediaHTTPAdapter) RewriteModel(body []byte, model string) []byte {
 	return p.h.bindings.Common.Forward.ReplaceModelInBody(body, model)
 }
+
 func (p mediaHTTPAdapter) FallbackSession(c *gin.Context, id string) string {
 	return gatewayhttp.GenerateOpenAISessionHashWithFallback(c, nil, id)
 }
+
 func (p mediaHTTPAdapter) NewEmbeddings(c *gin.Context, in gatewayhttp.AuxiliaryHTTPInput, log *zap.Logger, stream *bool) gatewayhttp.EmbeddingHTTPExecution {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
-	return &embeddingRequestAdapter{h: p.h, c: c, apiKey: key, userID: in.Subject.UserID, subscription: subscription, reqModel: in.Model, channelMapping: routing.ChannelMappingResult(in.Mapping), reqLog: log, streamStarted: stream}
+	return &embeddingRequestAdapter{h: p.h, c: c, apiKey: key, userID: in.Subject.UserID, subscription: subscription, reqModel: in.Model, groupMapping: routing.GroupMappingResult(in.Mapping), reqLog: log, streamStarted: stream}
 }
+
 func (p *embeddingRequestAdapter) EndEmbeddingFailure(f *media.EmbeddingFailure) { p.renderFailure(f) }
+
 func (p mediaHTTPAdapter) NewAlphaSearch(c *gin.Context, in gatewayhttp.AuxiliaryHTTPInput, log *zap.Logger, stream *bool) gatewayhttp.AlphaHTTPExecution {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
-	return &alphaRequestAdapter{h: p.h, c: c, apiKey: key, subscription: subscription, channelMapping: routing.ChannelMappingResult(in.Mapping), requestedModel: in.Model, originalBody: in.Body, userID: in.Subject.UserID, sessionHash: in.SessionHash, reqLog: log, streamStarted: stream}
+	return &alphaRequestAdapter{h: p.h, c: c, apiKey: key, subscription: subscription, groupMapping: routing.GroupMappingResult(in.Mapping), requestedModel: in.Model, originalBody: in.Body, userID: in.Subject.UserID, sessionHash: in.SessionHash, reqLog: log, streamStarted: stream}
 }
 func (p *alphaRequestAdapter) EndAlphaFailure(f *media.AlphaFailure) { p.renderFailure(f) }
 func (p mediaHTTPAdapter) ModerateVoice(c *gin.Context, log *zap.Logger, _ gatewayhttp.MediaSubject, body []byte) bool {
@@ -207,11 +241,13 @@ func (p mediaHTTPAdapter) ModerateVoice(c *gin.Context, log *zap.Logger, _ gatew
 	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, gatewayhttp.ContentModerationStatus(decision), gatewayhttp.ContentModerationErrorCode(decision), decision.Message)
 	return true
 }
+
 func (p mediaHTTPAdapter) NewVoice(c *gin.Context, _ gatewayhttp.AuxiliaryHTTPInput, log *zap.Logger) media.VoicePorts {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
 	return &grokVoiceAdapter{h: p.h, c: c, apiKey: key, subscription: subscription, reqLog: log}
 }
+
 func (p mediaHTTPAdapter) EndVoice(c *gin.Context, f *media.VoiceFailure) {
 	if f == nil {
 		return
@@ -223,10 +259,12 @@ func (p mediaHTTPAdapter) EndVoice(c *gin.Context, f *media.VoiceFailure) {
 		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, 503, "api_error", "No available Grok accounts")
 	}
 }
+
 func (p mediaHTTPAdapter) NewRealtime(c *gin.Context, log *zap.Logger) gatewayhttp.RealtimeHTTPExecution {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	return &grokRealtimeAdapter{h: p.h, c: c, apiKey: key, reqLog: log}
 }
+
 func (p mediaHTTPAdapter) RealtimeDialTimeout() time.Duration {
 	return media.DefaultRealtimeDialTimeout
 }

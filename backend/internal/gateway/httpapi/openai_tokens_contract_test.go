@@ -30,7 +30,7 @@ type tokenExecutionContract struct {
 
 func (f *tokenExecutionContract) PlanTokenRoute(_ context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 	f.events = append(f.events, "plan")
-	return routing.Plan(routing.PlanInput{GroupID: key.GroupID, RequestedModel: model, Channel: routing.ChannelMappingResult{Mapped: true, MappedModel: "channel-model"}})
+	return routing.Plan(routing.PlanInput{GroupID: key.GroupID, RequestedModel: model, GroupMapping: routing.GroupMappingResult{Mapped: true, MappedModel: "group-model"}})
 }
 
 func (f *tokenExecutionContract) TokenSessionHash(*gin.Context, []byte) string {
@@ -53,7 +53,7 @@ func (f *tokenExecutionContract) SelectCount(_ context.Context, _ *int64, hash, 
 	f.events = append(f.events, "select")
 	f.selections++
 	require.Equal(f.t, "token-session", hash)
-	require.Equal(f.t, "channel-model", model)
+	require.Equal(f.t, "group-model", model)
 	require.Equal(f.t, "openai", platform)
 	return tokenContractTarget{f: f, id: 1}, nil
 }
@@ -63,7 +63,7 @@ func (f *tokenExecutionContract) SelectInputTokens(_ context.Context, _ *int64, 
 	f.selections++
 	require.Equal(f.t, "token-session", hash)
 	require.Equal(f.t, "client-model", model)
-	require.Equal(f.t, "channel-model", routingModel)
+	require.Equal(f.t, "group-model", routingModel)
 	require.Equal(f.t, "openai", platform)
 	if f.selections == 2 {
 		require.Contains(f.t, excluded, int64(1))
@@ -89,15 +89,15 @@ func (t tokenContractTarget) ForwardCount(_ context.Context, c *gin.Context, bod
 	_, observed := c.Get(OpsAuthLatencyMsKey)
 	require.True(t.f.t, observed)
 	t.f.events = append(t.f.events, "forward")
-	require.Equal(t.f.t, "channel-model", model)
-	require.Equal(t.f.t, "channel-model", gjson.GetBytes(body, "model").String())
+	require.Equal(t.f.t, "group-model", model)
+	require.Equal(t.f.t, "group-model", gjson.GetBytes(body, "model").String())
 	c.JSON(http.StatusOK, gin.H{"input_tokens": 17})
 	return nil
 }
 
 func (t tokenContractTarget) ForwardInputTokens(_ context.Context, c *gin.Context, body []byte) error {
 	t.f.events = append(t.f.events, "forward")
-	require.Equal(t.f.t, "channel-model", gjson.GetBytes(body, "model").String())
+	require.Equal(t.f.t, "group-model", gjson.GetBytes(body, "model").String())
 	if t.id == 1 {
 		return &forward.UpstreamFailoverError{StatusCode: http.StatusServiceUnavailable}
 	}

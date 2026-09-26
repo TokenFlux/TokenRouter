@@ -37,7 +37,7 @@ type MessagesCapture struct {
 	APIKeyService      QuotaUpdater              // 可选：用于更新API Key配额
 	QuotaPlatform      string                    // user×platform 配额计量平台：handler 在请求 ctx 内经 admission.QuotaPlatform() 算定后传入（后扣运行在 worker 池 background ctx 上，取不到 ForcePlatform）
 
-	routing.ChannelUsageFields // 渠道映射信息（由 handler 在 Forward 前解析）
+	routing.PricingUsageFields // 分组映射信息（由 handler 在 Forward 前解析）
 }
 
 // QuotaUpdater 保留调用方已提供额度更新能力的判定，捕获过程不会调用它。
@@ -85,7 +85,7 @@ type OpenAICapture struct {
 	CyberBlocked  bool
 	// NativeCompactionV2 表示请求体运行时被识别为原生远程 compaction v2。
 	NativeCompactionV2 bool
-	routing.ChannelUsageFields
+	routing.PricingUsageFields
 }
 
 // CyberCapture 是 forward 错误路径中 cyber_policy 命中的补记用量入参。
@@ -108,7 +108,7 @@ type CyberCapture struct {
 	QuotaPlatform      string
 	// NativeCompactionV2 保留错误路径中原生 compaction 标记。
 	NativeCompactionV2 bool
-	routing.ChannelUsageFields
+	routing.PricingUsageFields
 }
 
 // CaptureMessages 在完成提交边界固化实际用量和主体，不持有原始请求体。
@@ -131,7 +131,7 @@ func CaptureMessages(ctx context.Context, in *MessagesCapture) *completion.Input
 		QuotaPlatform:      in.QuotaPlatform,
 		ForceCacheBilling:  in.ForceCacheBilling,
 		QuotaUpdates:       in.APIKeyService != nil,
-		ChannelUsageFields: in.ChannelUsageFields,
+		PricingUsageFields: in.PricingUsageFields,
 	}
 	if in.Result != nil {
 		out.RequestID = CompletionRequestID(ctx, in.Result.RequestID)
@@ -162,8 +162,8 @@ func CaptureOpenAI(ctx context.Context, in *OpenAICapture) *completion.Input {
 		CyberBlocked:             in.CyberBlocked,
 		NativeCompactionV2:       in.NativeCompactionV2,
 		PricingAt:                in.PricingAt,
-		ChannelUsageFields:       in.ChannelUsageFields,
-		RequestedReasoningEffort: requeststate.CanonicalRequestedReasoningEffort(in.RequestBody, in.OriginalModel, in.ChannelMappedModel),
+		PricingUsageFields:       in.PricingUsageFields,
+		RequestedReasoningEffort: requeststate.CanonicalRequestedReasoningEffort(in.RequestBody, in.OriginalModel, in.GroupMappedModel),
 	}
 	if in.Result != nil {
 		out.RequestID = CompletionRequestID(ctx, in.Result.RequestID)
@@ -209,7 +209,7 @@ func CaptureCyber(ctx context.Context, in CyberCapture) *completion.Input {
 		RequestPayloadHash: in.RequestPayloadHash,
 		APIKeyService:      in.APIKeyService,
 		QuotaPlatform:      in.QuotaPlatform,
-		ChannelUsageFields: in.ChannelUsageFields,
+		PricingUsageFields: in.PricingUsageFields,
 		CyberBlocked:       true,
 		NativeCompactionV2: in.NativeCompactionV2,
 	})

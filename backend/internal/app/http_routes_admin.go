@@ -55,7 +55,7 @@ func provideAdminRouteMount(eAdminTLSFingerprintProfile *routeegress.TLSFingerpr
 	eAdminAffiliate *routepromotion.AffiliateHandler,
 	eAdminGrokOAuth *routeaccount.GrokOAuthHandler,
 	eAdminAuditLog *routeaudit.AuditLogHandler,
-	eAdminChannel *routerouting.ChannelHandler,
+	eAdminPricing *routerouting.PricingHandler,
 	ePlatformQuota *routebilling.QuotaHandler,
 	eAdminSetting *routesettings.Handler,
 	ePreAggregation *routesettings.PreAggregationHandler,
@@ -77,7 +77,8 @@ func provideAdminRouteMount(eAdminTLSFingerprintProfile *routeegress.TLSFingerpr
 	eAdminTeam *httpapi.AdminHandler,
 	eAdminUser *routeidentity.AdminUserHandler[dto.APIKey[routingdto.Group]],
 	eAdminOps *routeops.OpsHandler,
-	eSearch *routesearch.Handler) adminRouteMount {
+	eSearch *routesearch.Handler,
+) adminRouteMount {
 	return func(v1 *gin.RouterGroup, security httpRouteSecurity, protocolCatalog gin.HandlerFunc) {
 		admin := v1.Group("/admin")
 		admin.Use(security.Admin)
@@ -241,9 +242,9 @@ func provideAdminRouteMount(eAdminTLSFingerprintProfile *routeegress.TLSFingerpr
 				routeaccount.RegisterScheduledTestRoutes(admin, eAdminScheduledTest)
 			}
 
-			// 渠道管理
+			// 价格管理
 			{
-				routerouting.RegisterChannelRoutes(admin, eAdminChannel)
+				routerouting.RegisterPricingRoutes(admin, eAdminPricing)
 			}
 
 			// 风控中心
@@ -274,6 +275,5 @@ func provideAdminRouteMount(eAdminTLSFingerprintProfile *routeegress.TLSFingerpr
 				teams.DELETE("/:id", security.StepUp, eAdminTeam.Dissolve)
 			}
 		}
-
 	}
 }

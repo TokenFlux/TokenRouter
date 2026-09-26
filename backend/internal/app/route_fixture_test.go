@@ -42,7 +42,7 @@ type routeTestAdminHandlers struct {
 	AntigravityOAuth      *httpapi.AntigravityOAuthHandler
 	AuditLog              *audithttpapi.AuditLogHandler
 	Backup                *backuphttpapi.BackupHandler
-	Channel               *routinghttpapi.ChannelHandler
+	PricingConfig         *routinghttpapi.PricingHandler
 	CodexInviteReset      *httpapi.CodexInviteResetHandler
 	ContentModeration     *moderationhttpapi.ContentModerationHandler
 	Dashboard             *usageadmin.DashboardHandler

@@ -12,7 +12,7 @@ func ConfiguredImageUnitPrice(resolved *ResolvedPricing, size string) (float64, 
 	var found bool
 	if resolved != nil && (resolved.Mode == BillingModeImage || resolved.Mode == BillingModePerRequest) {
 		price, found = GetRequestTierPriceValue(resolved, strings.TrimSpace(size))
-		if !found && resolved.ChannelPricing != nil && resolved.ChannelPricing.PerRequestPrice != nil {
+		if !found && resolved.ConfigPricing != nil && resolved.ConfigPricing.PerRequestPrice != nil {
 			price, found = resolved.DefaultPerRequestPrice, true
 		}
 	}

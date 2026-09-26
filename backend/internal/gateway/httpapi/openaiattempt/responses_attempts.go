@@ -39,7 +39,7 @@ type responsesAttemptBridge struct {
 	reqStream, nativeCompactionV2, legacyCompact, requireCompact             bool
 	streamStarted                                                            *bool
 	selectionCtx                                                             context.Context
-	channelMapping                                                           routing.ChannelMappingResult
+	groupMapping                                                             routing.GroupMappingResult
 	routingStart                                                             time.Time
 	requiredCapability                                                       accountcore.OpenAIEndpointCapability
 	selection                                                                *gatewaycapture.SelectionResult
@@ -192,7 +192,7 @@ func (b *responsesAttemptBridge) Forward() textflow.ResponseOutcome {
 	if gatewayhttp.GetOpsCyberPolicy(b.c) != nil {
 		cyberBlockBodyHTTP = b.sessionHashBody
 	}
-	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyHTTP, gatewayhttp.ClientRequestedUsageFields(b.c, b.channelMapping, b.reqModel, ""), billing.HashUsageRequestPayload(b.body), b.nativeCompactionV2)
+	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyHTTP, gatewayhttp.ClientRequestedUsageFields(b.c, b.groupMapping, b.reqModel, ""), billing.HashUsageRequestPayload(b.body), b.nativeCompactionV2)
 	forwardDurationMs := time.Since(forwardStart).Milliseconds()
 	upstreamLatencyMs, _ := GetContextInt64(b.c, gatewayhttp.OpsUpstreamLatencyMsKey)
 	responseLatencyMs := forwardDurationMs
@@ -211,7 +211,6 @@ func (b *responsesAttemptBridge) Forward() textflow.ResponseOutcome {
 		out.FirstOutputRecovery = retry.SafeToFailoverAfterWrite
 	}
 	return out
-
 }
 
 // Complete 只执行单次 Responses 适配操作，不持有重试循环。
@@ -245,7 +244,7 @@ func (b *responsesAttemptBridge) Complete() {
 		APIKeyService:      b.binding().apiKeyService,
 		QuotaPlatform:      quotaPlatform,
 		ClientSessionID:    clientSessionID,
-		ChannelUsageFields: b.channelMapping.ToUsageFields(b.reqModel, res.UpstreamModel),
+		PricingUsageFields: b.groupMapping.ToUsageFields(b.reqModel, res.UpstreamModel),
 		CyberBlocked:       b.cyberPolicyHandled,
 		NativeCompactionV2: b.nativeCompactionV2,
 	})
@@ -379,7 +378,6 @@ func (b *responsesAttemptBridge) Success() {
 	} else {
 		b.binding().reportOpenAIAccountScheduleResult(b.account, OpenAIAccountScheduleModel(b.c, b.account, b.forwardModel, b.requireCompact, b.result), b.result.SucceededForScheduling(), nil)
 	}
-
 }
 
 // Completed 只执行单次 Responses 适配操作，不持有重试循环。
@@ -392,9 +390,11 @@ func (b *responsesAttemptBridge) Completed(switchCount int) {
 
 func (b *responsesAttemptBridge) Context() context.Context { return b.c.Request.Context() }
 func (b *responsesAttemptBridge) CanAttempt() bool         { return OpenAIRequestAllowsFailoverReplay(b.c) }
+
 func (b *responsesAttemptBridge) selectedView() textflow.ResponseSelection {
 	return textflow.ResponseSelection{Selection: gatewaycapture.CaptureTextSelection(b.account), Available: true, OAuth: failover.OAuth429Account{OpenAI: b.account.View().IsOpenAIOAuthLike(), Grok: b.account.Record.Platform == capability.PlatformGrok && b.account.Record.Type == capability.AccountTypeOAuth}}
 }
+
 func (b *responsesAttemptBridge) Exhausted(failure *textflow.AttemptFailure) {
 	var original *forwardcore.UpstreamFailoverError
 	if failure != nil && errors.As(failure.Cause, &original) {
@@ -403,6 +403,7 @@ func (b *responsesAttemptBridge) Exhausted(failure *textflow.AttemptFailure) {
 		b.binding().handleFailoverExhaustedSimple(b.c, 502, *b.streamStarted)
 	}
 }
+
 func (b *responsesAttemptBridge) Switched() {
 	b.binding().recordOpenAIAccountSwitchForSelection(b.selection)
 }

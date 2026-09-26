@@ -415,6 +415,12 @@ func (_c *GroupCreate) SetNillableLongContextPricingEnabled(v *bool) *GroupCreat
 	return _c
 }
 
+// SetRoutingPolicy sets the "routing_policy" field.
+func (_c *GroupCreate) SetRoutingPolicy(v jsontext.Value) *GroupCreate {
+	_c.mutation.SetRoutingPolicy(v)
+	return _c
+}
+
 // SetModelPricing sets the "model_pricing" field.
 func (_c *GroupCreate) SetModelPricing(v jsontext.Value) *GroupCreate {
 	_c.mutation.SetModelPricing(v)
@@ -1429,6 +1435,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldLongContextPricingEnabled, field.TypeBool, value)
 		_node.LongContextPricingEnabled = value
 	}
+	if value, ok := _c.mutation.RoutingPolicy(); ok {
+		_spec.SetField(group.FieldRoutingPolicy, field.TypeJSON, value)
+		_node.RoutingPolicy = value
+	}
 	if value, ok := _c.mutation.ModelPricing(); ok {
 		_spec.SetField(group.FieldModelPricing, field.TypeJSON, value)
 		_node.ModelPricing = value
@@ -2110,6 +2120,24 @@ func (u *GroupUpsert) SetLongContextPricingEnabled(v bool) *GroupUpsert {
 // UpdateLongContextPricingEnabled sets the "long_context_pricing_enabled" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateLongContextPricingEnabled() *GroupUpsert {
 	u.SetExcluded(group.FieldLongContextPricingEnabled)
+	return u
+}
+
+// SetRoutingPolicy sets the "routing_policy" field.
+func (u *GroupUpsert) SetRoutingPolicy(v jsontext.Value) *GroupUpsert {
+	u.Set(group.FieldRoutingPolicy, v)
+	return u
+}
+
+// UpdateRoutingPolicy sets the "routing_policy" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateRoutingPolicy() *GroupUpsert {
+	u.SetExcluded(group.FieldRoutingPolicy)
+	return u
+}
+
+// ClearRoutingPolicy clears the value of the "routing_policy" field.
+func (u *GroupUpsert) ClearRoutingPolicy() *GroupUpsert {
+	u.SetNull(group.FieldRoutingPolicy)
 	return u
 }
 
@@ -3042,6 +3070,27 @@ func (u *GroupUpsertOne) SetLongContextPricingEnabled(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateLongContextPricingEnabled() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateLongContextPricingEnabled()
+	})
+}
+
+// SetRoutingPolicy sets the "routing_policy" field.
+func (u *GroupUpsertOne) SetRoutingPolicy(v jsontext.Value) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetRoutingPolicy(v)
+	})
+}
+
+// UpdateRoutingPolicy sets the "routing_policy" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateRoutingPolicy() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateRoutingPolicy()
+	})
+}
+
+// ClearRoutingPolicy clears the value of the "routing_policy" field.
+func (u *GroupUpsertOne) ClearRoutingPolicy() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearRoutingPolicy()
 	})
 }
 
@@ -4208,6 +4257,27 @@ func (u *GroupUpsertBulk) SetLongContextPricingEnabled(v bool) *GroupUpsertBulk 
 func (u *GroupUpsertBulk) UpdateLongContextPricingEnabled() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateLongContextPricingEnabled()
+	})
+}
+
+// SetRoutingPolicy sets the "routing_policy" field.
+func (u *GroupUpsertBulk) SetRoutingPolicy(v jsontext.Value) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetRoutingPolicy(v)
+	})
+}
+
+// UpdateRoutingPolicy sets the "routing_policy" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateRoutingPolicy() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateRoutingPolicy()
+	})
+}
+
+// ClearRoutingPolicy clears the value of the "routing_policy" field.
+func (u *GroupUpsertBulk) ClearRoutingPolicy() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearRoutingPolicy()
 	})
 }
 

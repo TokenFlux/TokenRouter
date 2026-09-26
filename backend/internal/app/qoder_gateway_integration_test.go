@@ -70,7 +70,6 @@ func (r s09BalanceReader) GetByID(ctx context.Context, id int64) (*billing.UserS
 
 // TestS09QoderHTTPStorageChain 使用真实 PostgreSQL/Redis、原完成 worker 和本地供应商 HTTP。
 func TestS09QoderHTTPStorageChain(t *testing.T) {
-
 	f := newDatabaseFixture(t)
 	ctx := context.Background()
 	container, err := tcredis.Run(ctx, "redis:8.4-alpine")
@@ -248,7 +247,7 @@ func TestS09QoderHTTPStorageChain(t *testing.T) {
 				if err != nil {
 					return gateway.Request{}, err
 				}
-				request.Route = routing.Plan(routing.PlanInput{Group: grp, GroupID: &group.ID, RequestedModel: request.Model, ClientProtocol: protocol.ProtocolOpenAIChatCompletions, Channel: routing.ChannelMappingResult{ClientModel: request.Model, MappedModel: request.Model}})
+				request.Route = routing.Plan(routing.PlanInput{Group: grp, GroupID: &group.ID, RequestedModel: request.Model, ClientProtocol: protocol.ProtocolOpenAIChatCompletions, PricingConfig: routing.GroupMappingResult{ClientModel: request.Model, MappedModel: request.Model}})
 				return request, nil
 			}
 			runtime.check = func(callCtx context.Context) error {
@@ -398,9 +397,11 @@ type s11StorageQoderRuntime struct {
 func (r *s11StorageQoderRuntime) Prepare(ctx context.Context, v gateway.Request) (gateway.Request, error) {
 	return r.prepare(ctx, v)
 }
+
 func (r *s11StorageQoderRuntime) Check(ctx context.Context, _ gateway.Request, _ bool) error {
 	return r.check(ctx)
 }
+
 func (r *s11StorageQoderRuntime) Select(ctx context.Context, v gateway.Request, excluded map[int64]struct{}) (*gateway.Selection, error) {
 	return r.selectAccount(ctx, v, excluded)
 }

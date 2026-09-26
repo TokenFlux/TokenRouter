@@ -30,13 +30,16 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 	}}
 	requests := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream}).Requests
 	gateway := &gatewayprovider.CreativeTargets{Requests: requests, Credentials: requests.Credentials, Identity: requests.Identity, Transport: upstream, Routes: gatewayprovider.GrokRoutes{Validate: grok.ValidateBaseURL}}
-	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 41,
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"api_key":  "grok-test-key",
-			"base_url": "https://xai.test/v1",
-		}},
+	account := &gatewayprovider.ExecutionAccount{
+		Record: accountcore.Record{
+			LoadLocation: time.LoadLocation, ID: 41,
+			Platform: capability.PlatformGrok,
+			Type:     capability.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key":  "grok-test-key",
+				"base_url": "https://xai.test/v1",
+			},
+		},
 	}
 	run := creative.CreativeRun{Operation: creative.CreativeOperationEdit, RequestedOutputCount: 1, ImageSize: "2K", AspectRatio: "16:9"}
 	payload := creative.CreativeRunPayload{Prompt: "edit this", Sources: []creative.CreativeInputImage{{Bytes: []byte("source"), Mime: "image/png"}}}
@@ -64,7 +67,7 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 	require.Equal(t, "https://xai.test/v1/images/generations", upstream.lastReq.URL.String())
 }
 
-// TestBuildCreativeOpenAIRequestBody 校验 OpenAI JSON/multipart 请求体。
+// TestCreativeGeminiInpaintIsRejectedBeforeUpstream 校验 OpenAI JSON/multipart 请求体。
 func TestCreativeGeminiInpaintIsRejectedBeforeUpstream(t *testing.T) {
 	upstream := &auxiliaryHTTPRecorder{}
 	requests := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream}).Requests

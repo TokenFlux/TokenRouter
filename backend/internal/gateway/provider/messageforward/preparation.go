@@ -23,24 +23,24 @@ import (
 // Dependencies 固定连接原生拥有者，不接受旧网关、配置聚合或 HTTP Context。
 // Prepare 与执行共用这些实例，构造不启动任务或提前读取动态设置。
 type Dependencies struct {
-	Credentials  *account.MessageCredentialSource
-	Fingerprint  *anthropic.RequestFingerprint
-	Transport    httpclient.UpstreamTransport
-	Health       *accountprovider.UpstreamHealth
-	TLS          *egressprovider.TLSProfiles
-	Settings     *gateway.RuntimeSettings
-	Prices       *billing.PriceResolver
-	Search       *searchtools.Emulator
-	Enter        func() (func(), error)
-	Debug        DebugObserver
-	AccountState AccountState
-	Deferred     *account.DeferredService
-	Channels     BedrockChannels
+	Credentials   *account.MessageCredentialSource
+	Fingerprint   *anthropic.RequestFingerprint
+	Transport     httpclient.UpstreamTransport
+	Health        *accountprovider.UpstreamHealth
+	TLS           *egressprovider.TLSProfiles
+	Settings      *gateway.RuntimeSettings
+	Prices        *billing.PriceResolver
+	Search        *searchtools.Emulator
+	Enter         func() (func(), error)
+	Debug         DebugObserver
+	AccountState  AccountState
+	Deferred      *account.DeferredService
+	GroupPolicies BedrockGroupPolicies
 }
 
-// BedrockChannels 在原准备位置读取渠道开关，继续共享 routing 的缓存。
-type BedrockChannels interface {
-	GetChannelForGroup(context.Context, int64) (*routing.Channel, error)
+// BedrockGroupPolicies 在准备上游请求时读取分组功能开关。
+type BedrockGroupPolicies interface {
+	GetGroupPolicy(context.Context, int64) (*routing.GroupPolicyView, error)
 }
 
 // AccountState 只提供本条执行链原有的持久停调动作，不开放账号配置或资金写入。

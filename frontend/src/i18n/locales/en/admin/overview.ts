@@ -50,7 +50,7 @@ export default {
       accountCost: 'Cost',
       actualDescription: 'The amount actually charged to the user. Calculated with the group multiplier and any user-specific multiplier, and used to deduct user balance or subscription quota.',
       accountCostDescription: 'The account-side cost. Calculated with account-side pricing and the account billing multiplier, used for account quota statistics and cost analysis, and does not affect the user’s actual charge.',
-      standardDescription: 'The standard billed cost. Calculated from the current model or channel base pricing, and is not affected by group multipliers, user-specific multipliers, or account billing multipliers.',
+      standardDescription: 'The standard billed cost. Calculated from the current model or shared configuration base pricing, and is not affected by group multipliers, user-specific multipliers, or account billing multipliers.',
       noDataAvailable: 'No data available',
       recentUsage: 'Recent Usage',
       viewModelDistribution: 'Model Distribution',
@@ -806,12 +806,40 @@ affiliates: {
     },
 // Groups
     groups: {
+      routingPolicy: {
+        "enabled": "Enable model and feature policy",
+        "hint": "These settings belong to this group and stay independent of pricing. Disabling preserves the draft.",
+        "mapping": "Model mapping",
+        "mappingHint": "Group mapping runs before account mapping. Exact names and trailing * wildcards are supported.",
+        "source": "Source model",
+        "target": "Target model",
+        "restrict": "Enable model allowlist",
+        "allowlistHint": "The allowlist is independent of prices. An enabled empty list rejects every model.",
+        "webSearch": "Web search emulation",
+        "imageBridge": "Default Codex image bridge",
+        "imageBridgeHint": "Explicit group protocol and account settings take priority over this fallback.",
+        "bedrock": "Bedrock Claude Code compatibility",
+        "features": "Display features",
+        "incompleteMapping": "Enter both source and target models.",
+        "conflict": "Model rules overlap or contain duplicates.",
+        "basis": {
+          "requested": "Client request model",
+          "group_mapped": "Group-mapped model",
+          "upstream": "Final upstream model"
+        },
+        "bridge": {
+          "inherit": "Follow global default",
+          "true": "Enabled",
+          "false": "Disabled"
+        }
+      },
       accountFilters: {
         title: 'Account filters',
         oauthOnly: 'Only allow OAuth accounts',
         privacyRequired: 'Only allow accounts with privacy protection configured'
       },
       tabs: {
+        routing: "Models and features",
         label: 'Group settings',
         general: 'General',
         platform: 'Platform settings',
@@ -1114,9 +1142,9 @@ affiliates: {
       },
       modelPricing: {
         title: 'Per-model group pricing',
-        description: 'Explicit prices or context intervals override channel pricing. Fast/Flex, Max, or time multipliers alone inherit channel prices, falling back to built-in prices. Group multipliers override the same channel settings. Audio supports realtime, tts, and stt per-request tiers.',
+        description: 'Explicit prices or context intervals override shared pricing. Fast/Flex, Max, or time multipliers alone inherit shared prices, falling back to built-in prices. Group multipliers override the same shared price settings. Audio supports realtime, tts, and stt per-request tiers.',
         longContext: 'Enable long-context tier pricing',
-        longContextHint: 'Only controls built-in long-context tiers. Explicit group or channel intervals always apply and never stack with built-in tiers.',
+        longContextHint: 'Only controls built-in long-context tiers. Explicit group or shared configuration intervals always apply and never stack with built-in tiers.',
         add: 'Add model price'
       },
       voicePricing: {

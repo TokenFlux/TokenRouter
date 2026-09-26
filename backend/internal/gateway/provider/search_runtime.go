@@ -25,27 +25,27 @@ func (s searchSource) Current() searchtools.Searcher {
 	return manager
 }
 
-type searchChannelPolicy struct{ channels *routing.ChannelService }
+type searchGroupPolicy struct{ groupPolicies *routing.PricingConfigService }
 
-func (p searchChannelPolicy) Enabled(ctx context.Context, groupID int64, platform string) (bool, error) {
-	channel, err := p.channels.GetChannelForGroup(ctx, groupID)
-	if err != nil || channel == nil {
+func (p searchGroupPolicy) Enabled(ctx context.Context, groupID int64, platform string) (bool, error) {
+	policy, err := p.groupPolicies.GetGroupPolicy(ctx, groupID)
+	if err != nil || policy == nil {
 		return false, err
 	}
-	return channel.IsWebSearchEmulationEnabled(platform), nil
+	return policy.IsWebSearchEmulationEnabled(platform), nil
 }
 
-// NewSearchTools 只装配同步工具编排；配置、渠道缓存、Manager 与配额仍由原拥有者持有。
-func NewSearchTools(runtime *search.ConfigService, channels *routing.ChannelService) *searchtools.Emulator {
+// NewSearchTools 只装配同步工具编排；分组策略、Manager 与配额分别从所属端口读取。
+func NewSearchTools(runtime *search.ConfigService, groupPolicies *routing.PricingConfigService) *searchtools.Emulator {
 	var registry *search.Registry
 	var settings searchtools.Settings
 	if runtime != nil {
 		registry = runtime.Registry()
 		settings = runtime
 	}
-	var policy searchtools.ChannelPolicy
-	if channels != nil {
-		policy = searchChannelPolicy{channels}
+	var policy searchtools.GroupPolicy
+	if groupPolicies != nil {
+		policy = searchGroupPolicy{groupPolicies}
 	}
 	return searchtools.NewEmulator(searchSource{registry}, settings, policy, time.Now, func() string { return uuid.New().String() }, observeSearch)
 }

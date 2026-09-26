@@ -2,19 +2,19 @@
 package postgres
 
 import (
-	usagequery "github.com/TokenFlux/TokenRouter/internal/usage/postgres/query"
-
 	"context"
-
 	"database/sql"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	usagequery "github.com/TokenFlux/TokenRouter/internal/usage/postgres/query"
 
 	"entgo.io/ent/dialect"
 
 	entsql "entgo.io/ent/dialect/sql"
-
-	"errors"
-
-	"fmt"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 
@@ -35,12 +35,6 @@ import (
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-
-	"sort"
-
-	"strings"
-
-	"time"
 )
 
 type KeyStore struct {
@@ -381,6 +375,7 @@ func (r *KeyStore) GetByKeyForAuth(ctx context.Context, key string) (*keycore.AP
 				group.FieldAudioSttPricePerHour,
 				group.FieldLongContextPricingEnabled,
 				group.FieldModelPricing,
+				group.FieldRoutingPolicy,
 				group.FieldClaudeCodeOnly,
 				group.FieldFallbackGroupID,
 				group.FieldFallbackGroupIDOnInvalidRequest,
@@ -1111,6 +1106,7 @@ func KeyDerefString(s *string) string {
 	}
 	return *s
 }
+
 func (r *KeyStore) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
 	return billingpostgres.NewKeyUsageStore(r.client, r.sql).IncrementQuotaUsed(ctx, id, amount)
 }

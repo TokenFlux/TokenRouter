@@ -25,6 +25,7 @@ func provideExecutionAgentIdentity(tasks *account.OpenAITaskCoordinator, store p
 		return accountprovider.RegisterAgentIdentityTask(ctx, value, "https://auth.openai.com/api/accounts")
 	}, connections.InvalidateAccount)
 }
+
 func provideAnthropicPromptCache() *session.AnthropicPromptCache {
 	return session.NewAnthropicPromptCache(time.Now)
 }
@@ -35,22 +36,26 @@ func provideOpenAITextExecutor(cfg *config.Config, store provider.ExecutionAccou
 	text.CodexUsage.Go = tasks.Go
 	return text
 }
-func provideOpenAIImageBridgePolicy(cfg *config.Config, channels *routing.ChannelService) *provider.ResponseImagePolicy {
+
+func provideOpenAIImageBridgePolicy(cfg *config.Config, modelConfigs *routing.PricingConfigService) *provider.ResponseImagePolicy {
 	policy := &provider.ResponseImagePolicy{}
-	if channels != nil {
-		policy.Channels = channels
+	if modelConfigs != nil {
+		policy.GroupPolicies = modelConfigs
 	}
 	if cfg != nil {
 		policy.DefaultEnabled = cfg.Gateway.CodexImageGenerationBridgeEnabled
 	}
 	return policy
 }
+
 func provideOpenAIEncryptedLineage(state session.OpenAIWSStateStore, choices *selection.Compatible) *gatewayhttp.OpenAIEncryptedLineage {
 	return &gatewayhttp.OpenAIEncryptedLineage{Store: state, TTL: choices.SessionStickyTTL}
 }
+
 func provideOpenAIWebSockets(cfg *config.Config, connections *gatewayhttp.OpenAIWSConnections, text *gatewayhttp.OpenAITextExecutor, prompts *promptpolicy.Service, choices *selection.Compatible, lineage *gatewayhttp.OpenAIEncryptedLineage, imagePolicy *provider.ResponseImagePolicy, cache session.GatewayCache) *gatewayhttp.OpenAIWebSocketExecutor {
 	return gatewayhttp.NewOpenAIWebSocketExecutor(gatewayhttp.OpenAIWSDependencies{Options: openAIWSExecutionOptions(cfg), Connections: connections, Requests: text.Requests, Output: text.Output, Grok: text.Grok, FastPolicy: text.FastPolicy, Prompts: prompts, Selection: choices, State: lineage.Store, Lineage: lineage, ImageBridge: imagePolicy, Cache: cache})
 }
+
 func provideOpenAIResponses(text *gatewayhttp.OpenAITextExecutor, sockets *gatewayhttp.OpenAIWebSocketExecutor, choices *selection.Compatible, lineage *gatewayhttp.OpenAIEncryptedLineage, imagePolicy *provider.ResponseImagePolicy) *gatewayhttp.OpenAIResponsesExecutor {
 	return &gatewayhttp.OpenAIResponsesExecutor{Requests: text.Requests, Output: text.Output, Text: text, Grok: text.Grok, Lineage: lineage, ImageBridge: imagePolicy, ResolveTransport: choices.ResolveTransport, WebSocket: sockets.ForwardHTTPWebSocket}
 }

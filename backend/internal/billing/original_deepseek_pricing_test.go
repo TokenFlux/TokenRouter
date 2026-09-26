@@ -80,7 +80,7 @@ func TestCalculateCostUnified_DeepseekPeakDoesNotOverrideGroupPricing(t *testing
 	group := &routing.Group{
 		ID:       1,
 		Platform: capability.PlatformDeepseek,
-		ModelPricing: []routing.ChannelModelPricing{{
+		ModelPricing: []routing.ModelPricingEntry{{
 			Models:      []string{"deepseek-v4-flash"},
 			BillingMode: routing.BillingModeToken,
 			InputPrice:  &inputPrice,

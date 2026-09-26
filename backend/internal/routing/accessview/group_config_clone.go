@@ -14,13 +14,14 @@ func CloneGroupConfig(g *GroupConfig) *GroupConfig {
 		return nil
 	}
 	out := *g
+	out.RoutingPolicy = g.RoutingPolicy.Clone()
 	out.WebSearchPricePerCall = cloneGroupPointer(g.WebSearchPricePerCall)
 	out.SearchPricePer1k = cloneGroupPointer(g.SearchPricePer1k)
 	out.AudioRealtimePricePerMin = cloneGroupPointer(g.AudioRealtimePricePerMin)
 	out.AudioTTSPricePerMillionChars = cloneGroupPointer(g.AudioTTSPricePerMillionChars)
 	out.AudioSTTPricePerHour = cloneGroupPointer(g.AudioSTTPricePerHour)
 	if g.ModelPricing != nil {
-		out.ModelPricing = make([]pricing.ChannelModelPricing, len(g.ModelPricing))
+		out.ModelPricing = make([]pricing.ModelPricingEntry, len(g.ModelPricing))
 		for i := range g.ModelPricing {
 			out.ModelPricing[i] = g.ModelPricing[i].Clone()
 		}
@@ -42,6 +43,7 @@ func CloneGroupConfig(g *GroupConfig) *GroupConfig {
 	out.AvailabilityProbeConfig.MaxRetries = cloneGroupPointer(g.AvailabilityProbeConfig.MaxRetries)
 	return &out
 }
+
 func cloneGroupPointer[T any](value *T) *T {
 	if value == nil {
 		return nil

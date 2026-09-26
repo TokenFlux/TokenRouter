@@ -38,10 +38,12 @@ type batchAccountFixture struct {
 func (r *batchAccountFixture) project(value *accountcore.Record) *batchimage.Candidate {
 	return (&batchprovider.Candidates{Registry: r.registry, ObserveModel: modeltrace.RegisterStage}).Project(accountcore.CloneRecord(value))
 }
+
 func (r *batchAccountFixture) GetByID(ctx context.Context, id int64) (*batchimage.Candidate, error) {
 	v, err := r.source.GetByID(ctx, id)
 	return r.project(v), err
 }
+
 func (r *batchAccountFixture) values(rows []accountcore.Record) []batchimage.Candidate {
 	out := make([]batchimage.Candidate, len(rows))
 	for i := range rows {
@@ -49,14 +51,17 @@ func (r *batchAccountFixture) values(rows []accountcore.Record) []batchimage.Can
 	}
 	return out
 }
+
 func (r *batchAccountFixture) ListSchedulableByPlatform(ctx context.Context, p string) ([]batchimage.Candidate, error) {
 	v, err := r.source.ListSchedulableByPlatform(ctx, p)
 	return r.values(v), err
 }
+
 func (r *batchAccountFixture) ListSchedulableByGroupIDAndPlatform(ctx context.Context, id int64, p string) ([]batchimage.Candidate, error) {
 	v, err := r.source.ListSchedulableByGroupIDAndPlatform(ctx, id, p)
 	return r.values(v), err
 }
+
 func rebindBatchFixtureAccounts(core *batchimage.Public, source batchAccountsFixtureSource) batchimage.AccountReader {
 	return &batchAccountFixture{source: source, registry: testassert.MustType[*batchAccountFixture](core.AccountRepo).registry}
 }
@@ -67,6 +72,7 @@ func (r batchGroupReader) GetByIDLite(ctx context.Context, id int64) (*batchimag
 	v, err := r.source.GetByIDLite(ctx, id)
 	return batchGroupProjection(v), err
 }
+
 func batchGroupProjection(v *routing.Group) *batchimage.GroupView {
 	if v == nil {
 		return nil
@@ -77,7 +83,7 @@ func batchGroupProjection(v *routing.Group) *batchimage.GroupView {
 func taskFixtureBilling(core *batchimage.Public) batchimage.FundingStore { return core.Funding.Store }
 
 // newBatchPublicFixture 只构造端口与选项；测试修改的资金替身仍在调用时读取。
-func newBatchPublicFixture(repo batchimage.BatchImageRepository, accounts batchAccountsFixtureSource, channels *routing.ChannelService, groups batchGroupFixtureSource, rates batchimage.BatchImageUserGroupRateRepository, queue batchimage.BatchImageQueue, registry *batchimage.Registry[batchprovider.BatchImageProvider], prices batchimage.ImagePricer, funds batchimage.FundingStore, auth apikey.APIKeyAuthCacheInvalidator, cfg *config.Config) *batchimage.Public {
+func newBatchPublicFixture(repo batchimage.BatchImageRepository, accounts batchAccountsFixtureSource, pricingConfigs *routing.PricingConfigService, groups batchGroupFixtureSource, rates batchimage.BatchImageUserGroupRateRepository, queue batchimage.BatchImageQueue, registry *batchimage.Registry[batchprovider.BatchImageProvider], prices batchimage.ImagePricer, funds batchimage.FundingStore, auth apikey.APIKeyAuthCacheInvalidator, cfg *config.Config) *batchimage.Public {
 	core := &batchimage.Public{Repo: repo, UserGroupRateRepo: rates, Queue: queue, Pricing: prices, Funding: nativeTaskFundingFixture(funds), Observe: resultObserve}
 	if accounts != nil {
 		core.AccountRepo = &batchAccountFixture{source: accounts, registry: registry}
@@ -85,8 +91,8 @@ func newBatchPublicFixture(repo batchimage.BatchImageRepository, accounts batchA
 	if groups != nil {
 		core.GroupRepo = batchGroupReader{groups}
 	}
-	if channels != nil {
-		core.ChannelService = channels
+	if pricingConfigs != nil {
+		core.PricingConfigService = pricingConfigs
 	}
 	if cfg != nil {
 		c := cfg.BatchImage
@@ -103,8 +109,8 @@ func newBatchPublicFixture(repo batchimage.BatchImageRepository, accounts batchA
 		v, _ := ctx.Value(telemetry.ClientModel).(string)
 		return v
 	}
-	core.WithModelTrace = func(ctx context.Context, m routing.ChannelMappingResult, requested string) routing.ChannelMappingResult {
-		return modeltrace.WithChannelRedirect(m, ctx, requested)
+	core.WithModelTrace = func(ctx context.Context, m routing.GroupMappingResult, requested string) routing.GroupMappingResult {
+		return modeltrace.WithGroupRedirect(m, ctx, requested)
 	}
 	core.RegisterModel = modeltrace.RegisterStage
 	core.AutoSubscription = func(ctx context.Context, userID int64, groupID *int64) *billing.UserSubscription {

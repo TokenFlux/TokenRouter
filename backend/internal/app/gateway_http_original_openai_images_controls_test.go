@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/testkit"
+
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
@@ -27,7 +29,6 @@ import (
 )
 
 func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *testing.T) {
-
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw","size":"1024x1024"}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -60,11 +61,10 @@ func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *test
 	require.Contains(t, rec.Body.String(), gatewaymedia.ImageGenerationPermissionMessage)
 }
 
-// TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel 验证同步 Images 入口在渠道映射后校验模型族。
-func TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel(t *testing.T) {
-
+// TestOpenAIGatewayHandlerImagesValidatesGroupMappedModel 验证同步 Images 入口在分组映射后校验模型族。
+func TestOpenAIGatewayHandlerImagesValidatesGroupMappedModel(t *testing.T) {
 	groupID := int64(112)
-	channelService := newGatewayExecutionChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
+	pricingConfigService := newGatewayExecutionPricingConfigServiceForTest(groupID, capability.PlatformOpenAI, testkit.Configuration{
 		ID:     112,
 		Status: billing.StatusActive,
 		ModelMapping: map[string]map[string]string{
@@ -107,7 +107,7 @@ func TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel(t *testing.T) {
 			c.Set(string(keyhttp.ContextKeyAPIKey), apiKey)
 			c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 334, Concurrency: 1})
 
-			newOpenAIImageChatRejectionHandlerWithChannel(t, channelService).Images(c)
+			newOpenAIImageChatRejectionHandlerWithPricingConfig(t, pricingConfigService).Images(c)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			require.Contains(t, gjson.GetBytes(rec.Body.Bytes(), "error.message").String(), tt.wantText)

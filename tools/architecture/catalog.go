@@ -394,7 +394,7 @@ subscription_original_fixture_test.go`},
 	{Scope: "internal/billing", Imports: "internal/billing/provider", Files: `calculator_calculator_fixture_test.go calculator_pricing_provider_fixture_test.go
 calculator_pricing_stub_helpers_test.go original_model_pricing_resolver_catalog_alias_test.go
 original_model_pricing_resolver_test.go`},
-	{Scope: "internal/billing", Imports: "internal/gateway/provider/modelidentity", Files: `calculator_pricing_provider_fixture_test.go consumer_channel_time_pricing_billing_test.go
+	{Scope: "internal/billing", Imports: "internal/gateway/provider/modelidentity", Files: `calculator_pricing_provider_fixture_test.go consumer_config_time_pricing_billing_test.go
 original_billing_service_test.go`},
 	{Scope: "internal/billing/postgres", Imports: "internal/batchimage/postgres", Files: "repo_unit_test.go"},
 	{Scope: "internal/creative", Imports: "internal/creative/provider", Files: "catalog_original_test.go creative_public_fixture_test.go original_creative_public_test.go"},

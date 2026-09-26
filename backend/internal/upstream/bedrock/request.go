@@ -16,7 +16,7 @@ import (
 
 const DefaultBedrockRegion = "us-east-1"
 
-// FeatureKeyBedrockCCCompat 是 Channel.FeaturesConfig 中 Bedrock CC 兼容开关的配置键。
+// FeatureKeyBedrockCCCompat 是 GroupRoutingPolicy.FeaturesConfig 中 Bedrock CC 兼容开关的配置键。
 const FeatureKeyBedrockCCCompat = "bedrock_cc_compat"
 
 var BedrockCrossRegionPrefixes = []string{"us.", "eu.", "apac.", "jp.", "au.", "us-gov.", "global."}

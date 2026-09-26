@@ -48,7 +48,7 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesGroupCaptureControls(t *testin
 			RateMultiplier:          1,
 			SessionIsolationEnabled: true,
 			AllowImageGeneration:    true,
-			ModelPricing: []routing.ChannelModelPricing{{Models: []string{"*"}, BillingMode: routing.BillingModeVideo, Intervals: []routing.PricingInterval{
+			ModelPricing: []routing.ModelPricingEntry{{Models: []string{"*"}, BillingMode: routing.BillingModeVideo, Intervals: []routing.PricingInterval{
 				{TierLabel: "480p", PerRequestPrice: &videoPrice480P},
 				{TierLabel: "720p", PerRequestPrice: &videoPrice720P},
 				{TierLabel: "1080p", PerRequestPrice: &videoPrice1080P},

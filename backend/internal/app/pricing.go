@@ -59,8 +59,9 @@ func provideBillingCalculator(cfg *config.Config, catalog *provider.PricingServi
 	warnings := &provider.PricingWarnings{}
 	return billing.NewCalculator(pricingCatalog{source: catalog}, billing.CalculatorOptions{DefaultRateMultiplier: cfg.Default.RateMultiplier, ModelPolicy: modelidentity.PricingPolicy, Now: calendar.Now, LoadLocation: provider.LoadPricingLocation, FallbackWarning: warnings.Fallback})
 }
-func provideBillingPriceResolver(channels *routing.ChannelService, calculator *billing.Calculator) *billing.PriceResolver {
-	return billing.NewPriceResolver(channels, calculator, modelidentity.Identity, func(model string, err error) {
+
+func provideBillingPriceResolver(modelConfigs *routing.PricingConfigService, calculator *billing.Calculator) *billing.PriceResolver {
+	return billing.NewPriceResolver(modelConfigs, calculator, modelidentity.Identity, func(model string, err error) {
 		slog.DebugContext(context.Background(), "failed to get model pricing from LiteLLM, using fallback", "model", model, "error", err)
-	}, gatewayprovider.AccountStatsSource{Service: channels})
+	}, gatewayprovider.AccountStatsSource{Service: modelConfigs})
 }

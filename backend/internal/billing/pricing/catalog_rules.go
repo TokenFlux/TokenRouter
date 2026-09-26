@@ -367,7 +367,7 @@ func IsClaudeOpus48Model(model string) bool {
 	return strings.Contains(model, "4.8") || strings.Contains(model, "4-8")
 }
 
-// BuildModelLookupCandidates 为目录与渠道查价提供同一组明确身份候选，不依赖目录是否有价格。
+// BuildModelLookupCandidates 为目录与价卡查价提供同一组明确身份候选，不依赖目录是否有价格。
 // @project-doc docs/interfaces/model_catalog_and_marketplace.md#model_catalog_metadata_lookup
 func BuildModelLookupCandidates(model string, grokAlias func(string) (string, bool)) []string {
 	candidates := BuildModelIdentityCandidates(model)

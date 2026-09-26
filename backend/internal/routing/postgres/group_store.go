@@ -89,6 +89,10 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *routi
 		return err
 	}
 	groupIn.SchedulerType = schedulerType
+	routingPolicy, err := json.Marshal(groupIn.RoutingPolicy)
+	if err != nil {
+		return err
+	}
 	modelPricing, err := json.Marshal(groupIn.ModelPricing)
 	if err != nil {
 		return fmt.Errorf("marshal group model pricing: %w", err)
@@ -117,6 +121,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *routi
 		SetNillableAudioSttPricePerHour(groupIn.AudioSTTPricePerHour).
 		SetLongContextPricingEnabled(groupIn.LongContextPricingEnabled).
 		SetModelPricing(modelPricing).
+		SetRoutingPolicy(routingPolicy).
 		SetClaudeCodeOnly(groupIn.ClaudeCodeOnly).
 		SetNillableFallbackGroupID(groupIn.FallbackGroupID).
 		SetNillableFallbackGroupIDOnInvalidRequest(groupIn.FallbackGroupIDOnInvalidRequest).
@@ -267,6 +272,10 @@ func (r *GroupStore) Update(ctx context.Context, groupIn *routing.Group) error {
 	groupIn.SchedulerType = schedulerType
 	client := clientFromContext(ctx, r.client)
 	sqlq := r.sqlExecutorFromContext(ctx)
+	routingPolicy, err := json.Marshal(groupIn.RoutingPolicy)
+	if err != nil {
+		return err
+	}
 	modelPricing, err := json.Marshal(groupIn.ModelPricing)
 	if err != nil {
 		return fmt.Errorf("marshal group model pricing: %w", err)
@@ -291,6 +300,7 @@ func (r *GroupStore) Update(ctx context.Context, groupIn *routing.Group) error {
 		SetBatchImageHoldMultiplier(groupIn.BatchImageHoldMultiplier).
 		SetLongContextPricingEnabled(groupIn.LongContextPricingEnabled).
 		SetModelPricing(modelPricing).
+		SetRoutingPolicy(routingPolicy).
 		SetClaudeCodeOnly(groupIn.ClaudeCodeOnly).
 		SetModelRoutingEnabled(groupIn.ModelRoutingEnabled).
 		SetMcpXMLInject(groupIn.MCPXMLInject).

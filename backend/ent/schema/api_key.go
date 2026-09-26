@@ -67,7 +67,7 @@ func (APIKey) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			Comment("billing_mode 为 subscription 时锁定使用的用户订阅 ID"),
-		// 每个 API Key 可在进入渠道与账号映射前覆盖客户端模型名。
+		// 每个 API Key 可在进入分组与账号映射前覆盖客户端模型名。
 		field.JSON("model_mapping", map[string]string{}).
 			Default(func() map[string]string { return map[string]string{} }).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).

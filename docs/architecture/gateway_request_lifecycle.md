@@ -39,7 +39,7 @@ HTTP 入口由 app 固定构造。组合根分别提供原生执行器、会话�
 
 WS 的入站与每轮单步端口由 `gateway/httpapi/wsentry` 直接装配，与文本运行时共享同一份尝试绑定；图片、视频、音频、Embeddings 与 Alpha Search 的 HTTP 请求适配和完成捕获由 `gateway/httpapi/mediaentry` 直接装配，也共享原生失败输出与资源释放。Wire 显式绑定执行器与完成器，契约测试使用相同绑定与函数句柄夹具；平台单次交换与 WS relay 直接绑定原生执行器的固定端口。
 
-图片单次执行直接绑定 OpenAIImagesExecutor，共用 OpenAIRequests、OpenAIResponseOutput 和应用活动屏障；图片工具冷却通过账号端口写入。图片意图提示由 HTTP 按尝试保存，渠道改写后重新判断，不把请求级提示误用于下一账号尝试。`gateway/text` 拥有文本账号循环与计数预检的独立预算，`gateway/requeststate` 拥有报文副本、引导规范化和请求内模型替换缓存；`gateway/modeltrace` 维护响应恢复链。
+图片单次执行直接绑定 OpenAIImagesExecutor，共用 OpenAIRequests、OpenAIResponseOutput 和应用活动屏障；图片工具冷却通过账号端口写入。图片意图提示由 HTTP 按尝试保存，分组改写后重新判断，不把请求级提示误用于下一账号尝试。`gateway/text` 拥有文本账号循环与计数预检的独立预算，`gateway/requeststate` 拥有报文副本、引导规范化和请求内模型替换缓存；`gateway/modeltrace` 维护响应恢复链。
 
 `forward` 组织通用请求准备和转换推进，技术 provider/HTTP Adapter 执行交换、读写与 Flush。平台单次执行由 upstream 与 gateway/provider 提供，不创建第二套账号切换循环。
 
@@ -74,7 +74,7 @@ OpenAI HTTP 的并发 helper 与本地图片限制器由 app 构造为唯一 `Op
                  |
           等待后的权益二次检查
                  |
-  会话/渠道/能力解析 -> 账号选择 -> 账号并发槽
+  会话/分组策略/能力解析 -> 账号选择 -> 账号并发槽
                  |
        请求转换、凭据/代理和上游转发
                  |
@@ -90,7 +90,7 @@ OpenAI HTTP 的并发 helper 与本地图片限制器由 app 构造为唯一 `Op
 - 复合 Key 必须先用客户端的完整 `前缀/模型` 选择分组，Key 级模型重定向再处理去前缀后的模型。
 - 客户端协议准入必须使用普通 Key 的绑定分组或复合 Key 最终选中的分组；拒绝发生在协议 handler、账号选择和计费之前。
 - 用户并发等待可能跨越余额、订阅或额度变化，获取用户槽后必须通过 BillingCache 再检查一次权益。
-- 模型权限、渠道限制和账号资格必须基于逐层解析后的对应模型，不能用客户端别名直接替代最终路由模型。
+- 模型权限、分组白名单和账号资格必须基于逐层解析后的对应模型，不能用客户端别名直接替代最终路由模型。
 - 上游成功后才增加相应 RPM 软计数并安排正常用量结算；本地拦截、内容拒绝和上游失败使用各自独立的审计/运维记录语义。
 - HTTP 200 中的失败事件使用语义状态执行账号策略。WS 桥已执行的副作用通过请求自己的 `ResponseFailureEffects` 交给输出端消费一次，避免重复处理；HTTP 提交、重试窗口和语义输出继续分开记录。
 - 响应别名恢复只改协议元数据字段，不能替换正文中恰好相同的字符串。 工具恢复状态由 `requeststate.ResponseTools` 按请求和 turn 持有，WS 会话更新不能改写仍在输出的 turn；协议算法与 HTTP 输出适配分别位于 `protocol/bridge` 和 `gateway/httpapi`。
@@ -100,7 +100,7 @@ OpenAI HTTP 的并发 helper 与本地图片限制器由 app 构造为唯一 `Op
 
 凭据提取和认证错误展示由 `apikey/httpapi` 承接，Key、用户、团队和 IP 校验进入 `apikey.Authenticate`，返回区分 owner/payer/actor/team 的 `AccessSnapshot`。`gateway/httpapi` 的通用/Google 认证入口组合复合选组、模型改写与 `gateway/admission` 的资金准入，HTTP 适配负责请求上下文与观测投影。普通协议门禁不提前读取请求体，Google 与通用入口仍各自保留原错误顺序。
 
-认证缓存保持 v40、原 Redis key、TTL 和失效协议；来源与请求中的嵌套 map、slice、指针分别复制，复合选组不能污染共享快照，分组显式 Fast 策略也必须完整往返。
+认证缓存使用 v41、原 Redis key、TTL 和失效协议；来源与请求中的嵌套 map、slice、指针分别复制，复合选组不能污染共享快照，分组显式 Fast 策略也必须完整往返。
 
 通用认证入口在最终选组授权后绑定原生 `AccessSnapshot` 和 Fast 策略，付款用户仍取该请求的付款主体；Google 分支保留原先独立的绑定时机。认证失败时供 Ops 使用的已加载 Key 信息与已认证快照分开，加载到记录并不代表授权成功。
 
@@ -129,19 +129,19 @@ OpenAI HTTP 的并发 helper 与本地图片限制器由 app 构造为唯一 `Op
 client_model
   -> composite_actual_model
   -> api_key_redirected_model
-  -> channel_mapped_model
+  -> group_mapped_model
   -> account/upstream_model
 ```
 
 - `client_model` 是客户端原始模型；复合 Key 时保留分组前缀。
 - `composite_actual_model` 是选组后去掉前缀的模型。
-- Key 级重定向是一跳匹配，发生在选组之后、渠道与账号映射之前。
-- 渠道映射同时参与模型限制、计费模型来源和用量映射链；账号映射得到最终供应商路由键。
+- Key 级重定向是一跳匹配，发生在选组之后、分组与账号映射之前。
+- 分组映射形成白名单、计费和用量映射链的模型候选；白名单检查阶段与计费来源分别配置；账号映射得到最终供应商路由键。
 - `requested_model`、`upstream_model` 和去重后的 `model_mapping_chain` 分别保存客户端意图、实际发送模型和变换路径。
 
 协议 handler 可以在每次 failover attempt 重新基于所选账号构造请求，但不得对已经解析过的一跳映射再次递归。模型列表需要从当前可请求目标反推可展示别名；保存映射时允许目标暂时不可路由，真正请求仍使用标准无账号/无模型错误。
 
-`routing.RoutePlan` 保存当次最终分组、入口协议和 Key→渠道模型链，handler 把它交给后续候选解析。候选仍按当前账号快照和最终分组复核协议；账号映射在原使用时点读取，不提前固定账号或把 attempt 结果写入共享缓存。分组发生回退时旧计划不替代重新授权，平台请求改写与响应模型恢复仍由原执行链负责。
+`routing.RoutePlan` 保存当次最终分组、入口协议和 Key→分组模型链，handler 把它交给后续候选解析。模型链快照同时保留分组白名单的 `RestrictModels`、`RestrictionModelSource` 和独立的计费模型来源，投影为 `GroupMappingResult` 时完整传递。候选仍按当前账号快照和最终分组复核协议；账号映射在原使用时点读取，不提前固定账号或把 attempt 结果写入共享缓存。分组发生回退时旧计划不替代重新授权，平台请求改写与响应模型恢复仍由原执行链负责。
 
 `requeststate.AttemptRoute` 固化本次候选结果和协议，`RoutingState.ResolveAttempt` 在 fresh/DB 复核后重新解析。账号持久记录不承载该状态；协议相关地址和 CN 适配规则由 `account.ProtocolTarget` 组合显式协议与记录计算。执行 Adapter 使用只组合原生 Record 与路线的 ExecutionAccount；读取模型映射仍发生在原调用时点，不能把上一次尝试结果写回共享账号缓存。
 
@@ -156,18 +156,18 @@ Codex 身份和指纹的请求内状态只由 HTTP Adapter 持有；账号 provi
 <a id="account_selection_and_failover"></a>
 ## 账号选择与故障转移
 
-账号选择的输入至少包含本次分组、平台、请求模型、渠道解析结果、会话 hash、已失败账号集合和端点能力。先解析 Claude Code-only 等分组回退，再以最终目标分组的 `scheduler_type` 选择基础或高级调度器；无分组路径固定使用基础调度器。选择器综合以下约束：
+账号选择的输入至少包含本次分组、平台、请求模型、分组映射结果、会话 hash、已失败账号集合和端点能力。先解析 Claude Code-only 等分组回退，再以最终目标分组的 `scheduler_type` 选择基础或高级调度器；无分组路径固定使用基础调度器。选择器综合以下约束：
 
-- 分组与渠道关联、平台或 force platform、渠道/账号模型限制和模型映射。
+- 平台或 force platform、分组/账号模型限制和模型映射。
 - 账号启用、过期、代理、凭据、上游资格、临时不可调度、模型/账号限流及配额状态。
 - 调度快照的可用性、粘性会话、优先级/负载、最近使用、并发槽和可等待队列。
 - 特殊端点能力，例如图片、Realtime/WS、Grok 付费媒体资格或站点特定模型能力。
 
-候选排序与高级评分不读取上游声明倍率，也没有 `upstream_cost` 权重或 OAuth 参考倍率。账户本地 `rate_multiplier` 与渠道上游计费模型来源仍在账号选定和模型映射完成后参与结算，不作为候选资格或排序信号。
+候选排序与高级评分不读取上游声明倍率，也没有 `upstream_cost` 权重或 OAuth 参考倍率。账户本地 `rate_multiplier` 与价格配置的上游计费模型来源仍在账号选定和模型映射完成后参与结算，不作为候选资格或排序信号。
 
-Messages 的 `count_tokens` 由 app 直接构造原生 HTTP Handler。HTTP 只持有受控计数目标与无凭据账号快照；原有选择和平台执行原语由组合根连接。资金预检先于无槽选择，失败后释放本次会话，每次尝试从原报文重建渠道映射；不新增费用提交或完成任务。文本与计数入口共用原有兼容指标采样计数器。
+Messages 的 `count_tokens` 由 app 直接构造原生 HTTP Handler。HTTP 只持有受控计数目标与无凭据账号快照；原有选择和平台执行原语由组合根连接。资金预检先于无槽选择，失败后释放本次会话，每次尝试从原报文重建分组映射；不新增费用提交或完成任务。文本与计数入口共用原有兼容指标采样计数器。
 
-OpenAI 兼容计数、Grok 本地估算和 Responses 输入 token 预检由 app 独立构造 OpenAITokensHandler，直接绑定同一个请求生命周期屏障。计数保持渠道规划后检查资金，再执行单次无槽选择；Responses 预检保持资金检查先于渠道规划，并释放选择器交付的每个账号槽。Grok 本地估算不增加资金检查、选账号或上游请求。这些入口没有生成请求的完成提交端口。 计数执行现在直接绑定 OpenAIAuxiliary，路由计划和选择分别使用原生 RoutePlanner 与 Compatible；账号目标只在受控转发方法内携带凭据。
+OpenAI 兼容计数、Grok 本地估算和 Responses 输入 token 预检由 app 独立构造 OpenAITokensHandler，直接绑定同一个请求生命周期屏障。计数保持分组路由规划后检查资金，再执行单次无槽选择；Responses 预检保持资金检查先于分组路由规划，并释放选择器交付的每个账号槽。Grok 本地估算不增加资金检查、选账号或上游请求。这些入口没有生成请求的完成提交端口。 计数执行现在直接绑定 OpenAIAuxiliary，路由计划和选择分别使用原生 RoutePlanner 与 Compatible；账号目标只在受控转发方法内携带凭据。
 
 AlphaSearch 与 Embeddings 同样复用固定请求和响应实例，搜索授权元数据由同一 account.OpenAIAuthorization 提供。
 
@@ -192,9 +192,9 @@ Live 与 sideband 的 HTTP 入口也由 app 直接构造，原生 LivePorts 共�
 <a id="protocol_conversion_boundary"></a>
 ## 转发与流式边界
 
-Messages、Claude 的 Chat/Responses 转换及 `count_tokens` 使用 `gateway/provider/messageforward.Runtime`。app 固定绑定凭据来源、HTTP 池、健康反馈、TLS、渠道和搜索实例；普通、API Key 透传、Vertex 与 Bedrock 分支继续调用各自的 upstream 执行器。每次尝试独立持有 Beta 过滤结果、工具名称映射和错误诊断，HTTP Adapter 负责响应提交、Header、Flush 与错误报文。
+Messages、Claude 的 Chat/Responses 转换及 `count_tokens` 使用 `gateway/provider/messageforward.Runtime`。app 固定绑定凭据来源、HTTP 池、健康反馈、TLS、分组策略和搜索实例；普通、API Key 透传、Vertex 与 Bedrock 分支继续调用各自的 upstream 执行器。每次尝试独立持有 Beta 过滤结果、工具名称映射和错误诊断，HTTP Adapter 负责响应提交、Header、Flush 与错误报文。
 
-Messages、计数和 Qoder 的路由计划由 `gateway/provider.RoutePlanner` 连接渠道读取与 routing，摘要和隔离直接使用 gateway/session；重试耗尽后的兼容冷却由 `account.RetryCooldown` 读取最新池模式后决定。完成器直接绑定 app 的原生记录器。调试输出由同一个 `requestdebug.Trace` 持有文件句柄，请求和后台工作结束后再关闭。
+Messages、计数和 Qoder 的路由计划由 `gateway/provider.RoutePlanner` 连接分组策略读取与 routing，摘要和隔离直接使用 gateway/session；重试耗尽后的兼容冷却由 `account.RetryCooldown` 读取最新池模式后决定。完成器直接绑定 app 的原生记录器。调试输出由同一个 `requestdebug.Trace` 持有文件句柄，请求和后台工作结束后再关闭。
 
 Gemini 与 Antigravity 的凭据来源、传输和动态读取端口由 app 注入 `gateway/provider/googleforward`。平台准备器不持有 Gin 或完整配置；`gateway/httpapi` 保留三种客户端协议的错误形状、规则覆盖和 Ops 写入顺序。图片计数与工具名恢复状态按 attempt 创建，图片仍取单个响应片段的最大内联图片数；没有观测到图片时才使用原模型名回退。
 
@@ -214,7 +214,7 @@ Qoder 流式已经进入上游后使用完成释放：客户端断开停止下�
 
 ## 用量与结算
 
-上游转发产生可计量 usage 后，handler 把解析出的 token/图片/视频用量、客户端与上游模型、endpoint、账号、订阅快照、请求标识和渠道映射交给有界 UsageRecord worker pool。Anthropic 网关与 OpenAI 兼容的 Messages、Responses、Chat 三条链在终止事件前中断时，只要 service 随错误返回了部分结果，handler 仍提交其中已观测的 usage；无结果不生成记录，`UpstreamFailoverError` 不携带部分结果，避免重试成功后双重计费。
+上游转发产生可计量 usage 后，handler 把解析出的 token/图片/视频用量、客户端与上游模型、endpoint、账号、订阅快照、请求标识和分组映射交给有界 UsageRecord worker pool。Anthropic 网关与 OpenAI 兼容的 Messages、Responses、Chat 三条链在终止事件前中断时，只要 service 随错误返回了部分结果，handler 仍提交其中已观测的 usage；无结果不生成记录，`UpstreamFailoverError` 不携带部分结果，避免重试成功后双重计费。
 
 国产供应商原生 Anthropic 转 Responses 的流在客户端写失败后停止下游输出，但继续排水上游并推进状态机，直到读到末尾 `message_delta` 的最终 token 或达到有界读超时。OpenAI OAuth 图片响应在 HTTP 成功后若发生上游 body 传输中断，仅在尚未向客户端写出真实图片内容时按 502 进入账号策略和 failover；JSON keepalive 空白不算真实输出，客户端取消、deadline、响应体超限以及首字节后的中断不会换号。
 
@@ -229,7 +229,7 @@ app 直接从原生价格、资金、用量和提交后端口构造 Forward/Open
 标准模式中的共同顺序为：
 
 1. 归一化不同协议的 token 桶、媒体尺寸/时长、缓存和长上下文语义。
-2. 根据计费模型来源、渠道价格、账号成本、用户/分组/订阅倍率、高峰倍率及渠道分时倍率计算费用；WebSocket 多轮请求使用当前 turn 的开始时刻冻结时间相关价格。
+2. 根据计费模型来源、共享价格配置、账号成本、用户/分组/订阅倍率、高峰倍率及共享价格配置分时倍率计算费用；WebSocket 多轮请求使用当前 turn 的开始时刻冻结时间相关价格。
 3. 使用 `request_id + api_key_id` 认领结算幂等键，并用请求指纹检测 ID 被不同 payload 复用。
 4. 在一个 PostgreSQL 事务中锁定付款用户，按结算模式分配订阅或余额，并同步累计团队成员、Key 配额/速率和适用的上游账号额度；已通过准入并完成上游调用的普通请求若跨过指定订阅剩余额度，订阅用量封顶，溢出部分按余额倍率扣入付款主体余额并允许形成欠费。该回退只结算已放行或并发在途的请求，后续绑定已耗尽订阅的新请求仍直接拒绝；批量图片提交前的额度预占仍要求指定订阅完整覆盖。
 5. 结算成功后尽力写已结算 Usage Log，并更新缓存和最后使用时间。结算失败时仍写入包含计算成本的待对账 Usage Log，但将 `actual_cost` 置零，随后返回 worker 错误且不伪造成功结算；Usage Log 写失败不得导致同一请求重复扣费。
@@ -243,7 +243,7 @@ app 直接从原生价格、资金、用量和提交后端口构造 Forward/Open
 
 Brave/Tavily 搜索由 search 选择供应商并预占额度。失败释放自己已确认的预占；请求取消后不尝试其他供应商、不标记代理故障，额度回滚使用独立的最多三秒清理预算。Redis 结果不明确时继续原有故障放行，不猜测已取得计数。配置替换后已进入的请求保留原代次快照，所有代次在停机时共同等待。额度窗口与故障边界见[搜索编排](../domains/search_orchestration.md)。
 
-gateway/searchtools 拥有工具识别、账号/渠道启用裁决、协议事件和合成 usage。app 通过 gateway/provider 直接绑定同一个 search.ConfigService、Registry 和渠道实例，配置更换仍发布到该注册表。重试与完成处理继续由请求编排拥有。Grok 原生搜索及 OpenAI AlphaSearch 仍由对应 upstream 拥有；不能将通知成功、搜索配额或审核记录当作资金提交证明。
+gateway/searchtools 拥有工具识别、账号/分组启用裁决、协议事件和合成 usage。app 通过 gateway/provider 直接绑定同一个 search.ConfigService、Registry 和分组策略读取实例，配置更换仍发布到该注册表。重试与完成处理继续由请求编排拥有。Grok 原生搜索及 OpenAI AlphaSearch 仍由对应 upstream 拥有；不能将通知成功、搜索配额或审核记录当作资金提交证明。
 
 独立 Web/X 搜索由 app 直接构造 `gateway/httpapi.SearchHandler` 和固定的 `SearchPorts`。HTTP 继续按解析、认证、资金、审核、选号的顺序执行；平台报文及单次交换由 `gateway/provider` 组合原 Grok 原语与共享传输。选择端口只返回当前请求的受控目标，完成前同步取得账号快照；异步记录不持有 Gin Context。相同查询的每次调用仍生成独立资金请求 ID，完成快照提交后再释放账号资源。
 
@@ -253,7 +253,7 @@ gateway/searchtools 拥有工具识别、账号/渠道启用裁决、协议事�
 
 - 是否应用正确的 body/header 限制、request ID、Ops error logger 和 API Key 错误形状。
 - 是否支持普通/复合 Key，模型从何处读取，哪些无模型管理入口只校验资源归属。
-- 选组、Key 重定向、渠道映射和账号映射是否保持一跳顺序，模型列表与响应恢复是否同步。
+- 选组、Key 重定向、分组映射和账号映射是否保持一跳顺序，模型列表与响应恢复是否同步。
 - 用户/账号并发、会话隔离、粘性和取消路径是否能完整释放槽位。
 - 哪些错误允许同账号重试或换账号，流开始后是否会错误进入 failover。
 - 用量能否得到稳定 request ID、请求指纹、requested/upstream model 和正确平台归属。

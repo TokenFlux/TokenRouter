@@ -55,12 +55,12 @@ func (s *GenericSelector) selectRoutes(ctx context.Context, groupID *int64, sess
 	}
 
 	// Claude Code 限制可能已将 groupID 解析为 fallback group，
-	// 渠道限制预检查必须使用解析后的分组。
-	if s.ports.CheckChannelPricingRestriction(ctx, groupID, requestedModel) {
-		s.diagnostics.event("warn", "channel pricing restriction blocked request",
+	// 分组白名单预检查必须使用解析后的分组。
+	if s.ports.CheckGroupModelRestriction(ctx, groupID, requestedModel) {
+		s.diagnostics.event("warn", "group model restriction blocked request",
 			"group_id", derefGroupID(groupID),
 			"model", requestedModel)
-		return nil, fmt.Errorf("%w supporting model: %s (channel pricing restriction)", ErrNoAvailableAccounts, requestedModel)
+		return nil, fmt.Errorf("%w supporting model: %s (group model restriction)", ErrNoAvailableAccounts, requestedModel)
 	}
 
 	// anthropic/gemini 分组支持混合调度（包含启用了 mixed_scheduling 的 antigravity 账户）
@@ -81,6 +81,7 @@ func (s *GenericSelector) selectRoutes(ctx context.Context, groupID *int64, sess
 	}
 	return s.ports.HydrateSelectedAccount(ctx, account)
 }
+
 func (s *GenericSelector) SelectPlatform(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, platform string) (*FlowAccount, error) {
 	preferOAuth := platform == capability.PlatformGemini
 	routingAccountIDs := s.ports.RoutingAccountIDsForRequest(ctx, groupID, requestedModel, platform)
@@ -90,9 +91,9 @@ func (s *GenericSelector) SelectPlatform(ctx context.Context, groupID *int64, se
 		schedGroup, _ = s.ports.ReadGroup(ctx, *groupID)
 	}
 	// upstream 依据必须覆盖路由、粘性和普通候选的全部旧版选择分支。
-	needsUpstreamCheck := s.ports.NeedsUpstreamChannelRestrictionCheck(ctx, groupID)
+	needsUpstreamCheck := s.ports.NeedsUpstreamGroupRestrictionCheck(ctx, groupID)
 	isUpstreamAllowed := func(account *FlowAccount) bool {
-		return !needsUpstreamCheck || !s.ports.IsUpstreamModelRestrictedByChannel(ctx, *groupID, account, requestedModel)
+		return !needsUpstreamCheck || !s.ports.IsUpstreamModelRestrictedByGroup(ctx, *groupID, account, requestedModel)
 	}
 
 	var accounts []FlowAccount
@@ -333,6 +334,7 @@ func (s *GenericSelector) SelectPlatform(ctx context.Context, groupID *int64, se
 
 	return selected, nil
 }
+
 func (s *GenericSelector) SelectMixed(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, nativePlatform string) (*FlowAccount, error) {
 	preferOAuth := nativePlatform == capability.PlatformGemini
 	routingAccountIDs := s.ports.RoutingAccountIDsForRequest(ctx, groupID, requestedModel, nativePlatform)
@@ -342,9 +344,9 @@ func (s *GenericSelector) SelectMixed(ctx context.Context, groupID *int64, sessi
 		schedGroup, _ = s.ports.ReadGroup(ctx, *groupID)
 	}
 	// 混合调度的所有旧版快捷路径也必须执行相同的最终模型过滤。
-	needsUpstreamCheck := s.ports.NeedsUpstreamChannelRestrictionCheck(ctx, groupID)
+	needsUpstreamCheck := s.ports.NeedsUpstreamGroupRestrictionCheck(ctx, groupID)
 	isUpstreamAllowed := func(account *FlowAccount) bool {
-		return !needsUpstreamCheck || !s.ports.IsUpstreamModelRestrictedByChannel(ctx, *groupID, account, requestedModel)
+		return !needsUpstreamCheck || !s.ports.IsUpstreamModelRestrictedByGroup(ctx, *groupID, account, requestedModel)
 	}
 
 	var accounts []FlowAccount

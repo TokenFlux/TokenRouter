@@ -10,10 +10,11 @@ import (
 
 // GroupConfig 是无递归关联的分组值契约，供账号等消费者按需投影。
 type GroupConfig struct {
-	ID          int64
-	Name        string
-	Description string
-	Platform    string
+	RoutingPolicy GroupRoutingPolicy
+	ID            int64
+	Name          string
+	Description   string
+	Platform      string
 	// SchedulerType 决定该分组使用基础或高级调度器。
 	SchedulerType GroupSchedulerType
 	// AdvancedSchedulerOverrides 仅对高级调度分组生效，未设置字段继承网关通用设置。
@@ -52,10 +53,10 @@ type GroupConfig struct {
 	AudioTTSPricePerMillionChars *float64
 	AudioSTTPricePerHour         *float64
 
-	// ModelPricing 为命中模型覆盖渠道与内置基础价格。
-	// LongContextPricingEnabled 仅控制内置长上下文倍率，不改变分组或渠道自定义区间。
+	// ModelPricing 为命中模型覆盖共享价格配置与内置基础价格。
+	// LongContextPricingEnabled 仅控制内置长上下文倍率，不改变分组或共享价格配置自定义区间。
 	LongContextPricingEnabled bool
-	ModelPricing              []pricing.ChannelModelPricing
+	ModelPricing              []pricing.ModelPricingEntry
 
 	// Claude Code 客户端限制
 	ClaudeCodeOnly  bool

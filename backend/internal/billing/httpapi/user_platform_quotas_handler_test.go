@@ -184,7 +184,7 @@ func TestNeedsMonthlyReset_NilStart_ReturnsFalse(t *testing.T) {
 	}
 }
 
-// TestNeedsMonthlyReset_30DayRolling 验证 30 天滚动语义（C-NEW-1）。
+// TestNeedsMonthlyReset_30DayRolling_Expired 验证 30 天滚动语义（C-NEW-1）。
 func TestNeedsMonthlyReset_30DayRolling_Expired(t *testing.T) {
 	start := time.Now().UTC().Add(-31 * 24 * time.Hour) // 31 天前，已过期
 	if !billing.NeedsMonthlyReset(&start, time.Now().UTC()) {

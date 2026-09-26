@@ -124,7 +124,7 @@ export default {
     profile: 'Profile',
     users: 'Users',
     groups: 'Groups',
-    channels: 'Channels',
+    pricing: 'Price Management',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     proxies: 'Proxies',

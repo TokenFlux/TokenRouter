@@ -27,6 +27,7 @@ type liveCreatePorts struct {
 func (p *liveCreatePorts) PrepareAttestation(ctx context.Context) (string, string, error) {
 	return p.service.prepareLiveAttestation(ctx)
 }
+
 func (p *liveCreatePorts) Select(ctx context.Context, groupID *int64, model string, excluded map[int64]struct{}) (*gatewaylive.Candidate, error) {
 	selection, _, err := p.service.Selection.SelectAccountWithSchedulerForCapability(ctx, groupID, "", uuid.NewString(), model, excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityLive, false, false)
 	if err != nil || selection == nil {
@@ -40,23 +41,26 @@ func (p *liveCreatePorts) Select(ctx context.Context, groupID *int64, model stri
 	}
 	return result, nil
 }
+
 func (p *liveCreatePorts) TraceModels(ctx context.Context, routing, upstream string) {
 	modeltrace.RegisterStage(ctx, routing)
 	modeltrace.RegisterStage(ctx, upstream)
 }
+
 func (p *liveCreatePorts) ModelTrace(ctx context.Context, groupID *int64, model, upstream string) (string, string) {
 	requested := model
 	if trace, ok := modeltrace.FromContext(ctx); ok && strings.TrimSpace(trace.ClientModel) != "" {
 		requested = trace.ClientModel
 	}
 	plan := p.service.Routes.PlanRoute(ctx, nil, groupID, model)
-	mapping := routing.ChannelMappingResult(plan.Mapping())
+	mapping := routing.GroupMappingResult(plan.Mapping())
 	return requested, mapping.BuildModelMappingChain(model, upstream)
 }
 func (p *liveCreatePorts) NewLeaseID() string { return scheduler.GenerateRequestID() }
 func (p *liveCreatePorts) ShouldFailover(err error) bool {
 	return p.service.shouldFailoverLiveCreateError(err)
 }
+
 func (p *liveCreatePorts) Observe(record *session.LiveCallRecord) {
 	p.service.Background("service/openai_live.go:CreateLiveCall", func() {
 		p.service.observeLiveCall(record)
@@ -78,6 +82,7 @@ func (t *liveCreateTarget) ResolveModel(ctx context.Context, model string) (stri
 	}
 	return routing, gatewayprovider.ExecutionModelPolicy(t.account).OpenAIUpstream(routing, false, false), nil
 }
+
 func (t *liveCreateTarget) AllowsClient(ctx context.Context, identity session.LiveCallIdentity) bool {
 	t.router = t.service.matchLiveTLSFingerprintRouter(t.account, identity.UserAgent)
 	result := t.service.liveClientPolicyResult(ctx, t.account, identity, t.router)
@@ -87,6 +92,7 @@ func (t *liveCreateTarget) AllowsClient(ctx context.Context, identity session.Li
 	}
 	return true
 }
+
 func (t *liveCreateTarget) Create(ctx context.Context, request *session.LiveCallRequest, attestation string) (*gatewaylive.Created, error) {
 	created, err := t.service.createUpstreamLiveCall(ctx, t.account, request, attestation, t.router)
 	if err != nil {

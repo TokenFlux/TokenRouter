@@ -96,7 +96,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // upstream_endpoint
 			log.CacheTTLOverridden,
 			log.LongContextBillingApplied,
-			sqlmock.AnyArg(), // channel_id
+			sqlmock.AnyArg(), // pricing_config_id
 			sqlmock.AnyArg(), // model_mapping_chain
 			sqlmock.AnyArg(), // billing_tier
 			sqlmock.AnyArg(), // billing_mode
@@ -194,7 +194,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			log.CacheTTLOverridden,
 			log.LongContextBillingApplied,
-			sqlmock.AnyArg(), // channel_id
+			sqlmock.AnyArg(), // pricing_config_id
 			sqlmock.AnyArg(), // model_mapping_chain
 			sqlmock.AnyArg(), // billing_tier
 			sqlmock.AnyArg(), // billing_mode
@@ -1093,7 +1093,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			false,
 			false,
-			sql.NullInt64{},   // channel_id
+			sql.NullInt64{},   // pricing_config_id
 			sql.NullString{},  // model_mapping_chain
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
@@ -1157,7 +1157,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			false,
 			false,
-			sql.NullInt64{},   // channel_id
+			sql.NullInt64{},   // pricing_config_id
 			sql.NullString{},  // model_mapping_chain
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
@@ -1221,7 +1221,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			false,
 			false,
-			sql.NullInt64{},   // channel_id
+			sql.NullInt64{},   // pricing_config_id
 			sql.NullString{},  // model_mapping_chain
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
@@ -1236,5 +1236,4 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.NotNil(t, log.ServiceTier)
 		require.Equal(t, "priority", *log.ServiceTier)
 	})
-
 }

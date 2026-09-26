@@ -124,7 +124,7 @@ export default {
     profile: '个人资料',
     users: '用户管理',
     groups: '分组管理',
-    channels: '渠道管理',
+    pricing: '价格管理',
     subscriptions: '订阅管理',
     accounts: '账号管理',
     proxies: 'IP管理',

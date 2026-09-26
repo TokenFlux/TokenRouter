@@ -26,11 +26,11 @@ type GroupAdminInvalidator interface {
 	GroupAuthInvalidator
 	InvalidateAuthCacheByKey(context.Context, string)
 }
-type GroupChannelInvalidator interface{ InvalidateCache() }
+type GroupPricingInvalidator interface{ InvalidateCache() }
 
 // GroupAdminOptions 注入读取时机和原有闭合事务；规则不依赖装配和具体存储。
 type GroupAdminOptions struct {
-	Pricing              ChannelValidation
+	Pricing              PricingConfigValidation
 	DefaultModels        func(string) []string
 	NormalizeMappedModel func(string) string
 	GlobalWeights        func(context.Context) (policy.ScoreWeights, error)
@@ -39,18 +39,18 @@ type GroupAdminOptions struct {
 
 // GroupAdmin 拥有分组管理和复制规则，缓存与读写均使用 app 提供的唯一实例。
 type GroupAdmin struct {
-	groupRepo               GroupRepository
-	groupDuplicateRepo      GroupDuplicateRepository
-	groupSortOrderRepo      GroupSortOrderRepository
-	accountRepo             GroupAccounts
-	apiKeyRepo              GroupKeyReader
-	authCacheInvalidator    GroupAdminInvalidator
-	channelCacheInvalidator GroupChannelInvalidator
-	options                 GroupAdminOptions
+	groupRepo                     GroupRepository
+	groupDuplicateRepo            GroupDuplicateRepository
+	groupSortOrderRepo            GroupSortOrderRepository
+	accountRepo                   GroupAccounts
+	apiKeyRepo                    GroupKeyReader
+	authCacheInvalidator          GroupAdminInvalidator
+	pricingConfigCacheInvalidator GroupPricingInvalidator
+	options                       GroupAdminOptions
 }
 
-func NewGroupAdmin(repo GroupRepository, duplicate GroupDuplicateRepository, sortOrder GroupSortOrderRepository, accounts GroupAccounts, keys GroupKeyReader, invalidator GroupAdminInvalidator, channels GroupChannelInvalidator, options GroupAdminOptions) *GroupAdmin {
-	return &GroupAdmin{groupRepo: repo, groupDuplicateRepo: duplicate, groupSortOrderRepo: sortOrder, accountRepo: accounts, apiKeyRepo: keys, authCacheInvalidator: invalidator, channelCacheInvalidator: channels, options: options}
+func NewGroupAdmin(repo GroupRepository, duplicate GroupDuplicateRepository, sortOrder GroupSortOrderRepository, accounts GroupAccounts, keys GroupKeyReader, invalidator GroupAdminInvalidator, pricingConfigs GroupPricingInvalidator, options GroupAdminOptions) *GroupAdmin {
+	return &GroupAdmin{groupRepo: repo, groupDuplicateRepo: duplicate, groupSortOrderRepo: sortOrder, accountRepo: accounts, apiKeyRepo: keys, authCacheInvalidator: invalidator, pricingConfigCacheInvalidator: pricingConfigs, options: options}
 }
 
 // ValidateAdvancedOverrides 按旧次序先验证局部字段，确有权重覆盖才读取动态全局值。
