@@ -812,9 +812,11 @@ affiliates: {
         "source": "Source model",
         "target": "Target model",
         "restrict": "Enable model allowlist",
-        "allowlistHint": "The allowlist is independent of prices. An enabled empty list rejects every model.",
+        "allowlistHint": "Only listed models pass the selected check stage. The allowlist is independent of prices; enabling it with an empty list rejects every model.",
         "webSearch": "Web search emulation",
+        "webSearchHint": "For requests containing only the web search tool, the gateway calls the configured search service and returns its results. Global web search emulation must be enabled; account settings take priority.",
         "bedrock": "Bedrock Claude Code compatibility",
+        "bedrockHint": "Adapts Claude Code requests for Bedrock by removing unsupported parameters and filling required fields. Enable for Bedrock or a compatible proxy.",
         "incompleteMapping": "Enter both source and target models.",
         "conflict": "Model rules overlap or contain duplicates.",
         "basis": {

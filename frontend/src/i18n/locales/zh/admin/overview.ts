@@ -809,9 +809,11 @@ affiliates: {
         "source": "源模型",
         "target": "目标模型",
         "restrict": "启用模型白名单",
-        "allowlistHint": "白名单独立于价格列表。启用后，空白名单会拒绝全部模型。",
+        "allowlistHint": "仅允许白名单中的模型通过所选阶段的检查。白名单独立于价格列表，开启后留空会拒绝全部模型。",
         "webSearch": "网页搜索模拟",
+        "webSearchHint": "当请求仅包含网页搜索工具时，由网关调用已配置的搜索服务并返回结果。需先开启全局网页搜索模拟；账号设置优先。",
         "bedrock": "Bedrock Claude Code 兼容",
+        "bedrockHint": "为 Bedrock 上游适配 Claude Code 请求，清理不支持的参数并补齐必填字段。接入 Bedrock 或其兼容代理时可开启。",
         "incompleteMapping": "请填写完整的源模型和目标模型。",
         "conflict": "模型规则重复或通配范围重叠。",
         "basis": {

@@ -17,22 +17,30 @@
     </div>
     <div class="space-y-3">
       <div class="flex items-center justify-between gap-4">
-        <label class="input-label mb-0">{{ t('admin.groups.routingPolicy.restrict') }}</label>
-        <Toggle :model-value="value.restrict_models" @update:model-value="update({ restrict_models: $event })" />
+        <div class="min-w-0">
+          <label class="input-label mb-0">{{ t('admin.groups.routingPolicy.restrict') }}</label>
+          <p class="input-hint">{{ t('admin.groups.routingPolicy.allowlistHint') }}</p>
+        </div>
+        <Toggle :model-value="value.restrict_models" :aria-label="t('admin.groups.routingPolicy.restrict')" @update:model-value="update({ restrict_models: $event })" />
       </div>
       <template v-if="value.restrict_models">
         <Select :model-value="value.restriction_model_source || 'group_mapped'" :options="sourceOptions" @update:model-value="update({ restriction_model_source: String($event) as GroupRoutingPolicy['restriction_model_source'] })" />
         <ModelTagInput :models="value.allowed_models[platform] || []" :platform="platform" @update:models="update({ allowed_models: { ...value.allowed_models, [platform]: $event } })" />
-        <p class="input-hint">{{ t('admin.groups.routingPolicy.allowlistHint') }}</p>
       </template>
     </div>
     <div v-if="platform === 'anthropic'" class="flex items-center justify-between gap-4">
-      <label class="input-label mb-0">{{ t('admin.groups.routingPolicy.webSearch') }}</label>
-      <Toggle :model-value="feature('web_search_emulation') === true" @update:model-value="setFeature('web_search_emulation', $event)" />
+      <div class="min-w-0">
+        <label class="input-label mb-0">{{ t('admin.groups.routingPolicy.webSearch') }}</label>
+        <p class="input-hint">{{ t('admin.groups.routingPolicy.webSearchHint') }}</p>
+      </div>
+      <Toggle :model-value="feature('web_search_emulation') === true" :aria-label="t('admin.groups.routingPolicy.webSearch')" @update:model-value="setFeature('web_search_emulation', $event)" />
     </div>
     <div v-if="platform === 'anthropic'" class="flex items-center justify-between gap-4">
-      <label class="input-label mb-0">{{ t('admin.groups.routingPolicy.bedrock') }}</label>
-      <Toggle :model-value="feature('bedrock_cc_compat') === true" @update:model-value="setFeature('bedrock_cc_compat', $event)" />
+      <div class="min-w-0">
+        <label class="input-label mb-0">{{ t('admin.groups.routingPolicy.bedrock') }}</label>
+        <p class="input-hint">{{ t('admin.groups.routingPolicy.bedrockHint') }}</p>
+      </div>
+      <Toggle :model-value="feature('bedrock_cc_compat') === true" :aria-label="t('admin.groups.routingPolicy.bedrock')" @update:model-value="setFeature('bedrock_cc_compat', $event)" />
     </div>
   </div>
 </template>
