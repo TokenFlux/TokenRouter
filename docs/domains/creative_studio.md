@@ -16,6 +16,7 @@ TokenRouter 创作台（Creative Studio）提供面向个人用户的图片生�
 ## 章节导航
 
 - [API 路由](#api-路由)：说明路由、multipart 字段和请求限制。
+- [模型与分组策略](#creative_model_policy)：说明目录、提交校验和执行使用的模型链及白名单阶段。
 - [生命周期](#生命周期)：说明任务状态机与 `result_lost` 语义。
 - [幂等](#幂等)：说明 Idempotency-Key、请求指纹和部分唯一索引。
 - [隐藏执行 Key](#隐藏执行-key)：说明托管 Key 的供应、可见性与级联。
@@ -53,7 +54,7 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 
 创作台不提供输出格式选择，因此 `output_formats` 对所有模型为空数组、`output_compression` 为 `null`，这两个字段仅作为能力协议保留；输出格式由供应商实际返回决定，任务输出 metadata 的 `mime_type` 保留真实 MIME（例如 `image/png` 或 `image/jpeg`），前端按该 MIME 保存和下载。`max_output_count` 固定为 1，创作台每次任务只生成一张图片。
 
-`price_512` 仅用于支持 Gemini 512 档位的模型：若渠道配置了 `512` 分层价格则优先使用，否则使用渠道默认价格。前端只按这些服务端能力渲染参数，不根据模型名自行猜测。列表只包含用户可绑定、已启用图片生成、平台支持创作台操作且能解析图片价格的分组。OpenAI 分组支持 `generate`/`edit`/`inpaint`，Gemini（含 Vertex 账号）与 Grok 分组支持 `generate`/`edit`。
+`price_512` 仅用于支持 Gemini 512 档位的模型，按分组价卡、共享价格配置和内置按张价格的顺序解析；价卡中的 `512` 分层价格优先于该价卡的默认单价。前端只按这些服务端能力渲染参数，不根据模型名自行猜测。列表只包含用户可绑定、已启用图片生成、平台支持创作台操作且能解析图片价格的分组。OpenAI 分组支持 `generate`/`edit`/`inpaint`，Gemini（含 Vertex 账号）与 Grok 分组支持 `generate`/`edit`。
 
 功能关闭（进程配置 `creative.enabled` 或数据库运行时开关 `creative_enabled` 关闭）时，该接口返回空数组而非错误，前端据此展示"已停用"空态；其余写/读接口返回 404 `CREATIVE_DISABLED`。
 
@@ -65,7 +66,7 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 ]
 ```
 
-`generate`、`edit`、`inpaint` 分别表示文生图、图生图和局部重绘。空数组（新安装和升级后的默认值）表示创作台没有任何可用生图模型；目录请求和新任务创建都 fail-closed。目录中的能力是管理员配置与平台执行器能力的交集：Gemini/Grok 不会暴露 `inpaint`，管理员保存时也会移除已解析为 Gemini 的旧 `inpaint`，而 OpenAI 的 `inpaint` 保留。配置不绑定外键，分组或账号暂时下线时保留设置，恢复后自动重新生效；已经排队的任务不因后续配置变更取消。
+`generate`、`edit`、`inpaint` 分别表示文生图、图生图和局部重绘。空数组（新安装和升级后的默认值）表示创作台没有任何可用生图模型；目录请求和新任务创建都 fail-closed。目录中的能力是管理员配置与平台执行器能力的交集：Gemini/Grok 不会暴露 `inpaint`，管理员保存时也会移除已解析为 Gemini 的旧 `inpaint`，而 OpenAI 的 `inpaint` 保留。配置不绑定外键，分组或账号暂时下线时保留设置，恢复后自动重新生效；已经排队的任务不因 `creative_model_settings` 变更取消，执行时仍须通过当前分组模型策略。
 
 `POST /creative/runs` 接受 `multipart/form-data`，只接受上传文件，不接受远程 URL：
 
@@ -100,6 +101,15 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 `GET .../outputs/{index}/content` 在临时有效期内返回图片二进制（`Cache-Control: private, no-store`）；输出已 ack、已过期或临时键已丢失时返回 410 语义错误（`CREATIVE_OUTPUT_EXPIRED`/`CREATIVE_RESULT_LOST`），并把仍处 `succeeded` 的任务降级为 `result_lost`，不返回可交付成功状态。
 
 `POST .../outputs/{index}/ack` 用于客户端确认输出已保存到本地：先把输出标记为 `acked`，再删除对应临时输出键，删除失败由 transient reconciler 重试，重复 ack 幂等成功。只有结算完成并进入可交付终态的 run 才能读取/ack 输出。
+
+<a id="creative_model_policy"></a>
+## 模型与分组策略
+
+目录和提交校验使用同一模型集合。候选来自平台默认图片模型、账号配置、分组映射和白名单中的具体名称，以及创作台已配置的请求模型；通配符只参与匹配。每个请求模型先执行一次分组映射，再执行一次账号映射及平台名称规范化，最终模型必须具备图片能力并满足账号限制。白名单按分组的 `requested`、`group_mapped` 或 `upstream` 阶段检查，空白名单拒绝全部模型。关闭分组策略后，保存的映射和白名单草稿均不参与解析。完整规则见[分组独立策略](gateway_policy_controls.md#group_routing_policy)。
+
+每次任务执行前重新取得分组策略副本；读取失败时停止本次执行。调度器接收原请求模型，执行器把已解析的分组模型交给所选账号，并对实际要发送的上游模型复核白名单。通过检查后固定执行模型，组装请求体时不再重复映射。目录和执行共用网关账号规则，因此透传账号也按真实发送的模型检查。没有关联共享价格配置时，上述规则仍然生效。
+
+分组策略在目录和执行投影中深拷贝，任务准备期间的副本不会修改分组原数据。策略与价格分别读取；已提交任务继续使用创建时的价格和资金快照，执行前的模型检查不重新计算历史金额。
 
 <a id="creative_task_lifecycle"></a>
 ## 生命周期
@@ -159,7 +169,7 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 - provider 已成功但结果丢失（`result_lost` 且已捕获）时保持计费；payload 过期导致 provider 未执行的 `result_lost` 释放预占。
 - 任务执行期间进入 `cancelled` 但 provider 已成功：费用按实际成功输出捕获、用量照写，终态保持 `cancelled`。
 
-单张价格按分组模型价卡、渠道模型价卡、内置按张价格解析；图片/按次价卡使用尺寸分档与显式默认单价；未匹配尺寸且缺少默认单价时回退内置按张价，显式零价保留。token 价卡回退内置按张价格，不按实际 token 结算。资金分配采用普通分组、用户及订阅倍率；既有任务保留创建时快照。本文不定义价格数值。
+单张价格按分组模型价卡、共享价格配置价卡、内置按张价格解析；图片/按次价卡使用尺寸分档与显式默认单价；未匹配尺寸且缺少默认单价时回退内置按张价，显式零价保留。token 价卡回退内置按张价格，不按实际 token 结算。资金分配采用普通分组、用户及订阅倍率；既有任务保留创建时快照。本文不定义价格数值。
 
 ## Redis 临时数据
 

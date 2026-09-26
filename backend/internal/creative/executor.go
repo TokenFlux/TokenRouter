@@ -6,11 +6,14 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-// ExecutionGroup 只提供当前分组的平台与本次调度所需的协议投影。
+// ExecutionGroup 提供当前分组的平台、模型策略与本次调度所需的协议投影。
 type ExecutionGroup struct {
 	Platform         string
+	RoutingPolicy    routing.GroupRoutingPolicy
 	ConfigureContext func(context.Context, string, string) context.Context
 }
 type Selection struct {
@@ -43,6 +46,8 @@ func (e *Executor) ResolveGroupPlatform(ctx context.Context, id int64) (string, 
 		return "", CreativeNonRetryableError("creative group platform %s is not supported", group.Platform)
 	}
 }
+
+// @project-doc docs/domains/creative_studio.md#creative_model_policy
 func (e *Executor) Prepare(ctx context.Context, run CreativeRun) (*CreativeExecution, error) {
 	if e == nil {
 		return nil, errors.New("creative executor is not configured")
@@ -51,9 +56,18 @@ func (e *Executor) Prepare(ctx context.Context, run CreativeRun) (*CreativeExecu
 	if err != nil {
 		return nil, err
 	}
-	// 保持原两次读取：第二次失败不改写已取得的平台，但不安装缺失的协议投影。
-	if group, loadErr := e.Group(ctx, run.GroupID); loadErr == nil && group != nil && group.ConfigureContext != nil {
+	// 本次尝试必须取得完整策略；读取失败或平台变化时停止，不能丢弃白名单继续执行。
+	group, err := e.Group(ctx, run.GroupID)
+	if err != nil || group == nil || group.Platform != platform {
+		return nil, CreativeNonRetryableError("creative group %d policy is unavailable", run.GroupID)
+	}
+	if group.ConfigureContext != nil {
 		ctx = group.ConfigureContext(ctx, platform, run.Operation)
+	}
+	policy := newGroupModelPolicy(platform, group.RoutingPolicy)
+	groupModel, allowed := policy.resolve(run.Model)
+	if !allowed {
+		return nil, CreativeNonRetryableError("creative model %s is restricted by group %d", run.Model, run.GroupID)
 	}
 	var selectAccount func(context.Context, CreativeRun) (*Selection, error)
 	switch platform {
@@ -85,7 +99,8 @@ func (e *Executor) Prepare(ctx context.Context, run CreativeRun) (*CreativeExecu
 		}
 		return nil, CreativeNonRetryableError("creative account %d was not admitted", selection.AccountID)
 	}
-	model := strings.TrimSpace(selection.ResolveModel(ctx, run.Model))
+	// 调度仍接收请求模型；执行只把已解析的分组模型交给账号规则，不能再次改写分组别名。
+	model := strings.TrimSpace(selection.ResolveModel(ctx, groupModel))
 	if model == "" {
 		if selection.Release != nil {
 			selection.Release()
@@ -97,6 +112,12 @@ func (e *Executor) Prepare(ctx context.Context, run CreativeRun) (*CreativeExecu
 			selection.Release()
 		}
 		return nil, CreativeNonRetryableError("creative mapped model %s is not an image model", model)
+	}
+	if !policy.allowsUpstream(model) {
+		if selection.Release != nil {
+			selection.Release()
+		}
+		return nil, CreativeNonRetryableError("creative upstream model %s is restricted by group %d", model, run.GroupID)
 	}
 	return &CreativeExecution{AccountID: selection.AccountID, UpstreamModel: model, ReleaseFunc: selection.Release, Target: NewExecutionTarget(selection, model, e.Timeout)}, nil
 }
@@ -115,6 +136,7 @@ func NewExecutionTarget(selection *Selection, model string, timeout time.Duratio
 	}
 	return &preparedExecution{selection: selection, model: model, timeout: timeout}
 }
+
 func (t *preparedExecution) Execute(ctx context.Context, run CreativeRun, payload CreativeRunPayload) (*CreativeExecuteResult, error) {
 	if t == nil || t.selection == nil {
 		return nil, errors.New("creative execution context is not configured")

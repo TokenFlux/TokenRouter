@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	creativeprovider "github.com/TokenFlux/TokenRouter/internal/creative/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -130,7 +130,7 @@ func (r creativeAccounts) ListSchedulableByGroupIDAndPlatform(ctx context.Contex
 	}
 	out := make([]creative.CatalogAccount, len(v))
 	for i := range v {
-		out[i] = creativeprovider.CatalogAccount(&v[i])
+		out[i] = gatewayprovider.CreativeCatalogAccount(&v[i])
 	}
 	return out, nil
 }
@@ -166,6 +166,7 @@ func creativeGroupView(g *routing.Group) *creative.GroupView {
 		AllowImageGeneration: g.AllowImageGeneration,
 		Active:               g.IsActive(),
 		RateMultiplier:       g.RateMultiplier,
+		RoutingPolicy:        g.RoutingPolicy.Clone(),
 		Operations:           creative.OperationsForGroup(g.Platform, g.ResponsesImagePolicy != "" || g.ProtocolFallbacks != nil, g.AllowsClientProtocol),
 		Price: billing.PriceGroup{
 			ModelPricing:              g.ModelPricing,

@@ -29,7 +29,7 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 			if group == nil {
 				return nil, err
 			}
-			value := &creative.ExecutionGroup{Platform: group.Platform}
+			value := &creative.ExecutionGroup{Platform: group.Platform, RoutingPolicy: group.RoutingPolicy.Clone()}
 			if group.ResponsesImagePolicy != "" || group.ProtocolFallbacks != nil {
 				value.ConfigureContext = func(ctx context.Context, platform, operation string) context.Context {
 					return requeststate.WithClientProtocol(requeststate.WithGroup(ctx, group), creative.OperationProtocol(platform, operation))
@@ -45,7 +45,11 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 		value := result.Account
 		selection := &creative.Selection{AccountID: value.Record.ID, Platform: value.Record.Platform, Acquired: result.Acquired, Waiting: result.WaitPlan != nil, Release: result.ReleaseFunc}
 		selection.ResolveModel = func(ctx context.Context, model string) string {
-			return gatewayprovider.ExecutionModelPolicy(value).UpstreamModel(ctx, model)
+			policy := gatewayprovider.ExecutionModelPolicy(value)
+			if !policy.Supports(ctx, model) {
+				return ""
+			}
+			return policy.UpstreamModel(ctx, model)
 		}
 		selection.Execute = func(ctx context.Context, run creative.CreativeRun, payload creative.CreativeRunPayload, model string) ([]creative.CreativeOutput, error) {
 			return targets.ForAccount(value).ExecutePlatform(ctx, value.Record.Platform, run, payload, model)

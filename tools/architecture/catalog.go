@@ -397,7 +397,7 @@ original_model_pricing_resolver_test.go`},
 	{Scope: "internal/billing", Imports: "internal/gateway/provider/modelidentity", Files: `calculator_pricing_provider_fixture_test.go consumer_config_time_pricing_billing_test.go
 original_billing_service_test.go`},
 	{Scope: "internal/billing/postgres", Imports: "internal/batchimage/postgres", Files: "repo_unit_test.go"},
-	{Scope: "internal/creative", Imports: "internal/creative/provider", Files: "catalog_original_test.go creative_public_fixture_test.go original_creative_public_test.go"},
+	{Scope: "internal/creative", Imports: "internal/creative/provider", Files: "catalog_original_test.go creative_public_fixture_test.go"},
 	{Scope: "internal/creative", Imports: "internal/gateway/provider/modelidentity", Files: "creative_public_fixture_test.go support_fixture_test.go"},
 	{Scope: "internal/creative", Imports: "internal/billing/provider", Files: "support_fixture_test.go"},
 	{Scope: "internal/gateway/clientmeta", Imports: "net/http/httptest", Files: "claude_detection_original_test.go claude_validator_original_test.go"},

@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	creativeprovider "github.com/TokenFlux/TokenRouter/internal/creative/provider"
-
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 
@@ -646,7 +644,6 @@ func newCreativeTestService() *creative.Public {
 			},
 			Default: config.DefaultConfig{APIKeyPrefix: "sk-"},
 		})
-
 }
 
 func makeTestPNG(t *testing.T, width, height int) []byte {
@@ -1180,7 +1177,7 @@ func TestCreativeGeminiNanoBananaCandidates(t *testing.T) {
 	require.False(t, creative.IsCreativeGeminiImageModel("nano-banana"), "不完整的 nano-banana 名称不应被识别")
 
 	account := &accountcore.Record{Platform: capability.PlatformGemini, Credentials: map[string]any{}}
-	models := creative.CreativeGeminiModelsForAccount(creativeprovider.CatalogAccount(account))
+	models := creativeAccountModelsForTest(t, account)
 	require.Contains(t, models, "nano-banana-pro")
 	require.Contains(t, models, "nano-banana-2")
 }
@@ -1228,6 +1225,7 @@ func (r *creativeFakeRunRepo) RecordProviderOutcome(ctx context.Context, id stri
 	}
 	return r.MarkCreativeRunProviderSucceeded(ctx, id, accountID, now)
 }
+
 func (r *creativeFakeRunRepo) CompleteProviderOutcome(ctx context.Context, id string, cost float64, lost bool, now time.Time) error {
 	if err := r.MarkCreativeRunSucceeded(ctx, id, cost, now); err != nil {
 		return err

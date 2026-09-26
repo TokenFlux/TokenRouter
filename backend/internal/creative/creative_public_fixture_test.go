@@ -89,7 +89,7 @@ func creativeGroupProjection(value *routing.Group) *creative.GroupView {
 	if value == nil {
 		return nil
 	}
-	return &creative.GroupView{ID: value.ID, Name: value.Name, Platform: value.Platform, IsExclusive: value.IsExclusive, AllowImageGeneration: value.AllowImageGeneration, Active: value.IsActive(), RateMultiplier: value.RateMultiplier, Operations: creative.OperationsForGroup(value.Platform, value.ResponsesImagePolicy != "" || value.ProtocolFallbacks != nil, value.AllowsClientProtocol), Price: billing.PriceGroup{ModelPricing: value.ModelPricing, LongContextPricingEnabled: value.LongContextPricingEnabled}}
+	return &creative.GroupView{ID: value.ID, Name: value.Name, Platform: value.Platform, IsExclusive: value.IsExclusive, AllowImageGeneration: value.AllowImageGeneration, Active: value.IsActive(), RateMultiplier: value.RateMultiplier, RoutingPolicy: value.RoutingPolicy.Clone(), Operations: creative.OperationsForGroup(value.Platform, value.ResponsesImagePolicy != "" || value.ProtocolFallbacks != nil, value.AllowsClientProtocol), Price: billing.PriceGroup{ModelPricing: value.ModelPricing, LongContextPricingEnabled: value.LongContextPricingEnabled}}
 }
 
 // creativePriceFixture 只投影可选目录/解析器，价格算法与回退仍调用 billing。

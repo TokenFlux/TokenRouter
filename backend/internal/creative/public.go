@@ -21,7 +21,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"golang.org/x/image/webp"
 )
@@ -46,6 +45,7 @@ type GroupView struct {
 	RateMultiplier                            float64
 	Operations                                []string
 	Price                                     billing.PriceGroup
+	RoutingPolicy                             routing.GroupRoutingPolicy
 }
 type GroupReader interface {
 	GetByIDLite(context.Context, int64) (*GroupView, error)
@@ -153,8 +153,8 @@ func mappedCatalogModel(a CatalogAccount, m string) string {
 	if a == nil {
 		return ""
 	}
-	value, matched := a.ResolveMappedModel(m)
-	if !matched || strings.TrimSpace(value) == "" {
+	value, _ := a.ResolveMappedModel(m)
+	if strings.TrimSpace(value) == "" {
 		return m
 	}
 	return strings.TrimSpace(value)
@@ -561,7 +561,8 @@ func CreativeDefaultOption(options []string, preferred string) string {
 	return ""
 }
 
-// CreativeModelsForGroup 从分组可调度的账号映射中收集图片模型。
+// CreativeModelsForGroup 按分组映射、账号映射和指定阶段白名单解析图片模型。
+// @project-doc docs/domains/creative_studio.md#creative_model_policy
 func (s *Public) CreativeModelsForGroup(ctx context.Context, group *GroupView) (map[string]string, error) {
 	out := make(map[string]string)
 	if s.AccountRepo == nil || group == nil {
@@ -571,91 +572,29 @@ func (s *Public) CreativeModelsForGroup(ctx context.Context, group *GroupView) (
 	if err != nil {
 		return nil, err
 	}
-	for i := range accounts {
-		account := accounts[i]
-		if !account.IsSchedulable() {
+	policy := newGroupModelPolicy(group.Platform, group.RoutingPolicy)
+	var configured []string
+	for _, setting := range s.CreativeModelSettings(ctx) {
+		if setting.GroupID == group.ID {
+			configured = append(configured, setting.Model)
+		}
+	}
+	for _, model := range policy.candidates(group.Platform, configured, accounts) {
+		mapped, allowed := policy.resolve(model)
+		if !allowed {
 			continue
 		}
-		switch group.Platform {
-		case PlatformGemini:
-			for _, model := range CreativeGeminiModelsForAccount(account) {
-				finalModel := mappedCatalogModel(account, model)
-				if account.IsModelSupported(finalModel) && IsCreativeGeminiImageModel(finalModel) {
-					out[model] = finalModel
-				}
+		for _, account := range accounts {
+			if account == nil || !account.IsSchedulable() || !account.IsModelSupported(mapped) {
+				continue
 			}
-		case PlatformOpenAI:
-			for _, model := range CreativeExpandAccountModels(account, DefaultCreativeOpenAIModelCandidates(), upstream.IsGPTImageGenerationModel) {
-				out[model] = mappedCatalogModel(account, model)
-			}
-		case PlatformGrok:
-			for _, model := range CreativeExpandAccountModels(account, DefaultCreativeGrokModelCandidates(), upstream.IsGrokImageGenerationModel) {
-				out[model] = mappedCatalogModel(account, model)
+			finalModel := mappedCatalogModel(account, mapped)
+			if CreativePlatformImageModel(group.Platform, finalModel) && policy.allowsUpstream(finalModel) {
+				out[model] = finalModel
 			}
 		}
 	}
 	return out, nil
-}
-
-// CreativeGeminiModelsForAccount 展开 Gemini 账号的创作台图片模型候选。
-// 有映射时保留批量图片的映射语义；无映射时还要纳入显式白名单中的图片变体。
-func CreativeGeminiModelsForAccount(account CatalogAccount) []string {
-	if account == nil {
-		return nil
-	}
-	if len(account.GetModelMapping()) > 0 {
-		// 展开请求模型后再校验最终映射模型，避免文本别名映射到图片模型时被误过滤。
-		models := make(map[string]struct{})
-		mapping := account.GetModelMapping()
-		candidates := DefaultCreativeGeminiModelCandidates()
-		candidates = append(candidates, account.GetConfiguredRequestModels()...)
-		for requested := range mapping {
-			requested = strings.TrimSpace(requested)
-			if requested == "" {
-				continue
-			}
-			if strings.ContainsAny(requested, "*?") {
-				for _, candidate := range candidates {
-					if !modelmap.Matches(requested, candidate) {
-						continue
-					}
-					finalModel, _ := account.ResolveMappedModel(candidate)
-					if IsCreativeGeminiImageModel(finalModel) && account.IsModelSupported(finalModel) {
-						models[candidate] = struct{}{}
-					}
-				}
-				continue
-			}
-			finalModel, _ := account.ResolveMappedModel(requested)
-			if IsCreativeGeminiImageModel(finalModel) && account.IsModelSupported(finalModel) {
-				models[requested] = struct{}{}
-			}
-		}
-		out := make([]string, 0, len(models))
-		for model := range models {
-			out = append(out, model)
-		}
-		sort.Strings(out)
-		return out
-	}
-
-	models := make(map[string]struct{})
-	candidateModels := DefaultCreativeGeminiModelCandidates()
-	candidateModels = append(candidateModels, account.GetConfiguredRequestModels()...)
-	for _, model := range candidateModels {
-		model = strings.TrimSpace(model)
-		if !IsCreativeGeminiImageModel(model) || !account.IsModelSupported(model) {
-			continue
-		}
-		models[model] = struct{}{}
-	}
-
-	out := make([]string, 0, len(models))
-	for model := range models {
-		out = append(out, model)
-	}
-	sort.Strings(out)
-	return out
 }
 
 // IsCreativeGeminiImageModel 按 Gemini 图片模型的命名约定识别显式白名单变体。
@@ -664,62 +603,6 @@ func IsCreativeGeminiImageModel(model string) bool {
 	model = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(model)), "models/")
 	return (strings.HasPrefix(model, "gemini-") && strings.Contains(model, "image")) ||
 		strings.HasPrefix(model, "nano-banana-")
-}
-
-// CreativeExpandAccountModels 展开账号模型映射，通配符按候选集合匹配，再按谓词过滤图片模型。
-// 账号未配置模型映射时等价于网关全量透传，回退到平台图片模型候选并按账号最终白名单过滤。
-func CreativeExpandAccountModels(account CatalogAccount, candidates []string, matches func(string) bool) []string {
-	if account == nil || matches == nil {
-		return nil
-	}
-	mapping := account.GetModelMapping()
-	if len(mapping) == 0 {
-		models := make(map[string]struct{})
-		// 显式白名单可能包含代理侧的图片模型变体，不能只依赖平台默认候选表。
-		candidateModels := append([]string(nil), candidates...)
-		candidateModels = append(candidateModels, account.GetConfiguredRequestModels()...)
-		for _, candidate := range candidateModels {
-			candidate = strings.TrimSpace(candidate)
-			if matches(candidate) && account.IsModelSupported(candidate) {
-				models[candidate] = struct{}{}
-			}
-		}
-		out := make([]string, 0, len(models))
-		for model := range models {
-			out = append(out, model)
-		}
-		sort.Strings(out)
-		return out
-	}
-	models := make(map[string]struct{})
-	for model := range mapping {
-		model = strings.TrimSpace(model)
-		if model == "" {
-			continue
-		}
-		if strings.ContainsAny(model, "*?") {
-			for _, candidate := range candidates {
-				if !modelmap.Matches(model, candidate) {
-					continue
-				}
-				finalModel, _ := account.ResolveMappedModel(candidate)
-				if matches(finalModel) && account.IsModelSupported(finalModel) {
-					models[candidate] = struct{}{}
-				}
-			}
-			continue
-		}
-		finalModel, _ := account.ResolveMappedModel(model)
-		if matches(finalModel) && account.IsModelSupported(finalModel) {
-			models[model] = struct{}{}
-		}
-	}
-	out := make([]string, 0, len(models))
-	for model := range models {
-		out = append(out, model)
-	}
-	sort.Strings(out)
-	return out
 }
 
 func DefaultCreativeOpenAIModelCandidates() []string {
