@@ -43,7 +43,8 @@
     </template>
     <template #table>
       <DataTable :columns="columns" :data="items" :loading="loading">
-        <template #cell-billing_mode="{ row }">{{ t(`admin.pricing.defaults.modes.${row.billing_mode}`, row.billing_mode) }}</template>
+        <template #cell-platform="{ row }"><PlatformBadge :platform="row.platform" /></template>
+        <template #cell-billing_mode="{ row }"><BillingModeBadge :mode="row.billing_mode" /></template>
         <template #cell-price="{ row }">
           <span v-if="row.price_status === 'unpriced'">{{ t('admin.pricing.defaults.unpriced') }}</span>
           <div v-else class="space-y-1">
@@ -65,14 +66,48 @@
   </TablePageLayout>
   <BaseDialog :show="!!selected" :title="selected?.model || ''" @close="selected = null">
     <div v-if="selected" class="space-y-4">
-      <p class="text-sm text-gray-500">{{ selected.platform }} · {{ t(`admin.pricing.defaults.modes.${selected.billing_mode}`, selected.billing_mode) }}</p>
-      <p v-if="selected.price_status === 'unpriced'" class="text-sm">{{ t('admin.pricing.defaults.unpriced') }}</p>
-      <dl v-else class="divide-y divide-gray-200 dark:divide-dark-700">
-        <div v-for="price in selected.prices" :key="price.key" class="flex justify-between gap-4 py-3 text-sm">
-          <dt>{{ priceLabel(price.key) }}</dt><dd class="text-right font-mono">{{ formatPrice(price) }}</dd>
+      <!-- 平台与计费方式徽章：与表格列共用同一组件。 -->
+      <div class="flex flex-wrap items-center gap-2">
+        <PlatformBadge :platform="selected.platform" />
+        <BillingModeBadge :mode="selected.billing_mode" />
+      </div>
+      <p v-if="selected.price_status === 'unpriced'" class="text-sm text-gray-400 dark:text-dark-500">{{ t('admin.pricing.defaults.unpriced') }}</p>
+      <template v-else>
+        <!-- 上下文与模式是两个独立开关，与模型广场定价面板同款；价格行展示当前组合应用后的单价。 -->
+        <div v-if="availableContexts.length > 1 || availableTiers.length > 1" class="flex flex-wrap items-center justify-end gap-2">
+          <div v-if="availableContexts.length > 1" class="inline-flex max-w-full flex-wrap rounded-compact bg-gray-100 p-0.5 dark:bg-dark-800" data-testid="pricing-context-switch">
+            <button
+              v-for="context in availableContexts"
+              :key="context"
+              type="button"
+              class="rounded-control px-2 py-0.5 text-xs font-semibold transition"
+              :class="context === activeContext ? segmentActiveClass : segmentInactiveClass"
+              @click="selectedContext = context"
+            >
+              {{ contextRangeLabel(context) }}
+            </button>
+          </div>
+          <div v-if="availableTiers.length > 1" class="inline-flex max-w-full flex-wrap rounded-control bg-gray-100 p-0.5 dark:bg-dark-800" data-testid="pricing-tier-switch">
+            <button
+              v-for="tier in availableTiers"
+              :key="tier"
+              type="button"
+              class="rounded-control px-2 py-0.5 text-xs font-semibold transition"
+              :class="tier === activeTier ? segmentActiveClass : segmentInactiveClass"
+              @click="selectedTier = tier"
+            >
+              {{ t(`admin.pricing.defaults.tiers.${tier}`) }}
+            </button>
+          </div>
         </div>
-      </dl>
-      <p v-if="selected.long_context_threshold" class="text-sm text-gray-600 dark:text-gray-300">{{ t('admin.pricing.defaults.longContext', { threshold: selected.long_context_threshold, operator: selected.long_context_threshold_inclusive ? '≥' : '>' }) }}</p>
+        <!-- 价格行与模型广场卡片定价一致：弱化标签、等宽数字、细分隔线。 -->
+        <dl class="space-y-2.5">
+          <div v-for="price in activePrices" :key="price.key" class="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2 text-sm dark:border-dark-700">
+            <dt class="min-w-0 max-w-[45%] shrink-0 break-words text-gray-500 dark:text-dark-400">{{ priceLabel(price.key) }}</dt>
+            <dd class="min-w-0 break-words text-right font-medium tabular-nums [overflow-wrap:anywhere] text-gray-900 dark:text-white">{{ formatPrice(price) }}</dd>
+          </div>
+        </dl>
+      </template>
     </div>
   </BaseDialog>
 </template>
@@ -87,7 +122,10 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import PlatformBadge from '@/components/common/PlatformBadge.vue'
+import BillingModeBadge from '@/components/common/BillingModeBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { formatCompactTokenRange } from '@/utils/formatters'
 import { SEARCH_DEBOUNCE_MS } from '@/constants/ui'
 
 const { t } = useI18n()
@@ -114,10 +152,55 @@ const platforms = ref<string[]>([])
 const platformOptions = computed(() => [{ value: '', label: t('admin.pricing.defaults.allPlatforms') }, ...platforms.value.map(value => ({ value, label: t(`admin.groups.platforms.${value}`, value) }))])
 const modeOptions = computed(() => [{ value: '', label: t('admin.pricing.defaults.allModes') }, ...['token', 'image', 'video', 'per_request'].map(value => ({ value, label: t(`admin.pricing.defaults.modes.${value}`) }))])
 const columns = computed(() => ['model', 'platform', 'billing_mode', 'price', 'actions'].map(key => ({ key, label: t(`admin.pricing.defaults.columns.${key}`) })))
+// long_/fast_/flex_ 前缀由上下文与模式开关表达，行标签只保留基础价格名。
 function priceLabel(key: string): string {
-  const prefix = key.startsWith('fast_') ? 'Fast ' : key.startsWith('flex_') ? 'Flex ' : ''
-  return prefix + t(`admin.pricing.defaults.keys.${key.replace(/^(fast_|flex_)/, '')}`, key.replace(/^(fast_|flex_)/, ''))
+  const stripped = key.replace(/^(?:long_)?(?:fast_|flex_)?/, '')
+  return t(`admin.pricing.defaults.keys.${stripped}`, stripped)
 }
+
+// —— 弹窗价格开关：上下文（标准/长上下文）与模式（标准/Fast/Flex）相互独立 ——
+// 后端投影的 key 形如 long_fast_input（上下文前缀在前），两个开关组合出当前价格集。
+
+type PricingContext = 'standard' | 'long_context'
+type PricingTier = 'standard' | 'fast' | 'flex'
+const segmentActiveClass = 'bg-white text-gray-900 shadow-sm dark:bg-dark-950 dark:text-white'
+const segmentInactiveClass = 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
+const selectedContext = ref<PricingContext>('standard')
+const selectedTier = ref<PricingTier>('standard')
+function comboPrefix(context: PricingContext, tier: PricingTier): string {
+  return (context === 'long_context' ? 'long_' : '') + (tier === 'fast' ? 'fast_' : tier === 'flex' ? 'flex_' : '')
+}
+function comboOf(key: string): { context: PricingContext; tier: PricingTier } {
+  const context: PricingContext = key.startsWith('long_') ? 'long_context' : 'standard'
+  const rest = context === 'long_context' ? key.slice('long_'.length) : key
+  const tier: PricingTier = rest.startsWith('fast_') ? 'fast' : rest.startsWith('flex_') ? 'flex' : 'standard'
+  return { context, tier }
+}
+const availableContexts = computed<PricingContext[]>(() => {
+  if (!selected.value?.prices.some(price => comboOf(price.key).context === 'long_context')) return ['standard']
+  return ['standard', 'long_context']
+})
+const availableTiers = computed<PricingTier[]>(() => {
+  if (!selected.value) return ['standard']
+  const present = new Set(selected.value.prices.map(price => comboOf(price.key).tier))
+  return (['standard', 'fast', 'flex'] as PricingTier[]).filter(tier => tier === 'standard' || present.has(tier))
+})
+const activeContext = computed<PricingContext>(() => availableContexts.value.includes(selectedContext.value) ? selectedContext.value : 'standard')
+const activeTier = computed<PricingTier>(() => availableTiers.value.includes(selectedTier.value) ? selectedTier.value : 'standard')
+// 上下文开关使用与模型广场一致的紧凑区间文案：0-272k / 272k+。
+function contextRangeLabel(context: PricingContext): string {
+  const threshold = selected.value?.long_context_threshold ?? 0
+  return context === 'long_context' ? formatCompactTokenRange(threshold, null) : formatCompactTokenRange(0, threshold)
+}
+const activePrices = computed(() => {
+  const prefix = comboPrefix(activeContext.value, activeTier.value)
+  return (selected.value?.prices ?? []).filter(price => {
+    if (!price.key.startsWith(prefix)) return false
+    // 排除更长的组合前缀，保证每个组合只匹配自己的价格集。
+    return !/^(?:long_|fast_|flex_)/.test(price.key.slice(prefix.length))
+  })
+})
+watch(selected, () => { selectedContext.value = 'standard'; selectedTier.value = 'standard' })
 function formatPrice(price: DefaultPriceValue): string {
   if (price.value == null) return t('admin.pricing.defaults.notApplicable')
   const unit = price.unit === 'multiplier' ? '×' : price.unit

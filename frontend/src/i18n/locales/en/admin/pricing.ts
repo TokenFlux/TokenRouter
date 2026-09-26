@@ -342,12 +342,16 @@ riskControl: {
         "empty": "No matching models",
         "allPlatforms": "All platforms",
         "allModes": "All billing modes",
-        "longContext": "Long-context multipliers apply when total input tokens {operator} {threshold}.",
         "modes": {
           "token": "Per token",
           "image": "Per image",
           "video": "Per video second",
           "per_request": "Per request"
+        },
+        "tiers": {
+          "standard": "Standard",
+          "fast": "Fast",
+          "flex": "Flex"
         },
         "columns": {
           "model": "Model",
@@ -368,9 +372,7 @@ riskControl: {
           "image_1K": "Per-image fallback 1K",
           "image_2K": "Per-image fallback 2K",
           "image_4K": "Per-image fallback 4K",
-          "max_reasoning": "Max reasoning multiplier",
-          "long_context_input": "Long-context input multiplier",
-          "long_context_output": "Long-context output multiplier"
+          "max_reasoning": "Max reasoning multiplier"
         }
       },
       title: 'Price Management',

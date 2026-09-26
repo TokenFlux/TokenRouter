@@ -331,6 +331,7 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { initTheme, useTheme } from '@/composables/useTheme'
 import { getMarketplaceModels } from '@/api/marketplace'
 import { providerBrandDisplayName, providerBrandFilterKey, resolveProviderBrand, resolveProviderBrandKey } from '@/utils/providerBrand'
+import { formatCompactTokenRange } from '@/utils/formatters'
 import { sanitizeUrl } from '@/utils/url'
 import type { MarketplaceGroup, MarketplaceModelPricing, MarketplacePricingInterval } from '@/types'
 import { useAppStore, useAuthStore } from '@/stores'
@@ -556,37 +557,6 @@ function formatCompactPerMillion(value: number): string {
 
 function formatPerImage(value: number): string {
   return `${formatPrice(value)} ${t('marketplace.perImage')}`
-}
-
-function formatTokenCount(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 0,
-  }).format(value)
-}
-
-function formatCompactNumber(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: value >= 100 ? 0 : 1,
-  }).format(value)
-}
-
-function formatCompactTokenCount(value: number): string {
-  if (value >= 1_000_000) {
-    return `${formatCompactNumber(value / 1_000_000)}m`
-  }
-  if (value >= 1_000) {
-    return `${formatCompactNumber(value / 1_000)}k`
-  }
-  return formatTokenCount(value)
-}
-
-// 最大 token 为空表示无上限，用 ∞ 和渠道配置页保持一致。
-// 卡片预览空间有限，用紧凑区间避免上下文数字换行。
-function formatCompactTokenRange(minTokens: number, maxTokens?: number | null): string {
-  if (typeof maxTokens !== 'number') {
-    return `${formatCompactTokenCount(minTokens)}+`
-  }
-  return `${formatCompactTokenCount(minTokens)}-${formatCompactTokenCount(maxTokens)}`
 }
 
 function groupBrandSource(group: Pick<MarketplaceGroup, 'display_brand' | 'name'>): string {

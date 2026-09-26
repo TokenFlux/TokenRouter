@@ -45,9 +45,25 @@ func (s *Calculator) DefaultModelPrice(model, platform, mode string) pricing.Def
 	result.PriceStatus = "priced"
 	base = pricing.ApplyDeepSeekPeakPricing(model, base, s.options.Now())
 	// 用一个计费单位复用实际算法，避免展示层重新实现 Fast、缓存和图片 token 回退。
-	addTokenPrices := func(prefix, tier string) {
+	// 长上下文报价需先越过阈值门槛才能触发倍率，与真实计费走同一条分支。
+	longGateTokens := 0
+	if base.LongContextInputThreshold > 0 {
+		longGateTokens = base.LongContextInputThreshold
+		if !base.LongContextThresholdInclusive {
+			longGateTokens++
+		}
+	}
+	addTokenPrices := func(prefix, tier string, applyLongCtx bool) {
+		gate := 0
+		if applyLongCtx {
+			gate = longGateTokens
+		}
 		quote := func(tokens UsageTokens) *CostBreakdown {
-			return pricing.ComputeTokenBreakdown(base, tokens, 1, tier, false)
+			tokens.InputTokens += gate
+			return pricing.ComputeTokenBreakdown(base, tokens, 1, tier, applyLongCtx)
+		}
+		perMTok := func(cost float64, tokens int) float64 {
+			return cost / float64(tokens) * 1e6
 		}
 		addOptional := func(key string, value float64, applicable bool) {
 			if applicable {
@@ -56,7 +72,7 @@ func (s *Calculator) DefaultModelPrice(model, platform, mode string) pricing.Def
 				result.Prices = append(result.Prices, pricing.DefaultPriceValue{Key: prefix + key, Unit: "USD/MTok"})
 			}
 		}
-		add(prefix+"input", quote(UsageTokens{InputTokens: 1}).InputCost*1e6, "USD/MTok")
+		add(prefix+"input", perMTok(quote(UsageTokens{InputTokens: 1}).InputCost, 1+gate), "USD/MTok")
 		add(prefix+"output", quote(UsageTokens{OutputTokens: 1}).OutputCost*1e6, "USD/MTok")
 		readPresent := base.CacheReadPricePerToken > 0 || raw != nil && raw.CacheReadPricePresent
 		writePresent := base.CacheCreationPricePerToken > 0 || base.SupportsCacheBreakdown || raw != nil && raw.CacheCreationPricePresent
@@ -66,21 +82,31 @@ func (s *Calculator) DefaultModelPrice(model, platform, mode string) pricing.Def
 		addOptional("image_input", quote(UsageTokens{InputTokens: 1, ImageInputTokens: 1}).ImageInputCost, base.ImageInputPricePerToken > 0 || raw != nil && (raw.SupportsVision || raw.ImageInputPricePresent))
 		addOptional("image_output", quote(UsageTokens{OutputTokens: 1, ImageOutputTokens: 1}).ImageOutputCost, base.ImageOutputPricePerToken > 0 || raw != nil && raw.ImageOutputPricePresent)
 	}
-	addTokenPrices("", "")
+	addTokenPrices("", "", false)
+	hasFast := false
 	if _, ok := pricing.FastModeDisplayPricing(base); ok {
-		addTokenPrices("fast_", "priority")
+		addTokenPrices("fast_", "priority", false)
+		hasFast = true
 	}
-	if base.SupportsServiceTier {
-		addTokenPrices("flex_", "flex")
+	hasFlex := base.SupportsServiceTier
+	if hasFlex {
+		addTokenPrices("flex_", "flex", false)
 	}
 	if base.MaxReasoningEffortMultiplier != nil {
 		add("max_reasoning", *base.MaxReasoningEffortMultiplier, "multiplier")
 	}
-	if base.LongContextInputThreshold > 0 {
+	// 长上下文价格投影为应用倍率后的绝对单价（含 Fast/Flex 组合），口径与
+	// ShouldApplySessionLongContextPricing 一致：任一倍率大于 1 才存在长上下文阶梯。
+	if base.LongContextInputThreshold > 0 && (base.LongContextInputMultiplier > 1 || base.LongContextOutputMultiplier > 1) {
 		result.LongContextThreshold = base.LongContextInputThreshold
 		result.LongContextThresholdInclusive = base.LongContextThresholdInclusive
-		add("long_context_input", pricing.LongContextMultiplierOrOne(base.LongContextInputMultiplier), "multiplier")
-		add("long_context_output", pricing.LongContextMultiplierOrOne(base.LongContextOutputMultiplier), "multiplier")
+		addTokenPrices("long_", "", true)
+		if hasFast {
+			addTokenPrices("long_fast_", "priority", true)
+		}
+		if hasFlex {
+			addTokenPrices("long_flex_", "flex", true)
+		}
 	}
 
 	if pricing.IsDeepSeekModel(model) {

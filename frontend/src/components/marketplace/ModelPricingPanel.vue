@@ -94,6 +94,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { formatCompactTokenRange } from '@/utils/formatters'
 import type { MarketplaceModel, MarketplaceModelPricing, MarketplacePricingInterval } from '@/types'
 
 // 抽屉式完整定价面板：原地展开收起、上下文区间与 fast mode 切换都收敛在卡片内部。
@@ -144,36 +145,6 @@ function formatPerMillion(value: number): string {
 
 function formatPerImage(value: number): string {
   return `${formatPrice(value)} ${t('marketplace.perImage')}`
-}
-
-function formatTokenCount(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 0,
-  }).format(value)
-}
-
-function formatCompactNumber(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: value >= 100 ? 0 : 1,
-  }).format(value)
-}
-
-function formatCompactTokenCount(value: number): string {
-  if (value >= 1_000_000) {
-    return `${formatCompactNumber(value / 1_000_000)}m`
-  }
-  if (value >= 1_000) {
-    return `${formatCompactNumber(value / 1_000)}k`
-  }
-  return formatTokenCount(value)
-}
-
-// 区间切换用紧凑区间文案，与卡片预览里的上下文区间行保持一致。
-function formatCompactTokenRange(minTokens: number, maxTokens?: number | null): string {
-  if (typeof maxTokens !== 'number') {
-    return `${formatCompactTokenCount(minTokens)}+`
-  }
-  return `${formatCompactTokenCount(minTokens)}-${formatCompactTokenCount(maxTokens)}`
 }
 
 // —— 定价行构建 ——

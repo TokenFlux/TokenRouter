@@ -342,12 +342,16 @@ riskControl: {
         "empty": "没有匹配的模型",
         "allPlatforms": "全部平台",
         "allModes": "全部计费模式",
-        "longContext": "总输入 token {operator} {threshold} 时应用长上下文倍率。",
         "modes": {
           "token": "按 token",
           "image": "按图片",
           "video": "按视频秒数",
           "per_request": "按次"
+        },
+        "tiers": {
+          "standard": "标准",
+          "fast": "Fast",
+          "flex": "Flex"
         },
         "columns": {
           "model": "模型",
@@ -368,9 +372,7 @@ riskControl: {
           "image_1K": "按张兜底 1K",
           "image_2K": "按张兜底 2K",
           "image_4K": "按张兜底 4K",
-          "max_reasoning": "Max 推理倍率",
-          "long_context_input": "长上下文输入倍率",
-          "long_context_output": "长上下文输出倍率"
+          "max_reasoning": "Max 推理倍率"
         }
       },
       title: '价格管理',

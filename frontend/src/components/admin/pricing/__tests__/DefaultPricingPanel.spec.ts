@@ -31,6 +31,44 @@ describe('默认价格查询', () => {
     wrapper.unmount()
   })
 
+  it('详情弹窗的上下文与模式开关相互独立，切换后展示对应组合的单价', async () => {
+    vi.mocked(listDefaultPricing).mockResolvedValue({ total: 1, last_updated: '', items: [
+      { model: 'combo', platform: 'openai', billing_mode: 'token', price_status: 'priced', long_context_threshold: 200000, long_context_threshold_inclusive: true, prices: [
+        { key: 'input', value: 2, unit: 'USD/MTok' },
+        { key: 'output', value: 8, unit: 'USD/MTok' },
+        { key: 'fast_input', value: 4, unit: 'USD/MTok' },
+        { key: 'fast_output', value: 16, unit: 'USD/MTok' },
+        { key: 'long_input', value: 4, unit: 'USD/MTok' },
+        { key: 'long_output', value: 12, unit: 'USD/MTok' },
+        { key: 'long_fast_input', value: 8, unit: 'USD/MTok' },
+        { key: 'long_fast_output', value: 24, unit: 'USD/MTok' },
+      ] },
+    ] })
+    const wrapper = mount(DefaultPricingPanel, { global: { stubs } })
+    await flushPromises()
+    await wrapper.findAll('button').find(item => item.text() === 'admin.pricing.defaults.details')!.trigger('click')
+    const dialog = wrapper.findComponent({ name: 'BaseDialog' })
+    const contextSwitch = wrapper.get('[data-testid="pricing-context-switch"]')
+    const tierSwitch = wrapper.get('[data-testid="pricing-tier-switch"]')
+    // 默认标准上下文 + 标准模式
+    expect(dialog.text()).toContain('2 USD/MTok')
+    expect(dialog.text()).toContain('8 USD/MTok')
+    expect(dialog.text()).not.toContain('16 USD/MTok')
+    // 切到 Fast 模式：展示 fast 单价而非倍率
+    await tierSwitch.findAll('button').find(item => item.text() === 'admin.pricing.defaults.tiers.fast')!.trigger('click')
+    expect(dialog.text()).toContain('4 USD/MTok')
+    expect(dialog.text()).toContain('16 USD/MTok')
+    // 再切到长上下文：两个开关叠加，展示 long_fast 组合单价
+    expect(contextSwitch.text()).toContain('0-200k')
+    await contextSwitch.findAll('button').find(item => item.text() === '200k+')!.trigger('click')
+    expect(dialog.text()).toContain('8 USD/MTok')
+    expect(dialog.text()).toContain('24 USD/MTok')
+    // 模式切回标准：仅长上下文生效
+    await tierSwitch.findAll('button').find(item => item.text() === 'admin.pricing.defaults.tiers.standard')!.trigger('click')
+    expect(dialog.text()).toContain('12 USD/MTok')
+    wrapper.unmount()
+  })
+
   it('筛选变化发起一次分页查询，组件关闭时取消在途请求', async () => {
     vi.mocked(listDefaultPricing).mockResolvedValue({ total: 0, items: [], last_updated: '' })
     const wrapper = mount(DefaultPricingPanel, { global: { stubs } })
