@@ -1114,6 +1114,18 @@
       @cancel="showDeleteDialog = false"
     />
 
+    <!-- Rotate Confirmation Dialog -->
+    <ConfirmDialog
+      :show="showRotateDialog"
+      :title="t('keys.rotateConfirmTitle')"
+      :message="t('keys.rotateConfirmMessage', { name: selectedKey?.name })"
+      :confirm-text="t('keys.rotateConfirm')"
+      :cancel-text="t('common.cancel')"
+      :danger="true"
+      @confirm="handleRotate"
+      @cancel="showRotateDialog = false"
+    />
+
     <!-- Reset Quota Confirmation Dialog -->
     <ConfirmDialog
       :show="showResetQuotaDialog"
@@ -1163,6 +1175,7 @@
       @use="openUseKeyModal"
       @import-tf="openTfCliImportDialog"
       @import="importToCcswitch"
+      @rotate="confirmRotate"
       @delete="confirmDelete"
     />
 
@@ -1476,6 +1489,7 @@ const filterDropdownRef = ref<HTMLElement | null>(null)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
+const showRotateDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
@@ -2237,6 +2251,26 @@ const closeGroupSelector = (event: MouseEvent) => {
 const confirmDelete = (key: ApiKey) => {
   selectedKey.value = key
   showDeleteDialog.value = true
+}
+
+// 轮换需要二次确认：旧 key 会立即失效，所有使用方都必须换成新值。
+const confirmRotate = (key: ApiKey) => {
+  selectedKey.value = key
+  showRotateDialog.value = true
+}
+
+const handleRotate = async () => {
+  if (!selectedKey.value) return
+  const keyID = selectedKey.value.id
+  showRotateDialog.value = false
+  try {
+    const rotated = await keysAPI.rotate(keyID)
+    appStore.showSuccess(t('keys.rotateSuccess', { name: rotated.name }))
+    loadApiKeys()
+  } catch (error: any) {
+    // 优先展示后端返回的具体错误（如并发冲突），否则用默认文案。
+    appStore.showError(error?.message || t('keys.failedToRotate'))
+  }
 }
 
 const buildKeyFormPayload = () => {

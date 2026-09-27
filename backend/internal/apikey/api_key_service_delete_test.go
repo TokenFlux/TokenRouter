@@ -41,6 +41,8 @@ type apiKeyRepoStub struct {
 	updateLastUsed         func(ctx context.Context, id int64, usedAt time.Time) error
 	touchedIDs             []int64
 	touchedUsedAts         []time.Time
+	rotateErr              error
+	rotateCalls            []apiKeyRotateCall
 }
 
 func (s *apiKeyRepoStub) Create(ctx context.Context, key *APIKey) error {

@@ -552,6 +552,35 @@ func (r *KeyStore) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
+// RotateKey 原地替换凭据：只有库中 key 仍等于 expectedKey 时才写入 newKey。
+// 并发轮换只会有一个成功，避免后到的请求把用户手里已经生效的新凭据覆盖掉。
+func (r *KeyStore) RotateKey(ctx context.Context, id int64, expectedKey, newKey string) error {
+	affected, err := clientFromContext(ctx, r.client).APIKey.Update().
+		Where(apikey.IDEQ(id), apikey.DeletedAtIsNil(), apikey.KeyEQ(expectedKey)).
+		SetKey(newKey).
+		SetUpdatedAt(time.Now()).
+		Save(ctx)
+	if err != nil {
+		// 新 key 撞上其它记录的 key 时唯一约束报错，按业务冲突返回。
+		return translatePersistenceError(err, nil, keycore.ErrAPIKeyExists)
+	}
+	if affected > 0 {
+		return nil
+	}
+
+	// CAS 未命中：记录已不存在，或者已被并发轮换。
+	exists, err := r.client.APIKey.Query().
+		Where(apikey.IDEQ(id), apikey.DeletedAtIsNil()).
+		Exist(ctx)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return keycore.ErrAPIKeyNotFound
+	}
+	return keycore.ErrAPIKeyRotateConflict
+}
+
 // DeleteWithAudit 为兼容滚动升级保留历史方法名。
 // 该方法以原子方式写入墓碑并软删除 Key，不保留凭据材料；墓碑会释放唯一键值以便安全复用。
 func (r *KeyStore) DeleteWithAudit(ctx context.Context, id int64) error {

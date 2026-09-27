@@ -60,10 +60,11 @@ describe('KeyActionMenu', () => {
 
     const menu = document.body.querySelector('[role="menu"]')
     expect(menu?.id).toBe('key-action-menu-7')
-    expect(menu?.querySelectorAll('[role="menuitem"]')).toHaveLength(4)
+    expect(menu?.querySelectorAll('[role="menuitem"]')).toHaveLength(5)
     expect(document.body.textContent).toContain('keys.useKey')
     expect(document.body.textContent).toContain('keys.importToTf')
     expect(document.body.textContent).toContain('keys.importToCcSwitch')
+    expect(document.body.textContent).toContain('keys.rotateKey')
     expect(document.body.textContent).toContain('common.delete')
 
     const tfButton = Array.from(document.body.querySelectorAll('button'))

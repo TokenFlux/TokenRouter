@@ -10,6 +10,7 @@ func RegisterUserRoutes[G any](authenticated *gin.RouterGroup, endpoint *APIKeyH
 		keys.GET("/billing-options", endpoint.GetBillingOptions)
 		keys.GET("/:id", endpoint.GetByID)
 		keys.POST("", endpoint.Create)
+		keys.POST("/:id/rotate", endpoint.Rotate)
 		keys.PUT("/:id", endpoint.Update)
 		keys.DELETE("/:id", endpoint.Delete)
 	}

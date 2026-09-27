@@ -547,6 +547,7 @@
   "POST /api/v1/creative/runs",
   "POST /api/v1/creative/runs/:id/outputs/:index/ack",
   "POST /api/v1/keys",
+  "POST /api/v1/keys/:id/rotate",
   "POST /api/v1/payment/orders",
   "POST /api/v1/payment/orders/:id/cancel",
   "POST /api/v1/payment/orders/:id/refund-request",

@@ -154,6 +154,17 @@ export async function deleteKey(id: number): Promise<{ message: string }> {
 }
 
 /**
+ * Rotate API key in place
+ * 保留 Key ID 与全部配置，仅替换凭据值；旧 key 立即失效。
+ * @param id - API key ID
+ * @returns Updated API key（含新 key）
+ */
+export async function rotate(id: number): Promise<ApiKey> {
+  const { data } = await apiClient.post<ApiKey>(`/keys/${id}/rotate`)
+  return data
+}
+
+/**
  * Toggle API key status (active/inactive)
  * @param id - API key ID
  * @param status - New status
@@ -170,6 +181,7 @@ export const keysAPI = {
   create,
   createWithPayload,
   update,
+  rotate,
   delete: deleteKey,
   toggleStatus
 }

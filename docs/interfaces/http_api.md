@@ -12,6 +12,7 @@
 - [账号管理接口](#账号管理接口)：修改批量管理、测试、诊断和导入时读取。
 - [备份与维护接口](#备份与维护接口)：修改备份和系统操作时读取。
 - [API Key 结算策略接口](#api-key-结算策略接口)：配置资金来源、查询订阅和收窄分组。
+- [凭据轮换](#api_key_rotation)：修改 Key 轮换的鉴权、缓存失效或并发冲突语义时读取。
 - [分组客户端协议](#分组客户端协议)：理解上游平台与客户端准入的独立契约。
 - [价格管理与分组策略](#价格管理与分组策略)：修改无平台价卡、模型规则和管理字段边界时读取。
 - [认证方式](#认证方式)：区分 JWT、管理密钥、API Key 和签名票据。
@@ -194,6 +195,15 @@ Ollama Cloud 的设置、状态、会话、自动刷新和主动刷新路由直�
 `POST /api/v1/keys` 和 `PUT /api/v1/keys/{id}` 接受 `billing_mode`（`auto`、`subscription`、`balance`）及可空 `preferred_subscription_id`。省略模式或使用 `auto` 保持旧的订阅优先、余额兜底行为；`balance` 会清除指定订阅；`subscription` 必须指定当前付款主体的一份有效订阅。个人 Key 的付款主体是本人，团队 Key 的付款主体是 Team Owner。
 
 创建和更新 API Key 时，`quota`、`rate_limit_5h`、`rate_limit_1d`、`rate_limit_7d` 必须是有限、非负且小于 `1e12` 的 USD 数值，以匹配数据库 `DECIMAL(20,8)`；`0` 仍表示不限额。创建请求省略 `expires_in_days` 表示永不过期，显式提供时必须大于 0；更新请求用空 `expires_at` 清除到期时间，用合法 RFC3339 时间设置明确到期点。handler 的早期校验与 service 的最终校验必须使用同一规则，内部调用不能绕过。
+
+<a id="api_key_rotation"></a>
+### 凭据轮换
+
+`POST /api/v1/keys/{id}/rotate` 原地替换 Key 的凭据值。只有所有者本人可以调用；服务端托管的隐藏 Key 按不存在处理。成功时返回完整 Key，`key` 是新凭据，ID、名称、分组、额度、有效期、IP 规则、模型映射和结算方式全部不变，用量与计费历史继续挂在同一条记录上。
+
+写入成功后旧凭据立即失效，旧凭据和可能存在的旧负缓存一起从鉴权缓存中清理。响应携带凭据材料，必须带 `Cache-Control: no-store`。
+
+轮换在 `key` 列上比较并写入：只有库中值仍等于读到的旧凭据时才更新。并发轮换因此只有一个成功，落败的一方返回 `API_KEY_ROTATE_CONFLICT`（409），不会把已经生效的新凭据覆盖成用户没有保存过的值。新凭据与其它记录碰撞时沿用 `API_KEY_EXISTS`。
 
 `GET /api/v1/keys/billing-options?scope=personal|team` 返回当前作用域可指定的有效订阅摘要，包括 `id`、`plan_id`、`plan_name`、`expires_at`、`groups_restricted` 和 `applicable_groups`。`GET /api/v1/groups/available?scope=personal|team&subscription_id={id}` 在带 `subscription_id` 时返回付款主体原有分组权限与该订阅套餐分组的交集；不带该参数时保持历史的可用分组结果。两个接口都不把成员自己的订阅泄露到团队作用域。可见分组的 `models` 和 `model_protocols` 来自组内可请求能力，供客户端配置选择真实模型；它们不扩大请求权限。
 
