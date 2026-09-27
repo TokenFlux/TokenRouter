@@ -5,6 +5,7 @@ import argparse
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -48,6 +49,13 @@ def changed_go_files(root: Path, base: str | None = None) -> list[Path]:
     return files
 
 
+def resolve_bash() -> str:
+    # Windows 的 CreateProcess 先搜 System32 再搜 PATH，裸名 bash 会命中 WSL 的
+    # C:\Windows\system32\bash.exe；它把 C:/... 当 Linux 路径，脚本永远找不到。
+    # 按 PATH 解析出绝对路径，才能用上 PATH 里靠前的 git-bash。其他平台沿用 bash。
+    return shutil.which("bash") or "bash"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="仅检查，发现格式差异时返回失败")
@@ -62,9 +70,11 @@ def main() -> int:
         return 0
 
     # 所有格式规则只读取现有配置，工具版本由统一入口校验。
+    # 交给 bash 的路径统一用正斜杠：Windows 原生 Python 拼出的命令行不带引号，
+    # POSIX shell 会把反斜杠当转义符吃掉，脚本路径和文件路径都会解析失败。
     command = [
-        "bash", str(root / "tools/golangci-lint.sh"),
-        "fmt", "--config", str(root / "backend/.golangci.yml"),
+        resolve_bash(), (root / "tools/golangci-lint.sh").as_posix(),
+        "fmt", "--config", (root / "backend/.golangci.yml").as_posix(),
     ]
     if args.check:
         command.append("--diff")
@@ -73,7 +83,7 @@ def main() -> int:
     # 分批传参，避免大量变更超出系统命令行长度限制。
     for start in range(0, len(files), 100):
         result = subprocess.run(
-            [*command, *map(str, files[start:start + 100])],
+            [*command, *[path.as_posix() for path in files[start:start + 100]]],
             cwd=root, check=False,
         )
         if result.returncode != 0:
