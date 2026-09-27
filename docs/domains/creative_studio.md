@@ -229,6 +229,7 @@ app 固定唯一生产实例，提供商目录复用 creative/provider 对原生
 - 本地存储：IndexedDB 库名 `tokenrouter-creative-studio`（版本 1），对象仓库为 `assets`（源图/输出 blob）、`scenes`（画布 JSON 快照，图片 src 以 `asset://<key>` 占位、刷新后回 assets 取 blob 恢复，缺失的图跳过不阻塞）和 `settings`（模型、操作、尺寸、比例、画质、背景、思考强度与提示词草稿）；画布恢复完成前不会执行外部上板或用空画布覆盖已有快照，画布变更防抖约 1 秒存快照，并在页面隐藏/卸载时刷新待写入内容，恢复时重建 runId + outputIndex → 画布对象的注册表；图片绝不以 base64 进入 localStorage。另用 localStorage 的 `creative:workspaceId` 持久化高熵 UUID，同源标签页共享；清空本机创作数据会删除 IndexedDB 内容并旋转工作区 ID，因此旧历史立即隐藏，后续任务进入新工作区。
 - 什么情况下会丢失：历史自动恢复只适用于服务端仍为 `succeeded`、输出未 ack 且 transient 尚未过期的任务；服务端已 ack、transient 已过期或本地保存失败后仍无对应 blob 的输出显示“素材缺失”。本地配额不足时提示用户下载备份；清理浏览器站点数据会清空全部本地素材并创建新的工作区，且没有任何跨设备同步。
 - 幂等重试：创建任务失败重试复用同一 Idempotency-Key，成功后重置。
+- 失败重试与历史提示词：创建任务成功时把提交参数快照留在上面的 `settings` 存储里（上限 50 条、超出按最旧清理；写入失败静默忽略，不影响提交）。终态且非 `succeeded` 的任务（`failed`/`cancelled`/`result_lost`）在历史里提供「重试」，先用快照还原输入区，再走与点击生成相同的采集与提交路径，不新增第二条提交路径；输入区另有「历史提示词」入口，按最近使用倒序、按文本去重。本机没有快照或模型已下架时给出明确提示，不静默失败。服务端边界不变：prompt 明文仍只经 Redis 临时键，不进入 PostgreSQL。
 
 ## 配置
 

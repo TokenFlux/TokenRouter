@@ -29,6 +29,9 @@ export default {
       selectModelFirst: '请先选择模型。',
       // 画面比例为 auto 时，参数按钮和比例选项显示的文字
       autoRatio: '自动比例',
+      // 历史提示词：一键回填之前用过的提示词，快照保存在浏览器本地
+      promptHistory: '历史提示词',
+      promptHistoryEmpty: '本机还没有历史提示词。',
     },
     // 空画布引导：画布上没有图片时显示，示例提示词点击后填入输入框
     empty: {
@@ -118,6 +121,7 @@ export default {
       empty: '暂无创作记录。',
       importToCanvas: '导入到画布',
       download: '下载',
+      retry: '重试',
       clearData: '清空本机创作数据',
       clearSuccess: '本机创作数据已清空。',
       confirmClearTitle: '清空本机创作数据？',
@@ -152,6 +156,8 @@ export default {
       maskRequired: '局部重绘需要 mask，请先选中图片并用画笔绘制要重绘的区域。',
       referenceLimit: '当前模型最多支持 {max} 张参考图。',
       submitFailed: '提交生成失败，请重试。',
+      retryUnavailable: '本机没有保存这次提交的提示词（服务端只保存哈希），无法重试；请重新输入提示词。',
+      retryModelUnavailable: '这次提交使用的模型当前不可用，无法重试。',
       historyFailed: '历史记录加载失败，请检查当前浏览器存储权限后重试。',
       workspaceUnavailable: '当前浏览器工作区不可用，请允许本站使用本地存储后重试。',
       clearFailed: '清空本机数据失败。',

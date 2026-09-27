@@ -36,6 +36,7 @@ import {
   saveSetting,
   type LocalAsset,
 } from '@/utils/creativeLocalStore'
+import { loadRunInputSnapshot, saveRunInputSnapshot } from '@/utils/creativeRunInputs'
 
 // 生成参数来源：视图在点击生成时从画布收集（选中的源图 + 画笔 mask）
 export interface CreativeExportInput {
@@ -490,6 +491,20 @@ export function useCreativeStudio() {
       if (!isWorkspaceCurrent(requestWorkspaceId, requestGeneration)) return true
       currentRun.value = run
       upsertRunInHistory(run)
+      // 服务端只保存 prompt 的 sha256，失败重试必须靠本地快照取回提示词与参数。
+      void saveRunInputSnapshot({
+        runId: run.id,
+        prompt: prompt.value,
+        operation: operation.value,
+        model: option.model,
+        groupId: option.group_id,
+        imageSize: imageSize.value,
+        aspectRatio: aspectRatio.value,
+        quality: quality.value,
+        background: background.value,
+        thinkingLevel: thinkingLevel.value,
+        createdAt: Date.now(),
+      })
       startPolling(run.id, { placeOnCanvas: true })
       return true
     } catch (e) {
@@ -498,6 +513,33 @@ export function useCreativeStudio() {
     } finally {
       busy.value = false
     }
+  }
+
+  // 用本地快照还原失败任务的输入区（提示词 + 参数）；返回 false 表示本机没有该次提交记录。
+  // 源图 / mask 仍由画布在点击生成时重新采集，因此恢复后可直接重试。
+  async function restoreRunInput(runId: string): Promise<boolean> {
+    const snapshot = await loadRunInputSnapshot(runId)
+    if (!snapshot) {
+      error.value = t('creative.error.retryUnavailable')
+      return false
+    }
+    const option = models.value.find(
+      (item) => creativeOptionKey(item) === `${snapshot.groupId}::${snapshot.model}`,
+    )
+    if (!option) {
+      error.value = t('creative.error.retryModelUnavailable')
+      return false
+    }
+    selectedOptionKey.value = creativeOptionKey(option)
+    operation.value = snapshot.operation as CreativeOperation
+    imageSize.value = snapshot.imageSize
+    aspectRatio.value = snapshot.aspectRatio
+    quality.value = snapshot.quality
+    background.value = snapshot.background
+    thinkingLevel.value = snapshot.thinkingLevel
+    prompt.value = truncatePrompt(snapshot.prompt, capabilities.value.max_prompt_chars)
+    error.value = ''
+    return true
   }
 
   // ==================== 轮询与输出收割 ====================
@@ -902,6 +944,7 @@ export function useCreativeStudio() {
     loadModels,
     selectOption,
     createRun,
+    restoreRunInput,
     refreshHistory,
     clearLocalData,
     registerCanvasBridge,

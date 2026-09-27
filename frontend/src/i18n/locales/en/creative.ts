@@ -28,6 +28,9 @@ export default {
       selectModel: 'Select a model',
       selectModelFirst: 'Select a model first.',
       autoRatio: 'Auto ratio',
+      // Prompt history: refill a previously used prompt; snapshots live in browser storage
+      promptHistory: 'Prompt history',
+      promptHistoryEmpty: 'No prompt history in this browser yet.',
     },
     empty: {
       title: 'Start with a description',
@@ -116,6 +119,7 @@ export default {
       empty: 'No creative runs yet.',
       importToCanvas: 'Send to canvas',
       download: 'Download',
+      retry: 'Retry',
       clearData: 'Clear local creative data',
       clearSuccess: 'Local creative data cleared.',
       confirmClearTitle: 'Clear local creative data?',
@@ -150,6 +154,8 @@ export default {
       maskRequired: 'Inpaint requires a mask. Select an image and paint the area with the brush first.',
       referenceLimit: 'This model supports at most {max} reference images.',
       submitFailed: 'Failed to submit the creative run. Please retry.',
+      retryUnavailable: 'This browser has no saved prompt for that run (the server keeps only a hash), so it cannot be retried. Please re-enter the prompt.',
+      retryModelUnavailable: 'The model used by that run is currently unavailable, so it cannot be retried.',
       historyFailed: 'Failed to load run history. Check this browser storage permission and retry.',
       workspaceUnavailable: 'This browser workspace is unavailable. Allow local storage for this site and retry.',
       clearFailed: 'Failed to clear local data.',

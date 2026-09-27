@@ -305,6 +305,11 @@ export async function loadSetting<T = unknown>(key: string): Promise<T | null> {
   return record ? (record.value as T) : null
 }
 
+// 删除设置项，key 不存在时视为成功（幂等）
+export async function deleteSetting(key: string): Promise<void> {
+  await withStore(STORE_SETTINGS, 'readwrite', (store) => store.delete(key))
+}
+
 // ==================== 维护 API ====================
 
 // 清空创作台全部本地数据（素材 + 场景 + 设置）
