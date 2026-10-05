@@ -491,7 +491,7 @@ export function useCreativeStudio() {
       if (!isWorkspaceCurrent(requestWorkspaceId, requestGeneration)) return true
       currentRun.value = run
       upsertRunInHistory(run)
-      // 服务端只保存 prompt 的 sha256，失败重试必须靠本地快照取回提示词与参数。
+      // 服务端只保存 prompt 的 sha256，历史里的复制提示词和失败重试都靠本地快照取回明文。
       void saveRunInputSnapshot({
         runId: run.id,
         prompt: prompt.value,

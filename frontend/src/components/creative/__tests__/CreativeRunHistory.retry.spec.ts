@@ -1,7 +1,13 @@
 import { nextTick, ref } from 'vue'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CreativeRunHistory from '@/components/creative/CreativeRunHistory.vue'
+
+const { copyMock, showErrorMock, loadSnapshotMock } = vi.hoisted(() => ({
+  copyMock: vi.fn(),
+  showErrorMock: vi.fn(),
+  loadSnapshotMock: vi.fn(),
+}))
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -17,6 +23,18 @@ vi.mock('@/composables/useBalanceDisplay', () => ({
   useBalanceDisplay: () => ({
     formatBalanceAmount: (value: number | null | undefined) => String(value ?? ''),
   }),
+}))
+
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({ copied: { value: false }, copyToClipboard: copyMock }),
+}))
+
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => ({ showError: showErrorMock, showSuccess: vi.fn() }),
+}))
+
+vi.mock('@/utils/creativeRunInputs', () => ({
+  loadRunInputSnapshot: loadSnapshotMock,
 }))
 
 function createStudio(runs: unknown[]) {
@@ -56,6 +74,12 @@ async function expandRunRow(wrapper: ReturnType<typeof mount>, model: string) {
   await nextTick()
 }
 
+beforeEach(() => {
+  copyMock.mockReset()
+  showErrorMock.mockReset()
+  loadSnapshotMock.mockReset()
+})
+
 describe('CreativeRunHistory 失败重试', () => {
   it('失败任务展开后提供重试按钮，点击派发 retry 事件', async () => {
     const wrapper = mount(CreativeRunHistory, {
@@ -77,5 +101,43 @@ describe('CreativeRunHistory 失败重试', () => {
     await expandRunRow(wrapper, succeededRun.model)
 
     expect(wrapper.find('[data-testid="creative-run-retry"]').exists()).toBe(false)
+  })
+})
+
+describe('CreativeRunHistory 复制提示词', () => {
+  it('成功任务也提供复制提示词按钮', async () => {
+    const wrapper = mount(CreativeRunHistory, {
+      props: { studio: createStudio([succeededRun]) as never, activeRunCount: 0 },
+    })
+
+    await expandRunRow(wrapper, succeededRun.model)
+
+    expect(wrapper.find('[data-testid="creative-run-copy-prompt"]').exists()).toBe(true)
+  })
+
+  it('点击复制提示词按钮，把本地快照的提示词写入剪贴板', async () => {
+    loadSnapshotMock.mockResolvedValue({ runId: succeededRun.id, prompt: '一只猫' })
+    const wrapper = mount(CreativeRunHistory, {
+      props: { studio: createStudio([succeededRun]) as never, activeRunCount: 0 },
+    })
+
+    await expandRunRow(wrapper, succeededRun.model)
+    await wrapper.get('[data-testid="creative-run-copy-prompt"]').trigger('click')
+
+    expect(loadSnapshotMock).toHaveBeenCalledWith(succeededRun.id)
+    expect(copyMock).toHaveBeenCalledWith('一只猫', 'creative.history.promptCopied')
+  })
+
+  it('本机没有快照时提示不可用，不写剪贴板', async () => {
+    loadSnapshotMock.mockResolvedValue(null)
+    const wrapper = mount(CreativeRunHistory, {
+      props: { studio: createStudio([failedRun]) as never, activeRunCount: 0 },
+    })
+
+    await expandRunRow(wrapper, failedRun.model)
+    await wrapper.get('[data-testid="creative-run-copy-prompt"]').trigger('click')
+
+    expect(copyMock).not.toHaveBeenCalled()
+    expect(showErrorMock).toHaveBeenCalledWith('creative.history.promptUnavailable')
   })
 })

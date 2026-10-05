@@ -197,16 +197,28 @@
                       </div>
                     </template>
                     <p v-else class="text-xs text-gray-400 dark:text-dark-400">{{ t('creative.history.noOutputs') }}</p>
-                    <button
-                      v-if="canRetry(run)"
-                      type="button"
-                      data-testid="creative-run-retry"
-                      class="flex w-full items-center justify-center gap-1 rounded-control border border-primary-900/10 px-2 py-1 text-xs text-gray-600 transition-colors hover:border-primary-500 hover:text-primary-600 dark:border-dark-600 dark:text-gray-300 dark:hover:border-primary-500 dark:hover:text-primary-300"
-                      @click="emit('retry', run.id)"
-                    >
-                      <Icon name="refresh" size="sm" />
-                      {{ t('creative.history.retry') }}
-                    </button>
+                    <!-- 终态任务操作行：复制提示词对全部终态任务可用；失败类任务另有重试 -->
+                    <div v-if="!isActive(run)" class="flex gap-1.5">
+                      <button
+                        type="button"
+                        data-testid="creative-run-copy-prompt"
+                        class="history-action-btn"
+                        @click="copyRunPrompt(run.id)"
+                      >
+                        <Icon name="clipboard" size="sm" />
+                        {{ t('creative.history.copyPrompt') }}
+                      </button>
+                      <button
+                        v-if="canRetry(run)"
+                        type="button"
+                        data-testid="creative-run-retry"
+                        class="history-action-btn"
+                        @click="emit('retry', run.id)"
+                      >
+                        <Icon name="refresh" size="sm" />
+                        {{ t('creative.history.retry') }}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -231,6 +243,7 @@ import MotionTransition from '@/components/common/MotionTransition.vue'
  * - 状态按四种色调显示：进行中品牌青加转圈、成功绿色、失败和结果丢失红色、取消灰色
  * - 点击行原地向下展开：终态任务显示本地保存的输出图片，图片按原始比例撑满侧栏宽度并可拖到画布；
  *   「导入到画布」和「下载」悬浮在图片右上角，本地素材缺失时显示缺失占位
+ * - 终态任务底部提供「复制提示词」（明文取自本机快照，服务端只保存 sha256）；失败类任务另有「重试」，经父级派发
  * - 进行中的任务只展示加载状态，界面上没有素材操作或取消入口
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
@@ -243,6 +256,9 @@ import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import { creativeTimestampToMs, formatCreativeRunElapsed } from '@/utils/creativeRunTime'
 import { outputAssetKey, type LocalAsset } from '@/utils/creativeLocalStore'
 import { CREATIVE_OUTPUT_DRAG_MIME, serializeCreativeOutputDrag } from '@/utils/creativeDrag'
+import { useClipboard } from '@/composables/useClipboard'
+import { useAppStore } from '@/stores/app'
+import { loadRunInputSnapshot } from '@/utils/creativeRunInputs'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { MEDIA_MAX_MD } from '@/constants/layout'
 import type { useCreativeStudio } from '@/composables/useCreativeStudio'
@@ -262,6 +278,8 @@ const emit = defineEmits<{ retry: [runId: string] }>()
 const studio = props.studio
 const { t } = useI18n()
 const { formatBalanceAmount } = useBalanceDisplay()
+const { copyToClipboard } = useClipboard()
+const appStore = useAppStore()
 
 // 侧栏展开状态：默认收起，父级不绑定 v-model 时由组件自己维护
 const open = defineModel<boolean>('open', { default: false })
@@ -398,6 +416,17 @@ function canRetry(run: CreativeRun): boolean {
   return CREATIVE_RUN_TERMINAL_STATUSES.includes(run.status) && run.status !== 'succeeded'
 }
 
+// 复制提示词：明文只存在本机快照里（服务端只保存 sha256），没有快照时提示不可用
+async function copyRunPrompt(runId: string): Promise<void> {
+  const snapshot = await loadRunInputSnapshot(runId)
+  const promptText = snapshot?.prompt?.trim()
+  if (!promptText) {
+    appStore.showError(t('creative.history.promptUnavailable'))
+    return
+  }
+  await copyToClipboard(promptText, t('creative.history.promptCopied'))
+}
+
 // 状态色调：结算、释放等中间阶段都归入进行中
 function statusTone(run: CreativeRun): 'active' | 'success' | 'danger' | 'muted' {
   if (isActive(run)) return 'active'
@@ -513,6 +542,11 @@ async function refresh(): Promise<void> {
 
 .history-output-btn {
   @apply inline-flex h-8 w-8 items-center justify-center rounded-control bg-gray-900/60 text-white backdrop-blur transition-colors hover:bg-gray-900/80;
+}
+
+/* 条目底部操作按钮：复制提示词与重试并排平分宽度 */
+.history-action-btn {
+  @apply flex flex-1 items-center justify-center gap-1 rounded-control border border-primary-900/10 px-2 py-1 text-xs text-gray-600 transition-colors hover:border-primary-500 hover:text-primary-600 dark:border-dark-600 dark:text-gray-300 dark:hover:border-primary-500 dark:hover:text-primary-300;
 }
 
 /* 发送动画到达时历史入口轻弹一次 */

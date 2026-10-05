@@ -264,45 +264,6 @@
         </MotionTransition>
       </span>
 
-      <!-- 历史提示词：一键回填之前用过的提示词；快照保存在浏览器本地，服务端只保存哈希 -->
-      <span class="relative min-w-0">
-        <button
-          type="button"
-          class="composer-chip"
-          :class="openPanel === 'prompts' && 'composer-chip-active'"
-          :title="t('creative.composer.promptHistory')"
-          :aria-expanded="openPanel === 'prompts'"
-          data-testid="creative-prompt-history"
-          @click="togglePanel('prompts', $event)"
-        >
-          <Icon name="clock" size="sm" class="flex-shrink-0" />
-          <span class="max-w-24 truncate">{{ t('creative.composer.promptHistory') }}</span>
-          <Icon
-            name="chevronDown"
-            size="xs"
-            class="flex-shrink-0 opacity-60 transition-transform"
-            :class="openPanel === 'prompts' && 'rotate-180'"
-            :animate-on-hover="false"
-          />
-        </button>
-        <MotionTransition name="pop-float">
-          <div v-if="openPanel === 'prompts'" class="chip-popover" :style="popoverStyle">
-            <p v-if="!recentPrompts.length" class="px-2.5 py-2 text-xs text-gray-500 dark:text-dark-400">
-              {{ t('creative.composer.promptHistoryEmpty') }}
-            </p>
-            <button
-              v-for="item in recentPrompts"
-              :key="item.runId"
-              type="button"
-              class="composer-option"
-              @click="applyPrompt(item.prompt)"
-            >
-              <span class="line-clamp-3 min-w-0 flex-1 text-xs text-gray-700 dark:text-gray-200">{{ item.prompt }}</span>
-            </button>
-          </div>
-        </MotionTransition>
-      </span>
-
       <div class="ml-auto flex items-center gap-3">
         <!-- 单张预估价：金额加深加粗，余额符号和“/ 张”弱化，emoji 符号和数字之间留出间距。 -->
         <i18n-t
@@ -369,7 +330,6 @@ import {
   type CreativeOperation,
 } from '@/api/creative'
 import { formatCreativeRunElapsed } from '@/utils/creativeRunTime'
-import { listRecentPrompts, type CreativeRunInputSnapshot } from '@/utils/creativeRunInputs'
 
 type Studio = ReturnType<typeof useCreativeStudio>
 
@@ -422,7 +382,7 @@ const rootRef = ref<HTMLDivElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const sendButtonRef = ref<HTMLButtonElement | null>(null)
 // 当前展开的调参面板（同时只开一个）
-const openPanel = ref<'model' | 'params' | 'operation' | 'prompts' | null>(null)
+const openPanel = ref<'model' | 'params' | 'operation' | null>(null)
 // 调参弹层的水平定位（内联样式）：宽度取 320px、输入框宽、视口宽 - 3.5rem 三者最小值，
 // 左缘限制在输入框范围内。窄屏下 chip 右侧空间不足时向左移动弹层，使其留在屏幕内。
 const popoverStyle = ref<{ left: string; width: string }>({ left: '0px', width: '' })
@@ -441,18 +401,6 @@ const prompt = computed({
     studio.prompt.value = value
   },
 })
-
-// 历史提示词快照保存在浏览器本地（服务端只保存 prompt 的 sha256），一键回填之前用过的提示词
-const recentPrompts = ref<CreativeRunInputSnapshot[]>([])
-
-async function loadRecentPrompts(): Promise<void> {
-  recentPrompts.value = await listRecentPrompts(10)
-}
-
-function applyPrompt(value: string): void {
-  fillPrompt(value)
-  openPanel.value = null
-}
 
 // ==================== 状态行 ====================
 
@@ -655,12 +603,10 @@ function selectParam(group: ParamGroup, value: unknown): void {
 }
 
 // 展开 / 收起调参面板；展开时同步计算弹层定位（宽度 + 水平钳制）
-function togglePanel(panel: 'model' | 'params' | 'operation' | 'prompts', event: MouseEvent): void {
+function togglePanel(panel: 'model' | 'params' | 'operation', event: MouseEvent): void {
   openPanel.value = openPanel.value === panel ? null : panel
   panelAnchor = openPanel.value ? (event.currentTarget as HTMLElement) : null
   if (panelAnchor) layoutPopover(panelAnchor)
-  // 历史提示词快照存在 IndexedDB，展开面板时读取一次
-  if (openPanel.value === 'prompts') void loadRecentPrompts()
 }
 
 // 弹层水平定位：chip 左侧偏移钳制到 [0, 输入框宽 - 弹层宽]，保证弹层整体落在输入框内

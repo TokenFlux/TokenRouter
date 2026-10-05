@@ -29,9 +29,6 @@ export default {
       selectModelFirst: '请先选择模型。',
       // 画面比例为 auto 时，参数按钮和比例选项显示的文字
       autoRatio: '自动比例',
-      // 历史提示词：一键回填之前用过的提示词，快照保存在浏览器本地
-      promptHistory: '历史提示词',
-      promptHistoryEmpty: '本机还没有历史提示词。',
     },
     // 空画布引导：画布上没有图片时显示，示例提示词点击后填入输入框
     empty: {
@@ -121,6 +118,9 @@ export default {
       empty: '暂无创作记录。',
       importToCanvas: '导入到画布',
       download: '下载',
+      copyPrompt: '复制提示词',
+      promptCopied: '提示词已复制',
+      promptUnavailable: '本机没有保存这次提交的提示词。',
       retry: '重试',
       clearData: '清空本机创作数据',
       clearSuccess: '本机创作数据已清空。',

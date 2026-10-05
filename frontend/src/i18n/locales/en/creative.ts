@@ -28,9 +28,6 @@ export default {
       selectModel: 'Select a model',
       selectModelFirst: 'Select a model first.',
       autoRatio: 'Auto ratio',
-      // Prompt history: refill a previously used prompt; snapshots live in browser storage
-      promptHistory: 'Prompt history',
-      promptHistoryEmpty: 'No prompt history in this browser yet.',
     },
     empty: {
       title: 'Start with a description',
@@ -119,6 +116,9 @@ export default {
       empty: 'No creative runs yet.',
       importToCanvas: 'Send to canvas',
       download: 'Download',
+      copyPrompt: 'Copy prompt',
+      promptCopied: 'Prompt copied',
+      promptUnavailable: 'No prompt saved for this run in this browser.',
       retry: 'Retry',
       clearData: 'Clear local creative data',
       clearSuccess: 'Local creative data cleared.',

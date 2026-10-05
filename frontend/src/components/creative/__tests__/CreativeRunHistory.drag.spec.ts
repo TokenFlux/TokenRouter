@@ -21,6 +21,18 @@ vi.mock('@/composables/useBalanceDisplay', () => ({
   }),
 }))
 
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({ copied: { value: false }, copyToClipboard: vi.fn() }),
+}))
+
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => ({ showError: vi.fn(), showSuccess: vi.fn() }),
+}))
+
+vi.mock('@/utils/creativeRunInputs', () => ({
+  loadRunInputSnapshot: vi.fn(),
+}))
+
 const run = {
   id: 'crun_0123456789abcdef',
   status: 'succeeded' as const,
