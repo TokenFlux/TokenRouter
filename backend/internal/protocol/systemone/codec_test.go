@@ -2,11 +2,53 @@ package systemone
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+// TestModerationBodyDecodesDescriptions 检查审核文本与上游读取的 JSON 字符串一致。
+func TestModerationBodyDecodesDescriptions(t *testing.T) {
+	for _, tc := range []struct {
+		name, state, questions string
+		want                   []string
+	}{
+		{name: "string", state: `"\u0062locked"`, want: []string{"blocked"}},
+		{name: "object", state: `{"\u006bey":{"text":"\u0062locked","number":9007199254740993,"flag":true}}`, want: []string{"key", "blocked", "9007199254740993", "true"}},
+		{name: "array", state: `["\u0062locked",["\u4e2d\u6587"]]`, want: []string{"blocked", "中文"}},
+		{name: "escaped punctuation", state: `"\u003cscript\u003e\nline\t\"quoted\""`, want: []string{"<script>\nline\t\"quoted\""}},
+		{name: "literal escape", state: `"\\u0062locked"`, want: []string{`\u0062locked`}},
+		{name: "instructions", questions: `{"a":{"type":"noul","instructions":{"\u0061sk":["\u0062locked"]}}}`, want: []string{"ask", "blocked"}},
+		{name: "noul criteria", questions: `{"a":{"type":"noul","instructions":"ok","criteria":{"true":"\u0062locked","false":["\u4e2d\u6587"]}}}`, want: []string{"blocked", "中文"}},
+		{name: "choice criteria", questions: `{"a":{"type":"choice","instructions":"ok","criteria":{"\u0062locked":null,"other":{"text":"\u4e2d\u6587"}}}}`, want: []string{"blocked", "中文"}},
+		{name: "score criteria", questions: `{"a":{"type":"score","instructions":"ok","criteria":["\u0062locked",["\u4e2d\u6587"]]}}`, want: []string{"blocked", "中文"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state, questions := tc.state, tc.questions
+			if state == "" {
+				state = `"ok"`
+			}
+			if questions == "" {
+				questions = `{"a":{"type":"noul","instructions":"ok"}}`
+			}
+			request, err := ParseRequest([]byte(fmt.Sprintf(`{"model":"jev-latest","state":%s,"questions":%s}`, state, questions)))
+			require.NoError(t, err)
+			var body struct {
+				Messages []struct{ Content string } `json:"messages"`
+			}
+			require.NoError(t, json.Unmarshal(request.ModerationBody(), &body))
+			require.Len(t, body.Messages, 1)
+			for _, want := range tc.want {
+				require.Contains(t, body.Messages[0].Content, want)
+			}
+			if tc.name == "literal escape" {
+				require.NotContains(t, body.Messages[0].Content, "blocked")
+			}
+		})
+	}
+}
 
 // TestCodecPreservesMixedQuestions 检查结构化问题和扩展字段在模型改写后仍可解析。
 func TestCodecPreservesMixedQuestions(t *testing.T) {

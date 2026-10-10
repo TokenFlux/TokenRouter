@@ -135,6 +135,9 @@ func (Executor) Execute(ctx context.Context, input upstream.AttemptInput, sink u
 	result.HasUsage = decoded.HasUsage
 	result.Usage = decoded.Usage
 	result.Model = input.ResponseModel
+	if result.Model == "" {
+		result.Model = request.Model
+	}
 	result.UpstreamModel = target.Model
 	result.UpstreamResponseModel = decoded.Model
 	result.RequestID = response.Header.Get("x-request-id")
@@ -142,7 +145,7 @@ func (Executor) Execute(ctx context.Context, input upstream.AttemptInput, sink u
 		result.RequestID = response.Header.Get("request-id")
 	}
 	result.UpstreamHeaders = response.Header.Clone()
-	if input.ResponseModel != "" && input.ResponseModel != request.Model {
+	if input.ResponseModel != "" && input.ResponseModel != decoded.Model {
 		body, err = systemone.ReplaceModel(body, input.ResponseModel)
 		if err != nil {
 			return result, err

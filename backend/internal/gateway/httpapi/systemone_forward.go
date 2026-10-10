@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -11,6 +12,7 @@ import (
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
@@ -95,7 +97,15 @@ func (s *SystemOneExecutor) Forward(ctx context.Context, c *gin.Context, target 
 		},
 		WriteHeaders: func(out, in http.Header) { egressprovider.WriteFilteredHeaders(out, in, s.HeaderFilter) },
 	}
-	result, err = (jev.Executor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolSystemOne, Body: body, ResponseModel: requested, Target: t}, ResponseSink{Writer: c.Writer})
+	// 配置的别名和复合前缀用于客户端响应，直连请求展示上游返回的版本。
+	responseModel := ""
+	if requested != mapped {
+		responseModel = requested
+	}
+	if clientModel, _, composite := GetCompositeModelFromContext(c); composite {
+		responseModel = clientModel
+	}
+	result, err = (jev.Executor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolSystemOne, Body: body, ResponseModel: responseModel, Target: t}, ResponseSink{Writer: c.Writer})
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, result.Duration.Milliseconds())
 	if result.Served {
 		return result, err
@@ -118,9 +128,16 @@ func (s *SystemOneExecutor) Forward(ctx context.Context, c *gin.Context, target 
 		}
 		retry := failure.Status == 401 || failure.Status == 403 || failure.Status == 429 || failure.Status >= 500
 		if decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(selected), failure.Status, retry) && !decision.ShouldReturnGenericError() {
-			return result, &forward.UpstreamFailoverError{StatusCode: failure.Status, ResponseBody: failure.Body, ResponseHeaders: failure.Header.Clone()}
+			retryFailure := &forward.UpstreamFailoverError{StatusCode: failure.Status, ResponseBody: failure.Body, ResponseHeaders: failure.Header.Clone(), RetryableOnSameProvider: decision.RetryableOnSameProvider(gatewayprovider.ExecutionErrorPolicy(selected), failure.Status)}
+			if retryFailure.RetryableOnSameProvider {
+				if reset := jev.RetryAfterResetTime(failure.Header, time.Now()); reset != nil {
+					retryFailure.SameProviderRetryDelay = max(failover.SameProviderRetryDelay, time.Until(*reset))
+				}
+			}
+			return result, retryFailure
 		}
 		if decision.ShouldReturnGenericError() {
+			WriteSystemOneError(c, http.StatusInternalServerError, "upstream_error", "", "", "Upstream request failed")
 			return result, err
 		}
 		s.writeUpstreamError(c, failure)
@@ -138,9 +155,37 @@ func (s *SystemOneExecutor) writeUpstreamError(c *gin.Context, failure *jev.HTTP
 		return
 	}
 	egressprovider.WriteFilteredHeaders(c.Writer.Header(), failure.Header, s.HeaderFilter)
+	if status, kind, message, matched := ApplyErrorPassthroughRule(c, provider.PlatformJev, failure.Status, failure.Body, failure.Status, "upstream_error", "Upstream request failed"); matched {
+		WriteSystemOneError(c, status, kind, "", "", message)
+		return
+	}
 	contentType := failure.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "application/json"
 	}
 	c.Data(failure.Status, contentType, failure.Body)
+}
+
+// WriteSystemOneFailoverExhausted 按 Jev 平台匹配最终错误规则，保留上游重试时间。
+func WriteSystemOneFailoverExhausted(c *gin.Context, failure *forward.UpstreamFailoverError) {
+	if c.Writer.Written() {
+		return
+	}
+	CopyFailoverRetryAfter(c, http.Header(failure.ResponseHeaders))
+	status, kind, message := http.StatusBadGateway, "upstream_error", "Upstream request failed"
+	switch failure.StatusCode {
+	case http.StatusUnauthorized:
+		message = "Upstream authentication failed, please contact administrator"
+	case http.StatusForbidden:
+		message = "Upstream access forbidden, please contact administrator"
+	case http.StatusTooManyRequests:
+		status, kind, message = http.StatusTooManyRequests, "rate_limit_error", "Upstream rate limit exceeded, please retry later"
+	case 529:
+		status, message = http.StatusServiceUnavailable, "Upstream service overloaded, please retry later"
+	case 500, 502, 503, 504:
+		message = "Upstream service temporarily unavailable"
+	}
+	status, kind, message, _ = ApplyErrorPassthroughRule(c, provider.PlatformJev, failure.StatusCode, failure.ResponseBody, status, kind, message)
+	SetOpsUpstreamError(c, failure.StatusCode, upstream.ExtractErrorMessage(failure.ResponseBody), "")
+	WriteSystemOneError(c, status, kind, "", "", message)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
@@ -13,9 +14,10 @@ var ErrNoProvider = errors.New("no available SystemOne provider")
 
 // Outcome 保存一次交换结果及网关允许的重试状态。
 type Outcome struct {
-	Result upstream.AttemptResult
-	Err    error
-	Retry  bool
+	Result     upstream.AttemptResult
+	Err        error
+	Failure    *failover.FailureInfo
+	RetryLimit int
 }
 
 // Ports 绑定当前请求的选号、并发、交换、完成和健康反馈。
@@ -59,18 +61,9 @@ func Run(ctx context.Context, maxSwitches int, ports Ports) error {
 			if release != nil {
 				defer release()
 			}
-			result := ports.Forward(ctx)
-			ports.Report(ctx, result)
-			if result.Result.Served {
-				if result.Result.HasUsage {
-					ports.Complete(ctx, result.Result)
-				} else {
-					ports.MissingUsage(ctx, result.Result)
-				}
-			}
-			return result
+			return runSelected(ctx, ports)
 		}()
-		if outcome.Result.Served || outcome.Err == nil || !outcome.Retry || outcome.Result.HTTPCommitted || outcome.Result.RetryCommitted {
+		if !outcome.canRetry() {
 			return outcome.Err
 		}
 		last = outcome.Err
@@ -84,4 +77,31 @@ func Run(ctx context.Context, maxSwitches int, ports Ports) error {
 		ports.Switch()
 	}
 	return last
+}
+
+// runSelected 在同一提供商租约内完成池重试，等待可由请求取消。
+func runSelected(ctx context.Context, ports Ports) Outcome {
+	for retries := 0; ; retries++ {
+		outcome := ports.Forward(ctx)
+		ports.Report(ctx, outcome)
+		if outcome.Result.Served {
+			if outcome.Result.HasUsage {
+				ports.Complete(ctx, outcome.Result)
+			} else {
+				ports.MissingUsage(ctx, outcome.Result)
+			}
+		}
+		if !outcome.canRetry() || !failover.SameProviderRetryAllowed(outcome.Failure, retries, outcome.RetryLimit) {
+			return outcome
+		}
+		delay := failover.SameProviderRetryDelayFor(outcome.Failure, retries+1)
+		if !failover.SleepWithContext(ctx, delay) {
+			return Outcome{Err: ctx.Err()}
+		}
+	}
+}
+
+// canRetry 检查答案交付、错误分类和重试提交状态。
+func (o Outcome) canRetry() bool {
+	return o.Err != nil && o.Failure != nil && o.Failure.RetryNext && !o.Result.Served && !o.Result.HTTPCommitted && !o.Result.RetryCommitted
 }

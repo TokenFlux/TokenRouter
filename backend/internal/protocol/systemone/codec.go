@@ -108,11 +108,32 @@ func ReplaceModel(body []byte, model string) ([]byte, error) {
 	return sjson.SetBytes(body, "model", model)
 }
 
-// ModerationBody 把 state 和问题描述交给现有文本审核解析器。
+// ModerationBody 解码 state、问题描述和条件中的文本，交给现有审核解析器。
 func (r Request) ModerationBody() []byte {
+	var content strings.Builder
+	appendModerationText(&content, r.State)
 	questions, _ := json.Marshal(r.Questions)
-	body, _ := json.Marshal(map[string]any{"messages": []map[string]string{{"role": "user", "content": string(r.State) + "\n" + string(questions)}}})
+	appendModerationText(&content, questions)
+	body, _ := json.Marshal(map[string]any{"messages": []map[string]string{{"role": "user", "content": content.String()}}})
 	return body
+}
+
+// appendModerationText 读取已校验 JSON 的键和值，字符串解码一次，数字保持原精度。
+func appendModerationText(content *strings.Builder, raw json.RawMessage) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	for {
+		value, err := decoder.Token()
+		if err != nil {
+			return
+		}
+		switch value.(type) {
+		case json.Delim, nil:
+			continue
+		default:
+			_, _ = fmt.Fprintln(content, value)
+		}
+	}
 }
 
 // ParseResponse 先检查答案，再独立解析用量。无效用量通过 HasUsage 表示。

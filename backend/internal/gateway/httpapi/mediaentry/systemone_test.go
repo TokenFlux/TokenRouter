@@ -14,8 +14,12 @@ import (
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
@@ -28,6 +32,38 @@ type systemOneFunds struct{}
 type systemOneRPM struct {
 	scheduler.UserRPMCache
 	calls int
+}
+
+// TestSystemOneFailoverRules 检查重试耗尽时的平台匹配、监控开关和重试时间。
+func TestSystemOneFailoverRules(t *testing.T) {
+	for _, platform := range []string{"jev", "openai", ""} {
+		t.Run(platform, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointSystemOne, nil)
+			rule := gatewaytestkit.NonFailoverRule(503, "busy", 409, "Configured platform error")
+			if platform != "" {
+				rule.Platforms = []string{platform}
+			}
+			rule.SkipMonitoring = true
+			rules := gatewaytestkit.ErrorRules([]*errorpolicy.ErrorPassthroughRule{rule})
+			defer rules.Stop()
+			runtime := New(Bindings{Common: openaiattempt.Bindings{Support: &openaiattempt.Support{Rules: rules}}})
+			(mediaHTTPAdapter{runtime}).BindErrors(c)
+			run := &systemOneRun{h: runtime, c: c}
+			run.End(&forward.UpstreamFailoverError{StatusCode: 503, ResponseBody: []byte(`{"error":{"message":"busy"}}`), ResponseHeaders: http.Header{"Retry-After": []string{"17"}}})
+			require.Equal(t, "17", recorder.Header().Get("Retry-After"))
+			if platform == "openai" {
+				require.Equal(t, 502, recorder.Code)
+				require.NotContains(t, recorder.Body.String(), "Configured platform error")
+				require.False(t, c.GetBool(gatewayhttp.OpsSkipPassthroughKey))
+			} else {
+				require.Equal(t, 409, recorder.Code)
+				require.Contains(t, recorder.Body.String(), "Configured platform error")
+				require.True(t, c.GetBool(gatewayhttp.OpsSkipPassthroughKey))
+			}
+		})
+	}
 }
 
 // TestSystemOneMissingUsageRetainsSuccessfulRequest 检查用量告警的请求关联及成功响应。

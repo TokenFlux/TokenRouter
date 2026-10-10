@@ -85,8 +85,12 @@ func (p *systemOneRun) Forward(ctx context.Context) systemone.Outcome {
 		body = p.h.bindings.Common.Forward.ReplaceModelInBody(body, p.input.Mapping.MappedModel)
 	}
 	result, err := p.h.bindings.Platform.SystemOne(ctx, p.c, p.selection.Provider, body)
-	_, retry := errors.AsType[*forward.UpstreamFailoverError](err)
-	return systemone.Outcome{Result: result, Err: err, Retry: retry}
+	outcome := systemone.Outcome{Result: result, Err: err}
+	if failure, retry := errors.AsType[*forward.UpstreamFailoverError](err); retry {
+		outcome.Failure = failure.RetryFailure()
+		outcome.RetryLimit = p.selection.Provider.View().GetPoolModeRetryCount()
+	}
+	return outcome
 }
 
 // Report 将上游完成状态和最终模型反馈给调度器。
@@ -95,7 +99,7 @@ func (p *systemOneRun) Report(ctx context.Context, outcome systemone.Outcome) {
 		return
 	}
 	// 已观测到答案的客户端写入失败仍算上游完成。
-	if p.c.Writer.Written() && !outcome.Result.Served && !outcome.Retry {
+	if p.c.Writer.Written() && !outcome.Result.Served && outcome.Failure == nil {
 		return
 	}
 	model := outcome.Result.UpstreamModel
@@ -142,10 +146,7 @@ func (p *systemOneRun) End(err error) {
 		return
 	}
 	if failure, ok := errors.AsType[*forward.UpstreamFailoverError](err); ok {
-		if retry := http.Header(failure.ResponseHeaders).Get("Retry-After"); retry != "" {
-			p.c.Header("Retry-After", retry)
-		}
-		p.h.bindings.Common.Support.HandleFailoverExhausted(p.c, failure, false)
+		gatewayhttp.WriteSystemOneFailoverExhausted(p.c, failure)
 		return
 	}
 	if p.h.bindings.Common.Support.HandleOpenAISelectionBusinessError(p.c, err, false) {
