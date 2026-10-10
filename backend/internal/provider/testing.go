@@ -24,6 +24,7 @@ const (
 	TestRouteGrok
 	TestRouteAntigravity
 	TestRouteQoder
+	TestRouteJev
 
 	ProviderTestTypeText          = "text"
 	ProviderTestTypeImage         = "image"
@@ -224,6 +225,8 @@ func (s *TestService) execute(ctx context.Context, request TestRequest, sink Tes
 		prepared.Route = TestRouteGrok
 	case PlatformAntigravity:
 		prepared.Route = TestRouteAntigravity
+	case PlatformJev:
+		prepared.Route = TestRouteJev
 	case PlatformQoder:
 		prepared.Route = TestRouteQoder
 	default:
@@ -235,6 +238,8 @@ func (s *TestService) execute(ctx context.Context, request TestRequest, sink Tes
 // TestProtocolID 把管理端传入的测试协议转换为原生协议 ID，未知值返回空字符串。
 func TestProtocolID(protocol string) capability.ProtocolID {
 	switch protocol {
+	case "systemone":
+		return capability.ProtocolSystemOne
 	case APIProtocolAnthropic:
 		return capability.ProtocolAnthropicMessages
 	case APIProtocolResponses:
@@ -251,9 +256,11 @@ func TestProtocolID(protocol string) capability.ProtocolID {
 // 国产平台可测试已启用的协议，其他平台使用各自固定的测试端点。
 func testProtocolAllowed(info TestTargetInfo, protocol string) bool {
 	switch info.Platform {
+	case PlatformJev:
+		return protocol == "systemone" && slices.Contains(info.EnabledProtocols, capability.ProtocolSystemOne)
 	case PlatformOpenAI:
 		if info.Type == ProviderTypeAPIKey {
-			return protocol != APIProtocolAnthropic
+			return protocol == APIProtocolResponses || protocol == APIProtocolChatCompletions
 		}
 		return protocol == APIProtocolResponses
 	case PlatformKimi, PlatformZhipu, PlatformDeepseek:

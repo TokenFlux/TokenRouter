@@ -18,7 +18,7 @@ import (
 
 func TestProtocolCatalogFixture(t *testing.T) {
 	catalog := capability.ProtocolCatalog()
-	require.Len(t, catalog, 24)
+	require.Len(t, catalog, 25)
 	ids := map[protocol.ProtocolID]bool{}
 	public := 0
 	for _, p := range catalog {
@@ -28,7 +28,7 @@ func TestProtocolCatalogFixture(t *testing.T) {
 			public++
 		}
 	}
-	require.Equal(t, 21, public)
+	require.Equal(t, 22, public)
 	require.Len(t, routinghttpapi.AuxiliaryOperations(), 11)
 	for _, operation := range routinghttpapi.AuxiliaryOperations() {
 		if operation.Protocol != "" {

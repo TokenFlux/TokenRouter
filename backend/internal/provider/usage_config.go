@@ -16,7 +16,7 @@ const (
 
 // EffectiveUpstreamUsageConfig 解析提供商的生效配置。缺少配置时使用安全的默认适配器。
 func EffectiveUpstreamUsageConfig(provider *Record) (UpstreamUsageQueryConfig, error) {
-	config := UpstreamUsageQueryConfig{Enabled: true, Adapter: UpstreamUsageDefaultAdapter}
+	config := UpstreamUsageQueryConfig{Enabled: provider == nil || provider.Platform != PlatformJev, Adapter: UpstreamUsageDefaultAdapter}
 	if adapter := CNUpstreamUsageAdapterName(provider); adapter != "" {
 		config.Adapter = adapter
 	}

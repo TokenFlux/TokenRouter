@@ -109,13 +109,13 @@ internal/routing/capability internal/scheduler/policy internal/site`, Tests: ""}
 internal/egress/provider internal/idempotency internal/idempotency/httpapi internal/identity/contact
 internal/infra/httpclient/... internal/infra/postgres/... internal/infra/redis/...
 internal/infra/telemetry/... internal/pkg/ internal/protocol internal/protocol/anthropic
-internal/protocol/gemini internal/protocol/google internal/protocol/grok internal/protocol/openai
+internal/protocol/gemini internal/protocol/google internal/protocol/grok internal/protocol/openai internal/protocol/systemone
 internal/routing internal/routing/accessview internal/routing/capability
 internal/routing/httpapi/dto internal/routing/modelmap internal/scheduler internal/scheduler/policy
 internal/server/httpx internal/settings internal/upstream internal/upstream/anthropic
 internal/upstream/anthropic/oauth internal/upstream/antigravity internal/upstream/bedrock
 internal/upstream/deepseek internal/upstream/gemini internal/upstream/gemini/codeassist
-internal/upstream/grok internal/upstream/kimi internal/upstream/ollama internal/upstream/openai
+internal/upstream/grok internal/upstream/jev internal/upstream/kimi internal/upstream/ollama internal/upstream/openai
 internal/upstream/qoder internal/upstream/usagecontract internal/upstream/usageprovider
 internal/upstream/usageview internal/upstream/vertex internal/upstream/zhipu internal/usage`, Tests: `internal/modelcatalog/testkit internal/config internal/gateway internal/gateway/forward internal/gateway/media
 internal/gateway/provider/modelidentity internal/gateway/requeststate internal/gateway/session
@@ -166,13 +166,13 @@ internal/creative/provider internal/egress internal/egress/provider internal/gat
 internal/identity internal/identity/httpapi/authctx internal/infra/httpclient/...
 internal/infra/telemetry/... internal/infra/timingwheel/... internal/moderation internal/ops
 internal/pkg/ internal/protocol internal/protocol/anthropic internal/protocol/bridge
-internal/protocol/gemini internal/protocol/google internal/protocol/openai
+internal/protocol/gemini internal/protocol/google internal/protocol/openai internal/protocol/systemone
 internal/protocol/wirejson internal/routing internal/routing/accessview internal/routing/capability
 internal/routing/modelmap internal/scheduler internal/scheduler/policy internal/scheduler/rediscache
 internal/search internal/search/contract internal/server/clientip internal/server/httpx
 internal/settings internal/upstream internal/upstream/anthropic internal/upstream/antigravity
 internal/upstream/bedrock internal/upstream/gemini internal/upstream/gemini/codeassist
-internal/upstream/grok internal/upstream/ollama internal/upstream/openai
+internal/upstream/grok internal/upstream/jev internal/upstream/ollama internal/upstream/openai
 internal/upstream/openai/liveattestation internal/upstream/openai/ws/... internal/upstream/qoder
 internal/upstream/vertex internal/usage`, Tests: `internal/billing/provider internal/config internal/moderation/provider internal/routing/testkit
 internal/scheduler/rediscache/codec internal/search/provider internal/server/middleware
@@ -258,7 +258,7 @@ internal/infra/postgres/... internal/scheduler internal/testutil/... migrations`
 		"internal/upstream": {Production: `internal/egress/urlpolicy internal/gateway/clientmeta internal/infra/httpclient/...
 internal/infra/telemetry/... internal/pkg/ internal/protocol internal/protocol/anthropic
 internal/protocol/bridge internal/protocol/gemini internal/protocol/google internal/protocol/grok
-internal/protocol/openai internal/protocol/wirejson internal/routing/capability
+internal/protocol/openai internal/protocol/systemone internal/protocol/wirejson internal/routing/capability
 internal/routing/modelmap internal/upstream/...`, Tests: "internal/testutil/assertion internal/testutil/rediscontainer"},
 		"internal/usage": {Production: `ent/... internal/provider internal/apikey internal/apikey/httpapi/dto internal/apikey/postgres
 internal/billing internal/billing/httpapi internal/billing/postgres internal/billing/pricing
@@ -313,6 +313,7 @@ internal/gateway/requeststate internal/routing internal/upstream`, Tests: ""},
 		"internal/protocol/anthropic":       {Production: "internal/protocol internal/protocol/anthropic internal/protocol/wirejson", Tests: "internal/testutil/assertion"},
 		"internal/protocol/bridge": {Production: `internal/protocol internal/protocol/anthropic internal/protocol/bridge internal/protocol/gemini
 internal/protocol/openai internal/protocol/wirejson`, Tests: ""},
+		"internal/protocol/systemone": {Production: "internal/protocol internal/protocol/systemone", Tests: ""},
 		"internal/protocol/gemini":    {Production: "internal/protocol/gemini", Tests: ""},
 		"internal/protocol/google":    {Production: "internal/protocol/google", Tests: ""},
 		"internal/protocol/grok":      {Production: "internal/protocol/grok", Tests: ""},
@@ -340,6 +341,7 @@ internal/routing/httpapi/dto internal/usage internal/usage/httpapi/dto`, Tests: 
 	}
 
 	platformDependencies = map[string]dependencySet{
+		"internal/upstream/jev": {Production: "internal/infra/httpclient/... internal/protocol internal/protocol/systemone internal/upstream internal/upstream/jev/...", Tests: ""},
 		"internal/upstream/anthropic": {Production: `internal/gateway/clientmeta internal/infra/httpclient/... internal/infra/telemetry/... internal/pkg/
 internal/protocol internal/protocol/anthropic internal/routing/capability internal/routing/modelmap
 internal/upstream internal/upstream/anthropic/...`, Tests: "internal/testutil/rediscontainer"},

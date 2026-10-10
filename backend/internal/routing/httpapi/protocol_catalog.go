@@ -53,7 +53,7 @@ type Protocol struct {
 func AdminProtocolCatalog(endpoints map[protocol.ProtocolID]string) ProtocolCatalogResponse {
 	providers := []ProtocolProviderProfile{}
 	groups := []ProtocolGroupProfile{}
-	for _, platform := range []string{capability.PlatformAnthropic, capability.PlatformOpenAI, capability.PlatformGemini, capability.PlatformAntigravity, capability.PlatformGrok, capability.PlatformQoder, capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
+	for _, platform := range capability.ProviderPlatforms() {
 		for _, providerType := range []string{capability.ProviderTypeOAuth, capability.ProviderTypeSetupToken, capability.ProviderTypeAPIKey, capability.ProviderTypeUpstream, capability.ProviderTypeBedrock, capability.ProviderTypeServiceAccount, capability.ProviderTypeCosy} {
 			if platform == capability.PlatformAntigravity && providerType != capability.ProviderTypeOAuth {
 				continue

@@ -1,6 +1,12 @@
 <template>
+  <span
+    v-if="iconInfo?.maskUrl"
+    class="inline-block shrink-0"
+    :style="{ width: size, height: size, backgroundColor: iconColor, maskImage: `url(${iconInfo.maskUrl})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }"
+    aria-hidden="true"
+  />
   <svg
-    v-if="iconInfo"
+    v-else-if="iconInfo"
     :width="size"
     :height="size"
     viewBox="0 0 24 24"

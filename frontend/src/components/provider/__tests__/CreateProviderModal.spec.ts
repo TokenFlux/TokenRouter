@@ -616,3 +616,28 @@ describe('CreateProviderModal Gemini API Key provider source', () => {
 })
 
 useProtocolCatalogFixture()
+
+
+describe('Jev 提供商', () => {
+  beforeEach(() => {
+    createProviderMock.mockReset()
+    createProviderMock.mockResolvedValue({ id: 101 })
+  })
+
+  it('使用 API Key、SystemOne 和官方地址创建，余额查询默认关闭', async () => {
+    const wrapper = mountModal()
+    await wrapper.get('[data-testid="create-provider-platform-jev"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="jev-provider-type-api-key"]').exists()).toBe(true)
+    await wrapper.get('form#create-provider-form input[type="text"]').setValue('Jev test')
+    await wrapper.get('form#create-provider-form input[type="password"]').setValue('test-key')
+    await wrapper.get('form#create-provider-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createProviderMock).toHaveBeenCalledWith(expect.objectContaining({
+      platform: 'jev', type: 'apikey',
+      credentials: expect.objectContaining({ api_key: 'test-key', base_url: 'https://api.typesafe.ai', upstream_protocols: ['systemone'] }),
+      extra: expect.objectContaining({ upstream_usage_query: expect.objectContaining({ enabled: false }) }),
+    }))
+    wrapper.unmount()
+  })
+})

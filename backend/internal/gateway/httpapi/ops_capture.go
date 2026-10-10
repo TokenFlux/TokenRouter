@@ -974,9 +974,11 @@ func logOpsRecoveredUpstream(c *gin.Context, ops *opscore.OpsService, finalStatu
 		lastStatus = *entry.UpstreamStatusCode
 	}
 	lastStage := ""
+	lastKind := ""
 	for _, event := range slices.Backward(entry.UpstreamErrors) {
 		if event != nil {
 			lastStage = event.Stage
+			lastKind = event.Kind
 			if event.ProviderID > 0 {
 				providerID := event.ProviderID
 				entry.ProviderID = &providerID
@@ -1000,13 +1002,16 @@ func logOpsRecoveredUpstream(c *gin.Context, ops *opscore.OpsService, finalStatu
 	entry.IsCountTokens = isCountTokensRequest(c)
 	entry.CreatedAt = time.Now()
 	entry.ErrorMessage = "Recovered upstream error"
-	if lastStage == opscore.ErrorPhaseProviderAuth {
+	if lastKind == "usage_invalid" {
+		entry.ErrorMessage = "SystemOne usage is missing or invalid; billing skipped"
+	}
+	if lastKind != "usage_invalid" && lastStage == opscore.ErrorPhaseProviderAuth {
 		entry.ErrorPhase = opscore.ErrorPhaseProviderAuth
 		entry.ErrorMessage = "Recovered provider authentication failure"
-	} else if lastStatus > 0 {
+	} else if lastKind != "usage_invalid" && lastStatus > 0 {
 		entry.ErrorMessage += " " + strconv.Itoa(lastStatus)
 	}
-	if entry.UpstreamErrorMessage != nil && strings.TrimSpace(*entry.UpstreamErrorMessage) != "" {
+	if lastKind != "usage_invalid" && entry.UpstreamErrorMessage != nil && strings.TrimSpace(*entry.UpstreamErrorMessage) != "" {
 		entry.ErrorMessage += ": " + strings.TrimSpace(*entry.UpstreamErrorMessage)
 	}
 	entry.ErrorMessage = truncateString(entry.ErrorMessage, 2048)

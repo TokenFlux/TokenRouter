@@ -559,3 +559,16 @@ func (f *modelCatalogueTransportFixture) DoWithTLS(req *http.Request, _ string, 
 	f.lastReq = req
 	return f.resp, nil
 }
+
+// TestJevModelSyncUsesNames 检查官方地址、认证和 models[].name 格式。
+func TestJevModelSyncUsesNames(t *testing.T) {
+	service := &ModelCatalogue{Options: upstreamModelSyncTestConfig()}
+	value := &providercore.Record{Platform: providercore.PlatformJev, Type: providercore.ProviderTypeAPIKey, Credentials: map[string]any{"api_key": "test"}}
+	request, err := service.buildUpstreamModelsRequest(context.Background(), value)
+	require.NoError(t, err)
+	require.Equal(t, "https://api.typesafe.ai/v1/models", request.URL.String())
+	require.Equal(t, "Bearer test", request.Header.Get("Authorization"))
+	ids, err := extractJevModelIDs([]byte(`{"models":[{"name":"jev-preview","description":"preview"},{"name":"jev-latest","release_date":"2026-09-15"}]}`))
+	require.NoError(t, err)
+	require.Equal(t, []string{"jev-latest", "jev-preview"}, ids)
+}

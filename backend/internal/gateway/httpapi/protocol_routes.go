@@ -13,6 +13,7 @@ const (
 	ProtocolOpenAIResponses       = protocol.ProtocolOpenAIResponses
 	ProtocolOpenAIChatCompletions = protocol.ProtocolOpenAIChatCompletions
 	ProtocolGeminiGenerateContent = protocol.ProtocolGeminiGenerateContent
+	ProtocolSystemOne             = protocol.ProtocolSystemOne
 	ProtocolEmbeddings            = protocol.ProtocolEmbeddings
 	ProtocolImagesGenerations     = protocol.ProtocolImagesGenerations
 	ProtocolImagesEdits           = protocol.ProtocolImagesEdits
@@ -40,6 +41,7 @@ var protocolEndpoints = []ProtocolEndpoint{
 	{ID: ProtocolOpenAIResponses, Endpoint: "POST /v1/responses"},
 	{ID: ProtocolOpenAIChatCompletions, Endpoint: "POST /v1/chat/completions"},
 	{ID: ProtocolGeminiGenerateContent, Endpoint: "POST /v1beta/models/{model}:generateContent / :streamGenerateContent"},
+	httpProtocol(ProtocolSystemOne, ProtocolRoute{Method: http.MethodPost, Path: "/systemone"}),
 	httpProtocol(ProtocolEmbeddings, ProtocolRoute{Method: http.MethodPost, Path: "/embeddings"}),
 	httpProtocol(ProtocolImagesGenerations, ProtocolRoute{Method: http.MethodPost, Path: "/images/generations"}),
 	httpProtocol(ProtocolImagesEdits, ProtocolRoute{Method: http.MethodPost, Path: "/images/edits"}),

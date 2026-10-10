@@ -85,7 +85,7 @@ Grok 导入后的主动探测，由 app 注入的 `provider.GrokImportProbeSched
 
 Google One 单个和批量的 tier 刷新，由 `TierManagement` 负责资格、查询集合、并发 10 和条件配置写入；Drive 的网络调用和供应商的 tier 推断，由 `provider/provider` 和 `upstream/gemini/codeassist` 协作提供。批量输入为空或损坏时，回落为最多一万条的 Google One 查询，单项失败不影响其他项。查询开始时固定身份，保存时在配置的行锁内复核，只合并 tier_id 和这一轮的 Drive 字段；管理员的新 token 和没选中的 Extra 不会被旧快照覆盖，outbox 失败时回滚这一次的配置。身份复核使用已有的字段，没有跨实例的协调。
 
-管理端的可用模型由 `routing.AdminCatalog` 合并统一目录与提供商配置，再检查提供商的白名单和执行资格。空白名单允许目录未知的型号，Spark、OAuth、站点及协议规则照常检查。测试和定时测试选择器显示实际模型 ID。打开手动测试弹窗时，单次与批量测试均等待管理员选择型号；默认提示词独立初始化。
+管理端的可用模型由 `routing.AdminCatalog` 合并统一目录与提供商配置，再检查提供商的白名单和执行资格。空白名单允许目录未知的型号，Spark、OAuth、站点及协议规则照常检查。测试和定时测试选择器显示实际模型 ID。Jev 手动测试默认填入 `jev-latest`，其他平台等待管理员选择型号。批量测试使用勾选的候选型号，默认提示词独立初始化。
 
 实时模型同步请求由 `ModelSyncService` 跟踪在途的调用，停止时取消并等待；构造时不请求供应商。临时凭据的预览不持久化，错误格式只由 provider 定义；`provider/provider.ModelCatalogue` 负责实际的 endpoint、Header、响应报文解析和读取上限，app 直接绑定提供商存储和凭据来源。模型预览和提供商测试共用一个 ProbeTasks 范围，持久化的提供商仍由同一个 task 协调器串行处理。
 

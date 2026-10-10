@@ -375,3 +375,7 @@ Grok 请求缓存开关使用 `X-TokenRouter-Grok-Client-Tool-Cache`，没有新
 浏览器的语言设置和登录协议确认使用 `tokenrouter_` 开头的存储键；新键没有值时，复制旧键的值，协议仍然按 revision 判断。新键已经有值或撤回记录时，以新键为准；可以重建的缓存使用新名称，旧缓存留在浏览器里，等它自然失效。
 
 相关文档：[上游提供商能力矩阵](upstream_provider_matrix.md)、[网关错误响应策略](gateway_error_policy.md)、[身份与租户](../domains/identity_and_tenancy.md)、[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[支付与权益](../domains/payments_and_entitlements.md)、[接口目录](index.md)。
+
+## SystemOne
+
+`POST /v1/systemone` 使用网关 API Key 认证，支持普通 Key 和复合 Key。分组开放 `systemone` 后，调度到已启用该协议的 Jev API Key 提供商。请求字段、成功响应和用量异常处理见 [Jev 与 SystemOne](jev_upstream.md)。

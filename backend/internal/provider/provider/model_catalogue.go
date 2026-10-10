@@ -124,6 +124,9 @@ func (s *ModelCatalogue) FetchUpstreamSupportedModels(ctx context.Context, value
 	}
 
 	extractModels := extractUpstreamModelIDs
+	if value.Platform == capability.PlatformJev {
+		extractModels = extractJevModelIDs
+	}
 	if value.IsGrok() {
 		extractModels = extractGrokUpstreamModelIDs
 	}
@@ -140,6 +143,19 @@ func (s *ModelCatalogue) FetchUpstreamSupportedModels(ctx context.Context, value
 
 func (s *ModelCatalogue) buildUpstreamModelsRequest(ctx context.Context, value *providercore.Record) (*http.Request, error) {
 	switch {
+	case value.Platform == capability.PlatformJev:
+		base, err := s.Options.ValidateURL(value.GetJevBaseURL())
+		if err != nil {
+			return nil, newUpstreamModelSyncConfigError("Invalid Jev base URL", err)
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildOpenAIModelsURL(base), nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+value.GetCredential("api_key"))
+		req.Header.Set("Accept", "application/json")
+		ApplyProviderHeaderOverrides(value, req.Header)
+		return req, nil
 	case value.IsGrok():
 		return s.buildGrokUpstreamModelsRequest(ctx, value)
 	case value.IsOpenAI() || value.IsCNProvider():
@@ -657,4 +673,21 @@ func buildCodexModelsManifestURL(endpoint string, appendModelsPath bool, clientV
 func (s *ModelCatalogue) agentHeaders(ctx context.Context, value *providercore.Record) (http.Header, error) {
 	headers, _, err := AgentIdentityHeaders(ctx, value, s.EnsureTask)
 	return headers, err
+}
+
+// extractJevModelIDs 读取 TypeSafe 的 name 字段，型号中的路径前缀属于 ID。
+func extractJevModelIDs(body []byte) ([]string, error) {
+	var response struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, err
+	}
+	models := make([]string, 0, len(response.Models))
+	for _, model := range response.Models {
+		models = append(models, model.Name)
+	}
+	return dedupeAndSortModelIDs(models), nil
 }

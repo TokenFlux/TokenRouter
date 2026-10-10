@@ -53,6 +53,8 @@ Claude Code、Codex、Gemini、Grok、OpenCode 和 CC Switch 的配置，按用�
 
 模型级的 `protocols` 列出该模型在分组里可以请求的客户端协议，取自 `RequestableModel.Protocols`，和用户分组目录的 `model_protocols` 来自同一套可请求解析。`native_protocols` 是其中的原生协议：承接该模型的每个提供商，对这个协议解析出的路线都是协议本身，请求不经过转换；有一个提供商需要转换，这个协议就不算原生。模型广场把协议放进模型名旁的信息浮层：每个协议显示品牌图标和短名，原生协议用绿色描边标出，悬停时显示端点和是否原生；模型有属性或有协议时都会显示信息图标。未登录用户读不到管理员的协议目录，所以客户端协议的顺序、品牌和端点写在前端的 `utils/marketplaceProtocols.ts` 里，单元测试用 `protocol-catalog.json` 夹具核对它和后端目录是否一致。
 
+TypeSafe 品牌键为 `typesafe`，`jev`、`jev-latest` 和 `typesafe/jev-latest` 共用这个品牌的图标与筛选键。SystemOne 协议图标同样使用 TypeSafe。
+
 <a id="model_catalog_metadata_lookup"></a>
 ## 目录元数据查询
 
@@ -77,6 +79,8 @@ GPT-5.6 系列按完整型号查询目录。`gpt-5.6-sol/terra/luna` 与裸的 `
 目录和手动配置都没有命中时，返回缺价，不再查询 Go 里的静态价格表；也不会使用日期、系列、Spark 跨型号重定向或默认型号去猜价格。离线启动使用同一份 models.dev 快照，网络失败时保留最近一次有效的目录。价格规则不作为能力查询的继承依据，也不改写公开的模型 ID 或上游的请求 ID。
 
 models.dev 的目录、属性和本地补充在同一个版本里发布，只读快照使用同样的完整身份规则。原厂的裸名和明确的供应商记录，按来源索引查询；手动填写的零价和本地新增的条目保持有效；未知型号不会按目录的遍历顺序选价格。
+
+目录从 `https://models.dev/catalog.json?type=all` 读取，包括 Jev 所属的 decision 类型。特殊模型可以进入属性目录和查价索引，网关可请求性仍由提供商配置及协议判断。
 
 ## 目录价格换算
 

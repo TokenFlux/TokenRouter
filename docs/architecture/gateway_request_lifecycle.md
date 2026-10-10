@@ -274,6 +274,10 @@ Brave 和 Tavily 搜索由 search 选择供应商并预占额度。失败时释�
 
 独立的 Web 和 X 搜索由 app 直接构造 `gateway/httpapi.SearchHandler` 和固定的 `SearchPorts`。HTTP 按解析、认证、资金、审核、选号的顺序执行；平台报文和单次交换由 `gateway/provider` 组合 Grok 的底层调用和共享传输完成。选择接口只返回当前请求的受控目标，完成前同步取得提供商快照，异步记录读取快照，Gin Context 留在请求内。相同查询的每次调用都生成独立的资金请求 ID，完成快照提交后才释放提供商资源。
 
+## SystemOne 决策请求
+
+`POST /v1/systemone` 使用共同鉴权和模型映射，`gateway/systemone` 管理同步请求的提供商尝试。每次尝试经过资金复查和价格预检，`upstream/jev` 完成单次交换。答案有效时按用量状态提交完成记录或用量告警，捕获完成快照后释放提供商槽。请求格式与告警规则见 [Jev 与 SystemOne](../interfaces/jev_upstream.md)。
+
 ## 新增入口检查清单
 
 新增网关入口或平台适配器时，至少逐项核对：

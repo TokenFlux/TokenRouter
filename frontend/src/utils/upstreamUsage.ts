@@ -12,5 +12,5 @@ export function supportsUpstreamUsageQuery(provider: UpstreamUsageProvider): boo
 /** 展示、手动查询和批量查询共用开关，缺少配置时默认启用。 */
 export function isUpstreamUsageQueryEnabled(provider: UpstreamUsageProvider): boolean {
   const config = provider.extra?.upstream_usage_query as Record<string, unknown> | undefined
-  return supportsUpstreamUsageQuery(provider) && config?.enabled !== false
+  return supportsUpstreamUsageQuery(provider) && (config?.enabled ?? (provider.platform !== 'jev')) === true
 }

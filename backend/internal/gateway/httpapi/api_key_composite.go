@@ -426,7 +426,7 @@ func AbortCompositeKeyError(c *gin.Context, err error) {
 
 func IsOpenAICompositeEndpoint(path string) bool {
 	return strings.Contains(path, "/chat/completions") || strings.Contains(path, "/responses") ||
-		strings.Contains(path, "/embeddings") || strings.Contains(path, "/images/") ||
+		strings.HasSuffix(path, "/systemone") || strings.Contains(path, "/embeddings") || strings.Contains(path, "/images/") ||
 		strings.Contains(path, "/videos/") || strings.Contains(path, "/alpha/search") ||
 		strings.Contains(path, "/live") || strings.Contains(path, "/realtime/") ||
 		strings.HasPrefix(path, "/backend-api/codex/")

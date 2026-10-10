@@ -77,6 +77,9 @@ func NormalizeProviderProtocols(provider *Record) error {
 	if provider == nil || provider.IsCredentialShadow() {
 		return nil
 	}
+	if err := ValidateJevCredentials(provider); err != nil {
+		return err
+	}
 	protocols := provider.UpstreamProtocols()
 	if raw, exists := provider.Credentials[UpstreamProtocolsKey]; exists {
 		var err error

@@ -1,6 +1,7 @@
 export default {
 // Providers
     providers: {
+    jev: { description: 'Call TypeSafe SystemOne decision models with an API key.' },
       title: 'Provider Management',
       description: 'Manage upstream AI connections and credentials',
       tabs: {
@@ -139,6 +140,7 @@ export default {
         kimi: 'Kimi',
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
+        jev: 'Jev',
       },
       cnProviders: {
         providerMode: {

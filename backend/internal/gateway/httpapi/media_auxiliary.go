@@ -48,7 +48,7 @@ type AuxiliaryHTTPPorts interface {
 	RealtimeDialTimeout() time.Duration
 }
 
-// AuxiliaryHandler 处理 Embeddings、AlphaSearch、Voice 和 Realtime 的 HTTP 请求。
+// AuxiliaryHandler 处理 SystemOne、Embeddings、AlphaSearch、Voice 和 Realtime 的 HTTP 请求。
 type AuxiliaryHandler struct {
 	RequestLifetime
 

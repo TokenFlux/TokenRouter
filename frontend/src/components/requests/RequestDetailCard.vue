@@ -24,6 +24,7 @@ const { formatBalanceAmount } = useBalanceDisplay()
 // 请求状态和上游尝试结果共用一组徽章样式。
 const STATE_STYLES: Record<string, { badge: string; icon: IconName }> = {
   completed: { badge: 'badge-success', icon: 'checkCircle' },
+  usage_unknown: { badge: 'badge-warning', icon: 'questionCircle' },
   usage_recorded: { badge: 'badge-primary', icon: 'checkCircle' },
   failed: { badge: 'badge-danger', icon: 'xCircle' },
   canceled: { badge: 'badge-gray', icon: 'ban' },

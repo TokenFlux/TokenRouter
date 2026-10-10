@@ -10,7 +10,8 @@ const concretePlatforms = [
   'grok',
   'kimi',
   'zhipu',
-  'deepseek'
+  'deepseek',
+  'jev'
 ]
 
 describe('platform option catalogs', () => {

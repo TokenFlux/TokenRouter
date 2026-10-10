@@ -620,6 +620,7 @@
   "POST /v1/responses",
   "POST /v1/responses/*subpath",
   "POST /v1/stt",
+  "POST /v1/systemone",
   "POST /v1/tts",
   "POST /v1/videos",
   "POST /v1/videos/edits",

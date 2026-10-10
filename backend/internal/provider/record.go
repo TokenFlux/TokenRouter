@@ -65,6 +65,7 @@ const (
 	PlatformKimi        = capability.PlatformKimi
 	PlatformZhipu       = capability.PlatformZhipu
 	PlatformDeepseek    = capability.PlatformDeepseek
+	PlatformJev         = capability.PlatformJev
 
 	// 提供商接入模式（国产供应商）：按量付费 vs Coding Plan。
 	ProviderModePayG   = "payg"
@@ -83,6 +84,7 @@ const (
 	DefaultZhipuPayGBaseURL   = "https://open.bigmodel.cn/api/paas/v4"
 	DefaultZhipuCodingBaseURL = "https://open.bigmodel.cn/api/coding/paas/v4"
 	DefaultDeepseekBaseURL    = "https://api.deepseek.com"
+	DefaultJevBaseURL         = "https://api.typesafe.ai"
 
 	// 国产供应商 Anthropic 协议端点的默认 base_url（上游路径为 {base}/v1/messages）。
 	// 与前端 credentialsBuilder.ts 中的预设保持一致。

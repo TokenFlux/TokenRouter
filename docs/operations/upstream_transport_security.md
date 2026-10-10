@@ -66,7 +66,7 @@ URL 格式、scheme、allowlist 和字面量地址的策略，由 egress 里的�
 
 ## Header 与凭据
 
-Header override 只对两类提供商生效：Anthropic、OpenAI、Kimi、Zhipu、DeepSeek 的 API Key 提供商，以及 Grok 的 API Key 和 OAuth 提供商。保存时规范化名称和值，拒绝重复或非法的条目；读取旧数据时，还会再过滤一次。Authorization、API Key、Proxy-Authorization、Host、Cookie、会话隔离头、hop-by-hop 头和 transport 控制头，都在禁止名单里，提供商的字段覆盖不了它们。
+Header override 只对两类提供商生效：Anthropic、OpenAI、Kimi、Zhipu、DeepSeek、Jev 的 API Key 提供商，以及 Grok 的 API Key 和 OAuth 提供商。保存时规范化名称和值，拒绝重复或非法的条目；读取旧数据时，还会再过滤一次。Authorization、API Key、Proxy-Authorization、Host、Cookie、会话隔离头、hop-by-hop 头和 transport 控制头，都在禁止名单里，提供商的字段覆盖不了它们。
 
 OpenAI 的 `x-codex-routing-hint` 也是网关自己控制的头：构造出站请求时，先删除调用方和提供商覆盖里任意大小写的这个头，再只为 OAuth 请求，按最终的模型和有效的服务层级生成；API Key 路径不会透传它。
 

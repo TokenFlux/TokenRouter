@@ -937,7 +937,7 @@ func TestDeepseekDefaultCatalogUsesNativeEntries(t *testing.T) {
 	}{
 		{"deepseek-v4-flash", 0.15e-6, 0.6e-6, 0.003e-6},
 		{"deepseek-v4-flash-vision-exp", 0.15e-6, 0.6e-6, 0.003e-6},
-		{"deepseek-v4-pro", 0.435e-6, 0.87e-6, 0.003625e-6},
+		{"deepseek-v4-pro", 0.66e-6, 1.98e-6, 0.022e-6},
 	} {
 		entry, exists := pricingData["deepseek/"+tc.model]
 		require.True(t, exists, "%s 必须存在于原厂价格目录", tc.model)

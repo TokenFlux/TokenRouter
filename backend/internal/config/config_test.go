@@ -2671,7 +2671,7 @@ func TestPricingCatalogLegacySourceMigration(t *testing.T) {
 		cfg := Config{Pricing: PricingConfig{RemoteURL: source}}
 		cfg.normalizePricingCatalogSource()
 		cfg.normalizePricingCatalogSource()
-		require.Equal(t, "https://models.dev/catalog.json", cfg.Pricing.RemoteURL)
+		require.Equal(t, "https://models.dev/catalog.json?type=all", cfg.Pricing.RemoteURL)
 		require.Equal(t, []string{"models.dev"}, cfg.Security.URLAllowlist.PricingHosts)
 	}
 	for _, source := range []string{
@@ -2780,7 +2780,7 @@ func TestRetiredPricingOverrideWarnsWithoutRewritingFiles(t *testing.T) {
 			t.Cleanup(func() { slog.SetDefault(previous) })
 			cfg, err := Load()
 			require.NoError(t, err)
-			require.Equal(t, "https://models.dev/catalog.json", cfg.Pricing.RemoteURL)
+			require.Equal(t, "https://models.dev/catalog.json?type=all", cfg.Pricing.RemoteURL)
 			require.Contains(t, logs.String(), "pricing.override_file is retired and ignored")
 			saved, err := os.ReadFile(file)
 			require.NoError(t, err)
@@ -3013,5 +3013,18 @@ func collectMapstructureKeys(t reflect.Type, prefix string, out map[string]strin
 			}
 		}
 		out[strings.ToLower(key)] = ft.String()
+	}
+}
+
+// TestPricingCatalogIncludesDecisionModels 检查旧官方地址升级和自定义查询参数。
+func TestPricingCatalogIncludesDecisionModels(t *testing.T) {
+	for _, source := range []string{"https://models.dev/catalog.json", "https://models.dev/catalog.json?type=all", "https://models.dev/catalog.json?type=language", "https://mirror.example/catalog.json"} {
+		cfg := Config{Pricing: PricingConfig{RemoteURL: source}}
+		cfg.normalizePricingCatalogSource()
+		expected := source
+		if source == "https://models.dev/catalog.json" {
+			expected += "?type=all"
+		}
+		require.Equal(t, expected, cfg.Pricing.RemoteURL)
 	}
 }

@@ -77,6 +77,7 @@ func provideProviderTests(store *providerpostgres.ProviderStore, geminiToken *pr
 	qoderSessions.SetHTTPUpstream(transport, profiles)
 	manager.Register(lifecycle.Hook{Name: "ProviderTestQoderSessions", StopOrder: 26, Stop: qoderSessions.StopContext})
 	targets := &provideradapter.TestTargets{
+		Jev:  &provideradapter.JevProviderTest{Transport: transport, ValidateURL: urlPolicy.Validate},
 		Read: store.GetByID, OpenAI: openaiTest, Gemini: geminiTest, Anthropic: anthropicTest,
 		Qoder: &provideradapter.QoderProviderTest{Sessions: qoderSessions, Client: qoder.NewClient(qoder.APIBaseURL), Transport: transport, Profiles: profiles, RewriteModel: openaiprotocol.ReplaceModelInBody},
 		Grok:  &provideradapter.GrokProviderTest{Tokens: grokToken, Transport: transport, Store: store, OperatorValidator: urlPolicy.Validate, DefaultBaseURL: gatewayprovider.GrokDefaultBaseURLReader(settings)},

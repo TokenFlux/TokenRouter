@@ -9,6 +9,7 @@ const (
 	ProtocolOpenAIResponses       ProtocolID = "openai_responses"
 	ProtocolOpenAIChatCompletions ProtocolID = "openai_chat_completions"
 	ProtocolGeminiGenerateContent ProtocolID = "gemini_generate_content"
+	ProtocolSystemOne             ProtocolID = "systemone"
 	ProtocolEmbeddings            ProtocolID = "openai_embeddings"
 	ProtocolImagesGenerations     ProtocolID = "openai_images_generations"
 	ProtocolImagesEdits           ProtocolID = "openai_images_edits"

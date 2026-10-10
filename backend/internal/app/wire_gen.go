@@ -492,7 +492,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	messagesHandler := provideMessagesHTTP(appMessageHTTPBindings, textattemptRuntime, appGatewayRequestActivity)
 	videoTasks := provideGrokVideoTasks(gatewayCache, cfg)
 	openAIImagesExecutor := provideOpenAIImages(openAITextExecutor, appGatewayRequestActivity)
-	mediaentryRuntime := provideMediaRuntime(openAIResponsesExecutor, requestCredentialExecutor, apiKeyService, fundingAdmission, bindings, openAIHTTPResources, grokQuotaService, cfg, grokExecutor, videoTasks, openAIAuxiliary, openAIImagesExecutor, routePlanner, gatewayCache)
+	mediaentryRuntime := provideMediaRuntime(openAIResponsesExecutor, requestCredentialExecutor, apiKeyService, fundingAdmission, priceResolver, bindings, openAIHTTPResources, grokQuotaService, cfg, grokExecutor, videoTasks, openAIAuxiliary, openAIImagesExecutor, routePlanner, gatewayCache)
 	mediaHandler := provideMediaHTTP(mediaentryRuntime, appGatewayRequestActivity)
 	auxiliaryHandler := provideAuxiliaryHTTP(mediaentryRuntime, appGatewayRequestActivity)
 	openAILiveExecutor := provideLiveExecution(cfg, openAIAuxiliary, gatewayCache, concurrencyService, compatible, routePlanner, gatewayCompletionRecorders, tasks, manager, grokExecutor)

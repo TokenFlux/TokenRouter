@@ -139,6 +139,7 @@ func RegisterGatewayRoutes(engine *gin.Engine, endpoints RouteEndpoints, options
 		gateway.GET("/responses", responsesWebSocketHandler)
 		// OpenAI Chat Completions API: 提供商选定后按实际能力执行
 		gateway.POST("/chat/completions", chatCompletionsProtocolGate, func(c *gin.Context) { openAITextHTTP.ChatCompletions(c) })
+		gateway.POST("/systemone", textBodyLimit, func(c *gin.Context) { auxiliaryHTTP.SystemOne(c) })
 		gateway.POST("/embeddings", textBodyLimit, func(c *gin.Context) { auxiliaryHTTP.Embeddings(c) })
 		gateway.POST("/images/generations", imagesHandler)
 		gateway.POST("/images/edits", imagesHandler)

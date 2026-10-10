@@ -1739,6 +1739,7 @@ func setDefaults() {
 		"open.bigmodel.cn",
 		"api.z.ai",
 		"api.deepseek.com",
+		"api.typesafe.ai",
 		"api.minimaxi.com",
 		"generativelanguage.googleapis.com",
 		"cloudcode-pa.googleapis.com",
@@ -1984,7 +1985,7 @@ func setDefaults() {
 	viper.SetDefault("rate_limit.oauth_401_cooldown_minutes", 10)
 
 	// Pricing 从 models.dev 同步统一目录，本地文件补充专用计费维度。
-	viper.SetDefault("pricing.remote_url", "https://models.dev/catalog.json")
+	viper.SetDefault("pricing.remote_url", "https://models.dev/catalog.json?type=all")
 	viper.SetDefault("pricing.data_dir", "./data")
 	viper.SetDefault("pricing.fallback_file", "")
 	viper.SetDefault("pricing.check_interval_minutes", 10)
@@ -3469,12 +3470,16 @@ func warnIfInsecureURL(field, raw string) {
 
 // normalizePricingCatalogSource 迁移已知公共旧源及缺失的旧打包资源，不改写部署文件。
 func (c *Config) normalizePricingCatalogSource() {
+	if strings.TrimSpace(c.Pricing.RemoteURL) == "https://models.dev/catalog.json" {
+		c.Pricing.RemoteURL = "https://models.dev/catalog.json?type=all"
+	}
+
 	source, err := url.Parse(c.Pricing.RemoteURL)
 	if err == nil && strings.EqualFold(source.Host, "raw.githubusercontent.com") && source.User == nil && (source.Scheme == "https" || source.Scheme == "http") {
 		sourcePath := strings.ToLower(path.Clean(source.Path))
 		knownRepository := strings.HasPrefix(sourcePath, "/wei-shaw/model-price-repo/") || strings.HasPrefix(sourcePath, "/berriai/litellm/")
 		if knownRepository && strings.HasSuffix(sourcePath, "/model_prices_and_context_window.json") {
-			c.Pricing.RemoteURL = "https://models.dev/catalog.json"
+			c.Pricing.RemoteURL = "https://models.dev/catalog.json?type=all"
 			if !slices.Contains(c.Security.URLAllowlist.PricingHosts, "models.dev") {
 				c.Security.URLAllowlist.PricingHosts = append(c.Security.URLAllowlist.PricingHosts, "models.dev")
 			}

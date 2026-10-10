@@ -8,6 +8,7 @@ import (
 
 // TestTargets 读取提供商后返回对应平台的测试组件。
 type TestTargets struct {
+	Jev         *JevProviderTest
 	Read        func(context.Context, int64) (*provider.Record, error)
 	Qoder       *QoderProviderTest
 	Gemini      *GeminiProviderTest
@@ -24,6 +25,8 @@ func (t *TestTargets) LoadTestTarget(ctx context.Context, request provider.TestR
 		return nil, err
 	}
 	switch value.Platform {
+	case provider.PlatformJev:
+		return t.Jev.Target(value), nil
 	case provider.PlatformQoder:
 		return t.Qoder.Target(value), nil
 	case provider.PlatformGemini:

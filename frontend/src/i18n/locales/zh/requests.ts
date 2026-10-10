@@ -36,6 +36,7 @@ export default {
     "completed": "已完成",
     "failed": "失败",
     "canceled": "已取消",
+    "usage_unknown": "用量未知，未扣费",
     "usage_recorded": "已有使用记录"
   },
   "errorPhases": {

@@ -804,3 +804,24 @@ func TestModelRulesReturnIndependentValues(t *testing.T) {
 	require.InDelta(t, 1.25e-6, second.CacheCreation5mPrice, 1e-12)
 	require.InDelta(t, 2e-6, second.CacheCreation1hPrice, 1e-12)
 }
+
+// TestJevOfflineCatalogPricesKeepProviderIdentity 检查 TypeSafe 直连与渠道免费型号各自查价。
+func TestJevOfflineCatalogPricesKeepProviderIdentity(t *testing.T) {
+	service := newOfflinePricingFixture(t)
+	for _, model := range []string{"jev-latest", "jev-preview", "jev-1.13.0"} {
+		p := service.GetModelPricing(model)
+		require.NotNil(t, p, model)
+		require.InDelta(t, 4.2e-8, p.InputCostPerToken, 1e-15)
+		require.Zero(t, p.OutputCostPerToken)
+		require.Zero(t, p.CacheReadInputTokenCost)
+	}
+	free := service.GetModelPricing("opencode/jev-1.13-free")
+	require.NotNil(t, free)
+	require.Zero(t, free.InputCostPerToken)
+	require.Zero(t, free.OutputCostPerToken)
+	attributes := service.ModelAttributes("jev-latest")
+	require.NotNil(t, attributes.DisplayName)
+	require.Equal(t, "Jev", *attributes.DisplayName)
+	require.Equal(t, 64000, *attributes.Context)
+	require.Nil(t, service.GetModelPricing("jev-unknown-version"))
+}

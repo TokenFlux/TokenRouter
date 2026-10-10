@@ -43,7 +43,7 @@ func (s *Admin) ListSchedulableProvidersForAdvancedSchedulerScore(ctx context.Co
 	if platform != "" {
 		return s.providerRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, platform)
 	}
-	return s.providerRepo.ListSchedulableByGroupIDAndPlatforms(ctx, *groupID, []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformQoder, PlatformKimi, PlatformZhipu, PlatformDeepseek})
+	return s.providerRepo.ListSchedulableByGroupIDAndPlatforms(ctx, *groupID, []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformQoder, PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformJev})
 }
 
 func (s *Admin) GetProvider(ctx context.Context, id int64) (*Record, error) {

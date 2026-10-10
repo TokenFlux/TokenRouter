@@ -841,6 +841,7 @@ affiliates: {
         kimi: 'Kimi',
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
+        jev: 'Jev',
       },
       saving: '保存中...',
       noGroups: '暂无分组',

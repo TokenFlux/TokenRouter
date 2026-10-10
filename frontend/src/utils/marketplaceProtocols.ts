@@ -5,7 +5,7 @@ import type { ProviderBrandKey } from '@/utils/providerBrand'
 export interface MarketplaceProtocol {
   id: ProtocolID
   // brand 传给 ProviderIcon，表示请求格式所属的厂商。
-  brand: Extract<ProviderBrandKey, 'anthropic' | 'openai' | 'google' | 'xai'>
+  brand: Extract<ProviderBrandKey, 'anthropic' | 'openai' | 'google' | 'xai' | 'typesafe'>
   endpoint: string
 }
 
@@ -16,6 +16,7 @@ export const MARKETPLACE_PROTOCOLS: readonly MarketplaceProtocol[] = [
   { id: 'openai_responses', brand: 'openai', endpoint: 'POST /v1/responses' },
   { id: 'openai_chat_completions', brand: 'openai', endpoint: 'POST /v1/chat/completions' },
   { id: 'gemini_generate_content', brand: 'google', endpoint: 'POST /v1beta/models/{model}:generateContent / :streamGenerateContent' },
+  { id: 'systemone', brand: 'typesafe', endpoint: 'POST /v1/systemone' },
   { id: 'openai_embeddings', brand: 'openai', endpoint: 'POST /v1/embeddings' },
   { id: 'openai_images_generations', brand: 'openai', endpoint: 'POST /v1/images/generations' },
   { id: 'openai_images_edits', brand: 'openai', endpoint: 'POST /v1/images/edits' },

@@ -111,6 +111,10 @@
               </div>
             </div>
 
+            <SettingsNotice v-if="form.platform === 'jev'" data-testid="jev-provider-type-api-key">
+              {{ t('admin.providers.jev.description') }}
+            </SettingsNotice>
+
             <!-- 账号类型（Anthropic） -->
             <div v-if="form.platform === 'anthropic'" v-content-reveal class="space-y-2">
               <span class="input-label">{{ t('admin.providers.providerType') }}</span>
@@ -2243,7 +2247,8 @@ const platformRows: Array<Array<{ value: ProviderPlatform; label: string; testid
     { value: 'gemini', label: 'Gemini', testid: 'create-provider-platform-gemini' },
     { value: 'antigravity', label: 'Antigravity' },
     { value: 'qoder', label: 'Qoder', testid: 'create-provider-platform-qoder' },
-    { value: 'grok', label: 'Grok' }
+    { value: 'grok', label: 'Grok' },
+    { value: 'jev', label: 'Jev', testid: 'create-provider-platform-jev' }
   ],
   [
     { value: 'kimi', label: 'Kimi' },
@@ -2307,6 +2312,7 @@ const tlsFingerprintTestIdPrefix = computed<string | null>(() => {
 })
 const apiKeyBaseUrlPlaceholder = computed(() => {
   switch (form.platform) {
+    case 'jev': return 'https://api.typesafe.ai'
     case 'openai': return 'https://api.openai.com'
     case 'gemini': return geminiProviderType.value === 'third_party' ? 'https://' : 'https://generativelanguage.googleapis.com'
     case 'grok': return 'https://api.x.ai/v1'
@@ -2315,6 +2321,7 @@ const apiKeyBaseUrlPlaceholder = computed(() => {
 })
 const apiKeyPlaceholder = computed(() => {
   switch (form.platform) {
+    case 'jev': return 'api-key-...'
     case 'openai': return 'sk-proj-...'
     case 'gemini': return geminiProviderType.value === 'third_party' ? 'api-key-...' : 'AIza...'
     case 'grok': return 'xai-...'
@@ -2409,6 +2416,10 @@ watch(
 watch(
   [providerCategory, addMethod, qoderProviderType, () => form.platform],
   ([category, method]) => {
+    if (form.platform === 'jev') {
+      form.type = 'apikey'
+      return
+    }
     if (form.platform === 'qoder') {
       form.type = 'cosy'
       return
@@ -2494,6 +2505,11 @@ watch(
     if (newPlatform !== 'anthropic' && providerCategory.value === 'bedrock') {
       providerCategory.value = 'oauth-based'
     }
+    if (newPlatform === 'jev') {
+      providerCategory.value = 'apikey'
+      apiKeyBaseUrl.value = 'https://api.typesafe.ai'
+    }
+    upstreamUsageEnabled.value = newPlatform !== 'jev'
     // Reset Bedrock fields when switching platforms
     bedrockAccessKeyId.value = ''
     bedrockSecretAccessKey.value = ''
@@ -3255,7 +3271,9 @@ const handleSubmit = async () => {
 
   // Determine default base URL based on platform
   const defaultBaseUrl =
-    form.platform === 'openai'
+    form.platform === 'jev'
+      ? 'https://api.typesafe.ai'
+      : form.platform === 'openai'
       ? 'https://api.openai.com'
       : form.platform === 'gemini'
         ? 'https://generativelanguage.googleapis.com'

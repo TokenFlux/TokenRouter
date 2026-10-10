@@ -36,6 +36,7 @@ export default {
     "completed": "Completed",
     "failed": "Failed",
     "canceled": "Canceled",
+    "usage_unknown": "Usage unknown, not billed",
     "usage_recorded": "Usage recorded"
   },
   "errorPhases": {

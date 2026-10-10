@@ -61,7 +61,7 @@
 
 ### 模型目录与价格补充
 
-模型目录使用 `pricing.remote_url`（默认 `https://models.dev/catalog.json`）和 `pricing.check_interval_minutes`（默认 10 分钟），自动同步价格和展示属性。旧的 `pricing.hash_check_interval_minutes` 和对应的环境变量，按下面的兼容键优先级映射到新键。
+模型目录使用 `pricing.remote_url`（默认 `https://models.dev/catalog.json?type=all`）和 `pricing.check_interval_minutes`（默认 10 分钟），自动同步价格和展示属性。旧的 `pricing.hash_check_interval_minutes` 和对应的环境变量，按下面的兼容键优先级映射到新键。
 
 已知的 Wei-Shaw、BerriAI 公共旧价格地址，在内存里转换为 models.dev 地址，并补上新的下载域名；自定义地址保持不变，需要返回 models.dev 的目录格式。配置文件不会被改写。官方的价格补充通过 `go:embed` 编进二进制，`pricing.fallback_file` 默认为空，用于指定可选的自定义补充。旧的相对资源路径和 `/app/resources/` 打包路径，只在原文件不存在时，迁移到同目录的 `model_pricing_supplements.json`；已存在的文件和其他自定义路径保持不变。路径只在内存里解析，部署文件不会被改写或创建；目标文件也不存在时，使用内嵌的补充。旧的目录缓存不再加载，也不会被删除。
 
@@ -72,6 +72,8 @@
 本地 JSON 使用 `provider` 字段，读取时兼容 `litellm_provider`；同一条目两者都有时，以新字段为准，包括空值和 `null`。内部的价格类型和来源分类使用目录通用的名称，实际报价来自哪里，由 `source` 和 `price_sources` 区分。
 
 `gateway.models_list_cache_ttl_seconds` 已弃用，保留配置解析和 10 到 30 秒的合法值校验。目录查询使用本次读取的提供商配置，该值已停止控制运行时缓存。
+
+精确配置为旧官方目录地址 `https://models.dev/catalog.json` 时，加载器补上 `?type=all`。带查询参数的地址和自定义镜像按配置读取。
 
 ### 已退役和改名的键
 

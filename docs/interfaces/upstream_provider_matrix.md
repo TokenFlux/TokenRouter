@@ -1,6 +1,6 @@
 # 上游提供商能力矩阵
 
-本文汇总 TokenRouter 九个平台、七类提供商和公开网关协议目前的支持情况，是查找提供商能力的入口。认证、转换、限流和诊断的细节见各平台的文档。数据导入器能保存的历史组合，不等于正式支持。
+本文汇总 TokenRouter 十个平台、七类提供商和公开网关协议目前的支持情况，是查找提供商能力的入口。认证、转换、限流和诊断的细节见各平台的文档。数据导入器能保存的历史组合，不等于正式支持。
 
 ## 章节导航
 
@@ -12,7 +12,7 @@
 
 ## 支持等级
 
-后端常量定义了九个平台：`anthropic`、`openai`、`gemini`、`antigravity`、`grok`、`qoder`、`kimi`、`zhipu`、`deepseek`；七类提供商：`oauth`、`setup-token`、`apikey`、`upstream`、`bedrock`、`service_account`、`cosy`。矩阵使用以下等级：
+后端常量定义了十个平台：`anthropic`、`openai`、`gemini`、`antigravity`、`grok`、`qoder`、`kimi`、`zhipu`、`deepseek`、`jev`；七类提供商：`oauth`、`setup-token`、`apikey`、`upstream`、`bedrock`、`service_account`、`cosy`。矩阵使用以下等级：
 
 - 正式支持：管理端有创建或授权流程，平台运行时也有对应的凭据、转发和维护实现。
 - 兼容保留：通用的创建或导入层可以保存，或者旧的运行路径还能识别，但管理端不推荐这个组合；它的平台能力并不完整。
@@ -34,6 +34,7 @@
 | Kimi | 不支持 | 不支持 | 正式支持 | 不支持 | 不支持 | 不支持 | 不支持 |
 | Zhipu | 不支持 | 不支持 | 正式支持 | 不支持 | 不支持 | 不支持 | 不支持 |
 | DeepSeek | 不支持 | 不支持 | 正式支持 | 不支持 | 不支持 | 不支持 | 不支持 |
+| Jev | 不支持 | 不支持 | 正式支持 | 不支持 | 不支持 | 不支持 | 不支持 |
 
 API Key 提供商可以在管理员列表里配置并手动查询上游用量。普通的兼容上游默认使用 Sub2API 适配器，New API 和 Zivv 需要手动选择；Kimi、Zhipu、DeepSeek 按平台和 `provider_mode` 自动选择固定的只读适配器，Zhipu payg 没有公开的余额协议，所以不支持查询。手动查询的协议错误只影响展示，转发资格不受影响。API Key 行同时展示两类数据：TokenRouter 本地的今日统计和本地配额，以及上游的余额和周期限额。只有手动开启的 CN 周期监控，才会把同样的查询结果写进统一快照，并据此对这个身份临时停调，详见 [API Key 上游用量查询](upstream_usage.md)。
 
@@ -56,15 +57,17 @@ Kimi、Zhipu 和 DeepSeek 只接受 `type=apikey`。提供商模式和原生协�
 Kimi、Zhipu、DeepSeek 的提供商类型、模式和协议矩阵，写在本页和 [API Key 上游用量查询](upstream_usage.md) 里；如果要为它们新增独立的认证、OAuth 或供应商专属的管理 API，先建立对应的平台文档。
 
 <a id="public_gateway_protocols"></a>
+Jev 的公开入口为 `POST /v1/systemone`，原生协议、模型同步和用量异常处理见 [Jev 与 SystemOne](jev_upstream.md)。
+
 ## 公开网关协议
 
-21 个客户端业务入口都由分组的 `allowed_protocols` 控制；另外 3 个上游专用项只出现在提供商的集合里。完整的清单和认证规则见[统一协议能力](protocol_capabilities.md#protocol_catalog)。原生协议优先；无法原生处理时，按分组的自动模式或有序的目标列表选择已有的单步转换；目标列表明确为空时，只允许原生协议。HTTP 和 SSE 共用一项，Responses WebSocket 单独一项。
+22 个客户端业务入口都由分组的 `allowed_protocols` 控制；另外 3 个上游专用项只出现在提供商的集合里。完整的清单和认证规则见[统一协议能力](protocol_capabilities.md#protocol_catalog)。原生协议优先；无法原生处理时，按分组的自动模式或有序的目标列表选择已有的单步转换；目标列表明确为空时，只允许原生协议。HTTP 和 SSE 共用一项，Responses WebSocket 单独一项。
 
 | 协议族或入口 | 平台支持情况 | 相关文档 |
 | --- | --- | --- |
 | Anthropic Messages：`/v1/messages` | 分组允许 Messages 后，从组内选出能处理这个模型的提供商，再按实际的提供商转换或原生转发 | 各平台文档；共同链路见[网关请求生命周期](../architecture/gateway_request_lifecycle.md) |
 | Anthropic token count：`/v1/messages/count_tokens`、`/messages/count_tokens` | Anthropic、OpenAI、Gemini 走各自的统计路径，Grok 和三个 CN 平台在本地估算；Antigravity 和 Qoder 返回 `404`，Anthropic 的 Bedrock 提供商也不支持 | 各平台文档；客户端应保留本地估算作为回退 |
-| OpenAI Responses：`/v1/responses`、`/responses` 和允许的子路径 | 最终分组允许 Responses 时，按选中的提供商进入九个平台各自的适配；Kimi 和 Zhipu 不要求提供商有上游原生的 Responses，DeepSeek 可以手动使用它的 `/responses`；Qoder 不支持 Responses 子路径和 WebSocket | 各平台文档；WebSocket 和 Realtime 见 [OpenAI 上游](openai_upstream.md) |
+| OpenAI Responses：`/v1/responses`、`/responses` 和允许的子路径 | 最终分组允许 Responses 时，按选中的提供商进入十个平台各自的适配；Kimi 和 Zhipu 不要求提供商有上游原生的 Responses，DeepSeek 可以手动使用它的 `/responses`；Qoder 不支持 Responses 子路径和 WebSocket | 各平台文档；WebSocket 和 Realtime 见 [OpenAI 上游](openai_upstream.md) |
 | OpenAI Chat Completions：`/v1/chat/completions`、`/chat/completions` | 最终分组允许 Chat 后，按组内候选的原生能力和允许的转换路线选择提供商 | 各平台文档 |
 | 模型和用量：`/v1/models`、`/models`、`/v1/usage` | 按 Key、分组和提供商解析可以请求的模型和本地额度；返回的是 TokenRouter 的结果，不是上游模型列表或账单的原样转发 | [模型目录与市场](model_catalog_and_marketplace.md) 和各平台文档 |
 | Embeddings：`/v1/embeddings`、`/embeddings` | 分组允许 Embeddings，并且候选提供商具备 OpenAI Embeddings 能力 | [OpenAI 上游](openai_upstream.md) |

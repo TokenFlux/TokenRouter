@@ -3944,3 +3944,27 @@ func TestOpenAIGatewayService_SelectProviderByPreviousResponseIDUsesResolvedRout
 		selection.ReleaseFunc()
 	}
 }
+
+// TestSystemOneSelectionHonorsProtocol 验证混合分组的决策和聊天候选分别受协议限制。
+func TestSystemOneSelectionHonorsProtocol(t *testing.T) {
+	for _, mode := range []routing.GroupSchedulerType{routing.GroupSchedulerTypeBasic, routing.GroupSchedulerTypeAdvanced} {
+		t.Run(string(mode), func(t *testing.T) {
+			group := &routing.Group{ID: 91, Hydrated: true, Status: routing.StatusActive, SchedulerType: mode, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolSystemOne, protocol.ProtocolOpenAIResponses}}
+			repo := &mixedGroupProviders{values: []gatewayprovider.ExecutionProvider{mixedGroupProvider(1, capability.PlatformJev, "shared", group.ID), mixedGroupProvider(2, capability.PlatformOpenAI, "shared", group.ID)}}
+			selector := NewCompatible(CompatibleDependencies{Reads: Reads{Providers: repo}}, DefaultOptions())
+			for _, tc := range []struct {
+				protocol protocol.ProtocolID
+				id       int64
+			}{{protocol.ProtocolSystemOne, 1}, {protocol.ProtocolOpenAIResponses, 2}} {
+				ctx := requeststate.WithClientProtocol(requeststate.WithGroup(context.Background(), group), tc.protocol)
+				result, _, err := selector.SelectProviderWithSchedulerForCapability(ctx, &group.ID, "", "", "shared", nil, egress.OpenAIUpstreamTransportHTTPSSE, "", false, false)
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, tc.id, result.Provider.Record.ID)
+				if result.ReleaseFunc != nil {
+					result.ReleaseFunc()
+				}
+			}
+		})
+	}
+}

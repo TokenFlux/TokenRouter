@@ -212,7 +212,8 @@ const upstreamSyncPlatforms = new Set([
   'grok',
   'kimi',
   'zhipu',
-  'deepseek'
+  'deepseek',
+  'jev'
 ])
 const canSyncUpstream = computed(() => {
   if (props.providerId) {

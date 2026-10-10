@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const RemoteURL = "https://models.dev/catalog.json"
+const RemoteURL = "https://models.dev/catalog.json?type=all"
 
 var (
 	// offlineData 保存经过解析验证的 models.dev 发布快照，支持离线首次启动。

@@ -1002,7 +1002,7 @@ rate_limit:
 pricing:
   # URL for the unified models.dev catalog
   # 模型价格与展示属性共用的 models.dev 目录地址
-  remote_url: "https://models.dev/catalog.json"
+  remote_url: "https://models.dev/catalog.json?type=all"
   # Local data directory for caching
   # 本地数据缓存目录
   data_dir: "./data"

@@ -46,6 +46,7 @@ marketplace: {
       openai_responses: 'Responses',
       openai_chat_completions: 'Chat Completions',
       gemini_generate_content: 'GenerateContent',
+      systemone: 'SystemOne',
       openai_embeddings: 'Embeddings',
       openai_images_generations: '图片生成',
       openai_images_edits: '图片编辑',

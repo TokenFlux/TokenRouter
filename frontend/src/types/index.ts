@@ -468,6 +468,7 @@ export type ProtocolID =
   | 'openai_responses'
   | 'openai_chat_completions'
   | 'gemini_generate_content'
+  | 'systemone'
   | 'openai_embeddings'
   | 'openai_images_generations'
   | 'openai_images_edits'
@@ -952,6 +953,7 @@ export type ProviderPlatform =
   | 'kimi'
   | 'zhipu'
   | 'deepseek'
+  | 'jev'
 export type ProviderType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account' | 'cosy'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
 

@@ -11,6 +11,7 @@ const (
 	ProtocolOpenAIResponses       = protocol.ProtocolOpenAIResponses
 	ProtocolOpenAIChatCompletions = protocol.ProtocolOpenAIChatCompletions
 	ProtocolGeminiGenerateContent = protocol.ProtocolGeminiGenerateContent
+	ProtocolSystemOne             = protocol.ProtocolSystemOne
 	ProtocolEmbeddings            = protocol.ProtocolEmbeddings
 	ProtocolImagesGenerations     = protocol.ProtocolImagesGenerations
 	ProtocolImagesEdits           = protocol.ProtocolImagesEdits
@@ -57,6 +58,7 @@ func buildProtocolCatalog() []Protocol {
 		{ID: ProtocolOpenAIResponses, Name: "OpenAI Responses", Platforms: all},
 		{ID: ProtocolOpenAIChatCompletions, Name: "Chat Completions", Platforms: all},
 		{ID: ProtocolGeminiGenerateContent, Name: "Gemini GenerateContent", Platforms: []string{PlatformGemini, PlatformAntigravity}},
+		{ID: ProtocolSystemOne, Name: "SystemOne", Platforms: []string{PlatformJev}},
 		{ID: ProtocolEmbeddings, Name: "Embeddings", Platforms: openai},
 		{ID: ProtocolImagesGenerations, Name: "Images Generations", Platforms: both},
 		{ID: ProtocolImagesEdits, Name: "Images Edits", Platforms: both},
@@ -84,6 +86,10 @@ func buildProtocolCatalog() []Protocol {
 func NativeProtocolOptions(platform, providerType, authMode string) []ProtocolID {
 	var selected []ProtocolID
 	switch platform {
+	case PlatformJev:
+		if providerType == ProviderTypeAPIKey {
+			selected = []ProtocolID{ProtocolSystemOne}
+		}
 	case PlatformAnthropic:
 		if slices.Contains([]string{ProviderTypeOAuth, ProviderTypeSetupToken, ProviderTypeAPIKey, ProviderTypeBedrock, ProviderTypeServiceAccount}, providerType) {
 			selected = []ProtocolID{ProtocolAnthropicMessages}

@@ -1,6 +1,6 @@
 # 模型目录与官方价格补充
 
-默认价格与展示属性来自 models.dev 的 `https://models.dev/catalog.json`。`catalog.json.gz` 保存经过校验的离线快照，`model_pricing_supplements.json` 保存官方价格补充；两者通过 `go:embed` 编入二进制。启动时加载磁盘缓存或离线目录，后台使用 ETag 同步，完整验证成功后才一起发布价格、操作价格和属性。更新失败保留最近有效版本。
+默认价格与展示属性来自 models.dev 的 `https://models.dev/catalog.json?type=all`。`catalog.json.gz` 保存经过校验的离线快照，`model_pricing_supplements.json` 保存官方价格补充；两者通过 `go:embed` 编入二进制。启动时加载磁盘缓存或离线目录，后台使用 ETag 同步，完整验证成功后才一起发布价格、操作价格和属性。更新失败保留最近有效版本。
 
 官方补充随二进制更新和回退，无需安装外部资源，不依赖工作目录。仓库中的 JSON 仍是唯一维护源，修改后需要重新编译。每个模型条目记录 `source_url` 和 `verified_at`，只填补目录缺失且当前计费需要的字段。不要重复登记普通 token 价格、复制展示属性、借用另一型号价格或保存未经核实的估算值。
 

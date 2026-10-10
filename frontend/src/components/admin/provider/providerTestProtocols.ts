@@ -1,7 +1,7 @@
 import type { Provider, ProtocolID } from '@/types'
 
 /** 连接测试可选择的协议，取值与后端 TestRequest.Protocol 一致。 */
-export type ProviderTestProtocol = 'responses' | 'chat_completions' | 'anthropic'
+export type ProviderTestProtocol = 'responses' | 'chat_completions' | 'anthropic' | 'systemone'
 
 export interface ProviderTestProtocolOption {
   /** 固定端点使用 native 选项，提交请求时省略 protocol。 */
@@ -89,6 +89,8 @@ export function providerTestProtocolPlan(provider: Provider | null): ProviderTes
 
   // 其他平台只有一个测试端点，仅用于展示。
   switch (platform) {
+    case 'jev':
+      return { options: [option('native', 'SystemOne', '/v1/systemone')], selectable: false }
     case 'anthropic':
       return { options: [option('native', 'Messages', '/v1/messages')], selectable: false }
     case 'grok':

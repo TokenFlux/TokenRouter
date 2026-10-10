@@ -1316,6 +1316,7 @@ const showGeminiTier = computed(() =>
 )
 const apiKeyBaseUrlPlaceholder = computed(() => {
   switch (props.provider?.platform) {
+    case 'jev': return 'https://api.typesafe.ai'
     case 'openai': return 'https://api.openai.com'
     case 'gemini': return 'https://generativelanguage.googleapis.com'
     case 'antigravity': return 'https://cloudcode-pa.googleapis.com'
@@ -1325,6 +1326,7 @@ const apiKeyBaseUrlPlaceholder = computed(() => {
 })
 const apiKeyPlaceholder = computed(() => {
   switch (props.provider?.platform) {
+    case 'jev': return 'api-key-...'
     case 'openai': return 'sk-proj-...'
     case 'gemini': return geminiProviderType.value === 'third_party' ? 'api-key-...' : 'AIza...'
     case 'antigravity': return 'sk-...'
@@ -1598,7 +1600,7 @@ const syncFormFromProvider = (newProvider: Provider | null) => {
   // Load mixed scheduling setting (only for antigravity providers)
   allowOverages.value = false
   const extra = newProvider.extra as Record<string, unknown> | undefined
-  upstreamUsageEnabled.value = true
+  upstreamUsageEnabled.value = newProvider.platform !== 'jev'
   upstreamUsageAdapter.value = 'sub2api'
   upstreamUsageBaseUrl.value = ''
   upstreamUsageWalletAccessToken.value = ''
@@ -1606,7 +1608,7 @@ const syncFormFromProvider = (newProvider: Provider | null) => {
   if (newProvider.type === 'apikey') {
     const rawUsageConfig = extra?.upstream_usage_query as Record<string, unknown> | undefined
     if (rawUsageConfig && typeof rawUsageConfig === 'object') {
-      upstreamUsageEnabled.value = rawUsageConfig.enabled !== false
+      upstreamUsageEnabled.value = typeof rawUsageConfig.enabled === 'boolean' ? rawUsageConfig.enabled : newProvider.platform !== 'jev'
       if (rawUsageConfig.adapter === 'new_api' || rawUsageConfig.adapter === 'zivv') {
         upstreamUsageAdapter.value = rawUsageConfig.adapter
       }

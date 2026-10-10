@@ -1,6 +1,7 @@
 export default {
 // Providers Management
     providers: {
+    jev: { description: '使用 API Key 调用 TypeSafe 的 SystemOne 决策模型。' },
       title: '提供商管理',
       description: '管理上游 AI 服务的接入配置和凭据',
       tabs: {
@@ -492,6 +493,7 @@ export default {
         kimi: 'Kimi',
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
+        jev: 'Jev',
       },
       cnProviders: {
         providerMode: {

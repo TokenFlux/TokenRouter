@@ -121,5 +121,26 @@
       "audio_stt_price_per_hour": "https://docs.x.ai/developers/pricing"
     },
     "verified_at": "2026-10-01"
+  },
+  "jev-latest": {
+    "provider": "typesafe",
+    "input_cost_per_token": 4.2e-08,
+    "output_cost_per_token": 0,
+    "source_url": "https://docs.typesafe.ai/models",
+    "verified_at": "2026-10-11"
+  },
+  "jev-preview": {
+    "provider": "typesafe",
+    "input_cost_per_token": 4.2e-08,
+    "output_cost_per_token": 0,
+    "source_url": "https://docs.typesafe.ai/models",
+    "verified_at": "2026-10-11"
+  },
+  "jev-1.13.0": {
+    "provider": "typesafe",
+    "input_cost_per_token": 4.2e-08,
+    "output_cost_per_token": 0,
+    "source_url": "https://docs.typesafe.ai/models",
+    "verified_at": "2026-10-11"
   }
 }

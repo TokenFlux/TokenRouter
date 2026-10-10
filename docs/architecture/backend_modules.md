@@ -115,6 +115,7 @@ backend/
 │   │   │   └── testkit/                                 该模块测试所需的替身与夹具
 │   │   ├── telemetry/                                   完成观测、诊断与缺失用量采样
 │   │   ├── testkit/                                     该模块测试所需的替身与夹具
+│   │   ├── systemone/                                    SystemOne 决策请求的提供商尝试与完成判断
 │   │   ├── text/                                        文本提供商循环、计数和输入 token 预检
 │   │   ├── tierpolicy/                                  Fast/Flex 服务档位准入、设置与价格规则
 │   │   ├── tokenestimate/                               本地 token 数估算
@@ -190,6 +191,7 @@ backend/
 │   │   ├── google/                                      Google 错误、OAuth、服务账号和共享报文
 │   │   ├── grok/                                        Grok token 估算的协议常量
 │   │   ├── openai/                                      Responses、Chat、媒体、WS、Codex 与用量报文
+│   │   ├── systemone/                                   SystemOne 请求、答案与用量的纯校验
 │   │   └── wirejson/                                    保持报文结构的 JSON 读取与修改
 │   ├── modelcatalog/                                    models.dev 目录、内嵌官方补充、供应商身份索引及展示属性值
 │   │   └── provider/                                   统一目录加载、条件同步、内嵌与自定义补充、价格和属性原子快照
@@ -259,6 +261,7 @@ backend/
 │   │   ├── internal/                                    仅供 upstream 子包复用的实现；分类目录
 │   │   │   ├── googleauth/                              Google Service Account 认证
 │   │   │   └── usageclient/                             供应商用量查询的共享 HTTP 客户端
+│   │   ├── jev/                                          Jev SystemOne 单次上游请求
 │   │   ├── kimi/                                        Kimi 模型、用量及错误识别
 │   │   ├── ollama/                                      Ollama Cloud 会话用量与兼容请求
 │   │   ├── openai/                                      OpenAI/Codex 认证、请求、媒体与连接资源

@@ -14,7 +14,7 @@
 }
 ```
 
-普通 API Key 提供商没有这个对象时，按 `enabled=true`、`adapter=sub2api` 处理，根地址使用提供商现有的 API Base URL。只有明确写 `enabled=false` 才关闭查询。管理员可以选择的 `adapter` 只有 `sub2api`、`new_api` 和 `zivv`；Kimi、Zhipu、DeepSeek 忽略这个字段，按平台和 `provider_mode` 选择固定的内置适配器。`base_url` 只能覆盖查询的根地址，不能带用户信息、查询串或片段。后端照常执行 HTTPS、allowlist、私网地址和 URL 格式的校验。
+普通 API Key 提供商没有这个对象时，按 `enabled=true`、`adapter=sub2api` 处理，根地址使用提供商现有的 API Base URL。Jev 缺少这个对象时默认关闭查询，管理员可配置兼容中继的查询适配器。其他 API Key 提供商通过 `enabled=false` 关闭查询。管理员可以选择的 `adapter` 只有 `sub2api`、`new_api` 和 `zivv`；Kimi、Zhipu、DeepSeek 忽略这个字段，按平台和 `provider_mode` 选择固定的内置适配器。`base_url` 只能覆盖查询的根地址，不能带用户信息、查询串或片段。后端照常执行 HTTPS、allowlist、私网地址和 URL 格式的校验。
 
 API Key 始终从提供商的 `credentials` 读取，不会出现在 `extra`、接口响应、审计请求体、浏览器缓存和日志里。用户也无法配置任意的路径、方法、Header 模板或脚本。
 

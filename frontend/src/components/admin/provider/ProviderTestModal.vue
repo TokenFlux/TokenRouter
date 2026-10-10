@@ -387,14 +387,14 @@ const loadAvailableModels = async () => {
 
   loadingModels.value = true
   // 测试型号由管理员从提供商目录选择，也可直接输入 ID。
-  selectedModelId.value = ''
+  selectedModelId.value = props.provider.platform === 'jev' ? 'jev-latest' : ''
   try {
     const models = await adminAPI.providers.getAvailableModels(props.provider.id)
     availableModels.value = models
   } catch (error) {
     console.error('Failed to load available models:', error)
     availableModels.value = []
-    selectedModelId.value = ''
+    selectedModelId.value = props.provider.platform === 'jev' ? 'jev-latest' : ''
   } finally {
     loadingModels.value = false
     batch.reset(availableModels.value.map((model) => model.id))

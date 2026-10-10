@@ -1,6 +1,12 @@
 <template>
+  <span
+    v-if="iconInfo?.maskUrl"
+    class="inline-block shrink-0"
+    :style="{ width: size, height: size, backgroundColor: iconInfo.color, maskImage: `url(${iconInfo.maskUrl})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }"
+    aria-hidden="true"
+  />
   <svg
-    v-if="iconInfo"
+    v-else-if="iconInfo"
     :width="size"
     :height="size"
     viewBox="0 0 24 24"
@@ -19,6 +25,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { resolveProviderBrandKey } from '@/utils/providerBrand'
 import { modelIconData } from '@/utils/modelIconData'
 
 const props = withDefaults(defineProps<{
@@ -32,6 +39,7 @@ const fallbackText = computed(() => props.model.charAt(0).toUpperCase())
 
 const iconKey = computed(() => {
   const modelLower = props.model.toLowerCase()
+  if (resolveProviderBrandKey(props.model) === 'typesafe') return 'typesafe'
 
   // OpenAI 模型
   if (modelLower.startsWith('gpt') || modelLower.startsWith('codex') ||

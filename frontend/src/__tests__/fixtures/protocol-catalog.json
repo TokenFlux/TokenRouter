@@ -62,6 +62,15 @@
       ]
     },
     {
+      "id": "systemone",
+      "name": "SystemOne",
+      "endpoint": "POST /v1/systemone",
+      "upstream_only": false,
+      "platforms": [
+        "jev"
+      ]
+    },
+    {
       "id": "openai_embeddings",
       "name": "Embeddings",
       "endpoint": "POST /v1/embeddings",
@@ -681,6 +690,50 @@
       "type": "cosy",
       "auth_mode": "",
       "protocols": []
+    },
+    {
+      "platform": "jev",
+      "type": "oauth",
+      "auth_mode": "",
+      "protocols": []
+    },
+    {
+      "platform": "jev",
+      "type": "setup-token",
+      "auth_mode": "",
+      "protocols": []
+    },
+    {
+      "platform": "jev",
+      "type": "apikey",
+      "auth_mode": "",
+      "protocols": [
+        "systemone"
+      ]
+    },
+    {
+      "platform": "jev",
+      "type": "upstream",
+      "auth_mode": "",
+      "protocols": []
+    },
+    {
+      "platform": "jev",
+      "type": "bedrock",
+      "auth_mode": "",
+      "protocols": []
+    },
+    {
+      "platform": "jev",
+      "type": "service_account",
+      "auth_mode": "",
+      "protocols": []
+    },
+    {
+      "platform": "jev",
+      "type": "cosy",
+      "auth_mode": "",
+      "protocols": []
     }
   ],
   "groups": [
@@ -690,6 +743,7 @@
         "openai_responses",
         "openai_chat_completions",
         "gemini_generate_content",
+        "systemone",
         "openai_embeddings",
         "openai_images_generations",
         "openai_images_edits",
@@ -763,7 +817,8 @@
         ],
         "openai_responses_websocket": [
           "openai_responses"
-        ]
+        ],
+        "systemone": []
       },
       "default_fallbacks": {}
     }

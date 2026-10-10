@@ -163,7 +163,7 @@ func TestClientGroupFallbackFailureKeepsOriginalRequestSnapshot(t *testing.T) {
 
 func TestRouteGuardClientFallbackCoversNonMessageProtocols(t *testing.T) {
 	for _, spec := range []struct{ method, path string }{
-		{"POST", "/v1/images/batches"}, {"POST", "/v1/web_search"}, {"POST", "/v1/x_search"}, {"POST", "/v1/images/generations"}, {"POST", "/v1/videos"}, {"POST", "/v1/tts"}, {"GET", "/v1/realtime"}, {"GET", "/v1/responses"}, {"POST", "/v1/live"}, {"POST", "/v1/embeddings"}, {"POST", "/v1/alpha/search"}, {"POST", "/v1/responses/input_tokens"},
+		{"POST", "/v1/images/batches"}, {"POST", "/v1/web_search"}, {"POST", "/v1/x_search"}, {"POST", "/v1/images/generations"}, {"POST", "/v1/videos"}, {"POST", "/v1/tts"}, {"GET", "/v1/realtime"}, {"GET", "/v1/responses"}, {"POST", "/v1/live"}, {"POST", "/v1/systemone"}, {"POST", "/v1/embeddings"}, {"POST", "/v1/alpha/search"}, {"POST", "/v1/responses/input_tokens"},
 	} {
 		t.Run(spec.method+spec.path, func(t *testing.T) {
 			source := ExtendedRouteProtocol(spec.method, spec.path)

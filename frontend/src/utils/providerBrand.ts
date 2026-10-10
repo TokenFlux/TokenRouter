@@ -27,6 +27,7 @@ export type ProviderBrandKey =
   | 'coze'
   | 'cloudflare'
   | 'jina'
+  | 'typesafe'
   | 'unknown'
 
 export interface ProviderBrand {
@@ -272,6 +273,14 @@ const providerBrands: Record<ProviderBrandKey, ProviderBrand> = {
     badgeClass: 'bg-slate-100 text-slate-900 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-50 dark:ring-slate-400/30',
     iconWrapClass: 'bg-slate-50 text-slate-800 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-200 dark:ring-slate-400/30',
   },
+  typesafe: {
+    key: 'typesafe',
+    label: 'TypeSafe',
+    iconKey: 'typesafe',
+    iconColor: 'currentColor',
+    badgeClass: 'bg-zinc-100 text-zinc-900 ring-zinc-200 dark:bg-zinc-500/20 dark:text-zinc-50 dark:ring-zinc-400/30',
+    iconWrapClass: 'bg-zinc-50 text-zinc-800 ring-zinc-200 dark:bg-zinc-500/15 dark:text-zinc-200 dark:ring-zinc-400/30',
+  },
   unknown: {
     key: 'unknown',
     label: '未知供应商',
@@ -311,6 +320,7 @@ const defaultProviderBrandKeys: ProviderBrandKey[] = [
   'coze',
   'cloudflare',
   'jina',
+  'typesafe',
   'unknown',
 ]
 
@@ -344,6 +354,7 @@ const providerBrandAliases: Record<ProviderBrandKey, string[]> = {
   coze: ['coze', '扣子'],
   cloudflare: ['cloudflare', 'workers ai', '@cf'],
   jina: ['jina'],
+  typesafe: ['typesafe', 'typesafe ai', 'jev'],
   unknown: ['未知供应商', '未知', 'unknown'],
 }
 
