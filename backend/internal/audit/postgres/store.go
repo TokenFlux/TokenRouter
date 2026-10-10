@@ -193,7 +193,7 @@ func buildAuditLogsWhere(filter *audit.AuditLogFilter) (string, []any) {
 	}
 	if v := strings.TrimSpace(filter.RequestID); v != "" {
 		args = append(args, v)
-		clauses = append(clauses, "l.request_id IN (SELECT id FROM request_lookup_ids($"+strconv.Itoa(len(args))+"))")
+		clauses = append(clauses, "l.request_id = ANY(ARRAY(SELECT id FROM request_lookup_ids($"+strconv.Itoa(len(args))+")))")
 	}
 	if v := strings.TrimSpace(filter.Query); v != "" {
 		args = append(args, "%"+sqlutil.EscapeLikePattern(v)+"%")

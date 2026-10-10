@@ -58,7 +58,7 @@ func (r *Store) ListRequestDetails(ctx context.Context, filter *ops.OpsRequestDe
 			addCondition(fmt.Sprintf("model = $%d", len(args)+1), model)
 		}
 		if requestID := strings.TrimSpace(filter.RequestID); requestID != "" {
-			addCondition(fmt.Sprintf("request_id IN (SELECT id FROM request_lookup_ids($%d))", len(args)+1), requestID)
+			addCondition(fmt.Sprintf("request_id = ANY(ARRAY(SELECT id FROM request_lookup_ids($%d)))", len(args)+1), requestID)
 		}
 		if q := strings.TrimSpace(filter.Query); q != "" {
 			like := "%" + strings.ToLower(q) + "%"

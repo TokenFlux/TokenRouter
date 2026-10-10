@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS atlas_schema_revisions (
 	usageLogsEffectiveUpstreamModelIndex               = "idx_usage_logs_effective_upstream_model_created"
 	usageLogsUpstreamRequestIDIndexMigration           = "267_add_usage_log_upstream_request_id_index_notx.sql"
 	usageLogsUpstreamRequestIDIndex                    = "idx_usage_logs_upstream_request_id"
+	auditLogsRequestIDIndexMigration                   = "296_audit_request_id_index_notx.sql"
+	auditLogsRequestIDIndex                            = "idx_audit_logs_request_id_created_at"
 )
 
 // migrationChecksumCompatibilityRules 仅用于兼容历史上误修改过的迁移文件 checksum。
@@ -289,6 +291,8 @@ func prepareNonTransactionalMigration(ctx context.Context, db migrationConnectio
 		return nil
 	case usageLogsUpstreamRequestIDIndexMigration:
 		return dropInvalidIndexIfPresent(ctx, db, usageLogsUpstreamRequestIDIndex)
+	case auditLogsRequestIDIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, auditLogsRequestIDIndex)
 	default:
 		return nil
 	}
