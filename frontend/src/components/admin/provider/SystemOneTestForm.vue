@@ -65,6 +65,7 @@
             :min="item.type === 'score' ? 2 : 1"
             :max="item.type === 'score' ? 10 : 255"
             :reorderable="item.type === 'score'"
+            :item-label="item.type === 'score' ? level => t('admin.providers.decisionTest.levelNumber', { number: level }) : undefined"
             :test-id="`decision-options-${index}`"
             @add="item.options.push({ id: '', description: '' })"
             @remove="item.options.splice($event, 1)"
@@ -80,9 +81,13 @@
                   :placeholder="t('admin.providers.decisionTest.optionId')"
                   :aria-label="t('admin.providers.decisionTest.optionId')"
                 />
+                <label v-if="item.type === 'score'" :for="`${stateFieldId}-option-${index}-${optionIndex}`" class="sr-only">
+                  {{ t('admin.providers.decisionTest.levelNumber', { number: optionIndex }) }}
+                </label>
                 <TextArea
+                  :id="`${stateFieldId}-option-${index}-${optionIndex}`"
                   v-model="option.description"
-                  :label="item.type === 'score' ? t('admin.providers.decisionTest.levelNumber', { number: optionIndex }) : t('admin.providers.decisionTest.optionDescription')"
+                  :label="item.type === 'score' ? undefined : t('admin.providers.decisionTest.optionDescription')"
                   :disabled="disabled"
                   rows="2"
                 />

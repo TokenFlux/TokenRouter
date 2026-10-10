@@ -1735,6 +1735,21 @@ export default {
         running: 'Calculating decisions…',
         empty: 'Enter a state and questions, then start the test.',
         probabilityTrue: 'Probability that the condition is true',
+        trueProbability: 'True probability',
+        falseProbability: 'False probability',
+        choiceResult: 'Selected answer',
+        scoreResult: 'Score',
+        selectedOption: 'Selected',
+        optionProbabilities: 'Option probabilities',
+        levelProbabilities: 'Level probabilities',
+        answerCount: '{count} decisions',
+        guideTitle: 'Review decisions by question',
+        guideHint: 'Enter a state and questions, then start the test. One request can include several question types.',
+        guide: {
+          noul: 'See the probabilities of true and false.',
+          choice: 'Find the selected answer and compare option probabilities.',
+          score: 'See the continuous score, level distribution, and confidence.'
+        },
         confidence: 'Confidence',
         sending: 'Submitting decision request'
       },

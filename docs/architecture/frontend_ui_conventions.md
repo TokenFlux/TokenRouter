@@ -123,7 +123,7 @@
 - 默认使用 `BaseDialog`：宽度档位有 narrow、normal、wide、extra-wide、full；Escape 关闭、点击外部关闭、焦点管理和背景滚动锁定都已内置。新弹窗直接用它，手写 `fixed inset-0` 外壳会缺少这些行为。
 - 标题需要说明或图标时，用 `subtitle` 在标题下加一行 `text-xs` 说明，用 `header-icon` 插槽在标题左侧放图标块。标题右侧的模式切换等控件放进 `header-actions` 插槽，排在关闭按钮之前。头部结构由这些插槽组成。
 - 贴边分栏的工作区弹窗：传 `flush` 去掉内容区内边距，再配合 `bodyScroll=false`，由各栏自己滚动。侧栏用浅底（浅色 `gray-50/70`，深色 `dark-950`）和单侧分隔线贴住弹窗边缘，外面不再包卡片。底部操作区放在内容里，用同样的浅底和 `rounded-b-surface sm:rounded-b-dialog`，这样不会盖住弹窗的圆角。窄屏下分栏改成上下堆叠、由外层整体滚动时，各栏按内容撑高，`min-h-0 flex-1` 只在分栏断点（`md:`）生效；否则栏会被压缩，内容溢出后底部留白消失，内容贴住底栏。提供商连接测试弹窗是这种布局的参考实现。
-- 提供商测试共用标题、侧栏宽度、三列指标和结果面板。文字、图片和决策测试由 `ProviderTestResultView` 管理复制、日志、空态和滚动，决策答案在面板内部按问题展示。测试类型决定输入字段和指标内容；决策输入的格式选择放在字段标签旁，问题标识及补充条件折叠显示。批量测试详情使用同一个结果组件。
+- 提供商测试共用标题、侧栏宽度、三列指标和结果面板。`ProviderTestResultView` 管理复制、日志和外层滚动，决策测试的空态与答案由 `SystemOneTestAnswers` 按问题类型展示。测试类型决定输入字段和指标内容；决策输入的格式选择放在字段标签旁，问题标识及补充条件折叠显示。批量测试详情使用同一个结果组件。
 - 分页表单可以设置 `BaseDialog` 的 `bodyScroll=false`，由表单内部管理滚动，标题、页签和底部操作区始终可见。默认由弹窗内容区滚动。分组的创建和编辑（`GroupSettingsForm`）、提供商的创建、编辑和批量编辑，都按[设置表单](#settings_form)的约定分页。
 - 安全凭证流程（TOTP 设置、禁用、登录验证、提权）使用 `AuthCardDialog`：居中的图标头，右上角没有关闭按钮，整张卡片 p-6，是和 BaseDialog 并存的另一种风格。它不 teleport，在原位置渲染，嵌套时的层级由 `z-index` prop 决定。
 - 手写弹窗的处理方式：结构是"标题头、内容、按钮行"的，迁移到 BaseDialog；有特殊视觉结构的继续手写，并登记在下面的[合法例外](#合法例外)里。
@@ -267,7 +267,7 @@
 逐条添加的映射和规则列表使用 `components/common/RuleListEditor.vue`。从来源模型到目标模型的映射使用基于它的 `ModelMappingEditor.vue`，提供商弹窗再包一层 `components/provider/ProviderModelMappingEditor.vue`，默认带上提供商映射的说明和占位。
 
 - 外壳只负责展示。增删和排序通过 `add`、`remove(index)`、`move(from, to)` 事件交给父级执行，所以既能接入向上 emit 的组件，也能接入用不可变更新的组件。
-- 头部左侧是标题和说明，右侧是带加号的 `btn btn-secondary` 添加按钮，行数达到 `max` 时按钮禁用。列表没有自己的标题（标题和开关在外层）时，使用 `add-placement="footer"`，按钮放到列表下方。
+- 头部标题和右侧操作按钮垂直居中，说明文字另起一行。添加按钮使用带加号的 `btn btn-secondary`，行数达到 `max` 时禁用。列表没有自己的标题（标题和开关在外层）时，使用 `add-placement="footer"`，按钮放到列表下方。
 - 标题旁的帮助入口放进 `title-suffix` 插槽，`ModelMappingEditor` 会透传这个插槽。Key 模型重定向用点击展开的 `HelpTooltip`：请求卡片横向依次经过客户端、密钥规则和后续路由，在密钥节点展示模型名的替换。关闭时卸载演示，减少动态效果时直接显示最终结果。
 - 空态是 `rounded-control` 的虚线框加居中说明，只在传入 `empty-text` 时显示。
 - `line` 形态用分隔线分隔各行，适合一两个字段的短行，操作按钮用 `btn-icon`，和 36px 的输入框对齐。`card` 形态是 `rounded-surface` 的浅底卡片，适合多字段的规则；传入 `item-label` 时，卡片头显示"规则 #n"和紧凑的 `btn-icon-sm` 操作按钮。

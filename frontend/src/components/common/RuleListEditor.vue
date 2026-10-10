@@ -1,8 +1,8 @@
 <template>
   <div :class="variant === 'card' ? 'space-y-4' : 'space-y-2'" :data-testid="testId || undefined">
-    <div v-if="hasHeader" class="flex items-end justify-between gap-2">
-      <div class="min-w-0">
-        <div class="flex items-center">
+    <div v-if="hasHeader" class="space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex min-w-0 items-center">
           <h4
             v-if="title && titleStyle === 'section'"
             class="text-sm font-semibold text-primary-900 dark:text-dark-50"
@@ -12,25 +12,22 @@
           <p v-else-if="title" class="input-label mb-0">{{ title }}</p>
           <slot name="title-suffix" />
         </div>
-        <p v-if="hint && titleStyle === 'section'" class="input-hint">{{ hint }}</p>
-        <p v-else-if="hint" class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-          {{ hint }}
-        </p>
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <slot name="header-actions" />
+          <button
+            v-if="addPlacement === 'header'"
+            type="button"
+            class="btn btn-secondary shrink-0"
+            :disabled="addBlocked"
+            :data-testid="testIdFor('add')"
+            @click="requestAdd"
+          >
+            <Icon name="plus" size="sm" class="mr-1.5" />
+            {{ resolvedAddLabel }}
+          </button>
+        </div>
       </div>
-      <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <slot name="header-actions" />
-        <button
-          v-if="addPlacement === 'header'"
-          type="button"
-          class="btn btn-secondary shrink-0"
-          :disabled="addBlocked"
-          :data-testid="testIdFor('add')"
-          @click="requestAdd"
-        >
-          <Icon name="plus" size="sm" class="mr-1.5" />
-          {{ resolvedAddLabel }}
-        </button>
-      </div>
+      <p v-if="hint" class="input-hint">{{ hint }}</p>
     </div>
 
     <slot name="header-extra" />

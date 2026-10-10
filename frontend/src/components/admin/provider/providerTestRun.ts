@@ -28,6 +28,7 @@ export interface ProviderTestRun {
   totalMs: number | null
   images: ProviderTestImage[]
   decisionResult?: SystemOneTestResult | null
+  decisionQuestions?: SystemOneTestPayload['questions'] | null
   decisionUsageValid?: boolean
 }
 
@@ -77,6 +78,7 @@ export function resetProviderTestRun(run: ProviderTestRun) {
   run.totalMs = null
   run.images = []
   run.decisionResult = null
+  run.decisionQuestions = null
   run.decisionUsageValid = false
 }
 
@@ -94,6 +96,10 @@ export async function executeProviderTest(options: {
 }): Promise<boolean> {
   const { run, t } = options
   resetProviderTestRun(run)
+  // 结果展示读取本次提交的问题快照，表单编辑内容单独保存。
+  if (options.body.test_type === 'decision' && options.body.systemone) {
+    run.decisionQuestions = JSON.parse(JSON.stringify(options.body.systemone.questions))
+  }
   run.status = 'connecting'
   const startedAt = performance.now()
   const elapsed = () => Math.round(performance.now() - startedAt)

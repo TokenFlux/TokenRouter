@@ -53,7 +53,13 @@
           {{ run.errorMessage }}
         </SettingsNotice>
         <template v-if="outputView === 'reply'">
-          <SystemOneTestAnswers v-if="decision && run.decisionResult" :result="run.decisionResult" :usage-valid="run.decisionUsageValid" />
+          <SystemOneTestAnswers
+            v-if="decision && run.status !== 'error'"
+            :result="run.decisionResult"
+            :questions="run.decisionQuestions"
+            :usage-valid="run.decisionUsageValid"
+            :running="running"
+          />
           <div
             v-else-if="!decision && run.replyText"
             class="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-dark-100"
@@ -83,7 +89,7 @@
           </div>
 
           <div
-            v-if="!hasReply && run.status !== 'error'"
+            v-if="!decision && !hasReply && run.status !== 'error'"
             class="flex h-full min-h-40 flex-col items-center justify-center gap-2 px-4 text-center"
           >
             <Icon

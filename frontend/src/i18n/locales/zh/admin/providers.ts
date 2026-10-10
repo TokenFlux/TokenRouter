@@ -1795,6 +1795,21 @@ export default {
         running: '正在计算决策结果…',
         empty: '填写状态和问题后开始测试。',
         probabilityTrue: '条件成立的概率',
+        trueProbability: '成立概率',
+        falseProbability: '不成立概率',
+        choiceResult: '所选答案',
+        scoreResult: '评分',
+        selectedOption: '已选择',
+        optionProbabilities: '选项概率',
+        levelProbabilities: '等级概率',
+        answerCount: '共 {count} 项决策',
+        guideTitle: '按问题查看决策结果',
+        guideHint: '填写状态和问题后开始测试。一次请求可以包含多种问题。',
+        guide: {
+          noul: '展示条件成立与不成立的概率。',
+          choice: '突出所选答案，并比较各选项的概率。',
+          score: '展示连续评分、等级分布和置信度。'
+        },
         confidence: '置信度',
         sending: '正在提交决策请求'
       },
