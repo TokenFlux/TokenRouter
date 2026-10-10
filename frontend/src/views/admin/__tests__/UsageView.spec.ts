@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
+import * as XLSX from 'xlsx'
 
 import UsageView from '../UsageView.vue'
 
@@ -23,15 +24,22 @@ const { list, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, ro
 })
 
 const exportMocks = vi.hoisted(() => ({
-  list: vi.fn(), headers: vi.fn(() => ({})), rows: vi.fn(), save: vi.fn(),
+  list: vi.fn(), headers: vi.fn(), rows: vi.fn(), save: vi.fn(),
 }))
-vi.mock('xlsx', () => ({
-  utils: { aoa_to_sheet: exportMocks.headers, sheet_add_aoa: exportMocks.rows, book_new: vi.fn(() => ({})), book_append_sheet: vi.fn() },
-  write: vi.fn(() => new ArrayBuffer(0)),
-}))
+vi.mock('xlsx', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('xlsx')>()
+  exportMocks.headers.mockImplementation(actual.utils.aoa_to_sheet)
+  exportMocks.rows.mockImplementation(actual.utils.sheet_add_aoa)
+  return {
+    ...actual,
+    utils: { ...actual.utils, aoa_to_sheet: exportMocks.headers, sheet_add_aoa: exportMocks.rows },
+  }
+})
 vi.mock('file-saver', () => ({ saveAs: exportMocks.save }))
 
 const messages: Record<string, string> = {
+  'usage.tps': 'TPS',
+  'usage.tpsExport': 'TPS (tok/s)',
   'admin.dashboard.timeRange': 'Time Range',
   'admin.dashboard.day': 'Day',
   'admin.dashboard.hour': 'Hour',
@@ -262,6 +270,44 @@ describe('admin UsageView 路由筛选', () => {
       ['runtime', 'Yes'], ['sent', 'No'], ['', ''],
     ])
     expect(rows.every(row => row.length === headers.length)).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('TPS 分页导出为数值并设置一位小数，缺少首字耗时时留空', async () => {
+    const row = { model: 'test', output_tokens: 100, duration_ms: 5000, first_token_ms: 1000 }
+    exportMocks.list.mockReset()
+      .mockResolvedValueOnce({ total: 104, items: Array.from({ length: 100 }, () => row) })
+      .mockResolvedValueOnce({ total: 104, items: [
+        { ...row, output_tokens: 101, duration_ms: 4000 },
+        { ...row, output_tokens: 23, duration_ms: 21000 },
+        { ...row, output_tokens: 469, duration_ms: 21000 },
+        { ...row, first_token_ms: null },
+      ] })
+    exportMocks.headers.mockClear()
+    exportMocks.rows.mockClear()
+    exportMocks.save.mockClear()
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    wrapper.findComponent(UsageFiltersStub).vm.$emit('export')
+    await flushPromises()
+
+    const { utils, write, read } = XLSX
+    const headers = exportMocks.headers.mock.calls[0][0][0] as string[]
+    const column = headers.indexOf('TPS (tok/s)')
+    expect(column).toBe(headers.indexOf('usage.duration') + 1)
+    expect(exportMocks.list.mock.calls.map(call => call[0].page)).toEqual([1, 2])
+    expect(exportMocks.rows).toHaveBeenCalledTimes(2)
+    const sheet = exportMocks.rows.mock.calls[1][0]
+    const workbook = utils.book_new()
+    utils.book_append_sheet(workbook, sheet, 'Usage')
+    // 读取序列化后的工作簿，检查分页末尾的值、单元格类型和显示格式。
+    const restored = read(write(workbook, { type: 'array', bookType: 'xlsx' }), { type: 'array', cellNF: true }).Sheets.Usage
+    expect(restored[utils.encode_cell({ r: 1, c: column })]).toMatchObject({ t: 'n', v: 25, z: '0.0', w: '25.0' })
+    expect(restored[utils.encode_cell({ r: 101, c: column })]).toMatchObject({ t: 'n', v: 33.7, z: '0.0', w: '33.7' })
+    expect(restored[utils.encode_cell({ r: 102, c: column })]).toMatchObject({ t: 'n', v: 1.1, z: '0.0', w: '1.1' })
+    expect(restored[utils.encode_cell({ r: 103, c: column })]).toMatchObject({ t: 'n', v: 23.4, z: '0.0', w: '23.4' })
+    expect(restored[utils.encode_cell({ r: 104, c: column })]?.v ?? '').toBe('')
+    expect(exportMocks.save).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
 
@@ -525,6 +571,25 @@ describe('admin UsageView request ID column visibility', () => {
         UserTokenRanking: true,
       },
     },
+  })
+
+  it('TPS 默认可见，旧偏好补入该列，隐藏后重新挂载仍隐藏', async () => {
+    const saved = new Map([['usage-hidden-columns', JSON.stringify(['ip_address'])]])
+    vi.mocked(localStorage.getItem).mockImplementation(key => saved.get(key) ?? null)
+    vi.mocked(localStorage.setItem).mockImplementation((key, value) => { saved.set(key, value) })
+    const wrapper = mountColumnView()
+    await flushPromises()
+    const columns = wrapper.findComponent(UsageTableStub).props('columns') as Array<{ key: string; sortable?: boolean }>
+    expect(columns.findIndex(column => column.key === 'tps')).toBe(columns.findIndex(column => column.key === 'latency') + 1)
+    expect(columns.find(column => column.key === 'tps')?.sortable).toBe(false)
+    await wrapper.get('button[title="admin.users.columnSettings"]').trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'TPS')!.trigger('click')
+    expect(JSON.parse(saved.get('usage-hidden-columns')!)).toContain('tps')
+    wrapper.unmount()
+    const restored = mountColumnView()
+    await flushPromises()
+    expect(restored.findComponent(UsageTableStub).props('columns').map((column: { key: string }) => column.key)).not.toContain('tps')
+    restored.unmount()
   })
 
   it('shows request ID by default and persists an explicit hide', async () => {

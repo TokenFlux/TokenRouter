@@ -281,6 +281,12 @@
           </div>
         </template>
 
+        <template #cell-tps="{ row }">
+          <span class="cursor-help whitespace-nowrap text-sm tabular-nums text-gray-600 dark:text-gray-400" :title="t('usage.tpsHint')">
+            {{ formatUsageTps(row) }}
+          </span>
+        </template>
+
         <template #cell-created_at="{ value }">
           <span class="text-sm text-gray-600 dark:text-gray-400">{{ formatDateTime(value) }}</span>
         </template>
@@ -663,6 +669,7 @@ import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
+import { formatUsageTps } from '@/utils/usageTps'
 import {
   LATENCY_BAR_CLASSES,
   LATENCY_BAR_FROM_CLASSES,

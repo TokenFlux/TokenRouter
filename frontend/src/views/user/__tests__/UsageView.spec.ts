@@ -51,6 +51,8 @@ const messages: Record<string, string> = {
   'usage.original': 'Original Cost',
   'usage.firstToken': 'First Token (ms)',
   'usage.duration': 'Duration (ms)',
+  'usage.tps': 'TPS',
+  'usage.tpsExport': 'TPS (tok/s)',
 
   'admin.dashboard.timeRange': 'Time range',
   'admin.dashboard.granularity': 'Granularity',
@@ -188,6 +190,7 @@ function mountUsageView() {
 
 describe('user UsageView', () => {
   beforeEach(() => {
+    localStorage.clear()
     query.mockReset()
     getStats.mockReset()
     getDashboardModels.mockReset()
@@ -323,6 +326,7 @@ describe('user UsageView', () => {
     const usageTable = wrapper.findComponent(UsageTableStub)
     const columns = usageTable.props('columns') as Array<{ key: string; class?: string }>
     expect(columns.map((column) => column.key)).toContain('user')
+    expect(columns.map((column) => column.key)).toContain('tps')
     expect(columns.find((column) => column.key === 'user')?.class).toContain('w-36')
     expect(usageTable.props('userClickable')).toBe(false)
     expect(usageTable.props('compactUserColumn')).toBe(true)
@@ -336,6 +340,22 @@ describe('user UsageView', () => {
     const columns = usageTable.props('columns') as Array<{ key: string }>
     expect(columns.map((col) => col.key)).toContain('reasoning_effort')
     expect(columns.map((col) => col.key)).not.toContain('user_agent')
+  })
+
+  it('TPS 默认放在延迟后，旧偏好可见且隐藏后重新挂载仍隐藏', async () => {
+    localStorage.setItem('user-usage-hidden-columns', JSON.stringify(['ip_address']))
+    const wrapper = mountUsageView()
+    await flushPromises()
+    const columns = wrapper.findComponent(UsageTableStub).props('columns') as Array<{ key: string; sortable?: boolean }>
+    expect(columns.findIndex(column => column.key === 'tps')).toBe(columns.findIndex(column => column.key === 'latency') + 1)
+    expect(columns.find(column => column.key === 'tps')?.sortable).toBe(false)
+    await wrapper.get('button[title="Columns"]').trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'TPS')!.trigger('click')
+    expect(JSON.parse(localStorage.getItem('user-usage-hidden-columns')!)).toEqual(['ip_address', 'tps'])
+    wrapper.unmount()
+    const restored = mountUsageView()
+    await flushPromises()
+    expect(restored.findComponent(UsageTableStub).props('columns').map((column: { key: string }) => column.key)).not.toContain('tps')
   })
 
   it('exports csv with current filters and without admin-only fields', async () => {
@@ -370,8 +390,8 @@ describe('user UsageView', () => {
     expect(showSuccess).toHaveBeenCalled()
     expect(csvContent.startsWith('\uFEFF')).toBe(true)
     expect(csvContent.slice(1)).toBe([
-      'Time,API Key,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms)',
-      '2026-03-08T00:00:00Z,demo-key,gpt-5.4,"\'-",,203.0.113.10,Sync,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,345',
+      'Time,API Key,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms),TPS (tok/s)',
+      '2026-03-08T00:00:00Z,demo-key,gpt-5.4,"\'-",,203.0.113.10,Sync,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,345,303.3',
     ].join('\n'))
     expect(csvContent).toContain('IP Address')
     expect(csvContent).toContain('203.0.113.10')
@@ -385,6 +405,49 @@ describe('user UsageView', () => {
     window.URL.revokeObjectURL = originalRevokeObjectURL
     vi.unstubAllGlobals()
     clickSpy.mockRestore()
+  })
+
+  it('CSV 分页导出使用相同 TPS 公式，缺少首字耗时时留空', async () => {
+    query.mockResolvedValue({ items: [usageLog], total: 103, pages: 2 })
+    const wrapper = mountUsageView()
+    await flushPromises()
+    query.mockReset()
+      .mockResolvedValueOnce({ items: Array.from({ length: 100 }, () => usageLog), total: 103, pages: 2 })
+      .mockResolvedValueOnce({ items: [
+        { ...usageLog, output_tokens: 23, duration_ms: 21000, first_token_ms: 1000 },
+        { ...usageLog, output_tokens: 469, duration_ms: 21000, first_token_ms: 1000 },
+        { ...usageLog, first_token_ms: null },
+      ], total: 103, pages: 2 })
+    let csvContent = ''
+    const OriginalBlob = globalThis.Blob
+    vi.stubGlobal('Blob', vi.fn(function (parts: BlobPart[], options?: BlobPropertyBag) {
+      csvContent = parts.map(String).join('')
+      return new OriginalBlob(parts, options)
+    }))
+    const originalCreateObjectURL = window.URL.createObjectURL
+    const originalRevokeObjectURL = window.URL.revokeObjectURL
+    window.URL.createObjectURL = vi.fn(() => 'blob:usage-tps')
+    window.URL.revokeObjectURL = vi.fn()
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      await (wrapper.vm as any).exportToCSV()
+      expect(query.mock.calls.map(call => call[0].page)).toEqual([1, 2])
+      const lines = csvContent.slice(1).split('\n').map(line => line.split(','))
+      const tpsIndex = lines[0].indexOf('TPS (tok/s)')
+      expect(tpsIndex).toBe(lines[0].indexOf('Duration (ms)') + 1)
+      expect(lines).toHaveLength(104)
+      expect(lines[1][tpsIndex]).toBe('303.3')
+      expect(lines[100][tpsIndex]).toBe('303.3')
+      expect(lines[101][tpsIndex]).toBe('1.1')
+      expect(lines[102][tpsIndex]).toBe('23.4')
+      expect(lines[103][tpsIndex]).toBe('')
+      expect(lines.every(line => line.length === lines[0].length)).toBe(true)
+    } finally {
+      window.URL.createObjectURL = originalCreateObjectURL
+      window.URL.revokeObjectURL = originalRevokeObjectURL
+      vi.unstubAllGlobals()
+      clickSpy.mockRestore()
+    }
   })
 
   it('exports historical image rows with image billing mode derived from image_count', async () => {
@@ -433,6 +496,7 @@ describe('user UsageView', () => {
     expect(csvContent).toContain('Billing mode')
     expect(csvContent).toContain('Image')
     expect(csvContent).not.toContain(',Token,0,0,0,0,')
+    expect(csvContent.split('\n')[1].endsWith(',')).toBe(true)
 
     window.URL.createObjectURL = originalCreateObjectURL
     window.URL.revokeObjectURL = originalRevokeObjectURL

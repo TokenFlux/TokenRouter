@@ -112,6 +112,7 @@ const DataTableStub = {
         <slot name="cell-tokens" :row="row" />
         <slot name="cell-cost" :row="row" />
         <slot name="cell-latency" :row="row" />
+        <div class="tps-cell"><slot name="cell-tps" :row="row" /></div>
         <slot name="cell-request_id" :row="row" />
         <slot name="cell-upstream_request_id" :row="row" />
       </div>
@@ -196,6 +197,27 @@ describe('admin UsageTable request ID column', () => {
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith('req-admin-visible-id', 'Request ID copied')
     expect(wrapper.get('button').attributes('title')).toBe('Copied')
+  })
+})
+
+describe('使用记录 TPS 列', () => {
+  it('展示 TPS 和公式提示，历史记录缺少耗时时显示占位符', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [
+          { ...baseImageRow, request_id: 'valid', output_tokens: 100, duration_ms: 5000, first_token_ms: 1000 },
+          { ...baseImageRow, request_id: 'missing', output_tokens: 100, duration_ms: 5000, first_token_ms: null },
+          { ...baseImageRow, request_id: 'rounding', output_tokens: 23, duration_ms: 21000, first_token_ms: 1000 },
+        ],
+        columns: [{ key: 'tps', label: 'TPS' }],
+      },
+      global: {
+        stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true },
+      },
+    })
+    expect(wrapper.findAll('.tps-cell').map(cell => cell.text())).toEqual(['25.0 tok/s', '-', '1.1 tok/s'])
+    expect(wrapper.get('.tps-cell span').attributes('title')).toBe('usage.tpsHint')
+    wrapper.unmount()
   })
 })
 
