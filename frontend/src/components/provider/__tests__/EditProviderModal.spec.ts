@@ -350,6 +350,25 @@ describe('EditProviderModal', () => {
     listTLSProfilesMock.mockResolvedValue([])
   })
 
+  it.each([undefined, ''])('Jev 地址为 %s 时加载官方默认值', async (baseUrl) => {
+    const provider = { ...buildProvider(), platform: 'jev' as const, credentials: { api_key: 'test-jev-key', base_url: baseUrl, upstream_protocols: ['systemone'] } }
+    const wrapper = mountModal(provider)
+    await flushPromises()
+    expect((wrapper.get('#edit-provider-base-url').element as HTMLInputElement).value).toBe('https://api.typesafe.ai')
+    wrapper.unmount()
+  })
+
+  it('清空 Jev 地址后保存官方默认值', async () => {
+    const provider = { ...buildProvider(), platform: 'jev' as const, credentials: { api_key: 'test-jev-key', base_url: 'https://custom.example', upstream_protocols: ['systemone'] } }
+    const wrapper = mountModal(provider)
+    await flushPromises()
+    await wrapper.get('#edit-provider-base-url').setValue('')
+    await wrapper.get('form#edit-provider-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateProviderMock.mock.calls[0]?.[1]?.credentials.base_url).toBe('https://api.typesafe.ai')
+    wrapper.unmount()
+  })
+
   it('renders the shared provider model rule copy', async () => {
     const provider = buildProvider()
     provider.credentials.model_whitelist = []

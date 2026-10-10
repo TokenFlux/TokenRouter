@@ -215,9 +215,9 @@ describe('ProviderUpstreamUsageCell', () => {
     expect(wrapper.text()).not.toContain('admin.providers.upstreamUsage.subscriptionRemaining')
   })
 
-  it('显式关闭时禁用查询按钮', () => {
+  it('关闭查询时隐藏上游数据和查询按钮', () => {
     const wrapper = mountCell({ provider: provider({ upstream_usage_query: { enabled: false } }) })
-    expect(wrapper.text()).toContain('admin.providers.upstreamUsage.disabled')
+    expect(wrapper.find('[data-testid="provider-upstream-usage"]').exists()).toBe(false)
     expect(wrapper.find('button').exists()).toBe(false)
   })
 
@@ -234,7 +234,7 @@ describe('ProviderUpstreamUsageCell', () => {
         balance: { remaining: 10 }
       }
     })
-    expect(wrapper.text()).toContain('admin.providers.upstreamUsage.disabled')
+    expect(wrapper.find('[data-testid="provider-upstream-usage"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('10 USD')
   })
 
@@ -314,7 +314,7 @@ describe('ProviderUpstreamUsageCell', () => {
         credentials: { provider_mode: 'payg' }
       }
     })
-    expect(wrapper.text()).toContain('admin.providers.cnProviders.noBalanceEndpoint')
+    expect(wrapper.find('[data-testid="provider-upstream-usage"]').exists()).toBe(false)
     expect(wrapper.find('button').exists()).toBe(false)
   })
 })

@@ -49,6 +49,32 @@ func TestNormalizeProviderTestMode(t *testing.T) {
 	}
 }
 
+// TestDecisionTestingRequiresJev 检查决策请求只能交给 Jev，并把结构化参数传入执行器。
+func TestDecisionTestingRequiresJev(t *testing.T) {
+	for _, platform := range []string{PlatformJev, PlatformOpenAI} {
+		t.Run(platform, func(t *testing.T) {
+			called := false
+			kind := ProviderTestTypeDecision
+			request := TestRequest{Type: &kind, SystemOne: []byte(`{"state":["ready"],"questions":{"x":{"type":"noul","instructions":"Ready?"}}}`)}
+			loader := &testLoaderStub{target: testTargetStub{info: TestTargetInfo{ProviderSnapshot: ProviderSnapshot{Platform: platform, Type: ProviderTypeAPIKey}}, run: func(_ context.Context, got PreparedTestRequest, _ TestEventSink) error {
+				called = true
+				require.Equal(t, TestRouteJev, got.Route)
+				require.Equal(t, kind, got.TestType)
+				require.Equal(t, request.SystemOne, got.SystemOne)
+				return nil
+			}}}
+			err := NewTestService(loader, TestOptions{}).Test(context.Background(), request, &testSinkStub{})
+			if platform == PlatformJev {
+				require.NoError(t, err)
+				require.True(t, called)
+			} else {
+				require.EqualError(t, err, "Decision tests require a Jev provider")
+				require.False(t, called)
+			}
+		})
+	}
+}
+
 func TestResolveProviderTestModeAndType(t *testing.T) {
 	tests := []struct {
 		name      string

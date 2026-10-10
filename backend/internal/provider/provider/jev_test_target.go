@@ -34,7 +34,7 @@ func (t jevTestTarget) Information() provider.TestTargetInfo {
 	return provider.TestTargetInfo{ProviderSnapshot: t.record.RoutingSnapshot()}
 }
 
-// Execute 执行 Noul 探测，输出答案和耗时。
+// Execute 执行管理员传入的决策问题，未提供问题时发送最小 Noul 探测。
 func (t jevTestTarget) Execute(ctx context.Context, request provider.PreparedTestRequest, sink provider.TestEventSink) error {
 	run := NewTestRun(ctx, nil, sink)
 	defer run.Cancel()
@@ -55,6 +55,16 @@ func (t jevTestTarget) Execute(ctx context.Context, request provider.PreparedTes
 	if t.record.Proxy != nil {
 		proxy = t.record.Proxy.URL()
 	}
+	body := systemone.ProbeBody(model, request.Prompt)
+	if len(request.SystemOne) > 0 {
+		body, err = systemone.ReplaceModel(request.SystemOne, model)
+		if err != nil {
+			return output.Error(run, "Invalid SystemOne test request")
+		}
+		if _, err = systemone.ParseRequest(body); err != nil {
+			return output.Error(run, err.Error())
+		}
+	}
 	run.Begin(true)
 	output.SendEvent(run, provider.TestEvent{Type: "test_start", Model: model})
 	target := &jev.Target{
@@ -64,7 +74,7 @@ func (t jevTestTarget) Execute(ctx context.Context, request provider.PreparedTes
 			return t.executor.Transport.Do(req, proxy, t.record.ID, t.record.Concurrency)
 		},
 	}
-	result, err := (jev.Executor{}).Execute(run.Context, upstream.AttemptInput{Protocol: protocol.ProtocolSystemOne, Body: systemone.ProbeBody(model, request.Prompt), Target: target}, nil)
+	result, err := (jev.Executor{}).Execute(run.Context, upstream.AttemptInput{Protocol: protocol.ProtocolSystemOne, Body: body, Target: target}, nil)
 	if err != nil {
 		return output.Error(run, "SystemOne test failed: "+err.Error())
 	}

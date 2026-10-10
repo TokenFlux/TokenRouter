@@ -113,19 +113,19 @@ describe('国产平台提供商完整用量布局', () => {
 
     await wrapper.setProps({ provider: { ...provider, extra: { upstream_usage_query: { enabled: false } } } })
     expect(wrapper.findAll(querySelector)).toHaveLength(0)
-    expect(wrapper.text()).toContain('admin.providers.upstreamUsage.disabled')
+    expect(wrapper.find('[data-testid="provider-upstream-usage"]').exists()).toBe(false)
     expect(wrapper.get('[data-stat="requests"]').text()).toContain('123')
     expect(wrapper.get('[data-label="total"]').text()).toBe('total|10')
     wrapper.unmount()
   })
 
-  it.each(['payg', undefined])('智谱模式 %s 显示不支持提示并保留本地统计和配额', async mode => {
+  it.each(['payg', undefined])('智谱模式 %s 隐藏上游查询区域并展示本地统计和配额', async mode => {
     const provider = makeProvider('zhipu', mode ?? '')
     if (mode === undefined && provider.credentials) delete provider.credentials.provider_mode
     const request = vi.fn()
     const wrapper = mountCell(provider, request)
     await flushPromises()
-    expect(wrapper.text()).toContain('admin.providers.cnProviders.noBalanceEndpoint')
+    expect(wrapper.find('[data-testid="provider-upstream-usage"]').exists()).toBe(false)
     expect(wrapper.findAll(querySelector)).toHaveLength(0)
     expect(wrapper.get('[data-stat="requests"]').text()).toContain('123')
     expect(wrapper.get('[data-label="1d"]').text()).toBe('1d|20')

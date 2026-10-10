@@ -76,7 +76,7 @@ func (p *systemOneRun) Acquire(_ context.Context) (func(), bool) {
 // Forward 复查资金并调用当前提供商。
 func (p *systemOneRun) Forward(ctx context.Context) systemone.Outcome {
 	// 提供商等待期间资金可能变化，调用上游前再次检查。
-	if failure := (mediaHTTPAdapter{p.h}).Billing(p.c); failure != nil {
+	if failure := (mediaHTTPAdapter{p.h}).checkFunding(p.c, true); failure != nil {
 		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, failure.Status, failure.Code, failure.Message)
 		return systemone.Outcome{Err: failure.Err}
 	}

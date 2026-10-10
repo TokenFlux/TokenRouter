@@ -1398,8 +1398,9 @@ const planTypeOptions = computed(() =>
 )
 const openAIOAuthClientPolicyOptions = useOpenAIOAuthClientPolicyOptions()
 
-// Computed: default base URL based on platform
+// 缺省上游地址由平台及当前模式决定。
 const defaultBaseUrl = computed(() => {
+  if (props.provider?.platform === 'jev') return 'https://api.typesafe.ai'
   if (props.provider?.platform === 'openai') return 'https://api.openai.com'
   if (props.provider?.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
   if (props.provider?.platform === 'grok') return 'https://api.x.ai/v1'
@@ -1852,17 +1853,19 @@ const syncFormFromProvider = (newProvider: Provider | null) => {
       }
     }
     const platformDefaultUrl =
-      newProvider.platform === 'openai'
-        ? 'https://api.openai.com'
-        : newProvider.platform === 'gemini'
-          ? 'https://generativelanguage.googleapis.com'
-          : newProvider.platform === 'grok'
-            ? 'https://api.x.ai/v1'
-            : newProvider.platform === 'kimi' ||
-                newProvider.platform === 'zhipu' ||
-                newProvider.platform === 'deepseek'
-              ? defaultCNBaseUrl(newProvider.platform, editProviderMode.value, editApiProtocol.value)
-              : 'https://api.anthropic.com'
+      newProvider.platform === 'jev'
+        ? 'https://api.typesafe.ai'
+        : newProvider.platform === 'openai'
+          ? 'https://api.openai.com'
+          : newProvider.platform === 'gemini'
+            ? 'https://generativelanguage.googleapis.com'
+            : newProvider.platform === 'grok'
+              ? 'https://api.x.ai/v1'
+              : newProvider.platform === 'kimi' ||
+                  newProvider.platform === 'zhipu' ||
+                  newProvider.platform === 'deepseek'
+                ? defaultCNBaseUrl(newProvider.platform, editProviderMode.value, editApiProtocol.value)
+                : 'https://api.anthropic.com'
     editBaseUrl.value = isCNApiKeyProvider.value && editApiProtocol.value === 'adaptive'
       ? editAdaptiveBaseUrls.value.chat_completions
       : (credentials.base_url as string) || platformDefaultUrl

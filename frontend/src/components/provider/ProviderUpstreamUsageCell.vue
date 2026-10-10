@@ -1,15 +1,5 @@
 <template>
-  <div class="space-y-1" data-testid="provider-upstream-usage">
-    <div v-if="unsupportedCNQuery" class="flex min-h-5 items-center justify-end gap-1">
-      <span class="text-xs text-gray-400 dark:text-gray-500">
-        {{ t('admin.providers.cnProviders.noBalanceEndpoint') }}
-      </span>
-    </div>
-    <div v-else-if="!queryEnabled" class="flex min-h-5 items-center justify-end gap-1">
-      <span class="text-xs text-gray-400 dark:text-gray-500">
-        {{ t('admin.providers.upstreamUsage.disabled') }}
-      </span>
-    </div>
+  <div v-if="queryEnabled" class="space-y-1" data-testid="provider-upstream-usage">
     <!-- 移动端卡片整体右对齐，骨架条需与查询结果保持同侧。 -->
     <div v-if="queryEnabled && loading" class="flex flex-col items-end gap-1 lg:items-start" data-testid="upstream-usage-skeleton">
       <div class="skeleton h-3 w-28"></div>
@@ -85,7 +75,7 @@ import type {
 } from '@/types'
 import Icon from '@/components/icons/Icon.vue'
 import UsageProgressBar from './UsageProgressBar.vue'
-import { isUpstreamUsageQueryEnabled, supportsUpstreamUsageQuery } from '@/utils/upstreamUsage'
+import { isUpstreamUsageQueryEnabled } from '@/utils/upstreamUsage'
 
 const props = withDefaults(defineProps<{
   provider: Provider
@@ -104,11 +94,7 @@ const props = withDefaults(defineProps<{
 
 const { t } = useI18n()
 
-// 管理员点击查询按钮时发起请求。
-const unsupportedCNQuery = computed(() =>
-  props.provider.platform === 'zhipu' && !supportsUpstreamUsageQuery(props.provider)
-)
-
+// 查询关闭时隐藏整块上游数据，本地统计由父组件展示。
 const queryEnabled = computed(() => isUpstreamUsageQueryEnabled(props.provider))
 
 // 未执行本次会话的手动查询时，可展示后台监控最近一次成功快照；组件挂载不会发请求。

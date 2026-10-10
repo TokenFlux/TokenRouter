@@ -1,6 +1,6 @@
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4" data-testid="provider-batch-test">
-    <ProviderTestResultView v-if="batch.detailRow" :run="batch.detailRow.run">
+    <component :is="decision ? SystemOneTestResult : ProviderTestResultView" v-if="batch.detailRow" :run="batch.detailRow.run">
       <template #leading>
         <button
           type="button"
@@ -16,7 +16,7 @@
           {{ batch.detailRow.model }}
         </span>
       </template>
-    </ProviderTestResultView>
+    </component>
 
     <template v-else>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
@@ -103,7 +103,7 @@
                 </th>
                 <th class="px-4 py-2">{{ t('admin.providers.testDialog.model') }}</th>
                 <th class="px-4 py-2">{{ t('admin.providers.testDialog.batch.status') }}</th>
-                <th class="px-4 py-2">{{ t('admin.providers.testDialog.metricFirstToken') }}</th>
+                <th v-if="!decision" class="px-4 py-2">{{ t('admin.providers.testDialog.metricFirstToken') }}</th>
                 <th class="px-4 py-2">{{ t('admin.providers.testDialog.metricTotal') }}</th>
                 <th class="w-20 px-4 py-2"></th>
               </tr>
@@ -139,7 +139,7 @@
                     {{ t(`admin.providers.testDialog.batch.state.${rowOf(model)?.state ?? 'ready'}`) }}
                   </span>
                 </td>
-                <td class="px-4 py-3 font-mono text-xs tabular-nums text-gray-700 dark:text-dark-200">
+                <td v-if="!decision" class="px-4 py-3 font-mono text-xs tabular-nums text-gray-700 dark:text-dark-200">
                   {{ formatSeconds(rowOf(model)?.run.firstTokenMs) }}
                 </td>
                 <td class="px-4 py-3 font-mono text-xs tabular-nums text-gray-700 dark:text-dark-200">
@@ -181,6 +181,7 @@ import { useI18n } from 'vue-i18n'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import { Icon } from '@/components/icons'
 import ProviderTestResultView from './ProviderTestResultView.vue'
+import SystemOneTestResult from './SystemOneTestResult.vue'
 import {
   MAX_BATCH_MODELS,
   type ProviderBatchRowState,
@@ -189,6 +190,7 @@ import {
 
 const props = defineProps<{
   batch: UnwrapNestedRefs<ProviderBatchTest>
+  decision?: boolean
 }>()
 
 const { t } = useI18n()

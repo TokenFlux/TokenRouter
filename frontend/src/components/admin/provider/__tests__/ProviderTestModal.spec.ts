@@ -125,6 +125,110 @@ describe('ProviderTestModal', () => {
     vi.restoreAllMocks()
   })
 
+  it('Jev 发送混合决策问题并展示概率、选择、评分和有效零用量', async () => {
+    getAvailableModels.mockResolvedValue([])
+    const response = {
+      model: 'jev-1.13.0',
+      answers: {
+        available: { type: 'noul', noul: 0.95 },
+        question_2: { type: 'choice', choice: 'a', confidence: 0.8, probabilities: { a: 0.8, b: 0.2 } },
+        question_3: { type: 'score', score: 1, confidence: 0.9, probabilities: { 0: 0.1, 1: 0.9 }, legend: 'low to high' }
+      },
+      usage: { input_tokens: 32, output_tokens: 0 }
+    }
+    global.fetch = vi.fn().mockResolvedValue(createStreamResponse([
+      'data: {"type":"test_start","model":"jev-latest"}\n',
+      `data: ${JSON.stringify({ type: 'test_complete', success: true, data: { response, usage_valid: true } })}\n`
+    ])) as any
+    const wrapper = mountModal({ id: 42, name: 'Jev', platform: 'jev', type: 'apikey' })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="provider-test-prompt"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="provider-test-protocol"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('admin.providers.testDialog.metricFirstToken')
+    await wrapper.get('[data-testid="systemone-state"]').setValue('service ready')
+    for (const [index, type] of [[1, 'choice'], [2, 'score']] as const) {
+      await wrapper.get('[data-testid="systemone-questions-add"]').trigger('click')
+      wrapper.getComponent(`[data-testid="decision-type-${index}"]`).vm.$emit('update:modelValue', type)
+      await wrapper.vm.$nextTick()
+      await wrapper.get(`[data-testid="decision-instructions-${index}"]`).setValue('Evaluate this state')
+    }
+    await wrapper.get('[data-testid="provider-test-start"]').trigger('click')
+    await flushPromises()
+    const body = JSON.parse((global.fetch as any).mock.calls[0][1].body)
+    expect(body).toMatchObject({ model_id: 'jev-latest', test_type: 'decision', systemone: { state: 'service ready', questions: { available: { type: 'noul' }, question_2: { type: 'choice', criteria: { a: '', b: '' } }, question_3: { type: 'score', criteria: ['', ''] } } } })
+    expect(body).not.toHaveProperty('prompt')
+    expect(wrapper.get('[data-testid="decision-answer-available"]').text()).toContain('95.00%')
+    expect(wrapper.get('[data-testid="decision-answer-question_2"]').text()).toContain('80.00%')
+    expect(wrapper.get('[data-testid="decision-answer-question_3"]').text()).toContain('low to high')
+    expect(wrapper.get('[data-testid="systemone-test-result"]').text()).toContain('jev-1.13.0')
+    expect(wrapper.text()).not.toContain('admin.providers.decisionTest.usageUnknown')
+    wrapper.unmount()
+  })
+
+  it('Jev 校验 JSON 状态与问题 ID，结构化状态按原类型发送', async () => {
+    const wrapper = mountModal({ id: 42, name: 'Jev', platform: 'jev', type: 'apikey' })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    const jsonButton = wrapper.findAll('[role="radio"]').find(button => button.text() === 'JSON')!
+    await jsonButton.trigger('click')
+    await wrapper.get('[data-testid="systemone-state"]').setValue('false')
+    expect(wrapper.get('[data-testid="provider-test-start"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="systemone-state"]').setValue('{"ready":true}')
+    await wrapper.get('[data-testid="systemone-questions-add"]').trigger('click')
+    await wrapper.get('[data-testid="decision-instructions-1"]').setValue('Ready?')
+    await wrapper.get('[data-testid="decision-id-1"]').setValue('available')
+    expect(wrapper.get('[data-testid="provider-test-start"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="decision-id-1"]').setValue('other')
+    await wrapper.get('[data-testid="provider-test-start"]').trigger('click')
+    await flushPromises()
+    expect(JSON.parse((global.fetch as any).mock.calls[0][1].body).systemone.state).toEqual({ ready: true })
+    wrapper.unmount()
+  })
+
+  it('Jev 批量测试共用决策问题并使用决策结果详情', async () => {
+    getAvailableModels.mockResolvedValue([{ id: 'jev-latest' }, { id: 'jev-preview' }])
+    global.fetch = vi.fn().mockImplementation(async (_url, options) => {
+      const body = JSON.parse(options.body)
+      return createStreamResponse([
+        `data: ${JSON.stringify({ type: 'test_complete', success: true, data: { usage_valid: true, response: { model: body.model_id, answers: { available: { type: 'noul', noul: 0.7 } }, usage: { input_tokens: 3, output_tokens: 0 } } } })}\n`
+      ])
+    }) as any
+    const wrapper = mountModal({ id: 42, name: 'Jev', platform: 'jev', type: 'apikey' })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    ;(wrapper.vm as any).testScope = 'batch'
+    const batch = (wrapper.vm as any).batch
+    batch.setMany(['jev-latest', 'jev-preview'], true)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).not.toContain('admin.providers.testDialog.metricFirstToken')
+    await wrapper.get('[data-testid="provider-batch-start"]').trigger('click')
+    await flushPromises()
+    const bodies = (global.fetch as any).mock.calls.map(([, options]: [unknown, RequestInit]) => JSON.parse(String(options.body)))
+    expect(bodies.map((body: any) => body.model_id)).toEqual(['jev-latest', 'jev-preview'])
+    expect(bodies[0].test_type).toBe('decision')
+    expect(bodies[0].systemone).toEqual(bodies[1].systemone)
+    batch.showDetail('jev-preview')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('[data-testid="systemone-test-result"]').text()).toContain('jev-preview')
+    expect(wrapper.get('[data-testid="decision-answer-available"]').text()).toContain('70.00%')
+    wrapper.unmount()
+  })
+
+  it('Jev 用量缺失时仍展示答案及用量提示', async () => {
+    global.fetch = vi.fn().mockResolvedValue(createStreamResponse([
+      `data: ${JSON.stringify({ type: 'test_complete', success: true, data: { usage_valid: false, response: { model: 'jev-latest', answers: { available: { type: 'noul', noul: 0 } } } } })}\n`
+    ])) as any
+    const wrapper = mountModal({ id: 42, name: 'Jev', platform: 'jev', type: 'apikey' })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    await wrapper.get('[data-testid="provider-test-start"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="decision-answer-available"]').text()).toContain('0.00%')
+    expect(wrapper.text()).toContain('admin.providers.decisionTest.usageUnknown')
+    wrapper.unmount()
+  })
+
   it('空目录提示配置型号，并允许手动输入测试', async () => {
     getAvailableModels.mockResolvedValue([])
     const wrapper = mountModal()

@@ -1,6 +1,7 @@
 import { reactive } from 'vue'
 import { buildApiUrl } from '@/api/client'
 import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
+import type { SystemOneTestPayload, SystemOneTestResult } from './systemOneTest'
 import type { ProviderTestProtocol } from './providerTestProtocols'
 
 export type ProviderTestStatus = 'idle' | 'connecting' | 'success' | 'error'
@@ -26,13 +27,16 @@ export interface ProviderTestRun {
   firstTokenMs: number | null
   totalMs: number | null
   images: ProviderTestImage[]
+  decisionResult?: SystemOneTestResult | null
+  decisionUsageValid?: boolean
 }
 
 /** 发给 POST /admin/providers/:id/test 的请求体。 */
 export interface ProviderTestRequestBody {
   model_id: string
-  prompt: string
-  test_type: 'text' | 'image'
+  prompt?: string
+  systemone?: SystemOneTestPayload
+  test_type: 'text' | 'image' | 'decision'
   mode?: 'default' | 'compact' | 'legacy_compact'
   protocol?: ProviderTestProtocol
 }
@@ -45,6 +49,7 @@ interface ProviderTestEvent {
   error?: string
   image_url?: string
   mime_type?: string
+  data?: { response?: SystemOneTestResult; usage_valid?: boolean; duration_ms?: number }
 }
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
@@ -71,6 +76,8 @@ export function resetProviderTestRun(run: ProviderTestRun) {
   run.firstTokenMs = null
   run.totalMs = null
   run.images = []
+  run.decisionResult = null
+  run.decisionUsageValid = false
 }
 
 /**
@@ -122,12 +129,14 @@ export async function executeProviderTest(options: {
         addLine(
           options.body.test_type === 'image'
             ? t('admin.providers.sendingImageRequest')
-            : t('admin.providers.sendingTestMessage')
+            : options.body.test_type === 'decision'
+              ? t('admin.providers.decisionTest.sending')
+              : t('admin.providers.sendingTestMessage')
         )
         break
       case 'content':
         if (event.text) {
-          markFirstToken()
+          if (options.body.test_type !== 'decision') markFirstToken()
           run.replyText += event.text
         }
         break
@@ -143,6 +152,10 @@ export async function executeProviderTest(options: {
         break
       case 'test_complete':
         if (event.success) {
+          if (options.body.test_type === 'decision' && run.status === 'connecting') {
+            run.decisionResult = event.data?.response ?? null
+            run.decisionUsageValid = event.data?.usage_valid === true
+          }
           finish('success')
         } else {
           finish('error', event.error || 'Test failed')

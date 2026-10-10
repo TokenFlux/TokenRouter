@@ -1,7 +1,7 @@
 <template>
   <BaseDialog
     :show="show"
-    :title="t('admin.providers.testDialog.title', { name: provider?.name ?? '' })"
+    :title="t(isDecisionProvider ? 'admin.providers.decisionTest.title' : 'admin.providers.testDialog.title', { name: provider?.name ?? '' })"
     width="wide"
     :body-scroll="false"
     flush
@@ -32,7 +32,8 @@
       <!-- 左侧：本次测试的参数，不写回提供商配置 -->
       <aside
         :aria-label="t('admin.providers.testDialog.settings')"
-        class="flex shrink-0 flex-col gap-5 border-b border-gray-200 bg-gray-50/70 px-4 py-5 dark:border-dark-600 dark:bg-dark-950 sm:px-6 md:w-72 md:overflow-y-auto md:border-b-0 md:border-r"
+        :class="isDecisionProvider ? 'md:w-96' : 'md:w-72'"
+        class="flex shrink-0 flex-col gap-5 border-b border-gray-200 bg-gray-50/70 px-4 py-5 dark:border-dark-600 dark:bg-dark-950 sm:px-6 md:overflow-y-auto md:border-b-0 md:border-r"
       >
         <SettingsSegmented
           v-model="testScope"
@@ -77,7 +78,7 @@
           {{ t('admin.providers.testDialog.modelsEmpty') }}
         </p>
 
-        <div v-if="testType === 'text'" class="space-y-1.5">
+        <div v-if="!isDecisionProvider && testType === 'text'" class="space-y-1.5">
           <label class="input-label" :for="protocolFieldId">{{ t('admin.providers.testDialog.protocol') }}</label>
           <Select
             :id="protocolFieldId"
@@ -111,8 +112,9 @@
           />
         </div>
 
+        <SystemOneTestForm v-if="isDecisionProvider" :key="`${provider?.id}-${show}`" :disabled="busy" @change="decisionPayload = $event" />
         <TextArea
-          v-if="!isCompactTestMode"
+          v-else-if="!isCompactTestMode"
           v-model="testPrompt"
           :label="promptInputLabel"
           :placeholder="promptInputPlaceholder"
@@ -127,8 +129,8 @@
         :aria-label="t('admin.providers.testDialog.results')"
         class="flex min-w-0 flex-col px-4 py-5 sm:px-6 md:min-h-0 md:flex-1"
       >
-        <ProviderTestResultView v-if="testScope === 'single'" :run="singleRun" />
-        <ProviderTestBatchPanel v-else :batch="batch" />
+        <component :is="isDecisionProvider ? SystemOneTestResult : ProviderTestResultView" v-if="testScope === 'single'" :run="singleRun" />
+        <ProviderTestBatchPanel v-else :batch="batch" :decision="isDecisionProvider" />
       </section>
     </div>
 
@@ -171,6 +173,7 @@
           type="button"
           class="btn btn-secondary"
           data-testid="provider-batch-retry"
+          :disabled="isDecisionProvider && !decisionPayload"
           @click="startBatch(batch.failedModels, true)"
         >
           {{ t('admin.providers.testDialog.batch.retry', { count: batch.failedModels.length }) }}
@@ -179,7 +182,7 @@
           type="button"
           class="btn btn-primary"
           data-testid="provider-batch-start"
-          :disabled="batch.selected.size === 0"
+          :disabled="batch.selected.size === 0 || (isDecisionProvider && !decisionPayload)"
           @click="startBatch(selectedBatchModels, false)"
         >
           <Icon name="play" size="sm" />
@@ -191,7 +194,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ProviderIcon from '@/components/common/ProviderIcon.vue'
@@ -206,6 +209,9 @@ import { resolveProviderBrand } from '@/utils/providerBrand'
 import type { Provider, ClaudeModel } from '@/types'
 import ProviderTestBatchPanel from './ProviderTestBatchPanel.vue'
 import ProviderTestResultView from './ProviderTestResultView.vue'
+import SystemOneTestForm from './SystemOneTestForm.vue'
+import SystemOneTestResult from './SystemOneTestResult.vue'
+import type { SystemOneTestPayload } from './systemOneTest'
 import {
   defaultProviderTestProtocol,
   providerTestProtocolPlan,
@@ -256,6 +262,9 @@ let lastDefaultPrompt = ''
 
 // Antigravity、Qoder 等未配置品牌图形的平台使用 PlatformIcon。
 const hasProviderBrandIcon = computed(() => Boolean(resolveProviderBrand(props.provider?.platform).iconKey))
+
+const isDecisionProvider = computed(() => props.provider?.platform === 'jev')
+const decisionPayload = ref<SystemOneTestPayload | null>(null)
 
 const isOpenAIProvider = computed(() => props.provider?.platform === 'openai')
 const isCNProvider = computed(() => ['kimi', 'zhipu', 'deepseek'].includes(props.provider?.platform ?? ''))
@@ -332,7 +341,7 @@ const promptInputPlaceholder = computed(() =>
     : t('admin.providers.textPromptPlaceholder')
 )
 
-const canTestSingle = computed(() => !busy.value && !!selectedModelId.value)
+const canTestSingle = computed(() => !busy.value && !!selectedModelId.value && (!isDecisionProvider.value || !!decisionPayload.value))
 
 const singleButtonLabel = computed(() => {
   if (singleRunning.value) return t('admin.providers.testDialog.running')
@@ -345,8 +354,9 @@ const selectedBatchModels = computed(() => batch.models.filter((model) => batch.
 
 // 打开弹窗时重置参数并加载可测试模型。
 watch(
-  () => props.show,
-  async (open) => {
+  () => [props.show, props.provider?.id] as const,
+  async ([open]) => {
+    abortAll()
     if (open && props.provider) {
       testScope.value = 'single'
       testPrompt.value = ''
@@ -358,8 +368,6 @@ watch(
       resetProviderTestRun(singleRun)
       batch.reset([])
       await loadAvailableModels()
-    } else {
-      abortAll()
     }
   }
 )
@@ -403,6 +411,9 @@ const loadAvailableModels = async () => {
 
 // buildRequestBody 按当前左侧参数生成单次测试请求，批量测试每个模型共用同一套参数。
 const buildRequestBody = (model: string): ProviderTestRequestBody => {
+  if (isDecisionProvider.value && decisionPayload.value) {
+    return { model_id: model, test_type: 'decision', systemone: decisionPayload.value }
+  }
   const body: ProviderTestRequestBody = {
     model_id: model,
     prompt: isCompactTestMode.value ? '' : testPrompt.value.trim(),
@@ -443,7 +454,7 @@ const startTest = async () => {
 }
 
 const startBatch = (targets: string[], retry: boolean) => {
-  if (!props.provider || busy.value) return
+  if (!props.provider || busy.value || (isDecisionProvider.value && !decisionPayload.value)) return
   void batch.start({
     targets: [...targets],
     retry,
@@ -452,4 +463,5 @@ const startBatch = (targets: string[], retry: boolean) => {
     buildBody: buildRequestBody
   })
 }
+onBeforeUnmount(abortAll)
 </script>

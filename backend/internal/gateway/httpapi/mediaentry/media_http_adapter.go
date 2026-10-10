@@ -131,9 +131,14 @@ func (p mediaHTTPAdapter) BindErrors(c *gin.Context) {
 }
 
 func (p mediaHTTPAdapter) Billing(c *gin.Context) *gatewayhttp.MediaHTTPFailure {
+	return p.checkFunding(c, false)
+}
+
+// checkFunding 在等待后复查资金，RPM 在首次准入时累计。
+func (p mediaHTTPAdapter) checkFunding(c *gin.Context, afterWait bool) *gatewayhttp.MediaHTTPFailure {
 	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
-	err := p.h.bindings.CheckFunding(c.Request.Context(), key, subscription, "", false)
+	err := p.h.bindings.CheckFunding(c.Request.Context(), key, subscription, "", afterWait)
 	if err == nil {
 		return nil
 	}
