@@ -1,0 +1,4 @@
+interface:
+  display_name: "TR Release"
+  short_description: "Publish TokenRouter with structured release notes"
+  default_prompt: "Use $tr-release to publish a specified TokenRouter version, or the next patch release when no version is given, with structured Chinese release notes."
