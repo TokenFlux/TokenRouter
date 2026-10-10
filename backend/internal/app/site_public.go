@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -34,6 +35,11 @@ func (a siteBillingSubscriptions) ListActiveByUserID(ctx context.Context, id int
 
 func provideAnnouncementSubscriptions(repo billing.UserSubscriptionRepository) site.SubscriptionReader {
 	return siteBillingSubscriptions{repo: repo}
+}
+
+// provideAnnouncementExpiry 创建每分钟检查公告过期状态的服务。
+func provideAnnouncementExpiry(repo site.AnnouncementRepository) *site.AnnouncementExpiryService {
+	return site.NewAnnouncementExpiryService(repo, time.Minute)
 }
 
 func provideSitePages(cfg *config.Config, settings *site.DisplaySettings) *sitehttp.PageHandler {

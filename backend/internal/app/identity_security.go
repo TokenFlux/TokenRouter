@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
@@ -12,6 +13,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/notification"
 )
+
+// provideSecretEncryptor 使用启动配置创建 AES 加密器。
+func provideSecretEncryptor(cfg *config.Config) (identity.SecretEncryptor, error) {
+	return bootstrap.NewAESEncryptor(cfg)
+}
 
 // provideTotp 绑定身份存储、通知接口和设置接口。
 func provideTotp(users *identitypostgres.UserStore, encryptor identity.SecretEncryptor, cache identity.TotpCache, settings *identityAuthSettings, email *identity.EmailChallenges, queue *notification.EmailQueueService) *identity.TotpService {

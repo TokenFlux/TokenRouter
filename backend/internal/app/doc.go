@@ -13,6 +13,6 @@
 //   - billing.go、payment_*.go、routing_*.go：装配资金、支付、分组和价格读取。
 //   - tasks.go、task_storage.go、creative_*.go、batch_image_*.go：装配持久任务、创作台和批量图片服务。
 //   - settings_*.go、site_public.go、http_*.go：绑定运行时设置、公开站点数据和 HTTP 入口。
-//   - storage.go、scheduler*.go、legacy_runtime*.go、runtime_*.go：构造共享资源和登记后台服务启停。
+//   - storage.go、scheduler*.go、runtime*.go：构造共享资源和登记后台服务启停。
 //   - ops*.go、observability_foundation.go、usage*.go、notification.go：装配监控、审计、用量和通知。
 package app

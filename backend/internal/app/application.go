@@ -9,6 +9,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
 )
 
 // BuildInfo 接收进程入口传入的构建信息，各模块取得自己需要的字段。
@@ -45,6 +46,39 @@ func Initialize(ctx context.Context, cfg *config.Config, buildInfo BuildInfo, re
 		}
 	}()
 	return initializeApplication(ctx, cfg, buildInfo, manager, restarter, tasks)
+}
+
+// provideApplication 登记 HTTP 请求跟踪和运维 WebSocket 的关闭任务。
+func provideApplication(
+	server *http.Server,
+	manager *lifecycle.Manager,
+	_ *runtimeReady,
+	opsService *ops.OpsService,
+	_ *ops.ErrorLogQueue,
+) *Application {
+	lifecycle.TrackRequests(server, manager)
+	manager.Register(lifecycle.Hook{
+		Name:       "OpsWSRuntime",
+		StartOrder: 983,
+		StopOrder:  17,
+		Stop: func(context.Context) error {
+			opsService.Realtime().Stop()
+			return nil
+		},
+	})
+	return &Application{Server: server, lifecycle: manager}
+}
+
+// installBackgroundTasks 登记各模块共用的后台任务跟踪器。
+func installBackgroundTasks(manager *lifecycle.Manager) *lifecycle.Tasks {
+	tasks := lifecycle.NewTasks()
+	manager.Register(lifecycle.Hook{
+		Name:       "ApplicationBackgroundTasks",
+		StartOrder: 932,
+		StopOrder:  68,
+		Stop:       tasks.Stop,
+	})
+	return tasks
 }
 
 // Run 先启动后台任务，再开放 HTTP，返回前按超时预算清理资源。

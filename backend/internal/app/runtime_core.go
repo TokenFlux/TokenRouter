@@ -7,37 +7,33 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	egressadapter "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
-	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
 type coreRuntimeReady struct{}
 
+// provideCoreRuntime 登记缓存、清理任务和共享连接的启停。
 func provideCoreRuntime(
-	providerRuntime *provider.RuntimeBlockState,
-	cfg *config.Config,
 	authCacheInvalidationWorker *apikey.AuthCacheInvalidationWorker,
 	schedulerSnapshot *scheduler.SnapshotService,
-
-	shared *schedulerSharedState,
 	usageCleanup *usage.UsageCleanupService,
 	idempotencyCleanup *idempotency.IdempotencyCleanupService,
 	paymentOrderExpiry *payment.OrderExpiry,
-	tlsFingerprintCollector *egressadapter.TLSFingerprintCollectorService,
+	tlsFingerprintCollector *provider.TLSFingerprintCollectorService,
 	manager *lifecycle.Manager,
 	timingWheel *timingwheel.Wheel,
 	digestStore *session.DigestSessionStore,
 	usageRepo usage.UsageLogRepository,
 	tasks *lifecycle.Tasks,
-	httpUpstream httpclient.UpstreamTransport, requestActivity *gatewayRequestActivity, rates *gatewayBillingRates,
+	httpUpstream httpclient.UpstreamTransport,
+	rates *gatewayBillingRates,
 ) *coreRuntimeReady {
 	manager.Register(lifecycle.Hook{Name: "AuthCacheInvalidationWorker", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if authCacheInvalidationWorker != nil {
@@ -150,5 +146,3 @@ func provideCoreRuntime(
 
 	return &coreRuntimeReady{}
 }
-
-// bindGatewayBackground 使执行侧派生工作与其他应用任务共享关闭屏障。
