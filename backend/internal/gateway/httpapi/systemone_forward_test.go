@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -26,7 +27,55 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol/systemone"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/jev"
 )
+
+// TestSystemOneErrorRepresentation 检查改写后的 JSON 头和未改写报文的透传头。
+func TestSystemOneErrorRepresentation(t *testing.T) {
+	for _, contentType := range []string{"text/plain; charset=utf-8", "text/html; charset=utf-8", "application/problem+json", "application/json"} {
+		for _, encoded := range []bool{false, true} {
+			for _, matched := range []bool{false, true} {
+				t.Run(contentType+map[bool]string{false: "/plain", true: "/gzip"}[encoded]+map[bool]string{false: "/passthrough", true: "/rewrite"}[matched], func(t *testing.T) {
+					body := []byte(`{"error":{"message":"invalid schema"}}`)
+					headers := http.Header{"Content-Type": []string{contentType}, "X-Request-Id": []string{"upstream-id"}, "Retry-After": []string{"17"}}
+					if encoded {
+						var compressed bytes.Buffer
+						writer := gzip.NewWriter(&compressed)
+						_, err := writer.Write(body)
+						require.NoError(t, err)
+						require.NoError(t, writer.Close())
+						body = compressed.Bytes()
+						headers.Set("Content-Encoding", "gzip")
+					}
+					recorder := httptest.NewRecorder()
+					c, _ := gin.CreateTestContext(recorder)
+					if matched {
+						rule := gatewaytestkit.NonFailoverRule(422, "", 409, "Configured Jev error")
+						rule.Keywords = nil
+						rule.Platforms = []string{"jev"}
+						rules := gatewaytestkit.ErrorRules([]*errorpolicy.ErrorPassthroughRule{rule})
+						defer rules.Stop()
+						BindErrorPassthroughService(c, rules)
+					}
+					(&SystemOneExecutor{}).writeUpstreamError(c, &jev.HTTPError{Status: 422, Header: headers, Body: body})
+					require.Equal(t, "upstream-id", recorder.Header().Get("X-Request-Id"))
+					require.Equal(t, "17", recorder.Header().Get("Retry-After"))
+					if matched {
+						require.Equal(t, 409, recorder.Code)
+						require.Equal(t, "application/json; charset=utf-8", recorder.Header().Get("Content-Type"))
+						require.Empty(t, recorder.Header().Get("Content-Encoding"))
+						require.JSONEq(t, `{"error":{"type":"upstream_error","message":"Configured Jev error"}}`, recorder.Body.String())
+					} else {
+						require.Equal(t, 422, recorder.Code)
+						require.Equal(t, contentType, recorder.Header().Get("Content-Type"))
+						require.Equal(t, headers.Get("Content-Encoding"), recorder.Header().Get("Content-Encoding"))
+						require.Equal(t, body, recorder.Body.Bytes())
+					}
+				})
+			}
+		}
+	}
+}
 
 // TestSystemOneTerminalErrorRules 检查终止请求的错误使用 Jev 或全平台规则。
 func TestSystemOneTerminalErrorRules(t *testing.T) {

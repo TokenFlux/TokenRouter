@@ -156,6 +156,9 @@ func (s *SystemOneExecutor) writeUpstreamError(c *gin.Context, failure *jev.HTTP
 	}
 	egressprovider.WriteFilteredHeaders(c.Writer.Header(), failure.Header, s.HeaderFilter)
 	if status, kind, message, matched := ApplyErrorPassthroughRule(c, provider.PlatformJev, failure.Status, failure.Body, failure.Status, "upstream_error", "Upstream request failed"); matched {
+		// 规则生成的正文是未压缩 JSON，响应头需要描述生成后的内容。
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.Writer.Header().Del("Content-Encoding")
 		WriteSystemOneError(c, status, kind, "", "", message)
 		return
 	}
