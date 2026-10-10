@@ -11,20 +11,8 @@ import (
 // GetDashboardOverview 按统一预聚合设置选择数据源，并在聚合路径失败时回退原始表。
 // @project-doc docs/operations/pre_aggregation.md#query_routing_and_fallback
 func (s *OpsService) GetDashboardOverview(ctx context.Context, filter *OpsDashboardFilter) (*OpsDashboardOverview, error) {
-	if err := s.RequireMonitoringEnabled(ctx); err != nil {
+	if err := s.validateDashboardQuery(ctx, filter); err != nil {
 		return nil, err
-	}
-	if s.opsRepo == nil {
-		return nil, infraerrors.ServiceUnavailable("OPS_REPO_UNAVAILABLE", "Ops repository not available")
-	}
-	if filter == nil {
-		return nil, infraerrors.BadRequest("OPS_FILTER_REQUIRED", "filter is required")
-	}
-	if filter.StartTime.IsZero() || filter.EndTime.IsZero() {
-		return nil, infraerrors.BadRequest("OPS_TIME_RANGE_REQUIRED", "start_time/end_time are required")
-	}
-	if filter.StartTime.After(filter.EndTime) {
-		return nil, infraerrors.BadRequest("OPS_TIME_RANGE_INVALID", "start_time must be <= end_time")
 	}
 
 	// 运维查询只由统一预聚合设置自动选择数据源。
@@ -82,4 +70,24 @@ func (s *OpsService) resolveOpsQueryMode(ctx context.Context, requested OpsQuery
 		return OpsQueryModeRaw
 	}
 	return OpsQueryModeAuto
+}
+
+// validateDashboardQuery 按监控开关、存储可用性和时间范围的顺序校验查询。
+func (s *OpsService) validateDashboardQuery(ctx context.Context, filter *OpsDashboardFilter) error {
+	if err := s.RequireMonitoringEnabled(ctx); err != nil {
+		return err
+	}
+	if s.opsRepo == nil {
+		return infraerrors.ServiceUnavailable("OPS_REPO_UNAVAILABLE", "Ops repository not available")
+	}
+	if filter == nil {
+		return infraerrors.BadRequest("OPS_FILTER_REQUIRED", "filter is required")
+	}
+	if filter.StartTime.IsZero() || filter.EndTime.IsZero() {
+		return infraerrors.BadRequest("OPS_TIME_RANGE_REQUIRED", "start_time/end_time are required")
+	}
+	if filter.StartTime.After(filter.EndTime) {
+		return infraerrors.BadRequest("OPS_TIME_RANGE_INVALID", "start_time must be <= end_time")
+	}
+	return nil
 }

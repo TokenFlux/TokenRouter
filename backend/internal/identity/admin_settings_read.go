@@ -159,54 +159,36 @@ func (s *OAuthSettings) ReadAdminSettings(settings map[string]string, defaultCon
 		result.DingTalkConnectSyncDisplayName = false
 		result.DingTalkConnectSyncDept = false
 	}
-	result.DingTalkConnectSyncCorpEmailAttrKey = strings.TrimSpace(settings[SettingKeyDingTalkConnectSyncCorpEmailAttrKey])
-	if result.DingTalkConnectSyncCorpEmailAttrKey == "" {
-		if v := strings.TrimSpace(dingTalkBase.SyncCorpEmailAttrKey); v != "" {
-			result.DingTalkConnectSyncCorpEmailAttrKey = v
-		} else {
-			result.DingTalkConnectSyncCorpEmailAttrKey = "dingtalk_email"
-		}
-	}
-	result.DingTalkConnectSyncDisplayNameAttrKey = strings.TrimSpace(settings[SettingKeyDingTalkConnectSyncDisplayNameAttrKey])
-	if result.DingTalkConnectSyncDisplayNameAttrKey == "" {
-		if v := strings.TrimSpace(dingTalkBase.SyncDisplayNameAttrKey); v != "" {
-			result.DingTalkConnectSyncDisplayNameAttrKey = v
-		} else {
-			result.DingTalkConnectSyncDisplayNameAttrKey = "dingtalk_name"
-		}
-	}
-	result.DingTalkConnectSyncDeptAttrKey = strings.TrimSpace(settings[SettingKeyDingTalkConnectSyncDeptAttrKey])
-	if result.DingTalkConnectSyncDeptAttrKey == "" {
-		if v := strings.TrimSpace(dingTalkBase.SyncDeptAttrKey); v != "" {
-			result.DingTalkConnectSyncDeptAttrKey = v
-		} else {
-			result.DingTalkConnectSyncDeptAttrKey = "dingtalk_department"
-		}
-	}
-	result.DingTalkConnectSyncCorpEmailAttrName = strings.TrimSpace(settings[SettingKeyDingTalkConnectSyncCorpEmailAttrName])
-	if result.DingTalkConnectSyncCorpEmailAttrName == "" {
-		if v := strings.TrimSpace(dingTalkBase.SyncCorpEmailAttrName); v != "" {
-			result.DingTalkConnectSyncCorpEmailAttrName = v
-		} else {
-			result.DingTalkConnectSyncCorpEmailAttrName = "钉钉企业邮箱"
-		}
-	}
-	result.DingTalkConnectSyncDisplayNameAttrName = strings.TrimSpace(settings[SettingKeyDingTalkConnectSyncDisplayNameAttrName])
-	if result.DingTalkConnectSyncDisplayNameAttrName == "" {
-		if v := strings.TrimSpace(dingTalkBase.SyncDisplayNameAttrName); v != "" {
-			result.DingTalkConnectSyncDisplayNameAttrName = v
-		} else {
-			result.DingTalkConnectSyncDisplayNameAttrName = "钉钉姓名"
-		}
-	}
-	result.DingTalkConnectSyncDeptAttrName = strings.TrimSpace(settings[SettingKeyDingTalkConnectSyncDeptAttrName])
-	if result.DingTalkConnectSyncDeptAttrName == "" {
-		if v := strings.TrimSpace(dingTalkBase.SyncDeptAttrName); v != "" {
-			result.DingTalkConnectSyncDeptAttrName = v
-		} else {
-			result.DingTalkConnectSyncDeptAttrName = "钉钉部门"
-		}
-	}
+	result.DingTalkConnectSyncCorpEmailAttrKey = oauthSettingsFirstNonEmpty(
+		settings[SettingKeyDingTalkConnectSyncCorpEmailAttrKey],
+		dingTalkBase.SyncCorpEmailAttrKey,
+		"dingtalk_email",
+	)
+	result.DingTalkConnectSyncDisplayNameAttrKey = oauthSettingsFirstNonEmpty(
+		settings[SettingKeyDingTalkConnectSyncDisplayNameAttrKey],
+		dingTalkBase.SyncDisplayNameAttrKey,
+		"dingtalk_name",
+	)
+	result.DingTalkConnectSyncDeptAttrKey = oauthSettingsFirstNonEmpty(
+		settings[SettingKeyDingTalkConnectSyncDeptAttrKey],
+		dingTalkBase.SyncDeptAttrKey,
+		"dingtalk_department",
+	)
+	result.DingTalkConnectSyncCorpEmailAttrName = oauthSettingsFirstNonEmpty(
+		settings[SettingKeyDingTalkConnectSyncCorpEmailAttrName],
+		dingTalkBase.SyncCorpEmailAttrName,
+		"钉钉企业邮箱",
+	)
+	result.DingTalkConnectSyncDisplayNameAttrName = oauthSettingsFirstNonEmpty(
+		settings[SettingKeyDingTalkConnectSyncDisplayNameAttrName],
+		dingTalkBase.SyncDisplayNameAttrName,
+		"钉钉姓名",
+	)
+	result.DingTalkConnectSyncDeptAttrName = oauthSettingsFirstNonEmpty(
+		settings[SettingKeyDingTalkConnectSyncDeptAttrName],
+		dingTalkBase.SyncDeptAttrName,
+		"钉钉部门",
+	)
 	oidcBase := authconfig.OIDCConnectConfig{}
 	if s.defaults != nil {
 		oidcBase = s.defaults.OIDC
@@ -216,64 +198,23 @@ func (s *OAuthSettings) ReadAdminSettings(settings map[string]string, defaultCon
 	} else {
 		result.OIDCConnectEnabled = oidcBase.Enabled
 	}
-	if v, ok := settings[SettingKeyOIDCConnectProviderName]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectProviderName = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectProviderName = strings.TrimSpace(oidcBase.ProviderName)
-	}
+	result.OIDCConnectProviderName = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectProviderName], oidcBase.ProviderName)
 	if result.OIDCConnectProviderName == "" {
 		result.OIDCConnectProviderName = "OIDC"
 	}
-	if v, ok := settings[SettingKeyOIDCConnectClientID]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectClientID = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectClientID = strings.TrimSpace(oidcBase.ClientID)
-	}
-	if v, ok := settings[SettingKeyOIDCConnectIssuerURL]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectIssuerURL = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectIssuerURL = strings.TrimSpace(oidcBase.IssuerURL)
-	}
-	if v, ok := settings[SettingKeyOIDCConnectDiscoveryURL]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectDiscoveryURL = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectDiscoveryURL = strings.TrimSpace(oidcBase.DiscoveryURL)
-	}
-	if v, ok := settings[SettingKeyOIDCConnectAuthorizeURL]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectAuthorizeURL = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectAuthorizeURL = strings.TrimSpace(oidcBase.AuthorizeURL)
-	}
-	if v, ok := settings[SettingKeyOIDCConnectTokenURL]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectTokenURL = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectTokenURL = strings.TrimSpace(oidcBase.TokenURL)
-	}
-	if v, ok := settings[SettingKeyOIDCConnectUserInfoURL]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectUserInfoURL = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectUserInfoURL = strings.TrimSpace(oidcBase.UserInfoURL)
-	}
-	if v, ok := settings[SettingKeyOIDCConnectJWKSURL]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectJWKSURL = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectJWKSURL = strings.TrimSpace(oidcBase.JWKSURL)
-	}
-	if v, ok := settings[SettingKeyOIDCConnectScopes]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectScopes = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectScopes = strings.TrimSpace(oidcBase.Scopes)
-	}
-	if v, ok := settings[SettingKeyOIDCConnectRedirectURL]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectRedirectURL = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectRedirectURL = strings.TrimSpace(oidcBase.RedirectURL)
-	}
-	if v, ok := settings[SettingKeyOIDCConnectFrontendRedirectURL]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectFrontendRedirectURL = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectFrontendRedirectURL = strings.TrimSpace(oidcBase.FrontendRedirectURL)
-	}
+	result.OIDCConnectClientID = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectClientID], oidcBase.ClientID)
+	result.OIDCConnectIssuerURL = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectIssuerURL], oidcBase.IssuerURL)
+	result.OIDCConnectDiscoveryURL = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectDiscoveryURL], oidcBase.DiscoveryURL)
+	result.OIDCConnectAuthorizeURL = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectAuthorizeURL], oidcBase.AuthorizeURL)
+	result.OIDCConnectTokenURL = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectTokenURL], oidcBase.TokenURL)
+	result.OIDCConnectUserInfoURL = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectUserInfoURL], oidcBase.UserInfoURL)
+	result.OIDCConnectJWKSURL = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectJWKSURL], oidcBase.JWKSURL)
+	result.OIDCConnectScopes = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectScopes], oidcBase.Scopes)
+	result.OIDCConnectRedirectURL = oauthSettingsFirstNonEmpty(settings[SettingKeyOIDCConnectRedirectURL], oidcBase.RedirectURL)
+	result.OIDCConnectFrontendRedirectURL = oauthSettingsFirstNonEmpty(
+		settings[SettingKeyOIDCConnectFrontendRedirectURL],
+		oidcBase.FrontendRedirectURL,
+	)
 	if v, ok := settings[SettingKeyOIDCConnectTokenAuthMethod]; ok && strings.TrimSpace(v) != "" {
 		result.OIDCConnectTokenAuthMethod = strings.ToLower(strings.TrimSpace(v))
 	} else {
@@ -289,11 +230,10 @@ func (s *OAuthSettings) ReadAdminSettings(settings map[string]string, defaultCon
 	} else {
 		result.OIDCConnectValidateIDToken = SettingsOidcValidateIDTokenCompatibilityDefault(oidcBase)
 	}
-	if v, ok := settings[SettingKeyOIDCConnectAllowedSigningAlgs]; ok && strings.TrimSpace(v) != "" {
-		result.OIDCConnectAllowedSigningAlgs = strings.TrimSpace(v)
-	} else {
-		result.OIDCConnectAllowedSigningAlgs = strings.TrimSpace(oidcBase.AllowedSigningAlgs)
-	}
+	result.OIDCConnectAllowedSigningAlgs = oauthSettingsFirstNonEmpty(
+		settings[SettingKeyOIDCConnectAllowedSigningAlgs],
+		oidcBase.AllowedSigningAlgs,
+	)
 	clockSkewSet := false
 	if raw, ok := settings[SettingKeyOIDCConnectClockSkewSeconds]; ok && strings.TrimSpace(raw) != "" {
 		if parsed, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil {
