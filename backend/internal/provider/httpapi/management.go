@@ -40,7 +40,7 @@ type ManagementHandler struct {
 	tier             *providercore.TierManagement
 	catalog          *routing.AdminCatalog
 	modelDefaults    providercore.ModelMappingDefaults
-	modelSupports    func(context.Context, *providercore.Record, string) bool
+	modelRules       func(*providercore.Record) routing.CatalogueRules
 	listing          *providercore.ManagementList
 	runtimePresenter *RuntimePresenter
 	recovery         *providercore.RecoveryService
@@ -63,7 +63,7 @@ type ManagementOptions struct {
 	Tier             *providercore.TierManagement
 	Catalog          *routing.AdminCatalog
 	ModelDefaults    providercore.ModelMappingDefaults
-	ModelSupports    func(context.Context, *providercore.Record, string) bool
+	ModelRules       func(*providercore.Record) routing.CatalogueRules
 	List             *providercore.ManagementList
 	RuntimePresenter *RuntimePresenter
 	Recovery         *providercore.RecoveryService
@@ -80,7 +80,7 @@ func (f ProviderRuntimePresenterFunc) Present(ctx context.Context, v *providerco
 }
 
 func NewManagementHandler(admin ProviderManagement, options ManagementOptions) *ManagementHandler {
-	return &ManagementHandler{models: options.Models, reports: options.Reports, tier: options.Tier, catalog: options.Catalog, modelDefaults: options.ModelDefaults, modelSupports: options.ModelSupports, listing: options.List, runtimePresenter: options.RuntimePresenter, recovery: options.Recovery, batch: options.Batch, managed: options.Managed, adminService: admin, presenter: options.Presenter, ollamaCloudUsage: options.Ollama, privacy: options.Privacy, afterCreate: options.AfterCreate}
+	return &ManagementHandler{models: options.Models, reports: options.Reports, tier: options.Tier, catalog: options.Catalog, modelDefaults: options.ModelDefaults, modelRules: options.ModelRules, listing: options.List, runtimePresenter: options.RuntimePresenter, recovery: options.Recovery, batch: options.Batch, managed: options.Managed, adminService: admin, presenter: options.Presenter, ollamaCloudUsage: options.Ollama, privacy: options.Privacy, afterCreate: options.AfterCreate}
 }
 
 // GetByID 按原状态码与展示流程查询提供商。

@@ -11,6 +11,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
@@ -727,5 +728,36 @@ func TestNormalizeOpenAIModelForUpstream(t *testing.T) {
 				t.Fatalf("normalizeOpenAIModelForUpstream(...) = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestPreparedModelPolicyParity 目录快照与执行入口共用各平台的最终型号规则。
+func TestPreparedModelPolicyParity(t *testing.T) {
+	parent := int64(10)
+	records := []*providercore.Record{
+		{Platform: "openai", Type: "apikey", Credentials: map[string]any{"model_mapping": map[string]any{"draw-*": "gpt-image-2"}, "model_whitelist": []string{"gpt-image-2", "gpt-5.6-sol"}}},
+		{Platform: "openai", Type: "oauth"},
+		{Platform: "openai", Type: "oauth", ParentProviderID: &parent},
+		{Platform: "anthropic", Type: "oauth", Credentials: map[string]any{"model_mapping": map[string]any{"alias": "claude-sonnet-4-6"}}},
+		{Platform: "anthropic", Type: "service_account"},
+		{Platform: "anthropic", Type: "bedrock", Credentials: map[string]any{"aws_region": "us-west-2"}},
+		{Platform: "antigravity"},
+		{Platform: "antigravity", Credentials: map[string]any{"model_mapping": map[string]any{"alias": "claude-sonnet-4-5"}, "model_whitelist": []string{"claude-sonnet-4-5*"}}},
+		{Platform: "qoder", Credentials: map[string]any{"site": "cn"}},
+		{Platform: "qoder", Credentials: map[string]any{"site": "global"}},
+		{Platform: "grok", Type: "apikey"},
+	}
+	for _, record := range records {
+		live := ModelPolicy{Record: record}
+		prepared := live.Prepared()
+		for _, model := range []string{"alias", "unknown", "draw-new", "gpt-image-2", "gpt-5.6-sol", "gpt-5.3-codex-spark", "claude-sonnet-4-5", "claude-sonnet-4-6", "gemini-3.1-pro", "qwen3.6-flash"} {
+			for _, thinking := range []bool{false, true} {
+				ctx := requeststate.WithThinkingEnabled(context.Background(), thinking)
+				require.Equal(t, live.Supports(ctx, model), prepared.Supports(ctx, model), "%s/%s", record.Platform, model)
+				require.Equal(t, live.UpstreamModel(ctx, model), prepared.UpstreamModel(ctx, model))
+				require.Equal(t, live.ListingModels(ctx, model), prepared.ListingModels(ctx, model))
+				require.Equal(t, live.LimitKeys(ctx, model), prepared.LimitKeys(ctx, model))
+			}
+		}
 	}
 }

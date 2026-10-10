@@ -24,6 +24,47 @@ import (
 type ModelPolicy struct {
 	Record *provider.Record
 	Route  requeststate.AttemptRoute
+	models *provider.ModelRulesSnapshot
+}
+
+// Prepared 为目录和批量校验捕获一次模型规则。
+func (p ModelPolicy) Prepared() ModelPolicy {
+	if p.models == nil {
+		p.models = provider.PrepareModelRules(p.Record, provideradapter.ModelDefaults(), provideradapter.ModelRules(p.Record))
+	}
+	return p
+}
+
+func (p ModelPolicy) configuredModels() []string {
+	return p.models.ConfiguredModels()
+}
+
+func (p ModelPolicy) supportsConfiguredModel(model string) bool {
+	if p.models != nil {
+		return p.models.Supports(model)
+	}
+	return p.Record.IsModelSupported(model, provideradapter.ModelDefaults(), provideradapter.ModelRules(p.Record))
+}
+
+func (p ModelPolicy) finalModelWhitelisted(model string) bool {
+	if p.models != nil {
+		return p.models.FinalModelWhitelisted(model)
+	}
+	return p.Record.FinalModelWhitelisted(model, provideradapter.ModelDefaults(), provideradapter.ModelRules(p.Record))
+}
+
+func (p ModelPolicy) forwardMappedModel(model string) string {
+	if p.models != nil {
+		return p.models.ForwardMappedModel(model)
+	}
+	return provider.ResolveForwardMappedModel(p.Record, model, provideradapter.ModelDefaults())
+}
+
+func (p ModelPolicy) antigravityModel(model string, thinking *bool) string {
+	if p.models != nil {
+		return provideradapter.FinalAntigravityModelWithRules(p.models, model, thinking)
+	}
+	return provideradapter.FinalAntigravityModel(p.Record, model, thinking)
 }
 
 func (p ModelPolicy) protocolTarget() provider.ProtocolTarget {
@@ -39,8 +80,14 @@ func (p ModelPolicy) Mapped(model string) string {
 	return mapped
 }
 
-// ResolveMapped 保留单步映射命中信息，并在当次尝试的匹配时点读取提供商配置。
+// ResolveMapped 使用目录快照或提供商当前配置执行一跳映射。
 func (p ModelPolicy) ResolveMapped(model string) (string, bool) {
+	if p.models != nil {
+		if _, planned := p.Route.Candidate(); !planned {
+			return p.models.ResolveMappedModel(model)
+		}
+		return p.Route.ResolveModel(p.Record.ID, p.Record.Platform, p.models.Mapping(), model)
+	}
 	return p.Route.ResolveModel(p.Record.ID, p.Record.Platform, provider.ResolveModelMapping(p.Record, provideradapter.ModelDefaults()), model)
 }
 
@@ -174,24 +221,23 @@ func (p ModelPolicy) Supports(ctx context.Context, model string) bool {
 		if strings.TrimSpace(model) == "" {
 			return true
 		}
-		return provideradapter.FinalAntigravityModel(value, model, modelThinking(ctx)) != ""
+		return p.antigravityModel(model, modelThinking(ctx)) != ""
 	}
 	if value.IsBedrock() {
-		if !value.IsModelSupported(model, provideradapter.ModelDefaults(), provideradapter.ModelRules(value)) {
+		if !p.supportsConfiguredModel(model) {
 			return false
 		}
 		_, ok := p.Bedrock(model)
 		return ok
 	}
 	if value.Platform == capability.PlatformAnthropic && value.Type != capability.ProviderTypeAPIKey {
-		mapped := provider.ResolveForwardMappedModel(value, model, provideradapter.ModelDefaults())
-		return value.FinalModelWhitelisted(p.AnthropicUpstream(mapped), provideradapter.ModelDefaults(), provideradapter.ModelRules(value))
+		mapped := p.forwardMappedModel(model)
+		return p.finalModelWhitelisted(p.AnthropicUpstream(mapped))
 	}
-	rules := provideradapter.ModelRules(value)
-	return value.IsModelSupported(model, provideradapter.ModelDefaults(), rules)
+	return p.supportsConfiguredModel(model)
 }
 
-// UpstreamModel 保留最终模型登记时点；目录和执行共用平台规则。
+// UpstreamModel 解析平台最终型号，并登记到本次请求的模型记录。
 func (p ModelPolicy) UpstreamModel(ctx context.Context, requested string) string {
 	value := p.Record
 	if value == nil {
@@ -205,11 +251,11 @@ func (p ModelPolicy) UpstreamModel(ctx context.Context, requested string) string
 		}
 		model = mapped
 	} else if value.Platform == capability.PlatformAntigravity {
-		model = provideradapter.FinalAntigravityModel(value, requested, modelThinking(ctx))
+		model = p.antigravityModel(requested, modelThinking(ctx))
 	} else if value.Platform == capability.PlatformOpenAI || value.Platform == capability.PlatformGrok {
 		model = p.OpenAIUpstream(requested, false)
 	} else {
-		mapped := provider.ResolveForwardMappedModel(value, requested, provideradapter.ModelDefaults())
+		mapped := p.forwardMappedModel(requested)
 		if value.Platform == capability.PlatformQoder {
 			site, err := qoder.ParseSite(value.GetCredential("site"))
 			if err != nil {
@@ -236,7 +282,7 @@ func (p ModelPolicy) LimitKeys(ctx context.Context, requested string) []string {
 	case capability.PlatformOpenAI, capability.PlatformGrok:
 		key = p.CanonicalSchedulingModel(requested)
 	case capability.PlatformAntigravity:
-		key = provideradapter.FinalAntigravityModel(value, requested, modelThinking(ctx))
+		key = p.antigravityModel(requested, modelThinking(ctx))
 	}
 	key = strings.TrimSpace(key)
 	if key == "" {

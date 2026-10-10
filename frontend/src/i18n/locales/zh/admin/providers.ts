@@ -1803,6 +1803,7 @@ export default {
         typeImage: '图片',
         model: '测试模型',
         modelPlaceholder: '选择或输入模型 ID',
+        modelsEmpty: '暂无已配置型号。可直接输入模型 ID 测试，或编辑提供商白名单、同步上游模型后保存。',
         protocol: '测试协议',
         protocolAll: '全部已启用协议（依次测试）',
         protocolNone: '未启用上游协议',

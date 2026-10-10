@@ -32,10 +32,29 @@ func FinalAntigravityModel(value *provider.Record, requested string, thinking *b
 	if mapped == "" {
 		return ""
 	}
+	return finalAntigravityModel(mapped, thinking, func(model string) bool {
+		return value.FinalModelWhitelisted(model, ModelDefaults(), ModelRules(value))
+	})
+}
+
+// FinalAntigravityModelWithRules 使用已准备的映射和白名单处理 thinking 型号。
+func FinalAntigravityModelWithRules(rules *provider.ModelRulesSnapshot, requested string, thinking *bool) string {
+	requested = strings.TrimSpace(strings.TrimPrefix(requested, "models/"))
+	if requested == "" {
+		return ""
+	}
+	mapped, _ := rules.ResolveMappedModel(requested)
+	return finalAntigravityModel(mapped, thinking, rules.FinalModelWhitelisted)
+}
+
+func finalAntigravityModel(mapped string, thinking *bool, allows func(string) bool) string {
+	if mapped == "" {
+		return ""
+	}
 	if thinking != nil {
 		mapped = antigravity.ApplyThinkingModelSuffix(mapped, *thinking)
 	}
-	if !value.FinalModelWhitelisted(mapped, ModelDefaults(), ModelRules(value)) {
+	if !allows(mapped) {
 		return ""
 	}
 	return mapped

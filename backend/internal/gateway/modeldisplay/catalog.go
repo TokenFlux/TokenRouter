@@ -7,7 +7,6 @@ import (
 // Catalog 按请求 ID 查询统一目录，协议适配器决定响应字段。
 type Catalog interface {
 	Model(string) OpenAIModel
-	ModelIDs() []string
 	GrokSupportsXHigh(string) bool
 	GeminiModel(string, bool) GeminiModel
 }

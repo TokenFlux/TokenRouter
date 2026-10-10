@@ -533,8 +533,7 @@ func (s *Marketplace) resolveGroupModelsWithProviders(ctx context.Context, group
 		return nil
 	}
 	groupID := group.ID
-	baseModels := ConfiguredRequestModelsFromProviders(providers, "")
-	resolution := s.requestable.ResolveWithProviders(ctx, &groupID, "", baseModels, providers)
+	resolution := s.requestable.ResolveWithProviders(ctx, &groupID, "", nil, providers)
 	if len(resolution.Models) == 0 {
 		return nil
 	}

@@ -25,7 +25,10 @@ type Candidates struct {
 	ObserveModel func(context.Context, string)
 }
 
-type candidateRules struct{ *provider.Record }
+type candidateRules struct {
+	*provider.Record
+	models *provider.ModelRulesSnapshot
+}
 
 func (r *Candidates) GetByID(ctx context.Context, id int64) (*batchimage.Candidate, error) {
 	value, err := r.Source.GetByID(ctx, id)
@@ -50,14 +53,16 @@ func (r *Candidates) project(values []provider.Record) []batchimage.Candidate {
 	return out
 }
 
-// Project 按原时机执行资格及一跳模型映射，不把候选写回共享提供商数据。
+// Project 为批量图片的本次提供商读取准备模型和协议规则。
 func (r *Candidates) Project(value *provider.Record) *batchimage.Candidate {
 	if value == nil {
 		return nil
 	}
-	result := &batchimage.Candidate{ID: value.ID, Priority: value.Priority, CandidateRules: candidateRules{value}}
+	models := provider.PrepareModelRules(value, provideradapter.ModelDefaults(), provideradapter.ModelRules(value))
+	snapshot := value.RoutingSnapshot()
+	result := &batchimage.Candidate{ID: value.ID, Priority: value.Priority, CandidateRules: candidateRules{Record: value, models: models}}
 	result.ProtocolEnabled = func() bool {
-		_, ok := routing.Plan(routing.PlanInput{ClientProtocol: protocol.ProtocolImageBatches}).ResolveCandidate(value.RoutingSnapshot())
+		_, ok := routing.Plan(routing.PlanInput{ClientProtocol: protocol.ProtocolImageBatches}).ResolveCandidate(snapshot)
 		return ok
 	}
 	result.SupportsProvider = func(name string) bool {
@@ -70,7 +75,7 @@ func (r *Candidates) Project(value *provider.Record) *batchimage.Candidate {
 	}
 	// 批量提供商按 Gemini/Vertex 规则解析模型。
 	result.ResolveUpstream = func(ctx context.Context, model string) string {
-		resolved := strings.TrimSpace(provider.ResolveForwardMappedModel(value, model, provideradapter.ModelDefaults()))
+		resolved := strings.TrimSpace(models.ForwardMappedModel(model))
 		if r.ObserveModel != nil {
 			r.ObserveModel(ctx, resolved)
 		}
@@ -80,18 +85,18 @@ func (r *Candidates) Project(value *provider.Record) *batchimage.Candidate {
 }
 
 func (r candidateRules) GetModelMapping() map[string]string {
-	return provider.ResolveModelMapping(r.Record, provideradapter.ModelDefaults())
+	return r.models.Mapping()
 }
 
 func (r candidateRules) IsModelSupported(model string) bool {
-	return r.Record.IsModelSupported(model, provideradapter.ModelDefaults(), provideradapter.ModelRules(r.Record))
+	return r.models.Supports(model)
 }
 
 func (r candidateRules) ResolveMappedModel(model string) (string, bool) {
-	return provider.ResolveMappedModel(r.GetModelMapping(), model)
+	return r.models.ResolveMappedModel(model)
 }
 
 // GetConfiguredRequestModels 提供白名单和映射中的具体型号。
 func (r candidateRules) GetConfiguredRequestModels() []string {
-	return r.Record.GetConfiguredRequestModels(provideradapter.ModelDefaults())
+	return r.models.ConfiguredModels()
 }

@@ -6,26 +6,13 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
-	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
 type catalogueRules struct{ policy ModelPolicy }
-
-// CatalogueDefaults 从统一目录提供候选，专用路由别名由提供商配置读取器加入。
-func CatalogueDefaults(catalog modelcatalog.Reader) routing.CatalogueDefaults {
-	ids := func() []string {
-		if catalog == nil {
-			return nil
-		}
-		return catalog.ModelIDs()
-	}
-	return routing.CatalogueDefaults{Platform: func(string) []string { return ids() }}
-}
 
 // SupportsClientProtocol 不把专用 Embeddings、Images 模型展示为普通对话候选。
 // 提供商模型别名先按同一规则展开，再判断已有适配器支持的调用形状。
@@ -49,11 +36,11 @@ func (v catalogueRules) SupportsClientProtocol(model string, source capability.P
 }
 
 func (v catalogueRules) ConfiguredModels() []string {
-	return v.policy.Record.GetConfiguredRequestModels(provideradapter.ModelDefaults())
+	return v.policy.configuredModels()
 }
 
 func (v catalogueRules) Mapping() map[string]string {
-	return provider.ResolveModelMapping(v.policy.Record, provideradapter.ModelDefaults())
+	return v.policy.models.Mapping()
 }
 
 func (v catalogueRules) Supports(ctx context.Context, model string) bool {
@@ -64,14 +51,20 @@ func (v catalogueRules) UpstreamModels(ctx context.Context, model string) []stri
 	return v.policy.ListingModels(ctx, model)
 }
 
-// CatalogueProvider 返回模型目录需要的提供商信息。
+// CatalogueRules 为目录调用方准备可复用的模型规则。
+func (p ModelPolicy) CatalogueRules() routing.CatalogueRules {
+	return catalogueRules{policy: p.Prepared()}
+}
+
+// CatalogueProvider 准备提供商元数据和一次目录查询的模型规则。
 func CatalogueProvider(value *provider.Record, route requeststate.AttemptRoute) routing.CatalogueProvider {
-	snapshot := (ModelPolicy{Record: value, Route: route}).CandidateSnapshot()
+	policy := (ModelPolicy{Record: value, Route: route}).Prepared()
+	snapshot := policy.CandidateSnapshot()
 	groups := make([]int64, len(value.ProviderGroups))
 	for i, g := range value.ProviderGroups {
 		groups[i] = g.GroupID
 	}
-	return routing.CatalogueProvider{ProviderSnapshot: snapshot, GroupIDs: slices.Clone(value.GroupIDs), ProviderGroupIDs: groups, Passthrough: value.IsOpenAIPassthroughEnabled(), Rules: catalogueRules{ModelPolicy{Record: value, Route: route}}}
+	return routing.CatalogueProvider{ProviderSnapshot: snapshot, GroupIDs: slices.Clone(value.GroupIDs), ProviderGroupIDs: groups, Passthrough: value.IsOpenAIPassthroughEnabled(), Rules: catalogueRules{policy}}
 }
 
 func CatalogueProviders(values []provider.Record) []routing.CatalogueProvider {

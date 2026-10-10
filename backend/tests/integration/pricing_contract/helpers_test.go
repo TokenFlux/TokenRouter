@@ -112,8 +112,8 @@ func newTestPricingConfigServiceForStats(t *testing.T, pricingConfig *routingtes
 
 // newPricingMarketplaceFixture 使用网关目录和 billing 报价接口构造市场服务。
 func newPricingMarketplaceFixture(groupRepo routing.GroupRepository, settingRepo settings.Repository, resolver *billing.PriceResolver, billingService *billing.Calculator, capacityService *routing.CapacityService, availabilityRepo routing.GroupAvailabilityProbeRepository, cfg *config.Config) *routing.Marketplace {
-	projection := routing.RequestableResolver{Defaults: gatewayprovider.CatalogueDefaults(nil), Warn: slog.Warn}
-	source := &routing.RequestableCatalogue{Models: &routing.ModelList{}, Resolver: projection, Warn: slog.Warn}
+	projection := routing.RequestableResolver{Warn: slog.Warn}
+	source := &routing.RequestableCatalogue{Resolver: projection, Warn: slog.Warn}
 	var prices routing.MarketplacePrices
 	if billingService != nil {
 		prices = marketplaceFixturePrices{billingService, resolver}

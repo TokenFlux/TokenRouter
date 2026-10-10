@@ -3,6 +3,7 @@ package creative_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/png"
 	"log/slog"
@@ -43,13 +44,11 @@ func TestCreativeOperationsForPlatform(t *testing.T) {
 	require.Nil(t, creative.CreativeOperationsForPlatform(capability.PlatformAnthropic))
 }
 
-// TestCreativeGrokDefaultImageCandidates 校验无映射提供商包含 Grok Imagine 图片候选，尤其是画质模型。
+// TestCreativeGrokDefaultImageCandidates 空配置提供商返回空目录。
 func TestCreativeGrokDefaultImageCandidates(t *testing.T) {
 	provider := &providercore.Record{Platform: capability.PlatformGrok, Credentials: map[string]any{}}
 	models := creativeProviderModelsForTest(t, provider)
-	require.Contains(t, models, "grok-imagine-image")
-	require.Contains(t, models, "grok-imagine-image-quality")
-	require.Contains(t, models, "grok-imagine-image-2.0")
+	require.Empty(t, models)
 }
 
 // TestCreativeGrokDefaultImageCandidatesWithQualityWhitelist 校验精确白名单不会漏掉画质模型。
@@ -1067,9 +1066,7 @@ func creativeProviderModelsForTest(t *testing.T, value *providercore.Record) []s
 	}
 	value.Schedulable = true
 	svc := &creative.Public{ProviderRepo: creativeCatalogTestProviders{[]creative.CatalogProvider{creativeprovider.CatalogProvider(value)}}}
-	svc.ModelIDs = func() []string {
-		return []string{"grok-imagine-image", "grok-imagine-image-quality", "grok-imagine-image-2.0"}
-	}
+
 	models, err := svc.CreativeModelsForGroup(context.Background(), &creative.GroupView{ID: 12, Operations: creative.OperationsForGroup(false, nil)})
 	require.NoError(t, err)
 	result := make([]string, 0, len(models))
@@ -1151,4 +1148,35 @@ func newResolverWithPricingConfig(t *testing.T, cards []routing.ModelPricingEntr
 	return billing.NewPriceResolver(pricingConfigs, calculator, modelidentity.Identity, func(model string, err error) {
 		slog.Debug("failed to get model pricing from model catalog, using fallback", "model", model, "error", err)
 	})
+}
+
+// BenchmarkCreativeConfiguredValidation 测量 65 个提供商的单型号校验，包含提供商规则准备。
+func BenchmarkCreativeConfiguredValidation(b *testing.B) {
+	service := newCreativeTestService()
+	configureOpenAICreativeTestService(service)
+	rows := testassert.MustType[*creativeFakeProviderRepo](testassert.MustType[creativeProviderReader](service.ProviderRepo).source)
+	whitelist := make([]any, 186)
+	mapping := map[string]any{}
+	for i := range whitelist {
+		model := fmt.Sprintf("probe-model-%03d", i)
+		if i == 0 {
+			model = "gpt-image-2"
+		}
+		whitelist[i] = model
+		mapping[model] = model
+	}
+	records := make([]providercore.Record, 65)
+	for i := range records {
+		records[i] = providercore.Record{ID: int64(i + 1), Platform: "openai", Type: "apikey", Status: "active", Schedulable: true, Credentials: map[string]any{"model_whitelist": whitelist, "model_mapping": mapping}}
+	}
+	rows.byGroup[12] = records
+	params := validCreateParams()
+	params.Model = "gpt-image-2"
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if _, err := service.ValidateCreateParams(context.Background(), 7, &params); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

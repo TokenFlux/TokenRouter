@@ -8,34 +8,43 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
-type catalogProvider struct{ *provider.Record }
+type catalogProvider struct {
+	*provider.Record
+	models    *provider.ModelRulesSnapshot
+	protocols capability.ProviderProtocols
+}
 
 // CatalogProvider 向公开目录提供模型规则。
 func CatalogProvider(value *provider.Record) creative.CatalogProvider {
 	if value == nil {
 		return nil
 	}
-	return catalogProvider{value}
+	return CatalogProviderWithRules(value, provider.PrepareModelRules(value, provideradapter.ModelDefaults(), provideradapter.ModelRules(value)))
+}
+
+// CatalogProviderWithRules 在网关目录和创作台之间共享本次查询的规则。
+func CatalogProviderWithRules(value *provider.Record, rules *provider.ModelRulesSnapshot) creative.CatalogProvider {
+	return catalogProvider{Record: value, models: rules, protocols: value.RoutingSnapshot().Protocols()}
 }
 
 func (a catalogProvider) GetModelMapping() map[string]string {
-	return provider.ResolveModelMapping(a.Record, provideradapter.ModelDefaults())
+	return a.models.Mapping()
 }
 
 func (a catalogProvider) GetConfiguredRequestModels() []string {
-	return a.Record.GetConfiguredRequestModels(provideradapter.ModelDefaults())
+	return a.models.ConfiguredModels()
 }
 
 func (a catalogProvider) IsModelSupported(model string) bool {
-	return a.Record.IsModelSupported(model, provideradapter.ModelDefaults(), provideradapter.ModelRules(a.Record))
+	return a.models.Supports(model)
 }
 
 func (a catalogProvider) ResolveMappedModel(model string) (string, bool) {
-	return provider.ResolveMappedModel(a.GetModelMapping(), model)
+	return a.models.ResolveMappedModel(model)
 }
 
 func (a catalogProvider) PlatformID() string { return a.Platform }
 func (a catalogProvider) AllowsProtocol(source protocol.ProtocolID, fallbacks map[protocol.ProtocolID][]protocol.ProtocolID) bool {
-	_, ok := capability.ResolveRoute(a.RoutingSnapshot().Protocols(), source, fallbacks)
+	_, ok := capability.ResolveRoute(a.protocols, source, fallbacks)
 	return ok
 }

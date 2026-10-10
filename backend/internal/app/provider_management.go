@@ -86,8 +86,8 @@ func provideProviderManagement(admin *provider.Admin, presenter *providerhttp.Ru
 		}
 		return value, nil
 	}
-	return providerhttp.NewManagementHandler(admin, providerhttp.ManagementOptions{Models: models, Reports: providerhttp.ProviderReportOptions{Now: calendar.Now, StartOfDay: calendar.StartOfDay, Query: query}, Tier: tier, Catalog: catalog, ModelDefaults: provideradapter.ModelDefaults(), ModelSupports: func(ctx context.Context, v *provider.Record, id string) bool {
-		return (gatewayprovider.ModelPolicy{Record: v}).Supports(ctx, id)
+	return providerhttp.NewManagementHandler(admin, providerhttp.ManagementOptions{Models: models, Reports: providerhttp.ProviderReportOptions{Now: calendar.Now, StartOfDay: calendar.StartOfDay, Query: query}, Tier: tier, Catalog: catalog, ModelDefaults: provideradapter.ModelDefaults(), ModelRules: func(v *provider.Record) routing.CatalogueRules {
+		return (gatewayprovider.ModelPolicy{Record: v}).CatalogueRules()
 	}, List: listing, RuntimePresenter: presenter, Recovery: recovery, Batch: provider.NewManagementBatch(admin, managed, provider.ManagementCreationOptions{Privacy: privacy, Background: tasks.Go, AfterCreate: func(v *provider.Record) {
 		if v == nil {
 			return

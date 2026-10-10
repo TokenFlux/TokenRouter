@@ -251,7 +251,7 @@ describe('user UsageView', () => {
       include_group_stats: true,
     }))
     expect(list).toHaveBeenCalledWith(1, 100, { scope: 'personal' })
-    expect(getAvailable).toHaveBeenCalled()
+    expect(getAvailable).toHaveBeenCalledWith('personal', undefined, false)
   })
 
   it('分组筛选使用展示名称，并在切换语言后刷新', async () => {

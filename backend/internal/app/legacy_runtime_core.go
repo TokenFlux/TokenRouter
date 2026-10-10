@@ -15,7 +15,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
-	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
@@ -27,7 +26,6 @@ func provideCoreRuntime(
 	cfg *config.Config,
 	authCacheInvalidationWorker *apikey.AuthCacheInvalidationWorker,
 	schedulerSnapshot *scheduler.SnapshotService,
-	models *routing.ModelList,
 
 	shared *schedulerSharedState,
 	usageCleanup *usage.UsageCleanupService,
@@ -122,7 +120,6 @@ func provideCoreRuntime(
 		Name: "RuntimeLocalCaches", StartOrder: 185, StopOrder: 815,
 		Start: func(context.Context) error {
 			timingWheel.ScheduleRecurring("runtime:local_caches", time.Minute, func() {
-				models.Expire()
 				rates.Expire()
 				digestStore.ExpireRuntimeCaches()
 				if cache, ok := usageRepo.(interface{ ExpireRuntimeCaches() }); ok {

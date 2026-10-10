@@ -109,7 +109,7 @@ export function useUsageChartFilters() {
     try {
       const [personalKeys, availableGroups] = await Promise.all([
         keysAPI.list(1, 100, { scope: 'personal' }),
-        userGroupsAPI.getAvailable(),
+        userGroupsAPI.getAvailable('personal', undefined, false),
       ])
       let teamKeys: TeamAPIKey[] = []
       try {

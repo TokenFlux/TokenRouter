@@ -38,16 +38,22 @@ func (s *Public) NormalizeCreativeModelSettingsForSave(ctx context.Context, inpu
 		return normalized, err
 	}
 	out := make([]CreativeModelSetting, 0, len(normalized))
+	queries := make(map[int64]*creativeModelQuery)
 	for _, item := range normalized {
-		group, lookupErr := s.GroupRepo.GetByIDLite(ctx, item.GroupID)
-		if lookupErr == nil && group != nil {
-			routes, routeErr := s.creativeModelRoutes(ctx, group)
-			if routeErr != nil {
-				return nil, routeErr
+		query, loaded := queries[item.GroupID]
+		if !loaded {
+			group, lookupErr := s.GroupRepo.GetByIDLite(ctx, item.GroupID)
+			if lookupErr == nil && group != nil {
+				var routeErr error
+				query, routeErr = s.prepareCreativeModels(ctx, group)
+				if routeErr != nil {
+					return nil, routeErr
+				}
 			}
-			if route, ok := routes[item.Model]; ok {
-				item.Operations = intersectCreativeOperations(item.Operations, route.Operations)
-			}
+			queries[item.GroupID] = query
+		}
+		if route, ok := query.resolve(ctx, item.Model); ok {
+			item.Operations = intersectCreativeOperations(item.Operations, route.Operations)
 		}
 		if len(item.Operations) > 0 {
 			out = append(out, item)

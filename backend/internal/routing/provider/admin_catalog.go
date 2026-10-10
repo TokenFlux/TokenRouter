@@ -5,26 +5,26 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-// AdminCatalogOptions 在查询时读取统一目录，响应格式由 HTTP 适配器决定。
+// AdminCatalogOptions 为已选定的型号查询展示元数据。
 func AdminCatalogOptions(catalog modelcatalog.Reader) routing.AdminCatalogOptions {
-	return routing.AdminCatalogOptions{Defaults: func(kind routing.AdminCatalogKind, _ string) ([]routing.AdminCatalogModel, error) {
-		out := []routing.AdminCatalogModel{}
-		if catalog == nil {
-			return out, nil
+	return routing.AdminCatalogOptions{Lookup: func(kind routing.AdminCatalogKind, id string) routing.AdminCatalogModel {
+		entry := modelcatalog.Entry{Model: id}
+		if catalog != nil {
+			entry = catalog.ModelEntry(id)
 		}
-		for _, id := range catalog.ModelIDs() {
-			entry := catalog.ModelEntry(id)
-			name := id
-			if entry.Attributes.DisplayName != nil && *entry.Attributes.DisplayName != "" {
-				name = *entry.Attributes.DisplayName
-			}
-			model := routing.AdminCatalogModel{ID: id, Type: "model", DisplayName: name}
-			if kind == routing.CatalogOpenAI || kind == routing.CatalogGrok {
-				model.Object = "model"
-				model.OwnedBy = entry.Provider
-			}
-			out = append(out, model)
+		name := id
+		if entry.Attributes.DisplayName != nil && *entry.Attributes.DisplayName != "" {
+			name = *entry.Attributes.DisplayName
 		}
-		return out, nil
+		model := routing.AdminCatalogModel{ID: id, Type: "model", DisplayName: name}
+		if kind == routing.CatalogOpenAI || kind == routing.CatalogGrok {
+			model.Object = "model"
+			model.OwnedBy = entry.Provider
+		}
+		if kind == routing.CatalogGrok && entry.Provider == "" && entry.Attributes.DisplayName == nil {
+			model.Type = ""
+			model.OwnedBy = "xai"
+		}
+		return model
 	}}
 }

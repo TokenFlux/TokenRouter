@@ -77,7 +77,6 @@ func provideRoutingGroupAdmin(catalog *catalogprovider.Service, store *routingpo
 		DefaultModels: func(string) []string { return catalog.ModelIDs() },
 		ModelResolver: routing.RequestableResolver{
 			GroupPolicies: modelConfigs,
-			Defaults:      gatewayprovider.CatalogueDefaults(catalog),
 			Warn:          slog.Warn,
 		},
 		GlobalWeights: func(ctx context.Context) (policy.ScoreWeights, error) {

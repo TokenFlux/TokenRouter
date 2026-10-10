@@ -99,7 +99,7 @@ func newCatalogueFixture(rows catalogueRows, pricingConfigs *routing.PricingConf
 	if pricingConfigs != nil {
 		pricingConfigPort = pricingConfigs
 	}
-	core := &routing.RequestableCatalogue{Models: &routing.ModelList{Read: read}, Read: read, Resolver: routing.RequestableResolver{GroupPolicies: pricingConfigPort, Defaults: gatewayprovider.CatalogueDefaults(nil), Warn: slog.Warn}, Warn: slog.Warn}
+	core := &routing.RequestableCatalogue{Read: read, Resolver: routing.RequestableResolver{GroupPolicies: pricingConfigPort, Warn: slog.Warn}, Warn: slog.Warn}
 	return &catalogueFixture{RequestableCatalogue: core, prices: prices}
 }
 
@@ -133,7 +133,7 @@ func (p cataloguePrices) GetModelModalities(model string) ([]string, []string) {
 
 func newCatalogueMarketplace(groups routing.MarketplaceGroups, catalogue *catalogueFixture, calculator *billing.Calculator) *routing.Marketplace {
 	var source routing.MarketplaceModels
-	resolver := routing.RequestableResolver{Defaults: gatewayprovider.CatalogueDefaults(nil), Warn: slog.Warn}
+	resolver := routing.RequestableResolver{Warn: slog.Warn}
 	var priceSource routing.MarketplacePrices
 	if catalogue != nil {
 		source = catalogue.RequestableCatalogue

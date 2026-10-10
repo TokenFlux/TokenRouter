@@ -125,6 +125,18 @@ describe('ProviderTestModal', () => {
     vi.restoreAllMocks()
   })
 
+  it('空目录提示配置型号，并允许手动输入测试', async () => {
+    getAvailableModels.mockResolvedValue([])
+    const wrapper = mountModal()
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="provider-test-models-empty"]').text()).toContain('admin.providers.testDialog.modelsEmpty')
+    expect(wrapper.get('[data-testid="provider-test-model"]').attributes('data-disabled')).toBe('false')
+    await chooseModel(wrapper, 'custom-image-model')
+    expect(wrapper.getComponent('[data-testid="provider-test-model"]').props('modelValue')).toBe('custom-image-model')
+    wrapper.unmount()
+  })
+
   it('gemini 图片模型测试会携带提示词并渲染图片预览', async () => {
     const wrapper = mountModal()
     await wrapper.setProps({ show: true })

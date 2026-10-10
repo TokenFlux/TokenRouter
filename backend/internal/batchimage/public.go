@@ -97,8 +97,6 @@ type PublicOptions struct {
 	DefaultResponseMimeType, DefaultImageSize                                                                                                                                     string
 }
 type Public struct {
-	// ModelIDs 提供展开通配映射所需的完整目录。
-	ModelIDs func() []string
 	// ModelOutputModalities 按最终型号查询输出模态，nil 表示未知。
 	ModelOutputModalities  func(string) *[]string
 	Now                    func() time.Time
@@ -610,9 +608,6 @@ func (s *Public) ListModels(ctx context.Context, owner BatchImageOwner) (*BatchI
 	}
 
 	var candidates []string
-	if s.ModelIDs != nil {
-		candidates = s.ModelIDs()
-	}
 	var policy *routing.GroupPolicyView
 	billingMapping := GroupMappingResult{BillingModelSource: routing.BillingModelSourceGroupMapped}
 	if s.PricingConfigService != nil && owner.GroupID != nil {
@@ -628,6 +623,7 @@ func (s *Public) ListModels(ctx context.Context, owner BatchImageOwner) (*BatchI
 	}
 	if policy != nil {
 		candidates = append(candidates, policy.AllowedModels...)
+		candidates = append(candidates, policy.ModelsList...)
 		for id := range policy.ModelMapping {
 			candidates = append(candidates, id)
 		}
@@ -650,6 +646,9 @@ func (s *Public) ListModels(ctx context.Context, owner BatchImageOwner) (*BatchI
 			}
 			configured := batchImageConfiguredModels(&provider, policy)
 			for _, model := range BatchImageModelsFromProviderMapping(&provider, candidates...) {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
 				routingModel := strings.TrimSpace(policy.ResolveModel(model))
 				if routingModel == "" {
 					routingModel = model
@@ -1302,6 +1301,9 @@ func batchImageConfiguredModels(provider *Candidate, policy *routing.GroupPolicy
 		add(target)
 	}
 	if policy != nil {
+		for _, id := range policy.ModelsList {
+			add(id)
+		}
 		for _, id := range policy.AllowedModels {
 			add(id)
 		}
@@ -1313,7 +1315,7 @@ func batchImageConfiguredModels(provider *Candidate, policy *routing.GroupPolicy
 	return ids
 }
 
-// BatchImageModelsFromProviderMapping 合并完整目录与具体配置，通配映射在解析候选时执行。
+// BatchImageModelsFromProviderMapping 合并提供商及分组配置中的具体型号。
 func BatchImageModelsFromProviderMapping(provider *Candidate, candidates ...string) []string {
 	if provider == nil {
 		return nil

@@ -245,7 +245,11 @@ func creativeGroupProjection(value *routing.Group) *creative.GroupView {
 	if value == nil {
 		return nil
 	}
-	return &creative.GroupView{ID: value.ID, Name: value.Name, ClaudeCodeOnly: value.ClaudeCodeOnly, IsExclusive: value.IsExclusive, AllowImageGeneration: value.AllowImageGeneration, Active: value.IsActive(), RateMultiplier: value.RateMultiplier, RoutingPolicy: value.RoutingPolicy.Clone(), ProtocolFallbacks: value.ProtocolFallbacks, Operations: creative.OperationsForGroup(value.ResponsesImagePolicy != "" || value.ProtocolFallbacks != nil, value.AllowsClientProtocol)}
+	var models []string
+	if value.CustomModelsListEnabled() {
+		models = append([]string(nil), value.ModelsListConfig.Models...)
+	}
+	return &creative.GroupView{ModelsList: models, ID: value.ID, Name: value.Name, ClaudeCodeOnly: value.ClaudeCodeOnly, IsExclusive: value.IsExclusive, AllowImageGeneration: value.AllowImageGeneration, Active: value.IsActive(), RateMultiplier: value.RateMultiplier, RoutingPolicy: value.RoutingPolicy.Clone(), ProtocolFallbacks: value.ProtocolFallbacks, Operations: creative.OperationsForGroup(value.ResponsesImagePolicy != "" || value.ProtocolFallbacks != nil, value.AllowsClientProtocol)}
 }
 
 func (creativeMediaCatalog) GetModelPricing(model string) *billing.CatalogModelPricing {

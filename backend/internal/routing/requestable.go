@@ -46,79 +46,99 @@ type CatalogueProvider struct {
 	Passthrough      bool
 	Rules            CatalogueRules
 }
-type CatalogueDefaults struct {
-	Platform func(string) []string
-}
 type CataloguePolicies interface {
 	GetGroupPolicy(context.Context, int64) (*GroupPolicyView, error)
 	GetPricingConfigForGroup(context.Context, int64) (*PricingConfig, error)
 }
 
-// RequestableResolver 只编排目录规则，缓存和数据取得均由现有唯一来源提供。
+// RequestableResolver 按分组策略校验已配置的候选及指定型号。
+// @project-doc docs/interfaces/model_catalog_and_marketplace.md#model_catalog_resolution
 type RequestableResolver struct {
 	GroupPolicies CataloguePolicies
-	Defaults      CatalogueDefaults
 	Warn          func(string, ...any)
 }
 
-// ResolveWithProviders 使用已预取提供商解析模型，供模型广场避免逐分组重复查询。
-func (s *RequestableResolver) ResolveWithProviders(
-	ctx context.Context,
-	groupID *int64,
-	platform string,
-	baseModels []string,
-	providers []CatalogueProvider,
-) RequestableModelsResult {
-	providers = filterRequestableModelProviders(providers, platform)
-	// 提供商查询成功但没有平台匹配提供商时必须保持空结果；分组策略读取失败不能凭空补入默认模型。
-	if len(providers) == 0 {
-		return RequestableModelsResult{}
-	}
-	currentProviderModels := ConfiguredRequestModelsFromProviders(providers, platform)
-	hadExplicitProviderModels := len(baseModels) > 0 || len(currentProviderModels) > 0
-	// 缓存层可能暂时为空或滞后，当前查询成功时仍要纳入提供商白名单模型。
-	providerCandidateModels := make([]string, 0, len(baseModels)+len(currentProviderModels))
-	providerCandidateModels = append(providerCandidateModels, baseModels...)
-	providerCandidateModels = append(providerCandidateModels, currentProviderModels...)
+// requestableQuery 保存一次分组查询的规则和有限候选。
+type requestableQuery struct {
+	providers     []CatalogueProvider
+	protocols     []capability.ProviderProtocols
+	policy        *GroupPolicyView
+	billingSource string
+	candidates    []string
+	result        RequestableModelsResult
+}
 
-	var policy *GroupPolicyView
-	billingSource := BillingModelSourceRequested
-	policyPlatform := strings.TrimSpace(platform)
-	var err error
-	if groupID != nil && s.GroupPolicies != nil {
-		policy, err = s.GroupPolicies.GetGroupPolicy(ctx, *groupID)
-		if err != nil {
-			if s.Warn != nil {
-				s.Warn("failed to load group policy for requestable model resolution", "group_id", *groupID, "platform", platform, "error", err)
-			}
-			return RequestableModelsResult{Restricted: true, HadExplicitProviderModels: hadExplicitProviderModels}
+// ResolveWithProviders 校验配置中的具体型号，提供商可由多分组查询预取。
+func (s *RequestableResolver) ResolveWithProviders(ctx context.Context, groupID *int64, platform string, baseModels []string, providers []CatalogueProvider) RequestableModelsResult {
+	query := s.prepare(ctx, groupID, platform, baseModels, providers)
+	result := query.result
+	for _, requestedModel := range query.candidates {
+		if ctx.Err() != nil {
+			return RequestableModelsResult{Restricted: true}
 		}
-		// 每次目录查询预先读取分组策略与计费来源。
-		billingSource = BillingModelSourceGroupMapped
-		if config, err := s.GroupPolicies.GetPricingConfigForGroup(ctx, *groupID); err == nil && config != nil && config.BillingModelSource != "" {
-			billingSource = config.BillingModelSource
-		}
-	}
-
-	candidates := mergeRequestableModelCandidates(providerCandidateModels, providers, policy, policyPlatform, s.Defaults)
-	result := RequestableModelsResult{
-		Restricted:                policy != nil && policy.RestrictModels,
-		HadExplicitProviderModels: hadExplicitProviderModels,
-	}
-	if len(candidates) == 0 || len(providers) == 0 {
-		return result
-	}
-
-	result.Models = make([]RequestableModel, 0, len(candidates))
-	for _, requestedModel := range candidates {
-		if resolved, ok := resolveRequestableModel(ctx, policy, billingSource, providers, requestedModel); ok {
+		if resolved, ok := query.resolve(ctx, requestedModel); ok {
 			result.Models = append(result.Models, resolved)
 		}
 	}
 	return result
 }
 
-// ConfiguredRequestModelsFromProviders 复用 GetAvailableModels 的显式模型聚合规则。
+// ResolveSelectedWithProviders 校验指定的有限型号集合，供单型号查询及其 Key 别名使用。
+func (s *RequestableResolver) ResolveSelectedWithProviders(ctx context.Context, groupID *int64, platform string, selected []string, providers []CatalogueProvider) RequestableModelsResult {
+	query := s.prepare(ctx, groupID, platform, nil, providers)
+	result := query.result
+	seen := make(map[string]bool, len(selected))
+	for _, model := range selected {
+		if ctx.Err() != nil {
+			return RequestableModelsResult{Restricted: true}
+		}
+		if seen[model] || !slices.Contains(query.candidates, model) {
+			continue
+		}
+		seen[model] = true
+		if resolved, ok := query.resolve(ctx, model); ok {
+			result.Models = append(result.Models, resolved)
+		}
+	}
+	return result
+}
+
+func (s *RequestableResolver) prepare(ctx context.Context, groupID *int64, platform string, baseModels []string, providers []CatalogueProvider) requestableQuery {
+	providers = filterRequestableModelProviders(providers, platform)
+	query := requestableQuery{providers: providers, billingSource: BillingModelSourceRequested}
+	if len(providers) == 0 {
+		return query
+	}
+	currentModels := ConfiguredRequestModelsFromProviders(providers, platform)
+	query.result.HadExplicitProviderModels = len(baseModels) > 0 || len(currentModels) > 0
+	if groupID != nil && s.GroupPolicies != nil {
+		policy, err := s.GroupPolicies.GetGroupPolicy(ctx, *groupID)
+		if err != nil {
+			if s.Warn != nil {
+				s.Warn("failed to load group policy for requestable model resolution", "group_id", *groupID, "platform", platform, "error", err)
+			}
+			query.result.Restricted = true
+			return query
+		}
+		query.policy = policy
+		query.billingSource = BillingModelSourceGroupMapped
+		if config, err := s.GroupPolicies.GetPricingConfigForGroup(ctx, *groupID); err == nil && config != nil && config.BillingModelSource != "" {
+			query.billingSource = config.BillingModelSource
+		}
+	}
+	query.result.Restricted = query.policy != nil && query.policy.RestrictModels
+	configured := make([]string, 0, len(baseModels)+len(currentModels))
+	configured = append(configured, baseModels...)
+	configured = append(configured, currentModels...)
+	query.candidates = mergeRequestableModelCandidates(configured, providers, query.policy)
+	query.protocols = make([]capability.ProviderProtocols, len(providers))
+	for i := range providers {
+		query.protocols[i] = providers[i].Protocols()
+	}
+	return query
+}
+
+// ConfiguredRequestModelsFromProviders 聚合提供商配置中的具体请求型号。
 func ConfiguredRequestModelsFromProviders(providers []CatalogueProvider, platform string) []string {
 	modelSet := make(map[string]struct{})
 	hasConfiguredModels := false
@@ -161,9 +181,9 @@ func filterRequestableModelProviders(providers []CatalogueProvider, platform str
 	return filtered
 }
 
-// mergeRequestableModelCandidates 按既有候选、分组策略、提供商配置和默认模型的顺序合并候选。
+// mergeRequestableModelCandidates 合并提供商配置、分组策略和自定义列表中的具体名称。
 // 通配符用于后续匹配，返回列表包含具体的模型 ID。
-func mergeRequestableModelCandidates(baseModels []string, providers []CatalogueProvider, policy *GroupPolicyView, platform string, defaults CatalogueDefaults) []string {
+func mergeRequestableModelCandidates(baseModels []string, providers []CatalogueProvider, policy *GroupPolicyView) []string {
 	candidates := make([]string, 0, len(baseModels)+16)
 	seen := make(map[string]struct{}, len(baseModels)+16)
 	appendModels := func(models ...string) {
@@ -184,6 +204,7 @@ func mergeRequestableModelCandidates(baseModels []string, providers []CatalogueP
 	appendModels(baseModels...)
 	if policy != nil {
 		appendModels(policy.AllowedModels...)
+		appendModels(policy.ModelsList...)
 		if mapping := policy.ModelMapping; len(mapping) > 0 {
 			appendModels(sortedModelMappingSources(mapping)...)
 		}
@@ -191,9 +212,6 @@ func mergeRequestableModelCandidates(baseModels []string, providers []CatalogueP
 
 	for i := range providers {
 		appendModels(sortedModelMappingSources(providers[i].Rules.Mapping())...)
-	}
-	if defaults.Platform != nil {
-		appendModels(defaults.Platform(platform)...)
 	}
 
 	return candidates
@@ -218,14 +236,9 @@ func sortedModelMappingSources(mapping map[string]string) []string {
 	return models
 }
 
-// resolveRequestableModel 用本次查询的策略快照解析单个候选。
-func resolveRequestableModel(
-	ctx context.Context,
-	policy *GroupPolicyView,
-	billingSource string,
-	providers []CatalogueProvider,
-	requestedModel string,
-) (RequestableModel, bool) {
+// resolve 用本次查询的规则校验单个请求型号。
+func (q *requestableQuery) resolve(ctx context.Context, requestedModel string) (RequestableModel, bool) {
+	policy, providers, billingSource := q.policy, q.providers, q.billingSource
 	groupMappedModel := requestedModel
 	if mapped := strings.TrimSpace(policy.ResolveModel(requestedModel)); mapped != "" {
 		groupMappedModel = mapped
@@ -251,7 +264,7 @@ func resolveRequestableModel(
 				continue
 			}
 			for _, source := range policy.AllowedProtocols {
-				target, ok := capability.ResolveRoute(provider.Protocols(), source, policy.ProtocolFallbacks)
+				target, ok := capability.ResolveRoute(q.protocols[i], source, policy.ProtocolFallbacks)
 				if !ok {
 					continue
 				}

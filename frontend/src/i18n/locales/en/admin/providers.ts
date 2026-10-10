@@ -1743,6 +1743,7 @@ export default {
         typeImage: 'Image',
         model: 'Test model',
         modelPlaceholder: 'Select or enter a model ID',
+        modelsEmpty: 'No models are configured. Enter a model ID to test, or edit the provider whitelist, sync upstream models, and save.',
         protocol: 'Test protocol',
         protocolAll: 'All enabled protocols (one after another)',
         protocolNone: 'No upstream protocol enabled',

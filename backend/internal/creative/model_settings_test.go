@@ -1,6 +1,7 @@
 package creative
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,4 +36,20 @@ func TestNormalizeCreativeModelSettings(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+// TestCreativeSettingsReuseGroupQuery 同组多项设置共用一次分组和提供商读取。
+func TestCreativeSettingsReuseGroupQuery(t *testing.T) {
+	fixture := &targetQueryFixture{}
+	service := newTargetQueryPublic(fixture)
+	result, err := service.NormalizeCreativeModelSettingsForSave(context.Background(), []CreativeModelSetting{
+		{GroupID: 1, Model: "gpt-image-1", Operations: []string{CreativeOperationGenerate}},
+		{GroupID: 1, Model: "gpt-image-2", Operations: []string{CreativeOperationGenerate}},
+	})
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	require.Equal(t, []string{"gpt-image-1", "gpt-image-2"}, fixture.checked)
+	require.Equal(t, 1, fixture.groupReads)
+	require.Equal(t, 1, fixture.providerReads)
+	require.Zero(t, fixture.inventoryReads)
 }

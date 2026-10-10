@@ -25,7 +25,7 @@ type APIKeyHandler[G any] struct {
 
 	apiKeyService        *apikey.APIKeyService
 	groupCapacityService GroupCapacityReader
-	groupPresentation    func(context.Context, *routing.Group, *accessview.GroupCapacitySummary) *G
+	groupPresentation    func(context.Context, *routing.Group, *accessview.GroupCapacitySummary, bool) *G
 	presentGroup         func(*routing.Group, *accessview.GroupCapacitySummary) *G
 }
 type GroupCapacityReader interface {
@@ -113,7 +113,7 @@ func NewAPIKeyHandler[G any](keys *apikey.APIKeyService, present func(*routing.G
 }
 
 // SetGroupPresentation 设置已授权控制台查询的分组展示函数。
-func (h *APIKeyHandler[G]) SetGroupPresentation(present func(context.Context, *routing.Group, *accessview.GroupCapacitySummary) *G) {
+func (h *APIKeyHandler[G]) SetGroupPresentation(present func(context.Context, *routing.Group, *accessview.GroupCapacitySummary, bool) *G) {
 	h.groupPresentation = present
 }
 
@@ -435,6 +435,12 @@ func (h *APIKeyHandler[G]) GetAvailableGroups(c *gin.Context) {
 		return
 	}
 
+	includeModels, err := strconv.ParseBool(c.DefaultQuery("include_models", "true"))
+	if err != nil {
+		response.BadRequest(c, "Invalid include_models")
+		return
+	}
+
 	var subscriptionID *int64
 	if rawSubscriptionID := strings.TrimSpace(c.Query("subscription_id")); rawSubscriptionID != "" {
 		parsedID, err := strconv.ParseInt(rawSubscriptionID, 10, 64)
@@ -465,7 +471,7 @@ func (h *APIKeyHandler[G]) GetAvailableGroups(c *gin.Context) {
 		}
 		groupDTO := h.presentGroup(&groups[i], capacity)
 		if h.groupPresentation != nil {
-			groupDTO = h.groupPresentation(c.Request.Context(), &groups[i], capacity)
+			groupDTO = h.groupPresentation(c.Request.Context(), &groups[i], capacity, includeModels)
 		}
 		out = append(out, *groupDTO)
 	}

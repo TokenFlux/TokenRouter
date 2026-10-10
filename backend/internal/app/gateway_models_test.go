@@ -249,7 +249,7 @@ func newGatewayModelsHandlerWithPricingConfigForTest(repo modelHTTPProviderRows,
 	if modelConfigs != nil {
 		pricingConfigPort = modelConfigs
 	}
-	catalogue := &routing.RequestableCatalogue{Models: &routing.ModelList{Read: read}, Read: read, Resolver: routing.RequestableResolver{GroupPolicies: pricingConfigPort, Defaults: gatewayprovider.CatalogueDefaults(gatewayModelCatalogFixture()), Warn: slog.Warn}, Warn: slog.Warn}
+	catalogue := &routing.RequestableCatalogue{Read: read, Resolver: routing.RequestableResolver{GroupPolicies: pricingConfigPort, Warn: slog.Warn}, Warn: slog.Warn}
 	return modelsHTTP(gatewayModelCatalogFixture(), catalogue, nil, nil, nil)
 }
 
@@ -268,7 +268,7 @@ func newGatewayModelsPricingConfigServiceForTest(groupID int64, platform string,
 	)
 }
 
-func TestGatewayModels_GeminiGroupFallsBackToGeminiModels(t *testing.T) {
+func TestGatewayModels_GeminiUnconfiguredDirectoryIsEmpty(t *testing.T) {
 	groupID := int64(20)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
@@ -295,10 +295,10 @@ func TestGatewayModels_GeminiGroupFallsBackToGeminiModels(t *testing.T) {
 	var got gatewayModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, "list", got.Object)
-	require.Contains(t, modelIDsForTest(got.Data), "gemini-2.5-flash")
-	require.Contains(t, modelIDsForTest(got.Data), "gemini-review")
+	require.Empty(t, got.Data)
+	require.NotContains(t, modelIDsForTest(got.Data), "gemini-review")
 	require.NotContains(t, modelIDsForTest(got.Data), "wild-*")
-	require.Contains(t, modelIDsForTest(got.Data), "claude-sonnet-4-6")
+	require.NotContains(t, modelIDsForTest(got.Data), "claude-sonnet-4-6")
 }
 
 func TestAntigravityModelsWithoutCatalogueReturnsEmpty(t *testing.T) {
@@ -507,8 +507,8 @@ func TestGatewayModelsCompositeKeyFiltersRevokedMappings(t *testing.T) {
 	require.Empty(t, got.Data)
 }
 
-// TestGatewayModels_AntigravityGroupKeepsDefaultModelMetadata 验证默认候选仍使用 Antigravity 的展示元数据。
-func TestGatewayModels_AntigravityGroupKeepsDefaultModelMetadata(t *testing.T) {
+// TestGatewayModels_AntigravityConfiguredModelMetadata 已配置的 Antigravity 型号使用统一展示元数据。
+func TestGatewayModels_AntigravityConfiguredModelMetadata(t *testing.T) {
 	groupID := int64(32)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
@@ -518,7 +518,7 @@ func TestGatewayModels_AntigravityGroupKeepsDefaultModelMetadata(t *testing.T) {
 						ID:       1,
 						Platform: capability.PlatformAntigravity,
 						Credentials: map[string]any{
-							"model_whitelist": []string{},
+							"model_whitelist": []string{"claude-fable-5"},
 						},
 					},
 				},
@@ -550,7 +550,7 @@ func TestGatewayModels_AntigravityGroupKeepsDefaultModelMetadata(t *testing.T) {
 	t.Fatal("catalog model missing")
 }
 
-func TestGatewayModels_QoderGroupFallsBackToQoderModels(t *testing.T) {
+func TestGatewayModels_QoderUsesExecutionModels(t *testing.T) {
 	groupID := int64(28)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
@@ -577,7 +577,7 @@ func TestGatewayModels_QoderGroupFallsBackToQoderModels(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, "list", got.Object)
 	require.Contains(t, modelIDsForTest(got.Data), "deepseek-v4-pro")
-	require.Contains(t, modelIDsForTest(got.Data), "claude-sonnet-4-6")
+	require.Contains(t, modelIDsForTest(got.Data), "claude-opus-4-6")
 }
 
 // TestGatewayModels_Grok45AdvertisesReasoningEffortForGrokBuild 检查推理能力元数据与兼容字段同时返回。
@@ -678,7 +678,7 @@ func TestGatewayModels_GrokDefaultsExcludeBuiltinAliases(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	var got gatewayModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	require.Contains(t, modelIDsForTest(got.Data), "grok-4.6")
+	require.Empty(t, got.Data)
 	require.NotContains(t, modelIDsForTest(got.Data), "grok")
 	require.NotContains(t, modelIDsForTest(got.Data), "grok-latest")
 
@@ -897,9 +897,10 @@ func TestGatewayModels_AnthropicCustomModelsListIncludesOAuthClaudeAndMappedDeep
 			byGroup: map[int64][]provider.Record{
 				groupID: {
 					{
-						ID:       1,
-						Platform: capability.PlatformAnthropic,
-						Type:     capability.ProviderTypeOAuth,
+						ID:          1,
+						Platform:    capability.PlatformAnthropic,
+						Type:        capability.ProviderTypeOAuth,
+						Credentials: map[string]any{"model_whitelist": []string{"claude-fable-5", "claude-opus-4-8"}},
 					},
 					{
 						ID:       2,
@@ -938,7 +939,7 @@ func TestGatewayModels_AnthropicCustomModelsListIncludesOAuthClaudeAndMappedDeep
 	require.Equal(t, []string{"claude-fable-5", "claude-opus-4-8", "deepseek-v4-pro"}, modelIDsForTest(got.Data))
 }
 
-func TestGatewayModels_AnthropicCustomModelsListDisabledIncludesUnrestrictedDefaults(t *testing.T) {
+func TestGatewayModels_DisabledCustomListUsesConfiguredModels(t *testing.T) {
 	groupID := int64(29)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
@@ -985,7 +986,7 @@ func TestGatewayModels_AnthropicCustomModelsListDisabledIncludesUnrestrictedDefa
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	modelIDs := modelIDsForTest(got.Data)
 	require.Contains(t, modelIDs, "deepseek-v4-pro")
-	require.Contains(t, modelIDs, "claude-opus-4-6")
+	require.NotContains(t, modelIDs, "claude-opus-4-6")
 }
 
 func TestGatewayModels_AnthropicCustomModelsListDoesNotAddModelsOutsideResolvedCandidates(t *testing.T) {
@@ -1068,13 +1069,13 @@ func TestGatewayModels_CustomModelsListCanReturnEmptyWhenSelectionsUnavailable(t
 	require.Empty(t, modelIDsForTest(got.Data))
 }
 
-func TestGatewayModels_CustomModelsListFiltersDefaultFallbackModels(t *testing.T) {
+func TestGatewayModels_CustomModelsListFiltersConfiguredModels(t *testing.T) {
 	groupID := int64(25)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
 			byGroup: map[int64][]provider.Record{
 				groupID: {
-					{ID: 1, Platform: capability.PlatformOpenAI},
+					{ID: 1, Platform: capability.PlatformOpenAI, Credentials: map[string]any{"model_whitelist": []string{"gpt-5.5", "gpt-5.4"}}},
 				},
 			},
 		},
@@ -1102,13 +1103,13 @@ func TestGatewayModels_CustomModelsListFiltersDefaultFallbackModels(t *testing.T
 	require.Equal(t, []string{"gpt-5.5", "gpt-5.4"}, modelIDsForTest(got.Data))
 }
 
-func TestGatewayModels_OpenAICustomModelsListKeepsOpenAIResponseShapeForDefaultFallback(t *testing.T) {
+func TestGatewayModels_OpenAICustomModelsListKeepsOpenAIResponseShapeForConfiguredModels(t *testing.T) {
 	groupID := int64(27)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
 			byGroup: map[int64][]provider.Record{
 				groupID: {
-					{ID: 1, Platform: capability.PlatformOpenAI},
+					{ID: 1, Platform: capability.PlatformOpenAI, Credentials: map[string]any{"model_whitelist": []string{"gpt-5.5", "gpt-5.4"}}},
 				},
 			},
 		},
@@ -1140,7 +1141,7 @@ func TestGatewayModels_OpenAICustomModelsListKeepsOpenAIResponseShapeForDefaultF
 	require.Empty(t, got.Data[0].CreatedAt)
 }
 
-func TestGatewayModels_OpenAIUnrestrictedListKeepsOpenAIResponseShape(t *testing.T) {
+func TestGatewayModels_OpenAIEmptyListKeepsOpenAIResponseShape(t *testing.T) {
 	groupID := int64(31)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
@@ -1162,20 +1163,17 @@ func TestGatewayModels_OpenAIUnrestrictedListKeepsOpenAIResponseShape(t *testing
 	require.Equal(t, http.StatusOK, rec.Code)
 	var got gatewayModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	require.NotEmpty(t, got.Data)
-	require.Equal(t, "model", got.Data[0].Object)
-	require.Zero(t, got.Data[0].Created)
-	require.NotEmpty(t, got.Data[0].OwnedBy)
-	require.Empty(t, got.Data[0].CreatedAt)
+	require.Empty(t, got.Data)
+	require.Equal(t, "list", got.Object)
 }
 
-func TestGatewayModels_QoderCustomModelsListFiltersDefaultFallbackModels(t *testing.T) {
+func TestGatewayModels_QoderCustomModelsListFiltersConfiguredModels(t *testing.T) {
 	groupID := int64(29)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
 			byGroup: map[int64][]provider.Record{
 				groupID: {
-					{ID: 1, Platform: capability.PlatformQoder},
+					{ID: 1, Platform: capability.PlatformQoder, Credentials: map[string]any{"model_whitelist": []string{"deepseek-v4-pro", "claude-sonnet-4-6", "lite"}}},
 				},
 			},
 		},

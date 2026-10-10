@@ -28,14 +28,6 @@ func (c ModelDisplayCatalogue) Model(id string) modeldisplay.OpenAIModel {
 	return model
 }
 
-// ModelIDs 返回当前统一目录的可枚举候选。
-func (c ModelDisplayCatalogue) ModelIDs() []string {
-	if c.Source == nil {
-		return nil
-	}
-	return c.Source.ModelIDs()
-}
-
 // GrokSupportsXHigh 读取请求适配器的推理档位规则。
 func (ModelDisplayCatalogue) GrokSupportsXHigh(model string) bool {
 	return (grok.BodyCodec{NewID: uuid.NewString}).GrokSupportsXHighReasoningEffort(model)

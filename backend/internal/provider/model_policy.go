@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"sort"
 	"strings"
 )
 
@@ -23,6 +22,11 @@ func (r *Record) IsModelSupported(requestedModel string, defaults ModelMappingDe
 	if !ModelInFinalWhitelist(r.Platform, model, scope, rules.NormalizeQoder) {
 		return false
 	}
+	return r.modelPlatformAllows(model, rules)
+}
+
+// modelPlatformAllows 检查型号的站点和账号资格。
+func (r *Record) modelPlatformAllows(model string, rules ModelPlatformRules) bool {
 	if r.Platform == PlatformQoder && rules.QoderCompatible != nil && !rules.QoderCompatible(model) {
 		return false
 	}
@@ -71,33 +75,11 @@ func (r *Record) GetConfiguredRequestModels(defaults ModelMappingDefaults) []str
 	}
 	mapping := ResolveModelMapping(r, defaults)
 	scope := r.effectiveModelScope(defaults, mapping)
-	models := make(map[string]struct{})
-	for model := range scope {
-		if !strings.Contains(model, "*") {
-			models[model] = struct{}{}
-		}
-	}
+	var platformModels []string
 	if defaults.Models != nil {
-		for _, model := range defaults.Models(r) {
-			if ModelInFinalWhitelist(r.Platform, model, scope, nil) {
-				models[model] = struct{}{}
-			}
-		}
+		platformModels = defaults.Models(r)
 	}
-	for source, target := range mapping {
-		if target != "" && !strings.Contains(target, "*") && ModelInFinalWhitelist(r.Platform, target, scope, nil) {
-			models[target] = struct{}{}
-		}
-		if !strings.Contains(source, "*") && ModelInFinalWhitelist(r.Platform, target, scope, nil) {
-			models[source] = struct{}{}
-		}
-	}
-	out := make([]string, 0, len(models))
-	for model := range models {
-		out = append(out, model)
-	}
-	sort.Strings(out)
-	return out
+	return configuredRequestModels(mapping, scope, platformModels, func(model string) bool { return ModelInFinalWhitelist(r.Platform, model, scope, nil) })
 }
 
 // ResolveMappedModel 获取映射后的模型名，并返回是否命中了提供商级映射。

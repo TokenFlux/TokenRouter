@@ -396,7 +396,7 @@ internal/upstream/zhipu/...`, Tests: ""},
 	// 窄权限属于指定文件，不能由相邻文件或目标子包继承。
 	filePermissions = []filePermission{
 		// 目录读取与测试数据构造按实际调用文件登记。
-		{Scope: "internal/gateway/provider", Imports: "internal/modelcatalog", Files: "model_catalogue.go model_display.go"},
+		{Scope: "internal/gateway/provider", Imports: "internal/modelcatalog", Files: "model_display.go"},
 		{Scope: "internal/provider/httpapi", Imports: "internal/modelcatalog/testkit", Files: "management_catalog_test.go"},
 		// 容器启动等待由共用测试入口提供，许可限定到接入该入口的文件。
 		{Scope: "internal/infra/redis", Imports: "internal/testutil/rediscontainer", Files: "helpers_integration_test.go"},
@@ -439,7 +439,6 @@ internal/upstream/zhipu/...`, Tests: ""},
 		{Scope: "internal/moderation", Imports: "internal/moderation/provider", Files: "service_test.go helpers_test.go"},
 		{Scope: "internal/moderation/postgres", Imports: "internal/identity/postgres", Files: "repository_test.go"},
 		{Scope: "internal/payment/postgres", Imports: "internal/billing/postgres", Files: "checkout_scenario_test.go"},
-		{Scope: "internal/routing", Imports: "internal/modelcatalog/testkit", Files: "requestable_external_test.go"},
 		{Scope: "internal/routing", Imports: "internal/modelcatalog/provider", Files: "marketplace_external_test.go"},
 		{Scope: "internal/routing", Imports: "internal/provider/provider", Files: "group_admin_external_test.go"},
 		{Scope: "internal/routing", Imports: "internal/gateway/provider/modelidentity", Files: "marketplace_external_test.go"},

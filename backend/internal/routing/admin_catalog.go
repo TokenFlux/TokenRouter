@@ -32,10 +32,10 @@ type AdminCatalogResult struct {
 	Models []AdminCatalogModel
 }
 type AdminCatalogOptions struct {
-	Defaults func(AdminCatalogKind, string) ([]AdminCatalogModel, error)
+	Lookup func(AdminCatalogKind, string) AdminCatalogModel
 }
 
-// AdminCatalog 不安装缓存；动态目录每次按原顺序读取一次。
+// AdminCatalog 校验提供商声明的具体型号，并查询这些型号的展示信息。
 type AdminCatalog struct{ options AdminCatalogOptions }
 
 func NewAdminCatalog(options AdminCatalogOptions) *AdminCatalog { return &AdminCatalog{options} }
@@ -57,40 +57,24 @@ func (s *AdminCatalog) Available(input AdminCatalogInput, configured func() []st
 		kind = CatalogGrok
 	}
 	requested := configured()
-	defaults, err := s.options.Defaults(kind, input.Site)
-	if err != nil {
-		return AdminCatalogResult{}, err
-	}
-	for _, model := range defaults {
-		requested = append(requested, model.ID)
-	}
 	sort.Strings(requested)
-	byID := make(map[string]AdminCatalogModel, len(defaults))
-	for _, m := range defaults {
-		if _, ok := byID[m.ID]; ok && kind != CatalogGrok {
-			continue
-		}
-		byID[m.ID] = m
-	}
-	var models []AdminCatalogModel
+	models := make([]AdminCatalogModel, 0, len(requested))
 	seen := make(map[string]bool)
 	for _, id := range requested {
 		if seen[id] || (input.Accept != nil && !input.Accept(id)) {
 			continue
 		}
 		seen[id] = true
-		if m, ok := byID[id]; ok {
-			models = append(models, m)
-			continue
-		}
 		m := AdminCatalogModel{ID: id, Type: "model", DisplayName: id}
-		if kind == CatalogOpenAI {
+		if kind == CatalogOpenAI || kind == CatalogGrok {
 			m.Object = "model"
 		}
 		if kind == CatalogGrok {
-			m.Object = "model"
 			m.Type = ""
 			m.OwnedBy = "xai"
+		}
+		if s.options.Lookup != nil {
+			m = s.options.Lookup(kind, id)
 		}
 		models = append(models, m)
 	}

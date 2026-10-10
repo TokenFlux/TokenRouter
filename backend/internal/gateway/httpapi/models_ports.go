@@ -14,6 +14,7 @@ import (
 type ModelsPorts struct {
 	Catalogue interface {
 		ResolveRequestableModels(context.Context, *int64, string) routing.RequestableModelsResult
+		ResolveSelectedModels(context.Context, *int64, string, []string) routing.RequestableModelsResult
 	}
 	ReadAccess       func(*gin.Context) (*apikey.APIKey, bool)
 	ReadPlatform     func(*gin.Context) (string, bool)
@@ -40,6 +41,11 @@ func (p ModelsPorts) Available() bool { return p.Catalogue != nil }
 
 func (p ModelsPorts) Resolve(ctx context.Context, id *int64, platform string) routing.RequestableModelsResult {
 	return p.Catalogue.ResolveRequestableModels(ctx, id, platform)
+}
+
+// ResolveSelected 校验本次单型号查询需要的名称。
+func (p ModelsPorts) ResolveSelected(ctx context.Context, id *int64, platform string, models []string) routing.RequestableModelsResult {
+	return p.Catalogue.ResolveSelectedModels(ctx, id, platform, models)
 }
 
 // PreferredSubscription 为目录展示返回已确认的指定订阅。

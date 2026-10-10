@@ -57,12 +57,55 @@ func (h *ModelsHandler) GeminiV1BetaGetModel(c *gin.Context) {
 		WriteGoogleError(c, http.StatusBadRequest, "Invalid model in URL")
 		return
 	}
-	models, allowed := h.requestableGeminiModels(c, key)
-	if !allowed {
+	group := key.Group
+	if key.IsComposite {
+		prefix, rest, found := strings.Cut(name, "/")
+		group = nil
+		if found {
+			preferred, ready := h.CompositePreferredSubscription(c, key)
+			if ready {
+				for _, binding := range key.CompositeGroups {
+					if binding.Prefix == prefix && CompositeGroupAvailableToUser(key, preferred, binding.Group) {
+						group = binding.Group
+						segment = rest
+						break
+					}
+				}
+			}
+		}
+	} else if group == nil || !group.AllowsClientProtocol(protocol.ProtocolGeminiGenerateContent) {
+		WriteGoogleError(c, http.StatusForbidden, "This group does not allow Gemini GenerateContent requests")
 		return
 	}
-	for _, model := range models {
-		if model.Name == "models/"+name {
+	if group != nil && group.AllowsClientProtocol(protocol.ProtocolGeminiGenerateContent) && h.backend.Available() {
+		forced, _ := h.backend.ForcedPlatform(c)
+		forced = strings.TrimSpace(forced)
+		selected := []string{segment}
+		target, alias := key.ModelMapping[segment]
+		if alias {
+			selected = append(selected, target)
+		}
+		resolved := h.backend.ResolveSelected(c.Request.Context(), &group.ID, forced, selected)
+		visible := make(map[string]bool, len(resolved.Models))
+		for _, model := range resolved.Models {
+			if !slices.Contains(model.Protocols, protocol.ProtocolGeminiGenerateContent) {
+				continue
+			}
+			if customListEnabled(group) && len(FilterModelsByCustomList([]string{model.ID}, nil, group.ModelsListConfig.Models)) == 0 {
+				continue
+			}
+			visible[model.ID] = true
+		}
+		metadataID := segment
+		if !visible[segment] && alias && visible[target] {
+			metadataID = target
+		}
+		if visible[metadataID] {
+			model := h.catalog.GeminiModel(metadataID, forced == capability.PlatformAntigravity)
+			model.Name = "models/" + name
+			if name != metadataID {
+				model.DisplayName = name
+			}
 			c.JSON(http.StatusOK, model)
 			return
 		}

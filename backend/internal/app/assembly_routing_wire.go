@@ -15,7 +15,6 @@ var routingAssemblyProviders = wire.NewSet(
 	wire.Bind(new(creativeprovider.ExecutionGroups), new(*routingpostgres.GroupStore)),
 	provideRoutingSettings,
 	provideAdminModelCatalog,
-	provideRoutingModelList,
 	provideRequestableCatalogue,
 	provideMarketplace,
 	provideMarketplaceHTTP,

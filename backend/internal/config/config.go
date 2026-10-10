@@ -609,7 +609,7 @@ type GatewayConfig struct {
 
 	// UserGroupRateCacheTTLSeconds: 用户分组倍率热路径缓存 TTL（秒）
 	UserGroupRateCacheTTLSeconds int `mapstructure:"user_group_rate_cache_ttl_seconds"`
-	// ModelsListCacheTTLSeconds: /v1/models 模型列表短缓存 TTL（秒）
+	// ModelsListCacheTTLSeconds 兼容历史配置，当前目录查询已停用候选短缓存。
 	ModelsListCacheTTLSeconds int `mapstructure:"models_list_cache_ttl_seconds"`
 
 	// UserMessageQueue: 用户消息串行队列配置

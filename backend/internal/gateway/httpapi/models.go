@@ -19,6 +19,7 @@ type ModelsBackend interface {
 	ForcedPlatform(*gin.Context) (string, bool)
 	Available() bool
 	Resolve(context.Context, *int64, string) routing.RequestableModelsResult
+	ResolveSelected(context.Context, *int64, string, []string) routing.RequestableModelsResult
 	PreferredSubscription(*gin.Context) (*billing.UserSubscription, bool)
 	SelectGemini(context.Context, *int64) (GeminiModelReader, error)
 	HasAntigravity(context.Context, *int64) (bool, error)
@@ -159,11 +160,7 @@ func (h *ModelsHandler) AntigravityModels(c *gin.Context) {
 		h.WriteClaudeCompatiblePlatformModelsList(c, capability.PlatformAntigravity, nil)
 		return
 	}
-	modelIDs := h.catalog.ModelIDs()
-	if apiKey != nil {
-		modelIDs = apikey.AppendAPIKeyModelAliases(modelIDs, apiKey.ModelMapping)
-	}
-	h.WriteClaudeCompatiblePlatformModelsList(c, capability.PlatformAntigravity, modelIDs)
+	h.WriteClaudeCompatiblePlatformModelsList(c, capability.PlatformAntigravity, nil)
 }
 
 func (h *ModelsHandler) CompositeRequestableModels(c *gin.Context, apiKey *apikey.APIKey, requiredPlatform string) []string {

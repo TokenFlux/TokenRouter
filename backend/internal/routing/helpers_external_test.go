@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -78,7 +77,6 @@ func newGroupAdminPortsForTest(repo routing.GroupRepository, duplicate routing.G
 		DefaultModels: func(string) []string { return []string{"claude-sonnet-4-6", "gpt-5.4"} },
 		ModelResolver: routing.RequestableResolver{
 			GroupPolicies: modelPolicies,
-			Defaults:      gatewayprovider.CatalogueDefaults(nil),
 			Warn:          slog.Warn,
 		},
 		GlobalWeights: func(ctx context.Context) (policy.ScoreWeights, error) {

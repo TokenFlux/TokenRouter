@@ -808,10 +808,6 @@ func resetGatewayHotpathStatsForTest() {
 	billing.SharedGroupRateMetrics().Load.Store(0)
 	billing.SharedGroupRateMetrics().Shared.Store(0)
 	billing.SharedGroupRateMetrics().Fallback.Store(0)
-
-	routing.SharedModelListMetrics().Hit.Store(0)
-	routing.SharedModelListMetrics().Miss.Store(0)
-	routing.SharedModelListMetrics().Store.Store(0)
 }
 
 func TestWithWindowCostPrefetch_BatchReadAndContextReuse(t *testing.T) {

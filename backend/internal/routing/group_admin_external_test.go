@@ -318,7 +318,7 @@ func TestAdminServiceCustomModelsCannotInventUnsupportedModels(t *testing.T) {
 	}
 	providerRepo := &groupModelsListProviderRepoStub{
 		providers: []provider.Record{
-			{ID: 1, Platform: capability.PlatformOpenAI},
+			{ID: 1, Platform: capability.PlatformOpenAI, Credentials: map[string]any{"model_whitelist": []string{"gpt-5.6-sol"}}},
 		},
 	}
 	svc := newGroupAdminPortsForTest(groupRepo, nil, nil, nil, providerRepo, nil, nil)
@@ -328,6 +328,10 @@ func TestAdminServiceCustomModelsCannotInventUnsupportedModels(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, groupID, providerRepo.calledGroupID)
 	require.Empty(t, models)
+	providerRepo.providers[0].Credentials["model_whitelist"] = []string{}
+	models, err = svc.GetGroupModelsListCandidates(context.Background(), groupID, "")
+	require.NoError(t, err)
+	require.Equal(t, []string{"deepseek-v4-flash", "deepseek-v4-pro"}, models)
 }
 
 // TestAdminService_GetGroupModelsListCandidates_FiltersCustomModelsList 检查候选模型与自定义模型列表取交集。

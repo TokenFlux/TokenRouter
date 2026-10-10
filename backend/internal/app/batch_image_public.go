@@ -21,7 +21,6 @@ import (
 // provideBatchPublic 装配批量图片提交用例，共享任务、提供商、资金和模型配置读取实例。
 func provideBatchPublic(catalog *catalogprovider.Service, repo batchimage.BatchImageRepository, providers *providerpostgres.ProviderStore, modelConfigs *routing.PricingConfigService, groups routing.GroupRepository, rates billing.UserGroupRateRepository, queue batchimage.BatchImageQueue, pricing *batchimage.Pricing, funds *billing.Funds, subscriptions *billingpostgres.SettlementStore, auth apikey.APIKeyAuthCacheInvalidator, cfg *config.Config, registry *batchimage.Registry[batchprovider.BatchImageProvider]) *batchimage.Public {
 	core := &batchimage.Public{
-		ModelIDs: catalog.ModelIDs,
 		ModelOutputModalities: func(model string) *[]string {
 			return catalog.ModelEntry(model).Attributes.OutputModalities
 		},

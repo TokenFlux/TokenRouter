@@ -645,7 +645,11 @@ func ExtractExplicitFinalModelWhitelist(rawWhitelist any) map[string]struct{} {
 			if raw == nil {
 				continue
 			}
-			values = append(values, strings.TrimSpace(fmt.Sprint(raw)))
+			if model, ok := raw.(string); ok {
+				values = append(values, strings.TrimSpace(model))
+			} else {
+				values = append(values, strings.TrimSpace(fmt.Sprint(raw)))
+			}
 		}
 	default:
 		return nil

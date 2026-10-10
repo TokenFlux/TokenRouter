@@ -46,7 +46,10 @@ func (h *ManagementHandler) GetAvailableModels(c *gin.Context) {
 		response.NotFound(c, "Provider not found")
 		return
 	}
-	result, err := h.catalog.Available(routing.AdminCatalogInput{Accept: func(id string) bool { return h.modelSupports == nil || h.modelSupports(c.Request.Context(), v, id) }, Platform: v.Platform, Site: v.GetCredential("site"), OAuth: v.IsOAuth(), GoogleOne: v.IsGeminiGoogleOne(), Passthrough: v.IsOpenAIPassthroughEnabled()}, func() []string { return v.GetConfiguredRequestModels(h.modelDefaults) })
+	rules := h.modelRules(v)
+	result, err := h.catalog.Available(routing.AdminCatalogInput{Accept: func(id string) bool {
+		return rules.Supports(c.Request.Context(), id)
+	}, Platform: v.Platform, Site: v.GetCredential("site"), OAuth: v.IsOAuth(), GoogleOne: v.IsGeminiGoogleOne(), Passthrough: v.IsOpenAIPassthroughEnabled()}, rules.ConfiguredModels)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return

@@ -3,30 +3,14 @@ package app
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
-
-// TestGatewayHotpathHelpers_CacheTTLAndStickyContext 检查 app 装配的默认缓存 TTL、自定义 TTL 和粘性会话参数。
-func TestGatewayHotpathHelpers_CacheTTLAndStickyContext(t *testing.T) {
-	t.Run("resolve_models_list_cache_ttl", func(t *testing.T) {
-		require.Equal(t, 15*time.Second, resolveModelsListCacheTTL(nil))
-
-		cfg := &config.Config{
-			Gateway: config.GatewayConfig{
-				ModelsListCacheTTLSeconds: 20,
-			},
-		}
-		require.Equal(t, 20*time.Second, resolveModelsListCacheTTL(cfg))
-	})
-}
 
 // TestRequestableNativeProtocolsRequireEveryProvider 检查原生协议的判定。
 // 单个提供商承接的模型按它的原生协议标记。多个提供商共同承接时，协议要在每个提供商上都不经过转换才算原生。

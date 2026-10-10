@@ -30,6 +30,11 @@ type apiKeyHandlerSecurityRepoStub struct {
 	keys map[int64]*apikey.APIKey
 }
 
+// availableGroupsUsers 为分组接口提供普通用户。
+type availableGroupsUsers struct{}
+
+type availableGroupsRepository struct{ apikey.GroupRepository }
+
 func TestValidateAPIKeyCreateRequest(t *testing.T) {
 	t.Parallel()
 
@@ -226,4 +231,60 @@ func newAPIKeyHandlerSecurityRouter(t *testing.T, repo *apiKeyHandlerSecurityRep
 	})
 	router.GET("/api/v1/api-keys/:id", handler.GetByID)
 	return router
+}
+
+func (availableGroupsUsers) GetByID(context.Context, int64) (*apikey.User, error) {
+	return &apikey.User{ID: 1}, nil
+}
+
+func (availableGroupsRepository) ListActive(context.Context) ([]routing.Group, error) {
+	return []routing.Group{{ID: 1, Status: "active"}, {ID: 2, Status: "active", IsExclusive: true}}, nil
+}
+
+// TestAvailableGroupsOptionalModels 轻量查询跳过目录计算，同时保留分组权限过滤。
+func TestAvailableGroupsOptionalModels(t *testing.T) {
+	for _, query := range []string{"", "?include_models=true", "?include_models=false", "?include_models=invalid"} {
+		t.Run(query, func(t *testing.T) {
+			type groupResponse struct {
+				ID     int64    `json:"id"`
+				Models []string `json:"models,omitempty"`
+			}
+			service := apikey.NewAPIKeyService(nil, availableGroupsUsers{}, availableGroupsRepository{}, nil, nil, nil, nil)
+			handler := NewAPIKeyHandler(service, func(group *routing.Group, _ *accessview.GroupCapacitySummary) *groupResponse {
+				return &groupResponse{ID: group.ID}
+			})
+			calls := 0
+			handler.SetGroupPresentation(func(_ context.Context, group *routing.Group, _ *accessview.GroupCapacitySummary, includeModels bool) *groupResponse {
+				if !includeModels {
+					return &groupResponse{ID: group.ID}
+				}
+				calls++
+				return &groupResponse{ID: group.ID, Models: []string{"known"}}
+			})
+			router := gin.New()
+			router.Use(func(c *gin.Context) { c.Set(authctx.ContextKeyUser, authctx.AuthSubject{UserID: 1}) })
+			router.GET("/groups/available", handler.GetAvailableGroups)
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/groups/available"+query, nil))
+			if query == "?include_models=invalid" {
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				require.Zero(t, calls)
+				return
+			}
+			require.Equal(t, http.StatusOK, recorder.Code)
+			var result struct {
+				Data []groupResponse `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &result))
+			require.Len(t, result.Data, 1)
+			require.Equal(t, int64(1), result.Data[0].ID)
+			if query == "?include_models=false" {
+				require.Zero(t, calls)
+				require.Empty(t, result.Data[0].Models)
+			} else {
+				require.Equal(t, 1, calls)
+				require.Equal(t, []string{"known"}, result.Data[0].Models)
+			}
+		})
+	}
 }

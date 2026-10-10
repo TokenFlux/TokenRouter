@@ -33,6 +33,7 @@ import (
 type batchCataloguePolicyReads struct {
 	*routing.PricingConfigService
 	policyReads, pricingReads int
+	modelsList                []string
 }
 
 // changingMediaPricingGroupRepo 模拟两次读取之间管理员修改分组倍率，两份配置计算出的最终价格相同。
@@ -90,7 +91,6 @@ func TestBatchImageCatalogueResolvesBeforeModalities(t *testing.T) {
 			value := testBatchImageMappedProvider(303, "apikey", tc.providerMapping)
 			value.Credentials["model_whitelist"] = tc.whitelist
 			svc.ProviderRepo = rebindBatchFixtureProviders(svc, &publicBatchImageProviderRepo{providers: []providercore.Record{value}})
-			svc.ModelIDs = func() []string { return []string{"gpt-5.4", "catalog-image", "catalog-text", "unconfigured-unknown"} }
 			image, text := []string{"image"}, []string{"text"}
 			svc.ModelOutputModalities = func(id string) *[]string {
 				switch id {
@@ -102,7 +102,7 @@ func TestBatchImageCatalogueResolvesBeforeModalities(t *testing.T) {
 					return nil
 				}
 			}
-			policy := newPublicPricingConfigFixture(makePublicPricingConfigFixture(routing.PricingConfig{ID: 1, Status: "active", GroupIDs: []int64{group}, BillingModelSource: routing.BillingModelSourceUpstream}, nil, routing.GroupRoutingPolicy{Enabled: true, ModelMapping: tc.groupMapping}))
+			policy := newPublicPricingConfigFixture(makePublicPricingConfigFixture(routing.PricingConfig{ID: 1, Status: "active", GroupIDs: []int64{group}, BillingModelSource: routing.BillingModelSourceUpstream}, nil, routing.GroupRoutingPolicy{Enabled: true, AllowedModels: []string{"gpt-5.4"}, ModelMapping: tc.groupMapping}))
 			svc.PricingConfigService = policy
 			price := &fakeBatchImagePricingResolver{unitPrice: 0.1}
 			svc.Pricing = price
@@ -124,7 +124,7 @@ func TestBatchImageCatalogueResolvesBeforeModalities(t *testing.T) {
 	}
 }
 
-// TestBatchImageCatalogueUsesOnePolicySnapshot 大目录在映射后判断模态和分组限制，策略只读一次。
+// TestBatchImageCatalogueUsesOnePolicySnapshot 不同白名单阶段均复用一次策略和计费来源读取。
 func TestBatchImageCatalogueUsesOnePolicySnapshot(t *testing.T) {
 	for _, stage := range []string{routing.BillingModelSourceRequested, routing.BillingModelSourceGroupMapped, routing.BillingModelSourceUpstream} {
 		t.Run(stage, func(t *testing.T) {
@@ -132,18 +132,12 @@ func TestBatchImageCatalogueUsesOnePolicySnapshot(t *testing.T) {
 			owner := testBatchImageOwner()
 			group := *owner.GroupID
 			allowed := map[string]string{routing.BillingModelSourceRequested: "gpt-5.4", routing.BillingModelSourceGroupMapped: "route-model", routing.BillingModelSourceUpstream: "catalog-image"}[stage]
-			policies := &batchCataloguePolicyReads{PricingConfigService: newPublicPricingConfigFixture(makePublicPricingConfigFixture(routing.PricingConfig{ID: 1, Status: "active", GroupIDs: []int64{group}, BillingModelSource: routing.BillingModelSourceUpstream}, nil, routing.GroupRoutingPolicy{Enabled: true, ModelMapping: map[string]string{"gpt-*": "route-model"}, RestrictModels: true, RestrictionModelSource: stage, AllowedModels: []string{allowed}}))}
+			policies := &batchCataloguePolicyReads{PricingConfigService: newPublicPricingConfigFixture(makePublicPricingConfigFixture(routing.PricingConfig{ID: 1, Status: "active", GroupIDs: []int64{group}, BillingModelSource: routing.BillingModelSourceUpstream}, nil, routing.GroupRoutingPolicy{Enabled: true, ModelMapping: map[string]string{"gpt-*": "route-model", "gpt-5.4": "route-model"}, RestrictModels: true, RestrictionModelSource: stage, AllowedModels: []string{allowed}}))}
 			svc.PricingConfigService = policies
 			value := testBatchImageMappedProvider(303, "apikey", map[string]any{"route-*": "catalog-image"})
 			value.Credentials["model_whitelist"] = []string{"catalog-image"}
 			svc.ProviderRepo = rebindBatchFixtureProviders(svc, &publicBatchImageProviderRepo{providers: []providercore.Record{value}})
-			svc.ModelIDs = func() []string {
-				ids := []string{"gpt-5.4", "catalog-image"}
-				for i := range 12000 {
-					ids = append(ids, fmt.Sprintf("text-%d", i))
-				}
-				return ids
-			}
+
 			image, text := []string{"image"}, []string{"text"}
 			svc.ModelOutputModalities = func(id string) *[]string {
 				if id == "catalog-image" {
@@ -171,7 +165,6 @@ func TestBatchImageCatalogueRejectsMissingPrice(t *testing.T) {
 	svc, _, _, _, _, _ := newTestBatchImagePublicService(true)
 	value := testBatchImageMappedProvider(303, "apikey", map[string]any{"gpt-*": "catalog-image"})
 	svc.ProviderRepo = rebindBatchFixtureProviders(svc, &publicBatchImageProviderRepo{providers: []providercore.Record{value}})
-	svc.ModelIDs = func() []string { return []string{"gpt-5.4"} }
 	image := []string{"image"}
 	svc.ModelOutputModalities = func(string) *[]string { return &image }
 	svc.Pricing = &fakeBatchImagePricingResolver{err: batchimage.ErrBatchImageSettlementPricingMissing}
@@ -180,12 +173,11 @@ func TestBatchImageCatalogueRejectsMissingPrice(t *testing.T) {
 	require.Empty(t, result.Data)
 }
 
-// TestBatchImageAutomaticCandidates 自动候选按最终模态筛选，未配置的未知型号保持隐藏。
+// TestBatchImageAutomaticCandidates 未配置的目录型号不参与候选，映射到文本的型号被过滤。
 func TestBatchImageAutomaticCandidates(t *testing.T) {
 	svc, _, _, _, _, _ := newTestBatchImagePublicService(true)
 	value := testBatchImageMappedProvider(303, "apikey", map[string]any{"source-image": "final-text"})
 	svc.ProviderRepo = rebindBatchFixtureProviders(svc, &publicBatchImageProviderRepo{providers: []providercore.Record{value}})
-	svc.ModelIDs = func() []string { return []string{"catalog-image", "source-image", "final-text", "unknown"} }
 	image, text := []string{"image"}, []string{"text"}
 	svc.ModelOutputModalities = func(id string) *[]string {
 		switch id {
@@ -200,10 +192,7 @@ func TestBatchImageAutomaticCandidates(t *testing.T) {
 	svc.Pricing = &fakeBatchImagePricingResolver{unitPrice: 0.1}
 	result, err := svc.ListModels(context.Background(), testBatchImageOwner())
 	require.NoError(t, err)
-	require.NotEmpty(t, result.Data)
-	for _, model := range result.Data {
-		require.Equal(t, "catalog-image", model.ID)
-	}
+	require.Empty(t, result.Data)
 }
 
 func TestBatchImagePricingSnapshotUsesOneGroupVersion(t *testing.T) {
@@ -904,9 +893,8 @@ func TestBatchImagePublicService_ListModels(t *testing.T) {
 		}}, got.Data)
 	})
 
-	t.Run("expands wildcard mappings against batch image candidates", func(t *testing.T) {
+	t.Run("wildcard mappings enumerate configured targets", func(t *testing.T) {
 		svc, _, _, _, _, _ := newTestBatchImagePublicService(true)
-		svc.ModelIDs = func() []string { return []string{"gemini-3.1-flash-image", "gemini-3.1-flash-lite-image"} }
 		providerRepo := testassert.MustType[*publicBatchImageProviderRepo](testassert.MustType[*batchProviderFixture](svc.ProviderRepo).source)
 		providerRepo.providers = []providercore.Record{testBatchImageMappedProvider(303, capability.ProviderTypeAPIKey, map[string]any{
 			"gemini-3.1-*": "gemini-3.1-flash-lite-image",
@@ -919,7 +907,7 @@ func TestBatchImagePublicService_ListModels(t *testing.T) {
 		for _, model := range got.Data {
 			ids = append(ids, model.ID)
 		}
-		require.Contains(t, ids, "gemini-3.1-flash-image")
+		require.NotContains(t, ids, "gemini-3.1-flash-image")
 		require.Contains(t, ids, "gemini-3.1-flash-lite-image")
 		require.NotContains(t, ids, "gemini-2.5-flash-image")
 	})
@@ -1147,7 +1135,11 @@ func TestBatchImageConfiguredAlias(t *testing.T) {
 // GetGroupPolicy 统计策略读取次数。
 func (p *batchCataloguePolicyReads) GetGroupPolicy(ctx context.Context, id int64) (*routing.GroupPolicyView, error) {
 	p.policyReads++
-	return p.PricingConfigService.GetGroupPolicy(ctx, id)
+	policy, err := p.PricingConfigService.GetGroupPolicy(ctx, id)
+	if policy != nil {
+		policy.ModelsList = p.modelsList
+	}
+	return policy, err
 }
 
 // GetPricingConfigForGroup 统计计费来源读取次数。
@@ -1242,4 +1234,62 @@ func testBatchImageMappedProvider(id int64, providerType string, mapping map[str
 	provider := testBatchImageProvider(id, providerType)
 	provider.Credentials["model_mapping"] = mapping
 	return provider
+}
+
+// BenchmarkBatchImageConfiguredCatalogue 测量 65 个提供商的有限目录，包含规则准备及模态检查。
+func BenchmarkBatchImageConfiguredCatalogue(b *testing.B) {
+	service, _, _, _, _, _ := newTestBatchImagePublicService(true)
+	rows := &publicBatchImageProviderRepo{}
+	whitelist := make([]any, 186)
+	mapping := map[string]any{}
+	for i := range whitelist {
+		model := fmt.Sprintf("probe-model-%03d", i)
+		if i == 0 {
+			model = "gemini-2.5-flash-image"
+		}
+		whitelist[i] = model
+		mapping[model] = model
+	}
+	for i := range 65 {
+		value := testBatchImageMappedProvider(int64(i+1), "apikey", mapping)
+		value.Credentials["model_whitelist"] = whitelist
+		rows.providers = append(rows.providers, value)
+	}
+	service.ProviderRepo = rebindBatchFixtureProviders(service, rows)
+	service.ProviderExists = func(name string) bool { return name == batchimage.BatchImageProviderGeminiAPI }
+	image, text := []string{"image"}, []string{"text"}
+	service.ModelOutputModalities = func(model string) *[]string {
+		if model == "gemini-2.5-flash-image" {
+			return &image
+		}
+		return &text
+	}
+	service.Pricing = &fakeBatchImagePricingResolver{unitPrice: 0.1}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		result, err := service.ListModels(context.Background(), testBatchImageOwner())
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(result.Data) != 1 {
+			b.Fatalf("models=%d", len(result.Data))
+		}
+	}
+}
+
+// TestBatchImageCustomListDeclaresUnknownModality 自定义列表中的具体型号可在有价格时作为未知模态候选。
+func TestBatchImageCustomListDeclaresUnknownModality(t *testing.T) {
+	service, _, _, _, _, _ := newTestBatchImagePublicService(true)
+	owner := testBatchImageOwner()
+	value := testBatchImageMappedProvider(303, "apikey", nil)
+	service.ProviderRepo = rebindBatchFixtureProviders(service, &publicBatchImageProviderRepo{providers: []providercore.Record{value}})
+	service.PricingConfigService = &batchCataloguePolicyReads{PricingConfigService: newPublicPricingConfigFixture(makePublicPricingConfigFixture(routing.PricingConfig{ID: 1, Status: "active", GroupIDs: []int64{*owner.GroupID}}, nil, routing.GroupRoutingPolicy{Enabled: true})), modelsList: []string{"custom-image"}}
+	service.Pricing = &fakeBatchImagePricingResolver{unitPrice: 0.1}
+	result, err := service.ListModels(context.Background(), owner)
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Data)
+	for _, model := range result.Data {
+		require.Equal(t, "custom-image", model.ID)
+	}
 }

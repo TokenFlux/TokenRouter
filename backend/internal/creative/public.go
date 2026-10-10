@@ -59,6 +59,8 @@ type GroupView struct {
 	Operations                                map[string][]string
 	ProtocolFallbacks                         map[protocol.ProtocolID][]protocol.ProtocolID
 	RoutingPolicy                             routing.GroupRoutingPolicy
+	// ModelsList 保存分组已启用的自定义请求名称。
+	ModelsList []string
 }
 type GroupReader interface {
 	GetByIDLite(context.Context, int64) (*GroupView, error)
@@ -105,8 +107,6 @@ type PublicOptions struct {
 	DefaultImageSize                  string
 }
 type Public struct {
-	// ModelIDs 读取统一目录的候选，实际执行资格仍由提供商检查。
-	ModelIDs               func() []string
 	Now                    func() time.Time
 	Repo                   CreativeRunRepository
 	UserRepo               UserReader
@@ -260,7 +260,8 @@ func (s *Public) ListModels(ctx context.Context, userID int64) (*CreativeModelsR
 	if err != nil || user == nil {
 		return nil, s.UserNotFound
 	}
-	modelSettings := CreativeModelSettingsIndex(s.CreativeModelSettings(ctx))
+	settings := s.CreativeModelSettings(ctx)
+	modelSettings := CreativeModelSettingsIndex(settings)
 	if len(modelSettings) == 0 {
 		return &CreativeModelsResponse{Data: make([]CreativeModelPublic, 0)}, nil
 	}
@@ -281,7 +282,11 @@ func (s *Public) ListModels(ctx context.Context, userID int64) (*CreativeModelsR
 		if len(platformOperations) == 0 {
 			continue
 		}
-		routes, err := s.creativeModelRoutes(ctx, group)
+		query, err := s.prepareCreativeModels(ctx, group)
+		if err != nil {
+			return nil, err
+		}
+		routes := query.resolveModels(ctx, creativeSettingsModels(settings, group.ID))
 		models := creativeModelsFromRoutes(routes)
 		if err != nil {
 			return nil, err
@@ -645,57 +650,14 @@ func groupOperations(group *GroupView) []string {
 	return operations
 }
 
-// creativeModelRoutes 保留每个模型的实际提供商平台，避免分组混合后套用另一供应商的图片参数。
+// creativeModelRoutes 返回管理员配置和平台执行规则中的图片型号。
 func (s *Public) creativeModelRoutes(ctx context.Context, group *GroupView) (map[string]creativeModelRoute, error) {
-	out := make(map[string]creativeModelRoute)
-	if s.ProviderRepo == nil || group == nil || group.ClaudeCodeOnly {
-		return out, nil
+	query, err := s.prepareCreativeModels(ctx, group)
+	if err != nil || query == nil {
+		return map[string]creativeModelRoute{}, err
 	}
-	policy := newGroupModelPolicy(group.RoutingPolicy)
-	var configured []string
-	if s.ModelIDs != nil {
-		configured = s.ModelIDs()
-	}
-	for _, setting := range s.CreativeModelSettings(ctx) {
-		if setting.GroupID == group.ID {
-			configured = append(configured, setting.Model)
-		}
-	}
-	for _, platform := range []string{PlatformOpenAI, PlatformGemini, PlatformGrok} {
-		providers, err := s.ProviderRepo.ListSchedulableByGroupIDAndPlatform(ctx, group.ID, platform)
-		if err != nil {
-			return nil, err
-		}
-		for _, model := range policy.candidates(platform, configured, providers) {
-			if _, exists := out[model]; exists {
-				continue
-			}
-			mapped, allowed := policy.resolve(model)
-			if !allowed {
-				continue
-			}
-			for _, provider := range providers {
-				if provider == nil || provider.PlatformID() != platform || !provider.IsSchedulable() || !provider.IsModelSupported(mapped) {
-					continue
-				}
-				finalModel := mappedCatalogModel(provider, mapped)
-				if !CreativePlatformImageModel(platform, finalModel) || !policy.allowsUpstream(finalModel) {
-					continue
-				}
-				var operations []string
-				for _, operation := range group.Operations[platform] {
-					if provider.AllowsProtocol(OperationProtocol(platform, operation), group.ProtocolFallbacks) {
-						operations = append(operations, operation)
-					}
-				}
-				if len(operations) > 0 {
-					out[model] = creativeModelRoute{Platform: platform, Model: finalModel, Operations: operations}
-					break
-				}
-			}
-		}
-	}
-	return out, nil
+	configured := creativeSettingsModels(s.CreativeModelSettings(ctx), group.ID)
+	return query.resolveModels(ctx, query.candidates(configured)), nil
 }
 
 // IsCreativeGeminiImageModel 按 Gemini 图片模型的命名约定识别显式白名单变体。
@@ -924,25 +886,25 @@ func (s *Public) ValidateCreateParams(ctx context.Context, userID int64, params 
 	if len(operations) == 0 {
 		return nil, ErrCreativeOperationUnsupported
 	}
-	routes, err := s.creativeModelRoutes(ctx, group)
-	models := creativeModelsFromRoutes(routes)
+	query, err := s.prepareCreativeModels(ctx, group)
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := models[model]; !ok {
+	route, available := query.resolve(ctx, model)
+	if !available {
 		return nil, ErrCreativeInvalidModel
 	}
-	finalModel := models[model]
+	finalModel := route.Model
 	if finalModel == "" {
 		finalModel = model
 	}
-	operations = intersectCreativeOperations(operations, routes[model].Operations)
+	operations = intersectCreativeOperations(operations, route.Operations)
 	operation := strings.TrimSpace(params.Operation)
 	operationAllowed := slices.Contains(operations, operation)
 	if !operationAllowed {
 		return nil, ErrCreativeOperationUnsupported
 	}
-	capabilities := CreativeCapabilitiesForModel(routes[model].Platform, finalModel)
+	capabilities := CreativeCapabilitiesForModel(route.Platform, finalModel)
 	if capabilities.MaxReferenceImages > 0 && len(params.SourceImages) > capabilities.MaxReferenceImages {
 		return nil, ErrCreativeInvalidParams
 	}
@@ -967,7 +929,7 @@ func (s *Public) ValidateCreateParams(ctx context.Context, userID int64, params 
 	if imageSize == "" {
 		imageSize = s.DefaultImageSize()
 	}
-	imageSize, supported := CreativeCanonicalOption(imageSize, CreativeImageSizesForModel(routes[model].Platform, finalModel))
+	imageSize, supported := CreativeCanonicalOption(imageSize, CreativeImageSizesForModel(route.Platform, finalModel))
 	if !supported {
 		return nil, ErrCreativeInvalidParams
 	}
@@ -1039,7 +1001,7 @@ func (s *Public) ValidateCreateParams(ctx context.Context, userID int64, params 
 	if totalBytes > 0 && int64(totalBytes) > s.MaxTotalInputBytes() {
 		return nil, ErrCreativeInputTooLarge
 	}
-	if routes[model].Platform == PlatformGemini {
+	if route.Platform == PlatformGemini {
 		encodedBytes := base64.StdEncoding.EncodedLen(len([]byte(prompt)))
 		for _, source := range sources {
 			encodedBytes += base64.StdEncoding.EncodedLen(len(source.Bytes))
@@ -1095,7 +1057,7 @@ func (s *Public) ValidateCreateParams(ctx context.Context, userID int64, params 
 	})
 	return &ValidatedCreativeParams{
 		Group:         group,
-		Platform:      routes[model].Platform,
+		Platform:      route.Platform,
 		Model:         model,
 		FinalModel:    finalModel,
 		Operation:     operation,

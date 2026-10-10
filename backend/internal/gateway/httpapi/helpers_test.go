@@ -15,6 +15,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -221,6 +222,8 @@ type modelsBackendStub struct {
 	byGroup           map[int64]routing.RequestableModelsResult
 	forced            string
 	resolvedPlatforms []string
+	selectedModels    []string
+	resolveCalls      int
 	response          *ModelHTTPResponse
 	selectErr         error
 	antigravity       bool
@@ -1048,11 +1051,28 @@ func (p *modelsBackendStub) ForcedPlatform(*gin.Context) (string, bool) {
 func (p *modelsBackendStub) Available() bool { return true }
 
 func (p *modelsBackendStub) Resolve(_ context.Context, id *int64, platform string) routing.RequestableModelsResult {
+	p.resolveCalls++
 	p.resolvedPlatforms = append(p.resolvedPlatforms, platform)
 	if id != nil && p.byGroup != nil {
 		return p.byGroup[*id]
 	}
 	return p.result
+}
+
+func (p *modelsBackendStub) ResolveSelected(_ context.Context, id *int64, platform string, models []string) routing.RequestableModelsResult {
+	p.resolvedPlatforms = append(p.resolvedPlatforms, platform)
+	p.selectedModels = append(p.selectedModels, models...)
+	result := p.result
+	if id != nil && p.byGroup != nil {
+		result = p.byGroup[*id]
+	}
+	out := routing.RequestableModelsResult{}
+	for _, item := range result.Models {
+		if slices.Contains(models, item.ID) {
+			out.Models = append(out.Models, item)
+		}
+	}
+	return out
 }
 
 func (p *modelsBackendStub) SelectGemini(context.Context, *int64) (GeminiModelReader, error) {

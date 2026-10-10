@@ -73,6 +73,10 @@
           />
         </div>
 
+        <p v-if="!loadingModels && availableModels.length === 0" class="input-hint" data-testid="provider-test-models-empty">
+          {{ t('admin.providers.testDialog.modelsEmpty') }}
+        </p>
+
         <div v-if="testType === 'text'" class="space-y-1.5">
           <label class="input-label" :for="protocolFieldId">{{ t('admin.providers.testDialog.protocol') }}</label>
           <Select
@@ -382,7 +386,7 @@ const loadAvailableModels = async () => {
   if (!props.provider) return
 
   loadingModels.value = true
-  // 统一目录包含多个供应商的型号，单次测试由管理员明确选择 ID。
+  // 测试型号由管理员从提供商目录选择，也可直接输入 ID。
   selectedModelId.value = ''
   try {
     const models = await adminAPI.providers.getAvailableModels(props.provider.id)

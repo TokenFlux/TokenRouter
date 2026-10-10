@@ -16,6 +16,8 @@ type GroupPolicyView struct {
 	AllowedProtocols  []protocol.ProtocolID
 	ProtocolFallbacks map[protocol.ProtocolID][]protocol.ProtocolID
 	RequireOAuthOnly  bool
+	// ModelsList 保存已启用的自定义展示型号，供目录生成候选。
+	ModelsList []string
 }
 
 // PlatformBoolOverride 读取分组的布尔覆盖，兼容按平台保存的对象。
@@ -101,7 +103,11 @@ func (s *PricingConfigService) GetGroupPolicy(ctx context.Context, groupID int64
 	if !policy.Enabled {
 		policy = GroupRoutingPolicy{}
 	}
-	return &GroupPolicyView{GroupRoutingPolicy: policy, AllowedProtocols: append([]protocol.ProtocolID{}, group.AllowedProtocols...), ProtocolFallbacks: protocol.CloneFallbacks(group.ProtocolFallbacks), RequireOAuthOnly: group.RequireOAuthOnly}, nil
+	var models []string
+	if group.CustomModelsListEnabled() {
+		models = append([]string(nil), group.ModelsListConfig.Models...)
+	}
+	return &GroupPolicyView{ModelsList: models, GroupRoutingPolicy: policy, AllowedProtocols: append([]protocol.ProtocolID{}, group.AllowedProtocols...), ProtocolFallbacks: protocol.CloneFallbacks(group.ProtocolFallbacks), RequireOAuthOnly: group.RequireOAuthOnly}, nil
 }
 
 func (p *GroupPolicyView) RestrictionSource() string {

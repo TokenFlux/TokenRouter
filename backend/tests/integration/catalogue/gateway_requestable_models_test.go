@@ -12,8 +12,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
-	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	catalogtest "github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -334,10 +332,9 @@ func TestResolveRequestableModels_UpstreamMarksAntigravityThinkingVariantAmbiguo
 		Status:             billing.StatusActive,
 		BillingModelSource: routing.BillingModelSourceUpstream,
 	}
-	provider := providercore.Record{ID: 75, Platform: capability.PlatformAntigravity}
+	provider := providercore.Record{ID: 75, Platform: capability.PlatformAntigravity, Credentials: map[string]any{"model_mapping": map[string]any{"claude-sonnet-4-5": "claude-sonnet-4-5"}}}
 	svc := newCatalogueFixture(&modelsListProviderRepoStub{byGroup: map[int64][]providercore.Record{groupID: {provider}}}, routingtestkit.PricingConfig(groupID, capability.PlatformAntigravity, pricingConfig), nil)
 
-	svc.Resolver.Defaults = gatewayprovider.CatalogueDefaults(catalogtest.New("claude-sonnet-4-5"))
 	result := svc.ResolveRequestableModels(context.Background(), &groupID, capability.PlatformAntigravity)
 	model, ok := requestableModelByID(result.Models, "claude-sonnet-4-5")
 	require.True(t, ok)
@@ -508,8 +505,8 @@ func TestResolveRequestableModels_ProviderQueryFailureKeepsEmpty(t *testing.T) {
 	require.Empty(t, routing.RequestableModelIDs(result.Models))
 }
 
-// TestResolveRequestableModels_SecondProviderQueryRestoresWhitelistCandidates 验证缓存层查询失败后仍使用当前提供商白名单。
-func TestResolveRequestableModels_SecondProviderQueryRestoresWhitelistCandidates(t *testing.T) {
+// TestResolveRequestableModels_NextQueryRecoversProviderFailure 提供商读取失败后，下一次请求读取已恢复的配置。
+func TestResolveRequestableModels_NextQueryRecoversProviderFailure(t *testing.T) {
 	groupID := int64(4121)
 	repo := &sequencedRequestableModelsProviderRepoStub{providers: []providercore.Record{{
 		ID:       82,
@@ -522,6 +519,10 @@ func TestResolveRequestableModels_SecondProviderQueryRestoresWhitelistCandidates
 
 	result := svc.ResolveRequestableModels(context.Background(), &groupID, capability.PlatformOpenAI)
 
+	require.Equal(t, 1, repo.calls)
+	require.True(t, result.Restricted)
+	require.Empty(t, result.Models)
+	result = svc.ResolveRequestableModels(context.Background(), &groupID, capability.PlatformOpenAI)
 	require.Equal(t, 2, repo.calls)
 	require.True(t, result.HadExplicitProviderModels)
 	require.Equal(t, []string{"private-model"}, routing.RequestableModelIDs(result.Models))

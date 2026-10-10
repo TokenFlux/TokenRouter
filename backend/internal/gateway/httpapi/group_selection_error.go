@@ -23,7 +23,7 @@ func WriteGroupSelectionBusinessError(c *gin.Context, err error, streamStarted b
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
 		message := modelErr.Error()
 		if apiKey, ok := readAccess(c); ok && apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
-			availableModels := FilterModelsByCustomList(modelErr.AvailableModels, catalogue.ModelIDs(), apiKey.Group.ModelsListConfig.Models)
+			availableModels := FilterModelsByCustomList(modelErr.AvailableModels, nil, apiKey.Group.ModelsListConfig.Models)
 			message = (&routing.GroupModelUnsupportedError{
 				RequestedModel:  modelErr.RequestedModel,
 				AvailableModels: availableModels,

@@ -19,7 +19,6 @@ import (
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	catalogprovider "github.com/TokenFlux/TokenRouter/internal/modelcatalog/provider"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/locale"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
@@ -44,7 +43,7 @@ type creativeModeration struct {
 }
 
 // provideCreativePublic 绑定创作任务、资金及查询接口，共享应用存储实例。
-func provideCreativePublic(requests *requestlog.Service, catalog *catalogprovider.Service, repo creative.CreativeRunRepository, keys *keypostgres.KeyStore, users *identitypostgres.UserStore, providers *providerpostgres.ProviderStore, groups *routingpostgres.GroupStore, rates billing.UserGroupRateRepository, queue creative.CreativeRunQueue, transient creative.CreativeTransientStore, funds *billing.Funds, subscriptions *billingpostgres.SettlementStore, logs usage.UsageLogRepository, pricing *billing.PriceResolver, modelConfigs *routing.PricingConfigService, moderation *moderation.ContentModerationService, auth apikey.APIKeyAuthCacheInvalidator, settings *creative.RuntimeSettings, cfg *config.Config, outbox creative.CreativeRunOutboxRepository) *creative.Public {
+func provideCreativePublic(requests *requestlog.Service, repo creative.CreativeRunRepository, keys *keypostgres.KeyStore, users *identitypostgres.UserStore, providers *providerpostgres.ProviderStore, groups *routingpostgres.GroupStore, rates billing.UserGroupRateRepository, queue creative.CreativeRunQueue, transient creative.CreativeTransientStore, funds *billing.Funds, subscriptions *billingpostgres.SettlementStore, logs usage.UsageLogRepository, pricing *billing.PriceResolver, modelConfigs *routing.PricingConfigService, moderation *moderation.ContentModerationService, auth apikey.APIKeyAuthCacheInvalidator, settings *creative.RuntimeSettings, cfg *config.Config, outbox creative.CreativeRunOutboxRepository) *creative.Public {
 	ttl := 30 * time.Minute
 	if cfg.Creative.TransientTTLSeconds > 0 {
 		ttl = time.Duration(cfg.Creative.TransientTTLSeconds) * time.Second
@@ -78,7 +77,6 @@ func provideCreativePublic(requests *requestlog.Service, catalog *catalogprovide
 		NamePrefix: "creative-studio",
 	}
 	return &creative.Public{
-		ModelIDs:          catalog.ModelIDs,
 		Now:               time.Now,
 		Repo:              repo,
 		UserRepo:          creativeUsers{users},
@@ -169,8 +167,13 @@ func creativeGroupView(g *routing.Group, language string) *creative.GroupView {
 	if g == nil {
 		return nil
 	}
+	var models []string
+	if g.CustomModelsListEnabled() {
+		models = append([]string(nil), g.ModelsListConfig.Models...)
+	}
 	display, _ := routing.GroupDisplay(g, language)
 	return &creative.GroupView{
+		ModelsList:           models,
 		ID:                   g.ID,
 		Name:                 display.DisplayName,
 		ClaudeCodeOnly:       g.ClaudeCodeOnly,
