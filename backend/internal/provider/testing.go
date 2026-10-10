@@ -247,7 +247,7 @@ func (s *TestService) execute(ctx context.Context, request TestRequest, sink Tes
 // TestProtocolID 把管理端传入的测试协议转换为原生协议 ID，未知值返回空字符串。
 func TestProtocolID(protocol string) capability.ProtocolID {
 	switch protocol {
-	case "systemone":
+	case APIProtocolSystemOne:
 		return capability.ProtocolSystemOne
 	case APIProtocolAnthropic:
 		return capability.ProtocolAnthropicMessages
@@ -260,13 +260,13 @@ func TestProtocolID(protocol string) capability.ProtocolID {
 	}
 }
 
-// testProtocolAllowed 判断本次文字测试能否直连所选协议。
+// testProtocolAllowed 判断本次测试能否直连所选协议。
 // OpenAI API Key 可在 Responses 与 Chat 之间任选，OAuth 只有 Responses；
 // 国产平台可测试已启用的协议，其他平台使用各自固定的测试端点。
 func testProtocolAllowed(info TestTargetInfo, protocol string) bool {
 	switch info.Platform {
 	case PlatformJev:
-		return protocol == "systemone" && slices.Contains(info.EnabledProtocols, capability.ProtocolSystemOne)
+		return protocol == APIProtocolSystemOne && slices.Contains(info.EnabledProtocols, capability.ProtocolSystemOne)
 	case PlatformOpenAI:
 		if info.Type == ProviderTypeAPIKey {
 			return protocol == APIProtocolResponses || protocol == APIProtocolChatCompletions

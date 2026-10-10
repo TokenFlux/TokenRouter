@@ -19,6 +19,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/jev"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -144,18 +145,7 @@ func (s *ModelCatalogue) FetchUpstreamSupportedModels(ctx context.Context, value
 func (s *ModelCatalogue) buildUpstreamModelsRequest(ctx context.Context, value *providercore.Record) (*http.Request, error) {
 	switch {
 	case value.Platform == capability.PlatformJev:
-		base, err := s.Options.ValidateURL(value.GetJevBaseURL())
-		if err != nil {
-			return nil, newUpstreamModelSyncConfigError("Invalid Jev base URL", err)
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildOpenAIModelsURL(base), nil)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Authorization", "Bearer "+value.GetCredential("api_key"))
-		req.Header.Set("Accept", "application/json")
-		ApplyProviderHeaderOverrides(value, req.Header)
-		return req, nil
+		return s.buildJevUpstreamModelsRequest(ctx, value)
 	case value.IsGrok():
 		return s.buildGrokUpstreamModelsRequest(ctx, value)
 	case value.IsOpenAI() || value.IsCNProvider():
@@ -170,6 +160,22 @@ func (s *ModelCatalogue) buildUpstreamModelsRequest(ctx context.Context, value *
 			fmt.Sprintf("Unsupported platform for upstream model sync: %s", value.Platform), nil,
 		)
 	}
+}
+
+// buildJevUpstreamModelsRequest 使用 Jev 地址和 Bearer 凭据构造模型列表请求。
+func (s *ModelCatalogue) buildJevUpstreamModelsRequest(ctx context.Context, value *providercore.Record) (*http.Request, error) {
+	base, err := s.Options.ValidateURL(value.GetJevBaseURL())
+	if err != nil {
+		return nil, newUpstreamModelSyncConfigError("Invalid Jev base URL", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jev.EndpointURL(base, "models"), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+value.GetCredential("api_key"))
+	req.Header.Set("Accept", "application/json")
+	ApplyProviderHeaderOverrides(value, req.Header)
+	return req, nil
 }
 
 // buildGrokUpstreamModelsRequest 按 Grok 转发地址规则构造模型列表请求。

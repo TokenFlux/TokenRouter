@@ -71,11 +71,12 @@ const (
 	ProviderModePayG   = "payg"
 	ProviderModeCoding = "coding"
 
-	// 上游 API 协议（国产供应商）：决定转发端点与格式，与接入模式正交。
+	// API 协议名称用于凭据兼容字段和管理端测试。
 	APIProtocolChatCompletions = "chat_completions"
 	APIProtocolAnthropic       = "anthropic"
 	APIProtocolResponses       = "responses"
 	APIProtocolAdaptive        = "adaptive"
+	APIProtocolSystemOne       = string(capability.ProtocolSystemOne)
 
 	// 国产 OpenAI 兼容供应商各模式的默认 base_url。
 	// 与前端 credentialsBuilder.ts 中的预设保持一致。
