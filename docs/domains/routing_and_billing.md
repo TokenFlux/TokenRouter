@@ -200,7 +200,7 @@ Grok 的媒体、搜索和 Voice 有各自的计价维度：
 <a id="missing_model_pricing"></a>
 ### 缺价处理
 
-统一文本入口的 Responses、Chat Completions 和 Messages 在选定提供商后、调用上游前检查计费模型的价格。Responses WebSocket 每轮重新检查，包括透传和 HTTP 桥接。查价复用结算的模型来源、共享价格配置和目录价格，Key 重定向、分组映射、提供商映射和换组后的价格各自生效。手动填写的零价和有效的区间价允许调用；缺少基础价的倍率配置按缺价拒绝。尚未开始响应时，HTTP 返回 400，已开始流式响应时追加错误事件。OpenAI 错误码为 `model_pricing_unavailable`。WebSocket 按本地策略关闭连接，并提示管理员配置价格或模型映射。
+统一文本入口的 Responses、Chat Completions 和 Messages 在选定提供商后、调用上游前检查计费模型的价格。Gemini 的 `generateContent` 和 `streamGenerateContent` 在每次提供商尝试前执行相同检查，覆盖 Gemini 和 Antigravity 提供商。`countTokens` 跳过价格预检。Responses WebSocket 每轮重新检查，包括透传和 HTTP 桥接。查价复用结算的模型来源、共享价格配置和目录价格，Key 重定向、分组映射、提供商映射和换组后的价格各自生效。手动填写的零价和有效的区间价允许调用；缺少基础价的倍率配置按缺价拒绝。尚未开始响应时，HTTP 返回 400，已开始流式响应时追加错误事件。OpenAI 错误码为 `model_pricing_unavailable`。Gemini 返回 Google 格式的 400 `INVALID_ARGUMENT`。WebSocket 按本地策略关闭连接，并提示管理员配置价格或模型映射。
 
 `codex-auto-review` 等目录未收录的内部型号需要手动配置价卡，或者映射到已定价的型号。管理员可以填写零价表示免费。型号在网关的支持列表中，表示可以转发该型号，价格仍需单独解析。
 

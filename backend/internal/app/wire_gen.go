@@ -470,7 +470,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	antigravityExecutor := provideAntigravityExecutor(antigravity)
 	userMsgQueueCache := rediscache3.NewUserMsgQueueCache(redisClient)
 	userMessageQueueService := provideMessageQueue(userMsgQueueCache, rpmCache, cfg)
-	textattemptRuntime := provideMessageAttemptRuntime(retryCooldown, digestSessionStore, messagesExecutor, antigravityExecutor, geminiExecutor, fundingAdmission, apiKeyService, gatewayCompletionRecorders, appMessageHTTPBindings, errorPassthroughService, usageRecordWorkerPool, userMessageQueueService, cfg, appGatewayModelAvailability, generic, subscriptionService, gatewayCache)
+	textattemptRuntime := provideMessageAttemptRuntime(retryCooldown, digestSessionStore, messagesExecutor, antigravityExecutor, geminiExecutor, fundingAdmission, apiKeyService, gatewayCompletionRecorders, appMessageHTTPBindings, errorPassthroughService, usageRecordWorkerPool, userMessageQueueService, cfg, appGatewayModelAvailability, generic, subscriptionService, gatewayCache, priceResolver)
 	compatibleTextHandler := provideCompatibleTextHTTP(appMessageHTTPBindings, textattemptRuntime, appGatewayRequestActivity)
 	geminiNativeHandler := provideGeminiNativeHTTP(appMessageHTTPBindings, digestSessionStore, textattemptRuntime, appGatewayRequestActivity, generic)
 	openAIEncryptedLineage := provideOpenAIEncryptedLineage(openAIWSStateStore, compatible)

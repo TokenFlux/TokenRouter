@@ -36,7 +36,9 @@ func TestCompletionRuntimeOwnsIsolatedRatesAndSharedRecorders(t *testing.T) {
 	tasks := lifecycle.NewTasks()
 	recorders := ProvideGatewayCompletionRecorders(nil, rates, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, health, nil, tasks, cfg)
 	require.Zero(t, repo.calls)
-	forward := messageAttemptBindings(nil, nil, nil, nil, nil, nil, nil, recorders, &messageHTTPBindings{}, nil, nil, nil, cfg, nil, nil, nil, nil)
+	prices := &billing.PriceResolver{}
+	forward := messageAttemptBindings(nil, nil, nil, nil, nil, nil, nil, recorders, &messageHTTPBindings{}, nil, nil, nil, cfg, nil, nil, nil, nil, prices)
+	require.Same(t, prices, forward.Pricing.Resolver)
 	openai := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, recorders, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	cache := provideAnthropicPromptCache()
 	text := openAITextExecution(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, cache, func() time.Duration { return time.Hour }, nil)

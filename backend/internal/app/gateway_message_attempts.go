@@ -34,6 +34,7 @@ func messageAttemptBindings(
 	queue *scheduler.UserMessageQueueService,
 	cfg *config.Config, availability *gatewayModelAvailability, choices *selection.Generic,
 	subscriptions *billing.SubscriptionService, cache session.GatewayCache,
+	prices *billing.PriceResolver,
 ) textattempt.Bindings {
 	var queueHelper *gatewayhttp.UserMsgQueueHelper
 	if queue != nil && cfg != nil {
@@ -46,6 +47,7 @@ func messageAttemptBindings(
 		Concurrency:     shared.concurrency,
 		Queue:           queueHelper,
 		Errors:          rules,
+		Pricing:         &admission.ModelPricing{Resolver: prices},
 		Submission: gatewayhttp.NewCompletionSubmission(
 			worker,
 			false,
@@ -124,6 +126,7 @@ func provideMessageAttemptRuntime(
 	queue *scheduler.UserMessageQueueService,
 	cfg *config.Config, availability *gatewayModelAvailability, choices *selection.Generic,
 	subscriptions *billing.SubscriptionService, cache session.GatewayCache,
+	prices *billing.PriceResolver,
 ) *textattempt.Runtime {
-	return textattempt.New(messageAttemptBindings(cooldown, digest, messages, antigravity, gemini, funding, keys, recorders, shared, rules, worker, queue, cfg, availability, choices, subscriptions, cache))
+	return textattempt.New(messageAttemptBindings(cooldown, digest, messages, antigravity, gemini, funding, keys, recorders, shared, rules, worker, queue, cfg, availability, choices, subscriptions, cache, prices))
 }

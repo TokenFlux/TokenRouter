@@ -8,6 +8,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -97,6 +98,7 @@ type Bindings struct {
 	Diagnoser       routing.ModelAvailabilityDiagnoser
 	Quota           gatewaycapture.QuotaUpdater
 	Recorder        *completion.Recorder
+	Pricing         *admission.ModelPricing
 	Concurrency     *gatewayhttp.ConcurrencyHelper
 	Queue           *gatewayhttp.UserMsgQueueHelper
 	QueueWait       time.Duration
@@ -180,6 +182,7 @@ type messageExecutionDependencies struct {
 	diagnoser                         routing.ModelAvailabilityDiagnoser
 	apiKeyService                     gatewaycapture.QuotaUpdater
 	recorder                          *completion.Recorder
+	pricing                           *admission.ModelPricing
 	concurrencyHelper                 *gatewayhttp.ConcurrencyHelper
 	userMsgQueueHelper                *gatewayhttp.UserMsgQueueHelper
 	messageWaitTimeout                time.Duration
@@ -230,6 +233,7 @@ func New(b Bindings) *Runtime {
 		diagnoser:                         b.Diagnoser,
 		apiKeyService:                     b.Quota,
 		recorder:                          b.Recorder,
+		pricing:                           b.Pricing,
 		concurrencyHelper:                 b.Concurrency,
 		userMsgQueueHelper:                b.Queue,
 		messageWaitTimeout:                b.QueueWait,

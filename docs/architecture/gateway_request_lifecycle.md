@@ -71,7 +71,7 @@
 - 客户端协议准入使用普通 Key 绑定的分组，或者复合 Key 最终选中的分组。被拒绝的请求在协议 handler、提供商选择和计费之前就结束。
 - 等待用户并发槽的过程中，余额、订阅或额度可能变化，所以拿到用户槽后要通过 BillingCache 再检查一次权益。
 - 模型权限、分组白名单和提供商资格，都用逐层解析后对应那一层的模型名判断；客户端别名和最终路由模型是两个不同的名字。
-- 统一文本入口在提供商确定后检查计费模型是否有价格，Responses WebSocket 每轮执行相同检查。缺价时返回本地错误，手动零价可以放行；适用范围和配置方式见[缺价处理](../domains/routing_and_billing.md#missing_model_pricing)。
+- 统一文本入口和 Gemini 的生成动作在提供商确定后检查计费模型是否有价格，每次换号都重新检查。Responses WebSocket 每轮执行相同检查。缺价时返回本地错误，手动零价可以放行；适用范围和配置方式见[缺价处理](../domains/routing_and_billing.md#missing_model_pricing)。
 - 上游成功后才增加 RPM 软计数，并安排正常的用量结算。本地拦截、内容拒绝和上游失败分别写各自的审计和运维记录。
 - HTTP 200 里出现的失败事件，按事件表达的实际状态执行提供商策略。WS 桥已经执行过的副作用，通过本请求的 `ResponseFailureEffects` 交给输出端，输出端只处理一次。HTTP 提交、重试窗口和实际输出三者分开记录。
 - 响应里的模型别名恢复只修改协议的元数据字段，正文里恰好相同的字符串保持原样。工具恢复状态由 `requeststate.ResponseTools` 按请求和 turn 持有，WS 会话更新时，还在输出的 turn 保持自己的状态。协议算法在 `protocol/bridge`，HTTP 输出适配在 `gateway/httpapi`。

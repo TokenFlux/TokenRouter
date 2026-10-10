@@ -8,12 +8,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -131,15 +133,35 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 	return true
 }
 
-// Forward 保留 Gemini 原生适配，重试与完成资格由文本核心控制。
+// Forward 在生成请求通过价格检查后调用选中的提供商。
+// @project-doc docs/domains/routing_and_billing.md#missing_model_pricing
 func (b *nativeGeminiAttemptBridge) Forward(state textflow.AttemptState) textflow.Outcome {
-	var err error
-	// 5) forward (根据平台分流)
+	if b.providerReleaseFunc != nil {
+		defer b.providerReleaseFunc()
+	}
 
 	requestCtx := b.c.Request.Context()
 	if state.SwitchCount > 0 {
 		requestCtx = requeststate.WithProviderSwitchCount(requestCtx, state.SwitchCount)
 	}
+	// 计数动作由平台执行器处理，生成动作在每次换号后重新查价。
+	if b.action == "generateContent" || b.action == "streamGenerateContent" {
+		err := gatewayhttp.CheckTextModelPricing(
+			requestCtx, b.binding().pricing, b.apiKey, b.provider,
+			b.reqModel, b.modelName, nil, protocol.ProtocolGeminiGenerateContent,
+		)
+		if err != nil {
+			if errors.Is(err, admission.ErrModelPricingRejected) {
+				gatewayhttp.MarkOpsClientBusinessLimited(b.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+				gatewayhttp.WriteGoogleError(b.c, http.StatusBadRequest, admission.ModelPricingUnavailableMessage)
+			} else {
+				b.reqLog.Error("gemini.pricing_check_failed", zap.Error(err))
+				gatewayhttp.WriteGoogleError(b.c, http.StatusInternalServerError, "Failed to check model pricing")
+			}
+			return textflow.Outcome{Err: err, Stop: true}
+		}
+	}
+	var err error
 	sessionGroupID := derefGroupID(b.apiKey.GroupID)
 	if b.provider.Record.Platform == capability.PlatformAntigravity {
 		b.result, err = b.binding().forwardAntigravityGemini(
@@ -155,9 +177,6 @@ func (b *nativeGeminiAttemptBridge) Forward(state textflow.AttemptState) textflo
 		)
 	} else {
 		b.result, err = b.binding().forwardGeminiNative(requestCtx, b.c, b.provider, b.modelName, b.action, b.stream, b.body)
-	}
-	if b.providerReleaseFunc != nil {
-		b.providerReleaseFunc()
 	}
 	b.binding().reportSchedule(b.selection, b.provider.Record.ID, err == nil, b.result)
 	out := textflow.Outcome{Attempt: messageObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil}
