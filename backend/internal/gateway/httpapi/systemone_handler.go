@@ -45,8 +45,11 @@ func (h *AuxiliaryHandler) SystemOne(c *gin.Context) {
 	}
 	log := h.ports.Logger(c, "handler.systemone", zap.Int64("user_id", subject.UserID), zap.Int64("api_key_id", access.ID))
 	ports, ok := h.ports.(SystemOneHTTPPorts)
-	if !ok || !h.ports.Dependencies(c, log) {
+	if !ok {
 		h.ports.Error(c, 503, "api_error", "SystemOne is not configured")
+		return
+	}
+	if !h.ports.Dependencies(c, log) {
 		return
 	}
 	h.ports.BindErrors(c)

@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -545,6 +546,7 @@ func TestMediaAssemblyKeepsReadAndStopBoundaries(t *testing.T) {
 		}{
 			{"images", media.Images},
 			{"embeddings", auxiliary.Embeddings},
+			{"systemone", auxiliary.SystemOne},
 			{"alpha-search", auxiliary.AlphaSearch},
 		} {
 			t.Run(entry.name+map[bool]string{true: "-stopped", false: "-running"}[stopped], func(t *testing.T) {
@@ -557,6 +559,7 @@ func TestMediaAssemblyKeepsReadAndStopBoundaries(t *testing.T) {
 				entry.run(c)
 				require.Equal(t, http.StatusServiceUnavailable, writer.Code)
 				require.False(t, body.read)
+				require.True(t, json.Valid(writer.Body.Bytes()), writer.Body.String())
 				if stopped {
 					require.Contains(t, writer.Body.String(), "Service is shutting down")
 				} else {
