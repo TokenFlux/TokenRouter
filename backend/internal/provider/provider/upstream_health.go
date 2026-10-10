@@ -17,6 +17,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	anthropicupstream "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/jev"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/kimi"
 )
 
@@ -144,6 +145,17 @@ func (s *UpstreamHealth) HandleDefault(ctx context.Context, provider *providerco
 	statusCode, headers, responseBody := observation.Status, observation.Headers, observation.Body
 	if provider == nil {
 		return false
+	}
+	// Jev 的限流和过载响应按 Retry-After 设置提供商冷却。
+	if provider.Platform == capability.PlatformJev && (statusCode == http.StatusTooManyRequests || statusCode == 529) {
+		if reset := jev.RetryAfterResetTime(headers, time.Now()); reset != nil {
+			s.Core.ApplyObservedRateLimit(ctx, provider, *reset)
+			return false
+		}
+		// 没有重试时间的 529 先检查管理员配置的临时暂停规则。
+		if statusCode == 529 && s.Core.TryTempUnschedulable(ctx, provider, statusCode, responseBody, true, observation.EffectiveModel) {
+			return true
+		}
 	}
 
 	if statusCode == 529 {

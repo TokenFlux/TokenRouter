@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -24,13 +23,13 @@ func provideMediaRuntime(
 	source *gatewayhttp.OpenAIResponsesExecutor, credentials *gatewayhttp.RequestCredentialExecutor,
 	keys *apikey.APIKeyService,
 	funding *admission.FundingAdmission,
-	prices *billing.PriceResolver,
+	systemOne *gatewayhttp.SystemOneExecutor,
 	common openaiattempt.Bindings,
 	resources *gatewayhttp.OpenAIHTTPResources,
 	prober *provider.GrokQuotaService,
 	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks, auxiliary *gatewayhttp.OpenAIAuxiliary, images *gatewayhttp.OpenAIImagesExecutor, planner *gatewayadapter.RoutePlanner, cache session.GatewayCache,
 ) *mediaentry.Runtime {
-	return mediaentry.New(mediaBindings(source, credentials, keys, funding, common, resources, prober, cfg, grok, video, auxiliary, images, planner, cache, &admission.ModelPricing{Resolver: prices}))
+	return mediaentry.New(mediaBindings(source, credentials, keys, funding, common, resources, prober, cfg, grok, video, auxiliary, images, planner, cache, systemOne))
 }
 
 func provideMediaHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestActivity) *gatewayhttp.MediaHandler {
@@ -54,7 +53,7 @@ func mediaBindings(
 	resources *gatewayhttp.OpenAIHTTPResources,
 	prober *provider.GrokQuotaService,
 	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks, auxiliary *gatewayhttp.OpenAIAuxiliary, images *gatewayhttp.OpenAIImagesExecutor, planner *gatewayadapter.RoutePlanner, cache session.GatewayCache,
-	prices ...*admission.ModelPricing,
+	systemOne *gatewayhttp.SystemOneExecutor,
 ) mediaentry.Bindings {
 	b := mediaentry.Bindings{
 		Common:    common,
@@ -94,13 +93,7 @@ func mediaBindings(
 		b.Platform.Images = images.ForwardImages
 		b.Platform.GrokMedia = grok.ForwardGrokMedia
 		b.Platform.Embeddings = auxiliary.ForwardEmbeddings
-		if auxiliary != nil {
-			jev := &gatewayhttp.SystemOneExecutor{Requests: auxiliary.Requests, Output: auxiliary.Output, Enter: auxiliary.Enter}
-			if len(prices) > 0 {
-				jev.Pricing = prices[0]
-			}
-			b.Platform.SystemOne = jev.Forward
-		}
+		b.Platform.SystemOne = systemOne.Forward
 		b.Platform.AlphaSearch = auxiliary.ForwardAlphaSearch
 		b.Platform.Voice = grok.ForwardGrokVoice
 		b.Platform.OpenRealtime = func(ctx context.Context, a *gatewayadapter.ExecutionProvider, token, model string) (upstream.FrameConn, error) {

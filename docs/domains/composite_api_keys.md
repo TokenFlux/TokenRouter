@@ -58,6 +58,7 @@ POST /v1beta/models/Gemini/gemini-2.5-pro:generateContent
 ## 支持入口
 
 - OpenAI、Anthropic 及兼容入口的 JSON 请求。
+- SystemOne `/v1/systemone` 的 JSON 决策请求。
 - 图片生成与编辑的 JSON 或 multipart 请求。
 - 单模型批量图片提交。
 - Gemini `/v1beta/models/<前缀>/<模型>:<动作>` 入口。
@@ -67,7 +68,9 @@ POST /v1beta/models/Gemini/gemini-2.5-pro:generateContent
 
 ## 错误
 
-缺少前缀、未知前缀或非法前缀均返回 HTTP 400，并使用对应入口的 OpenAI、Anthropic 或 Google 错误结构。主要错误码如下：
+缺少前缀、未知前缀或非法前缀均返回 HTTP 400，并使用对应入口的 OpenAI、Anthropic 或 Google 错误结构。
+
+SystemOne 单独识别入口，使用包含 `error.type`、`error.message`、`error.code` 和 `error.param` 的 JSON 返回复合前缀错误。主要错误码如下：
 
 - `COMPOSITE_KEY_MODEL_PREFIX_REQUIRED`
 - `COMPOSITE_KEY_PREFIX_NOT_FOUND`

@@ -61,6 +61,10 @@ func (p mediaHTTPAdapter) Dependencies(c *gin.Context, log *zap.Logger) bool {
 }
 
 func (p mediaHTTPAdapter) Error(c *gin.Context, status int, code, message string) {
+	if gatewayhttp.IsSystemOneEndpoint(c.Request.URL.Path) {
+		gatewayhttp.WriteSystemOneError(c, status, code, "", "", message)
+		return
+	}
 	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, status, code, message)
 }
 

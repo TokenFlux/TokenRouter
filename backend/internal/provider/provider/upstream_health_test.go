@@ -28,6 +28,13 @@ type errorPolicyRepoStub struct {
 	modelRateLimitCalls    []int64
 }
 
+// jevRateLimitRepoStub 记录决策上游的冷却时间。
+type jevRateLimitRepoStub struct {
+	providercore.HealthStore
+	calls int
+	reset time.Time
+}
+
 type modelNotFoundRateLimitCall struct {
 	providerID int64
 	scope      string
@@ -74,6 +81,50 @@ type unauthorizedHealthStore struct {
 type unauthorizedTokenRecorder struct {
 	providers []*providercore.Record
 	err       error
+}
+
+func (r *jevRateLimitRepoStub) SetRateLimited(_ context.Context, _ int64, reset time.Time) error {
+	r.calls++
+	r.reset = reset
+	return nil
+}
+
+// TestJevHealthUsesRetryAfter 检查通用健康入口处理决策限流，池模式仍由上游管理冷却。
+func TestJevHealthUsesRetryAfter(t *testing.T) {
+	for _, status := range []int{http.StatusTooManyRequests, 529} {
+		for _, pool := range []bool{false, true} {
+			repo := &jevRateLimitRepoStub{}
+			observer := &UpstreamHealth{Core: providercore.NewHealthService(repo, nil, providercore.HealthOptions{})}
+			value := &providercore.Record{ID: 9, Platform: providercore.PlatformJev, Type: providercore.ProviderTypeAPIKey, Credentials: map[string]any{"pool_mode": pool}}
+			before := time.Now()
+			decision := observer.ApplyUpstreamError(context.Background(), value, HealthObservation{Status: status, Headers: http.Header{"Retry-After": []string{"17"}}})
+			require.False(t, decision.StopScheduling)
+			if pool {
+				require.Zero(t, repo.calls)
+			} else {
+				require.Equal(t, 1, repo.calls)
+				require.WithinDuration(t, before.Add(17*time.Second), repo.reset, time.Second)
+			}
+		}
+	}
+}
+
+// TestJevOverloadHonorsTemporaryRule 检查缺少 Retry-After 时的管理员过载暂停规则。
+func TestJevOverloadHonorsTemporaryRule(t *testing.T) {
+	repo := &errorPolicyRepoStub{}
+	observer := newErrorPolicyObserver(repo)
+	value := &providercore.Record{
+		ID: 9, Platform: providercore.PlatformJev, Type: providercore.ProviderTypeAPIKey,
+		Credentials: map[string]any{
+			"temp_unschedulable_enabled": true,
+			"temp_unschedulable_rules": []any{map[string]any{
+				"error_code": float64(529), "keywords": []any{"maintenance"}, "duration_minutes": float64(30),
+			}},
+		},
+	}
+	decision := observer.ApplyUpstreamError(context.Background(), value, HealthObservation{Status: 529, Body: []byte("Service maintenance")})
+	require.True(t, decision.StopScheduling)
+	require.Equal(t, 1, repo.tempCalls)
 }
 
 func TestIsCNProviderConcurrencyLimit403_ExactClassification(t *testing.T) {

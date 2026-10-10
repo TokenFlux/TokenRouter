@@ -53,6 +53,35 @@ func Merge(base, patch Attributes) Attributes {
 	return result
 }
 
+// ApplyAttributeSupplement 从模型补充条目的 attributes 中填入缺失字段。
+// 目录中的 false 和空数组优先，同名中继继续使用各自的属性。
+func (c *Catalog) ApplyAttributeSupplement(model string, body json.RawMessage) error {
+	var supplement struct {
+		Provider   string      `json:"provider"`
+		Attributes *Attributes `json:"attributes"`
+	}
+	if err := json.Unmarshal(body, &supplement); err != nil {
+		return fmt.Errorf("invalid model supplement %s: %w", model, err)
+	}
+	if supplement.Attributes == nil {
+		return nil
+	}
+	if err := supplement.Attributes.Validate(); err != nil {
+		return fmt.Errorf("invalid model attributes %s: %w", model, err)
+	}
+	key := normalize(model)
+	entry, exists := c.Entries[key]
+	if c.Ambiguous[key] || (exists && supplement.Provider != "" && entry.Provider != supplement.Provider) {
+		return nil
+	}
+	if !exists {
+		entry = Entry{Model: model, Provider: supplement.Provider, Source: "local_supplement"}
+	}
+	entry.Attributes = Merge(*supplement.Attributes, entry.Attributes)
+	c.Entries[key] = entry
+	return nil
+}
+
 // Validate 校验管理员编辑值；目录中的零长度由解析器转换为未知。
 func (a Attributes) Validate() error {
 	for key, value := range map[string]*int{"context": a.Context, "input_limit": a.InputLimit, "output_limit": a.OutputLimit} {

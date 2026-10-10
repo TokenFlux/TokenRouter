@@ -81,7 +81,7 @@ func (s *Service) buildModelsCatalog(body []byte) (*modelcatalog.Catalog, map[st
 	if err != nil {
 		return nil, nil, pricing.OperationPrices{}, err
 	}
-	builtin, err := decodePricingSupplement(modelcatalog.PricingSupplements(), "embedded pricing supplements")
+	builtin, err := decodeModelSupplement(modelcatalog.Supplements(), "embedded model supplements")
 	if err != nil {
 		return nil, nil, pricing.OperationPrices{}, err
 	}
@@ -128,7 +128,10 @@ func applyModelSupplements(raw map[string]json.RawMessage, catalog *modelcatalog
 		if model == pricing.BillingDefaultsKey {
 			continue
 		}
-		if err := mergeMediaSupplement(raw, model, entry); err != nil {
+		if err := catalog.ApplyAttributeSupplement(model, entry); err != nil {
+			return err
+		}
+		if err := mergePricingSupplement(raw, model, entry); err != nil {
 			return err
 		}
 	}
@@ -140,7 +143,10 @@ func applyModelSupplements(raw map[string]json.RawMessage, catalog *modelcatalog
 			if alias == model {
 				continue
 			}
-			if err := mergeMediaSupplement(raw, alias, entry); err != nil {
+			if err := catalog.ApplyAttributeSupplement(alias, entry); err != nil {
+				return err
+			}
+			if err := mergePricingSupplement(raw, alias, entry); err != nil {
 				return err
 			}
 		}
@@ -148,8 +154,8 @@ func applyModelSupplements(raw map[string]json.RawMessage, catalog *modelcatalog
 	return nil
 }
 
-// mergeMediaSupplement 只填补允许的计费字段，目录已有值和零价均优先。
-func mergeMediaSupplement(raw map[string]json.RawMessage, model string, entry json.RawMessage) error {
+// mergePricingSupplement 只填补允许的计费字段，目录已有值和零价均优先。
+func mergePricingSupplement(raw map[string]json.RawMessage, model string, entry json.RawMessage) error {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(entry, &fields); err != nil {
 		return fmt.Errorf("invalid pricing supplement %s: %w", model, err)

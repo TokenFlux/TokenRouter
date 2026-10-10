@@ -105,13 +105,6 @@ func (s *OpenAIResponseHealth) Apply(ctx context.Context, provider *providercore
 		return decision
 	}
 
-	// Jev 的 Retry-After 同时用于限流和过载冷却。
-	if provider.Platform == capability.PlatformJev && (statusCode == http.StatusTooManyRequests || statusCode == 529) && s.Health != nil {
-		if reset := openai.ParseRetryAfterResetTime(headers, time.Now()); reset != nil {
-			s.Health.Core.ApplyObservedRateLimit(stateCtx, providercore.CloneRecord(provider), *reset)
-			return decision
-		}
-	}
 	if !suppressDefaultRateLimitState && openai.IsImageRateLimitError(statusCode, responseBody) {
 		if s.Health != nil {
 			_ = ObserveOpenAIImageRateLimit(stateCtx, s.Health.Core, providercore.CloneRecord(provider), statusCode, headers, responseBody)

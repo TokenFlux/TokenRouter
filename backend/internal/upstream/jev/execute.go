@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
@@ -54,6 +57,22 @@ func (e *HTTPError) Error() string {
 // EndpointURL 按共享规则拼接版本路径，支持根地址和带版本的兼容上游。
 func EndpointURL(base, endpoint string) string {
 	return httpclient.BuildOpenAIEndpointURL(base, "/v1/"+endpoint)
+}
+
+// RetryAfterResetTime 解析 Jev 限流和过载响应中的未来重试时间。
+func RetryAfterResetTime(headers http.Header, now time.Time) *time.Time {
+	raw := strings.TrimSpace(headers.Get("Retry-After"))
+	if seconds, err := strconv.ParseFloat(raw, 64); err == nil {
+		if math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 || seconds >= float64(math.MaxInt64)/float64(time.Second) {
+			return nil
+		}
+		reset := now.Add(time.Duration(seconds * float64(time.Second)))
+		return &reset
+	}
+	if reset, err := http.ParseTime(raw); err == nil && reset.After(now) {
+		return &reset
+	}
+	return nil
 }
 
 // Execute 读取完整答案后交付响应，并将用量交给网关判断结算资格。

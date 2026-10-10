@@ -43,8 +43,7 @@ func TestSystemOneForwardPricingAndMapping(t *testing.T) {
 					cards = []routing.ModelPricingEntry{{Models: []string{model}, InputPrice: &zero, OutputPrice: &zero}}
 				}
 				transport := &auxiliaryHTTPRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"model":"jev-1.13.0","answers":{"available":{"type":"noul","noul":0.8}},"usage":{"input_tokens":12,"output_tokens":4}}`))}}
-				auxiliary := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: transport})
-				executor := &SystemOneExecutor{Requests: auxiliary.Requests, Output: auxiliary.Output, Pricing: textPricingFixture(t, cards...)}
+				executor := &SystemOneExecutor{Transport: transport, Pricing: textPricingFixture(t, cards...)}
 				value := gatewayprovider.NewExecutionProvider(&provider.Record{ID: 1, Platform: provider.PlatformJev, Type: provider.ProviderTypeAPIKey, Credentials: map[string]any{"api_key": "test-key", "model_mapping": map[string]any{mapped: actual}}})
 				recorder := httptest.NewRecorder()
 				c, _ := gin.CreateTestContext(recorder)
@@ -77,11 +76,12 @@ func TestSystemOneForwardPricingAndMapping(t *testing.T) {
 func TestSystemOneForwardFailurePolicy(t *testing.T) {
 	for _, status := range []int{401, 422, 429, 529, 503} {
 		transport := &auxiliaryHTTPRecorder{resp: &http.Response{StatusCode: status, Header: http.Header{"Retry-After": []string{"17"}}, Body: io.NopCloser(strings.NewReader(`{"error":"upstream failure"}`))}}
-		auxiliary := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: transport})
-		executor := &SystemOneExecutor{Requests: auxiliary.Requests, Output: auxiliary.Output}
+		zero := 0.0
+		executor := &SystemOneExecutor{Transport: transport, Pricing: textPricingFixture(t, routing.ModelPricingEntry{Models: []string{"jev-latest"}, InputPrice: &zero, OutputPrice: &zero})}
 		target := gatewayprovider.NewExecutionProvider(&provider.Record{ID: 1, Platform: provider.PlatformJev, Type: provider.ProviderTypeAPIKey, Credentials: map[string]any{"api_key": "test"}})
 		c, recorder := gin.CreateTestContext(httptest.NewRecorder())
 		c.Request = httptest.NewRequest(http.MethodPost, EndpointSystemOne, bytes.NewReader(nil))
+		c.Set("gateway_effective_key", &apikey.APIKey{GroupID: testkit.GroupID()})
 		result, err := executor.Forward(context.Background(), c, target, systemone.ProbeBody("jev-latest", ""))
 		require.Error(t, err)
 		require.False(t, result.Served)
@@ -95,5 +95,19 @@ func TestSystemOneForwardFailurePolicy(t *testing.T) {
 			require.False(t, c.Writer.Written())
 		}
 		_ = recorder
+	}
+}
+
+// TestSystemOneRequiresPricing 检查装配缺价组件时在发送请求前失败。
+func TestSystemOneRequiresPricing(t *testing.T) {
+	transport := &auxiliaryHTTPRecorder{}
+	for _, pricing := range []*admission.ModelPricing{nil, {}} {
+		executor := &SystemOneExecutor{Transport: transport, Pricing: pricing}
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, EndpointSystemOne, nil)
+		_, err := executor.Forward(context.Background(), c, nil, nil)
+		require.Error(t, err)
+		require.Equal(t, http.StatusServiceUnavailable, c.Writer.Status())
+		require.Nil(t, transport.lastReq)
 	}
 }

@@ -22,10 +22,10 @@ var (
 	//go:embed catalog.json.gz
 	offlineData []byte
 
-	// pricingSupplements 保存随版本发布的官方补充，运行时无需读取外部资源。
+	// modelSupplements 保存随版本发布的官方补充，运行时无需读取外部资源。
 	//
-	//go:embed model_pricing_supplements.json
-	pricingSupplements string
+	//go:embed model_supplements.json
+	modelSupplements string
 )
 
 // Cost 保留源数据的美元/百万 token 单位及缺失值。
@@ -94,9 +94,9 @@ type sourceModel struct {
 	Experimental json.RawMessage `json:"experimental"`
 }
 
-// PricingSupplements 返回官方补充正文，调用者负责校验并合并自定义补充。
-func PricingSupplements() []byte {
-	return []byte(pricingSupplements)
+// Supplements 返回官方补充正文，调用者负责校验并合并自定义补充。
+func Supplements() []byte {
+	return []byte(modelSupplements)
 }
 
 // Offline 返回离线目录正文，调用者负责应用本地价格覆盖。
@@ -227,7 +227,7 @@ func Parse(body []byte) (*Catalog, error) {
 // 聚合供应商不进入此表；其他来源仍须由明确的模型资料确认归属。
 func firstPartyProviderLab(provider string) (string, bool) {
 	switch provider {
-	case "openai", "anthropic", "google", "xai", "deepseek", "moonshotai", "mistral":
+	case "openai", "anthropic", "google", "xai", "deepseek", "moonshotai", "mistral", "typesafe":
 		return provider, true
 	case "moonshotai-cn":
 		return "moonshotai", true

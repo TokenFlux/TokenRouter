@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +27,7 @@ type SystemOneHTTPPorts interface {
 
 // SystemOne 处理同步决策请求，提供商切换由 systemone.Run 执行。
 func (h *AuxiliaryHandler) SystemOne(c *gin.Context) {
-	done, accepted := h.BeginRequest(c, "openai")
+	done, accepted := h.BeginRequest(c, "systemone")
 	if !accepted {
 		return
 	}
@@ -84,4 +85,24 @@ func (h *AuxiliaryHandler) SystemOne(c *gin.Context) {
 	}
 	run := ports.NewSystemOne(c, AuxiliaryHTTPInput{Subject: subject, Model: request.Model, Body: body, Mapping: mapping}, log, &stream)
 	run.End(systemone.Run(c.Request.Context(), h.ports.MaxSwitches(), run))
+}
+
+// IsSystemOneEndpoint 识别决策请求入口。
+func IsSystemOneEndpoint(path string) bool {
+	return strings.TrimSuffix(path, "/") == EndpointSystemOne
+}
+
+// WriteSystemOneError 输出决策入口的网关错误，供鉴权、准入和执行阶段共用。
+func WriteSystemOneError(c *gin.Context, status int, kind, code, param, message string) {
+	if c.Writer.Written() {
+		return
+	}
+	value := gin.H{"type": kind, "message": message}
+	if code != "" {
+		value["code"] = code
+	}
+	if param != "" {
+		value["param"] = param
+	}
+	c.JSON(status, gin.H{"error": value})
 }

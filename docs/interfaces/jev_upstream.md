@@ -13,6 +13,8 @@
 
 `protocol/systemone` 负责结构校验和模型字段修改，`upstream/jev` 执行一次 HTTP 请求。`gateway/systemone` 管理换号和完成资格，HTTP 适配器绑定调度、并发槽、资金准入和完成记录器。每次换号重新验证协议、模型及价格。RPM 在首次准入时累计一次，等待后和换号前的资金复查跳过 RPM 累计。成功答案在客户端写入失败后仍可以提交有效用量。
 
+app 通过 `provideSystemOneExecutor` 构造决策执行器，直接注入共享 HTTP 传输、地址策略、响应头过滤、提供商健康处理和请求活动屏障。价格预检是必需依赖。媒体运行时接收已构造的执行器，绑定 `Forward` 方法。SystemOne 单独识别复合 Key 入口，网关错误由 `WriteSystemOneError` 输出。
+
 422 参数错误直接交付。其他错误先应用提供商策略，认证失败、限流及可恢复的服务错误进入有限换号流程。429 和 529 的 Retry-After 参与提供商冷却，重试耗尽时传给客户端。客户端取消、响应已交付或成功响应格式损坏时结束重试。
 
 <a id="systemone_usage"></a>
@@ -22,7 +24,7 @@
 
 成功响应的用量缺失、为负、类型错误或超出整数范围时，答案照常交付。网关记录 `systemone.usage_invalid` 告警和关联请求的 `usage_unknown` 尝试，跳过资金结算及正常用量账单。有效的零用量按正常响应处理。该响应结束本次上游尝试。
 
-models.dev 的默认 JSON 接口会过滤 decision 等特殊模型。目录同步使用 `catalog.json?type=all`，离线快照包含 Jev 属性及各渠道报价。TypeSafe 直连型号的缺价由价格补充文件填入，目录中已有的渠道价和免费价各自按完整 ID 查询。`jev-latest`、`jev-preview`、`jev-1.13.0` 的官方价格依据和核验日期保存在补充条目中。
+models.dev 的默认 JSON 接口会过滤 decision 等特殊模型。目录同步使用 `catalog.json?type=all`，离线快照包含 Jev 属性及各渠道报价。`model_supplements.json` 在同一型号条目内保存 TypeSafe 直连的价格、缺失属性和核验来源，覆盖 `jev-latest`、`jev-preview`、`jev-1.13.0`。目录已有值优先，渠道价和免费价各自按完整 ID 查询。输入模态为文本，输出为结构化决策，在当前模态分类中标为 text 并声明 structured_output。
 
 ## 管理与展示
 

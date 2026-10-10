@@ -220,11 +220,11 @@ func loadLocalPricingEntries(path string) (map[string]json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return decodePricingSupplement(body, path)
+	return decodeModelSupplement(body, path)
 }
 
-// decodePricingSupplement 对内嵌和外部补充使用相同的完整校验。
-func decodePricingSupplement(body []byte, source string) (map[string]json.RawMessage, error) {
+// decodeModelSupplement 对内嵌和外部补充使用相同的完整校验。
+func decodeModelSupplement(body []byte, source string) (map[string]json.RawMessage, error) {
 	entries, err := purepricing.DecodeCatalogEntries(body)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", source, err)

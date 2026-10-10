@@ -278,6 +278,8 @@ Brave 和 Tavily 搜索由 search 选择供应商并预占额度。失败时释�
 
 `POST /v1/systemone` 使用共同鉴权和模型映射，`gateway/systemone` 管理同步请求的提供商尝试。每次尝试经过资金复查和价格预检，`upstream/jev` 完成单次交换。答案有效时按用量状态提交完成记录或用量告警，捕获完成快照后释放提供商槽。请求格式与告警规则见 [Jev 与 SystemOne](../interfaces/jev_upstream.md)。
 
+SystemOne 执行器由 app 独立构造，注入传输、地址策略、价格检查、响应头过滤和通用提供商健康组件。复合 Key 的端点识别和错误输出按 SystemOne 处理。429、529 的 Retry-After 由 Jev 解析器解释，通用健康组件按提供商配置应用冷却。
+
 ## 新增入口检查清单
 
 新增网关入口或平台适配器时，至少逐项核对：

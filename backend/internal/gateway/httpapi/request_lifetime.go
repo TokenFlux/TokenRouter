@@ -23,6 +23,8 @@ func (r *RequestLifetime) BeginRequest(c *gin.Context, format string) (func(), b
 	}
 	const message = "Service is shutting down"
 	switch format {
+	case "systemone":
+		WriteSystemOneError(c, http.StatusServiceUnavailable, "api_error", "", "", message)
 	case "google":
 		WriteGoogleError(c, http.StatusServiceUnavailable, message)
 	case "anthropic":

@@ -52,7 +52,7 @@ func (p mediaHTTPAdapter) ModerateSystemOne(c *gin.Context, log *zap.Logger, mod
 	if decision == nil || !decision.Blocked {
 		return false
 	}
-	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, gatewayhttp.ContentModerationStatus(decision), gatewayhttp.ContentModerationErrorCode(decision), decision.Message)
+	gatewayhttp.WriteSystemOneError(c, gatewayhttp.ContentModerationStatus(decision), gatewayhttp.ContentModerationErrorCode(decision), "", "", decision.Message)
 	return true
 }
 
@@ -77,7 +77,7 @@ func (p *systemOneRun) Acquire(_ context.Context) (func(), bool) {
 func (p *systemOneRun) Forward(ctx context.Context) systemone.Outcome {
 	// 提供商等待期间资金可能变化，调用上游前再次检查。
 	if failure := (mediaHTTPAdapter{p.h}).checkFunding(p.c, true); failure != nil {
-		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, failure.Status, failure.Code, failure.Message)
+		gatewayhttp.WriteSystemOneError(p.c, failure.Status, failure.Code, "", "", failure.Message)
 		return systemone.Outcome{Err: failure.Err}
 	}
 	body := p.input.Body
@@ -158,5 +158,5 @@ func (p *systemOneRun) End(err error) {
 		message = "No available SystemOne providers"
 		gatewayhttp.MarkOpsRoutingCapacityLimited(p.c)
 	}
-	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, status, "upstream_error", message)
+	gatewayhttp.WriteSystemOneError(p.c, status, "upstream_error", "", "", message)
 }

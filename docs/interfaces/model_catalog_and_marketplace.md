@@ -60,7 +60,7 @@ TypeSafe 品牌键为 `typesafe`，`jev`、`jev-latest` 和 `typesafe/jev-latest
 
 `modelcatalog` 解析 models.dev 的统一目录，负责供应商身份索引、属性和内容版本。`modelcatalog/provider.Service` 在应用生命周期内下载、缓存，并原子发布统一目录和它的价格数据；`billing/pricing` 把目录报价归一化为 `CatalogModelPricing` 计费模型，并解释本地补充和计费规则。app 的目录装配只创建一个运行实例，计费和属性的使用方共用它。目录维护的步骤封装在运行时里，对外提供生命周期、查询、快照和强制更新。价格和属性一起更新；候选目录失败时，保留整个旧版本。代理失败的策略和 URL 校验，由现有的出站规则执行。
 
-生产环境只使用 models.dev 的加载流程，远程入口是 `https://models.dev/catalog.json`，按 `pricing.check_interval_minutes` 检查（默认每 10 分钟），使用 ETag 条件请求和本地的内容摘要；管理员可以强制更新。程序内嵌了一份经过解析验证的压缩离线快照和官方价格补充，并附上 models.dev 的 MIT 许可。官方补充随二进制一起升级和回退，不依赖外部的资源目录。首次启动和网络故障时，可以使用磁盘上或内嵌的离线目录；缓存文件是 `models_dev_catalog.json`，完整解析成功后，通过临时文件替换。管理员接口返回版本、最近一次成功更新的时间和最近一次更新的错误。本地文件在合并之前，把旧的 `litellm_provider` 归一化为 `provider`，同时有新字段时（包括空值和 `null`）以新字段为准；内部的来源分类是 `catalog`，不会覆盖实际的数据出处。远程返回 304 时，本地层照常校验。
+生产环境只使用 models.dev 的加载流程，远程入口是 `https://models.dev/catalog.json?type=all`，按 `pricing.check_interval_minutes` 检查（默认每 10 分钟），使用 ETag 条件请求和本地的内容摘要；管理员可以强制更新。程序内嵌了一份经过解析验证的压缩离线快照和官方价格补充，并附上 models.dev 的 MIT 许可。官方补充随二进制一起升级和回退，不依赖外部的资源目录。首次启动和网络故障时，可以使用磁盘上或内嵌的离线目录；缓存文件是 `models_dev_catalog.json`，完整解析成功后，通过临时文件替换。管理员接口返回版本、最近一次成功更新的时间和最近一次更新的错误。本地文件在合并之前，把旧的 `litellm_provider` 归一化为 `provider`，同时有新字段时（包括空值和 `null`）以新字段为准；内部的来源分类是 `catalog`，不会覆盖实际的数据出处。远程返回 304 时，本地层照常校验。
 
 裸模型名优先选择原厂的记录。明确的 `canonical_model_id` 归属优先；没有这个关联时，已知的原厂端点（包括 OpenAI、Anthropic、Google、xAI、Mistral 等）仍然可以被识别为原厂，不要求每个模型都出现在公共资料表里。原厂端点托管的其他作者的模型，继续按明确的 canonical 归属识别。Azure、OpenRouter 等独立的供应商，不会通过这条规则获得原厂身份；其他来源无法确定时，保留歧义，不会按遍历顺序挑一个价格。供应商限定的名称先精确匹配，已知的供应商前缀不会在查询时被删掉，从而借用其他来源的数据。只有模型公共资料的记录也能参与属性查询，不要求有价格。
 
@@ -80,7 +80,7 @@ GPT-5.6 系列按完整型号查询目录。`gpt-5.6-sol/terra/luna` 与裸的 `
 
 models.dev 的目录、属性和本地补充在同一个版本里发布，只读快照使用同样的完整身份规则。原厂的裸名和明确的供应商记录，按来源索引查询；手动填写的零价和本地新增的条目保持有效；未知型号不会按目录的遍历顺序选价格。
 
-目录从 `https://models.dev/catalog.json?type=all` 读取，包括 Jev 所属的 decision 类型。特殊模型可以进入属性目录和查价索引，网关可请求性仍由提供商配置及协议判断。
+目录从 `https://models.dev/catalog.json?type=all` 读取，包括 Jev 所属的 decision 类型。TypeSafe 直连型号的缺失属性由模型补充文件填写，渠道条目按完整 ID 查询自己的属性和报价。特殊模型可以进入属性目录和查价索引，网关可请求性仍由提供商配置及协议判断。
 
 ## 目录价格换算
 
@@ -96,7 +96,7 @@ xAI 达到上下文阈值就切换价格。转换层把这类目录阶梯的内�
 
 `source` 和 `price_sources` 区分 models.dev、本地补充和规则补充。补充只填缺失的字段，目录里明确的零价同样优先；自定义补充优先于内嵌补充，媒体尺寸表等复合字段整体选择一个来源，不会因为条目同名而覆盖目录的现价。补充按"提供方加原始模型 ID"，同步到同一个原厂记录的裸名和限定名：先应用精确的键，再填补其他等价名称的空缺；日期版本和中继记录不共享补充。
 
-官方补充的维护源是 `backend/internal/modelcatalog/model_pricing_supplements.json`，通过 `go:embed` 编进二进制；`pricing.fallback_file` 默认为空，只读取手动配置的自定义补充。自定义文件删除后，恢复内嵌的值；文件损坏时，保留上一次有效的目录。官方补充只保留目录没覆盖、当前计费需要、并且能够核实来源的字段，并记录 `source_url` 和 `verified_at`。展示属性来自 models.dev 和分组属性配置；补充文件里旧的属性字段，不会成为新的展示属性来源。型号专属的 Fast/Flex、Max、缓存写入和峰谷数值，不写在 Go 代码里；需要时，通过 `fast_multiplier`、`flex_multiplier`、`max_reasoning_effort_multiplier`、`cache_write_multiplier`、`cache_write_1h_multiplier` 和 `time_pricing` 明确声明。没有规则时，不会根据型号生成加价或折扣。Fast 的缓存写入价格，对所有来源按同一规则缩放 5m 和 1h 两种 TTL 的费用，来源标签和收费无关。
+官方补充的维护源是 `backend/internal/modelcatalog/model_supplements.json`，通过 `go:embed` 编进二进制；`pricing.fallback_file` 默认为空，只读取手动配置的自定义补充。自定义文件删除后，恢复内嵌的值；文件损坏时，保留上一次有效的目录。官方补充按完整型号保存目录缺失的已核实价格和属性，并记录 `source_url` 和 `verified_at`。价格字段放在模型条目内，展示属性放在同一条目的 `attributes` 对象中。内嵌和自定义补充共用该格式，目录已有值优先，其次是自定义补充，最后是内嵌补充。补充属性按字段合并，false 和空模态数组都有明确含义。旧的顶层模态字段继续用于价格兼容解析，展示层读取 `attributes`。型号专属的 Fast/Flex、Max、缓存写入和峰谷数值，不写在 Go 代码里；需要时，通过 `fast_multiplier`、`flex_multiplier`、`max_reasoning_effort_multiplier`、`cache_write_multiplier`、`cache_write_1h_multiplier` 和 `time_pricing` 明确声明。没有规则时，不会根据型号生成加价或折扣。Fast 的缓存写入价格，对所有来源按同一规则缩放 5m 和 1h 两种 TTL 的费用，来源标签和收费无关。
 
 `image_prices` 按 1K、2K、4K 保存美元每张，`video_prices` 按 480p、720p、1080p 保存美元每秒；缺失的维度保持缺价，不套用通用的尺寸倍率。旧的 `output_cost_per_image` 仍然表示不分尺寸的单张价格。操作价格在保留节点 `_billing_defaults` 里，自定义的值按字段叠加到内嵌的默认值上，保留明确的零价，不会进入模型列表；它们和价格、属性一起校验、发布和复制。历史账单和任务的资金快照不会重算。
 
