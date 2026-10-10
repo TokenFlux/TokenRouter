@@ -1,6 +1,6 @@
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4" data-testid="provider-batch-test">
-    <component :is="decision ? SystemOneTestResult : ProviderTestResultView" v-if="batch.detailRow" :run="batch.detailRow.run">
+    <ProviderTestResultView v-if="batch.detailRow" :run="batch.detailRow.run" :decision="decision">
       <template #leading>
         <button
           type="button"
@@ -16,7 +16,7 @@
           {{ batch.detailRow.model }}
         </span>
       </template>
-    </component>
+    </ProviderTestResultView>
 
     <template v-else>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
@@ -181,7 +181,6 @@ import { useI18n } from 'vue-i18n'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import { Icon } from '@/components/icons'
 import ProviderTestResultView from './ProviderTestResultView.vue'
-import SystemOneTestResult from './SystemOneTestResult.vue'
 import {
   MAX_BATCH_MODELS,
   type ProviderBatchRowState,

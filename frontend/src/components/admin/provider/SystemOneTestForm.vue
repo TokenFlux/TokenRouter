@@ -3,18 +3,26 @@
     class="space-y-4"
     data-testid="systemone-test-form"
   >
-    <p class="input-hint">{{ t('admin.providers.decisionTest.hint') }}</p>
     <div class="space-y-2">
-      <SettingsSegmented
-        v-model="stateFormat"
-        :options="stateFormats"
-        :ariaLabel="t('admin.providers.decisionTest.stateFormat')"
-        :disabled="disabled"
-        block
-      />
+      <div class="flex items-center justify-between gap-2">
+        <label :for="stateFieldId" class="input-label mb-0">{{ t('admin.providers.decisionTest.state') }}</label>
+        <div v-segmented class="segmented" role="radiogroup" :aria-label="t('admin.providers.decisionTest.stateFormat')">
+          <button
+            v-for="format in stateFormats"
+            :key="format.value"
+            type="button"
+            role="radio"
+            :aria-checked="stateFormat === format.value"
+            :disabled="disabled"
+            :class="['segmented-item px-2.5 py-1 text-xs', { 'segmented-item-active': stateFormat === format.value }]"
+            @click="stateFormat = format.value"
+          >{{ format.label }}</button>
+        </div>
+      </div>
       <TextArea
+        :id="stateFieldId"
         v-model="stateText"
-        :label="t('admin.providers.decisionTest.state')"
+        :hint="stateFormat === 'json' ? t('admin.providers.decisionTest.jsonHint') : undefined"
         :disabled="disabled"
         rows="4"
         data-testid="systemone-state"
@@ -27,26 +35,13 @@
       :item-label="index => t('admin.providers.decisionTest.questionNumber', { number: index + 1 })"
       :disabled="disabled"
       :min="1"
-      variant="card"
+      variant="line"
       test-id="systemone-questions"
       @add="addQuestion"
       @remove="questions.splice($event, 1)"
     >
       <template #row="{ item, index }">
         <div class="space-y-3">
-          <div class="space-y-1">
-            <label
-              class="input-label"
-              :for="`decision-id-${index}`"
-            >{{ t('admin.providers.decisionTest.questionId') }}</label>
-            <input
-              :id="`decision-id-${index}`"
-              v-model="item.id"
-              class="input"
-              :disabled="disabled"
-              :data-testid="`decision-id-${index}`"
-            />
-          </div>
           <Select
             v-model="item.type"
             :options="questionTypes"
@@ -61,26 +56,8 @@
             rows="2"
             :data-testid="`decision-instructions-${index}`"
           />
-          <details
-            v-if="item.type === 'noul'"
-            class="space-y-2"
-          >
-            <summary class="cursor-pointer text-xs text-gray-500 dark:text-dark-400">{{ t('admin.providers.decisionTest.criteriaOptional') }}</summary>
-            <TextArea
-              v-model="item.trueDescription"
-              :label="t('admin.providers.decisionTest.trueDescription')"
-              :disabled="disabled"
-              rows="2"
-            />
-            <TextArea
-              v-model="item.falseDescription"
-              :label="t('admin.providers.decisionTest.falseDescription')"
-              :disabled="disabled"
-              rows="2"
-            />
-          </details>
           <RuleListEditor
-            v-else
+            v-if="item.type !== 'noul'"
             :items="item.options"
             :title="t(item.type === 'score' ? 'admin.providers.decisionTest.levels' : 'admin.providers.decisionTest.options')"
             :hint="item.type === 'score' ? t('admin.providers.decisionTest.levelsHint') : undefined"
@@ -112,6 +89,26 @@
               </div>
             </template>
           </RuleListEditor>
+          <details class="space-y-3">
+            <summary class="cursor-pointer text-xs text-gray-500 dark:text-dark-400">{{ t(item.type === 'noul' ? 'admin.providers.decisionTest.questionSettings' : 'admin.providers.decisionTest.questionId') }}</summary>
+            <div class="space-y-1">
+              <label
+                class="input-label"
+                :for="`decision-id-${index}`"
+              >{{ t('admin.providers.decisionTest.questionId') }}</label>
+              <input
+                :id="`decision-id-${index}`"
+                v-model="item.id"
+                class="input"
+                :disabled="disabled"
+                :data-testid="`decision-id-${index}`"
+              />
+            </div>
+            <template v-if="item.type === 'noul'">
+              <TextArea v-model="item.trueDescription" :label="t('admin.providers.decisionTest.trueDescription')" :disabled="disabled" rows="2" />
+              <TextArea v-model="item.falseDescription" :label="t('admin.providers.decisionTest.falseDescription')" :disabled="disabled" rows="2" />
+            </template>
+          </details>
         </div>
       </template>
     </RuleListEditor>
@@ -126,17 +123,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import RuleListEditor from '@/components/common/RuleListEditor.vue'
 import Select from '@/components/common/Select.vue'
 import TextArea from '@/components/common/TextArea.vue'
-import SettingsSegmented from '@/components/common/settings/SettingsSegmented.vue'
+import { vSegmented } from '@/directives/segmented'
 import type { SystemOneTestPayload } from './systemOneTest'
 
 defineProps<{ disabled: boolean }>()
 const emit = defineEmits<{ change: [payload: SystemOneTestPayload | null] }>()
 const { t } = useI18n()
+const stateFieldId = useId()
 const stateFormat = ref('text')
 const stateText = ref(t('admin.providers.decisionTest.defaultState'))
 const stateFormats = computed(() => [

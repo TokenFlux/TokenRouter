@@ -144,7 +144,7 @@ describe('ProviderTestModal', () => {
     await wrapper.setProps({ show: true })
     await flushPromises()
     expect(wrapper.find('[data-testid="provider-test-prompt"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="provider-test-protocol"]').exists()).toBe(false)
+    expect(wrapper.getComponent('[data-testid="provider-test-protocol"]').props('disabled')).toBe(true)
     expect(wrapper.text()).not.toContain('admin.providers.testDialog.metricFirstToken')
     await wrapper.get('[data-testid="systemone-state"]').setValue('service ready')
     for (const [index, type] of [[1, 'choice'], [2, 'score']] as const) {
@@ -163,6 +163,18 @@ describe('ProviderTestModal', () => {
     expect(wrapper.get('[data-testid="decision-answer-question_3"]').text()).toContain('low to high')
     expect(wrapper.get('[data-testid="systemone-test-result"]').text()).toContain('jev-1.13.0')
     expect(wrapper.text()).not.toContain('admin.providers.decisionTest.usageUnknown')
+    const outputPanel = wrapper.get('[data-testid="provider-test-output"]')
+    expect(outputPanel.find('[data-testid="decision-answer-available"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('admin.providers.decisionTest.metricUsage')
+    expect(wrapper.text()).toContain('32 / 0')
+    const jsonView = wrapper.findAll('[role="radio"]').find(button => button.text() === 'JSON' && !button.element.closest('[data-testid="systemone-test-form"]'))!
+    await jsonView.trigger('click')
+    expect(outputPanel.find('pre').text()).toContain('"answers"')
+    await wrapper.get('button[aria-label="admin.providers.testDialog.copy"]').trigger('click')
+    expect(copyToClipboard).toHaveBeenLastCalledWith(JSON.stringify(response, null, 2), 'admin.providers.outputCopied')
+    await wrapper.findAll('[role="radio"]').find(button => button.text() === 'admin.providers.testDialog.viewLog')!.trigger('click')
+    expect(outputPanel.text()).toContain('admin.providers.decisionTest.sending')
+    expect(outputPanel.find('[data-testid="decision-answer-available"]').exists()).toBe(false)
     wrapper.unmount()
   })
 

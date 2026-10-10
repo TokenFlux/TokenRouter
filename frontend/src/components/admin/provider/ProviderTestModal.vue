@@ -1,7 +1,7 @@
 <template>
   <BaseDialog
     :show="show"
-    :title="t(isDecisionProvider ? 'admin.providers.decisionTest.title' : 'admin.providers.testDialog.title', { name: provider?.name ?? '' })"
+    :title="t('admin.providers.testDialog.title', { name: provider?.name ?? '' })"
     width="wide"
     :body-scroll="false"
     flush
@@ -32,8 +32,7 @@
       <!-- 左侧：本次测试的参数，不写回提供商配置 -->
       <aside
         :aria-label="t('admin.providers.testDialog.settings')"
-        :class="isDecisionProvider ? 'md:w-96' : 'md:w-72'"
-        class="flex shrink-0 flex-col gap-5 border-b border-gray-200 bg-gray-50/70 px-4 py-5 dark:border-dark-600 dark:bg-dark-950 sm:px-6 md:overflow-y-auto md:border-b-0 md:border-r"
+        class="flex shrink-0 flex-col gap-5 border-b border-gray-200 bg-gray-50/70 px-4 py-5 dark:border-dark-600 dark:bg-dark-950 sm:px-6 md:w-72 md:overflow-y-auto md:border-b-0 md:border-r"
       >
         <SettingsSegmented
           v-model="testScope"
@@ -78,7 +77,7 @@
           {{ t('admin.providers.testDialog.modelsEmpty') }}
         </p>
 
-        <div v-if="!isDecisionProvider && testType === 'text'" class="space-y-1.5">
+        <div v-if="testType === 'text'" class="space-y-1.5">
           <label class="input-label" :for="protocolFieldId">{{ t('admin.providers.testDialog.protocol') }}</label>
           <Select
             :id="protocolFieldId"
@@ -129,7 +128,7 @@
         :aria-label="t('admin.providers.testDialog.results')"
         class="flex min-w-0 flex-col px-4 py-5 sm:px-6 md:min-h-0 md:flex-1"
       >
-        <component :is="isDecisionProvider ? SystemOneTestResult : ProviderTestResultView" v-if="testScope === 'single'" :run="singleRun" />
+        <ProviderTestResultView v-if="testScope === 'single'" :run="singleRun" :decision="isDecisionProvider" />
         <ProviderTestBatchPanel v-else :batch="batch" :decision="isDecisionProvider" />
       </section>
     </div>
@@ -210,7 +209,6 @@ import type { Provider, ClaudeModel } from '@/types'
 import ProviderTestBatchPanel from './ProviderTestBatchPanel.vue'
 import ProviderTestResultView from './ProviderTestResultView.vue'
 import SystemOneTestForm from './SystemOneTestForm.vue'
-import SystemOneTestResult from './SystemOneTestResult.vue'
 import type { SystemOneTestPayload } from './systemOneTest'
 import {
   defaultProviderTestProtocol,

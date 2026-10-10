@@ -1758,10 +1758,13 @@ export default {
       inviteResetNoCredit: '没有可用的重置机会',
       // Test Modal
       decisionTest: {
-        title: '决策模型测试 · {name}',
-        hint: '根据状态判断真假、选择选项或评分。每个问题独立返回决策结果。',
+        output: '决策结果',
+        viewResult: '结果',
+        metricUsage: '输入 / 输出 Token',
+        waitingTitle: '等待决策结果',
         stateFormat: '状态格式',
-        state: '状态（state）',
+        state: '测试状态',
+        jsonHint: '可填写 JSON 对象、数组或带引号的字符串。',
         text: '文本',
         questions: '问题',
         addQuestion: '添加问题',
@@ -1769,7 +1772,7 @@ export default {
         questionId: '问题 ID',
         questionType: '问题类型',
         instructions: '判断要求',
-        criteriaOptional: '补充判断条件（可选）',
+        questionSettings: '问题 ID 与补充条件',
         trueDescription: '成立条件（可选）',
         falseDescription: '不成立条件（可选）',
         levels: '评分等级',
@@ -1793,9 +1796,6 @@ export default {
         empty: '填写状态和问题后开始测试。',
         probabilityTrue: '条件成立的概率',
         confidence: '置信度',
-        rawResponse: '完整 JSON 响应',
-        inputTokens: '输入 Token',
-        outputTokens: '输出 Token',
         sending: '正在提交决策请求'
       },
       testDialog: {
@@ -1864,8 +1864,8 @@ export default {
         emptyDescription: '选好模型和协议后点击「开始测试」，上游回复和耗时会显示在这里。',
         waitingTitle: '等待上游回复',
         waitingDescription: '请求已发出，正在等上游返回内容。',
-        noContentTitle: '没有返回文字',
-        noContentDescription: '请求成功，但上游没有返回文字内容。可以在日志里查看过程。',
+        noContentTitle: '没有返回内容',
+        noContentDescription: '请求成功，但上游没有返回可展示的内容。可以在日志里查看过程。',
         streamEnded: '连接已断开，没有收到测试结果。',
         running: '测试中…',
         rerun: '重新测试'

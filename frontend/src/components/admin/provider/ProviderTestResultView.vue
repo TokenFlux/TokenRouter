@@ -1,5 +1,5 @@
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-4">
+  <div class="flex min-h-0 flex-1 flex-col gap-4" :data-testid="decision ? 'systemone-test-result' : 'provider-test-result'">
     <div v-if="$slots.leading" class="flex min-w-0 shrink-0 items-center gap-2">
       <slot name="leading"></slot>
     </div>
@@ -19,7 +19,7 @@
     <div class="flex min-h-64 flex-1 flex-col overflow-hidden rounded-surface border border-gray-200 dark:border-dark-600">
       <div class="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-4 dark:border-dark-600">
         <span class="truncate text-sm font-medium text-gray-700 dark:text-dark-200">
-          {{ t('admin.providers.testDialog.output') }}
+          {{ outputLabel }}
         </span>
         <div class="flex items-center gap-1">
           <button
@@ -32,7 +32,7 @@
           >
             <Icon name="copy" size="sm" />
           </button>
-          <div v-segmented class="segmented" role="radiogroup" :aria-label="t('admin.providers.testDialog.output')">
+          <div v-segmented class="segmented" role="radiogroup" :aria-label="outputLabel">
             <button
               v-for="item in viewOptions"
               :key="item.value"
@@ -49,17 +49,17 @@
       </div>
 
       <div ref="outputRef" class="min-h-0 flex-1 overflow-auto overscroll-contain p-4" data-testid="provider-test-output">
+        <SettingsNotice v-if="run.status === 'error' && outputView !== 'log'" tone="error" class="mb-3 break-words">
+          {{ run.errorMessage }}
+        </SettingsNotice>
         <template v-if="outputView === 'reply'">
-          <SettingsNotice v-if="run.status === 'error'" tone="error" class="mb-3 break-words">
-            {{ run.errorMessage }}
-          </SettingsNotice>
-
+          <SystemOneTestAnswers v-if="decision && run.decisionResult" :result="run.decisionResult" :usage-valid="run.decisionUsageValid" />
           <div
-            v-if="run.replyText"
+            v-else-if="!decision && run.replyText"
             class="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-dark-100"
           >{{ run.replyText }}<span v-if="running" class="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-primary-500 align-text-bottom"></span></div>
 
-          <div v-if="run.images.length > 0" class="mt-3 flex flex-wrap gap-3">
+          <div v-if="!decision && run.images.length > 0" class="mt-3 flex flex-wrap gap-3">
             <button
               v-for="(image, index) in run.images"
               :key="`${image.url}-${index}`"
@@ -83,7 +83,7 @@
           </div>
 
           <div
-            v-if="!run.replyText && run.images.length === 0 && run.status !== 'error'"
+            v-if="!hasReply && run.status !== 'error'"
             class="flex h-full min-h-40 flex-col items-center justify-center gap-2 px-4 text-center"
           >
             <Icon
@@ -97,6 +97,11 @@
             <div class="text-sm font-medium text-gray-900 dark:text-dark-50">{{ emptyTitle }}</div>
             <p class="max-w-sm text-xs leading-relaxed text-gray-500 dark:text-dark-400">{{ emptyDescription }}</p>
           </div>
+        </template>
+
+        <template v-else-if="outputView === 'json'">
+          <pre v-if="decisionJSON" class="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-gray-800 dark:text-dark-100">{{ decisionJSON }}</pre>
+          <p v-else-if="run.status !== 'error'" class="text-xs text-gray-500 dark:text-dark-400">{{ emptyDescription }}</p>
         </template>
 
         <template v-else>
@@ -151,10 +156,13 @@ import SettingsNotice from '@/components/common/settings/SettingsNotice.vue'
 import { Icon } from '@/components/icons'
 import { vSegmented } from '@/directives/segmented'
 import { useClipboard } from '@/composables/useClipboard'
+import { formatTokens } from '@/utils/format'
 import type { ProviderTestLogTone, ProviderTestRun } from './providerTestRun'
+import SystemOneTestAnswers from './SystemOneTestAnswers.vue'
 
 const props = defineProps<{
   run: ProviderTestRun
+  decision?: boolean
 }>()
 
 const { t } = useI18n()
@@ -168,50 +176,71 @@ const LOG_TONE_CLASSES: Record<ProviderTestLogTone, string> = {
 }
 
 const outputRef = ref<HTMLElement | null>(null)
-const outputView = ref<'reply' | 'log'>('reply')
+const outputView = ref<'reply' | 'json' | 'log'>('reply')
 const previewImageUrl = ref('')
+const missingMetric = '—'
 const running = computed(() => props.run.status === 'connecting')
+const hasReply = computed(() => props.decision ? !!props.run.decisionResult : !!props.run.replyText || props.run.images.length > 0)
+const decisionJSON = computed(() => props.run.decisionResult ? JSON.stringify(props.run.decisionResult, null, 2) : '')
+const outputLabel = computed(() => t(props.decision ? 'admin.providers.decisionTest.output' : 'admin.providers.testDialog.output'))
+const tokenUsage = computed(() => {
+  const usage = props.run.decisionResult?.usage
+  if (!props.run.decisionUsageValid || !usage) return missingMetric
+  return `${formatTokens(usage.input_tokens)} / ${formatTokens(usage.output_tokens)}`
+})
 
 const viewOptions = computed(() => [
-  { value: 'reply' as const, label: t('admin.providers.testDialog.viewReply') },
+  { value: 'reply' as const, label: t(props.decision ? 'admin.providers.decisionTest.viewResult' : 'admin.providers.testDialog.viewReply') },
+  ...(props.decision ? [{ value: 'json' as const, label: 'JSON' }] : []),
   { value: 'log' as const, label: t('admin.providers.testDialog.viewLog') }
 ])
 
-const formatSeconds = (value: number | null) => (value == null ? '—' : `${(value / 1000).toFixed(2)} s`)
+const formatSeconds = (value: number | null) => (value == null ? missingMetric : `${(value / 1000).toFixed(2)} s`)
 
-const metrics = computed(() => [
-  { key: 'model', label: t('admin.providers.testDialog.metricModel'), value: props.run.resolvedModel || '—' },
+// 顶部指标共用三列，决策请求用 token 用量替换流式首字延迟。
+const metrics = computed(() => props.decision ? [
+  { key: 'model', label: t('admin.providers.testDialog.metricModel'), value: props.run.decisionResult?.model || props.run.resolvedModel || missingMetric },
+  { key: 'total', label: t('admin.providers.testDialog.metricTotal'), value: formatSeconds(props.run.totalMs) },
+  { key: 'usage', label: t('admin.providers.decisionTest.metricUsage'), value: tokenUsage.value }
+] : [
+  { key: 'model', label: t('admin.providers.testDialog.metricModel'), value: props.run.resolvedModel || missingMetric },
   { key: 'first', label: t('admin.providers.testDialog.metricFirstToken'), value: formatSeconds(props.run.firstTokenMs) },
   { key: 'total', label: t('admin.providers.testDialog.metricTotal'), value: formatSeconds(props.run.totalMs) }
 ])
 
 const emptyTitle = computed(() => {
+  if (props.decision && running.value) return t('admin.providers.decisionTest.waitingTitle')
   if (running.value) return t('admin.providers.testDialog.waitingTitle')
   if (props.run.status === 'success') return t('admin.providers.testDialog.noContentTitle')
   return t('admin.providers.testDialog.emptyTitle')
 })
 const emptyDescription = computed(() => {
+  if (props.decision && running.value) return t('admin.providers.decisionTest.running')
   if (running.value) return t('admin.providers.testDialog.waitingDescription')
   if (props.run.status === 'success') return t('admin.providers.testDialog.noContentDescription')
-  return t('admin.providers.testDialog.emptyDescription')
+  return t(props.decision ? 'admin.providers.decisionTest.empty' : 'admin.providers.testDialog.emptyDescription')
 })
 
 const copyText = computed(() =>
   outputView.value === 'log'
     ? props.run.logLines.map((line) => line.text).join('\n')
-    : props.run.replyText
+    : props.decision ? decisionJSON.value : props.run.replyText
 )
 
-// 回复或日志增长时滚到底部，跟随流式输出。
+// 流式回复和日志跟随末尾，决策结果从第一条问题开始展示。
 watch(
-  () => [props.run.replyText.length, props.run.logLines.length, outputView.value],
+  () => [props.run.replyText.length, props.run.logLines.length, props.run.decisionResult, outputView.value],
   async () => {
     await nextTick()
     if (outputRef.value) {
-      outputRef.value.scrollTop = outputRef.value.scrollHeight
+      outputRef.value.scrollTop = props.decision && outputView.value !== 'log' ? 0 : outputRef.value.scrollHeight
     }
   }
 )
+
+watch(() => props.decision, (decision) => {
+  if (!decision && outputView.value === 'json') outputView.value = 'reply'
+})
 
 const copyOutput = () => {
   if (!copyText.value) return

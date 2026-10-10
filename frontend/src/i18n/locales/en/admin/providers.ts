@@ -1698,10 +1698,13 @@ export default {
       inviteResetNoCredit: 'No reset credit is available',
       // Test Modal
       decisionTest: {
-        title: 'Decision model test · {name}',
-        hint: 'Evaluate a state with probability, choice, or score questions. Each question returns its own decision.',
+        output: 'Decision results',
+        viewResult: 'Results',
+        metricUsage: 'Input / output tokens',
+        waitingTitle: 'Waiting for decisions',
         stateFormat: 'State format',
-        state: 'State',
+        state: 'Test state',
+        jsonHint: 'Enter a JSON object, array, or quoted string.',
         text: 'Text',
         questions: 'Questions',
         addQuestion: 'Add question',
@@ -1709,7 +1712,7 @@ export default {
         questionId: 'Question ID',
         questionType: 'Question type',
         instructions: 'Instructions',
-        criteriaOptional: 'Additional criteria (optional)',
+        questionSettings: 'Question ID and criteria',
         trueDescription: 'True criteria (optional)',
         falseDescription: 'False criteria (optional)',
         levels: 'Score levels',
@@ -1733,9 +1736,6 @@ export default {
         empty: 'Enter a state and questions, then start the test.',
         probabilityTrue: 'Probability that the condition is true',
         confidence: 'Confidence',
-        rawResponse: 'Full JSON response',
-        inputTokens: 'Input tokens',
-        outputTokens: 'Output tokens',
         sending: 'Submitting decision request'
       },
       testDialog: {
@@ -1804,8 +1804,8 @@ export default {
         emptyDescription: 'Pick a model and protocol, then click "Start Test". The reply and timing will show up here.',
         waitingTitle: 'Waiting for the upstream',
         waitingDescription: 'The request is out. Waiting for the upstream to respond.',
-        noContentTitle: 'No text returned',
-        noContentDescription: 'The request succeeded, but the upstream returned no text. Check the log for details.',
+        noContentTitle: 'No content returned',
+        noContentDescription: 'The request succeeded, but the upstream returned no content to display. Check the log for details.',
         streamEnded: 'The connection closed before a test result arrived.',
         running: 'Testing…',
         rerun: 'Run again'
