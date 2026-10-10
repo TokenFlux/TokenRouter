@@ -206,7 +206,12 @@ func mergeRequestableModelCandidates(baseModels []string, providers []CatalogueP
 		appendModels(policy.AllowedModels...)
 		appendModels(policy.ModelsList...)
 		if mapping := policy.ModelMapping; len(mapping) > 0 {
-			appendModels(sortedModelMappingSources(mapping)...)
+			sources := sortedModelMappingSources(mapping)
+			appendModels(sources...)
+			// 通配来源无法枚举时，具体目标仍可作为请求名称接受资格检查。
+			for _, source := range sources {
+				appendModels(mapping[source])
+			}
 		}
 	}
 

@@ -59,8 +59,8 @@ func (p groupModelPolicy) candidates(configured []string, providers []CatalogPro
 	add(configured...)
 	if p.view != nil {
 		add(p.view.AllowedModels...)
-		for model := range p.view.ModelMapping {
-			add(model)
+		for source, target := range p.view.ModelMapping {
+			add(source, target)
 		}
 	}
 	for _, provider := range providers {
@@ -138,9 +138,9 @@ func (q *creativeModelQuery) resolveModels(ctx context.Context, models []string)
 	return out
 }
 
-// resolve 校验指定型号，并按 OpenAI、Gemini、Grok 的顺序选择图片能力。
+// resolve 校验具体型号，并按 OpenAI、Gemini、Grok 的顺序选择图片能力。
 func (q *creativeModelQuery) resolve(ctx context.Context, model string) (creativeModelRoute, bool) {
-	if q == nil || ctx.Err() != nil {
+	if q == nil || ctx.Err() != nil || strings.TrimSpace(model) == "" || strings.ContainsAny(model, "*?") {
 		return creativeModelRoute{}, false
 	}
 	mapped, allowed := q.policy.resolve(model)

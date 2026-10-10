@@ -36,6 +36,38 @@ type creativePricingConfigFixture struct {
 	platform string
 }
 
+// TestCreativeCatalogueIncludesGroupMappingTargets 空白名单提供商可展示分组映射中的具体图片目标。
+func TestCreativeCatalogueIncludesGroupMappingTargets(t *testing.T) {
+	for _, source := range []string{"draw-alias", "draw-*"} {
+		t.Run(source, func(t *testing.T) {
+			value := &providercore.Record{Platform: creative.PlatformOpenAI, Type: "apikey", Status: "active", Schedulable: true, Credentials: map[string]any{}}
+			service := &creative.Public{ProviderRepo: creativeCatalogTestProviders{[]creative.CatalogProvider{creativeprovider.CatalogProvider(value)}}}
+			group := &creative.GroupView{ID: 1, Operations: map[string][]string{creative.PlatformOpenAI: {creative.CreativeOperationGenerate}}, RoutingPolicy: routing.GroupRoutingPolicy{Enabled: true, ModelMapping: map[string]string{source: "gpt-image-2"}}}
+			models, err := service.CreativeModelsForGroup(context.Background(), group)
+			require.NoError(t, err)
+			want := map[string]string{"gpt-image-2": "gpt-image-2"}
+			if source == "draw-alias" {
+				want[source] = "gpt-image-2"
+			}
+			require.Equal(t, want, models)
+
+			group.RoutingPolicy.RestrictModels = true
+			group.RoutingPolicy.RestrictionModelSource = routing.BillingModelSourceRequested
+			group.RoutingPolicy.AllowedModels = []string{source}
+			models, err = service.CreativeModelsForGroup(context.Background(), group)
+			require.NoError(t, err)
+			require.NotContains(t, models, "gpt-image-2")
+
+			group.RoutingPolicy.RestrictModels = false
+			value.Credentials["model_whitelist"] = []string{"other-model"}
+			service.ProviderRepo = creativeCatalogTestProviders{[]creative.CatalogProvider{creativeprovider.CatalogProvider(value)}}
+			models, err = service.CreativeModelsForGroup(context.Background(), group)
+			require.NoError(t, err)
+			require.NotContains(t, models, "gpt-image-2")
+		})
+	}
+}
+
 // TestCreativeOperationsForPlatform 平台能力矩阵。
 func TestCreativeOperationsForPlatform(t *testing.T) {
 	require.Equal(t, []string{"generate", "edit"}, creative.CreativeOperationsForPlatform(capability.PlatformGemini))

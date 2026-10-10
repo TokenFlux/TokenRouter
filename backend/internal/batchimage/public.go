@@ -624,8 +624,8 @@ func (s *Public) ListModels(ctx context.Context, owner BatchImageOwner) (*BatchI
 	if policy != nil {
 		candidates = append(candidates, policy.AllowedModels...)
 		candidates = append(candidates, policy.ModelsList...)
-		for id := range policy.ModelMapping {
-			candidates = append(candidates, id)
+		for source, target := range policy.ModelMapping {
+			candidates = append(candidates, source, target)
 		}
 	}
 	// 多个来源可以映射到同一上游型号，每次查询复用它的模态结果。

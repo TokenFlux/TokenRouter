@@ -25,6 +25,41 @@ type countedCatalogueRules struct {
 	checks *int
 }
 
+// TestCatalogueIncludesGroupMappingTargets 分组映射中的具体目标参与目录和单型号查询，并接受资格检查。
+func TestCatalogueIncludesGroupMappingTargets(t *testing.T) {
+	for _, source := range []string{"client-alias", "client-*"} {
+		t.Run(source, func(t *testing.T) {
+			groupID := int64(1)
+			group := &routing.Group{ID: groupID, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolOpenAIResponses}, RoutingPolicy: routing.GroupRoutingPolicy{Enabled: true, ModelMapping: map[string]string{source: "gpt-5.6-sol"}}}
+			policies := &countedCataloguePolicies{PricingConfigService: routing.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{ReadGroup: func(context.Context, int64) (*routing.Group, error) {
+				return group, nil
+			}})}
+			resolver := routing.RequestableResolver{GroupPolicies: policies}
+			records := []provider.Record{{Platform: "openai", Type: "apikey", Credentials: map[string]any{}}}
+			providers := gatewayprovider.CatalogueProviders(records)
+			result := resolver.ResolveWithProviders(context.Background(), &groupID, "", nil, providers)
+			want := []string{"gpt-5.6-sol"}
+			if source == "client-alias" {
+				want = append(want, source)
+			}
+			require.ElementsMatch(t, want, routing.RequestableModelIDs(result.Models))
+			selected := resolver.ResolveSelectedWithProviders(context.Background(), &groupID, "", []string{"gpt-5.6-sol"}, providers)
+			require.Equal(t, []string{"gpt-5.6-sol"}, routing.RequestableModelIDs(selected.Models))
+
+			group.RoutingPolicy.RestrictModels = true
+			group.RoutingPolicy.RestrictionModelSource = routing.BillingModelSourceRequested
+			group.RoutingPolicy.AllowedModels = []string{source}
+			result = resolver.ResolveWithProviders(context.Background(), &groupID, "", nil, providers)
+			require.NotContains(t, routing.RequestableModelIDs(result.Models), "gpt-5.6-sol")
+
+			group.RoutingPolicy.RestrictModels = false
+			records[0].Credentials["model_whitelist"] = []string{"other-model"}
+			result = resolver.ResolveWithProviders(context.Background(), &groupID, "", nil, gatewayprovider.CatalogueProviders(records))
+			require.NotContains(t, routing.RequestableModelIDs(result.Models), "gpt-5.6-sol")
+		})
+	}
+}
+
 // TestCatalogueReadsGroupOnce 大目录和限制阶段均使用本次查询的分组快照。
 func TestCatalogueReadsGroupOnce(t *testing.T) {
 	for _, stage := range []string{routing.BillingModelSourceRequested, routing.BillingModelSourceGroupMapped, routing.BillingModelSourceUpstream} {

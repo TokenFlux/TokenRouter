@@ -56,6 +56,50 @@ type fakeBatchImageAuthCacheInvalidator struct {
 	groupIDs []int64
 }
 
+// TestBatchImageCatalogueIncludesGroupMappingTargets 分组映射目标通过图片价格和权限检查后进入目录。
+func TestBatchImageCatalogueIncludesGroupMappingTargets(t *testing.T) {
+	for _, source := range []string{"draw-alias", "draw-*"} {
+		t.Run(source, func(t *testing.T) {
+			service, _, _, _, _, _ := newTestBatchImagePublicService(true)
+			service.ProviderExists = func(name string) bool { return name == batchimage.BatchImageProviderGeminiAPI }
+			owner := testBatchImageOwner()
+			value := testBatchImageMappedProvider(303, "apikey", nil)
+			service.ProviderRepo = rebindBatchFixtureProviders(service, &publicBatchImageProviderRepo{providers: []providercore.Record{value}})
+			policy := makePublicPricingConfigFixture(routing.PricingConfig{ID: 1, Status: "active", GroupIDs: []int64{*owner.GroupID}}, nil, routing.GroupRoutingPolicy{Enabled: true, ModelMapping: map[string]string{source: "custom-image"}})
+			service.PricingConfigService = newPublicPricingConfigFixture(policy)
+			service.Pricing = &fakeBatchImagePricingResolver{unitPrice: 0.1}
+			result, err := service.ListModels(context.Background(), owner)
+			require.NoError(t, err)
+			var ids []string
+			for _, model := range result.Data {
+				ids = append(ids, model.ID)
+			}
+			want := []string{"custom-image"}
+			if source == "draw-alias" {
+				want = append(want, source)
+			}
+			require.ElementsMatch(t, want, ids)
+
+			policy.policy.RestrictModels = true
+			policy.policy.RestrictionModelSource = routing.BillingModelSourceRequested
+			policy.policy.AllowedModels = []string{source}
+			result, err = service.ListModels(context.Background(), owner)
+			require.NoError(t, err)
+			for _, model := range result.Data {
+				require.NotEqual(t, "custom-image", model.ID)
+			}
+
+			policy.policy.RestrictModels = false
+			value.Credentials["model_whitelist"] = []string{"other-model"}
+			result, err = service.ListModels(context.Background(), owner)
+			require.NoError(t, err)
+			for _, model := range result.Data {
+				require.NotEqual(t, "custom-image", model.ID)
+			}
+		})
+	}
+}
+
 // TestBatchImageUnboundKeyCannotUseGlobalProviders 检查未绑定分组的 Key 提交任务时返回分组禁用错误。
 func TestBatchImageUnboundKeyCannotUseGlobalProviders(t *testing.T) {
 	svc, repo, _, platform, _, _ := newTestBatchImagePublicService(true)
