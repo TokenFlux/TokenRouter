@@ -29,6 +29,7 @@ const state = vi.hoisted(() => ({
   collapsed: false, // Sidebar width fixture switch.
   scrollTop: 0, // Remembered navigation scroll offset.
   settings: {} as Record<string, boolean>, // Public navigation feature flags.
+  user: null as { balance: number } | null, // Signed-in account for the balance card.
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ path: '/dashboard', fullPath: '/dashboard' }) }))
@@ -47,7 +48,7 @@ vi.mock('@/stores', () => ({
     },
     setMobileOpen: vi.fn(),
   }),
-  useAuthStore: () => ({ isAdmin: state.isAdmin }),
+  useAuthStore: () => ({ isAdmin: state.isAdmin, user: state.user }),
   useOnboardingStore: () => ({ isCurrentStep: () => false }),
   useAdminSettingsStore: () => ({
     customMenuItems: [],
@@ -55,6 +56,9 @@ vi.mock('@/stores', () => ({
     opsMonitoringEnabled: false,
     fetch: vi.fn(),
   }),
+}))
+vi.mock('@/composables/useBalanceDisplay', () => ({
+  useBalanceDisplay: () => ({ formatBalanceAmount: (value: number) => `$${value.toFixed(2)}` }),
 }))
 vi.mock('@/composables/useBatchImageAccess', () => ({
   useBatchImageAccess: () => ({ canUseBatchImage: false, refreshBatchImageAccess: vi.fn() }),
@@ -66,6 +70,7 @@ beforeEach(() => {
   state.collapsed = false
   state.scrollTop = 0
   state.settings = {}
+  state.user = null
 })
 
 // Parsed production sources expose stylesheet ownership and parent layout structure to these assertions.
@@ -284,5 +289,46 @@ describe('AppSidebar navigation', () => {
         .findAll('router-link-stub')
         .some((link) => link.attributes('to') === '/admin/risk-control'),
     ).toBe(enabled)
+  })
+
+  // Ordinary users see the menu as titled groups in a fixed order. The four billing
+  // routes appear as one billing entry instead of separate sidebar links.
+  it('groups user destinations and merges billing routes', () => {
+    state.settings.payment_enabled = true
+    const wrapper = mountSidebar()
+    const titles = wrapper.findAll('.sidebar-section-title-text').map((node) => node.text())
+    expect(titles).toEqual([
+      'nav.sections.explore',
+      'nav.sections.build',
+      'nav.sections.usageBilling',
+    ])
+    const paths = wrapper
+      .findAll('.sidebar-nav router-link-stub')
+      .map((link) => link.attributes('to'))
+    expect(paths).toContain('/billing')
+    for (const path of ['/subscriptions', '/purchase', '/orders', '/redeem']) {
+      expect(paths).not.toContain(path)
+    }
+  })
+
+  // Team, affiliate, and profile sit in the pinned footer for both roles. A balance
+  // card above them shows the formatted balance and links to redemption here.
+  it.each([false, true])('pins account links and balance for admin=%s', (isAdmin) => {
+    state.isAdmin = isAdmin
+    state.settings.affiliate_enabled = true
+    state.user = { balance: 12.5 }
+    const footer = mountSidebar().get('[data-sidebar-footer]')
+    const links = footer.findAll('router-link-stub').map((link) => link.attributes('to'))
+    expect(links).toEqual(['/redeem', '/team', '/affiliate', '/profile'])
+    expect(footer.get('[data-sidebar-balance]').text()).toContain('$12.50')
+  })
+
+  // Sites with payments enabled send the balance card action to the top-up tab. The
+  // redemption fallback applies only when the payment switch is off.
+  it('links the balance card to top-up when payments are enabled', () => {
+    state.settings.payment_enabled = true
+    state.user = { balance: 1 }
+    const card = mountSidebar().get('[data-sidebar-balance]')
+    expect(card.get('router-link-stub').attributes('to')).toBe('/purchase')
   })
 })

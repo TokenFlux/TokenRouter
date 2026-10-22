@@ -35,6 +35,10 @@ export function usePageMeta() {
       if (menuItem?.label) return menuItem.label
     }
 
+    // Billing tabs share one page heading; each tab keeps its own document title and
+    // description.
+    if (route.meta.billingTab) return t('nav.billing')
+
     const titleKey = route.meta.titleKey as string
     if (titleKey) return t(titleKey)
     // Routes without a translation key use their literal heading, and absent metadata
