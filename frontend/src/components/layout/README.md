@@ -40,12 +40,13 @@ Navigation sidebar with user and admin sections.
 **Features:**
 
 - Navigation links below the global header
-- User navigation links:
+- User navigation links, grouped under section titles:
   - Dashboard
-  - API Keys
-  - Usage
-  - Redeem
-  - Profile
+  - Explore: Models, Usage Ranking
+  - Build: API Keys, Batch Image, Creative
+  - Usage & Billing: Usage, Billing (one entry for the subscription, top-up, order, and redeem tabs)
+  - More: custom menu links
+- Pinned footer below the scrolling menu: balance card with a top-up (or redeem) action, then Team, Affiliate, and Profile
 - Admin navigation links (shown only if user is admin):
   - Admin Dashboard
   - Users

@@ -52,6 +52,8 @@
             <slot name="page-heading-actions" />
           </div>
         </div>
+        <!-- Billing routes share one heading and switch between their pages with this tab bar. -->
+        <BillingTabs v-if="route.meta.billingTab" />
         <slot />
       </main>
     </div>
@@ -71,6 +73,7 @@ import { usePageMeta } from '@/composables/usePageMeta'
 import { useOnboardingStore } from '@/stores/onboarding'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
+import BillingTabs from './BillingTabs.vue'
 
 // AppLayout.vue allocates space for the global header, optional sidebar, page heading,
 // and slotted content. Its viewport modes choose whether the shell follows document

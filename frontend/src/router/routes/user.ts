@@ -107,6 +107,7 @@ export const userRoutes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
+      billingTab: 'redeem',
       title: 'Redeem Code',
       titleKey: 'redeem.title',
       descriptionKey: 'redeem.description',
@@ -137,6 +138,12 @@ export const userRoutes: RouteRecordRaw[] = [
       descriptionKey: 'profile.description',
     },
   },
+  // /billing opens the default tab of the combined billing page; each tab keeps its
+  // own path so payment callbacks and existing links remain valid.
+  {
+    path: '/billing',
+    redirect: '/subscriptions',
+  },
   {
     path: '/subscriptions',
     name: 'Subscriptions',
@@ -144,6 +151,7 @@ export const userRoutes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
+      billingTab: 'subscriptions',
       title: 'My Subscriptions',
       titleKey: 'userSubscriptions.title',
       descriptionKey: 'userSubscriptions.description',
@@ -156,6 +164,7 @@ export const userRoutes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
+      billingTab: 'purchase',
       title: 'Purchase Subscription',
       titleKey: 'nav.buySubscription',
       descriptionKey: 'purchase.description',
@@ -169,6 +178,7 @@ export const userRoutes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
+      billingTab: 'orders',
       title: 'My Orders',
       titleKey: 'nav.myOrders',
       descriptionKey: 'payment.orders.description',

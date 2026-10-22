@@ -100,95 +100,112 @@
             </router-link>
           </template>
         </div>
+      </template>
 
-        <!-- Personal account destinations for administrators. -->
-        <div class="sidebar-section">
-          <div
-            class="sidebar-section-title"
-            :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }"
+      <!--
+        Account destinations: administrators see them as one "My Account" list after the
+        management menu, while ordinary users see titled groups.
+      -->
+      <div
+        v-for="group in accountNavSections"
+        :key="group.key"
+        class="sidebar-section sidebar-account-section"
+      >
+        <div
+          v-if="group.title"
+          class="sidebar-section-title"
+          :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }"
+          :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
+        >
+          <span
+            class="sidebar-section-title-text"
+            :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }"
+          >
+            {{ group.title }}
+          </span>
+        </div>
+
+        <router-link
+          v-for="item in group.items"
+          :key="item.path"
+          :to="item.path"
+          class="sidebar-link mb-1"
+          :class="{
+            'sidebar-link-active': isItemActive(item),
+            'sidebar-link-collapsed': sidebarCollapsed,
+          }"
+          :title="sidebarCollapsed ? item.label : undefined"
+          :data-tour="
+            item.path === '/keys'
+              ? 'sidebar-my-keys'
+              : item.path === '/usage'
+                ? 'sidebar-usage'
+                : undefined
+          "
+          @click="handleMenuItemClick(item.path, isItemActive(item))"
+        >
+          <span
+            v-if="item.iconSvg"
+            class="flex-shrink-0 sidebar-svg-icon"
+            v-html="sanitizeSvg(item.iconSvg)"
+          ></span>
+          <Icon v-else :name="item.icon ?? 'home'" size="md" class="flex-shrink-0" />
+          <span
+            class="sidebar-label"
+            :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
             :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
+            >{{ item.label }}</span
           >
-            <span
-              class="sidebar-section-title-text"
-              :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }"
-            >
-              {{ t('nav.myAccount') }}
-            </span>
-          </div>
-
-          <router-link
-            v-for="item in personalNavItems"
-            :key="item.path"
-            :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{
-              'sidebar-link-active': isActive(item.path),
-              'sidebar-link-collapsed': sidebarCollapsed,
-            }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="
-              item.path === '/keys'
-                ? 'sidebar-my-keys'
-                : item.path === '/usage'
-                  ? 'sidebar-usage'
-                  : undefined
-            "
-            @click="handleMenuItemClick(item.path)"
-          >
-            <span
-              v-if="item.iconSvg"
-              class="flex-shrink-0 sidebar-svg-icon"
-              v-html="sanitizeSvg(item.iconSvg)"
-            ></span>
-            <Icon v-else :name="item.icon ?? 'home'" size="md" class="flex-shrink-0" />
-            <span
-              class="sidebar-label"
-              :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
-              :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
-              >{{ item.label }}</span
-            >
-          </router-link>
-        </div>
-      </template>
-
-      <!-- Regular User View -->
-      <template v-else-if="!appStore.backendModeEnabled">
-        <div class="sidebar-section">
-          <router-link
-            v-for="item in userNavItems"
-            :key="item.path"
-            :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{
-              'sidebar-link-active': isActive(item.path),
-              'sidebar-link-collapsed': sidebarCollapsed,
-            }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="
-              item.path === '/keys'
-                ? 'sidebar-my-keys'
-                : item.path === '/usage'
-                  ? 'sidebar-usage'
-                  : undefined
-            "
-            @click="handleMenuItemClick(item.path)"
-          >
-            <span
-              v-if="item.iconSvg"
-              class="flex-shrink-0 sidebar-svg-icon"
-              v-html="sanitizeSvg(item.iconSvg)"
-            ></span>
-            <Icon v-else :name="item.icon ?? 'home'" size="md" class="flex-shrink-0" />
-            <span
-              class="sidebar-label"
-              :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
-              :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
-              >{{ item.label }}</span
-            >
-          </router-link>
-        </div>
-      </template>
+        </router-link>
+      </div>
     </nav>
+
+    <!--
+      The footer stays pinned below the scrolling menu: a balance card with its top-up
+      action, then low-frequency account destinations.
+    -->
+    <div v-if="accountNavSections.length > 0" class="sidebar-footer" data-sidebar-footer>
+      <div v-if="user && !sidebarCollapsed" class="sidebar-balance" data-sidebar-balance>
+        <div class="min-w-0">
+          <div class="text-xs text-primary-900/60 dark:text-dark-400">
+            {{ t('common.balance') }}
+          </div>
+          <div
+            class="truncate text-base font-semibold tabular-nums text-primary-900 dark:text-dark-50"
+          >
+            {{ formatBalanceAmount(availableBalance, { fractionDigits: 2 }) }}
+          </div>
+        </div>
+        <router-link
+          :to="balanceAction.path"
+          class="btn btn-primary btn-sm shrink-0"
+          @click="handleMenuItemClick(balanceAction.path)"
+        >
+          {{ balanceAction.label }}
+        </router-link>
+      </div>
+
+      <router-link
+        v-for="item in accountFooterItems"
+        :key="item.path"
+        :to="item.path"
+        class="sidebar-link sidebar-footer-link"
+        :class="{
+          'sidebar-link-active': isItemActive(item),
+          'sidebar-link-collapsed': sidebarCollapsed,
+        }"
+        :title="sidebarCollapsed ? item.label : undefined"
+        @click="handleMenuItemClick(item.path)"
+      >
+        <Icon :name="item.icon ?? 'home'" size="md" class="flex-shrink-0" />
+        <span
+          class="sidebar-label"
+          :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
+          :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
+          >{{ item.label }}</span
+        >
+      </router-link>
+    </div>
   </aside>
 
   <!-- Mobile Overlay -->
@@ -213,11 +230,17 @@ import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
 // AppSidebar.vue builds role-specific navigation from public and administrator settings.
 // Feature predicates filter optional destinations, custom links retain their configured
 // order, and administrator groups highlight the current exact child route. The mobile
 // drawer closes after route changes and also handles clicks on the current route.
+//
+// Account destinations come from one grouped list: ordinary users see titled groups,
+// while administrators see the same entries flattened under "My Account". Team,
+// affiliate, and profile links sit in a footer pinned below the scrolling menu with a
+// balance card, and the billing routes share one entry that stays active on every tab.
 //
 // Group expansion uses route activity until the user supplies a local override; that
 // override can keep an active group collapsed. The sidebar saves its scroll position
@@ -237,6 +260,17 @@ interface NavItem {
   // destination visible in its navigation group.
   featureFlag?: () => boolean
   children?: NavItem[] // Nested navigation entries
+  // activePaths lists additional routes that highlight this entry, such as the tabs of a
+  // merged page.
+  activePaths?: string[]
+}
+
+// NavGroup is a titled run of sidebar destinations; an absent title renders the items
+// without a heading.
+interface NavGroup {
+  key: string // Stable group identifier
+  title?: string // Translated section heading
+  items: NavItem[] // Visible destinations in display order
 }
 
 // Translation, routing, role, settings, onboarding, and batch-image access state
@@ -249,6 +283,7 @@ const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 // Sidebar width and mobile visibility come from shared application state, allowing the
 // header toggle and layout offsets to follow the same values.
@@ -292,141 +327,128 @@ const flagTeamAccess = () => appStore.cachedPublicSettings?.team_enabled !== fal
 // used by both personal and user menus.
 const flagUsageRankingAccess = () => appStore.cachedPublicSettings?.usage_ranking_enabled !== false
 
-// userNavItems builds the ordinary user destinations, applies feature predicates, and
-// appends visible custom links in their configured sort order.
-const userNavItems = computed((): NavItem[] => {
-  const items: NavItem[] = [
-    { path: '/dashboard', label: t('nav.dashboard'), icon: 'dashboard' as const },
-    { path: '/models', label: t('nav.modelMarketplace'), icon: 'modelMarketplace' as const },
+// billingPaths lists the routes merged into the billing page; any of them activates the
+// single billing entry.
+const billingPaths = ['/subscriptions', '/purchase', '/orders', '/redeem']
+
+// accountNavGroups builds the ordinary account destinations as titled groups, applies
+// feature predicates, and drops groups left empty. Custom links form the last group in
+// their configured sort order.
+const accountNavGroups = computed((): NavGroup[] => {
+  const groups: NavGroup[] = [
     {
-      path: '/usage-ranking',
-      label: t('nav.usageRanking'),
-      icon: 'ranking' as const,
-      featureFlag: flagUsageRankingAccess,
-    },
-    { path: '/keys', label: t('nav.apiKeys'), icon: 'key' as const },
-    { path: '/team', label: t('nav.team'), icon: 'users' as const, featureFlag: flagTeamAccess },
-    {
-      path: '/batch-image',
-      label: t('nav.batchImage'),
-      icon: 'batchImage' as const,
-      featureFlag: flagBatchImageAccess,
+      key: 'home',
+      items: [{ path: '/dashboard', label: t('nav.dashboard'), icon: 'dashboard' as const }],
     },
     {
-      path: '/creative',
-      label: t('nav.creative'),
-      icon: 'creative' as const,
-      featureFlag: flagCreativeStudioAccess,
+      key: 'explore',
+      title: t('nav.sections.explore'),
+      items: [
+        { path: '/models', label: t('nav.modelMarketplace'), icon: 'modelMarketplace' as const },
+        {
+          path: '/usage-ranking',
+          label: t('nav.usageRanking'),
+          icon: 'ranking' as const,
+          featureFlag: flagUsageRankingAccess,
+        },
+      ],
     },
-    { path: '/usage', label: t('nav.usage'), icon: 'chart' as const },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: 'creditCard' as const },
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/purchase',
-            label: t('nav.buySubscription'),
-            icon: 'recharge' as const,
-          },
-        ]
-      : []),
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/orders',
-            label: t('nav.myOrders'),
-            icon: 'orderList' as const,
-          },
-        ]
-      : []),
-    { path: '/redeem', label: t('nav.redeem'), icon: 'gift' as const },
-    ...(appStore.cachedPublicSettings?.affiliate_enabled === true
-      ? [
-          {
-            path: '/affiliate',
-            label: t('nav.affiliate'),
-            icon: 'affiliate' as const,
-          },
-        ]
-      : []),
-    { path: '/profile', label: t('nav.profile'), icon: 'user' as const },
-    ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: `/custom/${item.id}`,
-      label: item.label,
-      icon: null,
-      iconSvg: item.icon_svg,
-    })),
+    {
+      key: 'build',
+      title: t('nav.sections.build'),
+      items: [
+        { path: '/keys', label: t('nav.apiKeys'), icon: 'key' as const },
+        {
+          path: '/batch-image',
+          label: t('nav.batchImage'),
+          icon: 'batchImage' as const,
+          featureFlag: flagBatchImageAccess,
+        },
+        {
+          path: '/creative',
+          label: t('nav.creative'),
+          icon: 'creative' as const,
+          featureFlag: flagCreativeStudioAccess,
+        },
+      ],
+    },
+    {
+      key: 'billing',
+      title: t('nav.sections.usageBilling'),
+      items: [
+        { path: '/usage', label: t('nav.usage'), icon: 'chart' as const },
+        {
+          path: '/billing',
+          label: t('nav.billing'),
+          icon: 'creditCard' as const,
+          activePaths: billingPaths,
+        },
+      ],
+    },
+    {
+      key: 'custom',
+      title: t('nav.sections.more'),
+      items: customMenuItemsForUser.value.map((item): NavItem => ({
+        path: `/custom/${item.id}`,
+        label: item.label,
+        icon: null,
+        iconSvg: item.icon_svg,
+      })),
+    },
   ]
-  const visibleItems = items.filter((item) => item.featureFlag?.() !== false)
-  return visibleItems
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.featureFlag?.() !== false),
+    }))
+    .filter((group) => group.items.length > 0)
 })
 
-// personalNavItems builds the administrator's personal account section using public
-// feature flags and the user-visible custom menu entries.
-const personalNavItems = computed((): NavItem[] => {
+// accountFooterItems lists the low-frequency account destinations pinned below the
+// scrolling menu.
+const accountFooterItems = computed((): NavItem[] => {
   const items: NavItem[] = [
-    { path: '/dashboard', label: t('nav.dashboard'), icon: 'dashboard' as const },
-    { path: '/models', label: t('nav.modelMarketplace'), icon: 'modelMarketplace' as const },
-    {
-      path: '/usage-ranking',
-      label: t('nav.usageRanking'),
-      icon: 'ranking' as const,
-      featureFlag: flagUsageRankingAccess,
-    },
-    { path: '/keys', label: t('nav.apiKeys'), icon: 'key' as const },
     { path: '/team', label: t('nav.team'), icon: 'users' as const, featureFlag: flagTeamAccess },
     {
-      path: '/batch-image',
-      label: t('nav.batchImage'),
-      icon: 'batchImage' as const,
-      featureFlag: flagBatchImageAccess,
+      path: '/affiliate',
+      label: t('nav.affiliate'),
+      icon: 'affiliate' as const,
+      featureFlag: () => appStore.cachedPublicSettings?.affiliate_enabled === true,
     },
-    {
-      path: '/creative',
-      label: t('nav.creative'),
-      icon: 'creative' as const,
-      featureFlag: flagCreativeStudioAccess,
-    },
-    { path: '/usage', label: t('nav.usage'), icon: 'chart' as const },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: 'creditCard' as const },
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/purchase',
-            label: t('nav.buySubscription'),
-            icon: 'recharge' as const,
-          },
-        ]
-      : []),
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/orders',
-            label: t('nav.myOrders'),
-            icon: 'orderList' as const,
-          },
-        ]
-      : []),
-    { path: '/redeem', label: t('nav.redeem'), icon: 'gift' as const },
-    ...(appStore.cachedPublicSettings?.affiliate_enabled === true
-      ? [
-          {
-            path: '/affiliate',
-            label: t('nav.affiliate'),
-            icon: 'affiliate' as const,
-          },
-        ]
-      : []),
     { path: '/profile', label: t('nav.profile'), icon: 'user' as const },
-    ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: `/custom/${item.id}`,
-      label: item.label,
-      icon: null,
-      iconSvg: item.icon_svg,
-    })),
   ]
-  const visibleItems = items.filter((item) => item.featureFlag?.() !== false)
-  return visibleItems
+  return items.filter((item) => item.featureFlag?.() !== false)
 })
+
+// accountNavSections chooses how account destinations render: administrators get one
+// "My Account" list after the management menu, ordinary users get the titled groups, and
+// backend mode hides account navigation for ordinary users.
+const accountNavSections = computed((): NavGroup[] => {
+  if (isAdmin.value) {
+    return [
+      {
+        key: 'account',
+        title: t('nav.myAccount'),
+        items: accountNavGroups.value.flatMap((group) => group.items),
+      },
+    ]
+  }
+  if (appStore.backendModeEnabled) return []
+  return accountNavGroups.value
+})
+
+// user and availableBalance read the signed-in account and its spendable balance; the
+// footer card renders only while a user is present.
+const user = computed(() => authStore.user)
+const availableBalance = computed(() => Number(user.value?.balance || 0))
+
+// balanceAction sends the footer card to top-up when payments are enabled and to code
+// redemption otherwise.
+const balanceAction = computed(() =>
+  appStore.cachedPublicSettings?.payment_enabled === true
+    ? { path: '/purchase', label: t('nav.topUp') }
+    : { path: '/redeem', label: t('nav.redeem') },
+)
 
 // customMenuItemsForUser filters public settings to user-visible links and sorts the
 // resulting array by configured order before navigation entries are built.
@@ -569,14 +591,16 @@ function closeMobile() {
 }
 
 // handleMenuItemClick closes current-route drawers and advances matching onboarding
-// steps.
+// steps. Callers pass alreadyActive for entries whose path can differ from the active
+// route, such as the billing entry that redirects to one of its tabs.
 //
 // Other route changes close through the route watcher; supported tour destinations
 // schedule the next step with a delay for the destination to appear.
-function handleMenuItemClick(itemPath: string) {
+function handleMenuItemClick(itemPath: string, alreadyActive = false) {
   // A click on the current route produces no route change, so close the drawer here when
-  // the watcher cannot observe navigation.
-  if (mobileOpen.value && itemPath === route.path) {
+  // the watcher cannot observe navigation. Entries that cover several routes report their
+  // own activity because their path can differ from the current one.
+  if (mobileOpen.value && (alreadyActive || itemPath === route.path)) {
     appStore.setMobileOpen(false)
   }
 
@@ -600,6 +624,11 @@ function handleMenuItemClick(itemPath: string) {
 // isActive matches a destination or one of its slash-delimited descendants.
 function isActive(path: string): boolean {
   return route.path === path || route.path.startsWith(path + '/')
+}
+
+// isItemActive matches an entry's own path or any of its additional active paths.
+function isItemActive(item: NavItem): boolean {
+  return isActive(item.path) || (item.activePaths?.some(isActive) ?? false)
 }
 
 // isGroupActive reports whether a group contains the current exact route.
@@ -673,6 +702,31 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/*
+ * The footer stays outside the scrolling menu so the balance and account links remain
+ * visible however long the navigation grows.
+ */
+.sidebar-footer {
+  @apply flex shrink-0 flex-col gap-0.5 border-t border-primary-900/10 px-3 py-2 dark:border-dark-800;
+}
+
+/*
+ * Account groups and footer links sit tighter than the administrator menu so short
+ * viewports keep most destinations visible beside the pinned footer.
+ */
+.sidebar-account-section {
+  @apply mb-4;
+}
+
+.sidebar-footer-link {
+  @apply h-8;
+}
+
+.sidebar-balance {
+  @apply mb-1 flex items-center justify-between gap-3 rounded-control px-3 py-2;
+  @apply bg-primary-50 dark:bg-dark-800/60;
+}
+
 /*
  * Collapsed links remove the label gap and use symmetric padding to place their
  * icons within the narrow navigation rail.

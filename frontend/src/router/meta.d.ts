@@ -65,5 +65,10 @@ declare module 'vue-router' {
     // hideSidebar allows full-width workspace pages to use the available content area by
     // suppressing the shared sidebar.
     hideSidebar?: boolean // Full-width workspace sidebar suppression.
+
+    // billingTab marks a route as one tab of the combined billing page; the shared layout
+    // then shows the billing heading and tab bar, and the sidebar highlights its single
+    // billing entry.
+    billingTab?: 'subscriptions' | 'purchase' | 'orders' | 'redeem' // Billing tab key.
   }
 }
