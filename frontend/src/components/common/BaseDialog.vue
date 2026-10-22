@@ -78,8 +78,9 @@ import { Z_INDEX } from '@/constants/overlay'
 
 // BaseDialog.vue renders teleported dialogs with shared headers, content, and footer
 // slots. The lifecycle composable owns scroll locking and focus restoration, while
-// this shell checks topmost status for Escape, forwards dismissal requests, and resets
-// the body scroll position when opened.
+// this shell checks topmost status for Escape, leaves composition keystrokes with the
+// input method, forwards dismissal requests, and resets the body scroll position when
+// opened.
 
 // dialogId connects this dialog to its own title element, keeping simultaneous
 // accessible labels distinct.
@@ -167,9 +168,13 @@ const handleClose = () => {
 }
 
 // handleEscape requests dismissal for Escape on the currently topmost visible dialog.
-// A caller can disable Escape closing, and lower dialogs defer to the active lifecycle
-// stack entry.
+// Keystrokes during composition stay with the input method. A caller can disable Escape
+// closing, and lower dialogs defer to the active lifecycle stack entry.
 const handleEscape = (event: KeyboardEvent) => {
+  // Some engines clear isComposing before dispatching the composition keydown and use
+  // keyCode 229 as the remaining IME signal.
+  if (event.isComposing || event.keyCode === 229) return
+
   if (props.show && isTop() && props.closeOnEscape && event.key === 'Escape') {
     emit('close')
   }

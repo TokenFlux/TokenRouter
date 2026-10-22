@@ -4,10 +4,9 @@ import { nextTick } from 'vue'
 
 import BaseDialog from '../BaseDialog.vue'
 
-// BaseDialog.spec.ts tests responsive dialog widths and content scrolling across
-// reopening. Mounted shells expose their overlay, body, and footer constraints, while
-// the scroll case distinguishes a contained embedded form from the default scrollable
-// body.
+// BaseDialog.spec.ts tests responsive dialog widths, content scrolling across reopening,
+// and Escape dismissal during text editing. Mounted shells expose layout constraints
+// and close events so input method cancellation can retain the editor and its text.
 
 // wrappers tracks mounted dialog instances so teardown can unmount them and release
 // their shared lifecycle resources.
@@ -98,4 +97,38 @@ it('支持由内嵌表单管理滚动，并在重新打开时复位默认内容�
   await wrapper.setProps({ show: true })
   await nextTick()
   expect(document.body.querySelector<HTMLElement>('.modal-body')!.scrollTop).toBe(0)
+})
+
+describe('BaseDialog 输入法与 Escape', () => {
+  // An editor contains an existing announcement when Escape cancels composition.
+  // Both composition indicators keep the dialog open so its draft remains available.
+  it.each([
+    ['isComposing', { isComposing: true }],
+    ['legacy composition key code', { isComposing: false, keyCode: 229 }],
+  ])('使用 %s 标识取消输入法时保留公告', async (_, composition) => {
+    const wrapper = mount(BaseDialog, {
+      props: { show: true, title: '创建公告' },
+      slots: { default: '<textarea>已经写好的公告内容</textarea>' },
+    })
+    wrappers.push(wrapper)
+    await nextTick()
+    const editor = document.body.querySelector<HTMLTextAreaElement>('textarea')!
+    editor.focus()
+
+    const cancelComposition = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+      ...composition,
+    })
+    editor.dispatchEvent(cancelComposition)
+    await nextTick()
+
+    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(document.activeElement).toBe(editor)
+
+    editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
 })
