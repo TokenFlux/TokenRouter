@@ -6,11 +6,14 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,11 +27,10 @@ import (
 // translates payment and refund responses.
 // EasyPay hosted checkout signs a browser URL, while API checkout posts the
 // same merchant identity and retrieves payment references. Callback processing
-// validates one value per accepted field before checking its signature; a
-// successful signature still leaves order association and amount confirmation
-// to the payment core.
+// accepts a bounded V1 field set, rejects ambiguous signed values and confirms
+// successful notifications through an upstream order query before fulfillment.
 //
-// Query responses support top-level and nested variants, with pointer presence
+// Query responses support top-level and nested variants, with field presence
 // deciding which representation wins even when the winning value is empty.
 // Refund submission tries the merchant order label before the upstream trade
 // label and advances only for an order-not-found diagnostic. HTTP status
@@ -43,11 +45,27 @@ const (
 	easypayHTTPTimeout     = 10 * time.Second // default HTTP request timeout
 	maxEasypayResponseSize = 1 << 20          // response prefix in bytes
 	maxEasypayErrorSummary = 512              // diagnostic prefix in bytes
+	easypayAmountTolerance = 0.005            // half-cent confirmation margin
 	tradeStatusSuccess     = "TRADE_SUCCESS"  // paid textual trade state
 	signTypeMD5            = "MD5"            // outbound signing type label
 	paymentModePopup       = "popup"          // exact hosted checkout selector
 	deviceMobile           = "mobile"         // mobile request device label
 )
+
+// easyPayNotifyAllowedParams contains genuine asynchronous notification fields
+// across common V1 implementations. Checkout-only fields stay excluded because
+// their reusable signatures can otherwise be spliced into callbacks.
+var easyPayNotifyAllowedParams = map[string]struct{}{
+	"pid": {}, "trade_no": {}, "out_trade_no": {}, "type": {},
+	"name": {}, "money": {}, "trade_status": {}, "param": {},
+	"api_trade_no": {}, "addtime": {}, "endtime": {}, "buyer": {},
+	"timestamp": {}, "sign": {}, "sign_type": {},
+}
+
+// easyPayRefundSuccessTextPattern is the complete plain-text success format
+// observed from V1-compatible refund endpoints. Captured money is compared
+// with the amount submitted for the current attempt before success is exposed.
+var easyPayRefundSuccessTextPattern = regexp.MustCompile(`^退款成功！退款金额¥([0-9]+(?:\.[0-9]{1,2})?)$`)
 
 // EasyPay sends signed checkout, query and refund requests for one configured
 // aggregation instance.
@@ -68,41 +86,41 @@ type easyPayCustomMethod struct {
 	DisplayName  string `json:"displayName"`  // configured display text
 }
 
-// easyPayQueryData holds optional nested query fields considered after their
-// top-level counterparts.
+// easyPayQueryData holds optional query fields shared by top-level and nested
+// response layouts.
 type easyPayQueryData struct {
-	// TradeStatus wins over numeric Status when top-level TradeStatus is absent,
-	// including an unrecognized nested string.
+	// TradeStatus wins over numeric Status when present, including an
+	// unrecognized or empty string.
 	TradeStatus *string `json:"trade_status"`
-	// Status supplies a nested numeric state only after both textual states and
-	// top-level Status are absent.
-	Status *int `json:"status"`
-	// Money supplies amount text when top-level Money is absent; an empty
-	// top-level string blocks this value.
-	Money *string `json:"money"`
-	// TradeNo replaces the requested reference only when top-level TradeNo is
-	// absent and this nested string is nonempty.
-	TradeNo *string `json:"trade_no"`
+	// Status retains numeric or textual JSON for lenient PHP response decoding.
+	Status json.RawMessage `json:"status"`
+	// Money retains textual or numeric JSON before amount parsing.
+	Money json.RawMessage `json:"money"`
+	// TradeNo retains the exact upstream payment reference when supplied.
+	TradeNo json.RawMessage `json:"trade_no"`
+	// OutTradeNo echoes the merchant order identity when supplied by the
+	// upstream response.
+	OutTradeNo json.RawMessage `json:"out_trade_no"`
 }
 
 // easyPayQueryResponse represents both supported JSON layouts while retaining
 // presence for precedence decisions.
 type easyPayQueryResponse struct {
-	Code int    `json:"code"` // unused query response code
-	Msg  string `json:"msg"`  // unused query diagnostic text
-	// TradeStatus has first status precedence whenever present; an unrecognized
-	// or empty value keeps the result pending.
-	TradeStatus *string `json:"trade_status"`
-	// Status is considered after both textual states are absent, and presence
-	// blocks nested numeric Status.
-	Status *int `json:"status"`
-	// Money has amount precedence whenever present, including empty text that
-	// later parses as zero.
-	Money *string `json:"money"`
-	// TradeNo presence blocks nested TradeNo; a nonempty value replaces the
-	// fallback reference supplied by QueryOrder.
-	TradeNo *string          `json:"trade_no"`
-	Data    easyPayQueryData `json:"data"` // nested query response fields
+	easyPayQueryData
+	Code any              `json:"code"` // numeric or textual response code
+	Msg  string           `json:"msg"`  // query failure diagnostic text
+	Data easyPayQueryData `json:"data"` // nested query response fields
+}
+
+// easyPayQueryResult retains the normalized upstream state and its exact
+// returned amount and trade reference. An absent trade number stays empty so
+// callback confirmation can distinguish it from the merchant-order fallback
+// exposed by QueryOrder.
+type easyPayQueryResult struct {
+	status  string // normalized provider order state
+	money   string // exact returned amount text
+	tradeNo string // exact returned upstream trade reference
+	failure string // explicit upstream failure diagnostic, if any
 }
 
 // easyPayRefundAttempt pairs a request form with the reference returned on its
@@ -423,34 +441,55 @@ func (e *EasyPay) upstreamPaymentType(paymentType string) string {
 	return paymentType
 }
 
-// QueryOrder posts an order lookup using tradeNo as the merchant out_trade_no
-// label and ctx for HTTP cancellation. Its parser checks HTTP status and
-// retains the requested label when the selected response reference is empty.
+// QueryOrder looks up a merchant order and exposes the normalized paid state,
+// amount and upstream reference. When the response omits trade_no, the
+// requested merchant label remains the public fallback.
 func (e *EasyPay) QueryOrder(ctx context.Context, tradeNo string) (*payment.QueryOrderResponse, error) {
+	result, err := e.queryOrder(ctx, tradeNo)
+	if err != nil {
+		return nil, err
+	}
+	responseTradeNo := tradeNo
+	if result.tradeNo != "" {
+		responseTradeNo = result.tradeNo
+	}
+	amount, _ := strconv.ParseFloat(result.money, 64)
+	return &payment.QueryOrderResponse{
+		TradeNo:  responseTradeNo,
+		Status:   result.status,
+		Amount:   amount,
+		Metadata: e.MerchantIdentityMetadata(),
+	}, nil
+}
+
+// queryOrder sends lookup parameters in both the query and form body because
+// V1-compatible PHP deployments differ between reading GET and POST. It
+// strips credential-bearing request URLs from transport errors before parsing
+// the upstream response.
+func (e *EasyPay) queryOrder(ctx context.Context, outTradeNo string) (*easyPayQueryResult, error) {
 	params := map[string]string{
 		"act": "order", "pid": e.config["pid"],
-		"key": e.config["pkey"], "out_trade_no": tradeNo,
+		"key": e.config["pkey"], "out_trade_no": outTradeNo,
 	}
-	body, statusCode, err := e.postRaw(ctx, e.apiBase()+"/api.php", params)
+	query := url.Values{}
+	for key, value := range params {
+		query.Set(key, value)
+	}
+	body, statusCode, err := e.postRaw(ctx, e.apiBase()+"/api.php?"+query.Encode(), params)
 	if err != nil {
+		if urlErr, ok := errors.AsType[*url.Error](err); ok {
+			err = urlErr.Err
+		}
 		return nil, fmt.Errorf("easypay query: %w", err)
 	}
-	return parseEasyPayQueryResponse(statusCode, body, tradeNo, e.MerchantIdentityMetadata())
+	return parseEasyPayQueryResponse(statusCode, body, outTradeNo)
 }
 
 // parseEasyPayQueryResponse accepts successful HTTP JSON objects and selects
 // status, money and trade identity from optional top-level or nested fields.
-// Status precedence is top-level textual, nested textual, top-level numeric,
-// then nested numeric; a present unrecognized value prevents later
-// alternatives.
-//
-// Money and trade references prefer top-level presence separately. Empty
-// selected money or invalid syntax produces zero, while range overflow can
-// produce infinity despite a discarded parse error. Empty selected trade text
-// keeps fallbackTradeNo. The supplied metadata map is returned directly, and
-// Code or Msg does not determine query acceptance; the payment core confirms
-// any reported paid amount afterward.
-func parseEasyPayQueryResponse(statusCode int, body []byte, fallbackTradeNo string, metadata map[string]string) (*payment.QueryOrderResponse, error) {
+// An explicit failure code becomes a pending observation with a retained
+// diagnostic, while a different echoed merchant order rejects the response.
+func parseEasyPayQueryResponse(statusCode int, body []byte, outTradeNo string) (*easyPayQueryResult, error) {
 	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("easypay query HTTP %d", statusCode)
 	}
@@ -472,6 +511,21 @@ func parseEasyPayQueryResponse(statusCode int, body []byte, fallbackTradeNo stri
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("easypay query non-JSON response (HTTP %d)", statusCode)
 	}
+	if resp.Code != nil && !easyPayResponseCodeIsSuccess(resp.Code) {
+		msg := strings.TrimSpace(resp.Msg)
+		if msg == "" {
+			msg = summarizeEasyPayResponse(body)
+		}
+		// QueryOrder is also used as a reachability probe with a fresh random
+		// order number. Preserve explicit upstream failures as pending observations
+		// there, while ConfirmNotification rejects the retained diagnostic before
+		// fulfillment.
+		return &easyPayQueryResult{status: payment.ProviderStatusPending, failure: msg}, nil
+	}
+	echoed := easyPayJSONScalar(pickEasyPayJSON(resp.OutTradeNo, resp.Data.OutTradeNo))
+	if echoed != "" && echoed != strings.TrimSpace(outTradeNo) {
+		return nil, fmt.Errorf("easypay query out_trade_no mismatch: expected %s, got %s", strings.TrimSpace(outTradeNo), echoed)
+	}
 	// Choose by field presence in descending precedence; a present unknown state
 	// deliberately prevents another response layout from claiming paid.
 	status := payment.ProviderStatusPending
@@ -483,47 +537,89 @@ func parseEasyPayQueryResponse(statusCode int, body []byte, fallbackTradeNo stri
 		if *resp.Data.TradeStatus == tradeStatusSuccess {
 			status = payment.ProviderStatusPaid
 		}
-	} else if resp.Status != nil {
-		if *resp.Status == easypayStatusPaid {
+	} else if raw := pickEasyPayJSON(resp.Status, resp.Data.Status); raw != nil {
+		if easyPayJSONScalar(raw) == strconv.Itoa(easypayStatusPaid) {
 			status = payment.ProviderStatusPaid
 		}
-	} else if resp.Data.Status != nil && *resp.Data.Status == easypayStatusPaid {
-		status = payment.ProviderStatusPaid
 	}
 
-	// Select money and trade references independently of status; a present empty
-	// top-level value blocks its nested alternative.
-	money := ""
-	if resp.Money != nil {
-		money = *resp.Money
-	} else if resp.Data.Money != nil {
-		money = *resp.Data.Money
-	}
-	responseTradeNo := fallbackTradeNo
-	if resp.TradeNo != nil {
-		if *resp.TradeNo != "" {
-			responseTradeNo = *resp.TradeNo
-		}
-	} else if resp.Data.TradeNo != nil && *resp.Data.TradeNo != "" {
-		responseTradeNo = *resp.Data.TradeNo
-	}
-
-	// Discard the numeric parse error here; syntax failures yield zero and
-	// overflow can yield infinity, both reaching core amount confirmation.
-	amount, _ := strconv.ParseFloat(money, 64)
-	return &payment.QueryOrderResponse{
-		TradeNo:  responseTradeNo,
-		Status:   status,
-		Amount:   amount,
-		Metadata: metadata,
+	return &easyPayQueryResult{
+		status: status,
+		money:  easyPayJSONScalar(pickEasyPayJSON(resp.Money, resp.Data.Money)),
+		tradeNo: easyPayJSONScalar(
+			pickEasyPayJSON(resp.TradeNo, resp.Data.TradeNo),
+		),
 	}, nil
+}
+
+// ConfirmNotification is called for a verified EasyPay success notification
+// after webhook handling establishes that its local order exists. It queries
+// the same merchant configuration that verified the callback; paid state,
+// amount and any returned upstream trade number must agree. On success it may
+// fill the notification's TradeNo before local fulfillment, while every error
+// leaves the local order unchanged and asks the gateway to retry the callback.
+func (e *EasyPay) ConfirmNotification(ctx context.Context, notification *payment.PaymentNotification) error {
+	if notification == nil || notification.Status != payment.NotificationStatusSuccess {
+		return nil
+	}
+	result, err := e.queryOrder(ctx, notification.OrderID)
+	if err != nil {
+		return fmt.Errorf("easypay confirm: %w", err)
+	}
+	if result.failure != "" {
+		return fmt.Errorf("easypay confirm: query failed: %s", result.failure)
+	}
+	if result.status != payment.ProviderStatusPaid {
+		return fmt.Errorf("easypay confirm: upstream reports order %s as not paid", notification.OrderID)
+	}
+	queriedAmount, err := strconv.ParseFloat(result.money, 64)
+	if err != nil || !payment.IsValidProviderAmount(queriedAmount) ||
+		math.Abs(queriedAmount-notification.Amount) > easypayAmountTolerance {
+		return fmt.Errorf("easypay confirm: amount mismatch: notified %v, upstream %q", notification.Amount, result.money)
+	}
+	if result.tradeNo != "" {
+		if notification.TradeNo != "" && notification.TradeNo != result.tradeNo {
+			return fmt.Errorf("easypay confirm: trade_no mismatch: notified %s, upstream %s", notification.TradeNo, result.tradeNo)
+		}
+		notification.TradeNo = result.tradeNo
+	}
+	return nil
+}
+
+// easyPayJSONScalar decodes a JSON string or number into trimmed text. Other
+// JSON types, absent fields and null return empty text.
+func easyPayJSONScalar(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return strings.TrimSpace(text)
+	}
+	var number json.Number
+	if err := json.Unmarshal(raw, &number); err == nil {
+		return number.String()
+	}
+	return ""
+}
+
+// pickEasyPayJSON returns a present non-null top-level field before its nested
+// equivalent. When neither exists it returns nil.
+func pickEasyPayJSON(top, nested json.RawMessage) json.RawMessage {
+	if len(top) > 0 && string(top) != "null" {
+		return top
+	}
+	if len(nested) > 0 && string(nested) != "null" {
+		return nested
+	}
+	return nil
 }
 
 // VerifyNotification validates EasyPay form structure, merchant identity,
 // positive finite money and the computed signature before returning a callback
-// observation. It accepts a fixed key set with exactly one value per key and
-// requires delimiter-free structured fields, while name and param retain free
-// text.
+// observation. It accepts a bounded V1 notification field set with exactly one
+// value per key. All fields except the merchant-defined product name reject
+// delimiters that could make one signed value represent multiple parameters.
 //
 // Signing sorts nonempty parameters and excludes sign and sign_type. Signature
 // text must equal the computed lowercase MD5 hex exactly; sign_type is
@@ -540,9 +636,7 @@ func (e *EasyPay) VerifyNotification(_ context.Context, rawBody string, _ map[st
 	// selection and signature input could describe different callback data.
 	params := make(map[string]string, len(values))
 	for key, entries := range values {
-		switch key {
-		case "pid", "trade_no", "out_trade_no", "type", "name", "money", "trade_status", "param", "sign", "sign_type":
-		default:
+		if _, allowed := easyPayNotifyAllowedParams[key]; !allowed {
 			return nil, fmt.Errorf("unexpected notify param: %s", key)
 		}
 		// Reject duplicate values before extracting the first entry, keeping the
@@ -550,10 +644,15 @@ func (e *EasyPay) VerifyNotification(_ context.Context, rawBody string, _ map[st
 		if len(entries) != 1 {
 			return nil, fmt.Errorf("duplicate notify param: %s", key)
 		}
-		params[key] = entries[0]
+		value := entries[0]
+		if key != "name" &&
+			(strings.ContainsAny(value, "&=\x00\r\n") || strings.TrimSpace(value) != value) {
+			return nil, fmt.Errorf("invalid notify param: %s", key)
+		}
+		params[key] = value
 	}
-	// Constrain identifiers, type, money and state before raw pair concatenation;
-	// name and param remain free text in this wire format.
+	// Constrain required identifiers, type, money and state before raw pair
+	// concatenation. Product name remains the only free-text field.
 	for _, key := range []string{"pid", "trade_no", "out_trade_no", "type", "money", "trade_status"} {
 		value := params[key]
 		if value == "" {
@@ -592,8 +691,9 @@ func (e *EasyPay) VerifyNotification(_ context.Context, rawBody string, _ map[st
 
 // Refund submits available merchant-order and upstream-trade forms in that
 // order, returning the identity of the successful attempt. A transport error
-// stops submission immediately; a parsed order-not-found diagnostic permits
-// the next form, while other parsed failures return at once.
+// stops submission immediately with pending progress because request outcome
+// is unknown; a parsed order-not-found diagnostic permits the next form, while
+// other explicit failures return at once.
 //
 // Each form carries the requested amount but omits the workflow OperationID.
 // The alternative is another order lookup representation, so callers should
@@ -609,9 +709,13 @@ func (e *EasyPay) Refund(ctx context.Context, req payment.RefundRequest) (*payme
 	for i, attempt := range attempts {
 		body, status, err := e.postRaw(ctx, e.apiBase()+"/api.php?act=refund", attempt.params)
 		if err != nil {
-			return nil, fmt.Errorf("easypay refund request: %w", err)
+			return &payment.RefundResponse{
+				RefundID: attempt.refundID,
+				Status:   payment.ProviderStatusPending,
+			}, fmt.Errorf("easypay refund request outcome unknown: %w", err)
 		}
-		if err := parseEasyPayRefundResponse(status, body); err != nil {
+		refundStatus, err := parseEasyPayRefundResponse(status, body, req.Amount)
+		if err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -622,7 +726,7 @@ func (e *EasyPay) Refund(ctx context.Context, req payment.RefundRequest) (*payme
 			}
 			return nil, err
 		}
-		return &payment.RefundResponse{RefundID: attempt.refundID, Status: payment.ProviderStatusSuccess}, nil
+		return &payment.RefundResponse{RefundID: attempt.refundID, Status: refundStatus}, nil
 	}
 	return nil, firstErr
 }
@@ -677,63 +781,120 @@ func isEasyPayRefundOrderNotFound(err error) bool {
 		strings.Contains(lower, "not exist")
 }
 
-// parseEasyPayRefundResponse requires successful HTTP JSON containing a
-// response code recognized as success. Failures use a bounded body summary
-// unless a nonblank JSON message exists, in which case that trimmed message is
-// returned at its supplied length.
-func parseEasyPayRefundResponse(status int, body []byte) error {
+// parseEasyPayRefundResponse classifies one submitted refund response as
+// success, pending manual verification, or explicit failure. JSON code one and
+// exact plain acknowledgements establish success. The complete Chinese success
+// format must report the submitted amount; other successful HTTP responses are
+// pending because they do not prove that this attempt completed. Transport and
+// non-2xx outcomes are also pending at the adapter boundary; documented JSON
+// code zero responses are explicit failures.
+func parseEasyPayRefundResponse(status int, body []byte, expectedAmount string) (string, error) {
 	summary := summarizeEasyPayResponse(body)
 	if status < http.StatusOK || status >= http.StatusMultipleChoices {
-		return fmt.Errorf("easypay refund HTTP %d: %s", status, summary)
+		return payment.ProviderStatusPending, nil
 	}
 
 	trimmed := strings.TrimSpace(string(body))
 	if trimmed == "" {
-		return fmt.Errorf("easypay refund empty response (HTTP %d): %s", status, summary)
+		return payment.ProviderStatusPending, nil
 	}
 
 	lower := strings.ToLower(trimmed)
 	if strings.HasPrefix(lower, "<!doctype html") || strings.HasPrefix(lower, "<html") ||
 		(strings.HasPrefix(lower, "<") && strings.Contains(lower, "html")) {
-		return fmt.Errorf("easypay refund non-JSON response (HTTP %d): %s", status, summary)
+		return payment.ProviderStatusPending, nil
 	}
 
-	var resp struct {
-		Code any `json:"code"` // numeric or textual response code
-		// Msg replaces the bounded body summary whenever its trimmed text is
-		// nonempty, so supplied JSON diagnostics retain their length.
-		Msg string `json:"msg"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return fmt.Errorf("easypay refund non-JSON response (HTTP %d): %s", status, summary)
-	}
-	if !easyPayResponseCodeIsSuccess(resp.Code) {
-		msg := strings.TrimSpace(resp.Msg)
-		if msg == "" {
-			// Use the bounded body diagnostic when JSON contains no usable message,
-			// retaining context for refund failure classification.
-			msg = summary
+	if strings.HasPrefix(trimmed, "{") {
+		var resp struct {
+			Code any `json:"code"` // numeric or textual response code
+			// Msg supplies the V1 refund result, optional returned money, or failure
+			// diagnostic. Code zero remains failure regardless of success-looking text.
+			Msg string `json:"msg"`
 		}
-		return fmt.Errorf("easypay refund failed (HTTP %d): %s", status, msg)
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return payment.ProviderStatusPending, nil
+		}
+		if easyPayResponseCodeIsSuccess(resp.Code) {
+			if easyPayRefundTextReportsAmount(resp.Msg) && !easyPayRefundTextIsSuccess(resp.Msg, expectedAmount) {
+				return payment.ProviderStatusPending, nil
+			}
+			return payment.ProviderStatusSuccess, nil
+		}
+		if easyPayResponseCodeIsZero(resp.Code) {
+			msg := strings.TrimSpace(resp.Msg)
+			if msg == "" {
+				// Use the bounded body diagnostic when JSON contains no usable message,
+				// retaining context for refund failure classification.
+				msg = summary
+			}
+			return "", fmt.Errorf("easypay refund failed (HTTP %d): %s", status, msg)
+		}
+		return payment.ProviderStatusPending, nil
 	}
-	return nil
+	if easyPayRefundTextIsSuccess(trimmed, expectedAmount) {
+		return payment.ProviderStatusSuccess, nil
+	}
+	return payment.ProviderStatusPending, nil
 }
 
-// easyPayResponseCodeIsSuccess accepts a decoded float whose integer
-// conversion equals one or trimmed integer text equal to one. Other types
-// fail, and fractional float codes can pass because conversion truncates them.
+// easyPayResponseCodeIsSuccess reports whether JSON code is exactly numeric or
+// textual one. Fractional numbers and other decoded types are rejected.
 func easyPayResponseCodeIsSuccess(code any) bool {
 	switch v := code.(type) {
 	case float64:
-		// Integer conversion truncates fractional numeric response codes before
-		// comparison.
-		return int(v) == easypayCodeSuccess
+		return v == easypayCodeSuccess
 	case string:
 		n, err := strconv.Atoi(strings.TrimSpace(v))
 		return err == nil && n == easypayCodeSuccess
 	default:
 		return false
 	}
+}
+
+// easyPayResponseCodeIsZero reports whether JSON code is exactly numeric or
+// textual zero. Refund handling treats this documented result as failure even
+// when its free-text diagnostic contains success-looking words.
+func easyPayResponseCodeIsZero(code any) bool {
+	switch v := code.(type) {
+	case float64:
+		return v == 0
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		return err == nil && n == 0
+	default:
+		return false
+	}
+}
+
+// easyPayRefundTextIsSuccess recognizes exact V1 refund-success text after
+// trimming whitespace and an optional UTF-8 byte-order mark. English tokens
+// carry no amount. The observed Chinese format must match completely and its
+// reported money must equal the amount submitted for this refund attempt.
+func easyPayRefundTextIsSuccess(value, expectedAmount string) bool {
+	normalized := strings.TrimSpace(strings.TrimPrefix(value, "\ufeff"))
+	switch strings.ToLower(normalized) {
+	case "1", "ok", "success":
+		return true
+	}
+	matches := easyPayRefundSuccessTextPattern.FindStringSubmatch(normalized)
+	if len(matches) != 2 {
+		return false
+	}
+	reported, reportedErr := strconv.ParseFloat(matches[1], 64)
+	expected, expectedErr := strconv.ParseFloat(strings.TrimSpace(expectedAmount), 64)
+	return reportedErr == nil && expectedErr == nil &&
+		payment.IsValidProviderAmount(reported) && payment.IsValidProviderAmount(expected) &&
+		math.Abs(reported-expected) <= easypayAmountTolerance
+}
+
+// easyPayRefundTextReportsAmount reports whether text claims the observed
+// Chinese success format, including malformed or mismatched variants. JSON
+// code one uses this to keep a contradictory amount pending instead of letting
+// the status code override the supplied money.
+func easyPayRefundTextReportsAmount(value string) bool {
+	normalized := strings.TrimSpace(strings.TrimPrefix(value, "\ufeff"))
+	return strings.HasPrefix(normalized, "退款成功！退款金额¥")
 }
 
 // summarizeEasyPayResponse collapses body whitespace and uses an empty marker
