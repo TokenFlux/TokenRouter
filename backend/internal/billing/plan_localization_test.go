@@ -18,7 +18,7 @@ func TestPlanTextRequiresLocalization(t *testing.T) {
 	for _, request := range []UpdatePlanRequest{
 		{Name: &text}, {Description: &text}, {Features: &text}, {ProductName: &text},
 	} {
-		_, err := NewPlans(nil, nil).UpdatePlan(context.Background(), 1, request)
+		_, err := NewPlans(nil, nil, nil).UpdatePlan(context.Background(), 1, request)
 		require.Equal(t, "LOCALIZATION_REQUIRED", apperror.Reason(err))
 	}
 }

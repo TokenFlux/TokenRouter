@@ -23,6 +23,21 @@ import (
 // checks the payment-owned in-progress order count before requesting
 // a delete; those separate calls provide a guard but establish no
 // transaction or reservation for the plan here.
+//
+// A declared group selection must name groups that still exist. Deleting a
+// group leaves the identifiers that plans recorded, so a plan can otherwise keep
+// covering a group that no subscriber can reach, and the display carries the
+// identifier with no name. PlanGroupValidator answers that question for the
+// service, which checks the selection it is about to store.
+
+// PlanGroupValidator reports whether plan group identifiers name stored groups.
+type PlanGroupValidator interface {
+	// ValidatePlanGroupIDs returns a missing-resource error when any supplied
+	// identifier does not resolve to a stored group. An empty selection needs no
+	// lookup; a failure means the service cannot confirm the selection and the
+	// plan write does not proceed.
+	ValidatePlanGroupIDs(context.Context, []int64) error
+}
 
 // PlanRepository reads and persists configured plan terms and localized content.
 type PlanRepository interface {
@@ -74,14 +89,35 @@ type Plans struct {
 	// constructor retains the supplied adapter as provided, so callers
 	// bind a usable count source before requesting deletion.
 	orders PlanOrders
+	// groups confirms that a group selection names stored groups before it
+	// is written. A plan write that declares groups fails when this adapter
+	// is absent, because the service cannot confirm the selection.
+	groups PlanGroupValidator
 }
 
-// NewPlans constructs plan operations using the supplied storage and
-// order-count adapters. Bind usable storage before repository calls
-// and a usable count adapter before DeletePlan; the constructor
-// retains both dependencies as supplied.
-func NewPlans(store PlanRepository, orders PlanOrders) *Plans {
-	return &Plans{store: store, orders: orders}
+// NewPlans constructs plan operations using the supplied storage,
+// order-count, and group-selection adapters. Bind usable storage before
+// repository calls, a usable count adapter before DeletePlan, and a usable
+// group adapter before writing a plan that declares group identifiers; the
+// constructor retains all three dependencies as supplied.
+func NewPlans(store PlanRepository, orders PlanOrders, groups PlanGroupValidator) *Plans {
+	return &Plans{store: store, orders: orders, groups: groups}
+}
+
+// validateGroupIDs confirms that a nonempty group selection names stored groups.
+// An empty selection passes without a lookup and leaves the plan unrestricted.
+// Missing adapter, lookup failure, and missing group results all stop the plan
+// write, keeping a selection that points at a deleted group out of storage. An
+// absent adapter reports a server-side failure, because serving plans without
+// one would accept selections the deployment cannot confirm.
+func (s *Plans) validateGroupIDs(ctx context.Context, groupIDs []int64) error {
+	if len(groupIDs) == 0 {
+		return nil
+	}
+	if s.groups == nil {
+		return apperror.InternalServer("PLAN_GROUP_VALIDATOR_UNAVAILABLE", "plan group validation is unavailable")
+	}
+	return s.groups.ValidatePlanGroupIDs(ctx, groupIDs)
 }
 
 // ListPlans returns the configured repository's plan list unchanged.
@@ -122,9 +158,10 @@ func (s *Plans) GetPlan(ctx context.Context, id int64) (*SubscriptionPlan, error
 // validates its revision and translated values.
 //
 // Legacy GroupID is merged into the positive distinct GroupIDs list,
-// and only selected group rates survive normalization. Required
-// terms, currency syntax, and quota signs are checked before storage.
-// The request passed onward clears the legacy group field and
+// and only selected group rates survive normalization. The selection
+// must name stored groups, so a deleted group cannot enter a new plan.
+// Required terms, currency syntax, and quota signs are checked before
+// storage. The request passed onward clears the legacy group field and
 // contains the same normalized selection used for its rate validation.
 func (s *Plans) CreatePlan(ctx context.Context, req CreatePlanRequest) (*SubscriptionPlan, error) {
 	if req.Localization != nil {
@@ -146,6 +183,11 @@ func (s *Plans) CreatePlan(ctx context.Context, req CreatePlanRequest) (*Subscri
 	if err := ValidatePlanQuotas(req.DailyLimitUSD, req.WeeklyLimitUSD, req.MonthlyLimitUSD); err != nil {
 		return nil, err
 	}
+	// The group lookup runs after local term checks so a rejected price or quota does not
+	// reach storage adapters.
+	if err := s.validateGroupIDs(ctx, groupIDs); err != nil {
+		return nil, err
+	}
 
 	// Storage receives one normalized group selection and its validated
 	// rate entries. Clear the legacy leading group in that outgoing
@@ -163,11 +205,13 @@ func (s *Plans) CreatePlan(ctx context.Context, req CreatePlanRequest) (*Subscri
 // fields before patch validation.
 //
 // Ordinary omitted pointers and the nullable fields' presence bits
-// remain available for the repository to interpret. This service
-// checks requested required-field and quota comparisons, while the
-// repository normalizes currency and group changes and compares
-// localized content revisions. Errors from either phase are returned
-// in the phase where they occur.
+// remain available for the repository to interpret. A submitted group
+// selection must name stored groups before it replaces the stored one;
+// an update that leaves group_ids out keeps the recorded selection and
+// needs no group lookup. This service checks requested required-field and
+// quota comparisons, while the repository normalizes currency and group
+// changes and compares localized content revisions. Errors from either
+// phase are returned in the phase where they occur.
 func (s *Plans) UpdatePlan(ctx context.Context, id int64, req UpdatePlanRequest) (*SubscriptionPlan, error) {
 	// Text replacement needs the versioned content update so repository
 	// revision checks and translation handling use the submitted source
@@ -181,6 +225,17 @@ func (s *Plans) UpdatePlan(ctx context.Context, id int64, req UpdatePlanRequest)
 	}
 	if err := ValidatePlanPatch(req); err != nil {
 		return nil, err
+	}
+	if req.GroupIDs != nil {
+		// Storage merges a supplied legacy identifier ahead of the list, so the check
+		// covers the selection that will actually be stored.
+		groupID := int64(0)
+		if req.GroupID != nil {
+			groupID = *req.GroupID
+		}
+		if err := s.validateGroupIDs(ctx, NormalizePlanGroupIDs(groupID, *req.GroupIDs)); err != nil {
+			return nil, err
+		}
 	}
 	return s.store.UpdatePlan(ctx, id, req)
 }

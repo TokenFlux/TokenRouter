@@ -108,6 +108,7 @@ Markdown 正文需要 JWT，并且菜单可见；管理员页面只对管理员�
 - `POST /api/v1/admin/payment/orders/{id}/force-expire`：必填 JSON 字段 `reason`（1 到 500 个字符）。只有当前为 `PENDING` 的订单可以被改成 `EXPIRED`，整个过程不调用上游，成功时 `data.message=force_expired`。订单不存在返回 `NOT_FOUND`，状态被并发修改返回 `ORDER_STATUS_CHANGED`（409）。之后迟到的付款仍可以通过正常的 webhook 恢复。
 - 退款查单：同时接受 `REFUND_PENDING`，以及带有有效准备记录的 `REFUNDING`。页面上是同一个查单按钮；接口只查询已经发起过的渠道退款，渠道退款只发起那一次。恢复记录不完整、互相矛盾或渠道无法确认时，返回要求人工核实的错误，调用方不能据此认为退款没发生。
 - `POST /api/v1/admin/payment/providers/test`：接受 `provider_key`、`config` 和可选的 `instance_id`，目前只支持 `easypay`。带实例 ID 时，服务端按更新规则合并请求里没回传的敏感字段，再用随机订单号做一次只读查单。接口不保存草稿，也不创建订单；成功时只返回 `data.reachable=true`，上游的 body、URL 细节和凭据都不会出现在响应里。
+- `POST /api/v1/admin/payment/plans` 和 `PUT /api/v1/admin/payment/plans/{id}`：请求带上的 `group_ids` 必须指向现存分组，包含已删除或不存在的分组时返回 `GROUP_NOT_FOUND`（404），套餐写入不会执行。更新不带 `group_ids` 时保留原有分组选择，不做分组查询。
 
 普通取消在无法确认上游支付状态时，返回 `PAYMENT_STATUS_UNAVAILABLE`（503）。某个 provider instance 还有强制过期、尚未恢复的订单时，删除接口返回 `FORCED_EXPIRED_ORDERS`（409）；管理员应当停用并保留这个实例，以便接收迟到的回调。
 

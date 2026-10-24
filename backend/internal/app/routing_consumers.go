@@ -13,8 +13,9 @@ import (
 // routing_consumers.go adapts routing groups for API-Key policy, identity
 // administration, and localized subscription display. These consumers read
 // different views from the same routing repository. Key conversion uses
-// apikey's group copying rules, identity selects administrator fields, and
-// subscription display resolves group text in the request's language.
+// apikey's group copying rules, identity selects administrator fields,
+// subscription display resolves group text in the request's language, and plan
+// writes check that declared group identifiers still resolve.
 
 // keyGroups adapts routing group reads for API-Key policy consumers.
 type keyGroups struct {
@@ -29,6 +30,12 @@ type identityAdminGroups struct {
 // billingGroups adapts localized routing group names for subscription display.
 type billingGroups struct {
 	Repository routing.GroupRepository // shared routing repository
+}
+
+// planGroupValidator checks plan group selections against stored groups through the routing
+// repository that owns group existence.
+type planGroupValidator struct {
+	lookup routing.GroupExistenceLookup // group existence reader
 }
 
 // GetByID returns the routing record through API-Key group conversion.
@@ -84,6 +91,12 @@ func identityAdminGroup(v *routing.Group) *identity.AdminGroup {
 		return nil
 	}
 	return &identity.AdminGroup{ID: v.ID, Name: v.Name, Status: v.Status, IsExclusive: v.IsExclusive, RPMLimit: v.RPMLimit}
+}
+
+// ValidatePlanGroupIDs reports a missing-resource error when any supplied identifier does not
+// resolve to a stored, undeleted group, so a plan cannot keep covering a deleted group.
+func (v planGroupValidator) ValidatePlanGroupIDs(ctx context.Context, ids []int64) error {
+	return routing.ValidateGroupIDs(ctx, v.lookup, ids)
 }
 
 // GetByIDLite returns the group ID and localized name for subscription display.

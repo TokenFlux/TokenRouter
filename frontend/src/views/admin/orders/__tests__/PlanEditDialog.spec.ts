@@ -6,11 +6,12 @@ import PlanEditDialog from '../PlanEditDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { formatPaymentAmount } from '@/utils/payment/currency'
 import type { AdminPaymentConfig } from '@/api/admin/payment'
+import type { SubscriptionPlan } from '@/api/payment.types'
 
 // PlanEditDialog.spec.ts checks subscription draft submission and converted CNY price
 // previews. Isolated stores, group responses, and persistence spies exercise blank or zero
-// quotas, global or selected-group eligibility, numeric rate overrides, and the preview
-// rounding visible to administrators.
+// quotas, global or selected-group eligibility, deleted-group pruning, numeric rate
+// overrides, and the preview rounding visible to administrators.
 
 // mockCreatePlan records creation payloads and controls request completion while tests
 // inspect draft conversion and emitted dialog behavior.
@@ -72,6 +73,8 @@ function createTestI18n() {
             validityRequired: 'Validity must be greater than 0',
             planGroups: 'Plan Groups',
             planGroupsGlobalHint: 'Leave empty to make the plan available to all groups',
+            planGroupsRemoved: ({ named }: { named: (key: string) => unknown }) =>
+              `${named('count')} deleted group(s) were removed from this plan.`,
             subscriptionRateMultiplier: 'Subscription Rate',
             subscriptionRateMultiplierRequired: 'Subscription rate must be greater than 0',
             subscriptionCnyPayPreview: ({
@@ -101,12 +104,14 @@ function createTestI18n() {
 
 // mountDialog mounts a fresh plan editor with isolated stores and English translations.
 // Optional payment settings supply conversion and fee previews; omitted settings disable
-// the preview for quota and group tests.
+// the preview for quota and group tests. A supplied plan hydrates the draft, while an omitted
+// plan exercises creation defaults.
 function mountDialog(
   paymentConfig: Pick<
     AdminPaymentConfig,
     'subscription_usd_to_cny_rate' | 'recharge_fee_rate'
   > | null = null,
+  plan: SubscriptionPlan | null = null,
 ) {
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -114,7 +119,7 @@ function mountDialog(
   return mount(PlanEditDialog, {
     props: {
       show: true,
-      plan: null,
+      plan,
       paymentConfig: paymentConfig as AdminPaymentConfig | null,
     },
     global: {
@@ -136,6 +141,25 @@ function mountDialog(
       },
     },
   })
+}
+
+// planFixture builds a stored plan with the supplied group selection and rate overrides. The
+// remaining fields hold the values a save requires, so tests can submit the hydrated draft
+// without retyping plan terms.
+function planFixture(groupIDs: number[], rates: Record<number, number> = {}): SubscriptionPlan {
+  return {
+    id: 7,
+    name: 'Max',
+    description: 'Max plan',
+    price: 20,
+    validity_days: 30,
+    validity_unit: 'day',
+    features: [],
+    for_sale: true,
+    sort_order: 1,
+    group_ids: groupIDs,
+    group_rate_multipliers: rates,
+  }
 }
 
 describe('PlanEditDialog', () => {
@@ -285,6 +309,97 @@ describe('PlanEditDialog', () => {
         group_rate_multipliers: { 1: 1.25 },
       }),
     )
+  })
+
+  // A stored plan names group 15, which the loaded choices no longer contain because the
+  // group was deleted. The editor must drop that identifier and its rate override, report it,
+  // and submit the repaired selection so saving fixes the stored plan.
+  it('drops groups missing from the loaded choices and reports them', async () => {
+    mockUpdatePlan.mockResolvedValue({})
+    const wrapper = mountDialog(null, planFixture([1, 15], { 15: 6.8 }))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="plan-groups-removed"]').text()).toContain('1')
+
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockUpdatePlan).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ group_ids: [1], group_rate_multipliers: {} }),
+    )
+  })
+
+  // The loaded choices include an inactive group that the stored plan selects with a rate
+  // override. A disabled group still exists, so the editor must keep it selected, keep its
+  // override, and report nothing removed.
+  it('keeps a disabled group and its rate override in the stored selection', async () => {
+    mockUpdatePlan.mockResolvedValue({})
+    const wrapper = mountDialog(null, planFixture([2], { 2: 1.4 }))
+    await flushPromises()
+
+    const checkbox = wrapper.find('input[type="checkbox"][value="2"]')
+    expect((checkbox.element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.find('[data-testid="plan-groups-removed"]').exists()).toBe(false)
+
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockUpdatePlan).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ group_ids: [2], group_rate_multipliers: { 2: 1.4 } }),
+    )
+  })
+
+  // Loading the group choices fails while the stored plan names group 15. The draft must keep
+  // the stored selection because an unavailable endpoint says nothing about the groups, and
+  // the editor reports no removal.
+  it('keeps the stored selection when loading groups fails', async () => {
+    mockUpdatePlan.mockResolvedValue({})
+    mockGetAllIncludingInactive.mockRejectedValue(new Error('groups unavailable'))
+    const wrapper = mountDialog(null, planFixture([1, 15], { 15: 6.8 }))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="plan-groups-removed"]').exists()).toBe(false)
+
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockUpdatePlan).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ group_ids: [1, 15], group_rate_multipliers: { 15: 6.8 } }),
+    )
+  })
+
+  // Reopening the editor starts a second group request while the first is still pending. The
+  // older response arrives last and lists fewer groups, so the editor must ignore it and keep
+  // the selection that matches the newest choices.
+  it('ignores an older group response that arrives after a newer one', async () => {
+    mockUpdatePlan.mockResolvedValue({})
+    let resolveFirst: ((groups: unknown[]) => void) | undefined
+    mockGetAllIncludingInactive
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve as (groups: unknown[]) => void
+          }),
+      )
+      .mockResolvedValueOnce([
+        { id: 15, name: 'Claude', platform: 'anthropic', status: 'active', rate_multiplier: 1 },
+      ])
+    const wrapper = mountDialog(null, planFixture([15]))
+
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    resolveFirst?.([])
+    await flushPromises()
+
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockUpdatePlan).toHaveBeenCalledWith(7, expect.objectContaining({ group_ids: [15] }))
   })
 
   // A positive conversion rate and percentage fee accompany a plan price. The preview must

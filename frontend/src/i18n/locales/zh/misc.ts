@@ -864,6 +864,7 @@ export default {
       groupId: '分组 ID',
       planGroups: '适用分组',
       planGroupsGlobalHint: '不选择分组时，该套餐适用于所有分组',
+      planGroupsRemoved: '已从套餐中移除 {count} 个已删除的分组，保存后生效。',
       subscriptionRateMultiplier: '订阅倍率',
       subscriptionRateMultiplierRequired: '所选分组的订阅倍率必须大于 0',
       features: '功能特性',

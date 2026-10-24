@@ -70,7 +70,7 @@ func TestCreatePlan_RollsBackWhenGroupMappingSyncFails(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
-	svc := billing.NewPlans(NewPlanStore(client), nil)
+	svc := billing.NewPlans(NewPlanStore(client), nil, nil)
 	_, err = svc.CreatePlan(ctx, billing.CreatePlanRequest{
 		Name:         "rollback-plan",
 		Description:  "mapping sync should fail",

@@ -902,6 +902,8 @@ export default {
       groupId: 'Group ID',
       planGroups: 'Plan Groups',
       planGroupsGlobalHint: 'Leave empty to make the plan available to all groups',
+      planGroupsRemoved:
+        '{count} deleted group(s) were removed from this plan. Saving applies the change.',
       subscriptionRateMultiplier: 'Subscription Rate',
       subscriptionRateMultiplierRequired:
         'Subscription rate for selected groups must be greater than 0',

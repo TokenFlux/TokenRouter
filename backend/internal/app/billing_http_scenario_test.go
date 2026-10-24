@@ -52,7 +52,7 @@ func TestBillingPlanHTTPPreservesEntJSON(t *testing.T) {
 	}
 	for name, original := range cases {
 		t.Run(name, func(t *testing.T) {
-			handler := billinghttp.NewPlanHandler(billing.NewPlans(billingPlanHTTPFixture{plans: []*billing.SubscriptionPlan{billingpostgres.PlanFromEntity(original)}}, nil))
+			handler := billinghttp.NewPlanHandler(billing.NewPlans(billingPlanHTTPFixture{plans: []*billing.SubscriptionPlan{billingpostgres.PlanFromEntity(original)}}, nil, nil))
 			router := gin.New()
 			router.GET("/plans", handler.ListPlans)
 			response := httptest.NewRecorder()

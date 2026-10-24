@@ -196,6 +196,13 @@
             {{ t('common.loading', 'Loading...') }}
           </div>
         </div>
+        <p
+          v-if="removedGroupIDs.length > 0"
+          data-testid="plan-groups-removed"
+          class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+        >
+          {{ t('payment.admin.planGroupsRemoved', { count: removedGroupIDs.length }) }}
+        </p>
       </div>
 
       <div class="flex items-center gap-3">
@@ -244,6 +251,11 @@ import Select from '@/components/common/Select.vue'
 // translated content does not mutate the selected plan object. Group IDs accept the
 // current array representation and the legacy single-group field.
 //
+// A stored plan can name a group that was deleted after the plan was saved, and the server
+// keeps that identifier. Loading the group choices drops such identifiers from the draft and
+// removes their rate overrides, so saving repairs the stored selection; the editor reports
+// how many were dropped.
+//
 // Quota hydration displays nonpositive stored values as empty inputs, while submission
 // keeps an entered numeric zero. Group rate overrides are sent only for selected groups
 // with positive finite values. A CNY preview applies the configured conversion rate and
@@ -285,6 +297,14 @@ const groupsLoading = ref(false)
 // groups supplies available group choices and default rate placeholders; failed reloads
 // retain the most recently loaded group list.
 const groups = ref<AdminGroup[]>([])
+// removedGroupIDs holds plan group identifiers dropped because the loaded group list has no
+// matching entry. The notice below the choices tells the operator that the stored selection
+// still contains them until this draft is saved.
+const removedGroupIDs = ref<number[]>([])
+// groupsLoadGeneration counts group requests so only the newest response may replace the
+// choices or prune the draft. Reopening the dialog starts another request, and an older
+// response describes a group list that may already be out of date.
+const groupsLoadGeneration = ref(0)
 // planCopyFields describes the shared localized name, description, benefits, and product name
 // editor; benefits are entered as newline-separated text.
 const planCopyFields = computed(() => [
@@ -381,6 +401,9 @@ watch(
   () => props.show,
   (visible) => {
     if (!visible) return
+    // Clearing the notice before loading keeps a reopened dialog from reporting groups
+    // dropped during the previous edit session.
+    removedGroupIDs.value = []
     loadGroups()
     if (props.plan) {
       Object.assign(planForm, {
@@ -438,18 +461,43 @@ watch(
   { immediate: true },
 )
 
-// loadGroups loads active and inactive groups available to the plan editor. Request
-// failure reports an error and retains existing choices, and the busy indicator clears
-// after either outcome.
+// loadGroups loads active and inactive groups available to the plan editor and prunes the
+// draft against them. Request failure reports an error and retains existing choices, leaving
+// the draft untouched so a temporary failure cannot erase selected groups, and the busy
+// indicator clears after either outcome. Only the newest request reports failure, replaces the
+// choices, or prunes, because an earlier response can be older than a reopened dialog's load.
 async function loadGroups() {
+  const generation = ++groupsLoadGeneration.value
   groupsLoading.value = true
   try {
-    groups.value = await groupsAPI.getAllIncludingInactive()
+    const loaded = await groupsAPI.getAllIncludingInactive()
+    if (generation !== groupsLoadGeneration.value) return
+    groups.value = loaded
+    // Pruning runs only after a successful current load so an unavailable or outdated group
+    // endpoint result cannot erase selected groups.
+    pruneDeletedPlanGroups(loaded)
   } catch (error: unknown) {
+    if (generation !== groupsLoadGeneration.value) return
     appStore.showError(extractApiErrorMessage(error, t('admin.groups.failedToLoad')))
   } finally {
-    groupsLoading.value = false
+    // A superseded request leaves the busy indicator to the newer load that replaced it.
+    if (generation === groupsLoadGeneration.value) groupsLoading.value = false
   }
+}
+
+// pruneDeletedPlanGroups drops selected identifiers that available choices do not contain
+// and deletes their rate overrides, recording them for the editor notice. A disabled group
+// stays in the loaded choices, so only a deleted group disappears from the draft. Callers
+// pass a successfully loaded list and leave the draft unchanged when nothing is missing.
+function pruneDeletedPlanGroups(available: AdminGroup[]) {
+  const known = new Set(available.map((group) => group.id))
+  const removed = planForm.group_ids.filter((groupId) => !known.has(groupId))
+  if (removed.length === 0) return
+  planForm.group_ids = planForm.group_ids.filter((groupId) => known.has(groupId))
+  // Rate overrides belong to their group, so dropping the group also drops its override
+  // instead of leaving an entry no checkbox can show or clear.
+  for (const groupId of removed) delete planForm.group_rate_multipliers[groupId]
+  removedGroupIDs.value = removed
 }
 
 // normalizePlanGroupIDs selects the plan's group representation before filtering identifiers.

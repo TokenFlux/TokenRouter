@@ -118,10 +118,10 @@ func provideBalanceAdjuster(client *dbent.Client) billing.BalanceAdjuster {
 	return billingpostgres.NewBalanceStore(client)
 }
 
-// provideBillingPlans combines subscription-plan storage with payment-instance
-// usage checks.
-func provideBillingPlans(client *dbent.Client, orders *paymentpostgres.InstanceStore) *billing.Plans {
-	return billing.NewPlans(billingpostgres.NewPlanStore(client), orders)
+// provideBillingPlans combines subscription-plan storage with payment-instance usage checks
+// and the routing group lookup that confirms declared group selections.
+func provideBillingPlans(client *dbent.Client, orders *paymentpostgres.InstanceStore, groups *routingpostgres.GroupStore) *billing.Plans {
+	return billing.NewPlans(billingpostgres.NewPlanStore(client), orders, planGroupValidator{lookup: groups})
 }
 
 // provideSubscriptionExpiry constructs one-minute reminders using notification

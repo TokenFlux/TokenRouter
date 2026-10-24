@@ -28,6 +28,6 @@ func Configuration(client *dbent.Client, settings payment.ConfigurationSettings,
 	if client != nil {
 		store = paymentpostgres.NewInstanceStore(client)
 	}
-	plans := billing.NewPlans(billingpostgres.NewPlanStore(client), paymentpostgres.NewInstanceStore(client))
+	plans := billing.NewPlans(billingpostgres.NewPlanStore(client), paymentpostgres.NewInstanceStore(client), nil)
 	return payment.NewConfigService(store, settings, key, plans, payment.ConfigurationRuntime{CreateProvider: paymentadapter.CreateProvider, LookupEnv: os.LookupEnv, Warn: slog.Warn})
 }

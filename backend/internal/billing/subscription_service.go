@@ -65,8 +65,10 @@ var (
 // with plan coverage identities.
 type SubscriptionGroupReader interface {
 	// GetByIDLite resolves lightweight group display data for a supplied
-	// identity. Enrichment tolerates an error or nil row by retaining an ID-only
-	// placeholder; the reader owns its persistence and returned-value policy.
+	// identity. Enrichment keeps an ID-only placeholder for a nil row and for a
+	// failure other than a missing-resource error, and drops the identity when the
+	// error reports that no such group exists. The reader owns its persistence and
+	// returned-value policy.
 	GetByIDLite(context.Context, int64) (*SubscriptionPlanGroup, error)
 }
 
@@ -312,12 +314,14 @@ func NewSubscriptionService(groups SubscriptionGroupReader, repo UserSubscriptio
 // Empty group IDs also skip lookup, leaving any existing displayed entries
 // retained.
 //
-// For a new display list, every supplied group identity remains represented
-// even when the reader is absent, returns an error or yields nil; only its
-// name stays empty. Loaded Plan pointers are mutated directly and can be
-// shared across grants. Callers keep those plan objects stable during
-// enrichment and separately decide whether an existing display list still
-// matches changed group IDs.
+// A group that storage reports as missing leaves the display list, because a plan
+// can outlive a group it once named and the subscriber has no remaining access
+// through that identity. A nil row, an absent reader, or any other read failure
+// keeps the identity with an empty name instead: those outcomes leave the group's
+// existence undetermined, and dropping it would hide access that still works.
+// Loaded Plan pointers are mutated directly and can be shared across grants.
+// Callers keep those plan objects stable during enrichment and separately decide
+// whether an existing display list still matches changed group IDs.
 func (s *SubscriptionService) EnrichSubscriptionPlanGroups(ctx context.Context, subscriptions []UserSubscription) {
 	if s == nil {
 		return
@@ -331,18 +335,21 @@ func (s *SubscriptionService) EnrichSubscriptionPlanGroups(ctx context.Context, 
 		if len(plan.GroupIDs) == 0 || len(plan.ApplicableGroups) > 0 {
 			continue
 		}
-		// Preserve every group identity while resolving optional names. Missing
-		// reader data becomes an ID-only entry instead of removing plan coverage
-		// from the display.
+		// Resolve names while distinguishing a deleted group from an unreadable one, so
+		// only the confirmed absence removes an entry from the display.
 		plan.ApplicableGroups = make([]SubscriptionPlanGroup, 0, len(plan.GroupIDs))
 		for _, groupID := range plan.GroupIDs {
-			group := &SubscriptionPlanGroup{ID: groupID}
+			group := SubscriptionPlanGroup{ID: groupID}
 			if s.groupRepo != nil {
-				if resolved, err := s.groupRepo.GetByIDLite(ctx, groupID); err == nil && resolved != nil {
+				resolved, err := s.groupRepo.GetByIDLite(ctx, groupID)
+				if apperror.IsNotFound(err) {
+					continue
+				}
+				if err == nil && resolved != nil {
 					group.Name = resolved.Name
 				}
 			}
-			plan.ApplicableGroups = append(plan.ApplicableGroups, *group)
+			plan.ApplicableGroups = append(plan.ApplicableGroups, group)
 		}
 	}
 }
