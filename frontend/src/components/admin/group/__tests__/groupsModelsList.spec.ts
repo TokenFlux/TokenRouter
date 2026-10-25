@@ -18,18 +18,45 @@ import {
 // backend candidates.
 
 describe('groupsModelsList', () => {
-  // A new disabled custom list receives backend model candidates. Initial hydration selects
-  // those candidates so enabling the list can begin from the available model set.
-  it('selects all default candidates for a new disabled config', () => {
+  // A new disabled custom list receives backend model candidates. Saving the group keeps its
+  // configuration empty until the administrator chooses models, even after candidate refreshes.
+  it('keeps default candidates out of a new disabled config', () => {
     const state = createModelsListState()
 
     setModelsListCandidates(state, ['gpt-5.5', 'gpt-5.4'])
 
     expect(state.enabled).toBe(false)
     expect(state.items).toEqual([
-      { id: 'gpt-5.5', selected: true },
-      { id: 'gpt-5.4', selected: true },
+      { id: 'gpt-5.5', selected: false },
+      { id: 'gpt-5.4', selected: false },
     ])
+    setModelsListCandidates(state, ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'])
+    expect(buildModelsListConfig(state)).toEqual({ enabled: false, models: [] })
+  })
+
+  // An existing group has an empty disabled list and receives the complete model catalog.
+  // Opening and saving its editor keeps the stored list empty despite the large candidate set.
+  it('keeps an existing empty list empty after loading a large catalog', () => {
+    const candidates = Array.from({ length: 12000 }, (_, index) => `model-${index}`)
+    const state = hydrateModelsListState({ enabled: false, models: [] }, candidates)
+
+    expect(state.items).toHaveLength(candidates.length)
+    expect(buildModelsListConfig(state)).toEqual({ enabled: false, models: [] })
+  })
+
+  // An administrator selects models in a new list and then disables it before saving.
+  // The chosen identifiers survive serialization and reopening, while later candidates stay unchecked.
+  it('retains deliberate choices when a new list is disabled and reopened', () => {
+    const state = hydrateModelsListState(undefined, ['gpt-5.5', 'gpt-5.4'])
+    state.enabled = true
+    selectAllModelsListItems(state)
+    toggleModelsListItem(state, 'gpt-5.4')
+    state.enabled = false
+
+    const config = buildModelsListConfig(state)
+    expect(config).toEqual({ enabled: false, models: ['gpt-5.5'] })
+    const reopened = hydrateModelsListState(config, ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'])
+    expect(buildModelsListConfig(reopened)).toEqual(config)
   })
 
   // A saved custom list receives an expanded backend candidate set. Saved selections remain

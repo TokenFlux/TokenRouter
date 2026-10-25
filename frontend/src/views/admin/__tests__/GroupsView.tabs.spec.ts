@@ -535,6 +535,17 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', (mode) => {
     expect(groups[mode === 'create' ? 'create' : 'update']).not.toHaveBeenCalled()
   })
 
+  // An administrator saves the group after its candidates load, leaving the custom list disabled.
+  // Both create and edit submissions keep the unconfigured model list empty.
+  it('保存分组时不将默认候选写入未启用的模型列表', async () => {
+    const wrapper = await open(mode, 'openai')
+    await wrapper.get(`#${mode}-group-form`).trigger('submit')
+    await flushPromises()
+    const payload =
+      mode === 'create' ? groups.create.mock.calls[0]?.[0] : groups.update.mock.calls[0]?.[1]
+    expect(payload.models_list_config).toEqual({ enabled: false, models: [] })
+  })
+
   // The custom model list is edited before submission. Selected display models remain in the
   // payload and removed legacy group settings are excluded from the submitted API fields.
   it('模型列表保留展示选择结果，提交不包含已移除的分组设置', async () => {
@@ -546,9 +557,9 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', (mode) => {
     await tab(wrapper, 'models')
     await wrapper.get('[data-setting="enabled"]').trigger('click')
     const model = wrapper.get('[data-model-visibility="gpt-test"]')
-    expect(model.attributes('aria-checked')).toBe('true')
-    await model.trigger('click')
     expect(model.attributes('aria-checked')).toBe('false')
+    await model.trigger('click')
+    expect(model.attributes('aria-checked')).toBe('true')
     expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
     await wrapper.get(`#${mode}-group-form`).trigger('submit')
     await flushPromises()
@@ -556,7 +567,7 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', (mode) => {
       mode === 'create' ? groups.create.mock.calls[0]?.[0] : groups.update.mock.calls[0]?.[1]
     expect(payload).not.toHaveProperty('supported_model_scopes')
     expect(payload).not.toHaveProperty('mcp_xml_inject')
-    expect(payload.models_list_config).toMatchObject({ enabled: true, models: [] })
+    expect(payload.models_list_config).toMatchObject({ enabled: true, models: ['gpt-test'] })
   })
 })
 

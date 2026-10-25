@@ -3,11 +3,11 @@
 // candidate list changes, so a catalog refresh does not silently remove administrator choices.
 // Model identifiers are trimmed and deduplicated in first-seen order.
 //
-// Initial hydration uses saved choices when present and otherwise selects all candidates. Later
-// refreshes retain current selection and ordering, while newly seen candidates do not override
-// existing saved selections. Availability-probe choices additionally intersect selected models
-// with current backend candidates, preventing a historical custom entry from becoming a probe
-// target after it stops being requestable.
+// Initial hydration selects saved choices and leaves other candidates unchecked. Loading the
+// catalog therefore keeps an unconfigured list empty when the group form is saved. Later
+// refreshes retain current selection and ordering. Availability-probe choices intersect
+// selected models with current backend candidates, preventing a historical custom entry from
+// becoming a probe target after it stops being requestable.
 
 // ModelsListConfig represents the persisted enablement flag and ordered custom model
 // identifiers.
@@ -49,8 +49,8 @@ export const createModelsListState = (
 })
 
 // hydrateModelsListState creates a draft and reconciles the supplied backend candidates. Saved
-// choices determine initial selection when present; otherwise candidate models are selected by
-// the shared reconciliation function.
+// choices determine initial selection, and candidates absent from those choices start unchecked
+// until the administrator selects individual rows or uses the select-all action.
 export const hydrateModelsListState = (
   config: Partial<ModelsListConfig> | null | undefined,
   candidates: string[],
@@ -65,17 +65,16 @@ export const hydrateModelsListState = (
 // identifiers removed. Once rows exist, their current selection takes precedence over the saved
 // configuration.
 //
-// During initial hydration, saved models supply selection when present; otherwise every
-// candidate is selected. The final selection guard keeps newly discovered candidates from
-// joining an existing saved selection automatically, while historical saved rows remain
-// available for editing.
+// During initial hydration, saved models supply selection and other candidates start unchecked.
+// Loading a catalog must not turn its suggestions into persisted configuration when an unrelated
+// group setting is saved. Later refreshes keep current choices, including an empty selection,
+// while historical saved rows remain available for editing.
 export const setModelsListCandidates = (state: ModelsListState, candidates: string[]) => {
   const normalizedCandidates = normalizeModels(candidates)
   state.candidateModels = normalizedCandidates
   const currentSelected = new Set(
     state.items.filter((item) => item.selected).map((item) => item.id),
   )
-  const currentKnown = new Set(state.items.map((item) => item.id))
   const savedSelected = new Set(state.savedModels)
   const hasExistingItems = state.items.length > 0
   const selectionOrder = normalizeModels([
@@ -85,17 +84,11 @@ export const setModelsListCandidates = (state: ModelsListState, candidates: stri
   ])
 
   state.items = selectionOrder.map((id) => {
-    const selected = hasExistingItems
-      ? currentSelected.has(id)
-      : state.savedModels.length > 0
-        ? savedSelected.has(id)
-        : normalizedCandidates.includes(id)
+    const selected = hasExistingItems ? currentSelected.has(id) : savedSelected.has(id)
 
     return {
       id,
-      selected:
-        selected &&
-        (currentKnown.has(id) || savedSelected.has(id) || state.savedModels.length === 0),
+      selected,
     }
   })
 }
