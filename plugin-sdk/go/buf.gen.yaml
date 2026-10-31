@@ -1,0 +1,8 @@
+version: v2
+plugins:
+  - local: [go, tool, protoc-gen-go]
+    out: .
+    opt: module=github.com/TokenFlux/TokenRouter/plugin-sdk/go
+  - local: [go, tool, protoc-gen-go-grpc]
+    out: .
+    opt: module=github.com/TokenFlux/TokenRouter/plugin-sdk/go

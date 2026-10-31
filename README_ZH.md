@@ -116,6 +116,8 @@ docker compose -f deploy/docker-compose.dev.yml up --build
 
 本项目依据 [GNU Lesser General Public License v3.0 或更高版本](LICENSE) 发布。
 
+`plugin-sdk/` 目录使用 [MIT 许可证](plugin-sdk/LICENSE)。
+
 Copyright (c) 2026 Wesley Liddick & TokenFlux
 
 ## Star 趋势

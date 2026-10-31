@@ -1,0 +1,723 @@
+// plugin.proto defines the process and callback contracts shared by host and SDK.
+// Lifecycle and contribution services run on one plugin connection; Host runs
+// through the authenticated broker with installation-bound permissions. Monetary
+// values use decimal strings, and no message exposes user authentication tokens.
+syntax = "proto3";
+package tokenrouter.plugin.v1;
+
+option go_package = "github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1;pluginpb";
+
+// Plugin owns initialization, readiness, configuration updates, and graceful process shutdown.
+service Plugin {
+  // Init initializes one process generation with the authenticated host callback broker.
+  rpc Init(InitRequest) returns (InitResponse);
+  // Health reports readiness, including callbacks that have stalled after cancellation.
+  rpc Health(HealthRequest) returns (HealthResponse);
+  // ConfigChanged applies host-persisted configuration or returns Unimplemented to request a restart.
+  rpc ConfigChanged(ConfigChangedRequest) returns (ConfigChangedResponse);
+  // Shutdown releases plugin resources after the host stops admitting business calls.
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+}
+
+// InitRequest carries typed input for the corresponding plugin protocol operation.
+message InitRequest {
+  // Host release build version.
+  string host_version = 1;
+  // Selected host protocol major.
+  uint32 api_version = 2;
+  // Publisher-qualified plugin identity.
+  string plugin_id = 3;
+  // Running plugin release version.
+  string plugin_version = 4;
+  // Previous running release version; empty during first installation.
+  string previous_version = 5;
+  // Host process instance identity.
+  string instance_id = 6;
+  // Normalized configuration JSON with secret values decrypted by the host.
+  bytes config_json = 7;
+  // Broker stream identifying the host callback service.
+  uint32 host_broker_id = 8;
+  // Administrator-confirmed host capability names.
+  repeated string granted_permissions = 9;
+  // Disposable local cache directory; durable business data belongs in host KV.
+  string state_dir = 10;
+}
+
+// InitResponse carries the result of its corresponding plugin protocol operation.
+message InitResponse {}
+
+// HealthRequest carries typed input for the corresponding plugin protocol operation.
+message HealthRequest {}
+
+// HealthResponse carries the result of its corresponding plugin protocol operation.
+message HealthResponse {
+  // Current business-call readiness flag.
+  bool ready = 1;
+  // Human-readable readiness failure explanation.
+  string message = 2;
+}
+
+// ConfigChangedRequest carries typed input for the corresponding plugin protocol operation.
+message ConfigChangedRequest {
+  // Normalized configuration JSON with secret values decrypted by the host.
+  bytes config_json = 1;
+}
+
+// ConfigChangedResponse carries the result of its corresponding plugin protocol operation.
+message ConfigChangedResponse {}
+
+// ShutdownRequest carries typed input for the corresponding plugin protocol operation.
+message ShutdownRequest {}
+
+// ShutdownResponse carries the result of its corresponding plugin protocol operation.
+message ShutdownResponse {}
+
+// HTTPHandler executes declared nonstreaming routes after the host authenticates their callers.
+service HTTPHandler {
+  // Handle returns one buffered response for a host-authorized plugin HTTP route.
+  rpc Handle(HTTPRequest) returns (HTTPResponse);
+}
+
+// Caller carries the explicitly permitted fields shared across the plugin protocol.
+message Caller {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+  // Account or identity username.
+  string username = 2;
+  // Verified account role: user, admin, or empty for anonymous callers.
+  string role = 3;
+  // Negotiated request language tag.
+  string locale = 4;
+  // Host-signed plugin and user authorization ticket, expiring after 300 seconds.
+  string grant = 5;
+}
+
+// HTTPRequest carries typed input for the corresponding plugin protocol operation.
+message HTTPRequest {
+  // Authorized HTTP request method.
+  string method = 1;
+  // Plugin-relative request path beginning with a slash.
+  string path = 2;
+  // Original encoded query string.
+  string raw_query = 3;
+  // Host-filtered HTTP header values.
+  map<string, string> headers = 4;
+  // Buffered HTTP body bytes.
+  bytes body = 5;
+  // Host-verified request caller identity.
+  Caller caller = 6;
+  // Host request correlation identifier.
+  string request_id = 7;
+  // Host-resolved client IP address forwarded by the SDK.
+  string client_ip = 8;
+}
+
+// HTTPResponse carries the result of its corresponding plugin protocol operation.
+message HTTPResponse {
+  // Final HTTP status between 200 and 599.
+  int32 status = 1;
+  // Host-filtered HTTP header values.
+  map<string, string> headers = 2;
+  // Buffered HTTP body bytes.
+  bytes body = 3;
+}
+
+// TaskRunner executes manifest-declared jobs scheduled and bounded by the host.
+service TaskRunner {
+  // Run executes one scheduled task occurrence under its host-selected deadline.
+  rpc Run(RunTaskRequest) returns (RunTaskResponse);
+}
+
+// RunTaskRequest carries typed input for the corresponding plugin protocol operation.
+message RunTaskRequest {
+  // Declared task, plan, or group display name.
+  string name = 1;
+  // Scheduled occurrence time in Unix seconds.
+  int64 scheduled_unix = 2;
+}
+
+// RunTaskResponse carries the result of its corresponding plugin protocol operation.
+message RunTaskResponse {}
+
+// Host exposes permission-checked capabilities on a connection bound to one plugin installation.
+service Host {
+  // GetSiteInfo reads public site presentation context without requiring a permission.
+  rpc GetSiteInfo(GetSiteInfoRequest) returns (SiteInfo);
+  // GetUser reads an account with user.read; user.email separately permits the email field.
+  rpc GetUser(GetUserRequest) returns (User);
+  // LookupUsers performs exact account searches with user.lookup and additionally user.email for email searches.
+  rpc LookupUsers(LookupUsersRequest) returns (LookupUsersResponse);
+  // ListUserIdentities reads sanitized identity bindings with the user.identities permission.
+  rpc ListUserIdentities(ListUserIdentitiesRequest) returns (ListUserIdentitiesResponse);
+  // GetWallet reads balance and cumulative recharge with the wallet.read permission.
+  rpc GetWallet(GetWalletRequest) returns (Wallet);
+  // WalletCredit credits a positive amount with wallet.credit and an idempotency key.
+  rpc WalletCredit(WalletRequest) returns (WalletResponse);
+  // WalletDebit debits a positive amount with wallet.debit and a matching unexpired caller grant.
+  rpc WalletDebit(WalletRequest) returns (WalletResponse);
+  // IssueRedeemCode issues one redeem code with redeem.issue and a plugin-wide idempotency key.
+  rpc IssueRedeemCode(IssueRedeemCodeRequest) returns (IssueRedeemCodeResponse);
+  // ListSubscriptionPlans reads offered plans with the subscription.read permission.
+  rpc ListSubscriptionPlans(ListSubscriptionPlansRequest) returns (ListSubscriptionPlansResponse);
+  // ListUserSubscriptions reads account subscriptions with the subscription.read permission.
+  rpc ListUserSubscriptions(ListUserSubscriptionsRequest) returns (ListUserSubscriptionsResponse);
+  // GrantSubscription issues approved-plan subscriptions with subscription.grant and an idempotency key.
+  rpc GrantSubscription(GrantSubscriptionRequest) returns (GrantSubscriptionResponse);
+  // GetUsageSummary reads caller usage with usage.self and a grant, or arbitrary account usage with usage.read.
+  rpc GetUsageSummary(GetUsageSummaryRequest) returns (UsageSummary);
+  // GetUsageStats reads bounded account aggregates with the usage.read permission.
+  rpc GetUsageStats(GetUsageStatsRequest) returns (GetUsageStatsResponse);
+  // GetUsageRanking reads bounded rankings with the usage.read permission.
+  rpc GetUsageRanking(GetUsageRankingRequest) returns (GetUsageRankingResponse);
+  // ListUserOrders reads sanitized account orders with the payment.read permission.
+  rpc ListUserOrders(ListUserOrdersRequest) returns (ListUserOrdersResponse);
+  // ListModels returns the public marketplace JSON with the catalog.read permission.
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  // ListUserGroups reads effective account groups with the catalog.read permission.
+  rpc ListUserGroups(ListUserGroupsRequest) returns (ListUserGroupsResponse);
+  // SendEmail sends plain-text notifications with notify.email; unknown delivery outcomes are not automatically resent.
+  rpc SendEmail(SendEmailRequest) returns (SendEmailResponse);
+  // VerifyCaptcha checks the site captcha with captcha.verify using the forwarded client address.
+  rpc VerifyCaptcha(VerifyCaptchaRequest) returns (VerifyCaptchaResponse);
+  // KVGet reads an unexpired key in the calling plugin namespace without additional permissions.
+  rpc KVGet(KVGetRequest) returns (KVGetResponse);
+  // KVPut writes JSON with an atomic version condition in the calling plugin namespace.
+  rpc KVPut(KVPutRequest) returns (KVPutResponse);
+  // KVDelete deletes a key with an optional atomic version condition in the calling plugin namespace.
+  rpc KVDelete(KVDeleteRequest) returns (KVDeleteResponse);
+  // KVList lists unexpired keys in ascending order within the calling plugin namespace.
+  rpc KVList(KVListRequest) returns (KVListResponse);
+  // KVIncr atomically changes an integer key in the calling plugin namespace.
+  rpc KVIncr(KVIncrRequest) returns (KVIncrResponse);
+}
+
+// GetSiteInfoRequest carries typed input for the corresponding plugin protocol operation.
+message GetSiteInfoRequest {}
+
+// SiteInfo carries the explicitly permitted fields shared across the plugin protocol.
+message SiteInfo {
+  // Localized site display name.
+  string site_name = 1;
+  // Site balance unit name.
+  string balance_unit_name = 2;
+  // Site balance display symbol.
+  string balance_unit_symbol = 3;
+  // Host IANA timezone name.
+  string timezone = 4;
+  // Site default language tag.
+  string default_locale = 5;
+  // Supported site language tags.
+  repeated string locales = 6;
+}
+
+// GetUserRequest carries typed input for the corresponding plugin protocol operation.
+message GetUserRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+}
+
+// User carries the explicitly permitted fields shared across the plugin protocol.
+message User {
+  // Entity identifier within its containing domain.
+  int64 id = 1;
+  // Account or identity username.
+  string username = 2;
+  // Verified account role: user, admin, or empty for anonymous callers.
+  string role = 3;
+  // Host-owned entity status value.
+  string status = 4;
+  // Creation time in Unix seconds.
+  int64 created_unix = 5;
+  // Last activity time in Unix seconds.
+  int64 last_active_unix = 6;
+  // Recorded account registration source.
+  string signup_source = 7;
+  // Public account avatar URL.
+  string avatar_url = 8;
+  // Account email; returned only when user.email is granted.
+  string email = 9;
+}
+
+// LookupUsersRequest carries typed input for the corresponding plugin protocol operation.
+message LookupUsersRequest {
+  // Exact account IDs; at most 100, mutually exclusive with username and email.
+  repeated int64 ids = 1;
+  // Account or identity username.
+  string username = 2;
+  // Account email; returned only when user.email is granted.
+  string email = 3;
+}
+
+// LookupUsersResponse carries the result of its corresponding plugin protocol operation.
+message LookupUsersResponse {
+  // Matching sanitized account records.
+  repeated User users = 1;
+}
+
+// ListUserIdentitiesRequest carries typed input for the corresponding plugin protocol operation.
+message ListUserIdentitiesRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+}
+
+// UserIdentity carries the explicitly permitted fields shared across the plugin protocol.
+message UserIdentity {
+  // Identity provider category name.
+  string provider_type = 1;
+  // Configured identity provider key.
+  string provider_key = 2;
+  // Provider-scoped identity subject identifier.
+  string subject = 3;
+  // Account or identity username.
+  string username = 4;
+  // Host-sanitized public display name.
+  string display_name = 5;
+  // Verification time in Unix seconds.
+  int64 verified_unix = 6;
+}
+
+// ListUserIdentitiesResponse carries the result of its corresponding plugin protocol operation.
+message ListUserIdentitiesResponse {
+  // Sanitized third-party identity bindings.
+  repeated UserIdentity identities = 1;
+}
+
+// GetWalletRequest carries typed input for the corresponding plugin protocol operation.
+message GetWalletRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+}
+
+// Wallet carries the explicitly permitted fields shared across the plugin protocol.
+message Wallet {
+  // Current decimal balance string.
+  string balance = 1;
+  // Cumulative decimal recharge amount.
+  string total_recharged = 2;
+}
+
+// WalletRequest carries typed input for the corresponding plugin protocol operation.
+message WalletRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+  // Positive decimal amount in internal USD units, with at most eight fractional digits.
+  string amount = 2;
+  // Plugin-wide replay key: 1 to 128 ASCII letters, digits, colons, underscores, dots, or hyphens.
+  string idempotency_key = 3;
+  // User-visible operation explanation, limited to 200 characters.
+  string reason = 4;
+  // Host-signed plugin and user authorization ticket, expiring after 300 seconds.
+  string grant = 5;
+}
+
+// WalletResponse carries the result of its corresponding plugin protocol operation.
+message WalletResponse {
+  // Decimal balance before adjustment.
+  string balance_before = 1;
+  // Decimal balance after adjustment.
+  string balance_after = 2;
+  // Whether the original stored result was reused.
+  bool replayed = 3;
+}
+
+// IssueRedeemCodeRequest carries typed input for the corresponding plugin protocol operation.
+message IssueRedeemCodeRequest {
+  // Entitlement or order type defined by its operation.
+  string type = 1;
+  // Decimal balance, integer concurrency, or integer KV value according to its message.
+  string value = 2;
+  // Referenced subscription plan identifier.
+  int64 plan_id = 3;
+  // Subscription duration in calendar days; zero selects plan defaults only where documented.
+  int32 validity_days = 4;
+  // Expiration time in Unix seconds; zero denotes no expiry for redeem codes.
+  int64 expires_unix = 5;
+  // Plugin-wide replay key: 1 to 128 ASCII letters, digits, colons, underscores, dots, or hyphens.
+  string idempotency_key = 6;
+  // User-visible operation explanation, limited to 200 characters.
+  string reason = 7;
+}
+
+// IssueRedeemCodeResponse carries the result of its corresponding plugin protocol operation.
+message IssueRedeemCodeResponse {
+  // Host-generated single-use redeem code.
+  string code = 1;
+  // Whether the original stored result was reused.
+  bool replayed = 2;
+}
+
+// ListSubscriptionPlansRequest carries typed input for the corresponding plugin protocol operation.
+message ListSubscriptionPlansRequest {}
+
+// SubscriptionPlan carries the explicitly permitted fields shared across the plugin protocol.
+message SubscriptionPlan {
+  // Entity identifier within its containing domain.
+  int64 id = 1;
+  // Declared task, plan, or group display name.
+  string name = 2;
+  // Subscription duration in calendar days; zero selects plan defaults only where documented.
+  int32 validity_days = 3;
+}
+
+// ListSubscriptionPlansResponse carries the result of its corresponding plugin protocol operation.
+message ListSubscriptionPlansResponse {
+  // Currently offered subscription plans.
+  repeated SubscriptionPlan plans = 1;
+}
+
+// ListUserSubscriptionsRequest carries typed input for the corresponding plugin protocol operation.
+message ListUserSubscriptionsRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+  // Whether only active subscriptions are requested.
+  bool active_only = 2;
+}
+
+// UserSubscription carries the explicitly permitted fields shared across the plugin protocol.
+message UserSubscription {
+  // Entity identifier within its containing domain.
+  int64 id = 1;
+  // Referenced subscription plan identifier.
+  int64 plan_id = 2;
+  // Subscription plan display name.
+  string plan_name = 3;
+  // Host-owned entity status value.
+  string status = 4;
+  // Subscription start in Unix seconds.
+  int64 starts_unix = 5;
+  // Expiration time in Unix seconds; zero denotes no expiry for redeem codes.
+  int64 expires_unix = 6;
+}
+
+// ListUserSubscriptionsResponse carries the result of its corresponding plugin protocol operation.
+message ListUserSubscriptionsResponse {
+  // Matching account subscription records.
+  repeated UserSubscription subscriptions = 1;
+}
+
+// GrantSubscriptionRequest carries typed input for the corresponding plugin protocol operation.
+message GrantSubscriptionRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+  // Referenced subscription plan identifier.
+  int64 plan_id = 2;
+  // Subscription duration in calendar days; zero selects plan defaults only where documented.
+  int32 validity_days = 3;
+  // Plugin-wide replay key: 1 to 128 ASCII letters, digits, colons, underscores, dots, or hyphens.
+  string idempotency_key = 4;
+  // User-visible operation explanation, limited to 200 characters.
+  string reason = 5;
+}
+
+// GrantSubscriptionResponse carries the result of its corresponding plugin protocol operation.
+message GrantSubscriptionResponse {
+  // Issued subscription record identifier.
+  int64 subscription_id = 1;
+  // Expiration time in Unix seconds; zero denotes no expiry for redeem codes.
+  int64 expires_unix = 2;
+  // Whether the grant starts after an existing subscription.
+  bool queued = 3;
+  // Whether the original stored result was reused.
+  bool replayed = 4;
+}
+
+// GetUsageSummaryRequest carries typed input for the corresponding plugin protocol operation.
+message GetUsageSummaryRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+  // Host-signed plugin and user authorization ticket, expiring after 300 seconds.
+  string grant = 2;
+}
+
+// UsageSummary carries the explicitly permitted fields shared across the plugin protocol.
+message UsageSummary {
+  // Today's completed request count.
+  int64 today_requests = 1;
+  // Today's reported token count.
+  int64 today_tokens = 2;
+  // Today's decimal usage cost.
+  string today_cost = 3;
+  // Lifetime completed request count.
+  int64 total_requests = 4;
+  // Lifetime reported token count.
+  int64 total_tokens = 5;
+  // Lifetime decimal usage cost.
+  string total_cost = 6;
+}
+
+// GetUsageStatsRequest carries typed input for the corresponding plugin protocol operation.
+message GetUsageStatsRequest {
+  // Requested account IDs, limited to 100 entries.
+  repeated int64 user_ids = 1;
+  // Inclusive reporting start in Unix seconds.
+  int64 start_unix = 2;
+  // Reporting end in Unix seconds; ranges are limited to 93 days.
+  int64 end_unix = 3;
+}
+
+// UserUsageStats carries the explicitly permitted fields shared across the plugin protocol.
+message UserUsageStats {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+  // Aggregated completed request count.
+  int64 requests = 2;
+  // Aggregated reported token count.
+  int64 tokens = 3;
+  // Aggregated decimal usage cost.
+  string cost = 4;
+}
+
+// GetUsageStatsResponse carries the result of its corresponding plugin protocol operation.
+message GetUsageStatsResponse {
+  // Per-account aggregate usage rows.
+  repeated UserUsageStats stats = 1;
+}
+
+// GetUsageRankingRequest carries typed input for the corresponding plugin protocol operation.
+message GetUsageRankingRequest {
+  // Inclusive reporting start in Unix seconds.
+  int64 start_unix = 1;
+  // Reporting end in Unix seconds; ranges are limited to 93 days.
+  int64 end_unix = 2;
+  // Requested row count, bounded by the operation-specific maximum.
+  int32 limit = 3;
+  // Ranking measure: tokens, requests, or cost.
+  string sort_by = 4;
+}
+
+// UsageRankingRow carries the explicitly permitted fields shared across the plugin protocol.
+message UsageRankingRow {
+  // One-based position in ranking.
+  int32 rank = 1;
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 2;
+  // Host-sanitized public display name.
+  string display_name = 3;
+  // Public account avatar URL.
+  string avatar_url = 4;
+  // Aggregated completed request count.
+  int64 requests = 5;
+  // Aggregated reported token count.
+  int64 tokens = 6;
+  // Aggregated decimal usage cost.
+  string cost = 7;
+}
+
+// GetUsageRankingResponse carries the result of its corresponding plugin protocol operation.
+message GetUsageRankingResponse {
+  // Ordered usage ranking records.
+  repeated UsageRankingRow rows = 1;
+}
+
+// ListUserOrdersRequest carries typed input for the corresponding plugin protocol operation.
+message ListUserOrdersRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+  // One-based requested page number.
+  int32 page = 2;
+  // Requested order page size, limited to 50.
+  int32 page_size = 3;
+  // Host-owned entity status value.
+  string status = 4;
+}
+
+// Order carries the explicitly permitted fields shared across the plugin protocol.
+message Order {
+  // Entity identifier within its containing domain.
+  string id = 1;
+  // Entitlement or order type defined by its operation.
+  string type = 2;
+  // Host-owned entity status value.
+  string status = 3;
+  // Positive decimal amount in internal USD units, with at most eight fractional digits.
+  string amount = 4;
+  // Referenced subscription plan identifier.
+  int64 plan_id = 5;
+  // Creation time in Unix seconds.
+  int64 created_unix = 6;
+  // Payment time in Unix seconds.
+  int64 paid_unix = 7;
+}
+
+// ListUserOrdersResponse carries the result of its corresponding plugin protocol operation.
+message ListUserOrdersResponse {
+  // Sanitized payment order records.
+  repeated Order orders = 1;
+  // Total matching order count.
+  int64 total = 2;
+}
+
+// ListModelsRequest carries typed input for the corresponding plugin protocol operation.
+message ListModelsRequest {}
+
+// ListModelsResponse carries the result of its corresponding plugin protocol operation.
+message ListModelsResponse {
+  // JSON matching GET /api/v1/marketplace/models.
+  bytes models_json = 1;
+}
+
+// ListUserGroupsRequest carries typed input for the corresponding plugin protocol operation.
+message ListUserGroupsRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+}
+
+// UserGroup carries the explicitly permitted fields shared across the plugin protocol.
+message UserGroup {
+  // Entity identifier within its containing domain.
+  int64 id = 1;
+  // Declared task, plan, or group display name.
+  string name = 2;
+  // Host-sanitized public display name.
+  string display_name = 3;
+  // Public group description text.
+  string description = 4;
+  // Effective account-specific group rate multiplier.
+  double rate_multiplier = 5;
+}
+
+// ListUserGroupsResponse carries the result of its corresponding plugin protocol operation.
+message ListUserGroupsResponse {
+  // Available account group records.
+  repeated UserGroup groups = 1;
+}
+
+// SendEmailRequest carries typed input for the corresponding plugin protocol operation.
+message SendEmailRequest {
+  // Target account identifier; zero denotes an anonymous HTTP caller.
+  int64 user_id = 1;
+  // Notification subject limited to 120 Unicode characters.
+  string subject = 2;
+  // Plain-text notification body, limited to 8000 characters.
+  string body_text = 3;
+  // Plugin-wide replay key: 1 to 128 ASCII letters, digits, colons, underscores, dots, or hyphens.
+  string idempotency_key = 4;
+}
+
+// SendEmailResponse carries the result of its corresponding plugin protocol operation.
+message SendEmailResponse {
+  // True only for confirmed delivery; missing email or unsubscribe returns false.
+  bool delivered = 1;
+  // Whether the original stored result was reused.
+  bool replayed = 2;
+}
+
+// VerifyCaptchaRequest carries typed input for the corresponding plugin protocol operation.
+message VerifyCaptchaRequest {
+  // Client-produced captcha challenge token.
+  string token = 1;
+  // Host-resolved client IP address forwarded by the SDK.
+  string client_ip = 2;
+}
+
+// VerifyCaptchaResponse carries the result of its corresponding plugin protocol operation.
+message VerifyCaptchaResponse {
+  // Whether the site enables captcha verification.
+  bool enabled = 1;
+  // Whether verification succeeded; true when site captcha is disabled.
+  bool success = 2;
+}
+
+// KVGetRequest carries typed input for the corresponding plugin protocol operation.
+message KVGetRequest {
+  // Plugin-local collection: 1 to 64 lowercase letters, digits, underscores, dots, or hyphens.
+  string collection = 1;
+  // Printable UTF-8 key of 1 to 256 bytes without control characters.
+  string key = 2;
+}
+
+// KVGetResponse carries the result of its corresponding plugin protocol operation.
+message KVGetResponse {
+  // Whether an unexpired record exists.
+  bool found = 1;
+  // Valid JSON value bytes, limited to 64 KiB.
+  bytes value_json = 2;
+  // Stored key version incremented on each write.
+  int64 version = 3;
+}
+
+// KVPutRequest carries typed input for the corresponding plugin protocol operation.
+message KVPutRequest {
+  // Plugin-local collection: 1 to 64 lowercase letters, digits, underscores, dots, or hyphens.
+  string collection = 1;
+  // Printable UTF-8 key of 1 to 256 bytes without control characters.
+  string key = 2;
+  // Valid JSON value bytes, limited to 64 KiB.
+  bytes value_json = 3;
+  // Zero writes unconditionally; minus one requires absence for Put; positive values require the current version.
+  int64 if_version = 4;
+  // Lifetime in whole seconds; zero means no expiration.
+  int64 ttl_seconds = 5;
+}
+
+// KVPutResponse carries the result of its corresponding plugin protocol operation.
+message KVPutResponse {
+  // Stored key version incremented on each write.
+  int64 version = 1;
+}
+
+// KVDeleteRequest carries typed input for the corresponding plugin protocol operation.
+message KVDeleteRequest {
+  // Plugin-local collection: 1 to 64 lowercase letters, digits, underscores, dots, or hyphens.
+  string collection = 1;
+  // Printable UTF-8 key of 1 to 256 bytes without control characters.
+  string key = 2;
+  // Zero writes unconditionally; minus one requires absence for Put; positive values require the current version.
+  int64 if_version = 3;
+}
+
+// KVDeleteResponse carries the result of its corresponding plugin protocol operation.
+message KVDeleteResponse {
+  // Whether an existing key was deleted.
+  bool deleted = 1;
+}
+
+// KVListRequest carries typed input for the corresponding plugin protocol operation.
+message KVListRequest {
+  // Plugin-local collection: 1 to 64 lowercase letters, digits, underscores, dots, or hyphens.
+  string collection = 1;
+  // Optional key prefix filter.
+  string prefix = 2;
+  // Exclusive continuation key from the previous page.
+  string cursor = 3;
+  // Requested row count, bounded by the operation-specific maximum.
+  int32 limit = 4;
+}
+
+// KVItem carries the explicitly permitted fields shared across the plugin protocol.
+message KVItem {
+  // Printable UTF-8 key of 1 to 256 bytes without control characters.
+  string key = 1;
+  // Valid JSON value bytes, limited to 64 KiB.
+  bytes value_json = 2;
+  // Stored key version incremented on each write.
+  int64 version = 3;
+}
+
+// KVListResponse carries the result of its corresponding plugin protocol operation.
+message KVListResponse {
+  // Records in ascending key order.
+  repeated KVItem items = 1;
+  // Last returned key when another page exists; empty otherwise.
+  string next_cursor = 2;
+}
+
+// KVIncrRequest carries typed input for the corresponding plugin protocol operation.
+message KVIncrRequest {
+  // Plugin-local collection: 1 to 64 lowercase letters, digits, underscores, dots, or hyphens.
+  string collection = 1;
+  // Printable UTF-8 key of 1 to 256 bytes without control characters.
+  string key = 2;
+  // Signed integer increment amount.
+  int64 delta = 3;
+  // Lifetime in whole seconds; zero means no expiration.
+  int64 ttl_seconds = 4;
+}
+
+// KVIncrResponse carries the result of its corresponding plugin protocol operation.
+message KVIncrResponse {
+  // Decimal balance, integer concurrency, or integer KV value according to its message.
+  int64 value = 1;
+  // Stored key version incremented on each write.
+  int64 version = 2;
+}
