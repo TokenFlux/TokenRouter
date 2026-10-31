@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"math/big"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,8 +23,8 @@ import (
 // successful writes copy incoming bytes to avoid sharing mutable protobuf data.
 //
 // The fixture implements storage semantics but intentionally omits production
-// key quotas and maintenance scheduling. Tests control those failures through
-// injected RPC errors. Pagination uses the last returned key as its exclusive
+// key quotas, PostgreSQL JSONB normalization constraints, and maintenance
+// scheduling. Tests control those failures through injected RPC errors. Pagination uses the last returned key as its exclusive
 // cursor, matching the public protocol, while list values are copied so a
 // caller cannot modify the stored record through a received response.
 
@@ -32,6 +33,9 @@ func (h *Host) KVGet(_ context.Context, request *pluginpb.KVGetRequest) (*plugin
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	value, found := h.get(request.Collection, request.Key)
+	if !found {
+		return &pluginpb.KVGetResponse{}, nil
+	}
 	return &pluginpb.KVGetResponse{Found: found, ValueJson: bytes.Clone(value.value), Version: value.version}, nil
 }
 
@@ -40,8 +44,8 @@ func (h *Host) KVGet(_ context.Context, request *pluginpb.KVGetRequest) (*plugin
 // require the current version. Failed conditions leave both value and expiry unchanged.
 //
 // The fixture lock spans the expiration-aware read, version test, and record
-// replacement. An expired record contributes version zero, while an active
-// record increments its stored version. JSON bytes are copied before storage
+// replacement. Expired physical records retain their version for subsequent
+// writes, matching host storage before cleanup. JSON bytes are copied before storage
 // so a plugin cannot change the fake database by mutating its request after
 // the RPC returns, preserving the behavior expected from the real transport.
 func (h *Host) KVPut(_ context.Context, request *pluginpb.KVPutRequest) (*pluginpb.KVPutResponse, error) {
@@ -57,6 +61,9 @@ func (h *Host) KVPut(_ context.Context, request *pluginpb.KVPutRequest) (*plugin
 	previous, found := h.get(request.Collection, request.Key)
 	if err := condition(request.IfVersion, previous.version, found); err != nil {
 		return nil, err
+	}
+	if previous.version == math.MaxInt64 {
+		return nil, Error(codes.InvalidArgument, "INVALID_ARGUMENT")
 	}
 	value := record{value: bytes.Clone(request.ValueJson), version: previous.version + 1, expires: expires}
 	h.records[request.Collection+"\x00"+request.Key] = value
@@ -128,9 +135,14 @@ func (h *Host) KVIncr(_ context.Context, request *pluginpb.KVIncrRequest) (*plug
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	previous, found := h.get(request.Collection, request.Key)
+	if previous.version == math.MaxInt64 {
+		return nil, Error(codes.InvalidArgument, "INVALID_ARGUMENT")
+	}
 	var value int64
 	if found {
-		if err := json.Unmarshal(previous.value, &value); err != nil {
+		var valid bool
+		value, valid = kvInteger(previous.value)
+		if !valid {
 			return nil, Error(codes.InvalidArgument, "INVALID_ARGUMENT")
 		}
 	}
@@ -142,13 +154,13 @@ func (h *Host) KVIncr(_ context.Context, request *pluginpb.KVIncrRequest) (*plug
 	return &pluginpb.KVIncrResponse{Value: value, Version: previous.version + 1}, nil
 }
 
-// get reads one unexpired record while its caller holds the fixture mutex.
-// Expired entries return an empty record, resetting the version for subsequent
-// absent-key writes. It does not expose its stored slice outside fixture code.
+// get returns physical storage and logical presence while its caller holds the fixture mutex.
+// Expired entries retain their physical record but return found=false, preserving
+// the next write's version. Callers must check presence before exposing stored bytes.
 func (h *Host) get(collection, key string) (record, bool) {
 	value, ok := h.records[collection+"\x00"+key]
 	if !ok || (!value.expires.IsZero() && !value.expires.After(time.Now())) {
-		return record{}, false
+		return value, false
 	}
 	return value, true
 }
@@ -175,4 +187,25 @@ func expiry(seconds int64) (time.Time, error) {
 		return time.Time{}, nil
 	}
 	return time.Now().Add(time.Duration(seconds) * time.Second), nil
+}
+
+// kvInteger recognizes mathematically integral JSON numbers within signed integer bounds.
+// Decimal and exponent forms remain valid when they represent an exact integer.
+// Rational parsing avoids float rounding that could admit fractions or lose large values.
+func kvInteger(raw []byte) (int64, bool) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var decoded any
+	if err := decoder.Decode(&decoded); err != nil {
+		return 0, false
+	}
+	number, ok := decoded.(json.Number)
+	if !ok {
+		return 0, false
+	}
+	rational, ok := new(big.Rat).SetString(number.String())
+	if !ok || !rational.IsInt() || !rational.Num().IsInt64() {
+		return 0, false
+	}
+	return rational.Num().Int64(), true
 }

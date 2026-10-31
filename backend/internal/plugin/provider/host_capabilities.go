@@ -34,6 +34,7 @@ import (
 
 // HostCapabilities groups the business implementations selected before host service publication.
 type HostCapabilities struct {
+	KV            *plugin.KV             // isolated persistent JSON storage capability
 	Captcha       plugin.CaptchaVerifier // current site challenge verification adapter
 	Emails        *plugin.Emails         // durable optional email delivery capability
 	Wallet        *plugin.WalletService  // ledger-backed wallet capability implementation

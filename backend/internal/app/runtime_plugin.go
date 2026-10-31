@@ -19,10 +19,17 @@ import (
 // runtime_plugin.go binds the plugin process collection to application lifecycle.
 // Construction registers ownership without launching children. Startup reconciles
 // durable installations and development records asynchronously. Shutdown stops
-// loading and drains processes before shared host services are released.
+// loading and drains processes before shared host services are released. KV
+// maintenance starts before process reconciliation and stops in the same shutdown
+// stage, so both workers finish before their shared database dependency closes.
 
 // pluginRuntimeReady marks registration of the application's plugin lifecycle owner.
 type pluginRuntimeReady struct{}
+
+// providePluginKV shares durable storage and maintenance across all process generations.
+func providePluginKV(store *postgres.Store) *plugin.KV {
+	return plugin.NewKV(store, slog.Default())
+}
 
 // providePluginProcesses constructs the shared native process collection for this host.
 func providePluginProcesses(cfg *config.Config, info BuildInfo, host *provider.HostServices) *provider.Processes {
@@ -63,7 +70,11 @@ func providePluginService(manager *plugin.Manager, packages *provider.PackageFil
 // providePluginRuntime registers asynchronous reconciliation and bounded plugin shutdown.
 // Startup restores enabled installations through the shared manager. The stop hook
 // has an eight-second budget within the application's broader shutdown context.
-func providePluginRuntime(plugins *plugin.Manager, manager *lifecycle.Manager) *pluginRuntimeReady {
+// Enabled installations also register the KV worker in the same shutdown stage.
+func providePluginRuntime(cfg *config.Config, plugins *plugin.Manager, kv *plugin.KV, manager *lifecycle.Manager) *pluginRuntimeReady {
+	if cfg.Plugins.Enabled {
+		manager.Register(lifecycle.Hook{Name: "PluginKV", StartOrder: 975, StopOrder: shutdownStagePlugins, Start: kv.Start, Stop: kv.Stop})
+	}
 	manager.Register(lifecycle.Hook{Name: "PluginRuntime", StartOrder: 976, StopOrder: shutdownStagePlugins, Start: plugins.Start, Stop: func(ctx context.Context) error {
 		budget, cancel := context.WithTimeout(ctx, 8*time.Second)
 		defer cancel()

@@ -2,6 +2,16 @@
 
 本文记录 `plugin-sdk/` 中的插件声明、安装包、索引和进程协议。SDK 使用 MIT 许可证，与宿主的 LGPL-3.0-or-later 许可证分开。声明、发布工具、进程协议和上传安装管理已接入源码，宿主钱包、直接订阅发放和只读能力已接入，其余宿主业务能力和页面代理仍在实现中。
 
+## 章节导航
+
+- [插件声明](#manifest)：字段、权限与兼容性。
+- [安装包](#packages)：内容、路径与完整性。
+- [签名索引](#catalog)：来源与分发记录。
+- [安装管理](#administration)：上传、配置与运行控制。
+- [进程协议](#process_protocol)：宿主能力与 SDK。
+- [KV 接口](#kv_api)：版本、JSON、TTL 与分页。
+- [Web SDK](#web_sdk)：构建预设与示例。
+
 <a id="manifest"></a>
 ## 插件声明
 
@@ -57,6 +67,17 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 `VerifyCaptcha` 要求 `captcha.verify`。站点未启用验证码时返回 `enabled=false, success=true`；启用状态与验证使用同一份配置。Turnstile 与阿里云保留原始 token，腾讯使用包含 `ticket`、`randstr` 的 JSON 字符串。SDK 从 `Caller` 传递原 HTTP 请求的客户端 IP。现有验证服务判为失败的挑战返回 `success=false`；配置或未分类服务错误返回 `HOST_UNAVAILABLE`。原认证入口继续执行其启动配置中的必需验证码约束。
 
 `plugintest` 提供进程内 gRPC 假宿主、余额和 KV，可注入协议错误。它不替代宿主的权限、额度、审计及 PostgreSQL 事务测试。签到示例使用 pending 记录固定奖励金额，再调用钱包幂等加款，最后 CAS 标记完成，允许恢复在 KV 认领后失败的加款。
+
+<a id="kv_api"></a>
+## KV 接口
+
+`KVGet/Put/Delete/List/Incr` 无需额外权限，只能操作当前插件数据。collection 匹配 `^[a-z0-9_.-]{1,64}$`，key 是 1 至 256 字节的可打印 UTF-8。value 必须是有效 UTF-8 JSON，输入和 JSONB 规范化后的紧凑表示均不超过 64 KiB；数据库无法表示的 NUL 转义、数值越界等返回 `INVALID_ARGUMENT`。
+
+`if_version=0` 无条件，`-1` 要求键不存在或已过期，正值要求未过期版本匹配；其他负值无效。条件不满足返回 `VERSION_CONFLICT`。删除不存在的键返回 `deleted=false`；正版本删除仍要求存在，`-1` 可用于断言不存在。每次成功写入递增物理行版本，物理删除后重建从 1 开始。
+
+`ttl_seconds=0` 永不过期，正数为相对秒数，上限与 Go `time.Duration` 的整秒范围一致；负数拒绝。自增从不存在或过期的 0 值开始，接受 `1.0`、`1e2` 等数学上为整数的 JSON 数值，拒绝小数和其他 JSON 类型。数值或版本超出 int64 时整次写入回滚。
+
+列表的 prefix 是字面前缀，不解释 `%`、`_`；cursor 是上一页最后一个 key 的排他游标，使用字节排序。limit 非正时为 100，超过 500 时取 500，只有存在下一页才返回 next_cursor。`KV_QUOTA_EXCEEDED` 拒绝超过采样额度后的新增逻辑键，统计和过期清理规则见[KV 存储与维护](../architecture/plugin_system.md#kv_storage)。
 
 <a id="web_sdk"></a>
 ## Web SDK 与示例

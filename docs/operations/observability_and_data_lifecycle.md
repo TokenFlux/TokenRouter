@@ -73,6 +73,7 @@
 - Ops system log sink 只索引选定的等级和组件，按批写入 PostgreSQL；队列满时不阻塞主请求，只增加 dropped 计数。连续写库失败后，从 2 秒开始指数退避，最长 60 秒；退避期间直接丢弃观测批次并计入 dropped，日志链路不会一直占用数据库连接，任何一次成功都会立即恢复正常写入。重复调用 Start 不会产生新的写入协程，也不会有新的退避状态；Stop 可以重复调用，停止后无法重新打开。停止等待受应用剩余的预算约束，超时时报告未完成的项，不算排空成功。
 - 运维指标采集器、小时和日聚合器、告警评估器、计划报告和清理任务，各自维护周期、开关、leader lock 和 job heartbeat。
 - Usage cleanup 任务持久化为 pending、running、succeeded、failed、canceled 几种状态，分批删除；进程中断后，长时间停在 running 的任务可以被重新抢占，继续执行。
+- 插件 KV 的单实例 worker 每 5 分钟采样额度、每 10 分钟清理过期行，失败保留旧额度快照；清理每批 1000 行、单轮最多 30 秒。配额包含保留的过期数据，详见[KV 存储与维护](../architecture/plugin_system.md#kv_storage)。
 - 审计、scheduler snapshot outbox、幂等记录和批量图片的清理，各有自己的 worker。一个 worker 健康，不代表整个后台都健康。
 
 需要全局只有一个执行者的任务，优先使用 Redis leader lock，部分服务在 Redis 不可用时，回退到 PostgreSQL advisory lock。拿不到锁时，通常跳过这一轮。管理员恢复时，先确认 heartbeat、锁的 TTL 和数据库维护状态，不要直接启动第二套清理任务。

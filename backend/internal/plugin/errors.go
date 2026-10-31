@@ -43,4 +43,6 @@ var (
 	ErrPlanNotAllowed       = apperror.BadRequest("PLAN_NOT_ALLOWED", "Subscription plan is not allowed for this plugin")
 	ErrHostUnavailable      = apperror.New(apperror.CategoryServiceUnavailable, "HOST_UNAVAILABLE", "Plugin host operation is unavailable")
 	ErrEmailDeliveryUnknown = apperror.Conflict("EMAIL_DELIVERY_UNKNOWN", "Email delivery outcome is unknown")
+	ErrVersionConflict      = apperror.Conflict("VERSION_CONFLICT", "Plugin storage version does not match")
+	ErrKVQuotaExceeded      = apperror.New(apperror.CategoryTooManyRequests, "KV_QUOTA_EXCEEDED", "Plugin storage limit exceeded")
 )
