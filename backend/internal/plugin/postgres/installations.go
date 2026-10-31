@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/manifest"
 )
@@ -35,7 +35,7 @@ previous_config, previous_secret_config, installed_at, updated_at, updated_by`
 
 // Store persists plugin records through a shared application Ent client.
 type Store struct {
-	client *dbent.Client // shared application database client
+	client *ent.Client // shared application database client
 }
 
 // rowScanner abstracts the scanned projection shared by installation queries.
@@ -58,13 +58,13 @@ type encodedSnapshot struct {
 }
 
 // New constructs a plugin store without opening a transaction or reading records.
-func New(client *dbent.Client) *Store { return &Store{client: client} }
+func New(client *ent.Client) *Store { return &Store{client: client} }
 
 // selectedClient joins an existing Ent transaction when the caller supplies one.
 // The returned client shares that transaction's connection. Without a transaction,
 // ordinary reads and writes use the store's application database client.
-func (s *Store) selectedClient(ctx context.Context) *dbent.Client {
-	if tx := dbent.TxFromContext(ctx); tx != nil {
+func (s *Store) selectedClient(ctx context.Context) *ent.Client {
+	if tx := ent.TxFromContext(ctx); tx != nil {
 		return tx.Client()
 	}
 	return s.client
@@ -170,7 +170,7 @@ updated_at=NOW(),updated_by=EXCLUDED.updated_by`
 // both records available for retry. When a transaction already exists, its caller
 // decides commit or rollback after this method returns and receives every error.
 func (s *Store) Delete(ctx context.Context, id string, purge bool) error {
-	if dbent.TxFromContext(ctx) != nil {
+	if ent.TxFromContext(ctx) != nil {
 		return s.deleteInTransaction(ctx, id, purge)
 	}
 	tx, err := s.client.Tx(ctx)
@@ -178,7 +178,7 @@ func (s *Store) Delete(ctx context.Context, id string, purge bool) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err := s.deleteInTransaction(dbent.NewTxContext(ctx, tx), id, purge); err != nil {
+	if err := s.deleteInTransaction(ent.NewTxContext(ctx, tx), id, purge); err != nil {
 		return err
 	}
 	// Commit installation removal and optional business-data purge together only after both statements succeed on the same owned connection.

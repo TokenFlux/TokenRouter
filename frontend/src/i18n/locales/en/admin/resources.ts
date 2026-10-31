@@ -351,6 +351,7 @@ export default {
       invitation: 'Invitation',
       affiliate_balance: 'Affiliate Balance Transfer',
       // Admin adjustment types (created when admin modifies user balance/concurrency)
+      plugin_balance: 'Plugin',
       admin_balance: 'Balance (Admin)',
       admin_concurrency: 'Concurrency (Admin)',
     },

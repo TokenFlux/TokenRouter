@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	pluginpb "github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
 )
 
 // runtime.go defines short-lived access to a running plugin generation.

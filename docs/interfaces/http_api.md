@@ -69,7 +69,7 @@ RequestLogger
 
 - 提供商：管理端展示值和脱敏映射在 `provider/httpapi/dto`，代理展示值在 `egress/httpapi/dto`。敏感字段、省略和空集合的处理、代理管理员字段的范围都按既定格式输出；非敏感的嵌套 map、slice 和时间指针各用独立副本，修改展示结果不会影响提供商配置。提供商备份、即时和计划测试、API Key 上游用量查询使用 `provider/httpapi`；提供商的增删改查、列表、复制和恢复、批量管理、凭据字段更新、刷新和重新授权、隐私、调度开关、额度重置和健康恢复绑定 `provider/httpapi.ManagementHandler`；模型目录、实时模型同步、tier 和详细统计也走这里。高级调度诊断绑定 `scheduler/httpapi.DiagnosticsHandler`。
 - 设置：综合设置由 `settings/httpapi` 组合各领域的端点；SMTP、预聚合和创作状态分别调用各自的处理器。备份导出需要 step-up，导入使用管理员的幂等 helper。
-- 订阅、兑换和套餐：用户端和管理端的 handler 和 DTO 在 `billing/httpapi`。URL、认证和幂等中间件的顺序、reason、CSV、分页排序都按既定格式。用户兑换历史 `GET /api/v1/redeem/history` 按 `page`、`page_size` 返回标准分页结构，按使用时间倒序，普通用户看到的数据不含 `notes`。管理员看到的套餐保持 Ent 的字段省略和 `edges` 格式，公开套餐使用单独整理过的数据。
+- 订阅、兑换和套餐：用户端和管理端的 handler 和 DTO 在 `billing/httpapi`。URL、认证和幂等中间件的顺序、reason、CSV、分页排序都按既定格式。用户兑换历史 `GET /api/v1/redeem/history` 按 `page`、`page_size` 返回标准分页结构，按使用时间倒序，用户历史对管理员调账和插件余额调整返回可见的 `notes`，其中插件记录包含插件 ID 和操作原因；其他兑换码隐藏内部备注。管理员看到的套餐保持 Ent 的字段省略和 `edges` 格式，公开套餐使用单独整理过的数据。
 - 身份、团队和 Key：用户资料、会话、七类身份、强认证和用户管理在 `identity/httpapi`，团队在 `team/httpapi`，Key 的生命周期和凭据在 `apikey/httpapi`。app 组装同一组身份处理器；微信支付 OAuth 在 `payment/httpapi` 里单独接入。HTTP 适配层保持历史的 DTO 格式和凭据差异，安全的 `Principal` 表示身份，Key 的 `AccessSnapshot` 表示付款和成员上下文。
 
 `GET /api/v1/admin/usage/stats` 的可选参数 `endpoint_source` 接受 `inbound`、`upstream`、`path`，选择附带的端点统计；省略、空值或 `all` 返回全部端点维度，其他值返回 400。摘要字段照常返回，缓存按端点来源分别保存。管理页面先加载摘要和入站端点，切换图表后才读取上游端点或路径；筛选变化和页面退出会取消过期的端点请求。

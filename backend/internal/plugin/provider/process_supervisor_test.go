@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
-	pluginpb "github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
 )
 
 // TestProcessesDrainAndRejectNewLeases holds an admitted generation during stop.

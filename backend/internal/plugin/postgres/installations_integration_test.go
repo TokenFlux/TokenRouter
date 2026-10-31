@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 	"github.com/TokenFlux/TokenRouter/migrations"
 )
@@ -33,7 +33,7 @@ func TestInstallationSnapshotsAndTransactionOwnership(t *testing.T) {
 	require.False(t, read.InstalledAt.IsZero())
 	tx, err := client.Tx(t.Context())
 	require.NoError(t, err)
-	txContext := dbent.NewTxContext(t.Context(), tx)
+	txContext := ent.NewTxContext(t.Context(), tx)
 	read.Enabled = false
 	require.NoError(t, store.Save(txContext, read))
 	require.NoError(t, tx.Rollback())

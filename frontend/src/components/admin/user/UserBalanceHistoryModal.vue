@@ -146,6 +146,12 @@
               <p v-if="isAdminType(item.type)" class="text-xs text-gray-400 dark:text-dark-500">
                 {{ t('redeem.adminAdjustment') }}
               </p>
+              <p
+                v-else-if="item.type === 'plugin_balance'"
+                class="text-xs text-gray-400 dark:text-dark-500"
+              >
+                {{ t('redeem.pluginAdjustment') }}
+              </p>
               <!-- Show eight code characters to keep history rows compact. -->
               <p v-else class="font-mono text-xs text-gray-400 dark:text-dark-500">
                 {{ item.code.slice(0, 8) }}...
@@ -199,9 +205,9 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 // and withdrawal events let the parent open the appropriate balance editor.
 //
 // History type and value sign jointly determine the monetary or concurrency colors and
-// the administrator action label. Subscription entries use their own badge and duration
-// representation. The monetary display formats an absolute magnitude with a plus prefix
-// for nonnegative values, while negative values currently receive no minus prefix. The
+// the source-specific action label. Subscription entries use their own badge and duration
+// representation. Monetary values retain an explicit plus or minus prefix before the
+// formatted magnitude, including plugin credits and debits. The
 // displayed recharge total comes from the history response rather than a sum of the
 // visible page, and a parent-supplied refresh key reloads the first page after an edit
 // made above the dialog.
@@ -270,6 +276,10 @@ const typeOptions = computed(() => [
   {
     value: 'admin_balance', // Stored option value.
     label: t('admin.users.typeAdminBalance'), // Displayed option label.
+  },
+  {
+    value: 'plugin_balance', // Stored option value.
+    label: t('admin.users.typePluginBalance'), // Displayed option label.
   },
   {
     value: 'concurrency', // Stored option value.
@@ -362,9 +372,12 @@ const loadHistory = async (page: number) => {
 const isAdminType = (type: string) => type === 'admin_balance' || type === 'admin_concurrency'
 
 // isBalanceType identifies monetary history entries including affiliate transfers and
-// administrator adjustments.
+// administrator or plugin adjustments.
 const isBalanceType = (type: string) =>
-  type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance'
+  type === 'balance' ||
+  type === 'admin_balance' ||
+  type === 'plugin_balance' ||
+  type === 'affiliate_balance'
 
 // isSubscriptionType identifies subscription assignment entries for their plan-duration
 // display.
@@ -430,15 +443,17 @@ const getValueColor = (item: BalanceHistoryItem) => {
 }
 
 // getItemTitle resolves a translated action label from history type and the sign of
-// administrator adjustments. Redeemed balance, affiliate balance, concurrency, and
-// subscription records each have a fixed source label. Administrator balance and
-// concurrency records choose increase or decrease labels from their signed values.
+// administrator or plugin adjustments. Redeemed balance, affiliate balance, concurrency, and
+// subscription records each have a fixed source label. Administrator and plugin
+// adjustment records choose increase or decrease labels from their signed values.
 // Unknown types use the common unknown label so an unfamiliar server record still
 // receives a heading in the history list.
 const getItemTitle = (item: BalanceHistoryItem) => {
   switch (item.type) {
     case 'balance':
       return t('redeem.balanceAddedRedeem')
+    case 'plugin_balance':
+      return item.value >= 0 ? t('redeem.balanceAddedPlugin') : t('redeem.balanceDeductedPlugin')
     case 'admin_balance':
       return item.value >= 0 ? t('redeem.balanceAddedAdmin') : t('redeem.balanceDeductedAdmin')
     case 'affiliate_balance':
@@ -456,12 +471,13 @@ const getItemTitle = (item: BalanceHistoryItem) => {
   }
 }
 
-// formatValue renders balance magnitudes, subscription days, or signed concurrency
+// formatValue renders signed balance amounts, subscription days, or signed concurrency
 // values according to the entry type. Subscription duration uses validity_days when
-// truthy and otherwise rounds value; the balance path formats the absolute magnitude.
+// truthy and otherwise rounds value; the balance path prefixes its formatted magnitude
+// with the original adjustment direction.
 const formatValue = (item: BalanceHistoryItem) => {
   if (isBalanceType(item.type)) {
-    const sign = item.value >= 0 ? '+' : ''
+    const sign = item.value >= 0 ? '+' : '-'
     return `${sign}${formatBalanceAmount(Math.abs(item.value))}`
   }
   if (isSubscriptionType(item.type)) {

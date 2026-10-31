@@ -11,7 +11,7 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/stretchr/testify/require"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/manifest"
 )
@@ -19,10 +19,10 @@ import (
 // persistenceFixture creates an isolated migrated database and its shared Ent-backed store.
 // Cleanup closes the application connection before the suite drops this database;
 // no user database or deployment credentials participate in these persistence checks.
-func persistenceFixture(t *testing.T) (*Store, *dbent.Client, *sql.DB) {
+func persistenceFixture(t *testing.T) (*Store, *ent.Client, *sql.DB) {
 	t.Helper()
 	db := pluginDatabaseSuite.New(t)
-	client := dbent.NewClient(dbent.Driver(entsql.OpenDB(dialect.Postgres, db)))
+	client := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, db)))
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	return New(client), client, db
 }

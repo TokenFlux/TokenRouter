@@ -141,7 +141,7 @@
                   <template v-if="getHistoryItemMeta(item)">
                     <span v-if="item.used_at" aria-hidden="true">·</span>
                     <span
-                      :class="['truncate', isAdminAdjustment(item.type) ? '' : 'font-mono']"
+                      :class="['truncate', isAdjustment(item.type) ? '' : 'font-mono']"
                       :title="getHistoryItemMeta(item)"
                     >
                       {{ getHistoryItemMeta(item) }}
@@ -299,7 +299,12 @@ const redeemErrorMap = computed<Record<string, string>>(() => ({
 
 // isBalanceType identifies history entries expressed in the configured balance unit.
 const isBalanceType = (type: string) => {
-  return type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance'
+  return (
+    type === 'balance' ||
+    type === 'admin_balance' ||
+    type === 'plugin_balance' ||
+    type === 'affiliate_balance'
+  )
 }
 
 // isSubscriptionType identifies history entries that represent a granted subscription.
@@ -307,10 +312,10 @@ const isSubscriptionType = (type: string) => {
   return type === 'subscription'
 }
 
-// isAdminAdjustment identifies balance or concurrency entries whose metadata comes from
-// administrator notes.
-const isAdminAdjustment = (type: string) => {
-  return type === 'admin_balance' || type === 'admin_concurrency'
+// isAdjustment identifies administrator and plugin entries whose metadata contains a
+// user-visible adjustment reason instead of a redeemable credential.
+const isAdjustment = (type: string) => {
+  return type === 'admin_balance' || type === 'admin_concurrency' || type === 'plugin_balance'
 }
 
 // getHistoryTone selects entry colors using benefit type and adjustment direction. Balance,
@@ -338,10 +343,12 @@ const getHistoryTone = (item: RedeemHistoryItem) => {
 
 // getHistoryItemTitle returns the localized history action for its benefit type and
 // direction. Unrecognized types use the shared unknown label, while administrator
-// adjustments distinguish additions from deductions.
+// and plugin adjustments distinguish additions from deductions.
 const getHistoryItemTitle = (item: RedeemHistoryItem) => {
   if (item.type === 'balance') {
     return t('redeem.balanceAddedRedeem')
+  } else if (item.type === 'plugin_balance') {
+    return item.value >= 0 ? t('redeem.balanceAddedPlugin') : t('redeem.balanceDeductedPlugin')
   } else if (item.type === 'admin_balance') {
     return item.value >= 0 ? t('redeem.balanceAddedAdmin') : t('redeem.balanceDeductedAdmin')
   } else if (item.type === 'concurrency') {
@@ -356,11 +363,11 @@ const getHistoryItemTitle = (item: RedeemHistoryItem) => {
   return t('common.unknown')
 }
 
-// getHistoryItemMeta returns administrator notes for manual adjustments and the redemption
-// code otherwise. Missing administrator notes produce empty metadata, allowing the history
-// row to omit an unavailable explanation.
+// getHistoryItemMeta returns visible notes for administrator and plugin adjustments.
+// Plugin notes include the plugin ID and operation reason. Other entries show their
+// redemption code, and missing adjustment notes leave the metadata empty.
 const getHistoryItemMeta = (item: RedeemHistoryItem) => {
-  if (isAdminAdjustment(item.type)) {
+  if (isAdjustment(item.type)) {
     return item.notes || ''
   }
   return item.code

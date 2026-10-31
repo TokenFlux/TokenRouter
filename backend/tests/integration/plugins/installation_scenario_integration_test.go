@@ -24,14 +24,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/infra/crypto"
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 	"github.com/TokenFlux/TokenRouter/internal/plugin/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/plugin/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/plugin/provider"
-	pluginpb "github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
 )
 
 // installation_scenario_integration_test.go covers service.go, manager.go,
@@ -44,7 +44,7 @@ import (
 func TestInstalledPluginHTTPPersistenceAndRecovery(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := databaseSuite.New(t)
-	client := dbent.NewClient(dbent.Driver(entsql.OpenDB(dialect.Postgres, db)))
+	client := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, db)))
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	store := postgres.New(client)
 	cipher, err := crypto.NewAESEncryptor(bytes.Repeat([]byte{7}, 32))

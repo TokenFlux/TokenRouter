@@ -116,7 +116,7 @@
             <span
               :class="[
                 'badge',
-                value === 'balance' || value === 'affiliate_balance'
+                value === 'balance' || value === 'affiliate_balance' || value === 'plugin_balance'
                   ? 'badge-success'
                   : value === 'subscription'
                     ? 'badge-warning'
@@ -129,7 +129,13 @@
 
           <template #cell-value="{ value, row }">
             <span class="text-sm font-medium text-gray-900 dark:text-white">
-              <template v-if="row.type === 'balance' || row.type === 'affiliate_balance'">
+              <template
+                v-if="
+                  row.type === 'balance' ||
+                  row.type === 'affiliate_balance' ||
+                  row.type === 'plugin_balance'
+                "
+              >
                 {{ formatBalanceAmount(value, { fractionDigits: 2 }) }}
               </template>
               <template v-else-if="row.type === 'subscription'">
@@ -798,10 +804,17 @@ const typeOptions = computed(() => [
   { value: 'invitation', label: t('admin.redeem.invitation') },
 ])
 
+// filterTypeOptions includes generated credentials and persisted adjustment sources for
+// list filtering. Plugin balance records are history entries and are excluded from
+// the separate generation choices above.
 const filterTypeOptions = computed(() => [
   { value: '', label: t('admin.redeem.allTypes') },
   { value: 'balance', label: t('admin.redeem.balance') },
   { value: 'affiliate_balance', label: t('admin.redeem.types.affiliate_balance') },
+  {
+    value: 'plugin_balance', // Persisted plugin adjustment type.
+    label: t('admin.redeem.types.plugin_balance'), // Localized source filter label.
+  },
   { value: 'concurrency', label: t('admin.redeem.concurrency') },
   { value: 'subscription', label: t('admin.redeem.subscription') },
   { value: 'invitation', label: t('admin.redeem.invitation') },

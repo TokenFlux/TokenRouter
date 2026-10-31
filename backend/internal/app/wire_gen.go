@@ -12,7 +12,7 @@ import (
 	postgres7 "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/apikey/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-	postgres12 "github.com/TokenFlux/TokenRouter/internal/batchimage/postgres"
+	postgres13 "github.com/TokenFlux/TokenRouter/internal/batchimage/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	postgres3 "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	rediscache2 "github.com/TokenFlux/TokenRouter/internal/billing/rediscache"
@@ -38,6 +38,7 @@ import (
 	rediscache10 "github.com/TokenFlux/TokenRouter/internal/ops/rediscache"
 	postgres4 "github.com/TokenFlux/TokenRouter/internal/payment/postgres"
 	httpapi11 "github.com/TokenFlux/TokenRouter/internal/plugin/httpapi"
+	postgres12 "github.com/TokenFlux/TokenRouter/internal/plugin/postgres"
 	provider3 "github.com/TokenFlux/TokenRouter/internal/provider"
 	httpapi6 "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
 	postgres11 "github.com/TokenFlux/TokenRouter/internal/provider/postgres"
@@ -447,12 +448,22 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	adminHandler := httpapi3.NewAdminHandler(teamService)
 	adminUserHandler := provideIdentityAdminHTTP(userAdmin, apikeyAdmin, concurrencyService, totpService, userService, runtimeSettings)
 	opsHandler := httpapi10.NewOpsHandler(opsService)
+	store2 := postgres12.New(client)
+	configuration := providePluginConfiguration(cfg, secretEncryptor)
+	devSource := providePluginSource(cfg, store2, configuration)
 	packageFiles, err := providePluginPackages(cfg)
 	if err != nil {
 		return nil, err
 	}
-	processes := providePluginProcesses(cfg, info)
-	pluginManager := providePluginManager(cfg, info, client, secretEncryptor, packageFiles, processes)
+	writes := providePluginWrites(store2, devSource)
+	grants, err := providePluginGrants(cfg)
+	if err != nil {
+		return nil, err
+	}
+	walletService := providePluginWallet(writes, grants, balanceAdjuster, redeemAdmin, apiKeyAuthCacheInvalidator, eligibility)
+	hostServices := providePluginHostServices(walletService, grants, auditLogService)
+	processes := providePluginProcesses(cfg, info, hostServices)
+	pluginManager := providePluginManager(cfg, info, devSource, configuration, packageFiles, processes)
 	pluginService := providePluginService(pluginManager, packageFiles)
 	handler2 := httpapi11.NewHandler(pluginService, pluginManager, processes)
 	handler3 := provideSearchHTTP(searchConfigService)
@@ -516,7 +527,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	searchHandler := ProvideGatewaySearchHTTP(grokSearchExecutor, compatible, fundingAdmission, concurrencyService, apiKeyService, contentModerationService, usageRecordWorkerPool, cfg, emulator, appGatewayRequestActivity, gatewayCompletionRecorders)
 	publicUsageHandler := providePublicUsage(usageService, apiKeyService, userService, store, calendar)
 	qoderChatHandler := provideQoderChat(routePlanner, providerQoderRuntime, qoderRequestRefresh, concurrencyService, fundingAdmission, apiKeyService, errorPassthroughService, usageRecordWorkerPool, gatewayCompletionRecorders, appQoderRequestActivity, appGatewayRequestActivity, generic)
-	batchImageRepository := postgres12.NewBatchImageRepository(db)
+	batchImageRepository := postgres13.NewBatchImageRepository(db)
 	batchImageQueue := provideBatchQueue(redisClient, cfg)
 	pricing := provideBatchPricing(priceResolver, groupRepository, pricingConfigService)
 	batchimageRegistry := provideBatchRegistry(cfg)

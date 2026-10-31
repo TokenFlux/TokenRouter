@@ -340,3 +340,33 @@ describe('付款领取条件', () => {
     expect(mocks.refreshUser).not.toHaveBeenCalled()
   })
 })
+
+// Plugin adjustments use the balance display and retain their source ID in visible notes.
+// The history must not show the internal receipt code as though users could redeem it.
+describe('Plugin balance history', () => {
+  // Both supported locales identify credits and debits as plugin activity. The
+  // source and reason stay visible while the generated adjustment receipt stays hidden.
+  it.each([
+    ['en', -1.25, 'Balance Deducted (Plugin)'],
+    ['zh', 1.25, '余额增加（插件）'],
+  ])('shows plugin source and signed balance in %s', async (locale, value, title) => {
+    mocks.getHistory.mockResolvedValue({
+      items: [
+        {
+          id: 91, // Adjustment record identifier.
+          type: 'plugin_balance', // Plugin funding adjustment type.
+          value, // Signed balance adjustment amount.
+          code: 'INTERNAL-RECEIPT', // Already-used adjustment receipt code.
+          notes: '[test.reward] Feature purchase', // Visible plugin source and reason.
+          used_at: '2026-10-31T10:00:00Z', // Recorded adjustment use timestamp.
+        },
+      ],
+      total: 1, // Matching history record count.
+    })
+    await mountView(locale)
+    expect(wrapper!.text()).toContain(title)
+    expect(wrapper!.text()).toContain('[test.reward] Feature purchase')
+    expect(wrapper!.text()).toContain('1.25')
+    expect(wrapper!.text()).not.toContain('INTERNAL-RECEIPT')
+  })
+})

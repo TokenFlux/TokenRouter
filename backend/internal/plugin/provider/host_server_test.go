@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/manifest"
-	pluginpb "github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
 )
 
 // TestHostGateCoversEveryProtocolMethod checks all generated Host RPC descriptors.

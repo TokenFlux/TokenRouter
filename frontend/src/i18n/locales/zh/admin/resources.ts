@@ -269,6 +269,7 @@ export default {
       invitation: '邀请码',
       affiliate_balance: '邀请返利转余额',
       // Records created by balance or concurrency adjustments in user administration
+      plugin_balance: '插件',
       admin_balance: '余额（管理员）',
       admin_concurrency: '并发数（管理员）',
     },

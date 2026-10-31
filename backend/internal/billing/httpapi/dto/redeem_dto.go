@@ -9,7 +9,7 @@ import (
 // redeem_dto.go defines redemption responses and decodes presence-aware expiry
 // updates.
 // Redeem responses expose entitlement amounts and the most recent successful
-// use, with ordinary users receiving notes for administrator adjustments.
+// use, with ordinary users receiving reasons for administrator and plugin adjustments.
 // Administrator responses add the full internal notes field. Batch expiry
 // updates also need to distinguish an omitted value from clearing an expiry
 // with JSON null.
@@ -20,8 +20,7 @@ import (
 // presence change. The handler decodes a fresh request and checks Set when
 // building the domain update, so omitted fields leave saved expiry in place.
 
-// RedeemCode is the user response for a redemption or administrator adjustment
-// record.
+// RedeemCode is the user response for a redemption or account adjustment record.
 type RedeemCode struct {
 	// RequiresPayment records whether redemption needs qualifying paid-order
 	// history. The service checks that condition inside the redemption
@@ -54,9 +53,9 @@ type RedeemCode struct {
 	PlanID *int64 `json:"plan_id"` // subscription grant plan identifier
 
 	// Notes references the service record's reason for nonempty administrator
-	// balance or concurrency adjustments. Callers keep this shared string
+	// balance/concurrency adjustments and plugin balance adjustments. Callers keep this shared string
 	// unchanged; other types omit internal notes from the user response.
-	Notes *string `json:"notes,omitempty"` // visible administrator adjustment reason
+	Notes *string `json:"notes,omitempty"` // visible account adjustment reason
 
 	User *UserSummaryResponse `json:"user,omitempty"` // hydrated latest recipient details
 }

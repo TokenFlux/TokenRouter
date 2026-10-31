@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
-	pluginpb "github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
 )
 
 // grpc_plugin.go connects go-plugin's single protocol registration to the

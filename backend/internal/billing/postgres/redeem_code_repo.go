@@ -772,7 +772,7 @@ func (r *RedeemStore) SumPositiveBalanceByUser(ctx context.Context, userID int64
 			redeemcodeusage.UserIDEQ(userID),
 			redeemcodeusage.HasRedeemCodeWith(
 				redeemcode.ValueGT(0),
-				redeemcode.TypeIn(billing.RedeemTypeBalance, billing.AdjustmentTypeAdminBalance),
+				redeemcode.TypeIn(billing.RedeemTypeBalance, billing.AdjustmentTypeAdminBalance, billing.AdjustmentTypePluginBalance),
 			),
 		).
 		QueryRedeemCode().

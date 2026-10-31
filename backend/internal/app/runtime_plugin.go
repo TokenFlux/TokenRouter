@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
@@ -26,8 +25,8 @@ import (
 type pluginRuntimeReady struct{}
 
 // providePluginProcesses constructs the shared native process collection for this host.
-func providePluginProcesses(cfg *config.Config, info BuildInfo) *provider.Processes {
-	return provider.NewProcesses(plugin.RuntimeOptions{HostVersion: info.Version, InstanceID: uuid.NewString(), Timezone: cfg.Timezone, HTTPProxy: cfg.Plugins.PluginHTTPProxy}, slog.Default(), nil)
+func providePluginProcesses(cfg *config.Config, info BuildInfo, host *provider.HostServices) *provider.Processes {
+	return provider.NewProcesses(plugin.RuntimeOptions{HostVersion: info.Version, InstanceID: uuid.NewString(), Timezone: cfg.Timezone, HTTPProxy: cfg.Plugins.PluginHTTPProxy}, slog.Default(), host.Bind)
 }
 
 // providePluginPackages constructs verified package storage before accepting administrative uploads.
@@ -35,17 +34,24 @@ func providePluginPackages(cfg *config.Config) (*provider.PackageFiles, error) {
 	return provider.NewPackageFiles(cfg.Plugins.Dir, provider.DownloadOptions{URLPrefix: cfg.Plugins.DownloadURLPrefix, ProxyURL: cfg.Plugins.DownloadProxy})
 }
 
-// providePluginManager assembles durable records, development overlays, and encrypted configuration.
-// The shared cipher requires its configured persistent key before storing secrets.
-// Construction leaves process startup to the registered application lifecycle hook.
-func providePluginManager(cfg *config.Config, info BuildInfo, client *dbent.Client, cipher identity.SecretEncryptor, packages *provider.PackageFiles, processes *provider.Processes) *plugin.Manager {
-	configuration := plugin.NewConfiguration(cipher, cfg.Totp.EncryptionKeyConfigured)
-	source := plugin.NewDevSource(plugin.DevOptions{Enabled: cfg.Plugins.Enabled, DevMode: cfg.Plugins.DevMode, Directories: cfg.Plugins.DevDirs}, provider.DirectoryReader{}, postgres.New(client), configuration, slog.Default())
+// providePluginConfiguration reuses the shared identity cipher and persistent-key requirement.
+func providePluginConfiguration(cfg *config.Config, cipher identity.SecretEncryptor) *plugin.Configuration {
+	return plugin.NewConfiguration(cipher, cfg.Totp.EncryptionKeyConfigured)
+}
+
+// providePluginSource overlays development records on the shared durable installation store.
+// Capability policy reads and the manager use this same source instance. Loading
+// remains deferred until lifecycle startup establishes development identity ownership.
+func providePluginSource(cfg *config.Config, store *postgres.Store, configuration *plugin.Configuration) *plugin.DevSource {
+	return plugin.NewDevSource(plugin.DevOptions{Enabled: cfg.Plugins.Enabled, DevMode: cfg.Plugins.DevMode, Directories: cfg.Plugins.DevDirs}, provider.DirectoryReader{}, store, configuration, slog.Default())
+}
+
+// providePluginManager assembles verified storage, installation policy, and process ownership.
+// The source is shared with host capabilities to avoid a manager/process dependency
+// cycle. Construction leaves reconciliation to the registered application lifecycle hook.
+func providePluginManager(cfg *config.Config, info BuildInfo, source *plugin.DevSource, configuration *plugin.Configuration, packages *provider.PackageFiles, processes *provider.Processes) *plugin.Manager {
 	return plugin.NewManager(plugin.ManagerOptions{
-		Enabled:     cfg.Plugins.Enabled,
-		MaxRunning:  cfg.Plugins.MaxRunning,
-		HostVersion: info.Version,
-		StateRoot:   filepath.Join(cfg.Plugins.Dir, "state"),
+		Enabled: cfg.Plugins.Enabled, MaxRunning: cfg.Plugins.MaxRunning, HostVersion: info.Version, StateRoot: filepath.Join(cfg.Plugins.Dir, "state"),
 	}, source, packages, processes, configuration, slog.Default())
 }
 

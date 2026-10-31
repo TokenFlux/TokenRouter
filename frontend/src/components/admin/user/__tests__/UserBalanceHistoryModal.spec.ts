@@ -275,3 +275,22 @@ describe('UserBalanceHistoryModal', () => {
     expect(wrapper.text()).not.toContain('stale-entry')
   })
 })
+
+// Plugin debits share monetary formatting and expose their source through notes.
+// The administrator dialog labels the adjustment without presenting its internal receipt code.
+it('renders plugin debit history with its source and monetary value', async () => {
+  const page = createHistoryPage(1, 7.5, '[test.reward] Feature purchase')
+  page.items[0]!.type = 'plugin_balance'
+  page.items[0]!.value = -1.25
+  apiMocks.getUserBalanceHistory.mockResolvedValue(page)
+  const wrapper = mountDialog()
+  await wrapper.setProps({ show: true })
+  await flushPromises()
+  expect(wrapper.text()).toContain('redeem.balanceDeductedPlugin')
+  expect(wrapper.text()).toContain('redeem.pluginAdjustment')
+  expect(wrapper.text()).toContain('[test.reward] Feature purchase')
+  expect(wrapper.text()).toContain('-$1.25')
+  expect(wrapper.text()).not.toContain('code-1')
+  expect(wrapper.find('balance-icon-stub').exists()).toBe(true)
+  wrapper.unmount()
+})

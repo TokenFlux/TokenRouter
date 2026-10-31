@@ -7,6 +7,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 	"github.com/TokenFlux/TokenRouter/internal/plugin/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/plugin/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/plugin/provider"
 )
 
@@ -16,4 +17,8 @@ import (
 // registration keeps shutdown ordered before dependencies used by admitted callbacks.
 
 // pluginAssemblyProviders binds plugin process construction and lifecycle registration into the application dependency graph without starting either during construction.
-var pluginAssemblyProviders = wire.NewSet(providePluginProcesses, providePluginPackages, providePluginManager, providePluginService, httpapi.NewHandler, wire.Bind(new(plugin.LogReader), new(*provider.Processes)), providePluginRuntime)
+var pluginAssemblyProviders = wire.NewSet(
+	postgres.New, providePluginConfiguration, providePluginSource, providePluginGrants, providePluginWrites, providePluginWallet, providePluginHostServices,
+	providePluginProcesses, providePluginPackages, providePluginManager, providePluginService, httpapi.NewHandler,
+	wire.Bind(new(plugin.LogReader), new(*provider.Processes)), providePluginRuntime,
+)

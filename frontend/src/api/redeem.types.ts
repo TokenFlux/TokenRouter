@@ -10,6 +10,7 @@ import type { SubscriptionPlan } from '@/api/payment.types'
 export type RedeemCodeType =
   | 'balance'
   | 'admin_balance'
+  | 'plugin_balance'
   | 'concurrency'
   | 'admin_concurrency'
   | 'subscription'
@@ -34,7 +35,7 @@ export interface RedeemCode {
   created_at: string // Record creation timestamp.
   updated_at?: string // Record update timestamp.
   plan_id?: number | null // Subscription plan identifier.
-  notes?: string | null // Administrator record notes.
+  notes?: string | null // Visible adjustment reason.
   user?: User // Expanded account details.
   plan?: SubscriptionPlan // Granted subscription plan details.
 }

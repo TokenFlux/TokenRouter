@@ -32,4 +32,12 @@ var (
 	ErrIndexSignatureInvalid  = apperror.BadRequest("PLUGIN_INDEX_SIGNATURE_INVALID", "Plugin index signature is invalid")
 	ErrConfigInvalid          = apperror.BadRequest("PLUGIN_CONFIG_INVALID", "Plugin configuration is invalid")
 	ErrPackageMissing         = apperror.NotFound("PLUGIN_PACKAGE_MISSING", "Plugin package is missing; upload the same version again")
+
+	// Host capability errors expose protocol reasons while keeping database failures and submitted authorization tickets outside caller-visible diagnostics.
+	ErrInvalidArgument      = apperror.BadRequest("INVALID_ARGUMENT", "Invalid plugin capability arguments")
+	ErrGrantInvalid         = apperror.Forbidden("GRANT_INVALID", "Plugin caller grant is invalid or expired")
+	ErrPermissionNotGranted = apperror.Forbidden("PERMISSION_NOT_GRANTED", "Plugin permission is not granted")
+	ErrLimitExceeded        = apperror.New(apperror.CategoryTooManyRequests, "LIMIT_EXCEEDED", "Plugin capability limit exceeded")
+	ErrInsufficientBalance  = apperror.BadRequest("INSUFFICIENT_BALANCE", "User balance is insufficient")
+	ErrHostUserNotFound     = apperror.NotFound("USER_NOT_FOUND", "User not found")
 )

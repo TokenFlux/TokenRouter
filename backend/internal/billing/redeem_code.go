@@ -30,9 +30,10 @@ const (
 	RedeemTypeSubscription = "subscription" // subscription entitlement credential
 	RedeemTypeInvitation   = "invitation"   // registration invitation credential
 
-	// Adjustment type labels identify administrator balance or concurrency
+	// Adjustment type labels identify plugin balance and administrator balance or concurrency
 	// changes in the history records, allowing user responses to expose their
 	// recorded reasons.
+	AdjustmentTypePluginBalance    = "plugin_balance"    // Plugin balance adjustment.
 	AdjustmentTypeAdminBalance     = "admin_balance"     // Administrator balance adjustment.
 	AdjustmentTypeAdminConcurrency = "admin_concurrency" // Administrator concurrency adjustment.
 

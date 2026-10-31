@@ -13,7 +13,7 @@ import (
 
 // RedeemCodeFromService maps a redemption record for user consumption and
 // returns nil for nil input. Notes are included for nonempty administrator
-// balance/concurrency adjustments. Date and ID pointers and the visible Notes
+// balance/concurrency and plugin balance adjustments. Date and ID pointers and the visible Notes
 // pointer remain shared with the service record for read-only response use.
 func RedeemCodeFromService(rc *billing.RedeemCode) *RedeemCode {
 	if rc == nil {
@@ -39,7 +39,7 @@ func RedeemCodeFromServiceAdmin(rc *billing.RedeemCode) *AdminRedeemCode {
 
 // RedeemCodeFromServiceBase builds the common response from a non-nil service
 // record. It maps hydrated user data and retains optional date and ID pointers.
-// Nonempty administrator balance/concurrency reasons use a pointer to rc.Notes;
+// Nonempty administrator and plugin adjustment reasons use a pointer to rc.Notes;
 // callers keep those shared fields unchanged while consuming the response.
 func RedeemCodeFromServiceBase(rc *billing.RedeemCode) RedeemCode {
 	out := RedeemCode{
@@ -59,10 +59,10 @@ func RedeemCodeFromServiceBase(rc *billing.RedeemCode) RedeemCode {
 		User:            UserSummaryFromBilling(rc.User),
 	}
 
-	// Administrator adjustment reasons refer to the record's Notes field so the
+	// Administrator and plugin adjustment reasons refer to the Notes field so the
 	// user response displays that stored reason. Other types leave user notes
 	// absent while the administrator wrapper adds its own string value.
-	if (rc.Type == "admin_balance" || rc.Type == "admin_concurrency") && rc.Notes != "" {
+	if (rc.Type == billing.AdjustmentTypeAdminBalance || rc.Type == billing.AdjustmentTypeAdminConcurrency || rc.Type == billing.AdjustmentTypePluginBalance) && rc.Notes != "" {
 		out.Notes = &rc.Notes
 	}
 

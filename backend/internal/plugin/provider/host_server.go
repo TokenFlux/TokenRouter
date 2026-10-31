@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
-	pluginpb "github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
 )
 
 // host_server.go installs permission and rate checks around the authenticated
@@ -39,7 +39,12 @@ func newHostGate(permissions []string) *hostGate {
 // A missing business implementation returns Unimplemented after permission and
 // rate checks, allowing isolated runtime tests before host capability assembly.
 func (g *hostGate) server(options []grpc.ServerOption, implementation pluginpb.HostServer, calls *hostCalls) *grpc.Server {
-	options = append(options, grpc.MaxRecvMsgSize(16<<20), grpc.MaxSendMsgSize(16<<20), grpc.ChainUnaryInterceptor(calls.intercept, g.intercept))
+	interceptors := []grpc.UnaryServerInterceptor{calls.intercept, g.intercept}
+	if observed, ok := implementation.(*hostService); ok {
+		// Observation wraps admission so permission, rate, and draining rejections receive the same bounded audit record as executed write calls.
+		interceptors = append([]grpc.UnaryServerInterceptor{observed.observeWrite}, interceptors...)
+	}
+	options = append(options, grpc.MaxRecvMsgSize(16<<20), grpc.MaxSendMsgSize(16<<20), grpc.ChainUnaryInterceptor(interceptors...))
 	server := grpc.NewServer(options...)
 	if implementation == nil {
 		implementation = &pluginpb.UnimplementedHostServer{}
