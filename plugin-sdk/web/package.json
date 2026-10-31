@@ -1,0 +1,47 @@
+{
+  "name": "@tokenrouter/plugin-sdk",
+  "version": "0.1.0",
+  "description": "TokenRouter plugin frontend contracts and build preset",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@12.9.1",
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
+    },
+    "./dev": {
+      "types": "./dist/dev/index.d.ts",
+      "import": "./dist/dev/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node --test tests/*.test.mjs"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.42",
+    "vite": "^8.3.2"
+  },
+  "dependencies": {
+    "postcss": "8.5.29",
+    "postcss-selector-parser": "7.1.0",
+    "postcss-value-parser": "4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "typescript": "6.0.3",
+    "vite": "8.3.2",
+    "vue": "3.5.42"
+  }
+}

@@ -3,3 +3,7 @@ node_modules/
 release/
 coverage/
 *.test
+
+# SDK frontend regression tests are source files despite the repository's local tests-directory ignore.
+!web/tests/
+!web/tests/**

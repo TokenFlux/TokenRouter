@@ -1,0 +1,45 @@
+/* style.css lays out the example using host theme variables and spacing.
+   The SDK build adds a plugin-root prefix to every selector, so these page
+   rules do not change the host sidebar, account header, or other plugins. */
+.checkin-page {
+  display: grid;
+  gap: 16px;
+  color: var(--tr-color-text);
+}
+.checkin-heading h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.checkin-heading p {
+  margin: 8px 0 0;
+  color: var(--tr-color-text-muted);
+}
+.checkin-reward {
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+}
+.checkin-reward p {
+  margin: 0;
+}
+.checkin-label {
+  color: var(--tr-color-text-muted);
+}
+.checkin-amount {
+  font-size: 32px;
+  line-height: 1.25;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.checkin-completed {
+  display: grid;
+  gap: 8px;
+}
+.checkin-completed p {
+  color: var(--tr-color-text-muted);
+}
+.checkin-error {
+  color: var(--tr-color-danger);
+}
