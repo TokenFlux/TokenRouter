@@ -53,6 +53,8 @@
 
 `/:id/config` 的 GET 和 PUT 使用 `{values: {...}}`。普通字段按提交内容替换并补默认值；secret 省略保留、空字符串清除，返回值为 `{set: boolean}`。`/:id/limits` 接受 wallet、redeem、subscription、email 分组，未给出的字段使用默认值，显式 0 禁止对应操作，null 和未知字段被拒绝。金额额度采用精确十进制 JSON 数字；浏览器可能输出的指数形式会先无损归一化，仍限制为最多七位整数和八位小数。能力 RPC 的金额字符串继续要求普通十进制形式。
 
+管理表单保留数值输入原文，提交前检查整数安全范围与金额的实际小数位，避免 JavaScript 舍入把无效输入变成可接受的值。文本长度按 Unicode 字符计数；RE2 pattern 只由服务器执行，字段失败通过 metadata.fields 中的结构化问题定位。停用安装可保存未填完整的必填项，启用前仍需通过完整验证。配置与额度是两个独立保存动作，界面明确报告部分成功，并在重试时跳过已经完成且未再修改的配置。
+
 <a id="http_contributions"></a>
 ## HTTP 贡献与公开资源
 
@@ -104,7 +106,7 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 
 `plugin-sdk/web` 提供 `@tokenrouter/plugin-sdk` 类型与 Vite 预设。正式构建把 Vue 和 SDK 分别外置为 `__TR_VUE__`、`__TR_PLUGIN_SDK__`，输出单个 IIFE `index.js` 和导入样式对应的 `index.css`。动态页面导入合入同一个脚本，CSS 选择器使用 `data-tr-plugin` 前缀，动画名和引用一起加插件前缀。
 
-宿主的 `useHost()` 返回当前页面范围内的 HostApi。`request` 路径以 `/` 开始，禁止绝对 URL、查询片段和路径穿越，查询使用独立参数；响应保留插件自有 `code`、`data` 等字段。HTTP 失败映射为带 status 和稳定 code 的 HostRequestError。`navigate` 使用 manifest 页面路径，根页面传空字符串，其他页面不带开头斜杠，只能进入当前 audience 已声明的页面。
+宿主的 `useHost()` 返回当前页面范围内的 HostApi。`request` 路径以 `/` 开始，禁止绝对 URL、查询片段和路径穿越，查询使用独立参数；响应保留插件自有 `code`、`data` 等字段。HTTP 失败映射为带 status 和稳定 code 的 HostRequestError。宿主为已校验的插件响应添加 `X-TokenRouter-Plugin-Response: 1`，并通过 CORS 暴露；插件自身的 401 不触发宿主登录刷新、重放或登出。鉴权中间件在调用插件前返回的 401 没有该标记，继续使用原登录恢复流程。`navigate` 使用 manifest 页面路径，根页面传空字符串，其他页面不带开头斜杠，只能进入当前 audience 已声明的页面。
 
 `useMessages` 依次选择完整语言标签、主语言、英文词典，缺失 key 直接显示 key。用户、语言、主题和路由通过只读响应式引用提供，site 属性读取当前公开设置。TrDialog 的实际面板保留 `data-tr-plugin`；TrTable 使用 `cell-<key>` 单元格插槽；TrCaptcha 将腾讯双字段编码为 JSON，其余提供商票据原样传递。浏览器资源通过 API 基址加载，分离部署需在前端 CSP 中允许该来源的脚本和样式。
 

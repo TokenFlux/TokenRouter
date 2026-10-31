@@ -13,6 +13,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 )
 
+// proxy_test.go exercises dynamic plugin authentication and bounded HTTP forwarding.
+// Fixtures expose native middleware admission, lease ownership, and raw plugin
+// responses so browser credentials, private caller grants, transport failures, and
+// author-owned response semantics remain separated at the public proxy boundary.
+
 // TestProxyPreservesRawJSONAndPrivateCallerBoundary forwards a user request containing browser credentials, unrelated headers, and a spoofed identity body.
 // Only allowed headers and the original body reach the plugin; verified identity and grant remain separate, and the response stays unwrapped with cookies removed.
 func TestProxyPreservesRawJSONAndPrivateCallerBoundary(t *testing.T) {
@@ -177,4 +182,28 @@ func TestProxyDeadlineCancelsTransport(t *testing.T) {
 		require.Contains(t, response.Body.String(), "PLUGIN_TIMEOUT")
 		require.Equal(t, 1, runtime.released)
 	})
+}
+
+// TestProxyMarksAuthorResponsesAfterAuthentication distinguishes native authentication failure from a plugin's own unauthorized response.
+// Only an invoked plugin reply receives the marker, and neither request headers nor plugin headers can forge its final value.
+func TestProxyMarksAuthorResponsesAfterAuthentication(t *testing.T) {
+	for _, token := range []string{"invalid", "Bearer user"} {
+		router, _, runtime, _, _ := publicFixture(t)
+		runtime.transport.exchange = func(context.Context, *plugin.HTTPRequest) (*plugin.HTTPResponse, error) {
+			return &plugin.HTTPResponse{Status: http.StatusUnauthorized, Headers: map[string]string{"Content-Type": "application/json", "X-TokenRouter-Plugin-Response": "0"}, Body: []byte(`{"code":"PLUGIN_LOGIN_REQUIRED"}`)}, nil
+		}
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/plugins/test.http/api/user", nil)
+		request.Header.Set("Authorization", token)
+		request.Header.Set("X-TokenRouter-Plugin-Response", "1")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		require.Equal(t, http.StatusUnauthorized, response.Code)
+		if token == "invalid" {
+			require.Empty(t, response.Header().Get("X-TokenRouter-Plugin-Response"))
+			require.Zero(t, runtime.acquired)
+		} else {
+			require.Equal(t, "1", response.Header().Get("X-TokenRouter-Plugin-Response"))
+			require.Equal(t, `{"code":"PLUGIN_LOGIN_REQUIRED"}`, response.Body.String())
+		}
+	}
 }

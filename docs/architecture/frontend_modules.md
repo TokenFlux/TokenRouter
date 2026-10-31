@@ -16,6 +16,7 @@
 | `views/` | 路由页面，以及按业务归组的页面私有控制器和组件 |
 | `components/common/` | 基础控件与显示组件；表格及其列类型、列顺序逻辑共同放在 table |
 | `components/layout/` | 应用外壳、导航和页面布局 |
+| `components/plugin/` | manifest 字段表单、权限展示和配置数值校验，供插件管理与后续领域表单复用 |
 | `components/<业务>/` | 多个页面共同使用的领域组件；调用方的角色由路由和 API 决定 |
 | `composables/` | 跨页面组合式状态和生命周期逻辑；引导步骤与其控制器放在 onboarding |
 | `utils/` | 共用的转换、格式、存储和浏览器辅助实现；支付规则放在 payment |
@@ -46,6 +47,8 @@ API 记录按所属领域维护在 `api/*.types.ts` 或 `api/admin/*.types.ts`�
 依赖检查集中在 `frontend/scripts/check-imports.mjs`：API 模块不能依赖页面、组件、store、router、composable 或 pluginHost；组件不能依赖 view 或 pluginHost 实现；pluginHost 可组合 API、store 和共享组件，但不能导入 view；共享 composable 不能依赖组件实现。页面私有目录只允许自己的文件、登记的页面所有者及准确的路由入口导入。跨模块行为测试的必要访问按准确的文件与目标记录例外。
 
 `i18n/index.ts` 在发布语言后动态加载 `router/title`、`router/index`、`stores/app`、`stores/auth` 、`stores/adminSettings` 和 `stores/plugins`，刷新页面标题并发送语言变化事件。需要持久化账户语言时再加载 `api/client`，按语言代次和用户身份串行写入偏好。这些准确的运行时依赖保持原来的初始化时序；它们不属于 API 向页面依赖的例外。共享工具中存在响应式缓存和浏览器 I/O，阅读调用方后再决定是否提取纯规则。
+
+插件管理入口为 `views/admin/plugins/PluginsView.vue`。该目录独占安装列表、生命周期动作、上传预览、配置/额度保存和日志读取；共享字段渲染与权限展示保留在 `components/plugin/`。管理器按写操作串行使用 step-up，成功和失败后都读回安装与菜单状态，避免把网络错误当成未写入的证明。配置与额度分别保存，后一项失败时保留已完成的配置基线和未完成的额度草稿。
 
 ## 插件页面与共享运行时
 

@@ -20,6 +20,7 @@
         :id="id"
         ref="inputRef"
         :type="type"
+        :inputmode="inputmode"
         :value="modelValue"
         :disabled="disabled"
         :required="required"
@@ -69,6 +70,7 @@ interface Props {
   // when the supplied value is null or undefined.
   modelValue: string | number | null | undefined
   type?: string // Native input type attribute.
+  inputmode?: 'text' | 'decimal' | 'numeric' // Native keyboard input hint.
   label?: string // Visible field label text.
   placeholder?: string // Empty field placeholder text.
   disabled?: boolean // Disables user control interaction.

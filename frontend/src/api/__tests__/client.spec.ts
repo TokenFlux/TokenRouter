@@ -66,6 +66,90 @@ describe('API Client', () => {
     expect(adapter.mock.calls[0][0].headers.get('Authorization')).toBe('Bearer plugin-session')
   })
 
+  // A plugin returns its own unauthorized or feature-looking error after its handler runs.
+  // The producer marker preserves the host session and prevents automatic mutation replay or unrelated feature-flag changes.
+  it.each([401, 404])(
+    'keeps plugin-owned HTTP %s outside native session recovery',
+    async (status) => {
+      localStorage.setItem('auth_token', 'current-host-token')
+      localStorage.setItem('refresh_token', 'current-refresh-token')
+      const refresh = vi.spyOn(axios, 'post').mockResolvedValue({
+        data: {
+          code: 0,
+          data: {
+            access_token: 'unexpected',
+            refresh_token: 'unexpected-refresh',
+            expires_in: 3600,
+          },
+        },
+      })
+      const message = status === 404 ? 'Ops monitoring is disabled' : 'Plugin credential expired'
+      const adapter = vi.fn(async (config) => {
+        throw {
+          config,
+          code: 'ERR_BAD_REQUEST',
+          message: 'HTTP failed',
+          response: {
+            status,
+            data: { code: 'PLUGIN_REJECTED', message },
+            headers: { 'x-tokenrouter-plugin-response': '1' },
+          },
+        }
+      })
+      apiClient.defaults.adapter = adapter
+      await expect(
+        apiClient.post('/plugins/test.plugin/api/action', { action: 'write' }),
+      ).rejects.toMatchObject({ status, code: 'PLUGIN_REJECTED', message })
+      expect(adapter).toHaveBeenCalledTimes(1)
+      expect(refresh).not.toHaveBeenCalled()
+      expect(localStorage.getItem('auth_token')).toBe('current-host-token')
+      expect(localStorage.getItem('refresh_token')).toBe('current-refresh-token')
+      expect(sessionStorage.getItem('auth_expired')).toBeNull()
+      expect(localStorage.getItem('ops_monitoring_enabled_cached')).toBeNull()
+    },
+  )
+
+  // Host JWT admission can reject a plugin URL before any plugin handler runs.
+  // An unmarked unauthorized response still refreshes the host token and then delivers the plugin's raw successful payload.
+  it('refreshes host authentication failures on contribution URLs', async () => {
+    localStorage.setItem('auth_token', 'expired-host-token')
+    localStorage.setItem('refresh_token', 'refresh-token')
+    const adapter = vi
+      .fn()
+      .mockRejectedValueOnce({
+        config: {
+          url: '/plugins/test.plugin/api/status',
+          headers: { Authorization: 'Bearer expired-host-token' },
+        },
+        response: { status: 401, data: { code: 'TOKEN_EXPIRED' }, headers: {} },
+        code: 'ERR_BAD_REQUEST',
+      })
+      .mockImplementationOnce(async (config) => ({
+        config,
+        status: 200,
+        data: { ok: true },
+        headers: { 'x-tokenrouter-plugin-response': '1' },
+        statusText: 'OK',
+      }))
+    apiClient.defaults.adapter = adapter
+    vi.spyOn(axios, 'post').mockResolvedValueOnce({
+      data: {
+        code: 0,
+        data: {
+          access_token: 'fresh-host-token',
+          refresh_token: 'fresh-refresh-token',
+          expires_in: 3600,
+          token_type: 'Bearer',
+        },
+      },
+    })
+    await expect(apiClient.get('/plugins/test.plugin/api/status')).resolves.toMatchObject({
+      data: { ok: true },
+    })
+    expect(adapter).toHaveBeenCalledTimes(2)
+    expect(adapter.mock.calls[1][0].headers.get('Authorization')).toBe('Bearer fresh-host-token')
+  })
+
   /**
    * Request interceptors.
    */

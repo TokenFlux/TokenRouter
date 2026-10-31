@@ -18,6 +18,11 @@ import {
 // points; route files may load the provider entry component through its exact path.
 export const PRIVATE_MODULES = [
   {
+    directory: 'src/views/admin/plugins/',
+    owners: [],
+    entries: ['src/views/admin/plugins/PluginsView.vue'],
+  },
+  {
     directory: 'src/views/admin/providers/',
     owners: [],
     entries: ['src/views/admin/providers/ProvidersView.vue'],

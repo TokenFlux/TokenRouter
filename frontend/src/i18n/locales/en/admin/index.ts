@@ -7,6 +7,7 @@ import resources from './resources'
 import ops from './ops'
 import settings from './settings'
 import audit from './audit'
+import plugins from './plugins'
 
 // index.ts assembles the English administrator catalog and defines protocol-
 // control messages. Imported domain dictionaries contribute their top-level
@@ -14,6 +15,7 @@ import audit from './audit'
 // conversion choices, and image-tool policies used by configuration forms.
 
 export default {
+  plugins,
   protocols: {
     imageModes: {
       title: 'Upstream modes',

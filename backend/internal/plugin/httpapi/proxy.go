@@ -154,6 +154,9 @@ func (h *PublicHandler) Proxy(c *gin.Context) {
 	for name, value := range headers {
 		c.Header(name, value)
 	}
+	// Mark only validated plugin replies so browser session recovery cannot mistake
+	// an author's 401 for host authentication failure and replay a completed action.
+	c.Header("X-TokenRouter-Plugin-Response", "1")
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Data(response.Status, headers["Content-Type"], response.Body)
 }

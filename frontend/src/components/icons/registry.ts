@@ -121,6 +121,9 @@ import WalletIcon from './artwork/wallet'
 import WrenchIcon from './artwork/wrench'
 import XIcon from './artwork/x'
 import ZapIcon from './artwork/zap'
+import CalendarPlusIcon from './artwork/calendar-plus'
+import SendIcon from './artwork/send'
+import PuzzleIcon from './artwork/puzzle'
 import type { IconDefinition } from './types'
 
 // registry.ts maps semantic icon names to the ported Lucide artwork files.
@@ -188,6 +191,9 @@ export const icons = {
   shield: ShieldIcon,
   menu: MenuIcon,
   calendar: CalendarIcon,
+  calendarPlus: CalendarPlusIcon,
+  send: SendIcon,
+  puzzle: PuzzleIcon,
   home: HomeIcon,
   terminal: TerminalIcon,
   gift: GiftIcon,

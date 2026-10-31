@@ -11,7 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 )
 
-// Browser permission headers depend on the request origin, wildcard policy, and
+// cors_test.go checks browser permission headers that depend on the request origin, wildcard policy, and
 // credential flag. These cases check preflight termination separately from
 // ordinary responses and verify the advertised application headers, cache
 // duration, and Vary behavior.
@@ -120,6 +120,7 @@ func TestCORS_AllowedOrigin_HasAllowHeaders(t *testing.T) {
 				"允许的 origin 应收到 Allow-Methods")
 			assert.Contains(t, w.Header().Get("Access-Control-Expose-Headers"), "Server-Timing")
 			assert.Contains(t, w.Header().Get("Access-Control-Expose-Headers"), "Content-Disposition")
+			assert.Contains(t, w.Header().Get("Access-Control-Expose-Headers"), "X-TokenRouter-Plugin-Response")
 			assert.Equal(t, "86400", w.Header().Get("Access-Control-Max-Age"),
 				"允许的 origin 应收到 Max-Age=86400")
 			assert.Equal(t, "https://allowed.example.com", w.Header().Get("Access-Control-Allow-Origin"),

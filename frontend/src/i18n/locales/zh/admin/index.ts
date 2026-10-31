@@ -7,6 +7,7 @@ import resources from './resources'
 import ops from './ops'
 import settings from './settings'
 import audit from './audit'
+import plugins from './plugins'
 
 // index.ts assembles the Simplified Chinese administrator catalog and defines
 // protocol-control messages. Imported domain dictionaries contribute their top-
@@ -15,6 +16,7 @@ import audit from './audit'
 // forms.
 
 export default {
+  plugins,
   protocols: {
     imageModes: {
       title: '上游支持模式',

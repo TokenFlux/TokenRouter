@@ -557,6 +557,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/requests', label: t('requests.title'), icon: 'search' as const },
     { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: 'shieldCheck' as const },
     { path: '/admin/mcp', label: t('admin.mcp.title'), icon: 'key' as const },
+    { path: '/admin/plugins', label: t('admin.plugins.title'), icon: 'puzzle' as const },
   ]
 
   const visibleItems = baseItems.filter((item) => item.featureFlag?.() !== false)
