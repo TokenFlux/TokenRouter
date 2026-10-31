@@ -109,6 +109,15 @@ func (RedeemCode) Fields() []ent.Field {
 		field.Int64("plan_id").
 			Optional().
 			Nillable(),
+		// validity_days freezes a subscription's issued duration when present.
+		// NULL preserves legacy live-plan duration; this value does not govern
+		// when the credential itself expires or how many recipients can redeem it.
+		field.Int("validity_days").
+			Optional().
+			Nillable().
+			Positive().
+			Max(billing.MaxValidityDays).
+			SchemaType(map[string]string{dialect.Postgres: "integer"}),
 	}
 }
 

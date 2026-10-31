@@ -188,8 +188,8 @@ func NewRedeemService(repo RedeemCodeRepository, users BalanceReader, subs *Subs
 
 // CreateCode normalizes and persists a non-nil deterministic credential record
 // in place. It trims code, defaults empty type/status, replaces nonpositive
-// capacity with one and negative use count with zero; every non-invitation
-// requires a nonzero Value.
+// capacity with one and negative use count with zero. Subscription credentials
+// require a positive plan identity; other non-invitation types require nonzero Value.
 //
 // Invitations reject payment requirements and retain one use. PersistedStatus
 // derives the final label before creation, so this path differs from
@@ -207,8 +207,14 @@ func (s *RedeemService) CreateCode(ctx context.Context, code *RedeemCode) error 
 	if code.Type == "" {
 		code.Type = RedeemTypeBalance
 	}
-	if code.Type != RedeemTypeInvitation && code.Value == 0 {
+	if code.Type != RedeemTypeInvitation && code.Type != RedeemTypeSubscription && code.Value == 0 {
 		return errors.New("value must not be zero")
+	}
+	if code.Type == RedeemTypeSubscription && (code.PlanID == nil || *code.PlanID <= 0) {
+		return errors.New("subscription plan_id is required")
+	}
+	if code.ValidityDays != nil && (code.Type != RedeemTypeSubscription || *code.ValidityDays < 1 || *code.ValidityDays > MaxValidityDays) {
+		return errors.New("subscription validity_days is outside the supported range")
 	}
 	if code.Status == "" {
 		code.Status = StatusUnused
@@ -525,11 +531,17 @@ func (s *RedeemService) redeemInTx(ctx, txCtx context.Context, userID int64, cod
 		}
 
 	case RedeemTypeSubscription:
+		// A recorded duration survives later plan edits; legacy NULL keeps the ordinary live-plan default by passing a zero override.
+		validityDays := 0
+		if redeemCode.ValidityDays != nil {
+			validityDays = *redeemCode.ValidityDays
+		}
 		_, _, err := s.subscriptionService.AssignOrExtendSubscription(txCtx, &AssignSubscriptionInput{
-			UserID:     userID,
-			PlanID:     *redeemCode.PlanID,
-			AssignedBy: 0, // System assignment.
-			Notes:      fmt.Sprintf("通过兑换码 %s 兑换", redeemCode.Code),
+			UserID:       userID,
+			PlanID:       *redeemCode.PlanID,
+			ValidityDays: validityDays,
+			AssignedBy:   0, // System assignment.
+			Notes:        fmt.Sprintf("通过兑换码 %s 兑换", redeemCode.Code),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("assign or extend subscription: %w", err)

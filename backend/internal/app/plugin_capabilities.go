@@ -75,8 +75,8 @@ func providePluginSubscriptions(writes *plugin.Writes, service *billing.Subscrip
 }
 
 // providePluginHostServices shares configured capabilities and auditing across authenticated process bindings.
-func providePluginHostServices(wallet *plugin.WalletService, subscriptions *plugin.Subscriptions, queries *plugin.Queries, emails *plugin.Emails, captcha plugin.CaptchaVerifier, kv *plugin.KV, grants *plugin.Grants, auditor *audit.AuditLogService) *provider.HostServices {
-	return provider.NewHostServices(provider.HostCapabilities{Wallet: wallet, Subscriptions: subscriptions, Queries: queries, Emails: emails, Captcha: captcha, KV: kv}, grants, pluginCapabilityAudit{service: auditor})
+func providePluginHostServices(wallet *plugin.WalletService, subscriptions *plugin.Subscriptions, queries *plugin.Queries, emails *plugin.Emails, captcha plugin.CaptchaVerifier, kv *plugin.KV, redeem *plugin.RedeemCodes, grants *plugin.Grants, auditor *audit.AuditLogService) *provider.HostServices {
+	return provider.NewHostServices(provider.HostCapabilities{Wallet: wallet, Subscriptions: subscriptions, Queries: queries, Emails: emails, Captcha: captcha, KV: kv, Redeem: redeem}, grants, pluginCapabilityAudit{service: auditor})
 }
 
 // AdjustBalance applies the signed delta on the ledger's transaction-bound context.
@@ -120,6 +120,7 @@ func (a pluginCapabilityAudit) RecordCapability(observation plugin.CapabilityAud
 		Extra: map[string]any{
 			"plugin_id": observation.PluginID, "plugin_version": observation.Version, "user_id": observation.UserID,
 			"idempotency_key": observation.Key, "replayed": observation.Replayed, "amount": observation.Amount,
+			"redeem_type": observation.RedeemType, "quantity": observation.Quantity,
 			"plan_id": observation.PlanID, "validity_days": observation.Days, "reason": observation.Reason, "error_reason": observation.ErrorReason,
 		},
 	})

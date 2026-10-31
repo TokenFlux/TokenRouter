@@ -9,13 +9,13 @@ import (
 // supplied snapshots.
 // Management edits and registration compensation restore the redemption
 // record's supplied fields as one update builder. Optional recipient, usage
-// time, plan and expiry pointers use set-or-clear operations, so a nil
-// snapshot value removes saved data instead of leaving a later value in place.
+// time, plan, issued duration and expiry pointers use set-or-clear operations.
+// A nil snapshot value removes saved data instead of leaving a later value in place.
 
 // redeemUpdateBuilder stages redemption snapshot replacement on the supplied
 // client for a non-nil code. Nil optional pointers clear recipient, usage
-// time, plan or expiry; other fields are assigned from the snapshot. The
-// caller owns authorization, consistency checks and Save/transaction
+// time, plan, issued duration or expiry; other fields are assigned from the
+// snapshot. The caller owns authorization, consistency checks and Save/transaction
 // completion.
 func redeemUpdateBuilder(client *dbent.Client, code *billing.RedeemCode) *dbent.RedeemCodeUpdateOne {
 	update := client.RedeemCode.UpdateOneID(code.ID).
@@ -29,7 +29,7 @@ func redeemUpdateBuilder(client *dbent.Client, code *billing.RedeemCode) *dbent.
 		SetNotes(code.Notes)
 
 	// Restore every optional snapshot field as set or clear, so compensation does
-	// not retain recipient/time/plan/expiry values absent from the supplied
+	// not retain recipient/time/plan/duration/expiry values absent from the supplied
 	// record.
 	if code.UsedBy != nil {
 		update.SetUsedBy(*code.UsedBy)
@@ -45,6 +45,11 @@ func redeemUpdateBuilder(client *dbent.Client, code *billing.RedeemCode) *dbent.
 		update.SetPlanID(*code.PlanID)
 	} else {
 		update.ClearPlanID()
+	}
+	if code.ValidityDays != nil {
+		update.SetValidityDays(*code.ValidityDays)
+	} else {
+		update.ClearValidityDays()
 	}
 	if code.ExpiresAt != nil {
 		update.SetExpiresAt(*code.ExpiresAt)

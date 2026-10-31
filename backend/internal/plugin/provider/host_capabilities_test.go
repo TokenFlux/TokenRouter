@@ -149,3 +149,23 @@ func TestEmailAuditRetainsFailedReplayWithoutContent(t *testing.T) {
 	require.NotContains(t, string(data), "private-subject")
 	require.NotContains(t, string(data), "private-body")
 }
+
+// TestRedeemAuditRecordsTypeAndQuantityWithoutCredential observes a successful subscription-code replay whose response contains a secret redeem credential.
+// Audit identifies the requested entitlement and one-code quantity while retaining replay state, but never serializes the returned credential into observation metadata.
+func TestRedeemAuditRecordsTypeAndQuantityWithoutCredential(t *testing.T) {
+	audit := &capabilityAuditFixture{}
+	server := &hostService{services: NewHostServices(HostCapabilities{}, nil, audit), binding: plugin.Binding{PluginID: "test.codes", Version: "1.0.0"}}
+	input := &pluginpb.IssueRedeemCodeRequest{Type: "subscription", PlanId: 7, IdempotencyKey: "reward"}
+	_, err := server.observeWrite(t.Context(), input, &grpc.UnaryServerInfo{FullMethod: "/tokenrouter.plugin.v1.Host/IssueRedeemCode"}, func(context.Context, any) (any, error) {
+		return &pluginpb.IssueRedeemCodeResponse{Code: "PRIVATE-CREDENTIAL", Replayed: true}, nil
+	})
+	require.NoError(t, err)
+	entries := audit.snapshot()
+	require.Len(t, entries, 1)
+	require.Equal(t, "subscription", entries[0].RedeemType)
+	require.Equal(t, int64(1), entries[0].Quantity)
+	require.True(t, entries[0].Replayed)
+	data, err := json.Marshal(entries)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "PRIVATE-CREDENTIAL")
+}

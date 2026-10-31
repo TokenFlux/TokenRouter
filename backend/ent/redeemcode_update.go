@@ -250,6 +250,33 @@ func (_u *RedeemCodeUpdate) ClearPlanID() *RedeemCodeUpdate {
 	return _u
 }
 
+// SetValidityDays sets the "validity_days" field.
+func (_u *RedeemCodeUpdate) SetValidityDays(v int) *RedeemCodeUpdate {
+	_u.mutation.ResetValidityDays()
+	_u.mutation.SetValidityDays(v)
+	return _u
+}
+
+// SetNillableValidityDays sets the "validity_days" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableValidityDays(v *int) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetValidityDays(*v)
+	}
+	return _u
+}
+
+// AddValidityDays adds value to the "validity_days" field.
+func (_u *RedeemCodeUpdate) AddValidityDays(v int) *RedeemCodeUpdate {
+	_u.mutation.AddValidityDays(v)
+	return _u
+}
+
+// ClearValidityDays clears the value of the "validity_days" field.
+func (_u *RedeemCodeUpdate) ClearValidityDays() *RedeemCodeUpdate {
+	_u.mutation.ClearValidityDays()
+	return _u
+}
+
 // AddUsageRecordIDs adds the "usage_records" edge to the RedeemCodeUsage entity by IDs.
 func (_u *RedeemCodeUpdate) AddUsageRecordIDs(ids ...int64) *RedeemCodeUpdate {
 	_u.mutation.AddUsageRecordIDs(ids...)
@@ -371,6 +398,11 @@ func (_u *RedeemCodeUpdate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ValidityDays(); ok {
+		if err := redeemcode.ValidityDaysValidator(v); err != nil {
+			return &ValidationError{Name: "validity_days", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.validity_days": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -433,6 +465,15 @@ func (_u *RedeemCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	}
 	if _u.mutation.NotesCleared() {
 		_spec.ClearField(redeemcode.FieldNotes, field.TypeString)
+	}
+	if value, ok := _u.mutation.ValidityDays(); ok {
+		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedValidityDays(); ok {
+		_spec.AddField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if _u.mutation.ValidityDaysCleared() {
+		_spec.ClearField(redeemcode.FieldValidityDays, field.TypeInt)
 	}
 	if _u.mutation.UsageRecordsCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -776,6 +817,33 @@ func (_u *RedeemCodeUpdateOne) ClearPlanID() *RedeemCodeUpdateOne {
 	return _u
 }
 
+// SetValidityDays sets the "validity_days" field.
+func (_u *RedeemCodeUpdateOne) SetValidityDays(v int) *RedeemCodeUpdateOne {
+	_u.mutation.ResetValidityDays()
+	_u.mutation.SetValidityDays(v)
+	return _u
+}
+
+// SetNillableValidityDays sets the "validity_days" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableValidityDays(v *int) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetValidityDays(*v)
+	}
+	return _u
+}
+
+// AddValidityDays adds value to the "validity_days" field.
+func (_u *RedeemCodeUpdateOne) AddValidityDays(v int) *RedeemCodeUpdateOne {
+	_u.mutation.AddValidityDays(v)
+	return _u
+}
+
+// ClearValidityDays clears the value of the "validity_days" field.
+func (_u *RedeemCodeUpdateOne) ClearValidityDays() *RedeemCodeUpdateOne {
+	_u.mutation.ClearValidityDays()
+	return _u
+}
+
 // AddUsageRecordIDs adds the "usage_records" edge to the RedeemCodeUsage entity by IDs.
 func (_u *RedeemCodeUpdateOne) AddUsageRecordIDs(ids ...int64) *RedeemCodeUpdateOne {
 	_u.mutation.AddUsageRecordIDs(ids...)
@@ -910,6 +978,11 @@ func (_u *RedeemCodeUpdateOne) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ValidityDays(); ok {
+		if err := redeemcode.ValidityDaysValidator(v); err != nil {
+			return &ValidationError{Name: "validity_days", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.validity_days": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -989,6 +1062,15 @@ func (_u *RedeemCodeUpdateOne) sqlSave(ctx context.Context) (_node *RedeemCode, 
 	}
 	if _u.mutation.NotesCleared() {
 		_spec.ClearField(redeemcode.FieldNotes, field.TypeString)
+	}
+	if value, ok := _u.mutation.ValidityDays(); ok {
+		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedValidityDays(); ok {
+		_spec.AddField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if _u.mutation.ValidityDaysCleared() {
+		_spec.ClearField(redeemcode.FieldValidityDays, field.TypeInt)
 	}
 	if _u.mutation.UsageRecordsCleared() {
 		edge := &sqlgraph.EdgeSpec{

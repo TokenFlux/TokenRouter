@@ -34,6 +34,7 @@ import (
 
 // HostCapabilities groups the business implementations selected before host service publication.
 type HostCapabilities struct {
+	Redeem        *plugin.RedeemCodes    // single-use credential issuance capability
 	KV            *plugin.KV             // isolated persistent JSON storage capability
 	Captcha       plugin.CaptchaVerifier // current site challenge verification adapter
 	Emails        *plugin.Emails         // durable optional email delivery capability
@@ -97,6 +98,19 @@ func (s *hostService) GrantSubscription(ctx context.Context, request *pluginpb.G
 		return nil, capabilityError(err)
 	}
 	return &pluginpb.GrantSubscriptionResponse{SubscriptionId: result.ID, ExpiresUnix: result.ExpiresUnix, Queued: result.Queued, Replayed: result.Replayed}, nil
+}
+
+// IssueRedeemCode maps one allowed credential request into transactional issuance.
+func (s *hostService) IssueRedeemCode(ctx context.Context, request *pluginpb.IssueRedeemCodeRequest) (*pluginpb.IssueRedeemCodeResponse, error) {
+	result, err := s.services.capabilities.Redeem.Issue(ctx, s.binding, plugin.RedeemInput{
+		Type: request.GetType(), Value: request.GetValue(), PlanID: request.GetPlanId(),
+		Days: request.GetValidityDays(), ExpiresUnix: request.GetExpiresUnix(),
+		Key: request.GetIdempotencyKey(), Reason: request.GetReason(),
+	})
+	if err != nil {
+		return nil, capabilityError(err)
+	}
+	return &pluginpb.IssueRedeemCodeResponse{Code: result.Code, Replayed: result.Replayed}, nil
 }
 
 // SendEmail returns delivery state while retaining replay metadata for local auditing.
@@ -194,6 +208,8 @@ func (s *hostService) observeWrite(ctx context.Context, request any, info *grpc.
 		observation.Reason = input.GetReason()
 		grant = input.GetGrant()
 	case *pluginpb.IssueRedeemCodeRequest:
+		observation.RedeemType = auditText(input.GetType(), 32)
+		observation.Quantity = 1
 		observation.Key = input.GetIdempotencyKey()
 		observation.Amount = input.GetValue()
 		observation.Reason = input.GetReason()

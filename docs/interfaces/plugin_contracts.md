@@ -77,6 +77,10 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 
 宿主能力按站点、用户、钱包、兑换码、订阅、用量、订单、模型、邮件、验证码和 KV 分组。金额使用十进制字符串，扣款和本人用量调用从 `Caller` 中取得私有 grant。SDK 将 ErrorInfo reason 映射为可用 `errors.Is` 判断的错误，包括投递结果不明的 `ErrEmailDeliveryUnknown`；该结果不得通过更换幂等键盲目重发邮件。
 
+`IssueRedeemCode` 要求 `redeem.issue`。balance 的 value 遵循钱包正金额格式；concurrency 使用无小数、无前导零的正整数字符串，并限制在原生并发 INTEGER 范围内。subscription 要求有效 plan_id，value 为空或 `0`；validity_days 非负，0 在新发码时读取套餐默认值，按原生订阅规则规范化并固定保存。其他类型不能携带 plan_id 或天数。expires_unix 为 0 时码不过期；非零必须在新发码时刻之后且不超过 365×24 小时。已提交重放不重新检查相对期限或当前套餐默认值。
+
+发行额度覆盖单码面值、当日余额码面值、并发面值、所有类型的每日数量及订阅白名单和天数。返回 PL 开头的 26 位单次码，未使用与已使用状态由普通兑换入口管理；余额码兑换会按原规则累计充值并执行适用返利。审计记录类型、数量、目标套餐和重放状态，不记录返回的码值。订阅码的实际天数由管理和兑换记录中的可选 validity_days 字段显示。
+
 `SendEmail` 要求 `notify.email`，主题 1 至 120 字符、纯文本正文 1 至 8000 字符。主题首尾空白和正文换行形式先规范化，再比较幂等内容；主题内部控制字符、无效 UTF-8、NUL 及无效用户 ID 被拒绝。默认额度为每用户每天 5 次、插件每天 500 次。无邮箱和退订返回 `delivered=false`，仍占用一次额度。认领后的已知发送前错误以 `USER_NOT_FOUND` 或 `HOST_UNAVAILABLE` 持久化，同键重放该错误。结果不明返回 `EMAIL_DELIVERY_UNKNOWN`；同键重放只读取已保存结果，不重新发信。
 
 

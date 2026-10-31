@@ -38794,6 +38794,8 @@ type RedeemCodeMutation struct {
 	used_at              *time.Time
 	notes                *string
 	created_at           *time.Time
+	validity_days        *int
+	addvalidity_days     *int
 	clearedFields        map[string]struct{}
 	usage_records        map[int64]struct{}
 	removedusage_records map[int64]struct{}
@@ -39498,6 +39500,76 @@ func (m *RedeemCodeMutation) ResetPlanID() {
 	delete(m.clearedFields, redeemcode.FieldPlanID)
 }
 
+// SetValidityDays sets the "validity_days" field.
+func (m *RedeemCodeMutation) SetValidityDays(i int) {
+	m.validity_days = &i
+	m.addvalidity_days = nil
+}
+
+// ValidityDays returns the value of the "validity_days" field in the mutation.
+func (m *RedeemCodeMutation) ValidityDays() (r int, exists bool) {
+	v := m.validity_days
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldValidityDays returns the old "validity_days" field's value of the RedeemCode entity.
+// If the RedeemCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RedeemCodeMutation) OldValidityDays(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldValidityDays is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldValidityDays requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldValidityDays: %w", err)
+	}
+	return oldValue.ValidityDays, nil
+}
+
+// AddValidityDays adds i to the "validity_days" field.
+func (m *RedeemCodeMutation) AddValidityDays(i int) {
+	if m.addvalidity_days != nil {
+		*m.addvalidity_days += i
+	} else {
+		m.addvalidity_days = &i
+	}
+}
+
+// AddedValidityDays returns the value that was added to the "validity_days" field in this mutation.
+func (m *RedeemCodeMutation) AddedValidityDays() (r int, exists bool) {
+	v := m.addvalidity_days
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearValidityDays clears the value of the "validity_days" field.
+func (m *RedeemCodeMutation) ClearValidityDays() {
+	m.validity_days = nil
+	m.addvalidity_days = nil
+	m.clearedFields[redeemcode.FieldValidityDays] = struct{}{}
+}
+
+// ValidityDaysCleared returns if the "validity_days" field was cleared in this mutation.
+func (m *RedeemCodeMutation) ValidityDaysCleared() bool {
+	_, ok := m.clearedFields[redeemcode.FieldValidityDays]
+	return ok
+}
+
+// ResetValidityDays resets all changes to the "validity_days" field.
+func (m *RedeemCodeMutation) ResetValidityDays() {
+	m.validity_days = nil
+	m.addvalidity_days = nil
+	delete(m.clearedFields, redeemcode.FieldValidityDays)
+}
+
 // AddUsageRecordIDs adds the "usage_records" edge to the RedeemCodeUsage entity by ids.
 func (m *RedeemCodeMutation) AddUsageRecordIDs(ids ...int64) {
 	if m.usage_records == nil {
@@ -39653,7 +39725,7 @@ func (m *RedeemCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RedeemCodeMutation) Fields() []string {
-	fields := make([]string, 0, 13)
+	fields := make([]string, 0, 14)
 	if m.code != nil {
 		fields = append(fields, redeemcode.FieldCode)
 	}
@@ -39693,6 +39765,9 @@ func (m *RedeemCodeMutation) Fields() []string {
 	if m.plan != nil {
 		fields = append(fields, redeemcode.FieldPlanID)
 	}
+	if m.validity_days != nil {
+		fields = append(fields, redeemcode.FieldValidityDays)
+	}
 	return fields
 }
 
@@ -39727,6 +39802,8 @@ func (m *RedeemCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.CreatedAt()
 	case redeemcode.FieldPlanID:
 		return m.PlanID()
+	case redeemcode.FieldValidityDays:
+		return m.ValidityDays()
 	}
 	return nil, false
 }
@@ -39762,6 +39839,8 @@ func (m *RedeemCodeMutation) OldField(ctx context.Context, name string) (ent.Val
 		return m.OldCreatedAt(ctx)
 	case redeemcode.FieldPlanID:
 		return m.OldPlanID(ctx)
+	case redeemcode.FieldValidityDays:
+		return m.OldValidityDays(ctx)
 	}
 	return nil, fmt.Errorf("unknown RedeemCode field %s", name)
 }
@@ -39862,6 +39941,13 @@ func (m *RedeemCodeMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetPlanID(v)
 		return nil
+	case redeemcode.FieldValidityDays:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetValidityDays(v)
+		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode field %s", name)
 }
@@ -39879,6 +39965,9 @@ func (m *RedeemCodeMutation) AddedFields() []string {
 	if m.addused_count != nil {
 		fields = append(fields, redeemcode.FieldUsedCount)
 	}
+	if m.addvalidity_days != nil {
+		fields = append(fields, redeemcode.FieldValidityDays)
+	}
 	return fields
 }
 
@@ -39893,6 +39982,8 @@ func (m *RedeemCodeMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedMaxUses()
 	case redeemcode.FieldUsedCount:
 		return m.AddedUsedCount()
+	case redeemcode.FieldValidityDays:
+		return m.AddedValidityDays()
 	}
 	return nil, false
 }
@@ -39923,6 +40014,13 @@ func (m *RedeemCodeMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddUsedCount(v)
 		return nil
+	case redeemcode.FieldValidityDays:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddValidityDays(v)
+		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode numeric field %s", name)
 }
@@ -39945,6 +40043,9 @@ func (m *RedeemCodeMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(redeemcode.FieldPlanID) {
 		fields = append(fields, redeemcode.FieldPlanID)
+	}
+	if m.FieldCleared(redeemcode.FieldValidityDays) {
+		fields = append(fields, redeemcode.FieldValidityDays)
 	}
 	return fields
 }
@@ -39974,6 +40075,9 @@ func (m *RedeemCodeMutation) ClearField(name string) error {
 		return nil
 	case redeemcode.FieldPlanID:
 		m.ClearPlanID()
+		return nil
+	case redeemcode.FieldValidityDays:
+		m.ClearValidityDays()
 		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode nullable field %s", name)
@@ -40021,6 +40125,9 @@ func (m *RedeemCodeMutation) ResetField(name string) error {
 		return nil
 	case redeemcode.FieldPlanID:
 		m.ResetPlanID()
+		return nil
+	case redeemcode.FieldValidityDays:
+		m.ResetValidityDays()
 		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode field %s", name)

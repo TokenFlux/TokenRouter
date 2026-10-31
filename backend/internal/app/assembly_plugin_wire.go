@@ -18,7 +18,7 @@ import (
 
 // pluginAssemblyProviders binds plugin process construction and lifecycle registration into the application dependency graph without starting either during construction.
 var pluginAssemblyProviders = wire.NewSet(
-	postgres.New, providePluginConfiguration, providePluginSource, providePluginGrants, providePluginWrites, providePluginWallet, providePluginSubscriptions, providePluginQueries, providePluginEmails, providePluginCaptcha, providePluginKV, providePluginHostServices,
+	postgres.New, providePluginConfiguration, providePluginSource, providePluginGrants, providePluginWrites, providePluginWallet, providePluginSubscriptions, providePluginQueries, providePluginEmails, providePluginCaptcha, providePluginKV, providePluginRedeemCodes, providePluginHostServices,
 	providePluginProcesses, providePluginPackages, providePluginManager, providePluginService, httpapi.NewHandler, providePluginPublicHandler, providePluginRouteMount,
 	wire.Bind(new(plugin.LogReader), new(*provider.Processes)), providePluginRuntime,
 )

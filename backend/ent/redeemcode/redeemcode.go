@@ -40,6 +40,8 @@ const (
 	FieldCreatedAt = "created_at"
 	// FieldPlanID holds the string denoting the plan_id field in the database.
 	FieldPlanID = "plan_id"
+	// FieldValidityDays holds the string denoting the validity_days field in the database.
+	FieldValidityDays = "validity_days"
 	// EdgeUsageRecords holds the string denoting the usage_records edge name in mutations.
 	EdgeUsageRecords = "usage_records"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -87,6 +89,7 @@ var Columns = []string{
 	FieldNotes,
 	FieldCreatedAt,
 	FieldPlanID,
+	FieldValidityDays,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -120,6 +123,8 @@ var (
 	DefaultUsedCount int
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
+	// ValidityDaysValidator is a validator for the "validity_days" field. It is called by the builders before save.
+	ValidityDaysValidator func(int) error
 )
 
 // OrderOption defines the ordering options for the RedeemCode queries.
@@ -193,6 +198,11 @@ func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByPlanID orders the results by the plan_id field.
 func ByPlanID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPlanID, opts...).ToFunc()
+}
+
+// ByValidityDays orders the results by the validity_days field.
+func ByValidityDays(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldValidityDays, opts...).ToFunc()
 }
 
 // ByUsageRecordsCount orders the results by usage_records count.

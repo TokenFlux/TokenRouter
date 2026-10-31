@@ -8,7 +8,7 @@
 // File groups:
 //   - installation.go, packages.go, and runtime.go define storage, package, and process contracts.
 //   - configuration.go, limits.go, and dev_source.go normalize persistent policy and development records.
-//   - grant.go, ledger.go, wallet.go, subscriptions.go, and capabilities.go define caller authority, financial rules, and audit collaboration.
+//   - grant.go, ledger.go, wallet.go, redeem.go, subscriptions.go, and capabilities.go define caller authority, financial rules, and audit collaboration.
 //   - http.go defines transport-independent HTTP contribution values.
 //   - tasks.go schedules declared jobs and retains in-memory execution results.
 //   - kv.go and kv_maintenance.go enforce isolated JSON storage and sampled quota maintenance.

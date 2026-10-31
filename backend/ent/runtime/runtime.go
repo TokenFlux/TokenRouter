@@ -1755,6 +1755,24 @@ func init() {
 	redeemcodeDescCreatedAt := redeemcodeFields[11].Descriptor()
 	// redeemcode.DefaultCreatedAt holds the default value on creation for the created_at field.
 	redeemcode.DefaultCreatedAt = redeemcodeDescCreatedAt.Default.(func() time.Time)
+	// redeemcodeDescValidityDays is the schema descriptor for validity_days field.
+	redeemcodeDescValidityDays := redeemcodeFields[13].Descriptor()
+	// redeemcode.ValidityDaysValidator is a validator for the "validity_days" field. It is called by the builders before save.
+	redeemcode.ValidityDaysValidator = func() func(int) error {
+		validators := redeemcodeDescValidityDays.Validators
+		fns := [...]func(int) error{
+			validators[0].(func(int) error),
+			validators[1].(func(int) error),
+		}
+		return func(validity_days int) error {
+			for _, fn := range fns {
+				if err := fn(validity_days); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	redeemcodeusageFields := schema.RedeemCodeUsage{}.Fields()
 	_ = redeemcodeusageFields
 	// redeemcodeusageDescUsedAt is the schema descriptor for used_at field.

@@ -31,8 +31,8 @@ import (
 // Ent.
 type PlanStore struct {
 	// entClient supplies plan reads and starts owned create/group/localization
-	// transactions. These methods use this client directly rather than joining an
-	// Ent transaction carried in context.
+	// transactions. GetPlan joins a context transaction; other methods use this
+	// client directly rather than a transaction carried in context.
 	entClient *dbent.Client // configured plan persistence client
 }
 
@@ -384,9 +384,11 @@ func (s *PlanStore) DeletePlan(ctx context.Context, id int64) error {
 
 // GetPlan returns the selected record converted to a billing plan. Every Ent
 // read error is mapped to PLAN_NOT_FOUND on this path, including database
-// failures, so callers receive that shared absence response.
+// failures, so callers receive that shared absence response. A context Ent
+// transaction selects its connection, preserving read-your-writes and avoiding
+// another pool checkout while a caller already owns a transaction.
 func (s *PlanStore) GetPlan(ctx context.Context, id int64) (*billing.SubscriptionPlan, error) {
-	plan, err := s.entClient.SubscriptionPlan.Get(ctx, id)
+	plan, err := clientFromContext(ctx, s.entClient).SubscriptionPlan.Get(ctx, id)
 	// This lookup converts every read failure into the public plan-not-found
 	// error, so the underlying database classification is absent from this
 	// result.

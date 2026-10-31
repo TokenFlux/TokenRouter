@@ -54,7 +54,7 @@ type RedeemCode struct {
 	Code string // exact redeem credential text
 	// Type and Value determine the grant amount representation: balance uses
 	// money and concurrency uses an integer delta. Subscription grants select
-	// PlanID instead of consuming Value.
+	// PlanID and an optional fixed ValidityDays override instead of consuming Value.
 	Type   string  // entitlement or adjustment type
 	Value  float64 // entitlement change amount
 	Status string  // supplied redemption status label
@@ -77,6 +77,9 @@ type RedeemCode struct {
 	CreatedAt time.Time  // redemption record creation timestamp
 
 	PlanID *int64 // optional subscription plan identifier
+	// ValidityDays fixes the subscription duration when present; nil uses the
+	// current plan at redemption. Credential expiration remains governed by ExpiresAt.
+	ValidityDays *int
 
 	// User, Plan and UsageRecords carry optional hydrated edges from the owning
 	// reader. Their absence does not replace the scalar recipient, plan or

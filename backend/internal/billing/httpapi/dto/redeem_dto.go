@@ -51,6 +51,9 @@ type RedeemCode struct {
 	// mapper retains this optional pointer from the service record for read-only
 	// consumption.
 	PlanID *int64 `json:"plan_id"` // subscription grant plan identifier
+	// ValidityDays exposes a frozen issued duration when present; omission keeps
+	// the legacy contract in which redemption uses the current plan's duration.
+	ValidityDays *int `json:"validity_days,omitempty"`
 
 	// Notes references the service record's reason for nonempty administrator
 	// balance/concurrency adjustments and plugin balance adjustments. Callers keep this shared string

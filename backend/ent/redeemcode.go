@@ -45,6 +45,8 @@ type RedeemCode struct {
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// PlanID holds the value of the "plan_id" field.
 	PlanID *int64 `json:"plan_id,omitempty"`
+	// ValidityDays holds the value of the "validity_days" field.
+	ValidityDays *int `json:"validity_days,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the RedeemCodeQuery when eager-loading is set.
 	Edges        RedeemCodeEdges `json:"edges"`
@@ -104,7 +106,7 @@ func (*RedeemCode) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case redeemcode.FieldValue:
 			values[i] = new(sql.NullFloat64)
-		case redeemcode.FieldID, redeemcode.FieldMaxUses, redeemcode.FieldUsedCount, redeemcode.FieldUsedBy, redeemcode.FieldPlanID:
+		case redeemcode.FieldID, redeemcode.FieldMaxUses, redeemcode.FieldUsedCount, redeemcode.FieldUsedBy, redeemcode.FieldPlanID, redeemcode.FieldValidityDays:
 			values[i] = new(sql.NullInt64)
 		case redeemcode.FieldCode, redeemcode.FieldType, redeemcode.FieldStatus, redeemcode.FieldNotes:
 			values[i] = new(sql.NullString)
@@ -214,6 +216,13 @@ func (_m *RedeemCode) assignValues(columns []string, values []any) error {
 				_m.PlanID = new(int64)
 				*_m.PlanID = value.Int64
 			}
+		case redeemcode.FieldValidityDays:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field validity_days", values[i])
+			} else if value.Valid {
+				_m.ValidityDays = new(int)
+				*_m.ValidityDays = int(value.Int64)
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -311,6 +320,11 @@ func (_m *RedeemCode) String() string {
 	builder.WriteString(", ")
 	if v := _m.PlanID; v != nil {
 		builder.WriteString("plan_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.ValidityDays; v != nil {
+		builder.WriteString("validity_days=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteByte(')')

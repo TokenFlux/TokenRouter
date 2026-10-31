@@ -56,6 +56,7 @@ func RedeemCodeFromServiceBase(rc *billing.RedeemCode) RedeemCode {
 		UsedAt:          rc.UsedAt,
 		CreatedAt:       rc.CreatedAt,
 		PlanID:          rc.PlanID,
+		ValidityDays:    rc.ValidityDays,
 		User:            UserSummaryFromBilling(rc.User),
 	}
 

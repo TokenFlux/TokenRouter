@@ -35,6 +35,8 @@ export interface RedeemCode {
   created_at: string // Record creation timestamp.
   updated_at?: string // Record update timestamp.
   plan_id?: number | null // Subscription plan identifier.
+  // A present day count freezes subscription duration; missing or null retains the plan default at redemption.
+  validity_days?: number | null
   notes?: string | null // Visible adjustment reason.
   user?: User // Expanded account details.
   plan?: SubscriptionPlan // Granted subscription plan details.

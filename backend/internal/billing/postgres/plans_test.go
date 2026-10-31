@@ -6,11 +6,30 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	sqlitetest "github.com/TokenFlux/TokenRouter/internal/testutil/sqlite"
 )
+
+// TestGetPlanUsesTheContextTransaction creates a plan that remains invisible outside its uncommitted transaction.
+// The plan reader observes those terms through the supplied context, then returns not found after rollback removes the fixture plan.
+func TestGetPlanUsesTheContextTransaction(t *testing.T) {
+	client := sqlitetest.NewClient(t)
+	tx, err := client.Tx(t.Context())
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	plan, err := tx.SubscriptionPlan.Create().SetName("transaction-only").SetPrice(1).SetValidityDays(7).Save(t.Context())
+	require.NoError(t, err)
+	store := NewPlanStore(client)
+	resolved, err := store.GetPlan(ent.NewTxContext(t.Context(), tx), plan.ID)
+	require.NoError(t, err)
+	require.Equal(t, 7, resolved.ValidityDays)
+	require.NoError(t, tx.Rollback())
+	_, err = store.GetPlan(t.Context(), plan.ID)
+	require.Equal(t, "PLAN_NOT_FOUND", apperror.Reason(err))
+}
 
 // plans_test.go checks plan group normalization and transactional mapping writes.
 // The SQLite fixture enforces group foreign keys so a failed mapping insert

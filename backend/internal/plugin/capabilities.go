@@ -18,6 +18,8 @@ type CapabilityAudit struct {
 	Key         string // bounded operation replay key
 	Replayed    bool   // original operation result was reused
 	Amount      string // bounded requested amount text
+	RedeemType  string // bounded requested credential entitlement type
+	Quantity    int64  // attempted credential issuance count
 	PlanID      int64  // optional requested plan identifier
 	Days        int32  // optional requested entitlement duration
 	Reason      string // bounded operation explanation text

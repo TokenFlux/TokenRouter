@@ -69,7 +69,8 @@ func (r *RedeemStore) Create(ctx context.Context, code *billing.RedeemCode) erro
 		SetNotes(code.Notes).
 		SetNillableUsedBy(code.UsedBy).
 		SetNillableUsedAt(code.UsedAt).
-		SetNillablePlanID(code.PlanID)
+		SetNillablePlanID(code.PlanID).
+		SetNillableValidityDays(code.ValidityDays)
 
 	if code.ExpiresAt != nil {
 		builder.SetExpiresAt(*code.ExpiresAt)
@@ -107,7 +108,8 @@ func (r *RedeemStore) CreateBatch(ctx context.Context, codes []billing.RedeemCod
 			SetNotes(c.Notes).
 			SetNillableUsedBy(c.UsedBy).
 			SetNillableUsedAt(c.UsedAt).
-			SetNillablePlanID(c.PlanID)
+			SetNillablePlanID(c.PlanID).
+			SetNillableValidityDays(c.ValidityDays)
 		if c.ExpiresAt != nil {
 			builder.SetExpiresAt(*c.ExpiresAt)
 		}
@@ -817,6 +819,7 @@ func RedeemFromEntity(model *dbent.RedeemCode) *billing.RedeemCode {
 		Notes:           derefString(model.Notes),
 		CreatedAt:       model.CreatedAt,
 		PlanID:          model.PlanID,
+		ValidityDays:    model.ValidityDays,
 	}
 	if model.Edges.User != nil {
 		out.User = userSummaryFromEntity(model.Edges.User)

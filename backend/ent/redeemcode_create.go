@@ -199,6 +199,20 @@ func (_c *RedeemCodeCreate) SetNillablePlanID(v *int64) *RedeemCodeCreate {
 	return _c
 }
 
+// SetValidityDays sets the "validity_days" field.
+func (_c *RedeemCodeCreate) SetValidityDays(v int) *RedeemCodeCreate {
+	_c.mutation.SetValidityDays(v)
+	return _c
+}
+
+// SetNillableValidityDays sets the "validity_days" field if the given value is not nil.
+func (_c *RedeemCodeCreate) SetNillableValidityDays(v *int) *RedeemCodeCreate {
+	if v != nil {
+		_c.SetValidityDays(*v)
+	}
+	return _c
+}
+
 // AddUsageRecordIDs adds the "usage_records" edge to the RedeemCodeUsage entity by IDs.
 func (_c *RedeemCodeCreate) AddUsageRecordIDs(ids ...int64) *RedeemCodeCreate {
 	_c.mutation.AddUsageRecordIDs(ids...)
@@ -344,6 +358,11 @@ func (_c *RedeemCodeCreate) check() error {
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "RedeemCode.created_at"`)}
 	}
+	if v, ok := _c.mutation.ValidityDays(); ok {
+		if err := redeemcode.ValidityDaysValidator(v); err != nil {
+			return &ValidationError{Name: "validity_days", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.validity_days": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -414,6 +433,10 @@ func (_c *RedeemCodeCreate) createSpec() (*RedeemCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(redeemcode.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
+	}
+	if value, ok := _c.mutation.ValidityDays(); ok {
+		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)
+		_node.ValidityDays = &value
 	}
 	if nodes := _c.mutation.UsageRecordsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -709,6 +732,30 @@ func (u *RedeemCodeUpsert) ClearPlanID() *RedeemCodeUpsert {
 	return u
 }
 
+// SetValidityDays sets the "validity_days" field.
+func (u *RedeemCodeUpsert) SetValidityDays(v int) *RedeemCodeUpsert {
+	u.Set(redeemcode.FieldValidityDays, v)
+	return u
+}
+
+// UpdateValidityDays sets the "validity_days" field to the value that was provided on create.
+func (u *RedeemCodeUpsert) UpdateValidityDays() *RedeemCodeUpsert {
+	u.SetExcluded(redeemcode.FieldValidityDays)
+	return u
+}
+
+// AddValidityDays adds v to the "validity_days" field.
+func (u *RedeemCodeUpsert) AddValidityDays(v int) *RedeemCodeUpsert {
+	u.Add(redeemcode.FieldValidityDays, v)
+	return u
+}
+
+// ClearValidityDays clears the value of the "validity_days" field.
+func (u *RedeemCodeUpsert) ClearValidityDays() *RedeemCodeUpsert {
+	u.SetNull(redeemcode.FieldValidityDays)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -975,6 +1022,34 @@ func (u *RedeemCodeUpsertOne) UpdatePlanID() *RedeemCodeUpsertOne {
 func (u *RedeemCodeUpsertOne) ClearPlanID() *RedeemCodeUpsertOne {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.ClearPlanID()
+	})
+}
+
+// SetValidityDays sets the "validity_days" field.
+func (u *RedeemCodeUpsertOne) SetValidityDays(v int) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetValidityDays(v)
+	})
+}
+
+// AddValidityDays adds v to the "validity_days" field.
+func (u *RedeemCodeUpsertOne) AddValidityDays(v int) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.AddValidityDays(v)
+	})
+}
+
+// UpdateValidityDays sets the "validity_days" field to the value that was provided on create.
+func (u *RedeemCodeUpsertOne) UpdateValidityDays() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateValidityDays()
+	})
+}
+
+// ClearValidityDays clears the value of the "validity_days" field.
+func (u *RedeemCodeUpsertOne) ClearValidityDays() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearValidityDays()
 	})
 }
 
@@ -1410,6 +1485,34 @@ func (u *RedeemCodeUpsertBulk) UpdatePlanID() *RedeemCodeUpsertBulk {
 func (u *RedeemCodeUpsertBulk) ClearPlanID() *RedeemCodeUpsertBulk {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.ClearPlanID()
+	})
+}
+
+// SetValidityDays sets the "validity_days" field.
+func (u *RedeemCodeUpsertBulk) SetValidityDays(v int) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetValidityDays(v)
+	})
+}
+
+// AddValidityDays adds v to the "validity_days" field.
+func (u *RedeemCodeUpsertBulk) AddValidityDays(v int) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.AddValidityDays(v)
+	})
+}
+
+// UpdateValidityDays sets the "validity_days" field to the value that was provided on create.
+func (u *RedeemCodeUpsertBulk) UpdateValidityDays() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateValidityDays()
+	})
+}
+
+// ClearValidityDays clears the value of the "validity_days" field.
+func (u *RedeemCodeUpsertBulk) ClearValidityDays() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearValidityDays()
 	})
 }
 
