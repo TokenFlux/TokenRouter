@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/audit"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -17,11 +19,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/plugin/provider"
 )
 
-// plugin_capabilities.go binds plugin financial authority to existing billing,
+// plugin_capabilities.go binds plugin financial and entitlement authority to existing billing,
 // authentication-cache, and audit services. The ledger supplies a transaction
 // context that the existing balance adjuster joins, so plugin credits neither
 // increase cumulative recharge totals nor bypass the atomic insufficient-funds
-// predicate. The adapter maps only the permitted balance observations back.
+// predicate. Subscription issuance locks a live recipient and retains the existing
+// plan template and timeline rules. Adapters return only declared result fields.
 //
 // Cache invalidation and adjustment history follow a successful ledger commit.
 // Every auxiliary operation is attempted, and errors are returned together for
@@ -36,6 +39,12 @@ type pluginWalletEffects struct {
 	records     *billing.RedeemAdmin         // completed balance adjustment history writer
 	invalidator identity.UserAuthInvalidator // affected-user authentication cache invalidator
 	cache       identity.UserBalanceCache    // user funding eligibility cache
+}
+
+// pluginSubscriptionEffects joins existing issuance to the ledger and exposes post-commit invalidation.
+type pluginSubscriptionEffects struct {
+	service     *billing.SubscriptionService // existing plan-template and timeline issuance
+	invalidator identity.UserAuthInvalidator // affected-user authentication cache invalidator
 }
 
 // pluginCapabilityAudit maps bounded RPC observations into existing administrator audit records.
@@ -59,9 +68,15 @@ func providePluginWallet(writes *plugin.Writes, grants *plugin.Grants, balances 
 	return plugin.NewWalletService(writes, grants, effects, time.Local, slog.Default())
 }
 
+// providePluginSubscriptions binds direct entitlement grants to existing transactional billing rules.
+func providePluginSubscriptions(writes *plugin.Writes, service *billing.SubscriptionService, invalidator apikey.APIKeyAuthCacheInvalidator) *plugin.Subscriptions {
+	effects := &pluginSubscriptionEffects{service: service, invalidator: invalidator}
+	return plugin.NewSubscriptions(writes, effects, time.Local)
+}
+
 // providePluginHostServices shares wallet capabilities and auditing across authenticated process bindings.
-func providePluginHostServices(wallet *plugin.WalletService, grants *plugin.Grants, auditor *audit.AuditLogService) *provider.HostServices {
-	return provider.NewHostServices(wallet, grants, pluginCapabilityAudit{service: auditor})
+func providePluginHostServices(wallet *plugin.WalletService, subscriptions *plugin.Subscriptions, grants *plugin.Grants, auditor *audit.AuditLogService) *provider.HostServices {
+	return provider.NewHostServices(wallet, subscriptions, grants, pluginCapabilityAudit{service: auditor})
 }
 
 // AdjustBalance applies the signed delta on the ledger's transaction-bound context.
@@ -108,4 +123,42 @@ func (a pluginCapabilityAudit) RecordCapability(observation plugin.CapabilityAud
 			"plan_id": observation.PlanID, "validity_days": observation.Days, "reason": observation.Reason, "error_reason": observation.ErrorReason,
 		},
 	})
+}
+
+// Assign locks a live recipient before delegating to existing subscription issuance.
+// The ledger must already own the transaction. Existing billing repeats the user
+// lock on that same connection, retaining its ordinary plan and timeline behavior.
+//
+// The explicit live-user predicate prevents a soft-deleted account from receiving
+// new plugin benefits, including when deletion races with issuance. Missing plans
+// map to the plugin plan error after recipient identity has been established.
+// AssignedBy and SourceOrderID remain empty, and quota terms come from the live
+// plan rather than caller-supplied templates or synthetic payment identities.
+func (a *pluginSubscriptionEffects) Assign(ctx context.Context, userID, planID int64, days int32, notes string) (plugin.SubscriptionGrant, error) {
+	tx := ent.TxFromContext(ctx)
+	if tx == nil {
+		return plugin.SubscriptionGrant{}, errors.New("plugin subscription requires its ledger transaction")
+	}
+	_, err := tx.User.Query().Where(user.IDEQ(userID), user.DeletedAtIsNil()).Select(user.FieldID).ForUpdate().Only(ctx)
+	if ent.IsNotFound(err) {
+		return plugin.SubscriptionGrant{}, plugin.ErrHostUserNotFound
+	}
+	if err != nil {
+		return plugin.SubscriptionGrant{}, err
+	}
+	granted, queued, err := a.service.AssignOrExtendSubscription(ctx, &billing.AssignSubscriptionInput{
+		UserID: userID, PlanID: planID, ValidityDays: int(days), AssignedBy: 0, SourceOrderID: nil, UseProvidedTemplate: false, Notes: notes,
+	})
+	if ent.IsNotFound(err) {
+		return plugin.SubscriptionGrant{}, plugin.ErrPlanNotAllowed
+	}
+	if err != nil {
+		return plugin.SubscriptionGrant{}, err
+	}
+	return plugin.SubscriptionGrant{ID: granted.ID, ExpiresUnix: granted.ExpiresAt.Unix(), Queued: queued}, nil
+}
+
+// InvalidateUserAuth requests fresh authorization after a committed plugin subscription grant.
+func (a *pluginSubscriptionEffects) InvalidateUserAuth(ctx context.Context, userID int64) {
+	a.invalidator.InvalidateAuthCacheByUserID(ctx, userID)
 }

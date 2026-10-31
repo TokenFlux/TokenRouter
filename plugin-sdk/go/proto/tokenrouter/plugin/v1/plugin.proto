@@ -413,7 +413,7 @@ message GrantSubscriptionRequest {
 message GrantSubscriptionResponse {
   // Issued subscription record identifier.
   int64 subscription_id = 1;
-  // Expiration time in Unix seconds; zero denotes no expiry for redeem codes.
+  // Expiration time of the issued or queued subscription, in Unix seconds.
   int64 expires_unix = 2;
   // Whether the grant starts after an existing subscription.
   bool queued = 3;

@@ -40,4 +40,5 @@ var (
 	ErrLimitExceeded        = apperror.New(apperror.CategoryTooManyRequests, "LIMIT_EXCEEDED", "Plugin capability limit exceeded")
 	ErrInsufficientBalance  = apperror.BadRequest("INSUFFICIENT_BALANCE", "User balance is insufficient")
 	ErrHostUserNotFound     = apperror.NotFound("USER_NOT_FOUND", "User not found")
+	ErrPlanNotAllowed       = apperror.BadRequest("PLAN_NOT_ALLOWED", "Subscription plan is not allowed for this plugin")
 )

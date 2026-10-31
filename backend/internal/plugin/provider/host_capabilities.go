@@ -34,9 +34,10 @@ import (
 
 // HostServices contains the host-owned capability implementations shared across plugin bindings.
 type HostServices struct {
-	wallet *plugin.WalletService    // ledger-backed wallet capability implementation
-	grants *plugin.Grants           // optional caller attribution verifier
-	audit  plugin.CapabilityAuditor // best-effort write observation destination
+	wallet        *plugin.WalletService    // ledger-backed wallet capability implementation
+	subscriptions *plugin.Subscriptions    // ledger-backed direct entitlement capability
+	grants        *plugin.Grants           // optional caller attribution verifier
+	audit         plugin.CapabilityAuditor // best-effort write observation destination
 }
 
 // hostService binds shared capabilities to one immutable authenticated process identity.
@@ -46,11 +47,11 @@ type hostService struct {
 	binding                          plugin.Binding // immutable process identity and permissions
 }
 
-// NewHostServices binds wallet authority, grant attribution, and write auditing.
+// NewHostServices binds financial capabilities, caller attribution, and write auditing.
 // Capability implementations must remain available until plugin callbacks drain.
 // Construction starts no process and records no audit entry before an RPC occurs.
-func NewHostServices(wallet *plugin.WalletService, grants *plugin.Grants, audit plugin.CapabilityAuditor) *HostServices {
-	return &HostServices{wallet: wallet, grants: grants, audit: audit}
+func NewHostServices(wallet *plugin.WalletService, subscriptions *plugin.Subscriptions, grants *plugin.Grants, audit plugin.CapabilityAuditor) *HostServices {
+	return &HostServices{wallet: wallet, subscriptions: subscriptions, grants: grants, audit: audit}
 }
 
 // Bind captures authenticated process identity without retaining its decrypted configuration.
@@ -76,6 +77,17 @@ func (s *hostService) WalletDebit(ctx context.Context, request *pluginpb.WalletR
 		return nil, capabilityError(err)
 	}
 	return &pluginpb.WalletResponse{BalanceBefore: change.Before, BalanceAfter: change.After, Replayed: change.Replayed}, nil
+}
+
+// GrantSubscription maps a permitted plan grant into transaction-backed entitlement issuance.
+func (s *hostService) GrantSubscription(ctx context.Context, request *pluginpb.GrantSubscriptionRequest) (*pluginpb.GrantSubscriptionResponse, error) {
+	result, err := s.services.subscriptions.Grant(ctx, s.binding, plugin.SubscriptionInput{
+		UserID: request.GetUserId(), PlanID: request.GetPlanId(), Days: request.GetValidityDays(), Key: request.GetIdempotencyKey(), Reason: request.GetReason(),
+	})
+	if err != nil {
+		return nil, capabilityError(err)
+	}
+	return &pluginpb.GrantSubscriptionResponse{SubscriptionId: result.ID, ExpiresUnix: result.ExpiresUnix, Queued: result.Queued, Replayed: result.Replayed}, nil
 }
 
 // walletInput selects only the declared business inputs from a protocol request.

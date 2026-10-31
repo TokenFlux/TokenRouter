@@ -2199,7 +2199,7 @@ type GrantSubscriptionResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Issued subscription record identifier.
 	SubscriptionId int64 `protobuf:"varint,1,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
-	// Expiration time in Unix seconds; zero denotes no expiry for redeem codes.
+	// Expiration time of the issued or queued subscription, in Unix seconds.
 	ExpiresUnix int64 `protobuf:"varint,2,opt,name=expires_unix,json=expiresUnix,proto3" json:"expires_unix,omitempty"`
 	// Whether the grant starts after an existing subscription.
 	Queued bool `protobuf:"varint,3,opt,name=queued,proto3" json:"queued,omitempty"`
