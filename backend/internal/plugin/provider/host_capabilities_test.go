@@ -128,3 +128,24 @@ func TestWriteAuditCapturesActorBeforeTicketExpiry(t *testing.T) {
 	require.True(t, utf8.ValidString(entries[0].Reason))
 	require.Equal(t, "beforeafter", auditText("before\x00after", 128))
 }
+
+// TestEmailAuditRetainsFailedReplayWithoutContent observes an uncertain replay carrying response metadata and a protocol error together.
+// Audit retains the replay classification and recipient while excluding the private subject and message body from its serialized fields.
+func TestEmailAuditRetainsFailedReplayWithoutContent(t *testing.T) {
+	audit := &capabilityAuditFixture{}
+	server := &hostService{services: NewHostServices(HostCapabilities{}, nil, audit), binding: plugin.Binding{PluginID: "test.email", Version: "1.0.0"}}
+	request := &pluginpb.SendEmailRequest{UserId: 7, IdempotencyKey: "notice", Subject: "private-subject", BodyText: "private-body"}
+	_, err := server.observeWrite(t.Context(), request, &grpc.UnaryServerInfo{FullMethod: "/tokenrouter.plugin.v1.Host/SendEmail"}, func(context.Context, any) (any, error) {
+		return &pluginpb.SendEmailResponse{Replayed: true}, capabilityError(plugin.ErrEmailDeliveryUnknown)
+	})
+	require.Error(t, err)
+	entries := audit.snapshot()
+	require.Len(t, entries, 1)
+	require.True(t, entries[0].Replayed)
+	require.Equal(t, "EMAIL_DELIVERY_UNKNOWN", entries[0].ErrorReason)
+	require.Equal(t, "1", entries[0].Amount)
+	data, err := json.Marshal(entries)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "private-subject")
+	require.NotContains(t, string(data), "private-body")
+}

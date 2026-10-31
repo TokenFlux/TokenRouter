@@ -467,6 +467,7 @@ func TestNotificationEmailEventOrderAndCopies(t *testing.T) {
 		NotificationEmailEventContentModerationDisabled,
 		NotificationEmailEventOpsAlert,
 		NotificationEmailEventOpsScheduledReport,
+		NotificationEmailEventPluginMessage,
 	}
 	infos := svc.ListEventInfos()
 	events := make([]string, 0, len(infos))

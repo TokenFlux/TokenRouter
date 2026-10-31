@@ -74,9 +74,9 @@ func providePluginSubscriptions(writes *plugin.Writes, service *billing.Subscrip
 	return plugin.NewSubscriptions(writes, effects, time.Local)
 }
 
-// providePluginHostServices shares wallet capabilities and auditing across authenticated process bindings.
-func providePluginHostServices(wallet *plugin.WalletService, subscriptions *plugin.Subscriptions, queries *plugin.Queries, grants *plugin.Grants, auditor *audit.AuditLogService) *provider.HostServices {
-	return provider.NewHostServices(provider.HostCapabilities{Wallet: wallet, Subscriptions: subscriptions, Queries: queries}, grants, pluginCapabilityAudit{service: auditor})
+// providePluginHostServices shares configured capabilities and auditing across authenticated process bindings.
+func providePluginHostServices(wallet *plugin.WalletService, subscriptions *plugin.Subscriptions, queries *plugin.Queries, emails *plugin.Emails, grants *plugin.Grants, auditor *audit.AuditLogService) *provider.HostServices {
+	return provider.NewHostServices(provider.HostCapabilities{Wallet: wallet, Subscriptions: subscriptions, Queries: queries, Emails: emails}, grants, pluginCapabilityAudit{service: auditor})
 }
 
 // AdjustBalance applies the signed delta on the ledger's transaction-bound context.

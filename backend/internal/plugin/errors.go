@@ -41,4 +41,6 @@ var (
 	ErrInsufficientBalance  = apperror.BadRequest("INSUFFICIENT_BALANCE", "User balance is insufficient")
 	ErrHostUserNotFound     = apperror.NotFound("USER_NOT_FOUND", "User not found")
 	ErrPlanNotAllowed       = apperror.BadRequest("PLAN_NOT_ALLOWED", "Subscription plan is not allowed for this plugin")
+	ErrHostUnavailable      = apperror.New(apperror.CategoryServiceUnavailable, "HOST_UNAVAILABLE", "Plugin host operation is unavailable")
+	ErrEmailDeliveryUnknown = apperror.Conflict("EMAIL_DELIVERY_UNKNOWN", "Email delivery outcome is unknown")
 )

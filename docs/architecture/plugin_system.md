@@ -64,6 +64,8 @@ Linux 设置独立进程组与 `Pdeathsig=SIGKILL`，正常清理也终止同组
 
 直接订阅发放要求 `subscription.grant`，并同时检查安装额度中的套餐白名单、单次天数、单用户每日次数和总次数。白名单默认空，未配置就不能发放。发放复用 `AssignOrExtendSubscription` 的当前套餐额度、有效期规范化和排队规则，保留 `AssignedBy` 与 `SourceOrderID` 为空。用户行先按未删除条件锁定，再在同一台账事务中发放；提交后清除用户认证缓存。
 
+邮件要求 `notify.email`，以同一台账先提交 `pending` 认领和额度，再调用通知服务。所有认领都计入每日次数，包括退订、无邮箱、发送失败和结果不明；相同键的调用等待原调用实际返回并保存结果，等待取消不改变原认领。发送完成记录 `completed`，成功和跳过分别保存 `delivered=true/false`。发送器调用前的错误记录为 `failed`，同键重放原错误。SMTP 调用后失败、重启留下的认领或最终结果保存失败都返回 `EMAIL_DELIVERY_UNKNOWN`，不会自动重发。结果写入使用独立的五秒预算；通知成功标记失败但 SMTP 已确认时，仍可在插件台账中保存已送达结果。
+
 <a id="read_capabilities"></a>
 ## 只读能力与字段范围
 

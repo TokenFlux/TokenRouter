@@ -34,6 +34,7 @@ import (
 
 // HostCapabilities groups the business implementations selected before host service publication.
 type HostCapabilities struct {
+	Emails        *plugin.Emails        // durable optional email delivery capability
 	Wallet        *plugin.WalletService // ledger-backed wallet capability implementation
 	Subscriptions *plugin.Subscriptions // ledger-backed direct entitlement capability
 	Queries       *plugin.Queries       // bounded read capability implementation
@@ -53,7 +54,7 @@ type hostService struct {
 	binding                          plugin.Binding // immutable process identity and permissions
 }
 
-// NewHostServices binds financial capabilities, caller attribution, and write auditing.
+// NewHostServices binds business capabilities, caller attribution, and write auditing.
 // Capability implementations must remain available until plugin callbacks drain.
 // Construction starts no process and records no audit entry before an RPC occurs.
 func NewHostServices(capabilities HostCapabilities, grants *plugin.Grants, audit plugin.CapabilityAuditor) *HostServices {
@@ -94,6 +95,21 @@ func (s *hostService) GrantSubscription(ctx context.Context, request *pluginpb.G
 		return nil, capabilityError(err)
 	}
 	return &pluginpb.GrantSubscriptionResponse{SubscriptionId: result.ID, ExpiresUnix: result.ExpiresUnix, Queued: result.Queued, Replayed: result.Replayed}, nil
+}
+
+// SendEmail returns delivery state while retaining replay metadata for local auditing.
+// gRPC discards the response when an error is returned. The surrounding audit
+// interceptor can still observe whether an uncertain result reused an earlier claim.
+func (s *hostService) SendEmail(ctx context.Context, request *pluginpb.SendEmailRequest) (*pluginpb.SendEmailResponse, error) {
+	result, err := s.services.capabilities.Emails.Send(ctx, s.binding, plugin.EmailInput{UserID: request.GetUserId(), Subject: request.GetSubject(), BodyText: request.GetBodyText(), Key: request.GetIdempotencyKey()})
+	var response *pluginpb.SendEmailResponse
+	if result != nil {
+		response = &pluginpb.SendEmailResponse{Delivered: result.Delivered, Replayed: result.Replayed}
+	}
+	if err != nil {
+		return response, capabilityError(err)
+	}
+	return response, nil
 }
 
 // walletInput selects only the declared business inputs from a protocol request.
@@ -179,6 +195,7 @@ func (s *hostService) observeWrite(ctx context.Context, request any, info *grpc.
 	case *pluginpb.SendEmailRequest:
 		observation.UserID = input.GetUserId()
 		observation.Key = input.GetIdempotencyKey()
+		observation.Amount = "1"
 	}
 	if grant != "" && s.services.grants != nil {
 		if subject, verifyErr := s.services.grants.Subject(s.binding.PluginID, grant); verifyErr == nil {

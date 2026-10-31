@@ -353,9 +353,14 @@ function localText(zh: string, en: string): string {
 }
 
 // Chinese event metadata overrides server labels for recognized event IDs
-// while keeping account, billing, and operational notification meanings
+// while keeping account, billing, operations, and plugin notification meanings
 // distinct.
 const eventDisplayMeta: Record<string, EventDisplayMeta> = {
+  plugin_message: {
+    label: '插件消息',
+    timing: '管理员安装的插件向用户发送消息时投递，用户可退订此类邮件。',
+    categoryLabel: '插件',
+  },
   'auth.verify_code': {
     label: '邮箱验证码',
     timing: '注册、绑定邮箱、OAuth 补全邮箱或 TOTP 邮箱校验时发送。',
@@ -439,6 +444,12 @@ const eventDisplayMeta: Record<string, EventDisplayMeta> = {
 // English event metadata supplies the same known event descriptions whenever
 // the interface locale does not begin with zh.
 const eventDisplayMetaEn: Record<string, EventDisplayMeta> = {
+  plugin_message: {
+    label: 'Plugin Message',
+    timing:
+      'Sent when an administrator-installed plugin sends a user message. Recipients can unsubscribe.',
+    categoryLabel: 'Plugin',
+  },
   'auth.verify_code': {
     label: 'Email Verification Code',
     timing:
