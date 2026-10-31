@@ -23,6 +23,7 @@ var (
 	ErrPluginRestarting       = apperror.New(apperror.CategoryServiceUnavailable, "PLUGIN_RESTARTING", "Plugin is restarting")
 	ErrRouteNotFound          = apperror.NotFound("PLUGIN_ROUTE_NOT_FOUND", "Plugin route not found")
 	ErrPluginTimeout          = apperror.New(apperror.CategoryGatewayTimeout, "PLUGIN_TIMEOUT", "Plugin request timed out")
+	ErrPluginRequestFailed    = apperror.New(apperror.CategoryBadGateway, "PLUGIN_UNAVAILABLE", "Plugin request failed")
 	ErrPluginsDisabled        = apperror.New(apperror.CategoryServiceUnavailable, "PLUGINS_DISABLED", "Plugins are disabled")
 	ErrIndexInvalid           = apperror.BadRequest("PLUGIN_INDEX_INVALID", "Plugin index is invalid")
 	ErrIndexNotFound          = apperror.NotFound("PLUGIN_INDEX_NOT_FOUND", "Plugin index not found")

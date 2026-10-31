@@ -125,7 +125,7 @@ SIGINT、SIGTERM、监听失败和 Linux 上的手动重启走同一个关闭流
 
 `OpenAILiveObservers` 在阶段 5 停止，Responses WS 设置刷新在阶段 9 停止，`OpenAIWSConnections` 在阶段 10 关闭。
 
-`PluginRuntime` 在启动顺序 976 异步恢复持久化安装及显式开发目录，在停止阶段 27 排空并终止插件进程，预算为 8 秒。插件回调依赖的共享服务在之后关闭；进程代次与租约规则见[插件系统](plugin_system.md#leases_and_callbacks)。
+`PluginKV` 在启动顺序 975 登记采样与过期清理。`PluginRuntime` 在启动顺序 976 异步恢复持久化安装及显式开发目录，在停止阶段 27 取消定时任务、排空并终止插件进程，预算为 8 秒；KV 维护同阶段停止。插件回调依赖的共享服务在之后关闭；进程代次与租约规则见[插件系统](plugin_system.md#leases_and_callbacks)。
 
 请求跟踪包装的是 Handler，ResponseWriter 原样交给下游，Flush 和 Hijack 仍然可用。有些 handler 在客户端断开后还要继续收集用量，它们完成后请求清理才算结束。异步额度写入、通知、探针和快照任务在使用方一侧通过完成接口登记，它们的 context、并发数和参数取值时机保持各自的设计。每一层关闭后，先等这一层派生出的副作用完成，再关闭下一层依赖。
 

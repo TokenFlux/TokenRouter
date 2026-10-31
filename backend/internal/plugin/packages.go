@@ -44,6 +44,26 @@ type Asset struct {
 	SRI    string `json:"sri"`    // SHA-384 browser integrity attribute
 }
 
+// AssetFile owns a bounded readable file and its accepted package metadata.
+type AssetFile struct {
+	// Reader belongs to the caller after a successful open and must be closed on every response or inspection path.
+	Reader     io.ReadSeekCloser
+	Metadata   Asset     // accepted file integrity metadata
+	ModifiedAt time.Time // filesystem modification time observation
+}
+
+// AssetFiles resolves retained packages and opens bounded files without downloading anything.
+type AssetFiles interface {
+	// Local returns a retained managed version's marker metadata without recovery downloads.
+	// Missing local versions fail. Development callers already hold their inspected
+	// Package and pass it directly to Open instead of using managed lookup.
+	Local(context.Context, string, string) (Package, error)
+	// Open returns one declared regular file bounded by its accepted size.
+	// The caller selects an allowed asset path and byte ceiling, then closes the
+	// returned Reader. Undeclared, missing, linked, or oversized files fail before serving.
+	Open(context.Context, Package, string, int64) (*AssetFile, error)
+}
+
 // Upload describes a validated archive available for a bounded installation window.
 type Upload struct {
 	Token     string          // opaque staged archive identifier

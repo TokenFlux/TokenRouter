@@ -16,7 +16,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
-	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pluginpb/v1"
 )
 
 // TestProcessesDrainAndRejectNewLeases holds an admitted generation during stop.
@@ -67,7 +66,7 @@ func TestProcessesRestartAndEnterCrashLoop(t *testing.T) {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		_, _ = lease.Conn.HTTP.Handle(ctx, &pluginpb.HTTPRequest{Method: "GET", Path: "/", RawQuery: "mode=exit"})
+		_, _ = lease.Conn.HTTP.Exchange(ctx, &plugin.HTTPRequest{Method: "GET", Path: "/", RawQuery: "mode=exit"})
 		cancel()
 		lease.Release()
 		if attempt == 5 {
@@ -103,7 +102,7 @@ func TestProcessesRejectHostEnvironmentInheritance(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lease.Release()
-	response, err := lease.Conn.HTTP.Handle(context.Background(), &pluginpb.HTTPRequest{Method: "GET", Path: "/"})
+	response, err := lease.Conn.HTTP.Exchange(context.Background(), &plugin.HTTPRequest{Method: "GET", Path: "/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +130,7 @@ func TestProcessesKillStalledHandlersAfterHealthFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
-	_, err = lease.Conn.HTTP.Handle(ctx, &pluginpb.HTTPRequest{Method: "GET", Path: "/", RawQuery: "mode=loop"})
+	_, err = lease.Conn.HTTP.Exchange(ctx, &plugin.HTTPRequest{Method: "GET", Path: "/", RawQuery: "mode=loop"})
 	cancel()
 	lease.Release()
 	if err == nil {
@@ -280,7 +279,7 @@ func TestProcessesRecoverFromProcessPanic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := lease.Conn.HTTP.Handle(context.Background(), &pluginpb.HTTPRequest{Method: "GET", Path: "/", RawQuery: "mode=panic"})
+	response, err := lease.Conn.HTTP.Exchange(context.Background(), &plugin.HTTPRequest{Method: "GET", Path: "/", RawQuery: "mode=panic"})
 	if err != nil || response.Status != 500 {
 		t.Fatalf("handler panic result: %v %v", response, err)
 	}
@@ -288,7 +287,7 @@ func TestProcessesRecoverFromProcessPanic(t *testing.T) {
 		t.Fatal("handler panic replaced process")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	_, _ = lease.Conn.HTTP.Handle(ctx, &pluginpb.HTTPRequest{Method: "GET", Path: "/", RawQuery: "mode=panic-process"})
+	_, _ = lease.Conn.HTTP.Exchange(ctx, &plugin.HTTPRequest{Method: "GET", Path: "/", RawQuery: "mode=panic-process"})
 	cancel()
 	lease.Release()
 	deadline := time.Now().Add(3 * time.Second)

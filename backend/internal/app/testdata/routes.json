@@ -1,4 +1,5 @@
 [
+  "CONNECT /api/v1/plugins/:id/api/*path",
   "DELETE /api/v1/admin/affiliates/users/:user_id",
   "DELETE /api/v1/admin/announcements/:id",
   "DELETE /api/v1/admin/backups/:id",
@@ -32,6 +33,7 @@
   "DELETE /api/v1/admin/user-attributes/:id",
   "DELETE /api/v1/admin/users/:id",
   "DELETE /api/v1/keys/:id",
+  "DELETE /api/v1/plugins/:id/api/*path",
   "DELETE /api/v1/team",
   "DELETE /api/v1/team/invitations/:id",
   "DELETE /api/v1/team/keys/:id",
@@ -282,6 +284,9 @@
   "GET /api/v1/payment/orders/refund-eligible-providers",
   "GET /api/v1/payment/plans",
   "GET /api/v1/payment/webhook/easypay",
+  "GET /api/v1/plugins/:id/api/*path",
+  "GET /api/v1/plugins/:id/assets/:version/*file",
+  "GET /api/v1/plugins/ui",
   "GET /api/v1/redeem/history",
   "GET /api/v1/settings/email-unsubscribe",
   "GET /api/v1/settings/legal/:id",
@@ -355,7 +360,10 @@
   "GET /videos/extensions/:request_id/content",
   "GET /videos/generations/:request_id",
   "GET /videos/generations/:request_id/content",
+  "HEAD /api/v1/plugins/:id/api/*path",
+  "OPTIONS /api/v1/plugins/:id/api/*path",
   "PATCH /api/v1/admin/teams/:id",
+  "PATCH /api/v1/plugins/:id/api/*path",
   "PATCH /api/v1/team",
   "PATCH /api/v1/team/default-member-limits",
   "PATCH /api/v1/team/members/:user_id/limits",
@@ -578,6 +586,7 @@
   "POST /api/v1/payment/webhook/easypay",
   "POST /api/v1/payment/webhook/stripe",
   "POST /api/v1/payment/webhook/wxpay",
+  "POST /api/v1/plugins/:id/api/*path",
   "POST /api/v1/redeem",
   "POST /api/v1/subscriptions/:id/revoke",
   "POST /api/v1/team",
@@ -709,7 +718,9 @@
   "PUT /api/v1/admin/users/:id",
   "PUT /api/v1/admin/users/:id/attributes",
   "PUT /api/v1/keys/:id",
+  "PUT /api/v1/plugins/:id/api/*path",
   "PUT /api/v1/user",
   "PUT /api/v1/user/notify-email/toggle",
-  "PUT /api/v1/user/password"
+  "PUT /api/v1/user/password",
+  "TRACE /api/v1/plugins/:id/api/*path"
 ]

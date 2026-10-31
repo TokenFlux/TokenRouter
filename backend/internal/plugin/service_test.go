@@ -8,6 +8,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestDisablePublishesIntentEvenWhenDrainFails saves a disabled installation before its process reports unfinished shutdown work.
+// Both persistence and UI snapshots remain disabled, while native request admission stays blocked for a later administrative retry.
+func TestDisablePublishesIntentEvenWhenDrainFails(t *testing.T) {
+	manager, service, store, processes, _ := managerFixture(t, 1)
+	require.NoError(t, store.Save(t.Context(), managerInstallation(t, "test.plugin", true)))
+	require.NoError(t, manager.Sync(t.Context(), "test.plugin"))
+	processes.stopError = errors.New("drain still pending")
+	_, err := service.Disable(t.Context(), "test.plugin", 1)
+	require.ErrorContains(t, err, "drain still pending")
+	stored, err := store.Get(t.Context(), "test.plugin")
+	require.NoError(t, err)
+	require.False(t, stored.Enabled)
+	loaded, found := manager.Snapshot("test.plugin")
+	require.True(t, found)
+	require.False(t, loaded.Installation.Enabled)
+	_, err = manager.Acquire(t.Context(), "test.plugin")
+	require.ErrorIs(t, err, ErrPluginUnavailable)
+}
+
 // TestUninstallRetainsInstallationUntilCallbacksDrain blocks supervisor completion during a purging uninstall.
 // New admission closes immediately, and the installation remains until the callback barrier confirms actual completion.
 func TestUninstallRetainsInstallationUntilCallbacksDrain(t *testing.T) {

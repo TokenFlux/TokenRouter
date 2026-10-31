@@ -41,6 +41,7 @@ func TestNativeRouteInventory(t *testing.T) {
 	routeInventoryMount[adminRouteMount](t, provideAdminRouteMount)(v1, security, noop)
 	routeInventoryMount[gatewayRouteMount](t, provideGatewayRouteMount)(r)
 	routeInventoryMount[paymentRouteMount](t, providePaymentRouteMount)(v1, security)
+	routeInventoryMount[pluginRouteMount](t, providePluginRouteMount)(v1, security)
 	raw, err := os.ReadFile("testdata/routes.json")
 	require.NoError(t, err)
 	var expected []string

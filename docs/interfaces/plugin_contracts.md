@@ -8,6 +8,7 @@
 - [安装包](#packages)：内容、路径与完整性。
 - [签名索引](#catalog)：来源与分发记录。
 - [安装管理](#administration)：上传、配置与运行控制。
+- [HTTP 贡献](#http_contributions)：路由鉴权、响应过滤与公开资源。
 - [进程协议](#process_protocol)：宿主能力与 SDK。
 - [KV 接口](#kv_api)：版本、JSON、TTL 与分页。
 - [Web SDK](#web_sdk)：构建预设与示例。
@@ -51,6 +52,21 @@
 `/:id` 返回详情或卸载；DELETE 的 `purge_data=true` 清除 KV，缺省保留，台账始终保留。`/:id/enable`、`disable`、`restart` 控制运行意图和本地进程；`/:id/logs` 返回最近 500 行。安装列表和详情的可选 `tasks` 字段返回已登记任务的内存状态及最近执行结果；`next_run_at` 为零值时表示暂停。状态字段见[定时任务](../architecture/plugin_system.md#task_scheduling)。所有路由登记到 adminapi，执行代码、配置和额度变更通过实际 HTTP step-up guard；multipart 上传在 MCP 中使用浏览器入口。
 
 `/:id/config` 的 GET 和 PUT 使用 `{values: {...}}`。普通字段按提交内容替换并补默认值；secret 省略保留、空字符串清除，返回值为 `{set: boolean}`。`/:id/limits` 接受 wallet、redeem、subscription、email 分组，未给出的字段使用默认值，显式 0 禁止对应操作，null 和未知字段被拒绝。金额额度采用精确十进制 JSON 数字。
+
+<a id="http_contributions"></a>
+## HTTP 贡献与公开资源
+
+`ANY /api/v1/plugins/:id/api/*path` 按 manifest 顺序匹配方法和精确或前缀路径，未声明端点返回 404。路径只解码一次，拒绝 dot segment、反斜杠、控制字符和重复分隔符，保留有意义的末尾 `/`。`public` 可匿名；提供 Authorization 时使用现有 JWT 校验并保留其失败规则。`user` 使用用户 JWT，`admin` 使用管理员中间件；所有动态端点经过现有 Backend 模式门禁。公开端点先经过公网 IP 限流，已认证请求再经过用户面板限流。插件 HTTP 不进入面板命令幂等协调器。
+
+请求体按路由限制，超过返回 413。只转发 Accept、Accept-Language、Content-Type、If-None-Match、If-Modified-Since、User-Agent、X-Request-Id 和 X-Plugin-*；Authorization、Cookie、管理密钥与代理地址头均不转发。Caller 取已验证用户及当前用户名，grant 放在私有 RPC 字段；客户端 IP 复用宿主的安全地址解析器。取得租约后复核版本和 manifest 摘要，声明切换时返回 503 `PLUGIN_RESTARTING`，避免旧鉴权规则作用到新端点。
+
+插件成功返回的 HTTP body 原样发送，不套宿主 envelope。状态必须为 200 至 599，body 最多 4 MiB；必须提供可解析的 Content-Type，允许 application/json、text/plain、text/csv、image/png、image/jpeg、image/webp、image/gif、application/octet-stream 及其参数。HTML、SVG、SSE 和无效响应返回 502 `PLUGIN_UNAVAILABLE`。RPC 失败也返回 502，超时返回 504 `PLUGIN_TIMEOUT`；尚未取得租约时的进程不可用仍为 503。响应只保留 Content-Type、Cache-Control、ETag、Last-Modified、Content-Disposition、Retry-After、X-Plugin-*，并加 nosniff；大小写重复的允许头被拒绝。宿主生成的失败响应使用正常面板错误 envelope。
+
+`GET /api/v1/plugins/:id/assets/:version/*file` 无需登录，并经过公网 IP 限流。它只读取本地已有的版本，不下载缺失包；只公开 frontend/ 下的 .js、.css、.svg、.png、.jpg、.webp、.json、.map，以及根目录 icon.svg/icon.png。路径越界、未登记文件、符号链接或尺寸变化返回 404。响应使用安装时的 SHA-256 前 16 字节作为 ETag，Cache-Control 为 `public, max-age=31536000, immutable`；SVG 另有 `Content-Security-Policy: sandbox` 和 `Content-Disposition: inline`。文件句柄的可读范围固定在已接受的尺寸，避免文件随后增长扩大响应。
+
+`GET /api/v1/plugins/ui` 要求登录并遵循 Backend 模式门禁，使用标准 envelope，data.plugins 为按 ID 排序的数组。只包含已启用、所需脚本与样式仍在本地的贡献；后端进程是否可用不影响页面发现。返回版本化资源 URL 和 SHA-384 SRI、按请求语言解析的名称和标题，以及按角色过滤的页面和菜单；管理员同时可见 user/admin audience。菜单继承目标页面的 audience，用户路由为 `/ext/:id[/path]`，管理员为 `/admin/ext/:id[/path]`；SVG 留给现有前端 sanitizer 处理。缺少可选图标时仍保留菜单，缺少必要 bundle 时省略该插件。响应不缓存，不包含配置、密文或本地路径。
+
+全局 `PLUGINS_ENABLED=false` 时，上述插件路由统一返回 503 `PLUGINS_DISABLED`。管理端仍可查看和卸载。
 
 <a id="process_protocol"></a>
 ## 进程协议与 SDK

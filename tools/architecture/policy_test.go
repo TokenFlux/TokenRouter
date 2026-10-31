@@ -38,6 +38,8 @@ func TestDependencyBoundaries(t *testing.T) {
 		{"internal/provider/postgres/new.go", "database/sql", true},
 		{"internal/search/postgres/new.go", "database/sql", true},
 		{"internal/search/new.go", modulePath + "/internal/search/postgres", false},
+		{"internal/plugin/httpapi/helpers_test.go", modulePath + "/internal/identity", true},
+		{"internal/plugin/httpapi/proxy.go", modulePath + "/internal/identity", false},
 		{"internal/plugin/runtime.go", modulePath + "/plugin-sdk/go/pluginpb/v1", true},
 		{"internal/plugin/catalog.go", modulePath + "/plugin-sdk/go/index", true},
 		{"internal/plugin/service.go", modulePath + "/plugin-sdk/go/sdk", false},

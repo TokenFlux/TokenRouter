@@ -549,10 +549,12 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	httpapiAdminHandler := providePaymentAdminHTTP(runtime, configService, plans, calendar)
 	planHandler := httpapi.NewPlanHandler(plans)
 	appPaymentRouteMount := providePaymentRouteMount(paymentHandler, paymentWebhookHandler, httpapiAdminHandler, planHandler)
+	httpapiPublicHandler := providePluginPublicHandler(pluginManager, packageFiles, grants, userService)
+	appPluginRouteMount := providePluginRouteMount(httpapiPublicHandler)
 	idempotencyRepository := provideIdempotencyRepository(db)
 	idempotencyCoordinator := provideIdempotencyCoordinator(idempotencyRepository, cfg)
 	idempotencyCleanupService := provideIdempotencyCleanupService(idempotencyRepository, cfg)
-	appHttpRouteMount := provideHTTPRouteMount(appAuthRouteMount, appUserRouteMount, appAdminRouteMount, appGatewayRouteMount, appPaymentRouteMount, idempotencyCoordinator, idempotencyCleanupService)
+	appHttpRouteMount := provideHTTPRouteMount(appAuthRouteMount, appUserRouteMount, appAdminRouteMount, appGatewayRouteMount, appPaymentRouteMount, appPluginRouteMount, idempotencyCoordinator, idempotencyCleanupService)
 	jwtAuthMiddleware := provideJWTAuth(appIdentityAuthGraph, userService, runtimeSettings, auditLogService)
 	mcpoAuthServer, err := provideMCPOAuth(db, userService, cfg, store, manager)
 	if err != nil {

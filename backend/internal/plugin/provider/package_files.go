@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -161,14 +160,8 @@ func (p *PackageFiles) readInstalled(directory string, ref plugin.PackageRef) (p
 		return plugin.Package{}, err
 	}
 	defer func() { _ = root.Close() }()
-	file, err := root.Open(".tr-installed")
+	marker, err := readPackageMarker(root)
 	if err != nil {
-		return plugin.Package{}, err
-	}
-	defer func() { _ = file.Close() }()
-	var marker installedMarker
-	// A marker for at most two thousand files fits within one MiB, bounding malformed local metadata before decoding it.
-	if err := json.NewDecoder(io.LimitReader(file, 1<<20)).Decode(&marker); err != nil {
 		return plugin.Package{}, err
 	}
 	if marker.ArchiveSHA256 != ref.Artifact.SHA256 || marker.ManifestSHA256 != ref.ManifestSHA256 || len(marker.Files) == 0 {

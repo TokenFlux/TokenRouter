@@ -36,7 +36,7 @@ import (
 
 // installation_scenario_integration_test.go covers service.go, manager.go,
 // configuration.go, HTTP administration, PostgreSQL storage, and package/process
-// providers together. Synthetic archives and a disposable database exercise real
+// providers, public contribution proxying, and asset serving together. Synthetic archives and a disposable database exercise real
 // encryption, startup, restart, repair, and purge without deployment credentials.
 
 // TestInstalledPluginHTTPPersistenceAndRecovery runs the complete uploaded native-plugin administration path against PostgreSQL and a real child.
@@ -69,6 +69,16 @@ func TestInstalledPluginHTTPPersistenceAndRecovery(t *testing.T) {
 		c.Next()
 	})
 	httpapi.RegisterAdminRoutes(admin, httpapi.NewHandler(service, manager, processes), func(c *gin.Context) { c.Next() })
+	public := httpapi.NewPublicHandler(httpapi.PublicOptions{
+		Runtime:  manager,
+		Files:    packages,
+		ClientIP: func(*gin.Context) string { return "192.0.2.1" },
+		Language: func(*gin.Context) string { return "en" },
+		Logger:   logger,
+	})
+	allow := func(c *gin.Context) { c.Next() }
+	deny := func(c *gin.Context) { c.AbortWithStatus(http.StatusUnauthorized) }
+	httpapi.RegisterPublicRoutes(router.Group("/api/v1"), public, httpapi.PublicMiddleware{JWT: deny, Admin: deny, BackendUser: allow, Panel: allow, PublicIP: allow})
 	archive := installationArchive(t)
 	var multipartBody bytes.Buffer
 	writer := multipart.NewWriter(&multipartBody)
@@ -119,6 +129,17 @@ func TestInstalledPluginHTTPPersistenceAndRecovery(t *testing.T) {
 	lease.Release()
 	require.NoError(t, err)
 	require.True(t, health.Ready)
+	response = pluginRequest(t, router, http.MethodGet, "/api/v1/plugins/test.installation/api/ready", nil)
+	require.Equal(t, http.StatusOK, response.Code)
+	require.JSONEq(t, `{"ready":true}`, response.Body.String())
+	response = pluginRequest(t, router, http.MethodGet, "/api/v1/plugins/test.installation/api/undeclared", nil)
+	require.Equal(t, http.StatusNotFound, response.Code)
+	response = pluginRequest(t, router, http.MethodGet, "/api/v1/plugins/test.installation/assets/1.0.0/frontend/index.js", nil)
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Equal(t, "globalThis.installationFixture=true;", response.Body.String())
+	require.NotContains(t, response.Body.String(), "fixture-secret")
+	response = pluginRequest(t, router, http.MethodGet, "/api/v1/plugins/test.installation/assets/1.0.0/plugin.json", nil)
+	require.Equal(t, http.StatusNotFound, response.Code)
 	response = pluginRequest(t, router, http.MethodPost, "/api/v1/admin/plugins/test.installation/disable", nil)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Zero(t, manager.Status("test.installation").PID)
@@ -181,14 +202,14 @@ func installationArchive(t *testing.T) []byte {
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
-	declaration := []byte(`{"schemaVersion":1,"id":"test.installation","version":"1.0.0","apiVersion":1,"minHostVersion":"0.5.0","name":{"en":"Installation fixture"},"description":{"en":"Installation fixture"},"publisher":{"name":"Test"},"license":"MIT","backend":{"executable":"bin/plugin"},"config":{"fields":[{"key":"credential","type":"secret","label":{"en":"Credential"},"required":true},{"key":"label","type":"string","label":{"en":"Label"}}]}}`)
+	declaration := []byte(`{"schemaVersion":1,"id":"test.installation","version":"1.0.0","apiVersion":1,"minHostVersion":"0.5.0","name":{"en":"Installation fixture"},"description":{"en":"Installation fixture"},"publisher":{"name":"Test"},"license":"MIT","backend":{"executable":"bin/plugin","routes":[{"method":"GET","path":"/ready","auth":"public"}]},"frontend":{"entry":"frontend/index.js","pages":[{"id":"home","path":"","audience":"user","title":{"en":"Fixture"}}]},"config":{"fields":[{"key":"credential","type":"secret","label":{"en":"Credential"},"required":true},{"key":"label","type":"string","label":{"en":"Label"}}]}}`)
 	var buffer bytes.Buffer
 	compressed := gzip.NewWriter(&buffer)
 	archive := tar.NewWriter(compressed)
 	for _, entry := range []struct {
 		name string // archive-relative entry path
 		data []byte // complete fixture entry bytes
-	}{{"plugin.json", declaration}, {name, binary}} {
+	}{{"plugin.json", declaration}, {name, binary}, {"frontend/index.js", []byte("globalThis.installationFixture=true;")}} {
 		require.NoError(t, archive.WriteHeader(&tar.Header{Name: entry.name, Mode: 0o755, Typeflag: tar.TypeReg, Size: int64(len(entry.data))}))
 		_, err := archive.Write(entry.data)
 		require.NoError(t, err)

@@ -51,9 +51,9 @@ type TaskRunner interface {
 
 // Conn contains the typed service clients available on one plugin connection.
 type Conn struct {
-	Plugin pluginpb.PluginClient      // required lifecycle service client
-	HTTP   pluginpb.HTTPHandlerClient // optional HTTP contribution client
-	Tasks  TaskRunner                 // optional scheduled task client
+	Plugin pluginpb.PluginClient // required lifecycle service client
+	HTTP   HTTPTransport         // optional HTTP contribution client
+	Tasks  TaskRunner            // optional scheduled task client
 }
 
 // Lease retains one process generation until its caller releases admission.

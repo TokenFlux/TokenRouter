@@ -602,3 +602,22 @@ func acceptedPermissions(requested, accepted []string) bool {
 func (m *Manager) TaskStatuses(id string) []TaskStatus {
 	return m.tasks.Status(id)
 }
+
+// Enabled reports the immutable host-wide plugin availability switch for HTTP admission.
+func (m *Manager) Enabled() bool { return m.options.Enabled }
+
+// Snapshots returns copied outer views ordered by plugin identity for UI discovery.
+// Nested release metadata remains manager-owned and immutable. Backend readiness
+// does not filter the list because static assets remain usable during process recovery.
+func (m *Manager) Snapshots() []Loaded {
+	m.mu.RLock()
+	views := make([]Loaded, 0, len(m.loaded))
+	for _, loaded := range m.loaded {
+		views = append(views, loaded)
+	}
+	m.mu.RUnlock()
+	slices.SortFunc(views, func(a, b Loaded) int {
+		return bytes.Compare([]byte(a.Installation.PluginID), []byte(b.Installation.PluginID))
+	})
+	return views
+}

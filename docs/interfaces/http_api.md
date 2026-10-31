@@ -30,7 +30,7 @@
 
 ## 全局入口
 
-`SetupRouter` 在一个 Gin engine 上安装 app 提供的共同中间件和注册函数。common 路由由 server 注册；app 按顺序挂载 auth、user、admin、gateway、payment 和 page 路由，各模块的注册函数在各自的 HTTP 适配层里。综合设置的 GET 和 PUT 属于 `settings/httpapi`，预聚合有自己的处理器，创作模型候选和 worker 状态属于 `creative/httpapi`。输出格式的映射由所属的 HTTP 模块提供。主要的全局顺序：
+`SetupRouter` 在一个 Gin engine 上安装 app 提供的共同中间件和注册函数。common 路由由 server 注册；app 按顺序挂载 auth、user、admin、plugin、gateway、payment 和 page 路由，各模块的注册函数在各自的 HTTP 适配层里。综合设置的 GET 和 PUT 属于 `settings/httpapi`，预聚合有自己的处理器，创作模型候选和 worker 状态属于 `creative/httpapi`。输出格式的映射由所属的 HTTP 模块提供。主要的全局顺序：
 
 ```text
 RequestLogger
@@ -54,6 +54,7 @@ RequestLogger
 | `/api/event_logging/batch` | 无 | 兼容 Claude Code 遥测的空接收端，固定返回成功 |
 | `/api/v1/auth/*` | 大多公开，账户管理的子流程按路由加 JWT 或短期状态 | `app/http_routes.go`；注册、登录、刷新、找回密码、OAuth、Passkey 登录和身份补全 |
 | `/api/v1/user/*`、`/keys`、`/team`、`/groups`、`/subscriptions`、`/redeem` 等 | 用户 JWT | `app/http_routes.go`；用户面板的资源、团队、Key、用量和权益查询 |
+| `/api/v1/plugins/*` | UI 描述要求用户 JWT，资源公开，API 按 manifest 选择认证 | `plugin/httpapi`；插件页面描述、版本化静态资源和非流式 HTTP 代理，见[插件契约](plugin_contracts.md#http_contributions) |
 | `/api/v1/admin/*` | 管理员 JWT 或受限的管理密钥；部分操作还需要 step-up | `app/http_routes_admin.go`；用户、分组、提供商、价格配置、设置、运维、备份、支付和安全管理 |
 | `/mcp` | 专用 MCP Bearer 令牌 | 四个通用管理工具，按具体操作授权；协议为 MCP JSON-RPC，见 [MCP 管理接口](mcp_management.md) |
 | `/api/v1/payment/*` | 用户 JWT | `app/http_routes.go`；读取配置和套餐、下单、查单、取消、invoice 和申请退款 |
@@ -313,6 +314,8 @@ app 为所有需要幂等的用户和管理员 HTTP 处理器绑定同一个协�
   "data": {}
 }
 ```
+
+插件 API 代理的有效响应保留插件原始 body 和 HTTP 状态，不使用宿主 envelope；代理自身的鉴权、路由和传输错误仍使用面板错误格式。UI 描述和插件管理接口继续使用普通 envelope。
 
 业务错误由 `ApplicationError` 映射成 HTTP status，可以带 `reason` 和字符串 `metadata`。未知错误按 500 处理，详情脱敏后只记在服务端。分页数据使用 `items`、`total`、`page`、`page_size` 和 `pages`；创建和异步接受分别可以返回 201 和 202。
 

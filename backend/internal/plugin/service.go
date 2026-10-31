@@ -219,6 +219,13 @@ func (s *Service) Disable(ctx context.Context, id string, actor int64) (*ChangeR
 		if err := s.manager.store.Save(ctx, item); err != nil {
 			return err
 		}
+		// Publish the saved disabled intent before draining so UI discovery and new leases cannot retain an enabled view after a shutdown timeout.
+		s.manager.mu.Lock()
+		if loaded, ok := s.manager.loaded[id]; ok {
+			loaded.Installation = item
+			s.manager.loaded[id] = loaded
+		}
+		s.manager.mu.Unlock()
 		if err := s.manager.drainLocked(ctx, id); err != nil {
 			s.manager.recordFailure(id, err)
 			return err
