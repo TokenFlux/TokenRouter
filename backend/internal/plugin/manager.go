@@ -53,6 +53,7 @@ type Manager struct {
 	processes     Supervisors       // child generation lifecycle owner
 	configuration *Configuration    // schema and encrypted settings boundary
 	logger        *slog.Logger      // host diagnostic logging destination
+	tasks         *TaskScheduler    // declared task scheduling and recent outcomes
 	// mu protects locks, loaded, observations, blocked, slots, and lifecycle state. Per-plugin mutation channels serialize changes without blocking unrelated snapshot readers.
 	mu           sync.RWMutex
 	locks        map[string]chan struct{} // plugin ID to admission channel
@@ -75,7 +76,7 @@ func NewManager(options ManagerOptions, store InstallationStore, packages Packag
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Manager{
+	manager := &Manager{
 		options:       options,
 		store:         store,
 		packages:      packages,
@@ -88,12 +89,15 @@ func NewManager(options ManagerOptions, store InstallationStore, packages Packag
 		blocked:       make(map[string]bool),
 		slots:         make(map[string]bool),
 	}
+	manager.tasks = NewTaskScheduler(manager, nil, logger)
+	return manager
 }
 
 // Start schedules initial reconciliation without delaying the host's HTTP startup.
 // The owned background context survives the lifecycle callback. Optional development
 // records load before the same ordered SyncAll pass used for durable installations.
-// Upload cleanup then shares this worker's lifetime. Start records cancellation
+// Task scheduling starts before reconciliation registers declarations. Upload
+// cleanup then shares the loader worker's lifetime. Start records cancellation
 // and completion ownership before releasing its lock, so concurrent Stop can
 // prevent late process reservations even when a slow directory inspection or
 // database lookup has not returned. Repeated starts never create extra workers.
@@ -106,6 +110,10 @@ func (m *Manager) Start(context.Context) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel, m.done, m.started = cancel, make(chan struct{}), true
 	m.sourceReady = make(chan struct{})
+	if err := m.tasks.Start(ctx); err != nil {
+		cancel()
+		return err
+	}
 	// Publish lifecycle ownership before starting the loader so Stop can cancel it and prevent any late generation from acquiring capacity.
 	go func() {
 		defer close(m.done)
@@ -143,7 +151,8 @@ func (m *Manager) Start(context.Context) error {
 // The terminal flag prevents administrative reconciliation from reserving another
 // generation while shutdown waits. The supervisor owns actual child termination
 // and callback completion, while this method also waits for the initialization
-// and maintenance worker; expiration returns both outstanding shutdown causes.
+// task scheduler and loader maintenance worker; expiration reports all
+// outstanding shutdown causes.
 func (m *Manager) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	m.stopped = true
@@ -152,7 +161,8 @@ func (m *Manager) Stop(ctx context.Context) error {
 	}
 	done := m.done
 	m.mu.Unlock()
-	err := m.processes.StopAll(ctx)
+	taskErr := m.tasks.Stop(ctx)
+	err := errors.Join(taskErr, m.processes.StopAll(ctx))
 	if done == nil {
 		return err
 	}
@@ -240,6 +250,7 @@ func (m *Manager) syncLocked(ctx context.Context, id string) (resultErr error) {
 		delete(m.observations, id)
 		delete(m.blocked, id)
 		m.mu.Unlock()
+		m.tasks.Remove(id)
 		return nil
 	}
 	if err != nil {
@@ -278,7 +289,9 @@ func (m *Manager) syncLocked(ctx context.Context, id string) (resultErr error) {
 		if want.Enabled && m.options.Enabled && want.Manifest.Backend == nil {
 			state = StateStatic
 		}
-		m.publish(id, loaded, Status{State: state, Since: time.Now()})
+		if err := m.publish(id, loaded, Status{State: state, Since: time.Now()}); err != nil {
+			return err
+		}
 		return m.prune(ctx, want)
 	}
 	data, err := json.Marshal(values)
@@ -309,7 +322,9 @@ func (m *Manager) syncLocked(ctx context.Context, id string) (resultErr error) {
 	}
 	state := m.processes.Status(id).State
 	needsStart := !same || state == StateStopped || state == StateFailed || state == StateDraining
-	m.publish(id, loaded, Status{})
+	if err := m.publish(id, loaded, Status{}); err != nil {
+		return err
+	}
 	if needsStart {
 		err = m.processes.Replace(ctx, spec)
 	} else if !bytes.Equal(old.spec.ConfigJSON, data) {
@@ -417,6 +432,7 @@ func (m *Manager) drainLocked(ctx context.Context, id string) error {
 	m.mu.Lock()
 	m.blocked[id] = true
 	m.mu.Unlock()
+	m.tasks.Suspend(id)
 	if err := m.processes.Stop(ctx, id); err != nil {
 		return err
 	}
@@ -430,22 +446,37 @@ func (m *Manager) drainLocked(ctx context.Context, id string) error {
 // publish installs a coherent immutable view and its administrative observation.
 // The caller holds the plugin mutation lock and has verified admission eligibility.
 // All containers belong to the published snapshot and must remain immutable afterward.
-func (m *Manager) publish(id string, loaded Loaded, status Status) {
+//
+// Publication precedes schedule registration so newly dispatched jobs can acquire
+// the accepted release through ordinary manager admission. A previous schedule
+// racing this change compares its expected version with the acquired lease and
+// skips a different generation. Disabled or static installations suspend future
+// tasks while retaining recent results; unexpected registration errors propagate
+// to reconciliation's existing failure handling and close admission again.
+func (m *Manager) publish(id string, loaded Loaded, status Status) error {
 	m.mu.Lock()
 	m.loaded[id] = loaded
 	m.observations[id] = status
 	m.blocked[id] = false
 	m.mu.Unlock()
+	item := loaded.Installation
+	if !m.options.Enabled || !item.Enabled || item.Manifest.Backend == nil {
+		m.tasks.Suspend(id)
+		return nil
+	}
+	return m.tasks.Replace(id, item.Version, item.Manifest.Backend.Tasks)
 }
 
 // recordFailure retains the manager error while closing new plugin request admission.
 // It preserves the last loaded policy and files for outstanding callback readers.
-// A later successful reconciliation replaces this observation and reopens admission.
+// Task suspension also cancels active scheduled calls. A later successful
+// reconciliation replaces this observation, registers future tasks, and reopens admission.
 func (m *Manager) recordFailure(id string, err error) {
 	m.mu.Lock()
 	m.observations[id] = Status{State: StateFailed, LastError: err.Error(), Since: time.Now()}
 	m.blocked[id] = true
 	m.mu.Unlock()
+	m.tasks.Suspend(id)
 }
 
 // prune retains current and previous packages after a successful reconciliation.
@@ -563,4 +594,11 @@ func acceptedPermissions(requested, accepted []string) bool {
 	slices.Sort(a)
 	slices.Sort(b)
 	return slices.Equal(a, b)
+}
+
+// TaskStatuses returns copied in-memory observations for this installation's declared tasks.
+// Disabled tasks retain their most recent execution result with no next occurrence.
+// The observations reset when the installation is removed or the host restarts.
+func (m *Manager) TaskStatuses(id string) []TaskStatus {
+	return m.tasks.Status(id)
 }

@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"time"
 
 	goplugin "github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
@@ -27,6 +28,11 @@ type connection struct {
 	broker   *goplugin.GRPCBroker // authenticated host callback broker
 }
 
+// taskClient adapts the transport task client to the scheduler's contribution contract.
+type taskClient struct {
+	client pluginpb.TaskRunnerClient // process-bound gRPC task service client
+}
+
 // GRPCServer rejects server registration from this host-side connection adapter.
 func (*grpcPlugin) GRPCServer(*goplugin.GRPCBroker, *grpc.Server) error {
 	return fmt.Errorf("host plugin adapter cannot serve plugin contributions")
@@ -34,5 +40,20 @@ func (*grpcPlugin) GRPCServer(*goplugin.GRPCBroker, *grpc.Server) error {
 
 // GRPCClient creates typed clients without initiating any contribution calls.
 func (*grpcPlugin) GRPCClient(_ context.Context, broker *goplugin.GRPCBroker, client *grpc.ClientConn) (any, error) {
-	return &connection{services: &plugin.Conn{Plugin: pluginpb.NewPluginClient(client), HTTP: pluginpb.NewHTTPHandlerClient(client), Tasks: pluginpb.NewTaskRunnerClient(client)}, broker: broker}, nil
+	return &connection{
+		services: &plugin.Conn{
+			Plugin: pluginpb.NewPluginClient(client),
+			HTTP:   pluginpb.NewHTTPHandlerClient(client),
+			Tasks:  &taskClient{client: pluginpb.NewTaskRunnerClient(client)},
+		},
+		broker: broker,
+	}, nil
+}
+
+// RunTask submits the scheduler's named occurrence without exposing transport call options.
+// The process lease owner supplies cancellation and retains the connection until
+// return. Scheduled time crosses the protocol boundary as whole Unix seconds.
+func (c *taskClient) RunTask(ctx context.Context, name string, scheduled time.Time) error {
+	_, err := c.client.Run(ctx, &pluginpb.RunTaskRequest{Name: name, ScheduledUnix: scheduled.Unix()})
+	return err
 }

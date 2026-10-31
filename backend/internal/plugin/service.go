@@ -225,7 +225,9 @@ func (s *Service) Disable(ctx context.Context, id string, actor int64) (*ChangeR
 		}
 		if loaded, ok := s.manager.Snapshot(id); ok {
 			loaded.Installation = item
-			s.manager.publish(id, loaded, Status{State: StateStopped, Since: time.Now()})
+			if err := s.manager.publish(id, loaded, Status{State: StateStopped, Since: time.Now()}); err != nil {
+				return err
+			}
 		} else {
 			// A package-recovery failure may never publish assets; disabling still clears its previous failure after the supervisor confirms completed draining.
 			s.manager.mu.Lock()

@@ -41,11 +41,19 @@ type Runtime interface {
 	Acquire(context.Context, string) (*Lease, error)
 }
 
+// TaskRunner invokes a declared task without exposing transport-specific call options.
+type TaskRunner interface {
+	// RunTask invokes one named occurrence and waits for its host-side completion.
+	// The caller owns its process lease and deadline. Cancellation ends transport
+	// waiting, while SDK callback tracking protects actual author execution separately.
+	RunTask(context.Context, string, time.Time) error
+}
+
 // Conn contains the typed service clients available on one plugin connection.
 type Conn struct {
 	Plugin pluginpb.PluginClient      // required lifecycle service client
 	HTTP   pluginpb.HTTPHandlerClient // optional HTTP contribution client
-	Tasks  pluginpb.TaskRunnerClient  // optional scheduled task client
+	Tasks  TaskRunner                 // optional scheduled task client
 }
 
 // Lease retains one process generation until its caller releases admission.
@@ -136,4 +144,19 @@ func (l *Lease) Release() {
 	if l != nil {
 		l.once.Do(l.release)
 	}
+}
+
+// RunTask invokes the declared task service with the selected scheduled timestamp.
+// A missing task client is unavailable. The caller retains its generation lease
+// until this RPC returns, including cancellation or deadline completion.
+func (c *Conn) RunTask(ctx context.Context, name string, scheduled time.Time) error {
+	if c == nil || c.Tasks == nil {
+		return ErrPluginUnavailable
+	}
+	err := c.Tasks.RunTask(ctx, name, scheduled)
+	// Preserve the caller's cancellation identity when transport wraps it, allowing scheduler results to classify deadlines without importing gRPC status types.
+	if err != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
 }

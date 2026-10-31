@@ -6,6 +6,8 @@ import (
 	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/manifest"
 )
 
 // delayedInstallationSource pauses initial identity discovery before ordinary management can proceed.
@@ -13,6 +15,29 @@ type delayedInstallationSource struct {
 	*memoryInstallations               // durable fixture installation storage
 	entered              chan struct{} // source discovery arrival notification
 	release              chan struct{} // source discovery completion barrier
+}
+
+// TestManagerReconcilesTaskRegistrationWithInstallationState publishes one declared task and then disables, re-enables, and removes its installation.
+// Future occurrences follow manager admission, suspension retains task metadata, and uninstall clears the in-memory registration after process draining succeeds.
+func TestManagerReconcilesTaskRegistrationWithInstallationState(t *testing.T) {
+	manager, service, store, _, _ := managerFixture(t, 2)
+	item := managerInstallation(t, "test.tasks", true)
+	item.Manifest.Backend.Tasks = []manifest.Task{{Name: "tick", Schedule: "@every 1m"}}
+	require.NoError(t, store.Save(t.Context(), item))
+	require.NoError(t, manager.Sync(t.Context(), item.PluginID))
+	states := manager.TaskStatuses(item.PluginID)
+	require.Len(t, states, 1)
+	require.False(t, states[0].NextRunAt.IsZero())
+	_, err := service.Disable(t.Context(), item.PluginID, 1)
+	require.NoError(t, err)
+	states = manager.TaskStatuses(item.PluginID)
+	require.Len(t, states, 1)
+	require.True(t, states[0].NextRunAt.IsZero())
+	_, err = service.Enable(t.Context(), item.PluginID, 1)
+	require.NoError(t, err)
+	require.False(t, manager.TaskStatuses(item.PluginID)[0].NextRunAt.IsZero())
+	require.NoError(t, service.Uninstall(t.Context(), item.PluginID, false))
+	require.Empty(t, manager.TaskStatuses(item.PluginID))
 }
 
 // TestManagerStartupSharesOneProcessLimit restores enabled, disabled, and development installations in deterministic order.

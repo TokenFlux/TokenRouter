@@ -36,19 +36,20 @@ type Handler struct {
 
 // InstallationDTO exposes accepted metadata without ciphertext or local storage paths.
 type InstallationDTO struct {
-	PluginID           string             `json:"plugin_id"`                  // publisher-qualified installation identity
-	Version            string             `json:"version"`                    // installed release SemVer
-	Source             plugin.Source      `json:"source"`                     // accepted package distribution source
-	IndexID            *int64             `json:"index_id"`                   // optional distribution index identifier
-	Manifest           *manifest.Manifest `json:"manifest"`                   // installed release declaration
-	ManifestSHA256     string             `json:"manifest_sha256"`            // original declaration asset digest
-	Enabled            bool               `json:"enabled"`                    // desired runtime availability flag
-	GrantedPermissions []string           `json:"granted_permissions"`        // administrator-confirmed capability names
-	Limits             json.RawMessage    `json:"limits"`                     // administrator capability quota configuration
-	PreviousVersion    string             `json:"previous_version,omitempty"` // retained rollback release version
-	Status             plugin.Status      `json:"status"`                     // local process lifecycle observation
-	InstalledAt        time.Time          `json:"installed_at"`               // first installation creation time
-	UpdatedAt          time.Time          `json:"updated_at"`                 // latest persisted modification time
+	Tasks              []plugin.TaskStatus `json:"tasks,omitempty"`            // in-memory declared task execution observations
+	PluginID           string              `json:"plugin_id"`                  // publisher-qualified installation identity
+	Version            string              `json:"version"`                    // installed release SemVer
+	Source             plugin.Source       `json:"source"`                     // accepted package distribution source
+	IndexID            *int64              `json:"index_id"`                   // optional distribution index identifier
+	Manifest           *manifest.Manifest  `json:"manifest"`                   // installed release declaration
+	ManifestSHA256     string              `json:"manifest_sha256"`            // original declaration asset digest
+	Enabled            bool                `json:"enabled"`                    // desired runtime availability flag
+	GrantedPermissions []string            `json:"granted_permissions"`        // administrator-confirmed capability names
+	Limits             json.RawMessage     `json:"limits"`                     // administrator capability quota configuration
+	PreviousVersion    string              `json:"previous_version,omitempty"` // retained rollback release version
+	Status             plugin.Status       `json:"status"`                     // local process lifecycle observation
+	InstalledAt        time.Time           `json:"installed_at"`               // first installation creation time
+	UpdatedAt          time.Time           `json:"updated_at"`                 // latest persisted modification time
 }
 
 // ChangeDTO reports a saved installation and any remaining configuration requirement.
@@ -86,7 +87,9 @@ func (h *Handler) List(c *gin.Context) {
 	}
 	result := make([]InstallationDTO, 0, len(items))
 	for i := range items {
-		result = append(result, installationDTO(&items[i], h.manager.Status(items[i].PluginID)))
+		item := installationDTO(&items[i], h.manager.Status(items[i].PluginID))
+		item.Tasks = h.manager.TaskStatuses(items[i].PluginID)
+		result = append(result, item)
 	}
 	httpx.Success(c, result)
 }
@@ -98,7 +101,9 @@ func (h *Handler) Get(c *gin.Context) {
 		httpx.ErrorFrom(c, err)
 		return
 	}
-	httpx.Success(c, installationDTO(item, h.manager.Status(item.PluginID)))
+	result := installationDTO(item, h.manager.Status(item.PluginID))
+	result.Tasks = h.manager.TaskStatuses(item.PluginID)
+	httpx.Success(c, result)
 }
 
 // Upload validates a bounded multipart archive and returns its review metadata.

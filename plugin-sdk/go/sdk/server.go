@@ -31,8 +31,10 @@ import (
 // Health reports a canceled call that has not returned as stalled, allowing
 // the host to restart a process whose handler ignores cancellation. That
 // observation uses a separate mutex so a blocked handler never blocks health
-// reporting. HTTP responses are buffered within the host's nonstreaming body
-// budget and contain no inherited browser credentials.
+// reporting. Task names remain reserved until the author callback actually
+// returns, including after transport cancellation. HTTP responses are buffered
+// within the host's nonstreaming body budget and contain no inherited browser
+// credentials.
 
 // server owns one plugin generation's callback connection and lifecycle state.
 type server struct {
@@ -46,15 +48,22 @@ type server struct {
 	mu         sync.RWMutex
 	env        *Env             // initialized process environment
 	connection *grpc.ClientConn // owned host callback connection
-	// callsMu protects active and nextCall; application callbacks execute outside this lock so health checks remain responsive during stalled work.
-	callsMu  sync.Mutex
-	active   map[uint64]context.Context // active business call contexts
-	nextCall uint64                     // next active-call identity
+	// callsMu protects active, runningTasks, and nextCall; application callbacks execute outside this lock so health checks remain responsive during stalled work.
+	callsMu      sync.Mutex
+	active       map[uint64]context.Context // active business call contexts
+	runningTasks map[string]bool            // task names whose author callbacks remain active
+	nextCall     uint64                     // next active-call identity
 }
 
 // newServer creates an uninitialized adapter without opening callback connections.
 func newServer(implementation Plugin, broker *goplugin.GRPCBroker, logger *slog.Logger) *server {
-	return &server{implementation: implementation, broker: broker, logger: logger, active: make(map[uint64]context.Context)}
+	return &server{
+		implementation: implementation,
+		broker:         broker,
+		logger:         logger,
+		active:         make(map[uint64]context.Context),
+		runningTasks:   make(map[string]bool),
+	}
 }
 
 // Init connects to the host broker and initializes the author implementation.
@@ -246,9 +255,14 @@ func (s *server) Handle(ctx context.Context, request *pluginpb.HTTPRequest) (res
 	return &pluginpb.HTTPResponse{Status: int32(w.status), Headers: headers, Body: w.body}, nil
 }
 
-// Run invokes a named task with the host-selected scheduled timestamp.
-// It tracks cancellation until the author returns, allowing health checks to
-// flag stalled tasks. The host owns schedule validation and overlap prevention.
+// Run invokes a named task while excluding another active callback with the same name.
+// The host supplies the scheduled timestamp and timeout. A transport deadline
+// does not release the name until the author's RunTask method actually returns.
+//
+// Name admission and completion use the tracking mutex, while author code runs
+// outside that lock. Different task names remain independent, and health checks
+// still observe a canceled callback that has not stopped. Deferred cleanup also
+// releases ownership during panic unwinding before the RPC interceptor reports failure.
 func (s *server) Run(ctx context.Context, request *pluginpb.RunTaskRequest) (*pluginpb.RunTaskResponse, error) {
 	if _, err := s.environment(); err != nil {
 		return nil, err
@@ -257,6 +271,19 @@ func (s *server) Run(ctx context.Context, request *pluginpb.RunTaskRequest) (*pl
 	if !ok {
 		return nil, status.Error(codes.Unimplemented, "plugin has no task contribution")
 	}
+	// Keep the task name reserved through actual author return; client cancellation alone cannot make a second invocation safe to start.
+	s.callsMu.Lock()
+	if s.runningTasks[request.Name] {
+		s.callsMu.Unlock()
+		return nil, status.Error(codes.FailedPrecondition, "task is still running")
+	}
+	s.runningTasks[request.Name] = true
+	s.callsMu.Unlock()
+	defer func() {
+		s.callsMu.Lock()
+		delete(s.runningTasks, request.Name)
+		s.callsMu.Unlock()
+	}()
 	finish := s.track(ctx)
 	defer finish()
 	if err := implementation.RunTask(ctx, request.Name, time.Unix(request.ScheduledUnix, 0)); err != nil {
