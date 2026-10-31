@@ -1,11 +1,12 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -13,18 +14,17 @@ import (
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/manifest"
 )
 
-// dev_source.go loads explicitly enabled development directories into the local
-// runtime without writing installation records. Development policy is owned
-// here: declared permissions are granted, executable verification is bypassed,
-// configuration starts from manifest defaults, and native processes count toward
-// the same deterministic per-instance maximum. Directory inspection remains an
-// injected filesystem capability so the core does not unpack or download files.
+// dev_source.go overlays explicitly configured development directories on durable
+// installation storage. Each directory becomes an ordinary in-memory installation
+// with default limits, declared permissions, and a local package location. The
+// manager applies the same reconciliation and process capacity rules to both
+// sources, keeping development exceptions outside process and HTTP consumers.
 //
-// Loading runs in one owned background task after lifecycle startup. Stop closes
-// admission, cancels that task, and stops the process collection, preventing a
-// slow directory read from publishing a late generation after shutdown. Invalid
-// directories are logged independently so one broken development plugin cannot
-// prevent the host's ordinary HTTP services from becoming available.
+// Development configuration remains in memory and disappears on host restart.
+// Reload rereads the directory while preserving its current configuration under
+// the new schema. A development declaration cannot shadow an existing durable
+// installation or change its plugin ID during reload. Stored JSON copies keep
+// management callers from mutating published records before an explicit save.
 
 // DirectoryPackage contains validated metadata from an unpacked local package.
 type DirectoryPackage struct {
@@ -35,148 +35,226 @@ type DirectoryPackage struct {
 // DirectoryReader validates unpacked files without executing their declared code.
 type DirectoryReader interface {
 	// ReadDirectory returns a validated declaration and its absolute executable path.
-	// Static packages have an empty executable. Implementations must reject links
-	// and missing declared assets under the shared package validation rules.
+	// Static packages have an empty executable. Implementations reject links and
+	// missing declared assets under the shared package validation rules.
 	ReadDirectory(context.Context, string) (DirectoryPackage, error)
 }
 
-// DevOptions identifies the explicitly permitted development directories and process cap.
+// DevOptions selects the explicit directories eligible for in-memory installation.
 type DevOptions struct {
 	Enabled     bool     // global plugin availability switch
 	DevMode     bool     // explicit development mode switch
 	Directories []string // configured unpacked package directories
-	StateRoot   string   // disposable plugin state root
-	MaxRunning  int      // native process admission maximum
-	HostVersion string   // host release build version
 }
 
-// DevSource owns asynchronous directory loading and its process shutdown dependency.
+// DevSource overlays memory-only installations on the durable installation store.
 type DevSource struct {
-	options   DevOptions      // copied development configuration inputs
-	reader    DirectoryReader // validated directory inspection capability
-	processes Supervisors     // owned native process collection
-	logger    *slog.Logger    // host diagnostic logger
-	// mu orders startup against terminal stop; background completion is published by done after the loading task returns.
-	mu      sync.Mutex
-	started bool               // loading task started flag
-	stopped bool               // terminal source stop flag
-	cancel  context.CancelFunc // background loading cancellation signal
-	done    chan struct{}      // completed directory loading signal
+	options       DevOptions        // copied development configuration inputs
+	reader        DirectoryReader   // validated directory inspection capability
+	store         InstallationStore // underlying durable installation storage
+	configuration *Configuration    // schema and secret configuration boundary
+	logger        *slog.Logger      // host diagnostic logging destination
+	// mu protects records and directories; records contain serialized copies so each Get or List returns independently mutable installation values.
+	mu          sync.RWMutex
+	records     map[string][]byte // serialized development installation records
+	directories map[string]string // configured directory ownership by ID
 }
 
-// NewDevSource creates a dormant development source with copied directory inputs.
-// The caller supplies filesystem inspection and process ownership. No directory
-// is read and no subprocess starts until lifecycle calls Start.
-func NewDevSource(options DevOptions, reader DirectoryReader, processes Supervisors, logger *slog.Logger) *DevSource {
-	options.Directories = append([]string(nil), options.Directories...)
+// NewDevSource creates an unloaded overlay with copied development directory inputs.
+// Construction does not read files or start processes. The manager invokes Load
+// once before startup reconciliation and Reload under its per-plugin mutation lock.
+func NewDevSource(options DevOptions, reader DirectoryReader, store InstallationStore, configuration *Configuration, logger *slog.Logger) *DevSource {
+	options.Directories = slices.Clone(options.Directories)
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &DevSource{options: options, reader: reader, processes: processes, logger: logger}
+	return &DevSource{
+		options:       options,
+		reader:        reader,
+		store:         store,
+		configuration: configuration,
+		logger:        logger,
+		records:       make(map[string][]byte),
+		directories:   make(map[string]string),
+	}
 }
 
-// Start launches directory loading once without blocking ordinary host availability.
-// Both enable switches must be set. The loading lifetime is independent of
-// the startup callback context and ends through the source's Stop method.
-func (d *DevSource) Start(context.Context) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.started || d.stopped || !d.options.Enabled || !d.options.DevMode {
+// Load inspects enabled development directories and registers valid in-memory records.
+// Invalid or conflicting directories are reported independently. Durable records
+// always retain their identity when a development directory declares the same ID.
+func (d *DevSource) Load(ctx context.Context) error {
+	if !d.options.Enabled || !d.options.DevMode {
 		return nil
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	d.cancel, d.done, d.started = cancel, make(chan struct{}), true
-	go func() { defer close(d.done); d.load(ctx) }()
+	for _, directory := range d.options.Directories {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := d.loadDirectory(ctx, directory); err != nil {
+			d.logger.Warn("Development plugin directory could not be loaded", "directory", directory, "error", err)
+		}
+	}
 	return nil
 }
 
-// load prepares all declarations before admitting native processes in ID order.
-// Invalid directories and duplicate IDs are skipped with diagnostics. Static
-// packages consume no process slots, and configuration errors prevent execution.
-//
-// Permission grants and checksum bypass are assigned only along this explicitly
-// enabled development path. Sorting before admission makes the process cap
-// independent of filesystem traversal or configured directory order. Cancellation
-// is checked before each replacement, while the collection's terminal shutdown
-// gate independently prevents a late start racing with source cleanup.
-func (d *DevSource) load(ctx context.Context) {
-	var specs []ProcessSpec
-	seen := make(map[string]bool)
-	for _, directory := range d.options.Directories {
-		if ctx.Err() != nil {
-			return
-		}
-		local, err := d.reader.ReadDirectory(ctx, directory)
-		if err != nil {
-			d.logger.Warn("Development plugin directory failed validation", "directory", directory, "error", err)
-			continue
-		}
-		m := local.Manifest
-		platform := runtime.GOOS + "/" + runtime.GOARCH
-		host := manifest.HostInfo{Version: d.options.HostVersion, APIVersions: []int{1}, Platform: platform, Permissions: manifest.Permissions()}
-		if incompatible := manifest.CheckCompatibility(m, []string{platform}, host); len(incompatible) > 0 {
-			d.logger.Warn("Development plugin is incompatible", "plugin_id", m.ID, "incompatibilities", incompatible)
-			continue
-		}
-		if seen[m.ID] {
-			d.logger.Warn("Duplicate development plugin ID", "plugin_id", m.ID)
-			continue
-		}
-		seen[m.ID] = true
-		if m.Backend == nil {
-			continue
-		}
-		values, err := m.Config.Normalize(nil)
-		if err != nil {
-			d.logger.Warn("Development plugin configuration is incomplete", "plugin_id", m.ID, "error", err)
-			continue
-		}
-		configJSON, err := json.Marshal(values)
-		if err != nil {
-			d.logger.Warn("Development plugin configuration encoding failed", "plugin_id", m.ID, "error", err)
-			continue
-		}
-		stateDir, err := filepath.Abs(filepath.Join(d.options.StateRoot, m.ID))
-		if err != nil {
-			d.logger.Warn("Development plugin state path is invalid", "plugin_id", m.ID, "error", err)
-			continue
-		}
-		specs = append(specs, ProcessSpec{PluginID: m.ID, Version: m.Version, Executable: local.Executable, StateDir: stateDir, ConfigJSON: configJSON, Permissions: m.Permissions, MemoryMiB: m.Resources.MemoryLimit(), VerifyBinary: false})
+// loadDirectory validates one directory before publishing its ordinary installation record.
+// Default configuration may omit required administrator input. The manager records
+// that validation failure when enabling; no process is started by this source.
+// Durable identity is checked before in-memory publication, and duplicate directory
+// identities are rejected under the overlay lock. The source grants only the
+// manifest's declared permissions and serializes the complete record before making
+// it visible. Loading a later invalid directory leaves earlier accepted records intact.
+func (d *DevSource) loadDirectory(ctx context.Context, directory string) error {
+	local, err := d.reader.ReadDirectory(ctx, directory)
+	if err != nil {
+		return err
 	}
-	slices.SortFunc(specs, func(a, b ProcessSpec) int { return strings.Compare(a.PluginID, b.PluginID) })
-	for i, spec := range specs {
-		if ctx.Err() != nil {
-			return
-		}
-		if i >= d.options.MaxRunning {
-			d.logger.Warn("Development plugin exceeds process limit", "plugin_id", spec.PluginID, "reason", "MAX_RUNNING_EXCEEDED")
-			continue
-		}
-		if err := d.processes.Replace(ctx, spec); err != nil {
-			d.logger.Warn("Development plugin startup failed", "plugin_id", spec.PluginID, "error", err)
-		}
+	if local.Manifest == nil {
+		return ErrPackageInvalid
 	}
+	id := local.Manifest.ID
+	if _, err := d.store.Get(ctx, id); err == nil {
+		return ErrPluginAlreadyInstalled
+	} else if !errors.Is(err, ErrPluginNotFound) {
+		return err
+	}
+	absolute, err := filepath.Abs(directory)
+	if err != nil {
+		return err
+	}
+	item := &Installation{
+		PluginID:        id,
+		Enabled:         true,
+		LocalDirectory:  absolute,
+		VersionSnapshot: VersionSnapshot{Version: local.Manifest.Version, Source: SourceDev, Manifest: local.Manifest, GrantedPermissions: slices.Clone(local.Manifest.Permissions)},
+	}
+	if err := d.configuration.Set(&item.VersionSnapshot, nil, false); err != nil {
+		return err
+	}
+	data, err := json.Marshal(item)
+	if err != nil {
+		return err
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if _, exists := d.records[id]; exists {
+		return ErrPluginAlreadyInstalled
+	}
+	d.records[id] = data
+	d.directories[id] = absolute
+	return nil
 }
 
-// Stop prevents late loading and stops all processes within the caller's budget.
-// It is safe before Start and on repeated calls. Cancellation reports incomplete
-// loading while the process collection still receives terminal shutdown immediately.
-func (d *DevSource) Stop(ctx context.Context) error {
+// Reload refreshes one development declaration while retaining compatible saved settings.
+// Durable installations require no source refresh. The caller holds the manager's
+// plugin lock and has already drained its old process before replacing metadata.
+// The refreshed declaration must retain the original plugin ID, preserving the
+// namespace used by settings and retained business data. Compatible settings move
+// through the same secrecy-aware migration as version updates. Failed inspection
+// or validation leaves the previous in-memory record available for another repair attempt.
+func (d *DevSource) Reload(ctx context.Context, id string) error {
+	d.mu.RLock()
+	directory := d.directories[id]
+	d.mu.RUnlock()
+	if directory == "" {
+		return nil
+	}
+	old, err := d.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	local, err := d.reader.ReadDirectory(ctx, directory)
+	if err != nil {
+		return err
+	}
+	if local.Manifest == nil || local.Manifest.ID != id {
+		return ErrPackageInvalid
+	}
+	target := VersionSnapshot{Version: local.Manifest.Version, Source: SourceDev, Manifest: local.Manifest, GrantedPermissions: slices.Clone(local.Manifest.Permissions)}
+	if err := d.configuration.Migrate(&old.VersionSnapshot, &target, old.Enabled); err != nil {
+		return err
+	}
+	old.VersionSnapshot = target
+	return d.Save(ctx, old)
+}
+
+// List combines durable and independently decoded development installations in ID order.
+func (d *DevSource) List(ctx context.Context) ([]Installation, error) {
+	result, err := d.store.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	for _, data := range d.records {
+		item, err := decodeDevelopment(data)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *item)
+	}
+	slices.SortFunc(result, func(a, b Installation) int { return strings.Compare(a.PluginID, b.PluginID) })
+	return result, nil
+}
+
+// Get returns a fresh development record or delegates to durable installation storage.
+// The returned containers are independent of the overlay's serialized copy. A
+// missing development identity follows the underlying store's missing-record contract.
+func (d *DevSource) Get(ctx context.Context, id string) (*Installation, error) {
+	d.mu.RLock()
+	data, ok := d.records[id]
+	d.mu.RUnlock()
+	if ok {
+		return decodeDevelopment(data)
+	}
+	return d.store.Get(ctx, id)
+}
+
+// Save replaces an existing development record or persists an ordinary durable record.
+// Development identities must have been registered by Load. Callers hold the
+// manager's per-plugin mutation lock, and successful writes publish fresh serialized bytes.
+func (d *DevSource) Save(ctx context.Context, item *Installation) error {
+	if item.Source != SourceDev {
+		return d.store.Save(ctx, item)
+	}
+	data, err := json.Marshal(item)
+	if err != nil {
+		return err
+	}
 	d.mu.Lock()
-	d.stopped = true
-	if d.cancel != nil {
-		d.cancel()
+	defer d.mu.Unlock()
+	if _, ok := d.records[item.PluginID]; !ok {
+		return ErrPluginNotFound
 	}
-	done := d.done
+	d.records[item.PluginID] = data
+	return nil
+}
+
+// Delete removes development intent after optional durable KV cleanup succeeds.
+// The caller drains executable and callback work first. Durable deletion also
+// handles retained KV for development IDs while always preserving ledger history.
+// The overlay is removed only after durable cleanup succeeds, so a database
+// failure leaves the development record available for retry. Removing a record
+// also forgets its configured reload location for this host lifetime. A subsequent
+// host startup can rediscover that configured directory as a fresh development record.
+func (d *DevSource) Delete(ctx context.Context, id string, purge bool) error {
+	if err := d.store.Delete(ctx, id, purge); err != nil {
+		return err
+	}
+	d.mu.Lock()
+	delete(d.records, id)
+	delete(d.directories, id)
 	d.mu.Unlock()
-	err := d.processes.StopAll(ctx)
-	if done == nil {
-		return err
+	return nil
+}
+
+// decodeDevelopment reconstructs independent configuration values while preserving JSON numbers.
+func decodeDevelopment(data []byte) (*Installation, error) {
+	var item Installation
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&item); err != nil {
+		return nil, err
 	}
-	select {
-	case <-done:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return &item, nil
 }

@@ -11,6 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/hashicorp/go-hclog"
+
+	"github.com/TokenFlux/TokenRouter/internal/plugin"
 )
 
 // process_logs.go forwards bounded plugin diagnostics to the host logger and a
@@ -25,25 +27,18 @@ import (
 // counters and ring positions share the mutex while the downstream slog call
 // occurs outside it, keeping a slow logger from blocking administrative reads.
 
-// LogLine contains one bounded diagnostic record exposed by plugin administration.
-type LogLine struct {
-	Time    time.Time `json:"time"`    // host observation timestamp
-	Level   string    `json:"level"`   // normalized log severity
-	Message string    `json:"message"` // bounded diagnostic message text
-}
-
 // processLogs owns an installation's diagnostic admission and recent-line buffer.
 type processLogs struct {
 	logger *slog.Logger     // host logger with plugin identity
 	now    func() time.Time // host observation clock
 	// mu protects admitted timestamps, ring positions, dropped counts, and logger selection; downstream output runs after release so history reads remain available.
 	mu            sync.Mutex
-	admitted      []time.Time // retained log admission timestamps
-	nextAdmission int         // oldest admission replacement position
-	lines         []LogLine   // bounded retained diagnostic records
-	next          int         // next ring replacement position
-	dropped       int         // suppressed lines since report
-	lastReport    time.Time   // previous drop summary timestamp
+	admitted      []time.Time      // retained log admission timestamps
+	nextAdmission int              // oldest admission replacement position
+	lines         []plugin.LogLine // bounded retained diagnostic records
+	next          int              // next ring replacement position
+	dropped       int              // suppressed lines since report
+	lastReport    time.Time        // previous drop summary timestamp
 }
 
 // processOutput assembles one standard stream into bounded logical log lines.
@@ -128,7 +123,7 @@ func (l *processLogs) Accept(_ string, level hclog.Level, message string, args .
 		severity = slog.LevelError
 	}
 	l.mu.Lock()
-	line := LogLine{Time: l.now(), Level: severity.String(), Message: message}
+	line := plugin.LogLine{Time: l.now(), Level: severity.String(), Message: message}
 	if len(l.lines) < 500 {
 		l.lines = append(l.lines, line)
 	} else {
@@ -148,13 +143,13 @@ func (l *processLogs) Accept(_ string, level hclog.Level, message string, args .
 // accepted line cannot move the split between copies. Callers receive their own
 // slice and immutable message strings, allowing administrative serialization to
 // proceed without holding the process logger's lock or changing retained history.
-func (l *processLogs) snapshot() []LogLine {
+func (l *processLogs) snapshot() []plugin.LogLine {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if len(l.lines) < 500 {
-		return append([]LogLine(nil), l.lines...)
+		return append([]plugin.LogLine(nil), l.lines...)
 	}
-	result := append([]LogLine(nil), l.lines[l.next:]...)
+	result := append([]plugin.LogLine(nil), l.lines[l.next:]...)
 	return append(result, l.lines[:l.next]...)
 }
 

@@ -15,6 +15,7 @@ import (
 	routemoderation "github.com/TokenFlux/TokenRouter/internal/moderation/httpapi"
 	routenotification "github.com/TokenFlux/TokenRouter/internal/notification/httpapi"
 	routeops "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
+	routeplugin "github.com/TokenFlux/TokenRouter/internal/plugin/httpapi"
 	routepromotion "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
 	routeprovider "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
 	routerouting "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
@@ -33,7 +34,7 @@ import (
 // http_routes_admin.go mounts administrator endpoints and assigns their shared
 // and operation-specific guards. Administrator routes inherit administrator
 // authentication, panel limits, audit, and provider terminology handling before
-// module registration. Sensitive provider, proxy, backup, data-management, and
+// module registration. Sensitive plugin, provider, proxy, backup, data-management, and
 // team operations additionally receive the shared step-up guard at the
 // registrar or individual route that requires it.
 
@@ -90,6 +91,7 @@ func provideAdminRouteMount(eAdminTLSFingerprintProfile *routeegress.TLSFingerpr
 	eAdminTeam *httpapi.AdminHandler,
 	eAdminUser *routeidentity.AdminUserHandler[dto.APIKey[routingdto.Group]],
 	eAdminOps *routeops.OpsHandler,
+	ePlugins *routeplugin.Handler,
 	eSearch *routesearch.Handler,
 ) adminRouteMount {
 	return func(v1 *gin.RouterGroup, security httpRouteSecurity, protocolCatalog gin.HandlerFunc) {
@@ -103,6 +105,9 @@ func provideAdminRouteMount(eAdminTLSFingerprintProfile *routeegress.TLSFingerpr
 		{
 			// Provider and group forms share this read-only capability catalogue.
 			adminapi.Register(admin, ManagementOperations["protocol_capabilities.list"], protocolCatalog)
+			// Plugin routes share administrator guards and enforce step-up for executable and capability-policy changes before their handlers run.
+			routeplugin.RegisterAdminRoutes(admin, ePlugins, security.StepUp)
+
 			// Dashboard routes.
 			{
 				routeusageadmin.RegisterDashboardRoutes(admin, eAdminDashboard)

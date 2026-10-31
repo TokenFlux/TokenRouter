@@ -37,6 +37,7 @@ import (
 	httpapi10 "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
 	rediscache10 "github.com/TokenFlux/TokenRouter/internal/ops/rediscache"
 	postgres4 "github.com/TokenFlux/TokenRouter/internal/payment/postgres"
+	httpapi11 "github.com/TokenFlux/TokenRouter/internal/plugin/httpapi"
 	provider3 "github.com/TokenFlux/TokenRouter/internal/provider"
 	httpapi6 "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
 	postgres11 "github.com/TokenFlux/TokenRouter/internal/provider/postgres"
@@ -446,8 +447,16 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	adminHandler := httpapi3.NewAdminHandler(teamService)
 	adminUserHandler := provideIdentityAdminHTTP(userAdmin, apikeyAdmin, concurrencyService, totpService, userService, runtimeSettings)
 	opsHandler := httpapi10.NewOpsHandler(opsService)
-	handler2 := provideSearchHTTP(searchConfigService)
-	appAdminRouteMount := provideAdminRouteMount(tlsFingerprintProfileHandler, diagnosticsHandler, tlsFingerprintRouterHandler, codexImportHandler, oAuthUsageHandler, managementHandler, contentModerationHandler, antigravityOAuthHandler, errorPassthroughHandler, codexInviteResetHandler, dataManagementHandler, archiveHandler, userAttributeHandler, upstreamUsageHandler, scheduledTestHandler, ollamaUsageHandler, adminSubscriptionHandler, adminAnnouncementHandler, testHandler, openAIOAuthHandler, geminiOAuthHandler, crsHandler, qoderOAuthHandler, dashboardHandler, affiliateHandler, grokOAuthHandler, auditLogHandler, pricingHandler, modelAttributeHandler, httpapiHandler, preAggregationHandler, settingsHandler, runtimeSettingsHandler, adminKeySettingsHandler, httpapiRuntimeSettingsHandler, panelSettingsHandler, systemHandler, adminRedeemHandler, handler, backupHandler, adminAPIKeyHandler, proxyHandler, groupHandler, claudeOAuthHandler, adminUsageHandler, promoHandler, adminHandler, adminUserHandler, opsHandler, handler2)
+	packageFiles, err := providePluginPackages(cfg)
+	if err != nil {
+		return nil, err
+	}
+	processes := providePluginProcesses(cfg, info)
+	pluginManager := providePluginManager(cfg, info, client, secretEncryptor, packageFiles, processes)
+	pluginService := providePluginService(pluginManager, packageFiles)
+	handler2 := httpapi11.NewHandler(pluginService, pluginManager, processes)
+	handler3 := provideSearchHTTP(searchConfigService)
+	appAdminRouteMount := provideAdminRouteMount(tlsFingerprintProfileHandler, diagnosticsHandler, tlsFingerprintRouterHandler, codexImportHandler, oAuthUsageHandler, managementHandler, contentModerationHandler, antigravityOAuthHandler, errorPassthroughHandler, codexInviteResetHandler, dataManagementHandler, archiveHandler, userAttributeHandler, upstreamUsageHandler, scheduledTestHandler, ollamaUsageHandler, adminSubscriptionHandler, adminAnnouncementHandler, testHandler, openAIOAuthHandler, geminiOAuthHandler, crsHandler, qoderOAuthHandler, dashboardHandler, affiliateHandler, grokOAuthHandler, auditLogHandler, pricingHandler, modelAttributeHandler, httpapiHandler, preAggregationHandler, settingsHandler, runtimeSettingsHandler, adminKeySettingsHandler, httpapiRuntimeSettingsHandler, panelSettingsHandler, systemHandler, adminRedeemHandler, handler, backupHandler, adminAPIKeyHandler, proxyHandler, groupHandler, claudeOAuthHandler, adminUsageHandler, promoHandler, adminHandler, adminUserHandler, opsHandler, handler2, handler3)
 	routePlanner := provider5.NewRoutePlanner(pricingConfigService)
 	messageCredentialSource := provideMessageCredentials(claudeTokenSource)
 	requestFingerprint := anthropic.NewRequestFingerprint(fingerprintCache)
@@ -537,11 +546,11 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	adminAuthMiddleware := provideAdminAuth(appIdentityAuthGraph, userService, runtimeSettings, auditLogService, mcpTokenService)
 	v := provideAuditMiddleware(auditLogService, redactor)
 	stepUpAuthMiddleware := provideStepUpAuth(totpService, userService, runtimeSettings)
-	handler3, err := provideMCPHTTP(mcpoAuthServer, mcpTokenService, redisClient, secretEncryptor, totpService, userService, runtimeSettings, store, cfg)
+	handler4, err := provideMCPHTTP(mcpoAuthServer, mcpTokenService, redisClient, secretEncryptor, totpService, userService, runtimeSettings, store, cfg)
 	if err != nil {
 		return nil, err
 	}
-	routerRuntime, err := provideRouterRuntime(service, publicService, pageHandler, backendMode, store, redisClient, manager, cfg, appHttpRouteMount, panelSettings, opsService, jwtAuthMiddleware, adminAuthMiddleware, v, stepUpAuthMiddleware, handler3)
+	routerRuntime, err := provideRouterRuntime(service, publicService, pageHandler, backendMode, store, redisClient, manager, cfg, appHttpRouteMount, panelSettings, opsService, jwtAuthMiddleware, adminAuthMiddleware, v, stepUpAuthMiddleware, handler4)
 	if err != nil {
 		return nil, err
 	}
@@ -570,8 +579,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	appJobsRuntimeReady := provideJobsRuntime(appBatchCleanupRuntime, batchimageRuntime, creativeWorkerRuntime, usageMonitor, manager)
 	orderExpiry := providePaymentExpiry(runtime, leaderLock, db)
 	appCoreRuntimeReady := provideCoreRuntime(authCacheInvalidationWorker, snapshotService, usageCleanupService, idempotencyCleanupService, orderExpiry, tlsFingerprintCollectorService, manager, wheel, digestSessionStore, usageLogRepository, tasks, transportClient, appGatewayBillingRates)
-	processes := providePluginProcesses(cfg, info)
-	appPluginRuntimeReady := providePluginRuntime(cfg, processes, manager, info)
+	appPluginRuntimeReady := providePluginRuntime(pluginManager, manager)
 	appIdempotencyHTTPReady := provideIdempotencyHTTP(idempotencyCoordinator, managementHandler, archiveHandler, codexImportHandler, apiKeyHandler, adminRedeemHandler, adminSubscriptionHandler, proxyHandler, adminUserHandler, groupHandler, systemHandler, adminUsageHandler)
 	appRuntimeReady := provideRuntime(appModelCatalogRuntimeReady, appSettingsRuntimeReady, appAuthRuntimeReady, appMaintenanceRuntimeReady, appOpsRuntimeReady, appQueuesRuntimeReady, appJobsRuntimeReady, appCoreRuntimeReady, appPluginRuntimeReady, appIdempotencyHTTPReady, promptpolicyService)
 	application := provideApplication(httpServer, manager, appRuntimeReady, opsService, errorLogQueue)

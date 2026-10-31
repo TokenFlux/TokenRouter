@@ -244,12 +244,15 @@ func TestOllamaCloudUsageSessionRouteOmitsAuditBody(t *testing.T) {
 
 // TestCredentialPayloadRoutesOmitAuditBody checks endpoints carrying opaque authentication
 // payloads. WebAuthn assertions and encoded MCP imports require whole-body omission,
-// because nested JSON-key redaction cannot inspect the encoded secret values.
+// because nested JSON-key redaction cannot inspect encoded values or identify
+// secret configuration fields whose names are chosen by individual plugins.
 func TestCredentialPayloadRoutesOmitAuditBody(t *testing.T) {
 	for _, route := range []string{
 		"POST /api/v1/auth/passkey/login/finish",
 		"POST /api/v1/user/passkeys/register/finish",
 		"POST /api/v1/admin/mcp/files",
+		"PUT /api/v1/admin/plugins/:id/config",
+		"POST /api/v1/admin/plugins/uploads",
 	} {
 		require.Contains(t, auditBodyOmittedRoutes, route)
 	}

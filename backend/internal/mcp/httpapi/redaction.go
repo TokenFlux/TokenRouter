@@ -187,6 +187,16 @@ func (kind mcpMetadataKind) accepts(value any) bool {
 // the same field in a JSON body must match its declared metadata shape. Unknown
 // names never acquire an exception merely by sharing a suffix with metadata.
 func publicMCPField(operation, path, key string, value any) bool {
+	// Plugin secret names are arbitrary, but the configuration adapter exposes only this exact presence-marker shape without secret bytes.
+	if (operation == "plugins.config.get" || operation == "plugins.config.update") && strings.HasPrefix(path, "response/data/values/") {
+		if marker, ok := value.(map[string]any); ok && len(marker) == 1 {
+			_, presence := marker["set"].(bool)
+			return presence
+		}
+	}
+	if strings.HasPrefix(operation, "plugins.") && strings.HasSuffix(path, "/manifest/config/fields/*/key") && strings.HasPrefix(path, "response/data/") {
+		return metadataString.accepts(value)
+	}
 	if kind, ok := mcpMetadataFields[normalizeMCPField(key)]; ok {
 		if kind.accepts(value) {
 			return true
@@ -248,8 +258,13 @@ func publicMCPField(operation, path, key string, value any) bool {
 // Traversal preserves json.Number values and allocates new containers so file
 // bytes and confirmation digest inputs remain independent of display changes.
 // Excessive nesting omits the remaining subtree instead of exposing unchecked
-// values. Escaped map segments cannot match a privileged array-item path.
+// values. Plugin configuration arguments are hidden as one subtree because
+// plugin authors choose secret field names. Escaped map segments cannot match a
+// privileged array-item path.
 func (h *Handler) redact(operation string, value any, path string, depth int) any {
+	if operation == "plugins.config.update" && path == "arguments/body/values" {
+		return "***"
+	}
 	if depth > maxRedactionDepth {
 		return "[nested value omitted]"
 	}

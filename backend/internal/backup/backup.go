@@ -84,6 +84,8 @@ var (
 
 	// backupContentTableDataGroups maps optional categories to pg_dump table-data
 	// patterns; disabling a category omits these rows while retaining table schemas.
+	// Plugin installations, indexes, KV, and ledger are business data and stay
+	// outside these optional exclusions so recovery retains intent and replay evidence.
 	backupContentTableDataGroups = map[string][]string{
 		"usage_records": {
 			"public.usage_logs",

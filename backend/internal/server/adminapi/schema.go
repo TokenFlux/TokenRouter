@@ -91,6 +91,10 @@ func requestSchema(t reflect.Type, visited map[reflect.Type]bool) *jsonschema.Sc
 	if visited[t] || t == reflect.TypeFor[json.RawMessage]() {
 		return &jsonschema.Schema{}
 	}
+	if t == reflect.TypeFor[json.Number]() {
+		// json.Number retains decimal text internally but emits a JSON number, so its reflected string kind would misdescribe numeric capability limits.
+		return &jsonschema.Schema{Type: "number"}
+	}
 	if t == reflect.TypeFor[time.Time]() {
 		return &jsonschema.Schema{Type: "string", Format: "date-time"}
 	}

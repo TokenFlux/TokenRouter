@@ -108,7 +108,7 @@ github.com/stretchr/testify/suite`},
 	}
 
 	moduleDependencies = map[string]dependencySet{
-		"internal/plugin": {Production: `internal/plugin/... internal/pkg/apperror plugin-sdk/go/...`, Tests: `internal/testutil/postgrescontainer migrations`},
+		"internal/plugin": {Production: `internal/plugin/... internal/pkg/apperror internal/server/... internal/identity/httpapi/authctx ent/... plugin-sdk/go/...`, Tests: `internal/testutil/postgrescontainer internal/infra/crypto migrations`},
 		"internal/mcp": {Production: `internal/mcp/... internal/identity internal/identity/provider internal/identity/httpapi internal/identity/httpapi/authctx
 internal/audit internal/server/adminapi internal/server/httpx`, Tests: `ent ent/runtime internal/identity/postgres internal/infra/crypto internal/testutil/postgrescontainer migrations`},
 		"internal/requestlog": {Production: `internal/usage internal/requestlog/... internal/infra/telemetry/... internal/identity/httpapi/authctx internal/server/httpx`, Tests: `internal/testutil/postgrescontainer migrations`},

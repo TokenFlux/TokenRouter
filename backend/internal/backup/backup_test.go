@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"encoding/json"
+	"path"
 	"testing"
 	"time"
 
@@ -246,3 +247,17 @@ func AccessBackingUp(s *BackupService) { s.opMu.Lock(); s.backingUp = true; s.op
 // External tests customize its archive part size before launching work; later
 // operation calls use that same executor, so mutation is completed before workers read it.
 func AccessArchive(s *BackupService) ArchiveExecutor { return s.archive }
+
+// TestPluginBusinessTablesRemainInEveryBackup disables every optional data group and checks its exclusion patterns.
+// Plugin installation intent, retained KV, and ledger replay evidence must remain included under the default backup policy.
+func TestPluginBusinessTablesRemainInEveryBackup(t *testing.T) {
+	service := &BackupService{}
+	excluded := service.buildExcludedTableData(&BackupContentConfig{})
+	for _, table := range []string{"public.plugin_indexes", "public.plugin_installations", "public.plugin_kv", "public.plugin_ledger"} {
+		for _, pattern := range excluded {
+			matches, err := path.Match(pattern, table)
+			require.NoError(t, err)
+			require.False(t, matches, "%s excludes %s", pattern, table)
+		}
+	}
+}

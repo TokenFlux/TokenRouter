@@ -5,7 +5,8 @@ import (
 	"io"
 	"log/slog"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/manifest"
 )
@@ -13,85 +14,49 @@ import (
 // directoryFixture returns supplied package declarations without filesystem access.
 type directoryFixture map[string]DirectoryPackage
 
-// processFixture records development startup decisions without executing a child.
-type processFixture struct {
-	started []ProcessSpec // observed process startup specifications
-}
-
 // ReadDirectory returns the declaration selected by the configured fixture directory.
 func (f directoryFixture) ReadDirectory(_ context.Context, directory string) (DirectoryPackage, error) {
 	return f[directory], nil
 }
 
-// Replace records the selected process specification for later policy assertions.
-func (f *processFixture) Replace(_ context.Context, spec ProcessSpec) error {
-	f.started = append(f.started, spec)
-	return nil
-}
-
-// Acquire reports unavailable because this policy fixture owns no process connection.
-func (*processFixture) Acquire(context.Context, string) (*Lease, error) {
-	return nil, ErrPluginUnavailable
-}
-
-// Stop accepts fixture cleanup without affecting real operating-system processes.
-func (*processFixture) Stop(context.Context, string) error { return nil }
-
-// ApplyConfig accepts fixture configuration without invoking any host callback transport.
-func (*processFixture) ApplyConfig(context.Context, ProcessSpec) error { return nil }
-
-// Status reports stopped because policy tests do not create native generations.
-func (*processFixture) Status(string) Status { return Status{State: StateStopped} }
-
-// StopAll completes fixture cleanup without starting or waiting for external work.
-func (*processFixture) StopAll(context.Context) error { return nil }
-
-// TestDevSourceRequiresBothSwitches checks the development directory admission gate.
-// A configured directory alone cannot execute code when global plugins or
-// explicit development mode is disabled by deployment configuration.
+// TestDevSourceRequiresBothSwitches checks that directories remain inactive unless both switches permit them.
+// Disabled source loading never attempts filesystem inspection or publishes development records.
 func TestDevSourceRequiresBothSwitches(t *testing.T) {
 	for _, options := range []DevOptions{{Enabled: false, DevMode: true}, {Enabled: true, DevMode: false}} {
-		processes := &processFixture{}
-		source := NewDevSource(options, nil, processes, slog.New(slog.NewTextHandler(io.Discard, nil)))
-		if err := source.Start(context.Background()); err != nil {
-			t.Fatal(err)
-		}
-		if source.started {
-			t.Fatal("disabled development source started")
-		}
-		if err := source.Stop(context.Background()); err != nil {
-			t.Fatal(err)
-		}
+		source := NewDevSource(options, nil, newMemoryInstallations(), NewConfiguration(nil, false), slog.New(slog.NewTextHandler(io.Discard, nil)))
+		require.NoError(t, source.Load(t.Context()))
+		items, err := source.List(t.Context())
+		require.NoError(t, err)
+		require.Empty(t, items)
 	}
 }
 
-// TestDevSourceSelectsNativeProcessesInIDOrder supplies reversed directory order
-// and a static package. Only the first native plugin by ID may start, with
-// declared permissions granted and executable checksum verification explicitly disabled.
-func TestDevSourceSelectsNativeProcessesInIDOrder(t *testing.T) {
+// TestDevSourceOverlayPreservesDurableIdentity loads a static and native development declaration beside a colliding durable record.
+// It verifies ordered ordinary installation records, isolated reads, and no durable shadowing.
+func TestDevSourceOverlayPreservesDurableIdentity(t *testing.T) {
+	store := newMemoryInstallations()
+	require.NoError(t, store.Save(t.Context(), &Installation{PluginID: "test.alpha", VersionSnapshot: VersionSnapshot{Version: "2.0.0", Source: SourceUpload}}))
 	reader := directoryFixture{
-		"z": {Manifest: &manifest.Manifest{ID: "test.zulu", Version: "1.0.0", APIVersion: 1, Backend: &manifest.Backend{}}, Executable: "/fixture/z"},
-		"a": {Manifest: &manifest.Manifest{ID: "test.alpha", Version: "1.0.0", APIVersion: 1, Backend: &manifest.Backend{}, Permissions: []string{"wallet.credit"}}, Executable: "/fixture/a"},
+		"z": {Manifest: &manifest.Manifest{ID: "test.zulu", Version: "1.0.0", APIVersion: 1, Backend: &manifest.Backend{}, Permissions: []string{"wallet.credit"}}},
+		"a": {Manifest: &manifest.Manifest{ID: "test.alpha", Version: "1.0.0", APIVersion: 1}},
 		"s": {Manifest: &manifest.Manifest{ID: "test.static", Version: "1.0.0", APIVersion: 1}},
 	}
-	processes := &processFixture{}
-	source := NewDevSource(DevOptions{Enabled: true, DevMode: true, Directories: []string{"z", "s", "a"}, StateRoot: t.TempDir(), MaxRunning: 1}, reader, processes, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	if err := source.Start(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-source.done:
-	case <-time.After(time.Second):
-		t.Fatal("development loading did not finish")
-	}
-	if len(processes.started) != 1 || processes.started[0].PluginID != "test.alpha" {
-		t.Fatalf("unexpected process selection: %+v", processes.started)
-	}
-	spec := processes.started[0]
-	if spec.VerifyBinary || len(spec.Permissions) != 1 || spec.MemoryMiB != 256 || string(spec.ConfigJSON) != "{}" {
-		t.Fatalf("incorrect development policy: %+v", spec)
-	}
-	if err := source.Stop(context.Background()); err != nil {
-		t.Fatal(err)
-	}
+	source := NewDevSource(DevOptions{Enabled: true, DevMode: true, Directories: []string{"z", "a", "s"}}, reader, store, NewConfiguration(nil, false), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	require.NoError(t, source.Load(t.Context()))
+	items, err := source.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, items, 3)
+	require.Equal(t, "2.0.0", items[0].Version)
+	require.Equal(t, "test.static", items[1].PluginID)
+	require.Equal(t, SourceDev, items[1].Source)
+	require.True(t, items[1].Enabled)
+	require.Equal(t, []string{"wallet.credit"}, items[2].GrantedPermissions)
+	items[2].GrantedPermissions[0] = "wallet.debit"
+	reread, err := source.Get(t.Context(), "test.zulu")
+	require.NoError(t, err)
+	require.Equal(t, []string{"wallet.credit"}, reread.GrantedPermissions)
+	require.NoError(t, source.Delete(t.Context(), "test.zulu", true))
+	_, err = source.Get(t.Context(), "test.zulu")
+	require.ErrorIs(t, err, ErrPluginNotFound)
+	require.Equal(t, []bool{true}, store.purge)
 }

@@ -266,7 +266,7 @@ func (p *Processes) Status(id string) plugin.Status {
 }
 
 // Logs returns a detached chronological snapshot of the retained diagnostic buffer.
-func (p *Processes) Logs(id string) []LogLine {
+func (p *Processes) Logs(id string) []plugin.LogLine {
 	p.mu.RLock()
 	s := p.entries[id]
 	p.mu.RUnlock()

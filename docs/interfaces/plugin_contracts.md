@@ -1,6 +1,6 @@
 # 插件契约
 
-本文记录 `plugin-sdk/` 中的插件声明、安装包、索引和进程协议。SDK 使用 MIT 许可证，与宿主的 LGPL-3.0-or-later 许可证分开。当前这些契约和插件端工具已经进入源码，宿主的安装管理、权限执行和页面接入仍在实现中。
+本文记录 `plugin-sdk/` 中的插件声明、安装包、索引和进程协议。SDK 使用 MIT 许可证，与宿主的 LGPL-3.0-or-later 许可证分开。声明、发布工具、进程协议和上传安装管理已接入源码，宿主业务能力和页面代理仍在实现中。
 
 <a id="manifest"></a>
 ## 插件声明
@@ -32,6 +32,15 @@
 签名文件是 `base64(ed25519.Sign(privateKey, index.json 原始字节))`，与 JSON 分开保存。验签在解析和替换缓存之前完成。多个受信公钥支持轮换，空公钥列表不能通过验签。
 
 发布工具读取 `publishers/` 和 `plugins/` 的 YAML 登记，抓取 Release 并逐个下载、校验安装包；有后端的官方登记必须同时提供两个 Linux 架构。已经成功收录的仓库与 tag 保留首次摘要，失败版本记录原因并允许后续构建重试。提交权限检查使用可信基线中的发布者账号，新发布者需要维护者明确审核。
+
+<a id="administration"></a>
+## 安装管理接口
+
+`/api/v1/admin/plugins` 提供已安装列表和上传安装；`/uploads` 接收 multipart 的 `file` 字段，返回 `upload_token`、过期时间、manifest、摘要和平台。安装请求使用 `{source: "upload", upload_token, accept_permissions, enable}`，响应包含 installation、needs_configuration 和 repaired。需要确认 manifest 中的全部权限；同版本上传只允许修复缺失或无效的已安装包。
+
+`/:id` 返回详情或卸载；DELETE 的 `purge_data=true` 清除 KV，缺省保留，台账始终保留。`/:id/enable`、`disable`、`restart` 控制运行意图和本地进程；`/:id/logs` 返回最近 500 行。所有路由登记到 adminapi，执行代码、配置和额度变更通过实际 HTTP step-up guard；multipart 上传在 MCP 中使用浏览器入口。
+
+`/:id/config` 的 GET 和 PUT 使用 `{values: {...}}`。普通字段按提交内容替换并补默认值；secret 省略保留、空字符串清除，返回值为 `{set: boolean}`。`/:id/limits` 接受 wallet、redeem、subscription、email 分组，未给出的字段使用默认值，显式 0 禁止对应操作，null 和未知字段被拒绝。金额额度采用精确十进制 JSON 数字。
 
 <a id="process_protocol"></a>
 ## 进程协议与 SDK

@@ -71,6 +71,19 @@ type Status struct {
 	Since      time.Time `json:"since"`                // current state's start time
 }
 
+// LogLine contains one bounded diagnostic record exposed by plugin administration.
+type LogLine struct {
+	Time    time.Time `json:"time"`    // host observation timestamp
+	Level   string    `json:"level"`   // normalized log severity
+	Message string    `json:"message"` // bounded diagnostic message text
+}
+
+// LogReader returns copied diagnostic history without exposing process ownership details.
+type LogReader interface {
+	// Logs returns at most five hundred recent lines in publication order.
+	Logs(string) []LogLine
+}
+
 // ProcessSpec supplies immutable inputs for starting one plugin generation.
 type ProcessSpec struct {
 	PluginID        string   // publisher-qualified installation identifier

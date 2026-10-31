@@ -2,12 +2,18 @@
 
 package app
 
-import "github.com/google/wire"
+import (
+	"github.com/google/wire"
 
-// assembly_plugin_wire.go registers the process collection and its lifecycle
-// owner with Wire. Application readiness requires the lifecycle registration,
-// ensuring plugin shutdown remains ordered before the shared host dependencies
-// that future plugin callback capabilities consume during admitted work.
+	"github.com/TokenFlux/TokenRouter/internal/plugin"
+	"github.com/TokenFlux/TokenRouter/internal/plugin/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/plugin/provider"
+)
+
+// assembly_plugin_wire.go registers plugin storage, administration, process ownership,
+// and lifecycle reconciliation with Wire. HTTP handlers and background startup
+// share the same manager, while log reads use a narrow core interface. Lifecycle
+// registration keeps shutdown ordered before dependencies used by admitted callbacks.
 
 // pluginAssemblyProviders binds plugin process construction and lifecycle registration into the application dependency graph without starting either during construction.
-var pluginAssemblyProviders = wire.NewSet(providePluginProcesses, providePluginRuntime)
+var pluginAssemblyProviders = wire.NewSet(providePluginProcesses, providePluginPackages, providePluginManager, providePluginService, httpapi.NewHandler, wire.Bind(new(plugin.LogReader), new(*provider.Processes)), providePluginRuntime)

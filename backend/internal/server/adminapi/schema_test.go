@@ -1,6 +1,7 @@
 package adminapi
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -110,4 +111,15 @@ func TestConditionalStepUpAndUpgradeDescription(t *testing.T) {
 	require.Equal(t, target.ID, entry["x-tokenrouter-mcp-alias"])
 	require.Contains(t, entry["responses"], "101")
 	require.NotContains(t, entry["responses"], "200")
+}
+
+// TestJSONNumberUsesNumericManagementSchema preserves decimal JSON input rather than exposing its Go string representation.
+// Numeric limits pass management validation, while strings fail before reaching handlers expecting numeric configuration.
+func TestJSONNumberUsesNumericManagementSchema(t *testing.T) {
+	input := struct {
+		Amount json.Number `json:"amount"` // exact decimal numeric limit
+	}{}
+	operation := &Operation{ID: "fixture.numeric", Input: Arguments("/api/v1/admin/numeric", nil, input)}
+	require.NoError(t, operation.Validate(map[string]any{"body": map[string]any{"amount": float64(0.12345678)}}))
+	require.Error(t, operation.Validate(map[string]any{"body": map[string]any{"amount": "0.12345678"}}))
 }

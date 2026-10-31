@@ -136,6 +136,8 @@ Usage cleanup 是管理员手动创建的持久任务，需要提供时间范围
 
 backup 使用 PostgreSQL dump，把产物流式写到本地或 S3 兼容存储；配置、记录、定时调度和恢复都受维护锁保护。默认的内容策略，会排除 `backupContentTableDataGroups` 里归类的 usage records、Ops logs、专项 audit history 和 runtime data，这四类都需要手动选择。提供商余额提醒的最近轮次和下次检查时间属于 `runtime_data`，配置仍保存在提供商 Extra 中；恢复时没有运行状态会在下一轮扫描重新检查。备份显示 completed，只说明已经写出了所选的内容，不代表这四类都在文件里。
 
+`plugin_indexes`、`plugin_installations`、`plugin_kv` 和 `plugin_ledger` 属于始终包含的业务数据。台账承载幂等执行证据，不能归入可排除的日志或 runtime_data。恢复数据库时也要恢复固定的 TOTP 加密密钥；本地安装包不在 dump 中，上传来源需要保留原归档，索引来源按已接受摘要重新下载。
+
 新建备份的文件名统一为 `tr_YYYYMMDD_HHMMSS.sql.gz`，前缀固定为 `tr`。本地和 S3 存储使用这个文件名生成对象路径，下载和恢复读取备份记录中保存的名称与对象键；已有的 `sub2api` 前缀备份继续按原记录访问。
 
 S3 的 `multipart` 上传模式，把 gzip 流作为一个对象、以较低的内存上传，适合兼容标准 multipart 签名的存储；`spooled_put` 面向只能可靠接受已知长度 `PutObject` 的兼容服务。后者超过 4 GiB 时，边压缩边封装成独立的分卷，临时磁盘上只保留当前的一卷；备份记录保存每一卷的顺序、对象键、大小和 SHA-256。任何一卷上传失败、服务重启或删除失败时，尝试清理全部已经登记的对象，清理不完整时保留可以诊断的记录。

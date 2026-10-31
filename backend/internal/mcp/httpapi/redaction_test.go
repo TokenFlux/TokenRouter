@@ -173,3 +173,26 @@ func TestConfirmationPreviewPreservesMetadataAndLimits(t *testing.T) {
 	upload := map[string]any{"body": map[string]any{"data": "encoded-private"}}
 	require.NotContains(t, h.confirmationPreview("mcp.files.upload", upload), "encoded-private")
 }
+
+// TestPluginConfigurationPreviewHidesDynamicSecretNames submits ordinary-looking keys declared secret by a plugin schema.
+// Confirmation rendering hides the complete values object while retaining the operation's plugin identifier and unchanged input data.
+func TestPluginConfigurationPreviewHidesDynamicSecretNames(t *testing.T) {
+	h := NewHandler(nil, nil, nil, nil, nil, Options{})
+	input := map[string]any{"path": map[string]any{"id": "test.plugin"}, "body": map[string]any{"values": map[string]any{"color": "hidden-credential", "count": json.Number("42")}}}
+	output := jsonTestValue[map[string]any](t, h.redact("plugins.config.update", input, "arguments", 0))
+	require.Equal(t, "***", jsonTestValue[map[string]any](t, output["body"])["values"])
+	require.Equal(t, "test.plugin", jsonTestValue[map[string]any](t, output["path"])["id"])
+	require.Equal(t, "hidden-credential", jsonTestValue[map[string]any](t, jsonTestValue[map[string]any](t, input["body"])["values"])["color"])
+}
+
+// TestPluginSecretPresenceMarkersRemainVisible reads a secret-named configuration field and an ordinary manifest field descriptor.
+// Only the boolean presence marker and declared field name survive; arbitrary objects still follow credential masking.
+func TestPluginSecretPresenceMarkersRemainVisible(t *testing.T) {
+	h := NewHandler(nil, nil, nil, nil, nil, Options{})
+	input := map[string]any{"data": map[string]any{"values": map[string]any{"password": map[string]any{"set": true}, "token": map[string]any{"set": true, "value": "secret"}}}}
+	output := jsonTestValue[map[string]any](t, h.redact("plugins.config.get", input, "response", 0))
+	values := jsonTestValue[map[string]any](t, jsonTestValue[map[string]any](t, output["data"])["values"])
+	require.Equal(t, map[string]any{"set": true}, values["password"])
+	require.Equal(t, "***", values["token"])
+	require.True(t, publicMCPField("plugins.get", "response/data/manifest/config/fields/*/key", "key", "password"))
+}
