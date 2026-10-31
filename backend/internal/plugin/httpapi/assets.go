@@ -19,20 +19,56 @@ import (
 // versions, while an active development snapshot can supply its inspected local
 // directory. Bounded file handles retain package integrity metadata for immutable
 // caching, and SVG responses receive a sandbox policy before any content is sent.
+//
+// One additional image path may be declared by each release's manifest. Current
+// and previous snapshots select that exact path; if no loaded snapshot is
+// available, the manager resolves accepted metadata from storage. This keeps
+// custom publisher icons usable without making other package files public or
+// applying the current version's icon declaration to an unrelated retained version.
 
 // Asset serves one allowed local asset without authenticating a browser session.
 // Missing versions, traversal, unsupported extensions, and invalid metadata return
 // not found. The caller's global switch and public-address limits run before this handler.
+//
+// Declared SVG or PNG icons may live outside the standard frontend directory,
+// but the requested release must explicitly name that same path. Image metadata
+// uses current or retained previous snapshots before reading the matching package.
+// Those icons and the fixed root icon names retain a 64 KiB ceiling; ordinary
+// frontend files keep the package's 8 MiB asset bound.
 func (h *PublicHandler) Asset(c *gin.Context) {
 	name := strings.TrimPrefix(c.Param("file"), "/")
 	contentType, allowed := assetContentType(name)
+	id, version := c.Param("id"), c.Param("version")
+	loaded, current := h.options.Runtime.Snapshot(id)
+	maximum := int64(8 << 20)
+	if name == "icon.svg" || name == "icon.png" {
+		maximum = 64 << 10
+	}
+	if manifest.ValidPath(name) && path.Clean(name) == name && (path.Ext(name) == ".svg" || path.Ext(name) == ".png") {
+		var declared string
+		switch {
+		case current && loaded.Installation != nil && loaded.Installation.Version == version && loaded.Installation.Manifest != nil:
+			declared = loaded.Installation.Manifest.Icon
+		case current && loaded.Installation != nil && loaded.Installation.Previous != nil && loaded.Installation.Previous.Version == version && loaded.Installation.Previous.Manifest != nil:
+			declared = loaded.Installation.Previous.Manifest.Icon
+		default:
+			// Retained assets may outlive a failed current-package load; resolve their declaration from accepted installation metadata without downloading or decrypting anything.
+			declared, _ = h.options.Runtime.IconPath(c.Request.Context(), id, version)
+		}
+		if declared == name {
+			allowed = true
+			maximum = 64 << 10
+			contentType = "image/svg+xml"
+			if path.Ext(name) == ".png" {
+				contentType = "image/png"
+			}
+		}
+	}
 	if !allowed {
 		httpx.NotFound(c, "Plugin asset not found")
 		return
 	}
-	id, version := c.Param("id"), c.Param("version")
 	var local plugin.Package
-	loaded, current := h.options.Runtime.Snapshot(id)
 	if current && loaded.Installation != nil && loaded.Installation.Version == version {
 		local = loaded.Package
 	} else {
@@ -43,7 +79,7 @@ func (h *PublicHandler) Asset(c *gin.Context) {
 			return
 		}
 	}
-	file, err := h.options.Files.Open(c.Request.Context(), local, name, 8<<20)
+	file, err := h.options.Files.Open(c.Request.Context(), local, name, maximum)
 	if err != nil {
 		httpx.NotFound(c, "Plugin asset not found")
 		return

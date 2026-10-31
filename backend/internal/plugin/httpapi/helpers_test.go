@@ -89,6 +89,22 @@ func (f *publicRuntimeFixture) Snapshots() []plugin.Loaded {
 	return result
 }
 
+// IconPath selects a fixture icon from the accepted current or previous manifest.
+func (f *publicRuntimeFixture) IconPath(_ context.Context, id, version string) (string, error) {
+	loaded, found := f.loaded[id]
+	if !found {
+		return "", plugin.ErrPluginNotFound
+	}
+	if loaded.Installation.Version == version {
+		return loaded.Installation.Manifest.Icon, nil
+	}
+	previous := loaded.Installation.Previous
+	if previous != nil && previous.Version == version {
+		return previous.Manifest.Icon, nil
+	}
+	return "", plugin.ErrPluginNotFound
+}
+
 // Acquire returns one fixture lease and optionally publishes a concurrent declaration change.
 func (f *publicRuntimeFixture) Acquire(_ context.Context, id string) (*plugin.Lease, error) {
 	version := f.version

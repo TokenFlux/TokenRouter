@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
@@ -28,6 +29,10 @@ type PublishedRuntime interface {
 	// Nested release metadata remains immutable. Process readiness does not remove
 	// static UI contributions from this installation discovery view.
 	Snapshots() []plugin.Loaded
+	// IconPath reads the declared icon for an accepted current or previous release.
+	// It does not fetch files or decrypt settings. Missing versions fail, allowing
+	// assets to expose only the explicitly declared extra SVG or PNG path.
+	IconPath(context.Context, string, string) (string, error)
 }
 
 // PublicOptions supplies shared owners and request metadata readers before serving routes.

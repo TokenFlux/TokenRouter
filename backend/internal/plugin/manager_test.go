@@ -40,6 +40,34 @@ func TestManagerReconcilesTaskRegistrationWithInstallationState(t *testing.T) {
 	require.Empty(t, manager.TaskStatuses(item.PluginID))
 }
 
+// TestIconPathUsesAcceptedReleaseMetadata resolves icons without publishing package snapshots or starting a process.
+// Current and previous declarations remain distinct, while an unknown version or mismatched manifest identity cannot authorize another package path.
+func TestIconPathUsesAcceptedReleaseMetadata(t *testing.T) {
+	manager, _, store, _, _ := managerFixture(t, 1)
+	item := managerInstallation(t, "test.icons", false)
+	item.Manifest.Icon = "art/current.svg"
+	previous := item.VersionSnapshot
+	previous.Version = "0.9.0"
+	declaration := *previous.Manifest
+	declaration.Version = previous.Version
+	declaration.Icon = "art/previous.png"
+	previous.Manifest = &declaration
+	item.Previous = &previous
+	require.NoError(t, store.Save(t.Context(), item))
+	icon, err := manager.IconPath(t.Context(), item.PluginID, "1.0.0")
+	require.NoError(t, err)
+	require.Equal(t, "art/current.svg", icon)
+	icon, err = manager.IconPath(t.Context(), item.PluginID, "0.9.0")
+	require.NoError(t, err)
+	require.Equal(t, "art/previous.png", icon)
+	_, err = manager.IconPath(t.Context(), item.PluginID, "2.0.0")
+	require.ErrorIs(t, err, ErrPluginNotFound)
+	item.Previous.Manifest.ID = "different.plugin"
+	require.NoError(t, store.Save(t.Context(), item))
+	_, err = manager.IconPath(t.Context(), item.PluginID, "0.9.0")
+	require.ErrorIs(t, err, ErrPluginNotFound)
+}
+
 // TestManagerStartupSharesOneProcessLimit restores enabled, disabled, and development installations in deterministic order.
 // Development records consume the same native capacity, while disabled records remain visible without starting.
 func TestManagerStartupSharesOneProcessLimit(t *testing.T) {

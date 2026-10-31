@@ -62,7 +62,7 @@
 
 插件成功返回的 HTTP body 原样发送，不套宿主 envelope。状态必须为 200 至 599，body 最多 4 MiB；必须提供可解析的 Content-Type，允许 application/json、text/plain、text/csv、image/png、image/jpeg、image/webp、image/gif、application/octet-stream 及其参数。HTML、SVG、SSE 和无效响应返回 502 `PLUGIN_UNAVAILABLE`。RPC 失败也返回 502，超时返回 504 `PLUGIN_TIMEOUT`；尚未取得租约时的进程不可用仍为 503。响应只保留 Content-Type、Cache-Control、ETag、Last-Modified、Content-Disposition、Retry-After、X-Plugin-*，并加 nosniff；大小写重复的允许头被拒绝。宿主生成的失败响应使用正常面板错误 envelope。
 
-`GET /api/v1/plugins/:id/assets/:version/*file` 无需登录，并经过公网 IP 限流。它只读取本地已有的版本，不下载缺失包；只公开 frontend/ 下的 .js、.css、.svg、.png、.jpg、.webp、.json、.map，以及根目录 icon.svg/icon.png。路径越界、未登记文件、符号链接或尺寸变化返回 404。响应使用安装时的 SHA-256 前 16 字节作为 ETag，Cache-Control 为 `public, max-age=31536000, immutable`；SVG 另有 `Content-Security-Policy: sandbox` 和 `Content-Disposition: inline`。文件句柄的可读范围固定在已接受的尺寸，避免文件随后增长扩大响应。
+`GET /api/v1/plugins/:id/assets/:version/*file` 无需登录，并经过公网 IP 限流。它只读取本地已有的版本，不下载缺失包；只公开 frontend/ 下的 .js、.css、.svg、.png、.jpg、.webp、.json、.map，以及根目录 icon.svg/icon.png。对应版本 manifest.icon 明确指定的单个 SVG/PNG 也可公开，声明图标及固定根图标均限 64 KiB；其他目录中的文件不因此开放。路径越界、未登记文件、符号链接或尺寸变化返回 404。响应使用安装时的 SHA-256 前 16 字节作为 ETag，Cache-Control 为 `public, max-age=31536000, immutable`；SVG 另有 `Content-Security-Policy: sandbox` 和 `Content-Disposition: inline`。文件句柄的可读范围固定在已接受的尺寸，避免文件随后增长扩大响应。
 
 `GET /api/v1/plugins/ui` 要求登录并遵循 Backend 模式门禁，使用标准 envelope，data.plugins 为按 ID 排序的数组。只包含已启用、所需脚本与样式仍在本地的贡献；后端进程是否可用不影响页面发现。返回版本化资源 URL 和 SHA-384 SRI、按请求语言解析的名称和标题，以及按角色过滤的页面和菜单；管理员同时可见 user/admin audience。菜单继承目标页面的 audience，用户路由为 `/ext/:id[/path]`，管理员为 `/admin/ext/:id[/path]`；SVG 留给现有前端 sanitizer 处理。缺少可选图标时仍保留菜单，缺少必要 bundle 时省略该插件。响应不缓存，不包含配置、密文或本地路径。
 

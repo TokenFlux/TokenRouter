@@ -621,3 +621,27 @@ func (m *Manager) Snapshots() []Loaded {
 	})
 	return views
 }
+
+// IconPath returns the accepted icon path for the current or retained previous release.
+// This metadata lookup does not recover package files or decrypt configuration.
+// Unknown identities, versions, and missing declarations return a not-found result.
+func (m *Manager) IconPath(ctx context.Context, id, version string) (string, error) {
+	if !manifest.ValidID(id) || !manifest.ValidVersion(version) {
+		return "", ErrPluginNotFound
+	}
+	item, err := m.store.Get(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	snapshot := &item.VersionSnapshot
+	if snapshot.Version != version {
+		if item.Previous == nil || item.Previous.Version != version {
+			return "", ErrPluginNotFound
+		}
+		snapshot = item.Previous
+	}
+	if snapshot.Manifest == nil || snapshot.Manifest.ID != id || snapshot.Manifest.Version != version {
+		return "", ErrPluginNotFound
+	}
+	return snapshot.Manifest.Icon, nil
+}
