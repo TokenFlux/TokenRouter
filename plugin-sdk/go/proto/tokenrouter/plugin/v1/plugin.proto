@@ -385,7 +385,7 @@ message UserSubscription {
   string status = 4;
   // Subscription start in Unix seconds.
   int64 starts_unix = 5;
-  // Expiration time in Unix seconds; zero denotes no expiry for redeem codes.
+  // Subscription expiration time in Unix seconds.
   int64 expires_unix = 6;
 }
 
@@ -529,7 +529,7 @@ message Order {
   string type = 2;
   // Host-owned entity status value.
   string status = 3;
-  // Positive decimal amount in internal USD units, with at most eight fractional digits.
+  // Native stored order amount; its original denomination is preserved.
   string amount = 4;
   // Referenced subscription plan identifier.
   int64 plan_id = 5;

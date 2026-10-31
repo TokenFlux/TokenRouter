@@ -1988,7 +1988,7 @@ type UserSubscription struct {
 	Status string `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
 	// Subscription start in Unix seconds.
 	StartsUnix int64 `protobuf:"varint,5,opt,name=starts_unix,json=startsUnix,proto3" json:"starts_unix,omitempty"`
-	// Expiration time in Unix seconds; zero denotes no expiry for redeem codes.
+	// Subscription expiration time in Unix seconds.
 	ExpiresUnix   int64 `protobuf:"varint,6,opt,name=expires_unix,json=expiresUnix,proto3" json:"expires_unix,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2897,7 +2897,7 @@ type Order struct {
 	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	// Host-owned entity status value.
 	Status string `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	// Positive decimal amount in internal USD units, with at most eight fractional digits.
+	// Native stored order amount; its original denomination is preserved.
 	Amount string `protobuf:"bytes,4,opt,name=amount,proto3" json:"amount,omitempty"`
 	// Referenced subscription plan identifier.
 	PlanId int64 `protobuf:"varint,5,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`

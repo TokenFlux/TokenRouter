@@ -53,7 +53,7 @@ func TestHostWriteAuditIncludesPermissionRateAndDrainFailures(t *testing.T) {
 	token, err := grants.Issue("test.audit", 42)
 	require.NoError(t, err)
 	audit := &capabilityAuditFixture{}
-	implementation := NewHostServices(nil, nil, grants, audit).Bind(plugin.ProcessSpec{PluginID: "test.audit", Version: "1.0.0"})
+	implementation := NewHostServices(HostCapabilities{}, grants, audit).Bind(plugin.ProcessSpec{PluginID: "test.audit", Version: "1.0.0"})
 	gate := newHostGate(nil)
 	calls := newHostCalls(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	server := gate.server(nil, implementation, calls)
@@ -112,7 +112,7 @@ func TestWriteAuditCapturesActorBeforeTicketExpiry(t *testing.T) {
 	ticket, err := grants.Issue("test.audit", 42)
 	require.NoError(t, err)
 	audit := &capabilityAuditFixture{}
-	server, ok := NewHostServices(nil, nil, grants, audit).Bind(plugin.ProcessSpec{PluginID: "test.audit", Version: "1.0.0"}).(*hostService)
+	server, ok := NewHostServices(HostCapabilities{}, grants, audit).Bind(plugin.ProcessSpec{PluginID: "test.audit", Version: "1.0.0"}).(*hostService)
 	require.True(t, ok)
 	request := &pluginpb.WalletRequest{UserId: 7, Amount: "1", IdempotencyKey: "clock", Grant: ticket, Reason: "\x00" + strings.Repeat("x", 2000)}
 	_, err = server.observeWrite(t.Context(), request, &grpc.UnaryServerInfo{FullMethod: "/tokenrouter.plugin.v1.Host/WalletCredit"}, func(context.Context, any) (any, error) {

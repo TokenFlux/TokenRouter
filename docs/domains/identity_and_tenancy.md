@@ -162,6 +162,8 @@ Email 绑定有单独的验证码和密码设置流程：
 
 ## 用户属性与来源
 
+集成侧的精确用户查找使用 `UserService.LookupUsersExact`，与管理员模糊搜索分开。它只按 ID、用户名或大小写不敏感的邮箱相等条件读取未删除账号，返回最多 100 条资料及头像 URL，不读取备注、密码、API Key 或任意身份 metadata。插件的邮箱权限与返回字段筛选由插件模块另外检查。
+
 自定义用户属性分为 definition 和 value。definition 包含唯一 key、展示名、类型、options、required、validation、排序和 enabled；每个用户在每个 definition 下最多一个 value。类型支持 `text`、`textarea`、`number`、`email`、`url`、`date`、`select` 和 `multi_select`。值以字符串保存，multi-select 保存为 JSON 数组字符串。
 
 写入的值要通过 definition 的类型、选项和 min、max、length、pattern 规则。`required` 只约束编辑和收集流程，历史用户可能没有这个值。definition 被禁用后，界面上不再显示这个输入项，已有的值保留，和授权无关。删除 definition 时要一并处理它的 values，前端提交的孤立 key 会被拒绝。

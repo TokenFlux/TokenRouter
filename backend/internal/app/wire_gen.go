@@ -462,7 +462,8 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	}
 	walletService := providePluginWallet(writes, grants, balanceAdjuster, redeemAdmin, apiKeyAuthCacheInvalidator, eligibility)
 	subscriptions := providePluginSubscriptions(writes, subscriptionService, apiKeyAuthCacheInvalidator)
-	hostServices := providePluginHostServices(walletService, subscriptions, grants, auditLogService)
+	queries := providePluginQueries(cfg, publicService, userService, plans, subscriptionService, runtime, usageService, dashboardService, marketplace, apiKeyService, grants)
+	hostServices := providePluginHostServices(walletService, subscriptions, queries, grants, auditLogService)
 	processes := providePluginProcesses(cfg, info, hostServices)
 	pluginManager := providePluginManager(cfg, info, devSource, configuration, packageFiles, processes)
 	pluginService := providePluginService(pluginManager, packageFiles)

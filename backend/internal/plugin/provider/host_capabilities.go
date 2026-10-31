@@ -32,12 +32,18 @@ import (
 // The existing audit queue remains best effort, while the transaction ledger
 // owns durable proof of financial and notification effects.
 
-// HostServices contains the host-owned capability implementations shared across plugin bindings.
+// HostCapabilities groups the business implementations selected before host service publication.
+type HostCapabilities struct {
+	Wallet        *plugin.WalletService // ledger-backed wallet capability implementation
+	Subscriptions *plugin.Subscriptions // ledger-backed direct entitlement capability
+	Queries       *plugin.Queries       // bounded read capability implementation
+}
+
+// HostServices retains immutable capability selection and shared caller attribution or auditing.
 type HostServices struct {
-	wallet        *plugin.WalletService    // ledger-backed wallet capability implementation
-	subscriptions *plugin.Subscriptions    // ledger-backed direct entitlement capability
-	grants        *plugin.Grants           // optional caller attribution verifier
-	audit         plugin.CapabilityAuditor // best-effort write observation destination
+	capabilities HostCapabilities         // constructor-selected host capability implementations
+	grants       *plugin.Grants           // optional caller attribution verifier
+	audit        plugin.CapabilityAuditor // best-effort write observation destination
 }
 
 // hostService binds shared capabilities to one immutable authenticated process identity.
@@ -50,8 +56,8 @@ type hostService struct {
 // NewHostServices binds financial capabilities, caller attribution, and write auditing.
 // Capability implementations must remain available until plugin callbacks drain.
 // Construction starts no process and records no audit entry before an RPC occurs.
-func NewHostServices(wallet *plugin.WalletService, subscriptions *plugin.Subscriptions, grants *plugin.Grants, audit plugin.CapabilityAuditor) *HostServices {
-	return &HostServices{wallet: wallet, subscriptions: subscriptions, grants: grants, audit: audit}
+func NewHostServices(capabilities HostCapabilities, grants *plugin.Grants, audit plugin.CapabilityAuditor) *HostServices {
+	return &HostServices{capabilities: capabilities, grants: grants, audit: audit}
 }
 
 // Bind captures authenticated process identity without retaining its decrypted configuration.
@@ -63,7 +69,7 @@ func (h *HostServices) Bind(spec plugin.ProcessSpec) pluginpb.HostServer {
 
 // WalletCredit maps a typed credit request into the transaction-backed wallet capability.
 func (s *hostService) WalletCredit(ctx context.Context, request *pluginpb.WalletRequest) (*pluginpb.WalletResponse, error) {
-	change, err := s.services.wallet.Credit(ctx, s.binding, walletInput(request))
+	change, err := s.services.capabilities.Wallet.Credit(ctx, s.binding, walletInput(request))
 	if err != nil {
 		return nil, capabilityError(err)
 	}
@@ -72,7 +78,7 @@ func (s *hostService) WalletCredit(ctx context.Context, request *pluginpb.Wallet
 
 // WalletDebit maps a debit request into grant and transaction validation.
 func (s *hostService) WalletDebit(ctx context.Context, request *pluginpb.WalletRequest) (*pluginpb.WalletResponse, error) {
-	change, err := s.services.wallet.Debit(ctx, s.binding, walletInput(request))
+	change, err := s.services.capabilities.Wallet.Debit(ctx, s.binding, walletInput(request))
 	if err != nil {
 		return nil, capabilityError(err)
 	}
@@ -81,7 +87,7 @@ func (s *hostService) WalletDebit(ctx context.Context, request *pluginpb.WalletR
 
 // GrantSubscription maps a permitted plan grant into transaction-backed entitlement issuance.
 func (s *hostService) GrantSubscription(ctx context.Context, request *pluginpb.GrantSubscriptionRequest) (*pluginpb.GrantSubscriptionResponse, error) {
-	result, err := s.services.subscriptions.Grant(ctx, s.binding, plugin.SubscriptionInput{
+	result, err := s.services.capabilities.Subscriptions.Grant(ctx, s.binding, plugin.SubscriptionInput{
 		UserID: request.GetUserId(), PlanID: request.GetPlanId(), Days: request.GetValidityDays(), Key: request.GetIdempotencyKey(), Reason: request.GetReason(),
 	})
 	if err != nil {
