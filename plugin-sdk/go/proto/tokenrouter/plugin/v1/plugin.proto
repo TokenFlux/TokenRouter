@@ -604,7 +604,7 @@ message SendEmailResponse {
 
 // VerifyCaptchaRequest carries typed input for the corresponding plugin protocol operation.
 message VerifyCaptchaRequest {
-  // Client-produced captcha challenge token.
+  // Native Turnstile/Aliyun token, or JSON containing Tencent ticket and randstr.
   string token = 1;
   // Host-resolved client IP address forwarded by the SDK.
   string client_ip = 2;

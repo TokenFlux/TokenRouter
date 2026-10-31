@@ -34,10 +34,11 @@ import (
 
 // HostCapabilities groups the business implementations selected before host service publication.
 type HostCapabilities struct {
-	Emails        *plugin.Emails        // durable optional email delivery capability
-	Wallet        *plugin.WalletService // ledger-backed wallet capability implementation
-	Subscriptions *plugin.Subscriptions // ledger-backed direct entitlement capability
-	Queries       *plugin.Queries       // bounded read capability implementation
+	Captcha       plugin.CaptchaVerifier // current site challenge verification adapter
+	Emails        *plugin.Emails         // durable optional email delivery capability
+	Wallet        *plugin.WalletService  // ledger-backed wallet capability implementation
+	Subscriptions *plugin.Subscriptions  // ledger-backed direct entitlement capability
+	Queries       *plugin.Queries        // bounded read capability implementation
 }
 
 // HostServices retains immutable capability selection and shared caller attribution or auditing.
@@ -110,6 +111,17 @@ func (s *hostService) SendEmail(ctx context.Context, request *pluginpb.SendEmail
 		return response, capabilityError(err)
 	}
 	return response, nil
+}
+
+// VerifyCaptcha forwards the SDK's opaque proof and original request address.
+// The surrounding host gate requires captcha.verify. Configuration and upstream
+// failures retain safe host errors, while a rejected challenge returns a false result.
+func (s *hostService) VerifyCaptcha(ctx context.Context, request *pluginpb.VerifyCaptchaRequest) (*pluginpb.VerifyCaptchaResponse, error) {
+	result, err := s.services.capabilities.Captcha.VerifyCaptcha(ctx, request.GetToken(), request.GetClientIp())
+	if err != nil {
+		return nil, capabilityError(err)
+	}
+	return &pluginpb.VerifyCaptchaResponse{Enabled: result.Enabled, Success: result.Success}, nil
 }
 
 // walletInput selects only the declared business inputs from a protocol request.

@@ -3431,7 +3431,7 @@ func (x *SendEmailResponse) GetReplayed() bool {
 // VerifyCaptchaRequest carries typed input for the corresponding plugin protocol operation.
 type VerifyCaptchaRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Client-produced captcha challenge token.
+	// Native Turnstile/Aliyun token, or JSON containing Tencent ticket and randstr.
 	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// Host-resolved client IP address forwarded by the SDK.
 	ClientIp      string `protobuf:"bytes,2,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`

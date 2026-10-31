@@ -356,47 +356,61 @@ func (s *AuthService) VerifyCaptchaForRegister(ctx context.Context, proof Captch
 // remote IP and provider-matched proof; upstream verification owns proof
 // validity after this policy selection.
 func (s *AuthService) VerifyCaptcha(ctx context.Context, proof CaptchaProof, remoteIP string) error {
-	required := s.Options != nil && s.Options.Server.Mode == "release" && s.Options.Turnstile.Required
-	if s.Settings == nil {
-		if required {
-			return ErrTurnstileNotConfigured
-		}
-		return nil
+	enabled, err := s.VerifyOptionalCaptcha(ctx, proof, remoteIP)
+	if err != nil {
+		return err
 	}
+	required := s.Options != nil && s.Options.Server.Mode == "release" && s.Options.Turnstile.Required
+	if required && !enabled {
+		return ErrTurnstileNotConfigured
+	}
+	return nil
+}
 
+// VerifyOptionalCaptcha checks the selected provider and reports whether verification is enabled.
+// A disabled site succeeds without a challenge, allowing capability callers to
+// decide their own admission policy. Authentication uses VerifyCaptcha to also
+// enforce its startup requirement that a provider must be configured.
+//
+// Selection and verification consume one settings snapshot, so the returned
+// enabled flag describes the configuration actually used for this attempt.
+// Read failures and conflicting providers reject verification. Enabled providers
+// require their verifier and credentials; their existing proof and remote-IP
+// handling remains responsible for the external challenge decision.
+func (s *AuthService) VerifyOptionalCaptcha(ctx context.Context, proof CaptchaProof, remoteIP string) (bool, error) {
+	if s.Settings == nil {
+		return false, nil
+	}
 	providerConfig, err := s.Settings.GetCaptchaProviderConfig(ctx)
 	if err != nil {
 		s.Observer.Printf("service.auth", "%s", "[Auth] Failed to read captcha provider settings")
-		return ErrServiceUnavailable
+		return false, ErrServiceUnavailable
 	}
 	turnstileEnabled := providerConfig.TurnstileEnabled
 	tencentEnabled := providerConfig.Tencent.Enabled
 	aliyunEnabled := providerConfig.Aliyun.Enabled
 	if AuthCaptchaProvidersConflict(turnstileEnabled, tencentEnabled, aliyunEnabled) {
-		return ErrCaptchaProviderConflict
+		return true, ErrCaptchaProviderConflict
 	}
 	if tencentEnabled {
 		if s.Tencent == nil {
-			return ErrTencentCaptchaNotConfigured
+			return true, ErrTencentCaptchaNotConfigured
 		}
-		return s.Tencent.VerifyTicketWithConfig(ctx, providerConfig.Tencent, proof.TencentTicket, proof.TencentRandstr, remoteIP)
+		return true, s.Tencent.VerifyTicketWithConfig(ctx, providerConfig.Tencent, proof.TencentTicket, proof.TencentRandstr, remoteIP)
 	}
 	if aliyunEnabled {
 		if s.Aliyun == nil {
-			return ErrAliyunCaptchaNotConfigured
+			return true, ErrAliyunCaptchaNotConfigured
 		}
-		return s.Aliyun.VerifyParamWithConfig(ctx, providerConfig.Aliyun, proof.TurnstileToken)
+		return true, s.Aliyun.VerifyParamWithConfig(ctx, providerConfig.Aliyun, proof.TurnstileToken)
 	}
 	if turnstileEnabled {
 		if s.Turnstile == nil || strings.TrimSpace(providerConfig.TurnstileSecretKey) == "" {
-			return ErrTurnstileNotConfigured
+			return true, ErrTurnstileNotConfigured
 		}
-		return s.Turnstile.VerifyTokenWithSecret(ctx, providerConfig.TurnstileSecretKey, proof.TurnstileToken, remoteIP)
+		return true, s.Turnstile.VerifyTokenWithSecret(ctx, providerConfig.TurnstileSecretKey, proof.TurnstileToken, remoteIP)
 	}
-	if required {
-		return ErrTurnstileNotConfigured
-	}
-	return nil
+	return false, nil
 }
 
 // AuthCaptchaProvidersConflict reports whether multiple supplied provider

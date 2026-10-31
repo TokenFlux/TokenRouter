@@ -54,6 +54,8 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 `SendEmail` 要求 `notify.email`，主题 1 至 120 字符、纯文本正文 1 至 8000 字符。主题首尾空白和正文换行形式先规范化，再比较幂等内容；主题内部控制字符、无效 UTF-8、NUL 及无效用户 ID 被拒绝。默认额度为每用户每天 5 次、插件每天 500 次。无邮箱和退订返回 `delivered=false`，仍占用一次额度。认领后的已知发送前错误以 `USER_NOT_FOUND` 或 `HOST_UNAVAILABLE` 持久化，同键重放该错误。结果不明返回 `EMAIL_DELIVERY_UNKNOWN`；同键重放只读取已保存结果，不重新发信。
 
 
+`VerifyCaptcha` 要求 `captcha.verify`。站点未启用验证码时返回 `enabled=false, success=true`；启用状态与验证使用同一份配置。Turnstile 与阿里云保留原始 token，腾讯使用包含 `ticket`、`randstr` 的 JSON 字符串。SDK 从 `Caller` 传递原 HTTP 请求的客户端 IP。现有验证服务判为失败的挑战返回 `success=false`；配置或未分类服务错误返回 `HOST_UNAVAILABLE`。原认证入口继续执行其启动配置中的必需验证码约束。
+
 `plugintest` 提供进程内 gRPC 假宿主、余额和 KV，可注入协议错误。它不替代宿主的权限、额度、审计及 PostgreSQL 事务测试。签到示例使用 pending 记录固定奖励金额，再调用钱包幂等加款，最后 CAS 标记完成，允许恢复在 KV 认领后失败的加款。
 
 <a id="web_sdk"></a>

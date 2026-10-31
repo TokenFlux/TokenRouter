@@ -444,6 +444,29 @@ func TestVerifyCaptchaReadsProviderConfigurationOnce(t *testing.T) {
 	require.Equal(t, 1, verifier.calls)
 }
 
+// TestOptionalCaptchaReportsTheVerifiedSnapshot checks disabled and enabled optional verification under authentication's stricter startup requirement.
+// Optional callers receive the actual selected state from one read, while the ordinary authentication entry still rejects a disabled provider.
+func TestOptionalCaptchaReportsTheVerifiedSnapshot(t *testing.T) {
+	repo := &captchaSettingsStore{values: map[string]string{}}
+	verifier := &tencentCaptchaVerifierStub{response: &identity.TencentCaptchaVerifyResponse{CaptchaCode: 1}}
+	service := newAuthServiceForCaptchaRepoTest(repo, true, nil, verifier)
+	enabled, err := service.VerifyOptionalCaptcha(t.Context(), identity.CaptchaProof{}, "192.0.2.7")
+	require.NoError(t, err)
+	require.False(t, enabled)
+	require.Equal(t, 1, repo.getMultipleCalls)
+	require.ErrorIs(t, service.VerifyCaptcha(t.Context(), identity.CaptchaProof{}, "192.0.2.7"), identity.ErrTurnstileNotConfigured)
+	repo.values = tencentCaptchaSettings()
+	before := repo.getMultipleCalls
+	enabled, err = service.VerifyOptionalCaptcha(t.Context(), identity.CaptchaProof{TencentTicket: "ticket", TencentRandstr: "random"}, "192.0.2.7")
+	require.NoError(t, err)
+	require.True(t, enabled)
+	require.Equal(t, before+1, repo.getMultipleCalls)
+	require.Equal(t, 1, verifier.calls)
+	repo.err = errors.New("settings unavailable")
+	_, err = service.VerifyOptionalCaptcha(t.Context(), identity.CaptchaProof{}, "192.0.2.7")
+	require.ErrorIs(t, err, identity.ErrServiceUnavailable)
+}
+
 // TestVerifyCaptchaRejectsEnabledTencentProviderWithIncompleteCredentials
 // enables Tencent with only its application ID present. Configuration
 // rejection follows one batch read and leaves the vendor invocation count at
