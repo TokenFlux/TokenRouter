@@ -25,6 +25,8 @@
     }
   },
   "scripts": {
+    "format": "prettier --config ../prettier.config.mjs --write 'src/**/*.ts' 'tests/*.mjs' '*.json' '../go/examples/checkin/web/src/**/*.{ts,vue,css}' '../go/examples/checkin/web/*.{ts,json,html}'",
+    "format:check": "prettier --config ../prettier.config.mjs --check 'src/**/*.ts' 'tests/*.mjs' '*.json' '../go/examples/checkin/web/src/**/*.{ts,vue,css}' '../go/examples/checkin/web/*.{ts,json,html}'",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm build && node --test tests/*.test.mjs"
@@ -39,6 +41,7 @@
     "postcss-value-parser": "4.2.0"
   },
   "devDependencies": {
+    "prettier": "3.9.10",
     "@types/node": "26.6.4",
     "typescript": "6.0.3",
     "vite": "8.3.2",

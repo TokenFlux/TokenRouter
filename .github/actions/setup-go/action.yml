@@ -24,7 +24,7 @@ runs:
           ~/go/pkg/mod
           ~/.cache/go-build
           ~/.cache/golangci-lint
-        key: go-${{ inputs.group }}-${{ hashFiles('backend/go.sum', 'tools/architecture/go.sum', '.golangci-version') }}-${{ github.sha }}
+        key: go-${{ inputs.group }}-${{ hashFiles('backend/go.sum', 'plugin-sdk/go/go.sum', 'tools/architecture/go.sum', '.golangci-version') }}-${{ github.sha }}
         restore-keys: |
-          go-${{ inputs.group }}-${{ hashFiles('backend/go.sum', 'tools/architecture/go.sum', '.golangci-version') }}-
+          go-${{ inputs.group }}-${{ hashFiles('backend/go.sum', 'plugin-sdk/go/go.sum', 'tools/architecture/go.sum', '.golangci-version') }}-
           go-${{ inputs.group }}-

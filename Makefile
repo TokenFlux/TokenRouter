@@ -20,6 +20,8 @@ INTEGRATION_PKGS = $(shell cd backend && grep -rlE '^//go:build integration$$' -
 	test test-go test-frontend test-frontend-tools test-integration test-embed test-scripts test-installer test-tools test-e2e \
 	check verify security security-go security-frontend hooks
 
+.PHONY: prepare-plugin-sdk-web lint-plugin-sdk test-plugin-sdk plugin-proto-check fmt-plugin-sdk fmt-plugin-sdk-check
+
 # build packages frontend assets before compiling the server that embeds those assets.
 build: build-frontend
 	cd backend && CGO_ENABLED=0 go build -tags=embed -trimpath -o bin/server ./cmd/server
@@ -39,10 +41,10 @@ generate:
 # Go formatting selects changed files and honors BASE; frontend formatting covers
 # every handwritten file selected by its configuration and resource exclusions.
 # fmt applies the formatters for both repository implementation languages.
-fmt: fmt-go fmt-frontend
+fmt: fmt-go fmt-frontend fmt-plugin-sdk
 
 # fmt-check checks Go selection and all included frontend source files.
-fmt-check: fmt-go-check fmt-frontend-check
+fmt-check: fmt-go-check fmt-frontend-check fmt-plugin-sdk-check
 
 # fmt-go formats changed handwritten Go files through the repository selector.
 fmt-go:
@@ -61,7 +63,7 @@ fmt-frontend-check:
 	$(PNPM) run format:check
 
 # lint runs static verification for both backend and frontend source.
-lint: lint-go lint-frontend
+lint: lint-go lint-frontend lint-plugin-sdk
 
 # lint-go checks architecture and Go sources with the integration build tag.
 # This includes ordinary and integration files; test-embed covers embedded-resource files.
@@ -76,7 +78,37 @@ lint-frontend:
 	$(PNPM) run typecheck
 
 # test runs the default backend and frontend regression suites.
-test: test-go test-frontend
+test: test-go test-frontend test-plugin-sdk
+
+# prepare-plugin-sdk-web installs the SDK's frozen graph without requiring host UI dependencies.
+prepare-plugin-sdk-web:
+	pnpm --dir plugin-sdk/web install --frozen-lockfile
+
+# lint-plugin-sdk checks the independent Go module and the public frontend contract.
+lint-plugin-sdk: prepare-plugin-sdk-web
+	cd plugin-sdk/go && bash ../../tools/golangci-lint.sh run ./...
+	pnpm --dir plugin-sdk/web run format:check
+	pnpm --dir plugin-sdk/web run typecheck
+
+# test-plugin-sdk exercises protocol, process fixtures, publication, and frontend bundling.
+test-plugin-sdk: prepare-plugin-sdk-web
+	cd plugin-sdk/go && go test ./...
+	pnpm --dir plugin-sdk/web test
+	pnpm --dir plugin-sdk/go/examples/checkin/web install --frozen-lockfile
+	pnpm --dir plugin-sdk/go/examples/checkin/web build
+
+# plugin-proto-check regenerates committed bindings and rejects any resulting drift.
+plugin-proto-check:
+	$(MAKE) -C plugin-sdk/go proto
+	git diff --exit-code -- plugin-sdk/go/pluginpb plugin-sdk/go/proto
+
+# fmt-plugin-sdk applies the standalone SDK formatter to author-facing web source and examples.
+fmt-plugin-sdk:
+	pnpm --dir plugin-sdk/web run format
+
+# fmt-plugin-sdk-check verifies SDK web formatting without rewriting author source files.
+fmt-plugin-sdk-check:
+	pnpm --dir plugin-sdk/web run format:check
 
 # test-go runs backend tests selected by the default build tags.
 test-go:

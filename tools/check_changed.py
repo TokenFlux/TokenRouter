@@ -119,14 +119,23 @@ def plan(files, base, go_packages=go_test_packages):
     existing source paths or the full suite for configuration and deleted files.
     Backend locale paths independently select the frontend tests importing them.
 
+    The plugin SDK is an independent module, so backend tests do not discover
+    all of its packages. SDK changes select its own checks and the host consumers;
+    frontend SDK changes also compile the author example against the public types.
+
     Keeping language selection here lets pure Go pushes run without frontend
     tools. Dependency installs precede frontend checks, so those checks inspect
     the dependency graph recorded by the working tree's frozen lockfile.
     """
     commands = [('.', ['git', 'diff', '--check', base])]
+    sdk_web = any(f.startswith(('plugin-sdk/web/', 'plugin-sdk/go/examples/checkin/web/'))
+                  or f == 'plugin-sdk/prettier.config.mjs' for f in files)
+    sdk_go = any(f.startswith('plugin-sdk/go/')
+                 and not f.startswith('plugin-sdk/go/examples/checkin/web/') for f in files)
     go_files = [f for f in files if f.startswith('backend/') and f.endswith('.go')]
-    go_deps = any(f in ('backend/go.mod', 'backend/go.sum') for f in files)
-    if go_files or go_deps:
+    go_deps = any(f in ('backend/go.mod', 'backend/go.sum', 'plugin-sdk/go/go.mod',
+                       'plugin-sdk/go/go.sum') for f in files)
+    if go_files or go_deps or sdk_go:
         commands.append(('.', ['python3', 'tools/format_go.py', '--check', '--base', base]))
         commands.append(('.', ['python3', 'tools/format_go.py', '--check']))
     if go_files or go_deps or any(f.startswith('tools/architecture/') for f in files):
@@ -148,6 +157,21 @@ def plan(files, base, go_packages=go_test_packages):
                                          '--new-from-rev=' + base, *lint_targets]))
         if test_packages:
             commands.append(('backend', ['go', 'test', *test_packages]))
+
+    if sdk_go:
+        commands.append(('plugin-sdk/go', ['bash', '../../tools/golangci-lint.sh', 'run', './...']))
+        commands.append(('plugin-sdk/go', ['go', 'test', './...']))
+        if not go_files and not go_deps:
+            # SDK contracts are consumed by the host runtime and assembly even
+            # when no backend file changes, so compile and test those consumers.
+            commands.append(('backend', ['go', 'test', './internal/plugin/...', './internal/app']))
+    if sdk_web:
+        commands.append(('.', ['make', 'prepare-plugin-sdk-web']))
+        commands.append(('.', ['pnpm', '--dir', 'plugin-sdk/web', 'run', 'format:check']))
+        commands.append(('.', ['pnpm', '--dir', 'plugin-sdk/web', 'run', 'typecheck']))
+        commands.append(('.', ['pnpm', '--dir', 'plugin-sdk/web', 'test']))
+        commands.append(('.', ['pnpm', '--dir', 'plugin-sdk/go/examples/checkin/web', 'install', '--frozen-lockfile']))
+        commands.append(('.', ['pnpm', '--dir', 'plugin-sdk/go/examples/checkin/web', 'build']))
 
     frontend = [f for f in files if f.startswith('frontend/')]
     locale = [f for f in files if f.startswith('backend/internal/pkg/locale/') and f.endswith('.json')]

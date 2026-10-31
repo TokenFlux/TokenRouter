@@ -4,6 +4,8 @@ project_name: tokenrouter
 
 before:
   hooks:
+    # Local replacement sources must be present before resolving the backend graph.
+    - test -f plugin-sdk/go/go.mod
     - go mod tidy -C backend
 
 builds:

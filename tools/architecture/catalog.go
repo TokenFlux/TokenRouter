@@ -57,7 +57,10 @@ github.com/patrickmn/go-cache golang.org/x/sync/errgroup`, Tests: `github.com/DA
 github.com/stretchr/testify/require github.com/stretchr/testify/suite
 github.com/testcontainers/testcontainers-go/modules/postgres
 github.com/testcontainers/testcontainers-go/modules/redis modernc.org/sqlite`},
-		"provider": {Production: `golang.org/x/crypto/bcrypt github.com/ory/fosite github.com/ory/fosite/compose
+		"provider": {Production: `github.com/hashicorp/go-plugin github.com/hashicorp/go-hclog
+google.golang.org/grpc/... google.golang.org/protobuf/... google.golang.org/genproto/googleapis/rpc/...
+github.com/shirou/gopsutil/v4/process golang.org/x/time/rate
+golang.org/x/crypto/bcrypt github.com/ory/fosite github.com/ory/fosite/compose
 github.com/alibabacloud-go/captcha-20230305/client
 github.com/alibabacloud-go/darabonba-openapi/v2/utils github.com/alibabacloud-go/tea/dara
 github.com/alibabacloud-go/tea/tea github.com/aws/aws-sdk-go-v2/aws
@@ -105,6 +108,7 @@ github.com/stretchr/testify/suite`},
 	}
 
 	moduleDependencies = map[string]dependencySet{
+		"internal/plugin": {Production: `internal/plugin/... internal/pkg/apperror plugin-sdk/go/...`, Tests: `internal/testutil/postgrescontainer migrations`},
 		"internal/mcp": {Production: `internal/mcp/... internal/identity internal/identity/provider internal/identity/httpapi internal/identity/httpapi/authctx
 internal/audit internal/server/adminapi internal/server/httpx`, Tests: `ent ent/runtime internal/identity/postgres internal/infra/crypto internal/testutil/postgrescontainer migrations`},
 		"internal/requestlog": {Production: `internal/usage internal/requestlog/... internal/infra/telemetry/... internal/identity/httpapi/authctx internal/server/httpx`, Tests: `internal/testutil/postgrescontainer migrations`},

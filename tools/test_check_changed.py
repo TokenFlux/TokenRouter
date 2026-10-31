@@ -30,6 +30,30 @@ def flat(files):
 class PlanTest(unittest.TestCase):
     """PlanTest verifies pre-push command selection across source and configuration changes."""
 
+    def test_plugin_go_contract_change_checks_host_consumers(self):
+        """An SDK contract change can break host code without editing backend files.
+
+        The SDK and its host consumers must both be checked, while this Go-only
+        path must not require a frontend package manager or browser build.
+        """
+        result = flat(['plugin-sdk/go/manifest/manifest.go'])
+        self.assertIn('go test ./...', result)
+        self.assertIn('go test ./internal/plugin/... ./internal/app', result)
+        self.assertIn('bash ../../tools/golangci-lint.sh run ./...', result)
+        self.assertFalse(any('pnpm' in line for line in result))
+
+    def test_plugin_web_change_builds_sdk_and_example(self):
+        """A frontend SDK change must compile the author example against its types.
+
+        Frozen dependency installation precedes SDK tests, and the example build
+        verifies the preset instead of relying only on declaration typechecking.
+        """
+        result = flat(['plugin-sdk/web/src/types.ts'])
+        self.assertIn('make prepare-plugin-sdk-web', result)
+        self.assertIn('pnpm --dir plugin-sdk/web test', result)
+        self.assertIn('pnpm --dir plugin-sdk/go/examples/checkin/web build', result)
+        self.assertFalse(any(line == 'go test ./...' for line in result))
+
     def test_document_change_only_checks_whitespace(self):
         """A documentation-only change needs the shared whitespace check.
 

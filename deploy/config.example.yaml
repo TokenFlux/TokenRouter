@@ -1133,3 +1133,16 @@ update:
 # 请求摘要独立于 Ops 采样保存，通过内存缓冲批量写入数据库。
 request_log:
   retention_days: 30
+
+# Plugins run as trusted code in this single backend instance.
+plugins:
+  enabled: true
+  # Empty derives DATA_DIR/plugins, otherwise pricing.data_dir/plugins.
+  dir: ""
+  official_index_url: "https://raw.githubusercontent.com/TokenFlux/tokenrouter-plugins/dist/v1/index.json"
+  download_proxy: ""
+  download_url_prefix: ""
+  plugin_http_proxy: ""
+  max_running: 20
+  dev_mode: false
+  dev_dirs: []

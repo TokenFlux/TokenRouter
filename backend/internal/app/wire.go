@@ -40,6 +40,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 		paymentAssemblyProviders,
 		promotionAssemblyProviders,
 		searchAssemblyProviders,
+		pluginAssemblyProviders,
 		moderationAssemblyProviders,
 		notificationAssemblyProviders,
 		modelCatalogAssemblyProviders,

@@ -61,6 +61,14 @@
 
 `request_log.retention_days` 控制请求摘要保留天数，默认 30，环境变量为 `REQUEST_LOG_RETENTION_DAYS`。内存批写、失败处理和关闭排空见[请求 ID 与请求查询](../operations/request_lookup.md#request_storage)。
 
+### 插件运行时
+
+`plugins` 是需要重启生效的进程配置，环境变量使用 `PLUGINS_` 前缀。`enabled` 默认 true，`max_running` 默认 20；`dev_mode` 默认 false，只有显式开启后才读取 `dev_dirs`。开发目录中的代码按 manifest 授予权限，不使用正式安装的二进制摘要校验。
+
+`dir` 显式值优先；缺省时取 `DATA_DIR/plugins`，没有 DATA_DIR 时取 `pricing.data_dir/plugins`，两者都未提供时用 `./data/plugins`。默认官方索引是 `https://raw.githubusercontent.com/TokenFlux/tokenrouter-plugins/dist/v1/index.json`。`download_proxy` 只代理索引与包下载，`download_url_prefix` 供 GitHub 下载前缀使用，`plugin_http_proxy` 才传给子进程的 HTTP_PROXY/HTTPS_PROXY。分发 URL 必须使用 HTTPS，代理支持 HTTP、HTTPS 或 SOCKS5。
+
+Compose 变体会传递这些环境变量。Apple container 入口保留整份应用环境文件，因此同样支持这些键。插件信任模型和生命周期见[插件系统](../architecture/plugin_system.md)。
+
 ### 模型目录与价格补充
 
 模型目录使用 `pricing.remote_url`（默认 `https://models.dev/catalog.json?type=all`）和 `pricing.check_interval_minutes`（默认 10 分钟），自动同步价格和模型属性。旧的 `pricing.hash_check_interval_minutes` 和对应的环境变量，按下面的兼容键优先级映射到新键。

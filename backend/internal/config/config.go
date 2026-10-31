@@ -188,7 +188,8 @@ type Config struct {
 	// creative studio process defaults
 	Creative CreativeConfig `mapstructure:"creative"`
 	// team availability and membership defaults
-	Team TeamConfig `mapstructure:"team"`
+	Team    TeamConfig    `mapstructure:"team"`
+	Plugins PluginsConfig `mapstructure:"plugins"` // single-instance plugin runtime settings
 }
 
 // TeamConfig sets the default availability and limits of team features.
@@ -2168,6 +2169,7 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		cfg.Server.Mode = "debug"
 	}
 	cfg.Server.FrontendURL = strings.TrimSpace(cfg.Server.FrontendURL)
+	cfg.Plugins.normalize(cfg.Pricing.DataDir)
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
 	cfg.LinuxDo.ClientID = strings.TrimSpace(cfg.LinuxDo.ClientID)
 	cfg.LinuxDo.ClientSecret = strings.TrimSpace(cfg.LinuxDo.ClientSecret)
@@ -2330,6 +2332,7 @@ func configureConfigSource(setConfigFile, addConfigPath func(string)) {
 // installer-written values and invokes setEnvReachableDefaults for additional
 // fixed keys.
 func setDefaults() {
+	setPluginDefaults()
 	// Server
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", 8080)
@@ -2979,6 +2982,9 @@ func setEnvReachableDefaults() {
 // scaling thresholds. This is the startup rule set; downstream runtime settings
 // and subsystem defaults remain their owners' responsibility.
 func (c *Config) Validate() error {
+	if err := c.Plugins.validate(); err != nil {
+		return err
+	}
 	if c.RequestLog.RetentionDays < 0 {
 		return fmt.Errorf("request_log.retention_days must be non-negative")
 	}

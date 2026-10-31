@@ -40,6 +40,7 @@ const (
 	shutdownStageRequests                    = 15  // HTTP and gateway request completion
 	shutdownStageProducers                   = 20  // periodic and task-producing workers
 	shutdownStageProbesAndRefresh            = 25  // probes and runtime refresh loops
+	shutdownStagePlugins                     = 27  // plugin process draining and cleanup
 	shutdownStageAggregatesSessionsAndSearch = 30  // aggregation, credential sessions, and search cleanup
 	shutdownStageOpenAIQuota                 = 35  // administrative OpenAI quota operations
 	shutdownStageUsageRecords                = 40  // request completion recording

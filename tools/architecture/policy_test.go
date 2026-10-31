@@ -17,9 +17,9 @@ import (
 // files, production counterparts, or broader target subpackages.
 func TestDependencyBoundaries(t *testing.T) {
 	cases := []struct {
-		file     string
-		imported string
-		allowed  bool
+		file     string // importing source file path
+		imported string // candidate dependency import path
+		allowed  bool   // expected dependency admission result
 	}{
 		{"migrations/platform_independent_pricing_integration_test.go", modulePath + "/internal/billing/pricing", false},
 		{"migrations/helpers_test.go", modulePath + "/internal/billing/pricing", false},
@@ -38,6 +38,13 @@ func TestDependencyBoundaries(t *testing.T) {
 		{"internal/provider/postgres/new.go", "database/sql", true},
 		{"internal/search/postgres/new.go", "database/sql", true},
 		{"internal/search/new.go", modulePath + "/internal/search/postgres", false},
+		{"internal/plugin/runtime.go", modulePath + "/plugin-sdk/go/pluginpb/v1", true},
+		{"internal/plugin/catalog.go", modulePath + "/plugin-sdk/go/index", true},
+		{"internal/plugin/service.go", modulePath + "/plugin-sdk/go/sdk", false},
+		{"internal/plugin/service.go", modulePath + "/plugin-sdk/go/pkgfmt", false},
+		{"internal/plugin/service.go", "github.com/hashicorp/go-plugin", false},
+		{"internal/plugin/provider/process.go", "github.com/hashicorp/go-plugin", true},
+		{"internal/plugin/provider/process.go", modulePath + "/plugin-sdk/go/sdk", true},
 		{"internal/search/helper/postgres/new.go", "database/sql", false},
 		{"internal/protocol/openai/helpers/new.go", "os", false},
 		{"internal/protocol/openai/new_test.go", "net/http", false},

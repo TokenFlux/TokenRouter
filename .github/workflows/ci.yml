@@ -21,6 +21,32 @@ env:
   GOFLAGS: -count=1
 
 jobs:
+  plugin-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-go
+        with:
+          group: plugin-sdk
+      - id: golangci
+        run: echo "version=$(cat .golangci-version)" >> "$GITHUB_OUTPUT"
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ steps.golangci.outputs.version }}
+          install-only: true
+          skip-cache: true
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: plugin-sdk/web/package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: |
+            plugin-sdk/web/pnpm-lock.yaml
+            plugin-sdk/go/examples/checkin/web/pnpm-lock.yaml
+      - run: make lint-plugin-sdk test-plugin-sdk plugin-proto-check
+
   go-lint:
     runs-on: ubuntu-latest
     steps:

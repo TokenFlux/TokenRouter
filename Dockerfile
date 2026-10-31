@@ -68,6 +68,8 @@ WORKDIR /app/backend
 
 # Copy go mod files first (better caching)
 COPY backend/go.mod backend/go.sum ./
+# The backend resolves the MIT SDK through a local module replacement.
+COPY plugin-sdk/go /app/plugin-sdk/go
 # 跨构建保留模块缓存，重试临时下载故障时无需重新获取全部依赖。
 RUN --mount=type=cache,id=tokenrouter-gomod,target=/go/pkg/mod \
     go mod download

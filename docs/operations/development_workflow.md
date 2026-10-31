@@ -90,6 +90,8 @@ HTTP、用例、存储和后台资源，由 app 装配各模块的实现。业�
 
 ### 各模块的依赖规则
 
+- plugin：核心可以引用独立 SDK 的 manifest、索引和生成协议类型。go-plugin、gRPC 服务、进程、包文件与测试宿主属于适配或测试层；SDK 使用主仓库的导入前缀，架构检查仍单独禁止核心引用 SDK 的运行时和文件实现。
+
 - creative：`provider/openai.go` 可以读取 `upstream/openai` 的共享 Images 响应解析器，让非流式任务使用仅流式的提供商；这项依赖按文件限制，其余创作台代码沿用已有范围。
 
 - billing：缓存和提醒设置的读取，按核心角色和模块关系许可；app 负责组合动态设置、价格配置、通知、推广、提供商 outbox 和支付能力。公告和 billing 的用户读取直接使用 identity 的数据。PostgreSQL 和 Redis 适配层不互相继承存储客户端的许可；同连接的资金参与、跨存储的数据读取等窄权限，限定到具体的文件和目标包。
@@ -296,6 +298,7 @@ Testcontainers 的启动函数可能同时返回已创建的容器和错误。�
 | job | 内容 |
 | --- | --- |
 | go-lint | `make lint-go`、`make test-tools`、`make fmt-go-check` |
+| plugin-sdk | 独立 Go SDK 的 lint、测试和 proto 重生成检查，Web SDK 的格式、类型、构建测试及示例前端构建 |
 | go-test | `make test-go` |
 | go-integration | 安装 PostgreSQL 18 客户端，再执行 `make test-integration` |
 | frontend | `make lint-frontend`、`make test-frontend` |
