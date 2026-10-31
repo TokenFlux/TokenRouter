@@ -137,6 +137,7 @@
             :key="column.key"
             :data-column-key="column.key"
             scope="col"
+            :style="{ width: column.width }"
             :aria-sort="column.sortable ? getColumnAriaSort(column.key) : undefined"
             :class="[
               'sticky-header-cell py-2 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-dark-300',

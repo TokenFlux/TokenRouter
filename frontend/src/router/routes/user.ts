@@ -7,6 +7,12 @@ import type { RouteRecordRaw } from 'vue-router'
 // userRoutes supplies the ordered records for this navigation area to the application router.
 export const userRoutes: RouteRecordRaw[] = [
   {
+    path: '/ext/:pluginId/:subpath(.*)*',
+    name: 'PluginPage',
+    component: () => import('@/views/plugin/PluginPageView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: false, titleKey: 'plugins.pageTitle' },
+  },
+  {
     path: '/',
     redirect: '/home',
   },

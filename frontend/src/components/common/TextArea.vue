@@ -13,6 +13,7 @@
         :required="required"
         :placeholder="placeholderText"
         :readonly="readonly"
+        :maxlength="maxlength"
         :rows="rows"
         :class="[
           'input w-full min-h-[80px] transition duration-normal resize-y',
@@ -52,6 +53,7 @@ interface Props {
   disabled?: boolean // Disables user control interaction.
   required?: boolean // Native required validation flag.
   readonly?: boolean // Native read-only input flag.
+  maxlength?: number // Native maximum text length.
   // Error text replaces the hint and applies error styling when nonempty; empty or
   // omitted errors permit the hint to remain visible.
   error?: string

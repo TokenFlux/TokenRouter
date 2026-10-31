@@ -88,10 +88,33 @@
      * html.dark selects the corresponding dark page surface.
      */
     --page-bg: #fcfcfe;
+    /*
+     * Plugin styles share native button, card, input, body, and badge colors.
+     * These stable variable names expose existing recipes without introducing a palette.
+     */
+    --tr-color-brand: theme('colors.primary.600');
+    --tr-color-brand-contrast: theme('colors.white');
+    --tr-color-surface: theme('colors.white');
+    --tr-color-surface-muted: theme('colors.white');
+    --tr-color-border: theme('colors.primary.900 / 10%');
+    --tr-color-text: theme('colors.gray.900');
+    --tr-color-text-muted: theme('colors.gray.500');
+    --tr-color-success: theme('colors.emerald.700');
+    --tr-color-warning: theme('colors.amber.700');
+    --tr-color-danger: theme('colors.red.700');
   }
 
   html.dark {
     --page-bg: #0a0a0b;
+    /* Dark plugin surfaces and semantic text follow native card and badge recipes. */
+    --tr-color-surface: theme('colors.dark.900');
+    --tr-color-surface-muted: theme('colors.dark.950');
+    --tr-color-border: theme('borderColor.dark.600');
+    --tr-color-text: theme('colors.dark.100');
+    --tr-color-text-muted: theme('colors.dark.400');
+    --tr-color-success: theme('colors.emerald.400');
+    --tr-color-warning: theme('colors.amber.400');
+    --tr-color-danger: theme('colors.red.400');
     --overlay-bg: rgb(0 0 0 / 0.7);
     --overlay-bg-strong: rgb(0 0 0 / 0.85);
   }

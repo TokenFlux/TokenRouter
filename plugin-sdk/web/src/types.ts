@@ -1,4 +1,4 @@
-import type { Component, DefineComponent, Ref } from 'vue'
+import type { AllowedComponentProps, Component, ComponentCustomProps, Ref, VNodeProps } from 'vue'
 
 // types.ts defines the stable interface shared by plugin pages and their host.
 // Requests remain scoped to one plugin, while account, language, theme, and
@@ -179,7 +179,11 @@ export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'brand'
 export type IconName = 'check' | 'calendar' | 'gift' | 'refresh' | 'cog' | 'x' | 'info' | 'user'
 
 /** PluginComponent carries a stable public props shape for Vue template checking. */
-export type PluginComponent<Props extends object = Record<string, never>> = DefineComponent<Props>
+export type PluginComponent<Props extends object = Record<never, never>> = new () => {
+  // Public props permit Vue presentation attributes while keeping native component
+  // internals and implementation-specific event signatures outside the SDK contract.
+  $props: Props & VNodeProps & AllowedComponentProps & ComponentCustomProps
+}
 
 // CSS_VARIABLES names the existing host theme values exposed as the stable plugin
 // styling contract. Plugins use these names instead of copying a second palette.

@@ -26,6 +26,7 @@
         :placeholder="placeholderText"
         :autocomplete="autocomplete"
         :readonly="readonly"
+        :maxlength="maxlength"
         :class="[
           'input w-full transition duration-normal',
           $slots.prefix ? 'input-has-icon' : '',
@@ -73,6 +74,7 @@ interface Props {
   disabled?: boolean // Disables user control interaction.
   required?: boolean // Native required validation flag.
   readonly?: boolean // Native read-only input flag.
+  maxlength?: number // Native maximum text length.
   // Error text replaces the hint and applies error styling when nonempty; empty or
   // omitted errors permit the hint to remain visible.
   error?: string

@@ -212,6 +212,8 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
+import { usePluginsStore } from '@/stores/plugins'
+import type { PluginAudience } from '@/api/plugins.types'
 
 // AppSidebar.vue builds role-specific navigation from public and administrator settings.
 // Feature predicates filter optional destinations, custom links retain their configured
@@ -247,6 +249,7 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
+const pluginsStore = usePluginsStore()
 
 // Sidebar width and mobile visibility come from shared application state, allowing the
 // header toggle and layout offsets to follow the same values.
@@ -287,8 +290,30 @@ const flagTeamAccess = () => appStore.cachedPublicSettings?.team_enabled !== fal
 // used by both personal and user menus.
 const flagUsageRankingAccess = () => appStore.cachedPublicSettings?.usage_ranking_enabled !== false
 
+/** pluginNavItems projects accepted menus into the existing sanitized sidebar renderer.
+ * Audience filtering preserves administrator and personal sections. Ordering uses the
+ * declared priority, plugin ID, then declaration order without mutating store descriptions.
+ */
+function pluginNavItems(audience: PluginAudience): NavItem[] {
+  return pluginsStore.plugins
+    .flatMap((plugin) => plugin.menus.map((menu, index) => ({ pluginId: plugin.id, menu, index })))
+    .filter((entry) => entry.menu.audience === audience)
+    .sort(
+      (a, b) =>
+        a.menu.order - b.menu.order ||
+        a.pluginId.localeCompare(b.pluginId, 'en') ||
+        a.index - b.index,
+    )
+    .map(({ menu }) => ({
+      path: menu.route,
+      label: menu.label,
+      icon: null,
+      iconSvg: menu.icon_svg,
+    }))
+}
+
 // userNavItems builds the ordinary user destinations, applies feature predicates, and
-// appends visible custom links in their configured sort order.
+// appends custom links followed by ordered plugin contributions for the current role.
 const userNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
     { path: '/dashboard', label: t('nav.dashboard'), icon: 'dashboard' as const },
@@ -344,13 +369,14 @@ const userNavItems = computed((): NavItem[] => {
       icon: null,
       iconSvg: item.icon_svg,
     })),
+    ...pluginNavItems('user'),
   ]
   const visibleItems = items.filter((item) => item.featureFlag?.() !== false)
   return visibleItems
 })
 
 // personalNavItems builds the administrator's personal account section using public
-// feature flags and the user-visible custom menu entries.
+// feature flags, user-visible custom links, and authenticated plugin menu entries.
 const personalNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
     { path: '/dashboard', label: t('nav.dashboard'), icon: 'dashboard' as const },
@@ -406,6 +432,7 @@ const personalNavItems = computed((): NavItem[] => {
       icon: null,
       iconSvg: item.icon_svg,
     })),
+    ...pluginNavItems('user'),
   ]
   const visibleItems = items.filter((item) => item.featureFlag?.() !== false)
   return visibleItems
@@ -429,7 +456,7 @@ const customMenuItemsForAdmin = computed(() => {
 })
 
 // adminNavItems combines administrator destinations, feature-gated groups, settings, and
-// custom links; child routes are retained in their displayed group order.
+// custom links and plugin contributions; child routes retain their declared group order.
 const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: 'dashboard' as const },
@@ -544,6 +571,7 @@ const adminNavItems = computed((): NavItem[] => {
       iconSvg: cm.icon_svg,
     })
   }
+  visibleItems.push(...pluginNavItems('admin'))
   return visibleItems
 })
 

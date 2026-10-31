@@ -51,7 +51,7 @@
 
 `/:id` 返回详情或卸载；DELETE 的 `purge_data=true` 清除 KV，缺省保留，台账始终保留。`/:id/enable`、`disable`、`restart` 控制运行意图和本地进程；`/:id/logs` 返回最近 500 行。安装列表和详情的可选 `tasks` 字段返回已登记任务的内存状态及最近执行结果；`next_run_at` 为零值时表示暂停。状态字段见[定时任务](../architecture/plugin_system.md#task_scheduling)。所有路由登记到 adminapi，执行代码、配置和额度变更通过实际 HTTP step-up guard；multipart 上传在 MCP 中使用浏览器入口。
 
-`/:id/config` 的 GET 和 PUT 使用 `{values: {...}}`。普通字段按提交内容替换并补默认值；secret 省略保留、空字符串清除，返回值为 `{set: boolean}`。`/:id/limits` 接受 wallet、redeem、subscription、email 分组，未给出的字段使用默认值，显式 0 禁止对应操作，null 和未知字段被拒绝。金额额度采用精确十进制 JSON 数字。
+`/:id/config` 的 GET 和 PUT 使用 `{values: {...}}`。普通字段按提交内容替换并补默认值；secret 省略保留、空字符串清除，返回值为 `{set: boolean}`。`/:id/limits` 接受 wallet、redeem、subscription、email 分组，未给出的字段使用默认值，显式 0 禁止对应操作，null 和未知字段被拒绝。金额额度采用精确十进制 JSON 数字；浏览器可能输出的指数形式会先无损归一化，仍限制为最多七位整数和八位小数。能力 RPC 的金额字符串继续要求普通十进制形式。
 
 <a id="http_contributions"></a>
 ## HTTP 贡献与公开资源
@@ -103,6 +103,10 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 ## Web SDK 与示例
 
 `plugin-sdk/web` 提供 `@tokenrouter/plugin-sdk` 类型与 Vite 预设。正式构建把 Vue 和 SDK 分别外置为 `__TR_VUE__`、`__TR_PLUGIN_SDK__`，输出单个 IIFE `index.js` 和导入样式对应的 `index.css`。动态页面导入合入同一个脚本，CSS 选择器使用 `data-tr-plugin` 前缀，动画名和引用一起加插件前缀。
+
+宿主的 `useHost()` 返回当前页面范围内的 HostApi。`request` 路径以 `/` 开始，禁止绝对 URL、查询片段和路径穿越，查询使用独立参数；响应保留插件自有 `code`、`data` 等字段。HTTP 失败映射为带 status 和稳定 code 的 HostRequestError。`navigate` 使用 manifest 页面路径，根页面传空字符串，其他页面不带开头斜杠，只能进入当前 audience 已声明的页面。
+
+`useMessages` 依次选择完整语言标签、主语言、英文词典，缺失 key 直接显示 key。用户、语言、主题和路由通过只读响应式引用提供，site 属性读取当前公开设置。TrDialog 的实际面板保留 `data-tr-plugin`；TrTable 使用 `cell-<key>` 单元格插槽；TrCaptcha 将腾讯双字段编码为 JSON，其余提供商票据原样传递。浏览器资源通过 API 基址加载，分离部署需在前端 CSP 中允许该来源的脚本和样式。
 
 本地 Vite 开发服务器将 SDK 导入替换为 mock。mock 使用原生控件、内存账户与可替换的请求夹具，刷新页面会重置数据；它不证明正式宿主的持久化、权限或视觉一致性。发布构建不包含 mock。
 

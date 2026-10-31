@@ -195,6 +195,9 @@ importers:
       '@tanstack/vue-virtual':
         specifier: ^3.13.23
         version: 3.13.23(vue@3.5.43(typescript@6.0.3))
+      '@tokenrouter/plugin-sdk':
+        specifier: link:../plugin-sdk/web
+        version: link:../plugin-sdk/web
       '@vueuse/core':
         specifier: ^10.7.0
         version: 10.11.1(vue@3.5.43(typescript@6.0.3))

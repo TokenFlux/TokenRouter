@@ -12,6 +12,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(import.meta.dirname, 'src'),
+      // Match production source resolution so a clean checkout does not require an ignored SDK build.
+      '@tokenrouter/plugin-sdk': resolve(import.meta.dirname, '../plugin-sdk/web/src/types.ts'),
       'vue-i18n': 'vue-i18n/dist/vue-i18n.runtime.esm-bundler.js',
     },
   },

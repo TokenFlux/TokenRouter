@@ -10,6 +10,7 @@ import {
 } from './adminUIRequest'
 import { refreshAuthTokens } from './tokenRefresh'
 import { getAPIBaseURL } from './url'
+import { isPluginApiPath } from './pluginPaths'
 
 /**
  * client.ts configures the browser HTTP client and the interceptors that attach
@@ -75,8 +76,8 @@ apiClient.interceptors.request.use(
       config.headers['Accept-Language'] = getLocale()
     }
 
-    // Attach timezone for all GET requests (backend may use it for default date ranges)
-    if (config.method === 'get') {
+    // Native GET queries receive timezone defaults; plugin endpoints own their query contract and receive only explicitly supplied query values.
+    if (config.method === 'get' && !isPluginApiPath(config.url)) {
       if (!config.params) {
         config.params = {}
       }
@@ -111,6 +112,10 @@ apiClient.interceptors.response.use(
     const requestLocale = response.config?.headers?.['Accept-Language']
     if (response.config?.method === 'get' && requestLocale && requestLocale !== getLocale()) {
       return apiClient.request(response.config)
+    }
+    // Plugin payloads own their field names, so native envelope interpretation must not consume a plugin's ordinary code or data property.
+    if (isPluginApiPath(response.config?.url)) {
+      return response
     }
     // Unwrap standard API response format { code, message, data }
     const apiResponse = response.data as ApiResponse<unknown>

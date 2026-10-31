@@ -6,6 +6,7 @@ import admin from './admin'
 import misc from './misc'
 import team from './team'
 import requests from './requests'
+import plugins from './plugins'
 
 // index.ts assembles the English interface catalog from domain dictionaries and
 // shared legal and localization messages. Named request and administrator
@@ -13,6 +14,7 @@ import requests from './requests'
 // retained if domain modules define the same key.
 
 export default {
+  plugins,
   requests,
   legal: {
     login: 'Log in',

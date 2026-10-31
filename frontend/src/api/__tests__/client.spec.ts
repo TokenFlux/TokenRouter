@@ -45,6 +45,27 @@ describe('API Client', () => {
     vi.unstubAllEnvs()
   })
 
+  // A plugin owns code and data as ordinary response fields while using the
+  // shared session client. Its query remains exact and its payload is not treated as a native envelope.
+  it('preserves raw plugin replies and explicit query values', async () => {
+    localStorage.setItem('auth_token', 'plugin-session')
+    const payload = { code: 42, data: { amount: '1' }, message: 'Plugin-owned payload' }
+    const adapter = vi.fn(async (config) => ({
+      status: 200,
+      data: payload,
+      headers: {},
+      config,
+      statusText: 'OK',
+    }))
+    apiClient.defaults.adapter = adapter
+    const response = await apiClient.get('/plugins/test.plugin/api/status', {
+      params: { day: 'today' },
+    })
+    expect(response.data).toEqual(payload)
+    expect(adapter.mock.calls[0][0].params).toEqual({ day: 'today' })
+    expect(adapter.mock.calls[0][0].headers.get('Authorization')).toBe('Bearer plugin-session')
+  })
+
   /**
    * Request interceptors.
    */

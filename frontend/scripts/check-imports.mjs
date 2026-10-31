@@ -87,15 +87,18 @@ export function importViolation(importer, target) {
     return null
   if (
     importer.startsWith('src/api/') &&
-    /^(?:src\/(?:components|views|stores|router|composables))(?:\/|$)/.test(target)
+    /^(?:src\/(?:components|views|stores|router|composables|pluginHost))(?:\/|$)/.test(target)
   ) {
-    return 'API modules cannot import UI, store, router, or composable modules.'
+    return 'API modules cannot import UI, store, router, composable, or plugin host modules.'
   }
-  if (importer.startsWith('src/components/') && /^src\/views(?:\/|$)/.test(target)) {
-    return 'Components cannot import page implementations.'
+  if (importer.startsWith('src/components/') && /^src\/(?:views|pluginHost)(?:\/|$)/.test(target)) {
+    return 'Components cannot import page or plugin host implementations.'
   }
   if (importer.startsWith('src/composables/') && /^src\/components(?:\/|$)/.test(target)) {
     return 'Shared composables cannot import component implementations.'
+  }
+  if (importer.startsWith('src/pluginHost/') && /^src\/views(?:\/|$)/.test(target)) {
+    return 'The plugin host cannot import page implementations.'
   }
   for (const module of PRIVATE_MODULES) {
     if (

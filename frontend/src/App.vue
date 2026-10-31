@@ -15,6 +15,7 @@ import {
 import { getSetupStatus } from '@/api/setup'
 import { sanitizeUrl } from '@/utils/url'
 import { updateFavicon } from '@/utils/branding'
+import { usePluginsStore } from '@/stores/plugins'
 
 // App.vue renders the routed page and shared progress, toast, and announcement surfaces.
 // It updates branding and document titles from reactive configuration, and refreshes
@@ -37,6 +38,7 @@ const authStore = useAuthStore()
 const subscriptionStore = useSubscriptionStore()
 const announcementStore = useAnnouncementStore()
 const adminSettingsStore = useAdminSettingsStore()
+const pluginsStore = usePluginsStore()
 
 // shouldShowAnnouncementPopup gates the global popup surface to console destinations
 // while leaving the root and named Home page without popup rendering.
@@ -57,14 +59,20 @@ async function onLocaleChanged() {
   updateDocumentTitle()
 }
 
-// updateDocumentTitle applies route, site, and permitted custom-menu labels to the
-// browser tab.
+// updateDocumentTitle applies route, site, custom-menu, and accepted plugin page titles
+// to the browser tab. Discovery updates preserve the selected audience when descriptions
+// arrive after navigation or another branding refresh completes.
 function updateDocumentTitle() {
   const customMenuItems = [
     ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
     ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
   ]
-  document.title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems)
+  document.title = resolveRouteDocumentTitle(
+    route,
+    appStore.siteName,
+    customMenuItems,
+    pluginsStore.plugins,
+  )
 }
 
 watch(
@@ -86,6 +94,7 @@ watch(
     () => appStore.cachedPublicSettings?.custom_menu_items,
     () => authStore.isAdmin,
     () => adminSettingsStore.customMenuItems,
+    () => pluginsStore.plugins,
   ],
   updateDocumentTitle,
   { deep: true },

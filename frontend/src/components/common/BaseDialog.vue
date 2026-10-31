@@ -17,6 +17,7 @@
         -->
         <div
           ref="dialogRef"
+          v-bind="panelData"
           tabindex="-1"
           :class="['modal-content min-h-0 min-w-0 max-h-[95dvh] sm:max-h-[90dvh]', widthClasses]"
           @click.stop
@@ -102,6 +103,9 @@ interface Props {
 
   subtitle?: string // Optional truncated subtitle text.
   width?: DialogWidth // Responsive dialog width recipe.
+  // Data attributes remain on the teleported panel so scoped content can identify
+  // its owner after leaving the original component's DOM subtree.
+  panelData?: Record<`data-${string}`, string>
   // Controls outer body scrolling; false allocates the available height to content
   // that manages its own scrolling.
   bodyScroll?: boolean

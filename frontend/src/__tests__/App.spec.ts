@@ -60,6 +60,8 @@ vi.mock('@/stores', () => ({
   useAdminSettingsStore: () => mocks.adminSettingsStore,
 }))
 
+vi.mock('@/stores/plugins', () => ({ usePluginsStore: () => ({ plugins: [] }) }))
+
 vi.mock('@/api/setup', () => ({
   getSetupStatus: (...args: unknown[]) => mocks.getSetupStatus(...args),
 }))

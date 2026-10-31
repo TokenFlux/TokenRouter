@@ -290,3 +290,17 @@ test('Vue template expression comments are checked as actual comment tokens', ()
     '<!-- Example.vue displays a value. --><template><p :class="/* 中文 */ value as string">{{ /* 中文 */ value }}</p></template>'
   assert.equal(checkComments(source, 'Example.vue').length, 2)
 })
+
+// Plugin host implementation may compose shared controls and application stores.
+// Reverse imports would expose execution internals to foundational layers, so those edges remain forbidden.
+test('plugin host dependency direction preserves shared layer ownership', () => {
+  assert.equal(importViolation('src/pluginHost/hostApi.ts', 'src/stores/auth'), null)
+  assert.equal(
+    importViolation('src/pluginHost/components.ts', 'src/components/common/Input.vue'),
+    null,
+  )
+  assert.equal(importViolation('src/views/plugin/Page.vue', 'src/pluginHost/runtime'), null)
+  assert.ok(importViolation('src/pluginHost/runtime.ts', 'src/views/plugin/Page.vue'))
+  assert.ok(importViolation('src/api/plugins.ts', 'src/pluginHost/runtime'))
+  assert.ok(importViolation('src/components/common/Input.vue', 'src/pluginHost/runtime'))
+})

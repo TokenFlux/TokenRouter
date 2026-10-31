@@ -184,6 +184,7 @@ export async function setLocale(value: string, persistAccount = true): Promise<v
   const { useAppStore } = await import('@/stores/app')
   const { useAuthStore } = await import('@/stores/auth')
   const { useAdminSettingsStore } = await import('@/stores/adminSettings')
+  const { usePluginsStore } = await import('@/stores/plugins')
   if (generation !== switchGeneration) return
   const route = router.currentRoute.value
   const appStore = useAppStore()
@@ -193,7 +194,12 @@ export async function setLocale(value: string, persistAccount = true): Promise<v
     ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
     ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
   ]
-  document.title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems)
+  document.title = resolveRouteDocumentTitle(
+    route,
+    appStore.siteName,
+    customMenuItems,
+    usePluginsStore().plugins,
+  )
   window.dispatchEvent(new CustomEvent('locale-changed', { detail: locale }))
   if (persistAccount && authStore.isAuthenticated) {
     const { apiClient } = await import('@/api/client')

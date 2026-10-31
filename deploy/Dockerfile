@@ -23,6 +23,9 @@ ENV NODE_OPTIONS=--max-old-space-size=1536
 # Node 版本需要与 .node-version 一致；pnpm 版本取 package.json 的 packageManager，与 lockfile 匹配。
 COPY .node-version /app/
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+# The linked SDK supplies shared source contracts and runtime values to the host build.
+COPY plugin-sdk/web/package.json /app/plugin-sdk/web/
+COPY plugin-sdk/web/src/ /app/plugin-sdk/web/src/
 RUN test "$(node -p 'process.versions.node')" = "$(cat /app/.node-version)" && \
     npm install --global "$(node -p 'require("./package.json").packageManager')"
 
@@ -57,6 +60,8 @@ WORKDIR /app/backend
 
 # 先复制 go mod 文件以提高缓存命中率
 COPY backend/go.mod backend/go.sum ./
+# The local Go SDK replacement must exist before dependency resolution.
+COPY plugin-sdk/go /app/plugin-sdk/go
 RUN go mod download
 
 # 复制后端源码

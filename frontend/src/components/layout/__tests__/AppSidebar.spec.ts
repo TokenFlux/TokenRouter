@@ -17,6 +17,7 @@ import {
   variableInitializer,
 } from '@/__tests__/helpers/sourceSyntax'
 import AppSidebar from '../AppSidebar.vue'
+import type { PluginUI } from '@/api/plugins.types'
 
 // AppSidebar.spec.ts exercises navigation visibility, width selection, and
 // scroll restoration using mounted sidebar instances. Styles and the parent
@@ -25,6 +26,7 @@ import AppSidebar from '../AppSidebar.vue'
 
 // state supplies independent navigation fixtures and inert settings fetches for each mounted sidebar.
 const state = vi.hoisted(() => ({
+  plugins: [] as PluginUI[], // Accepted plugin contribution fixtures.
   isAdmin: false, // Administrator navigation fixture switch.
   collapsed: false, // Sidebar width fixture switch.
   scrollTop: 0, // Remembered navigation scroll offset.
@@ -33,6 +35,7 @@ const state = vi.hoisted(() => ({
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ path: '/dashboard', fullPath: '/dashboard' }) }))
+vi.mock('@/stores/plugins', () => ({ usePluginsStore: () => ({ plugins: state.plugins }) }))
 vi.mock('@/stores', () => ({
   useAppStore: () => ({
     sidebarCollapsed: state.collapsed,
@@ -59,6 +62,7 @@ vi.mock('@/stores', () => ({
 }))
 enableAutoUnmount(afterEach)
 beforeEach(() => {
+  state.plugins = []
   state.isAdmin = false
   state.collapsed = false
   state.scrollTop = 0
@@ -292,4 +296,40 @@ describe('AppSidebar navigation', () => {
         .some((link) => link.attributes('to') === '/admin/risk-control'),
     ).toBe(enabled)
   })
+})
+
+// Different plugins declare tied priorities and both user and administrator menus.
+// The sidebar preserves audience boundaries and stable plugin identity ordering in the ordinary user section.
+it('filters and orders accepted plugin menu contributions', () => {
+  state.plugins = ['test.zeta', 'test.alpha'].map((id): PluginUI => ({
+    id,
+    version: '1.0.0',
+    name: id,
+    script: { url: '/asset', integrity: 'hash' },
+    styles: [],
+    pages: [],
+    menus: [
+      {
+        page: 'home',
+        audience: 'user',
+        route: `/ext/${id}`,
+        label: id,
+        order: 10,
+        icon_svg: '<svg onload="alert(1)"><path /></svg>',
+      },
+      {
+        page: 'admin',
+        audience: 'admin',
+        route: `/admin/ext/${id}`,
+        label: 'Admin only',
+        order: 0,
+        icon_svg: '',
+      },
+    ],
+  }))
+  const wrapper = mountSidebar()
+  const links = wrapper.findAll('[to]').map((link) => link.attributes('to'))
+  expect(links.indexOf('/ext/test.alpha')).toBeLessThan(links.indexOf('/ext/test.zeta'))
+  expect(links).not.toContain('/admin/ext/test.alpha')
+  expect(wrapper.html()).not.toContain('onload=')
 })

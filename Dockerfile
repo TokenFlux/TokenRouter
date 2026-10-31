@@ -27,6 +27,9 @@ WORKDIR /app/frontend
 # Node 版本需要与 .node-version 一致，镜像覆盖值同样检查；pnpm 版本取 package.json 的 packageManager。
 COPY .node-version /app/
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+# The linked SDK supplies shared source contracts and runtime values to the host build.
+COPY plugin-sdk/web/package.json /app/plugin-sdk/web/
+COPY plugin-sdk/web/src/ /app/plugin-sdk/web/src/
 RUN test "$(node -p 'process.versions.node')" = "$(cat /app/.node-version)" && \
     npm install --global "$(node -p 'require("./package.json").packageManager')"
 

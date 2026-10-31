@@ -1,9 +1,11 @@
 import { i18n } from '@/i18n'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import type { CustomMenuItem } from '@/api/settings.types'
+import type { PluginUI } from '@/api/plugins.types'
 
 // title.ts resolves browser tab titles from route metadata, translated keys, and
-// configured site branding. Custom pages can supply their menu label, while missing
+// configured site branding. Custom pages supply menu labels and plugin pages supply
+// accepted audience-specific titles, while missing
 // translations fall back to the literal route title and empty titles use the normalized
 // site name alone.
 
@@ -35,13 +37,22 @@ export function resolveDocumentTitle(
 }
 
 // resolveRouteDocumentTitle resolves metadata and custom-menu labels into a browser tab
-// title. Matching custom pages use their nonempty menu label ahead of translated
-// metadata; absent matches follow the standard route-title rules.
+// title. Exact plugin audience and path matches use accepted page titles; custom
+// pages use menu labels. Absent matches follow the standard route-title rules.
 export function resolveRouteDocumentTitle(
   route: Pick<RouteLocationNormalizedLoaded, 'name' | 'params' | 'meta'>,
   siteName: string | undefined,
   customMenuItems: CustomMenuItem[] = [],
+  plugins: readonly PluginUI[] = [],
 ): string {
+  if (route.name === 'PluginPage' || route.name === 'AdminPluginPage') {
+    const plugin = plugins.find((entry) => entry.id === route.params.pluginId)
+    const audience = route.name === 'AdminPluginPage' ? 'admin' : 'user'
+    const subpath = route.params.subpath
+    const path = Array.isArray(subpath) ? subpath.join('/') : subpath || ''
+    const page = plugin?.pages.find((entry) => entry.audience === audience && entry.path === path)
+    if (page) return resolveDocumentTitle(page.title, siteName)
+  }
   const id = typeof route.params.id === 'string' ? route.params.id : ''
   const menuItem =
     route.name === 'CustomPage' && id ? customMenuItems.find((item) => item.id === id) : undefined

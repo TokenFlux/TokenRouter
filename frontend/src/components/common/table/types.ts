@@ -7,6 +7,7 @@
 export interface Column {
   key: string // Row property and slot identifier.
   label: string // Displayed column header text.
+  width?: string // Preferred CSS column width.
   sortable?: boolean // Header permits sorting interaction.
   class?: string // Header and cell classes.
   formatter?: (value: any, row: any) => string // Default cell text formatter.

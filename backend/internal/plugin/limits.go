@@ -7,6 +7,8 @@ import (
 	"io"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 )
 
 // limits.go validates the administrator's per-plugin spending and delivery
@@ -20,8 +22,12 @@ import (
 // value object for capability checks, and serialization records all resolved
 // defaults so an administrator can review the exact policy currently applied.
 
-// limitAmountPattern bounds nonnegative monetary ceilings to the same integer width and fractional precision accepted by plugin money operations.
-var limitAmountPattern = regexp.MustCompile(`^(0|[1-9][0-9]{0,6})(\.[0-9]{1,8})?$`)
+// Monetary patterns distinguish the canonical operation string contract from JSON
+// numeric notation, whose exponent form can represent the same exact quota value.
+var (
+	limitAmountPattern     = regexp.MustCompile(`^(0|[1-9][0-9]{0,6})(\.[0-9]{1,8})?$`)
+	limitJSONNumberPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$`)
+)
 
 // Limits combines the independently enforced capability groups for one installation.
 type Limits struct {
@@ -85,9 +91,10 @@ func DefaultLimits() Limits {
 // zero, and null is rejected so it cannot silently restore a default ceiling.
 //
 // Decoding starts with defaults and replaces only supplied fields. Monetary
-// text is checked before any arithmetic, preserving exact precision for later
-// ledger checks. Plan lists are sorted after rejecting duplicates and invalid
-// identifiers, giving persisted policy a deterministic representation independent
+// text is normalized before arithmetic, preserving exact precision even when a
+// browser serializes a small numeric ceiling using exponent notation. Plan lists
+// are sorted after rejecting duplicates and invalid identifiers, giving persisted
+// policy a deterministic representation independent
 // of the administrator's selection order. Errors never return a partial policy.
 func ParseLimits(data []byte) (Limits, error) {
 	if len(data) == 0 {
@@ -111,17 +118,19 @@ func ParseLimits(data []byte) (Limits, error) {
 	if err := decoder.Decode(&raw); err != io.EOF {
 		return Limits{}, ErrLimitsInvalid
 	}
-	for _, amount := range []json.Number{
-		result.Wallet.MaxCreditPerOp,
-		result.Wallet.MaxCreditPerUserPerDay,
-		result.Wallet.MaxCreditPerDay,
-		result.Wallet.MaxDebitPerOp,
-		result.Redeem.MaxBalancePerCode,
-		result.Redeem.MaxBalanceValuePerDay,
+	for _, amount := range []*json.Number{
+		&result.Wallet.MaxCreditPerOp,
+		&result.Wallet.MaxCreditPerUserPerDay,
+		&result.Wallet.MaxCreditPerDay,
+		&result.Wallet.MaxDebitPerOp,
+		&result.Redeem.MaxBalancePerCode,
+		&result.Redeem.MaxBalanceValuePerDay,
 	} {
-		if !limitAmountPattern.MatchString(string(amount)) {
-			return Limits{}, ErrLimitsInvalid
+		normalized, err := normalizeLimitAmount(*amount)
+		if err != nil {
+			return Limits{}, err
 		}
+		*amount = normalized
 	}
 	for _, count := range []int64{
 		result.Redeem.MaxConcurrencyPerCode,
@@ -164,4 +173,52 @@ func containsNull(value any) bool {
 		return slices.ContainsFunc(item, containsNull)
 	}
 	return false
+}
+
+// normalizeLimitAmount converts nonnegative JSON numeric notation to exact decimal policy text.
+// Canonical results have at most seven integer digits and eight fractional digits.
+// Operation amount strings retain their stricter ParseAmount contract independently.
+//
+// Decimal-point movement uses digit positions rather than floating-point arithmetic,
+// so values such as 1e-8 retain their smallest supported unit. Width and precision
+// checks happen before allocating expanded zeros, preventing extreme exponents from
+// causing large allocations. Zero coefficients normalize directly because their
+// exponent cannot change the effective prohibition represented by the policy.
+func normalizeLimitAmount(value json.Number) (json.Number, error) {
+	text := string(value)
+	if !limitJSONNumberPattern.MatchString(text) {
+		return "", ErrLimitsInvalid
+	}
+	mantissa, exponentText, hasExponent := text, "", false
+	if index := strings.IndexAny(text, "eE"); index >= 0 {
+		mantissa, exponentText, hasExponent = text[:index], text[index+1:], true
+	}
+	whole, fraction, _ := strings.Cut(mantissa, ".")
+	digits := whole + fraction
+	leading := len(digits) - len(strings.TrimLeft(digits, "0"))
+	digits = strings.TrimRight(digits[leading:], "0")
+	if digits == "" {
+		return "0", nil
+	}
+	var exponent int
+	if hasExponent {
+		parsed, err := strconv.Atoi(exponentText)
+		// A nonzero coefficient cannot offset a point shift beyond its input width
+		// and the eight fractional places allowed by the stored capability policy.
+		if err != nil || parsed < -len(text)-8 || parsed > len(text)+8 {
+			return "", ErrLimitsInvalid
+		}
+		exponent = parsed
+	}
+	point := len(whole) + exponent - leading
+	if point > 7 || len(digits)-point > 8 {
+		return "", ErrLimitsInvalid
+	}
+	if point <= 0 {
+		return json.Number("0." + strings.Repeat("0", -point) + digits), nil
+	}
+	if point >= len(digits) {
+		return json.Number(digits + strings.Repeat("0", point-len(digits))), nil
+	}
+	return json.Number(digits[:point] + "." + digits[point:]), nil
 }

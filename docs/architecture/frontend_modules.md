@@ -12,6 +12,7 @@
 | `router/` | 路由分组、守卫安装、导航进度、标题和首次设置跳转 |
 | `api/`、`api/admin/` | HTTP 客户端、领域请求和响应类型；管理员专有接口位于 admin |
 | `stores/` | 认证、应用设置、公告、订阅、支付等跨页面状态 |
+| `pluginHost/` | 共享 Vue 运行时、插件资源加载、页面能力与 SDK 控件适配 |
 | `views/` | 路由页面，以及按业务归组的页面私有控制器和组件 |
 | `components/common/` | 基础控件与显示组件；表格及其列类型、列顺序逻辑共同放在 table |
 | `components/layout/` | 应用外壳、导航和页面布局 |
@@ -42,9 +43,17 @@ API 记录按所属领域维护在 `api/*.types.ts` 或 `api/admin/*.types.ts`�
 
 类型循环反映实际响应关系：`api/identity.types.ts` 与 `api/subscriptions.types.ts` 通过 `User`、`UserSubscription` 互相引用；`api/admin/providers.types.ts` 与 `api/admin/proxies.types.ts` 通过代理记录、提供商平台和类型互相引用。这两组关系使用 type-only import，保留 HTTP 字段和可空性。
 
-依赖检查集中在 `frontend/scripts/check-imports.mjs`：API 模块不能依赖页面、组件、store、router 或 composable；组件不能依赖 view 实现；共享 composable 不能依赖组件实现。页面私有目录只允许自己的文件、登记的页面所有者及准确的路由入口导入。跨模块行为测试的必要访问按准确的文件与目标记录例外。
+依赖检查集中在 `frontend/scripts/check-imports.mjs`：API 模块不能依赖页面、组件、store、router、composable 或 pluginHost；组件不能依赖 view 或 pluginHost 实现；pluginHost 可组合 API、store 和共享组件，但不能导入 view；共享 composable 不能依赖组件实现。页面私有目录只允许自己的文件、登记的页面所有者及准确的路由入口导入。跨模块行为测试的必要访问按准确的文件与目标记录例外。
 
-`i18n/index.ts` 在发布语言后动态加载 `router/title`、`router/index`、`stores/app`、`stores/auth` 和 `stores/adminSettings`，刷新页面标题并发送语言变化事件。需要持久化账户语言时再加载 `api/client`，按语言代次和用户身份串行写入偏好。这些准确的运行时依赖保持原来的初始化时序；它们不属于 API 向页面依赖的例外。共享工具中存在响应式缓存和浏览器 I/O，阅读调用方后再决定是否提取纯规则。
+`i18n/index.ts` 在发布语言后动态加载 `router/title`、`router/index`、`stores/app`、`stores/auth` 、`stores/adminSettings` 和 `stores/plugins`，刷新页面标题并发送语言变化事件。需要持久化账户语言时再加载 `api/client`，按语言代次和用户身份串行写入偏好。这些准确的运行时依赖保持原来的初始化时序；它们不属于 API 向页面依赖的例外。共享工具中存在响应式缓存和浏览器 I/O，阅读调用方后再决定是否提取纯规则。
+
+## 插件页面与共享运行时
+
+`stores/plugins.ts` 按账号、角色、语言缓存 UI 描述，并每五分钟刷新。侧栏在自定义菜单之后追加对应 audience 的插件菜单，沿用 SVG 清洗；标题解析按插件 ID、audience 和完整静态路径匹配。普通路径为 `/ext/:pluginId`，管理路径为 `/admin/ext/:pluginId`，子路径与 manifest 一致，不含开头斜杠，根页面为空字符串。
+
+`pluginHost/` 在首次加载前发布共享 Vue 与 SDK，按资源 URL 和完整性摘要复用加载。`views/plugin/PluginPageView.vue` 负责当前选择、一次资源失败重试与错误边界；每个挂载实例提供独立 HostApi 和确认弹窗。退出页面会拒绝该实例的新调用并取消待确认决定。资源保留订阅独立于页面生命周期，登出、禁用和描述变化仍能移除旧资源。完整流程见[插件前端宿主](plugin_system.md#frontend_host)。
+
+宿主通过源码路径引用本地 Web SDK 类型；Vite 只将共享错误类和常量映射到运行时源码。生产插件仍把 SDK 和 Vue 外置，不携带宿主实现。根目录及 deploy Docker 构建在前端安装依赖前复制 Web SDK 源码，后端编译前复制 Go SDK；独立 `backend/Dockerfile` 同样使用仓库根目录作为构建上下文。
 
 ## 启动与验证约束
 
