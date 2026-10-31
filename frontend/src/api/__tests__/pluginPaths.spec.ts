@@ -35,11 +35,15 @@ describe('plugin contribution paths', () => {
   )
 
   // Only the backend's publisher-and-name identifier shape can select a namespace.
-  // A third segment, path separator, or short publisher must not become an authenticated URL.
-  it.each(['a.plugin', 'test.a', 'test.plugin.extra', 'test/plugin', '../plugin'])(
-    'rejects invalid identity %s',
-    (id) => expect(() => pluginApiPath(id, '/')).toThrow(),
-  )
+  // A third segment, path separator, short publisher, or identity exceeding 80 characters must not become an authenticated URL.
+  it.each([
+    'a.plugin',
+    'test.a',
+    'test.plugin.extra',
+    'test/plugin',
+    '../plugin',
+    `${'a'.repeat(32)}.${'b'.repeat(48)}`,
+  ])('rejects invalid identity %s', (id) => expect(() => pluginApiPath(id, '/')).toThrow())
 
   // Raw contribution URLs and native plugin administration share a noun but own
   // different response contracts. Classification selects only the API contribution branch.

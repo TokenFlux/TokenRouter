@@ -21,8 +21,11 @@ import (
 // uploaded repair preserves configuration and grants, but only replaces missing
 // or invalid managed files with a package bearing the original manifest digest.
 
-// InstallInput names an uploaded release and its explicit execution authorization.
+// InstallInput names one indexed or uploaded release and its explicit execution authorization.
 type InstallInput struct {
+	IndexID           int64    `json:"index_id,omitempty"`     // selected catalog registration identifier
+	PluginID          string   `json:"plugin_id,omitempty"`    // indexed plugin identity
+	Version           string   `json:"version,omitempty"`      // explicitly selected indexed version
 	Source            Source   `json:"source"`                 // requested package distribution source
 	UploadToken       string   `json:"upload_token,omitempty"` // inspected staged archive handle
 	AcceptPermissions []string `json:"accept_permissions"`     // explicitly accepted capability names
@@ -39,17 +42,24 @@ type ChangeResult struct {
 
 // Service executes administration through one shared reconciliation and storage boundary.
 type Service struct {
-	manager *Manager // serialized local reconciliation owner
-	uploads Uploads  // archive preview and token resolution
+	manager  *Manager        // serialized local reconciliation owner
+	uploads  Uploads         // archive preview and token resolution
+	releases ReleaseResolver // source-qualified indexed release selection
+	logs     LogReader       // retained startup diagnostics for failed updates
 }
 
-// NewService constructs plugin administration around the application's shared manager.
-func NewService(manager *Manager, uploads Uploads) *Service {
-	return &Service{manager: manager, uploads: uploads}
+// NewService constructs administration around shared reconciliation, release selection, and diagnostics.
+// A nil release resolver supports upload-only callers; indexed requests then fail.
+// A nil log reader leaves failure metadata without lines, while runtime status remains available.
+func NewService(manager *Manager, uploads Uploads, releases ReleaseResolver, logs LogReader) *Service {
+	return &Service{manager: manager, uploads: uploads, releases: releases, logs: logs}
 }
 
 // Preview validates an archive without persisting installation intent or executing code.
 func (s *Service) Preview(ctx context.Context, reader io.Reader) (*Upload, error) {
+	if !s.manager.options.Enabled {
+		return nil, ErrPluginsDisabled
+	}
 	return s.uploads.Preview(ctx, reader)
 }
 
@@ -63,7 +73,7 @@ func (s *Service) Get(ctx context.Context, id string) (*Installation, error) {
 	return s.manager.store.Get(ctx, id)
 }
 
-// Install verifies an uploaded release before saving its accepted installation intent.
+// Install verifies a selected release before saving its accepted installation intent.
 // Missing required configuration forces initial disablement and is reported in
 // the result. Startup failure after persistence remains an installed record with
 // diagnostic status, rather than returning an ambiguous failed creation response.
@@ -74,14 +84,14 @@ func (s *Service) Get(ctx context.Context, id string) (*Installation, error) {
 // publishes files before its database row; a failed database save removes only
 // those newly owned files because no generation has yet been admitted.
 func (s *Service) Install(ctx context.Context, input InstallInput, actor int64) (*ChangeResult, error) {
-	if input.Source != SourceUpload {
-		return nil, ErrIndexInvalid
+	if !s.manager.options.Enabled {
+		return nil, ErrPluginsDisabled
 	}
-	upload, err := s.uploads.ResolveUpload(ctx, input.UploadToken)
+	snapshot, err := s.resolveInstall(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	item := &Installation{PluginID: upload.Snapshot.Manifest.ID, VersionSnapshot: upload.Snapshot, Enabled: input.Enable, UpdatedBy: &actor}
+	item := &Installation{PluginID: snapshot.Manifest.ID, VersionSnapshot: snapshot, Enabled: input.Enable, UpdatedBy: &actor}
 	item.GrantedPermissions = slices.Clone(input.AcceptPermissions)
 	var result *ChangeResult
 	err = s.manager.locked(ctx, item.PluginID, func() error {

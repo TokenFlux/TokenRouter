@@ -29,7 +29,7 @@ github.com/golang-jwt/jwt/v5 github.com/google/uuid github.com/patrickmn/go-cach
 github.com/pquerna/otp github.com/pquerna/otp/totp github.com/robfig/cron/v3
 github.com/shopspring/decimal github.com/tidwall/gjson github.com/tidwall/sjson
 github.com/tiktoken-go/tokenizer go.uber.org/zap golang.org/x/crypto/bcrypt golang.org/x/image/draw
-golang.org/x/image/webp golang.org/x/net/http/httpguts golang.org/x/net/publicsuffix
+golang.org/x/image/webp golang.org/x/mod/semver golang.org/x/net/http/httpguts golang.org/x/net/publicsuffix
 golang.org/x/sync/errgroup golang.org/x/sync/singleflight`, Tests: `github.com/DATA-DOG/go-sqlmock github.com/redis/go-redis/v9 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require github.com/testcontainers/testcontainers-go/modules/redis`},
 		"fixture": {Production: `entgo.io/ent/dialect entgo.io/ent/dialect/sql github.com/alicebob/miniredis/v2

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 	"github.com/TokenFlux/TokenRouter/internal/plugin/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/plugin/provider"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/manifest"
 )
 
 // runtime_plugin.go binds the plugin process collection to application lifecycle.
@@ -63,15 +65,30 @@ func providePluginManager(cfg *config.Config, info BuildInfo, source *plugin.Dev
 }
 
 // providePluginService binds administration to the same runtime manager and staged uploads.
-func providePluginService(manager *plugin.Manager, packages *provider.PackageFiles) *plugin.Service {
-	return plugin.NewService(manager, packages)
+func providePluginService(manager *plugin.Manager, packages *provider.PackageFiles, catalog *plugin.CatalogService, processes *provider.Processes) *plugin.Service {
+	return plugin.NewService(manager, packages, catalog, processes)
+}
+
+// providePluginCatalog binds signed transfers and durable sources to host compatibility.
+// Construction performs no network access. The lifecycle hook ensures the builtin
+// registration before HTTP startup and owns refresh cancellation before storage closes.
+func providePluginCatalog(cfg *config.Config, info BuildInfo, store *postgres.Store, source *plugin.DevSource) (*plugin.CatalogService, error) {
+	fetcher, err := provider.NewIndexClient(cfg.Plugins.DownloadProxy, plugin.OfficialIndexKeys)
+	if err != nil {
+		return nil, err
+	}
+	return plugin.NewCatalogService(plugin.CatalogOptions{
+		Enabled: cfg.Plugins.Enabled, OfficialURL: cfg.Plugins.OfficialIndexURL,
+		Host: manifest.HostInfo{Version: info.Version, APIVersions: []int{1}, Platform: runtime.GOOS + "/" + runtime.GOARCH, Permissions: manifest.Permissions()},
+	}, store, source, fetcher, slog.Default()), nil
 }
 
 // providePluginRuntime registers asynchronous reconciliation and bounded plugin shutdown.
 // Startup restores enabled installations through the shared manager. The stop hook
 // has an eight-second budget within the application's broader shutdown context.
 // Enabled installations also register the KV worker in the same shutdown stage.
-func providePluginRuntime(cfg *config.Config, plugins *plugin.Manager, kv *plugin.KV, manager *lifecycle.Manager) *pluginRuntimeReady {
+func providePluginRuntime(cfg *config.Config, plugins *plugin.Manager, kv *plugin.KV, catalog *plugin.CatalogService, manager *lifecycle.Manager) *pluginRuntimeReady {
+	manager.Register(lifecycle.Hook{Name: "PluginCatalog", StartOrder: 974, StopOrder: shutdownStagePlugins, Start: catalog.Start, Stop: catalog.Stop})
 	if cfg.Plugins.Enabled {
 		manager.Register(lifecycle.Hook{Name: "PluginKV", StartOrder: 975, StopOrder: shutdownStagePlugins, Start: kv.Start, Stop: kv.Stop})
 	}

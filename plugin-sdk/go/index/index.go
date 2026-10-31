@@ -52,6 +52,9 @@ type Version struct {
 	YankReason  string             `json:"yankReason,omitempty"` // release withdrawal explanation
 	Changelog   string             `json:"changelog"`            // bounded release notes Markdown
 	Manifest    *manifest.Manifest `json:"manifest"`             // embedded release declaration
+	// ManifestJSON preserves the embedded declaration for host persistence, including
+	// fields from a future release that this host cannot yet validate or execute.
+	ManifestJSON json.RawMessage `json:"-"`
 	// ManifestSHA256 hashes the original release asset, not this embedded object's JSON serialization after catalog parsing or storage.
 	ManifestSHA256 string              `json:"manifestSha256"`
 	Artifacts      map[string]Artifact `json:"artifacts"` // archives keyed by platform
@@ -89,6 +92,28 @@ func Parse(data []byte) (*Document, error) {
 // It does not fetch URLs or verify archive bytes. Hosts and index builders
 // perform those operations with their own bounded download and package policies.
 func (d *Document) Validate() error {
+	if err := d.validateMetadata(); err != nil {
+		return err
+	}
+	for _, plugin := range d.Plugins {
+		for _, version := range plugin.Versions {
+			if len(version.ManifestJSON) > 0 {
+				if _, err := manifest.Parse(version.ManifestJSON); err != nil {
+					return fmt.Errorf("manifest for %s@%s: %w", plugin.ID, version.Version, err)
+				}
+			}
+			if err := version.Manifest.Validate(); err != nil {
+				return fmt.Errorf("manifest for %s@%s: %w", plugin.ID, version.Version, err)
+			}
+		}
+	}
+	return nil
+}
+
+// validateMetadata checks catalog structure independently of contribution schema evolution.
+// Every version still needs valid identity, timestamps, hashes, URLs, and supported
+// archive metadata. Host-aware decoding owns the separate decision to defer future manifest validation.
+func (d *Document) validateMetadata() error {
 	if d == nil || d.SchemaVersion != 1 || strings.TrimSpace(d.Name) == "" || d.GeneratedAt.IsZero() {
 		return fmt.Errorf("index requires schemaVersion 1, a name, and generatedAt")
 	}
@@ -121,7 +146,7 @@ func (d *Document) Validate() error {
 			if i > 0 && semver.Compare("v"+p.Versions[i-1].Version, "v"+v.Version) < 0 {
 				return fmt.Errorf("versions for %s must be in descending SemVer order", p.ID)
 			}
-			if err := v.validate(p.ID); err != nil {
+			if err := v.validateMetadata(p.ID); err != nil {
 				return err
 			}
 		}
@@ -129,17 +154,14 @@ func (d *Document) Validate() error {
 	return nil
 }
 
-// validate checks one release against its enclosing registered plugin identity.
+// validateMetadata checks release identity and archives without validating contribution fields.
 // Backend releases require native artifacts. The official index builder adds
 // its stricter requirement for both Linux architectures before publishing entries.
-func (v Version) validate(id string) error {
+func (v Version) validateMetadata(id string) error {
 	if !manifest.ValidVersion(v.Version) || v.PublishedAt.IsZero() || len(v.Changelog) > 4096 || !ValidSHA256(v.ManifestSHA256) {
 		return fmt.Errorf("invalid release metadata for %s@%s", id, v.Version)
 	}
-	if err := v.Manifest.Validate(); err != nil {
-		return fmt.Errorf("manifest for %s@%s: %w", id, v.Version, err)
-	}
-	if v.Manifest.ID != id || v.Manifest.Version != v.Version {
+	if v.Manifest == nil || v.Manifest.ID != id || v.Manifest.Version != v.Version {
 		return fmt.Errorf("manifest identity differs from %s@%s", id, v.Version)
 	}
 	if len(v.Artifacts) == 0 {

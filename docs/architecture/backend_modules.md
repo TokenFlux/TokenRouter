@@ -404,7 +404,7 @@ flowchart TB
 <a id="management_collaboration"></a>
 ## 管理与后台协作
 
-插件安装由 `plugin.Manager` 串行协调，`plugin/postgres` 保存完整版本快照，`plugin/provider.Processes` 持有进程；app 在独立生命周期阶段异步恢复和停止。运行时是单实例组件，不依赖 Redis 协调；`plugin` 核心只引用 SDK 的声明、索引和协议契约，进程与文件实现留在 provider。详细规则见[插件系统](plugin_system.md)。
+索引来源和缓存由 `plugin.CatalogService` 协调，HTTPS 验签由 `plugin/provider.IndexClient` 执行；插件安装和完整版本回滚由 `plugin.Manager` 串行协调，`plugin/postgres` 保存完整版本快照，`plugin/provider.Processes` 持有进程；app 在独立生命周期阶段异步恢复和停止。运行时是单实例组件，不依赖 Redis 协调；`plugin` 核心只引用 SDK 的声明、索引和协议契约，进程与文件实现留在 provider。详细规则见[插件系统](plugin_system.md)。
 
 ```mermaid
 flowchart TB

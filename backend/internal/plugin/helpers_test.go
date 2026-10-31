@@ -5,15 +5,22 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/index"
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/manifest"
 )
+
+// helpers_test.go supplies independent storage and process fixtures for plugin core tests.
+// Serialized rows prevent tests from accidentally sharing mutable persisted state,
+// while explicit barriers expose lifecycle and refresh ordering without launching
+// native processes or contacting external distribution services.
 
 // memoryInstallations stores serialized records so tests exercise independent storage snapshots.
 type memoryInstallations struct {
@@ -28,6 +35,7 @@ type processFixture struct {
 	mu             sync.Mutex        // fixture process observation lock
 	started        []ProcessSpec     // accepted process generation specifications
 	states         map[string]Status // observed lifecycle state by plugin
+	failVersion    string            // release rejected during fixture startup
 	stopError      error             // injected drain completion error
 	stopEntered    chan struct{}     // optional drain arrival notification
 	stopRelease    chan struct{}     // optional drain completion barrier
@@ -37,8 +45,20 @@ type processFixture struct {
 
 // packageFixture records managed cleanup while returning deterministic verified package metadata.
 type packageFixture struct {
-	removed []string // observed managed cleanup identifiers
+	removed []string     // observed managed cleanup identifiers
+	pruned  [][]string   // retained versions for each cleanup
+	ensured []PackageRef // verified candidate package selections
 }
+
+// memoryIndexes retains independently decoded source rows for catalog coordination tests.
+type memoryIndexes struct {
+	mu   sync.Mutex       // protects serialized source fixture rows
+	rows map[int64][]byte // independently serialized source records
+	next int64            // next fixture source identifier
+}
+
+// indexFetchFunc adapts one controlled transfer function to the production catalog port.
+type indexFetchFunc func(context.Context, IndexFetchRequest) (FetchedIndex, error)
 
 // newMemoryInstallations constructs an empty independently decoded installation store fixture.
 func newMemoryInstallations() *memoryInstallations {
@@ -109,6 +129,10 @@ func (f *processFixture) Replace(ctx context.Context, spec ProcessSpec) error {
 		f.states = make(map[string]Status)
 	}
 	f.started = append(f.started, spec)
+	if spec.Version == f.failVersion {
+		f.states[spec.PluginID] = Status{State: StateFailed, LastError: "fixture init failed"}
+		return nil
+	}
 	f.states[spec.PluginID] = Status{State: StateRunning}
 	return nil
 }
@@ -174,7 +198,8 @@ func (f *processFixture) StopAll(context.Context) error {
 }
 
 // Ensure returns stable release paths and hashes without touching the filesystem.
-func (*packageFixture) Ensure(_ context.Context, ref PackageRef) (Package, error) {
+func (f *packageFixture) Ensure(_ context.Context, ref PackageRef) (Package, error) {
+	f.ensured = append(f.ensured, ref)
 	return Package{
 		Directory:      "/fixture",
 		Executable:     "/fixture/bin/plugin",
@@ -185,7 +210,10 @@ func (*packageFixture) Ensure(_ context.Context, ref PackageRef) (Package, error
 }
 
 // Prune accepts retained release versions without deleting real filesystem entries.
-func (*packageFixture) Prune(context.Context, string, ...string) error { return nil }
+func (f *packageFixture) Prune(_ context.Context, _ string, versions ...string) error {
+	f.pruned = append(f.pruned, slices.Clone(versions))
+	return nil
+}
 
 // Remove records a cleanup request for later uninstall ordering assertions.
 func (f *packageFixture) Remove(_ context.Context, id string) error {
@@ -222,5 +250,144 @@ func managerFixture(t *testing.T, maximum int) (*Manager, *Service, *memoryInsta
 	processes := &processFixture{}
 	packages := &packageFixture{}
 	manager := NewManager(ManagerOptions{Enabled: true, MaxRunning: maximum, HostVersion: "0.5.4", StateRoot: t.TempDir()}, store, packages, processes, NewConfiguration(nil, false), slog.New(slog.NewTextHandler(io.Discard, nil)))
-	return manager, NewService(manager, nil), store, processes, packages
+	return manager, NewService(manager, nil, nil, nil), store, processes, packages
+}
+
+// catalogRelease creates one portable frontend release with independently owned metadata.
+func catalogRelease(version string) index.Version {
+	return index.Version{Version: version, PublishedAt: time.Unix(1, 0), ManifestSHA256: strings.Repeat("a", 64), Manifest: &manifest.Manifest{
+		SchemaVersion: 1, ID: "test.catalog", Version: version, APIVersion: 1, MinHostVersion: "0.5.0",
+		Name: manifest.LocalizedText{"en": "Catalog"}, Description: manifest.LocalizedText{"en": "Catalog fixture"},
+		Frontend: &manifest.Frontend{Entry: "frontend/index.js"},
+	}, Artifacts: map[string]index.Artifact{"any": {URL: "https://example.invalid/plugin.tar.gz", SHA256: strings.Repeat("b", 64), Size: 10}}}
+}
+
+// catalogFixture combines ordered releases with one enabled index and a fixed host capability set.
+func catalogFixture(versions ...index.Version) (IndexSource, *index.Document, manifest.HostInfo) {
+	return IndexSource{ID: 1, Name: "Fixture", URL: "https://example.invalid/v1/index.json", Enabled: true, SignatureStatus: "official"},
+		&index.Document{SchemaVersion: 1, Name: "Fixture", GeneratedAt: time.Unix(1, 0), Plugins: []index.Plugin{{ID: "test.catalog", Repository: "https://github.com/example/plugin", IconURL: "icons/plugin.svg", Categories: []string{"tools"}, Versions: versions}}},
+		manifest.HostInfo{Version: "0.6.0", APIVersions: []int{1}, Platform: "linux/amd64", Permissions: manifest.Permissions()}
+}
+
+// Fetch delegates one bounded source request to the test's controlled transfer behavior.
+func (f indexFetchFunc) Fetch(ctx context.Context, request IndexFetchRequest) (FetchedIndex, error) {
+	return f(ctx, request)
+}
+
+// ListIndexes returns independent source copies in the storage contract's stable ID order.
+func (s *memoryIndexes) ListIndexes(ctx context.Context) ([]IndexSource, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make([]IndexSource, 0, len(s.rows))
+	for _, data := range s.rows {
+		var item IndexSource
+		if err := json.Unmarshal(data, &item); err != nil {
+			return nil, err
+		}
+		if string(item.CachedDocument) == "null" {
+			item.CachedDocument = nil
+		}
+		result = append(result, item)
+	}
+	slices.SortFunc(result, func(a, b IndexSource) int {
+		if a.ID < b.ID {
+			return -1
+		}
+		if a.ID > b.ID {
+			return 1
+		}
+		return 0
+	})
+	return result, nil
+}
+
+// GetIndex decodes one fixture source or returns the production missing-source sentinel.
+func (s *memoryIndexes) GetIndex(ctx context.Context, id int64) (*IndexSource, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, exists := s.rows[id]
+	if !exists {
+		return nil, ErrIndexNotFound
+	}
+	var item IndexSource
+	if err := json.Unmarshal(data, &item); err != nil {
+		return nil, err
+	}
+	if string(item.CachedDocument) == "null" {
+		item.CachedDocument = nil
+	}
+	return &item, nil
+}
+
+// SaveIndex persists one independent fixture source and assigns new identities on creation.
+// Existing identifiers must remain present. Caller values are serialized so later
+// changes cannot mutate a published cache before the next explicit write.
+func (s *memoryIndexes) SaveIndex(ctx context.Context, item *IndexSource) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if item.ID == 0 {
+		s.next++
+		item.ID = s.next
+		item.CreatedAt = time.Now()
+	} else if _, exists := s.rows[item.ID]; !exists {
+		return ErrIndexNotFound
+	}
+	item.UpdatedAt = time.Now()
+	data, err := json.Marshal(item)
+	if err == nil {
+		s.rows[item.ID] = data
+	}
+	return err
+}
+
+// DeleteIndex removes a custom fixture source while preserving the builtin deletion guard.
+func (s *memoryIndexes) DeleteIndex(ctx context.Context, id int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, exists := s.rows[id]
+	if !exists {
+		return ErrIndexNotFound
+	}
+	var item IndexSource
+	if err := json.Unmarshal(data, &item); err != nil {
+		return err
+	}
+	if item.Builtin {
+		return ErrIndexNotFound
+	}
+	delete(s.rows, id)
+	return nil
+}
+
+// catalogServiceFixture creates an enabled catalog with isolated storage and cleanup ownership.
+func catalogServiceFixture(t *testing.T, fetch IndexFetcher) (*CatalogService, *memoryIndexes, *memoryInstallations) {
+	t.Helper()
+	_, _, host := catalogFixture()
+	indexes := &memoryIndexes{rows: make(map[int64][]byte)}
+	installations := newMemoryInstallations()
+	service := NewCatalogService(CatalogOptions{Enabled: true, Host: host}, indexes, installations, fetch, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	t.Cleanup(func() { require.NoError(t, service.Stop(context.Background())) })
+	return service, indexes, installations
+}
+
+// catalogJSON serializes validated release fixtures for accepted-cache and transfer scenarios.
+func catalogJSON(t *testing.T, version string) []byte {
+	t.Helper()
+	_, document, _ := catalogFixture(catalogRelease(version))
+	require.NoError(t, document.Validate())
+	data, err := json.Marshal(document)
+	require.NoError(t, err)
+	return data
 }

@@ -1,6 +1,6 @@
 # 插件契约
 
-本文记录 `plugin-sdk/` 中的插件声明、安装包、索引和进程协议。SDK 使用 MIT 许可证，与宿主的 LGPL-3.0-or-later 许可证分开。声明、发布工具、进程协议和上传安装管理已接入源码，宿主钱包、直接订阅发放和只读能力已接入，其余宿主业务能力和页面代理仍在实现中。
+本文记录 `plugin-sdk/` 中的插件声明、安装包、索引和进程协议。SDK 使用 MIT 许可证，与宿主的 LGPL-3.0-or-later 许可证分开。声明、发布工具、进程协议、宿主能力、页面代理，以及上传和索引安装管理已接入源码。
 
 ## 章节导航
 
@@ -40,16 +40,22 @@
 
 `plugin-sdk/go/index` 定义 schemaVersion 1 的目录。每个插件最多保留 30 个版本，按 SemVer 降序排列；每个版本带完整 manifest、原始 manifest 摘要以及各平台归档的 HTTPS 地址、SHA-256 和大小。嵌入对象的 JSON 排版可以变化，`manifestSha256` 始终指向 Release 中原始 `plugin.json` 的字节。
 
+`ParseForHost` 在解析嵌入声明前检查 `minHostVersion`。仅当已发布宿主版本低于最低要求时，才保留未知贡献并显示 `HOST_TOO_OLD`；当前宿主可执行的声明和发布工具仍严格拒绝未知字段。
+
 签名文件是 `base64(ed25519.Sign(privateKey, index.json 原始字节))`，与 JSON 分开保存。验签在解析和替换缓存之前完成。多个受信公钥支持轮换，空公钥列表不能通过验签。
 
-发布工具读取 `publishers/` 和 `plugins/` 的 YAML 登记，抓取 Release 并逐个下载、校验安装包；有后端的官方登记必须同时提供两个 Linux 架构。已经成功收录的仓库与 tag 保留首次摘要，失败版本记录原因并允许后续构建重试。提交权限检查使用可信基线中的发布者账号，新发布者需要维护者明确审核。
+发布工具读取 `publishers/` 和 `plugins/` 的 YAML 登记，抓取 Release 并逐个下载、校验安装包；有后端的官方登记必须同时提供两个 Linux 架构。已经成功收录的仓库与 tag 保留首次摘要，失败版本记录原因并允许后续构建重试。提交权限检查使用可信基线中的发布者账号，新发布者需要维护者明确审核。`trplugin index build` 默认要求 `INDEX_SIGNING_KEY`；只有显式传入 `--unsigned` 才生成不带签名的自定义目录，并移除旧输出中的签名文件。
 
 <a id="administration"></a>
 ## 安装管理接口
 
-`/api/v1/admin/plugins` 提供已安装列表和上传安装；`/uploads` 接收 multipart 的 `file` 字段，返回 `upload_token`、过期时间、manifest、摘要和平台。安装请求使用 `{source: "upload", upload_token, accept_permissions, enable}`，响应包含 installation、needs_configuration 和 repaired。需要确认 manifest 中的全部权限；同版本上传只允许修复缺失或无效的已安装包。
+`/api/v1/admin/plugins` 提供已安装列表和安装操作；`/uploads` 接收 multipart 的 `file` 字段，返回 `upload_token`、过期时间、manifest、摘要和平台。上传安装使用 `{source: "upload", upload_token, accept_permissions, enable}`，索引安装使用 `{source: "index", index_id, plugin_id, version, accept_permissions, enable}`，响应包含 installation、needs_configuration 和 repaired。需要确认 manifest 中的全部权限；同版本上传只允许修复缺失或无效的已安装包。
 
 `/:id` 返回详情或卸载；DELETE 的 `purge_data=true` 清除 KV，缺省保留，台账始终保留。`/:id/enable`、`disable`、`restart` 控制运行意图和本地进程；`/:id/logs` 返回最近 500 行。安装列表和详情的可选 `tasks` 字段返回已登记任务的内存状态及最近执行结果；`next_run_at` 为零值时表示暂停。状态字段见[定时任务](../architecture/plugin_system.md#task_scheduling)。所有路由登记到 adminapi，执行代码、配置和额度变更通过实际 HTTP step-up guard；multipart 上传在 MCP 中使用浏览器入口。
+
+`/:id/update` 接受 `{version, accept_permissions}` 或 `{upload_token, accept_permissions}`。索引更新只能来自当前安装的来源；上传更新可以替换当前分发来源。新增权限未确认时，`PLUGIN_PERMISSIONS_NOT_ACCEPTED` 的 metadata 同时包含完整 permissions 与 new_permissions。`/:id/rollback` 交换完整版本快照；失败更新返回 `PLUGIN_UPDATE_FAILED`，metadata 包含 version、start_error、最多 50 行 logs，以及成功恢复时的 restored_version 或恢复失败时的 rollback_error。
+
+`GET /api/v1/admin/plugin-catalog` 返回来源限定的条目、全部保留版本及兼容性；`/:indexId/:pluginId` 读取单条详情，`POST /refresh` 刷新所有启用来源。`/api/v1/admin/plugin-indexes` 的 GET/POST 用于列表和新增，`/:id` 的 PUT/DELETE 用于修改和删除。输入为 name、url、public_key、enabled；更新省略字段时保留，public_key 空字符串清除固定公钥。内置来源只能修改 enabled。来源 DTO 不返回缓存正文，包含最近验签状态、缓存接受时间、刷新中标记和错误。
 
 `/:id/config` 的 GET 和 PUT 使用 `{values: {...}}`。普通字段按提交内容替换并补默认值；secret 省略保留、空字符串清除，返回值为 `{set: boolean}`。`/:id/limits` 接受 wallet、redeem、subscription、email 分组，未给出的字段使用默认值，显式 0 禁止对应操作，null 和未知字段被拒绝。金额额度采用精确十进制 JSON 数字；浏览器可能输出的指数形式会先无损归一化，仍限制为最多七位整数和八位小数。能力 RPC 的金额字符串继续要求普通十进制形式。
 

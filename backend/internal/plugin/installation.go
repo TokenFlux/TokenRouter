@@ -63,18 +63,20 @@ type Installation struct {
 
 // IndexSource stores one administrator-selected catalog and its last accepted cache.
 type IndexSource struct {
-	ID              int64           // database index source identifier
-	Name            string          // administrator-facing source name
-	URL             string          // configured catalog HTTPS location
-	PublicKey       string          // optional base64 verification key
-	Builtin         bool            // official index identity flag
-	Enabled         bool            // catalog refresh availability flag
-	CachedDocument  json.RawMessage // last validated catalog JSON
-	CachedAt        *time.Time      // last successful refresh timestamp
-	SignatureStatus string          // current signature verification classification
-	LastError       string          // latest refresh failure explanation
-	CreatedAt       time.Time       // source registration creation time
-	UpdatedAt       time.Time       // latest source configuration change
+	ID             int64           // database index source identifier
+	Name           string          // administrator-facing source name
+	URL            string          // configured catalog HTTPS location
+	PublicKey      string          // optional base64 verification key
+	Builtin        bool            // official index identity flag
+	Enabled        bool            // catalog refresh availability flag
+	CachedDocument json.RawMessage // last validated catalog JSON
+	CachedAt       *time.Time      // last successful refresh timestamp
+	// SignatureStatus describes the latest verification observation; CachedDocument
+	// can still contain the previous accepted generation after a failed refresh.
+	SignatureStatus string
+	LastError       string    // latest refresh failure explanation
+	CreatedAt       time.Time // source registration creation time
+	UpdatedAt       time.Time // latest source or cache update
 }
 
 // InstallationStore persists desired plugin state and optional business-data removal.

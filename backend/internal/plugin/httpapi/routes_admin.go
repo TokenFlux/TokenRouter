@@ -17,6 +17,9 @@ import (
 // @project-doc docs/interfaces/plugin_contracts.md#administration
 func RegisterAdminRoutes(admin *gin.RouterGroup, handler *Handler, stepUp gin.HandlerFunc) {
 	for id, endpoint := range map[string]gin.HandlerFunc{
+		"plugins.update": handler.Update, "plugins.rollback": handler.Rollback,
+		"plugins.catalog.list": handler.Catalog, "plugins.catalog.get": handler.CatalogEntry, "plugins.catalog.refresh": handler.RefreshCatalog,
+		"plugins.indexes.list": handler.Indexes, "plugins.indexes.create": handler.CreateIndex, "plugins.indexes.update": handler.UpdateIndex, "plugins.indexes.delete": handler.DeleteIndex,
 		"plugins.list": handler.List, "plugins.get": handler.Get, "plugins.uploads.create": handler.Upload,
 		"plugins.install": handler.Install, "plugins.enable": handler.Enable, "plugins.disable": handler.Disable,
 		"plugins.restart": handler.Restart, "plugins.delete": handler.Delete, "plugins.config.get": handler.Config,

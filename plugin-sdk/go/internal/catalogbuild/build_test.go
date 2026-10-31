@@ -5,11 +5,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pkgfmt"
 )
+
+// build_test.go checks catalog generation with immutable release and archive fixtures.
+// The cases verify first-admitted digest retention, bounded package validation, and
+// release filename handling without depending on remote GitHub state or executing
+// the binaries contained in accepted archives.
 
 // fixtureSource supplies immutable release metadata and counted in-memory downloads.
 type fixtureSource struct {
@@ -105,4 +111,20 @@ func staticRelease(t *testing.T) *fixtureSource {
 	}
 	assets := map[string][]byte{"https://assets.example/plugin.json": raw, "https://assets.example/checksums.txt": []byte(archive.SHA256 + "  " + filename + "\n"), "https://assets.example/package": data}
 	return &fixtureSource{assets: assets, releases: []Release{{Tag: "v1.0.0", PublishedAt: time.Now().UTC(), Assets: []ReleaseAsset{{Name: "plugin.json", URL: "https://assets.example/plugin.json", Size: int64(len(raw))}, {Name: "checksums.txt", URL: "https://assets.example/checksums.txt"}, {Name: filename, URL: "https://assets.example/package", Size: archive.Size}}}}}
+}
+
+// TestChecksumsRetainSemverBuildMetadata reads an archive filename containing legal SemVer build metadata.
+// The exact plus-bearing name remains the lookup key, while path traversal and nonportable separators remain rejected.
+func TestChecksumsRetainSemverBuildMetadata(t *testing.T) {
+	name := "test.plugin-1.0.0+build.7-linux-amd64.tar.gz"
+	digest := strings.Repeat("a", 64)
+	checksums, err := parseChecksums([]byte(digest + "  " + name + "\n"))
+	if err != nil || checksums[name] != digest {
+		t.Fatalf("build metadata filename rejected or changed: %v %v", checksums, err)
+	}
+	for _, unsafe := range []string{"../plugin.tar.gz", "nested/plugin.tar.gz", `bad\plugin.tar.gz`} {
+		if _, err := parseChecksums([]byte(digest + "  " + unsafe)); err == nil {
+			t.Fatalf("accepted unsafe filename %q", unsafe)
+		}
+	}
 }

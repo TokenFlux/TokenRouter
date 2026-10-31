@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -30,15 +32,22 @@ import (
 // interface so release validation tests use local HTTP fixtures or in-memory
 // assets without contacting public repositories or consuming API quotas.
 
-// buildCommand generates a signed catalog and publishes its matching state.
-// INDEX_SIGNING_KEY must contain a valid private key. Failed individual releases
-// are printed as diagnostics while successfully validated versions remain publishable.
+// buildCommand generates a catalog and publishes its matching ingestion state.
+// Signing is mandatory unless --unsigned explicitly selects an unpinned custom
+// catalog. Failed releases remain diagnostics while valid releases stay publishable.
+//
+// The complete output directory is replaced after validation, which removes any
+// stale signature when an operator explicitly switches to unsigned publication.
+// Missing keys never silently downgrade a signed build. Prior state is strictly
+// decoded so unsupported fields cannot disappear during an older builder's round trip,
+// and ordinary build errors preserve the previously published output generation.
 func buildCommand(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("index build", flag.ContinueOnError)
 	root := flags.String("registry", ".", "registry repository directory")
 	statePath := flags.String("state", "dist/v1/state.json", "previous build state")
 	out := flags.String("out", "dist/v1", "catalog output directory")
 	name := flags.String("name", "TokenRouter Official", "catalog display name")
+	unsigned := flags.Bool("unsigned", false, "publish a custom catalog without a signature")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -52,15 +61,24 @@ func buildCommand(args []string, output io.Writer) error {
 	previous := catalogbuild.State{}
 	data, err := os.ReadFile(*statePath)
 	if err == nil {
-		if err := json.Unmarshal(data, &previous); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&previous); err != nil {
 			return err
+		}
+		var trailing any
+		if err := decoder.Decode(&trailing); err != io.EOF {
+			return fmt.Errorf("index build state must contain one JSON value")
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	key, err := signingKey("")
-	if err != nil {
-		return err
+	var key ed25519.PrivateKey
+	if !*unsigned {
+		key, err = signingKey("")
+		if err != nil {
+			return err
+		}
 	}
 	result, err := catalogbuild.Build(context.Background(), registry, &catalogbuild.GitHub{Token: os.Getenv("GITHUB_TOKEN")}, previous, *name, time.Now())
 	if err != nil {
@@ -71,15 +89,21 @@ func buildCommand(args []string, output io.Writer) error {
 		return err
 	}
 	document = append(document, '\n')
-	signature, err := index.Sign(document, key)
-	if err != nil {
-		return err
+	var signature []byte
+	if !*unsigned {
+		signature, err = index.Sign(document, key)
+		if err != nil {
+			return err
+		}
 	}
 	state, err := json.MarshalIndent(result.State, "", "  ")
 	if err != nil {
 		return err
 	}
-	files := map[string][]byte{"index.json": document, "index.json.sig": signature, "state.json": append(state, '\n')}
+	files := map[string][]byte{"index.json": document, "state.json": append(state, '\n')}
+	if !*unsigned {
+		files["index.json.sig"] = signature
+	}
 	maps.Copy(files, result.Icons)
 	if err := publishDirectory(*out, files); err != nil {
 		return err

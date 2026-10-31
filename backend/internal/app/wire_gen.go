@@ -470,8 +470,12 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	hostServices := providePluginHostServices(walletService, subscriptions, queries, emails, captchaVerifier, kv, redeemCodes, grants, auditLogService)
 	processes := providePluginProcesses(cfg, info, hostServices)
 	pluginManager := providePluginManager(cfg, info, devSource, configuration, packageFiles, processes)
-	pluginService := providePluginService(pluginManager, packageFiles)
-	handler2 := httpapi11.NewHandler(pluginService, pluginManager, processes)
+	catalogService, err := providePluginCatalog(cfg, info, store2, devSource)
+	if err != nil {
+		return nil, err
+	}
+	pluginService := providePluginService(pluginManager, packageFiles, catalogService, processes)
+	handler2 := httpapi11.NewHandler(pluginService, pluginManager, processes, catalogService)
 	handler3 := provideSearchHTTP(searchConfigService)
 	appAdminRouteMount := provideAdminRouteMount(tlsFingerprintProfileHandler, diagnosticsHandler, tlsFingerprintRouterHandler, codexImportHandler, oAuthUsageHandler, managementHandler, contentModerationHandler, antigravityOAuthHandler, errorPassthroughHandler, codexInviteResetHandler, dataManagementHandler, archiveHandler, userAttributeHandler, upstreamUsageHandler, scheduledTestHandler, ollamaUsageHandler, adminSubscriptionHandler, adminAnnouncementHandler, testHandler, openAIOAuthHandler, geminiOAuthHandler, crsHandler, qoderOAuthHandler, dashboardHandler, affiliateHandler, grokOAuthHandler, auditLogHandler, pricingHandler, modelAttributeHandler, httpapiHandler, preAggregationHandler, settingsHandler, runtimeSettingsHandler, adminKeySettingsHandler, httpapiRuntimeSettingsHandler, panelSettingsHandler, systemHandler, adminRedeemHandler, handler, backupHandler, adminAPIKeyHandler, proxyHandler, groupHandler, claudeOAuthHandler, adminUsageHandler, promoHandler, adminHandler, adminUserHandler, opsHandler, handler2, handler3)
 	routePlanner := provider5.NewRoutePlanner(pricingConfigService)
@@ -598,7 +602,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	appJobsRuntimeReady := provideJobsRuntime(appBatchCleanupRuntime, batchimageRuntime, creativeWorkerRuntime, usageMonitor, manager)
 	orderExpiry := providePaymentExpiry(runtime, leaderLock, db)
 	appCoreRuntimeReady := provideCoreRuntime(authCacheInvalidationWorker, snapshotService, usageCleanupService, idempotencyCleanupService, orderExpiry, tlsFingerprintCollectorService, manager, wheel, digestSessionStore, usageLogRepository, tasks, transportClient, appGatewayBillingRates)
-	appPluginRuntimeReady := providePluginRuntime(cfg, pluginManager, kv, manager)
+	appPluginRuntimeReady := providePluginRuntime(cfg, pluginManager, kv, catalogService, manager)
 	appIdempotencyHTTPReady := provideIdempotencyHTTP(idempotencyCoordinator, managementHandler, archiveHandler, codexImportHandler, apiKeyHandler, adminRedeemHandler, adminSubscriptionHandler, proxyHandler, adminUserHandler, groupHandler, systemHandler, adminUsageHandler)
 	appRuntimeReady := provideRuntime(appModelCatalogRuntimeReady, appSettingsRuntimeReady, appAuthRuntimeReady, appMaintenanceRuntimeReady, appOpsRuntimeReady, appQueuesRuntimeReady, appJobsRuntimeReady, appCoreRuntimeReady, appPluginRuntimeReady, appIdempotencyHTTPReady, promptpolicyService)
 	application := provideApplication(httpServer, manager, appRuntimeReady, opsService, errorLogQueue)

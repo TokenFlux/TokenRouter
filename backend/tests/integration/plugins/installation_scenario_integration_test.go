@@ -61,14 +61,14 @@ func TestInstalledPluginHTTPPersistenceAndRecovery(t *testing.T) {
 		defer cancel()
 		require.NoError(t, manager.Stop(ctx))
 	})
-	service := plugin.NewService(manager, packages)
+	service := plugin.NewService(manager, packages, nil, nil)
 	router := gin.New()
 	admin := router.Group("/api/v1/admin")
 	admin.Use(func(c *gin.Context) {
 		c.Set(authctx.ContextKeyUser, authctx.AuthSubject{UserID: 1})
 		c.Next()
 	})
-	httpapi.RegisterAdminRoutes(admin, httpapi.NewHandler(service, manager, processes), func(c *gin.Context) { c.Next() })
+	httpapi.RegisterAdminRoutes(admin, httpapi.NewHandler(service, manager, processes, nil), func(c *gin.Context) { c.Next() })
 	public := httpapi.NewPublicHandler(httpapi.PublicOptions{
 		Runtime:  manager,
 		Files:    packages,
@@ -166,7 +166,7 @@ func TestInstalledPluginHTTPPersistenceAndRecovery(t *testing.T) {
 	require.ErrorIs(t, err, plugin.ErrPackageMissing)
 	upload, err := packages.Preview(t.Context(), bytes.NewReader(archive))
 	require.NoError(t, err)
-	recovered, err := plugin.NewService(restarted, packages).Install(t.Context(), plugin.InstallInput{Source: plugin.SourceUpload, UploadToken: upload.Token, AcceptPermissions: []string{}}, 1)
+	recovered, err := plugin.NewService(restarted, packages, nil, nil).Install(t.Context(), plugin.InstallInput{Source: plugin.SourceUpload, UploadToken: upload.Token, AcceptPermissions: []string{}}, 1)
 	require.NoError(t, err)
 	require.True(t, recovered.Repaired)
 	require.Equal(t, plugin.StateRunning, recovered.Status.State)
@@ -174,7 +174,7 @@ func TestInstalledPluginHTTPPersistenceAndRecovery(t *testing.T) {
 	var count int
 	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM plugin_kv WHERE plugin_id='test.installation'").Scan(&count))
 	require.Equal(t, 1, count)
-	require.NoError(t, plugin.NewService(restarted, packages).Uninstall(t.Context(), "test.installation", true))
+	require.NoError(t, plugin.NewService(restarted, packages, nil, nil).Uninstall(t.Context(), "test.installation", true))
 	_, err = store.Get(t.Context(), "test.installation")
 	require.ErrorIs(t, err, plugin.ErrPluginNotFound)
 	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM plugin_kv WHERE plugin_id='test.installation'").Scan(&count))

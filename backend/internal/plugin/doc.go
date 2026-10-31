@@ -2,11 +2,13 @@
 //
 // Start here:
 //   - manager.go: reconciles installation intent with local packages and process ownership.
-//   - service.go: serializes administrator installation, configuration, and removal operations.
+//   - service.go and service_versions.go: serialize administration and restore complete release snapshots.
 //   - writes.go: commits capability effects and replay evidence under one transaction boundary.
 //
 // File groups:
 //   - installation.go, packages.go, and runtime.go define storage, package, and process contracts.
+//   - indexes.go defines catalog transfer contracts and project-owned verification roots.
+//   - catalog.go selects source-qualified releases; catalog_service.go, catalog_refresh.go, and catalog_indexes.go own cache and registration coordination.
 //   - configuration.go, limits.go, and dev_source.go normalize persistent policy and development records.
 //   - grant.go, ledger.go, wallet.go, redeem.go, subscriptions.go, and capabilities.go define caller authority, financial rules, and audit collaboration.
 //   - http.go defines transport-independent HTTP contribution values.

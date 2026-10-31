@@ -29,27 +29,35 @@ import (
 
 // Handler serves plugin management with shared lifecycle and diagnostic readers.
 type Handler struct {
-	service *plugin.Service  // serialized plugin administration operations
-	manager *plugin.Manager  // local runtime state and restart owner
-	logs    plugin.LogReader // bounded retained process diagnostics
+	service *plugin.Service        // serialized plugin administration operations
+	manager *plugin.Manager        // local runtime state and restart owner
+	logs    plugin.LogReader       // bounded retained process diagnostics
+	catalog *plugin.CatalogService // source ownership and release recommendations
 }
 
 // InstallationDTO exposes accepted metadata without ciphertext or local storage paths.
 type InstallationDTO struct {
-	Tasks              []plugin.TaskStatus `json:"tasks,omitempty"`            // in-memory declared task execution observations
-	PluginID           string              `json:"plugin_id"`                  // publisher-qualified installation identity
-	Version            string              `json:"version"`                    // installed release SemVer
-	Source             plugin.Source       `json:"source"`                     // accepted package distribution source
-	IndexID            *int64              `json:"index_id"`                   // optional distribution index identifier
-	Manifest           *manifest.Manifest  `json:"manifest"`                   // installed release declaration
-	ManifestSHA256     string              `json:"manifest_sha256"`            // original declaration asset digest
-	Enabled            bool                `json:"enabled"`                    // desired runtime availability flag
-	GrantedPermissions []string            `json:"granted_permissions"`        // administrator-confirmed capability names
-	Limits             json.RawMessage     `json:"limits"`                     // administrator capability quota configuration
-	PreviousVersion    string              `json:"previous_version,omitempty"` // retained rollback release version
-	Status             plugin.Status       `json:"status"`                     // local process lifecycle observation
-	InstalledAt        time.Time           `json:"installed_at"`               // first installation creation time
-	UpdatedAt          time.Time           `json:"updated_at"`                 // latest persisted modification time
+	IndexName            string              `json:"index_name,omitempty"`          // registered source display name
+	IndexBuiltin         bool                `json:"index_builtin"`                 // original source is builtin
+	SignatureStatus      string              `json:"signature_status,omitempty"`    // latest source verification outcome
+	UpdateVersion        string              `json:"update_version,omitempty"`      // compatible offered newer release
+	CurrentVersionYanked bool                `json:"current_version_yanked"`        // installed release was withdrawn
+	CurrentYankReason    string              `json:"current_yank_reason,omitempty"` // published withdrawal explanation
+	Delisted             bool                `json:"delisted"`                      // original source withdrew listing
+	Tasks                []plugin.TaskStatus `json:"tasks,omitempty"`               // in-memory declared task execution observations
+	PluginID             string              `json:"plugin_id"`                     // publisher-qualified installation identity
+	Version              string              `json:"version"`                       // installed release SemVer
+	Source               plugin.Source       `json:"source"`                        // accepted package distribution source
+	IndexID              *int64              `json:"index_id"`                      // optional distribution index identifier
+	Manifest             *manifest.Manifest  `json:"manifest"`                      // installed release declaration
+	ManifestSHA256       string              `json:"manifest_sha256"`               // original declaration asset digest
+	Enabled              bool                `json:"enabled"`                       // desired runtime availability flag
+	GrantedPermissions   []string            `json:"granted_permissions"`           // administrator-confirmed capability names
+	Limits               json.RawMessage     `json:"limits"`                        // administrator capability quota configuration
+	PreviousVersion      string              `json:"previous_version,omitempty"`    // retained rollback release version
+	Status               plugin.Status       `json:"status"`                        // local process lifecycle observation
+	InstalledAt          time.Time           `json:"installed_at"`                  // first installation creation time
+	UpdatedAt            time.Time           `json:"updated_at"`                    // latest persisted modification time
 }
 
 // ChangeDTO reports a saved installation and any remaining configuration requirement.
@@ -74,8 +82,8 @@ type ConfigInput struct {
 }
 
 // NewHandler constructs administration using the application's shared plugin owners.
-func NewHandler(service *plugin.Service, manager *plugin.Manager, logs plugin.LogReader) *Handler {
-	return &Handler{service: service, manager: manager, logs: logs}
+func NewHandler(service *plugin.Service, manager *plugin.Manager, logs plugin.LogReader, catalog *plugin.CatalogService) *Handler {
+	return &Handler{service: service, manager: manager, logs: logs, catalog: catalog}
 }
 
 // List returns installed metadata and status without decrypting stored configuration.
@@ -85,10 +93,23 @@ func (h *Handler) List(c *gin.Context) {
 		httpx.ErrorFrom(c, err)
 		return
 	}
+	var entries map[string]plugin.CatalogEntry
+	if h.catalog != nil {
+		entries, err = h.catalog.InstalledEntries(c.Request.Context(), items)
+		if err != nil {
+			httpx.ErrorFrom(c, err)
+			return
+		}
+	}
 	result := make([]InstallationDTO, 0, len(items))
 	for i := range items {
 		item := installationDTO(&items[i], h.manager.Status(items[i].PluginID))
 		item.Tasks = h.manager.TaskStatuses(items[i].PluginID)
+		if entry, exists := entries[item.PluginID]; exists {
+			item.IndexName, item.IndexBuiltin = entry.IndexName, entry.Builtin
+			item.SignatureStatus, item.UpdateVersion = entry.SignatureStatus, entry.UpdateVersion
+			item.CurrentVersionYanked, item.CurrentYankReason, item.Delisted = entry.CurrentVersionYanked, entry.CurrentYankReason, entry.Delisted
+		}
 		result = append(result, item)
 	}
 	httpx.Success(c, result)
@@ -145,7 +166,7 @@ func (h *Handler) Upload(c *gin.Context) {
 	})
 }
 
-// Install accepts a reviewed upload and returns the persisted installation outcome.
+// Install accepts a reviewed release and returns the persisted installation outcome.
 func (h *Handler) Install(c *gin.Context) {
 	actor, ok := actorID(c)
 	if !ok {

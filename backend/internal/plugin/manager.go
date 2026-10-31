@@ -231,7 +231,8 @@ func (m *Manager) Sync(ctx context.Context, id string) error {
 // cannot exceed the host maximum while an older callback is still finishing.
 // Publication blocks HTTP admission during replacement, then exposes the new
 // snapshot before process startup so broker callbacks can resolve accepted policy.
-func (m *Manager) syncLocked(ctx context.Context, id string) (resultErr error) {
+// Retained versions protect an update's original rollback history until readiness is decided.
+func (m *Manager) syncLocked(ctx context.Context, id string, retain ...string) (resultErr error) {
 	defer func() {
 		if resultErr != nil {
 			m.recordFailure(id, resultErr)
@@ -292,7 +293,7 @@ func (m *Manager) syncLocked(ctx context.Context, id string) (resultErr error) {
 		if err := m.publish(id, loaded, Status{State: state, Since: time.Now()}); err != nil {
 			return err
 		}
-		return m.prune(ctx, want)
+		return m.prune(ctx, want, retain...)
 	}
 	data, err := json.Marshal(values)
 	if err != nil {
@@ -333,7 +334,7 @@ func (m *Manager) syncLocked(ctx context.Context, id string) (resultErr error) {
 	if err != nil {
 		return err
 	}
-	return m.prune(ctx, want)
+	return m.prune(ctx, want, retain...)
 }
 
 // validate rejects unsupported releases before strictly parsing their complete declaration.
@@ -383,11 +384,14 @@ func sameRelease(a, b *Installation) bool {
 
 // packageReference selects the platform artifact and temporary upload handle for storage.
 // The installation must contain a validated declaration. Static contributions use
-// any-platform artifacts, while native contributions require this host's exact target.
+// any-platform artifacts when available, otherwise the host-specific archive.
+// Native contributions always require the host's exact target.
 func packageReference(item *Installation, token string) PackageRef {
 	platform := runtime.GOOS + "/" + runtime.GOARCH
 	if item.Manifest.Backend == nil {
-		platform = "any"
+		if _, shared := item.Artifacts["any"]; shared {
+			platform = "any"
+		}
 	}
 	return PackageRef{
 		PluginID:       item.PluginID,
@@ -481,12 +485,15 @@ func (m *Manager) recordFailure(id string, err error) {
 
 // prune retains current and previous packages after a successful reconciliation.
 // The caller holds the plugin mutation lock and has stopped any displaced version.
+// Extra retained versions belong to an in-progress update; they prevent pruning the
+// original previous package before failure compensation has restored its snapshot.
 // Filesystem cleanup errors remain visible instead of claiming obsolete packages disappeared.
-func (m *Manager) prune(ctx context.Context, item *Installation) error {
+func (m *Manager) prune(ctx context.Context, item *Installation, retain ...string) error {
 	keep := []string{item.Version}
 	if item.Previous != nil {
 		keep = append(keep, item.Previous.Version)
 	}
+	keep = append(keep, retain...)
 	return m.packages.Prune(ctx, item.PluginID, keep...)
 }
 

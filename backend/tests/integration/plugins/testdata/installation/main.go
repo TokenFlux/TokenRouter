@@ -20,9 +20,12 @@ type installationPlugin struct{}
 func main() { sdk.Serve(&installationPlugin{}) }
 
 // Init requires the synthetic configured secret before the plugin becomes available.
-// The test knows the expected value in advance. A ciphertext or absent setting
+// Version two deliberately fails to exercise update compensation. A ciphertext or absent setting
 // fails initialization without including the supplied value in its error message.
 func (*installationPlugin) Init(_ context.Context, environment *sdk.Env) error {
+	if environment.Version == "2.0.0" {
+		return fmt.Errorf("fixture rejects version 2 initialization")
+	}
 	if environment.Config.Secret("credential") != "fixture-secret" {
 		return fmt.Errorf("fixture credential did not reach initialization")
 	}

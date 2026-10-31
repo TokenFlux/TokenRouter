@@ -8,7 +8,7 @@
  * backslashes, and control characters fail before authenticated dispatch occurs.
  */
 export function pluginApiPath(pluginId: string, path: string): string {
-  if (!/^[a-z][a-z0-9-]{1,31}\.[a-z][a-z0-9-]{1,47}$/.test(pluginId)) {
+  if (pluginId.length > 80 || !/^[a-z][a-z0-9-]{1,31}\.[a-z][a-z0-9-]{1,47}$/.test(pluginId)) {
     throw new Error('Invalid plugin identity')
   }
   let decoded: string

@@ -266,7 +266,9 @@ func inspectReleaseArchive(data, manifestBytes []byte, platform, iconPath string
 	return os.ReadFile(filepath.Join(packageDir, filepath.FromSlash(iconPath)))
 }
 
-// parseChecksums accepts unique sha256sum-style entries with portable filenames.
+// parseChecksums accepts unique sha256sum-style entries with portable release filenames.
+// SemVer build metadata may contain plus signs. The returned map retains the
+// exact filename so its digest still binds the original GitHub asset name.
 func parseChecksums(data []byte) (map[string]string, error) {
 	result := make(map[string]string)
 	for line := range strings.SplitSeq(string(data), "\n") {
@@ -278,7 +280,9 @@ func parseChecksums(data []byte) (map[string]string, error) {
 			return nil, fmt.Errorf("invalid checksums.txt entry")
 		}
 		name := strings.TrimPrefix(fields[1], "*")
-		if !manifest.ValidPath(name) || strings.Contains(name, "/") || result[name] != "" {
+		// Release filenames can include SemVer build metadata; validate equivalent
+		// portable characters while retaining the original spelling for exact asset lookup.
+		if !manifest.ValidPath(strings.ReplaceAll(name, "+", "-")) || strings.Contains(name, "/") || result[name] != "" {
 			return nil, fmt.Errorf("invalid or duplicate checksum filename")
 		}
 		result[name] = fields[0]
