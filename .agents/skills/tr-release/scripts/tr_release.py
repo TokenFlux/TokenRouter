@@ -4,11 +4,24 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+import sdk_release
+
+# tr_release.py prepares fixed gateway release ranges and publishes their reviewed
+# annotated tags. The previous release comes from origin, while the annotation
+# is written from the exact notes file reviewed for the selected commit. Local
+# tags and changes made after review cannot silently redefine that release range.
+#
+# SDK publication is a prerequisite checked through sdk_release before the host
+# tag is created. The check rereads public package state; afterward this script
+# rechecks the working tree and gateway range because verification may take long
+# enough for another local edit or remote release to invalidate the preparation.
 
 
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
@@ -150,6 +163,11 @@ def tag_exists_on_origin(tag: str) -> bool:
 
 
 def parse_args() -> argparse.Namespace:
+    """parse_args parses preparation and publication arguments with mandatory review inputs.
+
+    Preparation remains read-only with respect to tags. Publication requires both
+    the fixed gateway range and a completed SDK review before any Git mutation.
+    """
     parser = argparse.ArgumentParser(
         description="Prepare or publish a TokenRouter version with release notes."
     )
@@ -170,6 +188,7 @@ def parse_args() -> argparse.Namespace:
         help="Release version, such as 0.2.0 or v0.2.0. Defaults to the next patch version.",
     )
     parser.add_argument("--expected-head", help="Full commit SHA reviewed for the notes. Required for publication.")
+    parser.add_argument("--sdk-review", metavar="PATH", help="Reviewed SDK JSON; required before publishing the gateway tag.")
     parser.add_argument(
         "--expected-previous-tag",
         help="Previous version tag reviewed for the notes. Required for publication.",
@@ -184,6 +203,8 @@ def parse_args() -> argparse.Namespace:
             "publication requires --expected-head and --expected-previous-tag "
             "to match the notes to the release range"
         )
+    if not args.prepare and not args.sdk_review:
+        parser.error("publication requires --sdk-review PATH with verified SDK release decisions")
     return args
 
 
@@ -297,6 +318,11 @@ def create_annotated_tag(context: ReleaseContext, notes: str) -> None:
 
 
 def main() -> int:
+    """main publishes only a clean, fixed gateway commit whose SDK prerequisites are verified.
+
+    SDK checks are read-only and may fail on incomplete publication or authentication.
+    Such failures leave the gateway tag absent so the operator can resume safely.
+    """
     args = parse_args()
     ensure_git_repo()
     ensure_clean_tracked_tree()
@@ -310,6 +336,18 @@ def main() -> int:
 
     ensure_expected_context(context, args.expected_head, args.expected_previous_tag)
     notes = read_release_notes(args.notes_file)
+    try:
+        review = json.loads(Path(args.sdk_review).read_text(encoding="utf-8"))
+        sdk_release.check_review(review, context.head)
+    except (sdk_release.ReleaseError, OSError, json.JSONDecodeError, TypeError) as error:
+        sys.stderr.write(f"SDK publication prerequisite failed: {error}\n")
+        return 1
+    # Public SDK verification may outlive concurrent edits or another release;
+    # reject their changed context before creating any local gateway tag.
+    ensure_clean_tracked_tree()
+    ensure_branch_aligned_with_upstream()
+    context = build_release_context(args.version)
+    ensure_expected_context(context, args.expected_head, args.expected_previous_tag)
     create_annotated_tag(context, notes)
     push = run_git(["push", "origin", context.next_tag], check=False)
     if push.returncode != 0:

@@ -6,9 +6,10 @@
     "lib": ["ES2022", "DOM"],
     "strict": true,
     "skipLibCheck": true,
-    "types": ["vite/client"],
-    "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@tokenflux/tokenrouter-plugin-sdk": ["../../../dist/index.d.ts"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue"]
+  "include": ["*.ts", "*.vue"]
 }

@@ -1,6 +1,6 @@
 ---
 name: tr-release
-description: Release TokenRouter at a requested version, or the next patch tag when no version is specified, with English release notes and a collapsed Chinese translation. Use when the user invokes $tr-release or asks to publish a TokenRouter version, increment the latest vMAJOR.MINOR.PATCH tag, populate the GitHub Release changelog, or verify the release workflow.
+description: Release TokenRouter at a requested version, or the next patch tag when no version is specified, publishing changed Go and Web SDKs first and writing English release notes with a collapsed Chinese translation. Use when the user invokes $tr-release or asks to publish a TokenRouter version, increment its release tag, populate the GitHub Release changelog, or verify the release workflow.
 ---
 
 # TR Release
@@ -9,13 +9,15 @@ description: Release TokenRouter at a requested version, or the next patch tag w
 
 Publish the requested TokenRouter version, or increment the patch version when none is specified. Write release notes in English and cover every external change from the previous release to the target commit accurately. The workflow passes the annotated tag body to GoReleaser to produce the Release description. Complete the GitHub Release body with English visible by default and a collapsed Simplified Chinese translation at the very bottom, after the installation and documentation sections.
 
+Before publishing the gateway, follow [SDK prerequisites](references/sdk-release.md) to compare Go and Web SDKs with their own latest published versions. Publish only unshipped delivery changes; keep independent `0.x.y` versions, using patch increments for compatible fixes and minor increments for additions or incompatible changes. Complete and verify required SDK publications before creating the gateway tag. The skill executes these steps directly, without an SDK publishing CI workflow.
+
 For requests to revise the skill or review notes, complete that edit or review. Publishing a new version and modifying an existing Release each require the corresponding user request.
 
 ## Establish the repository and version range
 
 1. Follow repository instructions from the TokenRouter root. Use the `project-doc` release route first and `humanizer` when writing notes.
 2. Confirm the release destination with `git remote get-url origin` and derive `release_repo` from the URL (currently `TokenFlux/TokenRouter`). Pass `--repo "$release_repo"` to every `gh` command; a fork's default `gh` repository may be upstream. If origin differs from the user's intended destination, resolve that before continuing.
-3. Run the preparation command. It fetches and checks origin tags. Tag creation and pushing happen during publication:
+3. Complete SDK baseline discovery and change review using [SDK prerequisites](references/sdk-release.md). Make any necessary version preparation commit, push it, and wait for CI before fixing the final release SHA. Preserve completed SDK publication evidence when resuming an interrupted release. Run the preparation command at the final commit; it fetches and checks origin tags. Tag creation and pushing happen during publication:
 
 ```bash
 python3 .agents/skills/tr-release/scripts/tr_release.py --prepare
@@ -83,16 +85,17 @@ Pass the full SHA and previous tag recorded during preparation. If another relea
 python3 .agents/skills/tr-release/scripts/tr_release.py \
   --expected-head "$release_commit" \
   --expected-previous-tag "$previous_tag" \
+  --sdk-review "$sdk_review_file" \
   --notes-file "$notes_file"
 ```
 
-When the user specifies a version, add `--version VERSION` to the same command. Otherwise, retain automatic patch incrementing. Use `--notes-file -` to provide the full notes through standard input.
+When the user specifies a version, add `--version VERSION` to the same command. Otherwise, retain automatic patch incrementing. Use `--notes-file -` to provide the full notes through standard input. The SDK review must cover the final commit and pass public-delivery verification; missing, conflicting, or partially published SDKs prevent gateway tag creation.
 
 1. Wait for the `Release` Actions run triggered by `new_tag` to succeed in the explicit target repository. Verify the tag and commit to distinguish this release from other runs on the same commit.
 2. Read and save the generated body with `gh release view "$new_tag" --repo "$release_repo" --json body,url,tagName`. Compare the complete English notes block with the reviewed notes file, allowing only line-ending differences and whitespace at the block's edges. The summary, every category, and every list item must remain intact. If the block is missing, truncated, or different, restore it from the reviewed file while retaining the generated introduction and installation/documentation footer. If block boundaries are unclear, report the specific problem before editing.
 3. Follow "Chinese translation and final layout" to assemble and review the full body. On a retry, replace the existing Chinese translation block in place so the body contains exactly one. Save the complete result as a separate UTF-8 file, `release_body_file`. Reread the remote body before editing; if it differs from the saved snapshot, reconcile the intervening edits before continuing. Apply the reviewed body with `gh release edit "$new_tag" --repo "$release_repo" --notes-file "$release_body_file"`. This finalization is part of an authorized publication; keep the existing tag fixed.
 4. Reread the remote body and compare it with the complete reviewed file, allowing only line-ending differences and whitespace at the body's edges. Check that English is outside the translation block, the single Chinese block follows all English content, and its `<details>` tag has no `open` attribute. Review translation parity using the reference document. When a browser is available, also check that the translation starts collapsed and expands with rendered headings, lists, links, and code blocks. Report visual rendering as unverified if that check cannot run. If the saved body still differs, report the discrepancy and stop repeated overwrites.
-5. Complete the other checks required by the repository's release route. Report unrun and failed checks accurately. Return the previous tag, new tag, commit SHA, Actions result, Release link, and full-body comparison and translation-layout results.
+5. Complete the other checks required by the repository's release route. Report unrun and failed checks accurately. Return the previous tag, new tag, commit SHA, Actions result, Release link, and full-body comparison and translation-layout results, plus each SDK's version decision and publication verification.
 
 ## Script constraints
 
@@ -100,4 +103,4 @@ When the user specifies a version, add `--version VERSION` to the same command. 
 - Create an annotated tag at the reviewed commit with title `TokenRouter MAJOR.MINOR.PATCH`, preserve the notes verbatim in its body, and push it to origin.
 - Reject existing local or remote tags. Delete the newly created local tag if annotation validation or pushing fails.
 - The script checks basic Markdown structure. The evidence manifest and two-way review establish factual accuracy and change coverage.
-- Create a release commit only when requested. Keep existing tags fixed. A successful push is one step in publication; complete release verification afterward.
+- A gateway release request includes necessary SDK version preparation commits; unrelated implementation changes require their own scope. Keep existing tags fixed. A successful push is one step in publication; complete release verification afterward.

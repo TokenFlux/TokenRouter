@@ -42,17 +42,26 @@ class PlanTest(unittest.TestCase):
         self.assertIn('bash ../../tools/golangci-lint.sh run ./...', result)
         self.assertFalse(any('pnpm' in line for line in result))
 
-    def test_plugin_web_change_builds_sdk_and_example(self):
-        """A frontend SDK change must compile the author example against its types.
+    def test_plugin_web_change_builds_sdk_and_consumer(self):
+        """A frontend SDK change must compile the minimal consumer against its types.
 
-        Frozen dependency installation precedes SDK tests, and the example build
+        Frozen dependency installation precedes SDK tests, and the consumer build
         verifies the preset instead of relying only on declaration typechecking.
         """
         result = flat(['plugin-sdk/web/src/types.ts'])
         self.assertIn('make prepare-plugin-sdk-web', result)
         self.assertIn('pnpm --dir plugin-sdk/web test', result)
-        self.assertIn('pnpm --dir plugin-sdk/go/examples/checkin/web build', result)
+        self.assertFalse(any('examples/checkin' in line for line in result))
         self.assertFalse(any(line == 'go test ./...' for line in result))
+
+    def test_release_tool_change_selects_isolated_regressions(self):
+        """Release tooling changes need their isolated Git and registry regressions.
+
+        The selected suite must run before a push without publishing a package
+        or depending on credentials for a real release destination.
+        """
+        result = flat(['.agents/skills/tr-release/scripts/sdk_release.py'])
+        self.assertIn("python3 -m unittest discover -s .agents/skills/tr-release/scripts -p test_*.py", result)
 
     def test_document_change_only_checks_whitespace(self):
         """A documentation-only change needs the shared whitespace check.

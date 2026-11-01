@@ -1,4 +1,0 @@
-dist/
-.publish/
-*.private-key
-__pycache__/

@@ -25,11 +25,11 @@
     }
   },
   "scripts": {
-    "format": "prettier --config ../prettier.config.mjs --write 'src/**/*.ts' 'tests/*.mjs' '*.json' '../go/examples/checkin/web/src/**/*.{ts,vue,css}' '../go/examples/checkin/web/*.{ts,json,html}'",
-    "format:check": "prettier --config ../prettier.config.mjs --check 'src/**/*.ts' 'tests/*.mjs' '*.json' '../go/examples/checkin/web/src/**/*.{ts,vue,css}' '../go/examples/checkin/web/*.{ts,json,html}'",
+    "format": "prettier --config ../prettier.config.mjs --write 'src/**/*.ts' 'tests/**/*.{mjs,ts,vue,json}' '*.json'",
+    "format:check": "prettier --config ../prettier.config.mjs --check 'src/**/*.ts' 'tests/**/*.{mjs,ts,vue,json}' '*.json'",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test tests/*.test.mjs"
+    "test": "pnpm build && vue-tsc -p tests/fixtures/consumer/tsconfig.json && node --test tests/*.test.mjs"
   },
   "peerDependencies": {
     "vite": "^8.3.2",
@@ -42,10 +42,12 @@
   },
   "devDependencies": {
     "@types/node": "26.6.4",
+    "@vitejs/plugin-vue": "6.0.9",
     "prettier": "3.9.10",
     "typescript": "6.0.3",
     "vite": "8.3.2",
-    "vue": "3.5.42"
+    "vue": "3.5.42",
+    "vue-tsc": "3.3.12"
   },
   "repository": {
     "type": "git",

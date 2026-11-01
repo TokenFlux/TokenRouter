@@ -38,7 +38,7 @@ node_modules/
 # exclude them from the backend module copy and the container build context.
 plugin-sdk/**/node_modules/
 plugin-sdk/**/dist/
-plugin-sdk/templates/
+plugin-sdk/web/tests/
 
 # Go build cache (will be built in container)
 backend/vendor/

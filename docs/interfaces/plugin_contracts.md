@@ -118,6 +118,6 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 
 本地 Vite 开发服务器将 SDK 导入替换为 mock。mock 使用原生控件、内存账户与可替换的请求夹具，刷新页面会重置数据；它不证明正式宿主的持久化、权限或视觉一致性。发布构建不包含 mock。
 
-`plugin-sdk/go/examples/checkin/web` 包含用户签到页和管理员记录页，页面通过 HostApi 发请求和刷新账户，不读取宿主 token。用户页确认签到后即保留已完成状态，余额显示刷新失败时只提供刷新余额的操作，不重新发起加款。
+[独立签到插件](https://github.com/TokenFlux/tr-plugin-checkin)包含用户签到页和管理员记录页，页面通过 HostApi 发请求和刷新账户，不读取宿主 token。用户页确认签到后即保留已完成状态，余额显示刷新失败时只提供刷新余额的操作，不重新发起加款。主仓库使用 Go 内部进程夹具和 Web 最小 Vue SFC 消费夹具验证 SDK；测试不依赖外部仓库或 submodule，Web 夹具不进入 npm 包。
 
 相关文档：[接口目录](index.md)、[开发与验证](../operations/development_workflow.md)。

@@ -3,6 +3,7 @@ package sdk_test
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -20,6 +21,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/sdk"
 )
 
+// serve_external_test.go verifies the public SDK against an isolated child
+// process and a real authenticated host broker. Its internal fixture exercises
+// transport and lifecycle behavior without importing a separately maintained
+// plugin or requiring a downloaded example repository.
+
 // hostTransport dispenses test clients while retaining the authenticated broker.
 type hostTransport struct {
 	goplugin.NetRPCUnsupportedPlugin                      // disables legacy net/rpc test transport
@@ -34,11 +40,12 @@ func (*hostTransport) GRPCServer(*goplugin.GRPCBroker, *grpc.Server) error {
 
 // GRPCClient retains the connected plugin endpoint and callback broker for assertions.
 func (p *hostTransport) GRPCClient(_ context.Context, broker *goplugin.GRPCBroker, connection *grpc.ClientConn) (any, error) {
-	p.broker, p.connection = broker, connection
+	p.broker = broker
+	p.connection = connection
 	return p, nil
 }
 
-// TestServeConnectsRealProcessAndBroker builds and starts the example executable
+// TestServeConnectsRealProcessAndBroker builds and starts a minimal fixture executable
 // through go-plugin with automatic TLS and a verified binary digest. Lifecycle,
 // HTTP, configuration, and host wallet callbacks must work over real connections.
 func TestServeConnectsRealProcessAndBroker(t *testing.T) {
@@ -50,9 +57,9 @@ func TestServeConnectsRealProcessAndBroker(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		binary += ".exe"
 	}
-	build := exec.Command("go", "build", "-o", binary, "../examples/checkin/cmd/plugin")
+	build := exec.Command("go", "build", "-o", binary, "../internal/testplugins/roundtrip")
 	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build example: %v\n%s", err, output)
+		t.Fatalf("build fixture: %v\n%s", err, output)
 	}
 	data, err := os.ReadFile(binary)
 	if err != nil {
@@ -86,7 +93,15 @@ func TestServeConnectsRealProcessAndBroker(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	lifecycle := pluginpb.NewPluginClient(transport.connection)
-	_, err = lifecycle.Init(ctx, &pluginpb.InitRequest{HostVersion: "0.6.0", ApiVersion: 1, PluginId: "tokenflux.checkin", PluginVersion: "1.0.0", HostBrokerId: brokerID, ConfigJson: []byte(`{"reward":0.1}`), StateDir: directory})
+	_, err = lifecycle.Init(ctx, &pluginpb.InitRequest{
+		HostVersion:   "0.6.0",
+		ApiVersion:    1,
+		PluginId:      "test.roundtrip",
+		PluginVersion: "1.0.0",
+		HostBrokerId:  brokerID,
+		ConfigJson:    []byte(`{"amount":"0.1"}`),
+		StateDir:      directory,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,27 +110,62 @@ func TestServeConnectsRealProcessAndBroker(t *testing.T) {
 		t.Fatalf("health: %v %v", health, err)
 	}
 	httpClient := pluginpb.NewHTTPHandlerClient(transport.connection)
-	request := &pluginpb.HTTPRequest{Method: "POST", Path: "/checkin", Caller: &pluginpb.Caller{UserId: 7, Username: "tester", Role: "user"}, ClientIp: "192.0.2.1"}
+	request := &pluginpb.HTTPRequest{
+		Method:   "POST",
+		Path:     "/echo",
+		RawQuery: "value=hello%20world",
+		Headers:  map[string]string{"X-Test-Key": "first"},
+		Body:     []byte("request payload"),
+		Caller:   &pluginpb.Caller{UserId: 7, Username: "tester", Role: "user"},
+		ClientIp: "192.0.2.1",
+	}
 	response, err := httpClient.Handle(ctx, request)
 	if err != nil || response.Status != 200 {
-		t.Fatalf("check-in: %v %v", response, err)
+		t.Fatalf("roundtrip: %v %v", response, err)
+	}
+	var echo map[string]string
+	if err := json.Unmarshal(response.Body, &echo); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{
+		"method": "POST", "path": "/echo", "query": "value=hello%20world",
+		"body": "request payload", "user": "7", "username": "tester",
+		"plugin": "test.roundtrip", "amount": "0.1", "balance": "1.10000000",
+	} {
+		if echo[key] != want {
+			t.Fatalf("echo %s = %q, want %q", key, echo[key], want)
+		}
+	}
+	if response.Headers["X-Test-Reply"] != "roundtrip" {
+		t.Fatalf("response headers: %v", response.Headers)
 	}
 	wallet, err := host.Env.Host.Wallet.Get(ctx, 7)
 	if err != nil || wallet.Balance != "1.10000000" {
 		t.Fatalf("wallet callback: %v %v", wallet, err)
 	}
-	response, err = httpClient.Handle(ctx, request)
-	if err != nil || response.Status != 409 {
-		t.Fatalf("repeat check-in: %v %v", response, err)
-	}
-	if _, err := lifecycle.ConfigChanged(ctx, &pluginpb.ConfigChangedRequest{ConfigJson: []byte(`{"reward":0.2}`)}); err != nil {
+	if _, err := lifecycle.ConfigChanged(ctx, &pluginpb.ConfigChangedRequest{ConfigJson: []byte(`{"amount":"0.2"}`)}); err != nil {
 		t.Fatal(err)
 	}
-	response, err = httpClient.Handle(ctx, &pluginpb.HTTPRequest{Method: "GET", Path: "/status", Caller: request.Caller})
+	request.Headers["X-Test-Key"] = "second"
+	response, err = httpClient.Handle(ctx, request)
 	if err != nil || response.Status != 200 {
-		t.Fatalf("updated status: %v %v", response, err)
+		t.Fatalf("updated roundtrip: %v %v", response, err)
+	}
+	if err := json.Unmarshal(response.Body, &echo); err != nil {
+		t.Fatal(err)
+	}
+	if echo["amount"] != "0.2" || echo["balance"] != "1.30000000" {
+		t.Fatalf("updated configuration: %v", echo)
 	}
 	if _, err := lifecycle.Shutdown(ctx, &pluginpb.ShutdownRequest{}); err != nil {
 		t.Fatal(err)
+	}
+	marker, err := os.ReadFile(filepath.Join(directory, "shutdown"))
+	if err != nil || string(marker) != "complete" {
+		t.Fatalf("shutdown callback: %q %v", marker, err)
+	}
+	health, err = lifecycle.Health(ctx, &pluginpb.HealthRequest{})
+	if err != nil || health.Ready {
+		t.Fatalf("health after shutdown: %v %v", health, err)
 	}
 }

@@ -94,15 +94,13 @@ lint-plugin-sdk: prepare-plugin-sdk-web
 test-plugin-sdk: prepare-plugin-sdk-web
 	cd plugin-sdk/go && go test ./...
 	pnpm --dir plugin-sdk/web test
-	pnpm --dir plugin-sdk/go/examples/checkin/web install --frozen-lockfile
-	pnpm --dir plugin-sdk/go/examples/checkin/web build
 
 # plugin-proto-check regenerates committed bindings and rejects any resulting drift.
 plugin-proto-check:
 	$(MAKE) -C plugin-sdk/go proto
 	git diff --exit-code -- plugin-sdk/go/pluginpb plugin-sdk/go/proto
 
-# fmt-plugin-sdk applies the standalone SDK formatter to author-facing web source and examples.
+# fmt-plugin-sdk formats SDK web source and the minimal consumer test fixtures.
 fmt-plugin-sdk:
 	pnpm --dir plugin-sdk/web run format
 
@@ -158,6 +156,7 @@ test-installer:
 # fixtures invoke the pinned golangci-lint installation used by normal repository commands.
 test-tools:
 	python3 -m unittest discover -s tools -p 'test_*.py'
+	python3 -m unittest discover -s .agents/skills/tr-release/scripts -p 'test_*.py'
 	cd tools/declorder && GOWORK=off go test ./...
 
 # test-e2e connects to a running service using addresses and credentials from

@@ -298,7 +298,7 @@ Testcontainers 的启动函数可能同时返回已创建的容器和错误。�
 | job | 内容 |
 | --- | --- |
 | go-lint | `make lint-go`、`make test-tools`、`make fmt-go-check` |
-| plugin-sdk | 独立 Go SDK 的 lint、测试和 proto 重生成检查，Web SDK 的格式、类型、构建测试及示例前端构建 |
+| plugin-sdk | 独立 Go SDK 的 lint、测试和 proto 重生成检查，Web SDK 的格式、类型、构建测试及最小 Vue SFC 消费夹具 |
 | go-test | `make test-go` |
 | go-integration | 安装 PostgreSQL 18 客户端，再执行 `make test-integration` |
 | frontend | `make lint-frontend`、`make test-frontend` |
@@ -432,6 +432,10 @@ DOMPurify 用于 Markdown 页面、公告、支付说明和 SVG 图标的内容�
 ## 发布
 
 项目内置 [tr-release 技能](../../.agents/skills/tr-release/SKILL.md)，用于准备版本范围、核对发布说明和发布验收。Release 描述默认展示英文；技能在发布流程完成后，将完整的简体中文译文追加到描述最底部的「中文翻译」折叠区，覆盖更新说明、安装和文档部分。在仓库根目录运行 `python3 .agents/skills/tr-release/scripts/tr_release.py --prepare` 获取待发布范围。
+
+技能在发布网关前分别检查 Go SDK 和 Web SDK 相对各自最近已发布版本的有效变化，由技能直接完成必要的 SDK 发布，不使用 SDK 发布 CI。两个 SDK 独立保持 `0.x.y`，兼容修复递增 y，新增能力或不兼容变化递增 x。发布工具列出完整路径差异，审阅者逐项说明交付影响；纯测试、格式和开发文档变化不单独发版。
+
+SDK 版本准备先提交并通过 CI，再固定网关与 SDK 的发布 SHA。Go SDK 使用模块标签和非 Latest 的 GitHub Release；Web SDK 发布到 npm 并记录独立来源标签。网关发布命令必须携带 SDK 审阅文件，脚本重新检查远端版本、来源提交、Go 公共下载和 npm 完整性；缺失、冲突或部分发布均阻止创建网关标签。已完成的 SDK 发布在重试时复用，不覆盖旧标签或重复发布已被接受的 npm 包。审阅文件保留在仓库外，详细命令见技能的 SDK 发布引用文档。
 
 `.github/workflows/release.yml` 由 `v*` tag 或手动 dispatch 触发。标准发布只构建一次前端，再把 Linux、Windows 和 macOS 的五个 Go 目标，分配到独立的 runner 并行编译；最后的 job 通过 `tools/goreleaser_prebuilt.sh` 把这些二进制导入 GoReleaser，统一生成 Release 归档、校验和、双架构镜像和 manifest。GoReleaser 使用 `tokenrouter` build ID 生成五个平台归档，每个归档包含 `tokenrouter` 可执行文件，镜像复用其中的 Linux 二进制。
 

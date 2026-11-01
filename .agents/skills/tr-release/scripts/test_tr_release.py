@@ -9,8 +9,14 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import tr_release
+
+# test_tr_release.py checks gateway release ranges against isolated local origins.
+# Its assertions protect fixed source commits, annotation contents, and the SDK
+# prerequisite while keeping all fixture tags and pushes outside the real project.
+# No test starts a production release workflow.
 
 
 class ReleaseRangeTests(unittest.TestCase):
@@ -123,6 +129,41 @@ class ReleaseRangeTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("--expected-head", result.stderr)
+        self.assertFalse(tr_release.tag_exists_locally("v0.1.10"))
+
+    def test_incomplete_sdk_publication_prevents_gateway_tag(self) -> None:
+        """An incomplete SDK prerequisite must leave the gateway tag absent.
+
+        The test invokes the actual release entrypoint with a fixed reviewed range
+        and injects a failed read-only SDK check before any tag creation.
+        """
+        notes = self.root / "notes.md"
+        notes.write_text("Summary\n\n## Improvements\n\n- Verify SDK publication.\n", encoding="utf-8")
+        review = self.root / "sdk.json"
+        review.write_text("{}", encoding="utf-8")
+        arguments = ["tr_release.py", "--notes-file", str(notes), "--sdk-review", str(review),
+                     "--expected-head", self.target, "--expected-previous-tag", "v0.1.9"]
+        with patch("sys.argv", arguments), contextlib.redirect_stderr(io.StringIO()):
+            with patch.object(tr_release.sdk_release, "check_review", side_effect=tr_release.sdk_release.ReleaseError("not published")):
+                self.assertEqual(tr_release.main(), 1)
+        self.assertFalse(tr_release.tag_exists_locally("v0.1.10"))
+
+    def test_sdk_verification_cannot_publish_a_subsequently_changed_head(self) -> None:
+        """A commit arriving during SDK verification must invalidate the gateway review.
+
+        The entrypoint rechecks its source after the SDK check returns and leaves
+        the gateway tag absent instead of publishing the newly arrived commit.
+        """
+        notes = self.root / "notes.md"
+        notes.write_text("Summary\n\n## Improvements\n\n- Verify SDK publication.\n", encoding="utf-8")
+        review = self.root / "sdk.json"
+        review.write_text("{}", encoding="utf-8")
+        arguments = ["tr_release.py", "--notes-file", str(notes), "--sdk-review", str(review),
+                     "--expected-head", self.target, "--expected-previous-tag", "v0.1.9"]
+        with patch("sys.argv", arguments), contextlib.redirect_stderr(io.StringIO()):
+            with patch.object(tr_release.sdk_release, "check_review", side_effect=lambda *_: self.commit("Concurrent edit")):
+                with self.assertRaises(SystemExit):
+                    tr_release.main()
         self.assertFalse(tr_release.tag_exists_locally("v0.1.10"))
 
 

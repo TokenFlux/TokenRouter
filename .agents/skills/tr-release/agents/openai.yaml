@@ -1,4 +1,4 @@
 interface:
   display_name: "TR Release"
-  short_description: "Publish English release notes with collapsed Chinese translation"
-  default_prompt: "Use $tr-release to publish a specified TokenRouter version, or the next patch release when no version is given, with English release notes and a collapsed Chinese translation at the bottom of the GitHub Release description."
+  short_description: "Release changed SDKs and TokenRouter with bilingual notes"
+  default_prompt: "Use $tr-release to inspect and publish changed Go and Web SDKs as independent 0.x.y versions, then publish the specified TokenRouter version or the next patch release, with English release notes and a collapsed Chinese translation."

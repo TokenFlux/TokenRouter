@@ -32,6 +32,9 @@ check-in endpoints; authors can replace responses with `configureMock` from
 use native elements and do not prove production styling, permissions, storage,
 or billing behavior. The mock is excluded from production IIFE bundles.
 
-Run `pnpm build`, `pnpm typecheck`, and `pnpm test` in this directory. The
-check-in example under `plugin-sdk/go/examples/checkin/web` verifies that the
-preset builds Vue pages without embedding a second Vue runtime.
+Run `pnpm build`, `pnpm typecheck`, and `pnpm test` in this directory. Minimal
+consumer fixtures under `tests/fixtures/consumer` check generated declarations,
+Vue SFCs, lazy pages, and scoped output without embedding another Vue runtime.
+These fixtures are excluded from the npm package. Complete plugins are maintained
+in the [official template](https://github.com/TokenFlux/tokenrouter-plugin-template)
+and [check-in repository](https://github.com/TokenFlux/tr-plugin-checkin).

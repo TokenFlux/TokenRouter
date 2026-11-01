@@ -42,9 +42,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-          cache-dependency-path: |
-            plugin-sdk/web/pnpm-lock.yaml
-            plugin-sdk/go/examples/checkin/web/pnpm-lock.yaml
+          cache-dependency-path: plugin-sdk/web/pnpm-lock.yaml
       - run: make lint-plugin-sdk test-plugin-sdk plugin-proto-check
 
   go-lint:

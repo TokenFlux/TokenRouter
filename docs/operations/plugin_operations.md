@@ -46,7 +46,7 @@
 <a id="distribution"></a>
 ## 索引与网络
 
-内置索引使用源码中的 `plugin.OfficialIndexKeys`。项目方需要创建索引仓库、配置 Actions 私钥并把公钥加入宿主；宿主已经内嵌官方公钥；移除全部公钥会拒绝内置验签，不能临时按 unsigned 使用官方来源。种子文件和配置步骤见 [`plugin-sdk/templates/`](../../plugin-sdk/templates/README.md)。
+内置索引使用源码中的 `plugin.OfficialIndexKeys`，宿主已经内嵌官方公钥；移除全部公钥会拒绝内置验签，不能临时按 unsigned 使用官方来源。[官方索引仓库](https://github.com/TokenFlux/tokenrouter-plugins)维护登记、校验和签名工作流，配置步骤见[发布插件与索引](../guides/plugins/publishing.md)。
 
 自定义索引必须为 HTTPS。设置公钥后，该公钥必须验证签名；没有公钥时，只有不存在 `.sig` 才按未签名来源接受。签名存在但不匹配会标记 invalid，保留此前接受的缓存。`cached_at` 是最后接受时间，`signature_status` 和 `last_error` 是最近尝试的观察，二者可能来自不同轮次。
 
