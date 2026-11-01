@@ -9,11 +9,13 @@ import type {
 } from '@/api/admin/plugins.types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
+import SettingToggleRow from '@/components/common/settings/SettingToggleRow.vue'
+import SettingsNotice from '@/components/common/settings/SettingsNotice.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 import { useAppStore } from '@/stores/app'
-import PluginManifestReview from './PluginManifestReview.vue'
+import PluginReleaseReview from './PluginReleaseReview.vue'
 import { pluginErrorMessage } from './pluginErrors'
 
 // PluginUploadDialog.vue separates archive reading from permission-reviewed installation.
@@ -50,6 +52,7 @@ const installing = ref(false)
 const accepted = ref(false)
 const enable = ref(true)
 const error = ref('')
+const dragging = ref(false) // A file is being dragged over the drop zone.
 let controller: AbortController | null = null
 let generation = 0
 const existing = computed(() =>
@@ -69,6 +72,12 @@ const canInstall = computed(
     (!preview.value.manifest.permissions?.length || accepted.value),
 )
 const sameVersion = computed(() => existing.value?.version === preview.value?.manifest.version)
+
+/** drop accepts the first dragged file and clears the drag highlight. */
+function drop(event: DragEvent): void {
+  dragging.value = false
+  chooseFile(event.dataTransfer?.files[0])
+}
 
 /** chooseFile replaces the local selection after checking the declared archive constraints.
  * An invalid selection keeps the prior file available for correction. Accepted
@@ -213,7 +222,7 @@ onBeforeUnmount(() => {
 
 <template>
   <BaseDialog :show="show" :title="t('admin.plugins.upload')" width="wide" @close="close">
-    <div class="space-y-6">
+    <div class="space-y-5">
       <input
         ref="input"
         type="file"
@@ -223,36 +232,56 @@ onBeforeUnmount(() => {
         @change="chooseFile(($event.target as HTMLInputElement).files?.[0])"
       />
       <div
-        v-if="!preview"
-        class="rounded-surface border border-dashed border-gray-300 p-6 text-center dark:border-dark-600"
-        @dragover.prevent
-        @drop.prevent="chooseFile($event.dataTransfer?.files[0])"
+        v-if="!preview && !reading"
+        class="rounded-surface border-2 border-dashed px-6 py-10 text-center transition-colors duration-fast"
+        :class="
+          dragging
+            ? 'border-primary-600 bg-primary-50/40 dark:bg-primary-500/8'
+            : 'border-gray-200 dark:border-dark-600'
+        "
+        @dragenter.prevent="dragging = true"
+        @dragover.prevent="dragging = true"
+        @dragleave.prevent="dragging = false"
+        @drop.prevent="drop"
       >
-        <Icon name="upload" size="lg" class="mx-auto text-gray-500 dark:text-dark-400" />
-        <p class="mt-3 text-sm text-gray-600 dark:text-dark-300">{{
-          t('admin.plugins.review.uploadHint')
+        <span
+          class="mx-auto flex h-12 w-12 items-center justify-center rounded-control bg-gray-100 text-gray-500 dark:bg-dark-800 dark:text-dark-300"
+          ><Icon name="upload" size="lg" :animate-on-hover="false"
+        /></span>
+        <p class="mt-4 text-sm text-gray-700 dark:text-dark-200"
+          >{{ t('admin.plugins.review.dropHint') }}
+          <button
+            type="button"
+            class="font-medium text-primary-600 hover:underline"
+            :disabled="reading || installing"
+            @click="input?.click()"
+            >{{ t('admin.plugins.review.chooseFile') }}</button
+          ></p
+        >
+        <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{
+          t('admin.plugins.review.uploadLimit')
         }}</p>
-        <p v-if="file" class="mt-2 break-all text-sm font-medium">{{ file.name }}</p>
-        <button
-          type="button"
-          class="btn btn-secondary mt-4"
-          :disabled="reading || installing"
-          @click="input?.click()"
-          >{{ t('admin.plugins.review.chooseFile') }}</button
+        <p
+          v-if="file"
+          class="mx-auto mt-4 inline-flex max-w-full items-center gap-2 rounded-control bg-gray-100 px-3 py-1.5 text-sm text-gray-900 dark:bg-dark-800 dark:text-dark-50"
+          ><Icon name="archive" size="sm" class="shrink-0" :animate-on-hover="false" /><span
+            class="truncate"
+            >{{ file.name }}</span
+          ></p
         >
       </div>
-      <ContentSkeleton v-if="reading" :rows="3" />
+      <ContentSkeleton v-if="reading" variant="detail" :rows="4" />
       <template v-else-if="preview">
-        <PluginManifestReview
+        <SettingsNotice tone="warning">{{ t('admin.plugins.review.trustWarning') }}</SettingsNotice>
+        <PluginReleaseReview
           :manifest="preview.manifest"
-          :digest="preview.manifest_sha256"
+          icon-src=""
+          trust="upload"
           :platform="preview.platform"
-          :new-permissions="existing ? newPermissions : []"
+          :digest="preview.manifest_sha256"
+          :new-permissions="existing ? newPermissions : undefined"
         />
-        <div class="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-600">
-          <p class="text-sm text-amber-700 dark:text-amber-400">{{
-            t('admin.plugins.review.trustWarning')
-          }}</p>
+        <div class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700">
           <label v-if="preview.manifest.permissions?.length" class="flex items-start gap-2 text-sm"
             ><input
               v-model="accepted"
@@ -261,14 +290,16 @@ onBeforeUnmount(() => {
               :disabled="installing"
             /><span>{{ t('admin.plugins.review.acceptPermissions') }}</span></label
           >
-          <label v-if="!existing" class="flex items-center gap-2 text-sm"
-            ><input v-model="enable" type="checkbox" :disabled="installing" /><span>{{
-              t('admin.plugins.review.enableAfterInstall')
-            }}</span></label
-          >
+          <SettingToggleRow
+            v-if="!existing"
+            id="plugin-upload-enable"
+            v-model="enable"
+            :label="t('admin.plugins.review.enableAfterInstall')"
+            :disabled="installing"
+          />
         </div>
       </template>
-      <p v-if="error" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+      <SettingsNotice v-if="error" tone="error">{{ error }}</SettingsNotice>
     </div>
     <template #footer>
       <button

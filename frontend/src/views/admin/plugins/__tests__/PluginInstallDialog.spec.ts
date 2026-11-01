@@ -1,26 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { ref } from 'vue'
-import Select from '@/components/common/Select.vue'
-import PluginDetailDialog from '../PluginDetailDialog.vue'
+import PluginInstallDialog from '../PluginInstallDialog.vue'
 import { catalogFixture, installationFixture } from './fixtures'
 
-// PluginDetailDialog.spec.ts exercises exact-source review and release execution.
-// Transport fixtures supply accepted catalog decisions while the actual dialog
-// owns permission checkboxes, sanitized release notes, prerelease visibility, and
-// failed-update recovery feedback. No plugin code or remote resource executes here.
+// PluginInstallDialog.spec.ts exercises release review and execution for one catalog
+// source. Transport fixtures supply accepted catalog decisions while the actual
+// dialog owns permission acceptance, the operation kind, and failed-update recovery
+// feedback. No plugin code or remote resource executes here.
 
 // Each case starts with independent release metadata and a pass-through step-up
-// fixture so assertions observe the exact request selected after administrator review.
+// fixture so assertions observe the exact request chosen after administrator review.
 const fixture = vi.hoisted(() => ({
-  detail: vi.fn(),
   install: vi.fn(),
   update: vi.fn(),
   run: vi.fn(),
 }))
 const wrappers: VueWrapper[] = []
 vi.mock('@/api/admin/plugins', () => ({
-  catalogEntry: fixture.detail,
   install: fixture.install,
   update: fixture.update,
 }))
@@ -41,16 +38,17 @@ vi.mock('@/composables/useStepUp', async (original) => ({
 }))
 vi.mock('@/components/auth/TotpStepUpDialog.vue', () => ({ default: { template: '<div />' } }))
 
-/** renderDetail mounts an exact-source release review with optionally accepted local installation. */
-async function renderDetail(installed = false) {
+/** renderReview mounts a review for one version, optionally replacing an installation. */
+async function renderReview(version: string, installed = false) {
   const installation = installationFixture()
   installation.source = 'index'
   installation.index_id = 7
-  const wrapper = mount(PluginDetailDialog, {
+  const wrapper = mount(PluginInstallDialog, {
     props: {
       show: true,
       entry: catalogFixture(),
-      installations: installed ? [installation] : [],
+      version,
+      installation: installed ? installation : null,
       disabled: false,
     },
     global: { stubs: { Teleport: true } },
@@ -60,15 +58,19 @@ async function renderDetail(installed = false) {
   return wrapper
 }
 
-/** submitButton locates the dialog's sole primary persistence control for assertions. */
+/** submitButton locates the dialog's sole primary persistence control. */
 function submitButton(wrapper: VueWrapper) {
   return wrapper.get('button.btn-primary')
+}
+
+/** acceptance locates the native permission acceptance checkbox. */
+function acceptance(wrapper: VueWrapper) {
+  return wrapper.get('input[type="checkbox"]')
 }
 
 beforeEach(() => {
   vi.resetAllMocks()
   fixture.run.mockImplementation((action: () => Promise<unknown>) => action())
-  fixture.detail.mockResolvedValue(catalogFixture())
   fixture.install.mockResolvedValue({
     installation: installationFixture(),
     needs_configuration: false,
@@ -80,19 +82,18 @@ afterEach(() => {
 })
 
 describe('catalog release review', () => {
-  // Publisher release notes contain active markup while the administrator reviews an offered version.
-  // Sanitization removes script and event handlers, and switching versions clears the earlier capability approval before any install can execute.
-  it('sanitizes notes and requires fresh acceptance after changing releases', async () => {
-    const wrapper = await renderDetail()
-    expect(wrapper.find('.prose script').exists()).toBe(false)
-    expect(wrapper.find('.prose img').attributes('onerror')).toBeUndefined()
+  // The administrator accepts permissions for one release, then the page switches the
+  // review to another version. Acceptance resets, and the install request carries the
+  // second release's exact source, version, and permission set.
+  it('requires fresh acceptance after the reviewed release changes', async () => {
+    const wrapper = await renderReview('2.0.0')
     expect(submitButton(wrapper).attributes('disabled')).toBeDefined()
-    await wrapper.findAll('input[type="checkbox"]')[1]!.setValue(true)
+    await acceptance(wrapper).setValue(true)
     expect(submitButton(wrapper).attributes('disabled')).toBeUndefined()
-    wrapper.getComponent(Select).vm.$emit('update:modelValue', '1.0.0')
+    await wrapper.setProps({ version: '1.0.0' })
     await flushPromises()
     expect(submitButton(wrapper).attributes('disabled')).toBeDefined()
-    await wrapper.findAll('input[type="checkbox"]')[1]!.setValue(true)
+    await acceptance(wrapper).setValue(true)
     await submitButton(wrapper).trigger('click')
     await flushPromises()
     expect(fixture.install).toHaveBeenCalledWith(
@@ -101,13 +102,24 @@ describe('catalog release review', () => {
         index_id: 7,
         version: '1.0.0',
         accept_permissions: ['wallet.credit'],
+        enable: true,
       }),
     )
+    expect(wrapper.emitted('installed')).toHaveLength(1)
     expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
-  // The selected new version fails startup after an installed source has accepted the update request.
-  // The dialog retains its target and shows the old resumed version with bounded diagnostic text while requesting authoritative readback.
+  // An update review lists only the permission the new release adds, so the reviewer
+  // sees what they have not yet accepted before expanding the complete list.
+  it('highlights permissions that an update adds', async () => {
+    const wrapper = await renderReview('2.0.0', true)
+    expect(wrapper.text()).toContain('admin.plugins.review.newPermissions {"count":1}')
+    expect(wrapper.text()).toContain('wallet.debit')
+  })
+
+  // The selected new version fails startup after the update request was accepted.
+  // The dialog keeps its target and shows the resumed version and bounded startup
+  // diagnostics while requesting authoritative readback.
   it('keeps a failed update review open and displays restoration diagnostics', async () => {
     fixture.update.mockRejectedValue({
       reason: 'PLUGIN_UPDATE_FAILED',
@@ -118,8 +130,8 @@ describe('catalog release review', () => {
         logs: JSON.stringify([{ message: 'fixture startup failed' }]),
       },
     })
-    const wrapper = await renderDetail(true)
-    await wrapper.findAll('input[type="checkbox"]')[1]!.setValue(true)
+    const wrapper = await renderReview('2.0.0', true)
+    await acceptance(wrapper).setValue(true)
     await submitButton(wrapper).trigger('click')
     await flushPromises()
     expect(fixture.update).toHaveBeenCalledWith('test.configuration', {
@@ -128,31 +140,33 @@ describe('catalog release review', () => {
     })
     expect(wrapper.emitted('close')).toBeUndefined()
     expect(wrapper.emitted('changed')).toHaveLength(1)
-    expect(wrapper.text()).toContain('1.0.0')
+    expect(wrapper.text()).toContain('admin.plugins.market.restored {"version":"1.0.0"}')
+    const diagnostics = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('admin.plugins.market.startDiagnostics'))!
+    await diagnostics.trigger('click')
     expect(wrapper.text()).toContain('Init rejected')
     expect(wrapper.text()).toContain('fixture startup failed')
   })
 
-  // An accepted installation changes source while an older review is still visible.
-  // Current ownership prevents that stale review from routing an update through a different index, even if the earlier release was marked installable.
-  it('blocks a stale review after installation ownership changes', async () => {
-    const wrapper = await renderDetail(true)
-    await wrapper.findAll('input[type="checkbox"]')[1]!.setValue(true)
+  // Polling reveals that the plugin is now installed from another source while this
+  // review is open. The dialog refuses to route an update through the reviewed source.
+  it('blocks a review whose installation belongs to another source', async () => {
+    const wrapper = await renderReview('2.0.0', true)
+    await acceptance(wrapper).setValue(true)
     const other = installationFixture()
     other.source = 'index'
     other.index_id = 9
-    await wrapper.setProps({ installations: [other] })
+    await wrapper.setProps({ installation: other })
     expect(submitButton(wrapper).attributes('disabled')).toBeDefined()
     expect(fixture.update).not.toHaveBeenCalled()
   })
-  // The administrator opens details for the version already installed from this source.
-  // The footer names that installed version and no permission checkbox suggests that repeating approval can enable an unnecessary update.
-  it('explains why the current installed version cannot be updated to itself', async () => {
-    fixture.detail.mockResolvedValue({ ...catalogFixture(), recommended_version: '1.0.0' })
-    const wrapper = await renderDetail(true)
-    expect(submitButton(wrapper).text()).toContain('admin.plugins.market.installedVersion')
+
+  // Reviewing the version that is already installed offers no submission, because
+  // updating a plugin to its own version would only repeat an accepted approval.
+  it('does not submit the installed version again', async () => {
+    const wrapper = await renderReview('1.0.0', true)
+    await acceptance(wrapper).setValue(true)
     expect(submitButton(wrapper).attributes('disabled')).toBeDefined()
-    expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(1)
-    expect(fixture.update).not.toHaveBeenCalled()
   })
 })

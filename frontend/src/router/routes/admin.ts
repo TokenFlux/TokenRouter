@@ -16,6 +16,32 @@ export const adminRoutes: RouteRecordRaw[] = [
       titleKey: 'admin.plugins.title',
       descriptionKey: 'admin.plugins.description',
     },
+    // Earlier releases kept the market and source registrations behind query.tab;
+    // translate those bookmarks to the directory view and the sources page.
+    beforeEnter: (to) => {
+      if (to.query.tab === 'indexes') return { name: 'AdminPluginSources' }
+      if (to.query.tab === 'market') return { name: 'Plugins', query: { view: 'discover' } }
+      return true
+    },
+  },
+  // The sources page is declared before the detail pattern; plugin IDs always
+  // contain a dot, so the literal segment never shadows an installed plugin.
+  {
+    path: '/admin/plugins/sources',
+    name: 'AdminPluginSources',
+    component: () => import('@/views/admin/plugins/PluginSourcesView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      titleKey: 'admin.plugins.sourcesPage.title',
+      descriptionKey: 'admin.plugins.sourcesPage.description',
+    },
+  },
+  {
+    path: '/admin/plugins/:pluginId',
+    name: 'AdminPluginDetail',
+    component: () => import('@/views/admin/plugins/PluginDetailView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'admin.plugins.title' },
   },
   {
     path: '/admin/ext/:pluginId/:subpath(.*)*',

@@ -80,8 +80,9 @@ export function usePluginAdministration() {
   }
 
   /** refreshAfterChange reconciles an operation completed by a child editor or uploader.
-   * Child dialogs own their own serialized step-up interactions. Their successful
-   * persistence notifications trigger the same list and contribution reads as lifecycle actions.
+   * Child dialogs and editor tabs own their own serialized step-up interactions.
+   * Their successful persistence notifications trigger the same list and
+   * contribution reads as lifecycle actions.
    */
   async function refreshAfterChange(): Promise<void> {
     if (active) await Promise.allSettled([load(), discovery.refreshUi()])

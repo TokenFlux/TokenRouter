@@ -20,7 +20,11 @@ export const PRIVATE_MODULES = [
   {
     directory: 'src/views/admin/plugins/',
     owners: [],
-    entries: ['src/views/admin/plugins/PluginsView.vue'],
+    entries: [
+      'src/views/admin/plugins/PluginsView.vue',
+      'src/views/admin/plugins/PluginDetailView.vue',
+      'src/views/admin/plugins/PluginSourcesView.vue',
+    ],
   },
   {
     directory: 'src/views/admin/providers/',

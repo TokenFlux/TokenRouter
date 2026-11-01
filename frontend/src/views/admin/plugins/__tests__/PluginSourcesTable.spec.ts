@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { ref } from 'vue'
-import PluginIndexesTab from '../PluginIndexesTab.vue'
+import PluginSourcesTable from '../PluginSourcesTable.vue'
 import { indexFixture } from './fixtures'
 
-// PluginIndexesTab.spec.ts verifies source authority editing through rendered native forms.
-// Transport failures preserve user input, malformed URLs never reach the backend,
-// and builtin source edits can submit only enablement. These checks complement
+// PluginSourcesTable.spec.ts verifies source authority editing through rendered native
+// forms. Transport failures preserve user input, malformed URLs never reach the
+// backend, and builtin source edits can submit only enablement. These checks complement
 // server-side source locks and signature tests without making network requests.
 
 // Independent transport and step-up fixtures expose requested writes without
@@ -38,7 +38,7 @@ vi.mock('@/components/auth/TotpStepUpDialog.vue', () => ({ default: { template: 
 function renderIndexes(builtin = false) {
   const item = indexFixture()
   item.builtin = builtin
-  const wrapper = mount(PluginIndexesTab, {
+  const wrapper = mount(PluginSourcesTable, {
     props: { indexes: [item], loading: false, disabled: false },
     global: { stubs: { Teleport: true } },
   })
@@ -64,7 +64,9 @@ describe('index source editing', () => {
   // Client validation blocks the first request and the rejected second request retains every draft field for explicit retry.
   it('rejects insecure URLs and retains the source draft after save failure', async () => {
     const wrapper = renderIndexes()
-    await action(wrapper, 'admin.plugins.indexSettings.add').trigger('click')
+    // The sources page header owns the add button and opens the form through create().
+    ;(wrapper.vm as unknown as { create: () => void }).create()
+    await flushPromises()
     await wrapper.get('#plugin-index-name').setValue('Local source')
     await wrapper.get('#plugin-index-url').setValue('http://example.invalid/index.json')
     await action(wrapper, 'common.save').trigger('click')

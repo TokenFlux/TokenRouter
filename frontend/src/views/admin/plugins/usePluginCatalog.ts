@@ -2,19 +2,21 @@ import { onBeforeUnmount, ref, shallowRef, watch, type Ref } from 'vue'
 import * as pluginsAPI from '@/api/admin/plugins'
 import type { PluginCatalogEntry, PluginIndex } from '@/api/admin/plugins.types'
 
-// usePluginCatalog.ts owns market and source observations for the management page.
-// Each read generation cancels its predecessor and publishes only while this page
-// remains mounted. Source diagnostics and market entries can fail independently,
-// preserving accepted rows while the administrator retries a rejected transfer.
+// usePluginCatalog.ts owns catalog and source observations for the plugin
+// directory's discover view and the sources page. Each read generation cancels its
+// predecessor and publishes only while this page remains mounted. Source diagnostics
+// and market entries can fail independently, preserving accepted rows while the
+// administrator retries a rejected transfer.
 //
 // Catalog downloads remain backend-owned even when a browser waiter is canceled.
 // Explicit refresh therefore waits for verification and then rereads both views,
-// including after failure. Polling source diagnostics runs only in a visible
-// distribution tab while idle; installed process polling has its own controller.
-// Closing this owner cancels readers and timers without claiming server writes were undone.
+// including after failure. Polling source diagnostics runs only while the owner
+// reports the view as visible and idle; installed process polling has its own
+// controller. Closing this owner cancels readers and timers without claiming server
+// writes were undone.
 
 /** usePluginCatalog coordinates cancellable market reads and explicit source verification.
- * Call during page setup with a reactive distribution-tab visibility flag. Existing
+ * Call during page setup with a reactive visibility flag for the catalog view. Existing
  * rows survive refresh errors, and disposal prevents old responses from republishing.
  *
  * The same generation owns both read outcomes and loading cleanup. Source results

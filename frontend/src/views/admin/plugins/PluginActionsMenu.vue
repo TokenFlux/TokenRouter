@@ -5,29 +5,26 @@ import Icon from '@/components/icons/Icon.vue'
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import { getFloatingPanelPosition, type FloatingPanelPosition } from '@/utils/floatingPanel'
 
-// PluginActionsMenu.vue presents lifecycle actions beside one installed plugin.
-// It reuses native menu classes and viewport positioning, with a teleported panel
-// that remains outside the table's clipping area. Keyboard navigation moves among
-// available actions, and dismissal restores focus to the originating row control.
+// PluginActionsMenu.vue presents the less frequent lifecycle actions in the plugin
+// detail header: rollback to the previous release and uninstall. It reuses native
+// menu classes and viewport positioning, with a teleported panel that stays outside
+// clipping ancestors. Keyboard navigation moves among available actions, and
+// dismissal restores focus to the trigger.
 //
 // Scroll and resize observation exists only while the menu is open. If its trigger
 // disappears, positioning closes the panel and releases listeners. The transition
 // retains exit rendering while semantic visibility and keyboard handling follow the
 // current open state, preventing a hidden menu from continuing to receive actions.
 
-// Props applies the parent operation lock and emergency execution switch to each
-// available action; uninstall remains selectable when only execution is disabled.
+// Props applies the parent operation lock and emergency switch to each action;
+// uninstall remains selectable while the emergency switch blocks release changes.
 const props = defineProps<{
   disabled?: boolean // Parent operation locks all actions.
-  updateAvailable?: boolean // Indexed update can be reviewed.
   previousVersion?: string // Accepted manual rollback release version.
   changesDisabled?: boolean // Emergency switch blocks release changes.
-  executionDisabled?: boolean // Emergency switch blocks process actions.
 }>()
 const emit = defineEmits<{
-  update: [] // Opens reviewed indexed update selection.
   rollback: [] // Opens previous release confirmation.
-  restart: [] // Requests the reviewed restart action.
   uninstall: [] // Opens the parent uninstall confirmation.
 }>()
 const { t } = useI18n()
@@ -47,7 +44,7 @@ const style = computed(() =>
     : {},
 )
 
-/** reposition keeps the teleported menu aligned with its current row trigger.
+/** reposition keeps the teleported menu aligned with its current trigger.
  * Missing triggers close the menu. Native positioning clamps its width and
  * chooses the available viewport side while the panel supplies its own scrolling.
  */
@@ -61,17 +58,17 @@ function reposition(): void {
     trigger.value.getBoundingClientRect(),
     window.innerWidth,
     window.innerHeight,
-    { maxWidth: 208, pinLeftOnMobile: false },
+    { maxWidth: 208, pinLeftOnMobile: false, align: 'right' },
   )
 }
 
-/** close dismisses the menu and restores keyboard focus to its row action control. */
+/** close dismisses the menu and restores keyboard focus to its trigger. */
 function close(): void {
   open.value = false
   trigger.value?.focus()
 }
 
-/** toggle opens one row menu and focuses its first available action after rendering.
+/** toggle opens the menu and focuses its first available action after rendering.
  * A disabled parent ignores activation. If the menu closes before the render tick,
  * focus remains with the control that handled that later interaction.
  */
@@ -115,20 +112,13 @@ function navigate(event: KeyboardEvent): void {
 
 /** select forwards one action only while this menu is open and unlocked.
  * It closes and restores focus before emitting, allowing a parent dialog to
- * capture the originating row control while an exiting menu ignores further activation.
+ * capture the trigger as its return target while an exiting menu ignores further activation.
  */
-function select(action: 'restart' | 'uninstall' | 'update' | 'rollback'): void {
+function select(action: 'uninstall' | 'rollback'): void {
   if (!open.value || props.disabled) return
-  if (
-    (action === 'restart' && props.executionDisabled) ||
-    (action === 'update' && (!props.updateAvailable || props.changesDisabled)) ||
-    (action === 'rollback' && (!props.previousVersion || props.changesDisabled))
-  )
-    return
+  if (action === 'rollback' && (!props.previousVersion || props.changesDisabled)) return
   close()
-  if (action === 'update') emit('update')
-  else if (action === 'rollback') emit('rollback')
-  else if (action === 'restart') emit('restart')
+  if (action === 'rollback') emit('rollback')
   else emit('uninstall')
 }
 
@@ -157,7 +147,7 @@ onBeforeUnmount(stopPositioning)
   <button
     ref="trigger"
     type="button"
-    class="btn btn-ghost btn-icon btn-sm"
+    class="btn btn-secondary btn-icon"
     :aria-label="t('admin.plugins.actions')"
     :title="t('admin.plugins.actions')"
     aria-haspopup="menu"
@@ -183,14 +173,6 @@ onBeforeUnmount(stopPositioning)
           type="button"
           role="menuitem"
           class="dropdown-item"
-          :disabled="!updateAvailable || changesDisabled"
-          @click="select('update')"
-          ><Icon name="download" size="sm" />{{ t('admin.plugins.update') }}</button
-        >
-        <button
-          type="button"
-          role="menuitem"
-          class="dropdown-item"
           :disabled="!previousVersion || changesDisabled"
           @click="select('rollback')"
           ><Icon name="history" size="sm" />{{
@@ -198,14 +180,6 @@ onBeforeUnmount(stopPositioning)
               ? t('admin.plugins.rollbackTo', { version: previousVersion })
               : t('admin.plugins.rollback')
           }}</button
-        >
-        <button
-          type="button"
-          role="menuitem"
-          class="dropdown-item"
-          :disabled="executionDisabled"
-          @click="select('restart')"
-          ><Icon name="refresh" size="sm" />{{ t('admin.plugins.restart') }}</button
         >
         <button
           type="button"

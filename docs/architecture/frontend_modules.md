@@ -48,7 +48,7 @@ API 记录按所属领域维护在 `api/*.types.ts` 或 `api/admin/*.types.ts`�
 
 `i18n/index.ts` 在发布语言后动态加载 `router/title`、`router/index`、`stores/app`、`stores/auth` 、`stores/adminSettings` 和 `stores/plugins`，刷新页面标题并发送语言变化事件。需要持久化账户语言时再加载 `api/client`，按语言代次和用户身份串行写入偏好。这些准确的运行时依赖保持原来的初始化时序；它们不属于 API 向页面依赖的例外。共享工具中存在响应式缓存和浏览器 I/O，阅读调用方后再决定是否提取纯规则。
 
-插件管理入口为 `views/admin/plugins/PluginsView.vue`。该目录独占安装列表、市场筛选、来源管理、版本详情、生命周期动作、上传预览、配置/额度保存和日志读取；共享字段渲染与权限展示保留在 `components/plugin/`。管理器按写操作串行使用 step-up，成功和失败后都读回安装与菜单状态，避免把网络错误当成未写入的证明。配置与额度分别保存，后一项失败时保留已完成的配置基线和未完成的额度草稿。市场和来源页签由 query.tab 记录，筛选在切换时保留；详情读取固定索引身份，切换版本清除旧权限确认。更新失败保留目标和恢复诊断；当前版本详情直接显示已安装状态，不再要求无效的重复权限确认。
+插件管理目录 `views/admin/plugins/` 有三个路由入口：`PluginsView.vue` 是插件目录（`/admin/plugins`，query.view 区分已安装、可更新和发现），`PluginDetailView.vue` 是单个插件的详情页（`/admin/plugins/:pluginId`，query.tab 区分概览、配置、额度、日志和版本），`PluginSourcesView.vue` 管理索引来源（`/admin/plugins/sources`）。旧的 `?tab=market` 和 `?tab=indexes` 由路由守卫转到发现视图和来源页。详情页只在安装记录属于 query.source 指定的来源时把插件当作已安装；没有 source 时使用安装记录的来源读取目录条目，上传和开发目录安装没有目录条目。共享字段渲染与权限展示保留在 `components/plugin/`。管理器按写操作串行使用 step-up，成功和失败后都读回安装与菜单状态，避免把网络错误当成未写入的证明。配置和额度是详情页的两个标签，各自保存，失败时保留草稿。安装审阅固定索引身份和版本，换版本会清除之前的权限确认；更新失败保留目标和恢复诊断。
 
 ## 插件页面与共享运行时
 

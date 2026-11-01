@@ -1,192 +1,163 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, shallowRef } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import * as pluginsAPI from '@/api/admin/plugins'
-import type { PluginInstallation, PluginCatalogEntry } from '@/api/admin/plugins.types'
+import type { PluginChange, PluginInstallation } from '@/api/admin/plugins.types'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import SearchInput from '@/components/common/SearchInput.vue'
+import Select from '@/components/common/Select.vue'
+import SettingsNotice from '@/components/common/settings/SettingsNotice.vue'
 import Icon from '@/components/icons/Icon.vue'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { pluginText } from '@/components/plugin/configurationFields'
-import { usePluginsStore } from '@/stores/plugins'
-import { useAppStore } from '@/stores/app'
 import { isStepUpCancelled } from '@/composables/useStepUp'
-import InstalledPluginsTab from './InstalledPluginsTab.vue'
-import PluginConfigDialog from './PluginConfigDialog.vue'
-import PluginLogsDialog from './PluginLogsDialog.vue'
+import { usePluginsStore } from '@/stores/plugins'
+import InstalledPluginList from './InstalledPluginList.vue'
+import PluginCatalogGrid from './PluginCatalogGrid.vue'
 import PluginUploadDialog from './PluginUploadDialog.vue'
 import { usePluginAdministration } from './usePluginAdministration'
-import { pluginErrorMessage } from './pluginErrors'
 import { usePluginCatalog } from './usePluginCatalog'
-import PluginCatalogTab from './PluginCatalogTab.vue'
-import PluginIndexesTab from './PluginIndexesTab.vue'
-import PluginDetailDialog from './PluginDetailDialog.vue'
+import { pluginErrorMessage } from './pluginErrors'
 
-// PluginsView.vue coordinates installed plugins, market review, and catalog sources.
-// Native table controls select an installation before opening configuration,
-// diagnostics, update review, or restoration confirmation. Query-persisted tabs
-// retain local filters while changing visible content. Lifecycle writes pass through one
-// serialized step-up controller, while child editors own their scoped persistence
-// and notify this page to reconcile installation and navigation observations.
+// PluginsView.vue is the plugin directory: installed plugins, plugins with offered
+// updates, and the catalog of source-qualified plugins to discover. The active view
+// lives in query.view so links and reloads keep it, and one search box filters
+// whichever view is visible. Every row and card opens the plugin detail page, which
+// owns configuration, logs, versions, and destructive actions.
 //
-// Uninstall keeps business data by default and requires an explicit purge choice.
-// Failed actions leave their selected object and confirmation available for review;
-// successful deletion closes only after the backend has drained work and removed
-// the installation. Global plugin disablement keeps inspection and uninstall usable
-// while blocking execution controls and new package installation in this page.
+// Enablement stays editable from the list because it is the most frequent lifecycle
+// action. Writes pass through the shared administration controller, so step-up and
+// readback follow the same rules as the detail page; a plugin that needs required
+// configuration before enabling sends the administrator to its configuration tab.
+// Global plugin disablement keeps the directory readable while blocking execution
+// controls and new package installation.
 
-/** PluginTab names the query-persisted administrative distribution views. */
-type PluginTab = 'installed' | 'market' | 'indexes'
+/** PluginView names the query-persisted directory views. */
+type PluginView = 'installed' | 'updates' | 'discover'
 
-// Shared stores supply authoritative observations and feedback; selected objects remain
-// stable while dialogs are open even when polling replaces the visible source rows.
+// Route state, shared stores, and the two observation controllers feed the views.
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const tab = computed<PluginTab>(() =>
-  route.query.tab === 'market' || route.query.tab === 'indexes' ? route.query.tab : 'installed',
-)
-const distributionVisible = computed(() => tab.value !== 'installed')
-const market = usePluginCatalog(distributionVisible)
-const {
-  entries: catalogEntries,
-  indexes,
-  loading: catalogLoading,
-  refreshing,
-  error: catalogError,
-} = market
-const tabs = computed(() => [
-  { key: 'installed' as const, label: t('admin.plugins.installed') },
-  { key: 'market' as const, label: t('admin.plugins.catalog') },
-  { key: 'indexes' as const, label: t('admin.plugins.indexes') },
-])
-const selectedEntry = shallowRef<PluginCatalogEntry | null>(null)
-const detailsOpen = ref(false)
-const selectedRollback = shallowRef<PluginInstallation | null>(null)
-const rollbackOpen = ref(false)
-const app = useAppStore()
 const discovery = usePluginsStore()
 const administration = usePluginAdministration()
 const { installations, loading, busy, error, stepUp } = administration
-const selectedConfig = shallowRef<PluginInstallation | null>(null)
-const selectedLogs = shallowRef<PluginInstallation | null>(null)
-const selectedDelete = shallowRef<PluginInstallation | null>(null)
-const configOpen = ref(false)
-const logsOpen = ref(false)
+const view = computed<PluginView>(() =>
+  route.query.view === 'updates' || route.query.view === 'discover'
+    ? route.query.view
+    : 'installed',
+)
+// The catalog controller polls only while the discover view is visible.
+const market = usePluginCatalog(computed(() => view.value === 'discover'))
+const { entries, indexes, loading: catalogLoading, refreshing, error: catalogError } = market
+
+// Local filters survive view changes so switching back keeps the administrator's query.
+const search = ref('')
+const category = ref('')
+const source = ref<number | string>('')
 const uploadOpen = ref(false)
-const deleteOpen = ref(false)
-const purge = ref(false)
 const actionError = ref('')
-const deleteName = computed(() =>
-  pluginText(
-    selectedDelete.value?.manifest.name,
-    locale.value,
-    selectedDelete.value?.plugin_id ?? '',
+
+// Derived view state: offered updates, tab labels, filter options, and the search term.
+const updates = computed(() => installations.value.filter((item) => !!item.update_version))
+const views = computed(() => [
+  {
+    key: 'installed' as const,
+    label: t('admin.plugins.installed'),
+    count: installations.value.length,
+  },
+  {
+    key: 'updates' as const,
+    label: t('admin.plugins.directory.updates'),
+    count: updates.value.length,
+  },
+  { key: 'discover' as const, label: t('admin.plugins.directory.discover'), count: 0 },
+])
+const categories = computed(() => [
+  { value: '', label: t('admin.plugins.market.allCategories') },
+  ...['engagement', 'tools', 'analytics', 'content', 'integration', 'other'].map((value) => ({
+    value,
+    label: t(`admin.plugins.market.categories.${value}`),
+  })),
+])
+const enabledSources = computed(() => indexes.value.filter((item) => item.enabled))
+const sources = computed(() => [
+  { value: '', label: t('admin.plugins.market.allIndexes') },
+  ...enabledSources.value.map((item) => ({ value: item.id, label: item.name })),
+])
+const term = computed(() => search.value.trim().toLocaleLowerCase())
+const sourceFailed = computed(() => enabledSources.value.some((item) => item.last_error))
+
+/** matches reports whether any of the supplied plugin texts contains the search term. */
+function matches(...texts: (string | undefined)[]): boolean {
+  return !term.value || texts.join(' ').toLocaleLowerCase().includes(term.value)
+}
+
+// Filtered rows for the installed or updates view and for the discover grid.
+const visibleInstallations = computed(() =>
+  (view.value === 'updates' ? updates.value : installations.value).filter((item) =>
+    matches(
+      item.plugin_id,
+      pluginText(item.manifest.name, locale.value),
+      pluginText(item.manifest.description, locale.value),
+      item.manifest.publisher?.name,
+    ),
+  ),
+)
+const visibleEntries = computed(() =>
+  entries.value.filter(
+    (entry) =>
+      (!category.value || entry.categories.includes(category.value)) &&
+      (source.value === '' || entry.index_id === source.value) &&
+      matches(
+        entry.id,
+        pluginText(entry.manifest.name, locale.value),
+        pluginText(entry.manifest.description, locale.value),
+        entry.manifest.publisher?.name,
+      ),
   ),
 )
 
-/** selectTab preserves unrelated route parameters while recording the chosen administrative view. */
-async function selectTab(value: PluginTab): Promise<void> {
+/** selectView records the chosen directory view while preserving unrelated query values. */
+async function selectView(value: PluginView): Promise<void> {
   await router.replace({
-    query: { ...route.query, tab: value === 'installed' ? undefined : value },
+    query: { ...route.query, view: value === 'installed' ? undefined : value },
   })
 }
 
-/** navigateTabs supports wrapped arrow navigation and native Home or End selection.
- * Selection is recorded before focus moves to its button. Unrecognized keys keep
- * their ordinary browser behavior and do not change the active content panel.
+/** navigateViews supports wrapped arrow navigation and Home or End selection.
+ * Selection is recorded before focus moves to the newly active tab; other keys
+ * keep their ordinary browser behavior.
  */
-async function navigateTabs(event: KeyboardEvent, index: number): Promise<void> {
+async function navigateViews(event: KeyboardEvent, index: number): Promise<void> {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
+  const count = views.value.length
   const next =
     event.key === 'Home'
       ? 0
       : event.key === 'End'
-        ? 2
-        : (index + (event.key === 'ArrowLeft' ? -1 : 1) + 3) % 3
-  const value = tabs.value[next]!.key
-  await selectTab(value)
+        ? count - 1
+        : (index + (event.key === 'ArrowLeft' ? -1 : 1) + count) % count
+  const value = views.value[next]!.key
+  await selectView(value)
   await nextTick()
-  document.getElementById(`plugin-tab-${value}`)?.focus()
+  document.getElementById(`plugin-view-${value}`)?.focus()
 }
 
-/** showDetails retains the selected catalog authority before opening release review. */
-function showDetails(entry: PluginCatalogEntry): void {
-  selectedEntry.value = entry
-  detailsOpen.value = true
-}
-
-/** reviewUpdate reads the installed source explicitly before opening its offered release choices.
- * Removed sources cannot be replaced by matching IDs elsewhere. A lookup failure
- * remains on the installed list so the administrator can inspect or retry it.
- */
-async function reviewUpdate(item: PluginInstallation): Promise<void> {
-  if (item.index_id === null || busy.value || discovery.disabled) return
-  actionError.value = ''
-  try {
-    showDetails(await pluginsAPI.catalogEntry(item.index_id, item.plugin_id))
-  } catch (failure) {
-    actionError.value = pluginErrorMessage(failure, t('admin.plugins.loadFailed'))
-  }
-}
-
-/** refreshDistribution rereads catalog and installation annotations after source or release changes. */
-async function refreshDistribution(): Promise<void> {
-  await Promise.allSettled([market.load(), administration.refreshAfterChange()])
-}
-
-/** refreshIndexes revalidates source caches before refreshing installed update annotations. */
-async function refreshIndexes(): Promise<void> {
-  await market.refresh()
-  await administration.load()
-}
-
-/** askRollback keeps the accepted previous version visible during explicit restoration confirmation. */
-function askRollback(item: PluginInstallation): void {
-  selectedRollback.value = item
-  actionError.value = ''
-  rollbackOpen.value = true
-}
-
-/** rollback exchanges complete accepted snapshots and reports the resulting runtime observation.
- * Failure preserves confirmation for retry. The shared administration controller
- * rereads installed and navigation state after either persistence or recovery outcome.
- */
-async function rollback(): Promise<void> {
-  const item = selectedRollback.value
-  if (!item || busy.value || discovery.disabled) return
-  actionError.value = ''
-  try {
-    const result = await administration.run(() => pluginsAPI.rollback(item.plugin_id))
-    if (result.installation.status.state === 'failed')
-      app.showError(result.installation.status.last_error || t('admin.plugins.unknownError'))
-    else app.showSuccess(t('admin.plugins.rolledBack', { version: result.installation.version }))
-    rollbackOpen.value = false
-    void market.load()
-  } catch (failure) {
-    if (!isStepUpCancelled(failure))
-      actionError.value = pluginErrorMessage(failure, t('admin.plugins.unknownError'))
-  }
-}
-
-/** configure opens the native editor with the selected accepted installation snapshot. */
-function configure(item: PluginInstallation): void {
-  selectedConfig.value = item
-  configOpen.value = true
-}
-
-/** showLogs opens diagnostics for the selected installation without changing its enabled intent. */
-function showLogs(item: PluginInstallation): void {
-  selectedLogs.value = item
-  logsOpen.value = true
+/** refresh rereads the visible view; the discover view also revalidates source caches. */
+function refresh(): void {
+  if (view.value === 'discover') void market.refresh()
+  else void administration.load()
 }
 
 /** toggle persists enabled intent and reports any required configuration or startup failure.
  * The visible switch follows backend readback rather than optimistic mutation.
- * Step-up cancellation leaves the prior state and does not produce an error toast.
+ * Missing required configuration opens the plugin's configuration tab, because
+ * enabling cannot succeed until those fields are saved. Step-up cancellation keeps
+ * the prior state without an error message.
  */
 async function toggle(item: PluginInstallation, enabled: boolean): Promise<void> {
   if (busy.value) return
@@ -196,8 +167,7 @@ async function toggle(item: PluginInstallation, enabled: boolean): Promise<void>
       enabled ? pluginsAPI.enable(item.plugin_id) : pluginsAPI.disable(item.plugin_id),
     )
     if (result.needs_configuration) {
-      configure(result.installation)
-      app.showInfo(t('admin.plugins.needsConfiguration'))
+      await openDetail(result.installation.plugin_id, 'config')
     } else if (result.installation.status.state === 'failed') {
       actionError.value = result.installation.status.last_error || t('admin.plugins.unknownError')
     }
@@ -207,227 +177,203 @@ async function toggle(item: PluginInstallation, enabled: boolean): Promise<void>
   }
 }
 
-/** restart requests a native restart and retains backend diagnostic failures for inspection. */
-async function restart(item: PluginInstallation): Promise<void> {
-  if (busy.value) return
-  actionError.value = ''
-  try {
-    await administration.run(() => pluginsAPI.restart(item.plugin_id))
-    app.showSuccess(t('admin.plugins.restarted'))
-  } catch (failure) {
-    if (!isStepUpCancelled(failure))
-      actionError.value = pluginErrorMessage(failure, t('admin.plugins.unknownError'))
-  }
+/** openDetail navigates to an installed plugin's detail page, optionally on one tab. */
+async function openDetail(pluginId: string, tab?: string): Promise<void> {
+  await router.push({
+    name: 'AdminPluginDetail',
+    params: { pluginId },
+    query: tab ? { tab } : undefined,
+  })
 }
 
-/** askUninstall selects the target and resets data retention to its conservative default. */
-function askUninstall(item: PluginInstallation): void {
-  selectedDelete.value = item
-  purge.value = false
-  actionError.value = ''
-  deleteOpen.value = true
-}
-
-/** cancelUninstall dismisses confirmation only before a lifecycle write owns its decision.
- * Header dismissal and Escape use the same guard as the footer. An in-flight
- * drain or step-up question retains the selected target until it settles.
- */
-function cancelUninstall(): void {
-  if (!busy.value) deleteOpen.value = false
-}
-
-/** uninstall applies the confirmed retention choice before closing the destructive dialog.
- * The backend drains execution before deletion. Failure keeps the target and
- * choice visible; readback still reconciles any persisted state before another attempt.
- */
-async function uninstall(): Promise<void> {
-  if (busy.value) return
-  const item = selectedDelete.value
-  if (!item) return
-  actionError.value = ''
-  try {
-    await administration.run(() => pluginsAPI.uninstall(item.plugin_id, purge.value))
-    deleteOpen.value = false
-    app.showSuccess(t('admin.plugins.uninstalled'))
-  } catch (failure) {
-    if (!isStepUpCancelled(failure))
-      actionError.value = pluginErrorMessage(failure, t('admin.plugins.unknownError'))
-  }
+/** installed opens the detail page of a plugin installed or updated from an uploaded package. */
+function installed(result: PluginChange): void {
+  void openDetail(result.installation.plugin_id, result.needs_configuration ? 'config' : undefined)
 }
 </script>
 
 <template>
-  <AppLayout fit-viewport>
-    <template #page-heading-actions
-      ><button
-        type="button"
-        class="btn btn-secondary"
-        :disabled="busy || discovery.disabled"
-        @click="uploadOpen = true"
-        ><Icon name="upload" size="sm" />{{ t('admin.plugins.upload') }}</button
-      ></template
-    >
+  <AppLayout>
     <div
       role="tablist"
       :aria-label="t('admin.plugins.title')"
-      class="mb-4 flex shrink-0 overflow-x-auto border-b border-gray-200 dark:border-dark-700"
+      class="mb-4 flex overflow-x-auto border-b border-gray-200 dark:border-dark-700"
     >
       <button
-        v-for="(item, index) in tabs"
-        :id="`plugin-tab-${item.key}`"
+        v-for="(item, index) in views"
+        :id="`plugin-view-${item.key}`"
         :key="item.key"
         type="button"
         role="tab"
-        :aria-selected="tab === item.key"
-        :aria-controls="`plugin-panel-${item.key}`"
-        :tabindex="tab === item.key ? 0 : -1"
-        class="shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-600"
+        :aria-selected="view === item.key"
+        :tabindex="view === item.key ? 0 : -1"
+        class="inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium"
         :class="
-          tab === item.key
-            ? 'border-primary-600 text-primary-600'
-            : 'border-transparent text-gray-500 dark:text-dark-400'
+          view === item.key
+            ? 'border-primary-500 text-primary-700 dark:text-primary-300'
+            : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-dark-400 dark:hover:text-white'
         "
-        @click="selectTab(item.key)"
-        @keydown="navigateTabs($event, index)"
-        >{{ item.label }}</button
+        @click="selectView(item.key)"
+        @keydown="navigateViews($event, index)"
       >
-    </div>
-    <div v-if="tab !== 'installed'" class="mb-3 space-y-2"
-      ><p v-if="discovery.disabled" class="text-sm text-amber-700 dark:text-amber-400">{{
-        t('admin.plugins.disabledNotice')
-      }}</p
-      ><p v-if="catalogError" role="alert" class="text-sm text-red-600 dark:text-red-400">{{
-        pluginErrorMessage(catalogError, t('admin.plugins.loadFailed'))
-      }}</p
-      ><p
-        v-if="tab === 'market' && indexes.some((index) => index.enabled && index.last_error)"
-        class="text-sm text-amber-700 dark:text-amber-400"
-        >{{ t('admin.plugins.market.sourceErrors') }}</p
-      ></div
-    >
-    <TablePageLayout
-      v-show="tab === 'installed'"
-      id="plugin-panel-installed"
-      role="tabpanel"
-      aria-labelledby="plugin-tab-installed"
-    >
-      <template #actions>
-        <p v-if="discovery.disabled" class="text-sm text-amber-700 dark:text-amber-400">{{
-          t('admin.plugins.disabledNotice')
-        }}</p>
-        <p
-          v-if="error || (actionError && !deleteOpen && !rollbackOpen)"
-          role="alert"
-          class="text-sm text-red-600 dark:text-red-400"
-          >{{ actionError || pluginErrorMessage(error, t('admin.plugins.loadFailed')) }}</p
+        {{ item.label }}
+        <span
+          v-if="item.key === 'installed' && item.count"
+          class="tabular-nums text-gray-400 dark:text-dark-500"
+          >{{ item.count }}</span
         >
-      </template>
-      <template #filters
-        ><div class="flex justify-end"
-          ><button
+        <span v-if="item.key === 'updates' && item.count" class="badge badge-primary">{{
+          item.count
+        }}</span>
+      </button>
+    </div>
+    <div class="space-y-4">
+      <SettingsNotice v-if="discovery.disabled" tone="warning">{{
+        t('admin.plugins.disabledNotice')
+      }}</SettingsNotice>
+      <SettingsNotice v-if="actionError || (error && view !== 'discover')" tone="error">{{
+        actionError || pluginErrorMessage(error, t('admin.plugins.loadFailed'))
+      }}</SettingsNotice>
+      <SettingsNotice v-if="catalogError && view === 'discover'" tone="error">{{
+        pluginErrorMessage(catalogError, t('admin.plugins.loadFailed'))
+      }}</SettingsNotice>
+      <SettingsNotice v-if="sourceFailed && view === 'discover'" tone="warning">
+        <p
+          >{{ t('admin.plugins.market.sourceErrors') }}
+          <RouterLink
+            :to="{ name: 'AdminPluginSources' }"
+            class="font-medium underline underline-offset-2"
+            >{{ t('admin.plugins.directory.viewSources') }}</RouterLink
+          ></p
+        >
+      </SettingsNotice>
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1">
+          <SearchInput
+            v-model="search"
+            class="min-w-0 flex-1 sm:w-64 sm:flex-none"
+            :placeholder="t('admin.plugins.market.search')"
+          />
+          <template v-if="view === 'discover'">
+            <Select
+              v-model="category"
+              :options="categories"
+              :aria-label="t('admin.plugins.market.category')"
+              class="w-36 shrink-0"
+            />
+            <Select
+              v-if="enabledSources.length > 1"
+              v-model="source"
+              :options="sources"
+              :aria-label="t('admin.plugins.source')"
+              class="w-44 shrink-0"
+            />
+          </template>
+        </div>
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <button
             type="button"
             class="btn btn-secondary btn-icon"
-            :title="t('common.refresh')"
-            :aria-label="t('common.refresh')"
-            :disabled="loading || busy"
-            @click="administration.load"
-            ><Icon name="refresh" size="sm" /></button></div
-      ></template>
-      <template #table
-        ><InstalledPluginsTab
-          :installations="installations"
-          :loading="loading"
+            :title="t('admin.plugins.refresh')"
+            :aria-label="t('admin.plugins.refresh')"
+            :disabled="busy || loading || refreshing || (view === 'discover' && discovery.disabled)"
+            @click="refresh"
+            ><Icon name="refresh" size="sm" :class="(loading || refreshing) && 'animate-spin'"
+          /></button>
+          <RouterLink :to="{ name: 'AdminPluginSources' }" class="btn btn-secondary"
+            ><Icon name="server" size="sm" />{{ t('admin.plugins.sourcesPage.title') }}</RouterLink
+          >
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="busy || discovery.disabled"
+            @click="uploadOpen = true"
+            ><Icon name="upload" size="sm" />{{ t('admin.plugins.upload') }}</button
+          >
+        </div>
+      </div>
+
+      <template v-if="view !== 'discover'">
+        <InstalledPluginList
+          v-if="(loading && !installations.length) || visibleInstallations.length"
+          :installations="visibleInstallations"
+          :loading="loading && !installations.length"
           :busy="busy"
           :globally-disabled="discovery.disabled"
-          @configure="configure"
-          @logs="showLogs"
+          :updates="view === 'updates'"
           @toggle="toggle"
-          @restart="restart"
-          @uninstall="askUninstall"
-          @update="reviewUpdate"
-          @rollback="askRollback"
-      /></template>
-    </TablePageLayout>
-    <PluginCatalogTab
-      v-show="tab === 'market'"
-      id="plugin-panel-market"
-      role="tabpanel"
-      aria-labelledby="plugin-tab-market"
-      :entries="catalogEntries"
-      :indexes="indexes"
-      :loading="catalogLoading"
-      :refreshing="refreshing"
-      :disabled="discovery.disabled"
-      @select="showDetails"
-      @refresh="refreshIndexes"
-    />
-    <div
-      v-show="tab === 'indexes'"
-      id="plugin-panel-indexes"
-      role="tabpanel"
-      aria-labelledby="plugin-tab-indexes"
-      class="flex min-h-0 flex-1 flex-col"
-      ><PluginIndexesTab
-        :indexes="indexes"
-        :loading="catalogLoading || refreshing"
-        :disabled="discovery.disabled"
-        @changed="refreshDistribution"
-        @refresh="refreshIndexes"
-    /></div>
-    <PluginDetailDialog
-      :show="detailsOpen"
-      :entry="selectedEntry"
-      :installations="installations"
-      :disabled="discovery.disabled"
-      @close="detailsOpen = false"
-      @changed="refreshDistribution"
-    />
-    <ConfirmDialog
-      :show="rollbackOpen"
-      :title="t('admin.plugins.rollbackTo', { version: selectedRollback?.previous_version })"
-      :message="t('admin.plugins.rollbackHint')"
-      :confirm-text="t('admin.plugins.rollback')"
-      :loading="busy"
-      @cancel="!busy && (rollbackOpen = false)"
-      @confirm="rollback"
-      ><p v-if="actionError" role="alert" class="text-sm text-red-600 dark:text-red-400">{{
-        actionError
-      }}</p></ConfirmDialog
-    >
-    <PluginConfigDialog
-      :show="configOpen"
-      :installation="selectedConfig"
-      :read-only="discovery.disabled"
-      @close="configOpen = false"
-      @saved="administration.refreshAfterChange"
-    />
-    <PluginLogsDialog :show="logsOpen" :installation="selectedLogs" @close="logsOpen = false" />
+        />
+        <div v-else class="card">
+          <EmptyState
+            v-if="term"
+            :title="t('admin.plugins.directory.noMatches')"
+            :description="t('admin.plugins.directory.noMatchesHint')"
+          >
+            <template #icon><Icon name="search" size="xl" class="empty-state-icon" /></template>
+          </EmptyState>
+          <EmptyState
+            v-else-if="view === 'updates'"
+            :title="t('admin.plugins.directory.upToDate')"
+            :description="t('admin.plugins.directory.upToDateHint')"
+          >
+            <template #icon
+              ><Icon name="checkCircle" size="xl" class="empty-state-icon"
+            /></template>
+          </EmptyState>
+          <EmptyState
+            v-else
+            :title="t('admin.plugins.empty')"
+            :description="t('admin.plugins.emptyHint')"
+          >
+            <template #icon><Icon name="puzzle" size="xl" class="empty-state-icon" /></template>
+            <template #action>
+              <button type="button" class="btn btn-primary" @click="selectView('discover')">
+                <Icon name="search" size="sm" />{{ t('admin.plugins.directory.browse') }}
+              </button>
+            </template>
+          </EmptyState>
+        </div>
+      </template>
+      <template v-else>
+        <PluginCatalogGrid
+          v-if="(catalogLoading && !entries.length) || visibleEntries.length"
+          :entries="visibleEntries"
+          :loading="catalogLoading && !entries.length"
+        />
+        <div v-else class="card">
+          <EmptyState
+            :title="
+              t(
+                entries.length
+                  ? 'admin.plugins.directory.noMatches'
+                  : 'admin.plugins.directory.emptyCatalog',
+              )
+            "
+            :description="
+              t(
+                entries.length
+                  ? 'admin.plugins.directory.noMatchesHint'
+                  : 'admin.plugins.market.empty',
+              )
+            "
+          >
+            <template #icon><Icon name="search" size="xl" class="empty-state-icon" /></template>
+            <template v-if="!entries.length" #action>
+              <RouterLink :to="{ name: 'AdminPluginSources' }" class="btn btn-secondary">
+                <Icon name="server" size="sm" />{{ t('admin.plugins.directory.viewSources') }}
+              </RouterLink>
+            </template>
+          </EmptyState>
+        </div>
+      </template>
+    </div>
     <PluginUploadDialog
       :show="uploadOpen"
       :installations="installations"
       @close="uploadOpen = false"
-      @changed="refreshDistribution"
+      @changed="administration.refreshAfterChange"
+      @installed="installed"
     />
-    <ConfirmDialog
-      :show="deleteOpen"
-      :title="t('admin.plugins.uninstallTitle', { name: deleteName })"
-      :message="t('admin.plugins.uninstallMessage')"
-      :confirm-text="t('admin.plugins.uninstall')"
-      danger
-      :loading="busy"
-      @cancel="cancelUninstall"
-      @confirm="uninstall"
-    >
-      <label class="flex items-start gap-2 text-sm"
-        ><input v-model="purge" type="checkbox" class="mt-0.5" :disabled="busy" /><span>{{
-          t('admin.plugins.purgeData')
-        }}</span></label
-      >
-      <p class="input-hint">{{ t('admin.plugins.purgeHint') }}</p>
-      <p v-if="actionError" role="alert" class="text-sm text-red-600 dark:text-red-400">{{
-        actionError
-      }}</p>
-    </ConfirmDialog>
     <TotpStepUpDialog :controller="stepUp" />
   </AppLayout>
 </template>

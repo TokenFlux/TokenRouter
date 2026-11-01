@@ -2,8 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as pluginsAPI from '@/api/admin/plugins'
-import type { PluginIndex, PluginIndexInput, PluginSignature } from '@/api/admin/plugins.types'
-import type { IconName } from '@/components/icons/registry'
+import type { PluginIndex, PluginIndexInput } from '@/api/admin/plugins.types'
 import type { Column } from '@/components/common/table/types'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/table/DataTable.vue'
@@ -11,16 +10,23 @@ import Input from '@/components/common/Input.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import SettingsNotice from '@/components/common/settings/SettingsNotice.vue'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { useClipboard } from '@/composables/useClipboard'
 import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 import { useAppStore } from '@/stores/app'
+import { formatDateTime, formatRelativeTime } from '@/utils/format'
+import PluginTrustMark from './PluginTrustMark.vue'
 import { pluginErrorMessage } from './pluginErrors'
 
-// PluginIndexesTab.vue manages catalog registrations through native table and form controls.
-// Registration success means the source was saved; its separately polled signature
-// and error columns report whether distribution validation has completed. Builtin
-// authority fields remain read-only, while administrators can change its enablement.
+// PluginSourcesTable.vue lists catalog source registrations and owns their add, edit,
+// enable, and delete flows. Registration success means the source was saved; its
+// separately polled signature and sync columns report whether distribution
+// validation has completed, with the latest fetch error attached to the sync time.
+// Builtin authority fields remain read-only, while administrators can change its
+// enablement.
 //
 // One step-up controller serializes source mutations and keeps the active form or
 // delete confirmation open until a write settles. Failure preserves entered values,
@@ -37,10 +43,10 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   changed: [] // Requests authoritative source readback.
-  refresh: [] // Requests revalidating enabled source caches.
 }>()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const app = useAppStore()
+const { copyToClipboard } = useClipboard()
 const stepUp = useStepUp()
 const busy = ref(false)
 const editing = ref(false)
@@ -53,28 +59,11 @@ const form = ref<HTMLFormElement | null>(null)
 let active = true
 const columns = computed<Column[]>(() => [
   { key: 'name', label: t('admin.plugins.indexSettings.name') },
-  { key: 'url', label: t('admin.plugins.indexSettings.url') },
   { key: 'signature', label: t('admin.plugins.indexSettings.signature') },
   { key: 'cached_at', label: t('admin.plugins.indexSettings.lastAccepted') },
-  { key: 'last_error', label: t('admin.plugins.indexSettings.lastError') },
   { key: 'enabled', label: t('admin.plugins.enabled') },
   { key: 'actions', label: t('admin.plugins.actions') },
 ])
-
-/** signatureIcon distinguishes verified roots, custom pins, unsigned data, and invalid observations. */
-function signatureIcon(status: PluginSignature): IconName {
-  if (status === 'official') return 'shieldCheck'
-  if (status === 'custom') return 'key'
-  if (status === 'invalid') return 'x'
-  if (status === 'unsigned') return 'exclamationTriangle'
-  return 'clock'
-}
-
-/** acceptedAt formats the last accepted cache timestamp in the administrator's current locale. */
-function acceptedAt(value: string | null): string {
-  if (!value) return t('admin.plugins.indexSettings.never')
-  return new Date(value).toLocaleString(locale.value)
-}
 
 /** edit copies one source into a stable form draft or starts a new registration.
  * New sources start enabled with empty authority fields. Locked operations and
@@ -230,33 +219,14 @@ onBeforeUnmount(() => {
   active = false
   stepUp.onCancel()
 })
+defineExpose({ create: () => edit(null) })
 </script>
 
 <template>
   <TablePageLayout>
-    <template #filters
-      ><div class="flex items-center justify-between gap-2"
-        ><button
-          type="button"
-          class="btn btn-primary"
-          :disabled="disabled || busy"
-          @click="edit(null)"
-          ><Icon name="plus" size="sm" />{{ t('admin.plugins.indexSettings.add') }}</button
-        ><button
-          type="button"
-          class="btn btn-secondary btn-icon"
-          :disabled="disabled || busy || loading"
-          :aria-label="t('admin.plugins.refresh')"
-          :title="t('admin.plugins.refresh')"
-          @click="emit('refresh')"
-          ><Icon name="refresh" size="sm" /></button></div
-      ><p
-        v-if="failure && !editing && !deleting"
-        role="alert"
-        class="mt-2 text-sm text-red-600 dark:text-red-400"
-        >{{ failure }}</p
-      ></template
-    >
+    <template v-if="failure && !editing && !deleting" #actions>
+      <SettingsNotice tone="error">{{ failure }}</SettingsNotice>
+    </template>
     <template #table
       ><DataTable
         :columns="columns"
@@ -264,45 +234,69 @@ onBeforeUnmount(() => {
         :loading="loading && !indexes.length"
         row-key="id"
       >
-        <template #cell-name="{ row }"
-          ><div class="max-w-48 whitespace-normal break-words font-medium">{{ row.name }}</div
-          ><span v-if="row.builtin" class="text-xs text-gray-500 dark:text-dark-400">{{
-            t('admin.plugins.indexSettings.builtin')
-          }}</span></template
-        >
-        <template #cell-url="{ row }"
-          ><span class="block max-w-72 whitespace-normal break-all font-mono text-xs">{{
-            row.url
-          }}</span></template
-        >
-        <template #cell-signature="{ row }"
-          ><span
-            class="inline-flex items-center gap-1.5"
-            :class="
-              row.signature_status === 'invalid'
-                ? 'text-red-600 dark:text-red-400'
-                : row.signature_status === 'unsigned'
-                  ? 'text-amber-700 dark:text-amber-400'
-                  : row.signature_status === 'official'
-                    ? 'text-emerald-700 dark:text-emerald-400'
-                    : ''
-            "
-            ><Icon :name="signatureIcon(row.signature_status)" size="sm" />{{
-              t(`admin.plugins.signatures.${row.signature_status}`)
+        <template #cell-name="{ row }">
+          <div class="flex min-w-0 max-w-md flex-col gap-1">
+            <div class="flex items-center gap-2">
+              <span class="truncate font-medium text-gray-900 dark:text-dark-50">{{
+                row.name
+              }}</span>
+              <span v-if="row.builtin" class="badge badge-gray">{{
+                t('admin.plugins.indexSettings.builtin')
+              }}</span>
+            </div>
+            <div class="flex min-w-0 items-center gap-1">
+              <span
+                class="truncate font-mono text-xs text-gray-500 dark:text-dark-400"
+                :title="row.url"
+                >{{ row.url }}</span
+              >
+              <button
+                type="button"
+                class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-compact text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-dark-100"
+                :title="t('common.copy')"
+                :aria-label="t('common.copy')"
+                @click="copyToClipboard(row.url)"
+                ><Icon name="copy" size="xs"
+              /></button>
+            </div>
+          </div>
+        </template>
+        <template #cell-signature="{ row }">
+          <span
+            v-if="row.refreshing"
+            class="inline-flex items-center gap-1.5 text-gray-500 dark:text-dark-400"
+            ><Icon name="loader" size="sm" class="animate-spin" :animate-on-hover="false" />{{
+              t('admin.plugins.indexSettings.refreshing')
             }}</span
-          ><p v-if="row.refreshing" class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{
-            t('admin.plugins.indexSettings.refreshing')
-          }}</p></template
-        >
-        <template #cell-cached_at="{ row }"
-          ><span class="text-xs">{{ acceptedAt(row.cached_at) }}</span></template
-        >
-        <template #cell-last_error="{ row }"
-          ><span
-            class="block max-w-64 whitespace-normal break-words text-xs text-red-600 dark:text-red-400"
-            >{{ row.last_error || '—' }}</span
-          ></template
-        >
+          >
+          <PluginTrustMark v-else :trust="row.signature_status" label />
+        </template>
+        <template #cell-cached_at="{ row }">
+          <span
+            class="inline-flex items-center gap-1.5 text-sm"
+            :class="
+              row.last_error ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-dark-300'
+            "
+            :title="row.cached_at ? formatDateTime(row.cached_at) : undefined"
+          >
+            <Icon
+              v-if="row.last_error"
+              name="exclamationCircle"
+              size="sm"
+              :animate-on-hover="false"
+            />{{
+              row.cached_at
+                ? formatRelativeTime(row.cached_at)
+                : t('admin.plugins.indexSettings.never')
+            }}
+          </span>
+          <p
+            v-if="row.last_error"
+            class="mt-1 line-clamp-2 max-w-xs whitespace-normal break-words text-xs text-red-600 dark:text-red-400"
+            :title="row.last_error"
+            >{{ row.last_error }}</p
+          >
+        </template>
         <template #cell-enabled="{ row }"
           ><Toggle
             :model-value="row.enabled"
@@ -329,7 +323,15 @@ onBeforeUnmount(() => {
               :aria-label="t('common.delete')"
               @click="askDelete(row)"
               ><Icon name="trash" size="sm" /></button></div
-        ></template> </DataTable
+        ></template>
+        <template #empty>
+          <EmptyState
+            :title="t('admin.plugins.sourcesPage.empty')"
+            :description="t('admin.plugins.sourcesPage.emptyHint')"
+          >
+            <template #icon><Icon name="server" size="xl" class="empty-state-icon" /></template>
+          </EmptyState>
+        </template> </DataTable
     ></template>
   </TablePageLayout>
   <BaseDialog
@@ -369,12 +371,10 @@ onBeforeUnmount(() => {
       <p v-if="selected?.builtin" class="input-hint">{{
         t('admin.plugins.indexSettings.builtinHint')
       }}</p>
-      <p v-else-if="!draft.public_key.trim()" class="text-sm text-amber-700 dark:text-amber-400">{{
+      <SettingsNotice v-else-if="!draft.public_key.trim()" tone="warning">{{
         t('admin.plugins.indexSettings.unsignedHint')
-      }}</p>
-      <p v-if="failure" role="alert" class="text-sm text-red-600 dark:text-red-400">{{
-        failure
-      }}</p>
+      }}</SettingsNotice>
+      <SettingsNotice v-if="failure" tone="error">{{ failure }}</SettingsNotice>
     </form>
     <template #footer
       ><button type="button" class="btn btn-secondary" :disabled="busy" @click="closeEditor">{{
@@ -394,9 +394,7 @@ onBeforeUnmount(() => {
     danger
     @cancel="closeDelete"
     @confirm="remove"
-    ><p v-if="failure" role="alert" class="text-sm text-red-600 dark:text-red-400">{{
-      failure
-    }}</p></ConfirmDialog
+    ><SettingsNotice v-if="failure" tone="error">{{ failure }}</SettingsNotice></ConfirmDialog
   >
   <TotpStepUpDialog :controller="stepUp" />
 </template>

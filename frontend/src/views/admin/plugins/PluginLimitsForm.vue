@@ -77,8 +77,9 @@ const fields = computed(() =>
 const groups = computed(() => [...new Set(fields.value.map((field) => field.group))])
 
 /** resetDraft copies the accepted policy into local strings and independent plan lists.
- * Invoke only when the parent's persisted value changes. Failed saves keep that
- * value unchanged, preserving every incomplete edit and its current validation message.
+ * It runs when the parent's persisted value changes and when the owner discards
+ * edits through the exposed reset. Failed saves keep that value unchanged, so
+ * incomplete edits and their validation messages stay visible for correction.
  */
 function resetDraft(): void {
   draft.value = Object.fromEntries(
@@ -157,8 +158,26 @@ async function validate(): Promise<PluginLimits | null> {
   return null
 }
 
+/** samePlans reports whether two plan allowlists hold the same identifiers in any order. */
+function samePlans(left: number[], right: number[]): boolean {
+  return left.length === right.length && left.every((id) => right.includes(id))
+}
+
+// dirty compares every numeric draft and both plan allowlists with the accepted
+// policy, letting the owning tab show its save bar only while edits are pending.
+const dirty = computed(
+  () =>
+    definitions.some(
+      (field) =>
+        draft.value[field.key] !==
+        String((props.value[field.group] as unknown as Record<string, unknown>)[field.key]),
+    ) ||
+    !samePlans(planIds.value.redeem, props.value.redeem.allowed_plan_ids) ||
+    !samePlans(planIds.value.subscription, props.value.subscription.allowed_plan_ids),
+)
+
 watch(() => props.value, resetDraft, { immediate: true })
-defineExpose({ validate })
+defineExpose({ validate, dirty, reset: resetDraft })
 </script>
 
 <template>
