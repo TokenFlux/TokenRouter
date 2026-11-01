@@ -1,12 +1,12 @@
 # 创建第一个插件
 
-从本仓库的 `plugin-sdk/templates/plugin-repo/` 复制种子文件到新仓库。它提供可运行的每日签到后端、用户页面、管理历史页和发布工作流。项目方创建并发布官方模板仓库后，也可以使用 GitHub 的模板功能。
+使用[官方模板仓库](https://github.com/TokenFlux/tokenrouter-plugin-template)创建新仓库，或复制本仓库的 `plugin-sdk/templates/plugin-repo/` 种子文件。模板提供可运行的每日签到后端、用户页面、管理历史页和发布工作流。
 
 ## 准备依赖
 
-种子使用 Go 1.27.3、Node 26.12.1 和 pnpm 12.9.1。先确认所选 Go SDK 与 `@tokenflux/tokenrouter-plugin-sdk` 版本已发布；种子中的 0.1.0 不是外部发布已经完成的证明。源码联调可以在临时副本中使用 Go replace 与本地 Web SDK 链接，发布前恢复正式依赖并生成锁文件。
+种子使用 Go 1.27.3、Node 26.12.1 和 pnpm 12.9.1。Go SDK v0.1.0 与 `@tokenflux/tokenrouter-plugin-sdk@0.1.0` 已公开发布。源码联调可以在临时副本中使用 Go replace 与本地 Web SDK 链接，发布前恢复正式依赖并生成锁文件。
 
-1. 把 `go.mod` 和 `cmd/plugin/main.go` 中的 `github.com/example/tr-plugin-checkin` 改为自己的模块路径。
+1. 把 `go.mod` 的 module 和 `cmd/plugin/main.go` 的内部导入改为自己的仓库路径；官方模板默认使用 `github.com/TokenFlux/tokenrouter-plugin-template`，本地种子使用 `github.com/example/tr-plugin-checkin`。
 2. 在 `plugin.json` 和 `web/vite.config.ts` 中同步设置插件 ID，例如 `yourname.checkin`，并更新发布者与仓库地址。
 3. 保留英文 name、description 等必需本地化值，按需要添加中文。
 4. 运行 `make bootstrap`，提交 `go.sum` 和 `web/pnpm-lock.yaml`。工作流使用冻结的前端依赖，不会代替作者补锁文件。

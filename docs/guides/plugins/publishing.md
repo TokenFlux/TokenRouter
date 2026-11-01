@@ -18,7 +18,7 @@ Go SDK 使用 `plugin-sdk/go/v<version>` 模块标签。Web SDK 独立发布到 
 
 ## 配置官方发布资产
 
-项目方创建 `TokenFlux/tokenrouter-plugins`、`TokenFlux/tokenrouter-plugin-template`（模板仓库）和 `TokenFlux/tr-plugin-checkin`。准备的种子文件不会自动创建远程仓库或填入组织凭据。
+官方分发使用 `TokenFlux/tokenrouter-plugins`、`TokenFlux/tokenrouter-plugin-template`（模板仓库）和 `TokenFlux/tr-plugin-checkin`，入口见[官方资源](index.md#官方资源)。种子文件适用于建立其他分发仓库，不包含签名私钥或组织凭据。
 
 用 `trplugin keygen --out <安全目录>/index.private-key` 生成索引密钥，把私钥内容保存到 Actions secret `INDEX_SIGNING_KEY`，把输出公钥交给宿主维护者加入 `plugin.OfficialIndexKeys`。不要通过聊天、PR 或仓库提交私钥。启用受保护的 main 与 CODEOWNERS 审核。
 
