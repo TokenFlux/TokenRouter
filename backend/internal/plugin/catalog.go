@@ -33,6 +33,7 @@ type CatalogVersion struct {
 
 // CatalogEntry describes one source-qualified plugin and its installed-source relationship.
 type CatalogEntry struct {
+	HostPlatform    string   `json:"host_platform"`      // current host archive target
 	IndexID         int64    `json:"index_id"`           // owning catalog source identifier
 	IndexName       string   `json:"index_name"`         // configured catalog display name
 	Builtin         bool     `json:"builtin"`            // source is the built-in registration
@@ -76,7 +77,7 @@ func selectCatalog(source IndexSource, document *index.Document, installed map[s
 			continue
 		}
 		view := CatalogEntry{
-			IndexID: source.ID, IndexName: source.Name, Builtin: source.Builtin, SignatureStatus: source.SignatureStatus,
+			HostPlatform: host.Platform, IndexID: source.ID, IndexName: source.Name, Builtin: source.Builtin, SignatureStatus: source.SignatureStatus,
 			ID: entry.ID, Repository: entry.Repository, Categories: slices.Clone(entry.Categories),
 			IconURL: catalogIconURL(source.URL, entry.IconURL), Delisted: entry.Delisted,
 			InstalledFromSource: here, InstalledFromOther: exists && !here,

@@ -1,0 +1,69 @@
+# build.yml ingests public releases, preserves first-accepted hashes, and publishes
+# a complete catalog generation on dist. Only trusted default-branch jobs receive
+# the signing secret; an unsigned fork must explicitly opt in through a variable.
+name: Build plugin index
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-index
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.3'
+      - name: Install the reviewed catalog builder
+        run: go install github.com/TokenFlux/TokenRouter/plugin-sdk/go/cmd/trplugin@v0.1.0
+      - name: Restore accepted ingestion state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          remote_ref=$(git ls-remote origin refs/heads/dist)
+          if [ -n "$remote_ref" ]; then
+            git fetch origin refs/heads/dist:refs/remotes/origin/dist
+            git worktree add --detach .publish refs/remotes/origin/dist
+            if [ -d .publish/v1 ]; then cp -R .publish/v1 dist/v1; fi
+          else
+            git worktree add --detach .publish HEAD
+            git -C .publish switch --orphan dist
+            git -C .publish rm -rf --ignore-unmatch .
+          fi
+      - name: Validate and sign the next generation
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          INDEX_SIGNING_KEY: ${{ secrets.INDEX_SIGNING_KEY }}
+          INDEX_UNSIGNED: ${{ vars.INDEX_UNSIGNED }}
+          INDEX_NAME: ${{ vars.INDEX_NAME || 'TokenRouter Official' }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$INDEX_UNSIGNED" = true ]; then args+=(--unsigned); fi
+          trplugin index build --registry . --state dist/v1/state.json --out dist/v1 --name "$INDEX_NAME" "${args[@]}" | tee "$RUNNER_TEMP/index-build.log"
+          cat "$RUNNER_TEMP/index-build.log" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish the complete generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .publish/v1
+          cp -R dist/v1 .publish/v1
+          git -C .publish config user.name 'github-actions[bot]'
+          git -C .publish config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C .publish add v1
+          if ! git -C .publish diff --cached --quiet; then
+            git -C .publish commit -m 'chore(index): publish verified catalog'
+            git -C .publish push origin HEAD:refs/heads/dist
+          fi

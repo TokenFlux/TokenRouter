@@ -1,6 +1,10 @@
 import { apiClient } from '../client'
 import type {
   PluginChange,
+  PluginCatalogEntry,
+  PluginIndex,
+  PluginIndexInput,
+  PluginUpdateInput,
   PluginConfig,
   PluginInstallInput,
   PluginInstallation,
@@ -113,5 +117,81 @@ export async function logs(id: string, signal?: AbortSignal): Promise<PluginLogL
     await apiClient.get<PluginLogLine[]>(`/admin/plugins/${encodeURIComponent(id)}/logs`, {
       signal,
     })
+  ).data
+}
+
+/** catalog retrieves source-qualified market entries and their release admission decisions.
+ * Missing caches may require network validation. Cancellation retires this reader
+ * without canceling a shared backend refresh needed by another administrator.
+ */
+export async function catalog(signal?: AbortSignal): Promise<PluginCatalogEntry[]> {
+  return (
+    await apiClient.get<PluginCatalogEntry[]>('/admin/plugin-catalog', { signal, timeout: 180000 })
+  ).data
+}
+
+/** catalogEntry retrieves fresh release details for one explicit distribution source. */
+export async function catalogEntry(
+  indexID: number,
+  id: string,
+  signal?: AbortSignal,
+): Promise<PluginCatalogEntry> {
+  return (
+    await apiClient.get<PluginCatalogEntry>(
+      `/admin/plugin-catalog/${indexID}/${encodeURIComponent(id)}`,
+      { signal, timeout: 90000 },
+    )
+  ).data
+}
+
+/** refreshCatalog revalidates enabled sources while preserving rejected sources' accepted caches. */
+export async function refreshCatalog(): Promise<PluginIndex[]> {
+  return (
+    await apiClient.post<PluginIndex[]>('/admin/plugin-catalog/refresh', undefined, {
+      timeout: 90000,
+    })
+  ).data
+}
+
+/** indexes reads source authority, retained-cache timing, and latest refresh diagnostics. */
+export async function indexes(signal?: AbortSignal): Promise<PluginIndex[]> {
+  return (await apiClient.get<PluginIndex[]>('/admin/plugin-indexes', { signal })).data
+}
+
+/** createIndex registers a reviewed HTTPS source before asynchronous cache validation begins. */
+export async function createIndex(input: PluginIndexInput): Promise<PluginIndex> {
+  return (await apiClient.post<PluginIndex>('/admin/plugin-indexes', input)).data
+}
+
+/** updateIndex changes supplied source settings while preserving omitted registration fields. */
+export async function updateIndex(id: number, input: PluginIndexInput): Promise<PluginIndex> {
+  return (await apiClient.put<PluginIndex>(`/admin/plugin-indexes/${id}`, input)).data
+}
+
+/** deleteIndex removes a custom source while preserving accepted installations and business data. */
+export async function deleteIndex(id: number): Promise<void> {
+  await apiClient.delete(`/admin/plugin-indexes/${id}`)
+}
+
+/** update applies reviewed code and waits for readiness or complete failure compensation.
+ * The caller confirms the target permissions first. A failure can include the
+ * restored version and startup diagnostics; always reconcile installation state afterward.
+ */
+export async function update(id: string, input: PluginUpdateInput): Promise<PluginChange> {
+  return (
+    await apiClient.post<PluginChange>(`/admin/plugins/${encodeURIComponent(id)}/update`, input, {
+      timeout: 210000,
+    })
+  ).data
+}
+
+/** rollback restores the complete previous snapshot while preserving installation-level quotas. */
+export async function rollback(id: string): Promise<PluginChange> {
+  return (
+    await apiClient.post<PluginChange>(
+      `/admin/plugins/${encodeURIComponent(id)}/rollback`,
+      undefined,
+      { timeout: 90000 },
+    )
   ).data
 }

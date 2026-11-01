@@ -35,6 +35,8 @@ const emit = defineEmits<{
   configure: [installation: PluginInstallation] // Opens the selected configuration editor.
   logs: [installation: PluginInstallation] // Opens selected process diagnostics.
   toggle: [installation: PluginInstallation, enabled: boolean] // Requests changing enabled intent.
+  update: [installation: PluginInstallation] // Opens indexed release review.
+  rollback: [installation: PluginInstallation] // Opens previous release confirmation.
   restart: [installation: PluginInstallation] // Requests restarting the selected process.
   uninstall: [installation: PluginInstallation] // Opens selected uninstall confirmation.
 }>()
@@ -120,7 +122,7 @@ function diagnostics(item: PluginInstallation): string {
     <template #cell-plugin="{ row }">
       <div class="flex min-w-0 items-center gap-3">
         <div
-          class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-control bg-gray-100 dark:bg-dark-800"
+          class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-control bg-white"
         >
           <img
             v-if="iconURL(row)"
@@ -143,16 +145,45 @@ function diagnostics(item: PluginInstallation): string {
       </div>
     </template>
     <template #cell-version="{ row }"
-      ><span class="font-mono text-sm">v{{ row.version }}</span></template
+      ><div class="flex flex-col items-start gap-1"
+        ><span class="font-mono text-sm">v{{ row.version }}</span
+        ><button
+          v-if="row.update_version"
+          type="button"
+          class="text-xs font-medium text-primary-600 hover:underline"
+          :disabled="busy || globallyDisabled"
+          @click="emit('update', row)"
+          >{{ t('admin.plugins.market.updateAvailable', { version: row.update_version }) }}</button
+        ><span
+          v-if="row.current_version_yanked"
+          class="text-xs text-amber-700 dark:text-amber-400"
+          :title="row.current_yank_reason"
+          >{{ t('admin.plugins.market.yanked') }}</span
+        ><span v-if="row.delisted" class="text-xs text-amber-700 dark:text-amber-400">{{
+          t('admin.plugins.market.delisted')
+        }}</span></div
+      ></template
     >
     <template #cell-source="{ row }"
       ><span
         class="inline-flex items-center gap-1.5"
-        :title="row.index_id ? `#${row.index_id}` : undefined"
+        :title="row.index_name || (row.index_id ? `#${row.index_id}` : undefined)"
         ><Icon
-          :name="row.source === 'upload' ? 'upload' : row.source === 'dev' ? 'terminal' : 'link'"
+          :name="
+            row.source === 'upload'
+              ? 'upload'
+              : row.source === 'dev'
+                ? 'terminal'
+                : row.signature_status === 'official'
+                  ? 'shieldCheck'
+                  : 'link'
+          "
           size="sm"
-        />{{ t(`admin.plugins.sources.${row.source}`) }}</span
+        />{{
+          row.source === 'index' && row.signature_status === 'official'
+            ? t('admin.plugins.signatures.official')
+            : t(`admin.plugins.sources.${row.source}`)
+        }}</span
       ></template
     >
     <template #cell-status="{ row }">
@@ -198,6 +229,11 @@ function diagnostics(item: PluginInstallation): string {
         /></button>
         <PluginActionsMenu
           :disabled="busy"
+          :update-available="!!row.update_version"
+          :previous-version="row.source === 'dev' ? undefined : row.previous_version"
+          :changes-disabled="globallyDisabled"
+          @update="emit('update', row)"
+          @rollback="emit('rollback', row)"
           :execution-disabled="globallyDisabled || !row.enabled"
           @restart="emit('restart', row)"
           @uninstall="emit('uninstall', row)"

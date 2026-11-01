@@ -1,0 +1,35 @@
+# release.yml publishes all five native targets with the exact manifest asset.
+# Tests and package validation precede release creation; a tag that disagrees
+# with plugin.json fails in trplugin before any release assets are uploaded.
+name: Release plugin
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: make test pack
+      - name: Publish verified release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release/* --verify-tag --title "$RELEASE_TAG" --notes-file CHANGELOG.md

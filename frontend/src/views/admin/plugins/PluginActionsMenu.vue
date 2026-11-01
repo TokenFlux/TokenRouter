@@ -19,9 +19,14 @@ import { getFloatingPanelPosition, type FloatingPanelPosition } from '@/utils/fl
 // available action; uninstall remains selectable when only execution is disabled.
 const props = defineProps<{
   disabled?: boolean // Parent operation locks all actions.
+  updateAvailable?: boolean // Indexed update can be reviewed.
+  previousVersion?: string // Accepted manual rollback release version.
+  changesDisabled?: boolean // Emergency switch blocks release changes.
   executionDisabled?: boolean // Emergency switch blocks process actions.
 }>()
 const emit = defineEmits<{
+  update: [] // Opens reviewed indexed update selection.
+  rollback: [] // Opens previous release confirmation.
   restart: [] // Requests the reviewed restart action.
   uninstall: [] // Opens the parent uninstall confirmation.
 }>()
@@ -112,10 +117,18 @@ function navigate(event: KeyboardEvent): void {
  * It closes and restores focus before emitting, allowing a parent dialog to
  * capture the originating row control while an exiting menu ignores further activation.
  */
-function select(action: 'restart' | 'uninstall'): void {
+function select(action: 'restart' | 'uninstall' | 'update' | 'rollback'): void {
   if (!open.value || props.disabled) return
+  if (
+    (action === 'restart' && props.executionDisabled) ||
+    (action === 'update' && (!props.updateAvailable || props.changesDisabled)) ||
+    (action === 'rollback' && (!props.previousVersion || props.changesDisabled))
+  )
+    return
   close()
-  if (action === 'restart') emit('restart')
+  if (action === 'update') emit('update')
+  else if (action === 'rollback') emit('rollback')
+  else if (action === 'restart') emit('restart')
   else emit('uninstall')
 }
 
@@ -166,6 +179,26 @@ onBeforeUnmount(stopPositioning)
         :aria-label="t('admin.plugins.actions')"
         @keydown="navigate"
       >
+        <button
+          type="button"
+          role="menuitem"
+          class="dropdown-item"
+          :disabled="!updateAvailable || changesDisabled"
+          @click="select('update')"
+          ><Icon name="download" size="sm" />{{ t('admin.plugins.update') }}</button
+        >
+        <button
+          type="button"
+          role="menuitem"
+          class="dropdown-item"
+          :disabled="!previousVersion || changesDisabled"
+          @click="select('rollback')"
+          ><Icon name="history" size="sm" />{{
+            previousVersion
+              ? t('admin.plugins.rollbackTo', { version: previousVersion })
+              : t('admin.plugins.rollback')
+          }}</button
+        >
         <button
           type="button"
           role="menuitem"

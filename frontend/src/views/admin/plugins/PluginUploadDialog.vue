@@ -36,6 +36,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   close: [] // Requests closing the uploader.
+  changed: [] // Requests readback after every write outcome.
   installed: [result: PluginChange] // Reports the persisted installation outcome.
 }>()
 const { t } = useI18n()
@@ -136,21 +137,22 @@ async function install(): Promise<void> {
     error.value = t('admin.plugins.review.previewExpired')
     return
   }
-  if (existing.value && !sameVersion.value) {
-    error.value = t('admin.plugins.review.alreadyInstalled')
-    return
-  }
   const current = generation
   installing.value = true
   error.value = ''
   try {
     const result = await stepUp.run(() =>
-      pluginsAPI.install({
-        source: 'upload',
-        upload_token: selected.upload_token,
-        accept_permissions: selected.manifest.permissions ?? [],
-        enable: enable.value,
-      }),
+      existing.value && !sameVersion.value
+        ? pluginsAPI.update(existing.value.plugin_id, {
+            upload_token: selected.upload_token,
+            accept_permissions: selected.manifest.permissions ?? [],
+          })
+        : pluginsAPI.install({
+            source: 'upload',
+            upload_token: selected.upload_token,
+            accept_permissions: selected.manifest.permissions ?? [],
+            enable: enable.value,
+          }),
     )
     if (current !== generation) return
     emit('installed', result)
@@ -159,13 +161,20 @@ async function install(): Promise<void> {
       app.showError(result.installation.status.last_error || t('admin.plugins.installFailed'))
     else
       app.showSuccess(
-        t(result.repaired ? 'admin.plugins.repaired' : 'admin.plugins.installedSuccess'),
+        t(
+          result.repaired
+            ? 'admin.plugins.repaired'
+            : existing.value
+              ? 'admin.plugins.updated'
+              : 'admin.plugins.installedSuccess',
+        ),
       )
     emit('close')
   } catch (failure) {
     if (current === generation && !isStepUpCancelled(failure))
       error.value = pluginErrorMessage(failure, t('admin.plugins.installFailed'))
   } finally {
+    emit('changed')
     if (current === generation) installing.value = false
   }
 }
@@ -292,7 +301,9 @@ onBeforeUnmount(() => {
             ? t('common.processing')
             : existing && sameVersion
               ? t('admin.plugins.review.repair')
-              : t('admin.plugins.review.install')
+              : existing
+                ? t('admin.plugins.market.updateTo', { version: preview.manifest.version })
+                : t('admin.plugins.review.install')
         }}</button
       >
     </template>

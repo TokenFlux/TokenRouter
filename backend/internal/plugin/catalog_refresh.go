@@ -9,6 +9,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/index"
 )
 
@@ -201,8 +202,24 @@ func (c *CatalogService) withSource(ctx context.Context, id int64, action func()
 // indexFailureMessage retains a bounded UTF-8 diagnostic for source rows and logs.
 // Long remote parser messages cannot dominate the management response. Truncation
 // preserves complete characters and marks the omitted suffix within the same byte budget.
+//
+// Application errors carry transport categories and metadata in their diagnostic
+// serialization. Administrator source rows need the human message and useful cause,
+// so those parts are projected before applying the shared byte bound. Wrapped
+// context remains visible around the projection, while nested application causes
+// receive the same treatment instead of exposing another serialization frame.
 func indexFailureMessage(err error) string {
-	message := strings.ToValidUTF8(fmt.Sprint(err), "�")
+	message := fmt.Sprint(err)
+	if application, ok := errors.AsType[*apperror.ApplicationError](err); ok {
+		readable := application.Message
+		if cause := application.Unwrap(); cause != nil {
+			readable += ": " + indexFailureMessage(cause)
+		}
+		// Source diagnostics retain the useful cause while removing internal category,
+		// metadata-map, and error-serialization framing from the administrator's status column.
+		message = strings.Replace(message, application.Error(), readable, 1)
+	}
+	message = strings.ToValidUTF8(message, "�")
 	// Source diagnostics share the task-result one-kilobyte presentation bound.
 	if len(message) <= 1024 {
 		return message

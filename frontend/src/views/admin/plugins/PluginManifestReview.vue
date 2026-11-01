@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PluginManifest } from '@/api/plugins.types'
 import PluginPermissionList from '@/components/plugin/PluginPermissionList.vue'
@@ -19,6 +19,7 @@ import { sanitizeUrl } from '@/utils/url'
 const props = withDefaults(
   defineProps<{
     manifest: PluginManifest // Accepted release manifest declaration.
+    iconUrl?: string // Optional remote catalog presentation icon.
     digest?: string // Original manifest SHA-256 digest.
     platform?: string // Validated package target platform.
     newPermissions?: string[] // Newly requested update capabilities.
@@ -26,6 +27,16 @@ const props = withDefaults(
   { newPermissions: () => [] },
 )
 const { t, locale } = useI18n()
+const iconFailed = ref(false)
+const imageURL = computed(() =>
+  !iconFailed.value ? sanitizeUrl(props.iconUrl ?? '', { allowRelative: false }) : '',
+)
+watch(
+  () => props.iconUrl,
+  () => {
+    iconFailed.value = false
+  },
+)
 const publisherURL = computed(() =>
   sanitizeUrl(props.manifest.publisher.url || '', { allowRelative: false }),
 )
@@ -34,7 +45,15 @@ const publisherURL = computed(() =>
 <template>
   <div class="space-y-6">
     <div class="flex items-start gap-3">
-      <Icon name="puzzle" size="lg" class="mt-1 shrink-0 text-gray-500 dark:text-dark-400" />
+      <img
+        v-if="imageURL"
+        :src="imageURL"
+        alt=""
+        class="h-12 w-12 shrink-0 rounded-control bg-white object-contain p-1"
+        referrerpolicy="no-referrer"
+        @error="iconFailed = true"
+      />
+      <Icon v-else name="puzzle" size="lg" class="mt-1 shrink-0 text-gray-500 dark:text-dark-400" />
       <div class="min-w-0">
         <h3 class="text-base font-semibold"
           >{{ pluginText(manifest.name, locale, manifest.id) }}

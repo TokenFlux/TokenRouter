@@ -44,3 +44,46 @@ export function pluginFieldErrors(
     return {}
   }
 }
+
+/** PluginUpdateFailure retains bounded startup diagnostics and the observed recovery result. */
+export interface PluginUpdateFailure {
+  restoredVersion: string // Successfully resumed old release version.
+  rollbackError: string // Failure while restoring the old release.
+  startError: string // Rejected target generation startup diagnostic.
+  logs: string[] // At most fifty retained diagnostic messages.
+}
+
+/** pluginUpdateFailure reads recovery metadata without treating remote diagnostic text as HTML.
+ * Unknown or malformed fields become empty strings or an empty list. Only the
+ * documented update-failure reason permits this projection, avoiding misleading recovery claims.
+ */
+export function pluginUpdateFailure(error: unknown): PluginUpdateFailure | null {
+  if (
+    !error ||
+    typeof error !== 'object' ||
+    !('reason' in error) ||
+    error.reason !== 'PLUGIN_UPDATE_FAILED' ||
+    !('metadata' in error) ||
+    !error.metadata ||
+    typeof error.metadata !== 'object'
+  )
+    return null
+  const metadata = error.metadata as Record<string, unknown>
+  const result: PluginUpdateFailure = {
+    restoredVersion: typeof metadata.restored_version === 'string' ? metadata.restored_version : '',
+    rollbackError: typeof metadata.rollback_error === 'string' ? metadata.rollback_error : '',
+    startError: typeof metadata.start_error === 'string' ? metadata.start_error : '',
+    logs: [],
+  }
+  try {
+    const lines: unknown = typeof metadata.logs === 'string' ? JSON.parse(metadata.logs) : []
+    if (Array.isArray(lines))
+      result.logs = lines
+        .slice(-50)
+        .flatMap((line) => (line && typeof line.message === 'string' ? [line.message] : []))
+  } catch {
+    // Invalid optional log metadata cannot hide the startup or restoration result;
+    // retain those independently validated strings and leave the diagnostic list empty.
+  }
+  return result
+}

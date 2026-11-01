@@ -21,9 +21,11 @@ const (
 
 // OfficialIndexKeys contains project-provisioned base64 Ed25519 public keys for rotation.
 // The project owner supplies these keys alongside the index repository's signing
-// secret. Until provisioning, built-in verification fails closed; test keys belong
-// only to injected fixture clients and are never added to this production list.
-var OfficialIndexKeys = []string{}
+// secret. The private key remains outside this repository; fixture keys belong
+// only to injected test clients and never enter this production verification list.
+var OfficialIndexKeys = []string{
+	"zrMvbppI8zA0Xkh3T04YKI0q78GowxyM3Pogcxq3qh4=",
+}
 
 // IndexFetchRequest supplies the transport-only authority needed to retrieve one source.
 type IndexFetchRequest struct {

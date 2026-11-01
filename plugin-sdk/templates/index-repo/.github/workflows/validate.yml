@@ -1,0 +1,36 @@
+# validate.yml checks proposed registrations with the released catalog validator.
+# The trusted base supplies the selection script and ownership list; proposed
+# repository content is parsed as data and its scripts or packages never execute.
+name: Validate registration
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: proposed
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.3'
+      - run: go install github.com/TokenFlux/TokenRouter/plugin-sdk/go/cmd/trplugin@v0.1.0
+      - run: python3 -m unittest discover -s trusted/scripts -p 'test_*.py'
+      - name: Check changed registrations and release assets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          APPROVED_PUBLISHER: ${{ contains(github.event.pull_request.labels.*.name, 'publisher-approved') }}
+        run: python3 trusted/scripts/validate.py --base trusted --proposed proposed

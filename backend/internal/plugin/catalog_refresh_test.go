@@ -3,10 +3,13 @@ package plugin
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
 )
@@ -74,4 +77,17 @@ func TestCatalogRefreshRejectsAuthenticatedMalformedData(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, string(source.CachedDocument), string(stored.CachedDocument))
 	require.True(t, stored.CachedAt.Equal(*source.CachedAt))
+}
+
+// TestIndexFailureMessageKeepsReadableBoundedCauses projects structured source failures into administrator status text.
+// Internal error serialization disappears while useful causes remain, and truncation never splits a multibyte character or exceeds the response budget.
+func TestIndexFailureMessageKeepsReadableBoundedCauses(t *testing.T) {
+	message := indexFailureMessage(fmt.Errorf("%w: official keys are not configured", ErrIndexSignatureInvalid))
+	require.Equal(t, "Plugin index signature is invalid: official keys are not configured", message)
+	message = indexFailureMessage(ErrDownloadFailed.WithCause(errors.New("fixture transfer timed out")))
+	require.Equal(t, "Plugin download failed: fixture transfer timed out", message)
+	message = indexFailureMessage(errors.New(strings.Repeat("界", 1000)))
+	require.LessOrEqual(t, len(message), 1024)
+	require.True(t, utf8.ValidString(message))
+	require.True(t, strings.HasSuffix(message, "..."))
 }

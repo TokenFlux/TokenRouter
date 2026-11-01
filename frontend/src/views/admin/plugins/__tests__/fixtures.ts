@@ -1,4 +1,9 @@
-import type { PluginInstallation, PluginLimits } from '@/api/admin/plugins.types'
+import type {
+  PluginInstallation,
+  PluginLimits,
+  PluginCatalogEntry,
+  PluginIndex,
+} from '@/api/admin/plugins.types'
 
 // fixtures.ts creates independent installation and quota values for administrator
 // component tests. The defaults mirror the resolved backend policy, while each
@@ -77,5 +82,65 @@ export function installationFixture(): PluginInstallation {
     },
     installed_at: '2026-11-01T00:00:00Z',
     updated_at: '2026-11-01T00:00:00Z',
+  }
+}
+
+/** indexFixture returns a registered custom source with an accepted signed cache. */
+export function indexFixture(): PluginIndex {
+  return {
+    id: 7,
+    name: 'Fixture index',
+    url: 'https://example.invalid/index.json',
+    public_key: '',
+    builtin: false,
+    enabled: true,
+    signature_status: 'custom',
+    cached_at: '2026-11-01T00:00:00Z',
+    last_error: '',
+    refreshing: false,
+  }
+}
+
+/** catalogFixture creates two offered releases with distinct permissions and a selected source. */
+export function catalogFixture(): PluginCatalogEntry {
+  const installation = installationFixture()
+  return {
+    host_platform: 'darwin/arm64',
+    index_id: 7,
+    index_name: 'Fixture index',
+    builtin: false,
+    signature_status: 'custom',
+    id: installation.plugin_id,
+    repository: 'https://github.com/example/plugin',
+    categories: ['tools'],
+    manifest: installation.manifest,
+    delisted: false,
+    recommended_version: '2.0.0',
+    installed_from_source: false,
+    installed_from_other_source: false,
+    current_version_yanked: false,
+    versions: ['2.0.0', '1.0.0'].map((version) => ({
+      version,
+      publishedAt: '2026-11-01T00:00:00Z',
+      prerelease: false,
+      yanked: false,
+      changelog: '<img src=x onerror="alert(1)"><script>alert(2)</script>Release notes',
+      manifest: {
+        ...installation.manifest,
+        version,
+        permissions: version === '2.0.0' ? ['wallet.credit', 'wallet.debit'] : ['wallet.credit'],
+      },
+      manifestSha256: 'a'.repeat(64),
+      artifacts: {
+        'darwin/arm64': {
+          url: 'https://example.invalid/package.tar.gz',
+          sha256: 'b'.repeat(64),
+          size: 100,
+        },
+      },
+      compatible: true,
+      incompatibilities: [],
+      installable: true,
+    })),
   }
 }

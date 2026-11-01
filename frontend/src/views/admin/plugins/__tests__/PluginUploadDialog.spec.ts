@@ -14,6 +14,7 @@ import { installationFixture } from './fixtures'
 const fixture = vi.hoisted(() => ({
   upload: vi.fn(),
   install: vi.fn(),
+  update: vi.fn(),
   run: vi.fn(),
   cancel: vi.fn(),
   success: vi.fn(),
@@ -21,7 +22,11 @@ const fixture = vi.hoisted(() => ({
   error: vi.fn(),
 }))
 const wrappers: VueWrapper[] = []
-vi.mock('@/api/admin/plugins', () => ({ upload: fixture.upload, install: fixture.install }))
+vi.mock('@/api/admin/plugins', () => ({
+  upload: fixture.upload,
+  install: fixture.install,
+  update: fixture.update,
+}))
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     showSuccess: fixture.success,
@@ -76,6 +81,7 @@ beforeEach(() => {
     platform: 'darwin/arm64',
   })
   fixture.install.mockResolvedValue({ installation, needs_configuration: false, repaired: false })
+  fixture.update.mockResolvedValue({ installation, needs_configuration: false, repaired: false })
 })
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
@@ -142,5 +148,29 @@ describe('reviewed package uploads', () => {
     await flushPromises()
     expect(fixture.install).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('admin.plugins.review.previewExpired')
+  })
+  // A reviewed archive belongs to an existing ID with a different installed version.
+  // Submission uses the update endpoint and requests parent readback even when the server reports that automatic restoration was needed.
+  it('updates an existing identity and reconciles failed attempts', async () => {
+    const old = installationFixture()
+    old.version = '0.9.0'
+    old.manifest.version = '0.9.0'
+    const wrapper = mountUpload()
+    await wrapper.setProps({ installations: [old] })
+    await selectPackage(wrapper)
+    await button(wrapper, 'admin.plugins.review.validate').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('input[type="checkbox"]')[0]!.setValue(true)
+    fixture.update.mockRejectedValueOnce({ message: 'Update failed; old version restored' })
+    await button(wrapper, 'admin.plugins.market.updateTo').trigger('click')
+    await flushPromises()
+    expect(fixture.install).not.toHaveBeenCalled()
+    expect(fixture.update).toHaveBeenCalledWith(old.plugin_id, {
+      upload_token: 'preview-token',
+      accept_permissions: ['wallet.credit'],
+    })
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(wrapper.text()).toContain('Update failed; old version restored')
   })
 })

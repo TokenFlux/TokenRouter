@@ -43,6 +43,13 @@ export interface PluginInstallation {
   version: string // Accepted installed release version.
   source: 'index' | 'upload' | 'dev' // Accepted package distribution source.
   index_id: number | null // Optional distribution index identifier.
+  index_name?: string // Registered source display name.
+  index_builtin?: boolean // Source is the host registration.
+  signature_status?: PluginSignature // Latest source verification outcome.
+  update_version?: string // Compatible newer offered version.
+  current_version_yanked?: boolean // Installed release has been withdrawn.
+  current_yank_reason?: string // Source-provided release withdrawal explanation.
+  delisted?: boolean // Source withdrew the plugin listing.
   manifest: PluginManifest // Accepted installed release declaration.
   manifest_sha256: string // Original manifest content digest.
   enabled: boolean // Desired contribution availability flag.
@@ -140,4 +147,89 @@ export interface PluginLogLine {
   time: string // Host observation timestamp string.
   level: string // Normalized process log severity.
   message: string // Bounded process diagnostic message.
+}
+
+/** PluginSignature distinguishes source verification observations from accepted cache timestamps. */
+export type PluginSignature = 'unknown' | 'official' | 'custom' | 'unsigned' | 'invalid'
+
+/** PluginIndex describes a registered source without returning its accepted catalog bytes. */
+export interface PluginIndex {
+  id: number // Durable source registration identifier.
+  name: string // Administrator-selected source display name.
+  url: string // HTTPS catalog document location.
+  public_key: string // Optional pinned base64 Ed25519 key.
+  builtin: boolean // Host-configured official source registration.
+  enabled: boolean // Source contributes to market selection.
+  signature_status: PluginSignature // Latest signature verification observation.
+  cached_at: string | null // Last accepted document publication timestamp.
+  last_error: string // Bounded latest source refresh failure.
+  refreshing: boolean // Source transfer is currently pending.
+}
+
+/** PluginIndexInput changes supplied source fields and preserves omitted stored values. */
+export interface PluginIndexInput {
+  name?: string // Required display name during creation.
+  url?: string // Required HTTPS location during creation.
+  /** public_key omission keeps the stored pin; an explicit empty string clears that trust requirement. */
+  public_key?: string
+  enabled?: boolean // Optional desired source availability flag.
+}
+
+/** PluginCatalogVersion combines immutable release metadata and current host admission decisions. */
+export interface PluginCatalogVersion {
+  version: string // Published release semantic version.
+  publishedAt: string // Publisher release creation timestamp.
+  prerelease: boolean // Requires explicit prerelease visibility selection.
+  yanked: boolean // Source withdrew this specific release.
+  yankReason?: string // Published reason for release withdrawal.
+  changelog: string // Bounded publisher release notes Markdown.
+  manifest: PluginManifest // Complete reviewed release declaration.
+  manifestSha256: string // Original release manifest asset digest.
+  artifacts: Record<string, PluginArchive> // Accepted archives by target platform.
+  compatible: boolean // Host satisfies all declared requirements.
+  incompatibilities: PluginIncompatibility[] // Independent host requirement failures.
+  installable: boolean // Compatibility, withdrawal, and ownership allow selection.
+}
+
+/** PluginCatalogEntry retains source identity across duplicate plugin names and identifiers. */
+export interface PluginCatalogEntry {
+  host_platform: string // Current host archive target.
+  index_id: number // Owning index source identifier.
+  index_name: string // Registered source display name.
+  builtin: boolean // Source is the built-in registration.
+  signature_status: PluginSignature // Latest source verification observation.
+  id: string // Publisher-qualified plugin installation identity.
+  repository: string // Registered public HTTPS repository.
+  categories: string[] // Registered discovery category names.
+  icon_url?: string // Resolved HTTPS presentation icon.
+  manifest: PluginManifest // Stable or retained presentation declaration.
+  versions: PluginCatalogVersion[] // Offered and withdrawn retained releases.
+  delisted: boolean // Source withdrew this plugin listing.
+  recommended_version: string // Highest compatible offered stable version.
+  installed_version?: string // Accepted local installed release version.
+  installed_from_source: boolean // This source owns the accepted installation.
+  installed_from_other_source: boolean // Another source owns this plugin identity.
+  current_version_yanked: boolean // Source withdrew the installed release.
+  current_yank_reason?: string // Installed release withdrawal explanation.
+  update_version?: string // Newer compatible recommended stable version.
+}
+
+/** PluginUpdateInput selects one reviewed indexed version or uploaded replacement archive. */
+export interface PluginUpdateInput {
+  version?: string // Explicit indexed target semantic version.
+  upload_token?: string // Accepted uploaded target package handle.
+  accept_permissions: string[] // Complete administrator-confirmed target capability set.
+}
+
+/** PluginArchive binds a release target to accepted compressed archive bytes. */
+export interface PluginArchive {
+  url: string // HTTPS archive download location.
+  sha256: string // Accepted compressed archive SHA-256.
+  size: number // Accepted compressed archive byte count.
+}
+
+/** PluginIncompatibility explains one independent requirement the current host cannot satisfy. */
+export interface PluginIncompatibility {
+  code: string // Stable host requirement failure code.
+  detail: string // Bounded requirement failure explanation.
 }

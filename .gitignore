@@ -132,6 +132,8 @@ scripts
 !backend/scripts/
 !backend/scripts/resolve-version.sh
 !frontend/scripts/
+# The index seed ships trusted workflow selection and its offline regression test.
+!plugin-sdk/templates/index-repo/scripts/
 .code-review-state
 #openspec/
 code-reviews/

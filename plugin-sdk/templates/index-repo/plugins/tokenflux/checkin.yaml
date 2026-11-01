@@ -1,0 +1,5 @@
+id: tokenflux.checkin
+repository: https://github.com/TokenFlux/tr-plugin-checkin
+categories: [engagement]
+minVersion: 1.0.0
+delisted: false

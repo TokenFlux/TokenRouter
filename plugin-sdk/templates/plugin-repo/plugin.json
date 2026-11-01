@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "id": "example.checkin",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "0.6.0",
+  "name": {
+    "en": "Daily Check-in",
+    "zh": "每日签到"
+  },
+  "description": {
+    "en": "Claim a daily balance reward.",
+    "zh": "每日签到领取余额奖励。"
+  },
+  "publisher": {
+    "name": "Example",
+    "url": "https://github.com/example"
+  },
+  "homepage": "https://github.com/example/tr-plugin-checkin",
+  "license": "MIT",
+  "icon": "icon.svg",
+  "permissions": [
+    "wallet.credit"
+  ],
+  "backend": {
+    "executable": "bin/plugin",
+    "routes": [
+      {
+        "method": "GET",
+        "path": "/status",
+        "auth": "user"
+      },
+      {
+        "method": "POST",
+        "path": "/checkin",
+        "auth": "user",
+        "maxBodyBytes": 4096
+      },
+      {
+        "method": "GET",
+        "path": "/admin/history",
+        "auth": "admin"
+      }
+    ]
+  },
+  "frontend": {
+    "entry": "frontend/index.js",
+    "styles": [
+      "frontend/index.css"
+    ],
+    "pages": [
+      {
+        "id": "home",
+        "path": "",
+        "audience": "user",
+        "title": {
+          "en": "Check-in",
+          "zh": "签到"
+        }
+      },
+      {
+        "id": "admin",
+        "path": "",
+        "audience": "admin",
+        "title": {
+          "en": "Check-in history",
+          "zh": "签到记录"
+        }
+      }
+    ],
+    "menus": [
+      {
+        "page": "home",
+        "label": {
+          "en": "Check-in",
+          "zh": "签到"
+        },
+        "icon": "frontend/menu.svg",
+        "order": 100
+      },
+      {
+        "page": "admin",
+        "label": {
+          "en": "Check-in",
+          "zh": "签到管理"
+        },
+        "icon": "frontend/menu.svg",
+        "order": 100
+      }
+    ]
+  },
+  "config": {
+    "fields": [
+      {
+        "key": "reward",
+        "type": "number",
+        "label": {
+          "en": "Reward",
+          "zh": "奖励金额"
+        },
+        "required": true,
+        "default": 0.1,
+        "min": 0,
+        "max": 100
+      },
+      {
+        "key": "notice",
+        "type": "textarea",
+        "label": {
+          "en": "Notice",
+          "zh": "公告"
+        },
+        "maxLength": 500
+      }
+    ]
+  }
+}
