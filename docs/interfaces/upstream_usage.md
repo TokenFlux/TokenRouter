@@ -112,12 +112,12 @@ API Key 提供商（包括 Kimi、Zhipu、DeepSeek）的用量栏，按以下顺
 
 ## 国产供应商周期监控
 
-监控由 `provider.UsageMonitor` 实现，候选平台从各自声明的监控资格中枚举，官方域名也由对应平台声明。当前启用资格的平台为 Kimi、Zhipu 和 DeepSeek；每条记录仍需通过类型、状态及查询配置检查。启动配置对应 `GatewayUsageMonitorConfig`。部署键 `gateway.cn_providers`、快照键 `extra.cn_usage_monitor_snapshot`、共享锁键和停调原因前缀保留既有格式，已有配置、快照和多实例协调继续使用这些键。
+监控由 `provider.UsageMonitor` 实现，候选平台从各自声明的监控资格中枚举，官方域名也由对应平台声明。当前启用资格的平台为 Kimi、Zhipu 和 DeepSeek；每条记录仍需通过类型、状态及查询配置检查。启动配置对应 `GatewayUsageMonitorConfig`。部署键 `gateway.cn_providers`、快照键 `extra.cn_usage_monitor_snapshot`、任务锁键和停调原因前缀保留既有格式，配置读取、快照恢复和任务认领继续使用这些键。
 
 `gateway.cn_providers.monitor_enabled` 默认是 `false`。开启后，`provider.UsageMonitor` 只扫描满足以下条件的 Kimi、Zhipu、DeepSeek 提供商：active、`type=apikey`、没有关闭用量查询、有固定的适配器。
 
 - 第一次探测在一个完整周期之后执行。
-- 多实例通过共享的 leader lock 保证每一轮只有一个执行者。
+- 每轮执行前取得任务锁；锁被占用时跳过本轮，Redis 不可用时尝试 PostgreSQL advisory lock。
 - 每轮有总预算，每个请求有单独的超时，并发数受配置限制。
 - 服务关闭时取消当前这一轮并等待退出；Stop 之后无法再次启动；存储或执行接口不响应取消时，报告未完成，共享的依赖保持打开。
 
@@ -135,7 +135,7 @@ API Key 提供商（包括 Kimi、Zhipu、DeepSeek）的用量栏，按以下顺
 
 前端的规则在 `frontend/src/utils/upstreamBalanceAlert.ts`。创建页只在开启提醒时写入该对象。编辑页在提醒设置有改动时提交完整对象，关闭开关时阈值、间隔和邮箱随 `enabled=false` 一起保存；没有改动时保留已有对象，原本没有提醒配置的提供商不会新增默认对象。不支持的提供商开关置灰，提交时 `enabled` 写为 false。编辑页展开提醒设置后读取下面的状态接口，切换提供商或关闭提醒面板时，使尚未返回的状态请求失效，并清空旧的展示和加载状态。
 
-`provider.BalanceAlertMonitor` 每分钟扫描启用的 API Key 提供商，最多并行执行四个检查，单次检查和发信合计最多两分钟。`provider_balance_alert_states` 在查询前原子认领轮次并推进下次检查时间，多实例共享该记录。首次启用在下一次扫描检查，停机后只执行当前到期的一轮。进程中断或 SMTP 结果不确定时，本轮不重试，下次到期重新查询。查询或发信超时、服务停止取消任务后，结果落库仍有独立的五秒预算；应用等待这一步结束后再关闭共享存储。
+`provider.BalanceAlertMonitor` 每分钟扫描启用的 API Key 提供商，最多并行执行四个检查，单次检查和发信合计最多两分钟。`provider_balance_alert_states` 在查询前原子认领轮次并推进下次检查时间，认领状态持久化保存。首次启用在下一次扫描检查，停机后只执行当前到期的一轮。进程中断或 SMTP 结果不确定时，本轮不重试，下次到期重新查询。查询或发信超时、服务停止取消任务后，结果落库仍有独立的五秒预算；应用等待这一步结束后再关闭共享存储。
 
 查询复用 `UpstreamUsageService`，地址校验与管理员手动查询相同：全局白名单关闭时采用配置的 URL 格式和 HTTP 规则，开启时检查上游域名白名单及私网地址权限。结果的 `balance.remaining` 严格小于阈值时，每轮向配置的邮箱发送一次 `provider.upstream_balance_low` 事件。币种只用于展示，不参与比较。查询失败或余额缺失不会当作零余额，也不会使用旧结果发信。查询身份和提醒配置在发送前复核；修改凭据、收件人或阈值后，旧结果失效。
 

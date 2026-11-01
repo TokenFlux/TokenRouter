@@ -25,7 +25,7 @@ app 将同一个 ConfigService、Registry 和渠道能力绑定到网关。搜�
 
 配置保存在 `web_search_emulation_config`。正常读取缓存 60 秒，数据库错误缓存 5 秒，回源预算 5 秒；缺键返回空配置。读取、管理展示和供应商配置各用一份独立副本，调用方修改副本不会影响运行中的快照。
 
-保存先校验并合并需保留的 API Key，持久化成功后推进本进程的发布代次、替换缓存并构造 Manager。较早开始的回源或 Manager 构建即使更晚返回，也覆盖不了后一次保存的结果。发布代次只存在于进程内，其他实例按缓存 TTL 回源后才看到新配置。
+保存先校验并合并需保留的 API Key，持久化成功后推进本进程的发布代次、替换缓存并构造 Manager。较早开始的回源或 Manager 构建即使更晚返回，也覆盖不了后一次保存的结果。发布代次只存在于进程内；缓存到期后按上述预算回源。
 
 配置中的空 API Key 可保留已有密钥；开启功能时，合并后仍缺密钥的供应商会被拒绝。搜索配置的管理 GET/PUT 接口调用 `PopulateWebSearchUsage`，补充用量并保留 `api_key`。需要隐藏密钥的调用方使用 `SanitizeWebSearchConfig`，它清空密钥并保留 `api_key_configured` 标记。供应商的代理无法解析时，跳过这个供应商，请求不会改走直连。配置接口见[搜索配置发布](../interfaces/configuration.md#search_configuration)。
 

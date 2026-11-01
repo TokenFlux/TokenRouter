@@ -1,6 +1,6 @@
 # 插件契约
 
-本文记录 `plugin-sdk/` 中的插件声明、安装包、索引和进程协议。SDK 使用 MIT 许可证，与宿主的 LGPL-3.0-or-later 许可证分开。声明、发布工具、进程协议、宿主能力、页面代理，以及上传和索引安装管理已接入源码。
+本文说明 `plugin-sdk/` 的插件声明、安装包、签名索引、进程协议、宿主能力和管理 HTTP 接口。运行时归属与信任边界见[插件系统](../architecture/plugin_system.md)，安装、升级和恢复步骤见[插件运维](../operations/plugin_operations.md)。SDK 使用 MIT 许可证，宿主使用 LGPL-3.0-or-later 许可证。
 
 ## 章节导航
 

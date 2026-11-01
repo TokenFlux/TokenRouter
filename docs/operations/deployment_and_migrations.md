@@ -13,6 +13,8 @@
 
 ## 构建与运行形态
 
+项目按一个后端进程和一个前端实例部署，前后端作为同一版本整体升级。使用独立静态服务器交付前端时，也需要与后端同步切换版本。
+
 标准发布先生成一次前端静态资源，再由独立的 runner 把同一份前端嵌进各平台的 Go 二进制，并行交叉编译；最后的发布阶段统一归档二进制，并用 Linux `amd64` 和 `arm64` 的产物组装多架构镜像和必要的运行时工具。GitHub Release 同时发布 Linux `amd64`、Linux `arm64` 等产物，具体的矩阵以 [release workflow](../../.github/workflows/release.yml) 为准。
 
 源码镜像的前端阶段校验 `.node-version`，再按 `frontend/package.json` 的 `packageManager` 字段安装 pnpm，本地和 CI 读取同样的版本声明。默认 Node 镜像使用 26.12.1，覆盖 `NODE_IMAGE` 时仍需满足完整版本检查。Node 26 镜像通过 npm 安装声明的 pnpm 版本，冻结安装前复制 workspace 配置。
@@ -56,14 +58,14 @@ Apple container 的新栈使用 `org.tokenrouter.stack` 标签；已有的 `sub2
 
 进程入口先判断是否需要 setup。尚未安装时，可以使用 Web setup、`--setup` 命令行，或容器的 `AUTO_SETUP`。setup 依次测试 PostgreSQL 和 Redis、执行迁移、创建第一个管理员、写入配置，最后创建只读的安装锁。安装锁用来防止被人重新初始化，普通的配置问题不能靠删除它来修复。
 
-正常启动时，`app/bootstrap` 在构造业务依赖图之前，执行同一套嵌入的迁移，所以每个新版本都在监听 HTTP 之前完成 schema 对齐。迁移或安全密钥初始化失败时，应用初始化失败，不会带着不完整的 schema 提供服务。默认的兼容迁移允许多实例滚动启动，由迁移锁保证只有一个实例执行 SQL；[版本升级说明](upgrade_notes.md)里标记为一次性或破坏性的变更，需要按各自的停机顺序执行，优先于这条默认规则。
+正常启动时，`app/bootstrap` 在构造业务依赖图之前，执行同一套嵌入的迁移，所以每个新版本都在监听 HTTP 之前完成 schema 对齐。迁移或安全密钥初始化失败时，应用初始化失败，不会带着不完整的 schema 提供服务。升级先停止旧后端，再由目标版本完成迁移和初始化；各次迁移的额外准备、验证和恢复要求见[版本升级说明](upgrade_notes.md)。
 
 `GET /health` 是容器的健康检查入口。健康响应只说明当前进程可以服务，升级后的业务抽样、账本核对和后台任务检查仍然要做。
 
 <a id="migration_execution"></a>
 ## 迁移执行
 
-迁移执行器在 `infra/postgres`，由 bootstrap 传入连接和迁移 FS；setup 和两个维护命令只调用需要的精简初始化能力。`backend/migrations/*.sql` 通过 `go:embed` 编进二进制，文件名就是迁移的身份，并按字典序决定执行顺序。执行器使用一个固定的 PostgreSQL advisory lock，让多个实例的迁移串行执行；`schema_migrations` 记录文件名、去掉首尾空白后的 SHA-256 和执行时间。已有文件的校验和不匹配时，启动失败；只有 runner 里逐个列出的历史兼容文件可以放行。
+迁移执行器在 `infra/postgres`，由 bootstrap 传入连接和迁移 FS；setup 和两个维护命令只调用需要的精简初始化能力。`backend/migrations/*.sql` 通过 `go:embed` 编进二进制，文件名就是迁移的身份，并按字典序决定执行顺序。执行器使用一个固定的 PostgreSQL advisory lock，让迁移调用串行执行；`schema_migrations` 记录文件名、去掉首尾空白后的 SHA-256 和执行时间。已有文件的校验和不匹配时，启动失败；只有 runner 里逐个列出的历史兼容文件可以放行。
 
 普通的 `*.sql` 在单个事务里执行，SQL 和迁移记录一起提交或回滚。包含 `CREATE INDEX CONCURRENTLY` 或 `DROP INDEX CONCURRENTLY` 的文件，需要以 `_notx.sql` 结尾：这种模式在事务外逐条执行语句，只接受带 `IF NOT EXISTS` 或 `IF EXISTS` 的并发索引语句，也不允许出现 `BEGIN`、`COMMIT` 和 `ROLLBACK`。非事务迁移可能在 SQL 成功、但记录还没写入时中断，所以每条语句都要能安全地重复执行。
 
@@ -74,7 +76,7 @@ Apple container 的新栈使用 `org.tokenrouter.stack` 标签；已有的 `sub2
 - 已经进入任何环境的文件，不能修改、删除或改名；修正需要新建迁移。
 - 文件里不放可执行的 Down 段；runner 不解析 Goose 的 Up 和 Down 标记。
 - 普通迁移尽量写成幂等的，并在 SQL 里用英文注释说明变更原因和兼容窗口。
-- schema、数据回填、Repository 查询和 Ent schema 的变化，放在同一个兼容序列里设计；确实无法让新旧二进制共存时，在[版本升级说明](upgrade_notes.md)里写明停机升级、备份和回滚的步骤。
+- schema、数据回填、Repository 查询和 Ent schema 的变化，放在同一次整体升级里设计；在[版本升级说明](upgrade_notes.md)里写明特殊的停机准备、备份、验证和回退限制。
 
 ## 新增与同步迁移
 
@@ -92,6 +94,8 @@ Apple container 的新栈使用 `org.tokenrouter.stack` 标签；已有的 `sub2
 ## 升级与恢复
 
 ### 通用规则
+
+升级在维护窗口内整体切换前后端：停止接收新流量，按应用关闭流程停止旧后端，确认在途请求和后台任务已结束，替换同一版本的前端资源与后端产物，再启动后端执行迁移和初始化。验证通过后恢复流量。嵌入式发布通过替换二进制或镜像完成前后端切换。
 
 升级之前，先创建 PostgreSQL 备份并实际验证可以恢复，同时保存业务需要恢复的 Redis 和对象存储数据。后台备份服务可以把数据库 dump 流式写到本地或 S3 兼容存储，并用维护锁让备份和恢复串行执行；敏感的存储配置需要稳定的安全密钥。备份内容策略可能排除大的历史表，恢复之前要先核对备份的范围。
 
@@ -114,7 +118,7 @@ Apple container 的新栈使用 `org.tokenrouter.stack` 标签；已有的 `sub2
 
 ## MCP 管理接入
 
-迁移 300 创建独立的 MCP 令牌表，保存认证摘要和加密凭据，迁移 301 增加默认关闭的跳过浏览器确认设置。服务沿用现有 PostgreSQL、Redis 和持久加密密钥；创建与复制令牌要求配置固定的 `TOTP_ENCRYPTION_KEY`（或 `totp.encryption_key`），所有实例使用相同值，并与数据库一起备份。入口与网页使用同一监听端口，反向代理需要允许 `/mcp`。浏览器确认链接使用 `frontend_url`，原生客户端通过专用 Bearer 令牌连接，部署时按需限制管理入口的网络可达范围。令牌迁移、回退和临时数据规则见 [MCP 管理接口](../interfaces/mcp_management.md#client_setup)。
+迁移 300 创建独立的 MCP 令牌表，保存认证摘要和加密凭据，迁移 301 增加默认关闭的跳过浏览器确认设置。服务沿用现有 PostgreSQL、Redis 和持久加密密钥；创建与复制令牌要求配置固定的 `TOTP_ENCRYPTION_KEY`（或 `totp.encryption_key`），重启和升级时保持该值，并与数据库一起备份。入口与网页使用同一监听端口，反向代理需要允许 `/mcp`。浏览器确认链接使用 `frontend_url`，原生客户端通过专用 Bearer 令牌连接，部署时按需限制管理入口的网络可达范围。令牌迁移、回退和临时数据规则见 [MCP 管理接口](../interfaces/mcp_management.md#client_setup)。
 
 ### MCP OAuth 部署
 

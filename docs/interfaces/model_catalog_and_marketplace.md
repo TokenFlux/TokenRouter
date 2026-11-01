@@ -253,7 +253,7 @@ OpenCode 导出显示名、附件、推理、温度、工具调用、模态和�
 
 探测轮次、重试和最终结果的编排由 `routing` 负责，租约、原子保存和历史时间桶的查询在 `routing/postgres`；`routing/provider` 提供 cron 日历调度和平台目录数据。app 注入实例标识、时区和执行接口，提供商选择由 `gateway/provider/selection` 提供，探测执行复用 `provider.TestService`，通过 app 构造的 Probe 适配连接。构造时不启动；重复调用 Start 或 Stop 不会注册新任务；停止时，取消维护、领取和请求的预算，并在生命周期的后台总预算内等待在途操作。超时时返回失败，不算排空完成；还没保存的领取，按 PostgreSQL 租约到期的规则恢复。
 
-每个实例的 runner 不允许分钟级的 cron 轮次重叠；单轮领取的到期分组不超过实例的 worker 数，每个领取到的分组都能立即执行，PostgreSQL 租约防止其他实例重复领取。维护、领取和每个分组的探测，分别有独立的超时预算，慢的维护不会挤占合法的重试时间。管理分组 API 里不合法的 `availability_probe_config`，统一返回 HTTP `400`，reason 是 `INVALID_AVAILABILITY_PROBE_CONFIG`。
+探测 runner 不允许分钟级的 cron 轮次重叠；单轮领取的到期分组不超过 worker 数，每个领取到的分组都能立即执行。PostgreSQL 租约保护任务领取，未完成的领取在租约到期后恢复。维护、领取和每个分组的探测，分别有独立的超时预算，慢的维护不会挤占合法的重试时间。管理分组 API 里不合法的 `availability_probe_config`，统一返回 HTTP `400`，reason 是 `INVALID_AVAILABILITY_PROBE_CONFIG`。
 
 永久性的模型可用性诊断由 `routing.ModelAvailability` 执行，通过单独的持久候选查询，区分"模型不存在"和"暂时容量不足"。所有入口都按明确的组内关联查询候选，Antigravity 提供商也不会扩大成员范围；查询失败或无法诊断时，交给 503 分支处理，暂时的限流不会被误报为 404。
 

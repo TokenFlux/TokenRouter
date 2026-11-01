@@ -48,7 +48,7 @@ HTTP client 池可以按 `proxy`、`provider` 或 `provider_proxy` 隔离，有�
 <a id="upstream_tls_routing"></a>
 ## TLS 指纹路由
 
-egress 负责 TLS Profile 和 Router 的配置和缓存（只有一份）；写入缓存和返回运行时数据时，都会复制切片、规则和可空字段，单次请求无法修改之后请求的策略。TLS fingerprint profile 描述 ClientHello 和 HTTP 的行为，提供商可以直接绑定 profile，也可以绑定 router。Router 根据平台、请求和配置选择 profile、User-Agent 或 originator，结果计入连接池的隔离键。配置缓存更新后，需要跨实例失效，同一个提供商不能长期在不同的实例上使用不同版本的规则。
+egress 负责 TLS Profile 和 Router 的配置和缓存（只有一份）；写入缓存和返回运行时数据时，都会复制切片、规则和可空字段，单次请求无法修改之后请求的策略。TLS fingerprint profile 描述 ClientHello 和 HTTP 的行为，提供商可以直接绑定 profile，也可以绑定 router。Router 根据平台、请求和配置选择 profile、User-Agent 或 originator，结果计入连接池的隔离键。配置更新后，通过 Redis 失效通知刷新相关缓存；后续请求需要使用更新后的规则。
 
 调用方用 `TLSSelection` 明确传入提供商的资格、直接模板和路由匹配结果；`egress/provider.TLSProfiles` 只把策略结果转成传输指纹，不读取提供商，也不保存缓存。app 直接管理模板服务的启停，授权 token 的专用选择复用同一个实例。
 

@@ -18,7 +18,7 @@
 
 Ops 同时接收请求错误、单独的上游 attempt 错误、入口准入拒绝、系统日志、并发、提供商可用性、实时流量和系统指标。每类信号有自己的 repository 和队列，一类的计数不能代替另一类：一次最终的客户端失败，可能对应多个上游错误；一次本地拒绝，也可能根本没有上游 attempt。
 
-`OpsMetricsCollector` 在 Ops 和 monitoring 开关都开启时，周期采集数据库、Redis、主机和容器、提供商负载和运行时的指标。多实例通过 Redis leader lock 选出执行者，必要的路径使用 PostgreSQL advisory lock，保证每个周期只持久化一次；运行结果写入 job heartbeat、耗时和错误。
+`OpsMetricsCollector` 在 Ops 和 monitoring 开关都开启时，周期采集数据库、Redis、主机和容器、提供商负载和运行时的指标。采集轮次通过 Redis 任务锁控制执行资格，必要的路径使用 PostgreSQL advisory lock；运行结果写入 job heartbeat、耗时和错误。
 
 系统日志 sink 和请求、错误的采集，使用相互独立的有界队列。审计和系统日志 sink 重复调用 Start 时，由各自的屏障合并，Stop 之后无法重新打开；系统日志的退避和健康计数只有一份。队列拥塞时，按各自的策略丢弃或降级，并累计 dropped 和健康计数；它们不会反过来拖慢网关的核心转发。系统日志写库失败时，执行从 2 秒开始、上限 60 秒的指数退避，退避期间的批次计入 dropped，不访问数据库，成功后立即清除失败状态。敏感字段在写入存储之前清理，request ID、平台、分组、提供商和 endpoint 用于关联。
 
@@ -36,7 +36,7 @@ Ops 同时接收请求错误、单独的上游 attempt 错误、入口准入拒�
 
 ## 告警评估
 
-告警规则包括 enabled、metric type、operator、threshold、window、sustained minutes、scope 和 filter，以及通知动作。评估器按运行设置周期执行，用 leader lock 避免多实例产生重复的事件；连续超过阈值的时间达到持续要求后，创建或更新 active 的事件，恢复后关闭，或标记为 resolved。
+告警规则包括 enabled、metric type、operator、threshold、window、sustained minutes、scope 和 filter，以及通知动作。评估器按运行设置周期执行，执行前取得任务锁；连续超过阈值的时间达到持续要求后，创建或更新 active 的事件，恢复后关闭，或标记为 resolved。
 
 静默记录只在匹配的范围和时间内，抑制通知和事件动作，原始指标不受影响。管理员可以确认、解决事件，并配置邮件通知。邮件有全局和运行时的限流；发送失败时写进 heartbeat 和日志，事件不会被标成已送达。
 
@@ -44,7 +44,7 @@ Ops 同时接收请求错误、单独的上游 attempt 错误、入口准入拒�
 
 ## 计划报告
 
-计划报告支持日报、周报、错误摘要和提供商健康。Cron 使用分钟级的五字段表达式，时区取应用配置；每分钟的调度器只执行已经到期的报告，并用分布式锁和 last-run key 防止重复发送。
+计划报告支持日报、周报、错误摘要和提供商健康。Cron 使用分钟级的五字段表达式，时区取应用配置；每分钟的调度器只执行已经到期的报告，并用 Redis 任务锁和 last-run key 防止重复发送。
 
 报告的收件人、启用项、错误的最小计数和提供商错误率的阈值，来自数据库的运行设置。邮件报告配置的写入，严格校验结构字段：旧的 `report.account_health_*` 返回 400，要使用 `report.provider_health_*` 保存。生成失败或邮件失败时，写入任务的 heartbeat。报告只是观测摘要，扣费、SLA 赔付和提供商自动恢复，都不能只以它为依据。
 
@@ -56,7 +56,7 @@ Ops 的构造和启动分开，app 在完成全部绑定后，才启动采样、
 
 - 关闭 Ops 硬开关时，采集、查询和后台评估都停止，网关的转发、认证和计费照常进行。
 - 分别观察 collector、evaluator、report、aggregation 和 cleanup 各自的 heartbeat、leader lock、最近一次的耗时和错误；只检查进程是否存活是不够的。
-- 规则和运行设置通过数据库持久化，并以运行时快照传播；更新后，检查多个实例上的版本，一次管理 API 调用成功，不代表所有实例都已经刷新。
+- 规则和运行设置通过数据库持久化，由运行时快照供任务读取；更新后，检查快照刷新结果和下一轮任务行为。
 - Retention 和 cleanup 只删除观测数据；告警、报告或面板缺少历史数据，不影响资金账本，但会降低诊断的完整性。
 
 <a id="ops_release_and_maintenance"></a>

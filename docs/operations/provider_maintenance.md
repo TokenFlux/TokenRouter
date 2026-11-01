@@ -83,7 +83,7 @@ Grok 导入后的主动探测，由 app 注入的 `provider.GrokImportProbeSched
 
 提供商列表和运行状态的读取，由 `ManagementList` 和 `RuntimeStatusReader` 执行，HTTP 的 `RuntimePresenter` 只负责转换管理 DTO 和母提供商的字段。先分页和服务端排序，再观察；只有明确请求时，才查询筛选池和分组池的评分，并对候选的并集批量查询负载。实际的评分、并发、会话和 RPM 由 scheduler 提供，详细用量由 usage 提供，各自维护自己的缓存和运行状态。OpenAI 自动暂停的纯规则属于 provider，每个读取点都使用动态的默认阈值，同时包含窗口豁免、两小时的陈旧界限和缺少时间戳时的处理。
 
-Google One 单个和批量的 tier 刷新，由 `TierManagement` 负责资格、查询集合、并发 10 和条件配置写入；Drive 的网络调用和供应商的 tier 推断，由 `provider/provider` 和 `upstream/gemini/codeassist` 协作提供。批量输入为空或损坏时，回落为最多一万条的 Google One 查询，单项失败不影响其他项。查询开始时固定身份，保存时在配置的行锁内复核，只合并 tier_id 和这一轮的 Drive 字段；管理员的新 token 和没选中的 Extra 不会被旧快照覆盖，outbox 失败时回滚这一次的配置。身份复核使用已有的字段，没有跨实例的协调。
+Google One 单个和批量的 tier 刷新，由 `TierManagement` 负责资格、查询集合、并发 10 和条件配置写入；Drive 的网络调用和供应商的 tier 推断，由 `provider/provider` 和 `upstream/gemini/codeassist` 协作提供。批量输入为空或损坏时，回落为最多一万条的 Google One 查询，单项失败不影响其他项。查询开始时固定身份，保存时在配置的行锁内复核，只合并 tier_id 和这一轮的 Drive 字段；管理员的新 token 和没选中的 Extra 不会被旧快照覆盖，outbox 失败时回滚这一次的配置。身份复核使用已有字段，并在保存事务内检查。
 
 管理端的可用模型由 `routing.AdminCatalog` 合并统一目录与提供商配置，再检查提供商的白名单和执行资格。空白名单允许目录未知的型号，Spark、OAuth、站点及协议规则照常检查。测试和定时测试选择器显示实际模型 ID。Jev 手动测试支持图片理解和 Box 定位，使用提交时的图片及问题快照展示结果，默认填入 `jev-latest`，其他平台等待管理员选择型号。批量测试使用勾选的候选型号，默认提示词独立初始化。
 
@@ -209,7 +209,7 @@ Ollama Cloud 的共享浏览器会话、按 API Key 身份分组、手动刷新�
 
 - 按每个 provider 观察候选数、刷新的成功和失败、节流、超时和最长的积压，只看总成功率不够。
 - 把提供商测试、刷新、quota probe、代理健康和调度过滤原因关联起来，区分凭据故障和出站网络故障。
-- 检查提供商的数据库状态、当前进程的数据和跨实例的失效是否一致；手工改了数据库之后，要等周期重建，才会生效。
+- 检查提供商的数据库状态、Redis 快照和进程内缓存是否一致；手工改了数据库之后，要等周期重建，才会生效。
 - 自动恢复或批量导入之后，抽查实际的协议；token endpoint 成功，不代表推理一定可用。
 - 排查 OpenAI Chat 时，同时核对入站协议、`upstream_protocols`、分组的 `protocol_fallbacks` 和 Usage Log 的 `upstream_endpoint`；默认模式应该记录 `/v1/chat/completions`，历史的探测状态不会改变上游协议。
 

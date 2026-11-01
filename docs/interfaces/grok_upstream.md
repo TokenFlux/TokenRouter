@@ -44,7 +44,7 @@ Responses WebSocket 是 Grok 和 OpenAI 的原生传输能力，兼容 Responses
 
 管理员的 Grok 授权和 SSO 导入 HTTP 由 `provider/httpapi` 接入；导入队列、配额探测和模型观测共用提供商运行时。Responses、Chat 桥接、Composer 图片辅助请求、媒体和 Voice 由 `gateway/httpapi.GrokExecutor` 接入，响应解析复用 upstream 和共享的 `OpenAIResponseOutput`。app 绑定凭据、健康、HTTP 池、TLS 和同一个 WS 拨号器；Realtime 连接和视频内容流分别通过各自的接口释放。Chat 桥接不适用时，回到原生的 Chat 分支；提供商切换、入站编排和资金完成由请求的负责方处理。
 
-管理员可以在控制台选择 OAuth 或 API Key 创建提供商。OAuth 提供商可以通过浏览器授权、refresh token 或 SSO cookie 创建和重新授权；把提供商绑定到分组后，用户就可以生成这个分组的 API Key。OAuth 的 state 和 PKCE 会话优先保存在 Redis，并用一次性消费标记防止多实例重复兑换；Redis 写入失败时，才使用进程内的短期存储。SSO cookie、邮箱密码等临时输入，只用于兑换 Build OAuth token，不会写进提供商凭据、响应或日志。
+管理员可以在控制台选择 OAuth 或 API Key 创建提供商。OAuth 提供商可以通过浏览器授权、refresh token 或 SSO cookie 创建和重新授权；把提供商绑定到分组后，用户就可以生成这个分组的 API Key。OAuth 的 state 和 PKCE 会话优先保存在 Redis，并用一次性消费标记防止并发请求重复兑换；Redis 写入失败时，才使用进程内的短期存储。SSO cookie、邮箱密码等临时输入，只用于兑换 Build OAuth token，不会写进提供商凭据、响应或日志。
 
 邮箱密码授权由进程配置 `gateway.grok.password_auth_enabled` 控制，默认关闭，管理端不显示入口。即使手动开启，服务也只把密码临时换成 SSO，再换成 OAuth token。重新授权成功后，清除 Grok 软性消费上限的重新授权标记，并按凭据快照和 CAS 规则更新提供商，旧请求无法覆盖新的 token。
 
@@ -94,7 +94,7 @@ Voice 的 HTTP 入口包括 TTS、STT，以及自定义 Voice 的创建、读取
 
 新视频请求成功后，从上游响应的 `request_id`、`id` 或 `task_id`（包括 `data.*`、`video.*` 的嵌套形式）里提取任务标识，`request_id` 和 `id` 的优先级保持不变。服务按"规范化的任务标识 + `user_id` + `api_key_id`"，保存所选的分组和提供商绑定。之后的状态查询和 content 下载，回到创建任务的那个提供商，不再重新调度。复合 Key 的映射后来被删除时，服务仍然可以从持久化或缓存的绑定，构造一个只用于查询旧任务的最小 Grok 分组视图。查询已有任务不要求提供商仍然具备"新媒体生成"的资格，但 Key、用户和任务归属照常校验。
 
-视频 content 先确认任务状态，再用服务端的上游凭据代理下载，并安全地透传 Range 和内容相关的头；上游 URL 和 bearer token 不会返回给客户端。异步视频创建成功时，只保存模型、计费模型、分辨率、时长和创建时间的快照，不立即扣费；状态查询或 content 下载第一次观察到官方的 `status=done`、并且有 `video.url` 时，才尝试结算。模型和时长优先取完成响应里的值，分辨率取创建时的快照；时长缺失时先取创建快照，再用 8 秒。分辨率只在空值时默认 480p，自定义标签和完整的正数秒数会保留到 Usage Log 与计费，计费层不限制为 15 秒。模型缺失时使用官方默认的型号族。多实例通过 Redis `SET NX` 领取一次性的结算权；持久化结算失败时释放领取，留给之后的轮询重试，并用任务 ID 派生的稳定 request ID 防止重复扣费。普通的查询和下载不会产生第二笔费用。
+视频 content 先确认任务状态，再用服务端的上游凭据代理下载，并安全地透传 Range 和内容相关的头；上游 URL 和 bearer token 不会返回给客户端。异步视频创建成功时，只保存模型、计费模型、分辨率、时长和创建时间的快照，不立即扣费；状态查询或 content 下载第一次观察到官方的 `status=done`、并且有 `video.url` 时，才尝试结算。模型和时长优先取完成响应里的值，分辨率取创建时的快照；时长缺失时先取创建快照，再用 8 秒。分辨率只在空值时默认 480p，自定义标签和完整的正数秒数会保留到 Usage Log 与计费，计费层不限制为 15 秒。模型缺失时使用官方默认的型号族。并发的查询和下载请求通过 Redis `SET NX` 领取一次性的结算权；持久化结算失败时释放领取，留给之后的轮询重试，并用任务 ID 派生的稳定 request ID 防止重复扣费。普通的查询和下载不会产生第二笔费用。
 
 视频任务摘要按每次状态查询的上游状态更新，`done`、`failed`、`expired` 和取消状态都会结束摘要。该更新先于计费认领，零费用失败与已计费任务的再次查询同样会记录终态。请求记录规则见[请求 ID 与请求查询](../operations/request_lookup.md#request_storage)。
 
