@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import type { PluginCatalogEntry } from '@/api/admin/plugins.types'
 import Skeleton from '@/components/common/Skeleton.vue'
 import Icon from '@/components/icons/Icon.vue'
+import type { IconName } from '@/components/icons/registry'
 import { pluginText } from '@/components/plugin/configurationFields'
 import { PERMISSION_TONE_TEXT, pluginPermissionInfo } from '@/components/plugin/permissions'
 import PluginIcon from './PluginIcon.vue'
@@ -10,10 +11,12 @@ import { catalogIconURL } from './pluginPresentation'
 
 // PluginCatalogGrid.vue presents source-qualified catalog entries as cards that open
 // the plugin detail page. A card answers three questions before the administrator
-// clicks: what the plugin does, who signed it, and how much it can touch. The
-// permission strip shows at most five capability symbols, colored by whether they
-// grant value, charge users, or only read, and the corner badge reports installation state.
-// Search and filters are applied by the parent; this component only renders results.
+// clicks: what the plugin does, who signed it, and how much it can touch. The footer
+// carries a version tag and up to two category tags, each category with its own
+// symbol and tint. The permission strip shows at most five capability symbols,
+// colored by whether they grant value, charge users, or only read, and the corner
+// badge reports installation state. Search and filters are applied by the parent;
+// this component only renders results.
 
 // Props carries already filtered entries and whether the first catalog read is pending.
 defineProps<{
@@ -61,10 +64,48 @@ function displayedVersion(entry: PluginCatalogEntry): string {
   return entry.recommended_version || entry.installed_version || entry.versions[0]?.version || ''
 }
 
-/** categoryLabel translates the entry's first known category for the card footer. */
-function categoryLabel(entry: PluginCatalogEntry): string {
-  const category = entry.categories[0]
-  return category ? t(`admin.plugins.market.categories.${category}`) : ''
+// CATEGORY_TAGS give each catalog category its own symbol and tint so cards can be
+// told apart at a glance; unknown categories fall back to the neutral "other" tag.
+const CATEGORY_TAGS: Record<string, { icon: IconName; tone: string }> = {
+  engagement: {
+    icon: 'gift',
+    tone: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+  },
+  tools: {
+    icon: 'sliders',
+    tone: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300',
+  },
+  analytics: {
+    icon: 'chartBar',
+    tone: 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
+  },
+  content: {
+    icon: 'document',
+    tone: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+  },
+  integration: {
+    icon: 'link',
+    tone: 'bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
+  },
+  other: {
+    icon: 'cube',
+    tone: 'bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-dark-300',
+  },
+}
+
+// VISIBLE_CATEGORIES bounds the footer to the first two categories of an entry.
+const VISIBLE_CATEGORIES = 2
+
+/** categoryTags returns the translated label, symbol, and tint of each shown category. */
+function categoryTags(entry: PluginCatalogEntry) {
+  return entry.categories.slice(0, VISIBLE_CATEGORIES).map((category) => {
+    const known = Object.prototype.hasOwnProperty.call(CATEGORY_TAGS, category)
+    return {
+      key: category,
+      label: known ? t(`admin.plugins.market.categories.${category}`) : category,
+      ...CATEGORY_TAGS[known ? category : 'other']!,
+    }
+  })
 }
 </script>
 
@@ -127,9 +168,20 @@ function categoryLabel(entry: PluginCatalogEntry): string {
       <div
         class="mt-auto flex items-center justify-between gap-3 pt-4 text-xs text-gray-500 dark:text-dark-400"
       >
-        <span class="flex min-w-0 items-center gap-2">
-          <span class="font-mono">v{{ displayedVersion(entry) }}</span>
-          <span v-if="categoryLabel(entry)" class="truncate">· {{ categoryLabel(entry) }}</span>
+        <span class="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span
+            class="inline-flex items-center gap-1 rounded-compact bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600 dark:bg-dark-800 dark:text-dark-300"
+            ><Icon name="tag" size="xs" :animate-on-hover="false" />v{{
+              displayedVersion(entry)
+            }}</span
+          >
+          <span
+            v-for="tag in categoryTags(entry)"
+            :key="tag.key"
+            class="inline-flex items-center gap-1 rounded-compact px-1.5 py-0.5 font-medium"
+            :class="tag.tone"
+            ><Icon :name="tag.icon" size="xs" :animate-on-hover="false" />{{ tag.label }}</span
+          >
         </span>
         <span v-if="entry.manifest.permissions?.length" class="flex shrink-0 items-center gap-1.5">
           <Icon
