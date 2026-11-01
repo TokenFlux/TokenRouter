@@ -166,7 +166,7 @@ importers:
 
   .:
     dependencies:
-      '@tokenrouter/plugin-sdk':
+      '@tokenflux/tokenrouter-plugin-sdk':
         specifier: link:../../../../web
         version: link:../../../../web
       vue:

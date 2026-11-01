@@ -45,6 +45,7 @@ type processFixture struct {
 
 // packageFixture records managed cleanup while returning deterministic verified package metadata.
 type packageFixture struct {
+	mu      sync.Mutex   // serializes package fixture observations
 	removed []string     // observed managed cleanup identifiers
 	pruned  [][]string   // retained versions for each cleanup
 	ensured []PackageRef // verified candidate package selections
@@ -199,6 +200,8 @@ func (f *processFixture) StopAll(context.Context) error {
 
 // Ensure returns stable release paths and hashes without touching the filesystem.
 func (f *packageFixture) Ensure(_ context.Context, ref PackageRef) (Package, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.ensured = append(f.ensured, ref)
 	return Package{
 		Directory:      "/fixture",
@@ -211,12 +214,16 @@ func (f *packageFixture) Ensure(_ context.Context, ref PackageRef) (Package, err
 
 // Prune accepts retained release versions without deleting real filesystem entries.
 func (f *packageFixture) Prune(_ context.Context, _ string, versions ...string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.pruned = append(f.pruned, slices.Clone(versions))
 	return nil
 }
 
 // Remove records a cleanup request for later uninstall ordering assertions.
 func (f *packageFixture) Remove(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.removed = append(f.removed, id)
 	return nil
 }

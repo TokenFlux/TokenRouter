@@ -1,5 +1,5 @@
 import { inject, type InjectionKey } from 'vue'
-import type { HostApi } from '@tokenrouter/plugin-sdk'
+import type { HostApi } from '@tokenflux/tokenrouter-plugin-sdk'
 
 // context.ts provides the single injection identity shared by plugin pages and
 // host-owned component wrappers. The mounted page supplies a scoped HostApi;

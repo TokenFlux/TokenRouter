@@ -7,7 +7,7 @@ import {
   type HostRoute,
   type HttpMethod,
   type RequestOptions,
-} from '@tokenrouter/plugin-sdk'
+} from '@tokenflux/tokenrouter-plugin-sdk'
 import type { PluginPage, PluginUI } from '@/api/plugins.types'
 import { requestPlugin } from '@/api/plugins'
 import { useAuthStore } from '@/stores/auth'

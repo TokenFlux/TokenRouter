@@ -23,6 +23,7 @@ func TestExtractRejectsUnsafeArchiveEntries(t *testing.T) {
 		{"absolute", []*tar.Header{{Name: "/escape", Typeflag: tar.TypeReg}}},
 		{"backslash", []*tar.Header{{Name: `dir\escape`, Typeflag: tar.TypeReg}}},
 		{"symlink", []*tar.Header{{Name: "link", Typeflag: tar.TypeSymlink, Linkname: "../escape"}}},
+		{"parent-file", []*tar.Header{{Name: "file", Typeflag: tar.TypeReg}, {Name: "file/child", Typeflag: tar.TypeReg}}},
 		{"hardlink", []*tar.Header{{Name: "link", Typeflag: tar.TypeLink, Linkname: "../escape"}}},
 		{"device", []*tar.Header{{Name: "device", Typeflag: tar.TypeChar}}},
 		{"duplicate", []*tar.Header{{Name: "file", Typeflag: tar.TypeReg}, {Name: "file", Typeflag: tar.TypeReg}}},

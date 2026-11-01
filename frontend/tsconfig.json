@@ -17,7 +17,7 @@
     "noFallthroughCasesInSwitch": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@tokenrouter/plugin-sdk": ["../plugin-sdk/web/src/index.ts"],
+      "@tokenflux/tokenrouter-plugin-sdk": ["../plugin-sdk/web/src/index.ts"],
       "vue": ["./node_modules/vue"]
     },
     "types": ["vite/client"]

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick, ref } from 'vue'
-import type { HostApi, SdkRuntime } from '@tokenrouter/plugin-sdk'
+import type { HostApi, SdkRuntime } from '@tokenflux/tokenrouter-plugin-sdk'
 import { initializePluginRuntime, useMessages } from '../runtime'
 import { PLUGIN_HOST_KEY } from '../context'
 import { definePlugin } from '../registry'

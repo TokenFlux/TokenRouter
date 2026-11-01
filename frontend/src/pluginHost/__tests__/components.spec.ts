@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import type { HostApi } from '@tokenrouter/plugin-sdk'
+import type { HostApi } from '@tokenflux/tokenrouter-plugin-sdk'
 import { PLUGIN_HOST_KEY } from '../context'
 import { TrButton, TrDialog, TrInput, TrTextarea, TrTable } from '../components'
 

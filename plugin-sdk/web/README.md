@@ -7,7 +7,7 @@ and UI wrappers. The SDK and examples use the MIT license.
 ```ts
 import { defineConfig, mergeConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { tokenrouterPlugin } from '@tokenrouter/plugin-sdk/vite'
+import { tokenrouterPlugin } from '@tokenflux/tokenrouter-plugin-sdk/vite'
 
 export default defineConfig(mergeConfig(
   tokenrouterPlugin({ pluginId: 'publisher.plugin' }),
@@ -28,7 +28,7 @@ existing `--radius-*` and `--z-*` variables, to follow light and dark themes.
 
 `vite` uses the local mock for SDK imports. The mock supports the example's
 check-in endpoints; authors can replace responses with `configureMock` from
-`@tokenrouter/plugin-sdk/dev`. Unknown endpoints fail explicitly. Mock controls
+`@tokenflux/tokenrouter-plugin-sdk/dev`. Unknown endpoints fail explicitly. Mock controls
 use native elements and do not prove production styling, permissions, storage,
 or billing behavior. The mock is excluded from production IIFE bundles.
 

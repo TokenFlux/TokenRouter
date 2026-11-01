@@ -129,7 +129,10 @@ export default defineConfig(({ mode }) => {
         '@': resolve(import.meta.dirname, 'src'),
         // Host code consumes the SDK's shared error class and constants directly;
         // published plugin bundles still externalize the full SDK to host globals.
-        '@tokenrouter/plugin-sdk': resolve(import.meta.dirname, '../plugin-sdk/web/src/types.ts'),
+        '@tokenflux/tokenrouter-plugin-sdk': resolve(
+          import.meta.dirname,
+          '../plugin-sdk/web/src/types.ts',
+        ),
         // Vue I18n 11 enables CSP-compatible JIT compilation by default; keep
         // the runtime distribution used by the application and component tests.
         'vue-i18n': 'vue-i18n/dist/vue-i18n.runtime.esm-bundler.js',

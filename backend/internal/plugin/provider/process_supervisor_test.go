@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -17,6 +18,11 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 )
+
+// process_supervisor_test.go exercises native child lifecycle and request admission.
+// Real SDK executables reproduce crashes, stalls, cancellation, and environment
+// isolation. Handshake setup uses the production startup budget so concurrent
+// package verification does not turn ordinary process scheduling into a simulated fault.
 
 // TestProcessesDrainAndRejectNewLeases holds an admitted generation during stop.
 // Draining must reject new requests, preserve the admitted lease until release,
@@ -109,6 +115,9 @@ func TestProcessesRejectHostEnvironmentInheritance(t *testing.T) {
 	var variables []string
 	if err := json.Unmarshal(response.Body, &variables); err != nil {
 		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(variables, "\n"), "GOMEMLIMIT=128MiB") {
+		t.Fatal("declared Go memory budget did not reach the child")
 	}
 	allowed := map[string]bool{"PATH": true, "HOME": true, "TMPDIR": true, "LANG": true, "TZ": true, "GOMEMLIMIT": true, "TR_PLUGIN_ID": true, "TR_PLUGIN_STATE_DIR": true, "SystemRoot": true, "TEMP": true, "TMP": true, "TOKENROUTER_PLUGIN": true, "PLUGIN_MIN_PORT": true, "PLUGIN_MAX_PORT": true, "PLUGIN_PROTOCOL_VERSIONS": true, "PLUGIN_CLIENT_CERT": true, "PLUGIN_GRPC_BROKER_MULTIPLEX": true, "PLUGIN_UNIX_SOCKET_DIR": true}
 	for _, variable := range variables {
@@ -314,7 +323,9 @@ func runtimeFixture(t *testing.T, name string) (*Processes, plugin.ProcessSpec) 
 	}
 	digest := sha256.Sum256(data)
 	spec := plugin.ProcessSpec{PluginID: "test." + name, Version: "1.0.0", Executable: fixtureBinaries[name], BinarySHA256: hex.EncodeToString(digest[:]), StateDir: t.TempDir(), MemoryMiB: 128, ConfigJSON: []byte(`{}`), VerifyBinary: true}
-	options := plugin.RuntimeOptions{HostVersion: "0.6.0", Timezone: "UTC", StartTimeout: time.Second, InitTimeout: 100 * time.Millisecond, HealthInterval: 30 * time.Millisecond, HealthTimeout: 50 * time.Millisecond, ExitInterval: 10 * time.Millisecond, ResourceInterval: time.Hour, DrainTimeout: time.Second, ShutdownTimeout: 200 * time.Millisecond, Backoffs: []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond, 80 * time.Millisecond}}
+	// Keep the production handshake budget under full-suite process contention;
+	// explicit short Init, health, and request deadlines still exercise their failure policies.
+	options := plugin.RuntimeOptions{HostVersion: "0.6.0", Timezone: "UTC", InitTimeout: 100 * time.Millisecond, HealthInterval: 30 * time.Millisecond, HealthTimeout: 50 * time.Millisecond, ExitInterval: 10 * time.Millisecond, ResourceInterval: time.Hour, DrainTimeout: time.Second, ShutdownTimeout: 200 * time.Millisecond, Backoffs: []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond, 80 * time.Millisecond}}
 	processes := NewProcesses(options, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -334,7 +345,9 @@ func runtimeFixture(t *testing.T, name string) (*Processes, plugin.ProcessSpec) 
 // subprocess state rather than replacing process behavior with a timing mock.
 func waitRuntimeState(t *testing.T, processes *Processes, id string, wanted plugin.State) plugin.Status {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	// Observation allows a complete production handshake before declaring fixture
+	// startup stuck; behavior-specific crash and request deadlines remain independently asserted.
+	deadline := time.Now().Add(20 * time.Second)
 	for {
 		state := processes.Status(id)
 		if state.State == wanted {
@@ -344,5 +357,25 @@ func waitRuntimeState(t *testing.T, processes *Processes, id string, wanted plug
 			t.Fatalf("want %s, got %+v; recent logs: %+v", wanted, state, processes.Logs(id))
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// TestProcessResourceSamplingWarnsWithoutKilling observes this test process above a deliberately tiny advisory allowance.
+// Sampling records resident memory and emits its warning while preserving running state; no process termination or unbounded allocation is involved.
+func TestProcessResourceSamplingWarnsWithoutKilling(t *testing.T) {
+	var output bytes.Buffer
+	owner := &supervisor{
+		ctx: t.Context(), options: plugin.RuntimeOptions{}.WithDefaults(),
+		logger: slog.New(slog.NewTextHandler(&output, nil)), spec: plugin.ProcessSpec{MemoryMiB: 1}, observation: plugin.Status{State: plugin.StateRunning},
+	}
+	owner.sample(&generation{pid: os.Getpid()})
+	if owner.observation.RSSBytes == 0 {
+		t.Fatal("self process memory was not sampled")
+	}
+	if !strings.Contains(output.String(), "Plugin memory exceeds advisory threshold") {
+		t.Fatalf("missing resource warning: %s", output.String())
+	}
+	if owner.observation.State != plugin.StateRunning {
+		t.Fatal("advisory sampling changed process availability")
 	}
 }

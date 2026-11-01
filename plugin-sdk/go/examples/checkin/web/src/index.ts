@@ -1,4 +1,4 @@
-import { definePlugin } from '@tokenrouter/plugin-sdk'
+import { definePlugin } from '@tokenflux/tokenrouter-plugin-sdk'
 import HomePage from './pages/HomePage.vue'
 import './style.css'
 

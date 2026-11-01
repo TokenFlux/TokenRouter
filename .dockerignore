@@ -34,6 +34,12 @@ build/
 frontend/node_modules/
 node_modules/
 
+# Plugin SDK development dependencies and sample outputs are rebuilt from source;
+# exclude them from the backend module copy and the container build context.
+plugin-sdk/**/node_modules/
+plugin-sdk/**/dist/
+plugin-sdk/templates/
+
 # Go build cache (will be built in container)
 backend/vendor/
 
@@ -79,3 +85,13 @@ deploy/redis_data/
 .claude/
 issues/
 CLAUDE.md
+
+# Local verification binaries and planning artifacts are not runtime inputs.
+# Keep them outside COPY backend and avoid shipping development data to builders.
+backend/bin/
+backend/server
+backend/*.test
+backend/data/
+.agents/
+refactor/
+output/

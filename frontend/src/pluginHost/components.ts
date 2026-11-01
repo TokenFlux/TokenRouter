@@ -6,7 +6,7 @@ import type {
   IconName,
   SelectOption,
   TableColumn,
-} from '@tokenrouter/plugin-sdk'
+} from '@tokenflux/tokenrouter-plugin-sdk'
 import Input from '@/components/common/Input.vue'
 import TextArea from '@/components/common/TextArea.vue'
 import Select from '@/components/common/Select.vue'

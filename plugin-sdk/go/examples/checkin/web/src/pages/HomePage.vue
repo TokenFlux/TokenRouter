@@ -8,7 +8,7 @@ import {
   TrSkeleton,
   useHost,
   useMessages,
-} from '@tokenrouter/plugin-sdk'
+} from '@tokenflux/tokenrouter-plugin-sdk'
 import { messages } from '../messages'
 
 // HomePage.vue presents the daily reward and keeps one claim action available

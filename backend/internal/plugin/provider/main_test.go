@@ -17,7 +17,7 @@ var fixtureBinaries map[string]string
 // failures cannot leave compiled fixture artifacts in the repository.
 func TestMain(m *testing.M) { os.Exit(runRuntimeTests(m)) }
 
-// runRuntimeTests builds the three subprocess fixtures and returns the test status.
+// runRuntimeTests builds SDK fault fixtures and an isolated parent-death host.
 // Cleanup runs before returning to TestMain. Build diagnostics identify fixture
 // failures without executing any application server or loading deployment credentials.
 func runRuntimeTests(m *testing.M) int {
@@ -46,14 +46,15 @@ func runRuntimeTests(m *testing.M) int {
 		}
 		fixtureBinaries[name] = binary
 	}
-	if runtime.GOOS == "linux" {
-		binary := filepath.Join(directory, "hostdeath")
-		command := exec.Command("go", "build", "-o", binary, "./testdata/hostdeath")
-		if output, err := command.CombinedOutput(); err != nil {
-			fmt.Fprintf(os.Stderr, "build hostdeath: %v\n%s", err, output)
-			return 1
-		}
-		fixtureBinaries["hostdeath"] = binary
+	binary := filepath.Join(directory, "hostdeath")
+	if runtime.GOOS == "windows" {
+		binary += ".exe"
 	}
+	command := exec.Command("go", "build", "-o", binary, "./testdata/hostdeath")
+	if output, err := command.CombinedOutput(); err != nil {
+		fmt.Fprintf(os.Stderr, "build hostdeath: %v\n%s", err, output)
+		return 1
+	}
+	fixtureBinaries["hostdeath"] = binary
 	return m.Run()
 }

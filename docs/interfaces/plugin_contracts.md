@@ -110,7 +110,7 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 <a id="web_sdk"></a>
 ## Web SDK 与示例
 
-`plugin-sdk/web` 提供 `@tokenrouter/plugin-sdk` 类型与 Vite 预设。正式构建把 Vue 和 SDK 分别外置为 `__TR_VUE__`、`__TR_PLUGIN_SDK__`，输出单个 IIFE `index.js` 和导入样式对应的 `index.css`。动态页面导入合入同一个脚本，CSS 选择器使用 `data-tr-plugin` 前缀，动画名和引用一起加插件前缀。
+`plugin-sdk/web` 提供 `@tokenflux/tokenrouter-plugin-sdk` 类型与 Vite 预设。正式构建把 Vue 和 SDK 分别外置为 `__TR_VUE__`、`__TR_PLUGIN_SDK__`，输出单个 IIFE `index.js` 和导入样式对应的 `index.css`。动态页面导入合入同一个脚本，CSS 选择器使用 `data-tr-plugin` 前缀，动画名和引用一起加插件前缀。
 
 宿主的 `useHost()` 返回当前页面范围内的 HostApi。`request` 路径以 `/` 开始，禁止绝对 URL、查询片段和路径穿越，查询使用独立参数；响应保留插件自有 `code`、`data` 等字段。HTTP 失败映射为带 status 和稳定 code 的 HostRequestError。宿主为已校验的插件响应添加 `X-TokenRouter-Plugin-Response: 1`，并通过 CORS 暴露；插件自身的 401 不触发宿主登录刷新、重放或登出。鉴权中间件在调用插件前返回的 401 没有该标记，继续使用原登录恢复流程。`navigate` 使用 manifest 页面路径，根页面传空字符串，其他页面不带开头斜杠，只能进入当前 audience 已声明的页面。
 

@@ -7,7 +7,7 @@ the administrator's trust and is not an operating-system or browser sandbox.
 ## Initialize your repository
 
 1. Publish the Go SDK tag `plugin-sdk/go/v0.1.0` and npm package
-   `@tokenrouter/plugin-sdk@0.1.0`, or select already published compatible versions.
+   `@tokenflux/tokenrouter-plugin-sdk@0.1.0`, or select already published compatible versions.
    This seed does not create those external releases.
 2. Replace `github.com/example/tr-plugin-checkin` in `go.mod` and `cmd/plugin/main.go`
    with your repository path. Choose your own publisher prefix and change

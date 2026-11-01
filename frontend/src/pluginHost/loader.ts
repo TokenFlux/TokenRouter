@@ -1,4 +1,4 @@
-import type { PluginDefinition } from '@tokenrouter/plugin-sdk'
+import type { PluginDefinition } from '@tokenflux/tokenrouter-plugin-sdk'
 import type { PluginUI, PluginAsset } from '@/api/plugins.types'
 import { buildApiUrl } from '@/api/url'
 import { expectRegistration, forgetRegistration, registeredDefinition } from './registry'

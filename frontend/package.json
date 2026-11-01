@@ -29,7 +29,7 @@
     "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
     "@stripe/stripe-js": "^9.0.1",
     "@tanstack/vue-virtual": "^3.13.23",
-    "@tokenrouter/plugin-sdk": "link:../plugin-sdk/web",
+    "@tokenflux/tokenrouter-plugin-sdk": "link:../plugin-sdk/web",
     "@vueuse/core": "^10.7.0",
     "axios": "^1.20.0",
     "chart.js": "^4.4.1",

@@ -15,7 +15,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/migrations"
 )
 
-// The embedded migration history is applied before schema assertions inspect
+// schema_integration_test.go applies embedded migration history before assertions inspect
 // PostgreSQL catalogs. These checks compare selected current columns, named
 // indexes, foreign-key actions, and definition fragments, while separate runner
 // calls exercise re-entry and two concurrent callers on the already migrated
@@ -127,10 +127,11 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireNoColumn(t, tx, "payment_orders", "subscription_group_id")
 	requireNoColumn(t, tx, "payment_orders", "subscription_days")
 
-	// Redeem codes refer to plans for subscription redemption.
+	// Redeem codes retain nullable fixed subscription days for plugin issuance;
+	// legacy NULL records continue using the plan duration at redemption.
 	requireColumn(t, tx, "redeem_codes", "plan_id", "bigint", 0, true)
 	requireNoColumn(t, tx, "redeem_codes", "group_id")
-	requireNoColumn(t, tx, "redeem_codes", "validity_days")
+	requireColumn(t, tx, "redeem_codes", "validity_days", "integer", 0, true)
 	requireIndex(t, tx, "redeem_codes", "idx_redeem_codes_plan_id")
 
 	// Usage records retain billing type for filtering and aggregation.

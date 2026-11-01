@@ -12,7 +12,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/plugin/provider"
 )
 
-// main.go provides an isolated host for Linux parent-death regression tests.
+// main.go provides an isolated host for native parent-death regression tests.
 // It starts exactly one supplied fixture binary through the real process
 // runtime, prints the child PID after initialization, and waits for the test
 // to terminate this host without running graceful cleanup.

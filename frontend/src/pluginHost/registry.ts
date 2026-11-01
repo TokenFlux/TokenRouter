@@ -1,4 +1,4 @@
-import type { PluginDefinition } from '@tokenrouter/plugin-sdk'
+import type { PluginDefinition } from '@tokenflux/tokenrouter-plugin-sdk'
 
 // registry.ts associates synchronous plugin registration with the exact script
 // element admitted by the loader. Identity comes from host-owned data attributes,

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
@@ -23,8 +22,8 @@ import (
 // errors while preserving process availability for subsequent host calls.
 //
 // The watchdog provides a cross-platform fallback when the operating system
-// does not arrange parent-death cleanup. It compares the current parent with
-// the startup parent every two seconds and exits if they differ. Normal
+// does not arrange parent-death cleanup. Its platform monitor checks the captured
+// parent every two seconds and exits when that ownership ends. Normal
 // server return cancels this goroutine. Process isolation remains a trust
 // boundary for availability only; this entry point provides no filesystem,
 // network, or system-user sandbox for administrator-installed plugin code.
@@ -112,23 +111,5 @@ func recoverRPC(logger *slog.Logger) grpc.UnaryServerInterceptor {
 			}
 		}()
 		return handler(ctx, request)
-	}
-}
-
-// watchParent exits after the plugin's startup parent disappears or changes.
-// Cancellation stops observation during normal shutdown. It checks every two
-// seconds without invoking plugin code or relying on the callback connection.
-func watchParent(ctx context.Context, parent int) {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if os.Getppid() != parent {
-				os.Exit(1)
-			}
-		}
 	}
 }

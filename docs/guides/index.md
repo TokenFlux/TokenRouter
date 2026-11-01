@@ -13,3 +13,7 @@
 
 - [支付系统配置指南](payments/configuration.md)
 - [外部支付管理 API 集成](payments/admin_integration_api.md)
+
+## 插件开发与发布
+
+[插件开发手册](plugins/index.md)提供模板初始化、SDK 使用、发布与索引登记、审核标准。部署者的安装与恢复规则见[插件运维](../operations/plugin_operations.md)。

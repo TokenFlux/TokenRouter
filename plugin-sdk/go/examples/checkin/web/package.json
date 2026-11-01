@@ -11,7 +11,7 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@tokenrouter/plugin-sdk": "link:../../../../web",
+    "@tokenflux/tokenrouter-plugin-sdk": "link:../../../../web",
     "vue": "3.5.42"
   },
   "devDependencies": {

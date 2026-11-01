@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { TrButton, TrCard, TrEmpty, TrTable, useHost, useMessages } from '@tokenrouter/plugin-sdk'
+import { TrButton, TrCard, TrEmpty, TrTable, useHost, useMessages } from '@tokenflux/tokenrouter-plugin-sdk'
 import { messages } from '../messages'
 
 // AdminPage.vue lists the example's persisted check-in records through its

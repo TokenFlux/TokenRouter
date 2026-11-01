@@ -1,5 +1,5 @@
 {
-  "name": "@tokenrouter/plugin-sdk",
+  "name": "@tokenflux/tokenrouter-plugin-sdk",
   "version": "0.1.0",
   "description": "TokenRouter plugin frontend contracts and build preset",
   "license": "MIT",
@@ -32,19 +32,31 @@
     "test": "pnpm build && node --test tests/*.test.mjs"
   },
   "peerDependencies": {
-    "vue": "^3.5.42",
-    "vite": "^8.3.2"
+    "vite": "^8.3.2",
+    "vue": "^3.5.42"
   },
   "dependencies": {
     "postcss": "8.5.29",
-    "postcss-selector-parser": "7.1.0",
+    "postcss-selector-parser": "7.1.6",
     "postcss-value-parser": "4.2.0"
   },
   "devDependencies": {
-    "prettier": "3.9.10",
     "@types/node": "26.6.4",
+    "prettier": "3.9.10",
     "typescript": "6.0.3",
     "vite": "8.3.2",
     "vue": "3.5.42"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TokenFlux/TokenRouter.git",
+    "directory": "plugin-sdk/web"
+  },
+  "homepage": "https://github.com/TokenFlux/TokenRouter/tree/main/docs/guides/plugins",
+  "bugs": {
+    "url": "https://github.com/TokenFlux/TokenRouter/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

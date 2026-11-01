@@ -20,7 +20,7 @@ test('emits one IIFE and stylesheet while leaving Vue and SDK external', async (
   try {
     await writeFile(
       path.join(root, 'entry.ts'),
-      `import { h } from 'vue'; import { definePlugin } from '@tokenrouter/plugin-sdk'; import './style.css'; definePlugin({pages:{home:{render:()=>h('p','home')},other:()=>import('./page.ts').then(m=>m.default)}})`,
+      `import { h } from 'vue'; import { definePlugin } from '@tokenflux/tokenrouter-plugin-sdk'; import './style.css'; definePlugin({pages:{home:{render:()=>h('p','home')},other:()=>import('./page.ts').then(m=>m.default)}})`,
     )
     await writeFile(
       path.join(root, 'page.ts'),

@@ -5,7 +5,7 @@ import {
   type Messages,
   type SdkRuntime,
   type Translator,
-} from '@tokenrouter/plugin-sdk'
+} from '@tokenflux/tokenrouter-plugin-sdk'
 import { definePlugin } from './registry'
 import { useHost } from './context'
 import * as components from './components'

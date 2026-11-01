@@ -38,11 +38,11 @@ export function tokenrouterPlugin(options: PluginBuildOptions): UserConfig {
         cssFileName: 'index',
       },
       rollupOptions: {
-        external: ['vue', '@tokenrouter/plugin-sdk'],
+        external: ['vue', '@tokenflux/tokenrouter-plugin-sdk'],
         output: {
           globals: {
             vue: '__TR_VUE__',
-            '@tokenrouter/plugin-sdk': '__TR_PLUGIN_SDK__',
+            '@tokenflux/tokenrouter-plugin-sdk': '__TR_PLUGIN_SDK__',
           },
         },
       },
@@ -64,7 +64,7 @@ function mockSdk(): Plugin {
      * path stays inside this installed package's compiled development module.
      */
     resolveId(source) {
-      if (source === '@tokenrouter/plugin-sdk') {
+      if (source === '@tokenflux/tokenrouter-plugin-sdk') {
         return fileURLToPath(new URL('./dev/index.js', import.meta.url))
       }
       return null
