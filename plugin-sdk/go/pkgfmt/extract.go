@@ -17,7 +17,8 @@ import (
 
 // extract.go unpacks plugin archives into newly created directories while
 // enforcing portable paths and resource limits. No archive entry can replace
-// an existing file or introduce links, devices, or traversal components.
+// an existing file or introduce links, devices, traversal components, or aliases
+// of the host's reserved installation metadata filename.
 // File modes from publishers are discarded; extraction grants executable
 // mode only to the binary named by a validated manifest for the selected
 // platform. The destination is removed when any validation or write fails.
@@ -35,6 +36,10 @@ const (
 	MaxFrontendBytes = 8 << 20
 	MaxEntries       = 2000
 	MaxDepth         = 10
+
+	// ReservedMetadataName belongs to the host installer rather than publisher
+	// archives, preventing verified package contents from colliding with retained metadata.
+	ReservedMetadataName = ".tr-installed"
 )
 
 // Options binds package inspection to a platform and optional release manifest.
@@ -104,7 +109,7 @@ func Extract(reader io.Reader, destination string, opts Options) (result *Packag
 		if header.Typeflag == tar.TypeDir {
 			depth++
 		}
-		if !manifest.ValidPath(name) || depth > MaxDepth || seen[name] {
+		if !validPackagePath(name) || depth > MaxDepth || seen[name] {
 			return nil, fmt.Errorf("invalid or duplicate archive path %q", header.Name)
 		}
 		seen[name] = true
@@ -154,6 +159,17 @@ func Extract(reader io.Reader, destination string, opts Options) (result *Packag
 		return nil, err
 	}
 	return result, nil
+}
+
+// validPackagePath rejects unsafe names and aliases of host-owned root metadata.
+// Case-insensitive filesystems and Windows trailing-dot normalization must not turn
+// a publisher file or directory into the installer's reserved metadata path.
+func validPackagePath(name string) bool {
+	if !manifest.ValidPath(name) {
+		return false
+	}
+	first, _, _ := strings.Cut(name, "/")
+	return !strings.EqualFold(strings.TrimRight(first, "."), ReservedMetadataName)
 }
 
 // applyModes assigns fixed package permissions after all contents are validated.

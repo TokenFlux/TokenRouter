@@ -88,15 +88,16 @@ func (*handlerPlugin) Init(context.Context, *Env) error { return nil }
 func (p *handlerPlugin) Handler() http.Handler { return p.handler }
 
 // TestHandlePreservesCallerAndRecoversPanic exercises the transport adapter with
-// authenticated identity and private grant data. A handler panic produces an
-// HTTP 500 response while subsequent calls still reach the same handler.
+// authenticated identity, a nondefault negotiated language, and private grant data.
+// A handler panic produces HTTP 500; subsequent calls preserve caller context,
+// including its locale, when they reach the same handler.
 func TestHandlePreservesCallerAndRecoversPanic(t *testing.T) {
 	p := &handlerPlugin{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/panic" {
 			panic("fixture failure")
 		}
 		caller, ok := CallerFrom(r.Context())
-		if !ok || caller.UserID != 7 || caller.grant != "grant" || caller.clientIP != "192.0.2.1" {
+		if !ok || caller.UserID != 7 || caller.Locale != "zh-Hans" || caller.grant != "grant" || caller.clientIP != "192.0.2.1" {
 			t.Error("caller context lost")
 		}
 		if r.URL.RawQuery != "q=x%20y" || r.Header.Get("X-Plugin-Test") != "yes" {
@@ -106,7 +107,18 @@ func TestHandlePreservesCallerAndRecoversPanic(t *testing.T) {
 	})}
 	s := newServer(p, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	s.env = &Env{}
-	request := &pluginpb.HTTPRequest{Method: "POST", Path: "/panic", RawQuery: "q=x%20y", Caller: &pluginpb.Caller{UserId: 7, Grant: "grant"}, ClientIp: "192.0.2.1", Headers: map[string]string{"X-Plugin-Test": "yes"}}
+	request := &pluginpb.HTTPRequest{
+		Method:   "POST",
+		Path:     "/panic",
+		RawQuery: "q=x%20y",
+		Caller: &pluginpb.Caller{
+			UserId: 7,
+			Locale: "zh-Hans",
+			Grant:  "grant",
+		},
+		ClientIp: "192.0.2.1",
+		Headers:  map[string]string{"X-Plugin-Test": "yes"},
+	}
 	response, err := s.Handle(context.Background(), request)
 	if err != nil || response.Status != 500 {
 		t.Fatalf("panic response: %v %v", response, err)

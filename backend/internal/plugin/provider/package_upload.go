@@ -69,6 +69,9 @@ func (p *PackageFiles) Preview(ctx context.Context, reader io.Reader) (result *p
 	if err != nil {
 		return nil, plugin.ErrPackageInvalid.WithCause(err)
 	}
+	if _, err := marshalPackageMarker(markerFromPackage(metadata, packagePlatform())); err != nil {
+		return nil, err
+	}
 	if err := os.RemoveAll(extracted); err != nil {
 		return nil, err
 	}

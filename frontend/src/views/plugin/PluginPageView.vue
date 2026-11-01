@@ -2,6 +2,7 @@
 import {
   computed,
   defineAsyncComponent,
+  h,
   markRaw,
   onBeforeUnmount,
   onErrorCaptured,
@@ -21,6 +22,7 @@ import { usePluginsStore } from '@/stores/plugins'
 import { useAuthStore } from '@/stores/auth'
 import { getLocale } from '@/i18n'
 import type { PluginPage, PluginUI } from '@/api/plugins.types'
+import { normalizePluginPage } from '@tokenflux/tokenrouter-plugin-sdk'
 
 // PluginPageView.vue resolves authorized plugin pages and isolates their rendering
 // failures from the application shell. Discovery precedes exact audience and path
@@ -126,13 +128,9 @@ async function loadPage(): Promise<void> {
     if (current !== generation) return
     const registered = definition.pages[selected.page.id]
     if (!registered) throw new Error(t('plugins.componentMissing'))
-    // Bound asynchronous author loaders as well as bundle fetches so a pending
-    // component cannot leave the content area waiting indefinitely without recovery.
-    component.value = markRaw(
-      typeof registered === 'function'
-        ? defineAsyncComponent({ loader: registered as () => Promise<Component>, timeout: 15000 })
-        : registered,
-    )
+    // The shared adapter preserves functional rendering and legacy lazy imports;
+    // its bounded async wrapper reports loader failures through this page's error boundary.
+    component.value = markRaw(normalizePluginPage(registered, { h, defineAsyncComponent }))
     mountKey.value++
     state.value = 'ready'
   } catch (error) {

@@ -103,3 +103,64 @@ func TestPluginMessageSkippedAndFailedOutcomes(t *testing.T) {
 	require.ErrorContains(t, err, "injected marker failure")
 	require.Equal(t, SendResult{Delivered: true, Attempted: true}, result)
 }
+
+// TestPluginMessagePreservesOperationKeyIdentity sends distinct messages under
+// keys differing in case or separator punctuation. Both operations reach
+// transport, while repeating the exact second key reuses only that operation's
+// success marker.
+func TestPluginMessagePreservesOperationKeyIdentity(t *testing.T) {
+	for _, keys := range [][2]string{{"a:b", "a_b"}, {"NoticeA", "noticea"}} {
+		t.Run(keys[0], func(t *testing.T) {
+			sender := &pluginMessageDelivery{}
+			service := NewNotificationEmailService(mailtest.NewMemorySettings(), sender)
+			input := PluginMessage{
+				PluginID: "test.mail", PluginName: "Mail", Key: keys[0], Email: "reader@example.com",
+				Subject: "First message", BodyText: "First body",
+			}
+			first, err := service.SendPluginMessage(t.Context(), input)
+			require.NoError(t, err)
+			require.Equal(t, SendResult{Delivered: true, Attempted: true}, first)
+			input.Key = keys[1]
+			input.Subject = "Different message"
+			input.BodyText = "Different body"
+			second, err := service.SendPluginMessage(t.Context(), input)
+			require.NoError(t, err)
+			require.Equal(t, SendResult{Delivered: true, Attempted: true}, second)
+			require.Equal(t, 2, sender.calls)
+			require.Equal(t, "Mail: Different message", sender.subject)
+			replayed, err := service.SendPluginMessage(t.Context(), input)
+			require.NoError(t, err)
+			require.Equal(t, SendResult{Delivered: true}, replayed)
+			require.Equal(t, 2, sender.calls)
+		})
+	}
+}
+
+// TestPluginMessageIgnoresAmbiguousOldMarkers starts with both historical marker
+// formats for a different operation whose normalized key collides. A newly claimed
+// message still reaches transport, and its new marker subsequently prevents
+// repeating that exact notification.
+func TestPluginMessageIgnoresAmbiguousOldMarkers(t *testing.T) {
+	settings := mailtest.NewMemorySettings()
+	sender := &pluginMessageDelivery{}
+	service := NewNotificationEmailService(settings, sender)
+	input := PluginMessage{
+		PluginID: "test.mail", PluginName: "Mail", Key: "a_b", Email: "reader@example.com",
+		Subject: "New claim", BodyText: "A separate operation",
+	}
+	previousReminder := "plugin:" + input.PluginID + ":a:b"
+	for _, key := range []string{
+		notificationEmailDeliveryKey(NotificationEmailEventPluginMessage, "plugin", input.PluginID, input.Email, previousReminder),
+		legacyNotificationEmailDeliveryKey(NotificationEmailEventPluginMessage, "plugin", input.PluginID, input.Email, previousReminder),
+	} {
+		require.NoError(t, settings.Set(t.Context(), key, "previous success"))
+	}
+	result, err := service.SendPluginMessage(t.Context(), input)
+	require.NoError(t, err)
+	require.Equal(t, SendResult{Delivered: true, Attempted: true}, result)
+	require.Equal(t, 1, sender.calls)
+	result, err = service.SendPluginMessage(t.Context(), input)
+	require.NoError(t, err)
+	require.Equal(t, SendResult{Delivered: true}, result)
+	require.Equal(t, 1, sender.calls)
+}

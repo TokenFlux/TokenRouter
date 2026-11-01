@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/go-plugin/runner"
 	"github.com/shirou/gopsutil/v4/process"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -38,6 +40,12 @@ import (
 // generation immediately. Every lease captures its own generation counter, so
 // a late release after a crash cannot affect the replacement's capacity. The
 // runtime collection prevents new replacements once application shutdown starts.
+// Configuration notifications retain a drain lease independently of request
+// capacity, and each generation remembers only successfully applied values.
+// Cancellation terminates Unix process groups before transport cleanup waits
+// for inherited output pipes, including cancellation during the initial handshake.
+// An owned command runner closes host pipe readers on every platform, so an
+// independently surviving descendant cannot keep the supervisor's cleanup blocked.
 
 // Processes implements the core process collection without owning installation persistence.
 type Processes struct {
@@ -74,15 +82,17 @@ type supervisor struct {
 // generation retains process resources independently of newer supervisor generations.
 type generation struct {
 	client    *goplugin.Client   // owned HashiCorp process client
-	cancel    context.CancelFunc // direct child termination signal
+	cancel    context.CancelFunc // child and Unix group termination signal
 	conn      *connection        // initialized service and broker connection
 	callbacks *hostCalls         // admitted host callback completion barrier
 	outputs   []*processOutput   // generation-owned standard stream assemblers
 	pid       int                // started child process identifier
 	stats     *process.Process   // generation-owned resource sampling baseline
-	socketDir string             // owned short Unix socket directory
+	socketDir string             // owned broker socket metadata directory
 	leases    int                // retained generation lease count
 	graceful  bool               // completed graceful shutdown callback
+	// configJSON records successful initialization or notification under the supervisor lock; failed notifications remain eligible for an identical later retry.
+	configJSON []byte
 	// drained closes when the generation reaches zero leases; the supervisor lock serializes opening and closing against admission and release.
 	drained chan struct{}
 }
@@ -184,6 +194,18 @@ func (s *supervisor) acquire() (*plugin.Lease, error) {
 	if g.leases >= s.options.MaxLeases {
 		return nil, plugin.ErrPluginBusy
 	}
+	return s.retainLocked(g), nil
+}
+
+// retainLocked retains a generation until an admitted operation releases it.
+// The caller holds the supervisor mutex and has checked its own admission rule.
+// Configuration notifications use this same drain ownership without competing
+// for the bounded request pool, so load cannot silently discard an update.
+//
+// The zero-to-one transition and final release share the supervisor mutex with
+// shutdown. Release captures this generation rather than consulting current,
+// preventing an old operation from changing a replacement's capacity or drain signal.
+func (s *supervisor) retainLocked(g *generation) *plugin.Lease {
 	if g.leases == 0 {
 		g.drained = make(chan struct{})
 	}
@@ -196,7 +218,7 @@ func (s *supervisor) acquire() (*plugin.Lease, error) {
 			close(g.drained)
 		}
 		s.mu.Unlock()
-	}), nil
+	})
 }
 
 // Stop drains an existing plugin owner or succeeds when none exists.
@@ -212,7 +234,7 @@ func (p *Processes) Stop(ctx context.Context, id string) error {
 
 // stop closes admission and waits for the loop's resource cleanup.
 // Repeated callers share cleanup completion. A caller whose budget expires
-// cancels the direct child immediately and returns its context error.
+// cancels the child and its Unix group, then returns its context error.
 //
 // The first caller supplies the graceful drain budget. Loop cancellation is
 // separate from child cancellation, preserving admitted calls during normal
@@ -282,9 +304,16 @@ func (p *Processes) Logs(id string) []plugin.LogLine {
 	return logs.snapshot()
 }
 
-// ApplyConfig publishes the desired configuration before notifying a running generation.
-// Unimplemented watchers trigger replacement; other callback failures are logged
-// and leave the desired configuration available for the next automatic startup.
+// ApplyConfig reconciles desired values with the current generation's applied configuration.
+// Callers serialize same-plugin mutations. Running generations retain a drain
+// lease independently of request capacity; unchanged successfully applied values
+// need no callback. Failed callbacks remain eligible for identical later retries.
+//
+// Starting or unavailable generations are replaced with the new startup inputs,
+// preventing an Init snapshot from becoming ready with older values. Unimplemented
+// watchers also request replacement. Other callback failures retain the saved
+// desired configuration and log their diagnostics without claiming it was applied.
+// Unchanged desired values preserve an unavailable owner's existing recovery policy.
 func (p *Processes) ApplyConfig(ctx context.Context, spec plugin.ProcessSpec) error {
 	p.mu.RLock()
 	s := p.entries[spec.PluginID]
@@ -293,15 +322,37 @@ func (p *Processes) ApplyConfig(ctx context.Context, spec plugin.ProcessSpec) er
 		return p.Replace(ctx, spec)
 	}
 	s.mu.Lock()
+	changed := !bytes.Equal(s.spec.ConfigJSON, spec.ConfigJSON)
 	s.spec.ConfigJSON = append([]byte(nil), spec.ConfigJSON...)
-	s.mu.Unlock()
-	lease, err := s.acquire()
-	if err != nil {
+	g := s.current
+	if s.stopping || s.observation.State != plugin.StateRunning || g == nil || g.conn == nil {
+		s.mu.Unlock()
+		if !changed {
+			// Ordinary reconciliation must preserve backoff and crash-loop intervention;
+			// the next permitted startup already owns these unchanged desired values.
+			return nil
+		}
+		// Replacing an incomplete generation prevents its captured Init payload from
+		// winning over configuration that was persisted while startup was in progress.
+		return p.Replace(ctx, spec)
+	}
+	if bytes.Equal(g.configJSON, spec.ConfigJSON) {
+		s.mu.Unlock()
 		return nil
 	}
+	data := s.spec.ConfigJSON
+	lease := s.retainLocked(g)
+	s.mu.Unlock()
 	callCtx, cancel := context.WithTimeout(ctx, p.options.InitTimeout)
-	_, err = lease.Conn.Plugin.ConfigChanged(callCtx, &pluginpb.ConfigChangedRequest{ConfigJson: spec.ConfigJSON})
+	_, err := lease.Conn.Plugin.ConfigChanged(callCtx, &pluginpb.ConfigChangedRequest{ConfigJson: data})
 	cancel()
+	if err == nil {
+		// Record delivery on the retained generation only; a concurrent crash cannot
+		// mark its replacement as having received a notification sent to this connection.
+		s.mu.Lock()
+		g.configJSON = data
+		s.mu.Unlock()
+	}
 	lease.Release()
 	if status.Code(err) == codes.Unimplemented {
 		return p.Replace(ctx, spec)
@@ -314,7 +365,7 @@ func (p *Processes) ApplyConfig(ctx context.Context, spec plugin.ProcessSpec) er
 
 // StopAll closes collection admission and drains every owner concurrently.
 // Repeated calls reuse each owner's cleanup state. Errors report incomplete
-// shutdown while direct child cancellation still runs for expired caller budgets.
+// shutdown while command cancellation still runs for expired caller budgets.
 func (p *Processes) StopAll(ctx context.Context) error {
 	p.mu.Lock()
 	p.stopped = true
@@ -428,25 +479,53 @@ func (s *supervisor) start() (_ *generation, resultErr error) {
 	contextCommand.Dir, contextCommand.Env, contextCommand.SysProcAttr = command.Dir, command.Env, command.SysProcAttr
 	logs, logger := s.logs, s.processLogger
 	stdout, stderr := &processOutput{logs: logs}, &processOutput{logs: logs}
-	config := &goplugin.ClientConfig{HandshakeConfig: sdk.Handshake(), Plugins: goplugin.PluginSet{sdk.PluginKey: &grpcPlugin{}}, Cmd: contextCommand, AllowedProtocols: []goplugin.Protocol{goplugin.ProtocolGRPC}, AutoMTLS: true, SkipHostEnv: true, Managed: false, StartTimeout: s.options.StartTimeout, Logger: logger, SyncStdout: stdout, SyncStderr: stderr, GRPCDialOptions: []grpc.DialOption{grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(sdk.MaxMessageBytes), grpc.MaxCallSendMsgSize(sdk.MaxMessageBytes))}}
+	var secure *goplugin.SecureConfig
 	if spec.VerifyBinary {
 		digest, err := hex.DecodeString(spec.BinarySHA256)
 		if err != nil || len(digest) != sha256.Size {
 			cancelChild()
 			return nil, fmt.Errorf("invalid plugin executable checksum")
 		}
-		config.SecureConfig = &goplugin.SecureConfig{Checksum: digest, Hash: sha256.New()}
+		secure = &goplugin.SecureConfig{Checksum: digest, Hash: sha256.New()}
 	}
-	socketDir := ""
+	config := &goplugin.ClientConfig{
+		HandshakeConfig: sdk.Handshake(), Plugins: goplugin.PluginSet{sdk.PluginKey: &grpcPlugin{}},
+		AllowedProtocols: []goplugin.Protocol{goplugin.ProtocolGRPC}, AutoMTLS: true, SkipHostEnv: true,
+		Managed: false, StartTimeout: s.options.StartTimeout, Logger: logger, SyncStdout: stdout, SyncStderr: stderr,
+		GRPCDialOptions: []grpc.DialOption{grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(sdk.MaxMessageBytes), grpc.MaxCallSendMsgSize(sdk.MaxMessageBytes))},
+		RunnerFunc: func(_ hclog.Logger, metadata *exec.Cmd, _ string) (runner.Runner, error) {
+			// RunnerFunc receives only go-plugin's handshake environment, certificate,
+			// and socket metadata. Append those to the explicit child allowlist without
+			// inheriting the host environment or replacing the context-owned command.
+			contextCommand.Env = append(contextCommand.Env, metadata.Env...)
+			contextCommand.Stdin = metadata.Stdin
+			if secure != nil {
+				// The runner owns the real executable path, so preserve SecureConfig's
+				// exact file check here before acquiring pipes or executing installed code.
+				valid, err := secure.Check(contextCommand.Path)
+				if err != nil {
+					return nil, fmt.Errorf("verify plugin executable checksum: %w", err)
+				}
+				if !valid {
+					return nil, goplugin.ErrChecksumsDoNotMatch
+				}
+			}
+			return newProcessRunner(contextCommand)
+		},
+	}
+	socketRoot := ""
 	if runtime.GOOS != "windows" {
 		// Unix socket addresses have a small platform limit; keep transport files short while preserving the plugin's configured HOME and TMPDIR.
-		socketDir, err = os.MkdirTemp("/tmp", "trp-")
-		if err != nil {
-			cancelChild()
-			return nil, err
-		}
-		contextCommand.Env = append(contextCommand.Env, goplugin.EnvUnixSocketDir+"="+socketDir)
+		socketRoot = "/tmp"
 	}
+	// Own the broker's temporary parent on every platform, including runner setup
+	// failures before go-plugin has a child whose Kill cleanup can remove metadata.
+	socketDir, err := os.MkdirTemp(socketRoot, "trp-")
+	if err != nil {
+		cancelChild()
+		return nil, err
+	}
+	config.UnixSocketConfig = &goplugin.UnixSocketConfig{TempDir: socketDir}
 	g := &generation{client: goplugin.NewClient(config), cancel: cancelChild, drained: make(chan struct{}), socketDir: socketDir, callbacks: newHostCalls(s.logger.With("plugin_id", spec.PluginID, "plugin_version", spec.Version)), outputs: []*processOutput{stdout, stderr}}
 	close(g.drained)
 	s.mu.Lock()
@@ -489,6 +568,11 @@ func (s *supervisor) start() (_ *generation, resultErr error) {
 	if err != nil {
 		return nil, err
 	}
+	// Retain the exact Init payload as applied state; later identical updates can
+	// then distinguish successful initialization from a notification that never completed.
+	s.mu.Lock()
+	g.configJSON = spec.ConfigJSON
+	s.mu.Unlock()
 	if observed, err := process.NewProcess(int32(g.pid)); err == nil {
 		g.stats = observed
 		// Prime the CPU baseline once per generation so later samples describe the observation interval rather than lifetime average consumption.
@@ -582,7 +666,7 @@ func (s *supervisor) shutdown(g *generation) {
 	}
 }
 
-// kill terminates the child and its Linux process group before releasing generation ownership.
+// kill terminates the child and its Unix process group before releasing generation ownership.
 // Only the supervisor loop invokes cleanup; management callers can independently
 // force its child context when their own stop budgets expire.
 //
@@ -595,7 +679,8 @@ func (s *supervisor) kill(g *generation) {
 	callbacksDone := g.callbacks.closeAdmission()
 	g.callbacks.cancelActive()
 	if g.graceful {
-		// Allow go-plugin's controller shutdown for a cooperative child, but retain a force-cancel timer if transport cleanup stops responding.
+		// Give cooperative transport cleanup a bounded opportunity; cancellation also
+		// terminates Unix descendants before their inherited pipes can keep Kill waiting.
 		force := time.AfterFunc(min(2*time.Second, s.options.ShutdownTimeout), g.cancel)
 		g.client.Kill()
 		force.Stop()

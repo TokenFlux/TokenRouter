@@ -3,8 +3,10 @@
 package postgres
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -12,6 +14,86 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 	"github.com/TokenFlux/TokenRouter/migrations"
 )
+
+// TestSaveCoordinatesSourceRemoval exercises both orders of saving and deleting a referenced source on independent PostgreSQL connections.
+// Current and previous relationships become NULL, while accepted snapshots and administrative changes survive without foreign-key failures.
+func TestSaveCoordinatesSourceRemoval(t *testing.T) {
+	for _, deletionFirst := range []bool{false, true} {
+		name := "save_before_delete"
+		if deletionFirst {
+			name = "delete_before_save"
+		}
+		t.Run(name, func(t *testing.T) {
+			store, client, db := persistenceFixture(t)
+			source := &plugin.IndexSource{Name: "Custom", URL: "https://example.invalid/index.json", Enabled: true}
+			require.NoError(t, store.SaveIndex(t.Context(), source))
+			item := storedInstallation(t)
+			item.Source = plugin.SourceIndex
+			item.IndexID = &source.ID
+			previous := item.VersionSnapshot
+			previous.Version = "0.9.0"
+			previous.Config = map[string]any{"removed": "retained"}
+			item.Previous = &previous
+			require.NoError(t, store.Save(t.Context(), item))
+			item.Enabled = false
+			tx, err := client.Tx(t.Context())
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = tx.Rollback() })
+			txContext := ent.NewTxContext(t.Context(), tx)
+			queryPrefix := "DELETE FROM plugin_indexes"
+			if deletionFirst {
+				require.NoError(t, store.DeleteIndex(txContext, source.ID))
+				queryPrefix = "INSERT INTO plugin_installations"
+			} else {
+				require.NoError(t, store.Save(txContext, item))
+			}
+			// Bound the competing statement even if database lock observation fails, so
+			// cleanup can cancel and join its goroutine before closing the shared pool.
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			finished := make(chan struct{})
+			var operationErr error
+			// Release the held transaction before waiting during cleanup, so an assertion
+			// failure cannot strand the other connection behind this test's own row lock.
+			t.Cleanup(func() {
+				_ = tx.Rollback()
+				cancel()
+				<-finished
+			})
+			// Run the opposing operation on a separate pooled connection and observe its
+			// actual PostgreSQL lock wait before allowing the first transaction to commit.
+			go func() {
+				defer close(finished)
+				if deletionFirst {
+					operationErr = store.Save(ctx, item)
+				} else {
+					operationErr = store.DeleteIndex(ctx, source.ID)
+				}
+			}()
+			require.Eventually(t, func() bool {
+				var waiting bool
+				err := db.QueryRowContext(ctx, `SELECT EXISTS (
+SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND query LIKE $1)`, queryPrefix+"%").Scan(&waiting)
+				return err == nil && waiting
+			}, 5*time.Second, 10*time.Millisecond)
+			// Commit only after the competing statement is blocked, proving source locks
+			// survive Save's return until the surrounding transaction releases its ownership.
+			require.NoError(t, tx.Commit())
+			<-finished
+			require.NoError(t, operationErr)
+			saved, err := store.Get(t.Context(), item.PluginID)
+			require.NoError(t, err)
+			require.Nil(t, saved.IndexID)
+			require.Nil(t, saved.Previous.IndexID)
+			require.Equal(t, plugin.SourceIndex, saved.Source)
+			require.Equal(t, plugin.SourceIndex, saved.Previous.Source)
+			require.Equal(t, item.Config, saved.Config)
+			require.Equal(t, item.Previous.Config, saved.Previous.Config)
+			require.Equal(t, item.SecretConfig, saved.SecretConfig)
+			require.False(t, saved.Enabled)
+		})
+	}
+}
 
 // TestInstallationSnapshotsAndTransactionOwnership saves complete rollback configuration and joins an existing Ent transaction.
 // PostgreSQL normalization preserves identity digests, and rolling back the outer transaction restores the previously saved installation.

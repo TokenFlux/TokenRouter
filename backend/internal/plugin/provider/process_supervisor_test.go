@@ -7,13 +7,20 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/shirou/gopsutil/v4/process"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
@@ -63,6 +70,7 @@ func TestProcessesDrainAndRejectNewLeases(t *testing.T) {
 // TestProcessesRestartAndEnterCrashLoop repeatedly exits real child processes.
 // Four abnormal exits must recover, while the fifth inside the configured
 // window stops automatic restart and leaves an actionable crashloop status.
+// Reconciliation with unchanged configuration must preserve that intervention state.
 func TestProcessesRestartAndEnterCrashLoop(t *testing.T) {
 	processes, spec := runtimeFixture(t, "crashy")
 	for attempt := 1; attempt <= 5; attempt++ {
@@ -94,6 +102,8 @@ func TestProcessesRestartAndEnterCrashLoop(t *testing.T) {
 	if state.Restarts != 5 || state.PID != 0 {
 		t.Fatalf("crashloop observation: %+v", state)
 	}
+	require.NoError(t, processes.ApplyConfig(t.Context(), spec))
+	require.Equal(t, plugin.StateCrashLoop, processes.Status(spec.PluginID).State)
 }
 
 // TestProcessesRejectHostEnvironmentInheritance launches an environment-reporting
@@ -176,6 +186,38 @@ func TestProcessesRejectChangedExecutable(t *testing.T) {
 	}
 }
 
+// TestProcessesRemoveBrokerDirectoriesAfterStartupFailure rejects a checksum and then attempts a missing executable through the custom runner.
+// Every broker directory and its host-owned parent must be removed even when go-plugin never obtains a running child identity.
+func TestProcessesRemoveBrokerDirectoriesAfterStartupFailure(t *testing.T) {
+	for _, failure := range []string{"checksum", "exec"} {
+		t.Run(failure, func(t *testing.T) {
+			spec := plugin.ProcessSpec{PluginID: "test.cleanup", Version: "1.0.0", Executable: fixtureBinaries["crashy"], StateDir: t.TempDir(), MemoryMiB: 128, ConfigJSON: []byte(`{}`)}
+			if failure == "checksum" {
+				spec.VerifyBinary = true
+				spec.BinarySHA256 = strings.Repeat("0", 64)
+			} else {
+				spec.Executable = filepath.Join(spec.StateDir, "missing-plugin")
+			}
+			owner := newSupervisor(spec, plugin.RuntimeOptions{}.WithDefaults(), slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil)
+			defer owner.cancel()
+			_, err := owner.start()
+			require.Error(t, err)
+			require.Nil(t, owner.current)
+			found := false
+			for _, line := range owner.logs.snapshot() {
+				// go-plugin records its allocated broker path before invoking RunnerFunc;
+				// observing that real allocation verifies cleanup after both pre-exec failures.
+				if path, matched := strings.CutPrefix(line.Message, "created temporary directory for unix sockets dir="); matched {
+					found = true
+					require.NoDirExists(t, path)
+					require.NoDirExists(t, filepath.Dir(path))
+				}
+			}
+			require.True(t, found, "startup did not reach broker directory allocation")
+		})
+	}
+}
+
 // TestProcessesEnforceLeaseCapacity holds every production-default request slot.
 // The next admission must fail immediately, and releasing one original lease
 // must make exactly that generation available for another request.
@@ -217,6 +259,200 @@ func TestProcessesBoundInitializationFailures(t *testing.T) {
 	}
 	if _, err := processes.Acquire(context.Background(), spec.PluginID); !errors.Is(err, plugin.ErrPluginUnavailable) {
 		t.Fatal(err)
+	}
+}
+
+// TestProcessesApplyConfigurationAtCapacity occupies every ordinary request lease during a configuration update.
+// The watcher still receives the new value, and repeating a successfully applied configuration does not invoke it again.
+func TestProcessesApplyConfigurationAtCapacity(t *testing.T) {
+	processes, spec := runtimeFixture(t, "configuration")
+	waitRuntimeState(t, processes, spec.PluginID, plugin.StateRunning)
+	leases := holdRequestCapacity(t, processes, spec.PluginID)
+	spec.ConfigJSON = []byte(`{"amount":2}`)
+	require.NoError(t, processes.ApplyConfig(t.Context(), spec))
+	for _, lease := range leases {
+		lease.Release()
+	}
+	require.Equal(t, map[string]int64{"amount": 2, "notifications": 1}, configurationObservation(t, processes, spec.PluginID))
+	require.NoError(t, processes.ApplyConfig(t.Context(), spec))
+	require.Equal(t, map[string]int64{"amount": 2, "notifications": 1}, configurationObservation(t, processes, spec.PluginID))
+}
+
+// TestProcessesDrainConfigurationNotifications holds an author configuration callback while the host begins stopping its generation.
+// The management lease must delay Shutdown beyond its shorter callback budget until the configuration caller explicitly cancels and releases that lease.
+func TestProcessesDrainConfigurationNotifications(t *testing.T) {
+	processes, spec := runtimeFixture(t, "configuration")
+	waitRuntimeState(t, processes, spec.PluginID, plugin.StateRunning)
+	processes.options.InitTimeout = 5 * time.Second
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	spec.ConfigJSON = []byte(`{"amount":2,"blockChange":true}`)
+	applied := make(chan error, 1)
+	go func() { applied <- processes.ApplyConfig(ctx, spec) }()
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(filepath.Join(spec.StateDir, "changing"))
+		return err == nil
+	}, time.Second, 5*time.Millisecond)
+	stopped := make(chan error, 1)
+	go func() { stopped <- processes.Stop(context.Background(), spec.PluginID) }()
+	waitRuntimeState(t, processes, spec.PluginID, plugin.StateDraining)
+	// Waiting past the Shutdown RPC budget distinguishes lease draining from an
+	// already dispatched Shutdown merely blocked behind the SDK's configuration mutex.
+	select {
+	case err := <-stopped:
+		t.Fatalf("stop ended before configuration cancellation: %v", err)
+	case <-time.After(2 * processes.options.ShutdownTimeout):
+	}
+	cancel()
+	require.NoError(t, <-applied)
+	require.NoError(t, <-stopped)
+	require.Equal(t, plugin.StateStopped, processes.Status(spec.PluginID).State)
+}
+
+// TestProcessesRetryUnappliedConfiguration makes the author reject its first notification after the SDK receives the new values.
+// Repeating identical desired configuration retries that failed callback and stops retrying only after author state is successfully updated.
+func TestProcessesRetryUnappliedConfiguration(t *testing.T) {
+	processes, spec := runtimeFixture(t, "configuration")
+	waitRuntimeState(t, processes, spec.PluginID, plugin.StateRunning)
+	spec.ConfigJSON = []byte(`{"amount":2,"failOnce":true}`)
+	require.NoError(t, processes.ApplyConfig(t.Context(), spec))
+	require.Equal(t, map[string]int64{"amount": 0, "notifications": 1}, configurationObservation(t, processes, spec.PluginID))
+	require.NoError(t, processes.ApplyConfig(t.Context(), spec))
+	require.Equal(t, map[string]int64{"amount": 2, "notifications": 2}, configurationObservation(t, processes, spec.PluginID))
+	require.NoError(t, processes.ApplyConfig(t.Context(), spec))
+	require.Equal(t, map[string]int64{"amount": 2, "notifications": 2}, configurationObservation(t, processes, spec.PluginID))
+}
+
+// TestProcessesReplaceConfigurationDuringInitialization pauses an actual Init callback after its original values have been captured.
+// Updating configuration must finish the old supervisor and publish a replacement that initializes with the new value instead.
+func TestProcessesReplaceConfigurationDuringInitialization(t *testing.T) {
+	processes, spec := runtimeFixture(t, "configuration")
+	require.NoError(t, processes.Stop(t.Context(), spec.PluginID))
+	processes.options.InitTimeout = 5 * time.Second
+	spec.ConfigJSON = []byte(`{"amount":1,"blockInit":true}`)
+	require.NoError(t, processes.Replace(t.Context(), spec))
+	old := processes.entries[spec.PluginID]
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(filepath.Join(spec.StateDir, "initializing"))
+		return err == nil
+	}, 20*time.Second, 5*time.Millisecond)
+	spec.ConfigJSON = []byte(`{"amount":2}`)
+	require.NoError(t, processes.ApplyConfig(t.Context(), spec))
+	select {
+	case <-old.done:
+	default:
+		t.Fatal("replacement retained the original initialization owner")
+	}
+	waitRuntimeState(t, processes, spec.PluginID, plugin.StateRunning)
+	require.Equal(t, map[string]int64{"amount": 2, "notifications": 0}, configurationObservation(t, processes, spec.PluginID))
+}
+
+// TestProcessesRestartUnwatchedConfigurationAtCapacity fills request capacity for an implementation without ConfigChanged support.
+// Configuration delivery must still initiate a restart, retain old requests while draining, and initialize the replacement with new values.
+func TestProcessesRestartUnwatchedConfigurationAtCapacity(t *testing.T) {
+	processes, spec := runtimeFixture(t, "nowatcher")
+	before := waitRuntimeState(t, processes, spec.PluginID, plugin.StateRunning)
+	leases := holdRequestCapacity(t, processes, spec.PluginID)
+	spec.ConfigJSON = []byte(`{"amount":2}`)
+	result := make(chan error, 1)
+	// Keep all ordinary leases until restart closes admission, proving that the
+	// lifecycle notification bypasses saturation while its replacement still drains requests.
+	go func() { result <- processes.ApplyConfig(t.Context(), spec) }()
+	waitRuntimeState(t, processes, spec.PluginID, plugin.StateDraining)
+	for _, lease := range leases {
+		lease.Release()
+	}
+	require.NoError(t, <-result)
+	after := waitRuntimeState(t, processes, spec.PluginID, plugin.StateRunning)
+	require.NotEqual(t, before.PID, after.PID)
+	require.Equal(t, map[string]int64{"amount": 2, "notifications": 0}, configurationObservation(t, processes, spec.PluginID))
+}
+
+// holdRequestCapacity retains every ordinary lease until the caller releases it.
+// Test cleanup also releases the captured leases before runtime cleanup executes,
+// ensuring failed assertions cannot keep their fixture process artificially busy.
+func holdRequestCapacity(t *testing.T, processes *Processes, id string) []*plugin.Lease {
+	t.Helper()
+	leases := make([]*plugin.Lease, 0, processes.options.MaxLeases)
+	t.Cleanup(func() {
+		for _, lease := range leases {
+			lease.Release()
+		}
+	})
+	for range processes.options.MaxLeases {
+		lease, err := processes.Acquire(t.Context(), id)
+		require.NoError(t, err)
+		leases = append(leases, lease)
+	}
+	return leases
+}
+
+// configurationObservation reads applied author state through the real plugin transport.
+// The helper retains and returns one ordinary lease around its bounded HTTP
+// exchange, so observations exercise the same process connection as production requests.
+func configurationObservation(t *testing.T, processes *Processes, id string) map[string]int64 {
+	t.Helper()
+	lease, err := processes.Acquire(t.Context(), id)
+	require.NoError(t, err)
+	defer lease.Release()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	response, err := lease.Conn.HTTP.Exchange(ctx, &plugin.HTTPRequest{Method: "GET", Path: "/"})
+	require.NoError(t, err)
+	var observation map[string]int64
+	require.NoError(t, json.Unmarshal(response.Body, &observation))
+	return observation
+}
+
+// TestProcessesStopDescendantsHoldingOutputPipes starts a helper that retains the plugin's original output descriptors.
+// Unix cancellation must terminate both processes and finish the supervisor without waiting for the helper's independent thirty-second lifetime.
+func TestProcessesStopDescendantsHoldingOutputPipes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix process groups are unavailable on Windows")
+	}
+	processes, spec := runtimeFixture(t, "crashy")
+	require.NoError(t, processes.Stop(t.Context(), spec.PluginID))
+	executable := filepath.Join(spec.StateDir, "launcher")
+	pidPath := filepath.Join(spec.StateDir, "descendant.pid")
+	escapedBinary := strings.ReplaceAll(fixtureBinaries["crashy"], "'", "'\"'\"'")
+	script := fmt.Sprintf("#!/bin/sh\nsleep 30 &\necho $! > \"$TR_PLUGIN_STATE_DIR/descendant.pid\"\nexec '%s'\n", escapedBinary)
+	require.NoError(t, os.WriteFile(executable, []byte(script), 0o755))
+	digest := sha256.Sum256([]byte(script))
+	spec.Executable = executable
+	spec.BinarySHA256 = hex.EncodeToString(digest[:])
+	require.NoError(t, processes.Replace(t.Context(), spec))
+	before := waitRuntimeState(t, processes, spec.PluginID, plugin.StateRunning)
+	pidData, err := os.ReadFile(pidPath)
+	require.NoError(t, err)
+	descendantPID, err := strconv.Atoi(strings.TrimSpace(string(pidData)))
+	require.NoError(t, err)
+	descendant, err := os.FindProcess(descendantPID)
+	require.NoError(t, err)
+	// Cleanup owns only the helper PID created by this launcher; it also covers
+	// assertion failures before the runtime has had an opportunity to cancel its group.
+	t.Cleanup(func() {
+		_ = descendant.Kill()
+		_ = descendant.Release()
+	})
+	require.NoError(t, processes.Stop(t.Context(), spec.PluginID))
+	owner := processes.entries[spec.PluginID]
+	select {
+	case <-owner.done:
+	default:
+		t.Fatal("successful stop retained supervisor cleanup")
+	}
+	require.Equal(t, plugin.StateStopped, processes.Status(spec.PluginID).State)
+	for _, pid := range []int{before.PID, descendantPID} {
+		require.Eventually(t, func() bool {
+			observed, err := process.NewProcess(int32(pid))
+			if err != nil {
+				return errors.Is(err, process.ErrorProcessNotRunning)
+			}
+			states, err := observed.Status()
+			// Container init may leave an exited orphan unreaped; a zombie cannot
+			// retain an output pipe or perform further plugin or helper work.
+			return errors.Is(err, process.ErrorProcessNotRunning) || err == nil && slices.Contains(states, "zombie")
+		}, time.Second, 5*time.Millisecond)
 	}
 }
 

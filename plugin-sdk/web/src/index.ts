@@ -30,8 +30,9 @@ export * from './types.js'
 export declare function definePlugin(definition: PluginDefinition): void
 
 /** useHost retrieves the host interface provided to the mounted plugin page.
- * Call it during component setup. Using it outside a mounted plugin page
- * fails rather than returning an unscoped authenticated request client.
+ * Call it during component setup or a functional component's synchronous render.
+ * Using it outside a mounted plugin page fails rather than returning an unscoped
+ * authenticated request client.
  */
 export declare function useHost(): HostApi
 

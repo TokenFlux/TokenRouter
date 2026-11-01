@@ -14,19 +14,6 @@ import (
 
 // configureProcess sets parent-death and process-group attributes before child startup.
 func configureProcess(command *exec.Cmd) {
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
-}
-
-// killProcessGroup terminates the plugin group after graceful shutdown attempts.
-// Missing processes are harmless. Other errors are returned for host diagnostics
-// without changing the already selected shutdown or recovery outcome.
-func killProcessGroup(pid int) error {
-	if pid <= 0 {
-		return nil
-	}
-	err := syscall.Kill(-pid, syscall.SIGKILL)
-	if err == syscall.ESRCH {
-		return nil
-	}
-	return err
+	configureProcessGroup(command)
+	command.SysProcAttr.Pdeathsig = syscall.SIGKILL
 }

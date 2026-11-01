@@ -41,7 +41,6 @@ type Loaded struct {
 	// Installation and Package contain immutable maps after publication; callers must never modify their nested values or configuration containers.
 	Installation *Installation // accepted installation intent snapshot
 	Package      Package       // verified local release assets
-	spec         ProcessSpec   // retained generation initialization inputs
 }
 
 // Manager owns local reconciliation, published snapshots, and serialized installation changes.
@@ -224,7 +223,8 @@ func (m *Manager) Sync(ctx context.Context, id string) error {
 
 // syncLocked applies one coherent desired record to package and process ownership.
 // Callers hold the plugin's mutation lock. Unchanged running versions retain their
-// verified package and receive configuration changes without another download.
+// verified package, while the supervisor compares desired configuration against
+// values actually applied to its generation and retries unfinished notifications.
 //
 // Replacements drain the old generation before touching its files. The native
 // process slot stays reserved until successful draining, so concurrent installs
@@ -317,7 +317,6 @@ func (m *Manager) syncLocked(ctx context.Context, id string, retain ...string) (
 	if want.Previous != nil {
 		spec.PreviousVersion = want.Previous.Version
 	}
-	loaded.spec = spec
 	if err := m.reserve(id); err != nil {
 		return err
 	}
@@ -328,7 +327,7 @@ func (m *Manager) syncLocked(ctx context.Context, id string, retain ...string) (
 	}
 	if needsStart {
 		err = m.processes.Replace(ctx, spec)
-	} else if !bytes.Equal(old.spec.ConfigJSON, data) {
+	} else {
 		err = m.processes.ApplyConfig(ctx, spec)
 	}
 	if err != nil {

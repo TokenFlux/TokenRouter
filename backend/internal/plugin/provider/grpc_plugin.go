@@ -69,6 +69,7 @@ func (c *taskClient) RunTask(ctx context.Context, name string, scheduled time.Ti
 // Exchange maps filtered contribution data onto the authenticated process transport.
 // Caller grants remain inside the RPC request. The returned reply still requires
 // panel validation of status, content type, response size, and allowed headers.
+// Caller locale retains the host's negotiated language for SDK request handlers.
 //
 // Transport diagnostics are not browser-visible: deadline outcomes receive the
 // dedicated timeout reason, and other RPC failures receive a generic gateway
@@ -81,7 +82,13 @@ func (c *httpClient) Exchange(ctx context.Context, input *plugin.HTTPRequest) (*
 		Headers: input.Headers, Body: input.Body, ClientIp: input.ClientIP,
 	}
 	if input.Caller != nil {
-		request.Caller = &pluginpb.Caller{UserId: input.Caller.UserID, Username: input.Caller.Username, Role: input.Caller.Role, Grant: input.Caller.Grant}
+		request.Caller = &pluginpb.Caller{
+			UserId:   input.Caller.UserID,
+			Username: input.Caller.Username,
+			Role:     input.Caller.Role,
+			Locale:   input.Caller.Locale,
+			Grant:    input.Caller.Grant,
+		}
 	}
 	response, err := c.client.Handle(ctx, request)
 	if err != nil {

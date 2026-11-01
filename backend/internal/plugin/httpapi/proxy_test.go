@@ -8,6 +8,7 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
@@ -18,12 +19,17 @@ import (
 // responses so browser credentials, private caller grants, transport failures, and
 // author-owned response semantics remain separated at the public proxy boundary.
 
-// TestProxyPreservesRawJSONAndPrivateCallerBoundary forwards a user request containing browser credentials, unrelated headers, and a spoofed identity body.
-// Only allowed headers and the original body reach the plugin; verified identity and grant remain separate, and the response stays unwrapped with cookies removed.
+// TestProxyPreservesRawJSONAndPrivateCallerBoundary forwards a user request with
+// browser credentials, raw language preferences, and a spoofed identity body.
+// The plugin receives the negotiated caller locale and verified identity
+// separately from allowed headers and the original body, while the response stays
+// unwrapped with cookies removed.
 func TestProxyPreservesRawJSONAndPrivateCallerBoundary(t *testing.T) {
 	router, handler, runtime, _, security := publicFixture(t)
+	handler.options.Language = func(*gin.Context) string { return "zh-Hans" }
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/plugins/test.http/api/user?next=a%20b", strings.NewReader(`{"id":9}`))
 	request.Header.Set("Authorization", "Bearer user")
+	request.Header.Set("Accept-Language", "zh-CN, en;q=0.8")
 	request.Header.Set("Cookie", "private-session")
 	request.Header.Set("X-Api-Key", "private-management-key")
 	request.Header.Set("X-Forwarded-For", "198.51.100.77")
@@ -52,6 +58,8 @@ func TestProxyPreservesRawJSONAndPrivateCallerBoundary(t *testing.T) {
 	require.Equal(t, int64(7), forwarded.Caller.UserID)
 	require.Equal(t, "Current username", forwarded.Caller.Username)
 	require.Equal(t, "user", forwarded.Caller.Role)
+	require.Equal(t, "zh-Hans", forwarded.Caller.Locale)
+	require.Equal(t, "zh-CN, en;q=0.8", forwarded.Headers["Accept-Language"])
 	require.NoError(t, handler.options.Grants.Verify("test.http", 7, forwarded.Caller.Grant))
 	require.NotContains(t, response.Body.String(), forwarded.Caller.Grant)
 }

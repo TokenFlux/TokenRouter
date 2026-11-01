@@ -3,11 +3,7 @@
 package provider
 
 import (
-	"bufio"
 	"os"
-	"os/exec"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -22,39 +18,7 @@ import (
 // TestParentWatchdogTerminatesOrphan kills an initialized test host without running any shutdown callbacks.
 // Its child must exit within the two-second polling interval plus scheduling allowance, including platforms where parent identifiers survive process exit.
 func TestParentWatchdogTerminatesOrphan(t *testing.T) {
-	host := exec.Command(fixtureBinaries["hostdeath"], fixtureBinaries["crashy"], t.TempDir())
-	stdout, err := host.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := host.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = host.Process.Kill()
-		_ = host.Wait()
-	})
-	ready := make(chan int, 1)
-	// The host publishes its child only after Init succeeds, preventing a failed
-	// handshake from being mistaken for successful orphan cleanup after host termination.
-	go func() {
-		line, err := bufio.NewReader(stdout).ReadString('\n')
-		if err != nil {
-			ready <- 0
-			return
-		}
-		pid, _ := strconv.Atoi(strings.TrimSpace(line))
-		ready <- pid
-	}()
-	var pid int
-	select {
-	case pid = <-ready:
-	case <-time.After(15 * time.Second):
-		t.Fatal("host did not publish initialized child")
-	}
-	if pid <= 0 {
-		t.Fatal("host failed before child initialization")
-	}
+	host, pid := startParentDeathHost(t)
 	if err := host.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}

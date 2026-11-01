@@ -7,11 +7,12 @@ import "context"
 // filters headers, and owns the request deadline. The process adapter translates
 // these values to RPC messages and returns safe host errors for transport failures.
 
-// HTTPCaller carries verified panel identity and its private host capability grant.
+// HTTPCaller carries verified panel identity, negotiated language, and private capability authorization.
 type HTTPCaller struct {
 	UserID   int64  // authenticated panel account identifier
 	Username string // current account display username
 	Role     string // authenticated panel account role
+	Locale   string // host-negotiated request language
 	// Grant is sent only inside the authenticated process RPC and must never enter browser headers, response payloads, or general request logging.
 	Grant string `json:"-"`
 }

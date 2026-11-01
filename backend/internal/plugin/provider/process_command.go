@@ -18,8 +18,8 @@ import (
 // go-plugin adds its own ephemeral handshake variables when it starts the command.
 
 // processCommand prepares disposable directories and an isolated child environment.
-// Executable and state paths must be absolute. Linux process-group and parent
-// death behavior is supplied by the platform file before go-plugin starts the command.
+// Executable and state paths must be absolute. Platform setup assigns Unix
+// process groups and Linux parent-death behavior before go-plugin starts the command.
 func processCommand(spec plugin.ProcessSpec, options plugin.RuntimeOptions) (*exec.Cmd, error) {
 	if !filepath.IsAbs(spec.Executable) || !filepath.IsAbs(spec.StateDir) {
 		return nil, fmt.Errorf("plugin executable and state paths must be absolute")

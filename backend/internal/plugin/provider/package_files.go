@@ -2,8 +2,13 @@ package provider
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -21,9 +26,10 @@ import (
 // A rename publishes the completed directory only after all integrity metadata
 // has been written. Callers stop a generation before replacing its version path.
 //
-// Installed markers avoid repeated archive downloads while file metadata checks
-// detect missing or structurally damaged installations. Process startup verifies
-// the binary digest, and browser loads enforce the retained asset SRI values.
+// Installed markers avoid repeated archive downloads while complete file digest
+// checks detect damaged installations, including changes that preserve file size.
+// These checks run during installation and recovery; asset requests retain their
+// bounded metadata checks, and browser loads enforce the retained asset SRI values.
 // Uploaded archives cannot recover from missing installed files after staging
 // expires; their installation records remain available for same-version repair.
 
@@ -77,7 +83,7 @@ func NewPackageFiles(root string, options DownloadOptions) (*PackageFiles, error
 // Ensure obtains verified local files for one accepted release identity.
 // The manager serializes calls for each plugin and stops a running generation
 // before a same-version replacement. Uploaded recovery requires a live upload
-// token whenever the installed marker or its required files are missing.
+// token whenever the installed marker or its retained files are missing or damaged.
 //
 // Download and extraction finish in private staging before the current directory
 // is removed. The manifest digest and declared plugin identity are checked again
@@ -95,8 +101,11 @@ func (p *PackageFiles) Ensure(ctx context.Context, ref plugin.PackageRef) (plugi
 		return p.developmentPackage(ctx, ref)
 	}
 	destination := filepath.Join(p.root, "installed", ref.PluginID, ref.Version)
-	if result, err := p.readInstalled(destination, ref); err == nil {
+	if result, err := p.readInstalled(ctx, destination, ref); err == nil {
 		return result, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return plugin.Package{}, err
 	}
 	if ref.Source == plugin.SourceUpload && ref.UploadToken == "" {
 		return plugin.Package{}, plugin.ErrPackageMissing
@@ -128,11 +137,11 @@ func (p *PackageFiles) Ensure(ctx context.Context, ref plugin.PackageRef) (plugi
 		return plugin.Package{}, plugin.ErrPackageInvalid
 	}
 	marker := markerFromPackage(metadata, ref.Platform)
-	data, err := json.Marshal(marker)
+	data, err := marshalPackageMarker(marker)
 	if err != nil {
 		return plugin.Package{}, err
 	}
-	if err := os.WriteFile(filepath.Join(extracted, ".tr-installed"), data, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(extracted, pkgfmt.ReservedMetadataName), data, 0o600); err != nil {
 		return plugin.Package{}, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -151,10 +160,11 @@ func (p *PackageFiles) Ensure(ctx context.Context, ref plugin.PackageRef) (plugi
 	return marker.local(destination), nil
 }
 
-// readInstalled validates marker identity and the presence of every retained file.
-// Hashes remain the accepted release hashes; executable verification and browser
-// SRI enforce content integrity at use time without rehashing all assets here.
-func (p *PackageFiles) readInstalled(directory string, ref plugin.PackageRef) (plugin.Package, error) {
+// readInstalled validates marker identity and every retained file's complete digest.
+// Callers use this during installation or recovery, not asset delivery. An edit
+// that preserves file size must fail so uploaded repair can replace damaged contents
+// before executable verification or browser integrity checks reject them again.
+func (p *PackageFiles) readInstalled(ctx context.Context, directory string, ref plugin.PackageRef) (plugin.Package, error) {
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		return plugin.Package{}, err
@@ -171,15 +181,55 @@ func (p *PackageFiles) readInstalled(directory string, ref plugin.PackageRef) (p
 		if !manifest.ValidPath(name) {
 			return plugin.Package{}, plugin.ErrPackageInvalid
 		}
-		info, err := root.Lstat(name)
-		if err != nil || !info.Mode().IsRegular() || info.Size() != asset.Size {
-			return plugin.Package{}, plugin.ErrPackageMissing
+		if err := verifyInstalledFile(ctx, root, name, asset); err != nil {
+			return plugin.Package{}, err
 		}
 	}
 	if marker.Executable != "" && (!manifest.ValidPath(marker.Executable) || marker.Files[marker.Executable].SHA256 != marker.BinarySHA256) {
 		return plugin.Package{}, plugin.ErrPackageInvalid
 	}
 	return marker.local(directory), nil
+}
+
+// verifyInstalledFile compares a bounded file read with both accepted content digests.
+// The caller owns the package root and serializes management mutations. Cancellation
+// interrupts hashing, and a changed length or digest prevents reuse of this package.
+func verifyInstalledFile(ctx context.Context, root *os.Root, name string, asset plugin.Asset) error {
+	if asset.Size < 0 || asset.Size > pkgfmt.MaxExpandedBytes {
+		return plugin.ErrPackageInvalid
+	}
+	file, err := openRegularPackageFile(root, name, asset.Size)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = file.Close() }()
+	hash, integrity := sha256.New(), sha512.New384()
+	// Read one extra byte to reject a file that grows after inspection without
+	// letting a damaged package force an unbounded management-time integrity read.
+	reader := io.LimitReader(&contextReader{ctx: ctx, reader: file}, asset.Size+1)
+	count, err := io.Copy(io.MultiWriter(hash, integrity), reader)
+	if err != nil {
+		return err
+	}
+	if count != asset.Size || hex.EncodeToString(hash.Sum(nil)) != asset.SHA256 ||
+		"sha384-"+base64.StdEncoding.EncodeToString(integrity.Sum(nil)) != asset.SRI {
+		return plugin.ErrChecksumMismatch
+	}
+	return nil
+}
+
+// marshalPackageMarker checks the reader's byte budget before metadata is accepted.
+// Preview and publication share this encoder. A package can never be reported as
+// successfully staged or installed with metadata that the retained reader truncates.
+func marshalPackageMarker(marker installedMarker) ([]byte, error) {
+	data, err := json.Marshal(marker)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxInstalledMarkerBytes {
+		return nil, plugin.ErrPackageInvalid.WithCause(fmt.Errorf("installed metadata exceeds its byte limit"))
+	}
+	return data, nil
 }
 
 // markerFromPackage retains verified file digests and the selected executable name.

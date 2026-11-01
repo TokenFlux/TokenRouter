@@ -23,6 +23,9 @@ import (
 // encrypted secret configuration travel with each version snapshot, so a failed
 // update can restore removed required fields without reconstructing them from
 // a new schema. Reads decode fresh containers for the manager to publish immutably.
+// Saving resolves current and previous source references under database row locks;
+// deleting a source removes only that relationship, including from older snapshots
+// still held by an administrative operation that is preparing failure recovery.
 
 const (
 	// installationColumns keeps read projection and scanner positions identical across singular and ordered installation queries.
@@ -109,6 +112,13 @@ func (s *Store) Get(ctx context.Context, id string) (*plugin.Installation, error
 // Save upserts a complete version and rollback snapshot as one database statement.
 // Callers hold the manager's per-plugin mutation lock. Existing installed_at
 // remains unchanged, while updated_at and updated_by describe this persisted change.
+//
+// Source identifiers come from accepted releases or previously stored snapshots.
+// A source removed after either snapshot was read becomes a NULL relationship,
+// retaining its accepted artifacts and configuration. Key-share locks protect
+// surviving current and previous references until the statement or caller-owned
+// transaction completes, so a concurrent deletion cannot invalidate them between
+// lookup and foreign-key validation or prevent failure recovery from saving.
 func (s *Store) Save(ctx context.Context, item *plugin.Installation) error {
 	current, err := encodeSnapshot(&item.VersionSnapshot)
 	if err != nil {
@@ -122,10 +132,13 @@ func (s *Store) Save(ctx context.Context, item *plugin.Installation) error {
 	if len(limits) == 0 {
 		limits = []byte(`{}`)
 	}
+	// Resolve both references inside this write and retain their row locks through
+	// persistence, allowing an already deleted source to remain detached during recovery.
 	query := `INSERT INTO plugin_installations
 (plugin_id,version,source,index_id,manifest,manifest_sha256,artifacts,enabled,granted_permissions,config,secret_config,limits,
 previous_version,previous_source,previous_index_id,previous_manifest,previous_manifest_sha256,previous_artifacts,previous_granted_permissions,previous_config,previous_secret_config,updated_by)
-VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7::jsonb,$8,$9::jsonb,$10::jsonb,$11,$12::jsonb,$13,$14,$15,$16::jsonb,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21,$22)
+VALUES ($1,$2,$3,(SELECT id FROM plugin_indexes WHERE id=$4 FOR KEY SHARE),$5::jsonb,$6,$7::jsonb,$8,$9::jsonb,$10::jsonb,$11,$12::jsonb,
+$13,$14,(SELECT id FROM plugin_indexes WHERE id=$15 FOR KEY SHARE),$16::jsonb,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21,$22)
 ON CONFLICT (plugin_id) DO UPDATE SET version=EXCLUDED.version,source=EXCLUDED.source,index_id=EXCLUDED.index_id,
 manifest=EXCLUDED.manifest,manifest_sha256=EXCLUDED.manifest_sha256,artifacts=EXCLUDED.artifacts,enabled=EXCLUDED.enabled,
 granted_permissions=EXCLUDED.granted_permissions,config=EXCLUDED.config,secret_config=EXCLUDED.secret_config,limits=EXCLUDED.limits,

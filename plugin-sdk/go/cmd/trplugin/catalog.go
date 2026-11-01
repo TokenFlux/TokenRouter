@@ -89,6 +89,10 @@ func buildCommand(args []string, output io.Writer) error {
 		return err
 	}
 	document = append(document, '\n')
+	// Check final encoded bytes before signing or replacing the previous generation.
+	if len(document) > index.MaxDocumentBytes {
+		return fmt.Errorf("index exceeds %d bytes", index.MaxDocumentBytes)
+	}
 	var signature []byte
 	if !*unsigned {
 		signature, err = index.Sign(document, key)

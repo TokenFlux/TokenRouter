@@ -72,3 +72,28 @@ func TestInspectRejectsSymlink(t *testing.T) {
 		t.Fatal("symlink accepted")
 	}
 }
+
+// TestInspectRejectsInstallerMetadata checks unpacked packages containing reserved
+// host metadata or portable aliases. Inspection must reject them before a
+// publisher can create an archive that overwrites installation bookkeeping.
+func TestInspectRejectsInstallerMetadata(t *testing.T) {
+	for _, name := range []string{ReservedMetadataName, ".TR-INSTALLED.", ReservedMetadataName + "/child"} {
+		t.Run(name, func(t *testing.T) {
+			data, _ := validArchive(t)
+			directory := filepath.Join(t.TempDir(), "package")
+			if _, err := Extract(bytes.NewReader(data), directory, Options{Platform: "linux/amd64"}); err != nil {
+				t.Fatal(err)
+			}
+			filename := filepath.Join(directory, filepath.FromSlash(name))
+			if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filename, []byte("publisher data"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Inspect(directory, Options{Platform: "linux/amd64"}); err == nil {
+				t.Fatal("reserved installer path accepted")
+			}
+		})
+	}
+}

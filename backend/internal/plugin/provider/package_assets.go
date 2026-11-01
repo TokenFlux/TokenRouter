@@ -10,6 +10,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/manifest"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pkgfmt"
 )
 
 // package_assets.go opens retained package assets without triggering installation
@@ -23,6 +24,15 @@ import (
 // of the directory handle closed during setup. Integrity metadata remains the
 // accepted release identity used for browser SRI and cache validators; it does
 // not authorize reading executable or configuration paths from a public route.
+
+const (
+	// Marker capacity covers every permitted entry with ten directory components
+	// and one filename, each using 255 ASCII bytes, plus 256 bytes for separators
+	// and encoded file metadata.
+	// The final 4096 bytes cover release digests and the executable path. Writers
+	// independently check actual encoded size before preview or publication succeeds.
+	maxInstalledMarkerBytes = pkgfmt.MaxEntries*((pkgfmt.MaxDepth+1)*255+256) + 4096
+)
 
 // assetReader owns the file descriptor behind a fixed accepted byte range.
 type assetReader struct {
@@ -78,6 +88,27 @@ func (p *PackageFiles) Open(ctx context.Context, local plugin.Package, name stri
 		return nil, plugin.ErrPackageMissing
 	}
 	defer func() { _ = root.Close() }()
+	file, err := openRegularPackageFile(root, name, metadata.Size)
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, plugin.ErrPackageMissing
+	}
+	return &plugin.AssetFile{
+		Reader:     &assetReader{SectionReader: io.NewSectionReader(file, 0, metadata.Size), file: file},
+		Metadata:   metadata,
+		ModifiedAt: info.ModTime(),
+	}, nil
+}
+
+// openRegularPackageFile opens a declared file without accepting linked path components.
+// The caller validates the package-relative name and owns the returned descriptor.
+// The opened regular file must have the accepted size; os.Root confines resolution
+// even if a directory changes between component inspection and the final open.
+func openRegularPackageFile(root *os.Root, name string, size int64) (*os.File, error) {
 	// Check every component because a directory link inside the package can otherwise redirect an accepted asset name to a different retained file.
 	parts := strings.Split(name, "/")
 	for i := range parts {
@@ -97,28 +128,27 @@ func (p *PackageFiles) Open(ctx context.Context, local plugin.Package, name stri
 		return nil, plugin.ErrPackageMissing
 	}
 	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() != metadata.Size {
+	if err != nil || !info.Mode().IsRegular() || info.Size() != size {
 		_ = file.Close()
 		return nil, plugin.ErrPackageMissing
 	}
-	return &plugin.AssetFile{
-		Reader:     &assetReader{SectionReader: io.NewSectionReader(file, 0, metadata.Size), file: file},
-		Metadata:   metadata,
-		ModifiedAt: info.ModTime(),
-	}, nil
+	return file, nil
 }
 
 // readPackageMarker reads the bounded metadata created only after package publication succeeds.
 // The caller owns and closes root. Marker contents are internal metadata, and
 // consumers still validate requested paths and descriptor sizes before exposing files.
 func readPackageMarker(root *os.Root) (installedMarker, error) {
-	file, err := root.Open(".tr-installed")
+	file, err := root.Open(pkgfmt.ReservedMetadataName)
 	if err != nil {
 		return installedMarker{}, err
 	}
 	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxInstalledMarkerBytes {
+		return installedMarker{}, plugin.ErrPackageInvalid
+	}
 	var marker installedMarker
-	// A marker for at most two thousand files fits within one MiB, bounding malformed local metadata before decoding it.
-	err = json.NewDecoder(io.LimitReader(file, 1<<20)).Decode(&marker)
+	err = json.NewDecoder(io.LimitReader(file, maxInstalledMarkerBytes)).Decode(&marker)
 	return marker, err
 }

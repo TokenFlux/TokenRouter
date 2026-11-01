@@ -11,8 +11,9 @@ import type { HostApi } from '@tokenflux/tokenrouter-plugin-sdk'
 export const PLUGIN_HOST_KEY: InjectionKey<HostApi> = Symbol('TokenRouter plugin host')
 
 /** useHost retrieves the mounted page's plugin-scoped host capability object.
- * Call during component setup beneath PluginPageView's provider. A missing context
- * is an authoring error and never falls back to global authenticated services.
+ * Call during component setup or synchronous functional rendering beneath
+ * PluginPageView's provider. A missing context is an authoring error and never
+ * falls back to global authenticated services.
  */
 export function useHost(): HostApi {
   const host = inject(PLUGIN_HOST_KEY)

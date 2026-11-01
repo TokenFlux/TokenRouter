@@ -5,6 +5,8 @@ import type { AllowedComponentProps, Component, ComponentCustomProps, Ref, VNode
 // navigation values are supplied as readonly references. Runtime implementations
 // belong to the host or the explicit local-development mock.
 
+export { normalizePluginPage, type PluginPageRenderer } from './page-component.js'
+
 /** HttpMethod lists the nonstreaming HTTP methods accepted by plugin requests. */
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 

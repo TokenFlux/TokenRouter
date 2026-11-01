@@ -56,5 +56,16 @@ func runRuntimeTests(m *testing.M) int {
 		return 1
 	}
 	fixtureBinaries["hostdeath"] = binary
+	binary = filepath.Join(directory, "configuration")
+	if runtime.GOOS == "windows" {
+		binary += ".exe"
+	}
+	command = exec.Command("go", "build", "-o", binary, "./testdata/configuration")
+	if output, err := command.CombinedOutput(); err != nil {
+		fmt.Fprintf(os.Stderr, "build configuration: %v\n%s", err, output)
+		return 1
+	}
+	fixtureBinaries["configuration"] = binary
+	fixtureBinaries["nowatcher"] = binary
 	return m.Run()
 }

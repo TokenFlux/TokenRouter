@@ -6,11 +6,9 @@ import "os/exec"
 
 // process_attr_other.go keeps command setup portable outside Linux.
 // The SDK parent watchdog supplies orphan detection on these platforms,
-// while go-plugin owns termination of the direct child. Linux-only process-group
-// and parent-death signal attributes are deliberately absent from this build.
+// while cancellation terminates the Unix process group before transport cleanup.
+// Windows retains direct-child termination, and Linux parent-death signals remain
+// confined to the Linux-specific setup implementation.
 
-// configureProcess leaves portable command attributes unchanged on non-Linux systems.
-func configureProcess(*exec.Cmd) {}
-
-// killProcessGroup reports no group operation where Linux process groups are unavailable.
-func killProcessGroup(int) error { return nil }
+// configureProcess applies available group ownership without Linux parent-death signals.
+func configureProcess(command *exec.Cmd) { configureProcessGroup(command) }

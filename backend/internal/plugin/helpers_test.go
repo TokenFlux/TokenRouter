@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -41,6 +42,8 @@ type processFixture struct {
 	stopRelease    chan struct{}     // optional drain completion barrier
 	replaceEntered chan struct{}     // optional replacement arrival notification
 	replaceRelease chan struct{}     // optional replacement completion barrier
+	configCalls    int               // configuration reconciliation attempt count
+	configError    error             // injected configuration delivery failure
 }
 
 // packageFixture records managed cleanup while returning deterministic verified package metadata.
@@ -172,10 +175,24 @@ func (f *processFixture) Stop(ctx context.Context, id string) error {
 	return nil
 }
 
-// ApplyConfig records the plaintext configuration delivered to the fixture generation.
+// ApplyConfig records reconciliation attempts and newly applied fixture configuration.
+// Successful identical values are already applied and need no new record.
+// Injected failures preserve the old applied values for a later retry.
 func (f *processFixture) ApplyConfig(_ context.Context, spec ProcessSpec) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.configCalls++
+	if f.configError != nil {
+		return f.configError
+	}
+	for _, previous := range slices.Backward(f.started) {
+		if previous.PluginID == spec.PluginID {
+			if previous.Version == spec.Version && bytes.Equal(previous.ConfigJSON, spec.ConfigJSON) {
+				return nil
+			}
+			break
+		}
+	}
 	f.started = append(f.started, spec)
 	return nil
 }

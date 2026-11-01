@@ -12,7 +12,7 @@ import Icon from '@/components/icons/Icon.vue'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import PluginFieldForm from '@/components/plugin/PluginFieldForm.vue'
 import { createPluginDraft, type PluginFieldDraft } from '@/components/plugin/configurationFields'
-import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
+import { isStepUpCancelled, StepUpCancelledError, useStepUp } from '@/composables/useStepUp'
 import { useAppStore } from '@/stores/app'
 import { pluginErrorMessage, pluginFieldErrors } from '../pluginErrors'
 
@@ -23,9 +23,11 @@ import { pluginErrorMessage, pluginFieldErrors } from '../pluginErrors'
 // draft, including newly typed secrets, and place backend field errors beside the
 // matching inputs. Required fields may stay incomplete while the plugin is disabled.
 //
-// The panel is mounted per installation identity. A generation guards reads and
-// writes, so leaving the tab or switching plugins cannot let a late response replace
-// another editor's draft, and unmounting settles any open step-up question.
+// Release changes discard the old draft and read the restored or migrated values,
+// including secret-presence markers. A generation guards reads and writes, so leaving
+// the tab, switching plugins, or rolling back cannot let a late response replace the
+// current draft. Ordinary process polling preserves edits, and leaving an editing
+// generation settles its open step-up question before another action can be approved.
 
 // Props selects the installation and whether the emergency switch forbids writes.
 const props = defineProps<{
@@ -75,7 +77,16 @@ function accept(config: PluginConfig): void {
   serverErrors.value = {}
 }
 
-/** load reads the redacted configuration and publishes it only for the current generation. */
+/** load replaces the active configuration read and accepts only its current result.
+ * Each read invalidates earlier writes as well as reads. Callers changing the
+ * accepted release clear the old draft before dispatching this replacement request.
+ *
+ * The generation is reserved before awaiting the endpoint. Only that generation
+ * can replace fields or clear loading, so an old save response cannot republish
+ * discarded values while the restored snapshot loads. Failed reads keep their
+ * message visible for an explicit retry, and loading prevents submitting a draft
+ * whose replacement values have not arrived yet.
+ */
 async function load(): Promise<void> {
   const current = ++generation
   loading.value = true
@@ -97,23 +108,35 @@ function discard(): void {
   saveError.value = ''
 }
 
-/** save validates and persists the draft, keeping it intact on any failure.
+/** save validates and persists the draft, keeping it intact on a current failure.
  * Local validation focuses the first invalid field. Step-up cancellation keeps the
- * editor open without an error, and backend schema failures are mapped onto the
- * fields present in this manifest. Late results from a replaced generation are ignored.
+ * editor open without an error, and backend schema failures identify current fields.
+ * A replacement release invalidates both result publication and step-up retries.
+ * The captured plugin ID prevents a retained callback from targeting another editor.
+ * Already dispatched writes remain backend-owned; their late failures cannot open
+ * verification for a generation whose draft has already been discarded.
  */
 async function save(): Promise<void> {
   if (props.readOnly || saving.value || loading.value || !form.value) return
   const current = generation
+  const pluginId = props.installation.plugin_id
   saving.value = true
   saveError.value = ''
   serverErrors.value = {}
   try {
     const values = await form.value.validate()
     if (!values || current !== generation) return
-    const saved = await stepUp.run(() =>
-      pluginsAPI.saveConfig(props.installation.plugin_id, values),
-    )
+    const saved = await stepUp.run(async () => {
+      if (current !== generation) throw new StepUpCancelledError()
+      try {
+        return await pluginsAPI.saveConfig(pluginId, values)
+      } catch (failure) {
+        // A late authentication rejection must not open a new verification prompt
+        // after release replacement has retired this save and admitted another editor.
+        if (current !== generation) throw new StepUpCancelledError()
+        throw failure
+      }
+    })
     if (current !== generation) return
     accept(saved)
     emit('saved')
@@ -131,12 +154,26 @@ async function save(): Promise<void> {
   }
 }
 
-// Each plugin identity settles any pending verification and reads its own values.
+// Rollback restores configuration even when the plugin ID stays the same. Release
+// identity changes discard its predecessor's values; runtime polling keeps drafts intact.
 watch(
-  () => props.installation.plugin_id,
+  [
+    () => props.installation.plugin_id,
+    () => props.installation.version,
+    () => props.installation.manifest_sha256,
+  ],
   () => {
-    stepUp.onCancel()
+    accepted = null
+    draft.value = {}
+    secretsSet.value = {}
+    serverErrors.value = {}
+    baseline.value = ''
+    saveError.value = ''
+    saving.value = false
+    // Reserve the replacement read's generation before settling old verification,
+    // so its rejected continuation cannot publish or retry the discarded draft.
     void load()
+    stepUp.onCancel()
   },
   { immediate: true },
 )

@@ -1,6 +1,7 @@
 package index
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
@@ -47,6 +48,37 @@ func TestVerifyAuthenticatesOriginalBytes(t *testing.T) {
 	}
 	if _, err := Sign(data, nil); err == nil {
 		t.Fatal("invalid private key accepted")
+	}
+}
+
+// TestCatalogSigningByteBudget checks exact output bytes at the shared transport
+// limit. Parsers continue accepting expanded JSON representations because stored
+// caches can be reformatted after the original download has passed its byte bound.
+func TestCatalogSigningByteBudget(t *testing.T) {
+	base := []byte(`{"schemaVersion":1,"name":"Budget","generatedAt":"2026-11-01T00:00:00Z","plugins":[]}`)
+	data := append(base, bytes.Repeat([]byte(" "), MaxDocumentBytes-len(base))...)
+	_, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Parse(data); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseForHost(data, "0.6.0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Sign(data, private); err != nil {
+		t.Fatal(err)
+	}
+	data = append(data, ' ')
+	if _, err := Parse(data); err != nil {
+		t.Fatal("schema parsing rejected reformatted JSON:", err)
+	}
+	if _, err := ParseForHost(data, "0.6.0"); err != nil {
+		t.Fatal("host parsing rejected reformatted JSON:", err)
+	}
+	if _, err := Sign(data, private); err == nil {
+		t.Fatal("signer accepted an oversized document")
 	}
 }
 

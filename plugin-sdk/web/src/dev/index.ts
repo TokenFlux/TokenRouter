@@ -9,8 +9,7 @@ import {
   readonly,
   ref,
 } from 'vue'
-import type { Component } from 'vue'
-import { HostRequestError } from '../types.js'
+import { HostRequestError, normalizePluginPage } from '../types.js'
 import type {
   HostApi,
   HostRoute,
@@ -170,7 +169,7 @@ export function definePlugin(definition: PluginDefinition): void {
   const components = Object.fromEntries(
     Object.entries(definition.pages).map(([id, page]) => [
       id,
-      typeof page === 'function' ? defineAsyncComponent(page as () => Promise<Component>) : page,
+      normalizePluginPage(page, { h, defineAsyncComponent }),
     ]),
   )
   const root = document.createElement('div')
@@ -234,8 +233,9 @@ export function definePlugin(definition: PluginDefinition): void {
 }
 
 /** useHost retrieves the mock interface provided by the mounted development page.
- * Call it during component setup. Components mounted outside the mock root
- * fail explicitly rather than borrowing another plugin's account or request context.
+ * Call it during component setup or synchronous functional rendering. Components
+ * mounted outside the mock root fail explicitly rather than borrowing another
+ * plugin's account or request context.
  */
 export function useHost(): HostApi {
   const host = inject<HostApi>(hostKey)

@@ -2,6 +2,7 @@ import * as Vue from 'vue'
 import {
   CSS_VARIABLES,
   HostRequestError,
+  normalizePluginPage,
   type Messages,
   type SdkRuntime,
   type Translator,
@@ -40,6 +41,7 @@ const sdkRuntime = {
   useMessages,
   CSS_VARIABLES,
   HostRequestError,
+  normalizePluginPage,
 } satisfies SdkRuntime
 
 /** PluginGlobals describes the two runtime objects consumed by compiled IIFE bundles. */

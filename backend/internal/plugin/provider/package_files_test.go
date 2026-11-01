@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,10 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pkgfmt"
 )
 
 // TestPackagesRecoverIndexedArchiveAndRequireUploadRepair installs the same static archive through both source types.
-// Indexed installations recover missing files over verified HTTPS, while uploaded installations require a fresh matching token after restart.
+// Indexed installations recover missing or corrupted files over verified HTTPS,
+// while uploaded installations require a fresh matching token after restart.
 func TestPackagesRecoverIndexedArchiveAndRequireUploadRepair(t *testing.T) {
 	archive := packageArchive(t, "1.0.0+build.7")
 	packages, err := NewPackageFiles(t.TempDir(), DownloadOptions{})
@@ -44,6 +47,17 @@ func TestPackagesRecoverIndexedArchiveAndRequireUploadRepair(t *testing.T) {
 	recovered, err = packages.Ensure(t.Context(), ref)
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(recovered.Directory, "frontend/index.js"))
+	assetPath := filepath.Join(recovered.Directory, "frontend/index.js")
+	original, err := os.ReadFile(assetPath)
+	require.NoError(t, err)
+	damaged := bytes.Clone(original)
+	damaged[0] ^= 1
+	require.NoError(t, os.WriteFile(assetPath, damaged, 0o644))
+	_, err = packages.Ensure(t.Context(), ref)
+	require.NoError(t, err)
+	restored, err := os.ReadFile(assetPath)
+	require.NoError(t, err)
+	require.Equal(t, original, restored)
 	ref.Artifact.SHA256 = strings.Repeat("0", 64)
 	_, err = packages.Ensure(t.Context(), ref)
 	require.ErrorIs(t, err, plugin.ErrChecksumMismatch)
@@ -51,6 +65,46 @@ func TestPackagesRecoverIndexedArchiveAndRequireUploadRepair(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	require.Equal(t, "uploads", entries[0].Name())
+}
+
+// TestPackagesRetainLargeMarkers covers accepted packages with many long paths.
+// Metadata larger than one MiB must survive publication, direct asset lookup,
+// and reconstruction of the package store without requiring another upload.
+func TestPackagesRetainLargeMarkers(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "package")
+	_, err := pkgfmt.Extract(bytes.NewReader(packageArchive(t, "1.0.0")), directory, pkgfmt.Options{Platform: "any"})
+	require.NoError(t, err)
+	prefix := filepath.Join(directory, strings.Repeat("a", 200), strings.Repeat("b", 200))
+	require.NoError(t, os.MkdirAll(prefix, 0o755))
+	// Long shared directory prefixes cross the former metadata budget while keeping
+	// file count, directory depth, and expanded content below every package limit.
+	for i := range 1900 {
+		require.NoError(t, os.WriteFile(filepath.Join(prefix, fmt.Sprintf("file-%04d.txt", i)), []byte("x"), 0o644))
+	}
+	archive, err := pkgfmt.Pack(directory, filepath.Join(t.TempDir(), "package.tar.gz"), pkgfmt.Options{Platform: "any"})
+	require.NoError(t, err)
+	data, err := os.ReadFile(archive.Path)
+	require.NoError(t, err)
+	root := t.TempDir()
+	packages, err := NewPackageFiles(root, DownloadOptions{})
+	require.NoError(t, err)
+	upload, err := packages.Preview(t.Context(), bytes.NewReader(data))
+	require.NoError(t, err)
+	ref := uploadReference(upload)
+	installed, err := packages.Ensure(t.Context(), ref)
+	require.NoError(t, err)
+	marker, err := os.Stat(filepath.Join(installed.Directory, pkgfmt.ReservedMetadataName))
+	require.NoError(t, err)
+	require.Greater(t, marker.Size(), int64(1<<20))
+	local, err := packages.Local(t.Context(), ref.PluginID, ref.Version)
+	require.NoError(t, err)
+	require.Equal(t, installed.Files, local.Files)
+	restarted, err := NewPackageFiles(root, DownloadOptions{})
+	require.NoError(t, err)
+	ref.UploadToken = ""
+	recovered, err := restarted.Ensure(t.Context(), ref)
+	require.NoError(t, err)
+	require.Equal(t, installed.Files, recovered.Files)
 }
 
 // TestPackageFilesRejectEscapesAndRetainPrevious rejects invalid identity components before any path mutation.

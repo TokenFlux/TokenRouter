@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"testing/synctest"
 
@@ -87,6 +88,25 @@ func TestManagerStartupSharesOneProcessLimit(t *testing.T) {
 	require.Equal(t, StateStopped, manager.Status("test.disabled").State)
 	require.NoError(t, manager.Sync(t.Context(), "test.alpha"))
 	require.Len(t, processes.started, 1)
+}
+
+// TestManagerRetriesUnappliedConfiguration reconciles the same persisted values after the runtime rejects their first delivery.
+// Publishing desired configuration must not suppress a later attempt to apply it, and successful retry reopens ordinary request admission.
+func TestManagerRetriesUnappliedConfiguration(t *testing.T) {
+	manager, _, store, processes, _ := managerFixture(t, 1)
+	item := managerInstallation(t, "test.config", true)
+	require.NoError(t, store.Save(t.Context(), item))
+	require.NoError(t, manager.Sync(t.Context(), item.PluginID))
+	failure := errors.New("fixture configuration delivery failed")
+	processes.configError = failure
+	require.ErrorIs(t, manager.Sync(t.Context(), item.PluginID), failure)
+	processes.configError = nil
+	require.NoError(t, manager.Sync(t.Context(), item.PluginID))
+	require.Equal(t, 2, processes.configCalls)
+	require.Len(t, processes.started, 1)
+	lease, err := manager.Acquire(t.Context(), item.PluginID)
+	require.NoError(t, err)
+	lease.Release()
 }
 
 // TestManagerShutdownClosesAdmission leaves a loaded plugin enabled before stopping the host owner.

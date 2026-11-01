@@ -3,6 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { ref } from 'vue'
 import PluginConfigPanel from '../detail/PluginConfigPanel.vue'
 import { installationFixture } from './fixtures'
+import type { PluginConfig } from '@/api/admin/plugins.types'
 
 // PluginConfigPanel.spec.ts exercises the real field form through the configuration
 // tab's persistence workflow. Controlled API outcomes verify draft retention, the
@@ -114,5 +115,121 @@ describe('plugin configuration tab', () => {
     expect(wrapper.get('#plugin-config-reward').attributes('disabled')).toBeDefined()
     await wrapper.get('form').trigger('submit')
     expect(fixture.run).not.toHaveBeenCalled()
+  })
+
+  // Rollback changes the saved snapshot while the configuration tab stays mounted.
+  // Editing a label afterward must submit the restored reward and secret-presence state.
+  it('reloads restored values before editing another field after rollback', async () => {
+    const installation = installationFixture()
+    installation.manifest.config!.fields!.push(
+      { key: 'label', type: 'string', label: { en: 'Label' } },
+      { key: 'credential', type: 'secret', label: { en: 'Credential' } },
+    )
+    fixture.config.mockResolvedValueOnce({
+      values: { reward: 0.1, label: 'Current', credential: { set: true } },
+    })
+    const wrapper = mount(PluginConfigPanel, {
+      props: { installation, readOnly: false },
+      global: { stubs: { Teleport: true } },
+    })
+    wrappers.push(wrapper)
+    await flushPromises()
+    await wrapper.get('#plugin-config-reward').setValue('0.9')
+    fixture.config.mockResolvedValueOnce({
+      values: { reward: 0.05, label: 'Previous', credential: { set: false } },
+    })
+    fixture.saveConfig.mockResolvedValueOnce({
+      values: { reward: 0.05, label: 'New label', credential: { set: false } },
+    })
+    await wrapper.setProps({
+      installation: {
+        ...installation,
+        version: '0.9.0',
+        manifest: { ...installation.manifest, version: '0.9.0' },
+      },
+    })
+    await flushPromises()
+    expect(rewardValue(wrapper)).toBe('0.05')
+    expect(wrapper.get('#plugin-config-credential').attributes('placeholder')).toBe('')
+    await wrapper.get('#plugin-config-label').setValue('New label')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(fixture.saveConfig).toHaveBeenCalledWith(installation.plugin_id, {
+      reward: 0.05,
+      label: 'New label',
+    })
+  })
+
+  // Polling replaces installation objects even when their accepted release is unchanged.
+  // Runtime observations must preserve unsaved edits and avoid another configuration request.
+  it('preserves edits during same-release runtime polling', async () => {
+    const wrapper = mountPanel()
+    await flushPromises()
+    await wrapper.get('#plugin-config-reward').setValue('0.2')
+    const installation = installationFixture()
+    installation.status.restarts = 1
+    await wrapper.setProps({ installation })
+    await flushPromises()
+    expect(rewardValue(wrapper)).toBe('0.2')
+    expect(fixture.config).toHaveBeenCalledTimes(1)
+  })
+
+  // A same-version manifest replacement can change configuration defaults and field types.
+  // The manifest digest retires the old draft even without a semantic-version change.
+  it('reloads configuration when the accepted manifest digest changes', async () => {
+    const wrapper = mountPanel()
+    await flushPromises()
+    fixture.config.mockResolvedValueOnce({ values: { reward: 0.3 } })
+    await wrapper.setProps({
+      installation: { ...installationFixture(), manifest_sha256: 'b'.repeat(64) },
+    })
+    await flushPromises()
+    expect(rewardValue(wrapper)).toBe('0.3')
+    expect(fixture.config).toHaveBeenCalledTimes(2)
+  })
+
+  // A save response arrives after rollback has already loaded another configuration.
+  // Its completion cannot overwrite the restored draft or leave the replacement editor locked.
+  it('ignores an old save after replacing the accepted release', async () => {
+    let finish!: (value: PluginConfig) => void
+    fixture.saveConfig.mockImplementationOnce(
+      () =>
+        new Promise<PluginConfig>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const wrapper = mountPanel()
+    await flushPromises()
+    await wrapper.get('#plugin-config-reward').setValue('0.8')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    fixture.config.mockResolvedValueOnce({ values: { reward: 0.05 } })
+    await wrapper.setProps({ installation: { ...installationFixture(), version: '0.9.0' } })
+    await flushPromises()
+    finish({ values: { reward: 0.8 } })
+    await flushPromises()
+    expect(rewardValue(wrapper)).toBe('0.05')
+    expect(wrapper.get('#plugin-config-reward').attributes('disabled')).toBeUndefined()
+    expect(wrapper.emitted('saved')).toBeUndefined()
+    expect(fixture.success).not.toHaveBeenCalled()
+  })
+
+  // A rollback starts another configuration read before the first release's read finishes.
+  // Its late response must not replace the newly accepted values or secret-presence markers.
+  it('ignores an old configuration read after replacing the accepted release', async () => {
+    let finish!: (value: PluginConfig) => void
+    fixture.config.mockImplementationOnce(
+      () =>
+        new Promise<PluginConfig>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const wrapper = mountPanel()
+    fixture.config.mockResolvedValueOnce({ values: { reward: 0.05 } })
+    await wrapper.setProps({ installation: { ...installationFixture(), version: '0.9.0' } })
+    await flushPromises()
+    finish({ values: { reward: 0.1 } })
+    await flushPromises()
+    expect(rewardValue(wrapper)).toBe('0.05')
   })
 })

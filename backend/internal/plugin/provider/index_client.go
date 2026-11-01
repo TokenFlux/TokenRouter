@@ -29,9 +29,8 @@ import (
 // verification returns its classification without returning an accepted document.
 
 const (
-	// Catalog limits bound downloaded metadata and its small detached signature before
-	// the core parses release declarations or decides whether a cache may be replaced.
-	maxIndexBytes     = 8 << 20
+	// Signature and operation limits bound detached metadata reads and transport
+	// lifetime; catalog documents use the byte budget shared with SDK publication.
 	maxSignatureBytes = 4 << 10
 	indexTimeout      = 20 * time.Second
 )
@@ -87,7 +86,7 @@ func (c *IndexClient) Fetch(ctx context.Context, request plugin.IndexFetchReques
 	}
 	operation, cancel := context.WithTimeout(ctx, indexTimeout)
 	defer cancel()
-	data, status, err := c.read(operation, request.URL, maxIndexBytes)
+	data, status, err := c.read(operation, request.URL, index.MaxDocumentBytes)
 	if err != nil {
 		return plugin.FetchedIndex{}, plugin.ErrDownloadFailed.WithCause(err)
 	}

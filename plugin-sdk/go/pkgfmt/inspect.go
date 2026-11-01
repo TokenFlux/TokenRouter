@@ -21,8 +21,9 @@ import (
 // files within the inspected directory. Manifest digests use original bytes,
 // executable digests bind process startup, and SHA-384 asset digests support
 // browser subresource integrity without reinterpreting the file contents.
-// The inspector first rejects nonregular entries and excessive filesystem
-// content before reading the manifest that identifies required contributions.
+// The inspector first rejects nonregular entries, reserved installer metadata,
+// and excessive filesystem content before reading the manifest that identifies
+// required contributions.
 //
 // Release checks compare the original manifest bytes or their supplied digest,
 // not a JSON object reconstructed from decoded fields. Referenced files are
@@ -85,7 +86,7 @@ func Inspect(directory string, opts Options) (*Package, error) {
 		if entry.IsDir() {
 			depth++
 		}
-		if !manifest.ValidPath(name) || depth > MaxDepth || count > MaxEntries {
+		if !validPackagePath(name) || depth > MaxDepth || count > MaxEntries {
 			return fmt.Errorf("invalid or excessive package entries at %q", name)
 		}
 		info, err := entry.Info()

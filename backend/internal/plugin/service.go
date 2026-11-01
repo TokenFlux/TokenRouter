@@ -130,10 +130,11 @@ func (s *Service) Install(ctx context.Context, input InstallInput, actor int64) 
 	return result, err
 }
 
-// repairLocked restores an uploaded installation whose accepted local files are missing.
+// repairLocked restores an uploaded installation whose accepted files are missing or damaged.
 // The original manifest digest, configuration, grants, limits, and desired enabled
-// state survive repair. A healthy installed package cannot be replaced through
-// this same-version path, keeping ordinary release changes in the update workflow.
+// state survive repair. Complete file digests distinguish damage from a healthy
+// installed package, which cannot be replaced through this same-version path;
+// ordinary release changes belong to the update workflow.
 //
 // The old generation is drained before publishing replacement files, including on
 // platforms that lock executable files. Only the accepted archive identity changes

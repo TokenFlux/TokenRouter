@@ -17,6 +17,8 @@ import (
 // binding. Keys and collections are validated before reaching PostgreSQL, while
 // the store owns atomic version conditions, expiration, and integer arithmetic.
 // Callers receive detached records and cannot select another plugin's namespace.
+// List pages also bound combined key and value bytes, keeping legal collections
+// readable through the callback transport even when many values reach their limit.
 //
 // Quotas use the latest successful background measurement, allowing temporary
 // overshoot between samples. A blocked namespace can still change or delete
@@ -30,6 +32,10 @@ const (
 	KVMaxValueBytes = 64 << 10
 	KVMaxKeys       = 50000
 	KVMaxBytes      = 64 << 20
+
+	// KVMaxPageBytes bounds key and value payloads, leaving room for at most five
+	// hundred records' metadata within the sixteen-MiB callback transport.
+	KVMaxPageBytes = 8 << 20
 )
 
 // collectionPattern restricts storage collection names to the portable lowercase namespace syntax declared by the plugin protocol.
@@ -167,6 +173,12 @@ func (s *KV) Delete(ctx context.Context, binding Binding, collection, key string
 // List returns one ascending page and a cursor only when another row exists.
 // Nonpositive limits use one hundred; larger requests clamp at five hundred.
 // Prefix and cursor may be empty, but otherwise follow the printable key rules.
+//
+// Combined key and value bytes can shorten a page before the requested count.
+// The cursor always identifies the last returned record, so subsequent calls
+// retain rows omitted by either bound. Every valid record fits the byte budget,
+// ensuring that a nonempty collection always makes progress. Metadata for the
+// bounded record count fits the remaining callback transport allowance.
 func (s *KV) List(ctx context.Context, binding Binding, input KVListInput) (*KVPage, error) {
 	if !collectionPattern.MatchString(input.Collection) || (input.Prefix != "" && !validKVKey(input.Prefix)) ||
 		(input.Cursor != "" && !validKVKey(input.Cursor)) {
@@ -182,10 +194,20 @@ func (s *KV) List(ctx context.Context, binding Binding, input KVListInput) (*KVP
 	if err != nil {
 		return nil, err
 	}
-	page := &KVPage{Items: entries}
-	if len(entries) > limit {
-		page.Items = entries[:limit]
-		page.NextCursor = page.Items[limit-1].Key
+	count := min(len(entries), limit)
+	payloadBytes := 0
+	// Stop before the first record exceeding the payload budget; the retained
+	// last key resumes before every omitted record on the next call.
+	for index, entry := range entries[:count] {
+		payloadBytes += len(entry.Key) + len(entry.Value)
+		if payloadBytes > KVMaxPageBytes {
+			count = index
+			break
+		}
+	}
+	page := &KVPage{Items: entries[:count]}
+	if count < len(entries) {
+		page.NextCursor = page.Items[count-1].Key
 	}
 	return page, nil
 }

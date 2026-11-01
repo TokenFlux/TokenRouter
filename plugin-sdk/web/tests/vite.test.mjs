@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import postcss from 'postcss'
 import selectorParser from 'postcss-selector-parser'
-import { build, mergeConfig } from 'vite'
+import { build, createServer, mergeConfig } from 'vite'
 import { tokenrouterPlugin } from '../dist/vite.js'
 
 // vite.test.mjs builds an isolated author entry with the public SDK preset.
@@ -28,7 +28,10 @@ test('emits one IIFE and stylesheet while leaving Vue and SDK external', async (
       path.join(root, 'page.ts'),
       `import { h } from 'vue'; export default {render:()=>h('p','other')}`,
     )
-    await writeFile(path.join(root, 'style.css'), `.page { color: var(--tr-color-text) }`)
+    await writeFile(
+      path.join(root, 'style.css'),
+      `.page { color: var(--tr-color-text); .child { color: red } }`,
+    )
     const result = await build(
       mergeConfig(
         tokenrouterPlugin({
@@ -58,12 +61,71 @@ test('emits one IIFE and stylesheet while leaving Vue and SDK external', async (
           assert.equal(selector.first?.type, 'attribute')
           assert.equal(selector.first?.attribute, 'data-tr-plugin')
           assert.equal(selector.first?.value, 'test.plugin')
+          const scopes = []
+          selector.walkAttributes((attribute) => {
+            if (attribute.attribute === 'data-tr-plugin') scopes.push(attribute)
+          })
+          assert.equal(scopes.length, 1)
         })
       }).processSync(rule.selector)
     })
   } finally {
     // Remove only this test's isolated build tree after all output assertions,
     // including when bundling or an assertion fails midway through verification.
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// npm installations place the SDK inside node_modules instead of a linked source tree.
+// Both public development entries must resolve to one unoptimized module so
+// configureMock replaces the request handler used by registered plugin pages.
+test('shares the development mock between root and dev imports in an installed package', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'trplugin-installed-dev-'))
+  let server
+  try {
+    const installed = path.join(root, 'node_modules/@tokenflux/tokenrouter-plugin-sdk')
+    await mkdir(installed, { recursive: true })
+    const packageRoot = fileURLToPath(new URL('..', import.meta.url))
+    await cp(path.join(packageRoot, 'dist'), path.join(installed, 'dist'), { recursive: true })
+    await cp(path.join(packageRoot, 'package.json'), path.join(installed, 'package.json'))
+    const metadata = JSON.parse(await readFile(path.join(installed, 'package.json'), 'utf8'))
+    for (const dependency of [...Object.keys(metadata.dependencies), 'vue']) {
+      await symlink(
+        path.join(packageRoot, 'node_modules', dependency),
+        path.join(root, 'node_modules', dependency),
+        'junction',
+      )
+    }
+    await writeFile(
+      path.join(root, 'index.html'),
+      '<script type="module" src="/entry.ts"></script>',
+    )
+    await writeFile(
+      path.join(root, 'entry.ts'),
+      `import { definePlugin } from '@tokenflux/tokenrouter-plugin-sdk'; import { configureMock } from '@tokenflux/tokenrouter-plugin-sdk/dev'; configureMock(async () => ({custom:true})); definePlugin({pages:{home:{render:()=>null}}});`,
+    )
+    const { tokenrouterPlugin: installedPreset } = await import(
+      pathToFileURL(path.join(installed, 'dist/vite.js')).href
+    )
+    server = await createServer(
+      mergeConfig(installedPreset({ pluginId: 'test.plugin' }), {
+        root,
+        configFile: false,
+        logLevel: 'silent',
+        server: { middlewareMode: true },
+      }),
+    )
+    const transformed = await server.transformRequest('/entry.ts')
+    assert.ok(transformed)
+    const imports = [...transformed.code.matchAll(/from "([^"]+)"/g)].map((match) => match[1])
+    assert.equal(imports.length, 2)
+    assert.equal(imports[0], imports[1])
+    assert.match(imports[0], /\/dist\/dev\/index\.js$/)
+    assert.doesNotMatch(imports[0], /\.vite\/deps/)
+  } finally {
+    // Stop dependency scanning and file watchers before removing this installed
+    // consumer tree, including when Vite transformation or an assertion fails.
+    await server?.close()
     await rm(root, { recursive: true, force: true })
   }
 })

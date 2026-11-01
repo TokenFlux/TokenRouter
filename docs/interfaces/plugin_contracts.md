@@ -29,7 +29,7 @@
 
 安装包命名为 `<id>-<version>-<os>-<arch>.tar.gz`，纯前端插件使用 `<id>-<version>-any.tar.gz`。根目录直接包含 `plugin.json` 和声明的文件，不再套一层目录。支持 Linux amd64/arm64、macOS amd64/arm64 和 Windows amd64，Windows 的声明可执行路径追加 `.exe`。
 
-`plugin-sdk/go/pkgfmt` 限制压缩包 64 MiB、展开文件总量 256 MiB、前端文件总量 8 MiB、2000 个条目和 10 层目录。只允许普通文件和目录，拒绝链接、设备、重复路径、绝对路径、反斜杠和路径穿越。解压目的地必须尚不存在，失败时移除本次创建的目录。
+`plugin-sdk/go/pkgfmt` 限制压缩包 64 MiB、展开文件总量 256 MiB、前端文件总量 8 MiB、2000 个条目和 10 层目录。只允许普通文件和目录，拒绝链接、设备、重复路径、绝对路径、反斜杠和路径穿越。根目录的 `.tr-installed` 属于宿主保留名，包内不能包含该文件或目录，也不能使用其大小写或尾点别名。解压目的地必须尚不存在，失败时移除本次创建的目录。
 
 解压校验完成后，仅声明的二进制设置为 0755，其余文件为 0644。包图标最多 64 KiB，菜单 SVG 最多 10 KiB。SHA-256 分别标识压缩包、原始 manifest 和二进制；前端文件另计算 SHA-384 SRI。发布器固定文件顺序和归档元数据，相同输入可以生成相同归档字节。
 
@@ -42,7 +42,7 @@
 
 `ParseForHost` 在解析嵌入声明前检查 `minHostVersion`。仅当已发布宿主版本低于最低要求时，才保留未知贡献并显示 `HOST_TOO_OLD`；当前宿主可执行的声明和发布工具仍严格拒绝未知字段。
 
-签名文件是 `base64(ed25519.Sign(privateKey, index.json 原始字节))`，与 JSON 分开保存。验签在解析和替换缓存之前完成。多个受信公钥支持轮换，空公钥列表不能通过验签。
+签名文件是 `base64(ed25519.Sign(privateKey, index.json 原始字节))`，与 JSON 分开保存。发布和传输使用同一套 8 MiB 原始目录字节上限，超限时发布工具报错并保留已有输出。验签在解析和替换缓存之前完成。多个受信公钥支持轮换，空公钥列表不能通过验签。
 
 发布工具读取 `publishers/` 和 `plugins/` 的 YAML 登记，抓取 Release 并逐个下载、校验安装包；有后端的官方登记必须同时提供两个 Linux 架构。已经成功收录的仓库与 tag 保留首次摘要，失败版本记录原因并允许后续构建重试。提交权限检查使用可信基线中的发布者账号，新发布者需要维护者明确审核。`trplugin index build` 默认要求 `INDEX_SIGNING_KEY`；只有显式传入 `--unsigned` 才生成不带签名的自定义目录，并移除旧输出中的签名文件。
 
@@ -66,7 +66,7 @@
 
 `ANY /api/v1/plugins/:id/api/*path` 按 manifest 顺序匹配方法和精确或前缀路径，未声明端点返回 404。路径只解码一次，拒绝 dot segment、反斜杠、控制字符和重复分隔符，保留有意义的末尾 `/`。`public` 可匿名；提供 Authorization 时使用现有 JWT 校验并保留其失败规则。`user` 使用用户 JWT，`admin` 使用管理员中间件；所有动态端点经过现有 Backend 模式门禁。公开端点先经过公网 IP 限流，已认证请求再经过用户面板限流。插件 HTTP 不进入面板命令幂等协调器。
 
-请求体按路由限制，超过返回 413。只转发 Accept、Accept-Language、Content-Type、If-None-Match、If-Modified-Since、User-Agent、X-Request-Id 和 X-Plugin-*；Authorization、Cookie、管理密钥与代理地址头均不转发。Caller 取已验证用户及当前用户名，grant 放在私有 RPC 字段；客户端 IP 复用宿主的安全地址解析器。取得租约后复核版本和 manifest 摘要，声明切换时返回 503 `PLUGIN_RESTARTING`，避免旧鉴权规则作用到新端点。
+请求体按路由限制，超过返回 413。只转发 Accept、Accept-Language、Content-Type、If-None-Match、If-Modified-Since、User-Agent、X-Request-Id 和 X-Plugin-*；Authorization、Cookie、管理密钥与代理地址头均不转发。Caller 取已验证用户及当前用户名，Locale 使用宿主协商后的请求语言并原样传入 SDK，grant 放在私有 RPC 字段；匿名请求没有 Caller。客户端 IP 复用宿主的安全地址解析器。取得租约后复核版本和 manifest 摘要，声明切换时返回 503 `PLUGIN_RESTARTING`，避免旧鉴权规则作用到新端点。
 
 插件成功返回的 HTTP body 原样发送，不套宿主 envelope。状态必须为 200 至 599，body 最多 4 MiB；必须提供可解析的 Content-Type，允许 application/json、text/plain、text/csv、image/png、image/jpeg、image/webp、image/gif、application/octet-stream 及其参数。HTML、SVG、SSE 和无效响应返回 502 `PLUGIN_UNAVAILABLE`。RPC 失败也返回 502，超时返回 504 `PLUGIN_TIMEOUT`；尚未取得租约时的进程不可用仍为 503。响应只保留 Content-Type、Cache-Control、ETag、Last-Modified、Content-Disposition、Retry-After、X-Plugin-*，并加 nosniff；大小写重复的允许头被拒绝。宿主生成的失败响应使用正常面板错误 envelope。
 
@@ -87,7 +87,7 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 
 `IssueRedeemCode` 要求 `redeem.issue`。balance 的 value 遵循钱包正金额格式；concurrency 使用无小数、无前导零的正整数字符串，并限制在原生并发 INTEGER 范围内。subscription 要求有效 plan_id，value 为空或 `0`；validity_days 非负，0 在新发码时读取套餐默认值，按原生订阅规则规范化并固定保存。其他类型不能携带 plan_id 或天数。expires_unix 为 0 时码不过期；非零必须在新发码时刻之后且不超过 365×24 小时。已提交重放不重新检查相对期限或当前套餐默认值。
 
-发行额度覆盖单码面值、当日余额码面值、并发面值、所有类型的每日数量及订阅白名单和天数。返回 PL 开头的 26 位单次码，未使用与已使用状态由普通兑换入口管理；余额码兑换会按原规则累计充值并执行适用返利。审计记录类型、数量、目标套餐和重放状态，不记录返回的码值。订阅码的实际天数由管理和兑换记录中的可选 validity_days 字段显示。
+发行额度覆盖单码面值、当日余额码面值、并发面值、所有类型的每日数量及订阅白名单和天数。返回 PL 开头的 26 位单次码，未使用与已使用状态由普通兑换入口管理；余额码兑换会按原规则累计充值并执行适用返利。审计记录类型、数量、目标套餐和重放状态，不记录返回的码值。订阅码的实际天数通过管理和兑换记录接口中的可选 validity_days 字段返回。
 
 `SendEmail` 要求 `notify.email`，主题 1 至 120 字符、纯文本正文 1 至 8000 字符。主题首尾空白和正文换行形式先规范化，再比较幂等内容；主题内部控制字符、无效 UTF-8、NUL 及无效用户 ID 被拒绝。默认额度为每用户每天 5 次、插件每天 500 次。无邮箱和退订返回 `delivered=false`，仍占用一次额度。认领后的已知发送前错误以 `USER_NOT_FOUND` 或 `HOST_UNAVAILABLE` 持久化，同键重放该错误。结果不明返回 `EMAIL_DELIVERY_UNKNOWN`；同键重放只读取已保存结果，不重新发信。
 
@@ -105,18 +105,20 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 
 `ttl_seconds=0` 永不过期，正数为相对秒数，上限与 Go `time.Duration` 的整秒范围一致；负数拒绝。自增从不存在或过期的 0 值开始，接受 `1.0`、`1e2` 等数学上为整数的 JSON 数值，拒绝小数和其他 JSON 类型。数值或版本超出 int64 时整次写入回滚。
 
-列表的 prefix 是字面前缀，不解释 `%`、`_`；cursor 是上一页最后一个 key 的排他游标，使用字节排序。limit 非正时为 100，超过 500 时取 500，只有存在下一页才返回 next_cursor。`KV_QUOTA_EXCEEDED` 拒绝超过采样额度后的新增逻辑键，统计和过期清理规则见[KV 存储与维护](../architecture/plugin_system.md#kv_storage)。
+列表的 prefix 是字面前缀，不解释 `%`、`_`；cursor 是上一页最后一个 key 的排他游标，使用字节排序。limit 非正时为 100，超过 500 时取 500。每页 key 与紧凑 JSON value 的总字节数最多 8 MiB，因此可能在达到请求条数前结束，为 16 MiB 的 RPC 上限留出元数据空间。只有存在下一页才返回 next_cursor，调用方根据游标继续读取，不能仅按返回条数判断结束。`KV_QUOTA_EXCEEDED` 拒绝超过采样额度后的新增逻辑键，统计和过期清理规则见[KV 存储与维护](../architecture/plugin_system.md#kv_storage)。
 
 <a id="web_sdk"></a>
 ## Web SDK 与示例
 
-`plugin-sdk/web` 提供 `@tokenflux/tokenrouter-plugin-sdk` 类型与 Vite 预设。正式构建把 Vue 和 SDK 分别外置为 `__TR_VUE__`、`__TR_PLUGIN_SDK__`，输出单个 IIFE `index.js` 和导入样式对应的 `index.css`。动态页面导入合入同一个脚本，CSS 选择器使用 `data-tr-plugin` 前缀，动画名和引用一起加插件前缀。
+`plugin-sdk/web` 提供 `@tokenflux/tokenrouter-plugin-sdk` 类型与 Vite 预设。正式构建把 Vue 和 SDK 分别外置为 `__TR_VUE__`、`__TR_PLUGIN_SDK__`，输出单个 IIFE `index.js` 和导入样式对应的 `index.css`。动态页面导入合入同一个脚本，CSS 选择器使用 `data-tr-plugin` 前缀；嵌套样式规则继承外层作用域，保留相对关系。
+
+动画定义及引用一起加插件前缀，shorthand 按 CSS 语法识别名称，不改写同名的 easing、direction 等关键字。存在本地 keyframes 时，动画名称必须能静态确定；`fade var(--duration) ease` 可以保留动态时长，变量只能提供名称以外的分量，不能展开额外的动画名称或逗号分隔列表。完全由变量决定名称或产生名称歧义的声明会使构建失败。需要动态时长等属性时，可以单独设置字面量 `animation-name` 和动态 `animation-duration`。
 
 宿主的 `useHost()` 返回当前页面范围内的 HostApi。`request` 路径以 `/` 开始，禁止绝对 URL、查询片段和路径穿越，查询使用独立参数；响应保留插件自有 `code`、`data` 等字段。HTTP 失败映射为带 status 和稳定 code 的 HostRequestError。宿主为已校验的插件响应添加 `X-TokenRouter-Plugin-Response: 1`，并通过 CORS 暴露；插件自身的 401 不触发宿主登录刷新、重放或登出。鉴权中间件在调用插件前返回的 401 没有该标记，继续使用原登录恢复流程。`navigate` 使用 manifest 页面路径，根页面传空字符串，其他页面不带开头斜杠，只能进入当前 audience 已声明的页面。
 
 `useMessages` 依次选择完整语言标签、主语言、英文词典，缺失 key 直接显示 key。用户、语言、主题和路由通过只读响应式引用提供，site 属性读取当前公开设置。TrDialog 的实际面板保留 `data-tr-plugin`；TrTable 使用 `cell-<key>` 单元格插槽；TrCaptcha 将腾讯双字段编码为 JSON，其余提供商票据原样传递。浏览器资源通过 API 基址加载，分离部署需在前端 CSP 中允许该来源的脚本和样式。
 
-本地 Vite 开发服务器将 SDK 导入替换为 mock。mock 使用原生控件、内存账户与可替换的请求夹具，刷新页面会重置数据；它不证明正式宿主的持久化、权限或视觉一致性。发布构建不包含 mock。
+本地 Vite 开发服务器将 SDK 导入替换为 mock。SDK 根入口与 `/dev` 的 `configureMock` 共享同一个模块实例，普通 npm 安装和本地链接使用相同的请求夹具状态。mock 使用原生控件、内存账户与可替换的请求夹具，刷新页面会重置数据；它不证明正式宿主的持久化、权限或视觉一致性。发布构建不包含 mock。
 
 [独立签到插件](https://github.com/TokenFlux/tr-plugin-checkin)包含用户签到页和管理员记录页，页面通过 HostApi 发请求和刷新账户，不读取宿主 token。用户页确认签到后即保留已完成状态，余额显示刷新失败时只提供刷新余额的操作，不重新发起加款。主仓库使用 Go 内部进程夹具和 Web 最小 Vue SFC 消费夹具验证 SDK；测试不依赖外部仓库或 submodule，Web 夹具不进入 npm 包。
 

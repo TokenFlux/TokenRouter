@@ -164,6 +164,8 @@ func (h *PublicHandler) Proxy(c *gin.Context) {
 // caller projects a verified principal and signs its plugin-scoped capability ticket.
 // Anonymous public requests return nil. Username comes from the current account
 // reader, while identity and role remain those established by panel authentication.
+// Locale uses the shared language reader's negotiated value instead of reparsing
+// the client's raw Accept-Language preferences inside the plugin boundary.
 func (h *PublicHandler) caller(c *gin.Context, id string) (*plugin.HTTPCaller, error) {
 	principal, found := authctx.GetPrincipal(c)
 	if !found || principal.UserID <= 0 {
@@ -177,7 +179,13 @@ func (h *PublicHandler) caller(c *gin.Context, id string) (*plugin.HTTPCaller, e
 	if err != nil {
 		return nil, err
 	}
-	return &plugin.HTTPCaller{UserID: principal.UserID, Username: profile.User.Username, Role: principal.Role, Grant: ticket}, nil
+	return &plugin.HTTPCaller{
+		UserID:   principal.UserID,
+		Username: profile.User.Username,
+		Role:     principal.Role,
+		Locale:   h.options.Language(c),
+		Grant:    ticket,
+	}, nil
 }
 
 // selectedFrom retrieves only the private typed route selected before authentication.

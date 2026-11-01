@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/index"
@@ -56,4 +57,50 @@ func TestCatalogBuildRequiresExplicitUnsignedMode(t *testing.T) {
 	}
 	_, err = os.Stat(filepath.Join(out, "state.json"))
 	check(err)
+}
+
+// TestCatalogBuildPreservesOutputOnOversize checks both signed and explicitly
+// unsigned publication. A document exceeding the host budget must leave the
+// previously published JSON, signature, and ingestion state byte-for-byte unchanged.
+func TestCatalogBuildPreservesOutputOnOversize(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"publishers", "plugins"} {
+		if err := os.Mkdir(filepath.Join(root, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out := filepath.Join(root, "dist", "v1")
+	args := []string{"--registry", root, "--state", filepath.Join(out, "state.json"), "--out", out}
+	_, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("INDEX_SIGNING_KEY", base64.StdEncoding.EncodeToString(private))
+	if err := buildCommand(args, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	previous := make(map[string]string)
+	for _, name := range []string{"index.json", "index.json.sig", "state.json"} {
+		data, err := os.ReadFile(filepath.Join(out, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		previous[name] = string(data)
+	}
+	oversized := append(args, "--name", strings.Repeat("x", index.MaxDocumentBytes))
+	for _, unsigned := range []bool{false, true} {
+		attempt := append([]string(nil), oversized...)
+		if unsigned {
+			attempt = append(attempt, "--unsigned")
+		}
+		if err := buildCommand(attempt, io.Discard); err == nil || !strings.Contains(err.Error(), "exceeds") {
+			t.Fatalf("oversized publication result: %v", err)
+		}
+		for name, want := range previous {
+			data, err := os.ReadFile(filepath.Join(out, name))
+			if err != nil || string(data) != want {
+				t.Fatalf("oversized publication changed %s: %v", name, err)
+			}
+		}
+	}
 }

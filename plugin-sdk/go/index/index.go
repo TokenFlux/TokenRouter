@@ -25,6 +25,12 @@ import (
 // asset, which may differ in whitespace from its embedded catalog object;
 // installers compare that digest with plugin.json inside the downloaded package.
 
+const (
+	// MaxDocumentBytes bounds original catalog downloads and signing-tool output,
+	// including JSON indentation and the final newline. Stored JSON may be reformatted.
+	MaxDocumentBytes = 8 << 20
+)
+
 // Document describes one signed catalog and its registered plugin releases.
 type Document struct {
 	SchemaVersion int       `json:"schemaVersion"` // catalog schema major
@@ -207,9 +213,12 @@ func Verify(data, signature []byte, keys []ed25519.PublicKey) error {
 }
 
 // Sign returns the single-line base64 signature of the exact catalog bytes.
-// Invalid private-key lengths return an error instead of panicking. Callers
-// validate the document before choosing to publish its signature.
+// Invalid private-key lengths and oversized documents return errors. Callers
+// validate the document schema before choosing to publish its signature.
 func Sign(data []byte, key ed25519.PrivateKey) ([]byte, error) {
+	if len(data) > MaxDocumentBytes {
+		return nil, fmt.Errorf("index exceeds %d bytes", MaxDocumentBytes)
+	}
 	if len(key) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("invalid Ed25519 private key length")
 	}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -146,4 +147,31 @@ func TestIndexClientBoundsResponsesAndRedirects(t *testing.T) {
 	cancel()
 	_, err = client.Fetch(ctx, plugin.IndexFetchRequest{URL: server.URL + "/index.json"})
 	require.Error(t, err)
+}
+
+// TestIndexClientUsesPublishedDocumentBudget checks the actual catalog Fetch limit.
+// A response at the shared publisher byte allowance remains readable, while an
+// oversized response is rejected before its bytes can become an accepted cache.
+func TestIndexClientUsesPublishedDocumentBudget(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/exact":
+			_, _ = io.WriteString(w, strings.Repeat("x", index.MaxDocumentBytes))
+		case "/oversized":
+			w.Header().Set("Content-Length", strconv.Itoa(index.MaxDocumentBytes+1))
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client, err := NewIndexClient("", nil)
+	require.NoError(t, err)
+	client.client.Transport = server.Client().Transport
+	result, err := client.Fetch(t.Context(), plugin.IndexFetchRequest{URL: server.URL + "/exact"})
+	require.NoError(t, err)
+	require.Len(t, result.Document, index.MaxDocumentBytes)
+	result, err = client.Fetch(t.Context(), plugin.IndexFetchRequest{URL: server.URL + "/oversized"})
+	require.ErrorIs(t, err, plugin.ErrDownloadFailed)
+	require.Empty(t, result.Document)
 }

@@ -118,9 +118,11 @@ type Supervisors interface {
 	// Cancellation forces termination rather than leaving the child running. Missing
 	// plugin IDs succeed so installation removal can be retried safely.
 	Stop(context.Context, string) error
-	// ApplyConfig sends new configuration or restarts implementations without a watcher.
-	// Persisted configuration remains authoritative after callback failure. Callers
-	// serialize this operation with version replacement and installation removal.
+	// ApplyConfig reconciles desired values against the generation's applied configuration.
+	// Identical successful values do nothing; failed notifications remain retryable.
+	// Request capacity cannot suppress delivery. Changed values replace incomplete
+	// startups or implementations without a watcher. Callers serialize this operation
+	// with version replacement and removal, and persisted intent survives callback failure.
 	ApplyConfig(context.Context, ProcessSpec) error
 	// Status returns a detached process observation for administration and recovery decisions.
 	Status(string) Status

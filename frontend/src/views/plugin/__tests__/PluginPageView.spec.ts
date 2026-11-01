@@ -83,9 +83,46 @@ beforeEach(() => {
 })
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
+  vi.useRealTimers()
 })
 
 describe('plugin page lifecycle', () => {
+  // A legal Vue functional component returns a VNode synchronously from its render call.
+  // The plugin page must render it without treating that VNode as a loader promise.
+  it('renders functional components accepted by the SDK', async () => {
+    fixture.load.mockResolvedValue({ pages: { home: () => h('p', 'Functional page') } })
+    const wrapper = mount(PluginPageView)
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Functional page')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  // A legacy page loader rejects after its bundle has registered successfully.
+  // The existing page boundary must preserve navigation and expose the loader failure with retry.
+  it('contains legacy loader failures inside the page', async () => {
+    fixture.load.mockResolvedValue({
+      pages: { home: () => Promise.reject(new Error('Loader failed')) },
+    })
+    const wrapper = mount(PluginPageView)
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.get('main').exists()).toBe(true)
+    expect(wrapper.get('[role="alert"]').text()).toContain('Loader failed')
+  })
+
+  // A legacy loader never resolves after the bundle completes. Advancing its bounded
+  // timeout must enter the same recoverable content error state as other component failures.
+  it('bounds a legacy loader that never resolves', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    fixture.load.mockResolvedValue({ pages: { home: () => new Promise<Component>(() => {}) } })
+    const wrapper = mount(PluginPageView)
+    wrappers.push(wrapper)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(15000)
+    expect(wrapper.get('[role="alert"]').text()).toContain('Async component timed out')
+  })
+
   // User and administrator pages share a root path in this manifest.
   // Route audience selects the correct component, and the empty manifest path remains a valid root page.
   it('selects the exact audience and empty root path', async () => {
