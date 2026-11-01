@@ -69,7 +69,7 @@ export default {
     deleteHint: '该来源将从市场移除。已安装插件、已接受的包引用和业务数据仍会保留。',
   },
   repaired: '插件安装包已修复。',
-  title: '插件',
+  title: '插件管理',
   description: '安装和管理可信的站点扩展。',
   installed: '已安装',
   upload: '上传安装包',

@@ -75,7 +75,7 @@ export default {
       'The source will be removed from the catalog. Installed plugins, accepted package references, and stored business data are retained.',
   },
   repaired: 'Plugin package repaired.',
-  title: 'Plugins',
+  title: 'Plugin Management',
   description: 'Install and manage trusted site extensions.',
   installed: 'Installed',
   upload: 'Upload package',
