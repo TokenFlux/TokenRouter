@@ -11,7 +11,7 @@
     <a href="https://discord.com/invite/7XZzukhX4E"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white&labelColor=27272A" alt="Discord" /></a>
   </p>
 
-  <p><strong>English</strong> · <a href="README_ZH.md">简体中文</a> · <a href="#quick-start">Quick Start</a> · <a href="#documentation">Documentation</a></p>
+  <p><strong>English</strong> · <a href="README_ZH.md">简体中文</a> · <a href="#plugins">Plugins</a> · <a href="#quick-start">Quick Start</a> · <a href="#documentation">Documentation</a></p>
 </div>
 
 ## Overview
@@ -57,6 +57,7 @@ Visit the service officially operated by TokenFlux at [tokenflux.com](https://to
 | Billing and payments | Charge by usage, with balance, subscription plans, quota packs, redeem codes, and referral rebates. Built-in payments support EasyPay, Alipay, WeChat Pay, Stripe, and Airwallex |
 | Content moderation | Block requests with keyword and hash rules, and ban offending users automatically |
 | Admin dashboard | Browse usage logs and statistics, set up alerts and email reports, and upgrade or roll back online. The creative studio generates and edits images in the browser. The UI is available in Simplified Chinese and English |
+| Plugins | Add user and admin pages, HTTP APIs, and scheduled tasks. Install, configure, update, and roll back plugins from the admin dashboard |
 
 ### Protocols and Endpoints
 
@@ -74,6 +75,18 @@ Visit the service officially operated by TokenFlux at [tokenflux.com](https://to
 | Models and usage | `GET /v1/models`, `GET /v1/usage` |
 
 The [upstream provider capability matrix (Chinese)](docs/interfaces/upstream_provider_matrix.md) lists which upstream platforms serve each endpoint.
+
+## Plugins
+
+Plugins extend TokenRouter with custom features without modifying the core application. The [daily check-in plugin](https://github.com/TokenFlux/tr-plugin-checkin), for example, adds a user check-in page, balance rewards, and an admin history page.
+
+- Install from the built-in catalog or a custom source, or upload a `.tar.gz` package in **Plugin Management** (`/admin/plugins`). Review requested permissions before installation.
+- Configure settings and operation limits, inspect logs and resource usage, and enable, disable, or restart plugins. Updates support rollback to the previous version; failed startup during an update triggers an attempt to restore the old version.
+- Build user and admin pages, HTTP APIs, and scheduled tasks. Granted host permissions allow plugins to query usage, adjust balances, issue redeem codes, grant subscriptions, or send email. Each plugin has its own KV storage namespace.
+
+The MIT-licensed Go and Web SDKs support backend processes and Vue pages. Start with the [official template](https://github.com/TokenFlux/tokenrouter-plugin-template) and [plugin development guide (Chinese)](docs/guides/plugins/index.md).
+
+Plugins run as administrator-trusted code, without an OS or browser sandbox. Custom model providers are not currently supported. See [plugin operations (Chinese)](docs/operations/plugin_operations.md) for installation, recovery, and backup details.
 
 ## Quick Start
 

@@ -11,7 +11,7 @@
     <a href="https://discord.com/invite/7XZzukhX4E"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white&labelColor=27272A" alt="Discord" /></a>
   </p>
 
-  <p><strong>简体中文</strong> · <a href="README.md">English</a> · <a href="#快速开始">快速开始</a> · <a href="#文档">文档</a></p>
+  <p><strong>简体中文</strong> · <a href="README.md">English</a> · <a href="#插件系统">插件系统</a> · <a href="#快速开始">快速开始</a> · <a href="#文档">文档</a></p>
 </div>
 
 ## 简介
@@ -57,6 +57,7 @@ TokenFlux 官方运营站点：[tokenflux.com](https://tokenflux.com)。
 | 计费与支付 | 按用量计费，支持余额、订阅套餐、额度包、兑换码和邀请返利。内置易支付、支付宝、微信支付、Stripe 和 Airwallex                                                  |
 | 内容审核  | 按关键词和哈希规则拦截请求，可以自动封禁违规用户                                                                                        |
 | 管理后台  | 查看用量日志和统计、配置监控告警和邮件报表、在线升级和回滚，网页创作台可以生成和编辑图片。界面支持简体中文和英语                                                        |
+| 插件扩展  | 添加用户页面、管理页面、HTTP 接口和定时任务，在后台安装、配置、更新和回滚插件 |
 
 ### 协议与接口
 
@@ -74,6 +75,18 @@ TokenFlux 官方运营站点：[tokenflux.com](https://tokenflux.com)。
 | 模型与用量                   | `GET /v1/models`、`GET /v1/usage`                                                                  |
 
 详细见[上游提供商能力矩阵](docs/interfaces/upstream_provider_matrix.md)。
+
+## 插件系统
+
+插件可以为 TokenRouter 添加自定义功能，无需修改主程序代码。例如，[每日签到插件](https://github.com/TokenFlux/tr-plugin-checkin)提供用户签到页、余额奖励和管理员历史记录页。
+
+- 在后台的**插件管理**（`/admin/plugins`）中，从内置目录或自定义来源安装，也可以上传 `.tar.gz` 安装包。安装前需审阅并确认插件申请的权限。
+- 配置插件参数和操作额度，查看日志与资源用量，启用、禁用或重启插件。更新后可以回滚到上一版本；更新时新版本启动失败，会尝试恢复旧版本。
+- 开发用户页面、管理页面、HTTP 接口和定时任务。获得对应宿主权限后，插件可以查询用量、调整余额、签发兑换码、发放订阅或发送邮件，每个插件有独立的 KV 存储命名空间。
+
+Go 和 Web SDK 使用 MIT 许可证，支持后端进程和 Vue 页面开发。可以从[官方模板](https://github.com/TokenFlux/tokenrouter-plugin-template)和[插件开发手册](docs/guides/plugins/index.md)开始。
+
+插件按管理员信任的代码运行，不提供操作系统或浏览器沙箱。目前不支持自定义模型提供商。安装、恢复和备份方法见[插件运维](docs/operations/plugin_operations.md)。
 
 ## 快速开始
 
