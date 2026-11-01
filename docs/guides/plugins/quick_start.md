@@ -4,7 +4,9 @@
 
 ## 准备依赖
 
-工具链及 SDK 版本以模板仓库的版本文件和依赖声明为准。Go SDK v0.1.0 与 `@tokenflux/tokenrouter-plugin-sdk@0.1.0` 已公开发布。源码联调可以在临时副本中使用 Go replace 与本地 Web SDK 链接，发布前恢复正式依赖并生成锁文件。
+工具链以模板仓库的版本文件为准。TokenRouter v0.6.0 对应 Go SDK v0.1.1 与 `@tokenflux/tokenrouter-plugin-sdk@0.2.0`，模板仓库的依赖版本独立维护。源码联调可以在临时副本中使用 Go replace 与本地 Web SDK 链接，发布前恢复正式依赖并生成锁文件。
+
+从 Web SDK 0.1.0 升级时，检查定义了本地 keyframes 的样式：动画名称必须是可静态确定的字面量。使用 `animation-name: fade; animation-duration: var(--duration)` 可以保留动态时长；由变量决定名称的写法会使构建失败。
 
 1. 把 `go.mod` 的 module 和 `cmd/plugin/main.go` 的内部导入从 `github.com/TokenFlux/tokenrouter-plugin-template` 改为自己的仓库路径。
 2. 在 `plugin.json` 和 `web/vite.config.ts` 中同步设置插件 ID，例如 `yourname.checkin`，并更新发布者与仓库地址。
