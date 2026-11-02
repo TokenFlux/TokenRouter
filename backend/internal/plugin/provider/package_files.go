@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
@@ -24,7 +23,8 @@ import (
 // Extraction occurs in a fresh staging directory, and the accepted manifest and
 // archive digests must match before a directory receives its installation marker.
 // A rename publishes the completed directory only after all integrity metadata
-// has been written. Callers stop a generation before replacing its version path.
+// has been written. Digest paths keep distinct builds of the same version
+// independently recoverable.
 //
 // Installed markers avoid repeated archive downloads while complete file digest
 // checks detect damaged installations, including changes that preserve file size.
@@ -82,11 +82,11 @@ func NewPackageFiles(root string, options DownloadOptions) (*PackageFiles, error
 
 // Ensure obtains verified local files for one accepted release identity.
 // The manager serializes calls for each plugin and stops a running generation
-// before a same-version replacement. Uploaded recovery requires a live upload
+// before repairing damaged bytes for the same archive. Uploaded recovery requires a live upload
 // token whenever the installed marker or its retained files are missing or damaged.
 //
 // Download and extraction finish in private staging before the current directory
-// is removed. The manifest digest and declared plugin identity are checked again
+// for that archive is removed. The manifest digest and declared plugin identity are checked again
 // after extraction, so metadata from an earlier preview cannot select unrelated
 // code. Failed publication removes the staging directory and leaves installation
 // intent untouched for the manager to report or retry.
@@ -100,9 +100,16 @@ func (p *PackageFiles) Ensure(ctx context.Context, ref plugin.PackageRef) (plugi
 	if ref.LocalDirectory != "" {
 		return p.developmentPackage(ctx, ref)
 	}
-	destination := filepath.Join(p.root, "installed", ref.PluginID, ref.Version)
-	if result, err := p.readInstalled(ctx, destination, ref); err == nil {
-		return result, nil
+	destination, err := p.archiveDirectory(ref)
+	if err != nil {
+		return plugin.Package{}, err
+	}
+	// Reuse the legacy version directory only when its accepted digests match;
+	// different same-version builds must leave those rollback bytes untouched.
+	for _, directory := range []string{destination, filepath.Join(p.root, "installed", ref.PluginID, ref.Version)} {
+		if result, err := p.readInstalled(ctx, directory, ref); err == nil {
+			return result, nil
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return plugin.Package{}, err
@@ -150,7 +157,8 @@ func (p *PackageFiles) Ensure(ctx context.Context, ref plugin.PackageRef) (plugi
 	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
 		return plugin.Package{}, err
 	}
-	// The caller has drained this version before replacement; deleting it here also permits atomic publication on Windows without open executable handles.
+	// Only a damaged copy of this exact archive can occupy its digest path.
+	// Callers drain that generation for repair; other accepted archive directories remain untouched.
 	if err := os.RemoveAll(destination); err != nil {
 		return plugin.Package{}, err
 	}
@@ -282,12 +290,46 @@ func (p *PackageFiles) developmentPackage(ctx context.Context, ref plugin.Packag
 	return markerFromPackage(metadata, ref.Platform).local(absolute), nil
 }
 
-// Prune removes managed versions outside the caller's current and rollback set.
-// Invalid identifiers fail before filesystem access. Missing installation directories
-// succeed, and only direct managed entries are removed from the plugin subtree.
-func (p *PackageFiles) Prune(ctx context.Context, id string, keep ...string) error {
+// archiveDirectory maps an accepted archive to a stable, version-independent managed path.
+// The hexadecimal digest is validated before path construction. Legacy version
+// paths are read separately so existing installations need no eager file migration.
+func (p *PackageFiles) archiveDirectory(ref plugin.PackageRef) (string, error) {
+	digest, err := hex.DecodeString(ref.Artifact.SHA256)
+	if !manifest.ValidID(ref.PluginID) || !manifest.ValidVersion(ref.Version) || err != nil || len(digest) != sha256.Size || hex.EncodeToString(digest) != ref.Artifact.SHA256 {
+		return "", plugin.ErrPackageInvalid
+	}
+	return filepath.Join(p.root, "installed", ref.PluginID, "sha256-"+ref.Artifact.SHA256), nil
+}
+
+// Prune removes archive directories outside the current and rollback identities.
+// Callers hold the plugin mutation lock and have drained displaced generations.
+// Missing installation roots succeed, while invalid retention references fail before deletion.
+//
+// Legacy version directories remain readable but are retained only when their
+// marker matches an accepted archive. Digest directories can therefore coexist
+// with legacy files during an update without preserving every historical build
+// of one version. Update callers temporarily include the original previous archive
+// until readiness or compensation has completed, protecting the recovery target.
+func (p *PackageFiles) Prune(ctx context.Context, id string, keep ...plugin.PackageRef) error {
 	if !manifest.ValidID(id) {
 		return plugin.ErrPackageInvalid
+	}
+	retained := make(map[string]bool)
+	for _, ref := range keep {
+		if ref.LocalDirectory != "" {
+			continue
+		}
+		directory, err := p.archiveDirectory(ref)
+		if err != nil || ref.PluginID != id {
+			return plugin.ErrPackageInvalid
+		}
+		retained[filepath.Base(directory)] = true
+		legacy := filepath.Join(p.root, "installed", id, ref.Version)
+		// An old version path is retained only for the same accepted archive;
+		// a later build with that version cannot keep unrelated historical files alive.
+		if local, err := p.Local(ctx, ref); err == nil && local.Directory == legacy {
+			retained[ref.Version] = true
+		}
 	}
 	directory := filepath.Join(p.root, "installed", id)
 	entries, err := os.ReadDir(directory)
@@ -301,7 +343,7 @@ func (p *PackageFiles) Prune(ctx context.Context, id string, keep ...string) err
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !slices.Contains(keep, entry.Name()) {
+		if !retained[entry.Name()] {
 			if err := os.RemoveAll(filepath.Join(directory, entry.Name())); err != nil {
 				return err
 			}

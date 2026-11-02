@@ -94,7 +94,7 @@ export default {
   disabledNotice: '服务器已关闭插件功能。仍可查看或卸载现有安装记录。',
   noConfiguration: '此插件没有配置项。',
   incompleteHint: '插件停用时，可以先保存未填完整的必填项。',
-  limitsTitle: '能力额度',
+  limitsTitle: '插件使用上限',
   logsEmpty: '暂无近期日志。',
   logsHint: '保留最近 500 行，宿主重启后清空。完整记录可在宿主日志文件中查找。',
   uninstallTitle: '卸载 {name}？',
@@ -132,6 +132,23 @@ export default {
       redeem: '兑换码',
       subscription: '订阅',
       email: '邮件',
+    },
+    hints: {
+      max_credit_per_op: '本插件一次最多可增加的余额。奖励金额高于此值时，本次发放会被拒绝。',
+      max_credit_per_user_per_day: '本插件在站点时区的一个自然日内，向同一用户累计增加余额的上限。',
+      max_credit_per_day: '本插件在站点时区的一个自然日内，向所有用户累计增加余额的总上限。',
+      max_debit_per_op: '本插件一次最多可扣减的余额。超过此值时，整笔扣款会被拒绝。',
+      max_balance_per_code: '本插件签发的每张余额兑换码允许的最大面值。',
+      max_balance_value_per_day: '本插件当天签发的余额码面值总和；签发时计入，与是否已兑换无关。',
+      max_concurrency_per_code: '每张并发兑换码最多可以增加的并发数。',
+      max_codes_per_day: '本插件每天最多可以签发的兑换码数量，包含所有允许签发的类型。',
+      max_subscription_days_per_code: '每张订阅兑换码允许的最大有效天数，按签发时确定的天数校验。',
+      max_days_per_grant: '本插件一次直接发放订阅时，最多可以授予的有效天数。',
+      max_grants_per_user_per_day: '本插件每天向同一用户直接发放订阅的最多次数。',
+      max_grants_per_day: '本插件每天向所有用户直接发放订阅的总次数上限。',
+      max_per_user_per_day:
+        '本插件当天为同一用户认领的邮件发送次数；失败、跳过或结果未知的发送也计入。',
+      max_per_day: '本插件当天为所有用户认领的邮件发送总次数；失败、跳过或结果未知的发送也计入。',
     },
     fields: {
       max_credit_per_op: '每笔最多加款',
@@ -222,6 +239,13 @@ export default {
   },
   newPermission: '新增',
   review: {
+    ignoreHostVersion: '忽略版本检查',
+    ignoreHostVersionHint:
+      '跳过插件要求的最低和最高网关版本，供本地测试使用。插件所需的新功能仍需网关支持。',
+    force: '强制覆盖安装',
+    forceHint:
+      '替换相同插件 ID 的已有安装，允许同版本重复安装。保留兼容的配置、使用上限和业务数据。',
+
     permissions: '申请的权限',
     newPermissions: '新增 {count} 项权限',
     noNewPermissions: '这个版本没有申请新的权限。',
@@ -314,11 +338,11 @@ export default {
     updateAvailable: '新版本 v{version} 可用。',
     yanked: '当前版本已被发布者撤回：{reason}',
     delisted: '此插件已从来源下架，已安装的版本仍可继续使用。',
-    otherSource: '此插件已从其他来源安装。如需改用这个来源，请先卸载现有安装。',
+    otherSource: '此插件已从其他来源安装。如需改用这个来源，请在安装审阅中开启“强制覆盖安装”。',
     configTitle: '插件配置',
     configHint: '保存后立即生效，插件不需要重启。',
     noConfigurationHint: '发布者没有为这个插件声明可配置项。',
-    limitsHint: '限制插件调用资金和权益能力的上限，设为 0 即禁止对应操作。',
+    limitsHint: '这些上限只作用于当前插件；操作将超过某项上限时，会被拒绝。',
   },
   logView: {
     level: '日志级别',

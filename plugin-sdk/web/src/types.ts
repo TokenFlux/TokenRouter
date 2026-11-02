@@ -189,9 +189,12 @@ export type PluginComponent<Props extends object = Record<never, never>> = new (
 
 // CSS_VARIABLES names the existing host theme values exposed as the stable plugin
 // styling contract. Plugins use these names instead of copying a second palette.
+// Brand remains the primary button fill; accent follows the host theme's native
+// link and selection foreground, which uses a brighter primary shade in dark mode.
 export const CSS_VARIABLES = [
   '--tr-color-brand',
   '--tr-color-brand-contrast',
+  '--tr-color-accent',
   '--tr-color-surface',
   '--tr-color-surface-muted',
   '--tr-color-border',

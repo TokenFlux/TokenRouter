@@ -33,8 +33,10 @@ type Source string
 
 // VersionSnapshot preserves the data required to run or restore one accepted release.
 type VersionSnapshot struct {
-	Version string // accepted plugin release version
-	Source  Source // accepted package distribution source
+	// IgnoreHostVersion belongs to this accepted snapshot and survives restart and rollback; a newly reviewed release defaults to enforcing bounds.
+	IgnoreHostVersion bool
+	Version           string // accepted plugin release version
+	Source            Source // accepted package distribution source
 	// IndexID may become nil after its source index is removed; stored artifact URLs still allow recovery of the accepted package.
 	IndexID *int64
 	// Manifest, Artifacts, Config, and GrantedPermissions are immutable after publication. Management changes replace these containers so active readers retain one coherent release view.

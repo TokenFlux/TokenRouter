@@ -137,3 +137,113 @@ func TestUpdateRequiresNewPermissionsBeforePublishing(t *testing.T) {
 	require.Equal(t, "2.0.0", result.Installation.Version)
 	require.Equal(t, []string{"wallet.credit"}, result.Installation.GrantedPermissions)
 }
+
+// TestInstallOverridesPreserveSnapshotsAndEnforceCapabilities repeatedly installs a local build at an unchanged version.
+// Version exceptions survive restart and rollback, while permission and API requirements remain mandatory and existing configuration stays intact.
+func TestInstallOverridesPreserveSnapshotsAndEnforceCapabilities(t *testing.T) {
+	manager, service, store, processes, _ := managerFixture(t, 2)
+	old := managerInstallation(t, "test.overwrite", true)
+	old.Manifest.Config.Fields = []manifest.Field{{Key: "label", Type: "string", Label: manifest.LocalizedText{"en": "Label"}}}
+	old.Config = map[string]any{"label": "keep"}
+	old.Limits = json.RawMessage(`{"wallet":{"max_credit_per_day":5}}`)
+	require.NoError(t, store.Save(t.Context(), old))
+	require.NoError(t, manager.Sync(t.Context(), old.PluginID))
+	target := managerInstallation(t, old.PluginID, true)
+	target.Manifest.Config = old.Manifest.Config
+	target.Manifest.MinHostVersion = "99.0.0"
+	target.ManifestSHA256 = "changed-manifest"
+	service.uploads = versionUploads{snapshot: target.VersionSnapshot}
+	input := InstallInput{Source: SourceUpload, UploadToken: "reviewed", Force: true}
+	_, err := service.Install(t.Context(), input, 7)
+	require.ErrorIs(t, err, ErrPluginIncompatible)
+	input.IgnoreHostVersion = true
+	input.Force = false
+	_, err = service.Install(t.Context(), input, 7)
+	require.ErrorIs(t, err, ErrPluginAlreadyInstalled)
+	input.Force = true
+	result, err := service.Install(t.Context(), input, 7)
+	require.NoError(t, err)
+	require.True(t, result.Installation.IgnoreHostVersion)
+	require.False(t, result.Installation.Previous.IgnoreHostVersion)
+	require.Equal(t, old.Config, result.Installation.Config)
+	require.JSONEq(t, string(old.Limits), string(result.Installation.Limits))
+	require.True(t, result.Installation.Enabled)
+	require.NoError(t, manager.Restart(t.Context(), old.PluginID))
+	require.Equal(t, StateRunning, manager.Status(old.PluginID).State)
+	result, err = service.Rollback(t.Context(), old.PluginID, 7)
+	require.NoError(t, err)
+	require.False(t, result.Installation.IgnoreHostVersion)
+	result, err = service.Rollback(t.Context(), old.PluginID, 7)
+	require.NoError(t, err)
+	require.True(t, result.Installation.IgnoreHostVersion)
+	started := len(processes.started)
+	_, err = service.Install(t.Context(), input, 7)
+	require.NoError(t, err)
+	require.Greater(t, len(processes.started), started)
+	target.Manifest.Permissions = []string{"wallet.credit"}
+	service.uploads = versionUploads{snapshot: target.VersionSnapshot}
+	_, err = service.Install(t.Context(), input, 7)
+	require.ErrorIs(t, err, ErrPermissionsNotAccepted)
+	target.Manifest.APIVersion = 2
+	service.uploads = versionUploads{snapshot: target.VersionSnapshot}
+	input.AcceptPermissions = []string{"wallet.credit"}
+	_, err = service.Install(t.Context(), input, 7)
+	require.ErrorIs(t, err, ErrPluginIncompatible)
+	require.Empty(t, store.deleted)
+}
+
+// TestForcedUpdateRestoresSameVersionAfterStartupFailure replaces an accepted build with failing code bearing the same version.
+// Automatic recovery restores the original digest, settings, version exception, and older rollback target instead of keeping the failed candidate.
+func TestForcedUpdateRestoresSameVersionAfterStartupFailure(t *testing.T) {
+	manager, service, store, processes, _ := managerFixture(t, 2)
+	old := managerInstallation(t, "test.overwrite", true)
+	old.IgnoreHostVersion = true
+	prior := managerInstallation(t, old.PluginID, false)
+	prior.Version = "0.9.0"
+	prior.Manifest.Version = prior.Version
+	old.Previous = &prior.VersionSnapshot
+	require.NoError(t, store.Save(t.Context(), old))
+	require.NoError(t, manager.Sync(t.Context(), old.PluginID))
+	target := managerInstallation(t, old.PluginID, true)
+	target.ManifestSHA256 = "replacement"
+	for platform, artifact := range target.Artifacts {
+		artifact.SHA256 = "replacement"
+		target.Artifacts[platform] = artifact
+	}
+	service.uploads = versionUploads{snapshot: target.VersionSnapshot}
+	processes.failBinary = "replacement"
+	_, err := service.Update(t.Context(), old.PluginID, UpdateInput{UploadToken: "reviewed"}, 7)
+	require.ErrorIs(t, err, ErrPluginAlreadyInstalled)
+	_, err = service.Update(t.Context(), old.PluginID, UpdateInput{UploadToken: "reviewed", Force: true}, 7)
+	require.ErrorIs(t, err, ErrUpdateFailed)
+	restored, err := store.Get(t.Context(), old.PluginID)
+	require.NoError(t, err)
+	require.Equal(t, old.VersionSnapshot, restored.VersionSnapshot)
+	require.Equal(t, old.Previous, restored.Previous)
+	require.Equal(t, StateRunning, manager.Status(old.PluginID).State)
+}
+
+// TestNewInstallVersionOverrideChecksBothBounds admits a first installation outside each gateway version boundary.
+// Without the option installation fails, and enabling the saved installation later retains the explicitly reviewed version exception.
+func TestNewInstallVersionOverrideChecksBothBounds(t *testing.T) {
+	for _, bounds := range []struct {
+		minimum string // inclusive gateway version requirement
+		maximum string // exclusive gateway version requirement
+	}{{minimum: "99.0.0"}, {minimum: "0.1.0", maximum: "0.5.0"}} {
+		manager, service, _, _, _ := managerFixture(t, 1)
+		target := managerInstallation(t, "test.bounds", false)
+		target.Manifest.MinHostVersion = bounds.minimum
+		target.Manifest.MaxHostVersion = bounds.maximum
+		service.uploads = versionUploads{snapshot: target.VersionSnapshot}
+		input := InstallInput{Source: SourceUpload, UploadToken: "reviewed"}
+		_, err := service.Install(t.Context(), input, 1)
+		require.ErrorIs(t, err, ErrPluginIncompatible)
+		input.IgnoreHostVersion = true
+		result, err := service.Install(t.Context(), input, 1)
+		require.NoError(t, err)
+		require.True(t, result.Installation.IgnoreHostVersion)
+		_, err = service.Enable(t.Context(), target.PluginID, 1)
+		require.NoError(t, err)
+		require.Equal(t, StateRunning, manager.Status(target.PluginID).State)
+	}
+}

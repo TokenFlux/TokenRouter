@@ -37,6 +37,7 @@ type Handler struct {
 
 // InstallationDTO exposes accepted metadata without ciphertext or local storage paths.
 type InstallationDTO struct {
+	IgnoreHostVersion    bool                `json:"ignore_host_version"`           // gateway version bounds were explicitly waived
 	IndexName            string              `json:"index_name,omitempty"`          // registered source display name
 	IndexBuiltin         bool                `json:"index_builtin"`                 // original source is builtin
 	SignatureStatus      string              `json:"signature_status,omitempty"`    // latest source verification outcome
@@ -315,6 +316,7 @@ func installationDTO(item *plugin.Installation, status plugin.Status) Installati
 		IndexID:            item.IndexID,
 		Manifest:           item.Manifest,
 		ManifestSHA256:     item.ManifestSHA256,
+		IgnoreHostVersion:  item.IgnoreHostVersion,
 		Enabled:            item.Enabled,
 		GrantedPermissions: item.GrantedPermissions,
 		Limits:             limits,

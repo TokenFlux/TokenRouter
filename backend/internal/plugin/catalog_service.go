@@ -202,12 +202,16 @@ func (c *CatalogService) Get(ctx context.Context, indexID int64, pluginID string
 }
 
 // Resolve selects one explicitly reviewed indexed release and returns owned installation metadata.
-// New installs and updates reject disabled, withdrawn, incompatible, or other-source
-// selections. Exact version choice is mandatory; a changing recommendation never substitutes another release.
-func (c *CatalogService) Resolve(ctx context.Context, indexID int64, pluginID, version string) (VersionSnapshot, error) {
+// Exact version choice is mandatory; a changing recommendation never substitutes
+// another release. Explicit input options waive host version bounds and existing
+// ownership independently; disabled sources, withdrawn releases, and unsupported
+// host capabilities remain unavailable. The manager strictly validates the selected
+// declaration and permission acceptance under its installation lock before execution.
+func (c *CatalogService) Resolve(ctx context.Context, input InstallInput) (VersionSnapshot, error) {
 	if !c.options.Enabled {
 		return VersionSnapshot{}, ErrPluginsDisabled
 	}
+	indexID, pluginID, version := input.IndexID, input.PluginID, input.Version
 	if indexID <= 0 || !manifest.ValidID(pluginID) || !manifest.ValidVersion(version) {
 		return VersionSnapshot{}, ErrIndexInvalid
 	}
@@ -215,18 +219,18 @@ func (c *CatalogService) Resolve(ctx context.Context, indexID int64, pluginID, v
 	if err != nil {
 		return VersionSnapshot{}, err
 	}
-	if entry.InstalledFromOther {
+	if entry.InstalledFromOther && !input.Force {
 		return VersionSnapshot{}, ErrPluginAlreadyInstalled
 	}
 	for _, release := range entry.Versions {
 		if release.Version.Version != version {
 			continue
 		}
-		if !release.Compatible {
-			data, _ := json.Marshal(release.Incompatibilities)
+		if issues := blockingIncompatibilities(release.Incompatibilities, input.IgnoreHostVersion); len(issues) > 0 {
+			data, _ := json.Marshal(issues)
 			return VersionSnapshot{}, ErrPluginIncompatible.WithMetadata(map[string]string{"incompatibilities": string(data)})
 		}
-		if !release.Installable {
+		if entry.Delisted || release.Yanked {
 			return VersionSnapshot{}, ErrIndexInvalid
 		}
 		return VersionSnapshot{

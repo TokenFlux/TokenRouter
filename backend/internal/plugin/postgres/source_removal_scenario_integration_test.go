@@ -165,12 +165,12 @@ func (sourceRemovalPackages) Ensure(_ context.Context, ref plugin.PackageRef) (p
 }
 
 // Prune accepts retained generations because no managed files exist here.
-func (sourceRemovalPackages) Prune(context.Context, string, ...string) error { return nil }
+func (sourceRemovalPackages) Prune(context.Context, string, ...plugin.PackageRef) error { return nil }
 
 // Remove accepts cleanup because this fixture owns no filesystem state.
 func (sourceRemovalPackages) Remove(context.Context, string) error { return nil }
 
 // Resolve supplies the reviewed candidate before deletion occurs during startup.
-func (r sourceRemovalResolver) Resolve(context.Context, int64, string, string) (plugin.VersionSnapshot, error) {
+func (r sourceRemovalResolver) Resolve(context.Context, plugin.InstallInput) (plugin.VersionSnapshot, error) {
 	return r.target, nil
 }

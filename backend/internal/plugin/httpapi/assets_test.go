@@ -15,7 +15,11 @@ import (
 // TestPublicAssetsCacheAndSandboxRetainedVersions requests current JavaScript, a retained older version, and a root SVG without panel credentials.
 // Cache validators, conditional responses, and SVG sandbox headers remain correct, and every opened descriptor closes before the request completes.
 func TestPublicAssetsCacheAndSandboxRetainedVersions(t *testing.T) {
-	router, _, _, files, security := publicFixture(t)
+	router, _, runtime, files, security := publicFixture(t)
+	loaded := runtime.loaded["test.http"]
+	previous := loaded.Installation.VersionSnapshot
+	previous.Version = "0.9.0"
+	loaded.Installation.Previous = &previous
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/plugins/test.http/assets/1.0.0/frontend/index.js", nil))
 	require.Equal(t, 200, response.Code)

@@ -43,27 +43,31 @@ type assetReader struct {
 // Close releases the file descriptor owned by this bounded asset handle.
 func (r *assetReader) Close() error { return r.file.Close() }
 
-// Local reads publication metadata for one retained managed package version.
+// Local reads publication metadata matching one accepted archive and manifest identity.
 // Invalid identities and missing markers fail without downloading or rewriting
-// anything. The returned paths remain internal inputs to bounded asset opening.
-func (p *PackageFiles) Local(ctx context.Context, id, version string) (plugin.Package, error) {
-	if !manifest.ValidID(id) || !manifest.ValidVersion(version) {
-		return plugin.Package{}, plugin.ErrPackageMissing
-	}
-	if err := ctx.Err(); err != nil {
-		return plugin.Package{}, err
-	}
-	directory := filepath.Join(p.root, "installed", id, version)
-	root, err := os.OpenRoot(directory)
+// anything. Legacy version paths are accepted only when both recorded digests match.
+func (p *PackageFiles) Local(ctx context.Context, ref plugin.PackageRef) (plugin.Package, error) {
+	directory, err := p.archiveDirectory(ref)
 	if err != nil {
 		return plugin.Package{}, plugin.ErrPackageMissing
 	}
-	defer func() { _ = root.Close() }()
-	marker, err := readPackageMarker(root)
-	if err != nil || len(marker.Files) == 0 {
-		return plugin.Package{}, plugin.ErrPackageMissing
+	// Older installations use version paths; checking their markers prevents a
+	// same-version replacement from accidentally serving a different retained build.
+	for _, candidate := range []string{directory, filepath.Join(p.root, "installed", ref.PluginID, ref.Version)} {
+		if err := ctx.Err(); err != nil {
+			return plugin.Package{}, err
+		}
+		root, err := os.OpenRoot(candidate)
+		if err != nil {
+			continue
+		}
+		marker, err := readPackageMarker(root)
+		_ = root.Close()
+		if err == nil && len(marker.Files) > 0 && marker.ArchiveSHA256 == ref.Artifact.SHA256 && marker.ManifestSHA256 == ref.ManifestSHA256 {
+			return marker.local(candidate), nil
+		}
 	}
-	return marker.local(directory), nil
+	return plugin.Package{}, plugin.ErrPackageMissing
 }
 
 // Open opens a declared regular file inside its package root with a fixed byte bound.

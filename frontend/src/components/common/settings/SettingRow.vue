@@ -30,7 +30,7 @@
           </template>
         </HelpTooltip>
       </div>
-      <p v-if="hint" :id="`${id}-hint`" class="input-hint">{{ hint }}</p>
+      <p v-if="hint" :id="`${id}-hint`" class="input-hint leading-relaxed">{{ hint }}</p>
       <slot name="hint" />
     </div>
     <div class="shrink-0" :class="field && 'w-full sm:w-56'">

@@ -161,7 +161,19 @@ const hasNotices = computed(
       !!entry.value &&
       (entry.value.installed_from_other_source || entry.value.signature_status !== 'official')),
 )
-const installTarget = computed(() => entry.value?.recommended_version ?? '')
+// Review remains reachable for version-bound failures; overrides are chosen in the dialog.
+const installTarget = computed(
+  () =>
+    entry.value?.recommended_version ||
+    entry.value?.versions.find(
+      (release) =>
+        !release.yanked &&
+        release.incompatibilities.every((issue) =>
+          ['HOST_TOO_OLD', 'HOST_TOO_NEW'].includes(issue.code),
+        ),
+    )?.version ||
+    '',
+)
 
 // tabs lists the sections this plugin supports; tab falls back to the overview when
 // query.tab names a section the plugin does not offer.
@@ -453,7 +465,7 @@ function uploaded(result: PluginChange): void {
             <button
               type="button"
               class="btn btn-primary"
-              :disabled="!installTarget || discovery.disabled || entry.installed_from_other_source"
+              :disabled="!installTarget || discovery.disabled || entry.delisted"
               @click="openInstall(installTarget)"
               ><Icon name="download" size="sm" />{{
                 installTarget

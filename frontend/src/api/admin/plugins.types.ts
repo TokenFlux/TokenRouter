@@ -56,6 +56,7 @@ export interface PluginInstallation {
   granted_permissions: string[] // Administrator-approved host capability names.
   limits: Partial<PluginLimits> // Stored installation-level capability policy.
   previous_version?: string // Retained rollback release version.
+  ignore_host_version?: boolean // Accepted gateway version exception.
   status: PluginStatus // Current local process observation.
   tasks?: PluginTaskStatus[] // Registered native task observations.
   installed_at: string // First installation creation timestamp.
@@ -87,6 +88,8 @@ export interface PluginInstallInput {
   version?: string // Catalog-selected release semantic version.
   accept_permissions: string[] // Explicitly confirmed host capability names.
   enable: boolean // Start after required configuration exists.
+  ignore_host_version?: boolean // Skip minimum and maximum gateway versions.
+  force?: boolean // Replace the same installed plugin ID.
 }
 
 /** PluginSecretState reports existence without returning the stored credential. */
@@ -219,6 +222,8 @@ export interface PluginUpdateInput {
   version?: string // Explicit indexed target semantic version.
   upload_token?: string // Accepted uploaded target package handle.
   accept_permissions: string[] // Complete administrator-confirmed target capability set.
+  ignore_host_version?: boolean // Skip minimum and maximum gateway versions.
+  force?: boolean // Permit replacement at the same version.
 }
 
 /** PluginArchive binds a release target to accepted compressed archive bytes. */

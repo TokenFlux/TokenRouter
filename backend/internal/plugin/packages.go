@@ -17,6 +17,7 @@ import (
 type PackageRef struct {
 	PluginID       string         // publisher-qualified plugin identity
 	Version        string         // accepted release SemVer
+	Icon           string         // accepted declared public icon
 	ManifestSHA256 string         // original manifest asset digest
 	Artifact       index.Artifact // selected platform archive identity
 	Platform       string         // archive operating-system and architecture
@@ -54,10 +55,10 @@ type AssetFile struct {
 
 // AssetFiles resolves retained packages and opens bounded files without downloading anything.
 type AssetFiles interface {
-	// Local returns a retained managed version's marker metadata without recovery downloads.
+	// Local returns the accepted archive marker without recovery downloads.
 	// Missing local versions fail. Development callers already hold their inspected
 	// Package and pass it directly to Open instead of using managed lookup.
-	Local(context.Context, string, string) (Package, error)
+	Local(context.Context, PackageRef) (Package, error)
 	// Open returns one declared regular file bounded by its accepted size.
 	// The caller selects an allowed asset path and byte ceiling, then closes the
 	// returned Reader. Undeclared, missing, linked, or oversized files fail before serving.
@@ -76,12 +77,13 @@ type Upload struct {
 type Packages interface {
 	// Ensure returns accepted local files or validates and publishes their replacement.
 	// Callers serialize operations for this plugin and stop a running generation
-	// before replacing an existing version directory, including same-version repair.
+	// before repairing damaged files for an existing archive. Different archives
+	// use separate directories even when their version strings are identical.
 	Ensure(context.Context, PackageRef) (Package, error)
-	// Prune removes obsolete versions while preserving every supplied version name.
+	// Prune removes obsolete archives while preserving every supplied package identity.
 	// Callers retain current and previous versions. Development directories remain
 	// outside managed storage and are never candidates for this cleanup.
-	Prune(context.Context, string, ...string) error
+	Prune(context.Context, string, ...PackageRef) error
 	// Remove deletes managed installation and state directories after process draining.
 	// Missing directories succeed for retryability. The caller must finish admitted
 	// host callbacks before invoking this operation or deleting business state.

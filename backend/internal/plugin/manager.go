@@ -232,7 +232,7 @@ func (m *Manager) Sync(ctx context.Context, id string) error {
 // Publication blocks HTTP admission during replacement, then exposes the new
 // snapshot before process startup so broker callbacks can resolve accepted policy.
 // Retained versions protect an update's original rollback history until readiness is decided.
-func (m *Manager) syncLocked(ctx context.Context, id string, retain ...string) (resultErr error) {
+func (m *Manager) syncLocked(ctx context.Context, id string, retain ...PackageRef) (resultErr error) {
 	defer func() {
 		if resultErr != nil {
 			m.recordFailure(id, resultErr)
@@ -351,7 +351,7 @@ func (m *Manager) validate(item *Installation) error {
 		platforms = []string{runtime.GOOS + "/" + runtime.GOARCH, "any"}
 	}
 	host := manifest.HostInfo{Version: m.options.HostVersion, APIVersions: []int{1}, Platform: runtime.GOOS + "/" + runtime.GOARCH, Permissions: manifest.Permissions()}
-	if issues := manifest.CheckCompatibility(item.Manifest, platforms, host); len(issues) > 0 {
+	if issues := blockingIncompatibilities(manifest.CheckCompatibility(item.Manifest, platforms, host), item.IgnoreHostVersion); len(issues) > 0 {
 		data, _ := json.Marshal(issues)
 		return ErrPluginIncompatible.WithMetadata(map[string]string{"incompatibilities": string(data)})
 	}
@@ -375,6 +375,20 @@ func (m *Manager) validate(item *Installation) error {
 	return err
 }
 
+// blockingIncompatibilities retains every unsupported capability except explicitly waived host bounds.
+// The override applies only to minimum and maximum gateway versions. Manifest
+// parsing, API support, platform availability, and permission checks remain mandatory.
+func blockingIncompatibilities(issues []manifest.Incompatibility, ignoreHostVersion bool) []manifest.Incompatibility {
+	if !ignoreHostVersion {
+		return issues
+	}
+	// Filter only named version reasons so future compatibility checks remain enforced
+	// without relying on a mutable or fabricated host version during reconciliation.
+	return slices.DeleteFunc(slices.Clone(issues), func(issue manifest.Incompatibility) bool {
+		return issue.Code == "HOST_TOO_OLD" || issue.Code == "HOST_TOO_NEW"
+	})
+}
+
 // sameRelease compares executable identity and granted policy across immutable snapshots.
 func sameRelease(a, b *Installation) bool {
 	left, right := packageReference(a, ""), packageReference(b, "")
@@ -395,6 +409,7 @@ func packageReference(item *Installation, token string) PackageRef {
 	return PackageRef{
 		PluginID:       item.PluginID,
 		Version:        item.Version,
+		Icon:           item.Manifest.Icon,
 		ManifestSHA256: item.ManifestSHA256,
 		Artifact:       item.Artifacts[platform],
 		Platform:       platform,
@@ -487,10 +502,10 @@ func (m *Manager) recordFailure(id string, err error) {
 // Extra retained versions belong to an in-progress update; they prevent pruning the
 // original previous package before failure compensation has restored its snapshot.
 // Filesystem cleanup errors remain visible instead of claiming obsolete packages disappeared.
-func (m *Manager) prune(ctx context.Context, item *Installation, retain ...string) error {
-	keep := []string{item.Version}
+func (m *Manager) prune(ctx context.Context, item *Installation, retain ...PackageRef) error {
+	keep := []PackageRef{packageReference(item, "")}
 	if item.Previous != nil {
-		keep = append(keep, item.Previous.Version)
+		keep = append(keep, packageReference(&Installation{PluginID: item.PluginID, VersionSnapshot: *item.Previous}, ""))
 	}
 	keep = append(keep, retain...)
 	return m.packages.Prune(ctx, item.PluginID, keep...)
@@ -628,26 +643,32 @@ func (m *Manager) Snapshots() []Loaded {
 	return views
 }
 
-// IconPath returns the accepted icon path for the current or retained previous release.
+// AssetReference selects accepted archive and icon metadata for public asset lookup.
 // This metadata lookup does not recover package files or decrypt configuration.
 // Unknown identities, versions, and missing declarations return a not-found result.
-func (m *Manager) IconPath(ctx context.Context, id, version string) (string, error) {
+//
+// Current state takes precedence when both accepted packages have the same version.
+// Public URLs keep their version component, while browser integrity query keys
+// distinguish content changes. Choosing the current archive prevents a stale client
+// from silently requesting the old build after replacement; rollback makes that
+// retained build current again before its assets become the version's public content.
+func (m *Manager) AssetReference(ctx context.Context, id, version string) (PackageRef, error) {
 	if !manifest.ValidID(id) || !manifest.ValidVersion(version) {
-		return "", ErrPluginNotFound
+		return PackageRef{}, ErrPluginNotFound
 	}
 	item, err := m.store.Get(ctx, id)
 	if err != nil {
-		return "", err
+		return PackageRef{}, err
 	}
 	snapshot := &item.VersionSnapshot
 	if snapshot.Version != version {
 		if item.Previous == nil || item.Previous.Version != version {
-			return "", ErrPluginNotFound
+			return PackageRef{}, ErrPluginNotFound
 		}
 		snapshot = item.Previous
 	}
 	if snapshot.Manifest == nil || snapshot.Manifest.ID != id || snapshot.Manifest.Version != version {
-		return "", ErrPluginNotFound
+		return PackageRef{}, ErrPluginNotFound
 	}
-	return snapshot.Manifest.Icon, nil
+	return packageReference(&Installation{PluginID: id, VersionSnapshot: *snapshot}, ""), nil
 }

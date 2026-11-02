@@ -94,6 +94,8 @@
      */
     --tr-color-brand: theme('colors.primary.600');
     --tr-color-brand-contrast: theme('colors.white');
+    /* Accent foreground follows native links and selections, independently of button fill. */
+    --tr-color-accent: theme('colors.primary.600');
     --tr-color-surface: theme('colors.white');
     --tr-color-surface-muted: theme('colors.white');
     --tr-color-border: theme('colors.primary.900 / 10%');
@@ -106,6 +108,7 @@
 
   html.dark {
     --page-bg: #0a0a0b;
+    --tr-color-accent: theme('colors.primary.500');
     /* Dark plugin surfaces and semantic text follow native card and badge recipes. */
     --tr-color-surface: theme('colors.dark.900');
     --tr-color-surface-muted: theme('colors.dark.950');

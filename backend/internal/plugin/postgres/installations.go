@@ -33,7 +33,7 @@ const (
 enabled, granted_permissions, config, COALESCE(secret_config,''), limits,
 previous_version, previous_source, previous_index_id, previous_manifest,
 previous_manifest_sha256, previous_artifacts, previous_granted_permissions,
-previous_config, previous_secret_config, installed_at, updated_at, updated_by`
+previous_config, previous_secret_config, installed_at, updated_at, updated_by, ignore_host_version, previous_ignore_host_version`
 )
 
 // Store persists plugin records through a shared application Ent client.
@@ -136,16 +136,17 @@ func (s *Store) Save(ctx context.Context, item *plugin.Installation) error {
 	// persistence, allowing an already deleted source to remain detached during recovery.
 	query := `INSERT INTO plugin_installations
 (plugin_id,version,source,index_id,manifest,manifest_sha256,artifacts,enabled,granted_permissions,config,secret_config,limits,
-previous_version,previous_source,previous_index_id,previous_manifest,previous_manifest_sha256,previous_artifacts,previous_granted_permissions,previous_config,previous_secret_config,updated_by)
+previous_version,previous_source,previous_index_id,previous_manifest,previous_manifest_sha256,previous_artifacts,previous_granted_permissions,previous_config,previous_secret_config,updated_by,ignore_host_version,previous_ignore_host_version)
 VALUES ($1,$2,$3,(SELECT id FROM plugin_indexes WHERE id=$4 FOR KEY SHARE),$5::jsonb,$6,$7::jsonb,$8,$9::jsonb,$10::jsonb,$11,$12::jsonb,
-$13,$14,(SELECT id FROM plugin_indexes WHERE id=$15 FOR KEY SHARE),$16::jsonb,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21,$22)
+$13,$14,(SELECT id FROM plugin_indexes WHERE id=$15 FOR KEY SHARE),$16::jsonb,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21,$22,$23,$24)
 ON CONFLICT (plugin_id) DO UPDATE SET version=EXCLUDED.version,source=EXCLUDED.source,index_id=EXCLUDED.index_id,
 manifest=EXCLUDED.manifest,manifest_sha256=EXCLUDED.manifest_sha256,artifacts=EXCLUDED.artifacts,enabled=EXCLUDED.enabled,
 granted_permissions=EXCLUDED.granted_permissions,config=EXCLUDED.config,secret_config=EXCLUDED.secret_config,limits=EXCLUDED.limits,
 previous_version=EXCLUDED.previous_version,previous_source=EXCLUDED.previous_source,previous_index_id=EXCLUDED.previous_index_id,
 previous_manifest=EXCLUDED.previous_manifest,previous_manifest_sha256=EXCLUDED.previous_manifest_sha256,previous_artifacts=EXCLUDED.previous_artifacts,
 previous_granted_permissions=EXCLUDED.previous_granted_permissions,previous_config=EXCLUDED.previous_config,previous_secret_config=EXCLUDED.previous_secret_config,
-updated_at=NOW(),updated_by=EXCLUDED.updated_by`
+updated_at=NOW(),updated_by=EXCLUDED.updated_by,
+ignore_host_version=EXCLUDED.ignore_host_version,previous_ignore_host_version=EXCLUDED.previous_ignore_host_version`
 	_, err = s.selectedClient(ctx).ExecContext(
 		ctx,
 		query,
@@ -171,6 +172,8 @@ updated_at=NOW(),updated_by=EXCLUDED.updated_by`
 		previous.config,
 		previous.secret,
 		item.UpdatedBy,
+		item.IgnoreHostVersion,
+		item.Previous != nil && item.Previous.IgnoreHostVersion,
 	)
 	return err
 }
@@ -270,6 +273,7 @@ func encodeSnapshot(snapshot *plugin.VersionSnapshot) (encodedSnapshot, error) {
 func scanInstallation(row rowScanner) (*plugin.Installation, error) {
 	item := &plugin.Installation{}
 	var currentManifest, artifacts, permissions, config, limits []byte
+	var previousIgnoreHostVersion bool
 	var indexID, previousIndexID, updatedBy sql.NullInt64
 	var previousVersion, previousSource, previousDigest, previousSecret sql.NullString
 	var previousManifest, previousArtifacts, previousPermissions, previousConfig []byte
@@ -298,6 +302,8 @@ func scanInstallation(row rowScanner) (*plugin.Installation, error) {
 		&item.InstalledAt,
 		&item.UpdatedAt,
 		&updatedBy,
+		&item.IgnoreHostVersion,
+		&previousIgnoreHostVersion,
 	)
 	if err != nil {
 		return nil, err
@@ -310,11 +316,12 @@ func scanInstallation(row rowScanner) (*plugin.Installation, error) {
 	}
 	if previousVersion.Valid {
 		item.Previous = &plugin.VersionSnapshot{
-			Version:        previousVersion.String,
-			Source:         plugin.Source(previousSource.String),
-			IndexID:        nullableID(previousIndexID),
-			ManifestSHA256: previousDigest.String,
-			SecretConfig:   previousSecret.String,
+			IgnoreHostVersion: previousIgnoreHostVersion,
+			Version:           previousVersion.String,
+			Source:            plugin.Source(previousSource.String),
+			IndexID:           nullableID(previousIndexID),
+			ManifestSHA256:    previousDigest.String,
+			SecretConfig:      previousSecret.String,
 		}
 		if err := decodeSnapshot(item.Previous, previousManifest, previousArtifacts, previousPermissions, previousConfig); err != nil {
 			return nil, err

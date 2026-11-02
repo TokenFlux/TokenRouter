@@ -89,20 +89,20 @@ func (f *publicRuntimeFixture) Snapshots() []plugin.Loaded {
 	return result
 }
 
-// IconPath selects a fixture icon from the accepted current or previous manifest.
-func (f *publicRuntimeFixture) IconPath(_ context.Context, id, version string) (string, error) {
+// AssetReference selects fixture archive metadata from the accepted current or previous manifest.
+func (f *publicRuntimeFixture) AssetReference(_ context.Context, id, version string) (plugin.PackageRef, error) {
 	loaded, found := f.loaded[id]
 	if !found {
-		return "", plugin.ErrPluginNotFound
+		return plugin.PackageRef{}, plugin.ErrPluginNotFound
 	}
 	if loaded.Installation.Version == version {
-		return loaded.Installation.Manifest.Icon, nil
+		return plugin.PackageRef{PluginID: id, Version: version, Icon: loaded.Installation.Manifest.Icon}, nil
 	}
 	previous := loaded.Installation.Previous
 	if previous != nil && previous.Version == version {
-		return previous.Manifest.Icon, nil
+		return plugin.PackageRef{PluginID: id, Version: version, Icon: previous.Manifest.Icon}, nil
 	}
-	return "", plugin.ErrPluginNotFound
+	return plugin.PackageRef{}, plugin.ErrPluginNotFound
 }
 
 // Acquire returns one fixture lease and optionally publishes a concurrent declaration change.
@@ -136,11 +136,11 @@ func (publicProfilesFixture) Account(_ context.Context, id int64) (plugin.Accoun
 // Local returns fixture metadata for an already retained version or missing-package error.
 // The in-memory fixture ignores context cancellation. It never creates records,
 // performs network recovery, or exposes versions outside its configured package map.
-func (f *publicFilesFixture) Local(_ context.Context, id, version string) (plugin.Package, error) {
-	if id != "test.http" {
+func (f *publicFilesFixture) Local(_ context.Context, ref plugin.PackageRef) (plugin.Package, error) {
+	if ref.PluginID != "test.http" {
 		return plugin.Package{}, plugin.ErrPackageMissing
 	}
-	item, ok := f.packages[version]
+	item, ok := f.packages[ref.Version]
 	if !ok {
 		return plugin.Package{}, plugin.ErrPackageMissing
 	}

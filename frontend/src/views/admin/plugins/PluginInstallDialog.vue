@@ -51,6 +51,9 @@ const app = useAppStore()
 const stepUp = useStepUp()
 const accepted = ref(false)
 const enable = ref(true)
+// Testing exceptions belong to one review and reset before another package is approved.
+const ignoreHostVersion = ref(false)
+const force = ref(false)
 const saving = ref(false)
 const error = ref('')
 const recovery = shallowRef<PluginUpdateFailure | null>(null)
@@ -60,7 +63,7 @@ let generation = 0
 const release = computed(
   () => props.entry?.versions.find((item) => item.version === props.version) ?? null,
 )
-const isUpdate = computed(() => !!props.installation)
+const isUpdate = computed(() => !!props.installation || !!props.entry?.installed_version)
 const permissions = computed(() => release.value?.manifest.permissions ?? [])
 const addedPermissions = computed(() =>
   permissions.value.filter(
@@ -73,16 +76,32 @@ const platformAvailable = computed(() => {
   if (!item || !platform) return false
   return !!item.artifacts[platform] || (!hasBackend(item.manifest) && !!item.artifacts.any)
 })
-// canSubmit also requires an existing installation to belong to the reviewed source;
-// polling can reveal a different owner while the review is open, and one plugin ID
-// has exactly one installation source.
+// Submission keeps withdrawal, platform, and capability failures enforced while
+// requiring explicit overrides for version bounds or an existing conflicting identity.
+const blockingIssues = computed(
+  () =>
+    release.value?.incompatibilities.filter(
+      (issue) => !ignoreHostVersion.value || !['HOST_TOO_OLD', 'HOST_TOO_NEW'].includes(issue.code),
+    ) ?? [],
+)
+const requiresForce = computed(
+  () =>
+    !!props.entry?.installed_from_other_source ||
+    (!!props.installation && props.installation.index_id !== props.entry?.index_id) ||
+    release.value?.version === props.entry?.installed_version ||
+    release.value?.version === props.installation?.version,
+)
 const canSubmit = computed(
   () =>
     !props.disabled &&
     !saving.value &&
-    !!release.value?.installable &&
-    (!props.installation || props.installation.index_id === props.entry?.index_id) &&
-    release.value.version !== props.installation?.version &&
+    !!release.value &&
+    !release.value.yanked &&
+    !props.entry?.delisted &&
+    platformAvailable.value &&
+    !blockingIssues.value.length &&
+    props.installation?.source !== 'dev' &&
+    (!requiresForce.value || force.value) &&
     (!permissions.value.length || accepted.value),
 )
 const title = computed(() =>
@@ -103,7 +122,11 @@ async function submit(): Promise<void> {
   const current = generation
   // Capture the operation before verification can yield to polling, preventing
   // a newly observed installation from silently changing the reviewed request type.
-  const update = isUpdate.value
+  const update = !!props.installation && !force.value
+  const options = {
+    ...(ignoreHostVersion.value && { ignore_host_version: true }),
+    ...(force.value && { force: true }),
+  }
   saving.value = true
   error.value = ''
   recovery.value = null
@@ -112,6 +135,7 @@ async function submit(): Promise<void> {
       update
         ? pluginsAPI.update(entry.id, {
             version: target.version,
+            ...options,
             accept_permissions: target.manifest.permissions ?? [],
           })
         : pluginsAPI.install({
@@ -119,6 +143,7 @@ async function submit(): Promise<void> {
             index_id: entry.index_id,
             plugin_id: entry.id,
             version: target.version,
+            ...options,
             accept_permissions: target.manifest.permissions ?? [],
             enable: enable.value,
           }),
@@ -155,6 +180,8 @@ watch(
     saving.value = false
     accepted.value = false
     enable.value = true
+    ignoreHostVersion.value = false
+    force.value = false
     error.value = ''
     recovery.value = null
   },
@@ -176,7 +203,10 @@ onBeforeUnmount(() => {
       <SettingsNotice v-if="entry.signature_status !== 'official'" tone="warning">{{
         t('admin.plugins.market.sourceWarning')
       }}</SettingsNotice>
-      <SettingsNotice v-if="!release.compatible" tone="error">
+      <SettingsNotice
+        v-if="!release.compatible"
+        :tone="blockingIssues.length ? 'error' : 'warning'"
+      >
         <ul class="space-y-0.5">
           <li v-for="issue in release.incompatibilities" :key="issue.code">{{ issue.detail }}</li>
         </ul>
@@ -192,7 +222,7 @@ onBeforeUnmount(() => {
         :platform="entry.host_platform"
         :platform-available="platformAvailable"
         :digest="release.manifestSha256"
-        :new-permissions="isUpdate ? addedPermissions : undefined"
+        :new-permissions="installation ? addedPermissions : undefined"
       />
       <div class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700">
         <label v-if="permissions.length" class="flex items-start gap-2 text-sm"
@@ -200,9 +230,23 @@ onBeforeUnmount(() => {
             v-model="accepted"
             type="checkbox"
             class="mt-0.5"
-            :disabled="saving || !release.installable || disabled"
+            :disabled="saving || disabled"
           /><span>{{ t('admin.plugins.review.acceptPermissions') }}</span></label
         >
+        <SettingToggleRow
+          id="plugin-install-ignoreHostVersion"
+          v-model="ignoreHostVersion"
+          :label="t('admin.plugins.review.ignoreHostVersion')"
+          :hint="t('admin.plugins.review.ignoreHostVersionHint')"
+          :disabled="saving"
+        />
+        <SettingToggleRow
+          id="plugin-install-force"
+          v-model="force"
+          :label="t('admin.plugins.review.force')"
+          :hint="t('admin.plugins.review.forceHint')"
+          :disabled="saving"
+        />
         <SettingToggleRow
           v-if="!isUpdate"
           id="plugin-install-enable"
@@ -237,9 +281,11 @@ onBeforeUnmount(() => {
       <button type="button" class="btn btn-primary" :disabled="!canSubmit" @click="submit">{{
         saving
           ? t('common.processing')
-          : isUpdate
-            ? t('admin.plugins.market.updateTo', { version })
-            : t('admin.plugins.review.install')
+          : force && isUpdate
+            ? t('admin.plugins.review.force')
+            : isUpdate
+              ? t('admin.plugins.market.updateTo', { version })
+              : t('admin.plugins.review.install')
       }}</button>
     </template>
   </BaseDialog>

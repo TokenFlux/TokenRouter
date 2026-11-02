@@ -51,6 +51,9 @@ const reading = ref(false)
 const installing = ref(false)
 const accepted = ref(false)
 const enable = ref(true)
+// Testing exceptions belong to one review and reset before another package is approved.
+const ignoreHostVersion = ref(false)
+const force = ref(false)
 const error = ref('')
 const dragging = ref(false) // A file is being dragged over the drop zone.
 let controller: AbortController | null = null
@@ -96,6 +99,8 @@ function chooseFile(selected: File | undefined): void {
   file.value = selected
   preview.value = null
   accepted.value = false
+  ignoreHostVersion.value = false
+  force.value = false
   error.value = ''
 }
 
@@ -118,6 +123,8 @@ async function readPackage(): Promise<void> {
   reading.value = true
   error.value = ''
   accepted.value = false
+  ignoreHostVersion.value = false
+  force.value = false
   try {
     const result = await stepUp.run(() => pluginsAPI.upload(selected, signal))
     if (current === generation) preview.value = result
@@ -147,16 +154,24 @@ async function install(): Promise<void> {
     return
   }
   const current = generation
+  const update = existing.value && !sameVersion.value && !force.value
+  const targetID = existing.value?.plugin_id ?? selected.manifest.id
+  const options = {
+    ...(ignoreHostVersion.value && { ignore_host_version: true }),
+    ...(force.value && { force: true }),
+  }
   installing.value = true
   error.value = ''
   try {
     const result = await stepUp.run(() =>
-      existing.value && !sameVersion.value
-        ? pluginsAPI.update(existing.value.plugin_id, {
+      update
+        ? pluginsAPI.update(targetID, {
+            ...options,
             upload_token: selected.upload_token,
             accept_permissions: selected.manifest.permissions ?? [],
           })
         : pluginsAPI.install({
+            ...options,
             source: 'upload',
             upload_token: selected.upload_token,
             accept_permissions: selected.manifest.permissions ?? [],
@@ -208,6 +223,8 @@ watch(
       preview.value = null
       accepted.value = false
       enable.value = true
+      ignoreHostVersion.value = false
+      force.value = false
       error.value = ''
     }
   },
@@ -291,6 +308,20 @@ onBeforeUnmount(() => {
             /><span>{{ t('admin.plugins.review.acceptPermissions') }}</span></label
           >
           <SettingToggleRow
+            id="plugin-upload-ignoreHostVersion"
+            v-model="ignoreHostVersion"
+            :label="t('admin.plugins.review.ignoreHostVersion')"
+            :hint="t('admin.plugins.review.ignoreHostVersionHint')"
+            :disabled="installing"
+          />
+          <SettingToggleRow
+            id="plugin-upload-force"
+            v-model="force"
+            :label="t('admin.plugins.review.force')"
+            :hint="t('admin.plugins.review.forceHint')"
+            :disabled="installing"
+          />
+          <SettingToggleRow
             v-if="!existing"
             id="plugin-upload-enable"
             v-model="enable"
@@ -330,11 +361,13 @@ onBeforeUnmount(() => {
         >{{
           installing
             ? t('common.processing')
-            : existing && sameVersion
-              ? t('admin.plugins.review.repair')
-              : existing
-                ? t('admin.plugins.market.updateTo', { version: preview.manifest.version })
-                : t('admin.plugins.review.install')
+            : force && existing
+              ? t('admin.plugins.review.force')
+              : existing && sameVersion
+                ? t('admin.plugins.review.repair')
+                : existing
+                  ? t('admin.plugins.market.updateTo', { version: preview.manifest.version })
+                  : t('admin.plugins.review.install')
         }}</button
       >
     </template>

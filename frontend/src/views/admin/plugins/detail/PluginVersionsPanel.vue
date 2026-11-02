@@ -49,9 +49,6 @@ const releases = computed(() =>
   ),
 )
 const hasPrereleases = computed(() => props.entry?.versions.some((release) => release.prerelease))
-const ownsSource = computed(
-  () => !props.installation || props.installation.index_id === props.entry?.index_id,
-)
 const localVersions = computed(() =>
   [props.installation?.version, props.installation?.previous_version].filter(
     (version): version is string => !!version,
@@ -59,18 +56,24 @@ const localVersions = computed(() =>
 )
 
 /** action selects the row button for a release, or null when the row offers none.
- * The installed release offers nothing, the accepted previous release offers rollback,
- * and any other installable, unwithdrawn release offers install or a switch. A plugin
- * installed from another source cannot be changed from this source's releases.
+ * The accepted previous release offers rollback. Other unwithdrawn releases may
+ * open review when only gateway version bounds block compatibility; the review
+ * requires explicit overrides for version bounds and replacement conflicts.
  */
 function action(
   release: PluginCatalogVersion,
 ): 'install' | 'update' | 'switch' | 'rollback' | null {
   const item = props.installation
-  if (item?.version === release.version) return null
-  if (item?.previous_version === release.version && item.source !== 'dev') return 'rollback'
-  if (!release.installable || release.yanked || !ownsSource.value) return null
-  if (props.entry?.installed_from_other_source) return null
+  if (item?.source === 'dev') return null
+  if (item?.previous_version === release.version && item.version !== release.version)
+    return 'rollback'
+  if (release.yanked || props.entry?.delisted) return null
+  if (
+    release.incompatibilities.some(
+      (issue) => !['HOST_TOO_OLD', 'HOST_TOO_NEW'].includes(issue.code),
+    )
+  )
+    return null
   if (!item) return 'install'
   return item.update_version === release.version ? 'update' : 'switch'
 }
@@ -196,27 +199,19 @@ function choose(release: PluginCatalogVersion): void {
 
     <ul v-else class="divide-y divide-gray-100 dark:divide-dark-700">
       <li
-        v-for="version in localVersions"
-        :key="version"
+        v-for="(version, position) in localVersions"
+        :key="position"
         class="flex flex-wrap items-center gap-3 px-5 py-4"
       >
         <span class="font-mono text-sm font-semibold text-gray-900 dark:text-dark-50"
           >v{{ version }}</span
         >
-        <span
-          class="badge"
-          :class="version === installation?.version ? 'badge-primary' : 'badge-gray'"
-          >{{
-            t(
-              version === installation?.version
-                ? 'admin.plugins.versions.current'
-                : 'admin.plugins.versions.previous',
-            )
-          }}</span
-        >
+        <span class="badge" :class="position === 0 ? 'badge-primary' : 'badge-gray'">{{
+          t(position === 0 ? 'admin.plugins.versions.current' : 'admin.plugins.versions.previous')
+        }}</span>
         <span class="flex-1" />
         <button
-          v-if="version !== installation?.version && installation?.source !== 'dev'"
+          v-if="position === 1 && installation?.source !== 'dev'"
           type="button"
           class="btn btn-secondary btn-sm"
           :disabled="disabled"

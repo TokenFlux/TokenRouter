@@ -32,6 +32,25 @@ function declaration(type: PluginField['type']): PluginField {
 }
 
 describe('manifest field renderer', () => {
+  // A declaration supplies localized help containing markup-like characters.
+  // The form displays the selected explanation beneath its label as plain text,
+  // and fields without a description do not acquire an empty hint element.
+  it('renders localized descriptions as plain text beside their fields', () => {
+    const field = declaration('boolean')
+    field.description = { en: 'Pause <b>new</b> claims only.', zh: '仅暂停新的签到。' }
+    const wrapper = mount(PluginFieldForm, {
+      props: {
+        fields: [field, declaration('number')],
+        modelValue: { boolean: false, number: 0.1 },
+      },
+    })
+    wrappers.push(wrapper)
+    const hint = wrapper.get('#plugin-config-boolean-hint')
+    expect(hint.text()).toBe('Pause <b>new</b> claims only.')
+    expect(hint.find('b').exists()).toBe(false)
+    expect(wrapper.find('#plugin-config-number-hint').exists()).toBe(false)
+  })
+
   // A manifest declares each supported field type with valid initial scalar values.
   // Native controls expose their expected editing modes, and validation returns the complete typed submission without mutating the input draft.
   it('renders and validates all seven native field types', async () => {
