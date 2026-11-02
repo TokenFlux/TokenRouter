@@ -252,6 +252,9 @@ func GetTrustedClientIP(c *gin.Context) string {
 // peer-trust resolution, and nil contexts produce an empty address.
 // @project-doc docs/operations/edge_security.md#trusted_client_ip
 func GetSecurityClientIP(c *gin.Context, trustForwarded bool) string {
+	if c == nil {
+		return ""
+	}
 	if requestSettings, ok := requestForwardedIPSettings(c); ok {
 		trustForwarded = requestSettings.trustForwarded
 	}

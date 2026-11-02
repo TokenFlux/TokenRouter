@@ -9,6 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestGetSecurityClientIPNilContext supplies no request under either trust mode.
+// Both modes must return an empty address instead of dereferencing absent headers.
+func TestGetSecurityClientIPNilContext(t *testing.T) {
+	require.Empty(t, GetSecurityClientIP(nil, false))
+	require.Empty(t, GetSecurityClientIP(nil, true))
+}
+
 // TestGetTrustedClientIPUsesGinClientIP
 // supplies forwarding headers from an untrusted peer.
 // With Gin forwarding trust disabled, the returned address must be the direct
