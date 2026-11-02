@@ -22,7 +22,7 @@
 | 领域配置 | 用户、团队、API Key、分组、价格配置、提供商、套餐、支付实例 | 对应的 Ent schema 和 service | 事务提交后让领域缓存失效 |
 | 前端构建和开发配置 | API base、WS base、dev proxy、dev port | Vite 的 `VITE_*` | 构建或 dev server 启动时注入 |
 
-同一个概念可能出现在多层，但哪一层说了算要写清楚。例如进程配置 `security.trust_forwarded_ip_for_api_key_acl` 提供启动时的默认值，数据库设置可以在运行时覆盖安全客户端 IP 策略；读取方使用运行时快照，启动时的 struct 字段在这之后就过时了。反过来，数据库地址和 Redis 连接池无法在管理后台热切换。
+同一个概念可能出现在多层，但哪一层说了算要写清楚。例如进程配置 `security.trust_forwarded_ip_for_api_key_acl` 提供启动时的默认值（默认关闭），数据库设置可以在运行时覆盖安全客户端 IP 策略；读取方使用运行时快照，启动时的 struct 字段在这之后就过时了。反过来，数据库地址和 Redis 连接池无法在管理后台热切换。
 
 <a id="configuration_sources"></a>
 ## 进程配置来源

@@ -407,7 +407,7 @@ GATEWAY_OPENAI_WS_FORCE_HTTP=true
 - `security.response_headers.enabled`：开启可配置的响应头过滤（关闭时使用默认白名单）。
 - `security.csp`：Content-Security-Policy。
 - `billing.circuit_breaker`：计费异常时拒绝请求（fail-closed）。
-- `server.trusted_proxies`：开启可信代理，解析 X-Forwarded-For。
+- `server.trusted_proxies`：可信代理的地址。反向代理后面的部署必须配置，否则客户端 IP 都是代理的地址，API Key 的 IP 白名单也会按代理地址判断。
 - `turnstile.required`：在 release 模式下强制启用 Turnstile。
 
 网关的防护建议：
