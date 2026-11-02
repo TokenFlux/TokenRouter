@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -83,15 +84,63 @@ func TestPublicTargetDialContextRejectsAnyNonpublicAnswer(t *testing.T) {
 func TestPublicTargetDialContextTriesLaterAddresses(t *testing.T) {
 	stubTargetLookup(t, "93.184.216.34", "93.184.216.35")
 	var attempts []string
+	var attemptsMu sync.Mutex
 	dial := publicTargetDialContext(func(_ context.Context, _, address string) (net.Conn, error) {
+		attemptsMu.Lock()
 		attempts = append(attempts, address)
+		attemptsMu.Unlock()
 		return nil, errors.New("refused " + address)
 	})
 
 	_, err := dial(context.Background(), "tcp", "images.example.com:443")
 
 	require.ErrorContains(t, err, "refused 93.184.216.35:443")
-	require.Equal(t, []string{"93.184.216.34:443", "93.184.216.35:443"}, attempts)
+	attemptsMu.Lock()
+	defer attemptsMu.Unlock()
+	require.ElementsMatch(t, []string{"93.184.216.34:443", "93.184.216.35:443"}, attempts)
+}
+
+// TestPublicTargetDialContextSkipsBlockedAddress stalls the first checked literal.
+// A healthy alternative must connect before that attempt finishes, cancelling the
+// blocked connection rather than waiting for its individual network timeout.
+func TestPublicTargetDialContextSkipsBlockedAddress(t *testing.T) {
+	stubTargetLookup(t, "93.184.216.34", "93.184.216.35")
+	stopped := make(chan struct{})
+	peer, server := net.Pipe()
+	t.Cleanup(func() { _ = server.Close() })
+	dial := publicTargetDialContext(func(ctx context.Context, _, address string) (net.Conn, error) {
+		if address == "93.184.216.34:443" {
+			<-ctx.Done()
+			close(stopped)
+			return nil, ctx.Err()
+		}
+		return peer, nil
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	conn, err := dial(ctx, "tcp", "images.example.com:443")
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+		t.Fatal("losing connection was not cancelled")
+	}
+}
+
+// TestPublicTargetDialContextPreservesDeadline cancels a request before connecting.
+// The shared budget must honor that earlier deadline and never wait for the
+// wrapper's longer timeout while a connection attempt is blocked.
+func TestPublicTargetDialContextPreservesDeadline(t *testing.T) {
+	stubTargetLookup(t, "93.184.216.34")
+	dial := publicTargetDialContext(func(ctx context.Context, _, _ string) (net.Conn, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	_, err := dial(ctx, "tcp", "images.example.com:443")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 // TestGetClientPinsDirectValidatedDial reproduces a host passing the pre-request
