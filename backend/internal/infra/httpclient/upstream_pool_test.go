@@ -592,6 +592,7 @@ func TestTLSFingerprintHTTPSProxyFallsBackWithoutBypassingProxy(t *testing.T) {
 		proxyURL,
 		&tlsfingerprint.Profile{Name: "test"},
 		TransportProtocol{CacheVariant: "default"},
+		nil,
 	)
 	require.NoError(t, err)
 	transport, ok := roundTripper.(*http.Transport)

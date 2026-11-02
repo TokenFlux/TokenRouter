@@ -56,11 +56,11 @@ TLS collector 的短期会话、到期和记录上限，由 egress 负责；监�
 
 ## 目标与重定向校验
 
-URL 格式、scheme、allowlist 和字面量地址的策略，由 egress 里的纯校验实现负责；DNS 查询由 `infra/httpclient` 执行。策略和执行分开实现。
+URL 格式、scheme、allowlist 和字面量地址的策略，由 egress 里的纯校验实现负责；DNS 查询由 `infra/httpclient` 执行。非公网地址由 `ipmatch.IsNonPublic` 判定，除回环、私网、链路本地、组播和未指定地址外，还包括共享地址空间、IETF 协议和基准测试网段、E 类地址，以及 NAT64、Teredo、6to4 这些内嵌 IPv4 的前缀。策略和执行分开实现。
 
 自定义的 base URL，在转发和提供商测试等使用的地方，至少要通过格式和 scheme 的校验。开启 `security.url_allowlist` 后，还要求目标命中对应的 host allowlist，并按 `allow_private_hosts` 决定是否允许本地或私网的字面量地址。关闭 allowlist 时，只保留最基本的格式校验，HTTP 还需要 `allow_insecure_http` 明确放行，启动日志会提示 SSRF 检查已关闭。
 
-普通的上游请求，只有在开启了 allowlist、并且 `allow_private_hosts=false` 时，才由 HTTP client 在发请求之前解析目标 host，并对之后的每次重定向，重新校验解析出的 IP。Images URL 回填的下载，另外带有请求级的公网限制：不管全局是否允许私网，都拒绝本地和私网的字面量地址和解析结果，每次重定向都做同样的检查，同时保留共享客户端原有的重定向限制。普通请求不会继承这个下载标记。目前的校验和实际的连接是两次独立的解析，代理也可能自己解析，所以这套检查不能防住所有的 DNS rebinding。
+普通的上游请求，只有在开启了 allowlist、并且 `allow_private_hosts=false` 时，才由 HTTP client 在发请求之前解析目标 host，并对之后的每次重定向，重新校验解析出的 IP。Images URL 回填的下载，另外带有请求级的公网限制：不管全局是否允许私网，都拒绝本地和私网的字面量地址和解析结果，每次重定向都做同样的检查，同时保留共享客户端原有的重定向限制。普通请求不会继承这个下载标记。直连时，这两类请求在建立连接的时候会再解析一次，任一结果不是公网地址就拒绝，并且只连接校验过的 IP 字面量，所以 DNS rebinding 无法把连接换到私网地址；TLS 仍校验原来的 hostname。它们使用单独的连接池条目，不会复用未经校验的连接。走代理时目标由代理解析，这里只有发请求之前的校验，防不住代理侧的 DNS rebinding。代理本身的地址可以是私网地址，不受这项限制。
 
 平台的默认端点、管理员允许的兼容上游和对象、媒体的下载，可能使用不同的 allowlist，但上游返回的任意 URL 都不会被直接信任。默认的上游 host 包括 Kimi 和 Moonshot、Zhipu 和 Z.ai、DeepSeek 的官方域名；上游用量周期监控只直接访问这些官方 host；自定义中继即使可以用于手动请求，也只有在开启了 allowlist、并且明确命中时，后台的周期任务才会访问它。Grok 视频 content 等下载，通过服务端的凭据代理时，仍然要验证任务的归属和最终的目标。
 

@@ -21,6 +21,21 @@ import (
 // handles whitespace and a removable host:port suffix; callers choose that
 // normalization before checking restrictions.
 
+// nonPublicNetworks lists reserved ranges that the net.IP predicates miss.
+// Shared address space, IETF protocol, benchmarking, and class E ranges commonly
+// reach carrier or internal equipment. NAT64, Teredo, and 6to4 prefixes embed an
+// IPv4 address, so an IPv6 literal from them could reach a private IPv4 target.
+var nonPublicNetworks = mustParseCIDRs(
+	"100.64.0.0/10",
+	"192.0.0.0/24",
+	"198.18.0.0/15",
+	"240.0.0.0/4",
+	"64:ff9b::/96",
+	"64:ff9b:1::/48",
+	"2001::/32",
+	"2002::/16",
+)
+
 // CompiledIPRules stores parsed IP and CIDR rules. PatternCount distinguishes
 // an empty rule set from one whose input patterns were all invalid.
 type CompiledIPRules struct {
@@ -148,9 +163,30 @@ func NormalizeIP(ip string) string {
 	return ip
 }
 
-// IsNonPublic reports whether ip is loopback, private, link-local, or
-// unspecified. Other reserved ranges and nil addresses return false under these
-// net.IP predicates, so this is a limited classification.
+// IsNonPublic reports whether ip is loopback, private, link-local, multicast,
+// unspecified, or inside nonPublicNetworks. Egress checks use this answer to
+// refuse a destination, so ranges that route to internal networks count as
+// nonpublic. A nil address returns false; callers parse their input first.
 func IsNonPublic(ip net.IP) bool {
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	return slices.ContainsFunc(nonPublicNetworks, func(network *net.IPNet) bool {
+		return network.Contains(ip)
+	})
+}
+
+// mustParseCIDRs compiles fixed network literals during package initialization.
+// An invalid literal panics, because silently dropping one would weaken the
+// egress checks that read the result.
+func mustParseCIDRs(cidrs ...string) []*net.IPNet {
+	networks := make([]*net.IPNet, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic("invalid CIDR: " + cidr)
+		}
+		networks = append(networks, network)
+	}
+	return networks
 }

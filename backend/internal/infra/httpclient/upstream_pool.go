@@ -94,6 +94,10 @@ type UpstreamRequestOptions struct {
 	IdleTTL  time.Duration     // cache entry idle lifetime
 	Settings UpstreamSettings  // configured transport pool values
 	Protocol TransportProtocol // protocol and cache identity choices
+	// PublicTargetsOnly gives the request a separate cache entry whose direct
+	// connections are checked and pinned when dialed. The separate entry stops it
+	// reusing a connection opened without that check; proxied routes are unchanged.
+	PublicTargetsOnly bool // pin direct connections to public addresses
 	// TLSProfile contributes its raw CacheKey and is retained by custom dialers.
 	// Keep profile values stable and copy or serialize GREASE SupportedVersions
 	// storage before concurrent handshakes.
@@ -276,6 +280,10 @@ func (s *UpstreamPool) acquire(opts UpstreamRequestOptions) (*upstreamClientEntr
 	protocolMode := opts.Protocol.CacheVariant
 	cacheKey := buildCacheKey(isolation, proxyKey, opts.ProviderID, protocolMode)
 	poolKey := buildPoolKey(settings, protocolMode)
+	if opts.PublicTargetsOnly {
+		cacheKey += "|public_targets"
+		poolKey += "|public_targets"
+	}
 	if opts.TLSProfile != nil {
 		profileKey := tlsfingerprint.CacheKey(opts.TLSProfile)
 		cacheKey = "tls:" + profileKey + ":" + cacheKey
@@ -324,11 +332,25 @@ func (s *UpstreamPool) acquire(opts UpstreamRequestOptions) (*upstreamClientEntr
 		}
 	}
 
+	// A proxy's own address is often private and is the proxy's concern, so only
+	// direct routes receive the pinning dialer.
+	pinDirectDial := opts.PublicTargetsOnly && parsedProxy == nil
 	var transport http.RoundTripper
 	if opts.TLSProfile == nil {
-		transport, err = buildUpstreamTransport(settings, parsedProxy, opts.Protocol)
+		var ordinary *http.Transport
+		ordinary, err = buildUpstreamTransport(settings, parsedProxy, opts.Protocol)
+		if err == nil {
+			if pinDirectDial {
+				ordinary.DialContext = publicTargetDialContext(ordinary.DialContext)
+			}
+			transport = ordinary
+		}
 	} else {
-		transport, err = buildUpstreamTransportWithTLSFingerprint(settings, parsedProxy, opts.TLSProfile, opts.Protocol)
+		var directDial dialContextFunc
+		if pinDirectDial {
+			directDial = publicTargetDialContext(newUpstreamDialer().DialContext)
+		}
+		transport, err = buildUpstreamTransportWithTLSFingerprint(settings, parsedProxy, opts.TLSProfile, opts.Protocol, directDial)
 	}
 	if err != nil {
 		s.mu.Unlock()
@@ -581,8 +603,9 @@ func enableHTTP2KeepAlive(transport *http.Transport) {
 // transport uses fixed PING budgets and the optional cancellation-based
 // RoundTrip timeout wrapper. The ordinary fingerprint path returns its
 // configured http.Transport, with target handshake timing owned by the custom
-// dialer.
-func buildUpstreamTransportWithTLSFingerprint(settings UpstreamSettings, proxyURL *url.URL, profile *tlsfingerprint.Profile, protocol TransportProtocol) (http.RoundTripper, error) {
+// dialer. directDial replaces the network connector on the direct route; nil
+// selects the fingerprint dialer's bounded default, and proxied routes ignore it.
+func buildUpstreamTransportWithTLSFingerprint(settings UpstreamSettings, proxyURL *url.URL, profile *tlsfingerprint.Profile, protocol TransportProtocol, directDial dialContextFunc) (http.RoundTripper, error) {
 	useHTTP2 := protocol.HTTP2 && tlsfingerprint.SupportsHTTP2(profile)
 	transport := &http.Transport{
 		MaxIdleConns:          settings.MaxIdleConns,
@@ -597,7 +620,7 @@ func buildUpstreamTransportWithTLSFingerprint(settings UpstreamSettings, proxyUR
 	var dialTLSContext func(ctx context.Context, network, addr string) (net.Conn, error)
 	if proxyURL == nil {
 		slog.Debug("tls_fingerprint_transport_direct")
-		dialer := tlsfingerprint.NewDialer(profile, nil)
+		dialer := tlsfingerprint.NewDialer(profile, directDial)
 		dialTLSContext = dialer.DialTLSContext
 	} else {
 		scheme := strings.ToLower(proxyURL.Scheme)

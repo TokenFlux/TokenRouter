@@ -492,6 +492,9 @@ func (s *Client) transportOptions(req *http.Request, proxyURL string, providerID
 		IdleTTL:    s.clientIdleTTL(),
 		Settings:   settings,
 		TLSProfile: tlsProfile,
+		// Requests that validate their host before sending also pin the direct
+		// connection, so a later DNS answer cannot move them to a private address.
+		PublicTargetsOnly: targetPolicy.RequiresHostValidation(),
 		Protocol: httpclient.TransportProtocol{
 			CacheVariant: policy.TransportMode,
 			HTTP2:        policy.TransportMode == upstreamProtocolModeOpenAIH2,
