@@ -278,6 +278,7 @@
   "GET /api/v1/keys/:id",
   "GET /api/v1/keys/billing-options",
   "GET /api/v1/marketplace/models",
+  "GET /api/v1/marketplace/models/available",
   "GET /api/v1/marketplace/stats",
   "GET /api/v1/payment/checkout-info",
   "GET /api/v1/payment/config",

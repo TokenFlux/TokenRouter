@@ -138,3 +138,17 @@ func TestVideoQuoteJSONPreservesFreeAndMissingPrices(t *testing.T) {
 	require.NotContains(t, string(body), "video_prices")
 	require.NotContains(t, string(body), "video_price_per_second")
 }
+
+// TestMarketplaceExclusiveFlagJSON serializes public and private group metadata.
+// Both responses contain an explicit boolean so clients can identify exclusive
+// cards without inferring authorization from names, prices, or sorting positions.
+func TestMarketplaceExclusiveFlagJSON(t *testing.T) {
+	for _, exclusive := range []bool{false, true} {
+		groups := ModelMarketplaceGroupsFromRouting([]routing.ModelMarketplaceGroup{{ID: 1, IsExclusive: exclusive}})
+		encoded, err := json.Marshal(groups[0])
+		require.NoError(t, err)
+		var fields map[string]any
+		require.NoError(t, json.Unmarshal(encoded, &fields))
+		require.Equal(t, exclusive, fields["is_exclusive"])
+	}
+}

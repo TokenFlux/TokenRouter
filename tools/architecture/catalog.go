@@ -223,7 +223,7 @@ internal/promotion internal/server/httpx internal/settings`, Tests: "internal/te
 internal/identity/httpapi/dto internal/pkg/ internal/promotion/... internal/server/httpx
 internal/settings`, Tests: ""},
 		"internal/protocol": {Production: "internal/protocol/...", Tests: "internal/testutil/assertion"},
-		"internal/routing": {Production: `internal/server/adminapi internal/modelcatalog ent/... internal/provider internal/apikey/httpapi/dto internal/billing internal/billing/pricing
+		"internal/routing": {Production: `internal/identity/httpapi/authctx internal/server/adminapi internal/modelcatalog ent/... internal/provider internal/apikey/httpapi/dto internal/billing internal/billing/pricing
 internal/billing/provider internal/idempotency internal/idempotency/httpapi
 internal/infra/postgres/... internal/infra/telemetry/... internal/pkg/ internal/protocol
 internal/protocol/openai internal/routing/... internal/scheduler/policy internal/server/httpx
@@ -420,6 +420,8 @@ internal/upstream/zhipu/...`, Tests: ""},
 	// File permissions bind imports to reviewed source files; neighboring files
 	// and target subpackages do not inherit these permissions.
 	filePermissions = []filePermission{
+		// Personal marketplace requests read the JWT subject through the shared identity context.
+		{Scope: "internal/routing/httpapi", Imports: "internal/identity/httpapi/authctx", Files: "marketplace.go marketplace_test.go group_handler_test.go"},
 		// The composite-key scenario reads the actual SystemOne envelope after
 		// middleware rewriting, keeping its assertions aligned with the protocol parser.
 		{Scope: "internal/server", Imports: "internal/protocol/systemone", Files: "middleware/api_key_model_scenario_test.go"},

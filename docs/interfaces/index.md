@@ -26,5 +26,5 @@
 - [OpenCode 上游](opencode_upstream.md)：Console / Zen 按量与 Go 订阅、模型协议、端点和 Go 用量查询。读取时机：修改 OpenCode 提供商、模式、模型路由、测试或用量查询时读取。
 - [Jev 与 SystemOne](jev_upstream.md)：Jev API Key、SystemOne 决策请求、用量异常、模型同步和 TypeSafe 品牌。读取时机：修改 Jev、SystemOne、探测或决策用量处理时读取。
 - [网关错误响应策略](gateway_error_policy.md)：最终错误规则的优先级、匹配、状态码和消息的改写、跳过监控和缓存一致性。读取时机：修改错误透传规则、平台错误封装或 Ops 跳过规则时读取。
-- [模型目录与市场](model_catalog_and_marketplace.md)：可请求模型的解析、models.dev 统一目录和价格换算、分组属性档案和配置导出、公开分组的可见性、共享定价、容量和未知价格。读取时机：修改模型列表、目录查表、属性管理、客户端配置导出、市场接口、显示价格或可用性探测时读取。
+- [模型目录与市场](model_catalog_and_marketplace.md)：可请求模型的解析、models.dev 统一目录和价格换算、分组属性档案和配置导出、公开与个人专属分组的可见性、共享定价、容量和未知价格。读取时机：修改模型列表、目录查表、属性管理、客户端配置导出、市场接口、显示价格或可用性探测时读取。
 - [用户侧国际化](user_localization.md)：语言目录、用户偏好和运营内容的译文版本。读取时机：修改用户可见内容、语言选择或翻译编辑时读取。

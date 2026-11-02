@@ -80,7 +80,7 @@ func TestPluginModelsMatchPublicHTTPResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	marketplace := routing.NewMarketplace(pluginMarketplaceGroups{}, nil, pluginMarketplaceModels{}, routing.RequestableResolver{}, nil, nil, nil, routing.MarketplaceOptions{})
 	router := gin.New()
-	routinghttp.RegisterPublicMarketplaceRoutes(router.Group("/api/v1"), routinghttp.NewMarketplaceHandler(marketplace, nil))
+	routinghttp.RegisterPublicMarketplaceRoutes(router.Group("/api/v1"), routinghttp.NewMarketplaceHandler(marketplace, nil, nil))
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/marketplace/models", nil))
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())

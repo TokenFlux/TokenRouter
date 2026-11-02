@@ -1101,3 +1101,44 @@ func TestMarketplaceUsesRouteAttributes(t *testing.T) {
 	require.Equal(t, []string{"text"}, *result[0].Attributes.InputModalities)
 	require.False(t, *result[0].Attributes.Temperature)
 }
+
+// TestMarketplaceExclusiveVisibility grants a private group alongside a public
+// catalog. Grants control every enrichment read, while provider/model exclusions,
+// public-only access, category order, and unchanged pricing remain observable.
+func TestMarketplaceExclusiveVisibility(t *testing.T) {
+	for _, includeCapacity := range []bool{false, true} {
+		groups := &marketplaceGroupRepoStub{groups: []routing.Group{
+			{ID: 2, ActiveProviderCount: 1, RateMultiplier: 3},
+			{ID: 1, ActiveProviderCount: 1, RateMultiplier: 2, IsExclusive: true, AvailabilityProbeConfig: routing.GroupAvailabilityProbeConfig{Enabled: true}},
+			{ID: 3, ActiveProviderCount: 1, IsExclusive: true},
+			{ID: 4, IsExclusive: true},
+		}}
+		observations := &marketplaceLoadingObservations{}
+		prices := &marketplaceLoadingPrices{}
+		svc := routing.NewMarketplace(groups, nil, marketplaceLoadingModels{}, routing.RequestableResolver{}, prices, observations, observations, routing.MarketplaceOptions{Now: time.Now})
+		result, err := svc.ListVisible(context.Background(), []int64{1, 3, 4, 99}, routing.MarketplaceListOptions{IncludeCapacity: includeCapacity})
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		require.Equal(t, int64(1), result[0].ID)
+		require.True(t, result[0].IsExclusive)
+		require.Equal(t, int64(2), result[1].ID)
+		require.False(t, result[1].IsExclusive)
+		require.Equal(t, 2.0, result[0].Models[0].Pricing.InputPricePerToken)
+		require.Equal(t, []int64{1}, observations.availabilityGroups)
+		require.NotNil(t, result[0].Availability)
+		if includeCapacity {
+			require.Equal(t, []int64{1, 2}, observations.capacityGroups)
+			require.NotNil(t, result[0].Capacity)
+		} else {
+			require.Zero(t, observations.capacityCalls)
+			require.Nil(t, result[0].Capacity)
+		}
+		public, err := svc.ListPublic(context.Background(), routing.MarketplaceListOptions{})
+		require.NoError(t, err)
+		require.Len(t, public, 1)
+		require.Equal(t, int64(2), public[0].ID)
+		denied, err := svc.ListVisible(context.Background(), []int64{99}, routing.MarketplaceListOptions{})
+		require.NoError(t, err)
+		require.Equal(t, public, denied)
+	}
+}
