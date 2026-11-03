@@ -19,17 +19,20 @@ import Pagination from '../Pagination.vue'
 // Parsed template classes and stylesheet rules bind size assertions to actual
 // elements and selectors, while a mounted pagination fixture checks every visible
 // button without depending on source quotes, line breaks, or attribute ordering.
+// Pagination is the one compact exception: its 28px controls keep the bar at the
+// height of the table header above it.
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 enableAutoUnmount(afterEach)
 
-// SelectStub supplies the shared input height while keeping pagination independent of dropdown interaction details.
+// SelectStub keeps pagination independent of dropdown interaction details; Pagination
+// sizes the real trigger through its scoped style, which a separate test checks.
 const SelectStub = defineComponent({
   name: 'PaginationSelectStub',
   props: ['modelValue', 'options'],
-  // setup renders the selected page size as a fixed-height trigger.
+  // setup renders the selected page size as a plain trigger button.
   setup(props) {
-    return () => h('button', { class: 'select-trigger h-9' }, String(props.modelValue))
+    return () => h('button', { class: 'select-trigger' }, String(props.modelValue))
   },
 })
 
@@ -84,8 +87,8 @@ describe('36px control sizing', () => {
     })
   })
 
-  // Date confirmation uses the shared compact button while pagination raises its
-  // compact jump button to the normal baseline. Neither keeps a private size recipe.
+  // Date confirmation and the pagination jump action both build on the shared compact
+  // button and set only a height utility. Neither keeps a private size recipe.
   it('uses shared confirmation and pagination button recipes', () => {
     expect(
       hasClasses('components/common/DateRangePicker.vue', ['btn', 'btn-primary', 'btn-sm', 'h-8']),
@@ -99,7 +102,7 @@ describe('36px control sizing', () => {
         'btn',
         'btn-ghost',
         'btn-sm',
-        'h-9',
+        'h-7',
       ]),
     ).toBe(true)
     const heightOverrides: string[] = []
@@ -112,16 +115,27 @@ describe('36px control sizing', () => {
     expect(heightOverrides).toEqual([])
   })
 
-  // A middle page displays navigation, numbered pages, selection, and jump controls.
-  // Every rendered button must use the same 36px utility in this fixture.
-  it('renders every pagination button on the 36px baseline', () => {
+  // A middle page displays mobile and desktop navigation plus numbered pages. Every
+  // pagination button must use the 28px utility so the bar matches the header row.
+  it('renders every pagination button at the compact 28px height', () => {
     const wrapper = mount(Pagination, {
       props: { total: 30, page: 2, pageSize: 10 },
       global: { stubs: { Select: SelectStub, Icon: true } },
     })
-    const buttons = wrapper.findAll('button')
-    expect(buttons).toHaveLength(8)
-    expect(buttons.every((button) => button.classes().includes('h-9'))).toBe(true)
+    const buttons = wrapper.findAll('button.pagination-control')
+    expect(buttons).toHaveLength(7)
+    expect(buttons.every((button) => button.classes().includes('h-7'))).toBe(true)
+  })
+
+  // The page-size trigger and jump input otherwise inherit the 36px input baseline.
+  // Pagination must lower both to 28px, or the bar grows past the header height.
+  it('lowers the pagination select trigger and jump input to 28px', () => {
+    const styles = parseVue('components/common/Pagination.vue').styles
+    for (const selector of ['.page-size-select :deep(.input)', '.pagination-jump-input']) {
+      expect(cssRules(styles, selector).flatMap(applyTokens)).toEqual(
+        expect.arrayContaining(['h-7', 'min-h-7', 'py-0']),
+      )
+    }
   })
 
   // Page-level controls compose the common recipes with their local layout needs.

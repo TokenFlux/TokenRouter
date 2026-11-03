@@ -54,7 +54,7 @@
 
 ## 控件尺寸
 
-- 按钮、输入框和下拉触发器共用 36px 基线（`.btn` 和 `.input` 都是 `min-h-9`），分页器控件也是 36px，表格页脚的分页尺寸和其他地方一样。在基线之上再写 `h-9` 是冗余写法，门禁会拦截；紧凑档需要 36px 时，用 `btn-sm/md/lg + h-9` 提到这一档。
+- 按钮、输入框和下拉触发器共用 36px 基线（`.btn` 和 `.input` 都是 `min-h-9`）。分页器是例外，控件用 28px，见[表格密度](#表格密度)。在基线之上再写 `h-9` 是冗余写法，门禁会拦截；紧凑档需要 36px 时，用 `btn-sm/md/lg + h-9` 提到这一档。
 - 主操作用 `.btn-primary`；普通的编辑、查询、筛选和链接操作用 `primary-*` 品牌色。状态提示、业务分类和第三方品牌使用各自的配色。radio 和 range 通过全局 `accent-color` 使用 `primary-600`。checkbox 是原生 input，勾选、半选、禁用和键盘行为都由浏览器提供，外观由 `style.css` 统一设置：浅色填充 `primary-700`，深色填充 `primary-600`，白色勾选标记复用通用的 check 路径，描边 1.75。选中和取消时用 `--motion-fast` 做缩放和透明度过渡，半选显示一条横线；系统强制配色时显示浏览器的原生外观。
 - 原生按钮、`role="button"` 和 `.btn` 的文字不可选中，按钮内的图片不可拖拽；正文、表格数据和输入内容可以选中复制。
 - 图标按钮有两档：`.btn-icon`（h-9 w-9）和 `.btn-icon-sm`（h-8 w-8），自带 `rounded-control` 和居中布局，调用处只需补 hover 和颜色类。`.btn-sm` 用在表格行内等紧凑场景。
@@ -304,7 +304,7 @@ Vue 的 `<style scoped>` 中，深色后代规则写成 `.dark .component-class`
 
 全站只有一套密度：表头 `px-4 py-2 text-xs font-medium tracking-wider`，数据单元格 `px-4 py-3 text-sm`。`.table` 组件类、`TablePageLayout` 的深度样式和 `DataTable` 三处要保持一致。
 
-分页表格的表体和 `Pagination` 共用一个 `rounded-surface` 外框，外框用 `overflow-hidden` 裁出底部圆角。分页放在表体的滚动区域之外，两者之间直接相接，没有 `space-y-*` 或外边距；固定高度的表格用 flex 分配表体高度，分页不收缩。`TablePageLayout` 已经包含这个结构；独立卡片和弹窗也按这个约定，嵌入 `UsageTable` 时传 `flat`，表格只保留外框这一层边框。桌面分页上下留白 8px，浅色底 `gray-50/80`，深色底 `dark-900`，控件高 36px；窄屏显示上一页、下一页和当前页数。筛选结果为空时保留一个空页，记录范围显示 0 至 0，上一页和下一页都禁用。
+分页表格的表体和 `Pagination` 共用一个 `rounded-surface` 外框，外框用 `overflow-hidden` 裁出底部圆角。分页放在表体的滚动区域之外，两者之间直接相接，没有 `space-y-*` 或外边距；固定高度的表格用 flex 分配表体高度，分页不收缩。`TablePageLayout` 已经包含这个结构；独立卡片和弹窗也按这个约定，嵌入 `UsageTable` 时传 `flat`，表格只保留外框这一层边框。分页栏和表头行同为 36px：控件（页码、上一页和下一页、每页条数选择框、跳转输入框和按钮）高 28px，上下各留白 4px。选择框和跳转输入框原本继承 `.input` 的 36px 基线，由 `Pagination` 的局部样式压到 28px。桌面分页浅色底 `gray-50/80`，深色底 `dark-900`；窄屏显示上一页、下一页和当前页数，高度也一样。筛选结果为空时保留一个空页，记录范围显示 0 至 0，上一页和下一页都禁用。
 
 移动端卡片里，`DataTable` 的每一行左边是 `text-xs` 标签，右边是单元格内容，两边用 `items-baseline` 按首行文字对齐。单元格的首个元素是图标、头像或色条时，flex 容器会拿这个元素的底边当基线，标签就会偏下。这类单元格给第一行文字加 `self-baseline`，参考 `GroupBadge` 的分组名和 `UsageTable` 的 Token、延迟列。徽章组件也照这样处理，例如 `PlatformBadge`、`CapacityBadge`。文字是裸文本节点时，先包一层 `<span>`。
 

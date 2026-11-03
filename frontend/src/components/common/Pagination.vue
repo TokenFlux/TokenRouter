@@ -1,13 +1,13 @@
 <template>
   <div
-    class="pagination-root flex shrink-0 items-center justify-between border-t border-gray-200 bg-white px-4 py-3 dark:border-dark-700 dark:bg-dark-900 lg:bg-gray-50/80 lg:px-6 lg:py-2"
+    class="pagination-root flex shrink-0 items-center justify-between border-t border-gray-200 bg-white px-4 py-1 dark:border-dark-700 dark:bg-dark-900 lg:bg-gray-50/80 lg:px-6"
   >
     <div class="pagination-mobile flex flex-1 items-center justify-between lg:hidden">
       <!-- Mobile pagination -->
       <button
         @click="goToPage(page - 1)"
         :disabled="page <= 1"
-        class="pagination-control relative inline-flex h-9 items-center rounded-control border border-gray-300 bg-white px-4 py-0 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-200 dark:hover:bg-dark-800"
+        class="pagination-control relative inline-flex h-7 items-center rounded-control border border-gray-300 bg-white px-4 py-0 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-200 dark:hover:bg-dark-800"
       >
         {{ t('pagination.previous') }}
       </button>
@@ -17,7 +17,7 @@
       <button
         @click="goToPage(page + 1)"
         :disabled="page >= totalPages"
-        class="pagination-control relative ml-3 inline-flex h-9 items-center rounded-control border border-gray-300 bg-white px-4 py-0 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-200 dark:hover:bg-dark-800"
+        class="pagination-control relative ml-3 inline-flex h-7 items-center rounded-control border border-gray-300 bg-white px-4 py-0 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-200 dark:hover:bg-dark-800"
       >
         {{ t('pagination.next') }}
       </button>
@@ -69,7 +69,7 @@
           />
           <button
             type="button"
-            class="pagination-jump-button btn btn-ghost btn-sm h-9"
+            class="pagination-jump-button btn btn-ghost btn-sm h-7"
             @click="submitJump"
           >
             {{ t('pagination.jumpAction') }}
@@ -86,7 +86,7 @@
         <button
           @click="goToPage(page - 1)"
           :disabled="page <= 1"
-          class="pagination-control relative inline-flex h-9 items-center rounded-l-control border border-gray-300 bg-white px-2 py-0 text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800"
+          class="pagination-control relative inline-flex h-7 items-center rounded-l-control border border-gray-300 bg-white px-2 py-0 text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800"
           :aria-label="t('pagination.previous')"
         >
           <Icon name="chevronLeft" size="sm" :animate-on-hover="false" />
@@ -99,7 +99,7 @@
           @click="typeof pageNum === 'number' && goToPage(pageNum)"
           :disabled="typeof pageNum !== 'number'"
           :class="[
-            'pagination-control pagination-page-button relative inline-flex h-9 min-w-9 items-center justify-center border px-2 py-0 text-sm font-medium',
+            'pagination-control pagination-page-button relative inline-flex h-7 min-w-7 items-center justify-center border px-2 py-0 text-sm font-medium',
             pageNum === page
               ? 'z-10 border-primary-500 bg-primary-50 text-primary-600 dark:border-primary-500/15 dark:bg-primary-500/8 dark:text-primary-500'
               : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800',
@@ -117,7 +117,7 @@
         <button
           @click="goToPage(page + 1)"
           :disabled="page >= totalPages"
-          class="pagination-control relative inline-flex h-9 items-center rounded-r-control border border-gray-300 bg-white px-2 py-0 text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800"
+          class="pagination-control relative inline-flex h-7 items-center rounded-r-control border border-gray-300 bg-white px-2 py-0 text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800"
           :aria-label="t('pagination.next')"
         >
           <Icon name="chevronRight" size="sm" :animate-on-hover="false" />
@@ -139,6 +139,9 @@ import { setPersistedPageSize } from '@/composables/usePersistedPageSize'
 // optional numeric jumping. The parent owns the current page and record total, while
 // valid size selections update the shared persisted preference before publishing the
 // new page size.
+//
+// Every control in the bar is 28px tall with 4px of vertical padding, so the bar
+// matches the 36px table header row that sits above it in the shared table frame.
 
 // t resolves the component action and status labels using the active application
 // locale.
@@ -278,3 +281,14 @@ const submitJump = () => {
   goToPage(nextPage)
 }
 </script>
+
+<style scoped>
+/*
+ * The page-size trigger and jump input inherit the 36px .input baseline. Pagination
+ * shrinks both to the 28px height of its buttons so the bar stays at header height.
+ */
+.page-size-select :deep(.input),
+.pagination-jump-input {
+  @apply h-7 min-h-7 py-0;
+}
+</style>

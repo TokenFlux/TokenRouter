@@ -155,14 +155,12 @@ onUnmounted(() => {
 
 /*
  * Pagination inherits the card frame and footer background; remove its own outer
- * border and background while retaining shared control sizing.
+ * border and background while keeping its padding and control sizing, which match
+ * the table header height.
  */
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.pagination-root),
-.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.batch-pagination-root) {
+.table-page-layout:not(.mobile-mode) .table-pagination-footer :deep(.pagination-root) {
   border-top: 0;
   background: transparent;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
 }
 
 /* Mobile pages grow with table content. */
