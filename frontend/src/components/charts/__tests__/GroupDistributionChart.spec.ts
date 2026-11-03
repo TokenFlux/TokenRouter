@@ -5,8 +5,8 @@ import GroupDistributionChart from '../GroupDistributionChart.vue'
 
 // GroupDistributionChart.spec.ts checks grouped usage ordering, chart proportions,
 // optional cost columns, and ungrouped labels. Mounted chart substitutes expose raw
-// datasets and tooltip options, including the horizontal bar scale and abbreviated
-// category labels.
+// doughnut datasets and tooltip options so chart values, table order, and
+// displayed percentages can be compared for each selected metric.
 
 // messages supplies stable English labels for rendered assertions, with unknown keys
 // passed through by the local translation substitute during each component test.
@@ -38,10 +38,6 @@ vi.mock('vue-chartjs', () => ({
   Doughnut: {
     props: ['data'],
     template: '<div class="chart-data">{{ JSON.stringify(data) }}</div>',
-  },
-  Bar: {
-    props: ['data'],
-    template: '<div class="bar-chart-data">{{ JSON.stringify(data) }}</div>',
   },
 }))
 
@@ -152,49 +148,6 @@ describe('GroupDistributionChart', () => {
     expect(wrapper.text()).not.toContain('Provider Cost')
     expect(wrapper.findAll('thead th')).toHaveLength(5)
     expect(wrapper.findAll('tbody tr')[0].findAll('td')).toHaveLength(5)
-  })
-
-  // Bar mode receives group aggregates and a long category label. The chart must use a
-  // horizontal zero-based linear axis, truncate labels, and retain metric tooltip
-  // values.
-  it('renders a horizontal linear-scale bar chart starting at zero instead of doughnut when chartType is bar', () => {
-    const wrapper = mount(GroupDistributionChart, {
-      props: {
-        groupStats,
-        chartType: 'bar',
-      },
-      global: {
-        stubs: {
-          LoadingSpinner: true,
-        },
-      },
-    })
-
-    expect(wrapper.find('.chart-data').exists()).toBe(false)
-    const chartData = JSON.parse(wrapper.find('.bar-chart-data').text())
-    expect(chartData.labels).toEqual(['group-a', 'group-b'])
-    expect(chartData.datasets[0].data).toEqual([1200, 600])
-
-    const options = (wrapper.vm as any).$?.setupState.barOptions
-    expect(options.plugins.tooltip.enabled).toBe(false)
-    expect(options.plugins.tooltip.external).toBeTypeOf('function')
-    expect(options.indexAxis).toBe('y')
-    expect(options.scales.x.type).toBe('linear')
-    expect(options.scales.x.beginAtZero).toBe(true)
-    expect(options.scales.x.ticks.display).toBe(false)
-    expect(options.scales.x.grid.display).toBe(false)
-
-    const truncate = options.scales.y.ticks.callback
-    expect(truncate.call({ getLabelForValue: () => 'group-a' }, 0)).toBe('group-a')
-    expect(truncate.call({ getLabelForValue: () => 'a-very-long-group-name' }, 0)).toBe(
-      'a-very-long-…',
-    )
-
-    const label = options.plugins.tooltip.callbacks.label({
-      label: 'group-a',
-      dataIndex: 0,
-    })
-    expect(label).toBe('group-a: 1.20K (66.7%)')
   })
 
   // Group token totals differ by several orders of magnitude. Doughnut inputs must

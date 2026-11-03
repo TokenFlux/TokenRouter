@@ -53,7 +53,6 @@
             v-model:metric="groupDistributionMetric"
             :group-stats="groupStats"
             :loading="chartsLoading"
-            chart-type="bar"
             :show-metric-toggle="true"
             :enable-breakdown="false"
             :show-provider-cost="false"
@@ -71,7 +70,6 @@
             :upstream-endpoint-stats="upstreamEndpointStats"
             :endpoint-path-stats="endpointPathStats"
             :loading="endpointStatsLoading"
-            chart-type="bar"
             :show-source-toggle="false"
             :show-metric-toggle="true"
             :enable-breakdown="false"
@@ -542,16 +540,6 @@ let teamStatsReqSeq = 0
 const formatLocalDate = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
-// getLast24HoursRangeDates returns local calendar dates around the last twenty-four hours.
-// The resulting day strings describe calendar endpoints, so downstream date queries may
-// cover more than exactly twenty-four hours.
-const getLast24HoursRangeDates = () => {
-  const end = new Date()
-  // Subtract an elapsed day before formatting local calendar endpoints.
-  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-  return { start: formatLocalDate(start), end: formatLocalDate(end) }
-}
-
 // getGranularityForRange uses hourly buckets for local-midnight endpoints at most one day
 // apart. Longer or invalid ranges select daily buckets through the final comparison result
 // used by the chart.
@@ -563,13 +551,13 @@ const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
   return Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24)) <= 1 ? 'hour' : 'day'
 }
 
-// defaultRange initializes both calendar endpoints from now and the instant twenty-four
-// hours earlier in browser local time.
-const defaultRange = getLast24HoursRangeDates()
+// defaultDate initializes both endpoints to the same browser-local calendar day,
+// so the initial records and charts cover today.
+const defaultDate = formatLocalDate(new Date())
 // Date state supplies the selected calendar range to filters and determines trend
 // granularity when the range changes.
-const startDate = ref(defaultRange.start)
-const endDate = ref(defaultRange.end)
+const startDate = ref(defaultDate)
+const endDate = ref(defaultDate)
 // granularity selects hourly or daily trend buckets, while distribution selectors choose
 // the displayed metric and endpoint source.
 const granularity = ref<'day' | 'hour'>(getGranularityForRange(startDate.value, endDate.value))

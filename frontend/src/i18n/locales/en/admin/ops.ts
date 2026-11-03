@@ -95,7 +95,7 @@ export default {
     top: 'Top:',
     throughputTrend: 'Throughput Trend',
     switchRateTrend: 'Avg Provider Switches',
-    latencyHistogram: 'Request Duration Histogram',
+    latencyHistogram: 'Request Duration Distribution',
     errorTrend: 'Error Trend',
     errorDistribution: 'Error Distribution',
     switchRate: 'Avg switches',

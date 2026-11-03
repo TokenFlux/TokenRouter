@@ -1,16 +1,19 @@
 <template>
+  <!-- Top alignment keeps icons level across cards even when currency totals or balance-unit labels occupy multiple text lines. -->
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
     <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-control bg-green-100 p-2 dark:bg-green-900/30">
+      <div class="flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-green-100 dark:bg-green-900/30"
+        >
           <Icon
             name="dollar"
             size="md"
-            class="text-green-600 dark:text-green-400"
+            class="h-5 w-5 text-green-600 dark:text-green-400"
             :stroke-width="2"
           />
         </div>
-        <div>
+        <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
             t('payment.admin.todayRevenue')
           }}</p>
@@ -29,16 +32,18 @@
     </div>
 
     <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-control bg-blue-100 p-2 dark:bg-blue-900/30">
+      <div class="flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-blue-100 dark:bg-blue-900/30"
+        >
           <Icon
             name="creditCard"
             size="md"
-            class="text-blue-600 dark:text-blue-400"
+            class="h-5 w-5 text-blue-600 dark:text-blue-400"
             :stroke-width="2"
           />
         </div>
-        <div>
+        <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
             t('payment.admin.totalRevenue')
           }}</p>
@@ -57,16 +62,18 @@
     </div>
 
     <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-control bg-purple-100 p-2 dark:bg-purple-900/30">
+      <div class="flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-purple-100 dark:bg-purple-900/30"
+        >
           <Icon
             name="chart"
             size="md"
-            class="text-purple-600 dark:text-purple-400"
+            class="h-5 w-5 text-purple-600 dark:text-purple-400"
             :stroke-width="2"
           />
         </div>
-        <div>
+        <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
             t('payment.admin.todayOrders')
           }}</p>
@@ -76,16 +83,18 @@
     </div>
 
     <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-control bg-amber-100 p-2 dark:bg-amber-900/30">
+      <div class="flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-amber-100 dark:bg-amber-900/30"
+        >
           <Icon
             name="chart"
             size="md"
-            class="text-amber-600 dark:text-amber-400"
+            class="h-5 w-5 text-amber-600 dark:text-amber-400"
             :stroke-width="2"
           />
         </div>
-        <div>
+        <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
             t('payment.admin.avgAmount')
           }}</p>
@@ -101,11 +110,18 @@
     </div>
 
     <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-control bg-sky-100 p-2 dark:bg-sky-900/30">
-          <Icon name="brain" size="md" class="text-sky-600 dark:text-sky-400" :stroke-width="2" />
+      <div class="flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-sky-100 dark:bg-sky-900/30"
+        >
+          <Icon
+            name="brain"
+            size="md"
+            class="h-5 w-5 text-sky-600 dark:text-sky-400"
+            :stroke-width="2"
+          />
         </div>
-        <div>
+        <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
             t('payment.admin.avgBalanceUnitPurchaseUnitPrice', { unitName: balanceUnitName })
           }}</p>

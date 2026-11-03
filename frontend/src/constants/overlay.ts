@@ -6,7 +6,8 @@
 // Z_INDEX orders chart overlays, navigation, dialogs, notifications, tours, and
 // teleported controls; synchronize changes with global CSS and Tailwind stacking values.
 export const Z_INDEX = {
-  CHART_TOOLTIP: 30, // Chart tooltip overlay layer.
+  // Chart tooltips clear the sidebar while page-level tooltips stay below headers and dialogs.
+  CHART_TOOLTIP: 45,
   SIDEBAR_OVERLAY: 30, // Mobile sidebar backdrop layer.
   SIDEBAR: 40, // Application sidebar content layer.
   HEADER: 50, // Application header content layer.

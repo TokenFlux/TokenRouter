@@ -52,7 +52,8 @@
      * notifications precede help tooltips, while teleported dropdowns sit above the
      * driver.js tour level.
      */
-    --z-chart-tooltip: 30;
+    /* Chart tooltips clear navigation sidebars while staying below headers and dialogs. */
+    --z-chart-tooltip: 45;
     --z-sidebar-overlay: 30;
     --z-sidebar: 40;
     --z-header: 50;

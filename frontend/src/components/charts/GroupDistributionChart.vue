@@ -30,8 +30,7 @@
       class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6"
     >
       <div class="h-48 w-48 shrink-0">
-        <Bar v-if="chartType === 'bar'" :data="chartData" :options="barOptions" />
-        <Doughnut v-else :data="doughnutChartData" :options="doughnutOptions" />
+        <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
       <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
         <table class="w-full text-xs">
@@ -143,21 +142,13 @@ import ExpandableTableRow from '@/components/common/ExpandableTableRow.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  BarElement,
-  CategoryScale,
-  LinearScale,
-  Tooltip,
-  Legend,
-} from 'chart.js'
-import { Bar, Doughnut } from 'vue-chartjs'
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
+import { Doughnut } from 'vue-chartjs'
 import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import UserBreakdownSubTable from './UserBreakdownSubTable.vue'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
-import { CHART_PALETTE, CHART_TICK_FONT_SIZE } from '@/composables/useChartTheme'
+import { CHART_PALETTE } from '@/composables/useChartTheme'
 import type { GroupStat } from '@/api/usage.types'
 import type { UserBreakdownItem } from '@/api/admin/dashboard.types'
 import { getUserBreakdown } from '@/api/admin/dashboard'
@@ -166,7 +157,7 @@ import { formatTokens } from '@/utils/format'
 // GroupDistributionChart.vue presents group usage as a chart and an expandable table.
 // Parent-owned aggregates determine the selected metric and row order, while row
 // expansion loads user details for the current dates and filters.
-ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend)
+ChartJS.register(ArcElement, Tooltip, Legend)
 
 // Hide the shared external tooltip when this chart unmounts so a body-level tooltip
 // cannot remain over the next page.
@@ -180,8 +171,6 @@ const { balanceUnitSymbol, usdUnitSymbol } = useBalanceDisplay()
 // DistributionMetric selects the usage quantity used for chart ordering.
 // tokens uses total_tokens, while actual_cost uses the recorded actual charge.
 type DistributionMetric = 'tokens' | 'actual_cost'
-// GroupChartType selects a doughnut or a horizontal comparison chart.
-type GroupChartType = 'doughnut' | 'bar'
 
 // props supplies parent-owned aggregate arrays and controlled display choices; defaults
 // keep the standard dashboard distribution presentation available.
@@ -194,9 +183,6 @@ const props = withDefaults(
     // Selects token totals or actual charges for ordering and chart values; defaults to
     // tokens.
     metric?: DistributionMetric
-    // Selects the doughnut by default; bar mode shows horizontal bars with abbreviated
-    // group labels.
-    chartType?: GroupChartType
     // Displays controlled metric buttons when true; clicking emits a selection for the
     // parent to apply.
     showMetricToggle?: boolean
@@ -218,7 +204,6 @@ const props = withDefaults(
   {
     loading: false,
     metric: 'tokens',
-    chartType: 'doughnut',
     showMetricToggle: false,
     enableBreakdown: true,
     showProviderCost: true,
@@ -321,22 +306,9 @@ const chartData = computed(() => {
   }
 })
 
-// doughnutChartData supplies a nonnullable dataset accepted by Doughnut; the surrounding
-// template checks chartData before mounting this chart component.
-const doughnutChartData = computed(() => ({
-  labels: displayGroupStats.value.map(groupLabel),
-  datasets: [
-    {
-      data: chartValues.value,
-      backgroundColor: chartColors.slice(0, displayGroupStats.value.length),
-      borderWidth: 0,
-    },
-  ],
-}))
-
 // tooltipLabel formats the selected metric and its share of displayed values. Missing
-// indices use zero; an empty total yields a zero percentage for both chart
-// presentations, while actual charges use the configured balance symbol.
+// indices use zero; an empty total yields a zero percentage, while actual charges
+// use the configured balance symbol.
 const tooltipLabel = (context: any) => {
   const value = chartValues.value[context.dataIndex] ?? 0
   const total = chartValues.value.reduce((a: number, b: number) => a + b, 0)
@@ -355,59 +327,6 @@ const tooltipLabel = (context: any) => {
 const doughnutOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      display: false,
-    },
-    tooltip: {
-      enabled: false,
-      external: externalTooltipHandler,
-      callbacks: {
-        label: tooltipLabel,
-      },
-    },
-  },
-}))
-
-// barOptions supplies responsive linear bars and the same HTML tooltip formatter used by
-// the doughnut presentation for comparable metric values.
-const barOptions = computed(() => ({
-  indexAxis: 'y' as const,
-  responsive: true,
-  maintainAspectRatio: false,
-  scales: {
-    // A zero baseline makes bar lengths proportional to the selected raw metric values,
-    // matching the distribution tooltip.
-    x: {
-      type: 'linear' as const,
-      beginAtZero: true,
-      ticks: {
-        display: false,
-      },
-      grid: {
-        display: false,
-      },
-    },
-    y: {
-      grid: {
-        display: false,
-      },
-      ticks: {
-        autoSkip: false,
-        font: {
-          size: CHART_TICK_FONT_SIZE,
-        },
-        // callback abbreviates group names for the narrow category axis. Labels longer
-        // than twelve characters receive an ellipsis; the table title and chart tooltip
-        // retain the full category name for inspection.
-        callback(this: any, value: any) {
-          const label = String(this.getLabelForValue(value) ?? '')
-          // Keep category text within the narrow plot.
-          return label.length > 12 ? `${label.slice(0, 12)}…` : label
-        },
-      },
-    },
-  },
   plugins: {
     legend: {
       display: false,

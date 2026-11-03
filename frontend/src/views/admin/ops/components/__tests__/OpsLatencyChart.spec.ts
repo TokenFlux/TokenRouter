@@ -10,20 +10,18 @@ import OpsLatencyChart from '../OpsLatencyChart.vue'
 
 vi.mock('chart.js', () => ({
   Chart: { register: vi.fn() },
-  BarElement: {},
-  CategoryScale: {},
+  ArcElement: {},
   Legend: {},
-  LinearScale: {},
   Tooltip: {},
 }))
 
 vi.mock('vue-chartjs', async () => {
   const { defineComponent } = await import('vue')
   return {
-    Bar: defineComponent({
-      name: 'BarChartStub',
+    Doughnut: defineComponent({
+      name: 'DoughnutChartStub',
       props: ['data', 'options'],
-      template: '<div class="bar-chart-stub" />',
+      template: '<div class="doughnut-chart-stub" />',
     }),
   }
 })

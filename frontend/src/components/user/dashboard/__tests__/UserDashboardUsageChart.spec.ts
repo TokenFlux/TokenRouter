@@ -158,30 +158,32 @@ describe('UserDashboardUsageChart', () => {
   })
 
   // The default dashboard load returns current and prior request totals. The test protects
-  // daily queries, displayed aggregate change, undefined cost comparison, and the picker's
-  // inclusive seven-day dates.
-  it('默认拉取近 7 天和上一周期，并在页签上显示合计与环比', async () => {
+  // hourly queries from local midnight, displayed aggregate change, undefined cost
+  // comparison, and the picker's matching endpoints for today.
+  it('loads today and the previous period by default with totals and comparisons', async () => {
     const today = formatDayKey(new Date())
     vi.mocked(usageAPI.getDashboardTrend)
-      .mockResolvedValueOnce(trendOf([{ date: today, requests: 30 }]) as any)
+      .mockResolvedValueOnce(trendOf([{ date: `${today} 00:00`, requests: 30 }]) as any)
       .mockResolvedValueOnce(trendOf([{ date: '2000-01-01', requests: 20 }]) as any)
 
     const wrapper = await mountChart()
 
     expect(usageAPI.getDashboardTrend).toHaveBeenCalledTimes(2)
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
     expect(vi.mocked(usageAPI.getDashboardTrend).mock.calls[0][0]).toMatchObject({
-      granularity: 'day',
+      start_date: `${today}T00:00:00`,
+      end_date: `${formatDayKey(tomorrow)}T00:00:00`,
+      granularity: 'hour',
     })
     expect(wrapper.get('[data-testid="usage-metric-requests"]').text()).toContain('30')
     expect(wrapper.get('[data-testid="usage-delta-requests"]').text()).toContain('+50%')
     expect(wrapper.get('[data-testid="usage-delta-cost"]').text()).toContain(
       'dashboard.usageChart.noPrevious',
     )
-    // The picker expresses the entire date selection; its default interval includes today and the six preceding local calendar days.
+    // Inclusive picker dates name today at both endpoints despite the API's exclusive end.
     const picker = wrapper.findComponent(DateRangePicker)
-    const start = new Date()
-    start.setDate(start.getDate() - 6)
-    expect(picker.props('startDate')).toBe(formatDayKey(start))
+    expect(picker.props('startDate')).toBe(today)
     expect(picker.props('endDate')).toBe(today)
   })
 
@@ -294,7 +296,7 @@ describe('UserDashboardUsageChart', () => {
   it('Token 画成四条不堆叠的折线，未结束的末段画虚线，并挂上竖线和描线插件', async () => {
     const today = formatDayKey(new Date())
     vi.mocked(usageAPI.getDashboardTrend).mockResolvedValue(
-      trendOf([{ date: today, requests: 3, actual_cost: 1 }]) as any,
+      trendOf([{ date: `${today} 00:00`, requests: 3, actual_cost: 1 }]) as any,
     )
     const wrapper = await mountChart()
     const line = wrapper.findComponent(Line)
@@ -319,7 +321,7 @@ describe('UserDashboardUsageChart', () => {
     ).toBe(true)
     expect(line.props('options').scales.y.stacked).toBeUndefined()
 
-    // The seven-day interval includes today, so its final incoming segment is dashed while earlier segments remain solid.
+    // Today includes the current hour, so its final incoming segment is dashed while earlier segments remain solid.
     const lastIndex = line.props('data').labels.length - 1
     expect(datasets[0].segment.borderDash({ p1DataIndex: lastIndex })).toEqual([4, 4])
     expect(datasets[0].segment.borderDash({ p1DataIndex: lastIndex - 1 })).toBeUndefined()
@@ -336,7 +338,7 @@ describe('UserDashboardUsageChart', () => {
   it('切换指标时重建图表，与首次打开播放同一套入场动画', async () => {
     const today = formatDayKey(new Date())
     vi.mocked(usageAPI.getDashboardTrend).mockResolvedValue(
-      trendOf([{ date: today, requests: 3 }]) as any,
+      trendOf([{ date: `${today} 00:00`, requests: 3 }]) as any,
     )
     const wrapper = await mountChart()
     const before = wrapper.findComponent(Line).vm
@@ -350,7 +352,7 @@ describe('UserDashboardUsageChart', () => {
   it('单指标叠加上一周期虚线，可以从图例关闭', async () => {
     const today = formatDayKey(new Date())
     vi.mocked(usageAPI.getDashboardTrend)
-      .mockResolvedValueOnce(trendOf([{ date: today, requests: 30 }]) as any)
+      .mockResolvedValueOnce(trendOf([{ date: `${today} 00:00`, requests: 30 }]) as any)
       .mockResolvedValueOnce(trendOf([{ date: '2000-01-01', requests: 20 }]) as any)
     const wrapper = await mountChart()
     await wrapper.get('[data-testid="usage-metric-requests"]').trigger('click')

@@ -15,7 +15,7 @@ const rootRules = cssRules(postcss.parse(readSource('style.css')), ':root')
 
 // TIERS pairs utility keys, CSS properties, runtime names, and exact numeric values for all shared overlay layers.
 const TIERS = [
-  ['chart-tooltip', '--z-chart-tooltip', 'CHART_TOOLTIP', 30],
+  ['chart-tooltip', '--z-chart-tooltip', 'CHART_TOOLTIP', 45],
   ['sidebar-overlay', '--z-sidebar-overlay', 'SIDEBAR_OVERLAY', 30],
   ['sidebar', '--z-sidebar', 'SIDEBAR', 40],
   ['header', '--z-header', 'HEADER', 50],
@@ -56,9 +56,12 @@ describe('浮层层级 token', () => {
     expect(zIndex).not.toHaveProperty('tour')
   })
 
-  // Teleported dropdowns and announcement levels rely on specific relative ordering.
-  // These comparisons protect visibility even when individual numeric layer values change.
-  it('关键相对顺序:teleported 下拉压过引导层,公告梯队递增', () => {
+  // Chart tooltips must clear the sidebar while headers and dialogs retain priority.
+  // Other overlay comparisons protect dropdown and announcement visibility when numeric layers change.
+  it('keeps chart tooltips above sidebars and preserves dialog and overlay ordering', () => {
+    expect(Z_INDEX.CHART_TOOLTIP).toBeGreaterThan(Z_INDEX.SIDEBAR)
+    expect(Z_INDEX.CHART_TOOLTIP).toBeLessThan(Z_INDEX.HEADER)
+    expect(Z_INDEX.CHART_TOOLTIP).toBeLessThan(Z_INDEX.MODAL)
     expect(Z_INDEX.TELEPORT_DROPDOWN).toBeGreaterThan(Z_INDEX.TOUR)
     expect(Z_INDEX.ANNOUNCEMENT).toBeLessThan(Z_INDEX.ANNOUNCEMENT_RAISED)
     expect(Z_INDEX.ANNOUNCEMENT_RAISED).toBeLessThan(Z_INDEX.ANNOUNCEMENT_TOP)

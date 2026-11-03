@@ -195,12 +195,11 @@ const ModelDistributionChartStub = {
     </div>
   `,
 }
-// GroupDistributionChartStub exposes metric and chart type so tests compare group-chart
-// selection with the independent model chart.
+// GroupDistributionChartStub exposes the metric so tests compare group-chart
+// selection with the independent model chart while using the same snapshot.
 const GroupDistributionChartStub = {
   props: [
     'metric', // selected chart measurement key
-    'chartType', // selected chart rendering mode
   ],
   emits: ['update:metric'],
   template: `
@@ -210,12 +209,9 @@ const GroupDistributionChartStub = {
     </div>
   `,
 }
-// EndpointDistributionChartStub accepts chart type so layout tests can verify the
-// endpoint distribution uses the configured bar presentation.
+// EndpointDistributionChartStub marks the endpoint card without drawing a canvas,
+// keeping page-level loader and layout tests independent of Chart.js rendering.
 const EndpointDistributionChartStub = {
-  props: [
-    'chartType', // selected chart rendering mode
-  ],
   template: '<div data-test="endpoint-chart" />',
 }
 
@@ -670,7 +666,7 @@ describe('admin UsageView distribution metric toggles', () => {
   })
 
   // Model and group charts change their display metric independently. The test protects
-  // their separate selections, bar-chart configuration, and using existing snapshot data
+  // their separate selections and reuse of existing snapshot data
   // without another fetch.
   it('keeps model and group metric toggles independent without refetching chart data', async () => {
     const wrapper = mount(UsageView, {
@@ -713,8 +709,6 @@ describe('admin UsageView distribution metric toggles', () => {
     const modelChart = wrapper.find('[data-test="model-chart"]')
     const groupChart = wrapper.find('[data-test="group-chart"]')
 
-    expect(wrapper.findComponent(GroupDistributionChartStub).props('chartType')).toBe('bar')
-    expect(wrapper.findComponent(EndpointDistributionChartStub).props('chartType')).toBe('bar')
     expect(modelChart.find('.metric').text()).toBe('tokens')
     expect(groupChart.find('.metric').text()).toBe('tokens')
 

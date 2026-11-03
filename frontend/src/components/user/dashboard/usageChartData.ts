@@ -12,7 +12,7 @@ import type { TrendDataPoint } from '@/api/usage.types'
 // buckets receive their proper weight.
 
 // UsageRangePreset identifies a dashboard shortcut or a picker-defined time window.
-export type UsageRangePreset = '24h' | '7d' | '30d' | '90d' | 'custom'
+export type UsageRangePreset = 'today' | '24h' | '7d' | '30d' | '90d' | 'custom'
 
 // UsageGranularity selects hourly or daily buckets in dashboard queries.
 export type UsageGranularity = 'hour' | 'day'
@@ -77,11 +77,16 @@ export const resolveGranularity = (startAt: Date, endAt: Date): UsageGranularity
 
 // resolvePresetRange expands a shortcut into the aligned dashboard query window. The default
 // clock is sampled at invocation, and the current incomplete hour or calendar day remains
-// included for live usage display.
+// included for live usage display. Today spans local midnight to the following midnight
+// with hourly buckets; bucketKeys excludes future hours from the rendered series.
 export const resolvePresetRange = (
   preset: Exclude<UsageRangePreset, 'custom'>,
   now: Date = new Date(),
 ): UsageRange => {
+  if (preset === 'today') {
+    const startAt = startOfDay(now)
+    return { startAt, endAt: addDays(startAt, 1), granularity: 'hour' }
+  }
   if (preset === '24h') {
     const endAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1)
     return { startAt: new Date(endAt.getTime() - 24 * HOUR_MS), endAt, granularity: 'hour' }

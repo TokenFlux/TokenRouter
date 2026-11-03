@@ -59,8 +59,7 @@
       class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6"
     >
       <div class="h-48 w-48 shrink-0">
-        <Bar v-if="chartType === 'bar'" :data="chartData" :options="barOptions" />
-        <Doughnut v-else :data="doughnutChartData" :options="doughnutOptions" />
+        <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
       <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
         <table class="w-full text-xs">
@@ -153,16 +152,8 @@ import ExpandableTableRow from '@/components/common/ExpandableTableRow.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  BarElement,
-  CategoryScale,
-  LinearScale,
-  Tooltip,
-  Legend,
-} from 'chart.js'
-import { Bar, Doughnut } from 'vue-chartjs'
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
+import { Doughnut } from 'vue-chartjs'
 import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import UserBreakdownSubTable from './UserBreakdownSubTable.vue'
@@ -176,7 +167,7 @@ import { formatTokens } from '@/utils/format'
 // EndpointDistributionChart.vue presents endpoint usage as a chart and an expandable
 // table. Parent-owned aggregates determine the selected metric and row order, while row
 // expansion loads user details for the current dates and filters.
-ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend)
+ChartJS.register(ArcElement, Tooltip, Legend)
 
 // Hide the shared external tooltip when this chart unmounts so a body-level tooltip
 // cannot remain over the next page.
@@ -194,8 +185,6 @@ type DistributionMetric = 'tokens' | 'actual_cost'
 // inbound selects endpointStats, upstream selects upstreamEndpointStats, and path
 // selects endpointPathStats.
 type EndpointSource = 'inbound' | 'upstream' | 'path'
-// EndpointChartType selects the default doughnut or vertical bar presentation.
-type EndpointChartType = 'doughnut' | 'bar'
 
 // props supplies parent-owned aggregate arrays and controlled display choices; defaults
 // keep the standard dashboard distribution presentation available.
@@ -211,9 +200,6 @@ const props = withDefaults(
     // Selects token totals or actual charges for ordering and chart values; defaults to
     // tokens.
     metric?: DistributionMetric
-    // Chooses the doughnut by default; bar mode uses a vertical linear scale with hidden
-    // axis labels.
-    chartType?: EndpointChartType
     // Chooses inbound aggregates by default; upstream and path select their
     // corresponding optional arrays.
     source?: EndpointSource
@@ -241,7 +227,6 @@ const props = withDefaults(
     loading: false,
     title: '',
     metric: 'tokens',
-    chartType: 'doughnut',
     source: 'inbound',
     showMetricToggle: false,
     showSourceToggle: false,
@@ -341,22 +326,9 @@ const chartData = computed(() => {
   }
 })
 
-// doughnutChartData supplies a nonnullable dataset accepted by Doughnut; the surrounding
-// template checks chartData before mounting this chart component.
-const doughnutChartData = computed(() => ({
-  labels: displayEndpointStats.value.map((item) => item.endpoint),
-  datasets: [
-    {
-      data: chartValues.value,
-      backgroundColor: chartColors.slice(0, displayEndpointStats.value.length),
-      borderWidth: 0,
-    },
-  ],
-}))
-
 // tooltipLabel formats the selected metric and its share of displayed values. Missing
-// indices use zero; an empty total yields a zero percentage for both chart
-// presentations, while actual charges use the configured balance symbol.
+// indices use zero; an empty total yields a zero percentage, while actual charges
+// use the configured balance symbol.
 const tooltipLabel = (context: any) => {
   const value = chartValues.value[context.dataIndex] ?? 0
   const total = chartValues.value.reduce((a: number, b: number) => a + b, 0)
@@ -375,49 +347,6 @@ const tooltipLabel = (context: any) => {
 const doughnutOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      display: false,
-    },
-    tooltip: {
-      enabled: false,
-      external: externalTooltipHandler,
-      callbacks: {
-        label: tooltipLabel,
-      },
-    },
-  },
-}))
-
-// barOptions supplies responsive linear bars and the same HTML tooltip formatter used by
-// the doughnut presentation for comparable metric values.
-const barOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  scales: {
-    // Endpoint paths remain readable in the table and tooltip while hidden tick labels
-    // keep the narrow chart uncluttered.
-    x: {
-      ticks: {
-        display: false,
-      },
-      grid: {
-        display: false,
-      },
-    },
-    y: {
-      // A zero baseline keeps vertical bar height proportional to the raw metric shown
-      // in the tooltip.
-      type: 'linear' as const,
-      beginAtZero: true,
-      ticks: {
-        display: false,
-      },
-      grid: {
-        display: false,
-      },
-    },
-  },
   plugins: {
     legend: {
       display: false,

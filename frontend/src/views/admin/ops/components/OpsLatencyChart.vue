@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Chart as ChartJS, BarElement, CategoryScale, Legend, LinearScale, Tooltip } from 'chart.js'
-import { Bar } from 'vue-chartjs'
+import { Chart as ChartJS, ArcElement, Legend, Tooltip } from 'chart.js'
+import { Doughnut } from 'vue-chartjs'
 import type { OpsLatencyHistogramResponse } from '@/api/admin/ops'
 import type { ChartState } from '../types'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -10,7 +10,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
-import { useChartTheme, CHART_TICK_FONT_SIZE } from '@/composables/useChartTheme'
+import { useChartTheme, CHART_PALETTE, CHART_LEGEND_FONT_SIZE } from '@/composables/useChartTheme'
 import {
   DEFAULT_LATENCY_BUCKET_BOUNDARIES,
   MAX_LATENCY_BUCKET_BOUNDARY_MS,
@@ -18,12 +18,12 @@ import {
   normalizeLatencyBucketBoundaries,
 } from '../latencyBuckets'
 
-// OpsLatencyChart.vue renders the request-duration histogram and edits its five
+// OpsLatencyChart.vue renders request-duration shares as a doughnut and edits five
 // millisecond bucket boundaries. Settings use a separate string draft; validated
 // boundaries are emitted to the dashboard, which owns persistence and histogram
 // reloads. Existing histogram data remains visible while a refresh is loading.
 
-ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend)
+ChartJS.register(ArcElement, Tooltip, Legend)
 
 // Hide the shared external tooltip when this chart leaves the page so its
 // detached overlay does not outlive the displayed dataset.
@@ -95,14 +95,9 @@ function applyBucketBoundaries() {
   showSettings.value = false
 }
 
-// Theme colors provide reactive axis and label contrast while dataset colors
-// identify the metric series.
+// Theme colors keep duration bucket labels readable when users switch application
+// appearance; the shared distribution palette identifies each bucket slice.
 const { colors: themeColors } = useChartTheme()
-const colors = computed(() => ({
-  blue: '#3b82f6',
-  grid: themeColors.value.grid,
-  text: themeColors.value.muted,
-}))
 
 // hasData reports whether the measured request total is positive before choosing
 // between the histogram, initial loading placeholder, and empty display.
@@ -120,48 +115,50 @@ const state = computed<ChartState>(() => {
 // consumed by the chart renderer.
 const chartData = computed(() => {
   if (!props.latencyData || !hasData.value) return null
-  const c = colors.value
   return {
     labels: props.latencyData.buckets.map((b) => b.range),
     datasets: [
       {
         label: t('admin.ops.requests'),
         data: props.latencyData.buckets.map((b) => b.count),
-        backgroundColor: c.blue,
-        borderRadius: 4,
-        barPercentage: 0.6,
+        backgroundColor: CHART_PALETTE.slice(0, props.latencyData.buckets.length),
+        borderWidth: 0,
       },
     ],
   }
 })
 
-// options configures responsive chart axes and the shared external tooltip used
-// for point inspection.
-const options = computed(() => {
-  const c = colors.value
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        enabled: false,
-        external: externalTooltipHandler,
+// options labels duration buckets through a theme-aware legend and shows request
+// counts with their share of the displayed bucket total in the external tooltip.
+const options = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: 'bottom' as const,
+      labels: {
+        color: themeColors.value.muted,
+        usePointStyle: true,
+        pointStyle: 'circle' as const,
+        font: { size: CHART_LEGEND_FONT_SIZE },
       },
     },
-    scales: {
-      x: {
-        grid: { display: false },
-        ticks: { color: c.text, font: { size: CHART_TICK_FONT_SIZE } },
-      },
-      y: {
-        beginAtZero: true,
-        grid: { color: c.grid, borderDash: [4, 4] },
-        ticks: { color: c.text, font: { size: CHART_TICK_FONT_SIZE } },
+    tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
+      callbacks: {
+        label: (context: any) => {
+          const count = Number(context.raw)
+          const total =
+            props.latencyData?.buckets.reduce((sum, bucket) => sum + bucket.count, 0) ?? 0
+          // Round displayed shares while preserving raw request counts for slice geometry.
+          const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0'
+          return `${context.label}: ${count} (${percentage}%)`
+        },
       },
     },
-  }
-})
+  },
+}))
 </script>
 
 <template>
@@ -187,7 +184,7 @@ const options = computed(() => {
     </div>
 
     <div class="min-h-0 flex-1">
-      <Bar v-if="state === 'ready' && chartData" :data="chartData" :options="options" />
+      <Doughnut v-if="state === 'ready' && chartData" :data="chartData" :options="options" />
       <div v-else class="flex h-full items-center justify-center">
         <div v-if="state === 'loading'" class="animate-pulse text-sm text-gray-400">
           {{ t('common.loading') }}

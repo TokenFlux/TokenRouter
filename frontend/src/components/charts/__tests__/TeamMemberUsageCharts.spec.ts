@@ -7,10 +7,10 @@ import TeamMemberUsageCharts from '../TeamMemberUsageCharts.vue'
 // allowing assertions to compare shared dates, missing-date zeroes, member order, and
 // actual-cost totals.
 
-// lineProps and barProps capture the inputs passed to chart substitutes, allowing tests
+// lineProps and doughnutProps capture the inputs passed to chart substitutes, allowing tests
 // to inspect generated datasets while the substitutes render no canvas.
 const lineProps = vi.hoisted(() => vi.fn())
-const barProps = vi.hoisted(() => vi.fn())
+const doughnutProps = vi.hoisted(() => vi.fn())
 
 vi.mock('vue-chartjs', () => ({
   Line: {
@@ -21,11 +21,11 @@ vi.mock('vue-chartjs', () => ({
       return () => null
     },
   },
-  Bar: {
+  Doughnut: {
     props: ['data', 'options'],
     // setup records chart inputs and returns an empty render function.
     setup(props: any) {
-      barProps(props)
+      doughnutProps(props)
       return () => null
     },
   },
@@ -40,12 +40,12 @@ vi.mock('@/composables/useBalanceDisplay', () => ({
 describe('TeamMemberUsageCharts', () => {
   beforeEach(() => {
     lineProps.mockClear()
-    barProps.mockClear()
+    doughnutProps.mockClear()
   })
 
   // Two member summaries cover different sets of daily dates. The line chart must insert
   // zero for a missing date, while the comparison chart retains each member's total
-  // spending.
+  // spending and uses matching member colors and proportional tooltip percentages.
   it('aligns member daily costs and builds the spending share chart', () => {
     mount(TeamMemberUsageCharts, {
       props: {
@@ -81,10 +81,17 @@ describe('TeamMemberUsageCharts', () => {
     })
 
     const lineData = lineProps.mock.calls.at(-1)?.[0].data
-    const comparisonData = barProps.mock.calls.at(-1)?.[0].data
+    const comparisonData = doughnutProps.mock.calls.at(-1)?.[0].data
     expect(lineData.labels).toEqual(['2026-07-26', '2026-07-27'])
     expect(lineData.datasets[1].data).toEqual([0, 0.25])
     expect(comparisonData.labels).toEqual(['Owner', 'Member'])
     expect(comparisonData.datasets[0].data).toEqual([1.5, 0.25])
+    expect(comparisonData.datasets[0].backgroundColor).toEqual(
+      lineData.datasets.map((dataset: { borderColor: string }) => dataset.borderColor),
+    )
+    const comparisonOptions = doughnutProps.mock.calls.at(-1)?.[0].options
+    expect(comparisonOptions.plugins.tooltip.callbacks.label({ label: 'Owner', raw: 1.5 })).toBe(
+      'Owner: C1.5 (85.7%)',
+    )
   })
 })

@@ -22,7 +22,7 @@
       </h3>
       <ChartSkeleton v-if="loading" variant="plot" />
       <div v-else-if="comparisonData" class="h-48">
-        <Bar :data="comparisonData" :options="comparisonOptions" />
+        <Doughnut :data="comparisonData" :options="comparisonOptions" />
       </div>
       <div
         v-else
@@ -38,7 +38,7 @@
 import { computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  BarElement,
+  ArcElement,
   CategoryScale,
   Chart as ChartJS,
   Legend,
@@ -47,7 +47,7 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js'
-import { Bar, Line } from 'vue-chartjs'
+import { Doughnut, Line } from 'vue-chartjs'
 import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import {
@@ -63,11 +63,11 @@ import type { TeamUsageSummary } from '@/api/team'
 // of supplied dates and inserts zero for a member missing a date. Both charts omit
 // members whose request count and total spending are nonpositive.
 //
-// Colors follow each member's position in the filtered series. The line and bar charts
+// Colors follow each member's position in the filtered series. The line and doughnut charts
 // share that order and palette, so they agree during a render; changing membership or
 // ordering can change a member's color. Theme colors govern labels and grids, and the
 // external tooltip uses the configured balance formatter.
-ChartJS.register(BarElement, CategoryScale, Legend, LinearScale, LineElement, PointElement, Tooltip)
+ChartJS.register(ArcElement, CategoryScale, Legend, LinearScale, LineElement, PointElement, Tooltip)
 
 // Hide the body-level tooltip when this component unmounts so its last member label does
 // not outlive either chart.
@@ -169,8 +169,8 @@ const comparisonData = computed(() => {
   }
 })
 
-// legend supplies theme-aware member labels and shared font sizing for the line chart,
-// matching each dataset through its point color.
+// legend supplies theme-aware member labels and shared font sizing for both charts,
+// matching each member through its line or slice color.
 const legend = computed(() => ({
   position: 'top' as const,
   labels: {
@@ -216,36 +216,28 @@ const lineOptions = computed(() => ({
   },
 }))
 
-// comparisonOptions draws horizontal spending bars from zero and formats the value axis
-// as money, while member names remain on the category axis.
+// comparisonOptions identifies member slices through the shared legend and formats
+// spending with its share of all displayed members in the external tooltip.
 const comparisonOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
-  indexAxis: 'y' as const,
   plugins: {
-    legend: { display: false },
+    legend: legend.value,
     tooltip: {
       enabled: false,
       external: externalTooltipHandler,
       callbacks: {
-        label: (context: any) =>
-          `${context.label}: ${formatBalanceAmount(Number(context.raw), { fractionDigits: 4 })}`,
+        label: (context: any) => {
+          const value = Number(context.raw)
+          const total = seriesWithUsage.value.reduce(
+            (sum, item) => sum + item.summary.actual_cost,
+            0,
+          )
+          // Round displayed shares without changing slice proportions; free usage has zero share.
+          const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
+          return `${context.label}: ${formatBalanceAmount(value, { fractionDigits: 4 })} (${percentage}%)`
+        },
       },
-    },
-  },
-  scales: {
-    x: {
-      beginAtZero: true,
-      grid: { color: gridColor.value },
-      ticks: {
-        color: textColor.value,
-        callback: (value: string | number) =>
-          formatBalanceAmount(Number(value), { fractionDigits: 2 }),
-      },
-    },
-    y: {
-      grid: { display: false },
-      ticks: { color: textColor.value, font: { size: CHART_TICK_FONT_SIZE } },
     },
   },
 }))

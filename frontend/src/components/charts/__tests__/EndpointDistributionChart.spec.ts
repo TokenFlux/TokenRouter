@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 
 import EndpointDistributionChart from '../EndpointDistributionChart.vue'
 
-// EndpointDistributionChart.spec.ts verifies metric sorting and chart-mode selection for
+// EndpointDistributionChart.spec.ts verifies metric sorting and doughnut proportions for
 // endpoint usage. Chart substitutes expose dataset values while mounted table rows and
 // tooltip callbacks establish that endpoint labels and proportions follow the selected
 // metric.
@@ -39,10 +39,6 @@ vi.mock('vue-chartjs', () => ({
   Doughnut: {
     props: ['data'],
     template: '<div class="chart-data">{{ JSON.stringify(data) }}</div>',
-  },
-  Bar: {
-    props: ['data'],
-    template: '<div class="bar-chart-data">{{ JSON.stringify(data) }}</div>',
   },
 }))
 
@@ -80,46 +76,16 @@ describe('EndpointDistributionChart', () => {
       },
     })
 
-    expect(wrapper.find('.bar-chart-data').exists()).toBe(false)
     const chartData = JSON.parse(wrapper.find('.chart-data').text())
     expect(chartData.labels).toEqual(['/v1/responses', '/v1/messages'])
     expect(chartData.datasets[0].data).toEqual([1200, 600])
-  })
 
-  // Bar mode receives the same endpoint aggregates as the default chart. The rendered
-  // data, hidden axes, zero baseline, and external tooltip must match its vertical bar
-  // presentation.
-  it('renders a bar chart instead of doughnut when chartType is bar', () => {
-    const wrapper = mount(EndpointDistributionChart, {
-      props: {
-        endpointStats,
-        chartType: 'bar',
-      },
-      global: {
-        stubs: {
-          LoadingSpinner: true,
-        },
-      },
-    })
-
-    expect(wrapper.find('.chart-data').exists()).toBe(false)
-    const chartData = JSON.parse(wrapper.find('.bar-chart-data').text())
-    expect(chartData.labels).toEqual(['/v1/responses', '/v1/messages'])
-    expect(chartData.datasets[0].data).toEqual([1200, 600])
-
-    const options = (wrapper.vm as any).$?.setupState.barOptions
+    const options = (wrapper.vm as any).$?.setupState.doughnutOptions
     expect(options.plugins.tooltip.enabled).toBe(false)
     expect(options.plugins.tooltip.external).toBeTypeOf('function')
-    expect(options.scales.x.ticks.display).toBe(false)
-    expect(options.scales.y.type).toBe('linear')
-    expect(options.scales.y.beginAtZero).toBe(true)
-    expect(options.scales.y.ticks.display).toBe(false)
-    expect(options.scales.y.grid.display).toBe(false)
-    const label = options.plugins.tooltip.callbacks.label({
-      label: '/v1/responses',
-      dataIndex: 0,
-    })
-    expect(label).toBe('/v1/responses: 1.20K (66.7%)')
+    expect(options.plugins.tooltip.callbacks.label({ label: '/v1/responses', dataIndex: 0 })).toBe(
+      '/v1/responses: 1.20K (66.7%)',
+    )
   })
 
   // Actual-cost mode receives endpoints whose spending order differs from token order.

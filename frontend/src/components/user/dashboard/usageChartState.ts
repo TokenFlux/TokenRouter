@@ -36,7 +36,7 @@ export type PresetRange = Exclude<UsageRangePreset, 'custom'>
 // USAGE_METRICS and USAGE_RANGE_PRESETS validate stored selections before they initialize
 // the shared dashboard controls.
 export const USAGE_METRICS: UsageMetric[] = ['requests', 'tokens', 'cost', 'cacheHitRate']
-export const USAGE_RANGE_PRESETS: PresetRange[] = ['24h', '7d', '30d']
+export const USAGE_RANGE_PRESETS: PresetRange[] = ['today', '24h', '7d', '30d']
 
 // STORAGE_KEY names the browser preference entry shared by metric selection and the
 // remembered preset range.
@@ -44,19 +44,20 @@ const STORAGE_KEY = 'dashboard-usage-chart'
 // PICKER_PRESET_MAP translates picker shortcuts into aligned ranges because its date-only
 // last24Hours endpoints would otherwise cover two calendar days.
 const PICKER_PRESET_MAP: Record<string, PresetRange> = {
+  today: 'today',
   last24Hours: '24h',
   '7days': '7d',
   '30days': '30d',
 }
 
 // readSavedState reads validated metric and preset preferences from browser storage.
-// Missing, malformed, or inaccessible storage uses tokens and seven days, keeping chart
+// Missing, malformed, or inaccessible storage uses tokens and today, keeping chart
 // setup available when persistence fails.
 const readSavedState = (): {
   metric: UsageMetric // Validated saved metric selection.
   range: PresetRange // Validated saved shortcut selection.
 } => {
-  const fallback = { metric: 'tokens' as UsageMetric, range: '7d' as PresetRange }
+  const fallback = { metric: 'tokens' as UsageMetric, range: 'today' as PresetRange }
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
     return {
