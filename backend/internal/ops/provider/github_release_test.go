@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -48,6 +49,57 @@ type testTransport struct {
 // githubReleaseRoundTripFunc adapts a request callback into an HTTP transport
 // fixture.
 type githubReleaseRoundTripFunc func(*http.Request) (*http.Response, error)
+
+// TestGitHubReleaseClientFetchLatestReleasePreservesChangelog supplies GitHub
+// JSON with bilingual Markdown and an empty body. It checks decoding preserves
+// the complete body, publication time, and link alongside their release tag.
+func TestGitHubReleaseClientFetchLatestReleasePreservesChangelog(t *testing.T) {
+	const markdown = "\n## Changes\n\n- Keep `release_info.body` & metadata.\n\n" +
+		"```sh\nprintf 'hello\\n'\n```\n\n" +
+		"<details>\n<summary>简体中文</summary>\n\n## 更新内容\n\n" +
+		"- 保留完整正文。\n\n```text\n第一行\n第二行\n```\n\n</details>\n"
+	for _, tc := range []struct {
+		name string // release body scenario name
+		body string // supplied release Markdown body
+	}{
+		{name: "bilingual Markdown", body: markdown},
+		{name: "empty body", body: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, err := json.Marshal(map[string]any{
+				"tag_name":     "v1.2.0",
+				"name":         "Release 1.2.0",
+				"body":         tc.body,
+				"published_at": "2026-11-01T04:05:06Z",
+				"html_url":     "https://github.com/TokenFlux/TokenRouter/releases/tag/v1.2.0",
+			})
+			require.NoError(t, err)
+			client := newTestGitHubReleaseClient()
+			requests := 0
+			client.httpClient.Transport = githubReleaseRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				requests++
+				require.Equal(t, http.MethodGet, req.Method)
+				require.Equal(t, "https://api.github.com/repos/TokenFlux/TokenRouter/releases/latest", req.URL.String())
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(bytes.NewReader(payload)),
+					Request:    req,
+				}, nil
+			})
+
+			release, err := client.FetchLatestRelease(t.Context(), "TokenFlux/TokenRouter")
+
+			require.NoError(t, err)
+			require.Equal(t, 1, requests)
+			require.Equal(t, "v1.2.0", release.TagName)
+			require.Equal(t, "Release 1.2.0", release.Name)
+			require.Equal(t, tc.body, release.Body)
+			require.Equal(t, "2026-11-01T04:05:06Z", release.PublishedAt)
+			require.Equal(t, "https://github.com/TokenFlux/TokenRouter/releases/tag/v1.2.0", release.HTMLURL)
+		})
+	}
+}
 
 // TestGitHubReleaseClientAPIRequestAuthorization constructs requests for
 // trusted and untrusted API authority spellings. It checks only the exact HTTPS

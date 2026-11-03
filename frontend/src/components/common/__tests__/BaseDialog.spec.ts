@@ -1,12 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 import BaseDialog from '../BaseDialog.vue'
 
 // BaseDialog.spec.ts tests responsive dialog widths, content scrolling across reopening,
-// and Escape dismissal during text editing. Mounted shells expose layout constraints
-// and close events so input method cancellation can retain the editor and its text.
+// Escape dismissal during text editing, and optional Tab containment. Mounted shells
+// expose layout constraints and close events so input method cancellation retains its
+// editor while contained navigation avoids background actions.
 
 // wrappers tracks mounted dialog instances so teardown can unmount them and release
 // their shared lifecycle resources.
@@ -18,6 +19,123 @@ afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
   document.body.classList.remove('modal-open')
   document.body.innerHTML = ''
+  vi.restoreAllMocks()
+})
+
+// showLayoutRects supplies layout boxes for selected controls because jsdom does
+// not perform layout. Tests leave collapsed contents without boxes and separately
+// exercise native hidden, disabled, inert, and negative-tabindex exclusions.
+function showLayoutRects(elements: HTMLElement[]) {
+  for (const element of elements) {
+    vi.spyOn(element, 'getClientRects').mockReturnValue([
+      new DOMRect(0, 0, 20, 20),
+    ] as unknown as DOMRectList)
+  }
+}
+
+describe('BaseDialog contained keyboard navigation', () => {
+  // A reading dialog includes native controls, a disclosure, and unavailable
+  // trailing controls. Tab must wrap between usable endpoints in browser order
+  // without admitting hidden content or overriding modified navigation shortcuts.
+  it('wraps Tab in both directions while excluding unavailable controls', async () => {
+    const wrapper = mount(BaseDialog, {
+      attachTo: document.body,
+      props: { show: true, title: 'Notes', trapFocus: true },
+      slots: {
+        default:
+          '<button id="priority" tabindex="2">Priority</button><pre id="scroll" tabindex="-1">Code</pre><details><summary id="summary">Translation</summary><a id="collapsed" href="https://example.com">Hidden details</a></details>',
+        footer:
+          '<button id="last">Close</button><button id="disabled" disabled>Disabled</button><a id="hidden" href="https://example.com" hidden>Hidden</a><button id="negative" tabindex="-1">Skipped</button><span inert><button id="inert">Inert</button></span>',
+      },
+      global: { stubs: { Icon: true } },
+    })
+    wrappers.push(wrapper)
+    await nextTick()
+    const panel = document.body.querySelector<HTMLElement>('.modal-content')!
+    showLayoutRects(
+      Array.from(panel.querySelectorAll<HTMLElement>('button, summary, a:not(#collapsed)')),
+    )
+    const first = panel.querySelector<HTMLElement>('#priority')!
+    const last = panel.querySelector<HTMLElement>('#last')!
+
+    last.focus()
+    const forward = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    last.dispatchEvent(forward)
+    expect(forward.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(first)
+
+    const backward = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    first.dispatchEvent(backward)
+    expect(backward.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(last)
+
+    const modified = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    last.dispatchEvent(modified)
+    expect(modified.defaultPrevented).toBe(false)
+
+    const scroll = panel.querySelector<HTMLElement>('#scroll')!
+    scroll.focus()
+    const internalTab = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      bubbles: true,
+      cancelable: true,
+    })
+    scroll.dispatchEvent(internalTab)
+    expect(internalTab.defaultPrevented).toBe(false)
+  })
+
+  // A newer dialog takes ownership while a contained reading dialog remains
+  // mounted underneath it. The older dialog must leave the newer controls and
+  // closing-transition focus alone, then resume containment when it is topmost.
+  it('contains navigation only while the opted-in dialog is visible and topmost', async () => {
+    const first = mount(BaseDialog, {
+      attachTo: document.body,
+      props: { show: true, title: 'Notes', trapFocus: true, panelData: { 'data-testid': 'first' } },
+      slots: { footer: '<button>Close notes</button>' },
+      global: { stubs: { Icon: true } },
+    })
+    wrappers.push(first)
+    await nextTick()
+    const firstPanel = document.body.querySelector<HTMLElement>('[data-testid="first"]')!
+    const firstButtons = Array.from(firstPanel.querySelectorAll<HTMLButtonElement>('button'))
+    showLayoutRects(firstButtons)
+
+    const second = mount(BaseDialog, {
+      attachTo: document.body,
+      props: { show: true, title: 'Newer', panelData: { 'data-testid': 'second' } },
+      global: { stubs: { Icon: true } },
+    })
+    wrappers.push(second)
+    await nextTick()
+    const newerFocus = document.activeElement!
+    const newerTab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    newerFocus.dispatchEvent(newerTab)
+    expect(newerTab.defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(newerFocus)
+
+    second.unmount()
+    wrappers.pop()
+    firstButtons.at(-1)!.focus()
+    const topTab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    document.activeElement!.dispatchEvent(topTab)
+    expect(topTab.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(firstButtons[0])
+
+    await first.setProps({ show: false })
+    const leavingTab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    document.dispatchEvent(leavingTab)
+    expect(leavingTab.defaultPrevented).toBe(false)
+  })
 })
 
 describe('BaseDialog 移动端视口约束', () => {

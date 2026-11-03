@@ -79,9 +79,9 @@ import { Z_INDEX } from '@/constants/overlay'
 
 // BaseDialog.vue renders teleported dialogs with shared headers, content, and footer
 // slots. The lifecycle composable owns scroll locking and focus restoration, while
-// this shell checks topmost status for Escape, leaves composition keystrokes with the
-// input method, forwards dismissal requests, and resets the body scroll position when
-// opened.
+// this shell checks topmost status for Escape and optional Tab containment, leaves
+// composition keystrokes with the input method, forwards dismissal requests, and
+// resets the body scroll position when opened.
 
 // dialogId connects this dialog to its own title element, keeping simultaneous
 // accessible labels distinct.
@@ -115,6 +115,9 @@ interface Props {
   flush?: boolean
   closeOnEscape?: boolean // Allows topmost Escape dismissal.
   closeOnClickOutside?: boolean // Allows backdrop dismissal requests.
+  // trapFocus confines Tab navigation to the topmost panel. Enable it for content
+  // whose focusable controls remain inside the panel, including native disclosures.
+  trapFocus?: boolean
   // Overrides the default modal layer when this shell needs to appear above another
   // visible dialog.
   zIndex?: number
@@ -136,6 +139,7 @@ const props = withDefaults(defineProps<Props>(), {
   flush: false,
   closeOnEscape: true,
   closeOnClickOutside: false,
+  trapFocus: false,
   zIndex: Z_INDEX.MODAL,
 })
 
@@ -171,21 +175,77 @@ const handleClose = () => {
   }
 }
 
-// handleEscape requests dismissal for Escape on the currently topmost visible dialog.
-// Keystrokes during composition stay with the input method. A caller can disable Escape
-// closing, and lower dialogs defer to the active lifecycle stack entry.
-const handleEscape = (event: KeyboardEvent) => {
+// getTabStops returns rendered native controls, links, disclosures, and explicitly
+// tabbable elements in browser navigation order. Disabled, hidden, inert, and
+// negative-tabindex elements are excluded, and layout rectangles exclude content
+// inside collapsed disclosures. Positive tab indices precede the ordinary DOM-order
+// stops; stable sorting retains document order within each priority. Call this only
+// after the panel is rendered so its layout reflects the current disclosure state.
+function getTabStops(panel: HTMLElement): HTMLElement[] {
+  return Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, summary, [tabindex]',
+    ),
+  )
+    .filter((element) => {
+      const visibility = getComputedStyle(element).visibility
+      return (
+        element.tabIndex >= 0 &&
+        !element.matches(':disabled') &&
+        !element.closest('[inert], [hidden]') &&
+        visibility !== 'hidden' &&
+        visibility !== 'collapse' &&
+        element.getClientRects().length > 0
+      )
+    })
+    .sort((left, right) => {
+      const leftOrder = left.tabIndex > 0 ? left.tabIndex : Infinity
+      const rightOrder = right.tabIndex > 0 ? right.tabIndex : Infinity
+      return leftOrder === rightOrder ? 0 : leftOrder - rightOrder
+    })
+}
+
+// handleKeydown applies Escape dismissal and optional Tab containment to the
+// topmost visible dialog. Composition and modified navigation remain with their
+// existing owners. At a Tab boundary, focus wraps within the panel; an empty
+// panel retains focus on its own shell instead of reaching background controls.
+const handleKeydown = (event: KeyboardEvent) => {
   // Some engines clear isComposing before dispatching the composition keydown and use
   // keyCode 229 as the remaining IME signal.
-  if (event.isComposing || event.keyCode === 229) return
+  if (event.isComposing || event.keyCode === 229 || !props.show || !isTop()) return
 
-  if (props.show && isTop() && props.closeOnEscape && event.key === 'Escape') {
+  if (props.closeOnEscape && event.key === 'Escape') {
     emit('close')
+    return
+  }
+  if (
+    !props.trapFocus ||
+    event.key !== 'Tab' ||
+    event.defaultPrevented ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey
+  ) {
+    return
+  }
+  const panel = dialogRef.value
+  if (!panel) return
+  const stops = getTabStops(panel)
+  const active = document.activeElement
+  const activeIndex = stops.indexOf(active as HTMLElement)
+  const atBoundary = event.shiftKey ? activeIndex === 0 : activeIndex === stops.length - 1
+  const outsidePanel = !active || active === panel || !panel.contains(active)
+  // Browsers can focus scroll containers without an explicit tabindex. Leave their
+  // internal navigation native until it reaches a known boundary or leaves the panel.
+  if (stops.length === 0 || outsidePanel || atBoundary) {
+    event.preventDefault()
+    const target = event.shiftKey ? stops[stops.length - 1] : stops[0]
+    ;(target ?? panel).focus({ preventScroll: true })
   }
 }
 
-// afterLeave and isTop delegate resource release and Escape precedence to the shared
-// dialog lifecycle stack.
+// afterLeave and isTop delegate resource release and keyboard precedence to the
+// shared dialog lifecycle stack, including newly opened dialogs during an exit.
 const { afterLeave, isTop } = useDialogLifecycle(() => props.show, dialogRef)
 
 // handleAfterLeave releases dialog lifecycle resources after the visual exit. It emits
@@ -210,16 +270,16 @@ watch(
   { immediate: true },
 )
 
-// The mounted dialog observes document Escape events even when focus is outside its
-// panel; topmost checks keep lower dialogs from responding.
+// The mounted dialog observes document keyboard events even when focus is outside
+// its panel; topmost checks keep lower dialogs from intercepting newer controls.
 onMounted(() => {
-  document.addEventListener('keydown', handleEscape)
+  document.addEventListener('keydown', handleKeydown)
 })
 
 // Remove this instance keyboard listener at unmount so detached shells do not keep
 // receiving document events or retain component state.
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleEscape)
+  document.removeEventListener('keydown', handleKeydown)
 })
 </script>
 

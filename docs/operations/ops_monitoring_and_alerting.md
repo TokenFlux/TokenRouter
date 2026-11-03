@@ -64,6 +64,12 @@ Ops 的构造和启动分开，app 在完成全部绑定后，才启动采样、
 
 发布查询由 Ops 的 ReleaseQuery 和 GitHub provider 提供，负责版本比较、回退候选的过滤，结果缓存二十分钟；GitHub Token 的可信范围和重定向规则见[部署指南](../guides/deployment/index.md#升级)。下载校验和二进制替换由 Ops 的技术适配层执行；`ops/maintenance` 负责更新和回退、系统操作锁和重启请求的编排。实际的进程退出，由 `app/lifecycle`（只有一处）执行。
 
+`GET /api/v1/admin/system/check-updates` 返回当前版本、最新目标版本、更新标志和构建类型。`release_info` 包含该目标版本的发布名称、`body`、`published_at`、`html_url` 和下载资源；`body` 是 GitHub Release 的完整 Markdown，英文正文、中文 `<details>/<summary>` 折叠区、代码块和换行均原样保留，空正文仍返回空字符串。后端不按语言拆分正文，也不生成摘要或渲染 HTML。
+
+普通查询优先使用有效缓存；`force=true` 跳过首次缓存读取并请求 GitHub。远端失败时，强制刷新也会回退到有效缓存，返回缓存中的版本及其完整发布信息，设置 `cached=true` 并附带 `warning`。失败不会覆盖缓存或续期；没有可用缓存时，最新版本回落为当前版本，`has_update=false`，响应省略 `release_info` 并返回失败原因。正文经过缓存往返后仍与同一目标版本关联。
+
+管理员可从桌面端顶栏版本菜单打开“查看更新日志”；移动端隐藏版本入口。源码构建和正式构建发现新版本后，都在站内弹窗展示最新目标版本的说明；弹窗读取浏览器 store 中的 `release_info`，打开时不额外查询 GitHub。前端解析并净化 Markdown，保留英文正文和中文折叠区，提供有效的发布日期与发布页链接；缺少正文时显示空态。打开日志会关闭维护菜单，并将 Tab 导航限制在弹窗内；退出后焦点回到版本徽标。升级、重启和回退继续使用原有维护入口，阅读日志不触发这些操作。
+
 `cleanup-ingress-reject-logs` 用精简版 bootstrap 装配 Ops 的分类和清理能力，不启动完整的 worker。它默认 dry-run，参数是 `--before`、`--batch-size`、`--execute`，分类版本是 `ingress-reject-v1`；它只清理匹配的分析事件。
 
 相关文档：[可观测性与数据生命周期](observability_and_data_lifecycle.md)、[使用记录与运维预聚合](pre_aggregation.md)、[提供商维护](provider_maintenance.md)。

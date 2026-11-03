@@ -3,6 +3,9 @@
     <!-- Administrators can open update, restart, and rollback controls from the version badge. -->
     <template v-if="isAdmin">
       <button
+        ref="badgeTriggerRef"
+        type="button"
+        data-testid="version-badge-trigger"
         @click="toggleDropdown"
         class="flex items-center gap-1.5 rounded-control px-2 py-1 text-xs transition-colors"
         :class="[
@@ -26,7 +29,7 @@
         <div
           v-if="dropdownOpen"
           ref="dropdownRef"
-          class="dropdown left-0 z-50 mt-2 overflow-hidden whitespace-normal transition duration-normal py-0"
+          class="dropdown left-0 z-50 mt-2 max-w-[calc(100vw-2rem)] overflow-hidden whitespace-normal py-0 transition duration-normal"
           :class="rollbackPanelOpen && isReleaseBuild ? 'w-80' : 'w-64'"
         >
           <!-- Header with refresh button -->
@@ -188,14 +191,10 @@
                 </button>
               </div>
 
-              <!-- Priority 3: Update available for source build - show git pull hint -->
+              <!-- Priority 3: Update available for source build - show git pull hint and changelog modal entry -->
               <div v-else-if="hasUpdate && !isReleaseBuild" class="space-y-2">
-                <a
-                  v-if="releaseInfo?.html_url && releaseInfo.html_url !== '#'"
-                  :href="releaseInfo.html_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="group flex items-center gap-3 rounded-control border border-amber-200 bg-amber-50 p-3 transition-colors hover:bg-amber-100 dark:border-amber-800/50 dark:bg-amber-900/20 dark:hover:bg-amber-900/30"
+                <div
+                  class="flex items-center gap-3 rounded-control border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-900/20"
                 >
                   <div
                     class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50"
@@ -212,16 +211,10 @@
                       {{ t('version.updateAvailable') }}
                     </p>
                     <p class="text-xs text-amber-600/70 dark:text-amber-400/70">
-                      v{{ latestVersion }}
+                      {{ targetVersionLabel }}
                     </p>
                   </div>
-                  <Icon
-                    name="chevronRight"
-                    size="sm"
-                    :animate-on-hover="false"
-                    class="h-4 w-4 text-amber-500 transition-transform group-hover:translate-x-0.5 dark:text-amber-400"
-                  />
-                </a>
+                </div>
                 <!-- Source build hint -->
                 <div
                   class="flex items-center gap-2 rounded-control border border-blue-200 bg-blue-50 p-2 dark:border-blue-800/50 dark:bg-blue-900/20"
@@ -235,9 +228,19 @@
                     {{ t('version.sourceModeHint') }}
                   </p>
                 </div>
+                <!-- Open in-app changelog modal -->
+                <button
+                  type="button"
+                  data-testid="version-view-changelog"
+                  @click="openChangelogModal"
+                  class="btn btn-secondary w-full"
+                >
+                  <Icon name="document" size="sm" :stroke-width="2" />
+                  {{ t('version.viewChangelog') }}
+                </button>
               </div>
 
-              <!-- Priority 4: Update available for release build - show update button -->
+              <!-- Priority 4: Update available for release build - show update button and changelog modal entry -->
               <div v-else-if="hasUpdate && isReleaseBuild" class="space-y-2">
                 <!-- Update info card -->
                 <div
@@ -258,7 +261,7 @@
                       {{ t('version.updateAvailable') }}
                     </p>
                     <p class="text-xs text-amber-600/70 dark:text-amber-400/70">
-                      v{{ latestVersion }}
+                      {{ targetVersionLabel }}
                     </p>
                   </div>
                 </div>
@@ -276,24 +279,23 @@
                   {{ updating ? t('version.updating') : t('version.updateNow') }}
                 </button>
 
-                <!-- View release link -->
-                <a
-                  v-if="releaseInfo?.html_url && releaseInfo.html_url !== '#'"
-                  :href="releaseInfo.html_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="flex items-center justify-center gap-1 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200"
+                <!-- Open in-app changelog modal -->
+                <button
+                  type="button"
+                  data-testid="version-view-changelog"
+                  @click="openChangelogModal"
+                  class="flex w-full items-center justify-center gap-1.5 rounded-control py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-300 dark:hover:bg-dark-800 dark:hover:text-dark-100"
                 >
+                  <Icon name="document" size="xs" :stroke-width="2" />
                   {{ t('version.viewChangelog') }}
-                  <Icon name="externalLink" size="xs" :stroke-width="2" />
-                </a>
+                </button>
               </div>
 
               <!-- Current versions show the repository link and rollback controls. -->
               <div v-else class="space-y-2">
                 <a
-                  v-if="releaseInfo?.html_url && releaseInfo.html_url !== '#'"
-                  :href="releaseInfo.html_url"
+                  v-if="safeReleaseUrl"
+                  :href="safeReleaseUrl"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="flex items-center justify-center gap-2 py-2 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200"
@@ -521,18 +523,141 @@
           </div>
         </div>
       </MotionTransition>
+
+      <!-- In-app changelog modal for the latest target release -->
+      <BaseDialog
+        :show="changelogModalOpen"
+        :title="changelogDialogTitle"
+        :subtitle="changelogDialogSubtitle"
+        width="wide"
+        :trap-focus="true"
+        :close-on-escape="true"
+        :close-on-click-outside="true"
+        :z-index="Z_INDEX.MODAL_NESTED"
+        :panel-data="{ 'data-testid': 'version-changelog-modal' }"
+        @close="closeChangelogModal"
+      >
+        <template #header-icon>
+          <div
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400"
+          >
+            <Icon name="document" size="sm" :stroke-width="2" />
+          </div>
+        </template>
+
+        <!-- Target release metadata summary -->
+        <div
+          data-testid="changelog-release-meta"
+          class="flex flex-wrap items-center justify-between gap-3 rounded-surface border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-dark-600 dark:bg-dark-950"
+        >
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <span
+              v-if="targetVersionLabel"
+              data-testid="changelog-target-version"
+              class="inline-flex items-center gap-1.5 rounded-compact bg-amber-100 px-2.5 py-1 font-mono text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+            >
+              <Icon name="tag" size="xs" :stroke-width="2" />
+              {{ targetVersionLabel }}
+            </span>
+            <span
+              v-if="currentVersion"
+              class="text-xs tabular-nums text-gray-500 dark:text-dark-400"
+            >
+              {{ t('version.currentVersion') }}: v{{ currentVersion }}
+            </span>
+            <span
+              v-if="!isReleaseBuild"
+              class="inline-flex items-center rounded-compact bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+            >
+              {{ t('version.sourceMode') }}
+            </span>
+            <span
+              v-if="releaseTitle"
+              class="truncate text-xs font-medium text-gray-700 dark:text-dark-200"
+            >
+              {{ releaseTitle }}
+            </span>
+          </div>
+
+          <div
+            v-if="formattedReleaseDate || safeReleaseUrl"
+            class="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-dark-400"
+          >
+            <span
+              v-if="formattedReleaseDate"
+              data-testid="changelog-published-at"
+              class="inline-flex items-center gap-1.5 tabular-nums"
+            >
+              <Icon name="calendar" size="xs" :stroke-width="2" />
+              <time :datetime="releaseInfo?.published_at">{{ formattedReleaseDate }}</time>
+            </span>
+            <a
+              v-if="safeReleaseUrl"
+              :href="safeReleaseUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="changelog-github-link"
+              class="inline-flex items-center gap-1 font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+            >
+              <span>{{ t('version.viewRelease') }}</span>
+              <Icon name="externalLink" size="xs" :stroke-width="2" />
+            </a>
+          </div>
+        </div>
+
+        <!-- Sanitized bilingual release notes -->
+        <article
+          v-if="hasChangelogNotes"
+          data-testid="changelog-markdown-body"
+          class="changelog-markdown mt-4 rounded-surface border border-gray-100 bg-white px-4 py-4 text-sm leading-6 text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100 sm:px-5"
+          v-html="sanitizedChangelogHtml"
+        ></article>
+
+        <!-- Empty state when release notes are absent -->
+        <div
+          v-else
+          data-testid="changelog-empty-state"
+          class="mt-4 flex flex-col items-center justify-center rounded-surface border border-dashed border-gray-200 bg-gray-50/50 px-6 py-10 text-center dark:border-dark-600 dark:bg-dark-950/60"
+        >
+          <div
+            class="mb-3 flex h-12 w-12 items-center justify-center rounded-surface bg-gray-100 text-gray-400 dark:bg-dark-800 dark:text-dark-400"
+          >
+            <Icon name="document" size="lg" />
+          </div>
+          <p class="text-sm font-semibold text-gray-900 dark:text-dark-50">
+            {{ t('version.noReleaseNotes') }}
+          </p>
+          <p class="mt-1 max-w-md text-xs leading-5 text-gray-500 dark:text-dark-400">
+            {{ t('version.noReleaseNotesDesc') }}
+          </p>
+        </div>
+
+        <template #footer>
+          <button
+            type="button"
+            data-testid="changelog-modal-close"
+            class="btn btn-secondary"
+            @click="closeChangelogModal"
+          >
+            {{ t('common.close') }}
+          </button>
+        </template>
+      </BaseDialog>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { getLocale } from '@/i18n'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
 import Collapse from '@/components/common/Collapse.vue'
 
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
   performUpdate,
@@ -543,20 +668,23 @@ import {
 } from '@/api/admin/system'
 import { useClipboard } from '@/composables/useClipboard'
 import Icon from '@/components/icons/Icon.vue'
+import { Z_INDEX } from '@/constants/overlay'
 import { vSegmented } from '@/directives/segmented'
+import { sanitizeUrl } from '@/utils/url'
 
-// VersionBadge.vue exposes version discovery, update, rollback, and restart
-// controls to administrators. Shared application state supplies cached release
-// metadata, while the component tracks each operation and renders manual
-// commands for script and Docker installations. Update and rollback responses
-// determine whether a restart prompt is required, and successful binary changes
-// invalidate version metadata before another check.
+// VersionBadge.vue exposes version discovery, in-app changelog inspection,
+// update, rollback, and restart controls to administrators. Shared application
+// state supplies cached release metadata, so opening the changelog dialog reads
+// the latest target version and bilingual Markdown notes directly from the store
+// without issuing another GitHub request.
 //
-// Restart starts a countdown even when the request disconnects. After the
-// countdown, health probes wait briefly for the service and eventually reload
-// the page whether a probe succeeds or all attempts finish. Manual rollback
-// commands use a v-prefixed Git tag for the installer and an unprefixed
-// container image tag.
+// Markdown release notes retain English sections and collapsible Chinese
+// details blocks while passing through DOMPurify and strict HTTP(S) URL checks.
+// Update and rollback responses determine whether a restart prompt is required,
+// and successful binary changes invalidate version metadata before another
+// check. Restart runs an eight-second countdown and health probes before
+// reloading the page, while manual rollback commands render v-prefixed script
+// tags and unprefixed container image tags.
 
 // Release repository and container image coordinates build the manual rollback
 // commands shown for the selected version.
@@ -581,10 +709,12 @@ const appStore = useAppStore()
 
 const isAdmin = computed(() => authStore.isAdmin)
 
-// Dropdown visibility and its element reference coordinate panel toggling and
-// document-level outside-click dismissal.
+// Dropdown, badge, and changelog state coordinate menu dismissal before modal
+// opening, with the persistent badge serving as the dialog's return-focus target.
 const dropdownOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
+const badgeTriggerRef = ref<HTMLButtonElement | null>(null)
+const changelogModalOpen = ref(false)
 
 // Cached version computations read shared loading and release metadata, using
 // the site prop when current version is absent.
@@ -658,6 +788,113 @@ const activeManualCommand = computed(() =>
 // deployments; administrators can refresh version metadata from source builds too.
 const isReleaseBuild = computed(() => buildType.value === 'release')
 
+// Changelog computations derive the v-prefixed target tag, dialog headings,
+// validated metadata, and sanitized bilingual HTML from cached release state.
+const targetVersionLabel = computed(() => {
+  const raw = (latestVersion.value || '').trim()
+  if (!raw) return ''
+  return raw.startsWith('v') || raw.startsWith('V') ? `v${raw.slice(1)}` : `v${raw}`
+})
+
+const changelogDialogTitle = computed(() =>
+  targetVersionLabel.value
+    ? `${t('version.releaseNotes')} · ${targetVersionLabel.value}`
+    : t('version.releaseNotes'),
+)
+
+const changelogDialogSubtitle = computed(() =>
+  targetVersionLabel.value
+    ? `${t('version.latestVersion')}: ${targetVersionLabel.value}`
+    : undefined,
+)
+
+const releaseTitle = computed(() => {
+  const name = (releaseInfo.value?.name || '').trim()
+  if (!name) return ''
+  const rawVersion = (latestVersion.value || '').trim()
+  if (name === rawVersion || name === targetVersionLabel.value) return ''
+  return name
+})
+
+const formattedReleaseDate = computed(() =>
+  formatPublishedAt(releaseInfo.value?.published_at || ''),
+)
+
+const safeReleaseUrl = computed(() => sanitizeUrl(releaseInfo.value?.html_url || ''))
+
+const sanitizedChangelogHtml = computed(() => renderReleaseMarkdown(releaseInfo.value?.body || ''))
+
+const hasChangelogNotes = computed(() => Boolean(sanitizedChangelogHtml.value))
+
+// renderReleaseMarkdown converts GitHub Flavored Markdown into sanitized HTML
+// while retaining collapsible details and summary blocks. Passing the original
+// non-empty body directly to marked preserves literal code in multi-delimiter
+// fences, block quotes, and indented blocks. DOMPurify strips executable tags
+// and event handlers, and remaining anchor and image URLs must pass HTTP(S)
+// validation before the markup is rendered.
+function renderReleaseMarkdown(markdown: string): string {
+  if (!markdown.trim()) return ''
+
+  const rawHtml = marked.parse(markdown, {
+    async: false,
+    gfm: true,
+    breaks: true,
+  }) as string
+  const sanitized = DOMPurify.sanitize(rawHtml, {
+    ADD_TAGS: ['details', 'summary'],
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+  })
+
+  const template = document.createElement('template')
+  template.innerHTML = sanitized
+
+  for (const anchor of Array.from(template.content.querySelectorAll('a'))) {
+    const safeHref = sanitizeUrl(anchor.getAttribute('href') || '')
+    if (!safeHref) {
+      // Remove non-HTTP(S) or placeholder link targets while preserving the anchor
+      // label text so unsafe schemes cannot execute on click.
+      anchor.removeAttribute('href')
+      anchor.removeAttribute('target')
+      anchor.removeAttribute('rel')
+    } else {
+      anchor.setAttribute('href', safeHref)
+      anchor.setAttribute('target', '_blank')
+      anchor.setAttribute('rel', 'noopener noreferrer')
+    }
+  }
+
+  for (const image of Array.from(template.content.querySelectorAll('img'))) {
+    const safeSrc = sanitizeUrl(image.getAttribute('src') || '')
+    if (!safeSrc) {
+      // Drop images with invalid or non-HTTP(S) sources so broken placeholders and
+      // local paths do not appear inside release notes.
+      image.remove()
+    } else {
+      image.setAttribute('src', safeSrc)
+      image.setAttribute('loading', 'lazy')
+    }
+  }
+
+  return template.innerHTML.trim()
+}
+
+// openChangelogModal opens cached release notes after dismissing maintenance
+// controls. It focuses the persistent version badge before opening so the shared
+// dialog lifecycle can return focus even though the menu trigger is removed.
+function openChangelogModal() {
+  // The menu is removed during opening, so capture a surviving focus target before
+  // BaseDialog records its owner and the menu's leave transition marks controls inert.
+  badgeTriggerRef.value?.focus({ preventScroll: true })
+  closeDropdown()
+  changelogModalOpen.value = true
+}
+
+// closeChangelogModal dismisses the changelog dialog while leaving focus
+// restoration to BaseDialog's shared dialog lifecycle on transition completion.
+function closeChangelogModal() {
+  changelogModalOpen.value = false
+}
+
 // toggleDropdown switches the visibility of the administrator version panel.
 function toggleDropdown() {
   dropdownOpen.value = !dropdownOpen.value
@@ -676,6 +913,7 @@ async function refreshVersion(force = true) {
   if (!isAdmin.value) return
 
   // Reset update states when refreshing
+  changelogModalOpen.value = false
   updateError.value = ''
   updateSuccess.value = false
   needRestart.value = false
@@ -898,13 +1136,19 @@ async function checkServiceAndReload() {
   window.location.reload()
 }
 
-// handleClickOutside closes the panel for document clicks outside its content
-// and outside buttons. Button clicks remain available to the trigger and panel
-// actions through their own event handlers.
+// handleClickOutside closes the version menu for clicks outside its content and
+// outside buttons. Opening the changelog already dismisses the menu, so modal
+// dismissal does not depend on retaining a menu control for focus restoration.
 function handleClickOutside(event: MouseEvent) {
-  const target = event.target as Node
-  const button = (event.target as Element).closest('button')
-  if (dropdownRef.value && !dropdownRef.value.contains(target) && !button?.contains(target)) {
+  const target = event.target as Node | null
+  const element = target instanceof Element ? target : null
+  const button = element?.closest('button')
+  if (
+    dropdownRef.value &&
+    target &&
+    !dropdownRef.value.contains(target) &&
+    !button?.contains(target)
+  ) {
     closeDropdown()
   }
 }
@@ -923,10 +1167,116 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* Rendered release Markdown arrives via v-html, so element typography and details disclosure rules use :deep. */
+.changelog-markdown > :deep(:first-child) {
+  @apply mt-0;
+}
+
+.changelog-markdown > :deep(:last-child) {
+  @apply mb-0;
+}
+
+.changelog-markdown :deep(h1) {
+  @apply mb-3 mt-5 border-b border-gray-100 pb-2 text-lg font-semibold text-gray-900 dark:border-dark-700 dark:text-dark-50;
+}
+
+.changelog-markdown :deep(h2) {
+  @apply mb-2.5 mt-5 border-b border-gray-100 pb-1.5 text-base font-semibold text-gray-900 dark:border-dark-700 dark:text-dark-50;
+}
+
+.changelog-markdown :deep(h3),
+.changelog-markdown :deep(h4) {
+  @apply mb-2 mt-4 text-sm font-semibold text-gray-900 dark:text-dark-50;
+}
+
+.changelog-markdown :deep(p),
+.changelog-markdown :deep(ul),
+.changelog-markdown :deep(ol),
+.changelog-markdown :deep(pre),
+.changelog-markdown :deep(blockquote),
+.changelog-markdown :deep(table) {
+  @apply my-2.5;
+}
+
+.changelog-markdown :deep(ul) {
+  @apply list-disc space-y-1 pl-5;
+}
+
+.changelog-markdown :deep(ol) {
+  @apply list-decimal space-y-1 pl-5;
+}
+
+.changelog-markdown :deep(li) {
+  @apply pl-1 leading-6;
+}
+
+.changelog-markdown :deep(li::marker) {
+  @apply text-gray-400 dark:text-dark-500;
+}
+
+.changelog-markdown :deep(a[href]) {
+  @apply font-medium text-primary-600 underline underline-offset-2 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300;
+}
+
+.changelog-markdown :deep(strong) {
+  @apply font-semibold text-gray-900 dark:text-dark-50;
+}
+
+.changelog-markdown :deep(code) {
+  @apply rounded-compact bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-dark-800 dark:text-dark-100;
+}
+
+.changelog-markdown :deep(pre) {
+  @apply overflow-x-auto rounded-control border border-gray-200 bg-gray-50 p-3.5 dark:border-dark-600 dark:bg-dark-950;
+}
+
+.changelog-markdown :deep(pre code) {
+  @apply bg-transparent p-0 text-xs text-gray-800 dark:text-dark-100;
+}
+
+.changelog-markdown :deep(blockquote) {
+  @apply rounded-r-compact border-l-2 border-primary-500 bg-gray-50 px-3.5 py-2 text-gray-600 dark:border-primary-400 dark:bg-dark-950 dark:text-dark-300;
+}
+
+.changelog-markdown :deep(hr) {
+  @apply my-4 border-gray-200 dark:border-dark-700;
+}
+
+/* Constrain long identifiers and wide tables inside the reading column while preserving local scroll on code blocks. */
+.changelog-markdown {
+  @apply min-w-0 max-w-full break-words;
+}
+
+.changelog-markdown :deep(table) {
+  @apply w-full table-fixed overflow-hidden rounded-control border border-gray-200 text-xs dark:border-dark-600;
+}
+
+.changelog-markdown :deep(th) {
+  @apply break-words border-b border-gray-200 bg-gray-50 px-3 py-2 text-left font-semibold text-gray-900 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-50;
+}
+
+.changelog-markdown :deep(td) {
+  @apply break-words border-b border-gray-100 px-3 py-2 align-top text-gray-700 dark:border-dark-700 dark:text-dark-200;
+}
+
+.changelog-markdown :deep(tr:last-child td) {
+  @apply border-b-0;
+}
+
+.changelog-markdown :deep(img) {
+  @apply my-3 max-w-full rounded-control border border-gray-200 dark:border-dark-600;
+}
+
+/* Collapsible details blocks house the Simplified Chinese translation in GitHub Releases. */
+.changelog-markdown :deep(details) {
+  @apply mt-4 overflow-hidden rounded-surface border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-dark-600 dark:bg-dark-950;
+}
+
+.changelog-markdown :deep(summary) {
+  @apply cursor-pointer select-none rounded-compact font-medium text-gray-900 transition-colors hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 dark:text-dark-50 dark:hover:text-primary-400;
+}
+
+.changelog-markdown :deep(details[open] > summary) {
+  @apply mb-3 border-b border-gray-200 pb-2.5 dark:border-dark-600;
 }
 </style>

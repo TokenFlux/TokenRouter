@@ -166,6 +166,7 @@ export default {
     updateAvailable: 'A new version is available!',
     releaseNotes: 'Release Notes',
     noReleaseNotes: 'No release notes',
+    noReleaseNotesDesc: 'Release notes are not available for this version yet.',
     viewUpdate: 'View Update',
     viewRelease: 'View Release',
     viewChangelog: 'View Changelog',

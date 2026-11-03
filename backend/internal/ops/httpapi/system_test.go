@@ -28,7 +28,8 @@ type systemHandlerUpdateServiceStub struct {
 	// path.
 	performErr error // configured update operation result
 	// updateInfo is returned directly by CheckUpdate, including nil. Tests
-	// populate it for the no-update display branch and retain the object.
+	// populate it for release queries and the no-update display branch, retaining
+	// the object through each synchronous response.
 	updateInfo *ops.UpdateInfo // borrowed update display fixture
 	checkErr   error           // configured update query failure
 	// checkForces appends each CheckUpdate argument without synchronization. Tests
@@ -102,6 +103,83 @@ type systemOperationFixture struct {
 	// data stores live record pointers; returned record values are shallow copies
 	// and retain their optional pointers. Tests inspect stored status under mu.
 	data map[string]*idempotency.IdempotencyRecord // retained lease record pointers
+}
+
+// TestSystemHandlerCheckUpdatesPreservesChangelog serves release and source
+// build metadata through the HTTP handler. It checks exact Markdown and empty
+// body responses, cached warnings, force forwarding, and absence of maintenance.
+func TestSystemHandlerCheckUpdatesPreservesChangelog(t *testing.T) {
+	const markdown = "\n## Changes\n\n- Keep `release_info.body` & metadata.\n\n" +
+		"```sh\nprintf 'hello\\n'\n```\n\n" +
+		"<details>\n<summary>简体中文</summary>\n\n## 更新内容\n\n" +
+		"- 保留完整正文。\n\n```text\n第一行\n第二行\n```\n\n</details>\n"
+	for _, tc := range []struct {
+		name      string // HTTP response scenario name
+		buildType string // supplied build provenance label
+		body      string // supplied release Markdown body
+		force     bool   // requested forced refresh flag
+		cached    bool   // supplied cache origin flag
+		warning   string // supplied remote failure diagnostic
+	}{
+		{name: "release build", buildType: "release", body: markdown},
+		{name: "source build", buildType: "source", body: markdown},
+		{name: "empty body", buildType: "release", body: ""},
+		{
+			name:      "forced refresh cache fallback",
+			buildType: "release",
+			body:      markdown,
+			force:     true,
+			cached:    true,
+			warning:   "Using cached data: github unavailable",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			updateSvc := &systemHandlerUpdateServiceStub{
+				updateInfo: &ops.UpdateInfo{
+					CurrentVersion: "1.1.0",
+					LatestVersion:  "1.2.0",
+					HasUpdate:      true,
+					ReleaseInfo: &ops.ReleaseInfo{
+						Name:        "Release 1.2.0",
+						Body:        tc.body,
+						PublishedAt: "2026-11-01T04:05:06Z",
+						HTMLURL:     "https://github.com/TokenFlux/TokenRouter/releases/tag/v1.2.0",
+					},
+					Cached:    tc.cached,
+					Warning:   tc.warning,
+					BuildType: tc.buildType,
+				},
+			}
+			handler := NewSystemRuntimeHandler(updateSvc, nil)
+			router := gin.New()
+			router.GET("/api/v1/admin/system/check-updates", handler.CheckUpdates)
+			target := "/api/v1/admin/system/check-updates"
+			if tc.force {
+				target += "?force=true"
+			}
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, target, nil))
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			require.Contains(t, recorder.Header().Get("Content-Type"), "application/json")
+			var envelope struct {
+				Code    int            `json:"code"`    // application response status code
+				Message string         `json:"message"` // application response message text
+				Data    ops.UpdateInfo `json:"data"`    // decoded release query result
+			}
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+			require.Zero(t, envelope.Code)
+			require.Equal(t, "success", envelope.Message)
+			require.Equal(t, *updateSvc.updateInfo, envelope.Data)
+			require.Contains(t, recorder.Body.String(), `"body":`)
+			require.Equal(t, []bool{tc.force}, updateSvc.checkForces)
+			require.Zero(t, updateSvc.performCall)
+			require.Zero(t, updateSvc.rollbackCall)
+			require.Zero(t, updateSvc.rollbackToCall)
+			require.Zero(t, updateSvc.rollbackVersionsCall)
+		})
+	}
 }
 
 // TestSystemHandlerPerformUpdateAlreadyUpToDateReturnsOK injects the no-update

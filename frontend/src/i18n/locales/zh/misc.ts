@@ -160,6 +160,7 @@ export default {
     updateAvailable: '有新版本可用！',
     releaseNotes: '更新日志',
     noReleaseNotes: '暂无更新日志',
+    noReleaseNotesDesc: '当前目标版本暂未提供更新日志正文。',
     viewUpdate: '查看更新',
     viewRelease: '查看发布',
     viewChangelog: '查看更新日志',
