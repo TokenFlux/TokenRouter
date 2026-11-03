@@ -119,7 +119,8 @@ func (b *nativeGeminiAttemptBridge) FirstSelectionFailure(err error, _ bool) {
 // Acquire adopts Gemini provider ownership or registers waiting before bounded
 // slot acquisition. Missing plans and denied queue admission write Google
 // errors. The returned ownership is wrapped for request cancellation and later
-// forwarding cleanup.
+// forwarding cleanup. Acceptance freezes initial HTTP admission before sticky
+// persistence; retries preserve that first endpoint and isolate later waiting.
 //
 // Only allowed wait registrations are released, and WaitResult itself decides
 // whether a counter was confirmed. Successful waiting removes queue occupancy
@@ -132,7 +133,9 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 	// waiting replaces the release callback only after its provider slot is
 	// actually obtained.
 	b.providerReleaseFunc = b.selection.ReleaseFunc
-	if !b.selection.Acquired {
+	if b.selection.Acquired {
+		gatewayhttp.MarkOpsProviderSlotAcquired(b.c)
+	} else {
 		if b.selection.WaitPlan == nil {
 			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 			gatewayhttp.WriteGoogleError(b.c, http.StatusServiceUnavailable, "No available Gemini providers")
@@ -186,6 +189,7 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 			waitEntry.Release()
 			providerWaitCounted = false
 		}
+		gatewayhttp.MarkOpsProviderSlotAcquired(b.c)
 		// Sticky persistence failure leaves the acquired slot available
 		// to this attempt; keep the warning while returning ownership
 		// with its cancellation-safe release.

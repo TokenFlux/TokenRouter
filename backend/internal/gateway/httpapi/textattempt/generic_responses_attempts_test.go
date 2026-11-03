@@ -20,6 +20,21 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 )
 
+// generic_responses_attempts_test.go checks admission timing and selected-provider
+// diagnostic identity across Responses attempts. The timing scenarios use real HTTP
+// collection and scheduler waits, while forwarding fixtures verify that each
+// provider's configured response header remains attached to its own attempt.
+
+// TestGenericResponsesAcquireAdmissionTiming exercises selected capacity, waiting
+// and rejection through generic Responses acquisition. Later provider retries must
+// retain the original admission timestamp and isolate retry waiting.
+func TestGenericResponsesAcquireAdmissionTiming(t *testing.T) {
+	testProviderAdmissionTiming(t, "/v1/responses", func(base messageAttemptBridge) admissionTimingAttempt {
+		bridge := &genericResponsesAttemptBridge{messageAttemptBridge: base}
+		return admissionTimingAttempt{acquire: bridge.Acquire, release: &bridge.providerReleaseFunc}
+	})
+}
+
 // TestGenericResponsesCarriesSelectedDiagnosticPolicy selects two providers through
 // the actual bridge before forwarding. Each callback receives its own header
 // policy and provider identity instead of the context retained before selection.

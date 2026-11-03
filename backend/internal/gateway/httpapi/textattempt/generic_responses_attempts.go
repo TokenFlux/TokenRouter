@@ -89,7 +89,9 @@ func (b *genericResponsesAttemptBridge) FirstSelectionFailure(err error, _ bool)
 // Acquire adopts the selected provider release or waits for its plan when
 // capacity was not acquired. A missing plan writes a no-provider error and
 // returns false. Successful ownership is wrapped for request cancellation, and
-// later forwarding or cleanup releases it idempotently.
+// later forwarding or cleanup releases it idempotently. Successful acquisition
+// freezes initial HTTP admission timing; retries preserve the first endpoint
+// and record later waiting separately.
 func (b *genericResponsesAttemptBridge) Acquire() bool {
 	var err error
 	// Adopt the scheduler's acquired ownership first; waiting obtains a replacement
@@ -115,6 +117,7 @@ func (b *genericResponsesAttemptBridge) Acquire() bool {
 			return false
 		}
 	}
+	gatewayhttp.MarkOpsProviderSlotAcquired(b.c)
 	// Share provider cleanup between request cancellation and normal forwarding
 	// return, allowing both paths to call the same lease-managed callback safely.
 	b.providerReleaseFunc = scheduler.WrapRelease(b.c.Request.Context(), scheduler.ReleaseOnCancel, b.providerReleaseFunc)

@@ -24,6 +24,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
+// native_gemini_attempts_test.go verifies native Gemini admission observation and
+// provider-aware pricing before forwarding. The timing scenarios exercise actual
+// scheduler waiting and HTTP collection, while pricing fixtures distinguish local
+// rejection from an executed attempt and verify provider resource cleanup.
+
 // nativeGeminiPricingFixture counts forwarding, slot release, and scheduling feedback.
 type nativeGeminiPricingFixture struct {
 	bridge   *nativeGeminiAttemptBridge // retained native attempt adapter
@@ -64,6 +69,27 @@ func TestNativeGeminiForwardRejectsMissingPricing(t *testing.T) {
 				require.True(t, fixture.bridge.c.GetBool(gatewayhttp.OpsClientBusinessLimitedKey))
 			})
 		}
+	}
+}
+
+// TestNativeGeminiAcquireAdmissionTiming exercises selected slots, waiting and
+// rejection through native Gemini acquisition. Both native route prefixes must
+// retain the first admission endpoint across provider retries.
+func TestNativeGeminiAcquireAdmissionTiming(t *testing.T) {
+	for _, path := range []string{
+		"/v1beta/models/gemini-test:generateContent",
+		"/antigravity/v1beta/models/gemini-test:streamGenerateContent",
+	} {
+		t.Run(path, func(t *testing.T) {
+			testProviderAdmissionTiming(t, path, func(base messageAttemptBridge) admissionTimingAttempt {
+				bridge := &nativeGeminiAttemptBridge{
+					messageAttemptBridge: base,
+					geminiConcurrency:    base.fixed.concurrencyHelper,
+					stream:               base.reqStream,
+				}
+				return admissionTimingAttempt{acquire: bridge.Acquire, release: &bridge.providerReleaseFunc}
+			})
+		})
 	}
 }
 
