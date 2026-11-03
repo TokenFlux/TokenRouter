@@ -19,13 +19,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/bstats"
 )
 
-// roundTripFunc permits controlled transport responses without a real network.
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
 // client_test.go verifies the official bStats wire contract against local HTTP
 // fixtures. Deterministic system observations expose the exact outbound field
 // whitelist, while blocked and failed transports exercise cancellation without
 // contacting the public endpoint or adding fake deployment statistics.
+
+// roundTripFunc permits controlled transport responses without a real network.
+type roundTripFunc func(*http.Request) (*http.Response, error)
 
 // TestClientWireProtocolAndLogging decodes a compressed report received locally.
 // It checks the complete whitelist, official headers, both registered version

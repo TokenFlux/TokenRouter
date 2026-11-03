@@ -185,7 +185,7 @@ usage、audit 和 ops 的静态参数，由 app 整理成各模块的 Options；
 
 管理员在“系统设置 → 功能开关”的 bStats 卡片管理安装统计。`bstats_enabled` 缺键时默认开启；`bstats_log_errors`、`bstats_log_sent_data`、`bstats_log_response_status_text` 缺键时默认关闭。四个布尔字段由综合设置 GET/PUT 读写，省略字段保留原值，保存后热生效。关闭时取消并等待在途上报；重新开启重新执行首次随机延迟。只修改日志选项不会重置调度，关闭统计也不会清除日志选项。
 
-上报使用 bStats 的 `server-implementation` 平台，TokenRouter 项目 ID 固定为 `35120`。`bstats_server_uuid` 是首次启用时生成并持久保存的随机 UUIDv4，不属于管理或公开设置接口，重启和升级继续复用。数据库备份恢复也会恢复此标识。标识读取、校验或持久化失败时暂停统计，后续设置发布或进程重启会重试；错误不会阻止网关启动。
+上报使用 bStats 的 `server-implementation` 平台，TokenRouter 项目 ID 固定为 `35120`。`bstats_server_uuid` 是首次启用时生成并持久保存的随机 UUIDv4，不属于管理或公开设置接口，重启和升级继续复用。数据库备份恢复也会恢复此标识。标识读取、校验或持久化失败时暂停统计，后续设置发布或进程重启会重试；错误不会阻止网关启动。启动时读取配置和初始化标识共用 5 秒预算；运行时首次初始化标识同样最多等待 5 秒，调用方更短的截止时间优先。
 
 数据只包含随机实例标识、操作系统及版本、CPU 架构和核数、TokenRouter 与 Go 版本，以及 bStats 协议元数据。国家分布由 bStats 根据连接来源推导。版本通过 `tokenrouter_version`、`go_version` 两个 Simple pie 图表上报。账户、API Key、站点域名、提示词、请求记录、用量和支付数据不进入报文。开启上报内容日志会把含 UUID 的完整报文写入服务端日志。
 

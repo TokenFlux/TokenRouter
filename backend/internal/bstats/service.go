@@ -30,6 +30,10 @@ import (
 const (
 	// reportPeriod preserves the upstream submission frequency for every enabled reporting generation.
 	reportPeriod = 30 * time.Minute
+
+	// initializationTimeout bounds optional storage work so reporting cannot
+	// indefinitely block startup or administrator updates.
+	initializationTimeout = 5 * time.Second
 )
 
 // Reporter sends one metrics observation using a previously persisted identity.
@@ -75,6 +79,8 @@ func New(store *settings.Store, reporter Reporter, log func(string, ...any)) *Se
 // committed administrator update can recover without restarting the application.
 // Concurrent control changes wait for this load to finish; a later disable
 // therefore cannot be overwritten by settings read before that change.
+// Settings and identity initialization share a five-second budget, shortened
+// when the caller's context has an earlier deadline.
 func (s *Service) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -82,7 +88,9 @@ func (s *Service) Start(ctx context.Context) error {
 		return nil
 	}
 	s.started = true
-	values, err := s.store.GetMultiple(ctx, []string{
+	loadCtx, cancel := context.WithTimeout(ctx, initializationTimeout)
+	defer cancel()
+	values, err := s.store.GetMultiple(loadCtx, []string{
 		SettingKeyEnabled,
 		SettingKeyLogErrors,
 		SettingKeyLogSentData,
@@ -91,7 +99,7 @@ func (s *Service) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("read bStats settings: %w", err)
 	}
-	return s.applyLocked(ctx, ReadSettings(values))
+	return s.applyLocked(loadCtx, ReadSettings(values))
 }
 
 // Apply reconciles committed controls after lifecycle startup and otherwise
@@ -115,6 +123,8 @@ func (s *Service) Apply(ctx context.Context, config Config) error {
 // configuration forces a join before replacement, preventing two reporting
 // generations from sending concurrently. Identity persistence precedes admission
 // of the first worker and is reused for all later generations.
+// Initial identity reads and writes share a five-second budget within the
+// caller's deadline; timing out leaves reporting paused until another update.
 func (s *Service) applyLocked(ctx context.Context, config Config) error {
 	// Publish one immutable value before reconciling the timer. The old snapshot
 	// distinguishes logging-only updates from enables that must replace a cancelled worker.
@@ -134,12 +144,14 @@ func (s *Service) applyLocked(ctx context.Context, config Config) error {
 		return nil
 	}
 	if s.serverUUID == "" {
-		id, err := s.store.GetValue(ctx, SettingKeyServerUUID)
+		identityCtx, cancel := context.WithTimeout(ctx, initializationTimeout)
+		defer cancel()
+		id, err := s.store.GetValue(identityCtx, SettingKeyServerUUID)
 		if errors.Is(err, settings.ErrSettingNotFound) || err == nil && id == "" {
 			id = uuid.NewString()
 			// Persist identity before starting the timer so failed storage never
 			// advertises an identifier that would be replaced on the next restart.
-			if err = s.store.Set(ctx, SettingKeyServerUUID, id); err != nil {
+			if err = s.store.Set(identityCtx, SettingKeyServerUUID, id); err != nil {
 				return fmt.Errorf("persist bStats instance identifier: %w", err)
 			}
 		} else if err != nil {

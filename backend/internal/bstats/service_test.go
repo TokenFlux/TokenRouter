@@ -3,6 +3,7 @@ package bstats
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"testing"
 	"testing/synctest"
@@ -30,6 +31,12 @@ type memoryRepository struct {
 
 // reporterFunc adapts a test callback to the reporting transport contract.
 type reporterFunc func(context.Context, string, Config) error
+
+// delayedRepository blocks one selected operation while preserving ordinary fixture storage.
+type delayedRepository struct {
+	*memoryRepository        // ordinary fixture persistence
+	operation         string // selected delayed operation
+}
 
 // GetMultiple returns a copy or the fixture's configured read error.
 func (r *memoryRepository) GetMultiple(context.Context, []string) (map[string]string, error) {
@@ -266,7 +273,10 @@ func TestServicePublicationFollowsCommit(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		repo := &memoryRepository{values: map[string]string{SettingKeyEnabled: "false"}}
 		calls := 0
-		service := newTestService(repo, func(context.Context, string, Config) error { calls++; return nil })
+		service := newTestService(repo, func(context.Context, string, Config) error {
+			calls++
+			return nil
+		})
 		require.NoError(t, service.Start(context.Background()))
 		for _, fail := range []bool{true, false} {
 			repo.writeError = nil
@@ -294,4 +304,101 @@ func TestServicePublicationFollowsCommit(t *testing.T) {
 		}
 		require.NoError(t, service.Stop(context.Background()))
 	})
+}
+
+// wait delays the selected storage operation until cancellation or a simulated
+// twenty-second outage ends. The finite fallback lets the regression fail on
+// missing deadlines without leaving the virtual-time test permanently blocked.
+func (r *delayedRepository) wait(ctx context.Context, operation string) error {
+	if r.operation != operation {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(20 * time.Second):
+		return errors.New("storage remained blocked")
+	}
+}
+
+// GetMultiple delays configuration loading when selected, otherwise returning
+// the stored values. Cancellation during the selected delay returns the context
+// error without invoking the ordinary repository read.
+func (r *delayedRepository) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
+	if err := r.wait(ctx, "settings"); err != nil {
+		return nil, err
+	}
+	return r.memoryRepository.GetMultiple(ctx, keys)
+}
+
+// GetValue delays identity lookup when selected, otherwise returning the stored
+// identifier. Cancellation during the selected delay returns the context error
+// without looking up or replacing the existing value.
+func (r *delayedRepository) GetValue(ctx context.Context, key string) (string, error) {
+	if err := r.wait(ctx, "identity-read"); err != nil {
+		return "", err
+	}
+	return r.memoryRepository.GetValue(ctx, key)
+}
+
+// Set delays identity persistence when selected, otherwise writing through to
+// fixture storage. Cancellation during the selected delay returns the context
+// error without writing the candidate identifier into the repository.
+func (r *delayedRepository) Set(ctx context.Context, key, value string) error {
+	if err := r.wait(ctx, "identity-write"); err != nil {
+		return err
+	}
+	return r.memoryRepository.Set(ctx, key, value)
+}
+
+// TestServiceInitializationDeadline bounds stalled settings and identity operations.
+// Optional reporting must stop waiting within five seconds during startup or
+// runtime enablement, and later publication must recover using a durable identity.
+func TestServiceInitializationDeadline(t *testing.T) {
+	for _, operation := range []string{"settings", "identity-read", "identity-write"} {
+		for _, startup := range []bool{true, false} {
+			if !startup && operation == "settings" {
+				continue
+			}
+			t.Run(fmt.Sprintf("%s/startup=%t", operation, startup), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					repo := &delayedRepository{
+						memoryRepository: &memoryRepository{values: map[string]string{}},
+						operation:        operation,
+					}
+					calls := 0
+					reporter := reporterFunc(func(context.Context, string, Config) error {
+						calls++
+						return nil
+					})
+					service := New(settings.New(repo), reporter, nil)
+					service.delays = func() (time.Duration, time.Duration) {
+						return 3 * time.Minute, 12 * time.Minute
+					}
+					if !startup {
+						repo.values[SettingKeyEnabled] = "false"
+						require.NoError(t, service.Start(context.Background()))
+					}
+					started := time.Now()
+					var err error
+					if startup {
+						err = service.Start(context.Background())
+					} else {
+						err = service.Apply(context.Background(), Config{Enabled: true})
+					}
+					require.ErrorIs(t, err, context.DeadlineExceeded)
+					require.Equal(t, 5*time.Second, time.Since(started))
+					require.Zero(t, calls)
+					require.Empty(t, repo.values[SettingKeyServerUUID])
+					repo.operation = ""
+					require.NoError(t, service.Apply(context.Background(), Config{Enabled: true}))
+					time.Sleep(3 * time.Minute)
+					synctest.Wait()
+					require.Equal(t, 1, calls)
+					require.NotEmpty(t, repo.values[SettingKeyServerUUID])
+					require.NoError(t, service.Stop(context.Background()))
+				})
+			})
+		}
+	}
 }
