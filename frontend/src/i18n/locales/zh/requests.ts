@@ -26,6 +26,7 @@ export default {
   startedAt: '开始时间',
   duration: '耗时',
   totalDuration: '总耗时',
+  requestSize: '请求体',
   statusCode: '状态码',
   model: '模型',
   platform: '平台',

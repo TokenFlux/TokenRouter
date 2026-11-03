@@ -2,12 +2,12 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { UsageLogTiming } from '@/api/usage.types'
-import { formatTimingMs, timingBreakdown } from '@/utils/requestTiming'
+import { formatRequestSize, formatTimingMs, timingBreakdown } from '@/utils/requestTiming'
 
-// RequestTimeline.vue draws one request timing record as admission durations followed by
-// ingress-relative event bars. Admission durations can be added, while event offsets share
-// a common start and must remain separate measurements. Only observed offsets produce event
-// rows.
+// RequestTimeline.vue draws one request timing record as observed request size and
+// admission durations followed by ingress-relative event bars. Admission durations can be
+// added, while event offsets share a common start and must remain separate measurements.
+// Only observed offsets produce event rows.
 //
 // The supplied total request duration establishes a minimum scale across timelines on the
 // same request card. An event later than that total expands the scale, and a
@@ -23,13 +23,13 @@ const props = defineProps<{
   // bar scale; its total row appears when observed event rows are present.
   duration?: number | null
 }>()
-// The translation binding supplies shared admission, event, and total-duration labels used
-// by the timeline template.
+// The translation binding supplies shared request-size, admission, event, and
+// total-duration labels used by the timeline template.
 const { t } = useI18n()
 
-// view sorts observed event offsets and scales them against the latest observation or
-// supplied request duration. Missing offsets are excluded, while measured zero stays in the
-// ordered event list.
+// view formats optional request payload size, sorts observed event offsets, and scales
+// them against the latest observation or supplied request duration. Missing offsets are
+// excluded, while measured zero stays in the ordered event list.
 //
 // The scale has a one-millisecond floor, and every rendered bar has at least half a percent
 // width so early observations remain visible. Admission durations are retained separately
@@ -37,6 +37,10 @@ const { t } = useI18n()
 // duration sums from being mistaken for request-relative positions.
 const view = computed(() => {
   const breakdown = timingBreakdown(props.timing)
+  const requestSize =
+    props.timing.request_content_length == null
+      ? null
+      : formatRequestSize(props.timing.request_content_length)
   const events = breakdown.events
     .filter((row) => row.value != null)
     .map((row) => ({ key: row.key, value: row.value ?? 0 }))
@@ -45,6 +49,7 @@ const view = computed(() => {
   const scale = Math.max(props.duration ?? 0, ...events.map((row) => row.value), 1)
   return {
     breakdown,
+    requestSize,
     scale,
     // Keep a half-percent sliver so measured early events remain visible.
     rows: events.map((row) => ({ ...row, percent: Math.max((row.value / scale) * 100, 0.5) })),
@@ -54,38 +59,50 @@ const view = computed(() => {
 
 <template>
   <div class="space-y-3 text-xs">
-    <!-- For successful admission, complete durations sum to slot acquisition. Failed
-         admission ends at request completion; incomplete observations omit the total. -->
+    <!-- Request body size and admission durations: complete durations sum to slot acquisition,
+         while failed admission ends at request completion and incomplete observations omit the total. -->
     <p
-      v-if="view.breakdown.durations.length"
+      v-if="view.requestSize || view.breakdown.durations.length"
       class="flex flex-wrap items-baseline gap-x-1.5 gap-y-1"
     >
-      <span class="font-medium text-gray-900 dark:text-dark-50">{{
-        t(
-          view.breakdown.admitted === false
-            ? 'requests.timing.untilEnd'
-            : 'requests.timingNames.provider_slot_acquired_ms',
-        )
-      }}</span>
-      <span
-        v-if="view.breakdown.admissionTotal != null"
-        class="font-mono font-medium tabular-nums text-gray-900 dark:text-dark-50"
-        >{{ formatTimingMs(view.breakdown.admissionTotal) }}</span
-      >
-      <span class="text-gray-400 dark:text-dark-500">=</span>
-      <template v-for="(row, index) in view.breakdown.durations" :key="row.key">
-        <span v-if="index" class="text-gray-400 dark:text-dark-500">+</span>
-        <span class="text-gray-500 dark:text-dark-400">{{
-          t(`requests.timingNames.${row.key}`)
+      <template v-if="view.requestSize">
+        <span class="text-gray-500 dark:text-dark-400">{{ t('requests.requestSize') }}</span>
+        <span
+          class="font-mono tabular-nums text-gray-900 dark:text-dark-100"
+          :class="view.breakdown.durations.length || view.breakdown.retryWait ? 'mr-3' : ''"
+          >{{ view.requestSize }}</span
+        >
+      </template>
+      <template v-if="view.breakdown.durations.length">
+        <span class="font-medium text-gray-900 dark:text-dark-50">{{
+          t(
+            view.breakdown.admitted === false
+              ? 'requests.timing.untilEnd'
+              : 'requests.timingNames.provider_slot_acquired_ms',
+          )
         }}</span>
-        <span class="font-mono tabular-nums text-gray-900 dark:text-dark-100">{{
-          formatTimingMs(row.value)
-        }}</span>
+        <span
+          v-if="view.breakdown.admissionTotal != null"
+          class="font-mono font-medium tabular-nums text-gray-900 dark:text-dark-50"
+          >{{ formatTimingMs(view.breakdown.admissionTotal) }}</span
+        >
+        <span class="text-gray-400 dark:text-dark-500">=</span>
+        <template v-for="(row, index) in view.breakdown.durations" :key="row.key">
+          <span v-if="index" class="text-gray-400 dark:text-dark-500">+</span>
+          <span class="text-gray-500 dark:text-dark-400">{{
+            t(`requests.timingNames.${row.key}`)
+          }}</span>
+          <span class="font-mono tabular-nums text-gray-900 dark:text-dark-100">{{
+            formatTimingMs(row.value)
+          }}</span>
+        </template>
       </template>
       <template v-if="view.breakdown.retryWait">
-        <span class="ml-3 text-gray-500 dark:text-dark-400">{{
-          t('requests.timingNames.retry_provider_slot_wait_ms')
-        }}</span>
+        <span
+          class="text-gray-500 dark:text-dark-400"
+          :class="view.breakdown.durations.length ? 'ml-3' : ''"
+          >{{ t('requests.timingNames.retry_provider_slot_wait_ms') }}</span
+        >
         <span class="font-mono tabular-nums text-gray-900 dark:text-dark-100">{{
           formatTimingMs(view.breakdown.retryWait.value)
         }}</span>

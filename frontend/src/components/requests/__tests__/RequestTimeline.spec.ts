@@ -50,4 +50,20 @@ describe('request timeline', () => {
     expect(wrapper.text()).not.toContain('requests.totalDuration')
     expect(wrapper.find('ol').exists()).toBe(false)
   })
+
+  // A timing record carries an observed request payload size in bytes. The test protects
+  // rendering the request-size label and formatted binary unit in the summary row.
+  it('renders the recorded request body size', () => {
+    const wrapper = mount(RequestTimeline, {
+      props: {
+        timing: {
+          request_content_length: 8360000,
+          upstream_started_ms: 100,
+        },
+        duration: 1000,
+      },
+    })
+    expect(wrapper.text()).toContain('requests.requestSize')
+    expect(wrapper.text()).toContain('7.97MB')
+  })
 })

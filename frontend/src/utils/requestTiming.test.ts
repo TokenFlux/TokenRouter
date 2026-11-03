@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatRequestSize,
   formatRequestTimingForExport,
   formatTimingMs,
   timingBreakdown,
@@ -82,6 +83,19 @@ describe('request timing breakdown', () => {
     expect(formatTimingMs(0)).toBe('0ms')
     expect(formatTimingMs(1500)).toBe('1.50s')
     expect(formatTimingMs(118235)).toBe('1m 58s')
+  })
+
+  /**
+   * Missing, byte, kilobyte, and megabyte payload sizes enter the request-size
+   * formatter. Output keeps nullish values distinct from zero and applies binary unit
+   * thresholds with one or two decimal places.
+   */
+  it('formats request payload sizes across binary thresholds', () => {
+    expect(formatRequestSize(null)).toBe('-')
+    expect(formatRequestSize(0)).toBe('0B')
+    expect(formatRequestSize(512)).toBe('512B')
+    expect(formatRequestSize(2048)).toBe('2.0KB')
+    expect(formatRequestSize(8360000)).toBe('7.97MB')
   })
 
   /**

@@ -12,6 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stages_test.go exercises admission stage splitting, first-event retention, and
+// shared ingress clocks in the timing collector. Controlled reader delays and
+// virtual time verify that initial admission freezes before retries and that
+// failure snapshots retain request metadata without inventing slot acquisition.
+
 // delayedStageBody represents a network body whose reads consume controlled time.
 type delayedStageBody struct {
 	io.Reader /* caller-owned input bytes */
@@ -57,19 +62,23 @@ func TestStagesAdmissionSeparatesReadingWaitingAndRetries(t *testing.T) {
 	})
 }
 
-// TestStagesFailureAndFirstObservation preserves failure-only admission and
-// measured zero. Repeated stream events and completion cannot rewrite earlier
-// milestones or fabricate an acquired provider after the request has ended.
+// TestStagesFailureAndFirstObservation preserves failure-only admission,
+// request content length, and measured zero. Repeated stream events and
+// completion cannot rewrite earlier milestones or fabricate an acquired
+// provider after the request has ended.
 func TestStagesFailureAndFirstObservation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		_, s := WithStages(context.Background(), time.Now(), nil)
 		s.SetStream(true)
+		s.SetContentLength(4096)
 		s.Mark("upstream_first_event_ms")
 		time.Sleep(time.Second)
 		s.Mark("upstream_first_event_ms")
 		s.Finish()
 		s.Admit()
 		got := s.Snapshot()
+		require.Equal(t, int64(4096), got["request_content_length"])
+		require.Equal(t, int64(4096), s.FailureSnapshot()["request_content_length"])
 		require.Equal(t, int64(0), got["upstream_first_event_ms"])
 		require.Equal(t, int64(0), got["timing_admitted"])
 		require.Equal(t, int64(1000), got["preprocess_ms"])

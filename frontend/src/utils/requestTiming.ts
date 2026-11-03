@@ -191,6 +191,21 @@ export function formatTimingMs(ms: number | null | undefined): string {
 }
 
 /**
+ * formatRequestSize renders bytes using binary thresholds with B, KB, or MB labels.
+ * Nullish observations render a dash, while kilobytes retain one decimal and
+ * megabytes retain two decimals.
+ */
+export function formatRequestSize(bytes: number | null | undefined): string {
+  if (bytes == null) return '-'
+  /**
+   * Use binary unit thresholds for recorded request payload sizes.
+   */
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)}MB`
+}
+
+/**
  * formatRequestTimingForExport serializes all present timing fields in object entry
  * order. Nullish fields are omitted, missing objects produce empty text, and names
  * ending in _ms append the milliseconds suffix.

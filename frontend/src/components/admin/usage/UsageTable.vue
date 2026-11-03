@@ -1091,6 +1091,7 @@ import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
+import { formatRequestSize } from '@/utils/requestTiming'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import { formatUsageTps } from '@/utils/usageTps'
@@ -1500,17 +1501,6 @@ const formatDuration = (ms: number | null | undefined): string => {
   const totalSec = Math.round(ms / 1000)
   if (totalSec < 3600) return `${Math.floor(totalSec / 60)}m ${totalSec % 60}s`
   return `${Math.floor(totalSec / 3600)}h ${Math.floor((totalSec % 3600) / 60)}m`
-}
-
-// formatRequestSize renders bytes using binary thresholds with B, KB, or MB labels. Missing
-// observations use a dash, while kilobytes retain one decimal and megabytes retain two
-// decimals.
-const formatRequestSize = (bytes: number | null | undefined): string => {
-  if (bytes == null) return '-'
-  // Use binary unit thresholds for recorded request payload sizes.
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
-  return `${(bytes / (1024 * 1024)).toFixed(2)}MB`
 }
 
 // showTooltip opens the cost panel for a row and measures it after Vue renders. The anchor

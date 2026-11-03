@@ -79,7 +79,7 @@ describe('请求详情查询', () => {
               timings: {
                 ttft_mode: 'first_event',
                 upstream_stream: true,
-                values: { upstream_first_event_ms: 950 },
+                values: { request_content_length: 2048, upstream_first_event_ms: 950 },
               },
             },
           ],
@@ -100,6 +100,8 @@ describe('请求详情查询', () => {
     expect(findRequests).toHaveBeenCalledWith('supplier', expect.any(AbortSignal))
     expect(wrapper.findAll('article')).toHaveLength(2)
     expect(wrapper.text()).toContain('requests.legacy')
+    expect(wrapper.text()).toContain('requests.requestSize')
+    expect(wrapper.text()).toContain('2.0KB')
     expect(wrapper.text()).toContain('950ms')
     expect(wrapper.text()).toContain('requests.timingNames.upstream_first_event_ms')
     await wrapper.get('input[aria-label="requests.id"]').setValue('next-id')

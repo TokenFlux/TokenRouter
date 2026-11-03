@@ -26,6 +26,7 @@ export default {
   startedAt: 'Started at',
   duration: 'Duration',
   totalDuration: 'Total',
+  requestSize: 'Request size',
   statusCode: 'Status',
   model: 'Model',
   platform: 'Platform',
