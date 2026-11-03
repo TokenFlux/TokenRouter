@@ -36,6 +36,7 @@ type processFixture struct {
 	mu             sync.Mutex        // fixture process observation lock
 	started        []ProcessSpec     // accepted process generation specifications
 	states         map[string]Status // observed lifecycle state by plugin
+	failBinary     string            // archive identity rejected during fixture startup
 	failVersion    string            // release rejected during fixture startup
 	stopError      error             // injected drain completion error
 	stopEntered    chan struct{}     // optional drain arrival notification
@@ -133,7 +134,7 @@ func (f *processFixture) Replace(ctx context.Context, spec ProcessSpec) error {
 		f.states = make(map[string]Status)
 	}
 	f.started = append(f.started, spec)
-	if spec.Version == f.failVersion {
+	if spec.Version == f.failVersion || spec.BinarySHA256 == f.failBinary {
 		f.states[spec.PluginID] = Status{State: StateFailed, LastError: "fixture init failed"}
 		return nil
 	}
@@ -224,16 +225,20 @@ func (f *packageFixture) Ensure(_ context.Context, ref PackageRef) (Package, err
 		Directory:      "/fixture",
 		Executable:     "/fixture/bin/plugin",
 		ArchiveSHA256:  ref.Artifact.SHA256,
-		BinarySHA256:   "binary",
+		BinarySHA256:   ref.Artifact.SHA256,
 		ManifestSHA256: ref.ManifestSHA256,
 	}, nil
 }
 
 // Prune accepts retained release versions without deleting real filesystem entries.
-func (f *packageFixture) Prune(_ context.Context, _ string, versions ...string) error {
+func (f *packageFixture) Prune(_ context.Context, _ string, refs ...PackageRef) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.pruned = append(f.pruned, slices.Clone(versions))
+	versions := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		versions = append(versions, ref.Version)
+	}
+	f.pruned = append(f.pruned, versions)
 	return nil
 }
 

@@ -101,7 +101,7 @@ export default {
     'Plugins are disabled by the server. Existing installations can still be inspected or uninstalled.',
   noConfiguration: 'This plugin has no configuration fields.',
   incompleteHint: 'Required fields may be left empty while this plugin is disabled.',
-  limitsTitle: 'Capability limits',
+  limitsTitle: 'Plugin usage limits',
   logsEmpty: 'No recent logs.',
   logsHint:
     'The latest 500 lines are kept until the host restarts. Full logs can be found in the host log files.',
@@ -141,6 +141,34 @@ export default {
       redeem: 'Redeem codes',
       subscription: 'Subscriptions',
       email: 'Email',
+    },
+    hints: {
+      max_credit_per_op:
+        'Maximum balance this plugin can add in one operation. A reward above this amount is rejected.',
+      max_credit_per_user_per_day:
+        'Maximum total balance this plugin can add to one user during a day in the site timezone.',
+      max_credit_per_day:
+        'Maximum total balance this plugin can add to all users during a day in the site timezone.',
+      max_debit_per_op:
+        'Maximum balance this plugin can deduct in one operation. A larger deduction is rejected.',
+      max_balance_per_code: 'Maximum balance value of each redemption code issued by this plugin.',
+      max_balance_value_per_day:
+        'Total face value of balance codes issued by this plugin per day, whether redeemed or not.',
+      max_concurrency_per_code: 'Maximum concurrency increase granted by a single redemption code.',
+      max_codes_per_day:
+        'Maximum number of redemption codes this plugin can issue per day across all allowed types.',
+      max_subscription_days_per_code:
+        'Maximum subscription duration in each code, checked against its duration at issuance.',
+      max_days_per_grant:
+        'Maximum subscription duration this plugin can grant directly in one operation.',
+      max_grants_per_user_per_day:
+        'Maximum number of direct subscription grants this plugin can give one user per day.',
+      max_grants_per_day:
+        'Maximum number of direct subscription grants this plugin can give all users per day.',
+      max_per_user_per_day:
+        'Daily email attempts claimed for one user by this plugin. Failed, skipped, and uncertain attempts also count.',
+      max_per_day:
+        'Daily email attempts claimed for all users by this plugin. Failed, skipped, and uncertain attempts also count.',
     },
     fields: {
       max_credit_per_op: 'Credit per operation',
@@ -232,6 +260,13 @@ export default {
   },
   newPermission: 'New',
   review: {
+    ignoreHostVersion: 'Ignore version check',
+    ignoreHostVersionHint:
+      'Skip the plugin’s minimum and maximum gateway versions for local testing. Required gateway features must still be available.',
+    force: 'Force overwrite installation',
+    forceHint:
+      'Replace the installed plugin with the same ID, including the same version. Keep compatible settings, usage limits, and business data.',
+
     permissions: 'Requested permissions',
     newPermissions: '{count} new permissions',
     noNewPermissions: 'This version requests no new permissions.',
@@ -327,7 +362,7 @@ export default {
     yanked: 'The publisher withdrew the installed version: {reason}',
     delisted: 'This plugin was delisted by its source. The installed version keeps working.',
     otherSource:
-      'This plugin is installed from another source. Uninstall it before switching to this source.',
+      'This plugin is installed from another source. Enable "Force overwrite installation" in the install review to switch to this source.',
     configTitle: 'Plugin configuration',
     configHint: 'Changes apply as soon as they are saved; the plugin does not restart.',
     noConfigurationHint: 'The publisher did not declare any settings for this plugin.',

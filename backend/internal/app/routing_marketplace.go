@@ -3,11 +3,15 @@ package app
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
@@ -21,7 +25,8 @@ import (
 // receives current attributes and availability probes. Its statistics adapter
 // exposes dashboard token/user totals, while price and modality calls delegate
 // to shared billing components so public presentation uses the assembled
-// pricing readers.
+// pricing readers. Personal browsing reads explicit grants from current user
+// storage without passing identity records into routing or changing public visibility.
 
 // marketplacePrices adapts billing quotes and model modalities for marketplace
 // presentation.
@@ -34,6 +39,25 @@ type marketplacePrices struct {
 // homepage.
 type marketplaceStats struct {
 	source *usage.DashboardService // public dashboard totals
+}
+
+// marketplaceGroupAccess narrows current user storage to exclusive group grants.
+type marketplaceGroupAccess struct {
+	users identity.UserRepository // current identity storage reader
+}
+
+// AllowedGroupIDs reads explicit exclusive grants without administrator bypass.
+// Missing or inactive accounts fail closed. Returned IDs are copied so callers
+// cannot mutate the identity repository's loaded permission slice.
+func (a marketplaceGroupAccess) AllowedGroupIDs(ctx context.Context, userID int64) ([]int64, error) {
+	user, err := a.users.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil || !user.IsActive() {
+		return nil, apperror.Unauthorized("UNAUTHORIZED", "User not active")
+	}
+	return slices.Clone(user.AllowedGroups), nil
 }
 
 // provideMarketplace binds groups, settings, requestable models, and
@@ -69,8 +93,9 @@ func (p marketplacePrices) GetModelModalities(model string) ([]string, []string)
 	return p.calculator.GetModelModalities(model)
 }
 
-// provideMarketplaceHTTP combines the marketplace with narrowed public
-// dashboard statistics.
-func provideMarketplaceHTTP(core *routing.Marketplace, dashboard *usage.DashboardService) *routinghttp.MarketplaceHandler {
-	return routinghttp.NewMarketplaceHandler(core, marketplaceStats{source: dashboard})
+// provideMarketplaceHTTP combines the marketplace with public statistics and grants.
+// The identity store supplies fresh personal permissions independently of the
+// homepage reader; the same handler serves separately registered visibility scopes.
+func provideMarketplaceHTTP(core *routing.Marketplace, dashboard *usage.DashboardService, users *identitypostgres.UserStore) *routinghttp.MarketplaceHandler {
+	return routinghttp.NewMarketplaceHandler(core, marketplaceStats{source: dashboard}, marketplaceGroupAccess{users: users})
 }

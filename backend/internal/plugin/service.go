@@ -23,13 +23,15 @@ import (
 
 // InstallInput names one indexed or uploaded release and its explicit execution authorization.
 type InstallInput struct {
-	IndexID           int64    `json:"index_id,omitempty"`     // selected catalog registration identifier
-	PluginID          string   `json:"plugin_id,omitempty"`    // indexed plugin identity
-	Version           string   `json:"version,omitempty"`      // explicitly selected indexed version
-	Source            Source   `json:"source"`                 // requested package distribution source
-	UploadToken       string   `json:"upload_token,omitempty"` // inspected staged archive handle
-	AcceptPermissions []string `json:"accept_permissions"`     // explicitly accepted capability names
-	Enable            bool     `json:"enable"`                 // requested initial runtime availability
+	IndexID           int64    `json:"index_id,omitempty"`            // selected catalog registration identifier
+	PluginID          string   `json:"plugin_id,omitempty"`           // indexed plugin identity
+	Version           string   `json:"version,omitempty"`             // explicitly selected indexed version
+	Source            Source   `json:"source"`                        // requested package distribution source
+	UploadToken       string   `json:"upload_token,omitempty"`        // inspected staged archive handle
+	AcceptPermissions []string `json:"accept_permissions"`            // explicitly accepted capability names
+	Enable            bool     `json:"enable"`                        // requested initial runtime availability
+	IgnoreHostVersion bool     `json:"ignore_host_version,omitempty"` // bypass only gateway version bounds
+	Force             bool     `json:"force,omitempty"`               // replace an existing durable installation
 }
 
 // ChangeResult reports accepted durable state and its observed runtime outcome.
@@ -80,7 +82,8 @@ func (s *Service) Get(ctx context.Context, id string) (*Installation, error) {
 //
 // Resolution happens before locking to identify the plugin, then compatibility,
 // permissions, and existing state are checked under that plugin's mutation lock.
-// Existing same-version uploads enter the restricted repair path. A first install
+// Explicit force requests reuse update recovery, preserving configuration and data.
+// Other same-version uploads enter the restricted repair path. A first install
 // publishes files before its database row; a failed database save removes only
 // those newly owned files because no generation has yet been admitted.
 func (s *Service) Install(ctx context.Context, input InstallInput, actor int64) (*ChangeResult, error) {
@@ -93,6 +96,7 @@ func (s *Service) Install(ctx context.Context, input InstallInput, actor int64) 
 	}
 	item := &Installation{PluginID: snapshot.Manifest.ID, VersionSnapshot: snapshot, Enabled: input.Enable, UpdatedBy: &actor}
 	item.GrantedPermissions = slices.Clone(input.AcceptPermissions)
+	item.IgnoreHostVersion = input.IgnoreHostVersion
 	var result *ChangeResult
 	err = s.manager.locked(ctx, item.PluginID, func() error {
 		if err := s.manager.validate(item); err != nil {
@@ -100,6 +104,11 @@ func (s *Service) Install(ctx context.Context, input InstallInput, actor int64) 
 		}
 		old, err := s.manager.store.Get(ctx, item.PluginID)
 		if err == nil {
+			if input.Force {
+				var replaceErr error
+				result, replaceErr = s.replaceLocked(ctx, old, item.VersionSnapshot, input.UploadToken, actor)
+				return replaceErr
+			}
 			var repairErr error
 			result, repairErr = s.repairLocked(ctx, old, item, input.UploadToken, actor)
 			return repairErr

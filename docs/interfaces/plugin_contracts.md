@@ -22,6 +22,8 @@
 
 配置支持 string、textarea、number、integer、boolean、select 和 secret。缺失值可以填入默认值，显式空字符串、false 和 0 不被默认值覆盖。secret 不允许声明默认值；宿主负责在规范化前合并未提交的旧密钥值，并在持久化时加密。`Normalize` 返回新的配置映射，不返回部分成功结果。
 
+配置字段的可选 `description` 是本地化说明，每种语言最多 300 个 Unicode 字符，提供时必须包含英文回退。表单在字段名下以纯文本显示说明；它不属于管理员提交的配置值。旧版严格解析器会拒绝这一新增字段，因此使用字段说明的插件需要提高 `minHostVersion`，并使用支持该字段的 SDK 打包工具。
+
 兼容性检查同时核对 API 主版本、宿主版本上下界、已实现的权限和平台包。`0.0.0-dev` 或不合法的宿主 SemVer 仅跳过宿主版本范围；权限和平台检查仍然执行。只有没有后端的插件可以使用 `any` 包。
 
 <a id="packages"></a>
@@ -49,11 +51,11 @@
 <a id="administration"></a>
 ## 安装管理接口
 
-`/api/v1/admin/plugins` 提供已安装列表和安装操作；`/uploads` 接收 multipart 的 `file` 字段，返回 `upload_token`、过期时间、manifest、摘要和平台。上传安装使用 `{source: "upload", upload_token, accept_permissions, enable}`，索引安装使用 `{source: "index", index_id, plugin_id, version, accept_permissions, enable}`，响应包含 installation、needs_configuration 和 repaired。需要确认 manifest 中的全部权限；同版本上传只允许修复缺失或无效的已安装包。
+`/api/v1/admin/plugins` 提供已安装列表和安装操作；`/uploads` 接收 multipart 的 `file` 字段，返回 `upload_token`、过期时间、manifest、摘要和平台。上传安装使用 `{source: "upload", upload_token, accept_permissions, enable}`，索引安装使用 `{source: "index", index_id, plugin_id, version, accept_permissions, enable}`，响应包含 installation、needs_configuration 和 repaired。需要确认 manifest 中的全部权限。安装和更新都接受可选的 `ignore_host_version`、`force`，默认均为 false；前者仅跳过最低和最高网关版本要求，后者允许替换同 ID 的持久化安装，包括相同版本。安装接口启用 force 时可显式替换来源；更新接口的索引来源仍固定为当前来源。未开启 force 时，同版本上传仍只用于修复缺失或无效的已安装包。
 
 `/:id` 返回详情或卸载；DELETE 的 `purge_data=true` 清除 KV，缺省保留，台账始终保留。`/:id/enable`、`disable`、`restart` 控制运行意图和本地进程；`/:id/logs` 返回最近 500 行。安装列表和详情的可选 `tasks` 字段返回已登记任务的内存状态及最近执行结果；`next_run_at` 为零值时表示暂停。状态字段见[定时任务](../architecture/plugin_system.md#task_scheduling)。所有路由登记到 adminapi，执行代码、配置和额度变更通过实际 HTTP step-up guard；multipart 上传在 MCP 中使用浏览器入口。
 
-`/:id/update` 接受 `{version, accept_permissions}` 或 `{upload_token, accept_permissions}`。索引更新只能来自当前安装的来源；上传更新可以替换当前分发来源。新增权限未确认时，`PLUGIN_PERMISSIONS_NOT_ACCEPTED` 的 metadata 同时包含完整 permissions 与 new_permissions。`/:id/rollback` 交换完整版本快照；失败更新返回 `PLUGIN_UPDATE_FAILED`，metadata 包含 version、start_error、最多 50 行 logs，以及成功恢复时的 restored_version 或恢复失败时的 rollback_error。
+`/:id/update` 接受 `{version, accept_permissions}` 或 `{upload_token, accept_permissions}`。索引更新只能来自当前安装的来源；上传更新可以替换当前分发来源。新增权限未确认时，`PLUGIN_PERMISSIONS_NOT_ACCEPTED` 的 metadata 同时包含完整 permissions 与 new_permissions。`ignore_host_version` 随当前及上一包快照保存，重启和回滚继续使用对应决定；新一次安装或更新缺省重新执行版本检查。安装 DTO 的同名字段返回当前决定。`force` 只作用于本次请求，不跳过完整性、协议、平台、权限确认或配置校验，也不能覆盖开发目录。`/:id/rollback` 交换完整版本快照；失败更新返回 `PLUGIN_UPDATE_FAILED`，metadata 包含 version、start_error、最多 50 行 logs，以及成功恢复时的 restored_version 或恢复失败时的 rollback_error。
 
 `GET /api/v1/admin/plugin-catalog` 返回来源限定的条目、全部保留版本及兼容性；`/:indexId/:pluginId` 读取单条详情，`POST /refresh` 刷新所有启用来源。`/api/v1/admin/plugin-indexes` 的 GET/POST 用于列表和新增，`/:id` 的 PUT/DELETE 用于修改和删除。输入为 name、url、public_key、enabled；更新省略字段时保留，public_key 空字符串清除固定公钥。内置来源只能修改 enabled。来源 DTO 不返回缓存正文，包含最近验签状态、缓存接受时间、刷新中标记和错误。
 

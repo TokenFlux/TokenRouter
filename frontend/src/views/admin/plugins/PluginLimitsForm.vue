@@ -20,6 +20,7 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 // be newly selected. Validation constructs fresh nested objects and arrays, so a
 // rejected save leaves the editor intact and cannot mutate its last persisted input.
 // Decimal precision is checked against the eight-place normalized value before submission.
+// Each field displays its own scope explanation beside the preserved policy value.
 
 /** LimitField identifies one native numeric control and its policy group. */
 interface LimitField {
@@ -202,6 +203,7 @@ defineExpose({ validate, dirty, reset: resetDraft })
           :id="`plugin-limit-${field.key}`"
           :label-for="`plugin-limit-${field.key}`"
           :label="t(`admin.plugins.limits.fields.${field.key}`)"
+          :hint="t(`admin.plugins.limits.hints.${field.key}`)"
           field
         >
           <Input

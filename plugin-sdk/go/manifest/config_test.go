@@ -6,6 +6,49 @@ import (
 	"testing"
 )
 
+// config_test.go verifies manifest field constraints, localized explanations, and
+// administrator value normalization. Descriptions remain declaration metadata,
+// while submitted values retain explicit zero and false settings and cannot
+// acquire undeclared keys or silently bypass their configured type constraints.
+
+// TestConfigDescriptionsRoundTrip preserves localized help through manifest parsing.
+// The explanation must remain metadata rather than become a submitted setting,
+// and descriptions must obey the same English fallback and Unicode bounds as labels.
+func TestConfigDescriptionsRoundTrip(t *testing.T) {
+	m := validManifest(t)
+	m.Config.Fields[0].Description = LocalizedText{
+		"en": "Balance granted by each daily check-in.",
+		"zh": "每次签到发放的余额。",
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Config.Fields[0].Description.Localize("zh-Hans") != "每次签到发放的余额。" {
+		t.Fatal("localized description was lost")
+	}
+	values, err := parsed.Config.Normalize(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := values["description"]; found {
+		t.Fatal("description became a configuration value")
+	}
+	for _, description := range []LocalizedText{
+		{"zh": "缺少英文回退"},
+		{"en": strings.Repeat("x", 301)},
+	} {
+		m.Config.Fields[0].Description = description
+		if err := m.Validate(); err == nil || !strings.Contains(err.Error(), ".description") {
+			t.Fatalf("invalid description accepted: %v", err)
+		}
+	}
+}
+
 // TestConfigNormalizePreservesExplicitValues exercises all seven field types.
 // Defaults fill only missing inputs, secret strings survive for host encryption,
 // and returned scalar values do not share mutable administrator input.

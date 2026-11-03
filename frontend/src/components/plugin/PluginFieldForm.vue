@@ -15,6 +15,7 @@ import { pluginText, validatePluginDraft, type PluginFieldDraft } from './config
 // accompany the same controls without copying stored secret values into the DOM.
 // Text constraints count Unicode characters through the shared validator; publisher
 // RE2 expressions remain the backend's responsibility.
+// Localized field descriptions render as plain text below their associated labels.
 //
 // A missing secret means preservation, typing a value means replacement, and the
 // explicit clear action records an empty string. Returning to preservation removes
@@ -108,6 +109,7 @@ defineExpose({ validate })
         :id="`${idPrefix}-${field.key}`"
         :label-for="`${idPrefix}-${field.key}`"
         :label="`${pluginText(field.label, locale, field.key)}${field.required ? ' *' : ''}`"
+        :hint="field.description ? pluginText(field.description, locale) : undefined"
         :field="field.type !== 'boolean'"
       >
         <Toggle

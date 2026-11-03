@@ -2,7 +2,7 @@ import type { ModelAttributePresentation } from '@/api/modelAttributes.types'
 import type { ProtocolID } from '@/api/protocols.types'
 import type { ModelModality } from '@/api/models.types'
 
-// marketplace.types.ts describes public groups, model capabilities, availability
+// marketplace.types.ts describes visible groups, model capabilities, availability
 // observations, and quoted prices. Price records distinguish unpriced models from free
 // amounts, and model protocol lists describe the client interfaces currently requestable
 // through each advertised group.
@@ -136,10 +136,12 @@ export interface MarketplaceGroupAvailability {
   days: MarketplaceGroupAvailabilityDay[] // Daily probe outcome buckets.
 }
 
-// MarketplaceGroup describes a public routing group and its requestable model catalog.
+// MarketplaceGroup describes a visible routing group and its requestable model catalog.
 export interface MarketplaceGroup {
   search_terms?: string[] // Additional searchable text.
   id: number // Record numeric identifier.
+  // Missing flags represent public groups when consuming older marketplace responses without this field.
+  is_exclusive?: boolean // Requires explicit user authorization.
   name: string // Record display name.
   description: string // Human-readable record description.
   display_brand: string // Displayed provider brand.

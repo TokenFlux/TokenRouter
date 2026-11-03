@@ -17,16 +17,18 @@ import (
 //
 // Original package versions stay retained through readiness observation, so failure
 // compensation can still use an uploaded previous package that cannot be downloaded
-// again. A target cannot overwrite different bytes belonging to a retained version.
+// again. Archive digest paths keep same-version replacement bytes separate from retained code.
 // Manual rollback swaps accepted snapshots and lets normal reconciliation expose
 // missing-package or startup failures, allowing uploaded-package repair to target
 // the restored current version while retaining its original configuration.
 
 // UpdateInput selects an indexed version or uploaded archive and confirms its capability set.
 type UpdateInput struct {
-	Version           string   `json:"version,omitempty"`      // explicit indexed release selection
-	UploadToken       string   `json:"upload_token,omitempty"` // inspected uploaded release reference
-	AcceptPermissions []string `json:"accept_permissions"`     // reviewed target capability names
+	Version           string   `json:"version,omitempty"`             // explicit indexed release selection
+	UploadToken       string   `json:"upload_token,omitempty"`        // inspected uploaded release reference
+	AcceptPermissions []string `json:"accept_permissions"`            // reviewed target capability names
+	IgnoreHostVersion bool     `json:"ignore_host_version,omitempty"` // bypass only gateway version bounds
+	Force             bool     `json:"force,omitempty"`               // allow same-version package replacement
 }
 
 // resolveInstall converts one unambiguous source selection into accepted release metadata.
@@ -47,7 +49,7 @@ func (s *Service) resolveInstall(ctx context.Context, input InstallInput) (Versi
 		if input.UploadToken != "" || s.releases == nil {
 			return VersionSnapshot{}, ErrIndexInvalid
 		}
-		return s.releases.Resolve(ctx, input.IndexID, input.PluginID, input.Version)
+		return s.releases.Resolve(ctx, input)
 	default:
 		return VersionSnapshot{}, ErrIndexInvalid
 	}
@@ -85,6 +87,8 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateInput, acto
 		} else if input.Version != "" {
 			return ErrPackageInvalid
 		}
+		selection.IgnoreHostVersion = input.IgnoreHostVersion
+		selection.Force = input.Force
 		target, err := s.resolveInstall(ctx, selection)
 		if err != nil {
 			return err
@@ -92,53 +96,76 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateInput, acto
 		if target.Manifest == nil || target.Manifest.ID != id {
 			return ErrPackageInvalid
 		}
-		if target.Version == original.Version {
+		if target.Version == original.Version && !input.Force {
 			return ErrPluginAlreadyInstalled
 		}
-		candidate := *original
-		candidate.VersionSnapshot = target
-		candidate.GrantedPermissions = slices.Clone(input.AcceptPermissions)
-		previous := original.VersionSnapshot
-		candidate.Previous = &previous
-		candidate.UpdatedBy = &actor
-		if err := s.manager.validate(&candidate); err != nil {
-			return permissionsForUpdate(err, original.GrantedPermissions, candidate.Manifest.Permissions)
-		}
-		if err := s.manager.configuration.Migrate(&original.VersionSnapshot, &candidate.VersionSnapshot, candidate.Enabled); err != nil {
-			return err
-		}
-		if err := preservesRetainedPackage(original, &candidate); err != nil {
-			return err
-		}
-		if _, err := s.manager.packages.Ensure(ctx, packageReference(&candidate, input.UploadToken)); err != nil {
-			return err
-		}
-		// Persist only after target verification; retain both original generations until
-		// readiness succeeds so compensation never depends on a deleted uploaded package.
-		if err := s.manager.store.Save(ctx, &candidate); err != nil {
-			cleanup := s.manager.prune(context.WithoutCancel(ctx), original)
-			return errors.Join(err, cleanup)
-		}
-		retain := []string{original.Version}
-		if original.Previous != nil {
-			retain = append(retain, original.Previous.Version)
-		}
-		applyError := s.manager.syncLocked(ctx, id, retain...)
-		if applyError == nil && candidate.Enabled {
-			s.waitReady(ctx, id, 30*time.Second)
-		}
-		status := s.manager.Status(id)
-		ready := !candidate.Enabled || status.State == StateRunning || status.State == StateStatic
-		if applyError == nil && ready {
-			if err := s.manager.prune(ctx, &candidate); err != nil {
-				return err
-			}
-			result, err = s.result(ctx, id)
-			return err
-		}
-		return s.restoreUpdate(ctx, original, candidate.Version, applyError, status)
+		target.IgnoreHostVersion = input.IgnoreHostVersion
+		target.GrantedPermissions = slices.Clone(input.AcceptPermissions)
+		result, err = s.replaceLocked(ctx, original, target, input.UploadToken, actor)
+		return err
 	})
 	return result, err
+}
+
+// replaceLocked applies a verified replacement under the caller's plugin mutation lock.
+// Existing configuration, limits, enabled intent, and business data remain owned by
+// the installation. Development directories cannot be replaced by managed packages.
+//
+// Candidate archives have distinct digest paths, even when versions are equal, so
+// verification cannot overwrite current or rollback bytes. Both original snapshots
+// stay retained through readiness observation. Failed activation restores the entire
+// original record with an independent recovery budget, preserving its older rollback
+// target and the version-check exception previously accepted for that target.
+func (s *Service) replaceLocked(ctx context.Context, original *Installation, target VersionSnapshot, token string, actor int64) (*ChangeResult, error) {
+	if original.Source == SourceDev {
+		return nil, ErrPluginAlreadyInstalled
+	}
+	candidate := *original
+	candidate.VersionSnapshot = target
+	candidate.GrantedPermissions = slices.Clone(target.GrantedPermissions)
+	previous := original.VersionSnapshot
+	candidate.Previous = &previous
+	candidate.UpdatedBy = &actor
+	if err := s.manager.validate(&candidate); err != nil {
+		return nil, permissionsForUpdate(err, original.GrantedPermissions, candidate.Manifest.Permissions)
+	}
+	if err := s.manager.configuration.Migrate(&original.VersionSnapshot, &candidate.VersionSnapshot, candidate.Enabled); err != nil {
+		return nil, err
+	}
+	if _, err := s.manager.packages.Ensure(ctx, packageReference(&candidate, token)); err != nil {
+		return nil, err
+	}
+	// Persist only after target verification; retain both original generations until
+	// readiness succeeds so compensation never depends on a deleted uploaded package.
+	if err := s.manager.store.Save(ctx, &candidate); err != nil {
+		cleanup := s.manager.prune(context.WithoutCancel(ctx), original)
+		return nil, errors.Join(err, cleanup)
+	}
+	retain := []PackageRef{packageReference(original, "")}
+	if original.Previous != nil {
+		retain = append(retain, packageReference(&Installation{PluginID: original.PluginID, VersionSnapshot: *original.Previous}, ""))
+	}
+	// A forced reinstall of identical bytes still reloads the running process.
+	// Draining before reconciliation prevents its same-release optimization from keeping that generation alive.
+	var applyError error
+	if sameRelease(original, &candidate) {
+		applyError = s.manager.drainLocked(ctx, original.PluginID)
+	}
+	if applyError == nil {
+		applyError = s.manager.syncLocked(ctx, original.PluginID, retain...)
+	}
+	if applyError == nil && candidate.Enabled {
+		s.waitReady(ctx, original.PluginID, 30*time.Second)
+	}
+	status := s.manager.Status(original.PluginID)
+	ready := !candidate.Enabled || status.State == StateRunning || status.State == StateStatic
+	if applyError == nil && ready {
+		if err := s.manager.prune(ctx, &candidate); err != nil {
+			return nil, err
+		}
+		return s.result(ctx, original.PluginID)
+	}
+	return nil, s.restoreUpdate(ctx, original, candidate.Version, applyError, status)
 }
 
 // Rollback swaps complete accepted snapshots while retaining installation-level policy.
@@ -235,21 +262,6 @@ func (s *Service) restoreUpdate(ctx context.Context, original *Installation, can
 		metadata["restored_version"] = original.Version
 	}
 	return ErrUpdateFailed.WithMetadata(metadata).WithCause(errors.Join(applyError, err))
-}
-
-// preservesRetainedPackage rejects replacement bytes that would destroy the original previous package.
-// Re-selecting the same retained release is allowed only with its accepted archive
-// and manifest identities. New version directories remain independently publishable before readiness.
-func preservesRetainedPackage(original, candidate *Installation) error {
-	if original.Previous == nil || original.Previous.Version != candidate.Version {
-		return nil
-	}
-	retained := &Installation{PluginID: original.PluginID, VersionSnapshot: *original.Previous}
-	old, next := packageReference(retained, ""), packageReference(candidate, "")
-	if old.ManifestSHA256 != next.ManifestSHA256 || old.Artifact.SHA256 != next.Artifact.SHA256 {
-		return ErrPackageInvalid
-	}
-	return nil
 }
 
 // permissionsForUpdate adds the newly requested capability subset to existing confirmation errors.

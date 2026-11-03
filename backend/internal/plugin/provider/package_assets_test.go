@@ -21,10 +21,10 @@ func TestPackageAssetLookupIsLocalAndBoundsDescriptorGrowth(t *testing.T) {
 	require.NoError(t, err)
 	installed, err := files.Ensure(t.Context(), uploadReference(upload))
 	require.NoError(t, err)
-	local, err := files.Local(t.Context(), "test.plugin", "1.0.0")
+	local, err := files.Local(t.Context(), uploadReference(upload))
 	require.NoError(t, err)
 	require.Equal(t, installed.Files, local.Files)
-	_, err = files.Local(t.Context(), "test.plugin", "2.0.0")
+	_, err = files.Local(t.Context(), plugin.PackageRef{PluginID: "test.plugin", Version: "2.0.0"})
 	require.ErrorIs(t, err, plugin.ErrPackageMissing)
 	for _, name := range []string{"../plugin.json", "missing.js"} {
 		_, err = files.Open(t.Context(), local, name, 8<<20)
@@ -67,8 +67,8 @@ func TestPackageAssetRejectsLinkedAndEscapingFiles(t *testing.T) {
 	require.NoError(t, os.Symlink("relocated", filepath.Join(local.Directory, "frontend")))
 	_, err = files.Open(t.Context(), local, "frontend/index.js", 8<<20)
 	require.ErrorIs(t, err, plugin.ErrPackageMissing)
-	_, err = files.Local(t.Context(), "../test.plugin", "1.0.0")
+	_, err = files.Local(t.Context(), plugin.PackageRef{PluginID: "../test.plugin", Version: "1.0.0"})
 	require.ErrorIs(t, err, plugin.ErrPackageMissing)
-	_, err = files.Local(t.Context(), "test.plugin", "../1.0.0")
+	_, err = files.Local(t.Context(), plugin.PackageRef{PluginID: "test.plugin", Version: "../1.0.0"})
 	require.ErrorIs(t, err, plugin.ErrPackageMissing)
 }

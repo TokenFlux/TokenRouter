@@ -56,6 +56,7 @@ type IndexFetcher interface {
 type ReleaseResolver interface {
 	// Resolve returns independently owned release state after source and compatibility checks.
 	// The caller still validates permission acceptance under the plugin mutation lock.
-	// Disabled, withdrawn, missing, or incompatible selections fail without downloading archives.
-	Resolve(context.Context, int64, string, string) (VersionSnapshot, error)
+	// Explicit testing options may waive version bounds and source ownership;
+	// disabled, withdrawn, missing, or unsupported selections still fail without downloading archives.
+	Resolve(context.Context, InstallInput) (VersionSnapshot, error)
 }

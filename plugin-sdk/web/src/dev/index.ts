@@ -263,9 +263,9 @@ export function useMessages(messages: Messages): Translator {
 function installStyles(): void {
   const style = document.createElement('style')
   style.textContent = `
-    .tr-dev-host { --tr-color-brand:#12A7E8; --tr-color-brand-contrast:#fff; --tr-color-surface:#fff; --tr-color-surface-muted:#FAFAFA; --tr-color-border:rgba(45,79,104,.1); --tr-color-text:#18181b; --tr-color-text-muted:#71717a; --tr-color-success:#16a34a; --tr-color-warning:#d97706; --tr-color-danger:#dc2626; --radius-control:8px; --radius-surface:12px; font:14px/1.5 system-ui,sans-serif; }
+    .tr-dev-host { --tr-color-brand:#12A7E8; --tr-color-accent:#12A7E8; --tr-color-brand-contrast:#fff; --tr-color-surface:#fff; --tr-color-surface-muted:#FAFAFA; --tr-color-border:rgba(45,79,104,.1); --tr-color-text:#18181b; --tr-color-text-muted:#71717a; --tr-color-success:#16a34a; --tr-color-warning:#d97706; --tr-color-danger:#dc2626; --radius-control:8px; --radius-surface:12px; font:14px/1.5 system-ui,sans-serif; }
     .tr-dev-host > div { min-height:100vh; color:var(--tr-color-text); background:var(--tr-color-surface-muted); }
-    .tr-dev-host [data-theme=dark] { --tr-color-surface:#0F0F10; --tr-color-surface-muted:#141416; --tr-color-border:rgba(250,250,250,.078); --tr-color-text:#DEE0E2; --tr-color-text-muted:#A1A1AA; }
+    .tr-dev-host [data-theme=dark] { --tr-color-accent:#00D2FF; --tr-color-surface:#0F0F10; --tr-color-surface-muted:#141416; --tr-color-border:rgba(250,250,250,.078); --tr-color-text:#DEE0E2; --tr-color-text-muted:#A1A1AA; }
     body { margin:0; }
     .tr-dev-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:16px; padding:16px 24px; border-bottom:1px solid var(--tr-color-border); background:var(--tr-color-surface); }
     .tr-dev-toolbar strong { margin-right:auto; }

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/plugin"
+	"github.com/TokenFlux/TokenRouter/plugin-sdk/go/pkgfmt"
 )
 
 // package_repair_scenario_test.go covers package_files.go, package_assets.go, and
@@ -89,7 +90,7 @@ func TestPackageRepairRestoresSameSizeCorruption(t *testing.T) {
 	require.NoError(t, err)
 	initial, err := service.Install(t.Context(), plugin.InstallInput{Source: plugin.SourceUpload, UploadToken: upload.Token, Enable: true}, 1)
 	require.NoError(t, err)
-	local, err := packages.Local(t.Context(), "test.plugin", "1.0.0")
+	local, err := packages.Local(t.Context(), uploadReference(upload))
 	require.NoError(t, err)
 	filename := filepath.Join(local.Directory, "frontend/index.js")
 	original, err := os.ReadFile(filename)
@@ -120,4 +121,58 @@ func TestPackageRepairRestoresSameSizeCorruption(t *testing.T) {
 	require.Equal(t, original, restored)
 	_, err = service.Install(t.Context(), plugin.InstallInput{Source: plugin.SourceUpload, UploadToken: fresh.Token}, 3)
 	require.ErrorIs(t, err, plugin.ErrPluginAlreadyInstalled)
+}
+
+// TestForcedSameVersionPackagesRetainIndependentRollbackBytes installs three different builds with one unchanged manifest and version.
+// Legacy version directories remain usable, only the current and previous archives survive, and rollback serves the previous build's actual bytes.
+func TestForcedSameVersionPackagesRetainIndependentRollbackBytes(t *testing.T) {
+	packages, err := NewPackageFiles(t.TempDir(), DownloadOptions{})
+	require.NoError(t, err)
+	processes := NewProcesses(plugin.RuntimeOptions{}, nil, nil)
+	manager := plugin.NewManager(plugin.ManagerOptions{Enabled: true, MaxRunning: 1, HostVersion: "0.6.0"},
+		&repairInstallationStore{}, packages, processes, plugin.NewConfiguration(nil, false), nil)
+	t.Cleanup(func() { require.NoError(t, manager.Stop(context.Background())) })
+	service := plugin.NewService(manager, packages, nil, nil)
+	first, err := packages.Preview(t.Context(), bytes.NewReader(packageArchive(t, "1.0.0")))
+	require.NoError(t, err)
+	original, err := packages.Ensure(t.Context(), uploadReference(first))
+	require.NoError(t, err)
+	legacy := filepath.Join(packages.root, "installed", "test.plugin", "1.0.0")
+	require.NoError(t, os.Rename(original.Directory, legacy))
+	_, err = service.Install(t.Context(), plugin.InstallInput{Source: plugin.SourceUpload, UploadToken: first.Token, Enable: true}, 1)
+	require.NoError(t, err)
+	for _, script := range []string{"globalThis.fixture = 2;", "globalThis.fixture = 3;"} {
+		directory := filepath.Join(t.TempDir(), "package")
+		_, err := pkgfmt.Extract(bytes.NewReader(packageArchive(t, "1.0.0")), directory, pkgfmt.Options{Platform: "any"})
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(directory, "frontend/index.js"), []byte(script), 0o644))
+		archive, err := pkgfmt.Pack(directory, filepath.Join(t.TempDir(), "package.tar.gz"), pkgfmt.Options{Platform: "any"})
+		require.NoError(t, err)
+		data, err := os.ReadFile(archive.Path)
+		require.NoError(t, err)
+		upload, err := packages.Preview(t.Context(), bytes.NewReader(data))
+		require.NoError(t, err)
+		require.Equal(t, first.Snapshot.ManifestSHA256, upload.Snapshot.ManifestSHA256)
+		_, err = service.Install(t.Context(), plugin.InstallInput{Source: plugin.SourceUpload, UploadToken: upload.Token, Force: true}, 1)
+		require.NoError(t, err)
+		loaded, ok := manager.Snapshot("test.plugin")
+		require.True(t, ok)
+		actual, err := os.ReadFile(filepath.Join(loaded.Package.Directory, "frontend/index.js"))
+		require.NoError(t, err)
+		require.Equal(t, script, string(actual))
+	}
+	entries, err := os.ReadDir(filepath.Dir(legacy))
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+	require.NoDirExists(t, legacy)
+	result, err := service.Rollback(t.Context(), "test.plugin", 1)
+	require.NoError(t, err)
+	require.Equal(t, "1.0.0", result.Installation.Version)
+	require.Equal(t, "1.0.0", result.Installation.Previous.Version)
+	require.NoError(t, manager.Restart(t.Context(), "test.plugin"))
+	loaded, ok := manager.Snapshot("test.plugin")
+	require.True(t, ok)
+	actual, err := os.ReadFile(filepath.Join(loaded.Package.Directory, "frontend/index.js"))
+	require.NoError(t, err)
+	require.Equal(t, "globalThis.fixture = 2;", string(actual))
 }

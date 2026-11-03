@@ -38,6 +38,7 @@ import Columns3Icon from './artwork/columns-3'
 import CopyIcon from './artwork/copy'
 import CpuIcon from './artwork/cpu'
 import CreditCardIcon from './artwork/credit-card'
+import CrownIcon from './artwork/crown'
 import DatabaseIcon from './artwork/database'
 import DownloadIcon from './artwork/download'
 import EllipsisIcon from './artwork/ellipsis'
@@ -133,6 +134,7 @@ import type { IconDefinition } from './types'
 // icons maps application names to imported artwork definitions; multiple
 // semantic names can intentionally share one renderer.
 export const icons = {
+  crown: CrownIcon, // Exclusive access emblem.
   play: PlayIcon,
   refresh: RefreshCwIcon,
   edit: SquarePenIcon,

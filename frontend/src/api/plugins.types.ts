@@ -15,6 +15,7 @@ export interface PluginField {
   key: string // Unique configuration field key.
   type: PluginFieldType // Declared configuration value type.
   label: LocalizedPluginText // Localized configuration field label.
+  description?: LocalizedPluginText // Optional localized field explanation.
   required?: boolean // Nonempty value requirement flag.
   default?: string | number | boolean | null // Optional declared ordinary default.
   min?: number // Inclusive numeric lower bound.

@@ -61,8 +61,8 @@ type ForwardedSettingsOptions struct {
 	// InitialTrustConfigured and TrustedProxiesConfigured prevent the one-time
 	// upgrade from retaining raw headers when the operator supplied the switch or
 	// a peer-trust policy, including an empty list.
-	InitialTrustConfigured   bool
-	TrustedProxiesConfigured bool
+	InitialTrustConfigured   bool // explicit startup trust switch
+	TrustedProxiesConfigured bool // explicit trusted proxy policy
 	// Headers supplies fallback names after a successful repository read. Return
 	// validated, nonnil names so an absent header key can be persisted as a JSON array.
 	Headers func() []string

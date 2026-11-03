@@ -5,6 +5,7 @@
 
 export default {
   marketplace: {
+    exclusive: 'Exclusive',
     title: 'Model Marketplace',
     subtitle: 'View available models',
     backHome: 'Back Home',

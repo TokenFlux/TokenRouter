@@ -19,6 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// config_test.go exercises configuration defaults, source precedence, and input
+// validation using temporary files and isolated environment values. These cases
+// verify that explicit operator choices survive decoding while malformed settings
+// fail before application components consume them.
+
 // TestLoadDefaultModelsListReadMaxBytes loads configuration with the standard
 // fixture JWT secret. The model-list body limit must equal the named default
 // used for upstream model responses.
@@ -4214,6 +4219,48 @@ func TestNormalizeWeChatConnectConfig_LegacyNormalization(t *testing.T) {
 			require.Equal(t, "mp-secret", cfg.AppSecret)
 			require.Equal(t, [6]string{"open-id", "mp-secret", "open-id", "mp-secret", "mobile-id", "mobile-secret"},
 				[6]string{cfg.OpenAppID, cfg.OpenAppSecret, cfg.MPAppID, cfg.MPAppSecret, cfg.MobileAppID, cfg.MobileAppSecret})
+		})
+	}
+}
+
+// TestLoadForwardedTrustPresence distinguishes omitted configuration from explicit
+// true and false values in YAML and environment variables. Environment overrides
+// must retain presence so startup migration respects the operator's choice.
+func TestLoadForwardedTrustPresence(t *testing.T) {
+	cases := []struct {
+		name string // scenario display name
+		yaml string // explicit YAML boolean
+		env  string // explicit environment boolean
+		want bool   // effective trust value
+	}{
+		{name: "omitted"},
+		{name: "yaml false", yaml: "false"},
+		{name: "yaml true", yaml: "true", want: true},
+		{name: "environment false", env: "false"},
+		{name: "environment true", env: "true", want: true},
+		{name: "environment overrides YAML", yaml: "true", env: "false"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resetViperWithJWTSecret(t)
+			const key = "SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL"
+			// Register restoration before removing the variable; an absent value
+			// must remain distinct from an explicitly supplied empty environment value.
+			t.Setenv(key, testCase.env)
+			if testCase.env == "" {
+				require.NoError(t, os.Unsetenv(key))
+			}
+			body := "{}"
+			if testCase.yaml != "" {
+				body = "security:\n  trust_forwarded_ip_for_api_key_acl: " + testCase.yaml + "\n"
+			}
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+			t.Setenv("CONFIG_FILE", path)
+			cfg, err := Load()
+			require.NoError(t, err)
+			require.Equal(t, testCase.want, cfg.TrustForwardedIPForAPIKeyACL())
+			require.Equal(t, testCase.yaml != "" || testCase.env != "", cfg.Security.TrustForwardedIPConfigured)
 		})
 	}
 }

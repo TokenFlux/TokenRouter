@@ -40,6 +40,10 @@ to the generated names. Stylesheets without local keyframes retain those values.
 
 Use the `--tr-color-*` variables exported in `CSS_VARIABLES`, plus the host's
 existing `--radius-*` and `--z-*` variables, to follow light and dark themes.
+`--tr-color-brand` supplies the primary button fill. Use `--tr-color-accent` for
+links, selected tabs, and selection indicators: it follows `primary-600` in light
+mode and `primary-500` in dark mode. Hosts predating this token need a fallback
+that follows the reactive `host.theme` value.
 
 `vite` uses the local mock for SDK imports. The mock supports the example's
 check-in endpoints; authors can replace responses with `configureMock` from

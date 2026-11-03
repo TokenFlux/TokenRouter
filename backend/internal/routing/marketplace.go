@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,12 +16,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
-// marketplace.go assembles public group model listings with quotes, route
+// marketplace.go assembles authorized group model listings with quotes, route
 // attributes, and optional observations.
-// Public groups must have active provider counts and requestable model
+// Visible groups must have active provider counts and requestable model
 // definitions before prices or observations are assembled. Group visibility
-// follows saved exclusivity and the resolved catalog, while the repository's
-// display order remains the result order.
+// requires explicit grants for exclusive groups and a resolved catalog.
+// Exclusive results precede public groups; repository order remains stable
+// within each category. Public entrypoints supply no exclusive grants.
 //
 // Provider prefetch can share rows across groups; failure selects per-group
 // model resolution instead. Visible definitions retain public IDs, pricing
@@ -45,7 +47,8 @@ const (
 type ModelMarketplaceGroup struct {
 	SearchTerms []string          // saved localized search variants
 	Resolution  locale.Resolution // display-language selection metadata
-	ID          int64             // public group row ID
+	ID          int64             // visible group row ID
+	IsExclusive bool              // requires explicit user authorization
 	Name        string            // resolved localized display name
 	Description string            // resolved localized group description
 
@@ -73,8 +76,8 @@ type ModelMarketplaceGroup struct {
 	// entry. The supplied summary and its nested buckets remain borrowed from the
 	// history reader and are treated as read-only.
 	Availability *GroupAvailabilitySummary // optional recorded probe summary
-	ModelCount   int                       // returned public model count
-	Models       []ModelMarketplaceModel   // eligible public model presentations
+	ModelCount   int                       // returned requestable model count
+	Models       []ModelMarketplaceModel   // eligible visible model presentations
 }
 
 // ModelMarketplaceModel contains one public request ID with quote and display
@@ -108,7 +111,7 @@ type ModelMarketplaceModel struct {
 	NativeProtocols []capability.ProtocolID // protocols native across resolved routes
 }
 
-// MarketplaceListOptions chooses whether a public query includes runtime
+// MarketplaceListOptions chooses whether a marketplace query includes runtime
 // capacity observations.
 type MarketplaceListOptions struct {
 	// IncludeCapacity gates capacity aggregation for this listing. False skips
@@ -154,7 +157,7 @@ type MarketplaceModelDef struct {
 	PricingAmbiguous bool // routes lack one pricing identity
 }
 
-// MarketplaceGroups supplies active group records for public visibility
+// MarketplaceGroups supplies active group records for marketplace visibility
 // filtering.
 type MarketplaceGroups interface {
 	// ListActive returns saved active groups in the reader's display ordering.
@@ -181,7 +184,7 @@ type MarketplaceModels interface {
 	ResolveRequestableModels(context.Context, *int64, string) RequestableModelsResult
 }
 
-// MarketplaceCapacity reads group capacity summaries used as optional public
+// MarketplaceCapacity reads group capacity summaries used as optional marketplace
 // observations.
 type MarketplaceCapacity interface {
 	// GetGroupCapacityByIDs returns capacity summaries indexed by the selected
@@ -189,7 +192,7 @@ type MarketplaceCapacity interface {
 	GetGroupCapacityByIDs(context.Context, []int64) (map[int64]GroupCapacitySummary, error)
 }
 
-// MarketplaceAvailability reads saved probe summaries for selected public
+// MarketplaceAvailability reads saved probe summaries for selected authorized
 // groups.
 type MarketplaceAvailability interface {
 	// GetSummaryByGroupIDs reads availability counts and the latest stored status
@@ -242,7 +245,7 @@ type MarketplaceOptions struct {
 	Warn func(string, ...any) // synchronous marketplace diagnostic callback
 }
 
-// Marketplace assembles eligible public models with shared quotes and optional
+// Marketplace assembles eligible visible models with shared quotes and optional
 // observations.
 type Marketplace struct {
 	groups       MarketplaceGroups       // active product group reader
@@ -255,7 +258,7 @@ type Marketplace struct {
 	options      MarketplaceOptions      // attribute and observation callbacks
 }
 
-// NewMarketplace retains readers for public groups, models, prices, and
+// NewMarketplace retains readers for active groups, models, prices, and
 // optional observations. Construction performs no queries; callers configure
 // Now when querying enabled probe history and Warn for provider-prefetch or
 // attribute-error reporting paths.
@@ -263,20 +266,27 @@ func NewMarketplace(groups MarketplaceGroups, settings MarketplaceSettings, mode
 	return &Marketplace{groups: groups, settings: settings, models: models, requestable: resolver, prices: prices, capacity: capacity, availability: availability, options: options}
 }
 
-// ListPublic returns active public groups that have provider counts and
-// resolved requestable models, retaining repository group order. Exclusive
-// groups, groups with no active providers, and groups with an empty resolved
-// catalog are omitted.
-//
-// Providers are prefetched once when available, then visible models are
-// assembled before a single attribute batch and optional observation queries.
-// Capability resolution failures stop the query. Optional display enrichment,
-// capacity, availability, and currency failures retain models with missing
-// auxiliary values; capability filtering and display share one catalog view. Probe history is limited
-// to visible probe-enabled groups, and capacity is skipped when IncludeCapacity
-// is false. A failed active-group read returns an error before assembly.
-// @project-doc docs/interfaces/model_catalog_and_marketplace.md#model_catalog_resolution
+// ListPublic returns only public groups using the shared marketplace assembly.
+// No exclusive grants are supplied, even when the HTTP caller happens to have
+// a session. Repository failures and model-resolution failures return errors.
 func (s *Marketplace) ListPublic(ctx context.Context, options MarketplaceListOptions) ([]ModelMarketplaceGroup, error) {
+	return s.ListVisible(ctx, nil, options)
+}
+
+// ListVisible assembles public groups and explicitly authorized exclusive groups.
+// Callers obtain exclusiveGroupIDs from trusted, current user permissions;
+// nil grants restrict the result to public groups. Active repository records
+// require active providers and requestable models before display enrichment.
+//
+// Authorization filtering precedes model resolution, attribute batching, and
+// optional observation reads. Exclusive groups precede public groups while
+// preserving repository order within each category. Provider prefetch failures
+// fall back to individual reads; model-resolution failures abort the query.
+// Optional attributes, observations, and currency metadata may remain absent
+// without hiding otherwise eligible groups. IncludeCapacity disables capacity
+// work when false, while probe history remains limited to visible groups.
+// @project-doc docs/interfaces/model_catalog_and_marketplace.md#marketplace_visibility
+func (s *Marketplace) ListVisible(ctx context.Context, exclusiveGroupIDs []int64, options MarketplaceListOptions) ([]ModelMarketplaceGroup, error) {
 	if s.requestable.Attributes != nil && ModelAttributesFromContext(ctx) == nil {
 		ctx = WithModelAttributes(ctx, s.requestable.Attributes)
 	}
@@ -285,12 +295,18 @@ func (s *Marketplace) ListPublic(ctx context.Context, options MarketplaceListOpt
 		return nil, fmt.Errorf("list active groups: %w", err)
 	}
 
+	allowed := make(map[int64]struct{}, len(exclusiveGroupIDs))
+	for _, id := range exclusiveGroupIDs {
+		allowed[id] = struct{}{}
+	}
+
 	providersByGroup, providersPrefetched := s.PrefetchProviders(ctx)
 	visibleGroups := make([]Group, 0, len(groups))
 	definitions := make(map[int64][]MarketplaceModelDef, len(groups))
 	for i := range groups {
 		group := &groups[i]
-		if group.IsExclusive || group.ActiveProviderCount <= 0 {
+		_, authorized := allowed[group.ID]
+		if (group.IsExclusive && !authorized) || group.ActiveProviderCount <= 0 {
 			continue
 		}
 
@@ -314,13 +330,23 @@ func (s *Marketplace) ListPublic(ctx context.Context, options MarketplaceListOpt
 		return []ModelMarketplaceGroup{}, nil
 	}
 
+	slices.SortStableFunc(visibleGroups, func(left, right Group) int {
+		if left.IsExclusive == right.IsExclusive {
+			return 0
+		}
+		if left.IsExclusive {
+			return -1
+		}
+		return 1
+	})
+
 	attributes := s.readAttributes(ctx, definitions)
 	discountConfig, showDiscount := s.getOfficialPriceRatioConfig(ctx)
 	var capacityMap map[int64]GroupCapacitySummary
 	if options.IncludeCapacity {
-		capacityMap = s.getPublicCapacityMap(ctx, visibleGroups)
+		capacityMap = s.getVisibleCapacityMap(ctx, visibleGroups)
 	}
-	availabilityMap := s.getPublicAvailabilityMap(ctx, visibleGroups)
+	availabilityMap := s.getVisibleAvailabilityMap(ctx, visibleGroups)
 	out := make([]ModelMarketplaceGroup, 0, len(visibleGroups))
 	for i := range visibleGroups {
 		group := &visibleGroups[i]
@@ -340,6 +366,7 @@ func (s *Marketplace) ListPublic(ctx context.Context, options MarketplaceListOpt
 		out = append(out, ModelMarketplaceGroup{
 			SearchTerms: GroupSearchTexts(group), Resolution: resolution,
 			ID:          group.ID,
+			IsExclusive: group.IsExclusive,
 			Name:        display.DisplayName,
 			Description: display.Description,
 
@@ -362,7 +389,7 @@ func (s *Marketplace) ListPublic(ctx context.Context, options MarketplaceListOpt
 
 // PrefetchProviders groups prefetched provider values by membership and sorts
 // each pool by global priority then ID. Nil service or model reader,
-// unsupported prefetch, and observed read errors return false so ListPublic can
+// unsupported prefetch, and observed read errors return false so ListVisible can
 // use per-group resolution.
 //
 // ProviderGroupIDs and GroupIDs are both accepted; IDs already present in
@@ -380,7 +407,7 @@ func (s *Marketplace) PrefetchProviders(ctx context.Context) (map[int64][]Catalo
 	}
 	if err != nil {
 		// A failed shared provider read leaves per-group resolution available, so
-		// report the failure and let ListPublic query each group's candidates through
+		// report the failure and let ListVisible query each group's candidates through
 		// its normal reader.
 		s.options.Warn("failed to prefetch marketplace providers", "error", err)
 		return nil, false
@@ -421,10 +448,10 @@ func (s *Marketplace) PrefetchProviders(ctx context.Context) (map[int64][]Catalo
 	return providersByGroup, true
 }
 
-// getPublicCapacityMap reads optional capacity for public groups with active
+// getVisibleCapacityMap reads optional capacity for authorized groups with active
 // provider counts. Missing readers or usable IDs yield nil; a reader error also
 // yields nil so model and price output can continue.
-func (s *Marketplace) getPublicCapacityMap(ctx context.Context, groups []Group) map[int64]GroupCapacitySummary {
+func (s *Marketplace) getVisibleCapacityMap(ctx context.Context, groups []Group) map[int64]GroupCapacitySummary {
 	if s.capacity == nil || len(groups) == 0 {
 		return nil
 	}
@@ -432,7 +459,7 @@ func (s *Marketplace) getPublicCapacityMap(ctx context.Context, groups []Group) 
 	groupIDs := make([]int64, 0, len(groups))
 	for i := range groups {
 		group := &groups[i]
-		if group.IsExclusive || group.ActiveProviderCount <= 0 {
+		if group.ActiveProviderCount <= 0 {
 			continue
 		}
 		groupIDs = append(groupIDs, group.ID)
@@ -466,11 +493,11 @@ func marketplaceGroupCapacity(capacityMap map[int64]GroupCapacitySummary, groupI
 	return &capacity
 }
 
-// getPublicAvailabilityMap reads optional history for public probe-enabled
+// getVisibleAvailabilityMap reads optional history for authorized probe-enabled
 // groups with active providers. Missing readers, empty usable IDs, or query
 // failure returns nil; it passes the normalized display window, trimmed
 // timezone or UTC, and injected query time.
-func (s *Marketplace) getPublicAvailabilityMap(ctx context.Context, groups []Group) map[int64]*GroupAvailabilitySummary {
+func (s *Marketplace) getVisibleAvailabilityMap(ctx context.Context, groups []Group) map[int64]*GroupAvailabilitySummary {
 	if s.availability == nil || len(groups) == 0 {
 		return nil
 	}
@@ -478,7 +505,7 @@ func (s *Marketplace) getPublicAvailabilityMap(ctx context.Context, groups []Gro
 	groupIDs := make([]int64, 0, len(groups))
 	for i := range groups {
 		group := &groups[i]
-		if group.IsExclusive || group.ActiveProviderCount <= 0 {
+		if group.ActiveProviderCount <= 0 {
 			continue
 		}
 		if !group.AvailabilityProbeConfig.Enabled {
@@ -587,7 +614,7 @@ func (c marketplaceDiscountConfig) officialPriceRatio(rateMultiplier float64) *f
 // equivalent value.
 //
 // Nonpositive, NaN, or infinite results yield nil for display. The method uses
-// no per-model price fields; ListPublic calls it after both point-price and
+// no per-model price fields; ListVisible calls it after both point-price and
 // exchange-rate settings have passed validation, sharing that
 // currency-information gate with officialPriceRatio.
 func (c marketplaceDiscountConfig) officialPriceRMBEquivalent(rateMultiplier float64) *float64 {
@@ -602,7 +629,7 @@ func (c marketplaceDiscountConfig) officialPriceRMBEquivalent(rateMultiplier flo
 // group conversion display. A nil reader, storage error, missing setting, or
 // nonpositive or nonfinite parsed value returns false.
 //
-// Point price and exchange rate are validated together before ListPublic
+// Point price and exchange rate are validated together before ListVisible
 // exposes either ratio or RMB equivalent. This gate keeps partly configured
 // currency data from producing misleading output, even though the
 // equivalent-value formula itself uses only point price and group factor. Both

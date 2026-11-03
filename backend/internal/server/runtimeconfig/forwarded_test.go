@@ -8,6 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// forwarded_test.go verifies startup selection and persistence of client-IP trust.
+// In-memory settings distinguish new installations, retained legacy defaults,
+// and explicit operator choices so migration markers cannot override a saved
+// preference during a later startup.
+
 // forwardedRepoStub keeps settings in memory for loader tests so a test can
 // assert which values reached persistence.
 type forwardedRepoStub struct {
@@ -32,19 +37,20 @@ func (r *forwardedRepoStub) SetMultiple(_ context.Context, updates map[string]st
 }
 
 // TestLoadForwardedClientIPSettingsSelectsUpgradeMode runs startup loading across
-// new and existing installations. Only an existing installation with no operator
-// choice keeps raw-header trust, and every other case must resolve peers directly.
+// new and existing installations. Saved choices take precedence, while an existing
+// installation without an operator choice retains its earlier enabled default.
 func TestLoadForwardedClientIPSettingsSelectsUpgradeMode(t *testing.T) {
 	existing := map[string]string{SettingKeyForwardedClientIPModeV2: "true"}
 	cases := []struct {
-		name          string
-		stored        map[string]string
-		options       ForwardedSettingsOptions
-		wantEnabled   bool
-		wantPersisted string
+		name          string                   // scenario display name
+		stored        map[string]string        // persisted settings before loading
+		options       ForwardedSettingsOptions // supplied startup configuration
+		wantEnabled   bool                     // expected runtime trust
+		wantPersisted string                   // expected stored trust text
 	}{
 		{name: "new installation stays off", stored: map[string]string{}},
 		{name: "existing installation keeps earlier default", stored: existing, wantEnabled: true, wantPersisted: "true"},
+		{name: "explicit true stays enabled", stored: existing, options: ForwardedSettingsOptions{InitialTrust: true, InitialTrustConfigured: true}, wantEnabled: true},
 		{name: "existing installation with explicit switch", stored: existing, options: ForwardedSettingsOptions{InitialTrustConfigured: true}},
 		{name: "existing installation with proxy policy", stored: existing, options: ForwardedSettingsOptions{TrustedProxiesConfigured: true}},
 		{

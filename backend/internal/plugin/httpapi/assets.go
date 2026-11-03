@@ -53,7 +53,8 @@ func (h *PublicHandler) Asset(c *gin.Context) {
 			declared = loaded.Installation.Previous.Manifest.Icon
 		default:
 			// Retained assets may outlive a failed current-package load; resolve their declaration from accepted installation metadata without downloading or decrypting anything.
-			declared, _ = h.options.Runtime.IconPath(c.Request.Context(), id, version)
+			ref, _ := h.options.Runtime.AssetReference(c.Request.Context(), id, version)
+			declared = ref.Icon
 		}
 		if declared == name {
 			allowed = true
@@ -72,8 +73,12 @@ func (h *PublicHandler) Asset(c *gin.Context) {
 	if current && loaded.Installation != nil && loaded.Installation.Version == version {
 		local = loaded.Package
 	} else {
-		var err error
-		local, err = h.options.Files.Local(c.Request.Context(), id, version)
+		ref, err := h.options.Runtime.AssetReference(c.Request.Context(), id, version)
+		if err != nil {
+			httpx.NotFound(c, "Plugin asset not found")
+			return
+		}
+		local, err = h.options.Files.Local(c.Request.Context(), ref)
 		if err != nil {
 			httpx.NotFound(c, "Plugin asset not found")
 			return

@@ -173,4 +173,36 @@ describe('reviewed package uploads', () => {
     expect(wrapper.emitted('close')).toBeUndefined()
     expect(wrapper.text()).toContain('Update failed; old version restored')
   })
+  // Same-version testing requires an explicit replacement decision after archive review.
+  // Both overrides travel with that exact request, and reopening or rereading clears them.
+  it('forces a same-version upload with independently selected version override', async () => {
+    const wrapper = mountUpload()
+    await wrapper.setProps({ installations: [installationFixture()] })
+    await selectPackage(wrapper)
+    await button(wrapper, 'admin.plugins.review.validate').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('#plugin-upload-force').attributes('aria-checked')).toBe('false')
+    expect(wrapper.get('#plugin-upload-ignoreHostVersion').attributes('aria-checked')).toBe('false')
+    await wrapper.get('#plugin-upload-force').trigger('click')
+    await wrapper.get('#plugin-upload-ignoreHostVersion').trigger('click')
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await button(wrapper, 'admin.plugins.review.force').trigger('click')
+    await flushPromises()
+    expect(fixture.update).not.toHaveBeenCalled()
+    expect(fixture.install).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'upload',
+        upload_token: 'preview-token',
+        force: true,
+        ignore_host_version: true,
+      }),
+    )
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    await selectPackage(wrapper)
+    await button(wrapper, 'admin.plugins.review.validate').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('#plugin-upload-force').attributes('aria-checked')).toBe('false')
+    expect(wrapper.get('#plugin-upload-ignoreHostVersion').attributes('aria-checked')).toBe('false')
+  })
 })

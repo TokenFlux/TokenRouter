@@ -5,6 +5,7 @@
 
 export default {
   marketplace: {
+    exclusive: '专属',
     title: '模型广场',
     subtitle: '查看可用模型',
     backHome: '返回首页',

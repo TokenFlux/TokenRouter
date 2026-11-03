@@ -180,3 +180,30 @@ func TestPluginMigrationRepeatAndFutureManifestRead(t *testing.T) {
 	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM plugin_kv").Scan(&count))
 	require.Equal(t, 1, count)
 }
+
+// TestVersionExceptionPersistence retains distinct administrator decisions for current and previous packages.
+// Repeating migration 307 preserves existing rows, and subsequent reads reconstruct each flag without copying it across snapshots.
+func TestVersionExceptionPersistence(t *testing.T) {
+	store, _, db := persistenceFixture(t)
+	item := storedInstallation(t)
+	previous := item.VersionSnapshot
+	item.Previous = &previous
+	item.IgnoreHostVersion = true
+	require.NoError(t, store.Save(t.Context(), item))
+	script, err := migrations.FS.ReadFile("307_plugin_install_overrides.sql")
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), string(script))
+	require.NoError(t, err)
+	read, err := store.Get(t.Context(), item.PluginID)
+	require.NoError(t, err)
+	require.True(t, read.IgnoreHostVersion)
+	require.False(t, read.Previous.IgnoreHostVersion)
+	current := read.VersionSnapshot
+	read.VersionSnapshot = *read.Previous
+	read.Previous = &current
+	require.NoError(t, store.Save(t.Context(), read))
+	items, err := store.List(t.Context())
+	require.NoError(t, err)
+	require.False(t, items[0].IgnoreHostVersion)
+	require.True(t, items[0].Previous.IgnoreHostVersion)
+}

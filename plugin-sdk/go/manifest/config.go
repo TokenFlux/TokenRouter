@@ -35,10 +35,11 @@ type Config struct {
 
 // Field declares a typed setting, its presentation, and optional validation constraints.
 type Field struct {
-	Key      string        `json:"key"`                // unique configuration field key
-	Type     string        `json:"type"`               // configuration field type
-	Label    LocalizedText `json:"label"`              // localized form field label
-	Required bool          `json:"required,omitempty"` // nonempty value requirement
+	Key         string        `json:"key"`                   // unique configuration field key
+	Type        string        `json:"type"`                  // configuration field type
+	Label       LocalizedText `json:"label"`                 // localized form field label
+	Description LocalizedText `json:"description,omitempty"` // optional localized field explanation
+	Required    bool          `json:"required,omitempty"`    // nonempty value requirement
 	// Default retains its JSON type; secret fields cannot declare any default, including null.
 	Default json.RawMessage `json:"default,omitempty"`
 	Min     *float64        `json:"min,omitempty"` // inclusive numeric lower bound
@@ -70,6 +71,9 @@ func (c Config) validate(e *ValidationError) {
 		}
 		seen[f.Key] = true
 		validateText(e, prefix+".label", f.Label, 24)
+		if len(f.Description) > 0 {
+			validateText(e, prefix+".description", f.Description, 300)
+		}
 		if !slices.Contains([]string{"string", "textarea", "number", "integer", "boolean", "select", "secret"}, f.Type) {
 			e.add(prefix+".type", "must be a supported configuration type")
 		}
