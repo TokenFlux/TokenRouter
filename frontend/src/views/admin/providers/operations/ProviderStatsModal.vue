@@ -84,7 +84,7 @@
               {{ formatUsdSummary(stats.summary.total_cost) }}
             </p>
             <p v-if="stats.summary.incomplete_cost_requests" class="mt-1 text-xs text-gray-500">{{
-              t('admin.usage.incompleteCosts', { count: stats.summary.incomplete_cost_requests })
+              t('usage.incompleteCosts', { count: stats.summary.incomplete_cost_requests })
             }}</p>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.providers.stats.accumulatedCost') }}
