@@ -1,6 +1,7 @@
 package antigravity
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -25,6 +26,19 @@ type nativeFramingSink struct {
 	// events copies payload storage so later formatter reuse cannot alter the
 	// terminal flags and data inspected after the complete reader has returned.
 	events []upstream.OutputEvent
+}
+
+// TestCollectClaudeStreamResponsePreservesSizeClassification exceeds the shared
+// frame limit before content arrives. Compatibility callers must still recognize
+// the scanner-size sentinel while retaining the shared reader's typed failure.
+func TestCollectClaudeStreamResponsePreservesSizeClassification(t *testing.T) {
+	adapter := ResponseAdapter{Options: ResponseOptions{MaxLineSize: 10}}
+	response := &http.Response{Body: io.NopCloser(strings.NewReader("data: {\"response\":{}}\n\n"))}
+	_, _, err := adapter.CollectClaudeStreamResponse(response, time.Now(), "model")
+	require.ErrorIs(t, err, bufio.ErrTooLong)
+	var streamError *upstream.GeminiStreamError
+	require.ErrorAs(t, err, &streamError)
+	require.Equal(t, "stream_frame_too_large", streamError.Kind)
 }
 
 // Begin accepts response metadata without producing any native fixture bytes.

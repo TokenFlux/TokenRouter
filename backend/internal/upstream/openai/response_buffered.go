@@ -19,8 +19,8 @@ import (
 // output while accumulating usage and conversion state.
 // Buffered compatibility reads combine SSE framing, accumulated output, and
 // final response usage before a nonstreaming caller constructs its result. A
-// terminal response object takes precedence over accumulated usage, including
-// explicitly zero usage, while a bare failure can synthesize a failed response
+// terminal's supplied categories take precedence over accumulated usage, including
+// explicitly zero snapshots, while a bare failure can synthesize a failed response
 // from its error fields.
 //
 // A scanner goroutine feeds line events to the reader so interval timing can
@@ -119,13 +119,14 @@ func CompatTerminalResponse(event *wire.ResponsesStreamEvent, payload []byte) *w
 // Line arrival renews the interval even when a frame is incomplete. A scanner
 // goroutine reports lines and errors through a bounded channel, while a
 // deferred stop signal ends its next send; a blocked body read still requires
-// body closure and is not joined here. Terminal response usage overrides event
-// and previously accumulated usage, including zero values. EOF attempts its
+// body closure and is not joined here. Terminal response categories override
+// supplied event categories while omitted fields retain prior usage. EOF attempts its
 // final frame, and malformed frames leave previously accumulated output and
 // usage available.
 func ReadCompatBufferedTerminal(resp *http.Response, options CompatBufferedOptions) (*wire.ResponsesResponse, wire.ForwardUsage, *bridge.BufferedResponseAccumulator, error) {
 	acc := bridge.NewBufferedResponseAccumulator()
 	var usage wire.ForwardUsage
+	var usageAccumulator wire.UsageAccumulator
 	if resp == nil || resp.Body == nil {
 		return nil, usage, acc, errors.New("upstream response body is nil")
 	}
@@ -206,6 +207,9 @@ func ReadCompatBufferedTerminal(resp *http.Response, options CompatBufferedOptio
 		}
 		options.Observe([]byte(payload), event.Type)
 		wire.ParseSSEUsageBytesWithType([]byte(payload), event.Type, &usage)
+		if snapshot := usageAccumulator.ObserveResponsesEvent([]byte(payload), &event); snapshot != nil {
+			usage = wire.CopyForwardUsage(snapshot)
+		}
 		acc.ProcessEvent(&event)
 		if response := CompatTerminalResponse(&event, []byte(payload)); IsCompatResponsesTerminalEvent(event.Type) && response != nil {
 			// Event usage fills a missing response usage, then explicit response usage

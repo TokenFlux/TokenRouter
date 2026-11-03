@@ -217,17 +217,9 @@ func ResponsesFromAnthropicBuffered(resp *http.Response, c *upstream.OutputConte
 		return nil, fmt.Errorf("upstream stream ended without response")
 	}
 
-	// Replace message usage when accumulated uncached input or output is
-	// positive; cache-only observations still reach completion through the
-	// separate accumulator while client conversion retains message_start usage.
-	if usage := collector.usage; usage.InputTokens > 0 || usage.OutputTokens > 0 {
-		finalResp.Usage = protocolanthropic.AnthropicUsage{
-			InputTokens:              usage.InputTokens,
-			OutputTokens:             usage.OutputTokens,
-			CacheCreationInputTokens: usage.CacheCreationInputTokens,
-			CacheReadInputTokens:     usage.CacheReadInputTokens,
-		}
-	}
+	// Cache-only observations remain meaningful when ordinary input and output
+	// are zero; copy the complete observed snapshot into the client conversion.
+	finalResp.Usage = protocolanthropic.UsageFromTokens(collector.usage)
 
 	responsesResp := bridge.AnthropicToResponsesResponse(o.Runtime, finalResp)
 	responsesResp.Model = originalModel
@@ -560,17 +552,9 @@ func ChatFromAnthropicBuffered(resp *http.Response, c *upstream.OutputContext, o
 		return nil, fmt.Errorf("upstream stream ended without response")
 	}
 
-	// Replace message usage when accumulated uncached input or output is
-	// positive; cache-only observations still reach completion through the
-	// separate accumulator while client conversion retains message_start usage.
-	if usage := collector.usage; usage.InputTokens > 0 || usage.OutputTokens > 0 {
-		finalResp.Usage = protocolanthropic.AnthropicUsage{
-			InputTokens:              usage.InputTokens,
-			OutputTokens:             usage.OutputTokens,
-			CacheCreationInputTokens: usage.CacheCreationInputTokens,
-			CacheReadInputTokens:     usage.CacheReadInputTokens,
-		}
-	}
+	// Cache-only observations remain meaningful when ordinary input and output
+	// are zero; copy the complete observed snapshot into the client conversion.
+	finalResp.Usage = protocolanthropic.UsageFromTokens(collector.usage)
 
 	responsesResp := bridge.AnthropicToResponsesResponse(o.Runtime, finalResp)
 	ccResp := bridge.ResponsesToChatCompletions(o.Runtime, responsesResp, originalModel)
@@ -804,13 +788,7 @@ func (c *anthropicUsageCollector) Observe(payload string) (*protocolanthropic.An
 	if err := json.Unmarshal([]byte(payload), &event); err != nil {
 		return nil, false
 	}
-	if event.Type == "message_start" && event.Message != nil {
-		protocolanthropic.MergeAnthropicUsage(&c.usage, event.Message.Usage)
-	}
-	if event.Type == "message_delta" && event.Usage != nil {
-		protocolanthropic.MergeAnthropicUsage(&c.usage, *event.Usage)
-	}
-	protocolanthropic.ParseSSEUsagePassthrough(payload, &c.usage)
+	protocolanthropic.NormalizeStreamUsage([]byte(payload), &event, &c.usage)
 	return &event, true
 }
 

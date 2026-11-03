@@ -8,6 +8,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestResponsesToChatUsesCanonicalCacheWriteZero supplies a rejected positive
+// write alias beside authoritative zero creation. Client output must agree with
+// billing rather than resurrecting the alias during a second protocol conversion.
+func TestResponsesToChatUsesCanonicalCacheWriteZero(t *testing.T) {
+	response := &ResponsesResponse{
+		ID: "resp_zero", Model: "model", Status: "completed",
+		Usage: &ResponsesUsage{
+			InputTokens: 100, OutputTokens: 10, CacheCreationInputTokens: 0,
+			InputTokensDetails: &ResponsesInputTokensDetails{CachedTokens: 60, CacheWriteTokens: 20},
+		},
+	}
+	chat := ResponsesToChatCompletions(testRuntime(), response, "model")
+	require.Equal(t, 100, chat.Usage.PromptTokens)
+	require.Equal(t, 60, chat.Usage.PromptTokensDetails.CachedTokens)
+	require.Zero(t, chat.Usage.PromptTokensDetails.CacheWriteTokens)
+	require.Zero(t, chat.Usage.PromptTokensDetails.CacheCreationTokens)
+}
+
 // TestResponsesToChatCompletions_BasicText converts one text output with
 // usage. It checks Chat object/model, one stop choice, decoded content, and
 // copied input/output plus total counts.

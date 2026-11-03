@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // responses_to_chatcompletions.go converts Responses replies and stream events
@@ -503,82 +505,28 @@ func resToChatHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventTo
 	return chunks
 }
 
-// chatUsageFromResponsesUsage copies input/output counts and recomputes their
-// sum as total, returning nil for nil usage. Supported input/output details
-// receive new objects and retain nonzero counts, including negative values.
-// Source TotalTokens is not used.
+// chatUsageFromResponsesUsage projects inclusive Responses usage into Chat
+// counts and recomputes their aggregate. Nil input returns nil; detail storage
+// is detached through the protocol-owned projection used by typed decoding.
 //
-// A positive canonical cache-creation count fills the creation alias only when
-// both copied write/creation detail values are zero; either nonzero detail
-// prevents that fill. This keeps one selected cache-write representation while
-// retaining separate read/audio/prediction/reasoning details. The helper
-// performs no counter validation or uncached-input subtraction because Chat
-// prompt usage includes the input total.
+// Canonical cache creation remains authoritative even when an unnormalized
+// detail alias disagrees, matching completion accounting. Empty detail objects
+// are omitted to preserve this bridge's existing wire shape. No cache bucket
+// is added to input again, and unrelated audio, reasoning, and prediction counts
+// retain their selected values.
 func chatUsageFromResponsesUsage(u *ResponsesUsage) *ChatUsage {
-	if u == nil {
+	usage := openai.ChatUsageFromResponses(u)
+	if usage == nil {
 		return nil
 	}
-	// Chat totals are computed from selected input/output counters together.
-	// Ignore the supplied aggregate so the emitted total follows those copied
-	// component values.
-	usage := &ChatUsage{
-		PromptTokens:     u.InputTokens,
-		CompletionTokens: u.OutputTokens,
-		TotalTokens:      u.InputTokens + u.OutputTokens,
+	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	if usage.PromptTokensDetails != nil && *usage.PromptTokensDetails == (ChatTokenDetails{}) {
+		usage.PromptTokensDetails = nil
 	}
-	usage.PromptTokensDetails = promptDetailsFromResponses(u.InputTokensDetails)
-	// Canonical creation supplies a detail alias only when the copied details
-	// contain neither write nor creation counts. Nonzero detail values keep their
-	// precedence.
-	if u.CacheCreationInputTokens > 0 {
-		if usage.PromptTokensDetails == nil {
-			usage.PromptTokensDetails = &ChatTokenDetails{}
-		}
-		if usage.PromptTokensDetails.CacheWriteTokens == 0 && usage.PromptTokensDetails.CacheCreationTokens == 0 {
-			usage.PromptTokensDetails.CacheCreationTokens = u.CacheCreationInputTokens
-		}
+	if usage.CompletionTokensDetails != nil && *usage.CompletionTokensDetails == (ChatTokenDetails{}) {
+		usage.CompletionTokensDetails = nil
 	}
-	usage.CompletionTokensDetails = completionDetailsFromResponses(u.OutputTokensDetails)
 	return usage
-}
-
-// promptDetailsFromResponses copies cached/audio/creation/write input counts
-// into a new Chat detail object. Nil or all-zero supported counts return nil;
-// negative values still qualify as nonzero, and other source fields are
-// outside this copy.
-func promptDetailsFromResponses(src *ResponsesInputTokensDetails) *ChatTokenDetails {
-	if src == nil {
-		return nil
-	}
-	if src.CachedTokens == 0 && src.AudioTokens == 0 && src.CacheCreationTokens == 0 && src.CacheWriteTokens == 0 {
-		return nil
-	}
-	return &ChatTokenDetails{
-		CachedTokens:        src.CachedTokens,
-		AudioTokens:         src.AudioTokens,
-		CacheCreationTokens: src.CacheCreationTokens,
-		CacheWriteTokens:    src.CacheWriteTokens,
-	}
-}
-
-// completionDetailsFromResponses copies reasoning/audio/accepted/rejected
-// output counts into a new Chat detail object. Nil or all-zero supported
-// values return nil; negative values remain, and fields outside those four
-// counters are not copied.
-func completionDetailsFromResponses(src *ResponsesOutputTokensDetails) *ChatTokenDetails {
-	if src == nil {
-		return nil
-	}
-	if src.ReasoningTokens == 0 && src.AudioTokens == 0 &&
-		src.AcceptedPredictionTokens == 0 && src.RejectedPredictionTokens == 0 {
-		return nil
-	}
-	return &ChatTokenDetails{
-		ReasoningTokens:          src.ReasoningTokens,
-		AudioTokens:              src.AudioTokens,
-		AcceptedPredictionTokens: src.AcceptedPredictionTokens,
-		RejectedPredictionTokens: src.RejectedPredictionTokens,
-	}
 }
 
 // makeChatDeltaChunk places the supplied delta in choice zero with a nil

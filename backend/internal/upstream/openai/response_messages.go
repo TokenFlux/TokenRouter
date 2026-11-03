@@ -22,7 +22,7 @@ import (
 // streams while retaining terminal usage and response identity.
 // Responses event conversion to Messages emits content-block and message
 // terminal events while tracking upstream usage separately. A terminal's
-// top-level usage overrides nested response usage in this reader, and its
+// nested usage overrides supplied top-level categories in this reader, and its
 // Response ID is retained for result adaptation. Buffered terminal output can
 // be supplemented from earlier deltas before Messages JSON is constructed.
 //
@@ -137,7 +137,7 @@ func ReadMessagesBuffered(resp *http.Response, c *upstream.OutputContext, option
 // executor retains body ownership; timed producer sends stop on return while a
 // blocked scan depends on body closure.
 //
-// Top-level terminal usage overrides nested response usage, and terminal IDs
+// Nested terminal usage overrides supplied top-level categories, and terminal IDs
 // populate ResponseID. Output events and pings mark local output,
 // while cyber policy latches ClientDisconnect even after successful error
 // delivery. Missing terminals are classified through separate pre-output and
@@ -150,6 +150,7 @@ func ReadMessagesStreaming(resp *http.Response, c *upstream.OutputContext, optio
 	state := bridge.NewResponsesEventToAnthropicState(options.Runtime)
 	state.Model = originalModel
 	var usage wire.ForwardUsage
+	var usageAccumulator wire.UsageAccumulator
 	responseID := ""
 
 	clientDisconnected := false
@@ -214,12 +215,17 @@ func ReadMessagesStreaming(resp *http.Response, c *upstream.OutputContext, optio
 		}
 		options.Observe([]byte(payload), event.Type)
 		wire.ParseSSEUsageBytesWithType([]byte(payload), event.Type, &usage)
+		// Share accumulated cache observations with the event converter before it
+		// creates terminal Messages usage, including sparse or cache-only updates.
+		if snapshot := usageAccumulator.ObserveResponsesEvent([]byte(payload), &event); snapshot != nil {
+			usage = wire.CopyForwardUsage(snapshot)
+		}
 
 		eventType := strings.TrimSpace(event.Type)
 		isBareErrorEvent := eventType == "error"
 		isTerminalEvent := IsCompatResponsesTerminalEvent(eventType) || isBareErrorEvent
-		// Apply nested terminal usage before top-level event usage, making the
-		// event record authoritative when both are supplied, including all-zero totals.
+		// Both event locations already contain the same accumulated snapshot.
+		// Retain terminal identity and explicit zero totals without selecting another usage source.
 		if isTerminalEvent {
 			terminalEventType = eventType
 			if event.Response != nil {

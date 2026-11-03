@@ -2,7 +2,8 @@ package bridge
 
 // These scenarios cover reasoning, usage, and tool streams across
 // chatcompletions_anthropic_bridge.go, chatcompletions_responses_bridge.go,
-// responses_to_anthropic.go, and responses_to_chatcompletions.go.
+// anthropic_to_responses_response.go, responses_to_anthropic.go, and
+// responses_to_chatcompletions.go.
 
 import (
 	"encoding/json"
@@ -11,6 +12,48 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestCacheUsageRoundTripsAcrossTextProtocols decodes equivalent vendor usage
+// representations before converting through Messages, Responses, and Chat.
+// Serialized results must retain disjoint cache buckets and inclusive totals
+// without multiplying cache writes during a multi-step conversion.
+func TestCacheUsageRoundTripsAcrossTextProtocols(t *testing.T) {
+	for _, source := range []string{"chat", "responses", "messages"} {
+		t.Run(source, func(t *testing.T) {
+			var responses *ResponsesResponse
+			switch source {
+			case "chat":
+				var chat ChatCompletionsResponse
+				require.NoError(t, json.Unmarshal([]byte(`{"id":"chat_cache","model":"model","choices":[{"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"cache_read_input_tokens":60,"cache_write_tokens":20}}`), &chat))
+				messages := ChatCompletionsResponseToAnthropic(testRuntime(), &chat, "model")
+				responses = AnthropicToResponsesResponse(testRuntime(), messages)
+			case "responses":
+				var response ResponsesResponse
+				require.NoError(t, json.Unmarshal([]byte(`{"id":"resp_cache","model":"model","status":"completed","output":[],"usage":{"input_tokens":100,"output_tokens":10,"cached_tokens":60,"cache_creation_input_tokens":20}}`), &response))
+				messages := ResponsesToAnthropic(&response, "model")
+				responses = AnthropicToResponsesResponse(testRuntime(), messages)
+			case "messages":
+				var messages AnthropicResponse
+				require.NoError(t, json.Unmarshal([]byte(`{"id":"msg_cache","model":"model","content":[],"stop_reason":"end_turn","usage":{"prompt_tokens":100,"cached_tokens":60,"output_tokens":10,"cache_creation":{"ephemeral_5m_input_tokens":12,"ephemeral_1h_input_tokens":8}}}`), &messages))
+				responses = AnthropicToResponsesResponse(testRuntime(), &messages)
+			}
+			chat := ResponsesToChatCompletions(testRuntime(), responses, "model")
+			encoded, err := json.Marshal(chat)
+			require.NoError(t, err)
+			var decoded ChatCompletionsResponse
+			require.NoError(t, json.Unmarshal(encoded, &decoded))
+			require.Equal(t, 100, decoded.Usage.PromptTokens)
+			require.Equal(t, 110, decoded.Usage.TotalTokens)
+			require.Equal(t, 60, decoded.Usage.PromptTokensDetails.CachedTokens)
+			require.Equal(t, 20, decoded.Usage.PromptTokensDetails.CacheCreationTokens)
+			final := ChatCompletionsResponseToAnthropic(testRuntime(), &decoded, "model")
+			require.Equal(t, 20, final.Usage.InputTokens)
+			require.Equal(t, 60, final.Usage.CacheReadInputTokens)
+			require.Equal(t, 20, final.Usage.CacheCreationInputTokens)
+			require.Equal(t, 10, final.Usage.OutputTokens)
+		})
+	}
+}
 
 // TestChatReasoningAliasNonStreaming decodes the Chat reasoning alias beside
 // final text. Each response bridge returns two entries and places the

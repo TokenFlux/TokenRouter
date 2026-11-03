@@ -13,6 +13,26 @@ import (
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
+// TestReadCompatBufferedTerminalRetainsSparseCacheBreakdown supplies cache usage
+// before a terminal containing output alone. The returned response and billing
+// snapshot must agree without losing earlier input or charging writes twice.
+func TestReadCompatBufferedTerminalRetainsSparseCacheBreakdown(t *testing.T) {
+	body := "data: " + `{"type":"response.in_progress","response":{"usage":{"input_tokens":100,"output_tokens":3,"cached_tokens":60,"cache_write_tokens":20}}}` + "\n\n" +
+		"data: " + `{"type":"response.completed","response":{"id":"resp_cache","status":"completed","output":[],"usage":{"output_tokens":10}}}` + "\n\n"
+	response := &http.Response{Body: io.NopCloser(strings.NewReader(body))}
+	final, usage, _, err := ReadCompatBufferedTerminal(response, CompatBufferedOptions{
+		MaxLineSize: 1 << 20, StreamInterval: func() time.Duration { return 0 },
+		RestoreToolNames: func(body []byte) []byte { return body }, Observe: func([]byte, string) {},
+		Log: func(message string, err error, _ time.Duration) { t.Errorf("%s: %v", message, err) },
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, final.Usage.InputTokens)
+	require.Equal(t, 110, final.Usage.TotalTokens)
+	require.Equal(t, 60, final.Usage.InputTokensDetails.CachedTokens)
+	require.Equal(t, 20, final.Usage.CacheCreationInputTokens)
+	require.Equal(t, protocolopenai.CopyForwardUsage(final.Usage), usage)
+}
+
 // TestOpenAICompatTerminalResponseSynthesizesBareError supplies a bare
 // Responses error without a nested response object. It checks synthesis of
 // failed status, code, and message for buffered compatibility output.

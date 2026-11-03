@@ -319,8 +319,8 @@ func (s *NativeGeminiMessagesStream) Process(geminiResp map[string]any, raw []by
 //
 // Tool presence overrides the recorded finish reason because the client
 // receives a call requiring a result. Output usage is emitted even at zero,
-// while input usage is included only when positive and cache counts remain in
-// Usage. A consumer stop skips later terminal or flush yields and does not
+// and ordinary input and cache reads are included independently, even at zero.
+// A consumer stop skips later terminal or flush yields and does not
 // reset response state.
 func (s *NativeGeminiMessagesStream) Finish() iter.Seq[NativeMessageEvent] {
 	return func(yield func(NativeMessageEvent) bool) {
@@ -353,14 +353,12 @@ func (s *NativeGeminiMessagesStream) Finish() iter.Seq[NativeMessageEvent] {
 			stopReason = "tool_use"
 		}
 
-		// The native Messages terminal payload includes output count at zero but
-		// adds input only when positive; cached counts remain available through
-		// Usage.
+		// Final usage includes disjoint prompt buckets even at zero so clients
+		// can distinguish a fully cached prompt from missing input observations.
 		usageObj := map[string]any{
-			"output_tokens": s.usage.OutputTokens,
-		}
-		if s.usage.InputTokens > 0 {
-			usageObj["input_tokens"] = s.usage.InputTokens
+			"input_tokens":            s.usage.InputTokens,
+			"output_tokens":           s.usage.OutputTokens,
+			"cache_read_input_tokens": s.usage.CacheReadInputTokens,
 		}
 		if !emit("message_delta", map[string]any{
 			"type": "message_delta",

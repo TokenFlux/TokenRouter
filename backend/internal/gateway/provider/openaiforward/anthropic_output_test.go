@@ -1,16 +1,100 @@
 package openaiforward
 
 import (
+	"bytes"
+	"crypto/rand"
 	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
+	"go.uber.org/zap"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
+
+// cacheOutputSink retains the serialized native-Anthropic compatibility response.
+type cacheOutputSink struct {
+	bytes.Buffer // captured client response bytes
+}
+
+// Begin accepts output metadata without writing synthetic response content.
+func (*cacheOutputSink) Begin(upstream.OutputHead) error { return nil }
+
+// Emit retains every serialized payload for final wire-level usage assertions.
+func (s *cacheOutputSink) Emit(event upstream.OutputEvent) error {
+	_, err := s.Write(event.Data)
+	return err
+}
+
+// TestNativeAnthropicOutputCacheOnlyMatrix supplies cache-only usage after an
+// empty start event. Every buffered and streaming client adapter must report
+// the same cache counts as its native accounting snapshot.
+func TestNativeAnthropicOutputCacheOnlyMatrix(t *testing.T) {
+	body := "event: message_start\ndata: " + `{"type":"message_start","message":{"id":"msg_cache","model":"vendor","role":"assistant","content":[],"usage":{"input_tokens":0,"output_tokens":0}}}` + "\n\n" +
+		"event: message_delta\ndata: " + `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"cached_tokens":60,"cache_creation":{"ephemeral_5m_input_tokens":12,"ephemeral_1h_input_tokens":8}}}` + "\n\n" +
+		"event: message_stop\ndata: " + `{"type":"message_stop"}` + "\n\n"
+	for _, chat := range []bool{false, true} {
+		for _, stream := range []bool{false, true} {
+			name := map[bool]string{false: "responses", true: "chat"}[chat] + map[bool]string{false: "/json", true: "/sse"}[stream]
+			t.Run(name, func(t *testing.T) {
+				sink := &cacheOutputSink{}
+				output := upstream.NewOutputContext(sink)
+				options := AnthropicOutputOptions{
+					Runtime:     bridge.Runtime{Now: time.Now, ReadRandom: rand.Read},
+					MaxLineSize: func() int { return 1 << 20 }, StreamInterval: func() time.Duration { return 0 },
+					CopyHeaders: func(http.Header, http.Header) {}, ReverseTools: func(body []byte) []byte { return body },
+					Error: func(_ int, _, message string) { t.Error(message) }, Warn: func(string, ...zap.Field) {},
+				}
+				response := &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}
+				var result *Result
+				var err error
+				if chat && stream {
+					result, err = ChatFromAnthropicStreaming(response, output, options, "client", "vendor", "vendor", nil, time.Now(), true)
+				} else if chat {
+					result, err = ChatFromAnthropicBuffered(response, output, options, "client", "vendor", "vendor", nil, time.Now())
+				} else if stream {
+					result, err = ResponsesFromAnthropicStreaming(response, output, options, "client", "vendor", "vendor", nil, time.Now(), bridge.ResponsesClientToolMapping{})
+				} else {
+					result, err = ResponsesFromAnthropicBuffered(response, output, options, "client", "vendor", "vendor", nil, time.Now(), bridge.ResponsesClientToolMapping{})
+				}
+				require.NoError(t, err)
+				require.Zero(t, result.NativeUsage.InputTokens)
+				require.Equal(t, 60, result.NativeUsage.CacheReadInputTokens)
+				require.Equal(t, 20, result.NativeUsage.CacheCreationInputTokens)
+				require.Equal(t, 80, result.Usage.InputTokens)
+				visible := gjson.Get(sink.String(), "usage")
+				if stream {
+					for line := range strings.SplitSeq(sink.String(), "\n") {
+						payload := strings.TrimPrefix(line, "data: ")
+						if value := gjson.Get(payload, "usage"); value.IsObject() {
+							visible = value
+						}
+						if value := gjson.Get(payload, "response.usage"); value.IsObject() {
+							visible = value
+						}
+					}
+				}
+				if chat {
+					require.Equal(t, int64(80), visible.Get("prompt_tokens").Int())
+					require.Equal(t, int64(60), visible.Get("prompt_tokens_details.cached_tokens").Int())
+					require.Equal(t, int64(20), visible.Get("prompt_tokens_details.cache_creation_tokens").Int())
+				} else {
+					require.Equal(t, int64(80), visible.Get("input_tokens").Int())
+					require.Equal(t, int64(60), visible.Get("input_tokens_details.cached_tokens").Int())
+					require.Equal(t, int64(20), visible.Get("cache_creation_input_tokens").Int())
+				}
+			})
+		}
+	}
+}
 
 // TestMergeAnthropicUsageNormalizesKimiStreamForOpenAIBilling merges start and
 // terminal usage from a Kimi stream fixture. Normalized uncached and cache-read

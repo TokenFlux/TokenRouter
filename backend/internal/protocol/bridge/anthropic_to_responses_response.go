@@ -4,6 +4,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 )
 
 // anthropic_to_responses_response.go converts Messages responses and stream
@@ -74,13 +77,10 @@ type AnthropicEventToResponsesState struct {
 	// and snapshots can share its nested storage; consumers leave that data unchanged.
 	Outputs []ResponsesOutput // closed items in emission order
 
-	// InputTokens, CacheReadInputTokens, and CacheCreationInputTokens combine
-	// into Responses input usage. Positive observations replace them, while
-	// OutputTokens is replaced by every present message_delta usage, including zero.
-	InputTokens              int // uncached input token count
-	OutputTokens             int // observed output token count
-	CacheReadInputTokens     int // cached input read count
-	CacheCreationInputTokens int // cached input write count
+	// TokenUsage retains disjoint input/cache buckets and lifetime details across
+	// stream events. Messages merging resolves compatible aliases before inclusive
+	// Responses totals are built; a present delta still selects its output count.
+	protocol.TokenUsage
 
 	// StopReason keeps the last nonempty message_delta reason. Only exact
 	// max_tokens changes terminal status; absence and unfamiliar values select
@@ -101,6 +101,7 @@ type AnthropicEventToResponsesState struct {
 // without validating counts. Source signatures and unsupported blocks are
 // omitted.
 func AnthropicToResponsesResponse(runtime Runtime, resp *AnthropicResponse) *ResponsesResponse {
+	usage := anthropic.NormalizeUsage(resp.Usage)
 	id := resp.ID
 	if id == "" {
 		id = generateResponsesID(runtime)
@@ -192,18 +193,16 @@ func AnthropicToResponsesResponse(runtime Runtime, resp *AnthropicResponse) *Res
 	// Messages reports uncached input separately from cache reads/writes.
 	// Responses input includes all three observations, so combine them before
 	// calculating total tokens.
-	totalInputTokens := resp.Usage.InputTokens +
-		resp.Usage.CacheReadInputTokens +
-		resp.Usage.CacheCreationInputTokens
+	totalInputTokens := usage.InputTokens + usage.CacheReadInputTokens + usage.CacheCreationInputTokens
 	out.Usage = &ResponsesUsage{
 		InputTokens:              totalInputTokens,
-		OutputTokens:             resp.Usage.OutputTokens,
-		TotalTokens:              totalInputTokens + resp.Usage.OutputTokens,
-		CacheCreationInputTokens: resp.Usage.CacheCreationInputTokens,
+		OutputTokens:             usage.OutputTokens,
+		TotalTokens:              totalInputTokens + usage.OutputTokens,
+		CacheCreationInputTokens: usage.CacheCreationInputTokens,
 	}
-	if resp.Usage.CacheReadInputTokens > 0 {
+	if usage.CacheReadInputTokens > 0 {
 		out.Usage.InputTokensDetails = &ResponsesInputTokensDetails{
-			CachedTokens: resp.Usage.CacheReadInputTokens,
+			CachedTokens: usage.CacheReadInputTokens,
 		}
 	}
 
@@ -315,7 +314,7 @@ func ResponsesEventToSSE(evt ResponsesStreamEvent) (string, error) {
 //
 // Duplicate starts still update identity and counters before the CreatedSent
 // guard. A later terminal snapshot can consequently contain different identity
-// or usage from creation. Output usage in the start message is not read here.
+// or usage from creation. Output and cache-lifetime observations are retained with the prompt buckets.
 // Callers provide one message-start lifecycle for a stream and serialize these
 // state updates.
 func anthToResHandleMessageStart(evt *AnthropicStreamEvent, state *AnthropicEventToResponsesState) []ResponsesStreamEvent {
@@ -324,15 +323,7 @@ func anthToResHandleMessageStart(evt *AnthropicStreamEvent, state *AnthropicEven
 		if state.Model == "" {
 			state.Model = evt.Message.Model
 		}
-		if evt.Message.Usage.InputTokens > 0 {
-			state.InputTokens = evt.Message.Usage.InputTokens
-		}
-		if evt.Message.Usage.CacheReadInputTokens > 0 {
-			state.CacheReadInputTokens = evt.Message.Usage.CacheReadInputTokens
-		}
-		if evt.Message.Usage.CacheCreationInputTokens > 0 {
-			state.CacheCreationInputTokens = evt.Message.Usage.CacheCreationInputTokens
-		}
+		anthropic.MergeAnthropicUsage(&state.TokenUsage, evt.Message.Usage)
 	}
 
 	if state.CreatedSent {
@@ -589,16 +580,8 @@ func anthToResHandleMessageDelta(evt *AnthropicStreamEvent, state *AnthropicEven
 	// independently cumulative for this path, so a present zero replaces its
 	// earlier value.
 	if evt.Usage != nil {
+		anthropic.MergeAnthropicUsage(&state.TokenUsage, *evt.Usage)
 		state.OutputTokens = evt.Usage.OutputTokens
-		if evt.Usage.InputTokens > 0 {
-			state.InputTokens = evt.Usage.InputTokens
-		}
-		if evt.Usage.CacheReadInputTokens > 0 {
-			state.CacheReadInputTokens = evt.Usage.CacheReadInputTokens
-		}
-		if evt.Usage.CacheCreationInputTokens > 0 {
-			state.CacheCreationInputTokens = evt.Usage.CacheCreationInputTokens
-		}
 	}
 	if evt.Delta != nil && evt.Delta.StopReason != "" {
 		state.StopReason = evt.Delta.StopReason

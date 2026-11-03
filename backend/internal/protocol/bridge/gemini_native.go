@@ -78,8 +78,9 @@ type NativeGeminiRuntime struct {
 // over finish-reason mapping; upstream IDs and thought signatures are not
 // copied. Function argument values remain shared with geminiResp. Missing
 // usage yields zero counts in a nonnil value. The message usage map carries
-// input/output counts, while cache and image counts remain in the companion
-// usage value.
+// disjoint input, output, and cache-read counts so later OpenAI conversion can
+// reconstruct inclusive prompt totals. Image counts remain in the companion
+// usage value because Messages has no corresponding output-token category.
 func NativeConvertGeminiToClaudeMessage(runtime NativeGeminiRuntime, geminiResp map[string]any, originalModel string, rawData []byte, includeInlineData bool) (map[string]any, *NativeGeminiUsage) {
 	usage := NativeExtractGeminiUsage(rawData)
 	// A buffered answer still needs an input/output usage object when metadata is
@@ -166,8 +167,9 @@ func NativeConvertGeminiToClaudeMessage(runtime NativeGeminiRuntime, geminiResp 
 		"stop_reason":   stopReason,
 		"stop_sequence": nil,
 		"usage": map[string]any{
-			"input_tokens":  usage.InputTokens,
-			"output_tokens": usage.OutputTokens,
+			"input_tokens":            usage.InputTokens,
+			"output_tokens":           usage.OutputTokens,
+			"cache_read_input_tokens": usage.CacheReadInputTokens,
 		},
 	}
 

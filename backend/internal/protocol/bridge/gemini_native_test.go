@@ -1,10 +1,37 @@
 package bridge
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+// TestNativeConvertGeminiToClaudeMessagePreservesCachedPrompt supplies a cached
+// Gemini prompt and checks the serialized Messages buckets. Cache-only input
+// must remain distinguishable from an absent prompt observation.
+func TestNativeConvertGeminiToClaudeMessagePreservesCachedPrompt(t *testing.T) {
+	for _, cached := range []int{0, 60, 100} {
+		payload := map[string]any{"usageMetadata": map[string]any{
+			"promptTokenCount": 100, "cachedContentTokenCount": cached,
+			"candidatesTokenCount": 10,
+		}}
+		raw, err := json.Marshal(payload)
+		require.NoError(t, err)
+		response, usage := NativeConvertGeminiToClaudeMessage(
+			NativeGeminiRuntime{MessageID: func() string { return "msg_cache" }},
+			payload, "gemini", raw, false,
+		)
+		encoded, err := json.Marshal(response)
+		require.NoError(t, err)
+		var decoded AnthropicResponse
+		require.NoError(t, json.Unmarshal(encoded, &decoded))
+		require.Equal(t, 100-cached, decoded.Usage.InputTokens)
+		require.Equal(t, cached, decoded.Usage.CacheReadInputTokens)
+		require.Equal(t, usage.CacheReadInputTokens, decoded.Usage.CacheReadInputTokens)
+		require.Equal(t, 10, decoded.Usage.OutputTokens)
+	}
+}
 
 // Native tool conversion groups accepted client functions and retains a
 // separate typed search declaration. Schema fixtures check recursive key

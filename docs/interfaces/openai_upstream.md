@@ -87,7 +87,7 @@ app 分别装配文本、Responses、WS、Images 和辅助执行器，它们复�
 
 Compact 的请求白名单、reasoning replay 和 store=false 的修复由请求 codec 执行，是否触发由入站决定。Responses 的 Header 和 CC 请求的发送也使用原生实现，提供商身份、代理和 TLS、请求状态通过小接口传入，覆写顺序不变。UA 和 originator 字符串的识别在 `gateway/clientmeta`；规范的 Codex 出站身份和动态 UA resolver 只在原生包里，请求字段何时改写由 `gateway/httpapi` 决定。
 
-Responses 的标准和透传读取、Responses 转 Chat 或 Messages、Raw Chat 直通、Chat 转 Responses 或 Messages 的响应执行，都在 `upstream/openai`；协议算法只在 `protocol/bridge`。缓冲的终态、空响应检测和流状态按每次尝试创建，终态 usage 的覆盖顺序和断开时的返回方式各自保持。执行适配传入提供商策略和观察接口；HTTP 在输出时才取得可修改的 Header，等待心跳不会因为创建了适配器而提前结束；统一的下游时钟和上游心跳消费见[SSE 保活](../architecture/gateway_request_lifecycle.md#sse_keepalive)。
+Responses 的标准和透传读取、Responses 转 Chat 或 Messages、Raw Chat 直通、Chat 转 Responses 或 Messages 的响应执行，都在 `upstream/openai`；协议算法只在 `protocol/bridge`。缓冲的终态、空响应检测和流状态按每次尝试创建。转换路径合并稀疏用量后，向计费和客户端转换提供同一快照；嵌套终态字段优先，明确的零和缺失字段分别处理，详见[客户端用量与缓存](protocol_capabilities.md#client_usage_cache)。执行适配传入提供商策略和观察接口；HTTP 在输出时才取得可修改的 Header，等待心跳不会因为创建了适配器而提前结束；统一的下游时钟和上游心跳消费见[SSE 保活](../architecture/gateway_request_lifecycle.md#sse_keepalive)。
 
 HTTP Responses 的标准流和透传流兼容第三方的生命周期事件：
 

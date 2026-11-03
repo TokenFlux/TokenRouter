@@ -461,6 +461,11 @@ func OpenAIUsageFromGJSON(value gjson.Result) (ForwardUsage, bool) {
 	if inputTokens == 0 {
 		inputTokens = value.Get("prompt_tokens").Int()
 	}
+	if !usageHasAny(value, "input_tokens", "prompt_tokens") && value.Get("prompt_cache_miss_tokens").Exists() {
+		// Explicit hit/miss observations partition inclusive input; using the miss
+		// count alone would hide cached work from client totals and pricing inputs.
+		inputTokens = int64(max(int(value.Get("prompt_cache_miss_tokens").Int()), 0) + OpenAICacheReadTokensFromUsage(value))
+	}
 	outputTokens := value.Get("output_tokens").Int()
 	if outputTokens == 0 {
 		outputTokens = value.Get("completion_tokens").Int()
@@ -512,10 +517,8 @@ func OpenAIUsageFromGJSON(value gjson.Result) (ForwardUsage, bool) {
 // Conversion uses gjson.Int and machine int, so this selector does not require
 // strict integer-shaped JSON fields or validate the complete usage object.
 func OpenAICacheReadTokensFromUsage(value gjson.Result) int {
-	for _, nested := range []gjson.Result{
-		value.Get("input_tokens_details.cached_tokens"),
-		value.Get("prompt_tokens_details.cached_tokens"),
-	} {
+	for _, path := range cacheReadDetailPaths {
+		nested := value.Get(path)
 		// Nested presence is authoritative, including null and explicit zero.
 		// Clamp its coerced value before returning so later aliases cannot replace that observation.
 		if nested.Exists() {
@@ -523,11 +526,12 @@ func OpenAICacheReadTokensFromUsage(value gjson.Result) int {
 		}
 	}
 
-	return FirstPositiveGJSONInt(
-		value.Get("cache_read_input_tokens"),
-		value.Get("cache_read_tokens"),
-		value.Get("cached_tokens"),
-	)
+	for _, path := range cacheReadAliasPaths {
+		if count := int(value.Get(path).Int()); count > 0 {
+			return count
+		}
+	}
+	return 0
 }
 
 // OpenAICacheCreationTokensFromUsage selects existing input cache-write,
@@ -542,12 +546,8 @@ func OpenAICacheReadTokensFromUsage(value gjson.Result) int {
 // validation; callers establish complete object validity and accounting
 // eligibility separately.
 func OpenAICacheCreationTokensFromUsage(value gjson.Result) int {
-	for _, nested := range []gjson.Result{
-		value.Get("input_tokens_details.cache_write_tokens"),
-		value.Get("prompt_tokens_details.cache_write_tokens"),
-		value.Get("input_tokens_details.cache_creation_tokens"),
-		value.Get("prompt_tokens_details.cache_creation_tokens"),
-	} {
+	for _, path := range cacheWriteDetailPaths {
+		nested := value.Get(path)
 		// Nested presence is authoritative, including null and explicit zero.
 		// Clamp its coerced value before returning so later aliases cannot replace that observation.
 		if nested.Exists() {
@@ -555,12 +555,12 @@ func OpenAICacheCreationTokensFromUsage(value gjson.Result) int {
 		}
 	}
 
-	return FirstPositiveGJSONInt(
-		value.Get("cache_write_tokens"),
-		value.Get("cache_creation_input_tokens"),
-		value.Get("cache_write_input_tokens"),
-		value.Get("cache_creation_tokens"),
-	)
+	for _, path := range cacheWriteAliasPaths {
+		if count := int(value.Get(path).Int()); count > 0 {
+			return count
+		}
+	}
+	return 0
 }
 
 // BodyHasSSEFraming reports a physical line starting with data: or event:
@@ -614,14 +614,17 @@ func ExtractOpenAISSETerminalEvent(body string) (string, []byte, bool) {
 // Image status repair runs before selection when its validated conditions
 // apply. Otherwise path extraction can still read the payload, because this
 // selection itself does not require complete-document validity. The retained
-// raw value keeps fields outside the typed response model; later completed
-// payloads cannot replace this first selection.
+// raw value keeps fields outside the typed response model while accumulated
+// text/cache usage fills sparse terminal fields. Later completed payloads
+// cannot replace this first selection or contribute another response's usage.
 func ExtractCodexFinalResponse(body string) ([]byte, bool) {
 	var finalResponse []byte
+	var accumulated UsageAccumulator
 	ForEachSSEDataPayload(body, func(data []byte) {
 		if finalResponse != nil {
 			return
 		}
+		accumulated.ObserveResponsesEvent(data, nil)
 		// A completed image result can retain a pending status. Repair that
 		// field before copying the raw final response selected from this payload.
 		if normalized, changed := NormalizeCompletedImageGenerationStatus(data); changed {
@@ -631,6 +634,11 @@ func ExtractCodexFinalResponse(body string) ([]byte, bool) {
 		if eventType == "response.done" || eventType == "response.completed" {
 			if response := gjson.GetBytes(data, "response"); response.Exists() && response.Type == gjson.JSON && response.Raw != "" {
 				finalResponse = []byte(response.Raw)
+				// A terminal can omit prompt breakdown already reported by preceding
+				// events. Patch only usage fields and preserve unknown response metadata.
+				if patched, err := PatchResponseUsage(finalResponse, accumulated.Snapshot()); err == nil {
+					finalResponse = patched
+				}
 			}
 		}
 	})

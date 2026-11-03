@@ -6,17 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 
-	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -24,37 +21,36 @@ import (
 
 // response_stream.go reads Antigravity SSE for streaming output or buffered
 // response collection.
-// Antigravity generation arrives as Gemini data inside v1internal SSE lines,
-// even for buffered client requests. Streaming adapters observe raw lines
+// Antigravity generation arrives as Gemini data inside v1internal SSE frames,
+// even for buffered client requests. Streaming adapters observe normalized payloads
 // before output and keep reading after a client write failure when the
 // upstream reader continues, allowing later usage to reach attempt
 // observation.
 //
-// Scanner workers own pooled buffers until reading ends; handler return
-// signals delivery stop, while the exchange owner closes the body to release
-// a blocked read. Idle timeout follows scanned-line activity independently of
-// downstream heartbeats owned by HTTP middleware. Buffered collection keeps content-bearing
-// output when metadata arrives later, then merges first-candidate parts with
-// deliberately shallow map ownership. Ordinary text runs can lose per-part
-// metadata, and image/text merging has separate key-presence rules that affect
-// the selected final response.
+// Native, Messages, and OpenAI-compatible clients share validated frame reading
+// and the bounded post-completion usage tail. The reader closes the response
+// body and joins its worker before returning, including cancellation paths.
+// Buffered collection retains candidate metadata while merging content and
+// usage independently; streaming conversion defers protocol termination until
+// the merged usage snapshot is ready. Neither sparse tail fields nor a client
+// disconnect can erase cache counts already observed from the upstream.
 
 // ResponseOptions supplies stream limits, raw observation, tool restoration,
 // and representation-specific failure callbacks.
 type ResponseOptions struct {
-	// Context supplies the selected native attempt cancellation. Nil permits
+	// Context supplies the selected attempt cancellation. Nil permits
 	// standalone codec use with a background context in the shared reader.
 	Context    context.Context
 	Candidates int // expected native candidate count
 
-	// ObserveRaw optionally receives each scanned line synchronously before
-	// parsing/output; Executor chains it with attempt model and usage
+	// ObserveRaw receives normalized payloads synchronously before client
+	// conversion/output; Executor chains it with attempt model and usage
 	// observation. Callbacks leave supplied bytes unchanged and copy retained
 	// mutable data before the owner continues synchronous processing.
 	ObserveRaw func([]byte)
-	// MaxLineSize is scanner-growth bytes, with nonpositive selecting the
+	// MaxLineSize bounds complete SSE frame bytes, with nonpositive selecting the
 	// default. StreamDataIntervalTimeout supplies upstream idle-timeout seconds;
-	// nonpositive values disable the timer without affecting downstream heartbeats.
+	// nonpositive values disable idle timing while retaining the bounded usage tail.
 	MaxLineSize, StreamDataIntervalTimeout int
 	// ReverseTools restores provider-mapped tool names in compatible serialized
 	// output; required when a selected compatibility adapter emits or collects
@@ -218,7 +214,7 @@ func (s *ResponseAdapter) HandleGeminiStreamingResponse(c *upstream.OutputContex
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 	result := &StreamResult{Usage: &upstream.TokenUsage{}}
-	observed, err := s.readGeminiStream(resp, func(event upstream.GeminiStreamEvent) error {
+	observed, err := s.readGeminiStream(resp, s.UnwrapV1InternalResponse, func(event upstream.GeminiStreamEvent) error {
 		if len(event.Data) == 0 {
 			if event.Terminal {
 				c.Complete()
@@ -249,14 +245,14 @@ func (s *ResponseAdapter) HandleGeminiStreamingResponse(c *upstream.OutputContex
 	return result, err
 }
 
-// readGeminiStream binds Antigravity envelope extraction to shared stream validation.
-// Native streaming and buffered collection use the same read limits and completion
-// expectation. Other Antigravity output protocols retain their own response processors.
-func (s *ResponseAdapter) readGeminiStream(resp *http.Response, consume func(upstream.GeminiStreamEvent) error) (upstream.GeminiStreamResult, error) {
+// readGeminiStream binds the selected envelope extraction to shared validation.
+// Native output keeps inner bytes, while converted output retains wrapper identity.
+// Both use the same limits, completion expectation, and trailing-usage policy.
+func (s *ResponseAdapter) readGeminiStream(resp *http.Response, unwrap func([]byte) ([]byte, error), consume func(upstream.GeminiStreamEvent) error) (upstream.GeminiStreamResult, error) {
 	return upstream.ReadGeminiStream(s.Options.Context, resp, upstream.GeminiStreamOptions{
 		IdleTimeout:   time.Duration(s.Options.StreamDataIntervalTimeout) * time.Second,
 		MaxFrameBytes: s.Options.MaxLineSize, Candidates: s.Options.Candidates,
-		Unwrap: s.UnwrapV1InternalResponse,
+		Unwrap: unwrap,
 	}, consume)
 }
 
@@ -285,380 +281,47 @@ func (s *ResponseAdapter) HandleGeminiStreamToNonStreaming(c *upstream.OutputCon
 	return result, c.Err()
 }
 
-// GetOrCreateGeminiParts returns a shallow top-level response copy,
-// first-candidate parts, and a setter for those parts. Callers provide
-// exclusive access to nested response state because candidate slices and maps
-// can remain shared.
+// CollectClaudeStreamResponse collects validated Gemini frames before Messages
+// conversion. The shared reader retains sparse usage and candidate content through
+// the bounded post-completion tail, then closes and joins its upstream reader.
 //
-// Missing or differently shaped candidates/content are created or replaced,
-// including assignment into a retained candidate slice before the setter runs.
-// Existing content role and other candidate data remain when usable. The
-// setter writes content.parts and the copied top-level candidates reference;
-// it does not clone nested parts or payload maps. Nil input can therefore
-// become a newly shaped result, while existing input nested data can change.
-func GetOrCreateGeminiParts(response map[string]any) (result map[string]any, existingParts []any, setParts func([]any)) {
-	// Copy only the top map so usable nested candidate/content references remain
-	// shared; shape repair can mutate those references before the returned
-	// setter is invoked.
-	result = make(map[string]any)
-	maps.Copy(result, response)
-
-	candidates, ok := result["candidates"].([]any)
-	if !ok || len(candidates) == 0 {
-		candidates = []any{map[string]any{}}
-	}
-
-	candidate, ok := candidates[0].(map[string]any)
-	if !ok {
-		candidate = make(map[string]any)
-		candidates[0] = candidate
-	}
-
-	content, ok := candidate["content"].(map[string]any)
-	if !ok {
-		content = map[string]any{"role": "model"}
-		candidate["content"] = content
-	}
-
-	existingParts, ok = content["parts"].([]any)
-	if !ok {
-		existingParts = []any{}
-	}
-
-	setParts = func(newParts []any) {
-		content["parts"] = newParts
-		result["candidates"] = candidates
-	}
-
-	return result, existingParts, setParts
-}
-
-// MergeCollectedPartsToResponse replaces first-candidate parts with the
-// collected arrival sequence. Empty collection returns response as supplied;
-// otherwise the shallow response helper can mutate shared candidate/content
-// state, so callers isolate nested data before concurrent use.
-//
-// Adjacent ordinary text becomes a fresh text-only map, discarding other
-// metadata from those ordinary parts. Thoughts and nontext parts flush that
-// run and retain their original map references and order. A final flush emits
-// any trailing nonempty text before the setter replaces parts; empty ordinary
-// text runs emit no part. Collected tool arguments, images, and thought
-// metadata thus remain shared with their source maps.
-func MergeCollectedPartsToResponse(response map[string]any, collectedParts []map[string]any) map[string]any {
-	if len(collectedParts) == 0 {
-		return response
-	}
-
-	result, _, setParts := GetOrCreateGeminiParts(response)
-
-	var mergedParts []any
-	var textBuffer strings.Builder
-
-	flushTextBuffer := func() {
-		if textBuffer.Len() > 0 {
-			mergedParts = append(mergedParts, map[string]any{
-				"text": textBuffer.String(),
-			})
-			textBuffer.Reset()
-		}
-	}
-
-	for _, part := range collectedParts {
-		if text, ok := part["text"].(string); ok {
-			if thought, _ := part["thought"].(bool); thought {
-				// Flush preceding ordinary text before a thought map so its metadata and
-				// identity remain separate from the newly created text-only run.
-				flushTextBuffer()
-				mergedParts = append(mergedParts, part)
-			} else {
-				// Builder writes return no error. Ordinary text accumulates until its
-				// run is emitted as a fresh map that omits the source parts metadata.
-				_, _ = textBuffer.WriteString(text)
-			}
-		} else {
-			// Flush ordinary text before a nontext map so tool/image order follows
-			// arrival, retaining that original map and its nested payload references.
-			flushTextBuffer()
-			mergedParts = append(mergedParts, part)
-		}
-	}
-
-	flushTextBuffer()
-
-	setParts(mergedParts)
-	return result
-}
-
-// MergeImagePartsToResponse appends collected image maps when existing
-// first-candidate parts have no inlineData key. Empty image input returns
-// response as supplied; otherwise candidate/content state and appended map
-// values can remain shared.
-//
-// Any existing inlineData key suppresses all appends, even when its value is
-// null or empty, because the decision uses key presence rather than decoded
-// image validity. Otherwise images follow existing parts in supplied order,
-// potentially reusing the parts slice backing array. The shallow setter
-// publishes that sequence; callers provide stable exclusive nested state
-// during merging.
-func MergeImagePartsToResponse(response map[string]any, imageParts []map[string]any) map[string]any {
-	if len(imageParts) == 0 {
-		return response
-	}
-
-	result, existingParts, setParts := GetOrCreateGeminiParts(response)
-
-	// Inspect existing key presence before appending any collected image, so one
-	// inlineData observation suppresses the whole additional image sequence.
-	for _, p := range existingParts {
-		if pm, ok := p.(map[string]any); ok {
-			if _, hasInline := pm["inlineData"]; hasInline {
-				return result // existing inlineData key suppresses appends
-			}
-		}
-	}
-
-	for _, imgPart := range imageParts {
-		existingParts = append(existingParts, imgPart)
-	}
-	setParts(existingParts)
-	return result
-}
-
-// MergeTextPartsToResponse joins supplied text strings and updates the first
-// text-key part, or prepends a text-only part when absent. Empty input returns
-// response as supplied; nested response state remains shared through the
-// shallow helper.
-//
-// The selected existing part is shallow-copied so its other fields, including
-// thought metadata, accompany the joined text. Key presence selects it even
-// when its prior text value was not a string. Later text parts and nontext
-// maps retain their references and order. The collected strings can include
-// thought text, so callers decide which fragments belong in this merge before
-// invoking it.
-func MergeTextPartsToResponse(response map[string]any, textParts []string) map[string]any {
-	if len(textParts) == 0 {
-		return response
-	}
-
-	mergedText := strings.Join(textParts, "")
-	result, existingParts, setParts := GetOrCreateGeminiParts(response)
-
-	newParts := make([]any, 0, len(existingParts)+1)
-	textUpdated := false
-
-	for _, p := range existingParts {
-		pm, ok := p.(map[string]any)
-		if !ok {
-			newParts = append(newParts, p)
-			continue
-		}
-		// Replace only the first text-key map with a shallow copy, preserving its
-		// other metadata while later part references remain in their source order.
-		if _, hasText := pm["text"]; hasText && !textUpdated {
-			newPart := make(map[string]any)
-			maps.Copy(newPart, pm)
-			newPart["text"] = mergedText
-			newParts = append(newParts, newPart)
-			textUpdated = true
-		} else {
-			newParts = append(newParts, pm)
-		}
-	}
-
-	// When no existing text key accepts replacement, prepend the joined text
-	// before retained parts so the collected fragments remain represented in output.
-	if !textUpdated {
-		newParts = append([]any{map[string]any{"text": mergedText}}, newParts...)
-	}
-
-	setParts(newParts)
-	return result
-}
-
-// CollectClaudeStreamResponse collects first-candidate Gemini parts and
-// converts the selected map into Claude JSON using originalModel. Callers
-// supply a readable body, required failure callbacks, and close the body after
-// return; read/idle failures return no collected response.
-//
-// Parts or a nonblank finish reason mark the stream meaningful and set first
-// timing; metadata alone remains eligible for Failover. Content-bearing maps
-// win over later metadata-only maps, and collected ordinary text merges
-// separately from thought/tool/image parts. Conversion usage comes from that
-// selected final map, which can precede later raw usage observations; Executor
-// independently tracks raw fields. Scanner termination stops delivery, while
-// body ownership remains with the exchange caller.
+// Missing content selects the existing failover policy. Other read failures
+// return their observed usage without constructing successful client JSON. On
+// success, conversion consumes the collected content and merged usage together,
+// so cached prompt counts in a trailing frame remain visible to buffered clients.
 func (s *ResponseAdapter) CollectClaudeStreamResponse(resp *http.Response, startTime time.Time, originalModel string) ([]byte, *StreamResult, error) {
-	scanner := bufio.NewScanner(resp.Body)
-	maxLineSize := upstream.DefaultSSELineLimit
-	if s.Options.MaxLineSize > 0 {
-		maxLineSize = s.Options.MaxLineSize
+	collected, observed, err := upstream.CollectGeminiStream(s.Options.Context, resp, upstream.GeminiStreamOptions{
+		IdleTimeout:   time.Duration(s.Options.StreamDataIntervalTimeout) * time.Second,
+		MaxFrameBytes: s.Options.MaxLineSize, Candidates: s.Options.Candidates,
+		Unwrap: s.unwrapConvertedGeminiResponse,
+	}, s.observeRaw)
+	usage := bridge.NativeUsageProjection(bridge.NativeExtractGeminiUsage(observed.UsageJSON))
+	if usage == nil {
+		usage = &upstream.TokenUsage{}
 	}
-	scanBuf := httpclient.GetSSEScannerBuf64K()
-	// Use pooled 64-KiB capacity before allowing configured growth; a smaller
-	// selected maximum cannot shrink this initial buffer or enforce its lower
-	// cap.
-	scanner.Buffer(scanBuf[:0], maxLineSize)
-
-	var last map[string]any
-	var lastWithParts map[string]any
-	var collectedParts []map[string]any // all part types in arrival order
-	var meaningfulResponse bool
-
-	// scanEvent transports a scanned line or terminal read error from the worker
-	// to its owning response handler.
-	type scanEvent struct {
-		line string // copied scanned input line
-		err  error  // terminal scanner read failure
-	}
-
-	// Queue sixteen line/error events so reading can advance separately from
-	// handler timeout selection; the worker owns the pooled buffer until its
-	// scanning work exits.
-	events := make(chan scanEvent, 16)
-	done := make(chan struct{})
-	sendEvent := func(ev scanEvent) bool {
-		select {
-		case events <- ev:
-			return true
-		case <-done:
-			return false
-		}
-	}
-
-	var lastReadAt int64
-	atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
-	go func(scanBuf *httpclient.SSEScannerBuf64K) {
-		defer httpclient.PutSSEScannerBuf64K(scanBuf)
-		defer close(events)
-		for scanner.Scan() {
-			atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
-			if !sendEvent(scanEvent{line: scanner.Text()}) {
-				return
-			}
-		}
-		if err := scanner.Err(); err != nil {
-			_ = sendEvent(scanEvent{err: err})
-		}
-	}(scanBuf)
-	// Signal stop on handler return so the sender can select termination; a
-	// competing ready send can still win, and body closing releases blocked
-	// Scan calls.
-	defer close(done)
-
-	// Check scanned-line activity on interval ticks, including nondata lines;
-	// a disabled interval leaves a nil channel so this select path cannot fire.
-	streamInterval := time.Duration(0)
-	if s.Options.StreamDataIntervalTimeout > 0 {
-		streamInterval = time.Duration(s.Options.StreamDataIntervalTimeout) * time.Second
-	}
-	var intervalTicker *time.Ticker
-	if streamInterval > 0 {
-		intervalTicker = time.NewTicker(streamInterval)
-		defer intervalTicker.Stop()
-	}
-	var intervalCh <-chan time.Time
-	if intervalTicker != nil {
-		intervalCh = intervalTicker.C
-	}
-
-	for {
-		select {
-		case ev, ok := <-events:
-			if !ok {
-				goto returnResponse
-			}
-			if ev.err != nil {
-				if errors.Is(ev.err, bufio.ErrTooLong) {
-					logger.LegacyPrintf("service.antigravity_gateway", "SSE line too long (antigravity claude non-stream): max_size=%d error=%v", maxLineSize, ev.err)
-				}
-				return nil, nil, ev.err
-			}
-
-			line := ev.line
-			s.observeRaw([]byte(line))
-			trimmed := strings.TrimRight(line, "\r\n")
-
-			if !strings.HasPrefix(trimmed, "data:") {
-				continue
-			}
-
-			payload := strings.TrimSpace(strings.TrimPrefix(trimmed, "data:"))
-			if payload == "" || payload == "[DONE]" {
-				continue
-			}
-
-			inner, parseErr := s.UnwrapV1InternalResponse([]byte(payload))
-			if parseErr != nil {
-				continue
-			}
-
-			// Reject incomplete decoded input before retaining the selected response;
-			// raw observers have already received this line for independent accounting.
-			var parsed map[string]any
-			if err := json.Unmarshal(inner, &parsed); err != nil {
-				continue
-			}
-
-			last = parsed
-
-			// Keep the content-bearing map and all first-candidate part references when
-			// later metadata arrives, because final conversion needs both selected
-			// content and collected arrival order.
-			parts := bridge.NativeExtractGeminiParts(parsed)
-			if len(parts) > 0 {
-				lastWithParts = parsed
-
-				collectedParts = append(collectedParts, parts...)
-			}
-			if len(parts) > 0 || strings.TrimSpace(bridge.NativeExtractGeminiFinishReason(parsed)) != "" {
-				meaningfulResponse = true
-			}
-
-		case <-intervalCh:
-			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
-			if time.Since(lastRead) < streamInterval {
-				continue
-			}
-			logger.LegacyPrintf("service.antigravity_gateway", "Stream data interval timeout (antigravity claude non-stream)")
-			return nil, nil, fmt.Errorf("stream data interval timeout")
-		}
-	}
-
-returnResponse:
-	// Select failover when neither parts nor a finish reason was observed,
-	// because metadata-only input cannot satisfy this Claude collection path
-	// meaningful-response condition.
-	if !meaningfulResponse {
-		logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] warning: empty stream response (claude non-stream), triggering failover")
-		return nil, nil, s.Options.Failover([]byte(`{"error":"empty stream response from upstream"}`))
-	}
-
-	finalResponse := bridge.NativePickGeminiCollectResult(last, lastWithParts)
-
-	if len(collectedParts) > 0 {
-		finalResponse = MergeCollectedPartsToResponse(finalResponse, collectedParts)
-	}
-
-	geminiBody, err := json.Marshal(finalResponse)
+	result := &StreamResult{Usage: usage}
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal gemini response: %w", err)
+		var streamError *upstream.GeminiStreamError
+		if errors.As(err, &streamError) {
+			// Compatibility mappers classify timeout text and scanner-size sentinels;
+			// retain those signals while preserving the shared reader's typed cause.
+			switch streamError.Kind {
+			case "stream_empty":
+				return nil, result, s.Options.Failover([]byte(`{"error":"empty stream response from upstream"}`))
+			case "stream_timeout":
+				return nil, result, fmt.Errorf("stream data interval timeout: %w", err)
+			case "stream_frame_too_large":
+				return nil, result, fmt.Errorf("%w: %w", bufio.ErrTooLong, err)
+			}
+		}
+		return nil, result, err
 	}
-
-	claudeResp, agUsage, err := TransformGeminiToClaude(geminiBody, originalModel)
+	body, err := json.Marshal(collected)
 	if err != nil {
-		logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] transform_error error=%v body=%s", err, string(geminiBody))
-		return nil, nil, fmt.Errorf("failed to parse upstream response: %w", err)
+		return nil, result, err
 	}
-
-	usage := &upstream.TokenUsage{
-		InputTokens:              agUsage.InputTokens,
-		OutputTokens:             agUsage.OutputTokens,
-		CacheCreationInputTokens: agUsage.CacheCreationInputTokens,
-		CacheReadInputTokens:     agUsage.CacheReadInputTokens,
-		ImageOutputTokens:        agUsage.ImageOutputTokens,
-	}
-
-	return claudeResp, &StreamResult{Usage: usage}, nil
+	converted, _, err := TransformGeminiToClaude(body, originalModel)
+	return converted, result, err
 }
 
 // HandleClaudeStreamToNonStreaming delegates collection and writes successful
@@ -693,180 +356,71 @@ func (s *ResponseAdapter) HandleClaudeStreamToNonStreaming(c *upstream.OutputCon
 	return streamRes, nil
 }
 
-// HandleClaudeStreamingResponse converts wrapped Gemini data into Claude SSE
-// and returns adapter observations. Callers supply a flushing output writer
-// and close the response body after return; raw input is observed before
-// per-stream conversion.
+// HandleClaudeStreamingResponse converts validated Gemini frames into Messages
+// events and waits for trailing usage before emitting its final message_delta.
+// The shared reader owns response closure, idle limits, and the five-second
+// post-completion tail; caller-visible content can stream before that tail ends.
 //
-// A write failure suppresses later writes while upstream collection continues.
-// Handled cancellation or read failure returns finalized usage. Too-long and
-// live idle-timeout paths
-// return zero adapter usage alongside error, while Executor can retain raw
-// partial usage. EOF finalizes events, and an unstarted stream with no final
-// events selects Failover, even though keepalive output may already have
-// occurred. Converted usage here omits image-output tokens.
+// Client write failure suppresses further delivery while usage collection
+// continues. Read failures retain observed counters and emit no successful stop;
+// cancellation and disconnection retain the existing collection-only behavior.
+// A metadata-only response selects the existing empty-stream failover policy.
 func (s *ResponseAdapter) HandleClaudeStreamingResponse(c *upstream.OutputContext, resp *http.Response, startTime time.Time, originalModel string) (*StreamResult, error) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 	c.Status(http.StatusOK)
-
 	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {
 		return nil, errors.New("streaming not supported")
 	}
-
 	processor := NewStreamingProcessor(originalModel)
-
-	scanner := bufio.NewScanner(resp.Body)
-	maxLineSize := upstream.DefaultSSELineLimit
-	if s.Options.MaxLineSize > 0 {
-		maxLineSize = s.Options.MaxLineSize
-	}
-	scanBuf := httpclient.GetSSEScannerBuf64K()
-	// Use pooled 64-KiB capacity before allowing configured growth; a smaller
-	// selected maximum cannot shrink this initial buffer or enforce its lower
-	// cap.
-	scanner.Buffer(scanBuf[:0], maxLineSize)
-
-	// Project only the four Claude token/cache fields used by this streaming
-	// result; ImageOutputTokens is omitted here even when raw payload fields
-	// describe image usage.
-	convertUsage := func(agUsage *protocolanthropic.ClaudeUsage) *upstream.TokenUsage {
-		if agUsage == nil {
-			return &upstream.TokenUsage{}
+	writer := NewClientWriter(c.Writer, flusher, "antigravity claude")
+	observed, err := s.readGeminiStream(resp, s.unwrapConvertedGeminiResponse, func(event upstream.GeminiStreamEvent) error {
+		if len(event.Data) > 0 {
+			s.observeRaw(event.Data)
+			writer.Write(processor.ProcessLine("data: " + string(event.Data)))
 		}
-		return &upstream.TokenUsage{
-			InputTokens:              agUsage.InputTokens,
-			OutputTokens:             agUsage.OutputTokens,
-			CacheCreationInputTokens: agUsage.CacheCreationInputTokens,
-			CacheReadInputTokens:     agUsage.CacheReadInputTokens,
+		if event.Terminal {
+			c.Complete()
 		}
-	}
-
-	// scanEvent transports a scanned line or terminal read error from the worker
-	// to its owning response handler.
-	type scanEvent struct {
-		line string // copied scanned input line
-		err  error  // terminal scanner read failure
-	}
-	// Queue sixteen line/error events so reading can advance separately from
-	// handler timeout selection; the worker owns the pooled buffer until its
-	// scanning work exits.
-	events := make(chan scanEvent, 16)
-	done := make(chan struct{})
-	sendEvent := func(ev scanEvent) bool {
-		select {
-		case events <- ev:
-			return true
-		case <-done:
-			return false
+		return nil
+	})
+	processor.SetUsageSnapshot(bridge.NativeExtractGeminiUsage(observed.UsageJSON))
+	finalEvents, converted := processor.Finish()
+	result := &StreamResult{Usage: &upstream.TokenUsage{
+		InputTokens: converted.InputTokens, OutputTokens: converted.OutputTokens,
+		CacheReadInputTokens:     converted.CacheReadInputTokens,
+		CacheCreationInputTokens: converted.CacheCreationInputTokens,
+		ImageOutputTokens:        converted.ImageOutputTokens,
+	}, ClientDisconnect: writer.Disconnected()}
+	if err != nil {
+		if disconnected, handled := HandleStreamReadError(err, writer.Disconnected(), "antigravity claude"); handled {
+			result.ClientDisconnect = disconnected
+			return result, nil
 		}
-	}
-	var lastReadAt int64
-	atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
-	go func(scanBuf *httpclient.SSEScannerBuf64K) {
-		defer httpclient.PutSSEScannerBuf64K(scanBuf)
-		defer close(events)
-		for scanner.Scan() {
-			atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
-			if !sendEvent(scanEvent{line: scanner.Text()}) {
-				return
+		var streamError *upstream.GeminiStreamError
+		if !processor.MessageStartSent() || (errors.As(err, &streamError) && streamError.Kind == "stream_empty") {
+			return result, s.Options.Failover([]byte(`{"error":"empty stream response from upstream"}`))
+		}
+		// A failed reader cannot authorize a successful message_stop, even when it
+		// observed partial content or usage before the upstream failure arrived.
+		reason := "stream_read_error"
+		if errors.As(err, &streamError) {
+			switch streamError.Kind {
+			case "stream_frame_too_large":
+				reason = "response_too_large"
+			case "stream_timeout":
+				reason = "stream_timeout"
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			_ = sendEvent(scanEvent{err: err})
-		}
-	}(scanBuf)
-	// Signal stop on handler return so the sender can select termination; a
-	// competing ready send can still win, and body closing releases blocked
-	// Scan calls.
-	defer close(done)
-
-	streamInterval := time.Duration(0)
-	if s.Options.StreamDataIntervalTimeout > 0 {
-		streamInterval = time.Duration(s.Options.StreamDataIntervalTimeout) * time.Second
+		writer.Write([]byte(fmt.Sprintf("event: error\ndata: {\"error\":%q}\n\n", reason)))
+		return result, err
 	}
-	var intervalTicker *time.Ticker
-	if streamInterval > 0 {
-		intervalTicker = time.NewTicker(streamInterval)
-		defer intervalTicker.Stop()
-	}
-	var intervalCh <-chan time.Time
-	if intervalTicker != nil {
-		intervalCh = intervalTicker.C
-	}
-
-	cw := NewClientWriter(c.Writer, flusher, "antigravity claude")
-
-	// Suppress duplicate terminal error events after the first attempted emission
-	// or a recorded disconnect; this direct writer does not itself update the
-	// ClientWriter failure flag.
-	errorEventSent := false
-	sendErrorEvent := func(reason string) {
-		if errorEventSent || cw.Disconnected() {
-			return
-		}
-		errorEventSent = true
-		_, _ = fmt.Fprintf(c.Writer, "event: error\ndata: {\"error\":\"%s\"}\n\n", reason)
-		flusher.Flush()
-	}
-
-	finishUsage := func() *upstream.TokenUsage {
-		_, agUsage := processor.Finish()
-		return convertUsage(agUsage)
-	}
-
-	for {
-		select {
-		case ev, ok := <-events:
-			if !ok {
-				finalEvents, agUsage := processor.Finish()
-				if len(finalEvents) > 0 {
-					cw.Write(finalEvents)
-				} else if !processor.MessageStartSent() && !cw.Disconnected() {
-					// Select failover when processor finalization yields no events and no
-					// message start exists; keepalive writes may already have committed
-					// output through the owning sink.
-					logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Claude-Stream] empty stream response (no valid events parsed), triggering failover")
-					return nil, s.Options.Failover([]byte(`{"error":"empty stream response from upstream"}`))
-				}
-				return &StreamResult{Usage: convertUsage(agUsage), ClientDisconnect: cw.Disconnected()}, nil
-			}
-			if ev.err != nil {
-				if disconnect, handled := HandleStreamReadError(ev.err, cw.Disconnected(), "antigravity claude"); handled {
-					return &StreamResult{Usage: finishUsage(), ClientDisconnect: disconnect}, nil
-				}
-				if errors.Is(ev.err, bufio.ErrTooLong) {
-					logger.LegacyPrintf("service.antigravity_gateway", "SSE line too long (antigravity): max_size=%d error=%v", maxLineSize, ev.err)
-					sendErrorEvent("response_too_large")
-					return &StreamResult{Usage: convertUsage(nil)}, ev.err
-				}
-				sendErrorEvent("stream_read_error")
-				return nil, fmt.Errorf("stream read error: %w", ev.err)
-			}
-
-			s.observeRaw([]byte(ev.line))
-			claudeEvents := processor.ProcessLine(strings.TrimRight(ev.line, "\r\n"))
-			if len(claudeEvents) > 0 {
-				cw.Write(claudeEvents)
-			}
-
-		case <-intervalCh:
-			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
-			if time.Since(lastRead) < streamInterval {
-				continue
-			}
-			if cw.Disconnected() {
-				logger.LegacyPrintf("service.antigravity_gateway", "Upstream timeout after client disconnect (antigravity claude), returning collected usage")
-				return &StreamResult{Usage: finishUsage(), ClientDisconnect: true}, nil
-			}
-			logger.LegacyPrintf("service.antigravity_gateway", "Stream data interval timeout (antigravity)")
-			sendErrorEvent("stream_timeout")
-			return &StreamResult{Usage: convertUsage(nil)}, fmt.Errorf("stream data interval timeout")
-		}
-	}
+	writer.Write(finalEvents)
+	result.ClientDisconnect = writer.Disconnected()
+	return result, nil
 }
 
 // ExtractImageInputSize returns trimmed imageSize from decoded Gemini
@@ -909,4 +463,25 @@ func (s *ResponseAdapter) UnwrapV1InternalResponse(body []byte) ([]byte, error) 
 		return []byte(result.Raw), nil
 	}
 	return body, nil
+}
+
+// unwrapConvertedGeminiResponse retains wrapper response identity while exposing
+// native Gemini content to the shared reader. An outer nonempty responseId wins
+// over the inner ID, matching the existing Messages conversion contract.
+//
+// Native passthrough continues using UnwrapV1InternalResponse and is unchanged.
+// Converted streams instead need this identity before their first message_start,
+// because final usage can arrive much later and cannot replace an already emitted
+// ID. Only that known identity field is patched; inner model and content fields
+// retain their upstream values, and scalar envelopes remain subject to reader validation.
+func (s *ResponseAdapter) unwrapConvertedGeminiResponse(body []byte) ([]byte, error) {
+	inner, err := s.UnwrapV1InternalResponse(body)
+	if err != nil || !gjson.GetBytes(body, "response").IsObject() {
+		return inner, err
+	}
+	identity := gjson.GetBytes(body, "responseId").String()
+	if identity == "" {
+		return inner, nil
+	}
+	return sjson.SetBytes(inner, "responseId", identity)
 }

@@ -5,6 +5,8 @@ import (
 	"log"
 	"strings"
 
+	"github.com/tidwall/gjson"
+
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 )
 
@@ -14,6 +16,13 @@ import (
 // conversion. Prefix removal feeds a per-stream processor, while blank,
 // completion, nondata, or undecodable lines produce no output; processor
 // diagnostics are logged after each participating conversion.
+//
+// The same processor accepts original v1internal envelopes and native payloads
+// produced by the shared Gemini reader. Shape selection happens before decoding
+// so a native object cannot silently become an empty envelope. Content remains
+// incremental, while the processor records the finish reason and defers final
+// usage until its owner supplies the reader's merged tail snapshot. Each
+// processor belongs to one serialized upstream attempt and is finalized once.
 
 // StreamingProcessor unwraps one data-line payload for shared mutable Gemini
 // stream conversion.
@@ -32,9 +41,15 @@ func NewStreamingProcessor(model string) *StreamingProcessor {
 }
 
 // ProcessLine returns Claude events for one data line and logs shared
-// diagnostics. Empty, DONE, nondata, and undecodable input returns nil; direct
-// decoding is tried after an envelope error rather than absent inner
-// candidates.
+// diagnostics. Empty, DONE, nondata, and undecodable input returns nil. Wrapped
+// data and already-unwrapped shared-reader payloads enter the same processor;
+// final usage and terminal events remain deferred until Finish.
+//
+// Envelope presence selects decoding before candidate inspection, allowing
+// usage-only tails that contain no candidates. Identity and model observations
+// travel with the selected response shape. The caller owns frame validation,
+// completion policy, and the final accumulated usage snapshot; this method only
+// converts a usable ordered payload and preserves processor state between calls.
 func (p *StreamingProcessor) ProcessLine(line string) []byte {
 	line = strings.TrimSpace(line)
 	if line == "" || !strings.HasPrefix(line, "data:") {
@@ -47,10 +62,9 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 	}
 
 	var v1Resp V1InternalResponse
-	if err := json.Unmarshal([]byte(data), &v1Resp); err != nil {
-		// Try direct decoding only after an envelope error; an object decoded as an
-		// empty envelope remains subject to the shared processor empty-response
-		// handling.
+	if !gjson.Get(data, "response").IsObject() {
+		// The shared Gemini reader already removes platform envelopes. Decode that
+		// native shape explicitly instead of accepting an empty wrapper by accident.
 		var directResp GeminiResponse
 		if err2 := json.Unmarshal([]byte(data), &directResp); err2 != nil {
 			return nil
@@ -58,6 +72,8 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 		v1Resp.Response = directResp
 		v1Resp.ResponseID = directResp.ResponseID
 		v1Resp.ModelVersion = directResp.ModelVersion
+	} else if err := json.Unmarshal([]byte(data), &v1Resp); err != nil {
+		return nil
 	}
 
 	result := p.ProcessResponse(&bridge.GeminiResponseInput{Response: v1Resp.Response, ResponseID: v1Resp.ResponseID, ModelVersion: v1Resp.ModelVersion})

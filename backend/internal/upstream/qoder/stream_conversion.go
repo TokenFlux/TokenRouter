@@ -1552,14 +1552,21 @@ func QoderResponsesID() string {
 
 // QoderResponsesUsage assembles Responses totals from uncached, cache-read,
 // cache-created, and output tokens. Input categories are added once and positive
-// cache reads produce input_tokens_details; other usage detail fields remain
-// outside this representation.
+// cache reads produce input_tokens_details. Cache writes retain the existing
+// Responses aggregate field; unreported usage categories remain zero.
+//
+// The supplied InputTokens count already excludes cache work, unlike the wire
+// protocol's inclusive input total. Adding each independent bucket once keeps
+// Responses clients aligned with Chat and Messages clients. No cacheable-token
+// observation becomes a write count, and the returned detail object owns its
+// storage rather than borrowing a mutable stream state.
 func QoderResponsesUsage(usage upstream.TokenUsage) *protocolopenai.ResponsesUsage {
 	inputTokens := usage.InputTokens + usage.CacheReadInputTokens + usage.CacheCreationInputTokens
 	out := &protocolopenai.ResponsesUsage{
-		InputTokens:  inputTokens,
-		OutputTokens: usage.OutputTokens,
-		TotalTokens:  inputTokens + usage.OutputTokens,
+		InputTokens:              inputTokens,
+		OutputTokens:             usage.OutputTokens,
+		TotalTokens:              inputTokens + usage.OutputTokens,
+		CacheCreationInputTokens: usage.CacheCreationInputTokens,
 	}
 	if usage.CacheReadInputTokens > 0 {
 		out.InputTokensDetails = &protocolopenai.ResponsesInputTokensDetails{CachedTokens: usage.CacheReadInputTokens}
@@ -2214,7 +2221,7 @@ func MergeQoderUsageEvent(usage *upstream.TokenUsage, event SSEEvent) {
 
 // QoderEventsWithUsage copies the event slice and fills zero usage counts from a
 // supplied snapshot. Only existing HasUsage events are changed. Zero prompt uses
-// uncached plus cache-read input, zero completion uses supplied output, and zero
+// ordinary plus cache-read and cache-write input, zero completion uses supplied output, and zero
 // total derives from the resulting event counts.
 //
 // The operation does not add an observation when usage was absent. Its outer
@@ -2231,7 +2238,7 @@ func QoderEventsWithUsage(events []SSEEvent, usage upstream.TokenUsage) []SSEEve
 			continue
 		}
 		if out[i].PromptTokens == 0 {
-			out[i].PromptTokens = usage.InputTokens + usage.CacheReadInputTokens
+			out[i].PromptTokens = usage.InputTokens + usage.CacheReadInputTokens + usage.CacheCreationInputTokens
 		}
 		if out[i].CompletionTokens == 0 {
 			out[i].CompletionTokens = usage.OutputTokens
@@ -2249,9 +2256,9 @@ func QoderEventsWithUsage(events []SSEEvent, usage upstream.TokenUsage) []SSEEve
 // earlier totals are not reconsidered.
 //
 // When the last observation has no positive counts or usage is absent, fallback
-// uses the supplied uncached input and output counts. Cache reads enter through
-// the last event's prompt count when available. This selection keeps repeated
-// usage observations from being added together.
+// uses the supplied ordinary input, cache reads, cache writes, and output counts.
+// The last event's prompt count already includes cache work when available.
+// This selection keeps repeated usage observations from being added together.
 func QoderTotalTokensFromEvents(events []SSEEvent, usage upstream.TokenUsage) int {
 	var lastPromptTokens int
 	var lastCompletionTokens int
@@ -2269,12 +2276,12 @@ func QoderTotalTokensFromEvents(events []SSEEvent, usage upstream.TokenUsage) in
 	if lastPromptTokens > 0 || lastCompletionTokens > 0 {
 		return lastPromptTokens + lastCompletionTokens
 	}
-	return usage.InputTokens + usage.OutputTokens
+	return usage.InputTokens + usage.CacheReadInputTokens + usage.CacheCreationInputTokens + usage.OutputTokens
 }
 
 // QoderOpenAIUsage formats prompt, completion, total, and optional detail fields
-// for Chat output. Prompt starts as uncached plus cache-read input. A positive
-// total at least as large as completion instead derives prompt as total minus
+// for Chat output. Prompt starts as uncached plus cache-read and cache-write
+// input. A positive total at least as large as completion derives prompt as total minus
 // completion, and zero total derives from the selected counts.
 //
 // The first supplied UsageDetails value contributes cached/cacheable and
@@ -2282,7 +2289,7 @@ func QoderTotalTokensFromEvents(events []SSEEvent, usage upstream.TokenUsage) in
 // cached-only detail object. Those breakdowns remain observations alongside the
 // outer count selection and are not recomputed from total.
 func QoderOpenAIUsage(usage upstream.TokenUsage, totalTokens int, usageDetails ...UsageDetails) map[string]any {
-	promptTokens := usage.InputTokens + usage.CacheReadInputTokens
+	promptTokens := usage.InputTokens + usage.CacheReadInputTokens + usage.CacheCreationInputTokens
 	completionTokens := usage.OutputTokens
 	if totalTokens > 0 && totalTokens >= completionTokens {
 		promptTokens = totalTokens - completionTokens
@@ -2303,6 +2310,14 @@ func QoderOpenAIUsage(usage upstream.TokenUsage, totalTokens int, usageDetails .
 		}
 	} else if usage.CacheReadInputTokens > 0 {
 		out["prompt_tokens_details"] = map[string]any{"cached_tokens": usage.CacheReadInputTokens}
+	}
+	if usage.CacheCreationInputTokens > 0 {
+		promptDetails, ok := out["prompt_tokens_details"].(map[string]any)
+		if !ok {
+			promptDetails = make(map[string]any)
+			out["prompt_tokens_details"] = promptDetails
+		}
+		promptDetails["cache_creation_tokens"] = usage.CacheCreationInputTokens
 	}
 	if details.CompletionTokensDetails != nil {
 		out["completion_tokens_details"] = map[string]any{"reasoning_tokens": details.CompletionTokensDetails.ReasoningTokens}

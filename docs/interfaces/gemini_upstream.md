@@ -87,6 +87,8 @@ HTTP 200 中的 Google error 在转换之前识别，不能被吞掉或补成成
 
 汇总上游 SSE 时，各候选分别累积内容与终态，不能被另一个候选覆盖。相邻文本只有在其他元数据完全一致时才合并，以保留不同的 thought signature。稀疏用量尾帧仅更新出现且非 null 的字段，明确的零值仍有效；缺失字段不会抹掉先前观察到的输入或缓存计数。
 
+Messages、Chat 和 Responses 的流式及非流式转换都返回上游已报告的缓存读取数。Messages 普通输入扣除缓存；OpenAI 两种协议的总输入包含缓存，不能直接使用扣除后的普通输入。客户端最终用量与后台记录使用同一快照，字段规则见[客户端用量与缓存](protocol_capabilities.md#client_usage_cache)。
+
 <a id="gemini_native_execution"></a>
 ## 原生执行与提供商授权
 

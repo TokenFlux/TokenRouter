@@ -284,6 +284,7 @@ func ReadChatStreaming(resp *http.Response, c *upstream.OutputContext, options C
 	state.IncludeUsage = true
 
 	var usage wire.ForwardUsage
+	var usageAccumulator wire.UsageAccumulator
 
 	clientDisconnected := false
 	clientOutputStarted := false
@@ -344,6 +345,11 @@ func ReadChatStreaming(resp *http.Response, c *upstream.OutputContext, options C
 		}
 		options.Observe([]byte(payload), event.Type)
 		refusalDetector.ObservePayload([]byte(payload))
+		// Client conversion and accounting receive the same presence-aware usage,
+		// retaining earlier cache fields when a later payload supplies only output.
+		if snapshot := usageAccumulator.ObserveResponsesEvent([]byte(payload), &event); snapshot != nil {
+			usage = wire.CopyForwardUsage(snapshot)
+		}
 
 		isTerminalEvent := IsCompatResponsesTerminalEvent(event.Type)
 		// Terminal nested response usage is applied last, overriding top-level

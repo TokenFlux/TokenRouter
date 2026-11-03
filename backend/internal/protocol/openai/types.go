@@ -3,6 +3,8 @@ package openai
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/tidwall/gjson"
 )
 
 // types.go defines Responses and Chat wire values and adapts tool arguments,
@@ -773,120 +775,48 @@ func (o *ResponsesOutput) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// UnmarshalJSON combines Responses counts with compatible Chat names and
-// cache-write aliases. A zero canonical input or output count can be replaced
-// by a nonzero Chat alias, and missing detail pointers can use their Chat
-// counterparts. A zero total is recomputed from the selected input and output
-// counts.
+// UnmarshalJSON decodes inclusive Responses usage and compatible Chat names.
+// Canonical nonzero input/output values win; zero values permit their existing
+// Chat aliases. Cache selectors share raw-accounting precedence, including
+// authoritative nested zero values and supported top-level cache aliases.
 //
-// Nested cache presence is tracked separately so an explicit zero can override
-// positive top-level aliases. The priority is input cache_write, prompt
-// cache_write, input cache_creation, then prompt cache_creation; a selected
-// negative nested value clamps to zero. Other counts retain supplied integer
-// values, so this decoder supplies normalization rather than general
-// nonnegative usage validation. Both decodes finish before the receiver is
-// replaced.
+// Decode into a temporary value before replacing the receiver so malformed
+// typed fields cannot leave partially changed usage. Detail objects retain
+// their non-cache categories, while overlapping cache-write aliases converge
+// on one selected count. A zero total is derived after normalization, including
+// prompt totals recovered from explicit DeepSeek hit/miss observations.
 func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
-	// responsesUsageAlias exposes canonical count fields while bypassing the
-	// compatibility JSON decoder.
+	// responsesUsageAlias exposes wire fields without recursively invoking this
+	// compatibility decoder while validating the supplied typed JSON values.
 	type responsesUsageAlias ResponsesUsage
-	// cacheTokenPresence distinguishes absent nested cache counts from supplied
-	// integer zero values.
-	type cacheTokenPresence struct {
-		// CacheCreationTokens and CacheWriteTokens retain presence for zero counts.
-		// The usage decoder selects among these pointers before clamping its result.
-		CacheCreationTokens *int `json:"cache_creation_tokens"` // present cache-creation token count
-		CacheWriteTokens    *int `json:"cache_write_tokens"`    // present cache-write token count
+	var decoded struct {
+		responsesUsageAlias
+		PromptTokens            int                           `json:"prompt_tokens"`             // compatible inclusive prompt count
+		CompletionTokens        int                           `json:"completion_tokens"`         // compatible generated token count
+		PromptTokensDetails     *ResponsesInputTokensDetails  `json:"prompt_tokens_details"`     // compatible input detail object
+		CompletionTokensDetails *ResponsesOutputTokensDetails `json:"completion_tokens_details"` // compatible output detail object
 	}
-	var aux struct {
-		responsesUsageAlias // canonical Responses usage fields
-		// PromptTokens and CompletionTokens supply nonzero Chat aliases when the
-		// corresponding canonical count is zero, so presence alone does not
-		// protect an explicit canonical zero during this compatibility decode.
-		// Chat prompt token alias
-		PromptTokens int `json:"prompt_tokens"`
-		// Chat completion token alias
-		CompletionTokens int `json:"completion_tokens"`
-		// CacheCreationTokens, CacheWriteInputTokens, and CacheWriteTokens are
-		// top-level aliases for one creation count. The decoder selects a positive
-		// cache-write-input value first, then creation, then cache-write.
-		// top-level cache-creation token alias
-		CacheCreationTokens int `json:"cache_creation_tokens"`
-		// top-level cache-write input alias
-		CacheWriteInputTokens int `json:"cache_write_input_tokens"`
-		// top-level cache-write token alias
-		CacheWriteTokens int `json:"cache_write_tokens"`
-		// PromptTokensDetails and CompletionTokensDetails supply the matching
-		// canonical detail objects when those pointers are nil. Their fields remain
-		// independent of the later nested cache-count presence selection.
-		// Chat prompt usage details
-		PromptTokensDetails *ResponsesInputTokensDetails `json:"prompt_tokens_details,omitempty"`
-		// Chat completion usage details
-		CompletionTokensDetails *ResponsesOutputTokensDetails `json:"completion_tokens_details,omitempty"`
-	}
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := json.Unmarshal(data, &decoded); err != nil {
 		return err
 	}
-	var nestedPresence struct {
-		// InputTokensDetails and PromptTokensDetails inspect both nested naming
-		// forms independently. Pointer presence determines which cache alias can
-		// override earlier positive counts, including when the selected count is zero.
-		// canonical nested cache presence
-		InputTokensDetails *cacheTokenPresence `json:"input_tokens_details"`
-		// Chat nested cache presence
-		PromptTokensDetails *cacheTokenPresence `json:"prompt_tokens_details"`
+	value := ResponsesUsage(decoded.responsesUsageAlias)
+	if counters, ok := OpenAIUsageFromGJSON(gjson.ParseBytes(data)); ok {
+		// Keep typed client totals aligned with raw accounting, including independent
+		// reasoning reported through the total gap rather than the output bucket.
+		value.InputTokens = counters.InputTokens
+		value.OutputTokens = counters.OutputTokens
 	}
-	if err := json.Unmarshal(data, &nestedPresence); err != nil {
-		return err
+	if value.InputTokensDetails == nil {
+		value.InputTokensDetails = decoded.PromptTokensDetails
 	}
-	*u = ResponsesUsage(aux.responsesUsageAlias)
-	// Some compatible usage objects report Chat names alongside canonical zeros.
-	// Resolve those count aliases and missing detail objects before nested cache presence.
-	if u.InputTokens == 0 && aux.PromptTokens != 0 {
-		u.InputTokens = aux.PromptTokens
+	if value.OutputTokensDetails == nil {
+		value.OutputTokensDetails = decoded.CompletionTokensDetails
 	}
-	if u.OutputTokens == 0 && aux.CompletionTokens != 0 {
-		u.OutputTokens = aux.CompletionTokens
+	normalizeResponsesCacheUsage(gjson.ParseBytes(data), &value)
+	if value.TotalTokens == 0 {
+		value.TotalTokens = value.InputTokens + value.OutputTokens
 	}
-	if u.CacheCreationInputTokens == 0 {
-		switch {
-		case aux.CacheWriteInputTokens > 0:
-			u.CacheCreationInputTokens = aux.CacheWriteInputTokens
-		case aux.CacheCreationTokens > 0:
-			u.CacheCreationInputTokens = aux.CacheCreationTokens
-		case aux.CacheWriteTokens > 0:
-			u.CacheCreationInputTokens = aux.CacheWriteTokens
-		}
-	}
-	if u.InputTokensDetails == nil && aux.PromptTokensDetails != nil {
-		u.InputTokensDetails = aux.PromptTokensDetails
-	}
-	if u.OutputTokensDetails == nil && aux.CompletionTokensDetails != nil {
-		u.OutputTokensDetails = aux.CompletionTokensDetails
-	}
-	// Nested pointer presence is authoritative even for zero, unlike the positive
-	// top-level compatibility aliases selected earlier. Keep that distinction until selection.
-	var canonicalCacheCreationTokens *int
-	switch {
-	case nestedPresence.InputTokensDetails != nil && nestedPresence.InputTokensDetails.CacheWriteTokens != nil:
-		canonicalCacheCreationTokens = nestedPresence.InputTokensDetails.CacheWriteTokens
-	case nestedPresence.PromptTokensDetails != nil && nestedPresence.PromptTokensDetails.CacheWriteTokens != nil:
-		canonicalCacheCreationTokens = nestedPresence.PromptTokensDetails.CacheWriteTokens
-	case nestedPresence.InputTokensDetails != nil && nestedPresence.InputTokensDetails.CacheCreationTokens != nil:
-		canonicalCacheCreationTokens = nestedPresence.InputTokensDetails.CacheCreationTokens
-	case nestedPresence.PromptTokensDetails != nil && nestedPresence.PromptTokensDetails.CacheCreationTokens != nil:
-		canonicalCacheCreationTokens = nestedPresence.PromptTokensDetails.CacheCreationTokens
-	}
-	if canonicalCacheCreationTokens != nil {
-		// A selected negative nested count is treated as zero cache creation,
-		// while its presence still suppresses previously chosen positive aliases.
-		u.CacheCreationInputTokens = max(*canonicalCacheCreationTokens, 0)
-	}
-	// Compute a zero total after count aliases settle, so Chat-named input and
-	// output contribute to the reported aggregate.
-	if u.TotalTokens == 0 && (u.InputTokens != 0 || u.OutputTokens != 0) {
-		u.TotalTokens = u.InputTokens + u.OutputTokens
-	}
+	*u = value
 	return nil
 }
 

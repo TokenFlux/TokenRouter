@@ -50,6 +50,36 @@ var qoderCachedUsageEventForTest = SSEEvent{
 	HasUsage: true,
 }
 
+// TestQoderUsageSerializersPreserveAvailableCacheWrites supplies independent
+// ordinary, cached, and cache-write counts. All output protocols must retain
+// the reported write bucket without treating cacheable prompt capacity as writes.
+func TestQoderUsageSerializersPreserveAvailableCacheWrites(t *testing.T) {
+	usage := QoderUsageFromEvents(nil)
+	usage.InputTokens = 20
+	usage.CacheReadInputTokens = 60
+	usage.CacheCreationInputTokens = 20
+	usage.OutputTokens = 10
+	require.Equal(t, 110, QoderTotalTokensFromEvents(nil, usage))
+	completed := QoderEventsWithUsage([]SSEEvent{{HasUsage: true}}, usage)
+	require.Equal(t, 100, completed[0].PromptTokens)
+	require.Equal(t, 110, completed[0].TotalTokens)
+	chat := QoderOpenAIUsage(usage, 0)
+	encoded, err := json.Marshal(chat)
+	require.NoError(t, err)
+	require.Equal(t, int64(100), gjson.GetBytes(encoded, "prompt_tokens").Int())
+	require.Equal(t, int64(110), gjson.GetBytes(encoded, "total_tokens").Int())
+	require.Equal(t, int64(60), gjson.GetBytes(encoded, "prompt_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(20), gjson.GetBytes(encoded, "prompt_tokens_details.cache_creation_tokens").Int())
+	responses := QoderResponsesUsage(usage)
+	require.Equal(t, 100, responses.InputTokens)
+	require.Equal(t, 110, responses.TotalTokens)
+	require.Equal(t, 20, responses.CacheCreationInputTokens)
+	messages := QoderAnthropicUsage(usage)
+	require.Equal(t, 20, messages["input_tokens"])
+	require.Equal(t, 60, messages["cache_read_input_tokens"])
+	require.Equal(t, 20, messages["cache_creation_input_tokens"])
+}
+
 // qoderNoIndexNamedParallelToolCallEventsForTest returns three complete named
 // invocations without wire IDs or positions. The fixtures use them to check
 // implicit slot separation after each completed argument object.

@@ -18,10 +18,10 @@ import (
 // Usage metadata replaces the latest observed counts, and grounding
 // queries/chunks each retain their first nonempty observation until
 // termination output. Grounding chunk structs are copied but nested Web
-// pointers remain shared. The stop flag prevents duplicate message_stop alone:
-// later ProcessResponse calls can still emit content, repeated grounding, or
-// message_delta. Callers therefore own response sequencing and stop feeding
-// finished streams. SSE encoding can suppress an event without rolling back
+// pointers remain shared. Candidate completion closes content but saves its
+// reason until the reader supplies merged trailing usage and calls Finish.
+// Finalized processors reject subsequent payloads, preventing repeated content
+// or terminal events. SSE encoding can suppress an event without rolling back
 // already changed conversion state.
 
 // BlockType values distinguish the single active Messages lifecycle so
@@ -52,11 +52,12 @@ type GeminiToAnthropicStreamProcessor struct {
 	// content first so each new lifecycle receives the resulting index.
 	blockType  BlockType // active content lifecycle kind
 	blockIndex int       // current or next block index
-	// messageStartSent guards the initial event; messageStopSent guards the stop
-	// event and public Finish. ProcessResponse can still produce other output
-	// after a stop, so callers end payload processing at response termination.
-	messageStartSent bool // initial message start marked
-	messageStopSent  bool // terminal message stop marked
+	// messageStartSent guards the initial event; messageStopSent prevents further
+	// payload delivery and repeated finalization. finishReason retains candidate
+	// completion while the owning reader continues collecting trailing usage.
+	messageStartSent bool   // initial message start marked
+	messageStopSent  bool   // terminal message stop marked
+	finishReason     string // observed completion reason awaiting final usage
 	// usedTool records any emitted invocation and makes tool_use win over
 	// length exhaustion when emitFinish selects the client stop reason.
 	usedTool bool
@@ -79,6 +80,7 @@ type GeminiToAnthropicStreamProcessor struct {
 	// replaced together from each supplied usageMetadata. Cached input is split
 	// from prompt count; output includes thoughts, and image count is an overlapping
 	// candidate subset. Missing metadata leaves prior counts and no clamp applies.
+	// SetUsageSnapshot installs the reader's merged observation before final output.
 	inputTokens       int // uncached prompt token count
 	outputTokens      int // candidate plus thinking tokens
 	cacheReadTokens   int // cached prompt token count
@@ -117,13 +119,16 @@ func NewGeminiToAnthropicStreamProcessor(originalModel string, runtime GeminiCon
 // termination.
 //
 // First-candidate parts are treated as incremental fragments, so cumulative
-// repeated text is not deduplicated here. Usage metadata replaces counts,
-// grounding lists keep independent first nonempty observations, and a nonempty
-// finish reason closes content then emits final output. Message-start identity
-// is selected once. The message-stop flag guards that event alone, allowing
-// repeated finish payloads to emit another delta/footer and later content to
-// open new blocks; callers own the lifecycle limit.
+// repeated text is not deduplicated here. Usage metadata replaces counts and
+// grounding lists keep independent first nonempty observations. A finish reason
+// closes content but defers final usage and message_stop until Finish, allowing
+// the transport reader to collect trailing usage. Message-start identity is
+// selected once, and finalized processors reject further payloads. Callers apply
+// the reader's merged usage snapshot before finalization to preserve sparse fields.
 func (p *GeminiToAnthropicStreamProcessor) ProcessResponse(v1Resp *GeminiResponseInput) []byte {
+	if p.messageStopSent {
+		return nil
+	}
 	geminiResp := &v1Resp.Response
 
 	var result bytes.Buffer
@@ -165,7 +170,10 @@ func (p *GeminiToAnthropicStreamProcessor) ProcessResponse(v1Resp *GeminiRespons
 			}
 		}
 		if finishReason != "" {
-			_, _ = result.Write(p.emitFinish(finishReason))
+			// Content completion precedes optional usage-only tail frames. Delay the
+			// final protocol usage and stop event until the owning reader finishes.
+			p.finishReason = finishReason
+			_, _ = result.Write(p.endBlock())
 		}
 	}
 
@@ -175,13 +183,9 @@ func (p *GeminiToAnthropicStreamProcessor) ProcessResponse(v1Resp *GeminiRespons
 // Finish returns closing SSE bytes when this stream started but has not been
 // marked stopped, together with a fresh usage snapshot. Unstarted or already
 // stopped streams return no closure while retaining the latest counts for
-// their caller.
-//
-// The guard applies to this public finalizer: it invokes emitFinish with an
-// empty reason only for an open message. ProcessResponse remains able to
-// mutate state after a stop, so callers end input processing themselves
-// rather than treating Finish as a processor-wide shutdown. Each returned
-// ClaudeUsage value contains copied integer observations.
+// their caller. The saved finish reason determines the final stop classification;
+// readers call this only after validating completion and applying merged usage.
+// Repeated finalization cannot emit another protocol terminal event.
 func (p *GeminiToAnthropicStreamProcessor) Finish() ([]byte, *ClaudeUsage) {
 	usage := &ClaudeUsage{
 		InputTokens:          p.inputTokens,
@@ -196,10 +200,23 @@ func (p *GeminiToAnthropicStreamProcessor) Finish() ([]byte, *ClaudeUsage) {
 
 	var result bytes.Buffer
 	if !p.messageStopSent {
-		_, _ = result.Write(p.emitFinish(""))
+		_, _ = result.Write(p.emitFinish(p.finishReason))
 	}
 
 	return result.Bytes(), usage
+}
+
+// SetUsageSnapshot replaces the processor's counters with a merged native usage
+// observation. Readers call it after draining trailing frames and before Finish;
+// nil leaves previously observed counters unchanged, including partial-failure data.
+func (p *GeminiToAnthropicStreamProcessor) SetUsageSnapshot(usage *NativeGeminiUsage) {
+	if usage == nil {
+		return
+	}
+	p.inputTokens = usage.InputTokens
+	p.outputTokens = usage.OutputTokens
+	p.cacheReadTokens = usage.CacheReadInputTokens
+	p.imageOutputTokens = usage.ImageOutputTokens
 }
 
 // MessageStartSent reports whether conversion has marked the initial Messages

@@ -158,6 +158,9 @@ type AnthropicUsage struct {
 	OutputTokens             int `json:"output_tokens"`               // generated response tokens
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens"` // cache-written prompt tokens
 	CacheReadInputTokens     int `json:"cache_read_input_tokens"`     // cache-read prompt tokens
+	// CacheCreation preserves reported lifetime buckets. Nil means no lifetime
+	// details were supplied; individual pointers retain explicit zero observations.
+	CacheCreation *AnthropicCacheCreation `json:"cache_creation,omitempty"`
 	// Speed reports the upstream processing mode, such as fast or standard.
 	// MergeAnthropicUsage retains a previous observation when this string is blank.
 	Speed string `json:"speed,omitempty"`
@@ -174,6 +177,17 @@ type AnthropicUsage struct {
 	// PromptCacheMissTokens is authoritative when present, including zero.
 	// MergeAnthropicUsage uses that uncached bucket directly rather than subtracting cache reads again.
 	PromptCacheMissTokens *int `json:"prompt_cache_miss_tokens,omitempty"` // observed uncached tokens
+}
+
+// AnthropicCacheCreation retains the independently reported cache-write lifetimes
+// used by Messages responses and their streaming usage updates.
+type AnthropicCacheCreation struct {
+	// Ephemeral5mInputTokens replaces the five-minute bucket when present, including
+	// zero when an upstream moves the same writes to another lifetime.
+	Ephemeral5mInputTokens *int `json:"ephemeral_5m_input_tokens,omitempty"`
+	// Ephemeral1hInputTokens replaces the one-hour bucket when present, including
+	// zero when an upstream moves the same writes to another lifetime.
+	Ephemeral1hInputTokens *int `json:"ephemeral_1h_input_tokens,omitempty"`
 }
 
 // AnthropicStreamEvent is a single SSE event in the Anthropic streaming protocol.

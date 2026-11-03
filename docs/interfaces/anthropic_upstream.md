@@ -46,6 +46,8 @@ Messages 上游转 Responses 或 Chat Completions 时，流式和非流式客户
 
 单帧累计大小使用部署配置的 `MaxLineSize`，未配置时为 500 MiB。转换器在缓存每行之前累计字节数，data、event、注释和换行符均计入限制，空行结束帧后重置。超限时释放帧缓冲并返回错误，已读取的用量随错误结果保留。 HTTP 输出层在完整 JSON 或流式终态写出成功后标记交付状态，外层据此跳过补发错误。读取错误继续返回给日志和用量处理，调用方可用 `errors.Is` 检查原始错误。
 
+转换读取器先归一化兼容缓存别名和 `cache_creation` 的 5 分钟、1 小时分档，再把累计用量交给客户端转换与计费。只有缓存读取或写入、普通输入与输出都为零的观察同样有效；没有正数写入总量时由已报告分档补齐，已有聚合数不再与分档相加。OpenAI 输出的总输入包含普通输入、缓存读取和缓存写入，详见[客户端用量与缓存](protocol_capabilities.md#client_usage_cache)。
+
 Responses 请求转换成 Anthropic Messages 时，只发送 Anthropic 入站协议认识的内容块。OpenAI 的 `reasoning`、`reasoning_text`、未知的专有分片、空内容的消息和纯空白的文本块会被过滤；空白文本和合法的图片在一起时，只删掉坏的文本，图片保留。`function_call` 和 `function_call_output` 仍按调用 ID 转成相邻的 `tool_use` 和 `tool_result`，过滤之后，工具调用的配对、角色交替和历史顺序都保持完整。
 
 ## 模型与请求策略
