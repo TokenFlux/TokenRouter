@@ -903,7 +903,7 @@ export default {
       contactInfo: 'Contact Info',
       contactInfoPlaceholder: 'e.g., QQ: 123456789',
       contactInfoHint:
-        'Customer support contact info, displayed on the profile and header user menu.',
+        'Contact details shown in the header Contact Us menu and on the user dashboard.',
       docUrl: 'Documentation URL',
       docUrlPlaceholder: 'https://docs.example.com',
       docUrlHint: 'Link to your documentation site. Leave empty to hide the documentation link.',

@@ -16,12 +16,7 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string, params?: Record<string, unknown>) => {
-        if (key === 'dashboard.unreadAnnouncements') {
-          return `${params?.count ?? 0} unread`
-        }
-        return key
-      },
+      t: (key: string) => key,
     }),
   }
 })
@@ -94,7 +89,7 @@ describe('UserDashboardAnnouncements', () => {
     expect(connectors).toHaveLength(4)
     expect(connectors[0].classes()).toContain('top-[1.375rem]')
     expect(connectors[0].classes()).toContain('bottom-[-1.625rem]')
-    expect(wrapper.find('[data-testid="announcement-unread-count"]').text()).toBe('3 unread')
+    expect(wrapper.find('[data-testid="announcement-unread-count"]').exists()).toBe(false)
     expect(nodes[0].attributes('data-unread')).toBe('true')
     expect(nodes[0].classes()).toContain('bg-primary-500')
     expect(nodes[0].classes()).toContain('top-4')
@@ -171,7 +166,7 @@ describe('UserDashboardAnnouncements', () => {
   })
 
   // The shared store transitions from initial loading to an empty completed result. The test
-  // protects separate skeleton and empty presentations with an accurate zero unread count.
+  // protects separate skeleton and empty presentations while the header remains a plain title.
   it('分别展示加载状态和空状态', async () => {
     const store = useAnnouncementStore()
     store.loading = true
@@ -183,7 +178,7 @@ describe('UserDashboardAnnouncements', () => {
     await nextTick()
 
     expect(wrapper.find('[data-testid="announcement-timeline-loading"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="announcement-unread-count"]').text()).toBe('0 unread')
+    expect(wrapper.find('[data-testid="announcement-unread-count"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('announcements.empty')
     expect(wrapper.text()).toContain('announcements.emptyDescription')
 

@@ -61,7 +61,6 @@ export default {
     requests: '请求',
     tokens: 'Token',
     recentAnnouncements: '最近公告',
-    unreadAnnouncements: '{count} 条未读',
     announcementNoSummary: '暂无摘要',
     quickActions: '快捷操作',
     createApiKey: '创建 API 密钥',

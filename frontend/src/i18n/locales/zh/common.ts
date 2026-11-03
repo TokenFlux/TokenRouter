@@ -73,7 +73,7 @@ export default {
     copyFailed: '复制失败',
     verifying: '验证中...',
     processing: '处理中...',
-    contactSupport: '联系客服',
+    contactSupport: '联系我们',
     add: '添加',
     moveUp: '上移',
     moveDown: '下移',
@@ -205,7 +205,7 @@ export default {
     },
     registrationFailed: '注册失败，请重试。',
     emailDomainRegistrationLimit:
-      '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系客服添加域名白名单。',
+      '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系我们添加域名白名单。',
     emailSuffixNotAllowed: '该邮箱域名不在允许注册范围内。',
     emailSuffixNotAllowedWithAllowed: '该邮箱域名不被允许。可用域名：{suffixes}',
     emailSuffixAllowedMore: '等 {count} 项',

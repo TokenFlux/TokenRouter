@@ -64,25 +64,13 @@ import MotionTransition from '@/components/common/MotionTransition.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { useAppStore } from '@/stores'
+import { formatContactUrl, parseContactInfo } from '@/utils/contactInfo'
 
-// HeaderContactSupport.vue turns configured contact text into a header menu of links and
-// copy actions. Commas, semicolons, and newlines separate entries, while a colon can
-// split a label from its value. HTTP and HTTPS values become external links and other
-// values remain copyable text.
-//
-// The parser skips a colon followed by two slashes when searching for a label separator,
-// allowing ordinary scheme-prefixed links to remain intact. A later colon can still
-// split the entry, including one in a port or URL path. Menu visibility is local, and
-// document click observation lasts until the component unmounts.
-
-// ContactEntry represents one parsed contact value and its optional label.
-interface ContactEntry {
-  label: string // Optional display label
-  value: string // Trimmed contact value
-  // Contains the value when it is a whitespace-free HTTP or HTTPS URL; otherwise the
-  // menu uses a copy button.
-  url: string
-}
+// HeaderContactSupport.vue shows configured contact entries in a header menu of links and
+// copy actions. The shared contactInfo parser splits the setting and decides which entries
+// are links, so this menu and the dashboard contact card show the same rows. Menu
+// visibility is local, and document click observation lasts until the component
+// unmounts.
 
 // Translation, public contact settings, and clipboard feedback supply the menu labels
 // and actions for this mounted support control.
@@ -95,47 +83,8 @@ const { copyToClipboard } = useClipboard()
 const isOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 
-// contactEntries parses configured contact text into menu rows. Separators split entries
-// before labels are extracted, and empty values are discarded. Only whitespace-free HTTP
-// or HTTPS values become external links; other values remain available for copying.
-//
-// Label extraction skips scheme colons followed by two slashes and accepts the first
-// other colon after the beginning of an entry. This keeps a plain scheme-prefixed URL
-// intact unless it contains another colon, which the same label rule can interpret as a
-// separator.
-const contactEntries = computed<ContactEntry[]>(() => {
-  const raw = appStore.contactInfo?.trim()
-  if (!raw) return []
-  return raw
-    .split(/[，,;；\n]+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      // Skip the scheme delimiter so a plain HTTP link can remain the value; other colon
-      // occurrences follow the label-separator rule.
-      let sep = -1
-      for (let i = 0; i < part.length; i++) {
-        const ch = part[i]
-        if (ch === '：') {
-          sep = i
-          break
-        }
-        if (ch === ':' && part.slice(i, i + 3) !== '://') {
-          sep = i
-          break
-        }
-      }
-      let label = ''
-      let value = part
-      if (sep > 0) {
-        label = part.slice(0, sep).trim()
-        value = part.slice(sep + 1).trim()
-      }
-      const url = /^https?:\/\/\S+$/.test(value) ? value : ''
-      return { label, value, url }
-    })
-    .filter((e) => e.value)
-})
+// contactEntries holds the parsed menu rows; an empty list hides the header control.
+const contactEntries = computed(() => parseContactInfo(appStore.contactInfo))
 
 // toggleDropdown toggles the support menu when its header button is clicked.
 function toggleDropdown() {
@@ -145,13 +94,6 @@ function toggleDropdown() {
 // closeDropdown closes the support menu after a link or copy action.
 function closeDropdown() {
   isOpen.value = false
-}
-
-// formatContactUrl removes the HTTP scheme and one trailing slash from display text. The
-// link target still uses the original parsed URL, so shortening the visible label does
-// not change the address opened by the browser.
-function formatContactUrl(url: string) {
-  return url.replace(/^https?:\/\//, '').replace(/\/$/, '')
 }
 
 // copyContact waits for clipboard handling before closing the support menu.

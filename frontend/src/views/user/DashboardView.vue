@@ -24,7 +24,11 @@
         :style="{ '--rise-i': 3 }"
         data-rise-last="true"
       >
-        <div class="lg:order-2 lg:col-span-1"><UserDashboardQuickActions /></div>
+        <!-- The contact card fills the remaining height so both desktop columns end at the same bottom edge. -->
+        <div class="flex flex-col gap-4 lg:order-2 lg:col-span-1">
+          <UserDashboardQuickActions />
+          <UserDashboardContact class="lg:flex-1" />
+        </div>
         <div class="lg:order-1 lg:col-span-2"><UserDashboardAnnouncements /></div>
       </div>
     </div>
@@ -45,6 +49,7 @@ import { dashboardMotionVars } from '@/components/user/dashboard/dashboardMotion
 import UserDashboardHeatmap from '@/components/user/dashboard/UserDashboardHeatmap.vue'
 import UserDashboardAnnouncements from '@/components/user/dashboard/UserDashboardAnnouncements.vue'
 import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboardQuickActions.vue'
+import UserDashboardContact from '@/components/user/dashboard/UserDashboardContact.vue'
 
 // DashboardView.vue arranges usage analysis, activity, and account shortcuts in
 // the user dashboard. The page provides the shared usage selection consumed by
@@ -53,10 +58,11 @@ import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboard
 // sections before restoring the refresh control, and each section handles its
 // own request failures.
 //
-// Quick actions precede announcements in document order so narrow screens and
-// keyboard navigation reach account tasks first. The desktop grid places the
-// announcements beside those actions, and initial section animations share the
-// timing variables supplied by the page root.
+// Quick actions and the configured contact card precede announcements in
+// document order so narrow screens and keyboard navigation reach account tasks
+// first. The desktop grid places the announcements beside that column, and
+// initial section animations share the timing variables supplied by the page
+// root.
 
 // Account and announcement stores support the page-wide refresh while each dashboard visual
 // section owns its displayed result state.

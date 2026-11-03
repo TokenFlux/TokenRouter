@@ -41,7 +41,7 @@ export default {
     back: '返回上一页',
     dashboard: '前往控制台',
     help: '需要帮助？',
-    support: '联系客服',
+    support: '联系我们',
   },
 
   localization: {

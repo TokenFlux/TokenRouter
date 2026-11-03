@@ -41,7 +41,7 @@ export default {
     back: 'Go back',
     dashboard: 'Go to dashboard',
     help: 'Need help?',
-    support: 'Contact support',
+    support: 'Contact Us',
   },
 
   localization: {

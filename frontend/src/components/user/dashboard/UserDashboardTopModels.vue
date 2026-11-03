@@ -2,8 +2,7 @@
   <div class="card flex min-w-0 flex-col p-4" data-testid="top-models" :aria-busy="!modelsLoaded">
     <div class="mb-4 flex min-h-7 items-center justify-between gap-2">
       <div class="flex min-w-0 items-baseline gap-2">
-        <h3 class="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-dark-50">
-          <Icon name="chartBar" size="sm" class="text-primary-600 dark:text-primary-500" />
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-dark-50">
           {{ t('dashboard.topModels.title') }}
         </h3>
         <span
@@ -16,7 +15,7 @@
         to="/usage"
         class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
       >
-        {{ t('dashboard.topModels.viewAll') }}
+        <span class="underline underline-offset-2">{{ t('dashboard.topModels.viewAll') }}</span>
         <Icon name="chevronRight" size="xs" :animate-on-hover="false" />
       </router-link>
     </div>

@@ -1,31 +1,11 @@
 <template>
   <div class="card overflow-hidden">
     <div
-      class="flex min-h-[61px] items-center justify-between gap-3 border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+      class="flex min-h-[61px] items-center border-b border-gray-100 px-6 py-4 dark:border-dark-700"
     >
-      <div class="flex min-w-0 items-center gap-2.5">
-        <Icon name="bell" size="md" class="shrink-0 text-primary-600 dark:text-primary-400" />
-        <h2 class="truncate text-lg font-semibold text-gray-900 dark:text-white">
-          {{ t('dashboard.recentAnnouncements') }}
-        </h2>
-      </div>
-      <span
-        data-testid="announcement-unread-count"
-        :class="
-          unreadCount > 0
-            ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300'
-            : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-300'
-        "
-        class="inline-flex shrink-0 items-center gap-1.5 rounded-compact px-2 py-1 text-xs font-medium"
-      >
-        <span
-          :class="
-            unreadCount > 0 ? 'bg-primary-500 dark:bg-primary-400' : 'bg-gray-400 dark:bg-dark-400'
-          "
-          class="h-1.5 w-1.5 rounded-full"
-        ></span>
-        {{ t('dashboard.unreadAnnouncements', { count: unreadCount }) }}
-      </span>
+      <h2 class="min-w-0 truncate text-lg font-semibold text-gray-900 dark:text-white">
+        {{ t('dashboard.recentAnnouncements') }}
+      </h2>
     </div>
 
     <div class="p-6">
@@ -165,7 +145,6 @@ const { t } = useI18n()
 const announcementStore = useAnnouncementStore()
 const { announcements, loading } = storeToRefs(announcementStore)
 const selectedAnnouncement = ref<UserAnnouncement | null>(null)
-const unreadCount = computed(() => announcementStore.unreadCount)
 
 // getCreatedTimestamp returns a publication timestamp, using zero when parsing fails. The
 // timeline therefore places invalid dates behind valid recent dates and breaks equal

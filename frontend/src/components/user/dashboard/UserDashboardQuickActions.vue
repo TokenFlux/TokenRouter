@@ -2,9 +2,8 @@
   <div class="card">
     <!-- Match the announcement heading while keeping navigation rows compact. -->
     <div
-      class="flex min-h-[61px] items-center gap-2.5 border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+      class="flex min-h-[61px] items-center border-b border-gray-100 px-6 py-4 dark:border-dark-700"
     >
-      <Icon name="bolt" size="md" class="shrink-0 text-primary-600 dark:text-primary-400" />
       <h2 class="truncate text-lg font-semibold text-gray-900 dark:text-dark-50">
         {{ t('dashboard.quickActions') }}
       </h2>

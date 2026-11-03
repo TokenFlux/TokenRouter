@@ -47,7 +47,7 @@ var (
 	ErrEmailSuffixNotAllowed        = infraerrors.BadRequest("EMAIL_SUFFIX_NOT_ALLOWED", "email suffix is not allowed")
 	ErrEmailDomainRegistrationLimit = infraerrors.BadRequest(
 		"EMAIL_DOMAIN_REGISTRATION_LIMIT",
-		"this email domain cannot register another account; use a mainstream email or contact support to add the enterprise domain",
+		"this email domain cannot register another account; use a mainstream email or contact us to add the enterprise domain",
 	)
 	ErrEmailChangeDisabled     = infraerrors.Forbidden("EMAIL_CHANGE_DISABLED", "email changes are disabled")
 	ErrRegDisabled             = infraerrors.Forbidden("REGISTRATION_DISABLED", "registration is currently disabled")

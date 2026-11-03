@@ -61,7 +61,6 @@ export default {
     requests: 'Requests',
     tokens: 'Tokens',
     recentAnnouncements: 'Recent Announcements',
-    unreadAnnouncements: '{count} unread',
     announcementNoSummary: 'No summary available',
     quickActions: 'Quick Actions',
     createApiKey: 'Create API Key',

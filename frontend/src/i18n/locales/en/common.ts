@@ -73,7 +73,7 @@ export default {
     copyFailed: 'Failed to copy',
     verifying: 'Verifying...',
     processing: 'Processing...',
-    contactSupport: 'Contact Support',
+    contactSupport: 'Contact Us',
     add: 'Add',
     moveUp: 'Move up',
     moveDown: 'Move down',
@@ -206,7 +206,7 @@ export default {
     },
     registrationFailed: 'Registration failed. Please try again.',
     emailDomainRegistrationLimit:
-      'This email domain cannot register another account. Please use a mainstream email, or contact support to add your enterprise domain to the allowlist.',
+      'This email domain cannot register another account. Please use a mainstream email, or contact us to add your enterprise domain to the allowlist.',
     emailSuffixNotAllowed: 'This email domain is not allowed for registration.',
     emailSuffixNotAllowedWithAllowed:
       'This email domain is not allowed. Allowed domains: {suffixes}',
