@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -12,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// DNS-validation fixtures replace the package validator and transport clock
-// to observe cache reuse and expiry without network lookup. These tests run
+// pool_test.go checks shared-client validation, cache expiry, and direct
+// connection enforcement with controlled validators and local servers. These tests run
 // serially because the validator is shared; validation failure is checked
 // before any request reaches the fake base transport.
 
@@ -147,4 +149,30 @@ func TestValidatedTransport_ValidationErrorStopsRoundTrip(t *testing.T) {
 	_, err = transport.RoundTrip(req)
 	require.ErrorIs(t, err, expectedErr)
 	require.Equal(t, int32(0), atomic.LoadInt32(&baseCalls))
+}
+
+// TestGetClientPinsDirectValidatedDial reproduces a host passing the pre-request
+// check and then resolving to a loopback server when dialing. The request must
+// fail at the dialer without reaching that server.
+func TestGetClientPinsDirectValidatedDial(t *testing.T) {
+	var hits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		hits.Add(1)
+	}))
+	t.Cleanup(server.Close)
+	originalValidate := validateResolvedIP
+	t.Cleanup(func() { validateResolvedIP = originalValidate })
+	validateResolvedIP = func(string) error { return nil }
+	client, err := GetClient(Options{ValidateResolvedIP: true, Timeout: 7 * time.Second})
+	require.NoError(t, err)
+	parsed, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	response, err := client.Get("http://localhost:" + parsed.Port())
+	if response != nil {
+		_ = response.Body.Close()
+	}
+
+	require.ErrorContains(t, err, "is not allowed")
+	require.Zero(t, hits.Load())
 }

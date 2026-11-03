@@ -332,24 +332,16 @@ func (s *UpstreamPool) acquire(opts UpstreamRequestOptions) (*upstreamClientEntr
 		}
 	}
 
-	// A proxy's own address is often private and is the proxy's concern, so only
-	// direct routes receive the pinning dialer.
-	pinDirectDial := opts.PublicTargetsOnly && parsedProxy == nil
+	// Select the direct connector once so ordinary HTTP and fingerprinted TLS
+	// share the same destination enforcement, including subsequent HTTP redirects.
+	var directDial dialContextFunc
+	if opts.PublicTargetsOnly && parsedProxy == nil {
+		directDial = publicTargetDialContext(newUpstreamDialer().DialContext, net.DefaultResolver.LookupIP)
+	}
 	var transport http.RoundTripper
 	if opts.TLSProfile == nil {
-		var ordinary *http.Transport
-		ordinary, err = buildUpstreamTransport(settings, parsedProxy, opts.Protocol)
-		if err == nil {
-			if pinDirectDial {
-				ordinary.DialContext = publicTargetDialContext(ordinary.DialContext)
-			}
-			transport = ordinary
-		}
+		transport, err = buildUpstreamTransport(settings, parsedProxy, opts.Protocol, directDial)
 	} else {
-		var directDial dialContextFunc
-		if pinDirectDial {
-			directDial = publicTargetDialContext(newUpstreamDialer().DialContext)
-		}
 		transport, err = buildUpstreamTransportWithTLSFingerprint(settings, parsedProxy, opts.TLSProfile, opts.Protocol, directDial)
 	}
 	if err != nil {
@@ -546,10 +538,14 @@ func newUpstreamDialer() *net.Dialer {
 // buildUpstreamTransport applies settings and proxy routing to an ordinary
 // certificate-verifying transport. HTTP2 takes precedence when both protocol
 // flags are true; otherwise DisableHTTP2 removes TLS-next-protocol
-// negotiation, and selected HTTP2 adds idle PING settings.
-func buildUpstreamTransport(settings UpstreamSettings, proxyURL *url.URL, protocol TransportProtocol) (*http.Transport, error) {
+// negotiation, and selected HTTP2 adds idle PING settings. Direct connections
+// use directDial when nonnil; proxy routing retains its bounded default dialer.
+func buildUpstreamTransport(settings UpstreamSettings, proxyURL *url.URL, protocol TransportProtocol, directDial dialContextFunc) (*http.Transport, error) {
+	if directDial == nil || proxyURL != nil {
+		directDial = newUpstreamDialer().DialContext
+	}
 	transport := &http.Transport{
-		DialContext:           newUpstreamDialer().DialContext,
+		DialContext:           directDial,
 		TLSHandshakeTimeout:   defaultUpstreamTLSHandshakeTimeout,
 		MaxIdleConns:          settings.MaxIdleConns,
 		MaxIdleConnsPerHost:   settings.MaxIdleConnsPerHost,
@@ -604,10 +600,15 @@ func enableHTTP2KeepAlive(transport *http.Transport) {
 // RoundTrip timeout wrapper. The ordinary fingerprint path returns its
 // configured http.Transport, with target handshake timing owned by the custom
 // dialer. directDial replaces the network connector on the direct route; nil
-// selects the fingerprint dialer's bounded default, and proxied routes ignore it.
+// selects a bounded default, and proxied routes ignore it. The same direct
+// connector handles plain HTTP redirects and the TCP phase of TLS handshakes.
 func buildUpstreamTransportWithTLSFingerprint(settings UpstreamSettings, proxyURL *url.URL, profile *tlsfingerprint.Profile, protocol TransportProtocol, directDial dialContextFunc) (http.RoundTripper, error) {
+	if directDial == nil || proxyURL != nil {
+		directDial = newUpstreamDialer().DialContext
+	}
 	useHTTP2 := protocol.HTTP2 && tlsfingerprint.SupportsHTTP2(profile)
 	transport := &http.Transport{
+		DialContext:           directDial,
 		MaxIdleConns:          settings.MaxIdleConns,
 		MaxIdleConnsPerHost:   settings.MaxIdleConnsPerHost,
 		MaxConnsPerHost:       settings.MaxConnsPerHost,
@@ -632,7 +633,7 @@ func buildUpstreamTransportWithTLSFingerprint(settings UpstreamSettings, proxyUR
 		case "https":
 			// HTTPS proxies select the ordinary connector here, retaining proxy TLS and
 			// routing while this path omits target fingerprint dialing and custom protocol flags.
-			return buildUpstreamTransport(settings, proxyURL, TransportProtocol{CacheVariant: "default"})
+			return buildUpstreamTransport(settings, proxyURL, TransportProtocol{CacheVariant: "default"}, nil)
 		case "http":
 			slog.Debug("tls_fingerprint_transport_http_connect", "proxy", proxyURL.Host)
 			httpDialer := tlsfingerprint.NewHTTPProxyDialer(profile, proxyURL)

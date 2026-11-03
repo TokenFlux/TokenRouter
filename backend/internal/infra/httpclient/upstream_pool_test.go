@@ -23,9 +23,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 )
 
-// Upstream pool tests combine fake response transports with local redirect
-// and HTTP/2 servers to inspect reuse, reservation release, and per-request
-// policy. Timeout fixtures honor request cancellation so the synthetic timer's
+// upstream_pool_test.go combines fake transports with local HTTP servers to
+// verify connection reuse, reservation release, protocol selection, and public
+// destination enforcement. Timeout fixtures honor request cancellation so the synthetic timer's
 // observable result can be checked after the underlying transport returns.
 
 // httpClientSink retains constructed or cached client pointers so benchmark
@@ -228,7 +228,7 @@ func TestUpstreamPoolConcurrentRelease(t *testing.T) {
 func TestBuildUpstreamTransportSetsDialTimeout(t *testing.T) {
 	settings := upstreamTestSettings()
 
-	transport, err := buildUpstreamTransport(settings, nil, TransportProtocol{CacheVariant: "default"})
+	transport, err := buildUpstreamTransport(settings, nil, TransportProtocol{CacheVariant: "default"}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, transport.DialContext, "DialContext 缺失会退化为无超时的零值 dialer")
 	require.Equal(t, defaultUpstreamTLSHandshakeTimeout, transport.TLSHandshakeTimeout)
@@ -253,7 +253,7 @@ func TestBuildUpstreamTransportKeepsDialTimeoutWithHTTPProxy(t *testing.T) {
 	proxyURL, err := url.Parse("http://127.0.0.1:1080")
 	require.NoError(t, err)
 
-	transport, err := buildUpstreamTransport(upstreamTestSettings(), proxyURL, TransportProtocol{CacheVariant: "default"})
+	transport, err := buildUpstreamTransport(upstreamTestSettings(), proxyURL, TransportProtocol{CacheVariant: "default"}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, transport.Proxy)
 	require.NotNil(t, transport.DialContext)
@@ -267,7 +267,7 @@ func TestBuildUpstreamTransportKeepsDialContextWithSOCKS5Proxy(t *testing.T) {
 	proxyURL, err := url.Parse("socks5h://127.0.0.1:1080")
 	require.NoError(t, err)
 
-	transport, err := buildUpstreamTransport(upstreamTestSettings(), proxyURL, TransportProtocol{CacheVariant: "default"})
+	transport, err := buildUpstreamTransport(upstreamTestSettings(), proxyURL, TransportProtocol{CacheVariant: "default"}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, transport.DialContext)
 }
@@ -311,7 +311,7 @@ func TestEnableOpenAIHTTP2KeepAlive_EnablesPingHealthCheck(t *testing.T) {
 // protocol choices, protecting eager negotiation configuration for that
 // variant.
 func TestBuildUpstreamTransport_OpenAIH2_EnablesPingHealthCheck(t *testing.T) {
-	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, TransportProtocol{CacheVariant: "openai_h2", HTTP2: true})
+	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, TransportProtocol{CacheVariant: "openai_h2", HTTP2: true}, nil)
 	require.NoError(t, err)
 	require.True(t, tr.ForceAttemptHTTP2, "openai_h2 必须启用 HTTP/2")
 	requireHTTP2Configured(t, tr, "openai_h2 必须显式配置 http2 以启用 ReadIdleTimeout")
@@ -322,7 +322,7 @@ func TestBuildUpstreamTransport_OpenAIH2_EnablesPingHealthCheck(t *testing.T) {
 // protocol and h2 callback fields, protecting the ordinary transport's
 // construction state.
 func TestBuildUpstreamTransport_NonOpenAIH2_NotEagerlyConfigured(t *testing.T) {
-	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, TransportProtocol{CacheVariant: "default"})
+	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, TransportProtocol{CacheVariant: "default"}, nil)
 	require.NoError(t, err)
 	require.Nil(t, tr.Protocols, "default 模式不应在构建期主动配置 http2 keepalive")
 	require.Nil(t, tr.TLSNextProto["h2"], "default 模式不应在构建期主动配置 http2 keepalive")
@@ -340,7 +340,7 @@ func TestBuildUpstreamTransport_OpenAIH2_NegotiatesHTTP2(t *testing.T) {
 	srv.StartTLS()
 	defer srv.Close()
 
-	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, TransportProtocol{CacheVariant: "openai_h2", HTTP2: true})
+	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, TransportProtocol{CacheVariant: "openai_h2", HTTP2: true}, nil)
 	require.NoError(t, err)
 	defer tr.CloseIdleConnections()
 	require.NotNil(t, tr.TLSClientConfig)
@@ -365,7 +365,7 @@ func TestBuildUpstreamTransport_OpenAIH2_WithHTTPProxy_EnablesKeepAlive(t *testi
 	proxyURL, err := url.Parse("http://127.0.0.1:8080")
 	require.NoError(t, err)
 
-	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), proxyURL, TransportProtocol{CacheVariant: "openai_h2", HTTP2: true})
+	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), proxyURL, TransportProtocol{CacheVariant: "openai_h2", HTTP2: true}, nil)
 	require.NoError(t, err)
 	require.True(t, tr.ForceAttemptHTTP2)
 	requireHTTP2Configured(t, tr, "经代理的 openai_h2 也必须启用 http2 keepalive")
@@ -396,7 +396,7 @@ func BenchmarkHTTPUpstreamProxyClient(b *testing.B) {
 		}
 		for range b.N {
 			// Each iteration includes allocation of a transport.
-			transport, err := buildUpstreamTransport(settings, parsedProxy, TransportProtocol{CacheVariant: "default"})
+			transport, err := buildUpstreamTransport(settings, parsedProxy, TransportProtocol{CacheVariant: "default"}, nil)
 			if err != nil {
 				b.Fatalf("创建 Transport 失败: %v", err)
 			}
@@ -811,4 +811,115 @@ func TestUpstreamPoolFailureFinishesOwningMediaAttempt(t *testing.T) {
 		require.Equal(t, "running", saved.Attempts[1].Outcome)
 		require.Equal(t, "second", saved.Attempts[1].RequestID)
 	}
+}
+
+// TestUpstreamPoolPublicTargetsUseSeparatePinnedEntry sends the same provider's
+// unrestricted and public-only requests through one pool. The restricted request
+// must get its own entry, so it cannot reuse a connection dialed without checks,
+// and must be refused when the host resolves to the loopback server.
+func TestUpstreamPoolPublicTargetsUseSeparatePinnedEntry(t *testing.T) {
+	var hits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		hits.Add(1)
+	}))
+	t.Cleanup(server.Close)
+	parsed, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	pool := NewUpstreamPool()
+	options := UpstreamRequestOptions{ProviderID: 7, Isolation: "provider", Settings: upstreamTestSettings()}
+	open, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+	response, err := pool.Do(open, options)
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+
+	options.PublicTargetsOnly = true
+	restricted, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:"+parsed.Port(), nil)
+	require.NoError(t, err)
+	_, err = pool.Do(restricted, options)
+
+	require.ErrorContains(t, err, "is not allowed")
+	require.Equal(t, int64(1), hits.Load())
+	require.Len(t, pool.clients, 2)
+}
+
+// TestUpstreamPoolPublicTargetsKeepProxyRoute selects a loopback HTTP proxy for a
+// public-only request. The proxy's own private address must stay reachable, since
+// the pinning dialer belongs to direct routes only.
+func TestUpstreamPoolPublicTargetsKeepProxyRoute(t *testing.T) {
+	var hits atomic.Int64
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		hits.Add(1)
+	}))
+	t.Cleanup(proxyServer.Close)
+	pool := NewUpstreamPool()
+	request, err := http.NewRequest(http.MethodGet, "http://images.example.com/a.png", nil)
+	require.NoError(t, err)
+
+	response, err := pool.Do(request, UpstreamRequestOptions{
+		ProxyURL: proxyServer.URL, ProviderID: 7, Isolation: "provider",
+		Settings: upstreamTestSettings(), PublicTargetsOnly: true,
+	})
+
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, int64(1), hits.Load())
+}
+
+// TestFingerprintTransportUsesPinnedDirectDial builds a direct fingerprint
+// transport with the pinning connector. Its TLS dial must fail on the private
+// answer before any network connection or handshake starts.
+func TestFingerprintTransportUsesPinnedDirectDial(t *testing.T) {
+	roundTripper, err := buildUpstreamTransportWithTLSFingerprint(
+		UpstreamSettings{},
+		nil,
+		&tlsfingerprint.Profile{Name: "test"},
+		TransportProtocol{CacheVariant: "default"},
+		publicTargetDialContext(newUpstreamDialer().DialContext, net.DefaultResolver.LookupIP),
+	)
+	require.NoError(t, err)
+	transport, ok := roundTripper.(*http.Transport)
+	require.True(t, ok)
+
+	_, err = transport.DialTLSContext(context.Background(), "tcp", "localhost:443")
+
+	require.ErrorContains(t, err, "is not allowed")
+}
+
+// TestFingerprintTransportRejectsPrivateHTTPRedirect follows a synthetic HTTPS
+// response to a real local HTTP server. Pre-request validation is assumed to
+// have passed; connection-time checks must still reject the redirected target.
+func TestFingerprintTransportRejectsPrivateHTTPRedirect(t *testing.T) {
+	var hits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+	roundTripper, err := buildUpstreamTransportWithTLSFingerprint(
+		upstreamTestSettings(), nil, &tlsfingerprint.Profile{Name: "test"},
+		TransportProtocol{CacheVariant: "default"},
+		publicTargetDialContext(newUpstreamDialer().DialContext, net.DefaultResolver.LookupIP),
+	)
+	require.NoError(t, err)
+	transport, ok := roundTripper.(*http.Transport)
+	require.True(t, ok)
+	t.Cleanup(transport.CloseIdleConnections)
+	// Replace only the initial HTTPS response; net/http still follows its
+	// redirect through this fingerprint transport's actual ordinary HTTP connector.
+	transport.RegisterProtocol("https", poolRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusFound,
+			Header:     http.Header{"Location": []string{server.URL}},
+			Body:       io.NopCloser(strings.NewReader("")),
+			Request:    request,
+		}, nil
+	}))
+	client := &http.Client{Transport: transport, Timeout: time.Second}
+	response, err := client.Get("https://public.example/start")
+	if response != nil {
+		require.NoError(t, response.Body.Close())
+	}
+	require.ErrorContains(t, err, "is not allowed")
+	require.Zero(t, hits.Load())
 }

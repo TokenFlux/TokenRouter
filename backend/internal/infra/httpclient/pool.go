@@ -118,8 +118,8 @@ func GetClient(opts Options) (*http.Client, error) {
 }
 
 // buildClient constructs the transport, optionally adding DNS host validation
-// and a pinning direct dialer when enabled and private hosts are disallowed. It then wraps
-// request-context timing and sets the supplied overall timeout; callers
+// and a pinning direct dialer when enabled and private hosts are disallowed. It
+// then wraps request-context timing and sets the supplied overall timeout; callers
 // retain client and response-body cleanup responsibility.
 func buildClient(opts Options) (*http.Client, error) {
 	transport, err := buildTransport(opts)
@@ -132,7 +132,7 @@ func buildClient(opts Options) (*http.Client, error) {
 		if strings.TrimSpace(opts.ProxyURL) == "" {
 			// The validated host cache outlives DNS answers, so only a check made
 			// while dialing can stop a host that later resolves to a private address.
-			transport.DialContext = publicTargetDialContext(transport.DialContext)
+			transport.DialContext = publicTargetDialContext(transport.DialContext, net.DefaultResolver.LookupIP)
 		}
 		rt = newValidatedTransport(transport)
 	}
@@ -251,8 +251,8 @@ func (t *validatedTransport) isValidatedHost(host string, now time.Time) bool {
 // RoundTrip validates a nonempty request hostname unless its cached check
 // remains valid, then delegates to base. The validator uses its own bounded
 // background lookup, and success caches from the sampled prelookup time; this
-// early check rejects a request before any connection is reused. Construct a non-nil wrapper before
-// requests, and retain the base's body cleanup obligations.
+// early check rejects a request before any connection is reused. Construct a
+// non-nil wrapper before requests, and retain the base's body cleanup obligations.
 func (t *validatedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req != nil && req.URL != nil {
 		host := strings.ToLower(strings.TrimSpace(req.URL.Hostname()))
@@ -321,6 +321,6 @@ func ValidateResolvedIP(host string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), publicTargetLookupTimeout)
 	defer cancel()
 
-	_, err := resolvePublicIPs(ctx, host)
+	_, err := resolvePublicIPs(ctx, host, net.DefaultResolver.LookupIP)
 	return err
 }

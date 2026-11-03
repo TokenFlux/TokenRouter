@@ -3,35 +3,34 @@ package httpclient
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 )
 
-// Public-dial fixtures replace the package DNS lookup so a test can return a
-// different answer for a host without network access. These tests run serially
-// because the lookup is shared package state.
+// public_dial_test.go checks address validation, fallback scheduling, and socket
+// ownership with per-test DNS and connection callbacks. Virtual time exercises
+// deadline and cancellation behavior without external DNS or shared resolver
+// mutations, while in-memory connections expose ownership and cleanup outcomes.
 
-// stubTargetLookup makes lookupTargetIPs return answers for the test duration,
-// restoring production DNS afterwards. Each string must be a valid IP literal.
-func stubTargetLookup(t *testing.T, answers ...string) {
+// fixedTargetLookup returns an immutable resolver fixture for valid IP literals.
+// Each caller owns its answer slice; the returned callback performs no DNS and
+// may be passed to concurrent dialers without changing package-level state.
+func fixedTargetLookup(t *testing.T, answers ...string) lookupIPFunc {
 	t.Helper()
-	original := lookupTargetIPs
-	t.Cleanup(func() { lookupTargetIPs = original })
 	ips := make([]net.IP, 0, len(answers))
 	for _, answer := range answers {
-		ips = append(ips, net.ParseIP(answer))
+		ip := net.ParseIP(answer)
+		require.NotNil(t, ip)
+		ips = append(ips, ip)
 	}
-	lookupTargetIPs = func(context.Context, string) ([]net.IP, error) {
+	return func(context.Context, string, string) ([]net.IP, error) {
 		return ips, nil
 	}
 }
@@ -40,14 +39,14 @@ func stubTargetLookup(t *testing.T, answers ...string) {
 // address. The connector must receive that literal and the original port, so the
 // connection cannot depend on a second DNS answer.
 func TestPublicTargetDialContextConnectsToCheckedLiteral(t *testing.T) {
-	stubTargetLookup(t, "93.184.216.34")
+	lookup := fixedTargetLookup(t, "93.184.216.34")
 	var dialed string
 	dial := publicTargetDialContext(func(_ context.Context, _, address string) (net.Conn, error) {
 		dialed = address
 		client, server := net.Pipe()
 		t.Cleanup(func() { _ = server.Close() })
 		return client, nil
-	})
+	}, lookup)
 
 	conn, err := dial(context.Background(), "tcp", "images.example.com:443")
 
@@ -66,11 +65,11 @@ func TestPublicTargetDialContextRejectsAnyNonpublicAnswer(t *testing.T) {
 		{"93.184.216.34", "10.0.0.1"},
 		{"100.64.0.1"},
 	} {
-		stubTargetLookup(t, answers...)
+		lookup := fixedTargetLookup(t, answers...)
 		dial := publicTargetDialContext(func(context.Context, string, string) (net.Conn, error) {
 			t.Fatal("connector must not run for a rejected host")
 			return nil, nil
-		})
+		}, lookup)
 
 		_, err := dial(context.Background(), "tcp", "rebind.example.com:443")
 
@@ -82,7 +81,7 @@ func TestPublicTargetDialContextRejectsAnyNonpublicAnswer(t *testing.T) {
 // The connector must then try the next literal, and an all-failed lookup must
 // report the connection errors rather than a false success.
 func TestPublicTargetDialContextTriesLaterAddresses(t *testing.T) {
-	stubTargetLookup(t, "93.184.216.34", "93.184.216.35")
+	lookup := fixedTargetLookup(t, "93.184.216.34", "93.184.216.35")
 	var attempts []string
 	var attemptsMu sync.Mutex
 	dial := publicTargetDialContext(func(_ context.Context, _, address string) (net.Conn, error) {
@@ -90,7 +89,7 @@ func TestPublicTargetDialContextTriesLaterAddresses(t *testing.T) {
 		attempts = append(attempts, address)
 		attemptsMu.Unlock()
 		return nil, errors.New("refused " + address)
-	})
+	}, lookup)
 
 	_, err := dial(context.Background(), "tcp", "images.example.com:443")
 
@@ -104,144 +103,118 @@ func TestPublicTargetDialContextTriesLaterAddresses(t *testing.T) {
 // A healthy alternative must connect before that attempt finishes, cancelling the
 // blocked connection rather than waiting for its individual network timeout.
 func TestPublicTargetDialContextSkipsBlockedAddress(t *testing.T) {
-	stubTargetLookup(t, "93.184.216.34", "93.184.216.35")
-	stopped := make(chan struct{})
-	peer, server := net.Pipe()
-	t.Cleanup(func() { _ = server.Close() })
-	dial := publicTargetDialContext(func(ctx context.Context, _, address string) (net.Conn, error) {
-		if address == "93.184.216.34:443" {
-			<-ctx.Done()
-			close(stopped)
-			return nil, ctx.Err()
+	synctest.Test(t, func(t *testing.T) {
+		lookup := fixedTargetLookup(t, "93.184.216.34", "93.184.216.35")
+		stopped := make(chan struct{})
+		peer, server := net.Pipe()
+		t.Cleanup(func() { _ = server.Close() })
+		dial := publicTargetDialContext(func(ctx context.Context, _, address string) (net.Conn, error) {
+			if address == "93.184.216.34:443" {
+				<-ctx.Done()
+				close(stopped)
+				return nil, ctx.Err()
+			}
+			return peer, nil
+		}, lookup)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		conn, err := dial(ctx, "tcp", "images.example.com:443")
+		require.NoError(t, err)
+		require.NoError(t, conn.Close())
+		select {
+		case <-stopped:
+		case <-ctx.Done():
+			t.Fatal("losing connection was not cancelled")
 		}
-		return peer, nil
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	conn, err := dial(ctx, "tcp", "images.example.com:443")
-	require.NoError(t, err)
-	require.NoError(t, conn.Close())
-	select {
-	case <-stopped:
-	case <-ctx.Done():
-		t.Fatal("losing connection was not cancelled")
-	}
 }
 
 // TestPublicTargetDialContextPreservesDeadline cancels a request before connecting.
 // The shared budget must honor that earlier deadline and never wait for the
 // wrapper's longer timeout while a connection attempt is blocked.
 func TestPublicTargetDialContextPreservesDeadline(t *testing.T) {
-	stubTargetLookup(t, "93.184.216.34")
-	dial := publicTargetDialContext(func(ctx context.Context, _, _ string) (net.Conn, error) {
-		<-ctx.Done()
-		return nil, ctx.Err()
+	synctest.Test(t, func(t *testing.T) {
+		lookup := fixedTargetLookup(t, "93.184.216.34")
+		dial := publicTargetDialContext(func(ctx context.Context, _, _ string) (net.Conn, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}, lookup)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+		_, err := dial(ctx, "tcp", "images.example.com:443")
+		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	_, err := dial(ctx, "tcp", "images.example.com:443")
-	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
-// TestGetClientPinsDirectValidatedDial reproduces a host passing the pre-request
-// check and then resolving to a loopback server when dialing. The request must
-// fail at the dialer without reaching that server.
-func TestGetClientPinsDirectValidatedDial(t *testing.T) {
-	var hits atomic.Int64
-	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		hits.Add(1)
-	}))
-	t.Cleanup(server.Close)
-	originalValidate := validateResolvedIP
-	t.Cleanup(func() { validateResolvedIP = originalValidate })
-	validateResolvedIP = func(string) error { return nil }
-	stubTargetLookup(t, "127.0.0.1")
-	client, err := GetClient(Options{ValidateResolvedIP: true, Timeout: 7 * time.Second})
-	require.NoError(t, err)
-	parsed, err := url.Parse(server.URL)
-	require.NoError(t, err)
-
-	response, err := client.Get("http://rebind.example.com:" + parsed.Port())
-	if response != nil {
-		_ = response.Body.Close()
-	}
-
-	require.ErrorContains(t, err, "is not allowed")
-	require.Zero(t, hits.Load())
-}
-
-// TestUpstreamPoolPublicTargetsUseSeparatePinnedEntry sends the same provider's
-// unrestricted and public-only requests through one pool. The restricted request
-// must get its own entry, so it cannot reuse a connection dialed without checks,
-// and must be refused when the host resolves to the loopback server.
-func TestUpstreamPoolPublicTargetsUseSeparatePinnedEntry(t *testing.T) {
-	var hits atomic.Int64
-	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		hits.Add(1)
-	}))
-	t.Cleanup(server.Close)
-	parsed, err := url.Parse(server.URL)
-	require.NoError(t, err)
-	stubTargetLookup(t, "127.0.0.1")
-	pool := NewUpstreamPool()
-	options := UpstreamRequestOptions{ProviderID: 7, Isolation: "provider", Settings: upstreamTestSettings()}
-	open, err := http.NewRequest(http.MethodGet, server.URL, nil)
-	require.NoError(t, err)
-	response, err := pool.Do(open, options)
-	require.NoError(t, err)
-	require.NoError(t, response.Body.Close())
-
-	options.PublicTargetsOnly = true
-	restricted, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:"+parsed.Port(), nil)
-	require.NoError(t, err)
-	_, err = pool.Do(restricted, options)
-
-	require.ErrorContains(t, err, "is not allowed")
-	require.Equal(t, int64(1), hits.Load())
-	require.Len(t, pool.clients, 2)
-}
-
-// TestUpstreamPoolPublicTargetsKeepProxyRoute selects a loopback HTTP proxy for a
-// public-only request. The proxy's own private address must stay reachable, since
-// the pinning dialer belongs to direct routes only.
-func TestUpstreamPoolPublicTargetsKeepProxyRoute(t *testing.T) {
-	var hits atomic.Int64
-	proxyServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		hits.Add(1)
-	}))
-	t.Cleanup(proxyServer.Close)
-	stubTargetLookup(t, "127.0.0.1")
-	pool := NewUpstreamPool()
-	request, err := http.NewRequest(http.MethodGet, "http://images.example.com/a.png", nil)
-	require.NoError(t, err)
-
-	response, err := pool.Do(request, UpstreamRequestOptions{
-		ProxyURL: proxyServer.URL, ProviderID: 7, Isolation: "provider",
-		Settings: upstreamTestSettings(), PublicTargetsOnly: true,
+// TestPublicTargetDialImmediateFailureStartsFallback gives the first address an
+// immediate refusal and the second a successful connection. A shorter caller
+// budget than the fallback delay must still reach the healthy alternative.
+func TestPublicTargetDialImmediateFailureStartsFallback(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		lookup := fixedTargetLookup(t, "93.184.216.34", "93.184.216.35")
+		var fallbackCalls atomic.Int64
+		dial := publicTargetDialContext(func(_ context.Context, _, address string) (net.Conn, error) {
+			if address == "93.184.216.34:443" {
+				return nil, errors.New("connection refused")
+			}
+			fallbackCalls.Add(1)
+			client, server := net.Pipe()
+			// The fixture owns the remote endpoint, which must close even if an
+			// assertion fails before the returned client connection can be inspected.
+			t.Cleanup(func() { _ = server.Close() })
+			return client, nil
+		}, lookup)
+		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		defer cancel()
+		conn, err := dial(ctx, "tcp", "images.example.com:443")
+		require.NoError(t, err)
+		require.NoError(t, conn.Close())
+		require.Equal(t, int64(1), fallbackCalls.Load())
 	})
-
-	require.NoError(t, err)
-	require.NoError(t, response.Body.Close())
-	require.Equal(t, int64(1), hits.Load())
 }
 
-// TestFingerprintTransportUsesPinnedDirectDial builds a direct fingerprint
-// transport with the pinning connector. Its TLS dial must fail on the private
-// answer before any network connection or handshake starts.
-func TestFingerprintTransportUsesPinnedDirectDial(t *testing.T) {
-	stubTargetLookup(t, "127.0.0.1")
-	roundTripper, err := buildUpstreamTransportWithTLSFingerprint(
-		UpstreamSettings{},
-		nil,
-		&tlsfingerprint.Profile{Name: "test"},
-		TransportProtocol{CacheVariant: "default"},
-		publicTargetDialContext(newUpstreamDialer().DialContext),
-	)
-	require.NoError(t, err)
-	transport, ok := roundTripper.(*http.Transport)
-	require.True(t, ok)
+// TestPublicTargetDialClosesLateSuccess makes the first attempt succeed after
+// cancellation while another attempt wins. The unused connection must close,
+// leaving ownership of only the returned socket with the caller.
+func TestPublicTargetDialClosesLateSuccess(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		late, latePeer := net.Pipe()
+		winner, winnerPeer := net.Pipe()
+		// Both peers are fixture-owned; closing every endpoint also prevents a
+		// failed ownership assertion from leaving blocked in-memory connection readers.
+		t.Cleanup(func() {
+			_ = late.Close()
+			_ = latePeer.Close()
+			_ = winner.Close()
+			_ = winnerPeer.Close()
+		})
+		dial := publicTargetDialContext(func(ctx context.Context, _, address string) (net.Conn, error) {
+			if address == "93.184.216.34:443" {
+				<-ctx.Done()
+				return late, nil
+			}
+			return winner, nil
+		}, fixedTargetLookup(t, "93.184.216.34", "93.184.216.35"))
+		conn, err := dial(t.Context(), "tcp", "images.example.com:443")
+		require.NoError(t, err)
+		require.Same(t, winner, conn)
+		// Wait for cancelled workers to release their sockets before observing
+		// the peer; virtual time makes this independent of scheduler timing.
+		synctest.Wait()
+		_, err = latePeer.Read(make([]byte, 1))
+		require.ErrorIs(t, err, io.EOF)
+	})
+}
 
-	_, err = transport.DialTLSContext(context.Background(), "tcp", "rebind.example.com:443")
-
-	require.ErrorContains(t, err, "is not allowed")
+// TestResolvePublicIPsRejectsEmptyAndFailedLookups supplies unusable DNS results.
+// Both cases must report errors before a caller can start connecting to any
+// address, preserving fail-closed behavior for incomplete resolver responses.
+func TestResolvePublicIPsRejectsEmptyAndFailedLookups(t *testing.T) {
+	_, err := resolvePublicIPs(t.Context(), "empty.example", fixedTargetLookup(t))
+	require.ErrorContains(t, err, "no addresses")
+	failure := errors.New("resolver unavailable")
+	_, err = resolvePublicIPs(t.Context(), "failed.example", func(context.Context, string, string) ([]net.IP, error) {
+		return nil, failure
+	})
+	require.ErrorIs(t, err, failure)
 }
