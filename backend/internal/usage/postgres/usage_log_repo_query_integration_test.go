@@ -20,15 +20,16 @@ import (
 	"github.com/TokenFlux/TokenRouter/migrations"
 )
 
-// Exact local request identity takes precedence when an unrelated upstream alias
-// uses the same text. A sparse PostgreSQL fixture checks returned IDs and
-// usage-table access plans, while transaction-scoped scenarios verify
-// response-model migration defaults, historical deleted-user hydration, and
-// requested display-model ordering.
+// usage_log_repo_query_integration_test.go checks request lookup precedence and
+// indexed access with isolated PostgreSQL fixtures. Exact local request identity
+// takes precedence over an unrelated upstream alias with the same text. Other
+// transactional scenarios verify response-model migration defaults, historical
+// deleted-user hydration, and requested display-model ordering.
 
 // TestUsageRequestIDConditionUsesIndexes creates sparse indexed records with a
-// conflicting upstream alias and legacy null ID. It checks selected IDs and
-// rejects usage_logs sequential-scan nodes in outer EXPLAIN plans.
+// conflicting upstream alias and legacy null ID after warming public-table plans.
+// It checks selected IDs and rejects usage_logs sequential-scan nodes in outer
+// EXPLAIN plans, even when a reused connection previously queried public records.
 func TestUsageRequestIDConditionUsesIndexes(t *testing.T) {
 	ctx := t.Context()
 	tx, err := integrationDB.BeginTx(ctx, nil)
@@ -36,6 +37,23 @@ func TestUsageRequestIDConditionUsesIndexes(t *testing.T) {
 	// Roll back the temporary lookup fixture on every test exit, removing its
 	// copied tables and data even when a result or plan assertion fails.
 	defer func() { _ = tx.Rollback() }()
+	// Establish the temporary namespace before warming the function's public-table
+	// plans, reproducing a pooled connection whose earlier tests already used temp tables.
+	_, err = tx.ExecContext(ctx,
+		"CREATE TEMP TABLE request_lookup_plan_warmup (id integer) ON COMMIT DROP",
+	)
+	require.NoError(t, err)
+	warmRequestID := uuid.NewString()
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO public.request_records(request_id,started_at,updated_at,revision,record)
+VALUES($1::text,now(),now(),1,jsonb_build_object('request_id',$1::text))`, warmRequestID)
+	require.NoError(t, err)
+	var warmMatches int
+	err = tx.QueryRowContext(ctx,
+		"SELECT count(*) FROM request_lookup_ids($1)", warmRequestID,
+	).Scan(&warmMatches)
+	require.NoError(t, err)
+	require.Equal(t, 1, warmMatches)
 	// Copy production index shapes into temporary tables before sparse fixture
 	// insertion, isolating lookup candidates while retaining the access paths being
 	// checked.
@@ -55,6 +73,10 @@ ANALYZE usage_logs;
 ANALYZE request_records;
 ANALYZE ops_error_logs;
 ANALYZE ops_system_logs;`)
+	require.NoError(t, err)
+	// Changing the effective search path invalidates cached public-table plans so
+	// every statement in request_lookup_ids resolves this transaction's temporary fixtures.
+	_, err = tx.ExecContext(ctx, "SET LOCAL search_path TO pg_temp, public")
 	require.NoError(t, err)
 	for _, test := range []struct {
 		search string // local or external lookup text
