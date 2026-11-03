@@ -208,20 +208,14 @@ func ReadCompatBufferedTerminal(resp *http.Response, options CompatBufferedOptio
 		options.Observe([]byte(payload), event.Type)
 		wire.ParseSSEUsageBytesWithType([]byte(payload), event.Type, &usage)
 		if snapshot := usageAccumulator.ObserveResponsesEvent([]byte(payload), &event); snapshot != nil {
-			usage = wire.CopyForwardUsage(snapshot)
+			usage = usageAccumulator.ForwardUsage()
 		}
 		acc.ProcessEvent(&event)
 		if response := CompatTerminalResponse(&event, []byte(payload)); IsCompatResponsesTerminalEvent(event.Type) && response != nil {
-			// Event usage fills a missing response usage, then explicit response usage
-			// wins even when its token counts are zero; this ordering governs the buffered result.
-			if event.Usage != nil {
-				usage = wire.CopyForwardUsage(event.Usage)
-				if response.Usage == nil {
-					response.Usage = event.Usage
-				}
-			}
-			if response.Usage != nil {
-				usage = wire.CopyForwardUsage(response.Usage)
+			// The accumulator has already resolved terminal precedence. Fill a missing
+			// response usage without replacing accounting-only image buckets from typed data.
+			if response.Usage == nil {
+				response.Usage = event.Usage
 			}
 			return response, nil
 		}

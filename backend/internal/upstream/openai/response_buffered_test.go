@@ -13,6 +13,35 @@ import (
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
+// TestReadCompatBufferedTerminalRetainsImageAccounting reports image usage before
+// a terminal with missing or partial usage. Both image buckets must reach billing
+// alongside accumulated text and cache counts after client conversion finishes.
+func TestReadCompatBufferedTerminalRetainsImageAccounting(t *testing.T) {
+	for _, terminalUsage := range []string{"", `,"usage":{"output_tokens":10}`} {
+		t.Run(terminalUsage, func(t *testing.T) {
+			body := "data: " + `{"type":"response.in_progress","response":{"usage":{"input_tokens":100,"output_tokens":3,"input_tokens_details":{"cached_tokens":20,"image_tokens":40},"output_tokens_details":{"image_tokens":2}}}}` + "\n\n" +
+				"data: " + `{"type":"response.completed","response":{"id":"resp_image","status":"completed","output":[]` + terminalUsage + `}}` + "\n\n"
+			response := &http.Response{Body: io.NopCloser(strings.NewReader(body))}
+			final, usage, _, err := ReadCompatBufferedTerminal(response, CompatBufferedOptions{
+				MaxLineSize:      1 << 20,
+				StreamInterval:   func() time.Duration { return 0 },
+				RestoreToolNames: func(body []byte) []byte { return body },
+				Observe:          func([]byte, string) {},
+				Log: func(message string, err error, _ time.Duration) {
+					t.Errorf("%s: %v", message, err)
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, 100, usage.InputTokens)
+			require.Equal(t, 20, usage.CacheReadInputTokens)
+			require.Equal(t, 40, usage.ImageInputTokens)
+			require.Equal(t, 2, usage.ImageOutputTokens)
+			require.Equal(t, usage.InputTokens, final.Usage.InputTokens)
+			require.Equal(t, usage.OutputTokens, final.Usage.OutputTokens)
+		})
+	}
+}
+
 // TestReadCompatBufferedTerminalRetainsSparseCacheBreakdown supplies cache usage
 // before a terminal containing output alone. The returned response and billing
 // snapshot must agree without losing earlier input or charging writes twice.

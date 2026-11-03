@@ -790,7 +790,7 @@ func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 	// compatibility decoder while validating the supplied typed JSON values.
 	type responsesUsageAlias ResponsesUsage
 	var decoded struct {
-		responsesUsageAlias
+		responsesUsageAlias                                   // canonical Responses usage fields
 		PromptTokens            int                           `json:"prompt_tokens"`             // compatible inclusive prompt count
 		CompletionTokens        int                           `json:"completion_tokens"`         // compatible generated token count
 		PromptTokensDetails     *ResponsesInputTokensDetails  `json:"prompt_tokens_details"`     // compatible input detail object

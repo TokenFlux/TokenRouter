@@ -625,12 +625,11 @@ func (p *GeminiToAnthropicStreamProcessor) emitEmptyThinkingWithSignature(signat
 // selection. Tool presence wins over exact MAX_TOKENS; other reasons become
 // end_turn.
 //
-// The message_delta uses the latest replaced counts, including cached and
-// image accounting. Grounding remains retained after emission, so repeated
-// calls can repeat that footer and delta. messageStopSent guards message_stop
-// alone and is set after its first formatting call; public Finish uses this
-// flag to avoid another closure sequence. Callers stop feeding finished
-// streams because this helper does not freeze content or usage processing.
+// The message_delta uses the final merged counts, including cached and image
+// accounting. Finish calls this helper only before messageStopSent is set,
+// preventing retained grounding metadata from producing another footer or
+// usage delta. The final stop marks the processor closed; ProcessResponse then
+// rejects later payloads, and repeated Finish calls return usage without events.
 func (p *GeminiToAnthropicStreamProcessor) emitFinish(finishReason string) []byte {
 	var result bytes.Buffer
 
@@ -643,8 +642,8 @@ func (p *GeminiToAnthropicStreamProcessor) emitFinish(finishReason string) []byt
 		p.trailingSignature = ""
 	}
 
-	// Format the independently retained search/source observations after original
-	// content closes; the lists stay stored, so another finish can repeat this footer.
+	// Format retained search/source observations after original content closes.
+	// Finish's lifecycle guard ensures these stored lists produce only one grounding footer.
 	if len(p.webSearchQueries) > 0 || len(p.groundingChunks) > 0 {
 		groundingText := buildGroundingText(&GeminiGroundingMetadata{
 			WebSearchQueries: p.webSearchQueries,
@@ -689,8 +688,8 @@ func (p *GeminiToAnthropicStreamProcessor) emitFinish(finishReason string) []byt
 
 	_, _ = result.Write(p.formatSSE("message_delta", deltaEvent))
 
-	// Guard message_stop alone after writing the usage delta; this state does
-	// not freeze later ProcessResponse content or suppress repeated delta/footer output.
+	// Mark completion after the usage delta. ProcessResponse and Finish use this
+	// flag to reject later payloads and suppress repeated closure output.
 	if !p.messageStopSent {
 		stopEvent := map[string]any{
 			"type": "message_stop",

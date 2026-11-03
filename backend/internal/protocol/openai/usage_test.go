@@ -8,6 +8,75 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// TestUsageAccumulatorRetainsIndependentImageBuckets interleaves image details,
+// cache counts, and sparse text updates. Explicit bucket zeroes and complete
+// zero snapshots must clear only the observations authorized by their shape.
+func TestUsageAccumulatorRetainsIndependentImageBuckets(t *testing.T) {
+	var accumulator UsageAccumulator
+	require.Equal(t, ForwardUsage{}, accumulator.ForwardUsage())
+	accumulator.Observe([]byte(`{"input_tokens":100,"output_tokens":3,"input_tokens_details":{"cached_tokens":60,"image_tokens":40},"output_tokens_details":{"image_tokens":2}}`))
+	accumulator.Observe([]byte(`{"output_tokens":10}`))
+	require.Equal(t, ForwardUsage{
+		InputTokens: 100, OutputTokens: 10, CacheReadInputTokens: 60,
+		ImageInputTokens: 40, ImageOutputTokens: 2,
+	}, accumulator.ForwardUsage())
+	accumulator.Observe([]byte(`{"input_tokens_details":{"image_tokens":0}}`))
+	require.Zero(t, accumulator.ForwardUsage().ImageInputTokens)
+	require.Equal(t, 2, accumulator.ForwardUsage().ImageOutputTokens)
+	require.Equal(t, 60, accumulator.ForwardUsage().CacheReadInputTokens)
+	accumulator.Observe([]byte(`{"input_tokens":0,"output_tokens":0,"total_tokens":0}`))
+	require.Equal(t, ForwardUsage{}, accumulator.ForwardUsage())
+	require.Equal(t, ResponsesUsage{}, *accumulator.Snapshot())
+}
+
+// TestUsageAccumulatorRetainsRawCountsAfterTypedFailure supplies incompatible
+// total or detail fields beside usable token observations. Raw accounting must
+// survive those failures and subsequent sparse updates, while invalid JSON is ignored.
+func TestUsageAccumulatorRetainsRawCountsAfterTypedFailure(t *testing.T) {
+	for _, raw := range []string{
+		`{"prompt_tokens":100,"completion_tokens":10,"total_tokens":"110","cached_tokens":60,"cache_write_tokens":20}`,
+		`{"prompt_tokens":100,"completion_tokens":10,"prompt_tokens_details":{"audio_tokens":"bad","cached_tokens":60,"cache_write_tokens":20}}`,
+	} {
+		t.Run(raw, func(t *testing.T) {
+			var typed ChatUsage
+			require.Error(t, json.Unmarshal([]byte(raw), &typed))
+			var accumulator UsageAccumulator
+			accumulator.Observe([]byte(raw))
+			want := ForwardUsage{
+				InputTokens: 100, OutputTokens: 10,
+				CacheReadInputTokens: 60, CacheCreationInputTokens: 20,
+			}
+			require.Equal(t, want, accumulator.ForwardUsage())
+			for _, invalid := range []string{`{"input_tokens":999`, `null`, `[]`} {
+				accumulator.Observe([]byte(invalid))
+				require.Equal(t, want, accumulator.ForwardUsage())
+			}
+			last := accumulator.Observe([]byte(`{"completion_tokens":12}`))
+			want.OutputTokens = 12
+			require.Equal(t, want, accumulator.ForwardUsage())
+			require.Equal(t, 112, last.TotalTokens)
+			require.Equal(t, 60, last.InputTokensDetails.CachedTokens)
+		})
+	}
+}
+
+// TestUsageAccumulatorPairsHostedImagesWithUsage supplies hosted and base image
+// details in competing envelopes. Nested observations win only for supplied
+// categories, and unrelated envelopes cannot manufacture image accounting.
+func TestUsageAccumulatorPairsHostedImagesWithUsage(t *testing.T) {
+	var accumulator UsageAccumulator
+	accumulator.ObserveResponsesEvent([]byte(`{"usage":{"input_tokens":100,"output_tokens":3},"tool_usage":{"image_gen":{"input_tokens_details":{"image_tokens":40},"output_tokens_details":{"image_tokens":2}}}}`), nil)
+	require.Equal(t, 40, accumulator.ForwardUsage().ImageInputTokens)
+	require.Equal(t, 2, accumulator.ForwardUsage().ImageOutputTokens)
+	accumulator.ObserveResponsesEvent([]byte(`{"usage":{"output_tokens":8},"tool_usage":{"image_gen":{"output_tokens_details":{"image_tokens":4}}},"response":{"usage":{"input_tokens_details":{"image_tokens":10}},"tool_usage":{"image_gen":{"input_tokens_details":{"image_tokens":90},"output_tokens_details":{"image_tokens":5}}}}}`), nil)
+	require.Equal(t, ForwardUsage{
+		InputTokens: 100, OutputTokens: 8, ImageInputTokens: 10, ImageOutputTokens: 5,
+	}, accumulator.ForwardUsage())
+	var isolated UsageAccumulator
+	isolated.ObserveResponsesEvent([]byte(`{"tool_usage":{"image_gen":{"output_tokens_details":{"image_tokens":999}}},"response":{"usage":{"input_tokens":100,"output_tokens":3}}}`), nil)
+	require.Zero(t, isolated.ForwardUsage().ImageOutputTokens)
+}
+
 // TestUsageDecodeMatchesRawCacheAccounting supplies canonical fields and
 // compatible cache aliases. Typed Chat/Responses output must retain exactly
 // the cache buckets selected by the raw billing parser.

@@ -348,20 +348,10 @@ func ReadChatStreaming(resp *http.Response, c *upstream.OutputContext, options C
 		// Client conversion and accounting receive the same presence-aware usage,
 		// retaining earlier cache fields when a later payload supplies only output.
 		if snapshot := usageAccumulator.ObserveResponsesEvent([]byte(payload), &event); snapshot != nil {
-			usage = wire.CopyForwardUsage(snapshot)
+			usage = usageAccumulator.ForwardUsage()
 		}
 
 		isTerminalEvent := IsCompatResponsesTerminalEvent(event.Type)
-		// Terminal nested response usage is applied last, overriding top-level
-		// event usage as a whole even when its token totals are zero.
-		if isTerminalEvent {
-			if event.Usage != nil {
-				usage = wire.CopyForwardUsage(event.Usage)
-			}
-			if event.Response != nil && event.Response.Usage != nil {
-				usage = wire.CopyForwardUsage(event.Response.Usage)
-			}
-		}
 		if strings.TrimSpace(event.Type) == "response.failed" || strings.TrimSpace(event.Type) == "error" {
 			payloadBytes := []byte(payload)
 			message := ExtractOpenAISSEErrorMessage(payloadBytes)

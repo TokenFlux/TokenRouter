@@ -301,8 +301,7 @@ func (s *ResponseAdapter) CollectClaudeStreamResponse(resp *http.Response, start
 	}
 	result := &StreamResult{Usage: usage}
 	if err != nil {
-		var streamError *upstream.GeminiStreamError
-		if errors.As(err, &streamError) {
+		if streamError, ok := errors.AsType[*upstream.GeminiStreamError](err); ok {
 			// Compatibility mappers classify timeout text and scanner-size sentinels;
 			// retain those signals while preserving the shared reader's typed cause.
 			switch streamError.Kind {

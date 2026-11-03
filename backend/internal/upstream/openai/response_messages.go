@@ -218,7 +218,7 @@ func ReadMessagesStreaming(resp *http.Response, c *upstream.OutputContext, optio
 		// Share accumulated cache observations with the event converter before it
 		// creates terminal Messages usage, including sparse or cache-only updates.
 		if snapshot := usageAccumulator.ObserveResponsesEvent([]byte(payload), &event); snapshot != nil {
-			usage = wire.CopyForwardUsage(snapshot)
+			usage = usageAccumulator.ForwardUsage()
 		}
 
 		eventType := strings.TrimSpace(event.Type)
@@ -232,12 +232,6 @@ func ReadMessagesStreaming(resp *http.Response, c *upstream.OutputContext, optio
 				if id := strings.TrimSpace(event.Response.ID); id != "" {
 					responseID = id
 				}
-				if event.Response.Usage != nil {
-					usage = wire.CopyForwardUsage(event.Response.Usage)
-				}
-			}
-			if event.Usage != nil {
-				usage = wire.CopyForwardUsage(event.Usage)
 			}
 		}
 		if eventType == "response.failed" || isBareErrorEvent {

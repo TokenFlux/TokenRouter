@@ -51,8 +51,9 @@ type CCResponseOptions struct {
 // CCStreamScanState retains Chat usage and output observations for caller
 // finalization.
 type CCStreamScanState struct {
-	// Usage retains the latest parsed Chat usage; no observation leaves its
-	// counters zero, and conversion callers can apply their terminal usage precedence.
+	// Usage retains accumulated raw Chat counts, including image categories and
+	// usable observations from chunks rejected by typed decoding. No observation
+	// leaves its counters zero; sparse tails retain omitted buckets.
 	Usage wire.ForwardUsage
 
 	ServiceTier string // observed upstream processing tier
@@ -100,11 +101,7 @@ func ScanCCStream(resp *http.Response, options CCResponseOptions, logPrefix, req
 			// Preserve usable accounting even when another chunk field cannot decode;
 			// only successfully decoded chunks proceed to client protocol conversion.
 			snapshot = usageAccumulator.Observe([]byte(node.Raw))
-			st.Usage = wire.CopyForwardUsage(snapshot)
-			if rawUsage, ok := wire.OpenAIUsageFromGJSON(node); ok {
-				st.Usage.ImageInputTokens = rawUsage.ImageInputTokens
-				st.Usage.ImageOutputTokens = rawUsage.ImageOutputTokens
-			}
+			st.Usage = usageAccumulator.ForwardUsage()
 		}
 
 		var chunk wire.ChatCompletionsChunk

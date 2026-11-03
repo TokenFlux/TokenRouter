@@ -16,9 +16,11 @@ import (
 //
 // Stream observations replace only categories actually supplied by the current
 // payload. Explicit all-zero terminal snapshots can clear previous counts;
-// partial output-only updates retain prompt and cache observations. Snapshots
-// returned to callers own their nested detail values so later events cannot
-// change an earlier response retained by a converter or accumulator.
+// partial output-only updates retain prompt, cache, and image observations.
+// Accounting also accepts the raw parser's numeric coercions when a typed
+// usage value cannot decode; client readers still validate their own events.
+// Snapshots returned to callers own their nested detail values so later events
+// cannot change an earlier response retained by a converter or accumulator.
 
 var (
 	// Cache path lists define the shared precedence and presence checks used by
@@ -34,11 +36,18 @@ var (
 
 // UsageAccumulator retains one response's inclusive token observations across
 // sparse Chat or Responses events. Callers serialize access within one upstream
-// attempt; a fresh accumulator is required after a provider switch.
+// attempt; a fresh accumulator is required after a provider switch. ForwardUsage
+// supplies accounting, while Snapshot projects the supported client wire fields.
 // @project-doc docs/interfaces/protocol_capabilities.md#client_usage_cache
 type UsageAccumulator struct {
 	usage ResponsesUsage // accumulated inclusive token counters
 	seen  bool           // object-shaped usage observed
+
+	// imageInputTokens and imageOutputTokens retain accounting categories absent
+	// from the typed client model. Sparse observations preserve each bucket until
+	// an explicit replacement or complete zero snapshot arrives.
+	imageInputTokens  int // observed image-input subset
+	imageOutputTokens int // observed image-output subset
 }
 
 // UnmarshalJSON decodes Chat usage through the shared Responses compatibility
@@ -104,17 +113,46 @@ func ChatUsageFromResponses(source *ResponsesUsage) *ChatUsage {
 // its previous snapshot, which is nil until a usage object has been observed.
 //
 // Category presence controls replacement, so an output-only tail cannot erase
-// cache reads or writes. A supplied zero cache category replaces its earlier
-// value. An explicit zero input/output snapshot without positive cache
+// cache reads, writes, or image counters. Typed decode failures use the raw
+// accounting selectors without allowing an invalid client event through its
+// reader. A supplied zero category replaces its earlier value.
+// An explicit zero input/output snapshot without positive cache or image
 // counts clears the entire observation, preserving terminal reset semantics.
 // Input and output changes without a total recompute the inclusive aggregate.
 func (a *UsageAccumulator) Observe(raw []byte) *ResponsesUsage {
-	var current ResponsesUsage
+	return a.observe(raw, gjson.Result{})
+}
+
+// observe merges one usage object with its paired hosted-image details.
+// Invalid JSON or nonobjects preserve the previous snapshot. A valid object
+// contributes raw accounting even when its typed detail or total fields fail
+// decoding; those failed fields cannot erase earlier typed detail observations.
+//
+// Image counters remain separate from client usage because the typed wire model
+// does not represent them. Hosted counts fill only zero image fields in this
+// observation, before category presence selects replacements. A complete zero
+// snapshot clears every bucket, while sparse updates preserve omitted categories.
+func (a *UsageAccumulator) observe(raw []byte, imageGen gjson.Result) *ResponsesUsage {
 	value := gjson.ParseBytes(raw)
-	if !value.IsObject() || json.Unmarshal(raw, &current) != nil {
+	if !gjson.ValidBytes(raw) || !value.IsObject() {
 		// An unusable update supplies no replacement evidence; retain the previous
 		// valid observation so malformed tails cannot erase already reported cache work.
 		return a.Snapshot()
+	}
+	counters, _ := OpenAIUsageFromGJSON(value)
+	MergeHostedImageGenToolUsage(imageGen, &counters)
+	var current ResponsesUsage
+	typedDetailsValid := json.Unmarshal(raw, &current) == nil
+	if !typedDetailsValid {
+		// Raw accounting accepts compatible scalar spellings such as string totals.
+		// Retain its usable counters even when the caller must skip this typed chunk.
+		current = ResponsesUsage{
+			InputTokens:              counters.InputTokens,
+			OutputTokens:             counters.OutputTokens,
+			TotalTokens:              int(value.Get("total_tokens").Int()),
+			CacheCreationInputTokens: counters.CacheCreationInputTokens,
+		}
+		normalizeResponsesCacheUsage(value, &current)
 	}
 	a.seen = true
 	hasInput := usageHasAny(value, "input_tokens", "prompt_tokens", "prompt_cache_miss_tokens")
@@ -124,11 +162,20 @@ func (a *UsageAccumulator) Observe(raw []byte) *ResponsesUsage {
 	hasWrite := usageHasAny(value, cacheWriteDetailPaths...) || usageHasAny(value, cacheWriteAliasPaths...)
 	if hasInput && hasOutput && current.InputTokens == 0 && current.OutputTokens == 0 &&
 		current.TotalTokens == 0 && current.CacheCreationInputTokens == 0 &&
+		counters.ImageInputTokens == 0 && counters.ImageOutputTokens == 0 &&
 		(current.InputTokensDetails == nil || current.InputTokensDetails.CachedTokens == 0) {
 		// A complete explicit zero snapshot represents a reset rather than a sparse
 		// tail; retaining earlier cache buckets would contradict its zero prompt total.
 		a.usage = current
+		a.imageInputTokens = 0
+		a.imageOutputTokens = 0
 		return a.Snapshot()
+	}
+	if counters.ImageInputTokens != 0 || usageHasAny(value, "input_tokens_details.image_tokens", "prompt_tokens_details.image_tokens") {
+		a.imageInputTokens = counters.ImageInputTokens
+	}
+	if counters.ImageOutputTokens != 0 || usageHasAny(value, "output_tokens_details.image_tokens", "completion_tokens_details.image_tokens") {
+		a.imageOutputTokens = counters.ImageOutputTokens
 	}
 	if hasInput {
 		a.usage.InputTokens = current.InputTokens
@@ -151,7 +198,7 @@ func (a *UsageAccumulator) Observe(raw []byte) *ResponsesUsage {
 				a.usage.InputTokensDetails.CacheWriteTokens = current.CacheCreationInputTokens
 			}
 		}
-		if usageHasAny(value, "input_tokens_details.audio_tokens", "prompt_tokens_details.audio_tokens") {
+		if typedDetailsValid && usageHasAny(value, "input_tokens_details.audio_tokens", "prompt_tokens_details.audio_tokens") {
 			a.usage.InputTokensDetails.AudioTokens = current.InputTokensDetails.AudioTokens
 		}
 	}
@@ -175,11 +222,16 @@ func (a *UsageAccumulator) Observe(raw []byte) *ResponsesUsage {
 // snapshot. This removes conflicting envelope choices between client conversion
 // and completion accounting, while callers still decide whether the event is a
 // successful terminal or a failure that must not synthesize successful output.
+// Hosted-image details belong to the same envelope as their usage object;
+// ForwardUsage retains those image buckets without extending the client model.
 func (a *UsageAccumulator) ObserveResponsesEvent(raw []byte, event *ResponsesStreamEvent) *ResponsesUsage {
+	if !gjson.ValidBytes(raw) {
+		return a.Snapshot()
+	}
 	value := gjson.ParseBytes(raw)
-	for _, path := range []string{"usage", "response.usage"} {
-		if node := value.Get(path); node.IsObject() {
-			a.Observe([]byte(node.Raw))
+	for _, prefix := range []string{"", "response."} {
+		if node := value.Get(prefix + "usage"); node.IsObject() {
+			a.observe([]byte(node.Raw), value.Get(prefix+"tool_usage.image_gen"))
 		}
 	}
 	snapshot := a.Snapshot()
@@ -195,6 +247,16 @@ func (a *UsageAccumulator) ObserveResponsesEvent(raw []byte, event *ResponsesStr
 		event.Response.Usage = a.Snapshot()
 	}
 	return snapshot
+}
+
+// ForwardUsage returns accumulated accounting, including the image buckets
+// omitted from typed client snapshots. Before any observation it returns zero
+// counters; the returned value owns its fields and cannot mutate this accumulator.
+func (a *UsageAccumulator) ForwardUsage() ForwardUsage {
+	usage := CopyForwardUsage(&a.usage)
+	usage.ImageInputTokens = a.imageInputTokens
+	usage.ImageOutputTokens = a.imageOutputTokens
+	return usage
 }
 
 // Snapshot returns a detached copy of the latest observed usage, or nil before
