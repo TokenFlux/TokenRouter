@@ -96,6 +96,18 @@ func DiffSettings(before *composite.Snapshot, after *composite.Snapshot, beforeA
 	if before.PasswordResetEnabled != after.PasswordResetEnabled {
 		changed = append(changed, "password_reset_enabled")
 	}
+	if before.BStatsEnabled != after.BStatsEnabled {
+		changed = append(changed, "bstats_enabled")
+	}
+	if before.BStatsLogErrors != after.BStatsLogErrors {
+		changed = append(changed, "bstats_log_errors")
+	}
+	if before.BStatsLogSentData != after.BStatsLogSentData {
+		changed = append(changed, "bstats_log_sent_data")
+	}
+	if before.BStatsLogResponseStatusText != after.BStatsLogResponseStatusText {
+		changed = append(changed, "bstats_log_response_status_text")
+	}
 	if before.TeamEnabled != after.TeamEnabled {
 		changed = append(changed, "team_enabled")
 	}

@@ -3,8 +3,8 @@ import type { UpdateSettingsRequest, CreativeModelSetting } from '@/api/admin/se
 
 /**
  * featuresSettingsPayload.ts builds feature flags, affiliate values, creative selections,
- * and session-block expiry for bulk saving. The coordinator provides validated creative
- * rows and worker count separately, while this serializer clamps affiliate numeric values
+ * bStats reporting controls, and session-block expiry for bulk saving. The coordinator
+ * provides validated creative rows and worker count separately, while this serializer clamps affiliate numeric values
  * and floors session-block expiry while clamping its minimum to one second.
  */
 
@@ -23,6 +23,10 @@ export function buildFeaturesSettingsPayload(
     | 'affiliate_rebate_duration_days'
     | 'affiliate_rebate_per_invitee_cap'
     | 'affiliate_admin_recharge_enabled'
+    | 'bstats_enabled'
+    | 'bstats_log_errors'
+    | 'bstats_log_sent_data'
+    | 'bstats_log_response_status_text'
     | 'team_enabled'
     | 'creative_enabled'
     | 'risk_control_enabled'
@@ -39,6 +43,10 @@ export function buildFeaturesSettingsPayload(
   | 'affiliate_rebate_duration_days'
   | 'affiliate_rebate_per_invitee_cap'
   | 'affiliate_admin_recharge_enabled'
+  | 'bstats_enabled'
+  | 'bstats_log_errors'
+  | 'bstats_log_sent_data'
+  | 'bstats_log_response_status_text'
   | 'team_enabled'
   | 'creative_enabled'
   | 'creative_model_settings'
@@ -74,9 +82,13 @@ export function buildFeaturesSettingsPayload(
 
     affiliate_admin_recharge_enabled: form.affiliate_admin_recharge_enabled,
 
-    // Page visibility flags are submitted with creative settings in the same
-    // bulk request so their edited values share the coordinator save attempt.
+    // Feature visibility and reporting controls share the same bulk request,
+    // allowing the coordinator to persist their edited values in one save attempt.
     team_enabled: form.team_enabled,
+    bstats_enabled: form.bstats_enabled,
+    bstats_log_errors: form.bstats_log_errors,
+    bstats_log_sent_data: form.bstats_log_sent_data,
+    bstats_log_response_status_text: form.bstats_log_response_status_text,
 
     creative_enabled: form.creative_enabled,
 

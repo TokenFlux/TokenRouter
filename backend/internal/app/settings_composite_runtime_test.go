@@ -17,6 +17,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/audit"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/bstats"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/creative"
 	creativehttp "github.com/TokenFlux/TokenRouter/internal/creative/httpapi"
@@ -40,8 +41,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/site"
 )
 
-// Combined settings HTTP must distinguish omitted fields, explicit clearing,
-// validation rejection, write failure, and committed data whose later
+// settings_composite_runtime_test.go verifies combined settings HTTP updates
+// with omitted fields, explicit clearing, validation rejection, write failure,
+// and committed data whose later
 // application fails. These scenarios inspect stored strings, response values,
 // reader order, notification timing, and security transitions across
 // module-owned settings with controlled failure fixtures.
@@ -439,7 +441,7 @@ func newCompositeSettingsHTTPFixture(repo settingscore.Repository, cfg *config.C
 }
 
 // TestSettingsFieldOwnership enumerates static participants and the flattened
-// update request type. It checks unique ownership, all 283 request fields are
+// update request type. It checks unique ownership, all 287 request fields are
 // represented, and no participant declares an extra field outside that request.
 func TestSettingsFieldOwnership(t *testing.T) {
 	defaults := scheduler.DefaultAdminSettingsDefaults()
@@ -472,7 +474,7 @@ func TestSettingsFieldOwnership(t *testing.T) {
 		delete(owners, name)
 		count++
 	}
-	require.Equal(t, 283, count, "HTTP 字段变化需要同步字段登记")
+	require.Equal(t, 287, count, "HTTP 字段变化需要同步字段登记")
 	require.Empty(t, owners, "参与者不应声明不存在的输入字段")
 }
 
@@ -2202,4 +2204,35 @@ func TestUpdateSettingsRejectsDeprecatedAdvancedSchedulerFields(t *testing.T) {
 			require.Contains(t, rec.Body.String(), field)
 		})
 	}
+}
+
+// TestSettingsBStatsDefaultsAndPartialUpdates exercises legacy settings without
+// metrics keys and later explicit opt-out changes. Readback preserves omitted
+// controls, and attempts to supply an internal UUID cannot overwrite its storage.
+func TestSettingsBStatsDefaultsAndPartialUpdates(t *testing.T) {
+	id := "fe5233bb-2ed6-4a60-99da-45b42c6c29ec"
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{bstats.SettingKeyServerUUID: id})
+	rec := doUpdateSettings(t, h, map[string]any{}, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), `"bstats_enabled":true`)
+	require.Contains(t, rec.Body.String(), `"bstats_log_errors":false`)
+	require.Contains(t, rec.Body.String(), `"bstats_log_sent_data":false`)
+	require.Contains(t, rec.Body.String(), `"bstats_log_response_status_text":false`)
+	require.NotContains(t, rec.Body.String(), id)
+	require.NotContains(t, rec.Body.String(), bstats.SettingKeyServerUUID)
+	rec = doUpdateSettings(t, h, map[string]any{
+		"bstats_enabled":                  false,
+		"bstats_log_errors":               true,
+		"bstats_log_sent_data":            true,
+		"bstats_log_response_status_text": true,
+		"bstats_server_uuid":              "forged",
+	}, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, id, repo.values[bstats.SettingKeyServerUUID])
+	rec = doUpdateSettings(t, h, map[string]any{"bstats_log_errors": false}, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, "false", repo.values[bstats.SettingKeyEnabled])
+	require.Equal(t, "false", repo.values[bstats.SettingKeyLogErrors])
+	require.Equal(t, "true", repo.values[bstats.SettingKeyLogSentData])
+	require.Equal(t, "true", repo.values[bstats.SettingKeyLogResponseStatusText])
 }

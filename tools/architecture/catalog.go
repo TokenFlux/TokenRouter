@@ -70,7 +70,7 @@ github.com/aws/aws-sdk-go-v2/service/s3 github.com/coder/websocket
 github.com/go-webauthn/webauthn/protocol github.com/go-webauthn/webauthn/webauthn
 github.com/golang-jwt/jwt/v5 github.com/google/uuid github.com/imroc/req/v3
 github.com/redis/go-redis/v9 github.com/robfig/cron/v3 github.com/shirou/gopsutil/v4/cpu
-github.com/shirou/gopsutil/v4/disk github.com/shirou/gopsutil/v4/mem github.com/shopspring/decimal
+github.com/shirou/gopsutil/v4/host github.com/shirou/gopsutil/v4/disk github.com/shirou/gopsutil/v4/mem github.com/shopspring/decimal
 github.com/smartwalle/alipay/v3 github.com/spf13/viper github.com/stripe/stripe-go/v85
 github.com/stripe/stripe-go/v85/webhook
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/captcha/v20190722
@@ -108,6 +108,7 @@ github.com/stretchr/testify/suite`},
 	}
 
 	moduleDependencies = map[string]dependencySet{
+		"internal/bstats": {Production: "internal/bstats/... internal/settings", Tests: ""},
 		"internal/plugin": {Production: `internal/plugin/... internal/pkg/apperror internal/server/... internal/identity/httpapi/authctx ent/... plugin-sdk/go/...`, Tests: `internal/testutil/postgrescontainer internal/infra/crypto internal/identity migrations`},
 		"internal/mcp": {Production: `internal/mcp/... internal/identity internal/identity/provider internal/identity/httpapi internal/identity/httpapi/authctx
 internal/audit internal/server/adminapi internal/server/httpx`, Tests: `ent ent/runtime internal/identity/postgres internal/infra/crypto internal/testutil/postgrescontainer migrations`},
@@ -250,7 +251,7 @@ internal/protocol internal/protocol/systemone internal/routing internal/routing/
 internal/routing/httpapi/dto internal/scheduler internal/settings/httpapi internal/settings/testkit
 internal/site internal/team internal/upstream/anthropic internal/upstream/openai internal/usage
 internal/usage/httpapi internal/usage/httpapi/ports`},
-		"internal/settings": {Production: `internal/server/adminapi internal/gateway/ws ent/... internal/provider internal/audit internal/billing internal/billing/httpapi internal/config
+		"internal/settings": {Production: `internal/bstats internal/server/adminapi internal/gateway/ws ent/... internal/provider internal/audit internal/billing internal/billing/httpapi internal/config
 internal/creative internal/gateway internal/gateway/admission internal/gateway/clientmeta
 internal/gateway/httpapi/dto internal/gateway/promptpolicy internal/gateway/testkit
 internal/gateway/tierpolicy internal/identity internal/identity/authconfig internal/identity/contact

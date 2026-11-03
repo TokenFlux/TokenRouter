@@ -16,6 +16,8 @@ import (
 // runtimeAssemblyProviders supplies subsystem lifecycle registrations and the
 // application constructors that collect them for startup and shutdown.
 var runtimeAssemblyProviders = wire.NewSet(
+	provideBStats,
+	provideBStatsRuntime,
 	provideModelCatalogRuntime,
 	provideSettingsRuntime,
 	provideAuthRuntime,

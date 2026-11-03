@@ -28,8 +28,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/testutil/rediscontainer"
 )
 
-// Configured server startup acquires database, cache, and lifecycle resources
-// before HTTP readiness. The process tests wait for a successful HTTP response
+// application_integration_test.go verifies configured startup and resource
+// acquisition before HTTP readiness. The process tests wait for a successful HTTP response
 // before sending SIGTERM, then compare shutdown log order and query PostgreSQL
 // for leftover child connections. Version output, setup, and maintenance
 // commands have separate lifecycle startup expectations.
@@ -101,7 +101,16 @@ func startTestProcess(t *testing.T, binary, dir string, env []string, args ...st
 	p.cmd.Dir = dir
 	// Limit runtime configuration to these variables and env, so inherited
 	// application credentials or AUTO_SETUP settings cannot choose another startup path.
-	p.cmd.Env = append([]string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir, "TMPDIR=" + os.TempDir(), "TZ=UTC", "DATA_DIR=" + dir}, env...)
+	// External HTTPS uses a closed loopback proxy, preventing default-enabled
+	// metrics from reporting synthetic process fixtures even when a test runs slowly.
+	p.cmd.Env = append([]string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + dir,
+		"TMPDIR=" + os.TempDir(),
+		"TZ=UTC",
+		"DATA_DIR=" + dir,
+		"HTTPS_PROXY=http://127.0.0.1:1",
+	}, env...)
 	p.cmd.Stdout = p.output
 	p.cmd.Stderr = p.output
 	var err error
@@ -338,8 +347,9 @@ func TestProcessModes(t *testing.T) {
 				require.Less(t, strings.Index(logs, "stopped TaskRequestsAndDownloads"), strings.Index(logs, "stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 			}
-			// Billing hooks log one start and stop, with stops before Redis closure.
-			for _, name := range []string{"BillingCacheService", "SubscriptionExpiryService"} {
+			// Billing and optional metrics hooks each start and stop once. Their
+			// stop barriers complete before shared storage is released by Redis closure.
+			for _, name := range []string{"BillingCacheService", "SubscriptionExpiryService", "BStats"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name))
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name))
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"))

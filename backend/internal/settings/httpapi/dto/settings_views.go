@@ -193,6 +193,10 @@ type SystemSettings struct {
 
 	DefaultConcurrency                   int                                      `json:"default_concurrency"`                     // default registration concurrency allowance
 	DefaultBalance                       float64                                  `json:"default_balance"`                         // default registration balance grant amount
+	BStatsEnabled                        bool                                     `json:"bstats_enabled"`                          // reporting enablement control
+	BStatsLogErrors                      bool                                     `json:"bstats_log_errors"`                       // report failure logging
+	BStatsLogSentData                    bool                                     `json:"bstats_log_sent_data"`                    // outgoing payload logging
+	BStatsLogResponseStatusText          bool                                     `json:"bstats_log_response_status_text"`         // received response logging
 	TeamEnabled                          bool                                     `json:"team_enabled"`                            // team runtime availability switch
 	CreativeEnabled                      bool                                     `json:"creative_enabled"`                        // Creative Studio runtime access switch
 	RiskControlEnabled                   bool                                     `json:"risk_control_enabled"`                    // risk-center and auditing runtime switch

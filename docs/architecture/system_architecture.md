@@ -113,6 +113,12 @@ Wire 构造完对象、登记完资源后，lifecycle 才启动后台工作，�
 
 billing 的余额和 Key 缓存队列、订阅过期提醒由 app 接入生命周期。提醒任务启动后立即执行第一轮，之后每分钟扫描一次，执行前取得 Redis 或数据库任务锁；停止时取消并等待正在执行的操作。
 
+### bStats 生命周期
+
+`app/runtime_bstats.go` 构造唯一的 bStats 服务和专用 HTTP 客户端，以构建版本标记 TokenRouter 版本，在 StartOrder 980 启动、StopOrder 20 停止。构造阶段不采集或发送数据，只有读取有效设置并持久保存实例 UUID 后才启动计时器。统计初始化失败允许应用继续启动；关闭时取消并等待上报，再释放设置和日志资源。
+
+综合设置提交后把四项已保存的控制发布给同一服务。关闭和重新开启串行切换 worker，日志更新只替换快照，避免重置官方上报时序。调度、数据范围和默认值见 [bStats 安装统计](../interfaces/configuration.md#bstats_reporting)。
+
 ### 关闭顺序
 
 SIGINT、SIGTERM、监听失败和 Linux 上的手动重启走同一个关闭流程。HTTP 有五秒的优雅关闭预算，之后的后台清理有三十秒的总预算，两个预算分开计算。后台清理的顺序：

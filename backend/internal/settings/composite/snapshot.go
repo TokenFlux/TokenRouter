@@ -214,9 +214,13 @@ type Snapshot struct {
 	CreativeModelSettings       []creative.CreativeModelSetting // Creative group/model operation selections
 	CreativeWorkerCount         int                             // configured Creative task worker count
 
-	DefaultConcurrency int     // default registration concurrency allowance
-	DefaultBalance     float64 // default registration balance grant amount
-	TeamEnabled        bool    // team runtime availability switch
+	DefaultConcurrency          int     // default registration concurrency allowance
+	DefaultBalance              float64 // default registration balance grant amount
+	BStatsEnabled               bool    // reporting enablement control
+	BStatsLogErrors             bool    // report failure logging
+	BStatsLogSentData           bool    // outgoing payload logging
+	BStatsLogResponseStatusText bool    // received response logging
+	TeamEnabled                 bool    // team runtime availability switch
 	// CreativeEnabled supplies the runtime access switch. Creative execution also
 	// requires the deployment creative.enabled capability before tasks can be admitted.
 	CreativeEnabled                      bool                                 // Creative Studio runtime access switch

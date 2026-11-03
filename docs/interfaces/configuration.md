@@ -180,6 +180,17 @@ usage、audit 和 ops 的静态参数，由 app 整理成各模块的 Options；
 
 专用的设置入口各有自己的写入范围和通知行为。业务更新按“校验、批量原子写入、刷新缓存、发送通知”的顺序执行。业务调用方在持久化和缓存刷新完成后调用 `Store.NotifyUpdated`。`Subscribe` 按登记顺序同步通知订阅者，并返回幂等的注销函数。注销会阻止尚未领取的回调，已领取的回调可以完成一次。版本字段按应用版本赋值，JSON 中可以省略。运营内容另有持久化 `revision`，保存时在事务内比较已读取的版本，冲突返回 409。综合设置读取同时保存数据库原始值，参与者从同一快照校验文案版本。设置更新通知在单个应用实例内发布。公开设置、CSP、search 配置运行时和动态 worker 的回调由 app 装配。公开 API、embed 注入和 CSP 由 site 统一提供，各自保持字段格式：公开来源一次批量查询，认证、团队和用量分别解释自己需要的字段，site 只把公开的键和安全处理过的数据交给渲染层；OAuth secret 不会进入 web。
 
+<a id="bstats_reporting"></a>
+### bStats 安装统计
+
+管理员在“系统设置 → 功能开关”的 bStats 卡片管理安装统计。`bstats_enabled` 缺键时默认开启；`bstats_log_errors`、`bstats_log_sent_data`、`bstats_log_response_status_text` 缺键时默认关闭。四个布尔字段由综合设置 GET/PUT 读写，省略字段保留原值，保存后热生效。关闭时取消并等待在途上报；重新开启重新执行首次随机延迟。只修改日志选项不会重置调度，关闭统计也不会清除日志选项。
+
+上报使用 bStats 的 `server-implementation` 平台，TokenRouter 项目 ID 固定为 `35120`。`bstats_server_uuid` 是首次启用时生成并持久保存的随机 UUIDv4，不属于管理或公开设置接口，重启和升级继续复用。数据库备份恢复也会恢复此标识。标识读取、校验或持久化失败时暂停统计，后续设置发布或进程重启会重试；错误不会阻止网关启动。
+
+数据只包含随机实例标识、操作系统及版本、CPU 架构和核数、TokenRouter 与 Go 版本，以及 bStats 协议元数据。国家分布由 bStats 根据连接来源推导。版本通过 `tokenrouter_version`、`go_version` 两个 Simple pie 图表上报。账户、API Key、站点域名、提示词、请求记录、用量和支付数据不进入报文。开启上报内容日志会把含 UUID 的完整报文写入服务端日志。
+
+调度和 gzip JSON 协议参考官方 [MetricsBase v3.2.1](https://github.com/Bastian/bstats-metrics/blob/v3.2.1/base/src/main/java/org/bstats/MetricsBase.java)，设置默认值和图表格式分别参考同版本 `MetricsConfig`、`SimplePie`。首次延迟为 `[3,6)` 分钟，第二次在首次计划时间之后再延迟 `[0,30)` 分钟，此后每 30 分钟固定执行。HTTP 请求最长 10 秒，失败不即时重试，不提供手动上报或自定义频率。实现保留官方协议和调度，并增加 Go context 取消、有界响应读取和禁止重定向；MIT 许可证位于 `backend/internal/bstats/LICENSE`。
+
 ### 用户可见文案
 
 站点文案使用 `site_texts`，其他独立运营文案通过 `localized_settings` 提交，完整字段和存储规则见[用户侧国际化](user_localization.md#content_owners)。`default_locale` 初始为 `en`。管理接口拒绝站点名称、标题和副标题的 `_zh`、`_en` 写入，返回 `REMOVED_SETTING_FIELD`。译文版本、核对和删除操作由统一内容模型处理。

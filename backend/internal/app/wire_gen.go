@@ -409,7 +409,8 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	creativeTargets := provideCreativeTargets(cfg, openAIAuxiliary, geminiTokenSource, appGatewayRequestActivity)
 	executor := provideCreativeExecutor(cfg, groupStore, creativeTargets, generic, compatible, modelAttributeService)
 	creativeWorkerRuntime := provideCreativeWorkerRuntime(public, executor, userStore, concurrencyService, store, readOptions, cfg)
-	compositeRuntime := provideCompositeRuntime(store, cfg, readOptions, grantSettings, gatewayRuntimeSettings, adminSettingsRules, adminDefaults, plans, backendMode, providerRuntimeSettings, quotaSettingsCache, forwardedSettings, appSchedulerSharedState, creativeWorkerRuntime, opsService)
+	bstatsService := provideBStats(store, info)
+	compositeRuntime := provideCompositeRuntime(store, cfg, readOptions, grantSettings, gatewayRuntimeSettings, adminSettingsRules, adminDefaults, plans, backendMode, providerRuntimeSettings, quotaSettingsCache, forwardedSettings, appSchedulerSharedState, creativeWorkerRuntime, opsService, bstatsService)
 	settingsRegistry, err := provideSettingsParticipants(runtime, grantSettings, adminDefaults, adminSettingsRules, wsRuntime)
 	if err != nil {
 		return nil, err
@@ -579,6 +580,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	}
 	engine := server.ProvideRouter(options, routerRuntime)
 	httpServer := server.ProvideHTTPServer(options, engine)
+	appBstatsRuntimeReady := provideBStatsRuntime(manager, bstatsService)
 	appModelCatalogRuntimeReady := provideModelCatalogRuntime(providerService, manager)
 	appSettingsRuntimeReady := provideSettingsRuntime(manager, gatewayRuntimeSettings, forwardedSettings)
 	appAuthRuntimeReady := provideAuthRuntime(apiKeyService, errorPassthroughService, claudeAuthorization, openAIAuthorization, geminiAuthorization, antigravityAuthorization, qoderAuthorization, qoderTokenProvider, grokAuthorization, tlsFingerprintProfileService, tlsFingerprintRouterService, manager)
@@ -604,7 +606,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	appCoreRuntimeReady := provideCoreRuntime(authCacheInvalidationWorker, snapshotService, usageCleanupService, idempotencyCleanupService, orderExpiry, tlsFingerprintCollectorService, manager, wheel, digestSessionStore, usageLogRepository, tasks, transportClient, appGatewayBillingRates)
 	appPluginRuntimeReady := providePluginRuntime(cfg, pluginManager, kv, catalogService, manager)
 	appIdempotencyHTTPReady := provideIdempotencyHTTP(idempotencyCoordinator, managementHandler, archiveHandler, codexImportHandler, apiKeyHandler, adminRedeemHandler, adminSubscriptionHandler, proxyHandler, adminUserHandler, groupHandler, systemHandler, adminUsageHandler)
-	appRuntimeReady := provideRuntime(appModelCatalogRuntimeReady, appSettingsRuntimeReady, appAuthRuntimeReady, appMaintenanceRuntimeReady, appOpsRuntimeReady, appQueuesRuntimeReady, appJobsRuntimeReady, appCoreRuntimeReady, appPluginRuntimeReady, appIdempotencyHTTPReady, promptpolicyService)
+	appRuntimeReady := provideRuntime(appBstatsRuntimeReady, appModelCatalogRuntimeReady, appSettingsRuntimeReady, appAuthRuntimeReady, appMaintenanceRuntimeReady, appOpsRuntimeReady, appQueuesRuntimeReady, appJobsRuntimeReady, appCoreRuntimeReady, appPluginRuntimeReady, appIdempotencyHTTPReady, promptpolicyService)
 	application := provideApplication(httpServer, manager, appRuntimeReady, opsService, errorLogQueue)
 	return application, nil
 }

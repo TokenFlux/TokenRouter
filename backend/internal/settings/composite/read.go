@@ -6,6 +6,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/audit"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/bstats"
 	"github.com/TokenFlux/TokenRouter/internal/creative"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/ws"
@@ -75,14 +76,19 @@ type ReadOptions struct {
 // invalid JSON becomes {}. The optional PublishModel callback runs after parsing
 // so this read can publish its resolved Grok model before the Snapshot is returned.
 func Parse(settings map[string]string, options ReadOptions) *Snapshot {
+	metrics := bstats.ReadSettings(settings)
 	prior := options.Forwarded()
 	forwarded := runtimeconfig.ReadForwardedSettings(settings, prior)
 	result := &Snapshot{
-		StoredValues:              maps.Clone(settings),
-		LocalizedSettings:         settingvalues.ReadLocalizedTexts(settings),
-		APIKeyACLTrustForwardedIP: forwarded.APIKeyACLTrustForwardedIP,
-		ForwardedClientIPHeaders:  forwarded.ForwardedClientIPHeaders,
-		TeamEnabled:               settings[team.SettingKeyTeamEnabled] != "false",
+		BStatsEnabled:               metrics.Enabled,
+		BStatsLogErrors:             metrics.LogErrors,
+		BStatsLogSentData:           metrics.LogSentData,
+		BStatsLogResponseStatusText: metrics.LogResponseStatusText,
+		StoredValues:                maps.Clone(settings),
+		LocalizedSettings:           settingvalues.ReadLocalizedTexts(settings),
+		APIKeyACLTrustForwardedIP:   forwarded.APIKeyACLTrustForwardedIP,
+		ForwardedClientIPHeaders:    forwarded.ForwardedClientIPHeaders,
+		TeamEnabled:                 settings[team.SettingKeyTeamEnabled] != "false",
 	}
 	defaults := ws.DefaultParameters()
 	if options.ResponsesWS != nil {
@@ -229,4 +235,14 @@ func (s *Snapshot) ApplyUsageAdminReadSettings(value *usage.AdminReadSettings) {
 	s.UsageRankingShowRequests = value.UsageRankingShowRequests
 	s.UsageRankingShowTotalTokens = value.UsageRankingShowTotalTokens
 	s.UsageRankingSortBy = value.UsageRankingSortBy
+}
+
+// BStatsConfig extracts reporting controls without exposing the stored instance identifier.
+func (s *Snapshot) BStatsConfig() bstats.Config {
+	return bstats.Config{
+		Enabled:               s.BStatsEnabled,
+		LogErrors:             s.BStatsLogErrors,
+		LogSentData:           s.BStatsLogSentData,
+		LogResponseStatusText: s.BStatsLogResponseStatusText,
+	}
 }

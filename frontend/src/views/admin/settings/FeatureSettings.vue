@@ -321,10 +321,62 @@
       </Collapse>
     </SettingsSection>
   </SettingsCard>
+
+  <SettingsCard
+    :title="t('admin.settings.features.bstats.title')"
+    :description="t('admin.settings.features.bstats.description')"
+    data-testid="bstats-settings"
+  >
+    <template #actions>
+      <Toggle
+        id="bstats-enabled"
+        v-model="form.bstats_enabled"
+        :aria-label="t('admin.settings.features.bstats.enabled')"
+      />
+    </template>
+    <SettingsSection>
+      <SettingsNotice tone="info">
+        <p>
+          {{ t('admin.settings.features.bstats.dataHint') }}
+          <a
+            href="https://bstats.org/plugin/server-implementation/tokenrouter/35120"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-primary-600 hover:underline dark:text-primary-500"
+          >
+            {{ t('admin.settings.features.bstats.viewStatistics') }}
+          </a>
+        </p>
+      </SettingsNotice>
+      <Collapse :open="form.bstats_enabled">
+        <SettingsSubpanel>
+          <SettingToggleRow
+            id="bstats-log-errors"
+            v-model="form.bstats_log_errors"
+            :label="t('admin.settings.features.bstats.logErrors')"
+            :hint="t('admin.settings.features.bstats.logErrorsHint')"
+          />
+          <SettingToggleRow
+            id="bstats-log-sent-data"
+            v-model="form.bstats_log_sent_data"
+            :label="t('admin.settings.features.bstats.logSentData')"
+            :hint="t('admin.settings.features.bstats.logSentDataHint')"
+          />
+          <SettingToggleRow
+            id="bstats-log-response-status-text"
+            v-model="form.bstats_log_response_status_text"
+            :label="t('admin.settings.features.bstats.logResponse')"
+            :hint="t('admin.settings.features.bstats.logResponseHint')"
+          />
+        </SettingsSubpanel>
+      </Collapse>
+    </SettingsSection>
+  </SettingsCard>
 </template>
 
 <script setup lang="ts">
 import { toRef } from 'vue'
+import Toggle from '@/components/common/Toggle.vue'
 import Collapse from '@/components/common/Collapse.vue'
 import SettingRow from '@/components/common/settings/SettingRow.vue'
 import SettingToggleRow from '@/components/common/settings/SettingToggleRow.vue'
@@ -339,7 +391,7 @@ import RuleListEditor from '@/components/common/RuleListEditor.vue'
 import type { useFeaturesSettings, FeaturesSettingsForm } from './useFeaturesSettings'
 
 /**
- * FeatureSettings.vue renders team, creative, affiliate, and risk-control settings using
+ * FeatureSettings.vue renders team, creative, affiliate, risk-control, and bStats settings using
  * the page-owned draft and feature controller. Creative rows expose candidates and
  * supported operations from the controller, including unavailable historical selections,
  * while worker usage displays its observed status. The shared page save action persists

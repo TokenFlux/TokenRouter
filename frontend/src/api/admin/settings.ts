@@ -907,8 +907,14 @@ export interface SystemSettings {
   // Payment configuration
   payment_enabled: boolean // Configured payment enabled.
   /**
-   * Page feature switches.
+   * Administrator-only reporting controls use the official bStats defaults: reporting
+   * starts enabled, diagnostic logging starts disabled, and public settings omit all four.
    */
+  bstats_enabled: boolean // Configured bStats reporting enablement.
+  bstats_log_errors: boolean // Configured bStats error logging.
+  bstats_log_sent_data: boolean // Configured bStats payload logging.
+  bstats_log_response_status_text: boolean // Configured bStats response logging.
+  /** Page feature switches control the user and administrator navigation entries. */
   team_enabled: boolean // Configured team enabled.
   creative_enabled: boolean // Configured creative enabled.
   creative_model_settings: CreativeModelSetting[] // Creative model settings.
@@ -1244,8 +1250,14 @@ export interface UpdateSettingsRequest {
   // Payment configuration
   payment_enabled?: boolean // Requested payment enabled.
   /**
-   * Page feature switches.
+   * Omitted reporting controls retain their stored values. Explicit false disables the
+   * selected control after persistence, while the internal instance UUID remains inaccessible.
    */
+  bstats_enabled?: boolean // Requested bStats reporting enablement.
+  bstats_log_errors?: boolean // Requested bStats error logging.
+  bstats_log_sent_data?: boolean // Requested bStats payload logging.
+  bstats_log_response_status_text?: boolean // Requested bStats response logging.
+  /** Page feature updates preserve omitted switches through the combined settings API. */
   team_enabled?: boolean // Requested team enabled.
   creative_enabled?: boolean // Requested creative enabled.
   creative_worker_count?: number // Creative worker count.

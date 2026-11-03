@@ -204,6 +204,7 @@ func Prepare(ctx context.Context, settings *Snapshot, options PrepareOptions) (m
 
 	updates[usage.SettingKeyAllowUserViewErrorRequests] = strconv.FormatBool(settings.AllowUserViewErrorRequests)
 
+	maps.Copy(updates, settings.BStatsConfig().Values())
 	return updates, nil
 }
 

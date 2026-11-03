@@ -68,6 +68,8 @@ backend/
 │   │   ├── provider/                                    计费回退告警与时区适配
 │   │   ├── rediscache/                                  Redis 缓存、计数或会话适配
 │   │   └── testkit/                                     该模块测试所需的替身与夹具
+│   ├── bstats/                                          安装统计设置、持久实例标识和官方上报调度
+│   │   └── provider/                                    bStats HTTPS 协议与系统信息采集
 │   ├── config/                                          启动配置加载、默认值、规范化和校验
 │   ├── creative/                                        创作台任务、临时素材、结果交付和资金恢复
 │   │   ├── httpapi/                                     HTTP 路由、鉴权接入与输入输出适配
@@ -444,6 +446,7 @@ app/lifecycle 管理这些组件的启动和关闭。audit 独立记录操作审
 | requestlog | [请求 ID 与请求查询](../operations/request_lookup.md) |
 | usage、audit、ops | [数据生命周期](../operations/observability_and_data_lifecycle.md)、[监控告警](../operations/ops_monitoring_and_alerting.md)、[预聚合](../operations/pre_aggregation.md) |
 | backup | [备份与恢复](../operations/deployment_and_migrations.md#maintenance_execution) |
+| bstats | [bStats 安装统计](../interfaces/configuration.md#bstats_reporting)、[生命周期](system_architecture.md#startup_and_shutdown) |
 | settings、site | [配置](../interfaces/configuration.md)、[HTTP 与页面权限](../interfaces/http_api.md) |
 | idempotency | [面板命令幂等](../interfaces/http_api.md#write_idempotency) |
 | infra、pkg、testutil、cmd、ent、migrations、tests、scripts | [系统架构](system_architecture.md)、[开发验证](../operations/development_workflow.md)、[部署迁移](../operations/deployment_and_migrations.md) |

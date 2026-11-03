@@ -391,8 +391,14 @@ type UpdateSettingsRequest struct {
 	PaymentAlipayMobilePrecreateDeepLink *bool `json:"payment_alipay_mobile_precreate_deep_link"` // mobile Alipay precreation link preference
 
 	RiskControlEnabled *bool `json:"risk_control_enabled"` // risk-center and auditing runtime switch
-	TeamEnabled        *bool `json:"team_enabled"`         // team runtime availability switch
-	CreativeEnabled    *bool `json:"creative_enabled"`     // Creative Studio runtime access switch
+	// BStats controls retain their stored values when omitted or null. Explicit
+	// false changes only that control; identity is never accepted through this DTO.
+	BStatsEnabled               *bool `json:"bstats_enabled"`                  // reporting enablement control
+	BStatsLogErrors             *bool `json:"bstats_log_errors"`               // report failure logging
+	BStatsLogSentData           *bool `json:"bstats_log_sent_data"`            // outgoing payload logging
+	BStatsLogResponseStatusText *bool `json:"bstats_log_response_status_text"` // received response logging
+	TeamEnabled                 *bool `json:"team_enabled"`                    // team runtime availability switch
+	CreativeEnabled             *bool `json:"creative_enabled"`                // Creative Studio runtime access switch
 
 	CyberSessionBlockEnabled *bool `json:"cyber_session_block_enabled"` // cyber-session blocking runtime switch
 	// CyberSessionBlockTTLSeconds retains prior lifetime when nil. A supplied

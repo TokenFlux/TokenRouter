@@ -185,6 +185,23 @@ export default {
         'If the window and bucket size would produce more than 720 bars, the backend widens the bucket size automatically.',
     },
     features: {
+      bstats: {
+        title: 'bStats',
+        description:
+          'Send basic runtime information to bStats to help understand TokenRouter adoption and version distribution and guide future improvements. Enabled by default; you can turn it off at any time.',
+        enabled: 'Enable bStats',
+        dataHint:
+          'Reports a random instance ID, operating system and version, architecture, CPU core count, and TokenRouter and Go versions. bStats derives the country from the reporting connection. No accounts, API keys, prompts, requests, usage, or payment data are sent.',
+        viewStatistics: 'View public statistics',
+        logErrors: 'Log reporting errors',
+        logErrorsHint: 'Write failed reporting attempts to the server log. Disabled by default.',
+        logSentData: 'Log submitted data',
+        logSentDataHint:
+          'Write the submitted JSON to the server log, including the persistent instance UUID. Disabled by default.',
+        logResponse: 'Log bStats responses',
+        logResponseHint:
+          'Write successful bStats response content to the server log. Disabled by default.',
+      },
       team: {
         title: 'Team Features',
         description: 'Control whether team pages are available to users and administrators.',

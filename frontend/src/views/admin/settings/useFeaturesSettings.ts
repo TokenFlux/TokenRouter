@@ -44,6 +44,10 @@ export type FeaturesSettingsForm = Pick<
   | 'cyber_session_block_enabled'
   | 'cyber_session_block_ttl_seconds'
   | 'risk_control_enabled'
+  | 'bstats_enabled'
+  | 'bstats_log_errors'
+  | 'bstats_log_sent_data'
+  | 'bstats_log_response_status_text'
   | 'team_enabled'
 >
 

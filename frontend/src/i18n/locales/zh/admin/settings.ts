@@ -177,6 +177,21 @@ export default {
       bucketLimitHint: '如果窗口和粒度会产生超过 720 根柱子，后端会自动放大单柱时间窗口。',
     },
     features: {
+      bstats: {
+        title: 'bStats',
+        description:
+          '将基础运行信息发送至 bStats，帮助了解 TokenRouter 的安装与版本分布，为后续改进提供参考。默认开启，可随时关闭。',
+        enabled: '启用 bStats',
+        dataHint:
+          '上报随机实例标识、操作系统及版本、架构、CPU 核数，以及 TokenRouter 和 Go 版本。bStats 根据上报连接推导国家分布，不上报账户、API Key、提示词、请求、用量或支付数据。',
+        viewStatistics: '查看公开统计',
+        logErrors: '记录上报错误',
+        logErrorsHint: '将上报失败信息写入服务端日志，默认关闭。',
+        logSentData: '记录上报内容',
+        logSentDataHint: '将上报 JSON 写入服务端日志，其中包含持久保存的实例 UUID，默认关闭。',
+        logResponse: '记录 bStats 响应',
+        logResponseHint: '将 bStats 成功响应的内容写入服务端日志，默认关闭。',
+      },
       team: {
         title: '团队功能',
         description: '控制用户团队页和管理员团队管理页是否开放。',

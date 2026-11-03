@@ -1155,6 +1155,52 @@ describe('admin SettingsView payment visible method controls', () => {
     expect(wrapper.get('[data-testid="settings-save-bar"]').attributes('inert')).toBeDefined()
   })
 
+  // An older server response omits bStats controls. The new draft keeps official
+  // defaults, saves explicit false with logging choices, and restores saved values on discard.
+  it('saves and discards bStats controls through the shared save bar', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const featuresTab = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('admin.settings.tabs.features'))!
+    await featuresTab.trigger('click')
+    const enabled = wrapper.get('#bstats-enabled')
+    expect((enabled.element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.get('[data-testid="bstats-settings"] a').attributes('href')).toBe(
+      'https://bstats.org/plugin/server-implementation/tokenrouter/35120',
+    )
+    await wrapper.get('#bstats-log-errors').setValue(true)
+    await wrapper.get('#bstats-log-sent-data').setValue(true)
+    await wrapper.get('#bstats-log-response-status-text').setValue(true)
+    await enabled.setValue(false)
+    await saveFromSaveBar(wrapper)
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bstats_enabled: false,
+        bstats_log_errors: true,
+        bstats_log_sent_data: true,
+        bstats_log_response_status_text: true,
+      }),
+    )
+    expect((enabled.element as HTMLInputElement).checked).toBe(false)
+    expect(wrapper.get('[data-testid="settings-save-bar"]').attributes('inert')).toBeDefined()
+    getSettings.mockResolvedValue({
+      ...baseSettingsResponse,
+      bstats_enabled: false,
+      bstats_log_errors: true,
+      bstats_log_sent_data: true,
+      bstats_log_response_status_text: true,
+    })
+    await enabled.setValue(true)
+    await wrapper.get('#bstats-log-errors').setValue(false)
+    await wrapper.get('[data-testid="settings-save-bar-discard"]').trigger('click')
+    await flushPromises()
+    expect((enabled.element as HTMLInputElement).checked).toBe(false)
+    await enabled.setValue(true)
+    expect((wrapper.get('#bstats-log-errors').element as HTMLInputElement).checked).toBe(true)
+    expect(updateSettings).toHaveBeenCalledTimes(1)
+  })
+
   // Pressing Enter can submit a settings form whose snapshots are already clean.
   // That submission still persists bulk and search settings and refreshes both stores.
   it('saves bulk settings for a clean form submission', async () => {

@@ -1454,6 +1454,30 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 		AffiliateRebateDurationDays:            req.AffiliateRebateDurationDays,
 		AffiliateRebatePerInviteeCap:           req.AffiliateRebatePerInviteeCap,
 		AdminRechargeRebateEnabled:             adminRechargeRebateEnabled,
+		BStatsEnabled: func() bool {
+			if req.BStatsEnabled != nil {
+				return *req.BStatsEnabled
+			}
+			return previousSettings.BStatsEnabled
+		}(),
+		BStatsLogErrors: func() bool {
+			if req.BStatsLogErrors != nil {
+				return *req.BStatsLogErrors
+			}
+			return previousSettings.BStatsLogErrors
+		}(),
+		BStatsLogSentData: func() bool {
+			if req.BStatsLogSentData != nil {
+				return *req.BStatsLogSentData
+			}
+			return previousSettings.BStatsLogSentData
+		}(),
+		BStatsLogResponseStatusText: func() bool {
+			if req.BStatsLogResponseStatusText != nil {
+				return *req.BStatsLogResponseStatusText
+			}
+			return previousSettings.BStatsLogResponseStatusText
+		}(),
 		TeamEnabled: func() bool {
 			if req.TeamEnabled != nil {
 				return *req.TeamEnabled
@@ -1870,6 +1894,10 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 	// Encode merged scalar and collection fields for their registered owners.
 	// Current values use JSON-supported types, so encoding errors are discarded
 	// here before the owning preparers validate and select their stored representation.
+	fields["bstats_enabled"], _ = json.Marshal(settings.BStatsEnabled)
+	fields["bstats_log_errors"], _ = json.Marshal(settings.BStatsLogErrors)
+	fields["bstats_log_sent_data"], _ = json.Marshal(settings.BStatsLogSentData)
+	fields["bstats_log_response_status_text"], _ = json.Marshal(settings.BStatsLogResponseStatusText)
 	fields["team_enabled"], _ = json.Marshal(settings.TeamEnabled)
 	fields["risk_control_enabled"], _ = json.Marshal(settings.RiskControlEnabled)
 	fields["cyber_session_block_enabled"], _ = json.Marshal(settings.CyberSessionBlockEnabled)
