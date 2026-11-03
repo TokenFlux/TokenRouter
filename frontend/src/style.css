@@ -1314,23 +1314,26 @@
 }
 
 @layer components {
-  /* The header and sidebar share navigation surfaces and layout tokens. */
+  /*
+   * Translucent header surfaces reveal scrolled content through a shared blur,
+   * while foreground labels and controls retain their original opacity.
+   */
   .site-header {
-    @apply bg-white/80 backdrop-blur-xl;
+    @apply bg-white/65 backdrop-blur-xl;
   }
 
-  /*
-   * Dark navigation shares the page background and subdued borders; the header
-   * disables blur so underlying page content does not tint its surface.
-   */
+  /* Dark navigation uses the same subdued border for both page divisions. */
   .dark .site-header,
   .dark .sidebar {
     @apply border-dark-800;
-    background-color: var(--page-bg);
   }
 
   .dark .site-header {
-    @apply backdrop-blur-none;
+    background-color: color-mix(in srgb, var(--page-bg) 80%, transparent);
+  }
+
+  .dark .sidebar {
+    background-color: var(--page-bg);
   }
 
   .sidebar {

@@ -160,15 +160,16 @@ const labelText = computed(() => {
 })
 
 /**
- * labelClass uses neutral rate styling or progressively stronger expiry colors as the
- * remaining days approach zero.
+ * labelClass keeps ordinary rate labels compact and applies expiry colors to
+ * subscription labels. When daysRemaining is supplied, subscription labels retain
+ * padding and strengthen their warning colors near expiration.
  */
 const labelClass = computed(() => {
-  const base = 'self-baseline px-1.5 py-0.5 rounded-compact text-xs font-semibold'
-
   if (props.daysRemaining === null || props.daysRemaining === undefined) {
-    return `${base} bg-black/10 dark:bg-white/10`
+    return 'self-baseline px-1 rounded-compact text-xs font-semibold leading-4 bg-black/10 dark:bg-white/10'
   }
+
+  const base = 'self-baseline px-1.5 py-0.5 rounded-compact text-xs font-semibold'
 
   /**
    * The last three days receive the strongest expiry warning.

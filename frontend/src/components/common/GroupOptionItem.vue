@@ -29,6 +29,15 @@
         :rpm-max="capacity.rpm_max"
       />
 
+      <!-- Keep the selection mark before the rate labels so selecting a group leaves the trailing rate edge aligned. -->
+      <Icon
+        name="check"
+        size="sm"
+        :animate-on-hover="false"
+        v-if="showCheckmark && selected"
+        class="h-4 w-4 shrink-0 self-center text-primary-600 dark:text-primary-400"
+      />
+
       <span
         v-if="rateMultiplier !== undefined"
         :class="[
@@ -49,14 +58,6 @@
       >
         {{ peakRateText }}
       </span>
-
-      <Icon
-        name="check"
-        size="sm"
-        :animate-on-hover="false"
-        v-if="showCheckmark && selected"
-        class="h-4 w-4 shrink-0 text-primary-600 dark:text-primary-400"
-      />
     </div>
   </div>
 </template>
