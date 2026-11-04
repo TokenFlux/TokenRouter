@@ -46,6 +46,12 @@ type upstreamClientView struct {
 	protocolMode string                  // selected protocol variant
 }
 
+// captureOptionsPool records the technical options selected for a request and
+// returns a fixed error, so a test can inspect them without any network exchange.
+type captureOptionsPool struct {
+	options httpclient.UpstreamRequestOptions // most recent request options
+}
+
 // TestHTTPUpstreamDoCanDisableRedirectsPerRequest marks a request to stop at a
 // redirect response. The transport must return that response and leave the
 // redirect destination uncalled.
@@ -1277,4 +1283,43 @@ func mustGetOrCreateClient(t *testing.T, svc *Client, proxyURL string, providerI
 	entry, err := svc.inspectClient(proxyURL, providerID, concurrency, upstreamcore.HTTPUpstreamProfileDefault, nil)
 	require.NoError(t, err)
 	return entry
+}
+
+// Do records options and fails the exchange; the transport test reads only the capture.
+func (p *captureOptionsPool) Do(_ *http.Request, options httpclient.UpstreamRequestOptions) (*http.Response, error) {
+	p.options = options
+	return nil, errors.New("captured")
+}
+
+// TestTransportOptionsPinDialOnlyForValidatedRequests prepares requests with and
+// without host validation. Validated requests must ask the pool for pinned direct
+// dialing, and ordinary requests must keep their existing shared connections.
+func TestTransportOptionsPinDialOnlyForValidatedRequests(t *testing.T) {
+	cases := []struct {
+		name    string
+		options Options
+		marked  bool
+		want    bool
+	}{
+		{name: "ordinary request", want: false},
+		{name: "public host marker", marked: true, want: true},
+		{name: "global validation", options: Options{ValidateResolvedIP: true}, want: true},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			pool := &captureOptionsPool{}
+			client := &Client{source: func() *Options { return &testCase.options }, pool: pool}
+			ctx := t.Context()
+			if testCase.marked {
+				ctx = upstreamcore.WithHTTPUpstreamPublicHostsOnly(ctx)
+			}
+			request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://8.8.8.8/a.png", nil)
+			require.NoError(t, err)
+
+			_, err = client.Do(request, "", 1, 1)
+
+			require.ErrorContains(t, err, "captured")
+			require.Equal(t, testCase.want, pool.options.PublicTargetsOnly)
+		})
+	}
 }

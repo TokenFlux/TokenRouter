@@ -13,7 +13,6 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/proxy"
 	servertiming "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch"
 )
 
 // pool.go constructs and caches HTTP clients with optional host validation and
@@ -21,8 +20,9 @@ import (
 // Shared HTTP clients cache supplied construction options, including proxy
 // text and timing or connection settings, and callers keep the published
 // client immutable. Optional host validation checks DNS before sending a
-// request and caches successful host checks for thirty seconds; that lookup
-// does not pin the address later selected by the transport or proxy.
+// request and caches successful host checks for thirty seconds. Direct clients
+// with validation also dial only addresses checked at connection time, so a
+// changed DNS answer cannot redirect them; a proxy still resolves its own target.
 //
 // The validation cache is independent of connection reuse. Concurrent misses
 // can validate the same host more than once, and lazy deletion removes
@@ -61,9 +61,9 @@ type Options struct {
 	// rejected by buildTransport. Callers install trusted certificates while
 	// keeping upstream verification enabled.
 	InsecureSkipVerify bool // Rejected when true; TLS certificate verification is required
-	// ValidateResolvedIP enables a separate pre-request DNS check when
-	// AllowPrivateHosts is false. Successful checks are cached by host and do
-	// not pin actual dialing.
+	// ValidateResolvedIP enables a pre-request DNS check when AllowPrivateHosts
+	// is false. Successful checks are cached by host; direct connections are
+	// separately checked and pinned when dialed, while proxied targets are not.
 	ValidateResolvedIP bool // Check resolved addresses for nonpublic IPs before requests
 	// AllowPrivateHosts suppresses this transport's DNS validation when true.
 	// Target-format, literal-address, and allowlist policy remain with the
@@ -80,8 +80,8 @@ type Options struct {
 
 // validatedTransport caches successful host checks before delegating outbound HTTP requests.
 type validatedTransport struct {
-	// base supplies request execution and response cleanup after the separate
-	// validation lookup; its actual dial or proxy can resolve the host again.
+	// base supplies request execution and response cleanup after the validation
+	// lookup. Its direct dialer checks addresses again; a proxy resolves by itself.
 	base           http.RoundTripper
 	validatedHosts sync.Map // host to successful-check expiry time
 	// now samples validation-cache time before DNS checks; production uses time.Now
@@ -118,8 +118,8 @@ func GetClient(opts Options) (*http.Client, error) {
 }
 
 // buildClient constructs the transport, optionally adding DNS host validation
-// when enabled and private hosts are disallowed. It then wraps
-// request-context timing and sets the supplied overall timeout; callers
+// and a pinning direct dialer when enabled and private hosts are disallowed. It
+// then wraps request-context timing and sets the supplied overall timeout; callers
 // retain client and response-body cleanup responsibility.
 func buildClient(opts Options) (*http.Client, error) {
 	transport, err := buildTransport(opts)
@@ -129,6 +129,11 @@ func buildClient(opts Options) (*http.Client, error) {
 
 	var rt http.RoundTripper = transport
 	if opts.ValidateResolvedIP && !opts.AllowPrivateHosts {
+		if strings.TrimSpace(opts.ProxyURL) == "" {
+			// The validated host cache outlives DNS answers, so only a check made
+			// while dialing can stop a host that later resolves to a private address.
+			transport.DialContext = publicTargetDialContext(transport.DialContext, net.DefaultResolver.LookupIP)
+		}
 		rt = newValidatedTransport(transport)
 	}
 	rt = servertiming.WrapRoundTripper(rt)
@@ -245,9 +250,9 @@ func (t *validatedTransport) isValidatedHost(host string, now time.Time) bool {
 
 // RoundTrip validates a nonempty request hostname unless its cached check
 // remains valid, then delegates to base. The validator uses its own bounded
-// background lookup, and success caches from the sampled prelookup time;
-// transport dialing resolves separately. Construct a non-nil wrapper before
-// requests, and retain the base's body cleanup obligations.
+// background lookup, and success caches from the sampled prelookup time; this
+// early check rejects a request before any connection is reused. Construct a
+// non-nil wrapper before requests, and retain the base's body cleanup obligations.
 func (t *validatedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req != nil && req.URL != nil {
 		host := strings.ToLower(strings.TrimSpace(req.URL.Hostname()))
@@ -309,22 +314,13 @@ func CloseSharedIdleConnections() {
 }
 
 // ValidateResolvedIP resolves host with a five-second background budget and
-// rejects lookup errors or any nonpublic address. Validation is separate from
-// later transport or proxy DNS lookup, so callers cannot rely on it to pin
-// the subsequently dialed address.
+// rejects lookup errors or any nonpublic address. It only answers for this
+// lookup. Connections made later need publicTargetDialContext to keep the
+// checked address, and a proxy target stays outside both checks.
 func ValidateResolvedIP(host string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), publicTargetLookupTimeout)
 	defer cancel()
 
-	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
-	if err != nil {
-		return fmt.Errorf("dns resolution failed: %w", err)
-	}
-
-	for _, ip := range ips {
-		if ipmatch.IsNonPublic(ip) {
-			return fmt.Errorf("resolved ip %s is not allowed", ip.String())
-		}
-	}
-	return nil
+	_, err := resolvePublicIPs(ctx, host, net.DefaultResolver.LookupIP)
+	return err
 }
