@@ -22,7 +22,8 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    # 为主应用保留足够峰值余量，同时避免异常分配耗尽整台虚机。
+    # Reserve headroom for application peaks while preventing unexpected
+    # allocations from exhausting all memory in the host virtual machine.
     mem_limit: 12g
     memswap_limit: 12g
     logging:
@@ -38,7 +39,8 @@ services:
       - "${BIND_HOST:-127.0.0.1}:${SERVER_PORT:-8080}:8080"
     volumes:
       - ./data:/app/data:Z
-    # Linux 上为默认开发代理提供稳定的宿主机解析；Docker Desktop 会使用内置映射。
+    # Provide stable host resolution for the default development proxy on
+    # Linux. Docker Desktop uses its built-in host mapping.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -85,7 +87,8 @@ services:
       - PLUGINS_DEV_MODE=${PLUGINS_DEV_MODE:-false}
       - PLUGINS_DEV_DIRS=${PLUGINS_DEV_DIRS:-}
       - TZ=${TZ:-Asia/Shanghai}
-      # Gemini 与 Antigravity 的 OAuth 配置保持各部署变体一致。
+      # Keep Gemini and Antigravity OAuth settings consistent across
+      # deployment variants.
       - GEMINI_OAUTH_CLIENT_ID=${GEMINI_OAUTH_CLIENT_ID:-}
       - GEMINI_OAUTH_CLIENT_SECRET=${GEMINI_OAUTH_CLIENT_SECRET:-}
       - GEMINI_OAUTH_SCOPES=${GEMINI_OAUTH_SCOPES:-}
@@ -93,7 +96,8 @@ services:
       - GEMINI_CLI_OAUTH_CLIENT_SECRET=${GEMINI_CLI_OAUTH_CLIENT_SECRET:-}
       - ANTIGRAVITY_OAUTH_CLIENT_SECRET=${ANTIGRAVITY_OAUTH_CLIENT_SECRET:-}
       - ANTIGRAVITY_USER_AGENT_VERSION=${ANTIGRAVITY_USER_AGENT_VERSION:-}
-      # URL 白名单与在线更新代理属于公共运行配置。
+      # URL allowlists and the online update proxy are shared runtime
+      # settings.
       - SECURITY_URL_ALLOWLIST_ENABLED=${SECURITY_URL_ALLOWLIST_ENABLED:-false}
       - SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=${SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP:-true}
       - SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS=${SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS:-true}
@@ -105,8 +109,9 @@ services:
       - HTTPS_PROXY=${TOKENROUTER_DEV_HTTPS_PROXY:-${SUB2API_DEV_HTTPS_PROXY:-http://host.docker.internal:7897}}
       - ALL_PROXY=${TOKENROUTER_DEV_ALL_PROXY:-${SUB2API_DEV_ALL_PROXY:-socks5://host.docker.internal:7897}}
       - NO_PROXY=${TOKENROUTER_DEV_NO_PROXY:-${SUB2API_DEV_NO_PROXY:-127.0.0.1,localhost,::1,postgres,redis,tokenrouter,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,.local}}
-      # Gateway 配置值来自 Compose .env 或当前 Shell。
-      # 未配置时回退到 TokenRouter 后端默认值，保持省略配置时的行为。
+      # Gateway values come from the Compose .env file or the current shell.
+      # Unset values use TokenRouter backend defaults so deployments without
+      # explicit overrides retain the same behavior as the application.
       - GATEWAY_FORCE_CODEX_CLI=${GATEWAY_FORCE_CODEX_CLI:-false}
       - GATEWAY_OPENAI_COMPACT_MODEL=${GATEWAY_OPENAI_COMPACT_MODEL:-gpt-5.4}
       - GATEWAY_OPENAI_RESPONSE_HEADER_TIMEOUT=${GATEWAY_OPENAI_RESPONSE_HEADER_TIMEOUT:-0}
@@ -180,10 +185,12 @@ services:
     image: postgres:18-alpine
     container_name: tokenrouter-postgres-dev
     restart: unless-stopped
-    # 限制 PostgreSQL 进程及其所属文件页缓存，避免数据库工作集占满虚机。
+    # Limit PostgreSQL process memory and its file-page cache so the database
+    # working set cannot exhaust the host virtual machine.
     mem_limit: 24g
     memswap_limit: 24g
-    # 为并行查询的动态共享内存预留空间，避免 Docker 默认 64 MiB 上限导致查询失败。
+    # Reserve dynamic shared memory for parallel queries so the Docker default
+    # 64 MiB limit does not cause query failures.
     shm_size: ${POSTGRES_SHM_SIZE:-1gb}
     logging:
       driver: json-file
@@ -194,7 +201,8 @@ services:
       nofile:
         soft: 100000
         hard: 100000
-    # 开发版使用与生产变体相同的 PostgreSQL 参数入口，实际值仍由 .env 控制。
+    # Development uses the same PostgreSQL tuning variables as production
+    # variants; the .env file still controls their values.
     command: >
       postgres
       -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
@@ -229,7 +237,8 @@ services:
     image: redis:8-alpine
     container_name: tokenrouter-redis-dev
     restart: unless-stopped
-    # Redis 当前工作集较小，2 GiB 上限为异常增长保留余量。
+    # The 2 GiB Redis limit leaves headroom above its expected small working
+    # set while bounding unexpected memory growth.
     mem_limit: 2g
     memswap_limit: 2g
     logging:
@@ -243,8 +252,10 @@ services:
         hard: 100000
     volumes:
       - ./redis_data:/data:Z
-    # command 是传给内层 `sh -c` 的一段带引号脚本；Compose 会保留其中的换行。
-    # 每个参数行都必须以 `\` 续行，否则首行会单独启动不带任何参数的 redis-server。
+    # command passes a quoted script to the inner sh -c. Compose preserves the
+    # newlines inside that script.
+    # Continue each argument line with a backslash; otherwise the first line
+    # starts redis-server without the remaining arguments.
     command: >
         sh -c '
           redis-server \

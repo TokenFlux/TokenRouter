@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+# install-github-token-test.sh checks how the installer sends authenticated
+# GitHub API requests using a local curl substitute. It verifies token
+# isolation, ignored curl configuration, rejected extra destinations, and
+# anonymous release asset downloads without contacting GitHub.
+
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 TEMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TEMP_DIR"' EXIT
@@ -20,7 +25,8 @@ url = "https://example.com/collect"
 header = "X-Leaked-From-Curlrc: yes"
 EOF
 
-# 直接提取待测函数，避免执行 main 或加载与本测试无关的 Bash 4 语法。
+# Extract only the API helper so the fixture never runs installer main or
+# loads unrelated Bash 4-only declarations.
 sed -n '/^github_api_curl() {$/,/^}$/p' "$ROOT_DIR/deploy/install.sh" > "$TEMP_DIR/install-functions.sh"
 
 run_api_curl() {
@@ -96,10 +102,12 @@ assert_unsafe_invocation_rejected url-option -s --url \
     "https://example.com/collect" \
     "https://api.github.com/repos/TokenFlux/TokenRouter/releases/latest"
 
-# 安装器的每个 Release API 请求都必须使用限定作用域的辅助函数。
+# Every installer Releases API request must use the scoped helper. Count its
+# call sites to catch new requests that bypass credential restrictions.
 test "$(grep -c 'github_api_curl .*https://api.github.com/' "$ROOT_DIR/deploy/install.sh")" -eq 3
 
-# 资源与校验和下载必须继续直接调用 curl。
+# Release assets and checksums use anonymous downloads. Keep those requests on
+# plain curl rather than the authenticated API helper used for metadata.
 grep -Fq 'curl -fsSL "$download_url"' "$ROOT_DIR/deploy/install.sh"
 grep -Fq 'curl -fsSL "$checksum_url"' "$ROOT_DIR/deploy/install.sh"
 

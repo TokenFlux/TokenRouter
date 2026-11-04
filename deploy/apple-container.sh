@@ -2,6 +2,19 @@
 
 set -euo pipefail
 
+# apple-container.sh manages TokenRouter and its PostgreSQL and Redis
+# dependencies through Apple Container. Resources are identified by stack names
+# and ownership labels before lifecycle commands can modify them. Existing
+# legacy stacks keep their original volume names, and mixed current and legacy
+# resources stop the operation. A shared lock prevents concurrent invocations
+# of current and legacy scripts from modifying the same deployment.
+#
+# Environment files carry connection settings and secrets with restricted
+# permissions. Dependency containers start before the application, which is
+# recreated with their current addresses after a restart. Stopping or destroying
+# containers preserves persistent volumes unless the operator explicitly requests
+# volume removal and confirms that destructive operation.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${TOKENROUTER_ENV_FILE:-${SUB2API_ENV_FILE:-${SCRIPT_DIR}/.env}}"
 
@@ -17,7 +30,8 @@ REDIS_VOLUME="tokenrouter-apple-redis-data"
 PLATFORM="linux/arm64"
 
 TEMP_DIR=""
-# 兼容旧脚本的互斥锁，避免两种入口同时修改同一旧栈。
+# Share the legacy script lock so old and new entrypoints cannot modify the
+# same stack concurrently.
 LOCK_DIR="${TMPDIR:-/tmp}/sub2api-apple-container.lock"
 STACK_NAME="tokenrouter"
 LOCK_ACQUIRED=false
@@ -193,7 +207,12 @@ assert_resource_owned() {
     fi
 }
 
-# 依据资源名和归属标签接管旧栈，不重命名或复制持久卷。
+# select_stack_identity selects resource names and the ownership label for the
+# detected stack. Call it before checking individual resource ownership.
+# Existing legacy resources keep their names and persistent volumes; the
+# function never renames or copies them. A mixture of current and legacy
+# resource names stops the operation because choosing either identity could
+# direct later lifecycle commands at only part of the deployment.
 select_stack_identity() {
     local resource_type resource_name resources new_found=false old_found=false
     for resource_type in container network volume; do
@@ -712,7 +731,9 @@ cmd_up() {
     POSTGRES_ADDRESS="$(container_ipv4_address "${POSTGRES_CONTAINER}")"
     REDIS_ADDRESS="$(container_ipv4_address "${REDIS_CONTAINER}")"
     prepare_app_environment
-    # 依赖服务的轻量虚拟机重启后 IP 可能变化。
+    # Dependency virtual machines can receive new IP addresses after
+    # restarting, so recreate the application with the addresses resolved
+    # above.
     delete_container_if_present "${APP_CONTAINER}"
     create_app_container
     start_app

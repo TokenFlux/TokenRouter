@@ -1,17 +1,24 @@
 #!/bin/sh
 set -eu
 
+# docker-runtime-resources-test.sh checks the resources embedded in the
+# application binary for model metadata. The model supplements, offline
+# catalog, and license must exist, and the source must retain the expected
+# embedding directives before image packaging.
+
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
-# 统一输出失败原因，方便从 CI 日志定位缺失资源。
+# fail reports a missing runtime resource and exits with a diagnostic for CI
+# logs.
 fail() {
   printf 'docker runtime resources test failed: %s\n' "$1" >&2
   exit 1
 }
 
-# 去掉行首缩进后按完整行匹配，避免相似配置掩盖路径或参数错误。
-# go:embed 指令写在 var 块里时带缩进。
+# assert_line checks a complete source line after removing leading
+# indentation. Indented go:embed directives are accepted, while different
+# paths or arguments still fail with a diagnostic.
 assert_line() {
   file=$1
   line=$2
@@ -25,7 +32,9 @@ test -s backend/internal/modelcatalog/catalog.json.gz || \
 test -s backend/internal/modelcatalog/LICENSE.models.dev || \
   fail 'models.dev license is missing or empty'
 
-# 官方模型补充与离线目录都由 Go 编译器嵌入。
+# The binary embeds official model supplements and the offline catalog. Both
+# source resources and their embedding directives must remain available at
+# build time.
 assert_line backend/internal/modelcatalog/catalog.go '//go:embed model_supplements.json'
 assert_line backend/internal/modelcatalog/catalog.go '//go:embed catalog.json.gz'
 

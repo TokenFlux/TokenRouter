@@ -1,10 +1,17 @@
 #!/bin/sh
 set -eu
 
+# docker-compose-security-test.sh checks the application security option in
+# every supported Compose topology. Each configuration must declare no-new-
+# privileges exactly once for the application service so changing storage or
+# build mode does not remove the shared baseline.
+
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
-# 校验每份 Compose 的应用服务恰好启用一次 no-new-privileges。
+# check_application_security_opt verifies exactly one application
+# no-new-privileges setting in the supplied Compose file. It exits with an
+# error if the application security baseline is absent or duplicated.
 check_application_security_opt() {
   file=$1
   count=$(
@@ -33,7 +40,9 @@ check_application_security_opt() {
   fi
 }
 
-# 生产、目录挂载、独立和开发部署都必须保持相同的安全基线。
+# Each supported deployment topology must retain the application security
+# baseline. Check production volumes, bind mounts, external dependencies, and
+# source builds together.
 for compose_file in \
   deploy/docker-compose.yml \
   deploy/docker-compose.local.yml \

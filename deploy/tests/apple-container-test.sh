@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+# apple-container-test.sh checks Apple Container lifecycle commands with
+# isolated command fixtures. It verifies environment-file permissions, startup
+# and teardown, ownership rejection, and legacy volume reuse without creating
+# real containers or changing a running deployment.
+
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${TEST_DIR}/.." && pwd)"
 SCRIPT="${DEPLOY_DIR}/apple-container.sh"
@@ -76,7 +81,9 @@ if "${SCRIPT}" status >/dev/null 2>&1; then
     fail "status accepted an unowned same-name container"
 fi
 
-# 旧栈继续使用原卷和归属标签，旧变量也能指定环境文件。
+# Legacy stacks retain their original volumes and ownership labels. The
+# previous environment variable must also continue selecting the deployment
+# environment file.
 rm -f "${STATE_DIR}/containers/tokenrouter-apple" "${STATE_DIR}/unowned/container/tokenrouter-apple"
 touch "${STATE_DIR}/volumes/sub2api-apple-data" "${STATE_DIR}/volumes/sub2api-apple-postgres-data" "${STATE_DIR}/volumes/sub2api-apple-redis-data"
 TOKENROUTER_ENV_FILE= SUB2API_ENV_FILE="${ENV_FILE}" "${SCRIPT}" up

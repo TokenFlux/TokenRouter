@@ -1,14 +1,24 @@
 #!/bin/bash
-#
-# TokenRouter Installation Script
-# TokenRouter 安装脚本
-# Usage: curl -sSL https://raw.githubusercontent.com/TokenFlux/TokenRouter/main/deploy/install.sh | bash
-#
-
 set -e
 
-# 需要 Bash 4+ 的关联数组来存放多语言消息。
-# 该检查必须放在任何 Bash 4 专属语法之前，方便旧 shell 给出明确升级提示。
+# install.sh installs, upgrades, rolls back, and removes the Linux binary and
+# systemd service using English prompts and status messages. Existing deployments
+# retain their installation paths, executable names, service identities, and
+# configuration directories. The installer refuses mixed current and legacy
+# installations rather than choosing an identity that could overwrite another
+# deployment. Fresh installations collect the listening address and port before
+# generating the service definition and starting the setup wizard.
+#
+# Release metadata requests can use the dedicated update token, while archive
+# and checksum downloads remain anonymous. Version changes preserve a binary
+# backup before replacement; database migrations and data recovery remain the
+# application's responsibility. Uninstall prompts determine whether configuration
+# is retained, and removing the installation lock allows a later fresh setup.
+#
+# Usage: curl -sSL https://raw.githubusercontent.com/TokenFlux/TokenRouter/main/deploy/install.sh | bash
+
+# The message table requires Bash 4 associative arrays. Check the interpreter
+# before those declarations so older shells can report the requirement clearly.
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "Error: This installer must be run with Bash 4.0 or later." >&2
     echo "Please install Bash 4+ and run it with that interpreter." >&2
@@ -39,7 +49,13 @@ SERVICE_USER="tokenrouter"
 SERVICE_GROUP="tokenrouter"
 CONFIG_DIR="/etc/tokenrouter"
 
-# 只识别安装身份，不搬迁已有目录；参数供隔离测试指定根目录。
+# detect_existing_installation selects paths and service identity for an existing
+# installation without moving its directories. The optional root prefixes paths
+# for isolated tests. A legacy installation keeps its executable and service
+# names, and an existing unit supplies the configured user and group. Finding
+# both current and legacy installations returns an error because choosing one
+# automatically could overwrite a separate deployment or separate its binary
+# from the configuration and data it already uses.
 detect_existing_installation() {
     local root="${1:-}" name new_found=false old_found=false
     for name in tokenrouter sub2api; do
@@ -73,151 +89,13 @@ detect_existing_installation() {
 SERVER_HOST="0.0.0.0"
 SERVER_PORT="8080"
 
-# Language (default: zh = Chinese)
-LANG_CHOICE="zh"
-
-# ============================================================
-# Language strings / 语言字符串
-# ============================================================
-
-# Chinese strings
-declare -A MSG_ZH=(
-    # General
-    ["info"]="信息"
-    ["success"]="成功"
-    ["warning"]="警告"
-    ["error"]="错误"
-
-    # Language selection
-    ["select_lang"]="请选择语言 / Select language"
-    ["lang_zh"]="中文"
-    ["lang_en"]="English"
-    ["enter_choice"]="请输入选择 (默认: 1)"
-
-    # Installation
-    ["install_title"]="TokenRouter 安装脚本"
-    ["run_as_root"]="请使用 root 权限运行 (使用 sudo)"
-    ["detected_platform"]="检测到平台"
-    ["unsupported_arch"]="不支持的架构"
-    ["unsupported_os"]="不支持的操作系统"
-    ["missing_deps"]="缺少依赖"
-    ["install_deps_first"]="请先安装以下依赖"
-    ["fetching_version"]="正在获取最新版本..."
-    ["latest_version"]="最新版本"
-    ["failed_get_version"]="获取最新版本失败"
-    ["downloading"]="正在下载"
-    ["download_failed"]="下载失败"
-    ["verifying_checksum"]="正在校验文件..."
-    ["checksum_verified"]="校验通过"
-    ["checksum_failed"]="校验失败"
-    ["checksum_not_found"]="无法验证校验和（checksums.txt 未找到）"
-    ["extracting"]="正在解压..."
-    ["binary_installed"]="二进制文件已安装到"
-    ["user_exists"]="用户已存在"
-    ["creating_user"]="正在创建系统用户"
-    ["user_created"]="用户已创建"
-    ["setting_up_dirs"]="正在设置目录..."
-    ["dirs_configured"]="目录配置完成"
-    ["installing_service"]="正在安装 systemd 服务..."
-    ["service_installed"]="systemd 服务已安装"
-    ["ready_for_setup"]="准备就绪，可以启动设置向导"
-
-    # Completion
-    ["install_complete"]="TokenRouter 安装完成！"
-    ["install_dir"]="安装目录"
-    ["next_steps"]="后续步骤"
-    ["step1_check_services"]="确保 PostgreSQL 和 Redis 正在运行："
-    ["step2_start_service"]="启动 TokenRouter 服务："
-    ["step3_enable_autostart"]="设置开机自启："
-    ["step4_open_wizard"]="在浏览器中打开设置向导："
-    ["wizard_guide"]="设置向导将引导您完成："
-    ["wizard_db"]="数据库配置"
-    ["wizard_redis"]="Redis 配置"
-    ["wizard_admin"]="管理员账号创建"
-    ["useful_commands"]="常用命令"
-    ["cmd_status"]="查看状态"
-    ["cmd_logs"]="查看日志"
-    ["cmd_restart"]="重启服务"
-    ["cmd_stop"]="停止服务"
-
-    # Upgrade
-    ["upgrading"]="正在升级 TokenRouter..."
-    ["current_version"]="当前版本"
-    ["stopping_service"]="正在停止服务..."
-    ["backup_created"]="备份已创建"
-    ["starting_service"]="正在启动服务..."
-    ["upgrade_complete"]="升级完成！"
-
-    # Version install
-    ["installing_version"]="正在安装指定版本"
-    ["version_not_found"]="指定版本不存在"
-    ["same_version"]="已经是该版本，无需操作"
-    ["rollback_complete"]="版本回退完成！"
-    ["install_version_complete"]="指定版本安装完成！"
-    ["validating_version"]="正在验证版本..."
-    ["available_versions"]="可用版本列表"
-    ["fetching_versions"]="正在获取可用版本..."
-    ["not_installed"]="TokenRouter 尚未安装，请先执行全新安装"
-    ["fresh_install_hint"]="用法"
-
-    # Uninstall
-    ["uninstall_confirm"]="这将从系统中移除 TokenRouter。"
-    ["are_you_sure"]="确定要继续吗？(y/N)"
-    ["uninstall_cancelled"]="卸载已取消"
-    ["removing_files"]="正在移除文件..."
-    ["removing_install_dir"]="正在移除安装目录..."
-    ["removing_user"]="正在移除用户..."
-    ["config_not_removed"]="配置目录未被移除"
-    ["remove_manually"]="如不再需要，请手动删除"
-    ["removing_install_lock"]="正在移除安装锁文件..."
-    ["install_lock_removed"]="安装锁文件已移除，重新安装时将进入设置向导"
-    ["purge_prompt"]="是否同时删除配置目录？这将清除所有配置和数据 [y/N]: "
-    ["removing_config_dir"]="正在移除配置目录..."
-    ["uninstall_complete"]="TokenRouter 已卸载"
-
-    # Help
-    ["usage"]="用法"
-    ["cmd_none"]="(无参数)"
-    ["cmd_install"]="安装 TokenRouter"
-    ["cmd_upgrade"]="升级到最新版本"
-    ["cmd_uninstall"]="卸载 TokenRouter"
-    ["cmd_install_version"]="安装/回退到指定版本"
-    ["cmd_list_versions"]="列出可用版本"
-    ["opt_version"]="指定要安装的版本号 (例如: v1.0.0)"
-
-    # Server configuration
-    ["server_config_title"]="服务器配置"
-    ["server_config_desc"]="配置 TokenRouter 服务监听地址"
-    ["server_host_prompt"]="服务器监听地址"
-    ["server_host_hint"]="0.0.0.0 表示监听所有网卡，127.0.0.1 仅本地访问"
-    ["server_port_prompt"]="服务器端口"
-    ["server_port_hint"]="建议使用 1024-65535 之间的端口"
-    ["server_config_summary"]="服务器配置"
-    ["invalid_port"]="无效端口号，请输入 1-65535 之间的数字"
-
-    # Service management
-    ["starting_service"]="正在启动服务..."
-    ["service_started"]="服务已启动"
-    ["service_start_failed"]="服务启动失败，请检查日志"
-    ["enabling_autostart"]="正在设置开机自启..."
-    ["autostart_enabled"]="开机自启已启用"
-    ["getting_public_ip"]="正在获取公网 IP..."
-    ["public_ip_failed"]="无法获取公网 IP，使用本地 IP"
-)
-
-# English strings
+# MSG_EN holds the English text shared by installer prompts, status output, and help.
 declare -A MSG_EN=(
     # General
     ["info"]="INFO"
     ["success"]="SUCCESS"
     ["warning"]="WARNING"
     ["error"]="ERROR"
-
-    # Language selection
-    ["select_lang"]="请选择语言 / Select language"
-    ["lang_zh"]="中文"
-    ["lang_en"]="English"
-    ["enter_choice"]="Enter your choice (default: 1)"
 
     # Installation
     ["install_title"]="TokenRouter Installation Script"
@@ -258,7 +136,7 @@ declare -A MSG_EN=(
     ["wizard_guide"]="The Setup Wizard will guide you through:"
     ["wizard_db"]="Database configuration"
     ["wizard_redis"]="Redis configuration"
-    ["wizard_admin"]="Admin provider creation"
+    ["wizard_admin"]="Admin account creation"
     ["useful_commands"]="USEFUL COMMANDS"
     ["cmd_status"]="Check status"
     ["cmd_logs"]="View logs"
@@ -330,14 +208,12 @@ declare -A MSG_EN=(
     ["public_ip_failed"]="Failed to get public IP, using local IP"
 )
 
-# Get message based on current language
+# msg prints the English installer message associated with a known key.
+# Callers supply a key from MSG_EN; the result contains no color formatting,
+# allowing status helpers and plain help output to share the same text.
 msg() {
     local key="$1"
-    if [ "$LANG_CHOICE" = "en" ]; then
-        echo "${MSG_EN[$key]}"
-    else
-        echo "${MSG_ZH[$key]}"
-    fi
+    echo "${MSG_EN[$key]}"
 }
 
 # Print functions
@@ -362,37 +238,6 @@ print_error() {
 is_interactive() {
     # Check if /dev/tty is available (works even when piped)
     [ -e /dev/tty ] && [ -r /dev/tty ] && [ -w /dev/tty ]
-}
-
-# Select language
-select_language() {
-    # If not interactive (piped), use default language
-    if ! is_interactive; then
-        LANG_CHOICE="zh"
-        return
-    fi
-
-    echo ""
-    echo -e "${CYAN}=============================================="
-    echo "  $(msg 'select_lang')"
-    echo "==============================================${NC}"
-    echo ""
-    echo "  1) $(msg 'lang_zh') (默认/default)"
-    echo "  2) $(msg 'lang_en')"
-    echo ""
-
-    read -p "$(msg 'enter_choice'): " lang_input < /dev/tty
-
-    case "$lang_input" in
-        2|en|EN|english|English)
-            LANG_CHOICE="en"
-            ;;
-        *)
-            LANG_CHOICE="zh"
-            ;;
-    esac
-
-    echo ""
 }
 
 # Validate port number
@@ -512,7 +357,9 @@ check_dependencies() {
     fi
 }
 
-# 仅认证 GitHub REST API 请求，Release 资源下载必须保持匿名。
+# github_api_curl sends one GitHub REST API request with the dedicated update
+# token when configured. Only the supported curl options and a final API URL are
+# accepted; release assets use anonymous downloads outside this helper.
 github_api_curl() {
     local arg
     local expect_value=false
@@ -524,8 +371,9 @@ github_api_curl() {
     fi
     url="${!#}"
 
-    # 将认证请求限制为下方实际使用的参数；curl 配置、--url 和 --next
-    # 都可能添加额外目标，因此不能允许它们进入该调用。
+    # Restrict authenticated requests to the options used below. Curl config,
+    # --url, and --next can introduce additional targets and must not reach this
+    # invocation with the update token attached.
     for arg in "${@:1:$#-1}"; do
         if [ "$expect_value" = true ]; then
             expect_value=false
@@ -660,7 +508,8 @@ download_and_extract() {
 
     # Download archive
     if ! curl -fsSL "$download_url" -o "$TEMP_DIR/$archive_name"; then
-        # 历史版本只有旧名归档；实际安装路径仍由已有服务决定。
+        # Historical releases may have only the legacy archive name. Retry that
+        # name while retaining the installation path selected from the existing service.
         archive_name="sub2api_${version_num}_${OS}_${ARCH}.tar.gz"
         download_url="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/${archive_name}"
         curl -fsSL "$download_url" -o "$TEMP_DIR/$archive_name" || {
@@ -1069,7 +918,15 @@ uninstall() {
     print_success "$(msg 'uninstall_complete')"
 }
 
-# Main
+# main dispatches installer commands after parsing shared flags and selecting
+# the deployment identity. Explicit install and rollback commands can select a
+# release; an invocation without a command upgrades an existing installation or
+# initializes a new one. Help prints English output without reading from the
+# terminal.
+#
+# Operations requiring system changes check root privileges before proceeding,
+# and fresh installations configure the service before starting it
+# and presenting the setup URL to the operator.
 main() {
     # Parse flags first
     local target_version=""
@@ -1113,9 +970,6 @@ main() {
     set -- "${positional_args[@]}"
 
     detect_existing_installation
-
-    # Select language first
-    select_language
 
     echo ""
     echo "=============================================="
@@ -1234,7 +1088,8 @@ main() {
             ;;
     esac
 
-    # 已安装实例默认走升级入口，保留服务配置与数据位置。
+    # With no requested version, an existing binary selects the upgrade path
+    # so service configuration and data locations remain attached to that installation.
     if [ -f "$INSTALL_DIR/$BINARY_NAME" ] && [ -z "$target_version" ]; then
         check_root
         detect_platform

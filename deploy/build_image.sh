@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# 本地构建镜像的快速脚本，避免在命令行反复输入构建参数。
+# build_image.sh builds the complete application image from the repository
+# root. It supplies the configured Go module proxy and checksum database to
+# the shared Dockerfile, then tags the result for local deployment or testing.
 
 set -euo pipefail
 

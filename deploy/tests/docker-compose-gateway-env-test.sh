@@ -1,6 +1,12 @@
 #!/bin/sh
 set -eu
 
+# docker-compose-gateway-env-test.sh checks gateway environment propagation
+# across Compose variants. Variables documented in the environment example
+# must appear once in each application service, while omitted connection-pool
+# overrides retain backend defaults instead of adopting the example tuning
+# values.
+
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
@@ -25,8 +31,11 @@ for compose_file in \
 do
   tab=$(printf '\t')
   while IFS="$tab" read -r key value; do
-    # .env.example 为这些值保留高容量调优示例。
-    # 未配置的 Compose 部署必须保留后端默认值，不能悄然采用示例值。
+    # .env.example keeps high-capacity tuning examples for these connection
+    # limits.
+    # Deployments without explicit overrides must retain backend defaults
+    # instead of silently adopting the larger capacities from the environment
+    # example.
     case "$key" in
       GATEWAY_MAX_CONNS_PER_HOST) value=1024 ;;
       GATEWAY_MAX_IDLE_CONNS) value=2560 ;;

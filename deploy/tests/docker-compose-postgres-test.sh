@@ -1,23 +1,32 @@
 #!/bin/sh
 set -eu
 
+# docker-compose-postgres-test.sh checks shared PostgreSQL tuning expressions
+# and the deployment environment example. The templates must pass the same
+# settings to the database, and the example must retain coordinated
+# application pool and server connection capacities.
+
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
-# 统一输出失败原因，方便从 CI 日志定位配置漂移。
+# fail reports configuration drift and exits with a diagnostic for CI logs.
 fail() {
   printf 'docker compose postgres test failed: %s\n' "$1" >&2
   exit 1
 }
 
-# 使用完整行匹配，确保所有内置 PostgreSQL 的变体使用完全一致的参数表达式。
+# assert_line requires an exact configuration line in the supplied file. It
+# exits with a diagnostic when the line is absent so similar parameters cannot
+# hide a changed expression.
 assert_line() {
   file=$1
   line=$2
   grep -Fqx "$line" "$file" || fail "$file is missing: $line"
 }
 
-# 标准版、本地目录版和开发版都内置 PostgreSQL，必须共同传递服务端调优参数。
+# All three bundled PostgreSQL variants expose the same server tuning
+# variables. Check their expressions together so switching persistence or
+# build mode preserves the configured limits.
 for compose_file in \
   deploy/docker-compose.yml \
   deploy/docker-compose.local.yml \
@@ -30,7 +39,9 @@ do
   assert_line "$compose_file" '      -c maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-64MB}'
 done
 
-# 示例配置必须体现生产目标，避免安装脚本再次生成不匹配的连接容量。
+# The environment example coordinates application pool limits with database
+# connection capacity. Verify the intended tuning values before an installer
+# copies the example.
 assert_line deploy/.env.example 'POSTGRES_SHM_SIZE=1gb'
 assert_line deploy/.env.example 'POSTGRES_MAX_CONNECTIONS=512'
 assert_line deploy/.env.example 'DATABASE_MAX_OPEN_CONNS=256'

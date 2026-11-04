@@ -1,61 +1,61 @@
-# TokenRouter Docker 镜像
+# TokenRouter Docker images
 
-TokenRouter 会向 GitHub Container Registry 发布多架构镜像：
+TokenRouter publishes multi-architecture images to GitHub Container Registry:
 
 ```text
 ghcr.io/tokenflux/tokenrouter:latest
 ```
 
-应用依赖 PostgreSQL 和 Redis。推荐使用 Docker Compose 提供完整的运行配置、持久化存储、健康检查和依赖启动顺序。
+The application requires PostgreSQL and Redis. Docker Compose provides runtime configuration, persistent storage, health checks, and dependency startup ordering.
 
 ## Docker Compose
 
-根据部署拓扑选择配置文件：
+Choose a configuration for your deployment topology:
 
-| 文件 | 服务 | 存储 | 适用场景 |
+| File | Services | Storage | Use case |
 | --- | --- | --- | --- |
-| [`docker-compose.local.yml`](docker-compose.local.yml) | TokenRouter、PostgreSQL、Redis | 本地目录 | 侧重简单备份和迁移的生产部署 |
-| [`docker-compose.yml`](docker-compose.yml) | TokenRouter、PostgreSQL、Redis | Docker 命名卷 | 使用 Docker 卷管理的生产部署 |
-| [`docker-compose.standalone.yml`](docker-compose.standalone.yml) | 仅 TokenRouter | Docker 命名卷 | 已有外部 PostgreSQL 和 Redis 的环境 |
-| [`docker-compose.dev.yml`](https://github.com/TokenFlux/TokenRouter/blob/main/deploy/docker-compose.dev.yml) | 本地构建的 TokenRouter、PostgreSQL、Redis | 本地目录 | 开发和源码测试，需要完整源码检出 |
+| [docker-compose.local.yml](docker-compose.local.yml) | TokenRouter, PostgreSQL, Redis | Local directories | Production deployments using bind mounts for backups and migration. |
+| [docker-compose.yml](docker-compose.yml) | TokenRouter, PostgreSQL, Redis | Docker named volumes | Production deployments using Docker volume management. |
+| [docker-compose.standalone.yml](docker-compose.standalone.yml) | TokenRouter only | Docker named volumes | Environments with external PostgreSQL and Redis. |
+| [docker-compose.dev.yml](https://github.com/TokenFlux/TokenRouter/blob/main/deploy/docker-compose.dev.yml) | Locally built TokenRouter, PostgreSQL, Redis | Local directories | Development and source testing; requires a full source checkout. |
 
-完整步骤见 [部署指南](../docs/guides/deployment/index.md)，环境变量示例见 [`.env.example`](.env.example)。
+See the [deployment guide](https://github.com/TokenFlux/TokenRouter/blob/main/docs/guides/deployment/index.md) for complete steps and [.env.example](.env.example) for environment variables.
 
-## 独立容器
+## Standalone containers
 
-直接使用 `docker run` 时，必须提供与 `docker-compose.standalone.yml` 中 `tokenrouter` 服务相同的设置。至少需要配置：
+When using `docker run` directly, provide the same settings as the `tokenrouter` service in `docker-compose.standalone.yml`. At minimum, configure:
 
-| 变量 | 用途 |
+| Variable | Purpose |
 | --- | --- |
-| `AUTO_SETUP=true` | 启用无人值守容器初始化 |
-| `SERVER_HOST=0.0.0.0` | 让应用监听容器内网卡 |
-| `DATABASE_HOST`、`DATABASE_PORT` | PostgreSQL 地址 |
-| `DATABASE_USER`、`DATABASE_PASSWORD`、`DATABASE_DBNAME` | PostgreSQL 凭据和数据库名 |
-| `DATABASE_SSLMODE` | PostgreSQL TLS 模式 |
-| `REDIS_HOST`、`REDIS_PORT` | Redis 地址 |
-| `REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_DB` | Redis 凭据和数据库编号 |
-| `JWT_SECRET` | 登录会话的稳定签名密钥 |
-| `TOTP_ENCRYPTION_KEY` | 双因素认证的稳定加密密钥 |
+| `AUTO_SETUP=true` | Enables unattended container initialization. |
+| `SERVER_HOST=0.0.0.0` | Listens on the container network interfaces. |
+| `DATABASE_HOST`, `DATABASE_PORT` | PostgreSQL address. |
+| `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_DBNAME` | PostgreSQL credentials and database name. |
+| `DATABASE_SSLMODE` | PostgreSQL TLS mode. |
+| `REDIS_HOST`, `REDIS_PORT` | Redis address. |
+| `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_DB` | Redis credentials and database number. |
+| `JWT_SECRET` | Stable signing key for login sessions. |
+| `TOTP_ENCRYPTION_KEY` | Stable encryption key for two-factor authentication. |
 
-## 数据库启动恢复
+## Database startup recovery
 
-应用启动执行数据库迁移时，会对 PostgreSQL 暂时不可用和连接类错误进行有限次数的指数退避重试；凭据错误、迁移校验失败及其他永久错误会立即返回。Compose 的 PostgreSQL 健康检查同时执行 `pg_isready` 和简单 SQL 查询，应用级重试仍用于宿主机重启后数据库恢复场景。
+During startup migrations, the application retries temporary PostgreSQL availability and connection failures with bounded exponential backoff. Invalid credentials, migration checksum failures, and other permanent errors return immediately. Compose checks PostgreSQL readiness with both `pg_isready` and a SQL query; application retries also cover database recovery after a host restart.
 
-必须持久化 `/app/data`，把公开端口绑定到预期的宿主机接口，并应用独立 Compose 文件中的安全与资源限制。应用不使用旧的 `DATABASE_URL` 或 `REDIS_URL` 变量。
+Persist `/app/data`, bind published ports to the intended host interface, and apply the security and resource limits from the standalone Compose template. The application does not use the old `DATABASE_URL` or `REDIS_URL` variables.
 
-## 支持架构
+## Supported architectures
 
 - `linux/amd64`
 - `linux/arm64`
 
-## 镜像标签
+## Image tags
 
-- `latest`：最新稳定版本
-- `vX.Y.Z`：不可变的版本标签
+- `latest`: the latest stable release.
+- `vX.Y.Z`: an immutable version tag.
 
-生产部署应固定版本标签或镜像摘要，并在升级前验证数据库备份。
+Pin a version tag or image digest in production, and verify database backups before upgrading.
 
-## 相关链接
+## Related links
 
-- [GitHub 仓库](https://github.com/TokenFlux/TokenRouter)
-- [部署指南](../docs/guides/deployment/index.md)
+- [GitHub repository](https://github.com/TokenFlux/TokenRouter)
+- [Deployment guide](https://github.com/TokenFlux/TokenRouter/blob/main/docs/guides/deployment/index.md)
