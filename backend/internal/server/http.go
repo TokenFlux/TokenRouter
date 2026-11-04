@@ -60,7 +60,7 @@ func configureTrustedProxies(r *gin.Engine, cfg Options) {
 			log.Printf("Failed to disable trusted proxies: %v", err)
 		}
 		if cfg.Mode == "release" {
-			log.Printf("Warning: server.trusted_proxies is not configured; disabling the forwarded-IP compatibility switch will use direct peer addresses only")
+			log.Printf("Warning: server.trusted_proxies is not configured; client IPs are direct peer addresses unless the forwarded-IP compatibility switch is enabled")
 		}
 	}
 }

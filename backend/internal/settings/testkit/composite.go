@@ -116,7 +116,13 @@ func NewComposite(repo settings.Repository, cfg *config.Config) *Composite {
 	}
 	grants := identity.NewGrantSettings(store, identity.GrantSettingsOptions{DefaultBalance: cfg.Default.UserBalance, DefaultConcurrency: cfg.Default.UserConcurrency, ValidatePlans: validate})
 	rules := gateway.AdminSettingsRules{GrokDefaultTextModel: grok.DefaultTextModel, NormalizeUserAgentVersion: antigravity.NormalizeUserAgentVersion, ValidateClaudePromptBlocks: anthropic.ValidateClaudeOAuthSystemPromptBlocksConfig}
-	result.Forwarded = runtimeconfig.NewForwardedSettings(store, runtimeconfig.ForwardedSettingsOptions{InitialTrust: cfg.Security.TrustForwardedIPForAPIKeyACL, TrustedProxiesConfigured: cfg.Server.TrustedProxiesConfigured, Headers: func() []string { return cfg.ForwardedClientIPSettings().Headers }, Publish: cfg.SetForwardedClientIPSettings})
+	result.Forwarded = runtimeconfig.NewForwardedSettings(store, runtimeconfig.ForwardedSettingsOptions{
+		InitialTrust:             cfg.Security.TrustForwardedIPForAPIKeyACL,
+		InitialTrustConfigured:   cfg.Security.TrustForwardedIPConfigured,
+		TrustedProxiesConfigured: cfg.Server.TrustedProxiesConfigured,
+		Headers:                  func() []string { return cfg.ForwardedClientIPSettings().Headers },
+		Publish:                  cfg.SetForwardedClientIPSettings,
+	})
 	result.Read = composite.ReadOptions{OAuth: oauth, Gateway: rules, Scheduler: defaults, DefaultBalance: func() float64 { return cfg.Default.UserBalance }, DefaultConcurrency: func() int { return cfg.Default.UserConcurrency }, Forwarded: func() runtimeconfig.ForwardedInput {
 		value := cfg.ForwardedClientIPSettings()
 		return runtimeconfig.ForwardedInput{APIKeyACLTrustForwardedIP: value.TrustForwardedIP, ForwardedClientIPHeaders: value.Headers}

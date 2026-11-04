@@ -640,6 +640,9 @@ type SecurityConfig struct {
 	// TrustForwardedIPForAPIKeyACL lets raw forwarding headers determine client IPs.
 	// When disabled, client IP consumers rely on server.trusted_proxies.
 	TrustForwardedIPForAPIKeyACL bool `mapstructure:"trust_forwarded_ip_for_api_key_acl"`
+	// TrustForwardedIPConfigured records that the operator supplied the switch,
+	// so an upgrade can tell an explicit false from the secure default.
+	TrustForwardedIPConfigured bool `mapstructure:"-" json:"-" yaml:"-"`
 	// startup client-address header names
 	ForwardedClientIPHeaders []string `mapstructure:"forwarded_client_ip_headers" json:"forwarded_client_ip_headers" yaml:"forwarded_client_ip_headers"`
 	// forwardedClientIPSettingsLive points to the lazily initialized atomic
@@ -2140,6 +2143,10 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	forwardedClientIPHeadersEnv, forwardedClientIPHeadersEnvConfigured := os.LookupEnv("SECURITY_FORWARDED_CLIENT_IP_HEADERS")
 	trustedProxiesConfigured := viper.InConfig("server.trusted_proxies") ||
 		viper.IsSet("server.trusted_proxies") || trustedProxiesEnvConfigured
+	// The registered default makes viper.IsSet always true for this key, so
+	// presence is read from the file and the environment directly.
+	_, trustForwardedIPEnvConfigured := os.LookupEnv("SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL")
+	trustForwardedIPConfigured := viper.InConfig("security.trust_forwarded_ip_for_api_key_acl") || trustForwardedIPEnvConfigured
 
 	if strings.TrimSpace(viper.GetString("pricing.override_file")) != "" {
 		slog.Warn("pricing.override_file is retired and ignored; configure user prices in Pricing Management before upgrading")
@@ -2156,6 +2163,7 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		cfg.Security.ForwardedClientIPHeaders = normalizeStringSlice(strings.Split(forwardedClientIPHeadersEnv, ","))
 	}
 	cfg.Server.TrustedProxiesConfigured = trustedProxiesConfigured
+	cfg.Security.TrustForwardedIPConfigured = trustForwardedIPConfigured
 	cfg.Gateway.ConnectionPoolIsolation = normalizeLegacyConnectionPoolIsolation(cfg.Gateway.ConnectionPoolIsolation)
 	// Normal default registration makes the sticky-escape key present even when
 	// unsupplied. This compatibility guard supplies true only when that
@@ -2419,7 +2427,7 @@ func setDefaults() {
 	viper.SetDefault("security.csp.enabled", true)
 	viper.SetDefault("security.csp.policy", DefaultCSPPolicy)
 	viper.SetDefault("security.proxy_probe.insecure_skip_verify", false)
-	viper.SetDefault("security.trust_forwarded_ip_for_api_key_acl", true)
+	viper.SetDefault("security.trust_forwarded_ip_for_api_key_acl", false)
 
 	// Security - disable direct fallback on proxy error
 	viper.SetDefault("security.proxy_fallback.allow_direct_on_error", false)

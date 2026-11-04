@@ -29,8 +29,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 )
 
-// Composite settings preparation normalizes values before their repository
-// batch reaches runtime applications. Map-backed cases inspect captured keys
+// setting_service_update_test.go verifies composite settings preparation and
+// runtime publication before and after repository writes. Map-backed cases inspect captured keys
 // for registration defaults, creative switches, payment display sources,
 // scheduler choices, Ops quota settings, User-Agent strings, and
 // forwarded-client-IP policy; preparation errors are checked before any batch
@@ -933,6 +933,7 @@ func TestSettingService_LoadForwardedClientIPSettingsMigration(t *testing.T) {
 		name                   string            // migration case name
 		values                 map[string]string // input settings map
 		trustedProxiesSet      bool              // proxy configuration supplied
+		configExplicit         bool              // trust switch explicitly configured
 		configDefault          bool              // process trust default
 		wantEnabled            bool              // expected trust mode
 		wantForwardedIPUpdate  string            // captured trust rewrite
@@ -946,10 +947,9 @@ func TestSettingService_LoadForwardedClientIPSettingsMigration(t *testing.T) {
 			wantMigrationMarkerSet: true,
 		},
 		{
-			name:                   "legacy false without proxy config migrates to compatibility",
+			name:                   "stored false without proxy config stays secure",
 			values:                 map[string]string{runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP: "false"},
-			wantEnabled:            true,
-			wantForwardedIPUpdate:  "true",
+			wantEnabled:            false,
 			wantMigrationMarkerSet: true,
 		},
 		{
@@ -962,10 +962,23 @@ func TestSettingService_LoadForwardedClientIPSettingsMigration(t *testing.T) {
 		{
 			name: "completed migration preserves later false choice",
 			values: map[string]string{
-				runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP: "false",
-				runtimeconfig.SettingKeyForwardedClientIPModeV2:   "true",
+				runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP:   "false",
+				runtimeconfig.SettingKeyForwardedClientIPDefaultOff: "true",
 			},
 			wantEnabled: false,
+		},
+		{
+			name:                   "legacy default is retained",
+			values:                 map[string]string{runtimeconfig.SettingKeyForwardedClientIPModeV2: "true"},
+			wantEnabled:            true,
+			wantForwardedIPUpdate:  "true",
+			wantMigrationMarkerSet: true,
+		},
+		{
+			name:                   "explicit false overrides legacy default",
+			values:                 map[string]string{runtimeconfig.SettingKeyForwardedClientIPModeV2: "true"},
+			configExplicit:         true,
+			wantMigrationMarkerSet: true,
 		},
 	}
 
@@ -974,6 +987,7 @@ func TestSettingService_LoadForwardedClientIPSettingsMigration(t *testing.T) {
 			repo := &forwardedIPMigrationRepoStub{values: test.values}
 			cfg := &config.Config{Server: config.ServerConfig{TrustedProxiesConfigured: test.trustedProxiesSet}}
 			cfg.Security.TrustForwardedIPForAPIKeyACL = test.configDefault
+			cfg.Security.TrustForwardedIPConfigured = test.configExplicit
 			svc := settingskit.NewComposite(repo, cfg)
 
 			require.NoError(t, svc.Forwarded.LoadForwardedClientIPSettings(context.Background()))
@@ -981,9 +995,9 @@ func TestSettingService_LoadForwardedClientIPSettingsMigration(t *testing.T) {
 			require.Equal(t, test.wantForwardedIPUpdate, repo.updates[runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP])
 			require.JSONEq(t, `[]`, repo.updates[runtimeconfig.SettingKeyForwardedClientIPHeaders])
 			if test.wantMigrationMarkerSet {
-				require.Equal(t, "true", repo.updates[runtimeconfig.SettingKeyForwardedClientIPModeV2])
+				require.Equal(t, "true", repo.updates[runtimeconfig.SettingKeyForwardedClientIPDefaultOff])
 			} else {
-				require.NotContains(t, repo.updates, runtimeconfig.SettingKeyForwardedClientIPModeV2)
+				require.NotContains(t, repo.updates, runtimeconfig.SettingKeyForwardedClientIPDefaultOff)
 			}
 		})
 	}
@@ -995,9 +1009,9 @@ func TestSettingService_LoadForwardedClientIPSettingsMigration(t *testing.T) {
 // migration write batch.
 func TestSettingService_LoadForwardedClientIPSettingsLoadsHeaders(t *testing.T) {
 	repo := &forwardedIPMigrationRepoStub{values: map[string]string{
-		runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP: "true",
-		runtimeconfig.SettingKeyForwardedClientIPHeaders:  `[" x-cdn-ip ","true-client-ip"]`,
-		runtimeconfig.SettingKeyForwardedClientIPModeV2:   "true",
+		runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP:   "true",
+		runtimeconfig.SettingKeyForwardedClientIPHeaders:    `[" x-cdn-ip ","true-client-ip"]`,
+		runtimeconfig.SettingKeyForwardedClientIPDefaultOff: "true",
 	}}
 	cfg := &config.Config{}
 	svc := settingskit.NewComposite(repo, cfg)
@@ -1027,7 +1041,7 @@ func TestSettingService_LoadForwardedClientIPSettingsMalformedHeadersDisablesCus
 	runtimeSettings := cfg.ForwardedClientIPSettings()
 	require.False(t, runtimeSettings.TrustForwardedIP)
 	require.Empty(t, runtimeSettings.Headers)
-	require.Equal(t, "true", repo.updates[runtimeconfig.SettingKeyForwardedClientIPModeV2])
+	require.Equal(t, "true", repo.updates[runtimeconfig.SettingKeyForwardedClientIPDefaultOff])
 	require.NotContains(t, repo.updates, runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP)
 }
 
@@ -1085,7 +1099,7 @@ func TestSettingService_LoadForwardedClientIPSettingsWriteFailureUsesComputedMod
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repo := &forwardedIPMigrationRepoStub{
-				values:         map[string]string{runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP: "false"},
+				values:         map[string]string{runtimeconfig.SettingKeyForwardedClientIPModeV2: "true"},
 				setMultipleErr: errors.New("database unavailable"),
 			}
 			cfg := &config.Config{Server: config.ServerConfig{TrustedProxiesConfigured: test.trustedProxiesSet}}

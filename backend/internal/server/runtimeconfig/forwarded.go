@@ -21,9 +21,13 @@ import (
 // disable raw-header compatibility so security consumers use their peer policy.
 // The loader prepares these related values before publishing them together.
 //
-// A hidden marker makes the compatibility upgrade a one-time decision. Before
-// that marker is set, a stored false mode can become true when headers are valid
-// and no trusted-proxy policy was configured. Migration persistence precedes
+// Raw-header trust defaults to off, because any client that can reach the origin
+// could otherwise choose its own address. Installations that already ran with the
+// earlier enabled default depend on it behind a reverse proxy, so a hidden marker
+// makes one upgrade decision: an existing installation with no stored mode, no
+// explicit switch, and no trusted-proxy policy keeps raw-header trust as a stored
+// value. An installation without the earlier marker is treated as new.
+// Migration persistence precedes
 // publication, but a write failure still publishes the calculated policy and
 // returns its error. Startup reports the migration failure while this process
 // has the policy selected from its current inputs.
@@ -31,9 +35,10 @@ import (
 // These keys store the mode, ordered custom sources, and one-time upgrade marker
 // used by startup loading and the shared administrator settings participant.
 const (
-	SettingKeyForwardedClientIPModeV2   = "forwarded_client_ip_mode_v2_migrated" // completed compatibility-upgrade marker
-	SettingKeyAPIKeyACLTrustForwardedIP = "api_key_acl_trust_forwarded_ip"       // raw-header trust boolean text
-	SettingKeyForwardedClientIPHeaders  = "forwarded_client_ip_headers"          // ordered source-name JSON array
+	SettingKeyForwardedClientIPModeV2     = "forwarded_client_ip_mode_v2_migrated"     // installation predates the secure default
+	SettingKeyForwardedClientIPDefaultOff = "forwarded_client_ip_default_off_migrated" // completed secure-default upgrade marker
+	SettingKeyAPIKeyACLTrustForwardedIP   = "api_key_acl_trust_forwarded_ip"           // raw-header trust boolean text
+	SettingKeyForwardedClientIPHeaders    = "forwarded_client_ip_headers"              // ordered source-name JSON array
 )
 
 // ForwardedSettingsRepository reads client IP settings and persists migration updates.
@@ -53,9 +58,11 @@ type ForwardedSettingsOptions struct {
 	// InitialTrust supplies mode when no persisted value exists. A stored value
 	// takes precedence before the one-time compatibility migration is evaluated.
 	InitialTrust bool
-	// TrustedProxiesConfigured prevents the one-time upgrade from enabling raw
-	// headers when the operator supplied a peer-trust policy, including an empty list.
-	TrustedProxiesConfigured bool
+	// InitialTrustConfigured and TrustedProxiesConfigured prevent the one-time
+	// upgrade from retaining raw headers when the operator supplied the switch or
+	// a peer-trust policy, including an empty list.
+	InitialTrustConfigured   bool // explicit startup trust switch
+	TrustedProxiesConfigured bool // explicit trusted proxy policy
 	// Headers supplies fallback names after a successful repository read. Return
 	// validated, nonnil names so an absent header key can be persisted as a JSON array.
 	Headers func() []string
@@ -173,11 +180,11 @@ func ParseForwardedHeaders(value string) ([]string, error) {
 // repository calls and require the constructor's callbacks; read failure publishes
 // false mode with no custom sources before returning the error.
 //
-// Stored mode initially enables compatibility for literal "true". Invalid
-// stored headers clear the source list and disable the mode, while missing
-// headers use the supplied nonnil fallback. Before the upgrade marker exists,
-// a computed false stored mode may become true when no peer policy is configured
-// and header processing succeeded.
+// Stored mode enables compatibility for literal "true". Invalid stored headers
+// clear the source list and disable the mode, while missing headers use the
+// supplied nonnil fallback. Before the secure-default marker exists, an existing
+// installation with no stored mode or operator policy keeps raw-header trust.
+// An enabled result logs a warning, since it relies on the ingress for safety.
 //
 // Missing metadata is persisted before the final publication. A migration write
 // failure still publishes the calculated values and joins persistence and header
@@ -191,6 +198,7 @@ func (s *ForwardedSettings) LoadForwardedClientIPSettings(ctx context.Context) e
 		SettingKeyAPIKeyACLTrustForwardedIP,
 		SettingKeyForwardedClientIPHeaders,
 		SettingKeyForwardedClientIPModeV2,
+		SettingKeyForwardedClientIPDefaultOff,
 	})
 	if err != nil {
 		// Stored preferences could not be inspected. Publish peer-policy mode so
@@ -230,14 +238,20 @@ func (s *ForwardedSettings) LoadForwardedClientIPSettings(ctx context.Context) e
 		}
 		updates[SettingKeyForwardedClientIPHeaders] = string(headersJSON)
 	}
-	if values[SettingKeyForwardedClientIPModeV2] != "true" {
-		updates[SettingKeyForwardedClientIPModeV2] = "true"
-		// Before the marker is stored, a computed false mode can be upgraded.
-		// Configured peer policies and invalid headers retain peer-policy resolution.
-		if headersErr == nil && hasStoredValue && !enabled && !s.options.TrustedProxiesConfigured {
+	if values[SettingKeyForwardedClientIPDefaultOff] != "true" {
+		updates[SettingKeyForwardedClientIPDefaultOff] = "true"
+		// The earlier marker shows this installation resolved an unset mode as enabled.
+		// Storing that mode keeps its proxied clients identified after the default
+		// changes; operator policies and invalid headers keep peer-policy resolution.
+		existingInstallation := values[SettingKeyForwardedClientIPModeV2] == "true"
+		operatorChose := hasStoredValue || s.options.InitialTrustConfigured || s.options.TrustedProxiesConfigured
+		if existingInstallation && !operatorChose && headersErr == nil {
 			enabled = true
 			updates[SettingKeyAPIKeyACLTrustForwardedIP] = "true"
 		}
+	}
+	if enabled {
+		slog.Warn("forwarded client IP compatibility is enabled; clients can spoof their address unless the ingress blocks direct origin access and overwrites these headers. Configure server.trusted_proxies and disable it")
 	}
 	if len(updates) > 0 {
 		// Publish after the persistence attempt, including its failure path. The

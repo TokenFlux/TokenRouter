@@ -9,6 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestGetSecurityClientIPNilContext supplies no request under either trust mode.
+// Both modes must return an empty address instead of dereferencing absent headers.
+func TestGetSecurityClientIPNilContext(t *testing.T) {
+	require.Empty(t, GetSecurityClientIP(nil, false))
+	require.Empty(t, GetSecurityClientIP(nil, true))
+}
+
 // TestGetTrustedClientIPUsesGinClientIP
 // supplies forwarding headers from an untrusted peer.
 // With Gin forwarding trust disabled, the returned address must be the direct
@@ -41,6 +48,7 @@ func TestGetClientIPPreservesLegacyDockerForwardedHeaders(t *testing.T) {
 	r := gin.New()
 	require.NoError(t, r.SetTrustedProxies(nil))
 	r.GET("/t", func(c *gin.Context) {
+		SetForwardedIPSettings(c, true, nil)
 		c.String(200, GetClientIP(c))
 	})
 
@@ -296,4 +304,25 @@ func TestGetSecurityClientIPRequestSnapshotOverridesLiveFallback(t *testing.T) {
 			require.Equal(t, test.want, w.Body.String())
 		})
 	}
+}
+
+// TestGetClientIPWithoutSnapshotIgnoresForwardedHeaders reads the address on a
+// route with no captured policy while a client supplies every built-in header.
+// The direct peer must win, so a missing middleware cannot accept a chosen address.
+func TestGetClientIPWithoutSnapshotIgnoresForwardedHeaders(t *testing.T) {
+	r := gin.New()
+	require.NoError(t, r.SetTrustedProxies(nil))
+	r.GET("/t", func(c *gin.Context) {
+		c.String(200, GetClientIP(c))
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	req.RemoteAddr = "203.0.113.9:12345"
+	req.Header.Set("CF-Connecting-IP", "8.8.8.8")
+	req.Header.Set("X-Real-IP", "8.8.8.8")
+	req.Header.Set("X-Forwarded-For", "8.8.8.8")
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, "203.0.113.9", w.Body.String())
 }

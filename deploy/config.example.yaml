@@ -101,9 +101,9 @@ cors:
 # =============================================================================
 security:
   # Legacy compatibility switch. When true, raw forwarded headers take over
-  # server.trusted_proxies. Set false to enforce the trusted proxy chain above.
+  # server.trusted_proxies. Off by default, which enforces the trusted proxy chain above.
   # 旧版兼容开关。开启时原始转发头会接管 server.trusted_proxies；关闭后严格
-  # 使用上方配置的可信代理链。示例配置采用高安全模式。
+  # 使用上方配置的可信代理链。默认关闭。
   trust_forwarded_ip_for_api_key_acl: false
   # Optional client-IP headers for third-party CDNs, checked in list order before
   # CF-Connecting-IP, X-Real-IP, and X-Forwarded-For. Valid only while the legacy

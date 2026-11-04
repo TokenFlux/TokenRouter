@@ -55,10 +55,16 @@ func provideGrantSettings(store *settings.Store, cfg *config.Config, plans *bill
 }
 
 // provideForwardedSettings binds required cfg to client-IP trust, header reads,
-// and publication. Initial trust and trusted-proxy presence are captured, while
+// and publication. Initial trust and explicit configuration presence are captured, while
 // callbacks read and publish cfg's current forwarded client-IP settings.
 func provideForwardedSettings(store *settings.Store, cfg *config.Config) *runtimeconfig.ForwardedSettings {
-	return runtimeconfig.NewForwardedSettings(store, runtimeconfig.ForwardedSettingsOptions{InitialTrust: cfg.Security.TrustForwardedIPForAPIKeyACL, TrustedProxiesConfigured: cfg.Server.TrustedProxiesConfigured, Headers: func() []string { return cfg.ForwardedClientIPSettings().Headers }, Publish: cfg.SetForwardedClientIPSettings})
+	return runtimeconfig.NewForwardedSettings(store, runtimeconfig.ForwardedSettingsOptions{
+		InitialTrust:             cfg.Security.TrustForwardedIPForAPIKeyACL,
+		InitialTrustConfigured:   cfg.Security.TrustForwardedIPConfigured,
+		TrustedProxiesConfigured: cfg.Server.TrustedProxiesConfigured,
+		Headers:                  func() []string { return cfg.ForwardedClientIPSettings().Headers },
+		Publish:                  cfg.SetForwardedClientIPSettings,
+	})
 }
 
 // provideSchedulerAdminDefaults copies process score settings and normalized

@@ -93,16 +93,16 @@ func requestForwardedIPSettings(c *gin.Context) (forwardedIPSettings, bool) {
 }
 
 // requestUsesLegacyForwardedIPTrust selects compatibility when the captured mode permits it.
-// Missing or incorrectly typed request settings also select compatibility,
-// matching callers that use GetClientIP before a snapshot has been installed.
+// Missing or incorrectly typed request settings select Gin's peer-trust policy, so
+// a route without a snapshot cannot be given a client-chosen address.
 func requestUsesLegacyForwardedIPTrust(c *gin.Context) bool {
 	settings, ok := requestForwardedIPSettings(c)
-	return !ok || settings.trustForwarded
+	return ok && settings.trustForwarded
 }
 
 // GetClientIP resolves the request address using its captured forwarding policy.
-// A nil context returns an empty string; a captured false mode delegates to Gin's
-// trusted-proxy resolver. An absent snapshot selects raw-header compatibility.
+// A nil context returns an empty string; a captured false mode or an absent
+// snapshot delegates to Gin's trusted-proxy resolver.
 //
 // Compatibility first selects a custom candidate outside privateNets, then a
 // built-in candidate outside those ranges. If neither source provides one, the
@@ -117,7 +117,13 @@ func GetClientIP(c *gin.Context) string {
 	if !requestUsesLegacyForwardedIPTrust(c) {
 		return GetTrustedClientIP(c)
 	}
+	return resolveForwardedClientIP(c)
+}
 
+// resolveForwardedClientIP applies the compatibility order described by
+// GetClientIP using the captured custom names, if any. The caller has already
+// chosen compatibility mode and supplies a nonnil context.
+func resolveForwardedClientIP(c *gin.Context) string {
 	settings, _ := requestForwardedIPSettings(c)
 	customIP, customFallback := resolveCustomForwardedClientIP(c, settings.headers)
 	if customIP != "" {
@@ -246,11 +252,14 @@ func GetTrustedClientIP(c *gin.Context) string {
 // peer-trust resolution, and nil contexts produce an empty address.
 // @project-doc docs/operations/edge_security.md#trusted_client_ip
 func GetSecurityClientIP(c *gin.Context, trustForwarded bool) string {
+	if c == nil {
+		return ""
+	}
 	if requestSettings, ok := requestForwardedIPSettings(c); ok {
 		trustForwarded = requestSettings.trustForwarded
 	}
 	if trustForwarded {
-		return GetClientIP(c)
+		return resolveForwardedClientIP(c)
 	}
 	return GetTrustedClientIP(c)
 }
