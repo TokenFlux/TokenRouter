@@ -1,3 +1,7 @@
+# .goreleaser.yaml defines the binary archives and runtime images published for
+# a full release. Deployment assets are listed explicitly so source-only build
+# helpers, test fixtures, and retired installers do not enter binary archives
+# or the installation directories populated from those archives.
 version: 2
 
 project_name: tokenrouter
@@ -46,7 +50,19 @@ archives:
     files:
       - LICENSE*
       - README*
-      - deploy/*
+      - deploy/.env.example
+      - deploy/README.md
+      - deploy/DOCKER.md
+      - deploy/Caddyfile
+      - deploy/apple-container.sh
+      - deploy/codex-instructions.md.tmpl
+      - deploy/config.example.yaml
+      - deploy/docker-compose.yml
+      - deploy/docker-compose.local.yml
+      - deploy/docker-compose.standalone.yml
+      - deploy/docker-deploy.sh
+      - deploy/install.sh
+      - deploy/tokenrouter.service
 
 checksum:
   name_template: 'checksums.txt'

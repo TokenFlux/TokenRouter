@@ -19,9 +19,11 @@
 
 源码镜像的前端阶段校验 `.node-version`，再按 `frontend/package.json` 的 `packageManager` 字段安装 pnpm，本地和 CI 读取同样的版本声明。默认 Node 镜像使用 26.12.1，覆盖 `NODE_IMAGE` 时仍需满足完整版本检查。Node 26 镜像通过 npm 安装声明的 pnpm 版本，冻结安装前复制 workspace 配置。
 
-Go 构建使用 1.27.3，后端模块、两个开发工具模块和三份源码 Dockerfile 同步声明该版本。Go 标准库的安全修复需要重新编译并部署应用二进制才能生效。Node.js 用于依赖安装、前端构建和开发工具；标准生产镜像由 Go 进程提供嵌入的静态资源。
+Go 构建使用 1.27.3，后端模块、两个开发工具模块、根目录和 `backend/` 的 Dockerfile 同步声明该版本。Go 标准库的安全修复需要重新编译并部署应用二进制才能生效。Node.js 用于依赖安装、前端构建和开发工具；标准生产镜像由 Go 进程提供嵌入的静态资源。
 
-前端构建会导入 `backend/internal/pkg/locale/manifest.json` 和 `error_messages.json`。根目录和 `deploy/` 的 Dockerfile 在前端构建阶段将这些文件复制到 `/app/backend/internal/pkg/locale/`，与源码中的相对导入路径一致。
+前端构建会导入 `backend/internal/pkg/locale/manifest.json` 和 `error_messages.json`。根目录的 Dockerfile 在前端构建阶段将这些文件复制到 `/app/backend/internal/pkg/locale/`，与源码中的相对导入路径一致。开发 Compose 和 `deploy/build_image.sh` 都使用这份完整应用构建入口；`backend/Dockerfile` 只构建后端，`Dockerfile.goreleaser` 只封装预编译的发布二进制。
+
+`deploy/` 的运行入口和配置模板见[部署文件目录](../../deploy/README.md)。二进制归档在 `.goreleaser.yaml` 中逐项列出部署资产，不携带开发 Compose、构建辅助脚本、镜像入口脚本或测试夹具；安装器会将归档内的非隐藏部署文件复制到安装目录。镜像构建上下文中的 `deploy/` 只保留 `docker-entrypoint.sh`。
 
 仓库支持以下运行方式：
 
@@ -37,7 +39,9 @@ Go 构建使用 1.27.3，后端模块、两个开发工具模块和三份源码 
 
 逐步操作见[中文部署指南](../guides/deployment/index.md)、[Docker 镜像说明](../../deploy/DOCKER.md)和 [Apple Container 指南](../guides/deployment/apple_container.md)。这些是给部署者的手册，本文的工程约束在它们之上。
 
-旧的 data management 接口已经下线：`backup` 的兼容入口固定返回 `DATA_MANAGEMENT_DEPRECATED`，不会连接 Unix Socket，也不会发起 gRPC 调用。仓库里的旧安装脚本和 [datamanagementd 指南](../guides/deployment/datamanagementd.md) 是历史资料，当前服务没有这个守护进程。备份和恢复使用独立的 backup 模块。
+所有 Compose 变体的应用健康检查都保留 120 秒启动宽限期。内置 PostgreSQL 的三个变体使用 `pg_isready` 加 SQL 查询确认就绪，并保留 60 秒宽限期和 18 次失败重试；部署测试比较这些公共健康检查，避免不同存储拓扑的启动策略漂移。
+
+旧的 data management 接口已经下线：`backup` 的兼容入口固定返回 `DATA_MANAGEMENT_DEPRECATED`，不会连接 Unix Socket，也不会发起 gRPC 调用。旧安装脚本和 systemd 模板已移除，[datamanagementd 停用说明](../guides/deployment/datamanagementd.md)保留遗留部署的识别信息。备份和恢复使用独立的 backup 模块。
 
 <a id="product_name_compatibility"></a>
 ## 产品名称与升级兼容

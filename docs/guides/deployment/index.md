@@ -240,7 +240,7 @@ rm -rf data/ postgres_data/ redis_data/
 
 ### 旧的数据管理守护进程
 
-TokenRouter 已经停用 `datamanagementd` 接口，不再探测或连接它的 Unix Socket。新部署使用内置的 backup 模块做备份和恢复，不需要在宿主机安装守护进程。仓库里保留的 [datamanagementd 部署说明](datamanagementd.md)和安装脚本，只用于核对旧部署。
+TokenRouter 已经停用 `datamanagementd` 接口，不再探测或连接它的 Unix Socket。新部署使用内置的 backup 模块做备份和恢复，不需要在宿主机安装守护进程。当前仓库已移除旧安装脚本和 systemd 模板，遗留服务的识别与清理见 [datamanagementd 停用说明](datamanagementd.md)。
 
 ## 源码编译
 

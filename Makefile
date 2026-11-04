@@ -135,7 +135,9 @@ test-embed:
 
 # test-scripts verifies deployment shell syntax and platform-compatible script fixtures.
 test-scripts:
-	/bin/bash -n deploy/apple-container.sh deploy/install.sh
+	@for script in deploy/*.sh deploy/tests/*.sh deploy/tests/fixtures/bin/*; do \
+		/bin/bash -n "$$script" || exit 1; \
+	done
 	/bin/bash deploy/tests/install-github-token-test.sh
 	/bin/bash deploy/tests/apple-container-test.sh
 	/bin/sh deploy/tests/docker-compose-security-test.sh
@@ -143,7 +145,7 @@ test-scripts:
 	/bin/sh deploy/tests/docker-compose-variants-test.sh
 	/bin/sh deploy/tests/docker-compose-gateway-env-test.sh
 	/bin/sh deploy/tests/docker-runtime-resources-test.sh
-	/bin/sh deploy/test-caddyfile-cache.sh
+	/bin/sh deploy/tests/caddyfile-cache-test.sh
 	/bin/sh tools/goreleaser_prebuilt_test.sh
 
 # test-installer runs installer fixtures in Linux with Bash 4 and sha256sum.

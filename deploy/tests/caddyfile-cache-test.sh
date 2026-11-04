@@ -1,7 +1,14 @@
 #!/bin/sh
 set -eu
 
-repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+# caddyfile-cache-test.sh checks the shipped reverse proxy policy for cache and
+# streaming behavior. The fixture keeps asset caching under backend control and
+# verifies that compression excludes SSE while ordinary responses retain the
+# canonical compression configuration.
+
+# These paths select the repository template independently of the caller's
+# working directory.
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 caddyfile="$repo_root/deploy/Caddyfile"
 active_config=$(sed 's/[[:space:]]*#.*$//' "$caddyfile")
 normalized_config=$(printf '%s\n' "$active_config" | awk '
@@ -16,7 +23,8 @@ normalized_config=$(printf '%s\n' "$active_config" | awk '
 	}
 ')
 
-# 只保留一个规范的 encode 块，避免自行复刻 Caddy 匹配器语义。
+# The expected block restricts compression to ordinary responses without
+# reimplementing Caddy matcher semantics or accepting an SSE content type.
 expected_encode_block=$(cat <<'EOF'
 encode {
 zstd

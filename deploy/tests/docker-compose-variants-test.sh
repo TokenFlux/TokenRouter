@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+# docker-compose-variants-test.sh compares shared application settings across
+# deployment topologies. It checks environment propagation, startup health
+# policy, and file descriptor limits so switching storage or building from
+# source does not silently lose the common deployment configuration.
+
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
@@ -45,6 +50,56 @@ save_environment() {
   extract_application_environment "$file" > "$tmp_dir/$name.env"
   cut -d= -f1 "$tmp_dir/$name.env" > "$tmp_dir/$name.keys"
 }
+
+# extract_service_healthcheck prints a service's canonical health check block.
+# It accepts a Compose path and service name, omits comment lines and
+# indentation, and returns empty output when that service has no health check.
+extract_service_healthcheck() {
+  awk -v service="$2" '
+    $0 == "  " service ":" {
+      in_service = 1
+      next
+    }
+    in_service && $0 ~ /^  [A-Za-z0-9_-]+:$/ { exit }
+    in_service && $0 == "    healthcheck:" {
+      in_healthcheck = 1
+      next
+    }
+    in_healthcheck && $0 ~ /^[^ #]|^    [A-Za-z0-9_-]+:/ { exit }
+    in_healthcheck && $0 !~ /^[[:space:]]*(#|$)/ {
+      sub(/^[[:space:]]+/, "")
+      sub(/[[:space:]]+$/, "")
+      print
+    }
+  ' "$1"
+}
+
+# Each deployment runs the same application bootstrap against PostgreSQL.
+# Compare health policies so alternate storage and source builds retain the
+# SQL readiness check and the startup recovery grace periods.
+extract_service_healthcheck deploy/docker-compose.yml tokenrouter > "$tmp_dir/app.health"
+extract_service_healthcheck deploy/docker-compose.yml postgres > "$tmp_dir/postgres.health"
+grep -Fxq 'start_period: 120s' "$tmp_dir/app.health" || \
+  fail 'application bootstrap grace period differs'
+grep -Fq -- "-Atqc 'SELECT 1'" "$tmp_dir/postgres.health" || \
+  fail 'PostgreSQL health check must execute SQL'
+grep -Fxq 'retries: 18' "$tmp_dir/postgres.health" || \
+  fail 'PostgreSQL recovery retry budget differs'
+grep -Fxq 'start_period: 60s' "$tmp_dir/postgres.health" || \
+  fail 'PostgreSQL recovery grace period differs'
+
+for variant in local standalone dev
+do
+  compose_file="deploy/docker-compose.$variant.yml"
+  extract_service_healthcheck "$compose_file" tokenrouter > "$tmp_dir/$variant.app.health"
+  cmp -s "$tmp_dir/app.health" "$tmp_dir/$variant.app.health" || \
+    fail "$variant application health check differs from standard"
+  if [ "$variant" != standalone ]; then
+    extract_service_healthcheck "$compose_file" postgres > "$tmp_dir/$variant.postgres.health"
+    cmp -s "$tmp_dir/postgres.health" "$tmp_dir/$variant.postgres.health" || \
+      fail "$variant PostgreSQL health check differs from standard"
+  fi
+done
 
 save_environment standard deploy/docker-compose.yml
 save_environment local deploy/docker-compose.local.yml

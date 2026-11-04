@@ -1,7 +1,10 @@
 # =============================================================================
 # TokenRouter Docker Compose - Local Development Build
 # =============================================================================
-# Build from local source code for testing changes.
+# docker-compose.dev.yml builds TokenRouter from the repository root and runs
+# it with PostgreSQL and Redis. Local data directories persist across rebuilds,
+# and dependency health checks use the production startup policy while proxy
+# settings support development on the host machine.
 #
 # Usage:
 #   cd deploy
@@ -155,11 +158,23 @@ services:
     networks:
       - tokenrouter-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-T",
+          "5",
+          "-O",
+          "/dev/null",
+          "http://localhost:8080/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      # The application also retries transient database startup errors. This
+      # grace period keeps Compose from declaring it unhealthy during bootstrap.
+      start_period: 120s
 
   postgres:
     image: postgres:18-alpine
@@ -197,11 +212,18 @@ services:
     networks:
       - tokenrouter-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tokenrouter} -d ${POSTGRES_DB:-tokenrouter}"]
+      # Require a successful SQL query before starting the application, so
+      # connection readiness alone cannot release its database dependency.
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-tokenrouter} -d ${POSTGRES_DB:-tokenrouter} && psql -U ${POSTGRES_USER:-tokenrouter} -d ${POSTGRES_DB:-tokenrouter} -Atqc 'SELECT 1' >/dev/null",
+        ]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      # Allow startup recovery to finish before Compose rejects this dependency.
+      retries: 18
+      start_period: 60s
 
   redis:
     image: redis:8-alpine

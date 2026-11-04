@@ -6,7 +6,7 @@
 
 - [中文部署指南](deployment/index.md)
 - [Apple container 部署指南](deployment/apple_container.md)
-- [datamanagementd 部署说明](deployment/datamanagementd.md)
+- [datamanagementd 停用说明](deployment/datamanagementd.md)
 - [Docker 镜像说明](../../deploy/DOCKER.md)
 
 ## 支付
