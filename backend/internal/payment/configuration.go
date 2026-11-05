@@ -500,10 +500,6 @@ func (s *ConfigService) ConfigParsePaymentConfig(vals map[string]string) *Paymen
 		AlipayForceQRCode:             vals[SettingAlipayForceQRCode] == "true",
 		AlipayMobilePrecreateDeepLink: vals[SettingAlipayMobilePrecreateDeepLink] == "true",
 	}
-	cfg.AlipayMobilePrecreateDeepLink = ConfigPcEnvBoolOverride(s.runtime.LookupEnv,
-		SettingAlipayMobilePrecreateDeepLink,
-		cfg.AlipayMobilePrecreateDeepLink,
-	)
 	if cfg.LoadBalanceStrategy == "" {
 		cfg.LoadBalanceStrategy = DefaultLoadBalanceStrategy
 	}
@@ -518,25 +514,6 @@ func (s *ConfigService) ConfigParsePaymentConfig(vals map[string]string) *Paymen
 		cfg.EnabledTypes = NormalizeVisibleMethods(types)
 	}
 	return cfg
-}
-
-// ConfigPcEnvBoolOverride returns a parsed nonblank environment boolean from
-// the supplied usable lookup callback. Missing/blank/malformed text retains
-// fallback, including false; other persisted booleans still use exact true
-// parsing separately.
-func ConfigPcEnvBoolOverride(lookup func(string) (string, bool), key string, fallback bool) bool {
-	raw, ok := lookup(key)
-	if !ok || strings.TrimSpace(raw) == "" {
-		return fallback
-	}
-	value, err := strconv.ParseBool(strings.TrimSpace(raw))
-	// Malformed nonblank environment boolean text cannot override the saved
-	// preference. Retain the provided fallback so this optional deployment source
-	// leaves its existing choice usable.
-	if err != nil {
-		return fallback
-	}
-	return value
 }
 
 // ConfigGetStripePublishableKey reads the first enabled Stripe row with limit

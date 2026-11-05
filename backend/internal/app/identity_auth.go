@@ -101,11 +101,11 @@ func provideIdentityAuthGraph(
 ) *identityAuthGraph {
 	options := &identity.AuthOptions{}
 	if cfg != nil {
-		options.Default.UserBalance = cfg.Default.UserBalance
-		options.Default.UserConcurrency = cfg.Default.UserConcurrency
-		options.JWT = identity.SessionOptions{Now: time.Now, Secret: cfg.JWT.Secret, ExpireHour: cfg.JWT.ExpireHour, AccessTokenExpireMinutes: cfg.JWT.AccessTokenExpireMinutes, RefreshTokenExpireDays: cfg.JWT.RefreshTokenExpireDays}
+		options.Default.UserBalance = cfg.UserDefaults.Balance
+		options.Default.UserConcurrency = cfg.UserDefaults.Concurrency
+		options.JWT = identity.SessionOptions{Now: time.Now, Secret: cfg.Auth.JWT.Secret, AccessTokenExpireMinutes: cfg.Auth.JWT.AccessTokenTTLMinutes, RefreshTokenExpireDays: cfg.Auth.JWT.RefreshTokenTTLDays}
 		options.Server.Mode = cfg.Server.Mode
-		options.Turnstile.Required = cfg.Turnstile.Required
+		options.Turnstile.Required = cfg.Auth.RequireCaptcha
 	}
 	deps := &identity.AuthDependencies{Users: users, Redeem: redeemRepo, RefreshTokens: refreshTokenCache, Options: options, Turnstile: turnstileService, Tencent: tencentCaptchaService, Aliyun: aliyunCaptchaService, DefaultSubscriptions: defaultSubAssigner, Invalidator: authCacheInvalidator, BalanceCache: billingCache, Observer: identity.Observer{Log: logging.LegacyPrintf}, DomainRegistration: users, NormalizedEmailConflict: users, EmailAliasGuard: users, AliasLookup: users, AliasOwner: users}
 	if settingService != nil {

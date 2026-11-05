@@ -250,12 +250,12 @@ func newHeartbeatRouteRouter(t *testing.T, url, kind string, interval time.Durat
 	groupID := int64(42)
 	group := &routing.Group{ID: groupID, Hydrated: true, Name: "heartbeat", Status: "active", RateMultiplier: 1, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages, protocol.ProtocolOpenAIResponses, protocol.ProtocolOpenAIChatCompletions, protocol.ProtocolGeminiGenerateContent}}
 	cfg := &config.Config{}
-	cfg.Default.RateMultiplier = 1
+	cfg.Billing.FallbackRateMultiplier = 1
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 	cfg.Security.URLAllowlist.AllowPrivateHosts = true
-	cfg.Gateway.MaxProviderSwitches = 1
-	cfg.Gateway.MaxBodySize = 1 << 20
-	cfg.Gateway.TextMaxBodySize = 1 << 20
+	cfg.Gateway.Failover.MaxProviderSwitches = 1
+	cfg.Gateway.MaxRequestBodyBytes = 1 << 20
+	cfg.Gateway.TextMaxRequestBodyBytes = 1 << 20
 	record := &providercore.Record{ID: 1, Name: platform, Platform: platform, Type: capability.ProviderTypeAPIKey, Status: "active", Schedulable: true, Concurrency: 1, GroupIDs: []int64{groupID}, Credentials: map[string]any{"api_key": "fixture-key", "base_url": url, "model_whitelist": []string{model}}}
 	if kind == "openai_passthrough" {
 		record.Extra = map[string]any{"openai_passthrough": true}

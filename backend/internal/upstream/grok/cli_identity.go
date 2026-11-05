@@ -2,7 +2,6 @@ package grok
 
 import (
 	"net/http"
-	"os"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -11,22 +10,19 @@ import (
 // cli_identity.go selects Grok CLI versions and applies client identity
 // headers to forwarding requests.
 // Grok CLI proxy requests advertise a workspace version and client
-// identifier. The environment override is accepted only as canonical SemVer
+// identifier. The configuration override is accepted only as canonical SemVer
 // meeting the pinned minimum; other values select the bundled version. Proxy-
 // specific headers apply by hostname, while runtime helpers can apply client
 // identity to other forwarding requests.
 
 // These constants identify Grok Build requests to the CLI chat proxy.
-// Versions are bundled with the binary; XAI_GROK_CLI_VERSION can override the default.
+// Versions are bundled with the binary; explicit configuration can select a supported override.
 const (
 	// CLIProxyHost selects the target for proxy-specific client identity headers.
 	CLIProxyHost = "cli-chat-proxy.grok.com"
 
 	// CLIStableVersion is the minimum version accepted by local override validation.
 	CLIStableVersion = "0.2.93"
-
-	// CLIVersionEnv names the optional client-version override.
-	CLIVersionEnv = "XAI_GROK_CLI_VERSION"
 
 	// CLITokenAuth supplies the proxy's fixed CLI token identity header value.
 	CLITokenAuth = "xai-grok-cli"
@@ -35,12 +31,12 @@ const (
 	CLIClientIdentifier = "grok-shell"
 )
 
-// ResolveCLIVersion returns the trimmed environment override when it passes
+// ResolveCLIVersion returns the trimmed configuration override when it passes
 // IsSupportedCLIVersion. Blank, invalid, noncanonical, or too-old values
 // select CLIClientVersion, keeping the advertised version within the accepted
 // local version rule.
 func ResolveCLIVersion() string {
-	version := strings.TrimSpace(os.Getenv(CLIVersionEnv))
+	version := strings.TrimSpace(currentOverrides().CLIVersion)
 	if !IsSupportedCLIVersion(version) {
 		return CLIClientVersion
 	}

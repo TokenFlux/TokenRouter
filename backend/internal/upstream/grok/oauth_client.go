@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -52,18 +51,18 @@ const (
 // xAI token endpoint.
 type OAuthClient struct {
 	// tokenURL is selected and validated by NewOAuthClient once. Later exchanges
-	// reuse it, so environment changes require constructing another client to
+	// reuse it, so configuration changes require constructing another client to
 	// select a new endpoint.
 	tokenURL string // pinned OAuth token endpoint
 }
 
 // NewOAuthClient pins the currently validated token endpoint for later
 // grants. An invalid or blank effective endpoint selects DefaultTokenURL,
-// preventing a rejected environment override from receiving codes or refresh
+// preventing a rejected configuration override from receiving codes or refresh
 // tokens through this client.
 func NewOAuthClient() *OAuthClient {
 	// Token grants reuse this construction-time endpoint. Validate it before
-	// credential-bearing requests so an environment override must pass the issuer policy.
+	// credential-bearing requests so an configuration override must pass the issuer policy.
 	tokenURL, err := ValidatedTokenURL()
 	if err != nil || strings.TrimSpace(tokenURL) == "" {
 		// Invalid configuration cannot become a token destination through this client;
@@ -333,7 +332,7 @@ func createGrokHTTPClient(proxyURL string, noRedirect bool) (*http.Client, error
 }
 
 // solveTurnstile creates a proxyless CAPTCHA task using the first nonblank
-// YESCAPTCHA_CLIENT_KEY or YESCAPTCHA_API_KEY. Missing keys and rejected task
+// the configured YesCaptcha client key. Missing keys and rejected task
 // responses return application errors. Polling waits five seconds between
 // attempts, honors ctx during waits, and retries transient poll build,
 // transport, or decode failures.
@@ -345,10 +344,7 @@ func createGrokHTTPClient(proxyURL string, noRedirect bool) (*http.Client, error
 // solution text. Explicit poll ErrorID ends immediately, and loop exhaustion
 // yields the CAPTCHA timeout error.
 func solveTurnstile(ctx context.Context) (string, error) {
-	clientKey := strings.TrimSpace(os.Getenv("YESCAPTCHA_CLIENT_KEY"))
-	if clientKey == "" {
-		clientKey = strings.TrimSpace(os.Getenv("YESCAPTCHA_API_KEY"))
-	}
+	clientKey := strings.TrimSpace(currentOverrides().YesCaptchaClientKey)
 	if clientKey == "" {
 		return "", infraerrors.New(infraerrors.Category(http.StatusBadRequest), "GROK_OAUTH_CAPTCHA_KEY_REQUIRED", "yescaptcha client key is required for Grok password authorization")
 	}

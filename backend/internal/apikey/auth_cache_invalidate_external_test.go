@@ -20,12 +20,10 @@ func TestAPIKeyService_InvalidateAuthCacheByUserID(t *testing.T) {
 			return []string{"k1", "k2"}, nil
 		},
 	}
-	cfg := &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{
-			L2TTLSeconds:       60,
-			NegativeTTLSeconds: 30,
-		},
-	}
+	cfg := &config.Config{APIKey: config.APIKeyConfig{AuthCache: config.APIKeyAuthCacheConfig{
+		L2TTLSeconds:       60,
+		NegativeTTLSeconds: 30,
+	}}}
 	svc := testkit.NewService(repo, nil, nil, nil, nil, cache, cfg)
 	svc.Start()
 
@@ -44,11 +42,7 @@ func TestAPIKeyService_InvalidateAuthCacheByGroupID(t *testing.T) {
 			return []string{"k1", "k2"}, nil
 		},
 	}
-	cfg := &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{
-			L2TTLSeconds: 60,
-		},
-	}
+	cfg := &config.Config{APIKey: config.APIKeyConfig{AuthCache: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60}}}
 	svc := testkit.NewService(repo, nil, nil, nil, nil, cache, cfg)
 	svc.Start()
 
@@ -66,11 +60,7 @@ func TestAPIKeyService_InvalidateAuthCacheByKey(t *testing.T) {
 			return nil, nil
 		},
 	}
-	cfg := &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{
-			L2TTLSeconds: 60,
-		},
-	}
+	cfg := &config.Config{APIKey: config.APIKeyConfig{AuthCache: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60}}}
 	svc := testkit.NewService(repo, nil, nil, nil, nil, cache, cfg)
 	svc.Start()
 

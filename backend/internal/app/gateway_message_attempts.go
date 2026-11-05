@@ -49,7 +49,7 @@ func messageAttemptBindings(
 	var queueHelper *gatewayhttp.UserMsgQueueHelper
 	if queue != nil && cfg != nil {
 		// Queue pings use the configured interval as a duration in seconds.
-		queueHelper = gatewayhttp.NewUserMsgQueueHelper(queue, gatewayhttp.SSEPingFormatClaude, time.Duration(cfg.Concurrency.PingInterval)*time.Second)
+		queueHelper = gatewayhttp.NewUserMsgQueueHelper(queue, gatewayhttp.SSEPingFormatClaude, time.Duration(cfg.Gateway.Streaming.WaitPingIntervalSeconds)*time.Second)
 	}
 
 	b := textattempt.Bindings{
@@ -70,8 +70,8 @@ func messageAttemptBindings(
 	}
 
 	if cfg != nil {
-		b.QueueWait = cfg.Gateway.UserMessageQueue.WaitTimeout()
-		b.QueueMode = cfg.Gateway.UserMessageQueue.GetEffectiveMode()
+		b.QueueWait = cfg.Gateway.Anthropic.UserMessageQueue.WaitTimeout()
+		b.QueueMode = cfg.Gateway.Anthropic.UserMessageQueue.DefaultMode
 	}
 	if keys != nil {
 		b.Quota = keys

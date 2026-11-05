@@ -90,12 +90,12 @@ func mediaBindings(
 	}
 
 	if cfg != nil {
-		if cfg.Gateway.MaxProviderSwitches > 0 {
-			b.Options.MaxSwitches = cfg.Gateway.MaxProviderSwitches
+		if cfg.Gateway.Failover.MaxProviderSwitches > 0 {
+			b.Options.MaxSwitches = cfg.Gateway.Failover.MaxProviderSwitches
 		}
-		if cfg.Gateway.ImageNonstreamKeepaliveInterval > 0 {
+		if cfg.Gateway.Images.NonstreamKeepaliveIntervalSeconds > 0 {
 			// Image keepalive scheduling uses the configured interval expressed in seconds.
-			b.Options.ImageKeepalive = time.Duration(cfg.Gateway.ImageNonstreamKeepaliveInterval) * time.Second
+			b.Options.ImageKeepalive = time.Duration(cfg.Gateway.Images.NonstreamKeepaliveIntervalSeconds) * time.Second
 		}
 	}
 	if funding != nil {
@@ -137,7 +137,7 @@ func provideGrokVideoTasks(cache session.GatewayCache, cfg *config.Config) *medi
 	var options media.VideoOptions
 	if cfg != nil {
 		// Video affinity receives the WebSocket sticky lifetime in configured seconds.
-		options.StickyTTL = time.Duration(cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
+		options.StickyTTL = time.Duration(cfg.Scheduling.SessionAffinity.TTLSeconds) * time.Second
 	}
 	return media.NewVideoTasks(cache, billing, options)
 }

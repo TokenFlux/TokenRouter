@@ -259,7 +259,7 @@ func ResolveAntigravityForwardBaseURL(mode string, paid bool) string {
 	if (mode == "daily" || mode == "sandbox") && len(baseURLs) > 1 {
 		return baseURLs[1]
 	}
-	if mode == "" && paid && len(baseURLs) > 1 {
+	if (mode == "" || mode == "auto") && paid && len(baseURLs) > 1 {
 		return baseURLs[1]
 	}
 	return baseURLs[0]

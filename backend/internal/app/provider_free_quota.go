@@ -40,10 +40,10 @@ func provideSelectionFreeQuota(cfg *config.Config, reader usage.UsageLogReposito
 		if cfg == nil {
 			return provider.FreeQuotaOptions{}
 		}
-		v := cfg.Gateway.Grok
+		v := cfg.Scheduling.GrokFreeQuota
 		return provider.FreeQuotaOptions{
-			Enabled: v.FreeQuotaSoftGateEnabled, TokenLimit: v.FreeQuotaTokenLimit,
-			Percent: v.FreeQuotaSoftGatePercent, WindowHours: v.FreeQuotaWindowHours, CacheSeconds: v.FreeQuotaStatsCacheSeconds,
+			Enabled: v.Enabled, TokenLimit: v.TokenLimit,
+			Percent: v.ThresholdPercent, WindowHours: v.WindowHours, CacheSeconds: v.StatsCacheSeconds,
 		}
 	}
 	var load func(context.Context, []int64, time.Time) (map[int64]int64, error)

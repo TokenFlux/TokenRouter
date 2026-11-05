@@ -52,8 +52,8 @@ type schedulerSharedState struct {
 func provideSchedulerCache(rdb *redis.Client, cfg *config.Config) *schedulerredis.SnapshotCache {
 	options := schedulerredis.SnapshotCacheOptions{}
 	if cfg != nil {
-		options.MGetChunkSize = cfg.Gateway.Scheduling.SnapshotMGetChunkSize
-		options.WriteChunkSize = cfg.Gateway.Scheduling.SnapshotWriteChunkSize
+		options.MGetChunkSize = cfg.Scheduling.Snapshot.MGetChunkSize
+		options.WriteChunkSize = cfg.Scheduling.Snapshot.WriteChunkSize
 	}
 	return schedulerredis.NewSnapshotCache(rdb, codec.ProviderCodec{}, options)
 }
@@ -65,7 +65,7 @@ func provideSchedulerCache(rdb *redis.Client, cfg *config.Config) *schedulerredi
 func provideSchedulerSnapshot(cache scheduler.SnapshotCache, outbox scheduler.SchedulerOutboxRepository, providers *providerpostgres.ProviderStore, groups *routingpostgres.GroupStore, cfg *config.Config) *scheduler.SnapshotService {
 	var options *scheduler.SnapshotOptions
 	if cfg != nil {
-		v := cfg.Gateway.Scheduling
+		v := cfg.Scheduling.Snapshot
 		options = &scheduler.SnapshotOptions{
 			DbFallbackEnabled: v.DbFallbackEnabled, DbFallbackMaxQPS: v.DbFallbackMaxQPS, DbFallbackTimeoutSeconds: v.DbFallbackTimeoutSeconds,
 			OutboxPollIntervalSeconds: v.OutboxPollIntervalSeconds, FullRebuildIntervalSeconds: v.FullRebuildIntervalSeconds, OutboxLagWarnSeconds: v.OutboxLagWarnSeconds,
@@ -82,25 +82,18 @@ func provideSchedulerSnapshot(cache scheduler.SnapshotCache, outbox scheduler.Sc
 		})
 }
 
-// provideConcurrencyCache constructs slot and wait counters from required
-// scheduling configuration. It chooses the longer sticky or fallback wait,
-// truncating its seconds into an integer used by the wait-counter cache.
-//
-// A nonpositive result selects slot TTL minutes multiplied by sixty, while slot
-// expiry separately receives the configured minutes. A positive subsecond wait
-// can truncate to zero and take that same fallback, so callers account for
-// whole-second precision when configuring the counter lifetime.
+// provideConcurrencyCache constructs slot and wait counters from required settings.
+// Wait counters use the longer configured acquisition timeout in whole seconds.
+// Nonpositive waits fall back to the slot lifetime converted from minutes; slot
+// expiration separately retains its configured minute-based lifetime.
 func provideConcurrencyCache(rdb *redis.Client, cfg *config.Config) scheduler.ConcurrencyCache {
 	// Wait counters cover the longer configured waiting path. Whole seconds
-	// are used by the Redis cache, with the slot-lifetime fallback applied below after nonpositive truncation.
-	ttl := int(cfg.Gateway.Scheduling.StickySessionWaitTimeout.Seconds())
-	if cfg.Gateway.Scheduling.FallbackWaitTimeout > cfg.Gateway.Scheduling.StickySessionWaitTimeout {
-		ttl = int(cfg.Gateway.Scheduling.FallbackWaitTimeout.Seconds())
-	}
+	// are used by the Redis cache, with the slot-lifetime fallback applied below for nonpositive waits.
+	ttl := max(cfg.Scheduling.StickyProviderWait.TimeoutSeconds, cfg.Scheduling.AlternateProviderWait.TimeoutSeconds)
 	if ttl <= 0 {
-		ttl = cfg.Gateway.ConcurrencySlotTTLMinutes * 60
+		ttl = cfg.Scheduling.ConcurrencySlotTTLMinutes * 60
 	}
-	return schedulerredis.NewConcurrencyCache(rdb, cfg.Gateway.ConcurrencySlotTTLMinutes, ttl)
+	return schedulerredis.NewConcurrencyCache(rdb, cfg.Scheduling.ConcurrencySlotTTLMinutes, ttl)
 }
 
 // provideConcurrency constructs shared slot management and immediately attempts
@@ -121,7 +114,7 @@ func provideConcurrency(cache scheduler.ConcurrencyCache, cfg *config.Config) *s
 	}
 	if cfg != nil {
 		// Provider load reuse receives the configured cache lifetime in milliseconds.
-		core.SetProviderLoadBatchCacheTTL(time.Duration(cfg.Gateway.Scheduling.LoadBatchCacheTTLMS) * time.Millisecond)
+		core.SetProviderLoadBatchCacheTTL(time.Duration(cfg.Scheduling.LoadBatch.CacheTTLMS) * time.Millisecond)
 	}
 	return core
 }
@@ -131,8 +124,8 @@ func provideConcurrency(cache scheduler.ConcurrencyCache, cfg *config.Config) *s
 // nonpositive minutes retain that default for the Redis adapter.
 func provideSessionCache(rdb *redis.Client, cfg *config.Config) scheduler.SessionLimitCache {
 	minutes := 5
-	if cfg != nil && cfg.Gateway.SessionIdleTimeoutMinutes > 0 {
-		minutes = cfg.Gateway.SessionIdleTimeoutMinutes
+	if cfg != nil && cfg.Scheduling.DefaultSessionIdleTimeoutMinutes > 0 {
+		minutes = cfg.Scheduling.DefaultSessionIdleTimeoutMinutes
 	}
 	return schedulerredis.NewSessionLimitCache(rdb, minutes)
 }
@@ -140,7 +133,7 @@ func provideSessionCache(rdb *redis.Client, cfg *config.Config) scheduler.Sessio
 // provideMessageQueue binds user queue and RPM storage with required configured
 // lock/delay options.
 func provideMessageQueue(cache scheduler.UserMsgQueueCache, rpm scheduler.RPMCache, cfg *config.Config) *scheduler.UserMessageQueueService {
-	v := cfg.Gateway.UserMessageQueue
+	v := cfg.Gateway.Anthropic.UserMessageQueue
 	return scheduler.NewUserMessageQueueService(cache, rpm, &scheduler.MessageQueueOptions{LockTTLMs: v.LockTTLMs, MinDelayMs: v.MinDelayMs, MaxDelayMs: v.MaxDelayMs}, scheduler.Diagnostics{
 		Logf: logging.LegacyPrintf,
 
@@ -168,7 +161,7 @@ func schedulerParameterDefaults(cfg *config.Config) scheduler.ParameterDefaults 
 	if cfg == nil {
 		return defaults
 	}
-	value := cfg.Gateway.AdvancedScheduler
+	value := cfg.Scheduling.Advanced
 	if value.LBTopK > 0 {
 		defaults.TopK = value.LBTopK
 	}

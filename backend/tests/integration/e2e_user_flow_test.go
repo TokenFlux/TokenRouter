@@ -8,12 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 )
 
-// User-flow probes attempt account and API-key creation on an already running
+// e2e_user_flow_test.go attempts account and API-key creation on an already running
 // deployment. Any created resources remain after the tests finish. Sequential
 // subtests pass login tokens and gateway keys forward; several unavailable or
 // rejected responses are skipped or logged, so the result reflects only the
@@ -53,7 +52,7 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 		// Close the registration response when setup logs or skips its status,
 		// releasing its body before the login subtest runs; cleanup discards
 		// close errors.
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Registration retains received bytes for its status log or skip message.
 		// A read error is discarded and is not a separate setup assertion.
@@ -93,7 +92,7 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 		// Close the login response after extracting a token or skipping its
 		// credentials, releasing its body before the profile subtest runs;
 		// cleanup discards close errors.
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// A failed body read can still yield bytes; login ignores that error and
 		// relies on later status, decoding and nonempty-token checks before
@@ -154,7 +153,7 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 		// Close the profile response after its HTTP check, releasing this
 		// request's body on both successful and failed test exits; cleanup
 		// discards close errors.
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != 200 {
 			// Capture received profile-error bytes for the failure message. The
@@ -199,7 +198,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 		// Close the key-creation response after extracting its credential or
 		// skipping its status, releasing the body before gateway work; cleanup
 		// discards close errors.
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Key creation uses received bytes for status diagnostics and credential
 		// decoding. Body-read errors receive no direct assertion; later checks
@@ -258,7 +257,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 		// Close the gateway response after logging its received status, releasing
 		// its body even when the log reports a rejected request; cleanup
 		// discards close errors.
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// The body supplies diagnostics on some gateway statuses. Its read error
 		// is discarded; this subtest logs every HTTP status and makes no
@@ -268,12 +267,12 @@ func TestAPIKeyLifecycle(t *testing.T) {
 		// Record the received gateway status for deployment diagnosis.
 		// These branches neither fail nor skip on status, so their
 		// messages do not prove authentication or provider eligibility.
-		switch {
-		case resp.StatusCode == 200:
+		switch resp.StatusCode {
+		case 200:
 			t.Logf("✅ API Key 网关调用成功")
-		case resp.StatusCode == 402:
+		case 402:
 			t.Logf("⚠️ 余额不足，但 API Key 认证通过")
-		case resp.StatusCode == 403:
+		case 403:
 			t.Logf("⚠️ 无可用提供商，但 API Key 认证通过")
 		default:
 			t.Logf("⚠️ 网关返回 HTTP %d: %s", resp.StatusCode, string(respBody))
@@ -289,7 +288,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 		// Close the usage response after its success or error log, releasing this
 		// request's body even when the status is diagnostic; cleanup discards
 		// close errors.
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != 200 {
 			// A non-200 usage response is logged with received body bytes. Body-read
@@ -374,7 +373,7 @@ func loginTestUser(t *testing.T) string {
 	// Close the login response after status and token selection complete,
 	// releasing its body even when this helper returns empty text; cleanup
 	// discards close errors.
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Reject the HTTP status before decoding its envelope so an error
 	// response cannot supply credentials. The empty result tells the
@@ -408,17 +407,4 @@ func loginTestUser(t *testing.T) string {
 	}
 
 	return ""
-}
-
-// redactAPIKey trims the credential and returns a fully masked label for at
-// most eight bytes. Longer values expose their leading eight bytes for
-// diagnostics, with the remaining bytes replaced by an ellipsis.
-func redactAPIKey(key string) string {
-	key = strings.TrimSpace(key)
-	// Short values reveal no credential bytes in this helper's diagnostic
-	// label.
-	if len(key) <= 8 {
-		return "***"
-	}
-	return key[:8] + "..."
 }

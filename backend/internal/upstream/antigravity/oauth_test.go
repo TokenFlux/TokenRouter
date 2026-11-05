@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"net/url"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -25,11 +24,11 @@ func TestGetClientSecret_环境变量设置(t *testing.T) {
 	old := defaultClientSecret
 	defaultClientSecret = ""
 	t.Cleanup(func() { defaultClientSecret = old })
-	t.Setenv(AntigravityOAuthClientSecretEnv, "my-secret-value")
+	ConfigureIdentity("my-secret-value", "")
 
 	// Initialization has already completed; copy the test environment value into
 	// its cached variable so this fixture exercises retrieval of startup state.
-	defaultClientSecret = os.Getenv(AntigravityOAuthClientSecretEnv)
+	defaultClientSecret = "my-secret-value"
 
 	secret, err := getClientSecret()
 	if err != nil {
@@ -52,7 +51,7 @@ func TestGetClientSecret_环境变量为空(t *testing.T) {
 	if err == nil {
 		t.Fatal("defaultClientSecret 为空时应返回错误")
 	}
-	if !strings.Contains(err.Error(), AntigravityOAuthClientSecretEnv) {
+	if !strings.Contains(err.Error(), "provider.antigravity.oauth_client_secret") {
 		t.Errorf("错误信息应包含环境变量名: got %s", err.Error())
 	}
 }

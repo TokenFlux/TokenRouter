@@ -45,7 +45,7 @@ func providePluginPackages(cfg *config.Config) (*provider.PackageFiles, error) {
 
 // providePluginConfiguration reuses the shared identity cipher and persistent-key requirement.
 func providePluginConfiguration(cfg *config.Config, cipher identity.SecretEncryptor) *plugin.Configuration {
-	return plugin.NewConfiguration(cipher, cfg.Totp.EncryptionKeyConfigured)
+	return plugin.NewConfiguration(cipher, cfg.Security.SecretEncryptionKeyConfigured)
 }
 
 // providePluginSource overlays development records on the shared durable installation store.

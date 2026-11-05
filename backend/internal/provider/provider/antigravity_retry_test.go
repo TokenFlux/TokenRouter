@@ -1164,7 +1164,6 @@ func TestAntigravityRetryLoop_NoURLFallback_UsesConfiguredBaseURL(t *testing.T) 
 	// Clear the forwarding override so endpoint resolution uses this case's
 	// configured base list; testing restores the previous environment value
 	// after the case completes.
-	t.Setenv("GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL", "")
 
 	// Copy the global endpoint slice before replacing it and retain the
 	// current availability tracker; these fixtures share process-wide retry

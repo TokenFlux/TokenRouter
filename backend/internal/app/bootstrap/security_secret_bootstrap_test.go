@@ -76,12 +76,12 @@ func TestEnsureBootstrapSecretsGenerateAndPersistJWTSecret(t *testing.T) {
 
 	err := ensureBootstrapSecrets(context.Background(), client, cfg)
 	require.NoError(t, err)
-	require.NotEmpty(t, cfg.JWT.Secret)
-	require.GreaterOrEqual(t, len([]byte(cfg.JWT.Secret)), 32)
+	require.NotEmpty(t, cfg.Auth.JWT.Secret)
+	require.GreaterOrEqual(t, len([]byte(cfg.Auth.JWT.Secret)), 32)
 
 	stored, err := client.SecuritySecret.Query().Where(securitysecret.KeyEQ(securitySecretKeyJWT)).Only(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, cfg.JWT.Secret, stored.Value)
+	require.Equal(t, cfg.Auth.JWT.Secret, stored.Value)
 }
 
 // TestEnsureBootstrapSecretsLoadExistingJWTSecret seeds one valid persisted
@@ -96,7 +96,7 @@ func TestEnsureBootstrapSecretsLoadExistingJWTSecret(t *testing.T) {
 	cfg := &config.Config{}
 	err = ensureBootstrapSecrets(context.Background(), client, cfg)
 	require.NoError(t, err)
-	require.Equal(t, "existing-jwt-secret-32bytes-long!!!!", cfg.JWT.Secret)
+	require.Equal(t, "existing-jwt-secret-32bytes-long!!!!", cfg.Auth.JWT.Secret)
 }
 
 // TestEnsureBootstrapSecretsRejectInvalidStoredSecret seeds a short persisted
@@ -118,9 +118,7 @@ func TestEnsureBootstrapSecretsRejectInvalidStoredSecret(t *testing.T) {
 // subsequent database query must contain that configured value.
 func TestEnsureBootstrapSecretsPersistConfiguredJWTSecret(t *testing.T) {
 	client := newSecuritySecretTestClient(t)
-	cfg := &config.Config{
-		JWT: config.JWTConfig{Secret: "configured-jwt-secret-32bytes-long!!"},
-	}
+	cfg := &config.Config{Auth: config.AuthConfig{JWT: config.JWTConfig{Secret: "configured-jwt-secret-32bytes-long!!"}}}
 
 	err := ensureBootstrapSecrets(context.Background(), client, cfg)
 	require.NoError(t, err)
@@ -135,7 +133,7 @@ func TestEnsureBootstrapSecretsPersistConfiguredJWTSecret(t *testing.T) {
 // naming the required minimum before it can resolve a usable secret.
 func TestEnsureBootstrapSecretsConfiguredSecretTooShort(t *testing.T) {
 	client := newSecuritySecretTestClient(t)
-	cfg := &config.Config{JWT: config.JWTConfig{Secret: "short"}}
+	cfg := &config.Config{Auth: config.AuthConfig{JWT: config.JWTConfig{Secret: "short"}}}
 
 	err := ensureBootstrapSecrets(context.Background(), client, cfg)
 	require.Error(t, err)
@@ -153,14 +151,14 @@ func TestEnsureBootstrapSecretsConfiguredSecretDuplicateIgnored(t *testing.T) {
 		Save(context.Background())
 	require.NoError(t, err)
 
-	cfg := &config.Config{JWT: config.JWTConfig{Secret: "another-configured-jwt-secret-32!!!!"}}
+	cfg := &config.Config{Auth: config.AuthConfig{JWT: config.JWTConfig{Secret: "another-configured-jwt-secret-32!!!!"}}}
 	err = ensureBootstrapSecrets(context.Background(), client, cfg)
 	require.NoError(t, err)
 
 	stored, err := client.SecuritySecret.Query().Where(securitysecret.KeyEQ(securitySecretKeyJWT)).Only(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, "existing-jwt-secret-32bytes-long!!!!", stored.Value)
-	require.Equal(t, "existing-jwt-secret-32bytes-long!!!!", cfg.JWT.Secret)
+	require.Equal(t, "existing-jwt-secret-32bytes-long!!!!", cfg.Auth.JWT.Secret)
 }
 
 // TestGetOrCreateGeneratedSecuritySecretTrimmedExistingValue seeds a secret
@@ -440,7 +438,7 @@ func TestEnsureBootstrapSecretsOAuthPersistsIndependentKey(t *testing.T) {
 	first := &config.Config{}
 	require.NoError(t, ensureBootstrapSecrets(t.Context(), client, first))
 	require.Len(t, first.MCPOAuthSigningSecret, 64)
-	require.NotEqual(t, first.JWT.Secret, first.MCPOAuthSigningSecret)
+	require.NotEqual(t, first.Auth.JWT.Secret, first.MCPOAuthSigningSecret)
 	second := &config.Config{}
 	require.NoError(t, ensureBootstrapSecrets(t.Context(), client, second))
 	require.Equal(t, first.MCPOAuthSigningSecret, second.MCPOAuthSigningSecret)

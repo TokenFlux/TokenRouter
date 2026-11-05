@@ -1,7 +1,6 @@
 package googleforward
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -118,8 +117,7 @@ func TestResolveAntigravityForwardBaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL", tt.env)
-			require.Equal(t, tt.want, antigravity.ResolveAntigravityForwardBaseURL(os.Getenv("GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL"), provideradapter.AntigravityPaidTier(gatewayprovider.ExecutionRecord(tt.provider))))
+			require.Equal(t, tt.want, antigravity.ResolveAntigravityForwardBaseURL(tt.env, provideradapter.AntigravityPaidTier(gatewayprovider.ExecutionRecord(tt.provider))))
 		})
 	}
 }

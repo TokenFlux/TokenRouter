@@ -71,18 +71,18 @@ func ensureBootstrapSecrets(ctx context.Context, client *ent.Client, cfg *config
 		return fmt.Errorf("ensure MCP OAuth secret: %w", err)
 	}
 	cfg.MCPOAuthSigningSecret = value
-	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
-	if cfg.JWT.Secret != "" {
-		storedSecret, err := createSecuritySecretIfAbsent(ctx, client, securitySecretKeyJWT, cfg.JWT.Secret)
+	cfg.Auth.JWT.Secret = strings.TrimSpace(cfg.Auth.JWT.Secret)
+	if cfg.Auth.JWT.Secret != "" {
+		storedSecret, err := createSecuritySecretIfAbsent(ctx, client, securitySecretKeyJWT, cfg.Auth.JWT.Secret)
 		if err != nil {
 			return fmt.Errorf("persist jwt secret: %w", err)
 		}
 		// An existing persisted value wins across instances. Report a mismatched
 		// configured candidate before publishing the database readback into this config.
-		if storedSecret != cfg.JWT.Secret {
+		if storedSecret != cfg.Auth.JWT.Secret {
 			log.Println("Warning: configured JWT secret mismatches persisted value; using persisted secret for cross-instance consistency.")
 		}
-		cfg.JWT.Secret = storedSecret
+		cfg.Auth.JWT.Secret = storedSecret
 		return nil
 	}
 
@@ -90,7 +90,7 @@ func ensureBootstrapSecrets(ctx context.Context, client *ent.Client, cfg *config
 	if err != nil {
 		return fmt.Errorf("ensure jwt secret: %w", err)
 	}
-	cfg.JWT.Secret = secret
+	cfg.Auth.JWT.Secret = secret
 
 	if created {
 		log.Println("Warning: JWT secret auto-generated and persisted to database. Consider rotating to a managed secret for production.")

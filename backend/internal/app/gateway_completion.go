@@ -26,48 +26,48 @@ func usageRecordPoolOptionsFromConfig(cfg *config.Config) completion.UsageRecord
 	if cfg == nil {
 		return opts
 	}
-	if cfg.Gateway.UsageRecord.WorkerCount > 0 {
-		opts.WorkerCount = cfg.Gateway.UsageRecord.WorkerCount
+	if cfg.Usage.RecordQueue.WorkerCount > 0 {
+		opts.WorkerCount = cfg.Usage.RecordQueue.WorkerCount
 	}
-	if cfg.Gateway.UsageRecord.QueueSize > 0 {
-		opts.QueueSize = cfg.Gateway.UsageRecord.QueueSize
+	if cfg.Usage.RecordQueue.QueueSize > 0 {
+		opts.QueueSize = cfg.Usage.RecordQueue.QueueSize
 	}
-	if cfg.Gateway.UsageRecord.TaskTimeoutSeconds > 0 {
+	if cfg.Usage.RecordQueue.TaskTimeoutSeconds > 0 {
 		// Convert configured seconds into each completion task's execution budget.
-		opts.TaskTimeout = time.Duration(cfg.Gateway.UsageRecord.TaskTimeoutSeconds) * time.Second
+		opts.TaskTimeout = time.Duration(cfg.Usage.RecordQueue.TaskTimeoutSeconds) * time.Second
 	}
-	if policy := strings.TrimSpace(strings.ToLower(cfg.Gateway.UsageRecord.OverflowPolicy)); policy != "" {
+	if policy := strings.TrimSpace(strings.ToLower(cfg.Usage.RecordQueue.OverflowPolicy)); policy != "" {
 		opts.OverflowPolicy = policy
 	}
-	if cfg.Gateway.UsageRecord.OverflowSamplePercent >= 0 {
-		opts.OverflowSamplePercent = cfg.Gateway.UsageRecord.OverflowSamplePercent
+	if cfg.Usage.RecordQueue.OverflowSamplePercent >= 0 {
+		opts.OverflowSamplePercent = cfg.Usage.RecordQueue.OverflowSamplePercent
 	}
-	opts.AutoScaleEnabled = cfg.Gateway.UsageRecord.AutoScaleEnabled
-	if cfg.Gateway.UsageRecord.AutoScaleMinWorkers > 0 {
-		opts.AutoScaleMinWorkers = cfg.Gateway.UsageRecord.AutoScaleMinWorkers
+	opts.AutoScaleEnabled = cfg.Usage.RecordQueue.AutoScaleEnabled
+	if cfg.Usage.RecordQueue.AutoScaleMinWorkers > 0 {
+		opts.AutoScaleMinWorkers = cfg.Usage.RecordQueue.AutoScaleMinWorkers
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleMaxWorkers > 0 {
-		opts.AutoScaleMaxWorkers = cfg.Gateway.UsageRecord.AutoScaleMaxWorkers
+	if cfg.Usage.RecordQueue.AutoScaleMaxWorkers > 0 {
+		opts.AutoScaleMaxWorkers = cfg.Usage.RecordQueue.AutoScaleMaxWorkers
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleUpQueuePercent > 0 {
-		opts.AutoScaleUpPercent = cfg.Gateway.UsageRecord.AutoScaleUpQueuePercent
+	if cfg.Usage.RecordQueue.AutoScaleUpQueuePercent > 0 {
+		opts.AutoScaleUpPercent = cfg.Usage.RecordQueue.AutoScaleUpQueuePercent
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleDownQueuePercent >= 0 {
-		opts.AutoScaleDownPercent = cfg.Gateway.UsageRecord.AutoScaleDownQueuePercent
+	if cfg.Usage.RecordQueue.AutoScaleDownQueuePercent >= 0 {
+		opts.AutoScaleDownPercent = cfg.Usage.RecordQueue.AutoScaleDownQueuePercent
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleUpStep > 0 {
-		opts.AutoScaleUpStep = cfg.Gateway.UsageRecord.AutoScaleUpStep
+	if cfg.Usage.RecordQueue.AutoScaleUpStep > 0 {
+		opts.AutoScaleUpStep = cfg.Usage.RecordQueue.AutoScaleUpStep
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleDownStep > 0 {
-		opts.AutoScaleDownStep = cfg.Gateway.UsageRecord.AutoScaleDownStep
+	if cfg.Usage.RecordQueue.AutoScaleDownStep > 0 {
+		opts.AutoScaleDownStep = cfg.Usage.RecordQueue.AutoScaleDownStep
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleCheckIntervalSeconds > 0 {
+	if cfg.Usage.RecordQueue.AutoScaleCheckIntervalSeconds > 0 {
 		// Scaling checks use a duration expressed in configured seconds.
-		opts.AutoScaleInterval = time.Duration(cfg.Gateway.UsageRecord.AutoScaleCheckIntervalSeconds) * time.Second
+		opts.AutoScaleInterval = time.Duration(cfg.Usage.RecordQueue.AutoScaleCheckIntervalSeconds) * time.Second
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleCooldownSeconds >= 0 {
+	if cfg.Usage.RecordQueue.AutoScaleCooldownSeconds >= 0 {
 		// The cooldown duration spaces scaling changes in configured seconds.
-		opts.AutoScaleCooldown = time.Duration(cfg.Gateway.UsageRecord.AutoScaleCooldownSeconds) * time.Second
+		opts.AutoScaleCooldown = time.Duration(cfg.Usage.RecordQueue.AutoScaleCooldownSeconds) * time.Second
 	}
 	return completion.NormalizeOptions(opts)
 }

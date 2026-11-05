@@ -53,9 +53,8 @@ type ConfigurationRuntime struct {
 	// EasyPay draft-query providers. NewConfigService supplies an error-returning
 	// function when callers omit this adapter factory.
 	CreateProvider func(string, string, map[string]string) (Provider, error)
-	LookupEnv      func(string) (string, bool) // process environment lookup
-	NewTradeNo     func() string               // draft probe merchant number
-	Warn           func(string, ...any)        // configuration warning callback
+	NewTradeNo     func() string        // draft probe merchant number
+	Warn           func(string, ...any) // configuration warning callback
 }
 
 // ConfigService interprets payment settings, manages instances, and reads
@@ -72,13 +71,10 @@ type ConfigService struct {
 }
 
 // NewConfigService retains the supplied configuration stores, billing reader,
-// key bytes, and runtime callbacks. Missing environment lookup reports unset,
-// missing trade generation uses GenerateOutTradeNo, and missing provider
+// key bytes, and runtime callbacks. Missing trade generation uses
+// GenerateOutTradeNo, and missing provider
 // construction returns an unavailable-factory error when invoked.
 func NewConfigService(store ConfigurationStore, settings ConfigurationSettings, key []byte, plans ConfigurationPlans, runtime ConfigurationRuntime) *ConfigService {
-	if runtime.LookupEnv == nil {
-		runtime.LookupEnv = func(string) (string, bool) { return "", false }
-	}
 	if runtime.NewTradeNo == nil {
 		runtime.NewTradeNo = GenerateOutTradeNo
 	}

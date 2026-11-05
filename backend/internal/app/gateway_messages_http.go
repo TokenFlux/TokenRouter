@@ -64,15 +64,15 @@ func provideMessageHTTPBindings(
 	options := gatewayhttp.MessagesHTTPOptions{MaxSwitches: 10, MaxGeminiSwitches: 3}
 	ping := time.Duration(0)
 	if cfg != nil {
-		options.MaxBodyBytes = cfg.Gateway.MaxBodySize
-		options.ForceCodexCLI = cfg.Gateway.ForceCodexCLI
+		options.MaxBodyBytes = cfg.Gateway.MaxRequestBodyBytes
+		options.ForceCodexCLI = cfg.Gateway.OpenAI.Codex.ForceCLI
 		// Waiting handlers emit pings using the configured interval in seconds.
-		ping = time.Duration(cfg.Concurrency.PingInterval) * time.Second
-		if cfg.Gateway.MaxProviderSwitches > 0 {
-			options.MaxSwitches = cfg.Gateway.MaxProviderSwitches
+		ping = time.Duration(cfg.Gateway.Streaming.WaitPingIntervalSeconds) * time.Second
+		if cfg.Gateway.Failover.MaxProviderSwitches > 0 {
+			options.MaxSwitches = cfg.Gateway.Failover.MaxProviderSwitches
 		}
-		if cfg.Gateway.MaxProviderSwitchesGemini > 0 {
-			options.MaxGeminiSwitches = cfg.Gateway.MaxProviderSwitchesGemini
+		if cfg.Gateway.Failover.MaxProviderSwitchesGemini > 0 {
+			options.MaxGeminiSwitches = cfg.Gateway.Failover.MaxProviderSwitchesGemini
 		}
 	}
 	var moderationPort gatewayhttp.ModerationPort

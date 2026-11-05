@@ -80,10 +80,9 @@ func (s *antigravityProbeTransport) DoWithTLS(req *http.Request, proxy string, i
 // headers and body, response closure, safe ordered SSE events, and rejection
 // after shared activity stops.
 func TestNativeAntigravityProbeAssembly(t *testing.T) {
-	t.Setenv("GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL", "prod")
 	f := newDatabaseFixture(t)
 	store := providerpostgres.NewProviderStore(f.client, f.db, providerpostgres.ProviderStoreOptions{})
-	cfg := &config.Config{}
+	cfg := &config.Config{Provider: config.ProviderConfig{Antigravity: config.AntigravityProviderConfig{ForwardEndpoint: "prod"}}}
 	runtime := NewProviderHealthRuntimeForTest(store, nil, cfg, nil, nil, nil, nil, nil)
 	tokens := &provider.AntigravityTokenSource{}
 	transport := &antigravityProbeTransport{}

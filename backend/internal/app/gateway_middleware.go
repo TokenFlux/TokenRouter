@@ -54,7 +54,7 @@ func provideGatewayRouteMiddleware(
 		TTFTMode: ttftMode,
 		// Gateway configuration stores whole seconds; the middleware owns the
 		// downstream idle timer and the independent upstream inactivity cutoff.
-		DownstreamKeepalive: gatewayhttp.DownstreamSSEKeepalive(time.Duration(cfg.Gateway.StreamKeepaliveInterval)*time.Second, time.Duration(cfg.Gateway.StreamDataIntervalTimeout)*time.Second),
+		DownstreamKeepalive: gatewayhttp.DownstreamSSEKeepalive(time.Duration(cfg.Gateway.Streaming.KeepaliveIntervalSeconds)*time.Second, time.Duration(cfg.Gateway.Streaming.DataIdleTimeoutSeconds)*time.Second),
 		ModelAttributes: func(c *gin.Context) {
 			c.Request = c.Request.WithContext(routing.WithModelAttributes(c.Request.Context(), attributes))
 			c.Next()
@@ -62,8 +62,8 @@ func provideGatewayRouteMiddleware(
 		ClientGroupFallback:   clientFallback,
 		APIKeyAuth:            gin.HandlerFunc(apiKeyAuth),
 		GoogleAPIKeyAuth:      newGatewayAuthorization(apiKeyService, subscriptionService, cfg, true),
-		BodyLimit:             middleware.RequestBodyLimit(cfg.Gateway.MaxBodySize),
-		TextBodyLimit:         middleware.RequestBodyLimit(cfg.Gateway.TextMaxBodySize),
+		BodyLimit:             middleware.RequestBodyLimit(cfg.Gateway.MaxRequestBodyBytes),
+		TextBodyLimit:         middleware.RequestBodyLimit(cfg.Gateway.TextMaxRequestBodyBytes),
 		ClientRequestID:       middleware.ClientRequestID(),
 		OpsErrorLogger:        gatewayhttp.OpsErrorLoggerMiddleware(opsService, queue, provideOpsObservationAccess()),
 		EndpointNormalization: gatewayhttp.InboundEndpointMiddleware(),

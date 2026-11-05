@@ -113,9 +113,7 @@ func TestCreativeWorkerRuntimeWorkerCount(t *testing.T) {
 // desired counts rather than a provider task-drain interleaving.
 func TestCreativeWorkerRuntimeStartStopAndScale(t *testing.T) {
 	fixture := newCreativeWorkerFixture()
-	runtime := newCreativeRuntimeFixture(fixture.worker, fixture.service, &config.Config{
-		Creative: config.CreativeConfig{QueueEnabled: true},
-	})
+	runtime := newCreativeRuntimeFixture(fixture.worker, fixture.service, &config.Config{Creative: config.CreativeConfig{QueueWorkerEnabled: true}})
 	runtime.SetWorkerCount(2)
 	runtime.Start()
 	require.Eventually(t, runtime.Running, time.Second, 10*time.Millisecond)
@@ -131,9 +129,7 @@ func TestCreativeWorkerRuntimeStartStopAndScale(t *testing.T) {
 // gate and reads runtime status. It checks running, two active handles, two
 // busy calls, and zero status after release and stop.
 func TestCreativeWorkerRuntimeStatus(t *testing.T) {
-	stopped := newCreativeRuntimeFixture(nil, nil, &config.Config{
-		Creative: config.CreativeConfig{QueueEnabled: true},
-	})
+	stopped := newCreativeRuntimeFixture(nil, nil, &config.Config{Creative: config.CreativeConfig{QueueWorkerEnabled: true}})
 	require.Equal(t, creative.CreativeWorkerStatus{}, stopped.Status())
 
 	fixture := newCreativeWorkerFixture()
@@ -157,9 +153,7 @@ func TestCreativeWorkerRuntimeStatus(t *testing.T) {
 		Event: logging.Event,
 	},
 	))
-	runtime := newCreativeRuntimeFixture(worker, fixture.service, &config.Config{
-		Creative: config.CreativeConfig{QueueEnabled: true},
-	})
+	runtime := newCreativeRuntimeFixture(worker, fixture.service, &config.Config{Creative: config.CreativeConfig{QueueWorkerEnabled: true}})
 	runtime.SetWorkerCount(2)
 	runtime.Start()
 	// Release the simulated provider gate before runtime shutdown on every test
@@ -215,7 +209,7 @@ func TestCreativeWorkerRuntimeParallelProviderExecution(t *testing.T) {
 	},
 	)
 	worker := newCreativeWorkerFixtureForSources(queue, repo, transient, executor, fixture.service, fixture.worker.Options(), concurrency)
-	runtime := newCreativeRuntimeFixture(worker, fixture.service, &config.Config{Creative: config.CreativeConfig{QueueEnabled: true}})
+	runtime := newCreativeRuntimeFixture(worker, fixture.service, &config.Config{Creative: config.CreativeConfig{QueueWorkerEnabled: true}})
 	runtime.SetWorkerCount(2)
 	runtime.Start()
 	// Release the simulated provider gate before runtime shutdown on every test
@@ -261,7 +255,7 @@ func TestStoppedRuntimesRejectStart(t *testing.T) {
 	t.Run("creative", func(t *testing.T) {
 		q := &parallelCreativeQueue{ready: make(chan string)}
 		w := newCreativeWorkerFixtureForSources(q, nil, nil, nil, nil, creative.CreativeWorkerOptions{})
-		r := newCreativeRuntimeFixture(w, nil, &config.Config{Creative: config.CreativeConfig{QueueEnabled: true}})
+		r := newCreativeRuntimeFixture(w, nil, &config.Config{Creative: config.CreativeConfig{QueueWorkerEnabled: true}})
 		r.SetWorkerCount(1)
 		r.Stop()
 		r.Start()
@@ -274,7 +268,7 @@ func TestStoppedRuntimesRejectStart(t *testing.T) {
 // recovery callbacks from supplied Public.Results. It retains the worker and
 // starts no goroutines until the returned runtime Start is called.
 func newCreativeRuntimeFixture(worker *creative.CreativeRunWorker, public *creative.Public, cfg *config.Config) *creative.CreativeWorkerRuntime {
-	options := creative.RuntimeOptions{Enabled: cfg != nil && cfg.Creative.QueueEnabled}
+	options := creative.RuntimeOptions{Enabled: cfg != nil && cfg.Creative.QueueWorkerEnabled}
 	if public != nil && public.Results != nil {
 		options.Outbox = public.Results.RunCreativeOutboxReconciler
 		options.Transient = public.Results.RunCreativeTransientReconciler

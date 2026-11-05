@@ -28,9 +28,7 @@ func aesHexKey(n int, b byte) string {
 
 // aesTestCfg creates a minimal configuration with the supplied hex key.
 func aesTestCfg(keyHex string) *config.Config {
-	return &config.Config{
-		Totp: config.TotpConfig{EncryptionKey: keyHex},
-	}
+	return &config.Config{Security: config.SecurityConfig{SecretEncryptionKey: keyHex}}
 }
 
 // aesEncryptor constructs an encryptor with the fixed valid fixture key.

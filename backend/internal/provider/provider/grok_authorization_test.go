@@ -470,7 +470,8 @@ func TestGrokOAuthServiceAuthorizePasswordDisabledByDefault(t *testing.T) {
 // retained refresh input/endpoint, positive cache lifetime and one release of
 // the acquired refresh lock.
 func TestGrokTokenProviderRefreshesExpiredTokenOnRequestPath(t *testing.T) {
-	t.Setenv(xai.EnvBaseURL, xai.DefaultCLIBaseURL)
+	xai.ConfigureOverrides(xai.Overrides{BaseURL: xai.DefaultCLIBaseURL})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 
 	expiredAt := time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)
 	provider := &providercore.Record{
@@ -750,7 +751,8 @@ func TestGrokTokenProviderManualTestBypassesSchedulingGate(t *testing.T) {
 // an active provider with scheduling disabled and expired access data. It
 // checks the manual path refreshes once and returns the exchanged token.
 func TestGrokTokenProviderManualTestRefreshesExpiredTokenWhileUnschedulable(t *testing.T) {
-	t.Setenv(xai.EnvBaseURL, xai.DefaultCLIBaseURL)
+	xai.ConfigureOverrides(xai.Overrides{BaseURL: xai.DefaultCLIBaseURL})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 
 	expiredAt := time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)
 	provider := &providercore.Record{

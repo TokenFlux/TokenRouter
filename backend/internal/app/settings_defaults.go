@@ -34,7 +34,7 @@ import (
 func provideOAuthSettings(store *settings.Store, cfg *config.Config) *identity.OAuthSettings {
 	var defaults *identity.OAuthSettingsDefaults
 	if cfg != nil {
-		defaults = &identity.OAuthSettingsDefaults{LinuxDo: cfg.LinuxDo, DingTalk: cfg.DingTalk, OIDC: cfg.OIDC, WeChat: cfg.WeChat, GitHubOAuth: cfg.GitHubOAuth, GoogleOAuth: cfg.GoogleOAuth}
+		defaults = &identity.OAuthSettingsDefaults{LinuxDo: cfg.Auth.OAuth.LinuxDo, DingTalk: cfg.Auth.OAuth.DingTalk.IdentityDefaults(), OIDC: cfg.Auth.OAuth.OIDC, WeChat: cfg.Auth.OAuth.WeChat.IdentityDefaults(), GitHubOAuth: cfg.Auth.OAuth.GitHub, GoogleOAuth: cfg.Auth.OAuth.Google}
 	}
 	return identity.NewOAuthSettings(store, defaults, identityprovider.ResolveSettingsOIDCMetadata)
 }
@@ -48,8 +48,8 @@ func provideGrantSettings(store *settings.Store, cfg *config.Config, plans *bill
 		return identity.ValidateDefaultSubscriptionPlans(ctx, items, plans.GetPlan)
 	}}
 	if cfg != nil {
-		options.DefaultBalance = cfg.Default.UserBalance
-		options.DefaultConcurrency = cfg.Default.UserConcurrency
+		options.DefaultBalance = cfg.UserDefaults.Balance
+		options.DefaultConcurrency = cfg.UserDefaults.Concurrency
 	}
 	return identity.NewGrantSettings(store, options)
 }
@@ -58,7 +58,7 @@ func provideGrantSettings(store *settings.Store, cfg *config.Config, plans *bill
 // and publication. Initial trust and trusted-proxy presence are captured, while
 // callbacks read and publish cfg's current forwarded client-IP settings.
 func provideForwardedSettings(store *settings.Store, cfg *config.Config) *runtimeconfig.ForwardedSettings {
-	return runtimeconfig.NewForwardedSettings(store, runtimeconfig.ForwardedSettingsOptions{InitialTrust: cfg.Security.TrustForwardedIPForAPIKeyACL, TrustedProxiesConfigured: cfg.Server.TrustedProxiesConfigured, Headers: func() []string { return cfg.ForwardedClientIPSettings().Headers }, Publish: cfg.SetForwardedClientIPSettings})
+	return runtimeconfig.NewForwardedSettings(store, runtimeconfig.ForwardedSettingsOptions{InitialTrust: cfg.Server.ClientIP.TrustForwardedHeaders, TrustedProxiesConfigured: cfg.Server.ClientIP.TrustedProxiesConfigured, Headers: func() []string { return cfg.ForwardedClientIPSettings().Headers }, Publish: cfg.SetForwardedClientIPSettings})
 }
 
 // provideSchedulerAdminDefaults copies process score settings and normalized
@@ -68,7 +68,7 @@ func provideForwardedSettings(store *settings.Store, cfg *config.Config) *runtim
 func provideSchedulerAdminDefaults(cfg *config.Config) *scheduler.AdminDefaults {
 	value := scheduler.DefaultAdminSettingsDefaults()
 	if cfg != nil {
-		source := cfg.Gateway.AdvancedScheduler
+		source := cfg.Scheduling.Advanced
 		value.TopK = source.LBTopK
 		value.Weights = source.ScoreWeights
 		value.Process.EwmaErrorRateAlpha = source.EWMAErrorRateAlpha

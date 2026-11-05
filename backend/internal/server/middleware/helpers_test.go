@@ -77,7 +77,7 @@ func newGatewayAuthorization(keys *apikey.APIKeyService, subscriptions *billing.
 		Authentication: keyhttp.AuthenticationOptions{
 			Google: google, Context: func(c *gin.Context) context.Context { return c.Request.Context() },
 			ClientIP: func(c *gin.Context) string {
-				return clientip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL())
+				return clientip.GetSecurityClientIP(c, cfg.TrustForwardedHeaders())
 			},
 			AbuseClientKey: invalidAuthClientKey, NonConsuming: func(c *gin.Context) bool {
 				return gatewayhttp.IsAPIKeyNonConsumingRequest(c.Request.Method, c.Request.URL.Path)

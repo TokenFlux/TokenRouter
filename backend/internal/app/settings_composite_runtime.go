@@ -48,7 +48,7 @@ func provideCompositeSettingsHTTP(source *composite.Runtime, registry *settings.
 // headers come from cfg's published values, while Grok default-model
 // publication uses the platform setter.
 func provideCompositeReadOptions(cfg *config.Config, oauth *identity.OAuthSettings, gatewayRules *gateway.AdminSettingsRules, defaults *scheduler.AdminDefaults, sockets *ws.Runtime) *composite.ReadOptions {
-	return &composite.ReadOptions{ResponsesWS: sockets, OAuth: oauth, Gateway: *gatewayRules, Scheduler: *defaults, DefaultBalance: func() float64 { return cfg.Default.UserBalance }, DefaultConcurrency: func() int { return cfg.Default.UserConcurrency }, Forwarded: func() runtimeconfig.ForwardedInput {
+	return &composite.ReadOptions{ResponsesWS: sockets, OAuth: oauth, Gateway: *gatewayRules, Scheduler: *defaults, DefaultBalance: func() float64 { return cfg.UserDefaults.Balance }, DefaultConcurrency: func() int { return cfg.UserDefaults.Concurrency }, Forwarded: func() runtimeconfig.ForwardedInput {
 		value := cfg.ForwardedClientIPSettings()
 		return runtimeconfig.ForwardedInput{APIKeyACLTrustForwardedIP: value.TrustForwardedIP, ForwardedClientIPHeaders: value.Headers}
 	}, PublishModel: func(model string) {
@@ -112,7 +112,7 @@ func provideCompositeRuntime(store *settings.Store, cfg *config.Config, read *co
 			return nil
 		}},
 	}
-	return composite.NewRuntime(store, *read, prepare, grants, gatewayRuntime, cfg.Totp.EncryptionKeyConfigured, steps)
+	return composite.NewRuntime(store, *read, prepare, grants, gatewayRuntime, cfg.Security.SecretEncryptionKeyConfigured, steps)
 }
 
 // provideSettingsParticipants constructs the module registry from static field

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
@@ -38,7 +39,6 @@ func TestWriteConfigFileRuntimeDocument(t *testing.T) {
 			require.Equal(t, cfg.Server, restored.Server)
 			require.Equal(t, cfg.Database, restored.Database)
 			require.Equal(t, cfg.Redis, restored.Redis)
-			require.Equal(t, cfg.JWT, restored.JWT)
 			wantZone := zone
 			if wantZone == "" {
 				wantZone = "Asia/Shanghai"
@@ -51,11 +51,13 @@ func TestWriteConfigFileRuntimeDocument(t *testing.T) {
 			for i := 0; i < len(fields); i += 2 {
 				keys = append(keys, fields[i].Value)
 			}
-			require.Equal(t, []string{"server", "database", "redis", "jwt", "default", "rate_limit", "timezone"}, keys)
+			require.Equal(t, []string{"config_version", "timezone", "server", "database", "redis", "auth", "security"}, keys)
 			var values map[string]any
 			require.NoError(t, yaml.Unmarshal(data, &values))
-			require.Equal(t, map[string]any{"user_concurrency": 5, "user_balance": 0, "api_key_prefix": "sk-", "rate_multiplier": 1}, values["default"])
-			require.Equal(t, map[string]any{"requests_per_minute": 60, "burst_size": 10}, values["rate_limit"])
+			require.Equal(t, map[string]any{"jwt": map[string]any{"secret": cfg.JWT.Secret, "access_token_ttl_minutes": 720}}, values["auth"])
+			require.NotContains(t, values, "default")
+			require.NotContains(t, values, "rate_limit")
+			require.Equal(t, config.CurrentConfigVersion, values["config_version"])
 			require.NotContains(t, string(data), "setup-only-secret")
 			require.NotContains(t, string(data), "setup@example.test")
 			t.Logf("runtime document SHA256=%x", sha256.Sum256(data))
@@ -118,14 +120,12 @@ func TestDecideAdminBootstrap(t *testing.T) {
 // default used by setup administrator creation.
 func TestSetupDefaultAdminConcurrency(t *testing.T) {
 	t.Run("旧配置不改变初始并发", func(t *testing.T) {
-		t.Setenv("RUN_MODE", "simple")
 		if got := setupDefaultAdminConcurrency(); got != defaultUserConcurrency {
 			t.Fatalf("setupDefaultAdminConcurrency()=%d, want %d", got, defaultUserConcurrency)
 		}
 	})
 
 	t.Run("初始管理员使用默认并发", func(t *testing.T) {
-		t.Setenv("RUN_MODE", "standard")
 		if got := setupDefaultAdminConcurrency(); got != defaultUserConcurrency {
 			t.Fatalf("setupDefaultAdminConcurrency()=%d, want %d", got, defaultUserConcurrency)
 		}
@@ -262,25 +262,44 @@ func TestSetupMigrationTimeout(t *testing.T) {
 	}
 }
 
-// TestWriteConfigFileKeepsDefaultUserConcurrency writes setup YAML while the
-// retired simple run mode is set. Reading the file must show the fixed
-// five-request user concurrency default.
-func TestWriteConfigFileKeepsDefaultUserConcurrency(t *testing.T) {
-	t.Setenv("RUN_MODE", "simple")
+// TestWriteConfigFileUsesRuntimeDefaults loads a newly installed version 2 file.
+// User defaults come from the runtime loader, and the generated encryption key
+// persists across loading without triggering another configuration migration.
+func TestWriteConfigFileUsesRuntimeDefaults(t *testing.T) {
 	t.Setenv("DATA_DIR", t.TempDir())
+	cfg := &SetupConfig{Server: ServerConfig{Host: "127.0.0.1", Port: 8080, Mode: "release"}, Database: DatabaseConfig{SSLMode: "prefer"}, JWT: JWTConfig{Secret: strings.Repeat("x", 32), ExpireHour: 24}}
+	require.NoError(t, writeConfigFile(cfg))
+	t.Setenv("CONFIG_FILE", GetConfigFilePath())
+	loaded, err := config.Load()
+	require.NoError(t, err)
+	require.Equal(t, 2, loaded.ConfigVersion)
+	require.Equal(t, 5, loaded.UserDefaults.Concurrency)
+	require.Equal(t, cfg.SecretEncryptionKey, loaded.Security.SecretEncryptionKey)
+	require.NoFileExists(t, GetConfigFilePath()+".v1.bak")
+}
 
-	if err := writeConfigFile(&SetupConfig{}); err != nil {
-		t.Fatalf("writeConfigFile() error = %v", err)
+// TestWriteConfigFileEnvironmentReferences keeps supplied auto-setup secrets outside YAML.
+// The normal loader resolves those explicit references while preserving numeric
+// password text and a stable encryption key across subsequent process starts.
+func TestWriteConfigFileEnvironmentReferences(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	values := map[string]string{"DATABASE_PASSWORD": "0123${literal}", "REDIS_PASSWORD": "redis-private", "JWT_SECRET": strings.Repeat("j", 32), "TOTP_ENCRYPTION_KEY": strings.Repeat("a", 64)}
+	for name, value := range values {
+		t.Setenv(name, value)
 	}
-
-	data, err := os.ReadFile(GetConfigFilePath())
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
+	cfg := &SetupConfig{environmentReferences: true, SecretEncryptionKey: values["TOTP_ENCRYPTION_KEY"], Server: ServerConfig{Host: "127.0.0.1", Port: 8080, Mode: "release"}, Database: DatabaseConfig{SSLMode: "prefer", Password: values["DATABASE_PASSWORD"]}, Redis: RedisConfig{Password: values["REDIS_PASSWORD"]}, JWT: JWTConfig{Secret: values["JWT_SECRET"], ExpireHour: 24}}
+	require.NoError(t, writeConfigFile(cfg))
+	raw, err := os.ReadFile(GetConfigFilePath())
+	require.NoError(t, err)
+	for name, value := range values {
+		require.Contains(t, string(raw), "${"+name+"}")
+		require.NotContains(t, string(raw), value)
 	}
-
-	if !strings.Contains(string(data), "user_concurrency: 5") {
-		t.Fatalf("config missing default user concurrency, got:\n%s", string(data))
-	}
+	t.Setenv("CONFIG_FILE", GetConfigFilePath())
+	loaded, err := config.Load()
+	require.NoError(t, err)
+	require.Equal(t, values["DATABASE_PASSWORD"], loaded.Database.Password)
+	require.Equal(t, values["JWT_SECRET"], loaded.Auth.JWT.Secret)
 }
 
 // TestWriteConfigFileIncludesRedisUsername writes configuration with a Redis
@@ -307,4 +326,18 @@ func TestWriteConfigFileIncludesRedisUsername(t *testing.T) {
 	if !strings.Contains(string(data), "username: app-user") {
 		t.Fatalf("config missing Redis username, got:\n%s", string(data))
 	}
+}
+
+// TestNeedsSetupHonorsExplicitConfiguration finds a file outside the data directory.
+// Its presence closes installation even without a marker, and an inaccessible
+// configuration shape also keeps setup closed until the operator fixes it.
+func TestNeedsSetupHonorsExplicitConfiguration(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	t.Setenv("SKIP_SETUP", "false")
+	explicit := filepath.Join(t.TempDir(), "selected.yaml")
+	require.NoError(t, os.WriteFile(explicit, []byte("config_version: 2\n"), 0o600))
+	t.Setenv("CONFIG_FILE", explicit)
+	require.False(t, NeedsSetup())
+	t.Setenv("CONFIG_FILE", t.TempDir())
+	require.False(t, NeedsSetup())
 }

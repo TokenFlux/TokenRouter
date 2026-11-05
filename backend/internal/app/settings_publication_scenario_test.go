@@ -61,7 +61,7 @@ func (r *delayedBackendReadFixture) GetValue(ctx context.Context, key string) (s
 func TestSettingUpdateLateBackendModeLoad(t *testing.T) {
 	repo := &delayedBackendReadFixture{settingHandlerRepoStub: &settingHandlerRepoStub{values: map[string]string{}}, entered: make(chan struct{}), release: make(chan struct{})}
 	store := settings.New(repo)
-	cfg := &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}}
+	cfg := &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}}
 	backend := provideBackendMode(store)
 	grants := provideGrantSettings(store, cfg, nil)
 	defaults := provideSchedulerAdminDefaults(cfg)

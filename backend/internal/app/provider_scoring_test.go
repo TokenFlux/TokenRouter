@@ -33,7 +33,7 @@ func TestRateLimitServiceAdvancedSchedulerScoreSnapshotUsesSharedRuntimeStats(t 
 		TTFT:      3,
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{
+	cfg.Scheduling.Advanced.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{
 		Priority:  weights.Priority,
 		ErrorRate: weights.ErrorRate,
 		TTFT:      weights.TTFT,

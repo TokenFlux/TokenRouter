@@ -1009,11 +1009,19 @@ func TestAuthService_LoginOrRegisterOAuthWithTokenPair_ExistingUserDoesNotGrantA
 // settings from supplied DingTalk startup values and shared runtime strings.
 // It omits user storage because its callers exercise the registration-bypass
 // predicate, with provider validation delegated to production readers.
-func newAuthServiceWithDingTalkCfg(settings map[string]string, dtCfg config.DingTalkConnectConfig) *identity.AuthService {
+func newAuthServiceWithDingTalkCfg(settings map[string]string, dtCfg config.DingTalkOAuthConfig) *identity.AuthService {
 	cfg := &config.Config{
-		JWT:      config.JWTConfig{Secret: "test-secret", ExpireHour: 1},
-		Default:  config.DefaultConfig{UserBalance: 3.5, UserConcurrency: 2},
-		DingTalk: dtCfg,
+		Auth: config.AuthConfig{
+			JWT: config.JWTConfig{
+				Secret:                "test-secret",
+				AccessTokenTTLMinutes: 60,
+			},
+			OAuth: config.OAuthProvidersConfig{DingTalk: dtCfg},
+		},
+		UserDefaults: config.UserDefaultsConfig{
+			Balance:     3.5,
+			Concurrency: 2,
+		},
 	}
 	settingService := newAuthSettingsFixture(&settingRepoStub{values: settings}, cfg)
 	return identitytestkit.Auth(nil, &identity.AuthDependencies{Options: identitytestkit.AuthOptions(cfg), Settings: authSettingsPort(settingService)})
@@ -1023,8 +1031,8 @@ func newAuthServiceWithDingTalkCfg(settings map[string]string, dtCfg config.Ding
 // accepted by local DingTalk configuration validation. Enablement and policy
 // remain zero for cases to set independently; the example addresses perform
 // no upstream identity verification.
-func minDingTalkURLs() config.DingTalkConnectConfig {
-	return config.DingTalkConnectConfig{
+func minDingTalkURLs() config.DingTalkOAuthConfig {
+	return config.DingTalkOAuthConfig{
 		ClientID:            "test-client",
 		ClientSecret:        "test-secret",
 		AuthorizeURL:        "https://example.com/oauth2/auth",
@@ -1049,9 +1057,9 @@ func TestCanBypassRegistrationDisabledForOAuth(t *testing.T) {
 		// values respectively. The settings fixture retains the map while
 		// OAuthSettings snapshots the startup values before the predicate reads its
 		// effective configuration.
-		settings map[string]string            // shared runtime provider settings
-		dtCfg    config.DingTalkConnectConfig // startup DingTalk configuration values
-		want     bool                         // expected registration bypass observation
+		settings map[string]string          // shared runtime provider settings
+		dtCfg    config.DingTalkOAuthConfig // startup DingTalk configuration values
+		want     bool                       // expected registration bypass observation
 	}{
 		{
 			name:         "non-dingtalk source → false",
@@ -1208,13 +1216,13 @@ func newAuthServiceForRegisterTurnstileTest(values map[string]string, verifier i
 // the optional repository capabilities it implements.
 func newEmailNormalizationAuthService(repo identity.UserRepository, settings map[string]string) *identity.AuthService {
 	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:     "test-secret",
-			ExpireHour: 1,
-		},
-		Default: config.DefaultConfig{
-			UserBalance:     3.5,
-			UserConcurrency: 2,
+		Auth: config.AuthConfig{JWT: config.JWTConfig{
+			Secret:                "test-secret",
+			AccessTokenTTLMinutes: 60,
+		}},
+		UserDefaults: config.UserDefaultsConfig{
+			Balance:     3.5,
+			Concurrency: 2,
 		},
 	}
 

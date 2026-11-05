@@ -420,8 +420,8 @@ func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(
 		},
 	}
 	svc := newSitePublicSettingsFixture(repo, &config.Config{
-		Team:     config.TeamConfig{Enabled: true},
-		WebAuthn: config.WebAuthnConfig{Enabled: true},
+		Team: config.TeamConfig{Enabled: true},
+		Auth: config.AuthConfig{WebAuthn: config.WebAuthnConfig{Enabled: true}},
 	})
 
 	payload, err := svc.GetPublicSettingsForInjection(context.Background())
@@ -513,15 +513,13 @@ func TestSettingService_GetPublicSettings_DoesNotExposeMobileOnlyWeChatAsWebOAut
 // checks Open web OAuth is enabled while MP and mobile availability remain
 // false.
 func TestSettingService_GetPublicSettings_FallsBackToConfigForWeChatOAuthCapabilities(t *testing.T) {
-	svc := newSitePublicSettingsFixture(&settingPublicRepoStub{values: map[string]string{}}, &config.Config{
-		WeChat: config.WeChatConnectConfig{
-			Enabled:             true,
-			OpenEnabled:         true,
-			OpenAppID:           "wx-open-config",
-			OpenAppSecret:       "wx-open-secret",
-			FrontendRedirectURL: "/auth/wechat/config-callback",
-		},
-	})
+	svc := newSitePublicSettingsFixture(&settingPublicRepoStub{values: map[string]string{}}, &config.Config{Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{WeChat: config.WeChatOAuthConfig{
+		Enabled:             true,
+		OpenEnabled:         true,
+		OpenAppID:           "wx-open-config",
+		OpenAppSecret:       "wx-open-secret",
+		FrontendRedirectURL: "/auth/wechat/config-callback",
+	}}}})
 
 	settings, err := svc.GetPublicSettings(context.Background())
 	require.NoError(t, err)

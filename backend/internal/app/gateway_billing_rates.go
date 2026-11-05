@@ -40,11 +40,11 @@ func provideGatewayBillingRates(repo billing.UserGroupRateRepository, cfg *confi
 // duration. A nil configuration or a nonpositive seconds value selects the
 // billing default lifetime used when constructing both completion resolvers.
 func gatewayGroupRateCacheTTL(cfg *config.Config) time.Duration {
-	if cfg == nil || cfg.Gateway.UserGroupRateCacheTTLSeconds <= 0 {
+	if cfg == nil || cfg.Billing.GroupRateCacheTTLSeconds <= 0 {
 		return billing.DefaultGroupRateCacheTTL
 	}
 	// Resolver duration units come from the deployment field's configured seconds.
-	return time.Duration(cfg.Gateway.UserGroupRateCacheTTLSeconds) * time.Second
+	return time.Duration(cfg.Billing.GroupRateCacheTTLSeconds) * time.Second
 }
 
 // Expire sweeps elapsed entries from both completion resolvers for the

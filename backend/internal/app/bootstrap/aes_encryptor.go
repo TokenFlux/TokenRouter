@@ -22,7 +22,7 @@ type AESEncryptor = cryptoinfra.AESEncryptor
 // Malformed hex and decoded keys other than 32 bytes return configuration
 // errors before the infrastructure encryptor is created.
 func NewAESEncryptor(cfg *config.Config) (*AESEncryptor, error) {
-	key, err := hex.DecodeString(cfg.Totp.EncryptionKey)
+	key, err := hex.DecodeString(cfg.Security.SecretEncryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("invalid totp encryption key: %w", err)
 	}

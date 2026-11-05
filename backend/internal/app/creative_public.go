@@ -93,7 +93,7 @@ func provideCreativePublic(requests *requestlog.Service, repo creative.CreativeR
 	}
 	managed := apikey.ManagedKeys{
 		Store:      creativeManagedKeys{store: keys},
-		Prefix:     cfg.Default.APIKeyPrefix,
+		Prefix:     cfg.APIKey.Prefix,
 		ManagedBy:  creative.CreativeManagedBy,
 		NamePrefix: "creative-studio",
 	}

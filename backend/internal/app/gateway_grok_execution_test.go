@@ -270,7 +270,8 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 	t.Run("unsafe override switch does not relax the operator allowlist for custom hosts", func(t *testing.T) {
 		// XAI_ALLOW_UNSAFE_URL_OVERRIDES relaxes the trusted-host check, but custom OAuth targets
 		// still require operator allowlist validation before receiving bearer tokens.
-		t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+		xai.ConfigureOverrides(xai.Overrides{AllowUnsafeURLOverrides: true})
+		t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 		cfg := &config.Config{}
 		cfg.Security.URLAllowlist.Enabled = true
 		cfg.Security.URLAllowlist.UpstreamHosts = []string{"cli-chat-proxy.grok.com"}
@@ -306,7 +307,8 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 // Video generation must use that relay's media endpoint rather than a default
 // target.
 func TestGrokOAuthMediaURLFollowsCustomForwardingUpstream(t *testing.T) {
-	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+	xai.ConfigureOverrides(xai.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 	provider := &gatewayprovider.ExecutionProvider{
 		Record: providercore.Record{
 			LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,

@@ -48,7 +48,7 @@ import (
 // c with the supplied calendar. The configuration is required; the resulting
 // options retain that calendar for billing date calculations.
 func billingEligibilityOptions(c *config.Config, calendar timezone.Calendar) billing.EligibilityOptions {
-	return billing.EligibilityOptions{Dates: billing.DateRuntime{Now: time.Now, Calendar: &calendar}, Billing: billing.BillingOptions{MinimumBalanceReserve: c.Billing.MinimumBalanceReserve, CircuitBreaker: billing.CircuitBreakerOptions{Enabled: c.Billing.CircuitBreaker.Enabled, FailureThreshold: c.Billing.CircuitBreaker.FailureThreshold, ResetTimeoutSeconds: c.Billing.CircuitBreaker.ResetTimeoutSeconds, HalfOpenRequests: c.Billing.CircuitBreaker.HalfOpenRequests}}}
+	return billing.EligibilityOptions{Dates: billing.DateRuntime{Now: time.Now, Calendar: &calendar}, Billing: billing.BillingOptions{MinimumBalanceReserve: c.Billing.MinimumBalanceReserve, CircuitBreaker: billing.CircuitBreakerOptions{Enabled: c.Billing.BalanceCheckCircuitBreaker.Enabled, FailureThreshold: c.Billing.BalanceCheckCircuitBreaker.FailureThreshold, ResetTimeoutSeconds: c.Billing.BalanceCheckCircuitBreaker.ResetTimeoutSeconds, HalfOpenRequests: c.Billing.BalanceCheckCircuitBreaker.HalfOpenRequests}}}
 }
 
 // provideBillingEligibility constructs admission using shared balance and Key

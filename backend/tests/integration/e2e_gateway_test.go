@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// Gateway E2E requests target an already running deployment whose keys, allowed
+// e2e_gateway_test.go probes an already running deployment whose keys, allowed
 // models and mappings are configured externally. Lists check response shape,
 // generation probes check message or candidate envelopes, and streaming probes
 // sample initial data lines; these observations do not identify the selected
@@ -121,7 +121,7 @@ func TestClaudeModelsList(t *testing.T) {
 	}
 	// Close the list response after decoding or an early HTTP failure so the
 	// model-array probe releases its body; cleanup discards close errors.
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		// Retain bytes received for HTTP diagnostics; body-read errors
@@ -169,7 +169,7 @@ func TestGeminiModelsList(t *testing.T) {
 	}
 	// Close the response after inspecting the models array or failing on
 	// status, releasing this list request's body; cleanup discards close errors.
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		// Retain bytes received for HTTP diagnostics; body-read errors
@@ -252,7 +252,7 @@ func testClaudeMessage(t *testing.T, claudeKey string, model string, stream bool
 	}
 	// Close the response when this model-mode probe exits, including an early
 	// stop after its third raw data line; cleanup discards close errors.
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		// Retain bytes received for HTTP diagnostics; body-read errors
@@ -370,7 +370,7 @@ func testGeminiGenerate(t *testing.T, geminiKey string, model string, stream boo
 	// Close this generation response after the sampled SSE prefix or JSON
 	// candidates check, releasing even partly read bodies; cleanup discards
 	// close errors.
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		// Retain bytes received for HTTP diagnostics; body-read errors
@@ -621,7 +621,7 @@ func testClaudeMessageWithTools(t *testing.T, claudeKey string, model string) {
 	// Close the tool-schema response after envelope checking or a 429/503
 	// skip, releasing the body on every reached response path; cleanup
 	// discards close errors.
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Retain bytes received for HTTP diagnostics; body-read errors are
 	// discarded, with the received status or later envelope check
@@ -776,7 +776,7 @@ func testClaudeThinkingWithToolHistory(t *testing.T, claudeKey string, model str
 	// Close the history-continuation response after the message check or a
 	// status-triggered skip; its body is owned by this helper, which discards
 	// close errors.
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Retain bytes received for HTTP diagnostics; body-read errors are
 	// discarded, with the received status or later envelope check
@@ -947,7 +947,7 @@ func testClaudeWithNoSignature(t *testing.T, claudeKey string, model string) {
 	// Close the unsigned-thinking response after envelope checking or a
 	// status-triggered skip so this probe releases its body; cleanup discards
 	// close errors.
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Retain bytes received for HTTP diagnostics; body-read errors are
 	// discarded, with the received status or later envelope check

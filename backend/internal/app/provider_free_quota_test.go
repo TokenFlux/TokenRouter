@@ -46,11 +46,11 @@ func (f *freeQuotaReaderFixture) GetProviderWindowStatsBatch(_ context.Context, 
 // prevent a later miss from starting another load.
 func TestFreeQuotaBindingPreservesCacheScopesAndTaskOwner(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.Gateway.Grok.FreeQuotaSoftGateEnabled = true
-	cfg.Gateway.Grok.FreeQuotaTokenLimit = 500_000
-	cfg.Gateway.Grok.FreeQuotaSoftGatePercent = 95
-	cfg.Gateway.Grok.FreeQuotaWindowHours = 24
-	cfg.Gateway.Grok.FreeQuotaStatsCacheSeconds = 60
+	cfg.Scheduling.GrokFreeQuota.Enabled = true
+	cfg.Scheduling.GrokFreeQuota.TokenLimit = 500_000
+	cfg.Scheduling.GrokFreeQuota.ThresholdPercent = 95
+	cfg.Scheduling.GrokFreeQuota.WindowHours = 24
+	cfg.Scheduling.GrokFreeQuota.StatsCacheSeconds = 60
 	tasks := lifecycle.NewTasks()
 	reader := &freeQuotaReaderFixture{}
 	bound := provideSelectionFreeQuota(cfg, reader, tasks)

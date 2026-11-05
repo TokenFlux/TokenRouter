@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -278,29 +277,25 @@ func TestProcessModes(t *testing.T) {
 	require.NoError(t, err)
 	redisPort, err := rdb.MappedPort(ctx, "6379/tcp")
 	require.NoError(t, err)
-	pricing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Ignore fixture write errors after child disconnects; readiness and
-		// exit assertions on the child determine whether startup succeeds.
-		_, _ = io.WriteString(w, `{"test-model":{"input_cost_per_token":0.000001,"output_cost_per_token":0.000002}}`)
-	}))
-	t.Cleanup(pricing.Close)
+
 	configFor := func(t *testing.T, mode, dbname string, port int) (string, []string) {
 		t.Helper()
 		dir := t.TempDir()
 		priceFile := filepath.Join(dir, "prices.json")
 		require.NoError(t, os.WriteFile(priceFile, []byte(`{"test-model":{"input_cost_per_token":0.000001}}`), 0o600))
 		cfg := map[string]any{
-			"run_mode": mode, "timezone": "UTC",
-			"server":   map[string]any{"host": "127.0.0.1", "port": port, "mode": "release"},
-			"database": map[string]any{"host": fixture.host, "port": fixture.port, "user": "postgres", "password": "postgres", "dbname": dbname, "sslmode": "disable", "max_open_conns": 16, "max_idle_conns": 2},
-			"redis":    map[string]any{"host": redisHost, "port": redisPort.Int(), "pool_size": 16, "min_idle_conns": 0},
-			"pricing":  map[string]any{"remote_url": "", "hash_url": "", "data_dir": dir, "fallback_file": priceFile},
-			"log":      map[string]any{"level": "info", "output": map[string]any{"to_stdout": true, "to_file": false}},
+			"config_version": 2, "timezone": "UTC",
+			"server":        map[string]any{"host": "127.0.0.1", "port": port, "mode": "release"},
+			"database":      map[string]any{"host": fixture.host, "port": fixture.port, "user": "postgres", "password": "postgres", "dbname": dbname, "sslmode": "disable", "max_open_conns": 16, "max_idle_conns": 2},
+			"redis":         map[string]any{"host": redisHost, "port": redisPort.Int(), "pool_size": 16, "min_idle_conns": 0},
+			"model_catalog": map[string]any{"catalog_url": "", "supplement_file": priceFile},
+			"storage":       map[string]any{"dir": dir},
+			"log":           map[string]any{"level": "info", "output": map[string]any{"to_stdout": true, "to_file": false}},
 		}
 		data, err := yaml.Marshal(cfg)
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.yaml"), data, 0o600))
-		return dir, []string{"PGAPPNAME=test-" + mode}
+		return dir, []string{"CONFIG_FILE=" + filepath.Join(dir, "config.yaml"), "PGAPPNAME=test-" + mode}
 	}
 	// Seed administrator concurrency values 5, 12, and 30 before each start;
 	// both standard and simple modes must leave those persisted values unchanged.
@@ -661,7 +656,6 @@ func TestProcessModes(t *testing.T) {
 		p := startTestProcess(t, binary, dir, []string{
 			"AUTO_SETUP=true", "DATABASE_HOST=" + fixture.host, "DATABASE_PORT=" + strconv.Itoa(fixture.port), "DATABASE_USER=postgres", "DATABASE_PASSWORD=postgres", "DATABASE_DBNAME=test_auto", "DATABASE_SSLMODE=disable",
 			"REDIS_HOST=" + redisHost, "REDIS_PORT=" + strconv.Itoa(redisPort.Int()), "ADMIN_EMAIL=test-auto@example.test", "ADMIN_PASSWORD=test-test-password", "SERVER_HOST=127.0.0.1", "SERVER_PORT=" + strconv.Itoa(port),
-			"PRICING_REMOTE_URL=" + pricing.URL, "PRICING_HASH_URL=" + pricing.URL, "PRICING_DATA_DIR=" + dir, "LOG_OUTPUT_TO_FILE=false",
 		})
 		waitProcessHTTP(t, p, port, "/health")
 		// Health readiness follows automatic installation and normal startup;

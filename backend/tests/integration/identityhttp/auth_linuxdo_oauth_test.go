@@ -1271,14 +1271,13 @@ func newLinuxDoOauthHTTPFixtureAndClientWithEmailVerification(
 // so this change selects static configuration for handler callbacks.
 func configureLinuxDoOAuthTestHandler(t *testing.T, handler *authHTTPFixture, oauthCfg config.LinuxDoConnectConfig) {
 	handler.settingSvc = nil
-	handler.cfg = &config.Config{
+	handler.cfg = &config.Config{Auth: config.AuthConfig{
 		JWT: config.JWTConfig{
-			Secret:                   "test-secret",
-			ExpireHour:               1,
-			AccessTokenExpireMinutes: 60,
-			RefreshTokenExpireDays:   7,
+			Secret:                "test-secret",
+			AccessTokenTTLMinutes: 60,
+			RefreshTokenTTLDays:   7,
 		},
-		LinuxDo: oauthCfg,
-	}
+		OAuth: config.OAuthProvidersConfig{LinuxDo: oauthCfg},
+	}}
 	bindAuthHTTPFixture(t, handler)
 }

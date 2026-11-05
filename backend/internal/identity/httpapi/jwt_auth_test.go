@@ -83,11 +83,11 @@ func (r *recordingActivityToucher) TouchLastActiveForUser(_ context.Context, use
 // repository account pointers remain shared during requests.
 func newJWTTestEnv(users map[int64]*identity.User) (*gin.Engine, *identity.SessionService) {
 	cfg := &config.Config{}
-	cfg.JWT.Secret = "test-jwt-secret-32bytes-long!!!"
-	cfg.JWT.AccessTokenExpireMinutes = 60
+	cfg.Auth.JWT.Secret = "test-jwt-secret-32bytes-long!!!"
+	cfg.Auth.JWT.AccessTokenTTLMinutes = 60
 
 	userRepo := &stubJWTUserRepo{users: users}
-	authSvc := identity.NewSessionService(identity.SessionOptions{Secret: cfg.JWT.Secret, ExpireHour: cfg.JWT.ExpireHour, AccessTokenExpireMinutes: cfg.JWT.AccessTokenExpireMinutes, RefreshTokenExpireDays: cfg.JWT.RefreshTokenExpireDays}, userRepo, nil, nil, nil)
+	authSvc := identity.NewSessionService(identity.SessionOptions{Secret: cfg.Auth.JWT.Secret, AccessTokenExpireMinutes: cfg.Auth.JWT.AccessTokenTTLMinutes, RefreshTokenExpireDays: cfg.Auth.JWT.RefreshTokenTTLDays}, userRepo, nil, nil, nil)
 	// Fixture background callbacks run independently of the request. These tests
 	// assert synchronous authentication output, while the supplied activity
 	// writer acknowledges any scheduled account update.
@@ -176,11 +176,11 @@ func TestJWTAuth_ValidToken_TouchesLastActive(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	cfg.JWT.Secret = "test-jwt-secret-32bytes-long!!!"
-	cfg.JWT.AccessTokenExpireMinutes = 60
+	cfg.Auth.JWT.Secret = "test-jwt-secret-32bytes-long!!!"
+	cfg.Auth.JWT.AccessTokenTTLMinutes = 60
 
 	userRepo := &stubJWTUserRepo{users: map[int64]*identity.User{1: user}}
-	authSvc := identity.NewSessionService(identity.SessionOptions{Secret: cfg.JWT.Secret, ExpireHour: cfg.JWT.ExpireHour, AccessTokenExpireMinutes: cfg.JWT.AccessTokenExpireMinutes, RefreshTokenExpireDays: cfg.JWT.RefreshTokenExpireDays}, userRepo, nil, nil, nil)
+	authSvc := identity.NewSessionService(identity.SessionOptions{Secret: cfg.Auth.JWT.Secret, AccessTokenExpireMinutes: cfg.Auth.JWT.AccessTokenTTLMinutes, RefreshTokenExpireDays: cfg.Auth.JWT.RefreshTokenTTLDays}, userRepo, nil, nil, nil)
 	// Fixture background callbacks run independently of the request. These tests
 	// assert synchronous authentication output, while the supplied activity
 	// writer acknowledges any scheduled account update.

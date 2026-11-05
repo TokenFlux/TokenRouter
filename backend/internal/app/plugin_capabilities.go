@@ -54,7 +54,7 @@ type pluginCapabilityAudit struct {
 
 // providePluginGrants derives persistent caller authorization from the initialized JWT secret.
 func providePluginGrants(cfg *config.Config) (*plugin.Grants, error) {
-	return plugin.NewGrants(cfg.JWT.Secret, time.Now)
+	return plugin.NewGrants(cfg.Auth.JWT.Secret, time.Now)
 }
 
 // providePluginWrites binds replay storage to the shared installation policy source.

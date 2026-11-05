@@ -193,8 +193,6 @@ func TestHasRestrictedScope(t *testing.T) {
 // built-in identity. It checks required PKCE/session/consent parameters, the
 // Google endpoint prefix, and omission of an absent project identifier.
 func TestBuildAuthorizationURL(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-secret")
-
 	authURL, err := BuildAuthorizationURL(
 		OAuthConfig{},
 		"test-state",
@@ -238,8 +236,6 @@ func TestBuildAuthorizationURL(t *testing.T) {
 // built-in Code Assist authorization. It checks the builder returns a
 // redirect_uri error before producing a usable consent URL.
 func TestBuildAuthorizationURL_EmptyRedirectURI(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-secret")
-
 	_, err := BuildAuthorizationURL(
 		OAuthConfig{},
 		"test-state",
@@ -261,8 +257,6 @@ func TestBuildAuthorizationURL_EmptyRedirectURI(t *testing.T) {
 // appears alongside the ordinary consent request so project selection reaches
 // the browser flow.
 func TestBuildAuthorizationURL_WithProjectID(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-secret")
-
 	authURL, err := BuildAuthorizationURL(
 		OAuthConfig{},
 		"test-state",
@@ -284,8 +278,6 @@ func TestBuildAuthorizationURL_WithProjectID(t *testing.T) {
 // URL construction still selects the built-in client ID using its configured
 // constant.
 func TestBuildAuthorizationURL_UsesBuiltinSecretFallback(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "")
-
 	authURL, err := BuildAuthorizationURL(
 		OAuthConfig{},
 		"test-state",
@@ -307,8 +299,6 @@ func TestBuildAuthorizationURL_UsesBuiltinSecretFallback(t *testing.T) {
 // IDs and scopes, including default scopes after an entirely filtered built-in
 // list.
 func TestEffectiveOAuthConfig_GoogleOne(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-built-in-secret")
-
 	tests := []struct {
 		name         string      // case identity label
 		input        OAuthConfig // configured credential and scope input
@@ -391,8 +381,6 @@ func TestEffectiveOAuthConfig_GoogleOne(t *testing.T) {
 // retained cloud/profile tokens and removal of both restricted prefix
 // families.
 func TestEffectiveOAuthConfig_ScopeFiltering(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-built-in-secret")
-
 	cfg, err := EffectiveOAuthConfig(OAuthConfig{
 		Scopes: "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/generative-language.retriever https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.profile",
 	}, "google_one")
@@ -454,8 +442,6 @@ func TestEffectiveOAuthConfig_OnlyClientSecret_NoID(t *testing.T) {
 // client uses Code Assist defaults according to the local restricted-scope
 // policy.
 func TestEffectiveOAuthConfig_AIStudio_DefaultScopes_BuiltinClient(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-built-in-secret")
-
 	// The local AI Studio policy selects Code Assist defaults for the built-in
 	// client; the configured scope filter classifies Generative Language and Drive
 	// prefixes as restricted.
@@ -514,8 +500,6 @@ func TestEffectiveOAuthConfig_AIStudio_ScopeNormalization(t *testing.T) {
 // and profile scopes with custom credentials. It checks commas are removed and
 // both requested token families remain in the normalized output.
 func TestEffectiveOAuthConfig_CommaSeparatedScopes(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-built-in-secret")
-
 	cfg, err := EffectiveOAuthConfig(OAuthConfig{
 		ClientID:     "custom-id",
 		ClientSecret: "custom-secret",
@@ -580,8 +564,6 @@ func TestEffectiveOAuthConfig_WhitespaceTriming(t *testing.T) {
 // and omits configured credentials. It checks the built-in client ID and
 // nonblank secret remain available from their constants.
 func TestEffectiveOAuthConfig_NoEnvSecret(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "")
-
 	cfg, err := EffectiveOAuthConfig(OAuthConfig{}, "code_assist")
 	if err != nil {
 		t.Fatalf("不设置环境变量时应回退到内置 secret，实际报错: %v", err)
@@ -599,8 +581,6 @@ func TestEffectiveOAuthConfig_NoEnvSecret(t *testing.T) {
 // local filtering removes the restricted family while retaining cloud-platform
 // access text.
 func TestEffectiveOAuthConfig_AIStudio_BuiltinClient_CustomScopes(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-built-in-secret")
-
 	cfg, err := EffectiveOAuthConfig(OAuthConfig{
 		Scopes: "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language.retriever",
 	}, "ai_studio")
@@ -619,8 +599,6 @@ func TestEffectiveOAuthConfig_AIStudio_BuiltinClient_CustomScopes(t *testing.T) 
 // variant with absent configuration. It checks Code Assist scope defaults are
 // returned for the built-in identity rather than an empty scope set.
 func TestEffectiveOAuthConfig_UnknownOAuthType_DefaultScopes(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-built-in-secret")
-
 	cfg, err := EffectiveOAuthConfig(OAuthConfig{}, "unknown_type")
 	if err != nil {
 		t.Fatalf("EffectiveOAuthConfig() error = %v", err)
@@ -634,8 +612,6 @@ func TestEffectiveOAuthConfig_UnknownOAuthType_DefaultScopes(t *testing.T) {
 // variant and no configuration. It checks the built-in identity uses Code
 // Assist scope defaults, protecting the unspecified-variant selection rule.
 func TestEffectiveOAuthConfig_EmptyOAuthType_DefaultScopes(t *testing.T) {
-	t.Setenv(GeminiCLIOAuthClientSecretEnv, "test-built-in-secret")
-
 	cfg, err := EffectiveOAuthConfig(OAuthConfig{}, "")
 	if err != nil {
 		t.Fatalf("EffectiveOAuthConfig() error = %v", err)

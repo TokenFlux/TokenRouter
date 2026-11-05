@@ -31,7 +31,7 @@ func newCodexDetectorTestContext(ua string, originator string) func() (string, s
 // A nil configuration disables ForceCLI; other configurations copy its current
 // flag into detector options for the fixture's lifetime.
 func newCodexDetectorFixture(cfg *config.Config) *CodexClientDetector {
-	return &CodexClientDetector{Options: CodexClientOptions{ForceCLI: cfg != nil && cfg.Gateway.ForceCodexCLI, OfficialUserAgent: openai.IsCodexOfficialClientRequestStrict, OfficialOriginator: openai.IsCodexOfficialClientOriginator, AllowedClients: openai.MatchAllowedClients}}
+	return &CodexClientDetector{Options: CodexClientOptions{ForceCLI: cfg != nil && cfg.Gateway.OpenAI.Codex.ForceCLI, OfficialUserAgent: openai.IsCodexOfficialClientRequestStrict, OfficialOriginator: openai.IsCodexOfficialClientOriginator, AllowedClients: openai.MatchAllowedClients}}
 }
 
 // TestOpenAICodexClientRestrictionDetector_Detect exercises disabled enforcement,
@@ -190,9 +190,7 @@ func TestOpenAICodexClientRestrictionDetector_Detect(t *testing.T) {
 	})
 
 	t.Run("开启 ForceCodexCLI 时允许通过", func(t *testing.T) {
-		detector := newCodexDetectorFixture(&config.Config{
-			Gateway: config.GatewayConfig{ForceCodexCLI: true},
-		})
+		detector := newCodexDetectorFixture(&config.Config{Gateway: config.GatewayConfig{OpenAI: config.GatewayOpenAIConfig{Codex: config.CodexConfig{ForceCLI: true}}}})
 		provider := &Record{
 			Platform: capability.PlatformOpenAI,
 			Type:     capability.ProviderTypeOAuth,

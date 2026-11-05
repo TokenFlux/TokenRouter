@@ -88,8 +88,8 @@ func TestWeChatAuthorizationCallbacksPreserveBrowserCookies(t *testing.T) {
 				// This flow leaves no asynchronous profile task. Close its SQLite client
 				// before the next fixed-DSN scenario creates an independent pending session.
 				defer func() { require.NoError(t, client.Close()) }()
-				handler.cfg.Totp.EncryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-				handler.cfg.Totp.EncryptionKeyConfigured = true
+				handler.cfg.Security.SecretEncryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+				handler.cfg.Security.SecretEncryptionKeyConfigured = true
 				path := "/api/v1/auth/oauth/wechat"
 				if flow.mode == "mp" {
 					path += "/payment"
@@ -565,8 +565,8 @@ func TestWeChatPaymentOAuthCallbackRedirectsWithOpaqueResumeToken(t *testing.T) 
 	// Close the client on test return; testing cleanups run afterward, including
 	// task-stop callbacks registered by fixture construction.
 	defer func() { require.NoError(t, client.Close()) }()
-	handler.cfg.Totp.EncryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	handler.cfg.Totp.EncryptionKeyConfigured = true
+	handler.cfg.Security.SecretEncryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	handler.cfg.Security.SecretEncryptionKeyConfigured = true
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -639,9 +639,9 @@ func TestWeChatPaymentOAuthCallbackUsesExplicitPaymentResumeSigningKeyWhenMixedK
 
 	legacyKeyHex := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	explicitSigningKey := "explicit-payment-resume-signing-key"
-	t.Setenv("PAYMENT_RESUME_SIGNING_KEY", explicitSigningKey)
-	handler.cfg.Totp.EncryptionKey = legacyKeyHex
-	handler.cfg.Totp.EncryptionKeyConfigured = true
+	handler.cfg.Payment.ResumeSigningKey = explicitSigningKey
+	handler.cfg.Security.SecretEncryptionKey = legacyKeyHex
+	handler.cfg.Security.SecretEncryptionKeyConfigured = true
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)

@@ -35,7 +35,7 @@ func providerScoreOptions(concurrency *scheduler.ConcurrencyService, shared *sch
 	weights := policy.ScoreWeights{Priority: 1, Load: 1, Queue: 0.7, ErrorRate: 0.8, TTFT: 0.5, Previous: 5, SessionSticky: 3}
 	defaults := policy.RuntimeSettings{EwmaErrorRateAlpha: scheduler.DefaultErrorRateAlpha, EwmaTTFTAlpha: scheduler.DefaultTTFTAlpha, StickyEscape: policy.StickyEscapeConfig{Enabled: true, TtftMs: 15000, ErrorRate: 0.5}}
 	if cfg != nil {
-		v := cfg.Gateway.AdvancedScheduler
+		v := cfg.Scheduling.Advanced
 		if v.LBTopK > 0 {
 			topK = v.LBTopK
 		}

@@ -1983,11 +1983,11 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Default.RateMultiplier = 1
+	cfg.Billing.FallbackRateMultiplier = 1
 	cfg.Security.URLAllowlist.Enabled = false
 	// Allow one provider switch after any same-provider pool retry; the
 	// recorded call sequence distinguishes these two budgets.
-	cfg.Gateway.MaxProviderSwitches = 1
+	cfg.Gateway.Failover.MaxProviderSwitches = 1
 
 	providerRepo := &openAIWSFailoverHandlerProviderRepoStub{providers: providers}
 	upstream := &openAIHTTPPassthroughFailoverUpstream{}
@@ -2093,12 +2093,12 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 				},
 			}
 			cfg := &config.Config{}
-			cfg.Default.RateMultiplier = 1
+			cfg.Billing.FallbackRateMultiplier = 1
 			cfg.Security.URLAllowlist.Enabled = false
 			// Allow one provider switch after any same-provider
 			// pool retry; the recorded call sequence distinguishes
 			// these two budgets.
-			cfg.Gateway.MaxProviderSwitches = 1
+			cfg.Gateway.Failover.MaxProviderSwitches = 1
 
 			providerRepo := &openAIWSFailoverHandlerProviderRepoStub{providers: providers}
 			upstream := &openAIHTTPPassthroughAuthFailoverUpstream{statusCode: tt.statusCode}
@@ -2186,11 +2186,11 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Default.RateMultiplier = 1
+	cfg.Billing.FallbackRateMultiplier = 1
 	cfg.Security.URLAllowlist.Enabled = false
 	// Allow one provider switch after any same-provider pool retry; the
 	// recorded call sequence distinguishes these two budgets.
-	cfg.Gateway.MaxProviderSwitches = 1
+	cfg.Gateway.Failover.MaxProviderSwitches = 1
 
 	providerRepo := &openAIWSFailoverHandlerProviderRepoStub{providers: providers}
 	upstream := &openAIHTTPPassthroughSSERateLimitUpstream{}
@@ -2265,7 +2265,10 @@ func TestOpenAIHTTPResourceBindingSharesImageCapacity(t *testing.T) {
 		Images:       &scheduler.ImageConcurrencyLimiter{},
 		ImageOptions: &gatewayhttp.OpenAIImageAdmissionOptions{Enabled: true, Limit: 1},
 	}
-	cfg := &config.Config{Gateway: config.GatewayConfig{ImageConcurrency: config.ImageConcurrencyConfig{Enabled: true, MaxConcurrentRequests: 1}}}
+	cfg := &config.Config{Gateway: config.GatewayConfig{Images: config.GatewayImagesConfig{Concurrency: config.ImageConcurrencyConfig{
+		Enabled:               true,
+		MaxConcurrentRequests: 1,
+	}}}}
 	h := newGatewayHTTPEndpointsFromDeps(nil, nil, nil, nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, resources)
 	require.Same(t, resources.Images, h.Input.Images)
 	require.Same(t, resources.Concurrency, h.Input.Concurrency)
@@ -2856,10 +2859,10 @@ func TestMixedGroupTextHTTP(t *testing.T) {
 				groupID := int64(42)
 				group := &routing.Group{ID: groupID, Hydrated: true, Name: "mixed", Status: "active", RateMultiplier: 1, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages, protocol.ProtocolOpenAIResponses, protocol.ProtocolOpenAIChatCompletions}}
 				cfg := &config.Config{}
-				cfg.Default.RateMultiplier = 1
+				cfg.Billing.FallbackRateMultiplier = 1
 				cfg.Security.URLAllowlist.Enabled = false
 				cfg.Security.URLAllowlist.AllowInsecureHTTP = true
-				cfg.Gateway.MaxProviderSwitches = 2
+				cfg.Gateway.Failover.MaxProviderSwitches = 2
 				providers := &mixedHTTPProviders{}
 				for index, p := range []string{"anthropic", "openai", "gemini"} {
 					record := &providercore.Record{ID: int64(index + 1), Name: p, Platform: p, Type: "apikey", Status: "active", Schedulable: true, Priority: index + 1, Concurrency: 1, GroupIDs: []int64{groupID}, Credentials: map[string]any{"api_key": "test-key", "base_url": upstream.URL}}

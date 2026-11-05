@@ -1485,7 +1485,7 @@ func TestResolveModelsListReadLimit(t *testing.T) {
 	t.Run("configured limit wins", func(t *testing.T) {
 		cfg := &config.Config{}
 		// Sixteen MiB supplies a distinct configured response-read byte limit.
-		cfg.Gateway.ModelsListReadMaxBytes = 16 << 20
+		cfg.Gateway.ModelsListResponseMaxBytes = 16 << 20
 		require.Equal(t, int64(16<<20), resolveModelsListReadLimit(cfg))
 	})
 

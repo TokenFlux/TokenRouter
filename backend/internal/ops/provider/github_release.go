@@ -115,7 +115,7 @@ func NewReleaseClient(options ReleaseOptions) ReleaseClient {
 	if err != nil {
 		if strings.TrimSpace(proxyURL) != "" && !allowDirectOnProxyError {
 			slog.Warn("proxy client init failed, all requests will fail", "service", "github_release", "error", err)
-			return &githubReleaseClientError{err: fmt.Errorf("proxy client init failed and direct fallback is disabled; set security.proxy_fallback.allow_direct_on_error=true to allow fallback: %w", err)}
+			return &githubReleaseClientError{err: fmt.Errorf("proxy client init failed and direct fallback is disabled; set outbound_proxy.allow_direct_on_error=true to allow fallback: %w", err)}
 		}
 		// Construction recovery bypasses the supplied proxy using a standard client.
 		// Its nil transport can honor environment proxy settings, and later request
@@ -135,7 +135,7 @@ func NewReleaseClient(options ReleaseOptions) ReleaseClient {
 	if err != nil {
 		if strings.TrimSpace(proxyURL) != "" && !allowDirectOnProxyError {
 			slog.Warn("proxy download client init failed, all requests will fail", "service", "github_release", "error", err)
-			return &githubReleaseClientError{err: fmt.Errorf("proxy client init failed and direct fallback is disabled; set security.proxy_fallback.allow_direct_on_error=true to allow fallback: %w", err)}
+			return &githubReleaseClientError{err: fmt.Errorf("proxy client init failed and direct fallback is disabled; set outbound_proxy.allow_direct_on_error=true to allow fallback: %w", err)}
 		}
 		// Download-client recovery bypasses the supplied proxy with a standard client
 		// and its environment-aware default transport. Disabled recovery instead

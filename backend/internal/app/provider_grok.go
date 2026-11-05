@@ -33,7 +33,7 @@ import (
 // store.
 func provideGrokAuthorization(proxies egress.ProxyRepository, client provider.GrokAuthorizationClient, cfg *config.Config, redisClient *redis.Client) *provider.GrokAuthorization {
 	options := provideradapter.GrokAuthorizationOptions(proxies, func() bool {
-		return cfg != nil && cfg.Gateway.Grok.PasswordAuthEnabled
+		return cfg != nil && cfg.Provider.Grok.PasswordAuthEnabled
 	})
 	authorization := provider.NewGrokAuthorization(client, options)
 	if redisClient != nil {

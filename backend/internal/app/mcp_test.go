@@ -41,11 +41,11 @@ func TestMCPArtifactCipherUsesDurableOAuthKey(t *testing.T) {
 	require.Equal(t, "protected fixture", plaintext)
 	_, err = first.Decrypt(ciphertext)
 	require.Error(t, err)
-	cfg.Totp.EncryptionKeyConfigured = true
+	cfg.Security.SecretEncryptionKeyConfigured = true
 	original, err := mcpArtifactCipher(first, cfg)
 	require.NoError(t, err)
 	require.Same(t, first, original)
-	cfg.Totp.EncryptionKeyConfigured = false
+	cfg.Security.SecretEncryptionKeyConfigured = false
 	cfg.MCPOAuthSigningSecret = ""
 	_, err = mcpArtifactCipher(first, cfg)
 	require.Error(t, err)
@@ -58,14 +58,14 @@ func TestMCPBrowserOriginUsesFrontendURL(t *testing.T) {
 	repo := &mcpSettingsFixture{values: map[string]string{}}
 	store := settings.New(repo)
 	cfg := &config.Config{MCPOAuthSigningSecret: strings.Repeat("ab", 32)}
-	cfg.Server.FrontendURL = "https://frontend.example"
-	oauth := identityprovider.NewMCPOAuthServer(nil, nil, &mcpOAuthFrontend{store: store, frontendURL: cfg.Server.FrontendURL}, bytes.Repeat([]byte{4}, 32))
+	cfg.Site.FrontendURL = "https://frontend.example"
+	oauth := identityprovider.NewMCPOAuthServer(nil, nil, &mcpOAuthFrontend{store: store, frontendURL: cfg.Site.FrontendURL}, bytes.Repeat([]byte{4}, 32))
 	handler, err := provideMCPHTTP(oauth, nil, nil, nil, nil, nil, nil, store, cfg)
 	require.NoError(t, err)
 	router := gin.New()
 	require.NoError(t, handler.Mount(router, func(c *gin.Context) { c.Next() }, func(c *gin.Context) { c.Next() }))
 	request := httptest.NewRequest(http.MethodPost, "/mcp", nil)
-	request.Header.Set("Origin", cfg.Server.FrontendURL)
+	request.Header.Set("Origin", cfg.Site.FrontendURL)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	require.Equal(t, http.StatusUnauthorized, response.Code)

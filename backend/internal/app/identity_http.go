@@ -200,7 +200,7 @@ func provideIdentityHTTP(
 		},
 		PreviewPromotion: identityPromotionPreview(promo),
 	})
-	bind := identityhttp.NewOAuthBindHandler(session, identity.NewOAuthBindingSigner(strings.TrimSpace(cfg.JWT.Secret)))
+	bind := identityhttp.NewOAuthBindHandler(session, identity.NewOAuthBindingSigner(strings.TrimSpace(cfg.Auth.JWT.Secret)))
 	clients := &identityadapter.DingTalkClients{}
 	syncer := &identity.DingTalkSyncRuntime{LoadConfig: runtime.DingTalk, Client: func(v identity.DingTalkOAuthOptions) identity.DingTalkOAuthClient {
 		return clients.ForConfig(identityadapter.DingTalkClientConfig{ClientID: v.ClientID, ClientSecret: v.ClientSecret, TokenURL: v.TokenURL, UserInfoURL: v.UserInfoURL})

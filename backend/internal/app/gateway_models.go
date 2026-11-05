@@ -92,8 +92,8 @@ func (p geminiModelReadTarget) Read(ctx context.Context, path string) (*gatewayh
 // or the default. Nil cfg and nonpositive values both select the configuration
 // constant used for model-list response reads.
 func resolveModelsListReadLimit(cfg *config.Config) int64 {
-	if cfg != nil && cfg.Gateway.ModelsListReadMaxBytes > 0 {
-		return cfg.Gateway.ModelsListReadMaxBytes
+	if cfg != nil && cfg.Gateway.ModelsListResponseMaxBytes > 0 {
+		return cfg.Gateway.ModelsListResponseMaxBytes
 	}
 	return config.DefaultModelsListReadMaxBytes
 }

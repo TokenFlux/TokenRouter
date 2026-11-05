@@ -78,7 +78,7 @@ func openAIWSExecutionOptions(cfg *config.Config) *wshttp.OpenAIWSOptions {
 	if cfg == nil {
 		return nil
 	}
-	v := cfg.Gateway.OpenAIWS
+	v := cfg.Gateway.OpenAI.ResponsesWS
 	return &wshttp.OpenAIWSOptions{
 		MaxConnsPerProvider:                         v.MaxConnsPerProvider,
 		MinIdlePerProvider:                          v.MinIdlePerProvider,
@@ -98,8 +98,8 @@ func openAIWSExecutionOptions(cfg *config.Config) *wshttp.OpenAIWSOptions {
 		ReadTimeoutSeconds:                          v.ReadTimeoutSeconds,
 		WriteTimeoutSeconds:                         v.WriteTimeoutSeconds,
 		IngressPreviousResponseRecoveryEnabled:      v.IngressPreviousResponseRecoveryEnabled,
-		StickySessionTTLSeconds:                     v.StickySessionTTLSeconds,
-		StickyResponseIDTTLSeconds:                  v.StickyResponseIDTTLSeconds,
+		StickySessionTTLSeconds:                     cfg.Scheduling.SessionAffinity.TTLSeconds,
+		StickyResponseIDTTLSeconds:                  cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds,
 	}
 }
 
@@ -110,7 +110,7 @@ func openAIWSExecutionOptions(cfg *config.Config) *wshttp.OpenAIWSOptions {
 func provideResponsesWSRuntime(cfg *config.Config, store *settings.Store, manager *lifecycle.Manager) *ws.Runtime {
 	defaults := ws.DefaultParameters()
 	if cfg != nil {
-		v := cfg.Gateway.OpenAIWS
+		v := cfg.Gateway.OpenAI.ResponsesWS
 		defaults.MaxConnsPerProvider = v.MaxConnsPerProvider
 		defaults.MinIdlePerProvider = v.MinIdlePerProvider
 		defaults.MaxIdlePerProvider = v.MaxIdlePerProvider
@@ -129,8 +129,8 @@ func provideResponsesWSRuntime(cfg *config.Config, store *settings.Store, manage
 		defaults.ReadTimeoutSeconds = v.ReadTimeoutSeconds
 		defaults.WriteTimeoutSeconds = v.WriteTimeoutSeconds
 		defaults.IngressPreviousResponseRecoveryEnabled = v.IngressPreviousResponseRecoveryEnabled
-		defaults.StickySessionTTLSeconds = v.StickySessionTTLSeconds
-		defaults.StickyResponseIDTTLSeconds = v.StickyResponseIDTTLSeconds
+		defaults.StickySessionTTLSeconds = cfg.Scheduling.SessionAffinity.TTLSeconds
+		defaults.StickyResponseIDTTLSeconds = cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds
 	}
 	runtime := ws.NewRuntime(defaults, store, func(err error) { slog.Warn("Failed to refresh Responses WS settings", "error", err) })
 	// Seal settings refresh before the next connection-close level, retaining

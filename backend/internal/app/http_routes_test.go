@@ -672,9 +672,7 @@ func TestGatewayRoutesGrokAllowsCLICompatibilityEntrypoints(t *testing.T) {
 		require.NotContains(t, w.Body.String(), "not supported for Grok groups")
 	}
 
-	countTokensRouter := newGatewayRoutesTestRouterWithConfig(&config.Config{
-		Gateway: config.GatewayConfig{MaxBodySize: 1024 * 1024},
-	}, capability.PlatformGrok)
+	countTokensRouter := newGatewayRoutesTestRouterWithConfig(&config.Config{Gateway: config.GatewayConfig{MaxRequestBodyBytes: 1024 * 1024}}, capability.PlatformGrok)
 	for _, path := range []string{"/v1/messages/count_tokens", "/messages/count_tokens"} {
 		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"grok","messages":[{"role":"user","content":"hi"}]}`))
 		req.Header.Set("Content-Type", "application/json")

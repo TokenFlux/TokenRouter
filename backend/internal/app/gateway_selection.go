@@ -3,8 +3,6 @@ package app
 import (
 	"context"
 	"log/slog"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -110,23 +108,22 @@ func provideSelectionShared(cache session.GatewayCache, concurrency *scheduler.C
 // default lifetimes.
 func selectionOptions(cfg *config.Config) selection.Options {
 	options := selection.DefaultOptions()
-	value := strings.ToLower(strings.TrimSpace(productEnv("DEBUG_MODEL_ROUTING")))
-	options.DebugRouting = value == "1" || value == "true" || value == "yes" || value == "on"
 	if cfg == nil {
 		return options
 	}
-	s := cfg.Gateway.Scheduling
-	options.Scheduling = scheduler.FlowOptions{LoadBatchEnabled: s.LoadBatchEnabled, PreferSoonestReset: s.PreferSoonestReset, FallbackMaxWaiting: s.FallbackMaxWaiting, StickySessionMaxWaiting: s.StickySessionMaxWaiting, FallbackSelectionMode: s.FallbackSelectionMode, FallbackWaitTimeout: s.FallbackWaitTimeout, StickySessionWaitTimeout: s.StickySessionWaitTimeout}
-	ws := cfg.Gateway.OpenAIWS
-	options.ReadLegacySticky = ws.SessionHashReadOldFallback
-	options.WriteLegacySticky = ws.SessionHashDualWriteOld
-	if ws.StickySessionTTLSeconds > 0 {
+	options.DebugRouting = cfg.Debug.ModelRoutingLog
+	s := cfg.Scheduling
+	options.Scheduling = scheduler.FlowOptions{LoadBatchEnabled: s.LoadBatch.Enabled, PreferSoonestReset: s.PreferSoonestReset, FallbackMaxWaiting: s.AlternateProviderWait.MaxWaiting, StickySessionMaxWaiting: s.StickyProviderWait.MaxWaiting, FallbackSelectionMode: s.AlternateSelectionMode, FallbackWaitTimeout: time.Duration(s.AlternateProviderWait.TimeoutSeconds) * time.Second, StickySessionWaitTimeout: time.Duration(s.StickyProviderWait.TimeoutSeconds) * time.Second}
+	ws := cfg.Scheduling.SessionAffinity
+	options.ReadLegacySticky = ws.ReadLegacyHash
+	options.WriteLegacySticky = ws.DualWriteLegacyHash
+	if ws.TTLSeconds > 0 {
 		// Session-affinity expiry receives the configured lifetime expressed in seconds.
-		options.StickyTTL = time.Duration(ws.StickySessionTTLSeconds) * time.Second
+		options.StickyTTL = time.Duration(ws.TTLSeconds) * time.Second
 	}
-	if ws.StickyResponseIDTTLSeconds > 0 {
+	if ws.ResponseIDTTLSeconds > 0 {
 		// Response affinity receives the configured lifetime expressed in seconds.
-		options.ResponseTTL = time.Duration(ws.StickyResponseIDTTLSeconds) * time.Second
+		options.ResponseTTL = time.Duration(ws.ResponseIDTTLSeconds) * time.Second
 	}
 	return options
 }
@@ -144,8 +141,8 @@ func provideSelectionModelTransient() *provider.ModelTransientState {
 func provideSelectionProxyCircuit(cfg *config.Config) *egress.ProxyStreamCircuit {
 	options := egress.DefaultProxyStreamCircuitSettings()
 	if cfg != nil {
-		value := cfg.Gateway.OpenAIProxyStreamCircuit
-		options.Disabled = value.Disabled
+		value := cfg.Gateway.OpenAI.ProxyStreamCircuit
+		options.Disabled = !value.Enabled
 		if value.FailureThreshold > 0 {
 			options.FailureThreshold = value.FailureThreshold
 		}
@@ -208,17 +205,6 @@ func provideCompatibleSelection(generic *selection.Generic, gemini *selection.Ge
 // quota precheck.
 func provideGeminiSelection(reads selection.Reads, shared selection.Shared, cfg *config.Config, quota *provider.GeminiPrecheck) *selection.Gemini {
 	return selection.NewGemini(selection.GeminiDependencies{Reads: reads, Shared: shared, QuotaPrecheck: quota}, selectionOptions(cfg))
-}
-
-// productEnv reads a TOKENROUTER variable before its SUB2API compatibility
-// name. Any nonempty current value wins, including "0" or "false"; only an
-// empty current value falls through to the legacy variable.
-func productEnv(suffix string) string {
-	value := os.Getenv("TOKENROUTER_" + suffix)
-	if value != "" {
-		return value
-	}
-	return os.Getenv("SUB2API_" + suffix)
 }
 
 // gatewayCompatibilitySnapshot returns current sticky totals and the hit

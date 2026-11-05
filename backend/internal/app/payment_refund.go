@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
@@ -43,9 +43,9 @@ type paymentRefundRights struct {
 // payment resume using shared dependencies. Refund participants receive the
 // selected Ent transaction and application calendar; notifications and
 // fulfillment background effects use the supplied services and task tracker.
-// The environment signing key and configured encryption key are resolved into
+// The configured signing key and configured encryption key are resolved into
 // payment resume keys.
-func providePaymentRuntime(client *dbent.Client, registry *payment.Registry, balancer payment.LoadBalancer, redeem *billing.RedeemService, subscriptions *billing.SubscriptionService, affiliate *promotion.AffiliateService, notification *notificationcore.NotificationEmailService, instances *paymentpostgres.InstanceStore, routingGroups *routingpostgres.GroupStore, identityUsers *identitypostgres.UserStore, coreConfig *payment.ConfigService, key payment.EncryptionKey, settings *identity.OAuthSettings, tasks *lifecycle.Tasks, calendar timezone.Calendar) *payment.Runtime {
+func providePaymentRuntime(client *dbent.Client, registry *payment.Registry, balancer payment.LoadBalancer, redeem *billing.RedeemService, subscriptions *billing.SubscriptionService, affiliate *promotion.AffiliateService, notification *notificationcore.NotificationEmailService, instances *paymentpostgres.InstanceStore, routingGroups *routingpostgres.GroupStore, identityUsers *identitypostgres.UserStore, coreConfig *payment.ConfigService, key payment.EncryptionKey, settings *identity.OAuthSettings, tasks *lifecycle.Tasks, calendar timezone.Calendar, cfg *config.Config) *payment.Runtime {
 	bindings := payment.NewProviderBindings(instances, registry, balancer, payment.BindingRuntime{Factory: paymentadapter.CreateProvider, RegistryFactory: paymentadapter.CreateProvider, Warn: slog.Warn}, false)
 	store := paymentpostgres.NewRefundStore(client, func(tx *dbent.Tx) payment.RefundRights {
 		return paymentRefundRights{balances: billingpostgres.BalanceInTx(tx), subscriptions: billingpostgres.SubscriptionsInTx(tx, billingGroups{Repository: routingGroups}, billing.DateRuntime{Now: time.Now, Calendar: &calendar})}
@@ -80,7 +80,7 @@ func providePaymentRuntime(client *dbent.Client, registry *payment.Registry, bal
 			slog.Error("audit log failed", "orderID", id, "action", action, "error", err)
 		}
 	}})
-	signing, fallbacks := payment.ResolvePaymentResumeSigningKeys(os.Getenv("PAYMENT_RESUME_SIGNING_KEY"), []byte(key))
+	signing, fallbacks := payment.ResolvePaymentResumeSigningKeys(cfg.Payment.ResumeSigningKey, []byte(key))
 	resume := payment.NewPaymentResumeService(signing, fallbacks...)
 	checkout := payment.NewCheckout(orders, coreConfig, payment.NewVisibleMethodLoadBalancer(balancer, coreConfig), resume, payment.CheckoutRuntime{
 		User: func(ctx context.Context, id int64) (*payment.Buyer, error) {

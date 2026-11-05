@@ -10,19 +10,20 @@ package config
 // These kinds describe the version 1 decoding rules used when importing legacy
 // environment values into YAML, including fields without usable scalar bindings.
 const (
-	kindString v1Kind = iota
-	kindInt
-	kindFloat
-	kindBool
-	kindDuration
-	kindStringList
-	kindMap
-	kindStructList
-	kindNoField
+	kindString     v1Kind = iota // literal string scalar
+	kindInt                      // signed integer scalar
+	kindFloat                    // floating point scalar
+	kindBool                     // boolean scalar value
+	kindDuration                 // nanosecond or duration text
+	kindStringList               // comma separated string list
+	kindMap                      // open ended mapping value
+	kindStructList               // structured list element values
+	kindNoField                  // default without decoded field
 )
 
 // v1Keys freezes the configuration accepted at the snapshot commit above.
 // Only migration and ignored-environment diagnostics consume this historical schema.
+// Do not regenerate this table from the current Config type.
 var v1Keys = []v1Key{
 	{Path: "api_key_auth_cache.invalid_abuse.block_seconds", Kind: kindInt, Env: []string{"API_KEY_AUTH_CACHE_INVALID_ABUSE_BLOCK_SECONDS"}},
 	{Path: "api_key_auth_cache.invalid_abuse.capacity", Kind: kindInt, Env: []string{"API_KEY_AUTH_CACHE_INVALID_ABUSE_CAPACITY"}},

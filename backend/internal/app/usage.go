@@ -86,31 +86,31 @@ func provideUsageOptions(c *config.Config, calendar timezone.Calendar) *usage.Op
 		Calendar: calendar,
 		Logf:     logger.LegacyPrintf,
 		DashboardAgg: usage.DashboardAggregationConfig{
-			Enabled:         c.DashboardAgg.Enabled,
-			IntervalSeconds: c.DashboardAgg.IntervalSeconds,
-			LookbackSeconds: c.DashboardAgg.LookbackSeconds,
-			BackfillEnabled: c.DashboardAgg.BackfillEnabled,
-			BackfillMaxDays: c.DashboardAgg.BackfillMaxDays,
-			RecomputeDays:   c.DashboardAgg.RecomputeDays,
+			Enabled:         c.Usage.Aggregation.Enabled,
+			IntervalSeconds: c.Usage.Aggregation.IntervalSeconds,
+			LookbackSeconds: c.Usage.Aggregation.LookbackSeconds,
+			BackfillEnabled: c.Usage.Aggregation.BackfillEnabled,
+			BackfillMaxDays: c.Usage.Aggregation.BackfillMaxDays,
+			RecomputeDays:   c.Usage.Aggregation.RecomputeDays,
 			Retention: usage.DashboardAggregationRetentionConfig{
-				UsageLogsDays:         c.DashboardAgg.Retention.UsageLogsDays,
-				UsageBillingDedupDays: c.DashboardAgg.Retention.UsageBillingDedupDays,
-				HourlyDays:            c.DashboardAgg.Retention.HourlyDays,
-				DailyDays:             c.DashboardAgg.Retention.DailyDays,
+				UsageLogsDays:         c.Usage.Retention.LogsDays,
+				UsageBillingDedupDays: c.Usage.Retention.BillingDedupDays,
+				HourlyDays:            c.Usage.Aggregation.HourlyRetentionDays,
+				DailyDays:             c.Usage.Aggregation.DailyRetentionDays,
 			},
 		},
 		UsageCleanup: usage.UsageCleanupConfig{
-			Enabled:               c.UsageCleanup.Enabled,
-			MaxRangeDays:          c.UsageCleanup.MaxRangeDays,
-			BatchSize:             c.UsageCleanup.BatchSize,
-			WorkerIntervalSeconds: c.UsageCleanup.WorkerIntervalSeconds,
-			TaskTimeoutSeconds:    c.UsageCleanup.TaskTimeoutSeconds,
+			Enabled:               c.Usage.CleanupTasks.Enabled,
+			MaxRangeDays:          c.Usage.CleanupTasks.MaxRangeDays,
+			BatchSize:             c.Usage.CleanupTasks.BatchSize,
+			WorkerIntervalSeconds: c.Usage.CleanupTasks.WorkerIntervalSeconds,
+			TaskTimeoutSeconds:    c.Usage.CleanupTasks.TaskTimeoutSeconds,
 		},
 		Dashboard: usage.DashboardConfig{
-			Enabled:                    c.Dashboard.Enabled,
-			StatsFreshTTLSeconds:       c.Dashboard.StatsFreshTTLSeconds,
-			StatsTTLSeconds:            c.Dashboard.StatsTTLSeconds,
-			StatsRefreshTimeoutSeconds: c.Dashboard.StatsRefreshTimeoutSeconds,
+			Enabled:                    c.Usage.DashboardCache.Enabled,
+			StatsFreshTTLSeconds:       c.Usage.DashboardCache.StatsFreshTTLSeconds,
+			StatsTTLSeconds:            c.Usage.DashboardCache.StatsTTLSeconds,
+			StatsRefreshTimeoutSeconds: c.Usage.DashboardCache.StatsRefreshTimeoutSeconds,
 		},
 	}
 }
@@ -186,7 +186,7 @@ func provideUsageDashboard(store *usagepg.Store, agg usage.DashboardAggregationR
 func provideUsageDashboardCache(r *redis.Client, cfg *config.Config) usage.DashboardStatsCache {
 	prefix := "tokenrouter:"
 	if cfg != nil {
-		prefix = cfg.Dashboard.KeyPrefix
+		prefix = cfg.Usage.DashboardCache.KeyPrefix
 	}
 	return usageredis.NewDashboardCache(r, prefix)
 }

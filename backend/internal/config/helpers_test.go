@@ -6,41 +6,65 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
-// resetViperWithJWTSecret clears process Viper state and the selected
-// configuration-path variables, then supplies a valid test JWT secret. Test
-// cleanup resets Viper again and restores environment writes through t.Setenv;
-// callers keep these fixtures serial.
-func resetViperWithJWTSecret(t *testing.T) {
-	t.Helper()
-	// Each fixture shares the process Viper singleton. Reset before loading and
-	// again at cleanup so serial tests do not inherit a preceding fixture's merged configuration.
-	viper.Reset()
-	t.Cleanup(viper.Reset)
-	t.Setenv("CONFIG_FILE", "")
-	t.Setenv("DATA_DIR", "")
-	t.Setenv("JWT_SECRET", strings.Repeat("x", 32))
+// configFixture keeps legacy migration inputs isolated from the process environment.
+type configFixture struct {
+	test     *testing.T        // owning fixture test
+	values   map[string]string // injected environment name values
+	document *yaml.Node        // explicit legacy file values
 }
 
-// prepareLegacyConfigTest selects a temporary YAML file after resetting the
-// process configuration fixture. It assigns empty text to both environment
-// names for every known alias and the isolation key, leaving normal Viper
-// empty-environment handling to the loader. The returned path lets tests
-// inspect the unchanged mounted input.
-func prepareLegacyConfigTest(t *testing.T, body string) string {
+// newConfigFixture creates isolated inputs with a valid signing secret.
+// Every ordinary load writes a fresh temporary source, while CONFIG_FILE selects
+// an explicitly prepared fixture for tests of version and file behavior.
+func newConfigFixture(t *testing.T) *configFixture {
 	t.Helper()
-	resetViperWithJWTSecret(t)
-	for _, item := range legacyConfigKeys {
-		for _, key := range []string{item.oldKey, item.newKey} {
-			t.Setenv(strings.ToUpper(strings.ReplaceAll(key, ".", "_")), "")
+	return &configFixture{test: t, values: map[string]string{"JWT_SECRET": strings.Repeat("x", 32)}, document: &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{{Kind: yaml.MappingNode, Tag: "!!map"}}}}
+}
+
+// Setenv records an injected legacy input without mutating process environment state.
+func (fixture *configFixture) Setenv(name, value string) { fixture.values[name] = value }
+
+// SetValue records a YAML value for the isolated legacy source document.
+func (fixture *configFixture) SetValue(path string, value any) {
+	fixture.test.Helper()
+	for _, move := range v2Moves {
+		if path == move.New || strings.HasPrefix(path, move.New+".") {
+			path = move.Old + strings.TrimPrefix(path, move.New)
+			break
 		}
 	}
-	t.Setenv("GATEWAY_CONNECTION_POOL_ISOLATION", "")
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
-	t.Setenv("CONFIG_FILE", path)
-	return path
+	require.NoError(fixture.test, setConfigPath(fixture.document.Content[0], path, configValueNode(value)))
+}
+
+// Load validates the fixture through the ordinary versioned configuration loader.
+func (fixture *configFixture) Load() (*Config, error) { return fixture.load(false) }
+
+// LoadForBootstrap validates the fixture while permitting a missing signing secret.
+func (fixture *configFixture) LoadForBootstrap() (*Config, error) { return fixture.load(true) }
+
+// load writes isolated legacy YAML and injects only this fixture's environment.
+// An explicit CONFIG_FILE bypasses fixture generation. Repeated ordinary loads
+// use new paths so one migration cannot hide a later input change.
+func (fixture *configFixture) load(allowMissingJWTSecret bool) (*Config, error) {
+	fixture.test.Helper()
+	path := fixture.values["CONFIG_FILE"]
+	if path == "" && fixture.values["DATA_DIR"] != "" {
+		path = filepath.Join(fixture.values["DATA_DIR"], "config.yaml")
+	}
+	if path == "" {
+		path = filepath.Join(fixture.test.TempDir(), "config.yaml")
+		raw, err := encodeConfigDocument(fixture.document)
+		if err != nil {
+			return nil, err
+		}
+		if err = os.WriteFile(path, raw, 0o600); err != nil {
+			return nil, err
+		}
+	}
+	_, err := os.Stat(path)
+	return loadFrom(path, err == nil, upgradeEnvironment{LookupEnv: func(name string) (string, bool) { value, ok := fixture.values[name]; return value, ok }}, allowMissingJWTSecret)
 }

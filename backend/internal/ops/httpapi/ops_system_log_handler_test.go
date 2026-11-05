@@ -82,7 +82,7 @@ func newOpsSystemLogTestRouter(handler *OpsHandler, withUser bool) *gin.Engine {
 // no Ops service. It checks this absent-service state produces an unavailable
 // HTTP response for the listing request.
 func TestOpsSystemLogHandler_ListUnavailable(t *testing.T) {
-	h := NewOpsHandler(nil)
+	h := NewOpsHandler(nil, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -98,7 +98,7 @@ func TestOpsSystemLogHandler_ListUnavailable(t *testing.T) {
 // absent repository's empty result is returned.
 func TestOpsSystemLogHandler_ListInvalidUserID(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -114,7 +114,7 @@ func TestOpsSystemLogHandler_ListInvalidUserID(t *testing.T) {
 // returns bad request before listing storage.
 func TestOpsSystemLogHandler_ListInvalidProviderID(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -130,7 +130,7 @@ func TestOpsSystemLogHandler_ListInvalidProviderID(t *testing.T) {
 // parameter validation before the service's empty listing.
 func TestOpsSystemLogHandler_ListInvalidAPIKeyID(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -146,7 +146,7 @@ func TestOpsSystemLogHandler_ListInvalidAPIKeyID(t *testing.T) {
 // ordinary list response path.
 func TestOpsSystemLogHandler_ListMonitoringDisabled(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, &ops.Options{Ops: ops.RuntimeOptions{Enabled: false}}, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -162,7 +162,7 @@ func TestOpsSystemLogHandler_ListMonitoringDisabled(t *testing.T) {
 // code zero for that service's empty listing response.
 func TestOpsSystemLogHandler_ListSuccess(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -187,7 +187,7 @@ func TestOpsSystemLogHandler_ListSuccess(t *testing.T) {
 func TestOpsSystemLogHandler_ListAcceptsHost(t *testing.T) {
 	repo := &opsSystemLogCaptureRepo{}
 	svc := ops.NewOpsService(repo, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -206,7 +206,7 @@ func TestOpsSystemLogHandler_ListAcceptsHost(t *testing.T) {
 // receives an unauthorized HTTP status in this fixture.
 func TestOpsSystemLogHandler_CleanupUnauthorized(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -223,7 +223,7 @@ func TestOpsSystemLogHandler_CleanupUnauthorized(t *testing.T) {
 // during body binding before repository availability matters.
 func TestOpsSystemLogHandler_CleanupInvalidPayload(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, true)
 
 	w := httptest.NewRecorder()
@@ -240,7 +240,7 @@ func TestOpsSystemLogHandler_CleanupInvalidPayload(t *testing.T) {
 // parsing returns bad request before deletion.
 func TestOpsSystemLogHandler_CleanupInvalidTime(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, true)
 
 	w := httptest.NewRecorder()
@@ -257,7 +257,7 @@ func TestOpsSystemLogHandler_CleanupInvalidTime(t *testing.T) {
 // bad request during local time parsing.
 func TestOpsSystemLogHandler_CleanupInvalidEndTime(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, true)
 
 	w := httptest.NewRecorder()
@@ -274,7 +274,7 @@ func TestOpsSystemLogHandler_CleanupInvalidEndTime(t *testing.T) {
 // unavailable reaches the HTTP response after local validation passes.
 func TestOpsSystemLogHandler_CleanupServiceUnavailable(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, true)
 
 	w := httptest.NewRecorder()
@@ -291,7 +291,7 @@ func TestOpsSystemLogHandler_CleanupServiceUnavailable(t *testing.T) {
 // request, demonstrating the supplied ID passes the local guard.
 func TestOpsSystemLogHandler_CleanupAcceptsAPIKeyID(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, true)
 
 	w := httptest.NewRecorder()
@@ -309,7 +309,7 @@ func TestOpsSystemLogHandler_CleanupAcceptsAPIKeyID(t *testing.T) {
 func TestOpsSystemLogHandler_CleanupAcceptsHost(t *testing.T) {
 	repo := &opsSystemLogCaptureRepo{}
 	svc := ops.NewOpsService(repo, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, true)
 
 	w := httptest.NewRecorder()
@@ -329,7 +329,7 @@ func TestOpsSystemLogHandler_CleanupAcceptsHost(t *testing.T) {
 // absent repository could report unavailable.
 func TestOpsSystemLogHandler_CleanupInvalidAPIKeyID(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, true)
 
 	w := httptest.NewRecorder()
@@ -346,7 +346,7 @@ func TestOpsSystemLogHandler_CleanupInvalidAPIKeyID(t *testing.T) {
 // service state produces a not-found HTTP response for the cleanup request.
 func TestOpsSystemLogHandler_CleanupMonitoringDisabled(t *testing.T) {
 	svc := ops.NewOpsService(nil, nil, &ops.Options{Ops: ops.RuntimeOptions{Enabled: false}}, nil, nil, nil, nil, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, true)
 
 	w := httptest.NewRecorder()
@@ -365,7 +365,7 @@ func TestOpsSystemLogHandler_Health(t *testing.T) {
 	host, hostErr := os.Hostname()
 	sink := ops.NewOpsSystemLogSink(nil, ops.SystemLogSinkOptions{Host: host, HostError: hostErr})
 	svc := ops.NewOpsService(nil, nil, nil, nil, nil, nil, sink, opsprovider.LogControl{})
-	h := NewOpsHandler(svc)
+	h := NewOpsHandler(svc, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -380,7 +380,7 @@ func TestOpsSystemLogHandler_Health(t *testing.T) {
 // absent service and a hard-disabled service on separate routers. It checks
 // health returns unavailable or not found according to that service state.
 func TestOpsSystemLogHandler_HealthUnavailableAndMonitoringDisabled(t *testing.T) {
-	h := NewOpsHandler(nil)
+	h := NewOpsHandler(nil, OpsWSOptions{})
 	r := newOpsSystemLogTestRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -391,7 +391,7 @@ func TestOpsSystemLogHandler_HealthUnavailableAndMonitoringDisabled(t *testing.T
 	}
 
 	svc := ops.NewOpsService(nil, nil, &ops.Options{Ops: ops.RuntimeOptions{Enabled: false}}, nil, nil, nil, nil, opsprovider.LogControl{})
-	h = NewOpsHandler(svc)
+	h = NewOpsHandler(svc, OpsWSOptions{})
 	r = newOpsSystemLogTestRouter(h, false)
 	w = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/logs/health", nil)

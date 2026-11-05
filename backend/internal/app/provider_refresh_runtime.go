@@ -94,13 +94,13 @@ func provideRefreshPlatforms(claude *provider.ClaudeAuthorization, openai *provi
 // the coordinator lease, and shared post actions handle invalidation, cleanup,
 // and publication after provider-owned refresh attempts.
 func provideBackgroundRefresh(store *providerpostgres.ProviderStore, refresh *provider.OAuthRefreshAPI, cfg *config.Config, registrations providerRefreshRegistrations, post *provider.RefreshPostActions, observer provider.RefreshFailureObserver) *provider.BackgroundRefreshService {
-	v := cfg.TokenRefresh
+	v := cfg.Provider.TokenRefresh
 	tuning := &provider.RefreshTuning{
 		Enabled: v.Enabled, CheckIntervalMinutes: v.CheckIntervalMinutes,
-		RefreshBeforeExpiryHours: v.RefreshBeforeExpiryHours, MaxRetries: v.MaxRetries,
+		RefreshBeforeExpiryHours: v.RefreshBeforeExpiryHours, MaxRetries: v.MaxAttempts,
 		RetryBackoffSeconds: v.RetryBackoffSeconds, CandidatePageSize: v.CandidatePageSize,
-		ProviderConcurrency: v.ProviderConcurrency, ProviderQPS: v.ProviderQPS,
-		ProviderFailureThreshold: v.ProviderFailureThreshold,
+		ProviderConcurrency: v.PlatformConcurrency, ProviderQPS: v.PlatformQPS,
+		ProviderFailureThreshold: v.PlatformFailureThreshold,
 		AttemptTimeoutSeconds:    v.AttemptTimeoutSeconds, CycleTimeoutSeconds: v.CycleTimeoutSeconds,
 	}
 	lease, configured := refresh.LockLease()

@@ -204,8 +204,8 @@ func TestGrokOAuthHandlerResetQuotaReturnsUnsupported(t *testing.T) {
 // invalid configuration and public scope while omitting the raw query
 // credential and configured client identifier.
 func TestGrokOAuthHandlerRuntimeSanityDoesNotExposeSecrets(t *testing.T) {
-	t.Setenv(xai.EnvBaseURL, "http://127.0.0.1:8080/v1?access_token=secret")
-	t.Setenv(xai.EnvClientID, "client-secret-like-value")
+	xai.ConfigureOverrides(xai.Overrides{BaseURL: "http://127.0.0.1:8080/v1?access_token=secret", ClientID: "client-secret-like-value"})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 
 	handler := NewGrokOAuthHandler(nil, nil, nil, GrokOAuthHTTPOptions{RuntimeSanity: func() any { return xai.RuntimeSanity() }})
 	router := gin.New()

@@ -29,13 +29,13 @@ func provideCreativeQueue(client *redis.Client, cfg *config.Config) creative.Cre
 		return creativeredis.NewCreativeQueue(client, nil)
 	}
 	return creativeredis.NewCreativeQueue(client, &creativeredis.QueueOptions{
-		InflightKeyPrefix:  cfg.Creative.InflightKeyPrefix,
-		InflightTTLSeconds: cfg.Creative.InflightTTLSeconds,
-		JobLockTTLSeconds:  cfg.Creative.JobLockTTLSeconds,
-		LockKeyPrefix:      cfg.Creative.LockKeyPrefix,
-		QueueActiveKey:     cfg.Creative.QueueActiveKey,
-		QueueDelayedKey:    cfg.Creative.QueueDelayedKey,
-		QueueReadyKey:      cfg.Creative.QueueReadyKey,
+		InflightKeyPrefix:  cfg.Creative.Queue.InflightKeyPrefix,
+		InflightTTLSeconds: cfg.Creative.Queue.InflightTTLSeconds,
+		JobLockTTLSeconds:  cfg.Creative.Queue.JobLockTTLSeconds,
+		LockKeyPrefix:      cfg.Creative.Queue.LockKeyPrefix,
+		QueueActiveKey:     cfg.Creative.Queue.ActiveKey,
+		QueueDelayedKey:    cfg.Creative.Queue.DelayedKey,
+		QueueReadyKey:      cfg.Creative.Queue.ReadyKey,
 	})
 }
 
@@ -61,14 +61,14 @@ func provideBatchQueue(client *redis.Client, cfg *config.Config) batchimage.Batc
 		return batchredis.NewBatchImageQueue(client, nil)
 	}
 	return batchredis.NewBatchImageQueue(client, &batchredis.QueueOptions{
-		ReadyKey:       cfg.BatchImage.QueueReadyKey,
-		DelayedKey:     cfg.BatchImage.QueueDelayedKey,
-		ActiveKey:      cfg.BatchImage.QueueActiveKey,
-		InflightPrefix: cfg.BatchImage.InflightKeyPrefix,
-		LockPrefix:     cfg.BatchImage.LockKeyPrefix,
+		ReadyKey:       cfg.BatchImage.Queue.ReadyKey,
+		DelayedKey:     cfg.BatchImage.Queue.DelayedKey,
+		ActiveKey:      cfg.BatchImage.Queue.ActiveKey,
+		InflightPrefix: cfg.BatchImage.Queue.InflightKeyPrefix,
+		LockPrefix:     cfg.BatchImage.Queue.LockKeyPrefix,
 		// Inflight reservations and job locks consume lease durations converted from seconds.
-		InflightTTL: time.Duration(cfg.BatchImage.InflightTTLSeconds) * time.Second,
-		LockTTL:     time.Duration(cfg.BatchImage.JobLockTTLSeconds) * time.Second,
+		InflightTTL: time.Duration(cfg.BatchImage.Queue.InflightTTLSeconds) * time.Second,
+		LockTTL:     time.Duration(cfg.BatchImage.Queue.JobLockTTLSeconds) * time.Second,
 	})
 }
 

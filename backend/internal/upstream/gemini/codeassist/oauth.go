@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
@@ -61,11 +60,6 @@ const (
 	// comparing this client ID.
 	GeminiCLIOAuthClientID     = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 	GeminiCLIOAuthClientSecret = "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"
-
-	// GeminiCLIOAuthClientSecretEnv identifies the secret source consulted when
-	// the built-in constant is empty. The current nonempty constant takes
-	// precedence over this environment value.
-	GeminiCLIOAuthClientSecretEnv = "GEMINI_CLI_OAUTH_CLIENT_SECRET"
 
 	// GeminiCLIUserAgent supplies the fixed client identity sent with Code Assist
 	// and Resource Manager requests and wrapped internal generation requests.
@@ -153,12 +147,7 @@ func EffectiveOAuthConfig(cfg OAuthConfig, oauthType string) (OAuthConfig, error
 	if effective.ClientID == "" && effective.ClientSecret == "" {
 		secret := strings.TrimSpace(GeminiCLIOAuthClientSecret)
 		if secret == "" {
-			if v, ok := os.LookupEnv(GeminiCLIOAuthClientSecretEnv); ok {
-				secret = strings.TrimSpace(v)
-			}
-		}
-		if secret == "" {
-			return OAuthConfig{}, infraerrors.Newf(infraerrors.CategoryBadRequest, "GEMINI_CLI_OAUTH_CLIENT_SECRET_MISSING", "built-in Gemini CLI OAuth client_secret is not configured; set %s or provide a custom OAuth client", GeminiCLIOAuthClientSecretEnv)
+			return OAuthConfig{}, infraerrors.Newf(infraerrors.CategoryBadRequest, "GEMINI_CLI_OAUTH_CLIENT_SECRET_MISSING", "built-in Gemini CLI OAuth client_secret is not configured; provide a custom OAuth client")
 		}
 		effective.ClientID = GeminiCLIOAuthClientID
 		effective.ClientSecret = secret

@@ -83,7 +83,6 @@ func TestGeminiOAuthService_GenerateAuthURL_RedirectURIStrategy(t *testing.T) {
 	// Fix the process-wide CLI secret before parallel rows read effective settings.
 	// The parent owns the environment restoration, while rows keep this shared
 	// value immutable.
-	t.Setenv(geminicli.GeminiCLIOAuthClientSecretEnv, "test-built-in-secret")
 
 	// testCase describes variant inputs and the expected browser URL or
 	// validation error.

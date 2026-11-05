@@ -12,6 +12,7 @@
 //   - assembly_*.go supplies module constructors and interface bindings for Wire.
 //   - gateway_*.go and qoder_*.go bind request admission, execution, response output, and completion recording.
 //   - provider_*.go binds provider management, credential refresh, health, and usage queries.
+//   - upstream_identity.go publishes configured platform identities before client construction.
 //   - system_usage.go binds provider-only pricing, transactional recording, and tracked background execution.
 //   - identity_*.go, apikey*.go, and team.go bind identity, API key, and team services.
 //   - billing.go, payment_*.go, and routing_*.go bind funds, payments, groups, and pricing.

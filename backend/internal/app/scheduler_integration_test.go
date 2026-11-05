@@ -65,8 +65,8 @@ func TestSchedulerSnapshotOutboxReplay(t *testing.T) {
 	store.SetEvents(NewProviderEventsForTest(store, nil))
 	outbox := schedulerpostgres.NewSchedulerOutboxRepository(f.db)
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.OutboxPollIntervalSeconds = 1
-	cfg.Gateway.Scheduling.DbFallbackEnabled = true
+	cfg.Scheduling.Snapshot.OutboxPollIntervalSeconds = 1
+	cfg.Scheduling.Snapshot.DbFallbackEnabled = true
 	value := &provider.Record{Name: "outbox-replay-" + time.Now().Format("150405.000000"), Platform: provider.PlatformOpenAI, Type: provider.ProviderTypeAPIKey, Status: provider.StatusActive, Schedulable: true, Concurrency: 3, Priority: 1, Credentials: map[string]any{}, Extra: map[string]any{}}
 	require.NoError(t, store.Create(ctx, value))
 	require.NoError(t, cache.SetProvider(ctx, codec.WrapRecord(value)))

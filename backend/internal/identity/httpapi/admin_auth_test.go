@@ -35,8 +35,11 @@ type stubUserRepo struct {
 // the same active administrator. It checks HTTP 200 for matching versions and
 // TOKEN_REVOKED for stale Bearer and WebSocket credentials.
 func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
-	cfg := &config.Config{JWT: config.JWTConfig{Secret: "test-secret", ExpireHour: 1}}
-	authService := identity.NewSessionService(identity.SessionOptions{Secret: cfg.JWT.Secret, ExpireHour: cfg.JWT.ExpireHour, AccessTokenExpireMinutes: cfg.JWT.AccessTokenExpireMinutes, RefreshTokenExpireDays: cfg.JWT.RefreshTokenExpireDays}, nil, nil, nil, nil)
+	cfg := &config.Config{Auth: config.AuthConfig{JWT: config.JWTConfig{
+		Secret:                "test-secret",
+		AccessTokenTTLMinutes: 60,
+	}}}
+	authService := identity.NewSessionService(identity.SessionOptions{Secret: cfg.Auth.JWT.Secret, AccessTokenExpireMinutes: cfg.Auth.JWT.AccessTokenTTLMinutes, RefreshTokenExpireDays: cfg.Auth.JWT.RefreshTokenTTLDays}, nil, nil, nil, nil)
 
 	admin := &identity.User{
 		ID:           1,

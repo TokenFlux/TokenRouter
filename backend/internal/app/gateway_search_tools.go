@@ -86,7 +86,7 @@ func ProvideGatewaySearchHTTP(executor *gatewayprovider.GrokSearchExecutor, sele
 	interval := time.Duration(0)
 	if cfg != nil {
 		// Search slot waiting emits pings at the configured interval in seconds.
-		interval = time.Duration(cfg.Concurrency.PingInterval) * time.Second
+		interval = time.Duration(cfg.Gateway.Streaming.WaitPingIntervalSeconds) * time.Second
 	}
 	ports := gatewayhttp.SearchPorts{Selector: standaloneSearchExecution{selector, executor}, Funding: funding, Concurrency: gatewayhttp.NewConcurrencyHelper(concurrency, gatewayhttp.SSEPingFormatClaude, interval), Recorder: recorders.Forward, Workers: workers}
 	if keys != nil {

@@ -17,8 +17,8 @@
 // heartbeat filtering with the common OpenAI response readers. Media, video_content.go, voice,
 // audio_usage.go, and realtime handle generated content and audio quantities.
 // Models, observed_models.go, standalone_search.go, and search_count.go
-// handle names, search evidence, and search usage. CLI identity,
-// endpoint_policy.go, and transport_fallback.go handle request targets and
-// transport identity; errors.go and failure_classifier.go interpret rejected
+// handle names, search evidence, and search usage. overrides.go publishes explicit
+// startup overrides. cli_identity.go, endpoint_policy.go, and transport_fallback.go
+// handle request targets and transport identity; errors.go and failure_classifier.go interpret rejected
 // exchanges for their callers.
 package grok

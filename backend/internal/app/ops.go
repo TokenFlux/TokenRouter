@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"log"
-	"os"
 	"runtime"
 	"runtime/debug"
 
@@ -23,6 +22,7 @@ import (
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/notification"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/ops/maintenance"
 	opspostgres "github.com/TokenFlux/TokenRouter/internal/ops/postgres"
 	opsadapter "github.com/TokenFlux/TokenRouter/internal/ops/provider"
@@ -115,12 +115,12 @@ func provideOpsIngress(repo ops.OpsRepository, s *ops.OpsService) *ops.OpsIngres
 	return a
 }
 
-// provideReleaseClient captures release proxy policy and UPDATE_GITHUB_TOKEN
+// provideReleaseClient captures release proxy policy and the configured GitHub token
 // from process configuration. cfg is required; the selected
 // direct-on-proxy-error flag is passed to the release adapter for its request
 // behavior.
 func provideReleaseClient(cfg *config.Config) opsadapter.ReleaseClient {
-	return opsadapter.NewReleaseClient(opsadapter.ReleaseOptions{ProxyURL: cfg.Update.ProxyURL, AllowDirectOnProxyError: cfg.Security.ProxyFallback.AllowDirectOnError, GitHubToken: os.Getenv("UPDATE_GITHUB_TOKEN")})
+	return opsadapter.NewReleaseClient(opsadapter.ReleaseOptions{ProxyURL: cfg.OutboundProxy.URL, AllowDirectOnProxyError: cfg.OutboundProxy.AllowDirectOnError, GitHubToken: cfg.Update.GitHubToken})
 }
 
 // provideReleaseQuery binds cached release lookup with the running build
@@ -150,7 +150,6 @@ func provideOpsOptions(cfg *config.Config) *ops.Options {
 	o.Ops.Enabled = cfg.Ops.Enabled
 	o.Ops.Aggregation.Enabled = cfg.Ops.Aggregation.Enabled
 	o.Ops.Cleanup = ops.CleanupOptions(cfg.Ops.Cleanup)
-	o.Ops.MetricsCollectorCache = ops.MetricsCollectorCacheOptions(cfg.Ops.MetricsCollectorCache)
 	o.Database.MaxOpenConns = cfg.Database.MaxOpenConns
 	o.Redis.PoolSize = cfg.Redis.PoolSize
 	o.Log = ops.LogOptions{Level: cfg.Log.Level, Caller: cfg.Log.Caller, StacktraceLevel: cfg.Log.StacktraceLevel, Sampling: ops.SamplingOptions(cfg.Log.Sampling)}
@@ -176,5 +175,19 @@ func provideOpsObservationAccess() gatewayhttp.OpsObservationAccess {
 			_, rejected := middleware.GetIngressRejectReason(c)
 			return rejected
 		},
+	}
+}
+
+// provideOpsWSOptions copies validated process settings into the HTTP adapter.
+// The handler parses and owns its proxy prefixes, so its handshake policy is
+// isolated from other handlers and from the caller's configuration slice storage.
+func provideOpsWSOptions(cfg *config.Config) httpapi.OpsWSOptions {
+	value := cfg.Ops.WebSocket
+	return httpapi.OpsWSOptions{
+		TrustProxy:     value.TrustProxy,
+		TrustedProxies: value.TrustedProxies,
+		OriginPolicy:   value.OriginPolicy,
+		MaxConns:       value.MaxConns,
+		MaxConnsPerIP:  value.MaxConnsPerIP,
 	}
 }

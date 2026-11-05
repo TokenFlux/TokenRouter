@@ -158,7 +158,7 @@ func ConfiguredEncryptionKey(raw string, configured bool) (EncryptionKey, string
 		return nil, "payment encryption key not configured — encrypted payment config will be unavailable", nil
 	}
 	if !configured {
-		return nil, "payment encryption/signing key is not explicitly configured; set TOTP_ENCRYPTION_KEY to enable payment resume tokens", nil
+		return nil, "payment encryption/signing key is not explicitly configured; set security.secret_encryption_key to enable payment resume tokens", nil
 	}
 	key, err := hex.DecodeString(value)
 	if err != nil {

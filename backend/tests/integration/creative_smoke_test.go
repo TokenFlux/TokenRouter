@@ -528,41 +528,42 @@ func TestCreativeFullChainSmoke(t *testing.T) {
 
 	cfg := &config.Config{
 		Creative: config.CreativeConfig{
-			Enabled:                 true,
-			QueueEnabled:            true,
-			TransientTTLSeconds:     1800,
-			MaxAssetBytes:           33554432,
-			MaxTotalInputBytes:      67108864,
-			MaxPromptChars:          8000,
-			DefaultResponseMimeType: "image/png",
-			DefaultImageSize:        "1K",
-			ExecuteTimeoutSeconds:   300,
-			MaxExecuteAttempts:      3,
-			JobLockTTLSeconds:       300,
-			StaleActiveAfterSeconds: 600,
-			DelayedMoveLimit:        100,
-			RecoverLimit:            100,
+			Enabled:               true,
+			QueueWorkerEnabled:    true,
+			TransientTTLSeconds:   1800,
+			MaxAssetBytes:         33554432,
+			MaxTotalInputBytes:    67108864,
+			MaxPromptChars:        8000,
+			DefaultImageSize:      "1K",
+			ExecuteTimeoutSeconds: 300,
+			MaxExecuteAttempts:    3,
+			Queue: config.TaskQueueConfig{
+				JobLockTTLSeconds:       300,
+				StaleActiveAfterSeconds: 600,
+				DelayedMoveLimit:        100,
+				RecoverLimit:            100,
+			},
 		},
-		Default: config.DefaultConfig{APIKeyPrefix: "sk-"},
+		APIKey: config.APIKeyConfig{Prefix: "sk-"},
 	}
 
 	repo := newSmokeFakeRunRepo()
 	billing := &smokeFakeBillingRepo{}
 	queue := creativeredis.NewCreativeQueue(client, &creativeredis.QueueOptions{
-		InflightKeyPrefix:  cfg.Creative.InflightKeyPrefix,
-		InflightTTLSeconds: cfg.Creative.InflightTTLSeconds,
-		JobLockTTLSeconds:  cfg.Creative.JobLockTTLSeconds,
-		LockKeyPrefix:      cfg.Creative.LockKeyPrefix,
-		QueueActiveKey:     cfg.Creative.QueueActiveKey,
-		QueueDelayedKey:    cfg.Creative.QueueDelayedKey,
-		QueueReadyKey:      cfg.Creative.QueueReadyKey,
+		InflightKeyPrefix:  cfg.Creative.Queue.InflightKeyPrefix,
+		InflightTTLSeconds: cfg.Creative.Queue.InflightTTLSeconds,
+		JobLockTTLSeconds:  cfg.Creative.Queue.JobLockTTLSeconds,
+		LockKeyPrefix:      cfg.Creative.Queue.LockKeyPrefix,
+		QueueActiveKey:     cfg.Creative.Queue.ActiveKey,
+		QueueDelayedKey:    cfg.Creative.Queue.DelayedKey,
+		QueueReadyKey:      cfg.Creative.Queue.ReadyKey,
 	})
 	store := creativeredis.NewCreativeTransientStore(client, &creativeredis.TransientOptions{TransientTTLSeconds: cfg.Creative.TransientTTLSeconds})
 	// Omit a persistent outbox so this successful attempt settles inline.
 	// Convert configured seconds for result metadata; its duration and the
 	// Redis store receive the same retention setting.
 	results := &creative.Results{Repo: repo, TransientStore: store, Queue: queue, Funding: creative.Funding{Store: billing}, TransientTTL: time.Duration(cfg.Creative.TransientTTLSeconds) * time.Second}
-	managed := apikey.ManagedKeys{Store: &smokeFakeManagedKeyRepo{}, Prefix: cfg.Default.APIKeyPrefix, ManagedBy: creative.CreativeManagedBy, NamePrefix: "creative-studio"}
+	managed := apikey.ManagedKeys{Store: &smokeFakeManagedKeyRepo{}, Prefix: cfg.APIKey.Prefix, ManagedBy: creative.CreativeManagedBy, NamePrefix: "creative-studio"}
 	// Use a fixed image price to exercise nonzero funding capture.
 	price := 0.02
 	prices := billingtestkit.SharedPriceResolver(billingtestkit.Calculator(nil, nil), 12, pricing.DefaultBillingSettings(), []routing.ModelPricingEntry{{Models: []string{"*"}, BillingMode: routing.BillingModeImage, PerRequestPrice: &price}})

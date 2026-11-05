@@ -291,7 +291,7 @@ func TestRetiredAdminStatisticsNativeRoutes(t *testing.T) {
 // the handlers run.
 func TestOpsAdminRoutesRequireAdminAuthentication(t *testing.T) {
 	router := gin.New()
-	handlers := &routeTestHandlers{Admin: &routeTestAdminHandlers{Ops: opshttp.NewOpsHandler(nil)}}
+	handlers := &routeTestHandlers{Admin: &routeTestAdminHandlers{Ops: opshttp.NewOpsHandler(nil, opshttp.OpsWSOptions{})}}
 	adminAuth := identityhttp.AdminAuthMiddleware(func(c *gin.Context) {
 		if c.GetHeader("Authorization") == "" {
 			httpx.AbortWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authorization required")

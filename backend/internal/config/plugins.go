@@ -12,14 +12,14 @@ import (
 
 // plugins.go defines deployment settings for the single-instance plugin runtime.
 // An explicit plugin directory wins over derived storage placement. Otherwise
-// DATA_DIR selects the deployment data root, followed by the existing pricing
-// data directory and the local data fallback. Normalization computes paths but
+// DATA_DIR selects the deployment data root, followed by the configured storage
+// directory and the local data fallback. Normalization computes paths but
 // never creates package directories or starts processes during configuration load.
 //
 // Distribution proxies and child-process proxies are separate settings because
 // downloading an installation and executing its network requests have different
-// owners. All keys receive Viper defaults so environment-only deployments can
-// override them. Development directories remain configured but inactive unless
+// owners. Defaults apply to omitted file fields; explicit environment references
+// are resolved by the shared loader before plugin configuration is decoded. Development directories remain configured but inactive unless
 // dev_mode is enabled, and the main enabled switch remains the emergency stop
 // for both normal and development plugin execution.
 
@@ -39,16 +39,16 @@ type PluginsConfig struct {
 }
 
 // setPluginDefaults registers all plugin keys before Viper unmarshals configuration.
-func setPluginDefaults() {
-	viper.SetDefault("plugins.enabled", true)
-	viper.SetDefault("plugins.dir", "")
-	viper.SetDefault("plugins.official_index_url", "https://raw.githubusercontent.com/TokenFlux/tokenrouter-plugins/dist/v1/index.json")
-	viper.SetDefault("plugins.download_proxy", "")
-	viper.SetDefault("plugins.download_url_prefix", "")
-	viper.SetDefault("plugins.plugin_http_proxy", "")
-	viper.SetDefault("plugins.max_running", 20)
-	viper.SetDefault("plugins.dev_mode", false)
-	viper.SetDefault("plugins.dev_dirs", []string{})
+func setPluginDefaults(v *viper.Viper) {
+	v.SetDefault("plugins.enabled", true)
+	v.SetDefault("plugins.dir", "")
+	v.SetDefault("plugins.official_index_url", "https://raw.githubusercontent.com/TokenFlux/tokenrouter-plugins/dist/v1/index.json")
+	v.SetDefault("plugins.download_proxy", "")
+	v.SetDefault("plugins.download_url_prefix", "")
+	v.SetDefault("plugins.plugin_http_proxy", "")
+	v.SetDefault("plugins.max_running", 20)
+	v.SetDefault("plugins.dev_mode", false)
+	v.SetDefault("plugins.dev_dirs", []string{})
 }
 
 // normalize trims deployment strings and derives an omitted plugin storage directory.

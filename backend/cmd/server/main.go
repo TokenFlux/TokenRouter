@@ -89,8 +89,9 @@ func main() {
 }
 
 // run selects the requested startup path and returns its final cleanup-aware result.
-// Version output takes precedence over terminal setup, which precedes signal
-// registration. Normal startup either initializes from environment, serves the
+// Version output precedes offline configuration migration and terminal setup;
+// those command paths finish before signal registration. Normal startup initializes
+// from installation inputs, serves the
 // web setup wizard, or constructs the configured application.
 //
 // The initial deferred log flush covers paths that end during this selection.
@@ -109,10 +110,16 @@ func run() (err error) {
 	}()
 	setupMode := flag.Bool("setup", false, "Run setup wizard in CLI mode")
 	showVersion := flag.Bool("version", false, "Show version information")
+	migrateConfig := flag.Bool("migrate-config", false, "Write an upgraded configuration copy")
+	configSource := flag.String("config", "", "Source configuration for -migrate-config")
+	configOutput := flag.String("out", "", "Migration output path, or - for stdout")
 	flag.Parse()
 	if *showVersion {
 		log.Printf("TokenRouter %s (commit: %s, built: %s)\n", Version, Commit, Date)
 		return nil
+	}
+	if *migrateConfig {
+		return config.MigrateConfig(*configSource, *configOutput, os.Stdout, os.Stderr)
 	}
 	if *setupMode {
 		return setup.RunCLI()
@@ -168,8 +175,9 @@ func runSetupServer(ctx context.Context, restarter *lifecycle.Restarter) (err er
 		r.Use(web.ServeEmbeddedFrontend())
 	}
 
-	// Setup uses config.yaml or SERVER_HOST and SERVER_PORT for its listen address.
-	addr := config.GetServerAddress()
+	// The installation listener uses SERVER_HOST and SERVER_PORT before a runtime
+	// configuration exists; discovery of an installed file suppresses this path.
+	addr := setup.ListenAddress()
 	log.Printf("Setup wizard available at http://%s", addr)
 	log.Println("Complete the setup wizard to configure TokenRouter")
 
@@ -210,7 +218,7 @@ func runMainServer(ctx context.Context, restarter *lifecycle.Restarter) (err err
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	if err := logging.Init(app.OptionsFromConfig(cfg.Log)); err != nil {
+	if err := logging.Init(app.OptionsFromConfig(cfg.Log, cfg.Environment)); err != nil {
 		return fmt.Errorf("initialize logger: %w", err)
 	}
 	// Initialize registers LogBackend before graph construction, so its rollback

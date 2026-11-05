@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -71,19 +70,21 @@ func provideAntigravityRetry(store *providerpostgres.ProviderStore, counter prov
 		Do:     transport.Do,
 
 		BaseURL: func(value *provider.Record) string {
-			return antigravity.ResolveAntigravityForwardBaseURL(os.Getenv("GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL"), provideradapter.AntigravityPaidTier(value))
+			return antigravity.ResolveAntigravityForwardBaseURL(cfg.Provider.Antigravity.ForwardEndpoint, provideradapter.AntigravityPaidTier(value))
 		},
 
 		BodyLimit: func() int64 {
 			// Retry classification reads response bodies independently of whether detailed logging is enabled.
 			limit := int64(512 << 10)
-			if cfg.Gateway.LogUpstreamErrorBody && cfg.Gateway.LogUpstreamErrorBodyMaxBytes > int(limit) {
-				return int64(cfg.Gateway.LogUpstreamErrorBodyMaxBytes)
+			if cfg.Gateway.UpstreamErrorBodyLog.Enabled && cfg.Gateway.UpstreamErrorBodyLog.MaxBytes > int(limit) {
+				return int64(cfg.Gateway.UpstreamErrorBodyLog.MaxBytes)
 			}
 			return limit
 		},
 
-		LogConfig: func() (bool, int) { return cfg.Gateway.LogUpstreamErrorBody, cfg.Gateway.LogUpstreamErrorBodyMaxBytes },
+		LogConfig: func() (bool, int) {
+			return cfg.Gateway.UpstreamErrorBodyLog.Enabled, cfg.Gateway.UpstreamErrorBodyLog.MaxBytes
+		},
 
 		TruncateString: logredact.TruncateUTF8,
 		SafeURL:        logredact.SafeUpstreamURL,
@@ -109,10 +110,10 @@ func provideAntigravityErrorObserver(core *provideradapter.AntigravityRetry, sto
 
 		LogConfig: func() (bool, int) {
 			limit := 2048
-			if cfg.Gateway.LogUpstreamErrorBodyMaxBytes > 0 {
-				limit = cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+			if cfg.Gateway.UpstreamErrorBodyLog.MaxBytes > 0 {
+				limit = cfg.Gateway.UpstreamErrorBodyLog.MaxBytes
 			}
-			return cfg.Gateway.LogUpstreamErrorBody, limit
+			return cfg.Gateway.UpstreamErrorBodyLog.Enabled, limit
 		},
 
 		TruncateString: logredact.TruncateUTF8,
@@ -124,7 +125,7 @@ func provideAntigravityErrorObserver(core *provideradapter.AntigravityRetry, sto
 		},
 
 		DefaultDuration: func() time.Duration {
-			return provideradapter.AntigravityFallbackDuration(cfg.Gateway.AntigravityFallbackCooldownMinutes, os.Getenv("GATEWAY_ANTIGRAVITY_FALLBACK_COOLDOWN_SECONDS"))
+			return provideradapter.AntigravityFallbackDuration(cfg.Provider.Antigravity.FallbackCooldownSeconds)
 		},
 
 		SetRateLimited: store.SetRateLimited,

@@ -38,7 +38,7 @@ func provideTotp(users *identitypostgres.UserStore, encryptor identity.SecretEnc
 // The enabled verifier retains cfg.WebAuthn.RPOrigins, so callers keep that
 // shared slice unchanged during service use.
 func providePasskey(cfg *config.Config, repo identity.PasskeyRepository, sessions identity.PasskeySessionStore, users *identitypostgres.UserStore) (*identity.PasskeyService, error) {
-	options := identityadapter.PasskeyOptions{Enabled: cfg.WebAuthn.Enabled, RPID: cfg.WebAuthn.RPID, RPDisplayName: cfg.WebAuthn.RPDisplayName, RPOrigins: cfg.WebAuthn.RPOrigins}
+	options := identityadapter.PasskeyOptions{Enabled: cfg.Auth.WebAuthn.Enabled, RPID: cfg.Auth.WebAuthn.RPID, RPDisplayName: cfg.Auth.WebAuthn.RPDisplayName, RPOrigins: cfg.Auth.WebAuthn.RPOrigins}
 	verifier, e := identityadapter.NewPasskeyVerifier(options)
 	if e != nil {
 		return nil, e

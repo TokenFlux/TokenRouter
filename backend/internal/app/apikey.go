@@ -58,18 +58,18 @@ func provideKeys(
 		Now:      time.Now,
 		Calendar: calendar,
 		APIKeyAuth: apikey.APIKeyAuthCacheConfig{
-			L1Size:             cfg.APIKeyAuth.L1Size,
-			L1TTLSeconds:       cfg.APIKeyAuth.L1TTLSeconds,
-			L2TTLSeconds:       cfg.APIKeyAuth.L2TTLSeconds,
-			NegativeTTLSeconds: cfg.APIKeyAuth.NegativeTTLSeconds,
-			JitterPercent:      cfg.APIKeyAuth.JitterPercent,
-			Singleflight:       cfg.APIKeyAuth.Singleflight,
-			LookupConcurrency:  cfg.APIKeyAuth.LookupConcurrency,
-			InvalidAbuse:       apikey.InvalidAuthAbuseConfig(cfg.APIKeyAuth.InvalidAbuse),
+			L1Size:             cfg.APIKey.AuthCache.L1Size,
+			L1TTLSeconds:       cfg.APIKey.AuthCache.L1TTLSeconds,
+			L2TTLSeconds:       cfg.APIKey.AuthCache.L2TTLSeconds,
+			NegativeTTLSeconds: cfg.APIKey.AuthCache.NegativeTTLSeconds,
+			JitterPercent:      cfg.APIKey.AuthCache.JitterPercent,
+			Singleflight:       cfg.APIKey.AuthCache.Singleflight,
+			LookupConcurrency:  cfg.APIKey.LookupConcurrency,
+			InvalidAbuse:       apikey.InvalidAuthAbuseConfig(cfg.APIKey.InvalidKeyAbuse),
 		},
 		GroupFastPolicy: keyGroupFastPolicy,
 	}
-	options.Default.APIKeyPrefix = cfg.Default.APIKeyPrefix
+	options.Default.APIKeyPrefix = cfg.APIKey.Prefix
 	options.Team.Enabled = cfg.Team.Enabled
 	core := apikey.NewAPIKeyService(keys, users, keyGroups{Repository: groups}, subs, rates, cache, options)
 	core.SetRateLimitCacheInvalidator(billingCache)

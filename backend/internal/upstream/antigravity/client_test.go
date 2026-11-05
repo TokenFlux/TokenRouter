@@ -655,7 +655,7 @@ func TestClient_ExchangeCode_无ClientSecret(t *testing.T) {
 	if err == nil {
 		t.Fatal("缺少 client_secret 时应返回错误")
 	}
-	if !strings.Contains(err.Error(), AntigravityOAuthClientSecretEnv) {
+	if !strings.Contains(err.Error(), "provider.antigravity.oauth_client_secret") {
 		t.Errorf("错误信息应包含环境变量名: got %s", err.Error())
 	}
 }

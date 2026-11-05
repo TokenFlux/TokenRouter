@@ -150,7 +150,7 @@ func TestSettingsResponseFieldsAndPaymentErrors(t *testing.T) {
 			for _, method := range []string{http.MethodGet, http.MethodPut} {
 				t.Run(method, func(t *testing.T) {
 					repo := &settingHandlerRepoStub{values: map[string]string{}}
-					options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+					options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 					base, ok := options.Settings.(*composite.Runtime)
 					require.True(t, ok)
 					authDefaults, err := base.GetAuthSourceDefaultSettings(context.Background())
@@ -406,15 +406,15 @@ func (s *settingsResponseMonitoring) SetMonitoringEnabled(bool) {}
 func newCompositeSettingsHTTPFixture(repo settingscore.Repository, cfg *config.Config) (settingshttp.HandlerOptions, *settingscore.Store) {
 	store := settingscore.New(repo)
 	oauth := provideOAuthSettings(store, cfg)
-	grants := identity.NewGrantSettings(store, identity.GrantSettingsOptions{DefaultBalance: cfg.Default.UserBalance, DefaultConcurrency: cfg.Default.UserConcurrency})
+	grants := identity.NewGrantSettings(store, identity.GrantSettingsOptions{DefaultBalance: cfg.UserDefaults.Balance, DefaultConcurrency: cfg.UserDefaults.Concurrency})
 	gatewayRuntime := provideGatewaySettings(store)
 	rules := provideGatewayAdminRules()
 	defaults := provideSchedulerAdminDefaults(cfg)
 	forwarded := provideForwardedSettings(store, cfg)
 	read := composite.ReadOptions{
 		OAuth: oauth, Gateway: *rules, Scheduler: *defaults,
-		DefaultBalance:     func() float64 { return cfg.Default.UserBalance },
-		DefaultConcurrency: func() int { return cfg.Default.UserConcurrency },
+		DefaultBalance:     func() float64 { return cfg.UserDefaults.Balance },
+		DefaultConcurrency: func() int { return cfg.UserDefaults.Concurrency },
 		Forwarded: func() runtimeconfig.ForwardedInput {
 			value := cfg.ForwardedClientIPSettings()
 			return runtimeconfig.ForwardedInput{APIKeyACLTrustForwardedIP: value.TrustForwardedIP, ForwardedClientIPHeaders: value.Headers}
@@ -431,7 +431,7 @@ func newCompositeSettingsHTTPFixture(repo settingscore.Repository, cfg *config.C
 		}},
 		{Module: "site", Apply: func(context.Context, *composite.Snapshot) error { store.NotifyUpdated(); return nil }},
 	}
-	source := composite.NewRuntime(store, read, prepare, grants, gatewayRuntime, cfg.Totp.EncryptionKeyConfigured, applications)
+	source := composite.NewRuntime(store, read, prepare, grants, gatewayRuntime, cfg.Security.SecretEncryptionKeyConfigured, applications)
 	participants := staticSettingsParticipants(&paymentcore.Runtime{}, grants, defaults, rules)
 	// Retain payment field preparation while disabling provider refresh for the
 	// fixture, so combined persistence and response tests do not need configured payment-channel instances.
@@ -514,7 +514,7 @@ func (r *settingAtomicRepo) GetAll(ctx context.Context) (map[string]string, erro
 // write, and all three stored values from that accepted update.
 func TestSettingsCombinedUpdateCommitsOnce(t *testing.T) {
 	repo := &settingAtomicRepo{settingHandlerRepoStub: &settingHandlerRepoStub{values: map[string]string{site.SettingKeySiteName: "before"}}}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	payment := paymentcore.NewConfigService(nil, repo, nil, nil, paymentcore.ConfigurationRuntime{})
 	options.Payment = payment
 	h := settingshttp.NewHandler(options)
@@ -534,7 +534,7 @@ func TestSettingsCombinedWriteAndApplyErrors(t *testing.T) {
 	for _, scenario := range []string{"write", "apply"} {
 		t.Run(scenario, func(t *testing.T) {
 			repo := &settingAtomicRepo{settingHandlerRepoStub: &settingHandlerRepoStub{values: map[string]string{site.SettingKeySiteName: "before"}}, failWrite: scenario == "write", failApply: scenario == "apply"}
-			options, store := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+			options, store := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 			h := settingshttp.NewHandler(options)
 			notified := false
 			store.Subscribe(func() { notified = true })
@@ -621,7 +621,7 @@ func TestSettingHandler_GetSettings_InjectsAuthSourceDefaults(t *testing.T) {
 			identity.SettingKeyForceEmailOnThirdPartySignup:        "true",
 		},
 	}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	handler := settingshttp.NewHandler(options)
 
 	rec := httptest.NewRecorder()
@@ -661,7 +661,7 @@ func TestSettingHandler_UpdateSettings_PreservesOmittedAuthSourceDefaults(t *tes
 			identity.SettingKeyForceEmailOnThirdPartySignup:           "true",
 		},
 	}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	handler := settingshttp.NewHandler(options)
 
 	body := map[string]any{
@@ -709,7 +709,7 @@ func TestSettingHandler_UpdateSettings_AcceptsMarkdownCustomMenuURL(t *testing.T
 	} {
 		t.Run(test.id, func(t *testing.T) {
 			repo := &settingHandlerRepoStub{values: map[string]string{promotion.SettingKeyPromoCodeEnabled: "true"}}
-			options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+			options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 			handler := settingshttp.NewHandler(options)
 			body := map[string]any{
 				"promo_code_enabled": true,
@@ -746,7 +746,7 @@ func TestSettingHandler_UpdateSettings_RejectsEmptyMarkdownCustomMenuSlug(t *tes
 			promotion.SettingKeyPromoCodeEnabled: "true",
 		},
 	}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	handler := settingshttp.NewHandler(options)
 
 	body := map[string]any{
@@ -787,7 +787,7 @@ func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedS
 			ops.SettingKeyOpsAdvancedSettings:    `{"data_retention":{"cleanup_enabled":true,"cleanup_schedule":"0 4 * * *","error_log_retention_days":12,"minute_metrics_retention_days":8,"hourly_metrics_retention_days":30},"aggregation":{"aggregation_enabled":true},"openai_provider_quota_auto_pause":{"default_threshold_5h":0.6,"default_threshold_7d":0.7},"ignore_count_tokens_errors":true,"ignore_context_canceled":true,"ignore_no_available_providers":false,"ignore_invalid_api_key_errors":false,"ignore_insufficient_balance_errors":true,"display_openai_token_stats":false,"display_alert_events":true,"auto_refresh_enabled":false,"auto_refresh_interval_seconds":30}`,
 		},
 	}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	paymentConfigService := paymentcore.NewConfigService(nil, repo, nil, nil, paymentcore.ConfigurationRuntime{})
 	options.Payment = paymentConfigService
 	handler := settingshttp.NewHandler(options)
@@ -856,7 +856,7 @@ func TestSettingHandler_UpdateSettings_PreservesLegacyBlankPaymentVisibleMethodS
 			paymentcore.SettingPaymentVisibleMethodWxpaySource:   "",
 		},
 	}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	handler := settingshttp.NewHandler(options)
 
 	body := map[string]any{
@@ -904,7 +904,7 @@ func TestSettingHandler_UpdateSettings_PersistsExplicitFalseOIDCCompatibilityFla
 			identity.SettingKeyOIDCConnectClockSkewSeconds:    "120",
 		},
 	}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	handler := settingshttp.NewHandler(options)
 
 	body := map[string]any{
@@ -966,8 +966,8 @@ func TestSettingHandler_UpdateSettings_DoesNotSolidifyImplicitOIDCSecurityDefaul
 		},
 	}
 	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{
-		Default: config.DefaultConfig{UserConcurrency: 5},
-		OIDC: config.OIDCConnectConfig{
+		UserDefaults: config.UserDefaultsConfig{Concurrency: 5},
+		Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{OIDC: config.OIDCConnectConfig{
 			Enabled:             true,
 			ProviderName:        "OIDC",
 			ClientID:            "oidc-client",
@@ -985,7 +985,7 @@ func TestSettingHandler_UpdateSettings_DoesNotSolidifyImplicitOIDCSecurityDefaul
 			ValidateIDToken:     true,
 			AllowedSigningAlgs:  "RS256",
 			ClockSkewSeconds:    120,
-		},
+		}}},
 	})
 	handler := settingshttp.NewHandler(options)
 
@@ -1018,7 +1018,7 @@ func TestSettingHandler_UpdateSettings_RejectsInvalidPaymentVisibleMethodSource(
 			promotion.SettingKeyPromoCodeEnabled: "true",
 		},
 	}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	handler := settingshttp.NewHandler(options)
 
 	body := map[string]any{
@@ -1054,7 +1054,7 @@ func TestSettingHandler_UpdateSettings_DoesNotPersistPartialSystemSettingsWhenAu
 		},
 		err: errors.New("write auth source defaults failed"),
 	}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	handler := settingshttp.NewHandler(options)
 
 	body := map[string]any{
@@ -1120,7 +1120,7 @@ func TestDiffSettings_IncludesAuthSourceDefaultsAndForceEmail(t *testing.T) {
 // settings and fixture defaults.
 func newDingTalkSettingsHandler() (*settingshttp.Handler, *settingHandlerRepoStub) {
 	repo := &settingHandlerRepoStub{values: map[string]string{}}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	handler := settingshttp.NewHandler(options)
 	return handler, repo
 }
@@ -1650,7 +1650,7 @@ func TestUpdateSettingsRejectsInvalidCreativeWorkerCount(t *testing.T) {
 // fixture operation.
 func TestUpdateSettingsNormalizesGeminiInpaintBeforeSave(t *testing.T) {
 	repo := &settingHandlerRepoStub{values: map[string]string{}}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	options.Creative = &creativeModelCandidateReaderStub{sanitizeGemini: true}
 	h := settingshttp.NewHandler(options)
 
@@ -1906,7 +1906,7 @@ func newStepUpSwitchTestHandler(t *testing.T, stored map[string]string) (*settin
 	t.Helper()
 
 	repo := &settingHandlerRepoStub{values: stored}
-	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	options, _ := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
 	return settingshttp.NewHandler(options), repo
 }
 
@@ -2145,7 +2145,7 @@ func TestUpdateSettingsForwardedClientIPHeadersOmittedPreservesAndEmptyClears(t 
 // unrelated setting. It checks trust stays false and both storage and published
 // configuration are normalized to disabled trust with an empty list.
 func TestUpdateSettingsMalformedForwardedClientIPHeadersRemainFailClosedWhenOmitted(t *testing.T) {
-	cfg := &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}}
+	cfg := &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}}
 	repo := &settingHandlerRepoStub{values: map[string]string{
 		runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP: "true",
 		runtimeconfig.SettingKeyForwardedClientIPHeaders:  `{"not":"an array"}`,

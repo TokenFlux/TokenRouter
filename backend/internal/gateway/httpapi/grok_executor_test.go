@@ -28,7 +28,8 @@ import (
 // allowed custom OAuth URL and cache identity. It checks the POST endpoint,
 // bearer token, CLI headers and unchanged request body built for Responses.
 func TestBuildGrokResponsesRequestPinsOAuthBaseURLAndUsesBearerToken(t *testing.T) {
-	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+	xai.ConfigureOverrides(xai.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 
 	provider := &gatewayprovider.ExecutionProvider{
 		Record: providercore.Record{
@@ -166,7 +167,8 @@ func TestBuildGrokResponsesRequestIgnoresBlockedHeaderOverrides(t *testing.T) {
 // client headers and an empty version override. It checks the default CLI
 // version, user agent and client identifier after Grok header application.
 func TestApplyDefaultGrokUpstreamHeadersUsesCLIUserAgent(t *testing.T) {
-	t.Setenv(xai.CLIVersionEnv, "")
+	xai.ConfigureOverrides(xai.Overrides{CLIVersion: ""})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 
 	req, err := http.NewRequest(http.MethodGet, "https://api.x.ai/v1/responses", nil)
 	require.NoError(t, err)
@@ -184,7 +186,8 @@ func TestApplyDefaultGrokUpstreamHeadersUsesCLIUserAgent(t *testing.T) {
 // process version override to the header helper. It checks that the explicit
 // version and corresponding CLI user agent replace prior client identity.
 func TestApplyDefaultGrokUpstreamHeadersHonorsCLIVersionOverride(t *testing.T) {
-	t.Setenv(xai.CLIVersionEnv, "0.2.95")
+	xai.ConfigureOverrides(xai.Overrides{CLIVersion: "0.2.95"})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 
 	req, err := http.NewRequest(http.MethodGet, "https://api.x.ai/v1/responses", nil)
 	require.NoError(t, err)
@@ -201,7 +204,8 @@ func TestApplyDefaultGrokUpstreamHeadersHonorsCLIVersionOverride(t *testing.T) {
 // HTTP context with an absent context. It checks both OAuth requests use the
 // Grok CLI user agent under the empty override fixture.
 func TestResolveGrokUpstreamUserAgentNeverPassthrough(t *testing.T) {
-	t.Setenv(xai.CLIVersionEnv, "")
+	xai.ConfigureOverrides(xai.Overrides{CLIVersion: ""})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -222,7 +226,8 @@ func TestResolveGrokUpstreamUserAgentNeverPassthrough(t *testing.T) {
 // beside an unrelated user agent. It checks the originator is retained while
 // Grok CLI version and user agent describe the upstream client.
 func TestApplyGrokRuntimeHeadersKeepsCLIUserAgent(t *testing.T) {
-	t.Setenv(xai.CLIVersionEnv, "")
+	xai.ConfigureOverrides(xai.Overrides{CLIVersion: ""})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 
 	req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/responses", nil)
 	require.NoError(t, err)
@@ -239,7 +244,8 @@ func TestApplyGrokRuntimeHeadersKeepsCLIUserAgent(t *testing.T) {
 // header helper to an ordinary API request. It checks default CLI identity
 // headers; the test does not create a TLS connection.
 func TestApplyGrokTLSProfileHeadersAlwaysUsesCLIUserAgent(t *testing.T) {
-	t.Setenv(xai.CLIVersionEnv, "")
+	xai.ConfigureOverrides(xai.Overrides{CLIVersion: ""})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 
 	req, err := http.NewRequest(http.MethodPost, "https://api.x.ai/v1/responses", nil)
 	require.NoError(t, err)

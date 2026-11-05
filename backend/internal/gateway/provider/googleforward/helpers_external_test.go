@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -395,7 +394,7 @@ func newAntigravityFixture(d antigravityDependencies) *googleforward.Antigravity
 	retry := &provideradapter.AntigravityRetry{
 		Health: health,
 		BaseURL: func(value *providercore.Record) string {
-			return antigravity.ResolveAntigravityForwardBaseURL(os.Getenv("GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL"), provideradapter.AntigravityPaidTier(value))
+			return antigravity.ResolveAntigravityForwardBaseURL("auto", provideradapter.AntigravityPaidTier(value))
 		},
 		BodyLimit: func() int64 {
 			// Bound retry-error inspection to a default diagnostic prefix before
@@ -419,8 +418,8 @@ func newAntigravityFixture(d antigravityDependencies) *googleforward.Antigravity
 		TruncateString: logredact.TruncateUTF8,
 		ResetTime:      parseGeminiReset,
 		DefaultDuration: func() time.Duration {
-			minutes := 0
-			return provideradapter.AntigravityFallbackDuration(minutes, os.Getenv("GATEWAY_ANTIGRAVITY_FALLBACK_COOLDOWN_SECONDS"))
+			seconds := 0
+			return provideradapter.AntigravityFallbackDuration(seconds)
 		},
 	}
 	if d.providerRepo != nil {

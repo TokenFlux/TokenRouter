@@ -38,7 +38,7 @@ func provideOpenAIHTTPResources(concurrency *scheduler.ConcurrencyService, cfg *
 	imageOptions := openAIImageAdmissionOptions(cfg)
 	if cfg != nil {
 		// Waiting response heartbeats use the configured ping interval in seconds.
-		ping = time.Duration(cfg.Concurrency.PingInterval) * time.Second
+		ping = time.Duration(cfg.Gateway.Streaming.WaitPingIntervalSeconds) * time.Second
 	}
 	return &gatewayhttp.OpenAIHTTPResources{Concurrency: gatewayhttp.NewConcurrencyHelper(concurrency, gatewayhttp.SSEPingFormatComment, ping), Images: &scheduler.ImageConcurrencyLimiter{}, ImageOptions: imageOptions}
 }
@@ -51,7 +51,7 @@ func openAIImageAdmissionOptions(cfg *config.Config) *gatewayhttp.OpenAIImageAdm
 	if cfg == nil {
 		return nil
 	}
-	value := cfg.Gateway.ImageConcurrency
+	value := cfg.Gateway.Images.Concurrency
 	// Image wait timeout is expressed in configuration seconds and consumed as a duration.
 	return &gatewayhttp.OpenAIImageAdmissionOptions{Enabled: value.Enabled, Limit: value.MaxConcurrentRequests, Wait: strings.TrimSpace(value.OverflowMode) == config.ImageConcurrencyOverflowModeWait, Timeout: time.Duration(value.WaitTimeoutSeconds) * time.Second, MaxWaiting: value.MaxWaitingRequests}
 }
@@ -93,14 +93,14 @@ func provideOpenAITextHTTP(
 func openAITextOptions(cfg *config.Config) gatewayhttp.OpenAITextOptions {
 	options := gatewayhttp.OpenAITextOptions{MaxSwitches: 3}
 	if cfg != nil {
-		options.ForceCodexCLI = cfg.Gateway.ForceCodexCLI
-		options.MaxBodyBytes = cfg.Gateway.MaxBodySize
-		if cfg.Gateway.MaxProviderSwitches > 0 {
-			options.MaxSwitches = cfg.Gateway.MaxProviderSwitches
+		options.ForceCodexCLI = cfg.Gateway.OpenAI.Codex.ForceCLI
+		options.MaxBodyBytes = cfg.Gateway.MaxRequestBodyBytes
+		if cfg.Gateway.Failover.MaxProviderSwitches > 0 {
+			options.MaxSwitches = cfg.Gateway.Failover.MaxProviderSwitches
 		}
-		if cfg.Gateway.StreamKeepaliveInterval > 0 {
+		if cfg.Gateway.Streaming.KeepaliveIntervalSeconds > 0 {
 			// Compact heartbeats use the positive keepalive interval in configured seconds.
-			options.CompactKeepaliveInterval = time.Duration(cfg.Gateway.StreamKeepaliveInterval) * time.Second
+			options.CompactKeepaliveInterval = time.Duration(cfg.Gateway.Streaming.KeepaliveIntervalSeconds) * time.Second
 		}
 	}
 	return options

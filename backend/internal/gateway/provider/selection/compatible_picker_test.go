@@ -134,7 +134,7 @@ func TestOpenAIGatewayService_MessagesRoutingModelUsesFullMappingChain(t *testin
 				},
 			}
 			cfg := &config.Config{}
-			cfg.Gateway.Scheduling.LoadBatchEnabled = false
+			cfg.Scheduling.LoadBatch.Enabled = false
 			cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"sticky": 42111}}
 			svc := newCompatibleSelectionForTest(CompatibleDependencies{
 				Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
@@ -445,7 +445,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_CompactSelectsEnabledP
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{
 			Providers: schedulerTestOpenAIProviderRepo{providers: providers},
@@ -504,7 +504,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_CompactRejectsDisabled
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{
 			Providers: schedulerTestOpenAIProviderRepo{providers: providers},
@@ -562,7 +562,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_CompactUsesDefaultEnab
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{
 			Providers: schedulerTestOpenAIProviderRepo{providers: providers},
@@ -611,7 +611,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_CompactAllowsGrok(t *t
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{
 			Providers: schedulerTestOpenAIProviderRepo{providers: providers},
@@ -676,7 +676,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_NativeCompactionSepara
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{
 			Providers: schedulerTestOpenAIProviderRepo{providers: providers},
@@ -769,7 +769,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_NativeCompactionV2Mode
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{
 			Providers: schedulerTestOpenAIProviderRepo{providers: providers},
@@ -1044,12 +1044,12 @@ func TestParentHealthSchedulerFallsBackToRepoWhenSnapshotMissesParent(t *testing
 // priority/load/queue weights for subscription scenarios.
 func newSchedulerTestSubscriptionPriorityConfig() *config.Config {
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.LBTopK = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0
+	cfg.Scheduling.Advanced.LBTopK = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 1
+	cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0
+	cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0
 	return cfg
 }
 
@@ -1085,7 +1085,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_DefaultDisabledUsesLeg
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	cache := &schedulerTestGatewayCache{}
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
@@ -1163,7 +1163,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_DefaultDisabled_LoadBa
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	cfg.Scheduling.LoadBatch.Enabled = true
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: []gatewayprovider.ExecutionProvider{quotaPaused, mappingMiss, excluded}}},
 		Shared: Shared{
@@ -1223,7 +1223,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_DefaultDisabled_Requir
 		},
 	}
 	cfg := newSchedulerTestOpenAIWSV2Config()
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -1268,7 +1268,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_DefaultDisabled_Requir
 		},
 	}
 	cfg := newSchedulerTestOpenAIWSV2Config()
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -1330,7 +1330,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_DefaultDisabled_Embedd
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -1366,7 +1366,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_ResponsesCapabilityExc
 
 	newSvc := func(providers []gatewayprovider.ExecutionProvider) *Compatible {
 		cfg := &config.Config{}
-		cfg.Gateway.Scheduling.LoadBatchEnabled = false
+		cfg.Scheduling.LoadBatch.Enabled = false
 		return newCompatibleSelectionForTest(CompatibleDependencies{
 			Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 			Shared: Shared{
@@ -1446,7 +1446,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_AlphaSearchAllowsAPIKe
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -1492,7 +1492,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_DefaultDisabled_Allows
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -1542,7 +1542,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_GrokMediaCapabilityFil
 	}
 	newService := func(providers []gatewayprovider.ExecutionProvider) *Compatible {
 		cfg := &config.Config{}
-		cfg.Gateway.Scheduling.LoadBatchEnabled = false
+		cfg.Scheduling.LoadBatch.Enabled = false
 		return newCompatibleSelectionForTest(CompatibleDependencies{
 			Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 			Shared: Shared{
@@ -1809,8 +1809,8 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_EnabledUsesAdvancedPre
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
-	cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds = 3600
+	cfg.Scheduling.LoadBatch.Enabled = false
+	cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds = 3600
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -1876,13 +1876,13 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_StickyWeightedSessionU
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.LBTopK = 2
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0.7
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0.8
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0.5
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.SessionSticky = 3
+	cfg.Scheduling.Advanced.LBTopK = 2
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 0.7
+	cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0.8
+	cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0.5
+	cfg.Scheduling.Advanced.ScoreWeights.SessionSticky = 3
 	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{}}
 	for index := range 128 {
 		cache.sessionBindings["openai:"+fmt.Sprintf("session_hash_weighted_topk_%d", index)] = 37101
@@ -1965,12 +1965,12 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_StickyWeightedPrevious
 		},
 	}
 	cfg := newSchedulerTestOpenAIWSV2Config()
-	cfg.Gateway.AdvancedScheduler.LBTopK = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0.7
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0.8
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0.5
+	cfg.Scheduling.Advanced.LBTopK = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 0.7
+	cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0.8
+	cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0.5
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -2071,12 +2071,12 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_PreviousResponseCompac
 		},
 	}
 	cfg := newSchedulerTestOpenAIWSV2Config()
-	cfg.Gateway.AdvancedScheduler.LBTopK = 2
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0.7
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0.8
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0.5
+	cfg.Scheduling.Advanced.LBTopK = 2
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 0.7
+	cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0.8
+	cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0.5
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -2157,7 +2157,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_Enabled_EmbeddingsSkip
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -2234,7 +2234,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_Enabled_EmbeddingsSkip
 		},
 	}
 	cfg := newSchedulerTestOpenAIWSV2Config()
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	cache := &schedulerTestGatewayCache{
 		sessionBindings: map[string]int64{
 			"openai:session_hash_embeddings": 37021,
@@ -2305,7 +2305,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_SkipsQuarantinedShared
 		{Record: providercore.Record{Credentials: map[string]any{"model_whitelist": []string{"*"}}, LoadLocation: time.LoadLocation, ID: 469803, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 5, ProxyID: &proxyB}},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads:  Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{Concurrency: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event})},
@@ -2335,7 +2335,7 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_FailsOpenWhenAllProxie
 		{Record: providercore.Record{Credentials: map[string]any{"model_whitelist": []string{"*"}}, LoadLocation: time.LoadLocation, ID: 505602, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 5, ProxyID: &proxyID}},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads:  Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{Concurrency: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event})},
@@ -2366,7 +2366,7 @@ func TestOpenAIGatewayService_SelectProviderWithSchedulerForRouting_FailsOpenWhe
 	proxyID := int64(5057)
 	provider := gatewayprovider.ExecutionProvider{Record: providercore.Record{Credentials: map[string]any{"model_whitelist": []string{"*"}}, LoadLocation: time.LoadLocation, ID: 505701, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 1, ProxyID: &proxyID}}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cfg.Scheduling.LoadBatch.Enabled = false
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads:        Reads{Providers: schedulerTestOpenAIProviderRepo{providers: []gatewayprovider.ExecutionProvider{provider}}},
 		Shared:       Shared{Concurrency: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event})},
@@ -2483,8 +2483,8 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_PreviousResponseSticky
 	}
 	cache := &schedulerTestGatewayCache{}
 	cfg := &config.Config{}
-	cfg.Gateway.OpenAIWS.StickySessionTTLSeconds = 1800
-	cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds = 3600
+	cfg.Scheduling.SessionAffinity.TTLSeconds = 1800
+	cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds = 3600
 
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: []gatewayprovider.ExecutionProvider{provider}}},
@@ -2612,11 +2612,11 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_SessionStickyBusyKeeps
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.StickySessionMaxWaiting = 2
-	cfg.Gateway.Scheduling.StickySessionWaitTimeout = 45 * time.Second
-	cfg.Gateway.AdvancedScheduler.StickyEscapeEnabled = false
-	cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs = 15000
-	cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 0.5
+	cfg.Scheduling.StickyProviderWait.MaxWaiting = 2
+	cfg.Scheduling.StickyProviderWait.TimeoutSeconds = 45
+	cfg.Scheduling.Advanced.StickyEscapeEnabled = false
+	cfg.Scheduling.Advanced.StickyEscapeTTFTMs = 15000
+	cfg.Scheduling.Advanced.StickyEscapeErrorRate = 0.5
 
 	concurrencyCache := schedulerTestConcurrencyCache{
 		acquireResults: map[int64]bool{
@@ -2703,9 +2703,9 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_SessionStickyEscapeByT
 	}
 	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:session_hash_sticky_ttft": 21101}}
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.StickyEscapeEnabled = true
-	cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs = 15000
-	cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 0.5
+	cfg.Scheduling.Advanced.StickyEscapeEnabled = true
+	cfg.Scheduling.Advanced.StickyEscapeTTFTMs = 15000
+	cfg.Scheduling.Advanced.StickyEscapeErrorRate = 0.5
 	concurrencyCache := schedulerTestConcurrencyCache{acquireResults: map[int64]bool{21102: true}}
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
@@ -2770,9 +2770,9 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_SessionStickyEscapeByE
 	}
 	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:session_hash_sticky_error_rate": 21201}}
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.StickyEscapeEnabled = true
-	cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs = 15000
-	cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 0.7
+	cfg.Scheduling.Advanced.StickyEscapeEnabled = true
+	cfg.Scheduling.Advanced.StickyEscapeTTFTMs = 15000
+	cfg.Scheduling.Advanced.StickyEscapeErrorRate = 0.7
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerTestOpenAIProviderRepo{providers: providers}},
 		Shared: Shared{
@@ -2830,11 +2830,11 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_SessionStickyBusyEscap
 	}
 	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:session_hash_sticky_busy_escape": 21301}}
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.StickyEscapeEnabled = true
-	cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs = 15000
-	cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 0.5
-	cfg.Gateway.Scheduling.StickySessionMaxWaiting = 2
-	cfg.Gateway.Scheduling.StickySessionWaitTimeout = 45 * time.Second
+	cfg.Scheduling.Advanced.StickyEscapeEnabled = true
+	cfg.Scheduling.Advanced.StickyEscapeTTFTMs = 15000
+	cfg.Scheduling.Advanced.StickyEscapeErrorRate = 0.5
+	cfg.Scheduling.StickyProviderWait.MaxWaiting = 2
+	cfg.Scheduling.StickyProviderWait.TimeoutSeconds = 45
 	concurrencyCache := schedulerTestConcurrencyCache{
 		acquireResults: map[int64]bool{21301: false, 21302: true},
 		waitCounts:     map[int64]int{21301: 999},
@@ -2883,11 +2883,11 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_SessionStickyEscapeDis
 	}
 	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:session_hash_sticky_disabled": 21401}}
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.StickyEscapeEnabled = false
-	cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs = 15000
-	cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 0.5
-	cfg.Gateway.Scheduling.StickySessionMaxWaiting = 2
-	cfg.Gateway.Scheduling.StickySessionWaitTimeout = 45 * time.Second
+	cfg.Scheduling.Advanced.StickyEscapeEnabled = false
+	cfg.Scheduling.Advanced.StickyEscapeTTFTMs = 15000
+	cfg.Scheduling.Advanced.StickyEscapeErrorRate = 0.5
+	cfg.Scheduling.StickyProviderWait.MaxWaiting = 2
+	cfg.Scheduling.StickyProviderWait.TimeoutSeconds = 45
 	concurrencyCache := schedulerTestConcurrencyCache{
 		acquireResults: map[int64]bool{21401: false, 21402: true},
 		waitCounts:     map[int64]int{21401: 999},
@@ -3155,9 +3155,9 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_UsesProviderPriorityWi
 		},
 	}
 	cfg := newSchedulerTestSubscriptionPriorityConfig()
-	cfg.Gateway.AdvancedScheduler.LBTopK = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 0
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0
+	cfg.Scheduling.Advanced.LBTopK = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 0
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 0
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{Providers: schedulerGroupAwareOpenAIProviderRepo{schedulerTestOpenAIProviderRepo{providers: providers}}},
 		Shared: Shared{
@@ -3669,12 +3669,12 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_LoadBalanceTopKFallbac
 	}
 
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.LBTopK = 2
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 0.4
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 1.0
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 1.0
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0.2
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0.1
+	cfg.Scheduling.Advanced.LBTopK = 2
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 0.4
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 1.0
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 1.0
+	cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0.2
+	cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0.1
 
 	concurrencyCache := schedulerTestConcurrencyCache{
 		loadMap: map[int64]*schedulercore.ProviderLoadInfo{
@@ -3757,10 +3757,10 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_LoadBalanceTopKExclude
 	}
 
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.LBTopK = 1 // With TopK=1, admitting the paused provider would displace the healthy candidate.
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 0.4
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 1.0
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 1.0
+	cfg.Scheduling.Advanced.LBTopK = 1 // With TopK=1, admitting the paused provider would displace the healthy candidate.
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 0.4
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 1.0
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 1.0
 
 	concurrencyCache := schedulerTestConcurrencyCache{
 		loadMap: map[int64]*schedulercore.ProviderLoadInfo{
@@ -3901,12 +3901,12 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_LoadBalanceDistributes
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.LBTopK = 3
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 1
+	cfg.Scheduling.Advanced.LBTopK = 3
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 1
+	cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 1
+	cfg.Scheduling.Advanced.ScoreWeights.TTFT = 1
 
 	concurrencyCache := schedulerTestConcurrencyCache{
 		loadMap: map[int64]*schedulercore.ProviderLoadInfo{
@@ -4014,14 +4014,14 @@ func TestOpenAIGatewayService_SchedulerWrappersAndDefaults(t *testing.T) {
 	require.Equal(t, 0.0, defaultWeights.Reset)
 
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.LBTopK = 9
-	cfg.Gateway.OpenAIWS.StickySessionTTLSeconds = 180
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 0.2
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 0.3
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0.4
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0.5
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0.6
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Reset = 0.7
+	cfg.Scheduling.Advanced.LBTopK = 9
+	cfg.Scheduling.SessionAffinity.TTLSeconds = 180
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 0.2
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 0.3
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 0.4
+	cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0.5
+	cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0.6
+	cfg.Scheduling.Advanced.ScoreWeights.Reset = 0.7
 	svcWithCfg := newCompatibleSelectionForTest(CompatibleDependencies{Reads: Reads{}, Shared: Shared{}}, cfg)
 
 	require.Equal(t, 9, svcWithCfg.schedulerParameters.Defaults().TopK)
@@ -4110,13 +4110,13 @@ func TestOpenAIGatewayService_SelectProviderWithScheduler_StickyWeightedDoesNotF
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.LBTopK = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0.7
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0.8
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0.5
-	cfg.Gateway.AdvancedScheduler.ScoreWeights.SessionSticky = 0
+	cfg.Scheduling.Advanced.LBTopK = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 1
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 0.7
+	cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0.8
+	cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0.5
+	cfg.Scheduling.Advanced.ScoreWeights.SessionSticky = 0
 	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{
 		"openai:session_weighted_out_of_group": 38002,
 	}}

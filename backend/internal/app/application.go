@@ -56,6 +56,7 @@ type Application struct {
 // it does not guarantee every registered callback has finished.
 // @project-doc docs/architecture/system_architecture.md#dependency_layers
 func Initialize(ctx context.Context, cfg *config.Config, buildInfo BuildInfo, restarter *lifecycle.Restarter) (_ *Application, err error) {
+	configureUpstreamIdentities(cfg)
 	manager := lifecycle.New(func(name, event string, err error) {
 		// LogBackend has closed the files used by this reporter. Skip its
 		// successful completion message so reporting does not write after file release.

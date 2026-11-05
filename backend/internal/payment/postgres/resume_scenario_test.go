@@ -383,7 +383,6 @@ func TestParseWeChatPaymentResumeTokenRejectsExpiredToken(t *testing.T) {
 func TestPaymentServiceParseWeChatPaymentResumeTokenUsesExplicitSigningKey(t *testing.T) {
 	// Setenv registers restoration of this process setting; these configuration
 	// cases remain synchronous while testkit reads the selected signing key.
-	t.Setenv("PAYMENT_RESUME_SIGNING_KEY", "explicit-payment-resume-signing-key")
 
 	token, err := payment.NewPaymentResumeService([]byte("explicit-payment-resume-signing-key")).CreateWeChatPaymentResumeToken(payment.WeChatPaymentResumeClaims{
 		OpenID:      "openid-explicit-key",
@@ -393,7 +392,7 @@ func TestPaymentServiceParseWeChatPaymentResumeTokenUsesExplicitSigningKey(t *te
 		t.Fatalf("CreateWeChatPaymentResumeToken returned error: %v", err)
 	}
 
-	svc := paymenttestkit.Resume([]byte("0123456789abcdef0123456789abcdef"))
+	svc := paymenttestkit.Resume("explicit-payment-resume-signing-key", []byte("0123456789abcdef0123456789abcdef"))
 
 	claims, err := svc.ParseWeChatPaymentResumeToken(token)
 	if err != nil {
@@ -411,7 +410,6 @@ func TestPaymentServiceParseWeChatPaymentResumeTokenUsesExplicitSigningKey(t *te
 func TestPaymentServiceParseWeChatPaymentResumeTokenAcceptsLegacyEncryptionKeyDuringMigration(t *testing.T) {
 	// Setenv registers restoration of this process setting; these configuration
 	// cases remain synchronous while testkit reads the selected signing key.
-	t.Setenv("PAYMENT_RESUME_SIGNING_KEY", "explicit-payment-resume-signing-key")
 
 	legacyKey := []byte("0123456789abcdef0123456789abcdef")
 	token, err := payment.NewPaymentResumeService(legacyKey).CreateWeChatPaymentResumeToken(payment.WeChatPaymentResumeClaims{
@@ -422,7 +420,7 @@ func TestPaymentServiceParseWeChatPaymentResumeTokenAcceptsLegacyEncryptionKeyDu
 		t.Fatalf("CreateWeChatPaymentResumeToken returned error: %v", err)
 	}
 
-	svc := paymenttestkit.Resume(legacyKey)
+	svc := paymenttestkit.Resume("explicit-payment-resume-signing-key", legacyKey)
 
 	claims, err := svc.ParseWeChatPaymentResumeToken(token)
 	if err != nil {
@@ -440,10 +438,9 @@ func TestPaymentServiceParseWeChatPaymentResumeTokenAcceptsLegacyEncryptionKeyDu
 func TestNewConfiguredPaymentResumeServicePrefersExplicitSigningKeyAndKeepsLegacyVerificationFallback(t *testing.T) {
 	// Setenv registers restoration of this process setting; these configuration
 	// cases remain synchronous while testkit reads the selected signing key.
-	t.Setenv("PAYMENT_RESUME_SIGNING_KEY", "explicit-payment-resume-signing-key")
 
 	legacyKey := []byte("0123456789abcdef0123456789abcdef")
-	svc := paymenttestkit.Resume(legacyKey)
+	svc := paymenttestkit.Resume("explicit-payment-resume-signing-key", legacyKey)
 
 	explicitToken, err := svc.CreateWeChatPaymentResumeToken(payment.WeChatPaymentResumeClaims{
 		OpenID:      "openid-explicit-key",

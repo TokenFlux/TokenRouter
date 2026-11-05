@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
@@ -27,8 +28,6 @@ type paymentOAuthSettingsFixture map[string]string
 // payment callback, and normalized authorization URL with the original purchase
 // context.
 func TestMaybeBuildWeChatOAuthRequiredResponse(t *testing.T) {
-	t.Setenv("PAYMENT_RESUME_SIGNING_KEY", "0123456789abcdef0123456789abcdef")
-
 	svc := newWeChatPaymentOAuthTestService(map[string]string{
 		identity.SettingKeyWeChatConnectEnabled:             "true",
 		identity.SettingKeyWeChatConnectAppID:               "wx123456",
@@ -237,6 +236,6 @@ func (s paymentOAuthSettingsFixture) GetMultiple(_ context.Context, keys []strin
 // remain nil.
 func newWeChatPaymentCheckout(values map[string]string, key []byte) *payment.Checkout {
 	settings := identity.NewOAuthSettings(paymentOAuthSettingsFixture(values), nil, nil)
-	runtime := providePaymentRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, payment.EncryptionKey(key), settings, nil, timezone.NewCalendar(time.UTC))
+	runtime := providePaymentRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, payment.EncryptionKey(key), settings, nil, timezone.NewCalendar(time.UTC), &config.Config{})
 	return runtime.Checkout
 }

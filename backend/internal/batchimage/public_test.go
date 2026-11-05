@@ -1748,8 +1748,8 @@ func newTestBatchImagePublicService() (*batchimage.Public, *fakeBatchImageReposi
 		&fakeBatchImageBillingRepo{},
 		authCache,
 		&config.Config{BatchImage: config.BatchImageConfig{
-			MaxItemsPerJobDefault:   2,
-			MaxPromptCharsPerItem:   8,
+			MaxItemsPerJob:          2,
+			MaxPromptBytesPerItem:   8,
 			DefaultResponseMimeType: "image/png",
 			DefaultImageSize:        "1K",
 		}})

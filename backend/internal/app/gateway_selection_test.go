@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 )
 
@@ -29,19 +30,13 @@ func TestSnapshotOpenAICompatibilityFallbackMetrics(t *testing.T) {
 	require.Zero(t, before.MetadataTotal)
 }
 
-// TestProductEnvCompatibility enables routing debug through the legacy name
-// with an empty current variable. Nonempty current values "0" and "false" must
-// then take precedence and disable the debug flag.
-func TestProductEnvCompatibility(t *testing.T) {
-	t.Setenv("SUB2API_DEBUG_MODEL_ROUTING", "true")
-	t.Setenv("TOKENROUTER_DEBUG_MODEL_ROUTING", "")
-	if !selectionOptions(nil).DebugRouting {
-		t.Fatal("legacy routing flag was ignored")
-	}
-	for _, value := range []string{"0", "false"} {
-		t.Setenv("TOKENROUTER_DEBUG_MODEL_ROUTING", value)
-		if selectionOptions(nil).DebugRouting {
-			t.Fatalf("new value %q must disable routing debug", value)
-		}
-	}
+// TestRoutingDebugConfiguration supplies the process routing diagnostic switch.
+// A missing configuration disables debugging and an explicit value controls it
+// independently of any process environment left by an older deployment.
+func TestRoutingDebugConfiguration(t *testing.T) {
+	require.False(t, selectionOptions(nil).DebugRouting)
+	cfg := &config.Config{Debug: config.DebugConfig{ModelRoutingLog: true}}
+	require.True(t, selectionOptions(cfg).DebugRouting)
+	cfg.Debug.ModelRoutingLog = false
+	require.False(t, selectionOptions(cfg).DebugRouting)
 }

@@ -130,7 +130,7 @@ func TestOpsAlertRuleHTTPDefaultsAndNormalization(t *testing.T) {
 						Severity: "P0", WindowMinutes: 5, SustainedMinutes: 40, CooldownMinutes: 50,
 					},
 				}
-				handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil))
+				handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil), OpsWSOptions{})
 				body := `{"id":999,"name":" High error rate ","metric_type":" error_rate ","operator":" > ","threshold":90` + tc.members + `}`
 				_, recorder := invokeOpsAlertRuleHTTP(t, handler, method, "42", body)
 				require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
@@ -194,7 +194,7 @@ func TestOpsAlertRuleHTTPValidationOrder(t *testing.T) {
 		for _, tc := range tests {
 			t.Run(method+"/"+tc.name, func(t *testing.T) {
 				repo := &opsAlertRuleRepoCapture{}
-				handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil))
+				handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil), OpsWSOptions{})
 				_, recorder := invokeOpsAlertRuleHTTP(t, handler, method, "42", tc.body)
 				require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
 				require.JSONEq(t, `{"code":400,"message":`+strconv.Quote(tc.message)+`}`, recorder.Body.String())
@@ -212,7 +212,7 @@ func TestOpsAlertRuleHTTPRouteIDBeforeBody(t *testing.T) {
 	for _, id := range []string{"", "invalid", "0", "-1", "9223372036854775808"} {
 		t.Run("invalid_"+id, func(t *testing.T) {
 			repo := &opsAlertRuleRepoCapture{}
-			handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil))
+			handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil), OpsWSOptions{})
 			c, recorder := invokeOpsAlertRuleHTTP(t, handler, http.MethodPut, id, `{`)
 			require.Equal(t, http.StatusBadRequest, recorder.Code)
 			require.JSONEq(t, `{"code":400,"message":"Invalid rule ID"}`, recorder.Body.String())
@@ -225,7 +225,7 @@ func TestOpsAlertRuleHTTPRouteIDBeforeBody(t *testing.T) {
 		})
 	}
 	t.Run("positive_id_decodes_body", func(t *testing.T) {
-		handler := NewOpsHandler(&ops.OpsService{})
+		handler := NewOpsHandler(&ops.OpsService{}, OpsWSOptions{})
 		c, recorder := invokeOpsAlertRuleHTTP(t, handler, http.MethodPut, "42", `{`)
 		require.Equal(t, http.StatusBadRequest, recorder.Code)
 		require.JSONEq(t, `{"code":400,"message":"Invalid request body"}`, recorder.Body.String())
@@ -253,7 +253,7 @@ func TestOpsAlertRuleHTTPServiceChecks(t *testing.T) {
 	for _, method := range []string{http.MethodPost, http.MethodPut} {
 		for _, tc := range tests {
 			t.Run(method+"/"+tc.name, func(t *testing.T) {
-				c, recorder := invokeOpsAlertRuleHTTP(t, NewOpsHandler(tc.service), method, "invalid", `{`)
+				c, recorder := invokeOpsAlertRuleHTTP(t, NewOpsHandler(tc.service, OpsWSOptions{}), method, "invalid", `{`)
 				require.Equal(t, tc.status, recorder.Code, recorder.Body.String())
 				_, cached := c.Get(gin.BodyBytesKey)
 				require.False(t, cached)
@@ -272,7 +272,7 @@ func TestOpsAlertRuleHTTPWriteErrors(t *testing.T) {
 	for _, method := range []string{http.MethodPost, http.MethodPut} {
 		t.Run(method, func(t *testing.T) {
 			repo := &opsAlertRuleRepoCapture{writeErr: apperror.BadRequest("RULE_WRITE_REJECTED", "rule write rejected")}
-			handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil))
+			handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil), OpsWSOptions{})
 			_, recorder := invokeOpsAlertRuleHTTP(t, handler, method, "42", `{"name":"rule","metric_type":"error_rate","operator":">","threshold":90}`)
 			require.Equal(t, http.StatusBadRequest, recorder.Code)
 			require.JSONEq(t, `{"code":400,"message":"rule write rejected","reason":"RULE_WRITE_REJECTED"}`, recorder.Body.String())
@@ -338,7 +338,7 @@ func TestAlertRuleCatalogueMatchesNullControls(t *testing.T) {
 		}
 		require.NoError(t, ManagementOperations[id].Validate(arguments))
 		repo := &opsAlertRuleRepoCapture{updated: &ops.OpsAlertRule{ID: 42}}
-		handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil))
+		handler := NewOpsHandler(ops.BuildOpsService(repo, nil, nil, nil, nil, nil, nil, nil), OpsWSOptions{})
 		_, recorder := invokeOpsAlertRuleHTTP(t, handler, method, "42", raw)
 		require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 		saved := repo.created

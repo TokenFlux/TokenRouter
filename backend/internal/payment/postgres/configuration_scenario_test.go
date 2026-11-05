@@ -1440,23 +1440,16 @@ func TestPcParseInt(t *testing.T) {
 	}
 }
 
-// TestAlipayMobilePrecreateEnvironmentOverride changes the process setting
-// synchronously to true and false while stored text says the opposite. It
-// expects the environment value to determine this parsed mobile preference.
-func TestAlipayMobilePrecreateEnvironmentOverride(t *testing.T) {
+// TestAlipayMobilePrecreateStoredSetting supplies opposite persisted preference values.
+// The payment configuration reader follows its stored setting directly, preserving
+// explicit false as well as true without a process-environment override.
+func TestAlipayMobilePrecreateStoredSetting(t *testing.T) {
 	svc := paymenttestkit.Configuration(nil, nil, nil)
-
-	// Use Setenv restoration and keep this case synchronous while toggling the
-	// process override, so later parallel parser fixtures read restored
-	// environment state.
-	t.Setenv(payment.SettingAlipayMobilePrecreateDeepLink, "true")
-	if !svc.ConfigParsePaymentConfig(map[string]string{payment.SettingAlipayMobilePrecreateDeepLink: "false"}).AlipayMobilePrecreateDeepLink {
-		t.Fatal("expected environment variable to enable mobile Alipay precreate")
-	}
-
-	t.Setenv(payment.SettingAlipayMobilePrecreateDeepLink, "false")
-	if svc.ConfigParsePaymentConfig(map[string]string{payment.SettingAlipayMobilePrecreateDeepLink: "true"}).AlipayMobilePrecreateDeepLink {
-		t.Fatal("expected environment variable to disable mobile Alipay precreate")
+	for _, value := range []string{"true", "false"} {
+		got := svc.ConfigParsePaymentConfig(map[string]string{payment.SettingAlipayMobilePrecreateDeepLink: value})
+		if got.AlipayMobilePrecreateDeepLink != (value == "true") {
+			t.Fatalf("stored preference %s was ignored", value)
+		}
 	}
 }
 

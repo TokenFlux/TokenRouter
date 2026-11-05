@@ -47,14 +47,14 @@ func provideModelAttributes(repo *postgres.ModelAttributeStore, catalog *provide
 // start synchronization.
 func provideModelCatalogService(cfg *config.Config, remote provider.RemoteClient) (*provider.Service, error) {
 	options := provider.Options{
-		DataDir:               cfg.Pricing.DataDir,
-		RemoteURL:             cfg.Pricing.RemoteURL,
-		FallbackFile:          cfg.Pricing.FallbackFile,
-		CheckIntervalMinutes:  cfg.Pricing.CheckIntervalMinutes,
+		DataDir:               cfg.Storage.Dir,
+		RemoteURL:             cfg.ModelCatalog.CatalogURL,
+		FallbackFile:          cfg.ModelCatalog.SupplementFile,
+		CheckIntervalMinutes:  cfg.ModelCatalog.CheckIntervalMinutes,
 		URLAllowlistEnabled:   cfg.Security.URLAllowlist.Enabled,
 		AllowInsecureHTTP:     cfg.Security.URLAllowlist.AllowInsecureHTTP,
 		AllowPrivateHosts:     cfg.Security.URLAllowlist.AllowPrivateHosts,
-		PricingHosts:          slices.Clone(cfg.Security.URLAllowlist.PricingHosts),
+		PricingHosts:          slices.Clone(cfg.Security.URLAllowlist.ModelCatalogHosts),
 		ModelLookupCandidates: modelidentity.CandidatesFactory,
 	}
 	return provider.NewService(options, remote), nil
@@ -65,5 +65,5 @@ func provideModelCatalogService(cfg *config.Config, remote provider.RemoteClient
 // produce a failing client unless AllowDirectOnError permits a standard HTTP
 // client, whose environment proxy settings can still apply.
 func provideModelCatalogRemoteClient(cfg *config.Config) provider.RemoteClient {
-	return provider.NewRemoteClient(cfg.Update.ProxyURL, cfg.Security.ProxyFallback.AllowDirectOnError)
+	return provider.NewRemoteClient(cfg.OutboundProxy.URL, cfg.OutboundProxy.AllowDirectOnError)
 }

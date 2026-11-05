@@ -1527,7 +1527,7 @@ func TestAPIContracts(t *testing.T) {
 			name: "GET /api/v1/admin/settings falls back to config oauth defaults",
 			setup: func(t *testing.T, deps *contractDeps) {
 				t.Helper()
-				deps.cfg.OIDC = config.OIDCConnectConfig{
+				deps.cfg.Auth.OAuth.OIDC = config.OIDCConnectConfig{
 					Enabled:             true,
 					ProviderName:        "ConfigOIDC",
 					ClientID:            "oidc-config-client",
@@ -1542,7 +1542,7 @@ func TestAPIContracts(t *testing.T) {
 					AllowedSigningAlgs:  "RS256,ES256,PS256",
 					ClockSkewSeconds:    120,
 				}
-				deps.cfg.WeChat = config.WeChatConnectConfig{
+				deps.cfg.Auth.OAuth.WeChat = config.WeChatOAuthConfig{
 					Enabled:             true,
 					OpenEnabled:         true,
 					OpenAppID:           "wx-open-config",
@@ -2007,11 +2007,7 @@ func newContractDeps(t *testing.T, setup func(*testing.T, *contractDeps)) *contr
 	providerRepo := stubProviderRepo{}
 	redeemRepo := &stubRedeemCodeRepo{}
 
-	cfg := &config.Config{
-		Default: config.DefaultConfig{
-			APIKeyPrefix: "sk-",
-		},
-	}
+	cfg := &config.Config{APIKey: config.APIKeyConfig{Prefix: "sk-"}}
 
 	usageRepo := newStubUsageLogRepo()
 	settingRepo := newStubSettingRepo()

@@ -365,7 +365,7 @@ func TestOpenAIResponsesWebSocket_IngressCapacityRejected(t *testing.T) {
 	}
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, cache)
 	h.Input.Config = &config.Config{}
-	h.Input.Config.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey = 1
+	h.Input.Config.Gateway.OpenAI.ResponsesWS.MaxIngressConnectionsPerAPIKey = 1
 	wsServer := newOpenAIWSHandlerTestServer(t, h, authctx.AuthSubject{UserID: 1, Concurrency: 1})
 	defer wsServer.Close()
 
@@ -392,7 +392,7 @@ func TestOpenAIResponsesWebSocket_IngressLeaseBackendUnavailableBeforeUpgrade(t 
 	}
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, cache)
 	h.Input.Config = &config.Config{}
-	h.Input.Config.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey = 1
+	h.Input.Config.Gateway.OpenAI.ResponsesWS.MaxIngressConnectionsPerAPIKey = 1
 	wsServer := newOpenAIWSHandlerTestServer(t, h, authctx.AuthSubject{UserID: 1, Concurrency: 1})
 	defer wsServer.Close()
 
@@ -417,7 +417,7 @@ func TestOpenAIResponsesWebSocket_FirstMessageTimeoutUsesConfig(t *testing.T) {
 
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
 	h.Input.Config = &config.Config{}
-	h.Input.Config.Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds = 1
+	h.Input.Config.Gateway.OpenAI.ResponsesWS.ClientFirstMessageTimeoutSeconds = 1
 	wsServer := newOpenAIWSHandlerTestServer(t, h, authctx.AuthSubject{UserID: 1, Concurrency: 1})
 	defer wsServer.Close()
 
@@ -459,7 +459,7 @@ func TestOpenAIResponsesWebSocket_IngressLeaseReleasedOnEarlyReturn(t *testing.T
 	}
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, cache)
 	h.Input.Config = &config.Config{}
-	h.Input.Config.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey = 1
+	h.Input.Config.Gateway.OpenAI.ResponsesWS.MaxIngressConnectionsPerAPIKey = 1
 	wsServer := newOpenAIWSHandlerTestServer(t, h, authctx.AuthSubject{UserID: 1, Concurrency: 1})
 	defer wsServer.Close()
 
@@ -498,7 +498,7 @@ func TestOpenAIResponsesWebSocket_IngressLeaseReleasedWhenUpgradeFails(t *testin
 	}
 	h := newOpenAIHandlerForPreviousResponseIDValidation(t, cache)
 	h.Input.Config = &config.Config{}
-	h.Input.Config.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey = 1
+	h.Input.Config.Gateway.OpenAI.ResponsesWS.MaxIngressConnectionsPerAPIKey = 1
 	wsServer := newOpenAIWSHandlerTestServer(t, h, authctx.AuthSubject{UserID: 1, Concurrency: 1})
 	defer wsServer.Close()
 
@@ -1071,14 +1071,14 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 
 	cfg := &config.Config{}
 
-	cfg.Default.RateMultiplier = 1
+	cfg.Billing.FallbackRateMultiplier = 1
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 
-	cfg.Gateway.OpenAIWS.DialTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
-	cfg.Gateway.MaxProviderSwitches = 3
+	cfg.Gateway.OpenAI.ResponsesWS.DialTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.ReadTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.WriteTimeoutSeconds = 3
+	cfg.Gateway.Failover.MaxProviderSwitches = 3
 
 	providerRepo := &openAIWSFailoverHandlerProviderRepoStub{providers: providers}
 	rateLimitSvc := newAppHealthObserverFixture(providerRepo, cfg)
@@ -1298,16 +1298,16 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 
 	cfg := &config.Config{}
 
-	cfg.Default.RateMultiplier = 1
+	cfg.Billing.FallbackRateMultiplier = 1
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
-	cfg.Gateway.OpenAIFirstOutputTimeoutSeconds = 1
+	cfg.Gateway.OpenAI.FirstOutputTimeoutSeconds = 1
 
-	cfg.Gateway.OpenAIWS.DialTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = 3
-	cfg.Gateway.MaxProviderSwitches = 3
+	cfg.Gateway.OpenAI.ResponsesWS.DialTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.ReadTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.WriteTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.IngressInterTurnIdleTimeoutSeconds = 3
+	cfg.Gateway.Failover.MaxProviderSwitches = 3
 
 	providerRepo := &openAIWSFailoverHandlerProviderRepoStub{providers: providers}
 	rateLimitSvc := newAppHealthObserverFixture(providerRepo, cfg)
@@ -1506,13 +1506,13 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 
 	cfg := &config.Config{}
 
-	cfg.Default.RateMultiplier = 1
+	cfg.Billing.FallbackRateMultiplier = 1
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 
-	cfg.Gateway.OpenAIWS.DialTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.DialTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.ReadTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.WriteTimeoutSeconds = 3
 
 	providerRepo := &openAIWSUsageHandlerProviderRepoStub{provider: provider}
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *usage.UsageLog, 1)}
@@ -1759,14 +1759,14 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	}
 	cfg := &config.Config{}
 
-	cfg.Default.RateMultiplier = 1
+	cfg.Billing.FallbackRateMultiplier = 1
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 
-	cfg.Gateway.OpenAIWS.DialTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
-	cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.DialTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.ReadTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.WriteTimeoutSeconds = 3
+	cfg.Gateway.OpenAI.ResponsesWS.IngressInterTurnIdleTimeoutSeconds = 3
 
 	providerRepo := &openAIWSUsageHandlerProviderRepoStub{provider: provider}
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *usage.UsageLog, 2)}

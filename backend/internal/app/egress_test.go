@@ -25,7 +25,7 @@ func TestNewProxyExitInfoProberUsesConfiguredTargets(t *testing.T) {
 		_, _ = w.Write([]byte(`{"ip":"203.0.113.42"}`))
 	}))
 	defer server.Close()
-	prober := provideEgressProbe(&config.Config{Security: config.SecurityConfig{ProxyProbe: config.ProxyProbeConfig{URLs: []config.ProbeURLConfig{{URL: server.URL, Parser: "ipify"}}}}})
+	prober := provideEgressProbe(&config.Config{Egress: config.EgressConfig{ProxyProbe: config.EgressProxyProbeConfig{URLs: []config.ProbeURLConfig{{URL: server.URL, Parser: "ipify"}}}}})
 	result, _, err := prober.ProbeProxy(context.Background(), "")
 	require.NoError(t, err)
 	require.Equal(t, "203.0.113.42", result.IP)

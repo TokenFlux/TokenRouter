@@ -526,7 +526,7 @@ func newCreativePublicFixture(repo creative.CreativeRunRepository, keys creative
 	ttl := 30 * time.Minute
 	prefix := ""
 	if cfg != nil {
-		prefix = cfg.Default.APIKeyPrefix
+		prefix = cfg.APIKey.Prefix
 		if cfg.Creative.TransientTTLSeconds > 0 {
 			// Use one duration for output metadata deadlines and
 			// temporary save calls
@@ -1307,15 +1307,14 @@ func newCreativeTestService() *creative.Public {
 		}},
 		&config.Config{
 			Creative: config.CreativeConfig{
-				Enabled:                 true,
-				TransientTTLSeconds:     1800,
-				MaxAssetBytes:           33554432,
-				MaxTotalInputBytes:      67108864,
-				MaxPromptChars:          8000,
-				DefaultResponseMimeType: "image/png",
-				DefaultImageSize:        "1K",
+				Enabled:             true,
+				TransientTTLSeconds: 1800,
+				MaxAssetBytes:       33554432,
+				MaxTotalInputBytes:  67108864,
+				MaxPromptChars:      8000,
+				DefaultImageSize:    "1K",
 			},
-			Default: config.DefaultConfig{APIKeyPrefix: "sk-"},
+			APIKey: config.APIKeyConfig{Prefix: "sk-"},
 		})
 	price1k, price2k := 0.02, 0.04
 	setCreativeConfigPricing(svc, group.ID, testImageModelPricing(map[string]*float64{"1K": &price1k, "2K": &price2k}))

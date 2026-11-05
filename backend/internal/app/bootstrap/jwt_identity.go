@@ -32,6 +32,6 @@ type JWTIdentity struct {
 // work finishes.
 func NewJWTIdentity(client *dbent.Client, db *sql.DB, cfg *config.Config) JWTIdentity {
 	users := identitypostgres.NewUserStore(client, db)
-	options := identity.SessionOptions{Now: time.Now, Secret: cfg.JWT.Secret, ExpireHour: cfg.JWT.ExpireHour, AccessTokenExpireMinutes: cfg.JWT.AccessTokenExpireMinutes, RefreshTokenExpireDays: cfg.JWT.RefreshTokenExpireDays}
+	options := identity.SessionOptions{Now: time.Now, Secret: cfg.Auth.JWT.Secret, AccessTokenExpireMinutes: cfg.Auth.JWT.AccessTokenTTLMinutes, RefreshTokenExpireDays: cfg.Auth.JWT.RefreshTokenTTLDays}
 	return JWTIdentity{Users: users, Tokens: identity.NewSessionService(options, users, nil, nil, nil)}
 }

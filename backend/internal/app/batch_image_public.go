@@ -52,11 +52,11 @@ func provideBatchPublic(attributes *routing.ModelAttributeService, repo batchima
 	if cfg != nil {
 		c := cfg.BatchImage
 		core.Options = batchimage.PublicOptions{
-			StaleActiveAfterSeconds:       c.StaleActiveAfterSeconds,
-			MaxItemsPerJobDefault:         c.MaxItemsPerJobDefault,
+			StaleActiveAfterSeconds:       c.Queue.StaleActiveAfterSeconds,
+			MaxItemsPerJobDefault:         c.MaxItemsPerJob,
 			MaxOutputImagesPerJob:         c.MaxOutputImagesPerJob,
 			MaxOutputImagesPerItem:        c.MaxOutputImagesPerItem,
-			MaxPromptCharsPerItem:         c.MaxPromptCharsPerItem,
+			MaxPromptCharsPerItem:         c.MaxPromptBytesPerItem,
 			MaxReferenceImagesPerJob:      c.MaxReferenceImagesPerJob,
 			MaxReferenceInlineBytesPerJob: c.MaxReferenceInlineBytesPerJob,
 			DefaultResponseMimeType:       c.DefaultResponseMimeType,

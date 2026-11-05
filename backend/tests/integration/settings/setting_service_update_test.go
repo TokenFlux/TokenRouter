@@ -570,8 +570,8 @@ func TestSettingService_UpdateSettings_PaymentVisibleMethodsAndAdvancedScheduler
 // within the comparison tolerance.
 func TestSettingServiceRefreshCachedSettingsKeepsIndependentEWMAProcessDefaults(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha = 0.35
-	cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha = 0.8
+	cfg.Scheduling.Advanced.EWMAErrorRateAlpha = 0.35
+	cfg.Scheduling.Advanced.EWMATTFTAlpha = 0.8
 	svc := settingskit.NewComposite(&settingUpdateRepoStub{}, cfg)
 	svc.Scheduler.Store(scheduler.RuntimeSettingsFromAdmin(scheduler.AdminSettings{}, svc.Defaults))
 
@@ -647,8 +647,8 @@ func TestSettingService_UpdateSettings_AdvancedSchedulerWeightSums(t *testing.T)
 // from the configured process settings.
 func TestSettingService_GetAllSettings_AdvancedSchedulerEffectiveValuesUseConfig(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.LBTopK = 13
-	cfg.Gateway.AdvancedScheduler.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{
+	cfg.Scheduling.Advanced.LBTopK = 13
+	cfg.Scheduling.Advanced.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{
 		Priority:         2,
 		Load:             3,
 		Queue:            4,
@@ -842,7 +842,7 @@ func TestSettingService_UpdateSettings_WriteFailureDoesNotRefreshForwardedIPRunt
 // parsing reports enabled trust from that configured starting value.
 func TestSettingService_ParseSettings_APIKeyACLTrustForwardedIPFallsBackToConfigWhenMissing(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.Security.TrustForwardedIPForAPIKeyACL = true
+	cfg.Server.ClientIP.TrustForwardedHeaders = true
 	svc := settingskit.NewComposite(&settingUpdateRepoStub{}, cfg)
 
 	got := composite.Parse(map[string]string{}, svc.Read)
@@ -855,7 +855,7 @@ func TestSettingService_ParseSettings_APIKeyACLTrustForwardedIPFallsBackToConfig
 // parsing reports disabled trust for the supplied stored setting value.
 func TestSettingService_ParseSettings_APIKeyACLTrustForwardedIPUsesStoredValue(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.SetTrustForwardedIPForAPIKeyACL(true)
+	cfg.SetTrustForwardedHeaders(true)
 	svc := settingskit.NewComposite(&settingUpdateRepoStub{}, cfg)
 
 	got := composite.Parse(map[string]string{runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP: "false"}, svc.Read)
@@ -972,12 +972,12 @@ func TestSettingService_LoadForwardedClientIPSettingsMigration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repo := &forwardedIPMigrationRepoStub{values: test.values}
-			cfg := &config.Config{Server: config.ServerConfig{TrustedProxiesConfigured: test.trustedProxiesSet}}
-			cfg.Security.TrustForwardedIPForAPIKeyACL = test.configDefault
+			cfg := &config.Config{Server: config.ServerConfig{ClientIP: config.ServerClientIPConfig{TrustedProxiesConfigured: test.trustedProxiesSet}}}
+			cfg.Server.ClientIP.TrustForwardedHeaders = test.configDefault
 			svc := settingskit.NewComposite(repo, cfg)
 
 			require.NoError(t, svc.Forwarded.LoadForwardedClientIPSettings(context.Background()))
-			require.Equal(t, test.wantEnabled, cfg.TrustForwardedIPForAPIKeyACL())
+			require.Equal(t, test.wantEnabled, cfg.TrustForwardedHeaders())
 			require.Equal(t, test.wantForwardedIPUpdate, repo.updates[runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP])
 			require.JSONEq(t, `[]`, repo.updates[runtimeconfig.SettingKeyForwardedClientIPHeaders])
 			if test.wantMigrationMarkerSet {
@@ -1057,7 +1057,7 @@ func TestSettingService_LoadForwardedClientIPSettingsReadFailureFailsClosed(t *t
 		getMultipleErr: errors.New("database unavailable"),
 	}
 	cfg := &config.Config{}
-	cfg.SetTrustForwardedIPForAPIKeyACL(true)
+	cfg.SetTrustForwardedHeaders(true)
 	svc := settingskit.NewComposite(repo, cfg)
 
 	err := svc.Forwarded.LoadForwardedClientIPSettings(context.Background())
@@ -1088,13 +1088,13 @@ func TestSettingService_LoadForwardedClientIPSettingsWriteFailureUsesComputedMod
 				values:         map[string]string{runtimeconfig.SettingKeyAPIKeyACLTrustForwardedIP: "false"},
 				setMultipleErr: errors.New("database unavailable"),
 			}
-			cfg := &config.Config{Server: config.ServerConfig{TrustedProxiesConfigured: test.trustedProxiesSet}}
+			cfg := &config.Config{Server: config.ServerConfig{ClientIP: config.ServerClientIPConfig{TrustedProxiesConfigured: test.trustedProxiesSet}}}
 			svc := settingskit.NewComposite(repo, cfg)
 
 			err := svc.Forwarded.LoadForwardedClientIPSettings(context.Background())
 
 			require.ErrorContains(t, err, "migrate forwarded client ip setting")
-			require.Equal(t, test.wantEnabled, cfg.TrustForwardedIPForAPIKeyACL())
+			require.Equal(t, test.wantEnabled, cfg.TrustForwardedHeaders())
 		})
 	}
 }

@@ -37,22 +37,22 @@ func httpTransportOptions(cfg *config.Config) *transport.Options {
 		return nil
 	}
 	gateway := cfg.Gateway
-	http2 := gateway.OpenAIHTTP2
+	http2 := gateway.OpenAI.HTTP2
 	return &transport.Options{
 		// These deployment flags govern the configured resolved-IP check. Allowing
 		// private hosts clears this option; request-specific policy belongs to the
 		// transport's per-request policy handling.
 		ValidateResolvedIP:          cfg.Security.URLAllowlist.Enabled && !cfg.Security.URLAllowlist.AllowPrivateHosts,
-		ConnectionPoolIsolation:     gateway.ConnectionPoolIsolation,
-		MaxUpstreamClients:          gateway.MaxUpstreamClients,
-		ClientIdleTTLSeconds:        gateway.ClientIdleTTLSeconds,
-		MaxIdleConns:                gateway.MaxIdleConns,
-		MaxIdleConnsPerHost:         gateway.MaxIdleConnsPerHost,
-		MaxConnsPerHost:             gateway.MaxConnsPerHost,
-		IdleConnTimeoutSeconds:      gateway.IdleConnTimeoutSeconds,
-		ResponseHeaderTimeout:       gateway.ResponseHeaderTimeout,
-		OpenAIResponseHeaderTimeout: gateway.OpenAIResponseHeaderTimeout,
-		GrokResponseHeaderTimeout:   gateway.GrokResponseHeaderTimeout,
+		ConnectionPoolIsolation:     gateway.Transport.ConnectionPoolIsolation,
+		MaxUpstreamClients:          gateway.Transport.ClientCache.MaxClients,
+		ClientIdleTTLSeconds:        gateway.Transport.ClientCache.IdleTTLSeconds,
+		MaxIdleConns:                gateway.Transport.MaxIdleConns,
+		MaxIdleConnsPerHost:         gateway.Transport.MaxIdleConnsPerHost,
+		MaxConnsPerHost:             gateway.Transport.MaxConnsPerHost,
+		IdleConnTimeoutSeconds:      gateway.Transport.IdleConnTimeoutSeconds,
+		ResponseHeaderTimeout:       gateway.Transport.ResponseHeaderTimeoutSeconds,
+		OpenAIResponseHeaderTimeout: gateway.OpenAI.ResponseHeaderTimeoutSeconds,
+		GrokResponseHeaderTimeout:   gateway.Grok.ResponseHeaderTimeoutSeconds,
 		OpenAIHTTP2: transport.HTTP2Options{
 			Enabled:                   http2.Enabled,
 			AllowProxyFallbackToHTTP1: http2.AllowProxyFallbackToHTTP1,
@@ -89,9 +89,9 @@ func provideOpenAIOAuthClient(upstream httpclient.UpstreamTransport) providerada
 func provideGeminiOAuthClient(cfg *config.Config) providerauth.GeminiOAuthClient {
 	return codeassist.NewOAuthClient(func() codeassist.OAuthConfig {
 		return codeassist.OAuthConfig{
-			ClientID:     cfg.Gemini.OAuth.ClientID,
-			ClientSecret: cfg.Gemini.OAuth.ClientSecret,
-			Scopes:       cfg.Gemini.OAuth.Scopes,
+			ClientID:     cfg.Provider.Gemini.OAuth.ClientID,
+			ClientSecret: cfg.Provider.Gemini.OAuth.ClientSecret,
+			Scopes:       cfg.Provider.Gemini.OAuth.Scopes,
 		}
 	})
 }

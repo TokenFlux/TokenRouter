@@ -271,10 +271,8 @@ func TestGeminiMessagesCompatService_AdvancedGroupUsesGenericScore(t *testing.T)
 		stats.Report(2, true, nil)
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.LBTopK = 1
-	cfg.Gateway.AdvancedScheduler.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{
-		ErrorRate: 10,
-	}
+	cfg.Scheduling.Advanced.LBTopK = 1
+	cfg.Scheduling.Advanced.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{ErrorRate: 10}
 	svc := newGeminiSelectionForTest(GeminiDependencies{
 		Reads: Reads{Providers: repo, Groups: &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}},
 

@@ -38,9 +38,9 @@ import (
 func provideCompactExecutor(cfg *config.Config) *gatewayhttp.CompactExecutor {
 	value := &gatewayhttp.CompactExecutor{}
 	if cfg != nil {
-		value.Models = gatewayadapter.CompactModels{Default: cfg.Gateway.OpenAICompactModel}
-		value.LogBody = cfg.Gateway.LogUpstreamErrorBody
-		value.LogBodyMaxBytes = cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+		value.Models = gatewayadapter.CompactModels{Default: cfg.Gateway.OpenAI.CompactModel}
+		value.LogBody = cfg.Gateway.UpstreamErrorBodyLog.Enabled
+		value.LogBodyMaxBytes = cfg.Gateway.UpstreamErrorBodyLog.MaxBytes
 	}
 	return value
 }
@@ -77,7 +77,7 @@ func provideOpenAITextExecutor(cfg *config.Config, store gatewayadapter.Executio
 func provideOpenAIImageBridgePolicy(cfg *config.Config) *gatewayadapter.ResponseImagePolicy {
 	policy := &gatewayadapter.ResponseImagePolicy{}
 	if cfg != nil {
-		policy.DefaultEnabled = cfg.Gateway.CodexImageGenerationBridgeEnabled
+		policy.DefaultEnabled = cfg.Gateway.OpenAI.Codex.ImageGenerationBridgeEnabled
 	}
 	return policy
 }
@@ -155,9 +155,9 @@ func openAITextExecution(cfg *config.Config, store gatewayadapter.ExecutionProvi
 
 	if cfg != nil {
 		v := cfg.Security.URLAllowlist
-		requests.Options = gatewayhttp.OpenAIRequestOptions{ForceCLI: cfg.Gateway.ForceCodexCLI, AllowTimeoutHeaders: cfg.Gateway.OpenAIPassthroughAllowTimeoutHeaders, URLPolicy: egress.OperatorURLPolicy{Enabled: v.Enabled, AllowInsecureHTTP: v.AllowInsecureHTTP, AllowPrivateHosts: v.AllowPrivateHosts, UpstreamHosts: v.UpstreamHosts}}
-		policy.ForceCLI = cfg.Gateway.ForceCodexCLI
-		executor.ForcedTemplate = cfg.Gateway.ForcedCodexInstructionsTemplate
+		requests.Options = gatewayhttp.OpenAIRequestOptions{ForceCLI: cfg.Gateway.OpenAI.Codex.ForceCLI, AllowTimeoutHeaders: cfg.Gateway.OpenAI.PassthroughAllowTimeoutHeaders, URLPolicy: egress.OperatorURLPolicy{Enabled: v.Enabled, AllowInsecureHTTP: v.AllowInsecureHTTP, AllowPrivateHosts: v.AllowPrivateHosts, UpstreamHosts: v.UpstreamHosts}}
+		policy.ForceCLI = cfg.Gateway.OpenAI.Codex.ForceCLI
+		executor.ForcedTemplate = cfg.Gateway.OpenAI.Codex.ForcedInstructionsTemplate
 	}
 	return executor
 }
@@ -169,11 +169,11 @@ func provideUnifiedTextExecutor(openai *gatewayhttp.OpenAIResponsesExecutor, ant
 	executor := &gatewayhttp.UnifiedTextExecutor{OpenAI: openai, Anthropic: anthropic, Gemini: gemini, Antigravity: antigravity, Qoder: qoder, QoderRefresh: refresh}
 	executor.Pricing = &admission.ModelPricing{Resolver: prices}
 	if cfg != nil {
-		executor.MessageQueueMode = cfg.Gateway.UserMessageQueue.GetEffectiveMode()
-		executor.MessageQueueWait = cfg.Gateway.UserMessageQueue.WaitTimeout()
+		executor.MessageQueueMode = cfg.Gateway.Anthropic.UserMessageQueue.DefaultMode
+		executor.MessageQueueWait = cfg.Gateway.Anthropic.UserMessageQueue.WaitTimeout()
 		if queue != nil {
 			// Queue heartbeat scheduling converts the configured ping interval from seconds.
-			executor.MessageQueue = gatewayhttp.NewUserMsgQueueHelper(queue, gatewayhttp.SSEPingFormatClaude, time.Duration(cfg.Concurrency.PingInterval)*time.Second)
+			executor.MessageQueue = gatewayhttp.NewUserMsgQueueHelper(queue, gatewayhttp.SSEPingFormatClaude, time.Duration(cfg.Gateway.Streaming.WaitPingIntervalSeconds)*time.Second)
 		}
 	}
 	return executor

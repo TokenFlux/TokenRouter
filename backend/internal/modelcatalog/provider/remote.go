@@ -65,7 +65,7 @@ func NewRemoteClient(proxyURL string, allowDirectOnProxyError bool) RemoteClient
 	if err != nil {
 		if strings.TrimSpace(proxyURL) != "" && !allowDirectOnProxyError {
 			slog.Warn("proxy client init failed, all requests will fail", "service", "pricing", "error", err)
-			return &remoteClientError{err: fmt.Errorf("proxy client init failed and direct fallback is disabled; set security.proxy_fallback.allow_direct_on_error=true to allow fallback: %w", err)}
+			return &remoteClientError{err: fmt.Errorf("proxy client init failed and direct fallback is disabled; set outbound_proxy.allow_direct_on_error=true to allow fallback: %w", err)}
 		}
 		// The policy permits replacing a failed configured client. Use the
 		// standard transport here, including its environment proxy behavior,

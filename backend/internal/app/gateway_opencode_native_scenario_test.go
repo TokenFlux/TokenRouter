@@ -103,9 +103,9 @@ func TestOpenCodePublicNativeHTTP(t *testing.T) {
 					group.AllowedProtocols = []protocol.ProtocolID{}
 				}
 				cfg := &config.Config{}
-				cfg.Default.RateMultiplier = 1
+				cfg.Billing.FallbackRateMultiplier = 1
 				cfg.Security.URLAllowlist.AllowInsecureHTTP = true
-				cfg.Gateway.MaxProviderSwitches = 1
+				cfg.Gateway.Failover.MaxProviderSwitches = 1
 				record := &provider.Record{
 					ID: 71, Name: "OpenCode native", Platform: provider.PlatformOpenCode,
 					Type: provider.ProviderTypeAPIKey, Status: "active", Schedulable: true,

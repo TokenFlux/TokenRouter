@@ -32,8 +32,9 @@ func TestOpsWSHelpers(t *testing.T) {
 // and current-name preference; jwt.fixture is not echoed, and this fixture
 // performs no JWT validation.
 func TestOpsWSBrandNegotiation(t *testing.T) {
+	handler := NewOpsHandler(nil, OpsWSOptions{OriginPolicy: OriginPolicyPermissive})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
+		conn, err := handler.wsUpgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
@@ -62,4 +63,29 @@ func TestOpsWSBrandNegotiation(t *testing.T) {
 		require.Equal(t, want, conn.Subprotocol())
 		require.NoError(t, conn.Close())
 	}
+}
+
+// TestOpsWebSocketPoliciesAreInstanceOwned constructs opposite trust and origin policies.
+// Each handler must retain its own admission limits and copied proxy ranges,
+// so configuring another handler cannot change an existing handshake decision.
+func TestOpsWebSocketPoliciesAreInstanceOwned(t *testing.T) {
+	addresses := []string{"127.0.0.0/8"}
+	trusted := NewOpsHandler(nil, OpsWSOptions{TrustProxy: true, TrustedProxies: addresses, OriginPolicy: OriginPolicyStrict, MaxConns: 25, MaxConnsPerIP: 3})
+	direct := NewOpsHandler(nil, OpsWSOptions{OriginPolicy: OriginPolicyPermissive, MaxConns: 8})
+	addresses[0] = "10.0.0.0/8"
+	request := httptest.NewRequest(http.MethodGet, "https://internal.test/ops", nil)
+	request.RemoteAddr = "127.0.0.1:1234"
+	request.Header.Set("Origin", "https://public.test")
+	request.Header.Set("X-Forwarded-Host", "public.test")
+	request.Header.Set("X-Forwarded-For", "203.0.113.9")
+	require.True(t, isAllowedOpsWSOrigin(request, trusted.wsProxy))
+	require.False(t, isAllowedOpsWSOrigin(request, direct.wsProxy))
+	require.Equal(t, "203.0.113.9", requestClientIP(request, trusted.wsProxy))
+	require.Equal(t, "127.0.0.1", requestClientIP(request, direct.wsProxy))
+	request.Header.Del("Origin")
+	require.False(t, isAllowedOpsWSOrigin(request, trusted.wsProxy))
+	require.True(t, isAllowedOpsWSOrigin(request, direct.wsProxy))
+	require.EqualValues(t, 25, trusted.wsLimits.MaxConns)
+	require.EqualValues(t, 3, trusted.wsLimits.MaxConnsPerIP)
+	require.EqualValues(t, 8, direct.wsLimits.MaxConns)
 }

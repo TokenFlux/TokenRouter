@@ -1040,9 +1040,9 @@ func TestHandleUpstreamError_Anthropic429Without7dOiKeepsLegacyBehavior(t *testi
 // creates the shared components.
 func newUpstreamHealthForTest(store gatewayprovider.ExecutionProviderStore, cfg *config.Config, cache providercore.TempUnschedCache, options providercore.HealthOptions, readers *gatewayprovider.RuntimeReaders) *provideradapter.UpstreamHealth {
 	if cfg != nil {
-		options.UnauthorizedCooldownMinutes = cfg.RateLimit.OAuth401CooldownMinutes
-		options.OverloadMinutes = cfg.RateLimit.OverloadCooldownMinutes
-		options.UsageMonitorIntervalMinutes = cfg.Gateway.UsageMonitor.IntervalMinutes
+		options.UnauthorizedCooldownMinutes = cfg.Provider.Cooldown.OAuth401Minutes
+		options.OverloadMinutes = cfg.Provider.Cooldown.OverloadMinutes
+		options.UsageMonitorIntervalMinutes = cfg.Provider.UsageMonitor.IntervalMinutes
 	}
 	return gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: store, Cache: cache, Options: options, Readers: readers})
 }

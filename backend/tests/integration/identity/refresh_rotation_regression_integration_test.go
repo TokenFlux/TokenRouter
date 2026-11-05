@@ -122,9 +122,9 @@ func TestRefreshRotationConsumesOnce(t *testing.T) {
 	unblock := func() { releaseOnce.Do(func() { close(barrier.release) }) }
 	t.Cleanup(unblock)
 	cfg := &config.Config{}
-	cfg.JWT.Secret = "test-local-fixture-only"
-	cfg.JWT.ExpireHour = 1
-	cfg.JWT.RefreshTokenExpireDays = 1
+	cfg.Auth.JWT.Secret = "test-local-fixture-only"
+	cfg.Auth.JWT.AccessTokenTTLMinutes = 60
+	cfg.Auth.JWT.RefreshTokenTTLDays = 1
 	auth := identitytestkit.Auth(client, &identity.AuthDependencies{Users: users, RefreshTokens: barrier, Options: identitytestkit.AuthOptions(cfg)})
 	pair, err := auth.GenerateTokenPair(ctx, user, "")
 	require.NoError(t, err)
@@ -177,9 +177,9 @@ func TestRefreshRotationStorageFailureDoesNotIssueTokens(t *testing.T) {
 	cache := rediscache.NewRefreshTokenCache(rediscontainer.New(t))
 	failing := refreshDeleteFailure{RefreshTokenCache: cache, failure: errors.New("test injected token consume failure")}
 	cfg := &config.Config{}
-	cfg.JWT.Secret = "test-local-fixture-only"
-	cfg.JWT.ExpireHour = 1
-	cfg.JWT.RefreshTokenExpireDays = 1
+	cfg.Auth.JWT.Secret = "test-local-fixture-only"
+	cfg.Auth.JWT.AccessTokenTTLMinutes = 60
+	cfg.Auth.JWT.RefreshTokenTTLDays = 1
 	auth := identitytestkit.Auth(client, &identity.AuthDependencies{Users: users, RefreshTokens: failing, Options: identitytestkit.AuthOptions(cfg)})
 	pair, err := auth.GenerateTokenPair(ctx, user, "")
 	require.NoError(t, err)

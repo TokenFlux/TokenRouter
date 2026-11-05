@@ -66,13 +66,13 @@ func batchVertexOptions(cfg *config.Config) batchprovider.VertexBatchImageProvid
 		return batchprovider.VertexBatchImageProviderOptions{}
 	}
 	return batchprovider.VertexBatchImageProviderOptions{
-		ProjectID:              cfg.BatchImage.VertexProjectID,
-		Location:               cfg.BatchImage.VertexLocation,
-		ManagedGCSBucket:       cfg.BatchImage.VertexManagedGCSBucket,
-		ManagedGCSPrefix:       cfg.BatchImage.VertexManagedGCSPrefix,
-		Environment:            cfg.Log.Environment,
-		BatchPredictionBaseURL: cfg.BatchImage.VertexBatchPredictionBaseURL,
-		GCSBaseURL:             cfg.BatchImage.VertexGCSBaseURL,
+		ProjectID:              cfg.BatchImage.Vertex.ProjectID,
+		Location:               cfg.BatchImage.Vertex.Location,
+		ManagedGCSBucket:       cfg.BatchImage.Vertex.ManagedGCSBucket,
+		ManagedGCSPrefix:       cfg.BatchImage.Vertex.ManagedGCSPrefix,
+		Environment:            cfg.Environment,
+		BatchPredictionBaseURL: cfg.BatchImage.Vertex.BatchPredictionBaseURL,
+		GCSBaseURL:             cfg.BatchImage.Vertex.GCSBaseURL,
 	}
 }
 
@@ -127,14 +127,14 @@ func batchWorkerOptions(cfg *config.Config) batchimage.BatchImageWorkerOptions {
 	// Lock lifetimes, queue delays, polling intervals, and stale-active limits
 	// use configuration seconds and worker durations; batch limits remain counts.
 	return batchimage.NormalizeBatchImageWorkerOptions(batchimage.BatchImageWorkerOptions{
-		JobLockTTL:          time.Duration(cfg.BatchImage.JobLockTTLSeconds) * time.Second,
-		LockConflictDelay:   time.Duration(cfg.BatchImage.LockConflictDelaySeconds) * time.Second,
-		DefaultRequeueDelay: time.Duration(cfg.BatchImage.DefaultRequeueDelaySeconds) * time.Second,
-		ErrorRetryDelay:     time.Duration(cfg.BatchImage.ErrorRetryDelaySeconds) * time.Second,
-		DelayedPollInterval: time.Duration(cfg.BatchImage.DelayedMoverIntervalSeconds) * time.Second,
-		RecoveryInterval:    time.Duration(cfg.BatchImage.RecoveryIntervalSeconds) * time.Second,
-		StaleActiveAfter:    time.Duration(cfg.BatchImage.StaleActiveAfterSeconds) * time.Second,
-		DelayedMoveLimit:    cfg.BatchImage.DelayedMoveLimit,
-		RecoverLimit:        cfg.BatchImage.RecoverLimit,
+		JobLockTTL:          time.Duration(cfg.BatchImage.Queue.JobLockTTLSeconds) * time.Second,
+		LockConflictDelay:   time.Duration(cfg.BatchImage.Queue.LockConflictDelaySeconds) * time.Second,
+		DefaultRequeueDelay: time.Duration(cfg.BatchImage.Queue.DefaultRequeueDelaySeconds) * time.Second,
+		ErrorRetryDelay:     time.Duration(cfg.BatchImage.Queue.ErrorRetryDelaySeconds) * time.Second,
+		DelayedPollInterval: time.Duration(cfg.BatchImage.Queue.DelayedMoverIntervalSeconds) * time.Second,
+		RecoveryInterval:    time.Duration(cfg.BatchImage.Queue.RecoveryIntervalSeconds) * time.Second,
+		StaleActiveAfter:    time.Duration(cfg.BatchImage.Queue.StaleActiveAfterSeconds) * time.Second,
+		DelayedMoveLimit:    cfg.BatchImage.Queue.DelayedMoveLimit,
+		RecoverLimit:        cfg.BatchImage.Queue.RecoverLimit,
 	})
 }

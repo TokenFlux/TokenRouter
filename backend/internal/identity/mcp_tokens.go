@@ -133,7 +133,7 @@ func (s *MCPTokenService) Create(ctx context.Context, userID int64, input MCPTok
 		return nil, "", err
 	}
 	if s.cipher == nil {
-		return nil, "", apperror.ServiceUnavailable("MCP_ENCRYPTION_NOT_CONFIGURED", "Configure a fixed TOTP_ENCRYPTION_KEY before creating or copying MCP tokens")
+		return nil, "", apperror.ServiceUnavailable("MCP_ENCRYPTION_NOT_CONFIGURED", "Configure a fixed security.secret_encryption_key before creating or copying MCP tokens")
 	}
 	random := make([]byte, 32)
 	if _, err := rand.Read(random); err != nil {
@@ -181,7 +181,7 @@ func (s *MCPTokenService) Credential(ctx context.Context, userID, id int64) (*MC
 		return nil, "", ErrMCPTokenNotFound
 	}
 	if s.cipher == nil {
-		return nil, "", apperror.ServiceUnavailable("MCP_ENCRYPTION_NOT_CONFIGURED", "Configure a fixed TOTP_ENCRYPTION_KEY before creating or copying MCP tokens")
+		return nil, "", apperror.ServiceUnavailable("MCP_ENCRYPTION_NOT_CONFIGURED", "Configure a fixed security.secret_encryption_key before creating or copying MCP tokens")
 	}
 	sealed, digest, err := s.repo.Credential(ctx, userID, id)
 	if err != nil {

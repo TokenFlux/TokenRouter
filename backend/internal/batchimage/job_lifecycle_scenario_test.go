@@ -58,8 +58,8 @@ func TestBatchImageMVPFlow(t *testing.T) {
 	providerID := int64(101)
 	providerRepo := &publicBatchImageProviderRepo{providers: []providercore.Record{testBatchImageProvider(providerID, capability.ProviderTypeAPIKey)}}
 	cfg := &config.Config{BatchImage: config.BatchImageConfig{
-		MaxItemsPerJobDefault:             10,
-		MaxPromptCharsPerItem:             8000,
+		MaxItemsPerJob:                    10,
+		MaxPromptBytesPerItem:             8000,
 		DefaultResponseMimeType:           "image/png",
 		DefaultImageSize:                  "1K",
 		MaxDownloadItemsZip:               10,

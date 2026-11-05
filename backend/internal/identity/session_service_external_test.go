@@ -36,12 +36,13 @@ func TestAuthService_ValidateToken_ExpiredReturnsClaimsWithError(t *testing.T) {
 	require.NotNil(t, claims)
 	require.Equal(t, int64(1), claims.UserID)
 
-	// Issue an already-expired token to exercise the expiration path.
-	service.Options.JWT.ExpireHour = -1 // A negative lifetime places expiration in the past.
+	// Sign using a past clock so the ordinary positive lifetime has already
+	// elapsed when validation runs, without supplying an invalid process configuration.
+	service.Options.JWT.Now = func() time.Time { return time.Now().Add(-2 * time.Hour) }
 	rebuildSessionForTest(service)
 	expiredToken, err := service.GenerateToken(context.Background(), user)
 	require.NoError(t, err)
-	service.Options.JWT.ExpireHour = 1 // Restore the normal token lifetime.
+	service.Options.JWT.Now = time.Now // Restore current time before validating expiration.
 	rebuildSessionForTest(service)
 
 	// An expired token returns its claims alongside ErrTokenExpired.
@@ -67,12 +68,13 @@ func TestAuthService_RefreshToken_ExpiredTokenNoPanic(t *testing.T) {
 	repo := &userRepoStub{user: user}
 	service := newAuthService(repo, nil, nil)
 
-	// Issue an expired access token.
-	service.Options.JWT.ExpireHour = -1
+	// Sign against an earlier clock, then restore current time so renewal reads
+	// claims from an actually expired token with the normal positive lifetime.
+	service.Options.JWT.Now = func() time.Time { return time.Now().Add(-2 * time.Hour) }
 	rebuildSessionForTest(service)
 	expiredToken, err := service.GenerateToken(context.Background(), user)
 	require.NoError(t, err)
-	service.Options.JWT.ExpireHour = 1
+	service.Options.JWT.Now = time.Now
 	rebuildSessionForTest(service)
 
 	// Renewal must handle expired-token claims without panicking.

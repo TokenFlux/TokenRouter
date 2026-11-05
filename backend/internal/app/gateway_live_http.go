@@ -40,12 +40,12 @@ func provideLiveExecution(cfg *config.Config, auxiliary *gatewayhttp.OpenAIAuxil
 		out.Leases = concurrency.LiveLeases()
 	}
 	if cfg != nil {
-		if cfg.Gateway.Live.MaxSessionDurationSeconds > 0 {
+		if cfg.Gateway.OpenAI.Live.MaxSessionDurationSeconds > 0 {
 			// Configured session seconds become the executor's maximum lifetime duration.
-			out.Options.MaxSessionDuration = time.Duration(cfg.Gateway.Live.MaxSessionDurationSeconds) * time.Second
+			out.Options.MaxSessionDuration = time.Duration(cfg.Gateway.OpenAI.Live.MaxSessionDurationSeconds) * time.Second
 		}
-		if strings.TrimSpace(cfg.JWT.Secret) != "" {
-			out.AttestationCipher = openai.NewLiveAttestationCipher(cfg.JWT.Secret)
+		if strings.TrimSpace(cfg.Auth.JWT.Secret) != "" {
+			out.AttestationCipher = openai.NewLiveAttestationCipher(cfg.Auth.JWT.Secret)
 		}
 	}
 	// Close local Live observers at the early shutdown level so their tracked

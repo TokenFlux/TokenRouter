@@ -47,15 +47,15 @@ func provideUsageMonitor(store *providerpostgres.ProviderStore, queries *provide
 	// The default reported-balance cutoff gates usage monitor temporary provider pauses.
 	options := provider.UsageMonitorOptions{Now: time.Now, InstanceID: uuid.NewString(), BalanceThreshold: 0.5, Leader: leader, Warn: slog.Warn, Debug: slog.Debug}
 	if cfg != nil {
-		v := cfg.Gateway.UsageMonitor
-		options.Enabled = v.MonitorEnabled
+		v := cfg.Provider.UsageMonitor
+		options.Enabled = v.Enabled
 		// Monitor intervals use configured minutes; probe and round budgets use
 		// seconds. Convert them together before the monitor normalizes its runtime options.
 		options.Interval = time.Duration(v.IntervalMinutes) * time.Minute
 		options.ProbeTimeout = time.Duration(v.ProbeTimeoutSeconds) * time.Second
 		options.RoundTimeout = time.Duration(v.RoundTimeoutSeconds) * time.Second
 		options.Concurrency = v.Concurrency
-		options.BalanceThreshold = v.BalanceThreshold
+		options.BalanceThreshold = v.PauseBelowBalance
 		h := cfg.Security.URLAllowlist
 		options.HostPolicy = egress.MonitorHostPolicy{Enabled: h.Enabled, AllowInsecureHTTP: h.AllowInsecureHTTP, AllowPrivate: h.AllowPrivateHosts, AllowedHosts: h.UpstreamHosts}
 	}
@@ -196,7 +196,7 @@ func provideOllamaUsage(store *providerpostgres.ProviderStore, upstream httpclie
 			return postgresinfra.TryAcquireDBAdvisoryLock(ctx, db, postgresinfra.HashAdvisoryLockID(key))
 		}
 	}
-	options := provider.OllamaUsageOptions{EncryptionKeyConfigured: cfg != nil && cfg.Totp.EncryptionKeyConfigured, Now: time.Now, Jitter: rand.Int64N, InstanceID: uuid.NewString(), Fetch: provideradapter.OllamaUsageFetcher(do), Log: func(format string, args ...any) {
+	options := provider.OllamaUsageOptions{EncryptionKeyConfigured: cfg != nil && cfg.Security.SecretEncryptionKeyConfigured, Now: time.Now, Jitter: rand.Int64N, InstanceID: uuid.NewString(), Fetch: provideradapter.OllamaUsageFetcher(do), Log: func(format string, args ...any) {
 		logging.LegacyPrintf("service.ollama_cloud_usage", format, args...)
 	}, Lease: func(ctx context.Context, key, owner string, ttl time.Duration) (func(), bool) {
 		return provider.AcquireSingletonLease(ctx, leader, advisory, key, owner, ttl)

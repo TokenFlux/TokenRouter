@@ -53,7 +53,7 @@ func provideMCPOAuth(db *sql.DB, users *identity.UserService, cfg *config.Config
 	if err != nil || len(secret) != 32 {
 		return nil, fmt.Errorf("MCP OAuth signing secret is unavailable")
 	}
-	server := identityprovider.NewMCPOAuthServer(repo, users, &mcpOAuthFrontend{store: store, frontendURL: cfg.Server.FrontendURL}, secret)
+	server := identityprovider.NewMCPOAuthServer(repo, users, &mcpOAuthFrontend{store: store, frontendURL: cfg.Site.FrontendURL}, secret)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	manager.Register(lifecycle.Hook{

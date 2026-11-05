@@ -12,7 +12,7 @@ import (
 // both the bundled and minimum versions satisfy the supported-version
 // predicate.
 func TestResolveCLIVersionDefaultsToPinnedClientVersion(t *testing.T) {
-	t.Setenv(CLIVersionEnv, "")
+	setGrokTestOverride(t, "CLIVersion", "")
 	// The bundled version and minimum accepted override are separate constants.
 	// These assertions protect that distinction when the default release advances beyond the minimum.
 	require.Equal(t, CLIClientVersion, ResolveCLIVersion())
@@ -24,7 +24,7 @@ func TestResolveCLIVersionDefaultsToPinnedClientVersion(t *testing.T) {
 // version above the configured minimum. It asserts ResolveCLIVersion returns
 // that override unchanged rather than selecting the bundled client version.
 func TestResolveCLIVersionAcceptsValidOverride(t *testing.T) {
-	t.Setenv(CLIVersionEnv, "0.2.95-alpha.1")
+	setGrokTestOverride(t, "CLIVersion", "0.2.95-alpha.1")
 	require.Equal(t, "0.2.95-alpha.1", ResolveCLIVersion())
 }
 
@@ -42,7 +42,7 @@ func TestResolveCLIVersionRejectsUnsafeOrTooOld(t *testing.T) {
 		"1",
 	} {
 		t.Run(version, func(t *testing.T) {
-			t.Setenv(CLIVersionEnv, version)
+			setGrokTestOverride(t, "CLIVersion", version)
 			require.Equal(t, CLIClientVersion, ResolveCLIVersion())
 		})
 	}
@@ -53,7 +53,7 @@ func TestResolveCLIVersionRejectsUnsafeOrTooOld(t *testing.T) {
 // identity, and workspace User-Agent replace the proxy request's identity
 // values.
 func TestApplyCLIProxyHeaders(t *testing.T) {
-	t.Setenv(CLIVersionEnv, "")
+	setGrokTestOverride(t, "CLIVersion", "")
 
 	req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/responses", nil)
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestApplyCLIProxyHeaders(t *testing.T) {
 // a valid version override is present. It asserts no CLI-specific headers are
 // added and the request's existing User-Agent is retained.
 func TestApplyCLIProxyHeadersLeavesAPIHostUnchanged(t *testing.T) {
-	t.Setenv(CLIVersionEnv, "0.2.95")
+	setGrokTestOverride(t, "CLIVersion", "0.2.95")
 
 	req, err := http.NewRequest(http.MethodPost, "https://api.x.ai/v1/responses", nil)
 	require.NoError(t, err)

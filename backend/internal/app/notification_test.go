@@ -71,7 +71,7 @@ func TestProvideNotificationResolvesFrontendURL(t *testing.T) {
 			require.NoError(t, repo.SetMultiple(ctx, server.Settings()))
 			require.NoError(t, repo.SetMultiple(ctx, map[string]string{"api_base_url": "https://api.example/v1", "frontend_url": tc.stored}))
 			store := settings.New(repo)
-			cfg := &config.Config{Server: config.ServerConfig{FrontendURL: tc.deployment}}
+			cfg := &config.Config{Site: config.SiteConfig{FrontendURL: tc.deployment}}
 			mailer := provideMailer(store)
 			service := provideNotification(store, mailer, nil, provideSiteDisplay(store, cfg))
 			// Recipient lookup is outside this assembly scenario. Disable that reader

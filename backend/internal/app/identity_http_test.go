@@ -85,7 +85,7 @@ func TestIdentityHTTPSettingsWeChatCallbackUsesRequestOrigin(t *testing.T) {
 				identitycore.SettingKeyWeChatConnectAppSecret: "secret",
 				identitycore.SettingKeyWeChatConnectMode:      "open",
 			}}
-			cfg := &config.Config{Server: config.ServerConfig{FrontendURL: tc.deployment}}
+			cfg := &config.Config{Site: config.SiteConfig{FrontendURL: tc.deployment}}
 			runtime := identityHTTPSettings{identityAuthSettings: newUserBindingSettings(repo, cfg)}
 			handler := identityhttp.NewWeChatHandler(nil, nil, nil, identityhttp.WeChatHTTPOptions{LoadConfig: runtime.WeChat})
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -182,12 +182,10 @@ func TestAuthHandlerRevokeAllSessionsInvalidatesAccessTokens(t *testing.T) {
 		},
 	}
 	refreshTokenCache := &userHandlerRefreshTokenCacheStub{}
-	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:     "test-secret",
-			ExpireHour: 1,
-		},
-	}
+	cfg := &config.Config{Auth: config.AuthConfig{JWT: config.JWTConfig{
+		Secret:                "test-secret",
+		AccessTokenTTLMinutes: 60,
+	}}}
 	authService := newUserBindingAuth(repo, refreshTokenCache, cfg, nil, nil)
 	handler := identityhttp.NewSessionHandler(authService, nil, nil, nil, nil, nil, identityhttp.SessionHTTPOptions{})
 
@@ -235,7 +233,7 @@ func newUserProfileCore(t *testing.T, users identitycore.UserRepository) *identi
 // exercise profile/session paths backed by the supplied users, refresh cache,
 // settings, and email capabilities.
 func newUserBindingAuth(users identitycore.UserRepository, refresh identitycore.RefreshTokenCache, cfg *config.Config, settings identitycore.AuthSettings, email identitycore.AuthEmail) *identitycore.AuthService {
-	options := &identitycore.AuthOptions{JWT: identitycore.SessionOptions{Secret: cfg.JWT.Secret, ExpireHour: cfg.JWT.ExpireHour}}
+	options := &identitycore.AuthOptions{JWT: identitycore.SessionOptions{Secret: cfg.Auth.JWT.Secret, AccessTokenExpireMinutes: cfg.Auth.JWT.AccessTokenTTLMinutes}}
 	deps := &identitycore.AuthDependencies{Users: users, RefreshTokens: refresh, Options: options, Settings: settings, Email: email}
 	state := identitypostgres.NewAuthState(nil, deps)
 	core := identitycore.NewAuthService(deps, &identitypostgres.AuthRepository{State: state})
@@ -975,12 +973,10 @@ func TestUserHandlerBindEmailIdentityReturnsProfileResponse(t *testing.T) {
 			ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
 		},
 	}
-	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:     "test-secret",
-			ExpireHour: 1,
-		},
-	}
+	cfg := &config.Config{Auth: config.AuthConfig{JWT: config.JWTConfig{
+		Secret:                "test-secret",
+		AccessTokenTTLMinutes: 60,
+	}}}
 	emailService := identitycore.NewEmailChallenges(emailCache, nil)
 	authService := newUserBindingAuth(repo, nil, cfg, nil, emailService)
 	handler := identityhttp.NewUserHandler(newUserProfileCore(t, repo), authService, nil, nil)
@@ -1096,12 +1092,10 @@ func TestUserHandlerUnbindIdentityRevokesAllUserSessionsWhenAuthServiceConfigure
 		},
 	}
 	refreshTokenCache := &userHandlerRefreshTokenCacheStub{}
-	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:     "test-secret",
-			ExpireHour: 1,
-		},
-	}
+	cfg := &config.Config{Auth: config.AuthConfig{JWT: config.JWTConfig{
+		Secret:                "test-secret",
+		AccessTokenTTLMinutes: 60,
+	}}}
 	authService := newUserBindingAuth(repo, refreshTokenCache, cfg, nil, nil)
 	handler := identityhttp.NewUserHandler(newUserProfileCore(t, repo), authService, nil, nil)
 
@@ -1143,12 +1137,10 @@ func TestUserHandlerUnbindIdentityDoesNotRevokeSessionsWhenNothingWasUnbound(t *
 		},
 	}
 	refreshTokenCache := &userHandlerRefreshTokenCacheStub{}
-	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:     "test-secret",
-			ExpireHour: 1,
-		},
-	}
+	cfg := &config.Config{Auth: config.AuthConfig{JWT: config.JWTConfig{
+		Secret:                "test-secret",
+		AccessTokenTTLMinutes: 60,
+	}}}
 	authService := newUserBindingAuth(repo, refreshTokenCache, cfg, nil, nil)
 	handler := identityhttp.NewUserHandler(newUserProfileCore(t, repo), authService, nil, nil)
 
@@ -1188,12 +1180,10 @@ func TestUserHandlerBindEmailIdentityRejectsWrongCurrentPasswordForBoundEmail(t 
 			ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
 		},
 	}
-	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:     "test-secret",
-			ExpireHour: 1,
-		},
-	}
+	cfg := &config.Config{Auth: config.AuthConfig{JWT: config.JWTConfig{
+		Secret:                "test-secret",
+		AccessTokenTTLMinutes: 60,
+	}}}
 	emailService := identitycore.NewEmailChallenges(emailCache, nil)
 	// Enable user_email_change_enabled to reach password validation; a disabled setting returns 403 first.
 	settingService := newUserBindingSettings(&userHandlerSettingRepoStub{values: map[string]string{

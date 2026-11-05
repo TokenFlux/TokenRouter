@@ -2,7 +2,6 @@ package anthropic
 
 import (
 	"log/slog"
-	"os"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
@@ -10,21 +9,17 @@ import (
 
 // cli_version.go resolves the Claude CLI version from deployment overrides or
 // the built-in pin.
-// The CLI version is resolved during package initialization and feeds both
-// User-Agent defaults and billing templates. Deployment variables can select a
+// Startup configuration selects the CLI version before client construction for
+// User-Agent defaults and billing templates. Explicit configuration selects a
 // supported release, while invalid overrides return the built-in pin and
-// produce a warning for a nonempty rejected value.
-
-// CLIVersionEnv names the startup override for the CLI version used in both
-// request Headers and billing marker templates.
-const CLIVersionEnv = "TOKENROUTER_CLAUDE_CLI_VERSION"
+// produce a warning without printing rejected input.
 
 // resolvedCLIVersion stores the startup-selected release so separately
 // constructed User-Agent and billing values use one process-wide version.
-var resolvedCLIVersion = resolveCLIVersion(cliVersionOverride())
+var resolvedCLIVersion = CLICurrentVersion
 
 // CLIVersion returns the process-wide version resolved during package
-// initialization.
+// configuration.
 func CLIVersion() string {
 	return resolvedCLIVersion
 }
@@ -37,19 +32,18 @@ func IsSupportedCLIVersion(version string) bool {
 }
 
 // resolveCLIVersion trims and validates an operational override, returning the
-// built-in pin when absent or invalid. A nonempty invalid override also logs
-// its rejected value and the selected built-in version.
+// built-in pin when absent or invalid. A nonempty invalid override logs its
+// configuration key and selected built-in version without echoing input.
 func resolveCLIVersion(raw string) string {
 	version := strings.TrimSpace(raw)
 	if version == "" {
 		return CLICurrentVersion
 	}
 	// Rejected operational text cannot enter the initialized CLI Header templates,
-	// so return the built-in release after recording the value that was ignored.
+	// so return the built-in release after identifying the rejected configuration field.
 	if !IsSupportedCLIVersion(version) {
 		slog.Warn("ignoring invalid Claude CLI version override; falling back to the built-in pin",
-			"env", CLIVersionEnv,
-			"value", version,
+			"key", "provider.anthropic.claude_cli_version",
 			"builtin", CLICurrentVersion,
 			"requirement", "strict three-part semver, not older than the built-in pin")
 		return CLICurrentVersion
@@ -57,14 +51,12 @@ func resolveCLIVersion(raw string) string {
 	return version
 }
 
-// cliVersionOverride reads the current environment variable before the legacy
-// variable. Any nonempty current value takes precedence, including whitespace
-// that resolveCLIVersion subsequently treats as an absent version.
-func cliVersionOverride() string {
-	if value := os.Getenv(CLIVersionEnv); value != "" {
-		return value
-	}
-	// Read the legacy deployment name when the current variable is empty, allowing
-	// either naming scheme to supply the startup version override.
-	return os.Getenv("SUB2API_CLAUDE_CLI_VERSION")
+// ConfigureCLIVersion selects the CLI identity before application construction.
+// Empty or unsupported versions restore the built-in pin. Call once during
+// startup, before requests read CLIVersion or build client identity headers.
+func ConfigureCLIVersion(raw string) {
+	resolvedCLIVersion = resolveCLIVersion(raw)
+	// Header defaults and billing templates must use the same configured identity
+	// before request preparation starts reading the shared fingerprint map.
+	DefaultHeaders["User-Agent"] = "claude-cli/" + resolvedCLIVersion + " (external, cli)"
 }

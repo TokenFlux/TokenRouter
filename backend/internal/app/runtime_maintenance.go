@@ -124,7 +124,7 @@ func provideMaintenanceRuntime(
 
 	manager.Register(lifecycle.Hook{Name: "ConcurrencyService", StartOrder: 980, StopOrder: shutdownStageProducers, Start: func(ctx context.Context) error {
 		if concurrency != nil {
-			concurrency.StartSlotCleanupWorker(cfg.Gateway.Scheduling.SlotCleanupInterval)
+			concurrency.StartSlotCleanupWorker(time.Duration(cfg.Scheduling.SlotCleanupIntervalSeconds) * time.Second)
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {
@@ -137,7 +137,7 @@ func provideMaintenanceRuntime(
 		if messageQueue != nil {
 			// The message-queue worker accepts a duration, while its deployment field
 			// stores seconds; use that unit for the lifecycle-start interval.
-			messageQueue.StartCleanupWorker(time.Duration(cfg.Gateway.UserMessageQueue.CleanupIntervalSeconds) * time.Second)
+			messageQueue.StartCleanupWorker(time.Duration(cfg.Gateway.Anthropic.UserMessageQueue.CleanupIntervalSeconds) * time.Second)
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {

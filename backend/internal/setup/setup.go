@@ -1,10 +1,12 @@
 package setup
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -15,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
@@ -55,6 +58,13 @@ const (
 // SetupConfig holds installation inputs for storage probes, initial identity
 // creation, and configuration output.
 type SetupConfig struct {
+	// SecretEncryptionKey supplies a stable encryption key for later application starts.
+	// Empty input generates a new key before configuration is persisted during setup.
+	SecretEncryptionKey string `json:"-" yaml:"-"`
+	// environmentReferences is set only by automatic setup after reading actual
+	// credentials for connection probes; file output retains their environment names.
+	environmentReferences bool
+
 	Database DatabaseConfig `json:"database" yaml:"database"` // installation PostgreSQL connection settings
 	Redis    RedisConfig    `json:"redis" yaml:"redis"`       // installation Redis connection settings
 	// Admin is passed to empty-database bootstrap during installation. Runtime YAML
@@ -110,40 +120,17 @@ func setupDefaultAdminConcurrency() int {
 	return defaultUserConcurrency
 }
 
-// GetDataDir selects the directory used for configuration and installation
-// marker paths. A nonempty DATA_DIR is returned as supplied, so its owner
-// arranges existence and writability before setup writes files.
-//
-// Otherwise an existing /app/data directory is selected when a .write_test file
-// can be created there. The probe closes and removes that path with discarded
-// cleanup errors. Failed stat or creation falls through to the current
-// directory, represented by a dot. Each path helper repeats this selection,
-// including the probe when applicable.
-func GetDataDir() string {
-	if dir := os.Getenv("DATA_DIR"); dir != "" {
-		return dir
-	}
+// GetDataDir returns the shared configuration data-directory selection.
+// DATA_DIR takes precedence; otherwise a writable container directory is selected
+// before the current directory. Configuration file selection can independently
+// use CONFIG_FILE or a discovered system location.
+func GetDataDir() string { return config.DataDir() }
 
-	dockerDataDir := "/app/data"
-	if info, err := os.Stat(dockerDataDir); err == nil && info.IsDir() {
-		// Select the container mount after a successful creation probe so generated
-		// files use its persistence directory. Close and removal errors do not change selection.
-		testFile := dockerDataDir + "/.write_test"
-		if f, err := os.Create(testFile); err == nil {
-			_ = f.Close()
-			_ = os.Remove(testFile)
-			return dockerDataDir
-		}
-	}
-
-	return "."
-}
-
-// GetConfigFilePath returns the configuration filename under the directory
-// selected by GetDataDir. Directory selection can perform its /app/data write
-// probe, and it leaves a supplied DATA_DIR value as given.
+// GetConfigFilePath returns the shared destination for newly installed configuration.
+// An explicit CONFIG_FILE path wins even when absent. Otherwise the file lives
+// in the selected data directory, alongside the independent installation marker.
 func GetConfigFilePath() string {
-	return GetDataDir() + "/" + ConfigFileName
+	return config.DefaultConfigFilePath()
 }
 
 // GetInstallLockPath returns the marker filename under the directory selected
@@ -183,7 +170,7 @@ func NeedsSetup() bool {
 
 	// Treat existing or uncertain installation evidence as a closed setup path.
 	// Both paths must report nonexistence before another installation can be admitted.
-	if _, err := os.Stat(GetConfigFilePath()); !os.IsNotExist(err) {
+	if _, exists, err := config.ResolveConfigFile(); exists || err != nil {
 		return false
 	}
 
@@ -316,64 +303,120 @@ func createAdminUser(cfg *SetupConfig) (bool, string, error) {
 	})
 }
 
-// writeConfigFile encodes runtime storage, server, JWT, and fixed onboarding
-// defaults into YAML using nonnil cfg. Empty Timezone selects Asia/Shanghai;
-// the administrator credentials and setup migration timeout are omitted from
-// this output.
+// writeConfigFile persists version 2 configuration after installation succeeds.
+// Administrator credentials and migration timeout stay outside the runtime file.
+// A missing encryption key is generated once for this output; automatic setup
+// retains explicit environment references for supplied credentials while manual
+// installation writes escaped literal values.
 //
-// The destination is written with os.WriteFile after the full document is
-// encoded. Newly created files receive mode 0600, while an existing mode is
-// retained. The write is not atomic, and a failed write can leave partial
-// configuration that NeedsSetup still treats as installation evidence.
-// Remaining input settings are emitted as supplied for the normal loader to
-// validate.
+// Encoding finishes before replacement begins, then the shared configuration
+// writer syncs and renames a sibling temporary file. Single-file mounts can
+// require an in-place fallback, so a write failure may leave setup evidence.
+// The separate installation marker is written only after this function succeeds.
 func writeConfigFile(cfg *SetupConfig) error {
+	if cfg.SecretEncryptionKey == "" {
+		secret, err := generateSecret(32)
+		if err != nil {
+			return err
+		}
+		cfg.SecretEncryptionKey = secret
+	}
 	tz := cfg.Timezone
 	if tz == "" {
 		tz = "Asia/Shanghai"
 	}
-
-	// Select runtime fields for serialization because administrator credentials belong
-	// to initial creation. The generated document also leaves setup-only migration budget out.
 	yamlConfig := struct {
-		Server   ServerConfig   `yaml:"server"`   // persisted HTTP listener settings
-		Database DatabaseConfig `yaml:"database"` // installation PostgreSQL connection settings
-		Redis    RedisConfig    `yaml:"redis"`    // installation Redis connection settings
-		JWT      JWTConfig      `yaml:"jwt"`      // persisted signing and expiry settings
-		Default  struct {
-			UserConcurrency int     `yaml:"user_concurrency"` // default concurrent request limit
-			UserBalance     float64 `yaml:"user_balance"`     // default initial USD balance
-			APIKeyPrefix    string  `yaml:"api_key_prefix"`   // generated key text prefix
-			RateMultiplier  float64 `yaml:"rate_multiplier"`  // default billing rate multiplier
-		} `yaml:"default"` // fixed new-user configuration values
-		RateLimit struct {
-			RequestsPerMinute int `yaml:"requests_per_minute"` // legacy request-rate setting value
-			BurstSize         int `yaml:"burst_size"`          // legacy burst setting value
-		} `yaml:"rate_limit"` // legacy request-rate configuration values
-		Timezone string `yaml:"timezone"` // selected IANA timezone name
-	}{
-		Server:   cfg.Server,
-		Database: cfg.Database,
-		Redis:    cfg.Redis,
-		JWT:      cfg.JWT,
-		Timezone: tz,
-	}
-
-	yamlConfig.Default.UserConcurrency = defaultUserConcurrency
-	yamlConfig.Default.UserBalance = 0
-	yamlConfig.Default.APIKeyPrefix = "sk-"
-	yamlConfig.Default.RateMultiplier = 1.0
-	yamlConfig.RateLimit.RequestsPerMinute = 60
-	yamlConfig.RateLimit.BurstSize = 10
-
-	data, err := yaml.Marshal(&yamlConfig)
-	if err != nil {
+		Version  int            `yaml:"config_version"` // persisted configuration schema version
+		Timezone string         `yaml:"timezone"`       // application local calendar zone
+		Server   ServerConfig   `yaml:"server"`         // configured HTTP listener settings
+		Database DatabaseConfig `yaml:"database"`       // PostgreSQL connection probe settings
+		Redis    RedisConfig    `yaml:"redis"`          // Redis connection probe settings
+		Auth     struct {
+			JWT struct {
+				Secret                string `yaml:"secret"`                   // token signing secret text
+				AccessTokenTTLMinutes int    `yaml:"access_token_ttl_minutes"` // access token lifetime minutes
+			} `yaml:"jwt"` // authentication token signing settings
+		} `yaml:"auth"` // application authentication process settings
+		Security struct {
+			SecretEncryptionKey string `yaml:"secret_encryption_key"` // persistent AES encryption key
+		} `yaml:"security"` // encrypted credential storage settings
+	}{Version: config.CurrentConfigVersion, Timezone: tz, Server: cfg.Server, Database: cfg.Database, Redis: cfg.Redis}
+	yamlConfig.Auth.JWT.Secret = cfg.JWT.Secret
+	// Setup accepts hours while the runtime file records one minute-based lifetime.
+	yamlConfig.Auth.JWT.AccessTokenTTLMinutes = cfg.JWT.ExpireHour * 60
+	yamlConfig.Security.SecretEncryptionKey = cfg.SecretEncryptionKey
+	var document yaml.Node
+	if err := document.Encode(yamlConfig); err != nil {
 		return err
 	}
+	// Manual inputs are literal values even when they contain reference syntax.
+	// Escape them before adding the automatic installer's intentional secret references.
+	escapeSetupLiterals(&document)
+	if cfg.environmentReferences {
+		for _, entry := range []struct {
+			Name string   // referenced environment variable name
+			Path []string // serialized credential field path
+		}{
+			{"DATABASE_PASSWORD", []string{"database", "password"}},
+			{"REDIS_PASSWORD", []string{"redis", "password"}},
+			{"JWT_SECRET", []string{"auth", "jwt", "secret"}},
+			{"TOTP_ENCRYPTION_KEY", []string{"security", "secret_encryption_key"}},
+		} {
+			if os.Getenv(entry.Name) == "" {
+				continue
+			}
+			node := &document
+			for _, part := range entry.Path {
+				for i := 0; i < len(node.Content); i += 2 {
+					if node.Content[i].Value == part {
+						node = node.Content[i+1]
+						break
+					}
+				}
+			}
+			node.Value = "${" + entry.Name + "}"
+		}
+	}
+	var data bytes.Buffer
+	encoder := yaml.NewEncoder(&data)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(&document); err != nil {
+		return err
+	}
+	if err := encoder.Close(); err != nil {
+		return err
+	}
+	return config.WriteConfigFile(GetConfigFilePath(), data.Bytes())
+}
 
-	// Encode the document before opening its destination. WriteFile can truncate
-	// an existing file and leaves any partially written configuration as setup evidence on failure.
-	return os.WriteFile(GetConfigFilePath(), data, 0o600)
+// escapeSetupLiterals preserves reference-looking installer input as literal text.
+// Only scalar values are changed; keys remain fixed by the installer output
+// structure, and automatic secret references are added after this traversal.
+func escapeSetupLiterals(node *yaml.Node) {
+	if node.Kind == yaml.MappingNode {
+		for i := 1; i < len(node.Content); i += 2 {
+			escapeSetupLiterals(node.Content[i])
+		}
+		return
+	}
+	if node.Kind == yaml.ScalarNode && node.Tag == "!!str" {
+		node.Value = strings.ReplaceAll(node.Value, "${", "$${")
+	}
+	for _, child := range node.Content {
+		escapeSetupLiterals(child)
+	}
+}
+
+// ListenAddress selects the web installer's environment-based listener address.
+// SERVER_HOST defaults to all interfaces and invalid SERVER_PORT values use
+// 8080. Installed application listeners instead use their validated configuration.
+func ListenAddress() string {
+	host := getEnvOrDefault("SERVER_HOST", "0.0.0.0")
+	port := getEnvIntOrDefault("SERVER_PORT", 8080)
+	if port <= 0 || port > 65535 {
+		port = 8080
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
 // generateSecret returns lowercase hexadecimal text from length
@@ -426,7 +469,7 @@ func getEnvIntOrDefault(key string, defaultValue int) int {
 // NeedsSetup first because this automatic path does not repeat that guard or
 // acquire the HTTP installation mutex.
 //
-// TZ takes precedence over TIMEZONE, while missing or malformed integer
+// TZ selects the installation timezone, while missing or malformed integer
 // variables use their field defaults. Supplied text and accepted integers are
 // passed to bootstrap as given, so the deployment owner provides valid
 // connection fields. JWT generation precedes probes; migration and
@@ -437,14 +480,11 @@ func AutoSetupFromEnv() error {
 	logging.LegacyPrintf("setup", "%s", "Auto setup enabled, configuring from environment variables...")
 	logging.LegacyPrintf("setup", "Data directory: %s", GetDataDir())
 
-	// Use the standard container TZ value first so automatic setup writes the
-	// same local-day zone; the legacy TIMEZONE value remains available when TZ is empty.
-	tz := getEnvOrDefault("TZ", "")
-	if tz == "" {
-		tz = getEnvOrDefault("TIMEZONE", "Asia/Shanghai")
-	}
+	tz := getEnvOrDefault("TZ", "Asia/Shanghai")
 
 	cfg := &SetupConfig{
+		environmentReferences: true,
+		SecretEncryptionKey:   getEnvOrDefault("TOTP_ENCRYPTION_KEY", ""),
 		Database: DatabaseConfig{
 			Host:     getEnvOrDefault("DATABASE_HOST", "localhost"),
 			Port:     getEnvIntOrDefault("DATABASE_PORT", 5432),

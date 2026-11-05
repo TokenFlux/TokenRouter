@@ -53,9 +53,9 @@ func provideProviderHealthRuntime(
 	options := provider.HealthOptions{
 		Now: time.Now, Warn: slog.Warn, Info: slog.Info,
 		SessionWindows: store, TimeoutCounter: timeouts, ForbiddenCounter: forbidden,
-		UnauthorizedCooldownMinutes: cfg.RateLimit.OAuth401CooldownMinutes,
-		UsageMonitorIntervalMinutes: cfg.Gateway.UsageMonitor.IntervalMinutes,
-		OverloadMinutes:             cfg.RateLimit.OverloadCooldownMinutes,
+		UnauthorizedCooldownMinutes: cfg.Provider.Cooldown.OAuth401Minutes,
+		UsageMonitorIntervalMinutes: cfg.Provider.UsageMonitor.IntervalMinutes,
+		OverloadMinutes:             cfg.Provider.Cooldown.OverloadMinutes,
 		APIKeyHealthWarn:            provideradapter.LogAPIKeyHealthWarning,
 	}
 	if counter, ok := cache.(provider.OpenAIAPIKeyHealthCache); ok {

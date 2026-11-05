@@ -86,10 +86,10 @@ func TestParseAuthorizationInput(t *testing.T) {
 // encoded code-flow, redirect, state, nonce, S256, plan, and referrer
 // parameters are retained in the resulting URL.
 func TestBuildAuthorizationURLIncludesHermesCompatibleParameters(t *testing.T) {
-	t.Setenv(EnvAuthorizeURL, "https://auth.example.test/oauth2/authorize")
-	t.Setenv(EnvClientID, "client-id")
-	t.Setenv(EnvScope, "openid profile offline_access api:access")
-	t.Setenv(EnvAllowUnsafeURLOverrides, "true")
+	setGrokTestOverride(t, "AuthorizeURL", "https://auth.example.test/oauth2/authorize")
+	setGrokTestOverride(t, "ClientID", "client-id")
+	setGrokTestOverride(t, "Scope", "openid profile offline_access api:access")
+	setGrokTestOverride(t, "AllowUnsafeURLOverrides", "true")
 
 	authURL, err := BuildAuthorizationURL("state", "challenge", "http://127.0.0.1:56121/callback", "nonce")
 	require.NoError(t, err)
@@ -339,7 +339,7 @@ func TestValidateTrustedBaseURLAcceptsOfficialRegionalHosts(t *testing.T) {
 // validator builder keeps that path before appending Responses under format-
 // only policy.
 func TestBuildResponsesURLPreservesUnsafeOverrideCustomPath(t *testing.T) {
-	t.Setenv(EnvAllowUnsafeURLOverrides, "true")
+	setGrokTestOverride(t, "AllowUnsafeURLOverrides", "true")
 
 	target, err := BuildResponsesURLWithValidator("http://localhost:8080/custom", nil)
 	require.NoError(t, err)
@@ -375,7 +375,7 @@ func TestBuildResponsesURLWithValidatorRejectsBaseURLComponents(t *testing.T) {
 // for loopback HTTP endpoints. It asserts the issuer and forwarding URL are
 // accepted and trailing base slashes are trimmed by that selected policy.
 func TestValidateXAIURLsAllowUnsafeDevOverride(t *testing.T) {
-	t.Setenv(EnvAllowUnsafeURLOverrides, "true")
+	setGrokTestOverride(t, "AllowUnsafeURLOverrides", "true")
 
 	tokenURL, err := ValidateOAuthEndpointURL("http://127.0.0.1:8080/oauth2/token")
 	require.NoError(t, err)
@@ -391,12 +391,12 @@ func TestValidateXAIURLsAllowUnsafeDevOverride(t *testing.T) {
 // the base is marked default, and the fixed scope/proxy labels and disabled
 // relaxations are reported.
 func TestRuntimeSanityReportsSafeDefaults(t *testing.T) {
-	t.Setenv(EnvBaseURL, "")
-	t.Setenv(EnvAuthorizeURL, "")
-	t.Setenv(EnvTokenURL, "")
-	t.Setenv(EnvRedirectURI, "")
-	t.Setenv(EnvAllowUnsafeURLOverrides, "")
-	t.Setenv(EnvUnsafeAllowHighConcurrency, "")
+	setGrokTestOverride(t, "BaseURL", "")
+	setGrokTestOverride(t, "AuthorizeURL", "")
+	setGrokTestOverride(t, "TokenURL", "")
+	setGrokTestOverride(t, "RedirectURI", "")
+	setGrokTestOverride(t, "AllowUnsafeURLOverrides", "")
+	setGrokTestOverride(t, "UnsafeAllowConcurrencyAboveOne", "")
 
 	report := RuntimeSanity()
 	require.True(t, report.BaseURL.Valid)
@@ -417,12 +417,12 @@ func TestRuntimeSanityReportsSafeDefaults(t *testing.T) {
 // validation is reported while the checked display fields omit the specific
 // supplied secrets.
 func TestRuntimeSanityReportsInvalidOverridesWithoutSecrets(t *testing.T) {
-	t.Setenv(EnvBaseURL, "http://127.0.0.1:8080/v1?access_token=secret")
-	t.Setenv(EnvAuthorizeURL, "https://auth.example.test/oauth2/authorize")
-	t.Setenv(EnvTokenURL, "https://auth.example.test/oauth2/token")
-	t.Setenv(EnvRedirectURI, "not a url")
-	t.Setenv(EnvClientID, "client-secret-like-value")
-	t.Setenv(EnvAllowUnsafeURLOverrides, "")
+	setGrokTestOverride(t, "BaseURL", "http://127.0.0.1:8080/v1?access_token=secret")
+	setGrokTestOverride(t, "AuthorizeURL", "https://auth.example.test/oauth2/authorize")
+	setGrokTestOverride(t, "TokenURL", "https://auth.example.test/oauth2/token")
+	setGrokTestOverride(t, "RedirectURI", "not a url")
+	setGrokTestOverride(t, "ClientID", "client-secret-like-value")
+	setGrokTestOverride(t, "AllowUnsafeURLOverrides", "")
 
 	report := RuntimeSanity()
 	require.False(t, report.BaseURL.Valid)

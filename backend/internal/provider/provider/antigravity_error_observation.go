@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -256,21 +255,13 @@ func (s *AntigravityErrorObserver) resolveResetTime(resetAt *int64, defaultDur t
 	return time.Now().Add(defaultDur)
 }
 
-// AntigravityFallbackDuration resolves a generic cooldown from configuration
-// and raw seconds.
-// Positive minutes replace the platform default; a positive trimmed integer in
-// raw then overrides that duration in seconds. Invalid or nonpositive inputs
-// retain the previous selection.
-func AntigravityFallbackDuration(minutes int, raw string) time.Duration {
-	duration := antigravity.AntigravityDefaultRateLimitDuration
-	if minutes > 0 {
-		duration = time.Duration(minutes) * time.Minute
+// AntigravityFallbackDuration converts configured seconds to the provider cooldown.
+// Nonpositive inputs retain the platform default for callers that bypass process
+// validation; normal startup requires a strictly positive configured value.
+func AntigravityFallbackDuration(seconds int) time.Duration {
+	if seconds <= 0 {
+		return antigravity.AntigravityDefaultRateLimitDuration
 	}
-	// Raw seconds have the environment override role, so a usable value replaces
-	// the minute-based choice while invalid input leaves that previously
-	// resolved cooldown available.
-	if seconds, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && seconds > 0 {
-		duration = time.Duration(seconds) * time.Second
-	}
-	return duration
+	// The configuration boundary stores whole seconds; the observer consumes a duration.
+	return time.Duration(seconds) * time.Second
 }

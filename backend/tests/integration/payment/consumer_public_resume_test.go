@@ -197,8 +197,6 @@ func TestPublicOrderStatusPaidIncludesRefundPending(t *testing.T) {
 // financial, currency, type, and timestamp fields while excluding the selected
 // refund administration fields and plan ID.
 func TestResolveOrderPublicByResumeTokenReturnsFrontendContractFields(t *testing.T) {
-	t.Setenv("PAYMENT_RESUME_SIGNING_KEY", "0123456789abcdef0123456789abcdef")
-
 	db, err := sql.Open("sqlite", "file:payment_handler_public_resolve?mode=memory&cache=shared")
 	require.NoError(t, err)
 	// Register pool cleanup before constructing Ent so later client cleanup
@@ -306,8 +304,6 @@ func TestResolveOrderPublicByResumeTokenReturnsFrontendContractFields(t *testing
 // a valid token whose user ID differs from the SQLite order. Resolution returns
 // HTTP 400 with INVALID_RESUME_TOKEN in the error envelope.
 func TestResolveOrderPublicByResumeTokenReturnsBadRequestForMismatchedToken(t *testing.T) {
-	t.Setenv("PAYMENT_RESUME_SIGNING_KEY", "0123456789abcdef0123456789abcdef")
-
 	db, err := sql.Open("sqlite", "file:payment_handler_public_resolve_mismatch?mode=memory&cache=shared")
 	require.NoError(t, err)
 	// Register pool cleanup before constructing Ent so later client cleanup

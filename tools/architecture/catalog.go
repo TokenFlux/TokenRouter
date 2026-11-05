@@ -57,7 +57,8 @@ github.com/patrickmn/go-cache golang.org/x/sync/errgroup`, Tests: `github.com/DA
 github.com/stretchr/testify/require github.com/stretchr/testify/suite
 github.com/testcontainers/testcontainers-go/modules/postgres
 github.com/testcontainers/testcontainers-go/modules/redis modernc.org/sqlite`},
-		"provider": {Production: `github.com/hashicorp/go-plugin github.com/hashicorp/go-plugin/runner github.com/hashicorp/go-hclog
+		"provider": {Production: `gopkg.in/yaml.v3
+github.com/hashicorp/go-plugin github.com/hashicorp/go-plugin/runner github.com/hashicorp/go-hclog
 google.golang.org/grpc/... google.golang.org/protobuf/... google.golang.org/genproto/googleapis/rpc/...
 github.com/shirou/gopsutil/v4/process golang.org/x/time/rate
 golang.org/x/crypto/bcrypt github.com/ory/fosite github.com/ory/fosite/compose

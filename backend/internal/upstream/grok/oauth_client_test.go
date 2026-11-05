@@ -57,8 +57,8 @@ func TestGrokOAuthClientExchangeAndRefreshUseFormFields(t *testing.T) {
 	defer server.Close()
 	// A local token endpoint supplies deterministic grant responses. Enable format-only
 	// overrides so this fixture can use HTTP loopback while production defaults remain trusted-host based.
-	t.Setenv(EnvAllowUnsafeURLOverrides, "true")
-	t.Setenv(EnvTokenURL, server.URL)
+	setGrokTestOverride(t, "AllowUnsafeURLOverrides", "true")
+	setGrokTestOverride(t, "TokenURL", server.URL)
 
 	client := NewOAuthClient()
 	exchanged, err := client.ExchangeCode(context.Background(), "auth-code", "verifier", "http://127.0.0.1:56121/callback", "", "client-id")
@@ -95,8 +95,8 @@ func TestGrokOAuthClientRefreshForbiddenClassifiesOnlyExplicitEntitlement(t *tes
 				_, _ = w.Write([]byte(tt.body))
 			}))
 			defer server.Close()
-			t.Setenv(EnvAllowUnsafeURLOverrides, "true")
-			t.Setenv(EnvTokenURL, server.URL)
+			setGrokTestOverride(t, "AllowUnsafeURLOverrides", "true")
+			setGrokTestOverride(t, "TokenURL", server.URL)
 
 			client := NewOAuthClient()
 			_, err := client.RefreshToken(context.Background(), "refresh-token", "", "client-id")
@@ -116,8 +116,8 @@ func TestGrokOAuthClientStatusErrorRedactsSensitiveResponseBody(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":"invalid_grant","access_token":"access-secret","refresh_token":"refresh-secret","code_verifier":"verifier-secret"}`))
 	}))
 	defer server.Close()
-	t.Setenv(EnvAllowUnsafeURLOverrides, "true")
-	t.Setenv(EnvTokenURL, server.URL)
+	setGrokTestOverride(t, "AllowUnsafeURLOverrides", "true")
+	setGrokTestOverride(t, "TokenURL", server.URL)
 
 	client := NewOAuthClient()
 	_, err := client.RefreshToken(context.Background(), "refresh-secret", "", "client-id")
@@ -155,8 +155,8 @@ func TestNewGrokOAuthClient_UnvalidatedTokenURLFallsBackToDefault(t *testing.T) 
 	// Disable the unsafe switch before constructing this client so an untrusted
 	// environment endpoint is rejected during selection, before a
 	// credential-bearing request can be built.
-	t.Setenv(EnvAllowUnsafeURLOverrides, "")
-	t.Setenv(EnvTokenURL, "https://evil.example/oauth/token")
+	setGrokTestOverride(t, "AllowUnsafeURLOverrides", "")
+	setGrokTestOverride(t, "TokenURL", "https://evil.example/oauth/token")
 
 	client := NewOAuthClient()
 	require.Equal(t, DefaultTokenURL, client.tokenURL)

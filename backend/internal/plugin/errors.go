@@ -27,7 +27,7 @@ var (
 	ErrPluginsDisabled        = apperror.New(apperror.CategoryServiceUnavailable, "PLUGINS_DISABLED", "Plugins are disabled")
 	ErrIndexInvalid           = apperror.BadRequest("PLUGIN_INDEX_INVALID", "Plugin index is invalid")
 	ErrIndexNotFound          = apperror.NotFound("PLUGIN_INDEX_NOT_FOUND", "Plugin index not found")
-	ErrSecretKeyMissing       = apperror.BadRequest("PLUGIN_SECRET_KEY_REQUIRED", "Configure a persistent TOTP_ENCRYPTION_KEY before saving plugin secrets")
+	ErrSecretKeyMissing       = apperror.BadRequest("PLUGIN_SECRET_KEY_REQUIRED", "Configure a persistent security.secret_encryption_key before saving plugin secrets")
 	ErrLimitsInvalid          = apperror.BadRequest("PLUGIN_LIMITS_INVALID", "Plugin limits are invalid")
 	ErrMaxRunning             = apperror.Conflict("MAX_RUNNING_EXCEEDED", "Plugin process limit reached")
 	ErrIndexSignatureInvalid  = apperror.BadRequest("PLUGIN_INDEX_SIGNATURE_INVALID", "Plugin index signature is invalid")

@@ -79,9 +79,9 @@ func TestOpenCodePublicTextHTTP(t *testing.T) {
 					group.AllowedProtocols = []protocol.ProtocolID{}
 				}
 				cfg := &config.Config{}
-				cfg.Default.RateMultiplier = 1
+				cfg.Billing.FallbackRateMultiplier = 1
 				cfg.Security.URLAllowlist.AllowInsecureHTTP = true
-				cfg.Gateway.MaxProviderSwitches = 1
+				cfg.Gateway.Failover.MaxProviderSwitches = 1
 				record := &provider.Record{
 					ID: 31, Name: "OpenCode", Platform: provider.PlatformOpenCode,
 					Type: provider.ProviderTypeAPIKey, Status: "active", Schedulable: true,

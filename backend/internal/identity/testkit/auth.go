@@ -41,11 +41,11 @@ func AuthOptions(cfg *config.Config) *identity.AuthOptions {
 		return nil
 	}
 	out := &identity.AuthOptions{}
-	out.Default.UserBalance = cfg.Default.UserBalance
-	out.Default.UserConcurrency = cfg.Default.UserConcurrency
-	out.JWT = identity.SessionOptions{Secret: cfg.JWT.Secret, ExpireHour: cfg.JWT.ExpireHour, AccessTokenExpireMinutes: cfg.JWT.AccessTokenExpireMinutes, RefreshTokenExpireDays: cfg.JWT.RefreshTokenExpireDays}
+	out.Default.UserBalance = cfg.UserDefaults.Balance
+	out.Default.UserConcurrency = cfg.UserDefaults.Concurrency
+	out.JWT = identity.SessionOptions{Secret: cfg.Auth.JWT.Secret, AccessTokenExpireMinutes: cfg.Auth.JWT.AccessTokenTTLMinutes, RefreshTokenExpireDays: cfg.Auth.JWT.RefreshTokenTTLDays}
 	out.Server.Mode = cfg.Server.Mode
-	out.Turnstile.Required = cfg.Turnstile.Required
+	out.Turnstile.Required = cfg.Auth.RequireCaptcha
 	return out
 }
 

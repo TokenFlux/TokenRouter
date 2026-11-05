@@ -21,7 +21,7 @@ import (
 func TestGatewayGroupRateCacheTTL(t *testing.T) {
 	t.Run("resolve_user_group_rate_cache_ttl", func(t *testing.T) {
 		require.Equal(t, billing.DefaultGroupRateCacheTTL, gatewayGroupRateCacheTTL(nil))
-		cfg := &config.Config{Gateway: config.GatewayConfig{UserGroupRateCacheTTLSeconds: 45}}
+		cfg := &config.Config{Billing: config.BillingConfig{GroupRateCacheTTLSeconds: 45}}
 		require.Equal(t, 45*time.Second, gatewayGroupRateCacheTTL(cfg))
 	})
 }

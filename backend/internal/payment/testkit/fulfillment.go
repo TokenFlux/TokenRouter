@@ -3,7 +3,6 @@ package testkit
 import (
 	"context"
 	"log/slog"
-	"os"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
@@ -29,12 +28,12 @@ func Fulfillment(client *dbent.Client, redeem payment.FulfillmentRedeemer, subsc
 }
 
 // Lifecycle binds the fixture fulfillment service, prepared registry, and
-// resume service to order recovery. Nil resume uses process signing
+// resume service to order recovery. Nil resume uses empty signing
 // configuration, and loaded controls lazy registry lookup; these helpers do
 // not start expiry work.
 func Lifecycle(client *dbent.Client, registry *payment.Registry, redeem payment.FulfillmentRedeemer, subscriptions payment.FulfillmentSubscriptions, resume *payment.PaymentResumeService, loaded bool) *payment.OrderLifecycle {
 	if resume == nil {
-		resume = Resume(nil)
+		resume = Resume("", nil)
 	}
 	return payment.NewOrderLifecycle(fulfillment(client, redeem, subscriptions, nil, registry, loaded), resume, nil)
 }
@@ -67,10 +66,10 @@ func fulfillment(client *dbent.Client, redeem payment.FulfillmentRedeemer, subsc
 	return payment.NewFulfillment(store, bindings, registry, redeem, subscriptions, runtime)
 }
 
-// Resume constructs a signing service from PAYMENT_RESUME_SIGNING_KEY and the
+// Resume constructs a signing service from explicit text and the
 // supplied legacy key. A configured key wins signing and can retain distinct
 // legacy verification bytes; NewPaymentResumeService copies the chosen keys.
-func Resume(legacyKey []byte) *payment.PaymentResumeService {
-	key, fallbacks := payment.ResolvePaymentResumeSigningKeys(os.Getenv("PAYMENT_RESUME_SIGNING_KEY"), legacyKey)
+func Resume(raw string, legacyKey []byte) *payment.PaymentResumeService {
+	key, fallbacks := payment.ResolvePaymentResumeSigningKeys(raw, legacyKey)
 	return payment.NewPaymentResumeService(key, fallbacks...)
 }

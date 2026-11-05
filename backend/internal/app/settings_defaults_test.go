@@ -101,22 +101,20 @@ func TestGetOIDCConnectOAuthConfig_ResolvesEndpointsFromIssuerDiscovery(t *testi
 	defer srv.Close()
 	baseURL = srv.URL
 
-	cfg := &config.Config{
-		OIDC: config.OIDCConnectConfig{
-			Enabled:             true,
-			ProviderName:        "OIDC",
-			ClientID:            "oidc-client",
-			ClientSecret:        "oidc-secret",
-			IssuerURL:           srv.URL + "/issuer",
-			RedirectURL:         "https://example.com/api/v1/auth/oauth/oidc/callback",
-			FrontendRedirectURL: "/auth/oidc/callback",
-			Scopes:              "openid email profile",
-			TokenAuthMethod:     "client_secret_post",
-			ValidateIDToken:     true,
-			AllowedSigningAlgs:  "RS256",
-			ClockSkewSeconds:    120,
-		},
-	}
+	cfg := &config.Config{Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{OIDC: config.OIDCConnectConfig{
+		Enabled:             true,
+		ProviderName:        "OIDC",
+		ClientID:            "oidc-client",
+		ClientSecret:        "oidc-secret",
+		IssuerURL:           srv.URL + "/issuer",
+		RedirectURL:         "https://example.com/api/v1/auth/oauth/oidc/callback",
+		FrontendRedirectURL: "/auth/oidc/callback",
+		Scopes:              "openid email profile",
+		TokenAuthMethod:     "client_secret_post",
+		ValidateIDToken:     true,
+		AllowedSigningAlgs:  "RS256",
+		ClockSkewSeconds:    120,
+	}}}}
 
 	repo := &settingOIDCRepoStub{values: map[string]string{}}
 	svc := newOAuthSettingsFixture(repo, cfg)
@@ -154,12 +152,12 @@ func TestSettingService_ParseSettings_PreservesOptionalOIDCCompatibilityFlags(t 
 // startup values.
 func TestSettingService_ParseSettings_DefaultsOIDCSecurityFlagsToSafeConfigValues(t *testing.T) {
 	svc := newOAuthSettingsFixture(&settingOIDCRepoStub{values: map[string]string{}}, &config.Config{
-		OIDC: config.OIDCConnectConfig{
+		Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{OIDC: config.OIDCConnectConfig{
 			UsePKCE:                 true,
 			UsePKCEExplicit:         true,
 			ValidateIDToken:         true,
 			ValidateIDTokenExplicit: true,
-		},
+		}}},
 	})
 
 	got := readOAuthAdminSettings(svc, map[string]string{
@@ -175,12 +173,10 @@ func TestSettingService_ParseSettings_DefaultsOIDCSecurityFlagsToSafeConfigValue
 // administrator view still resolves enabled PKCE and ID-token validation for
 // this fixture.
 func TestSettingService_ParseSettings_DefaultsOIDCCompatibilityFlagsToSafeDefaultsWhenSettingsMissing(t *testing.T) {
-	svc := newOAuthSettingsFixture(&settingOIDCRepoStub{values: map[string]string{}}, &config.Config{
-		OIDC: config.OIDCConnectConfig{
-			UsePKCE:         true,
-			ValidateIDToken: true,
-		},
-	})
+	svc := newOAuthSettingsFixture(&settingOIDCRepoStub{values: map[string]string{}}, &config.Config{Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{OIDC: config.OIDCConnectConfig{
+		UsePKCE:         true,
+		ValidateIDToken: true,
+	}}}})
 
 	got := readOAuthAdminSettings(svc, map[string]string{
 		identity.SettingKeyOIDCConnectEnabled: "true",
@@ -195,22 +191,20 @@ func TestSettingService_ParseSettings_DefaultsOIDCCompatibilityFlagsToSafeDefaul
 // the request-time reader returns both disabled values without a configuration
 // error.
 func TestGetOIDCConnectOAuthConfig_AllowsCompatibilityFlagsToDisablePKCEAndIDTokenValidation(t *testing.T) {
-	cfg := &config.Config{
-		OIDC: config.OIDCConnectConfig{
-			Enabled:             true,
-			ProviderName:        "OIDC",
-			ClientID:            "oidc-client",
-			ClientSecret:        "oidc-secret",
-			IssuerURL:           "https://issuer.example.com",
-			AuthorizeURL:        "https://issuer.example.com/auth",
-			TokenURL:            "https://issuer.example.com/token",
-			UserInfoURL:         "https://issuer.example.com/userinfo",
-			RedirectURL:         "https://example.com/api/v1/auth/oauth/oidc/callback",
-			FrontendRedirectURL: "/auth/oidc/callback",
-			Scopes:              "openid email profile",
-			TokenAuthMethod:     "client_secret_post",
-		},
-	}
+	cfg := &config.Config{Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{OIDC: config.OIDCConnectConfig{
+		Enabled:             true,
+		ProviderName:        "OIDC",
+		ClientID:            "oidc-client",
+		ClientSecret:        "oidc-secret",
+		IssuerURL:           "https://issuer.example.com",
+		AuthorizeURL:        "https://issuer.example.com/auth",
+		TokenURL:            "https://issuer.example.com/token",
+		UserInfoURL:         "https://issuer.example.com/userinfo",
+		RedirectURL:         "https://example.com/api/v1/auth/oauth/oidc/callback",
+		FrontendRedirectURL: "/auth/oidc/callback",
+		Scopes:              "openid email profile",
+		TokenAuthMethod:     "client_secret_post",
+	}}}}
 
 	repo := &settingOIDCRepoStub{values: map[string]string{
 		identity.SettingKeyOIDCConnectEnabled:         "true",
@@ -231,7 +225,7 @@ func TestGetOIDCConnectOAuthConfig_AllowsCompatibilityFlagsToDisablePKCEAndIDTok
 // the request-time reader.
 func TestGetOIDCConnectOAuthConfig_DefaultsToSecureFlagsWhenSettingsMissing(t *testing.T) {
 	cfg := &config.Config{
-		OIDC: config.OIDCConnectConfig{
+		Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{OIDC: config.OIDCConnectConfig{
 			Enabled:                 true,
 			ProviderName:            "OIDC",
 			ClientID:                "oidc-client",
@@ -251,7 +245,7 @@ func TestGetOIDCConnectOAuthConfig_DefaultsToSecureFlagsWhenSettingsMissing(t *t
 			ValidateIDTokenExplicit: true,
 			AllowedSigningAlgs:      "RS256",
 			ClockSkewSeconds:        120,
-		},
+		}}},
 	}
 
 	repo := &settingOIDCRepoStub{values: map[string]string{
@@ -269,27 +263,25 @@ func TestGetOIDCConnectOAuthConfig_DefaultsToSecureFlagsWhenSettingsMissing(t *t
 // supplies enabled flags without their explicitness markers. It checks missing
 // stored values resolve both PKCE and ID-token validation to true.
 func TestGetOIDCConnectOAuthConfig_DefaultsCompatibilityFlagsToSafeValuesWhenSettingsMissing(t *testing.T) {
-	cfg := &config.Config{
-		OIDC: config.OIDCConnectConfig{
-			Enabled:             true,
-			ProviderName:        "OIDC",
-			ClientID:            "oidc-client",
-			ClientSecret:        "oidc-secret",
-			IssuerURL:           "https://issuer.example.com",
-			AuthorizeURL:        "https://issuer.example.com/auth",
-			TokenURL:            "https://issuer.example.com/token",
-			UserInfoURL:         "https://issuer.example.com/userinfo",
-			JWKSURL:             "https://issuer.example.com/jwks",
-			RedirectURL:         "https://example.com/api/v1/auth/oauth/oidc/callback",
-			FrontendRedirectURL: "/auth/oidc/callback",
-			Scopes:              "openid email profile",
-			TokenAuthMethod:     "client_secret_post",
-			UsePKCE:             true,
-			ValidateIDToken:     true,
-			AllowedSigningAlgs:  "RS256",
-			ClockSkewSeconds:    120,
-		},
-	}
+	cfg := &config.Config{Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{OIDC: config.OIDCConnectConfig{
+		Enabled:             true,
+		ProviderName:        "OIDC",
+		ClientID:            "oidc-client",
+		ClientSecret:        "oidc-secret",
+		IssuerURL:           "https://issuer.example.com",
+		AuthorizeURL:        "https://issuer.example.com/auth",
+		TokenURL:            "https://issuer.example.com/token",
+		UserInfoURL:         "https://issuer.example.com/userinfo",
+		JWKSURL:             "https://issuer.example.com/jwks",
+		RedirectURL:         "https://example.com/api/v1/auth/oauth/oidc/callback",
+		FrontendRedirectURL: "/auth/oidc/callback",
+		Scopes:              "openid email profile",
+		TokenAuthMethod:     "client_secret_post",
+		UsePKCE:             true,
+		ValidateIDToken:     true,
+		AllowedSigningAlgs:  "RS256",
+		ClockSkewSeconds:    120,
+	}}}}
 
 	repo := &settingOIDCRepoStub{values: map[string]string{
 		identity.SettingKeyOIDCConnectEnabled: "true",
@@ -393,19 +385,17 @@ func TestSettingService_GetWeChatConnectOAuthConfig_UsesDatabaseOverrides(t *tes
 // the absent API redirect.
 func TestSettingService_GetWeChatConnectOAuthConfig_FallsBackToConfigWhenDatabaseEmpty(t *testing.T) {
 	repo := &settingWeChatRepoStub{values: map[string]string{}}
-	svc := newOAuthSettingsFixture(repo, &config.Config{
-		WeChat: config.WeChatConnectConfig{
-			Enabled:             true,
-			OpenEnabled:         true,
-			MPEnabled:           true,
-			Mode:                "open",
-			OpenAppID:           "wx-open-config",
-			OpenAppSecret:       "wx-open-secret",
-			MPAppID:             "wx-mp-config",
-			MPAppSecret:         "wx-mp-secret",
-			FrontendRedirectURL: "/auth/wechat/config-callback",
-		},
-	})
+	svc := newOAuthSettingsFixture(repo, &config.Config{Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{WeChat: config.WeChatOAuthConfig{
+		Enabled:             true,
+		OpenEnabled:         true,
+		MPEnabled:           true,
+		Mode:                "open",
+		OpenAppID:           "wx-open-config",
+		OpenAppSecret:       "wx-open-secret",
+		MPAppID:             "wx-mp-config",
+		MPAppSecret:         "wx-mp-secret",
+		FrontendRedirectURL: "/auth/wechat/config-callback",
+	}}}})
 
 	got, err := svc.GetWeChatConnectOAuthConfig(context.Background())
 	require.NoError(t, err)
@@ -431,19 +421,17 @@ func TestSettingService_GetWeChatConnectOAuthConfig_IgnoresSyntheticDisabledCapa
 			identity.SettingKeyWeChatConnectMPEnabled:   "false",
 		},
 	}
-	svc := newOAuthSettingsFixture(repo, &config.Config{
-		WeChat: config.WeChatConnectConfig{
-			Enabled:             true,
-			OpenEnabled:         true,
-			MPEnabled:           true,
-			Mode:                "open",
-			OpenAppID:           "wx-open-config",
-			OpenAppSecret:       "wx-open-secret",
-			MPAppID:             "wx-mp-config",
-			MPAppSecret:         "wx-mp-secret",
-			FrontendRedirectURL: "/auth/wechat/config-callback",
-		},
-	})
+	svc := newOAuthSettingsFixture(repo, &config.Config{Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{WeChat: config.WeChatOAuthConfig{
+		Enabled:             true,
+		OpenEnabled:         true,
+		MPEnabled:           true,
+		Mode:                "open",
+		OpenAppID:           "wx-open-config",
+		OpenAppSecret:       "wx-open-secret",
+		MPAppID:             "wx-mp-config",
+		MPAppSecret:         "wx-mp-secret",
+		FrontendRedirectURL: "/auth/wechat/config-callback",
+	}}}})
 
 	got, err := svc.GetWeChatConnectOAuthConfig(context.Background())
 	require.NoError(t, err)
@@ -459,16 +447,14 @@ func TestSettingService_GetWeChatConnectOAuthConfig_IgnoresSyntheticDisabledCapa
 // administrator enabled flags, app ID, configured-secret marker, frontend
 // callback, mode, and login scope.
 func TestSettingService_ParseSettings_FallsBackToConfigForWeChatAdminView(t *testing.T) {
-	svc := newOAuthSettingsFixture(&settingWeChatRepoStub{values: map[string]string{}}, &config.Config{
-		WeChat: config.WeChatConnectConfig{
-			Enabled:             true,
-			OpenEnabled:         true,
-			Mode:                "open",
-			OpenAppID:           "wx-open-config",
-			OpenAppSecret:       "wx-open-secret",
-			FrontendRedirectURL: "/auth/wechat/config-callback",
-		},
-	})
+	svc := newOAuthSettingsFixture(&settingWeChatRepoStub{values: map[string]string{}}, &config.Config{Auth: config.AuthConfig{OAuth: config.OAuthProvidersConfig{WeChat: config.WeChatOAuthConfig{
+		Enabled:             true,
+		OpenEnabled:         true,
+		Mode:                "open",
+		OpenAppID:           "wx-open-config",
+		OpenAppSecret:       "wx-open-secret",
+		FrontendRedirectURL: "/auth/wechat/config-callback",
+	}}}})
 
 	got := readOAuthAdminSettings(svc, map[string]string{})
 	require.True(t, got.WeChatConnectEnabled)

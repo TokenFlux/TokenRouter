@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -405,15 +404,14 @@ CREATE TABLE IF NOT EXISTS user_avatars (
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(drv)))
 
 	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:                   "test-secret",
-			ExpireHour:               1,
-			AccessTokenExpireMinutes: 60,
-			RefreshTokenExpireDays:   7,
-		},
-		Default: config.DefaultConfig{
-			UserBalance:     0,
-			UserConcurrency: 1,
+		Auth: config.AuthConfig{JWT: config.JWTConfig{
+			Secret:                "test-secret",
+			AccessTokenTTLMinutes: 60,
+			RefreshTokenTTLDays:   7,
+		}},
+		UserDefaults: config.UserDefaultsConfig{
+			Balance:     0,
+			Concurrency: 1,
 		},
 	}
 	settingValues := map[string]string{
@@ -1973,15 +1971,14 @@ func newWeChatOAuthTestHandlerWithSettings(t *testing.T, invitationEnabled bool,
 	userRepo := &oauthPendingFlowUserRepo{client: client}
 	redeemRepo := billingpostgres.NewRedeemCodeRepository(client)
 	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:                   "test-secret",
-			ExpireHour:               1,
-			AccessTokenExpireMinutes: 60,
-			RefreshTokenExpireDays:   7,
-		},
-		Default: config.DefaultConfig{
-			UserBalance:     0,
-			UserConcurrency: 1,
+		Auth: config.AuthConfig{JWT: config.JWTConfig{
+			Secret:                "test-secret",
+			AccessTokenTTLMinutes: 60,
+			RefreshTokenTTLDays:   7,
+		}},
+		UserDefaults: config.UserDefaultsConfig{
+			Balance:     0,
+			Concurrency: 1,
 		},
 	}
 	values := map[string]string{
@@ -2200,7 +2197,7 @@ func bindAuthHTTPFixture(t *testing.T, h *authHTTPFixture) {
 	}
 	secret := ""
 	if h.cfg != nil {
-		secret = strings.TrimSpace(h.cfg.JWT.Secret)
+		secret = strings.TrimSpace(h.cfg.Auth.JWT.Secret)
 	}
 	// NewSessionHandler stores this callback without invoking it. Capture the
 	// pending variable so the later NewPendingHandler assignment supplies the
@@ -2242,10 +2239,10 @@ func bindAuthHTTPFixture(t *testing.T, h *authHTTPFixture) {
 		if h.cfg == nil {
 			return identitycore.LinuxDoOAuthOptions{}, apperror.ServiceUnavailable("CONFIG_NOT_READY", "config not loaded")
 		}
-		if !h.cfg.LinuxDo.Enabled {
+		if !h.cfg.Auth.OAuth.LinuxDo.Enabled {
 			return identitycore.LinuxDoOAuthOptions{}, apperror.NotFound("OAUTH_DISABLED", "oauth login is disabled")
 		}
-		return identitycore.LinuxDoOAuthOptions(h.cfg.LinuxDo), nil
+		return identitycore.LinuxDoOAuthOptions(h.cfg.Auth.OAuth.LinuxDo), nil
 	}
 	oidc := func(ctx context.Context) (identitycore.OIDCOAuthOptions, error) {
 		// Choose the runtime reader when present; static-config cases clear
@@ -2258,10 +2255,10 @@ func bindAuthHTTPFixture(t *testing.T, h *authHTTPFixture) {
 		if h.cfg == nil {
 			return identitycore.OIDCOAuthOptions{}, apperror.ServiceUnavailable("CONFIG_NOT_READY", "config not loaded")
 		}
-		if !h.cfg.OIDC.Enabled {
+		if !h.cfg.Auth.OAuth.OIDC.Enabled {
 			return identitycore.OIDCOAuthOptions{}, apperror.NotFound("OAUTH_DISABLED", "oauth login is disabled")
 		}
-		return identitycore.OIDCOAuthOptions(h.cfg.OIDC), nil
+		return identitycore.OIDCOAuthOptions(h.cfg.Auth.OAuth.OIDC), nil
 	}
 	dingConfig := func(ctx context.Context) (identitycore.DingTalkOAuthOptions, error) {
 		// Choose the runtime reader when present; static-config cases clear
@@ -2274,10 +2271,10 @@ func bindAuthHTTPFixture(t *testing.T, h *authHTTPFixture) {
 		if h.cfg == nil {
 			return identitycore.DingTalkOAuthOptions{}, apperror.ServiceUnavailable("CONFIG_NOT_READY", "config not loaded")
 		}
-		if !h.cfg.DingTalk.Enabled {
+		if !h.cfg.Auth.OAuth.DingTalk.Enabled {
 			return identitycore.DingTalkOAuthOptions{}, apperror.NotFound("OAUTH_DISABLED", "dingtalk oauth login is disabled")
 		}
-		return identitycore.DingTalkOAuthOptions(h.cfg.DingTalk), nil
+		return identitycore.DingTalkOAuthOptions(h.cfg.Auth.OAuth.DingTalk.IdentityDefaults()), nil
 	}
 	clients := &provider.DingTalkClients{}
 	syncer := &identitycore.DingTalkSyncRuntime{LoadConfig: dingConfig, Client: func(v identitycore.DingTalkOAuthOptions) identitycore.DingTalkOAuthClient {
@@ -2385,8 +2382,8 @@ func (h *authHTTPFixture) paymentResume() *payment.PaymentResumeService {
 	var raw string
 	var configured bool
 	if h.cfg != nil {
-		raw = h.cfg.Totp.EncryptionKey
-		configured = h.cfg.Totp.EncryptionKeyConfigured
+		raw = h.cfg.Security.SecretEncryptionKey
+		configured = h.cfg.Security.SecretEncryptionKeyConfigured
 	}
 	key, warning, err := payment.ConfiguredEncryptionKey(raw, configured)
 	if warning != "" {
@@ -2399,7 +2396,7 @@ func (h *authHTTPFixture) paymentResume() *payment.PaymentResumeService {
 	if err == nil {
 		legacy = []byte(key)
 	}
-	signing, fallbacks := payment.ResolvePaymentResumeSigningKeys(os.Getenv("PAYMENT_RESUME_SIGNING_KEY"), legacy)
+	signing, fallbacks := payment.ResolvePaymentResumeSigningKeys(h.cfg.Payment.ResumeSigningKey, legacy)
 	return payment.NewPaymentResumeService(signing, fallbacks...)
 }
 
@@ -2412,24 +2409,24 @@ func newAuthSettingsFixture(repo settings.Repository, cfg *config.Config) *authS
 		cfg = &config.Config{}
 	}
 	store := settings.New(repo)
-	oauth := identitycore.NewOAuthSettings(store, &identitycore.OAuthSettingsDefaults{LinuxDo: cfg.LinuxDo, DingTalk: cfg.DingTalk, OIDC: cfg.OIDC, WeChat: cfg.WeChat, GitHubOAuth: cfg.GitHubOAuth, GoogleOAuth: cfg.GoogleOAuth}, provider.ResolveSettingsOIDCMetadata)
-	grants := identitycore.NewGrantSettings(store, identitycore.GrantSettingsOptions{DefaultBalance: cfg.Default.UserBalance, DefaultConcurrency: cfg.Default.UserConcurrency})
-	value := &authSettingsFixture{RuntimeSettings: identitycore.NewRuntimeSettings(store, settings.ErrSettingNotFound), GrantSettings: grants, DisplaySettings: site.NewDisplaySettings(store, func() string { return cfg.Server.FrontendURL }), oauth: oauth, promotion: promotion.NewRuntimeSettings(store), backend: admission.NewBackendMode(store, nil)}
+	oauth := identitycore.NewOAuthSettings(store, &identitycore.OAuthSettingsDefaults{LinuxDo: cfg.Auth.OAuth.LinuxDo, DingTalk: cfg.Auth.OAuth.DingTalk.IdentityDefaults(), OIDC: cfg.Auth.OAuth.OIDC, WeChat: cfg.Auth.OAuth.WeChat.IdentityDefaults(), GitHubOAuth: cfg.Auth.OAuth.GitHub, GoogleOAuth: cfg.Auth.OAuth.Google}, provider.ResolveSettingsOIDCMetadata)
+	grants := identitycore.NewGrantSettings(store, identitycore.GrantSettingsOptions{DefaultBalance: cfg.UserDefaults.Balance, DefaultConcurrency: cfg.UserDefaults.Concurrency})
+	value := &authSettingsFixture{RuntimeSettings: identitycore.NewRuntimeSettings(store, settings.ErrSettingNotFound), GrantSettings: grants, DisplaySettings: site.NewDisplaySettings(store, func() string { return cfg.Site.FrontendURL }), oauth: oauth, promotion: promotion.NewRuntimeSettings(store), backend: admission.NewBackendMode(store, nil)}
 	value.public = site.NewPublicService(site.NewInputSource(store, site.PublicInputOptions{Auth: func(raw map[string]string) site.PublicAuth {
 		v := oauth.PublicSettingsFromValues(raw)
 		enabled, selfService := team.PublicSettings(raw, cfg.Team.Enabled, cfg.Team.SelfServiceEnabled)
-		return site.PublicAuth{LinuxDo: v.LinuxDo, DingTalk: v.DingTalk, OIDC: v.OIDC, OIDCName: v.OIDCName, WeChat: v.WeChat, WeChatOpen: v.WeChatOpen, WeChatMP: v.WeChatMP, WeChatMobile: v.WeChatMobile, GitHub: v.GitHub, Google: v.Google, GoogleOneTap: v.GoogleOneTap, GoogleClientID: v.GoogleClientID, Team: enabled, TeamSelfService: selfService, Passkey: cfg.WebAuthn.Enabled, TencentRegion: v.TencentRegion, AliyunRegion: v.AliyunRegion, RegistrationSuffixes: v.RegistrationSuffixes}
+		return site.PublicAuth{LinuxDo: v.LinuxDo, DingTalk: v.DingTalk, OIDC: v.OIDC, OIDCName: v.OIDCName, WeChat: v.WeChat, WeChatOpen: v.WeChatOpen, WeChatMP: v.WeChatMP, WeChatMobile: v.WeChatMobile, GitHub: v.GitHub, Google: v.Google, GoogleOneTap: v.GoogleOneTap, GoogleClientID: v.GoogleClientID, Team: enabled, TeamSelfService: selfService, Passkey: cfg.Auth.WebAuthn.Enabled, TencentRegion: v.TencentRegion, AliyunRegion: v.AliyunRegion, RegistrationSuffixes: v.RegistrationSuffixes}
 	}, Usage: func(raw map[string]string) site.PublicUsage {
 		v := usage.ParseRankingSettings(raw)
 		return site.PublicUsage{Limit: v.Limit, Enabled: v.Enabled, SortBy: string(v.SortBy), ShowTotalTokens: v.ShowTotalTokens, ShowRequests: v.ShowRequests, ShowActualCost: v.ShowActualCost}
 	}, Version: store.Version}), timezone.NewCalendar(time.Local), "")
 	rules := gateway.AdminSettingsRules{GrokDefaultTextModel: grok.DefaultTextModel, NormalizeUserAgentVersion: antigravity.NormalizeUserAgentVersion, ValidateClaudePromptBlocks: anthropic.ValidateClaudeOAuthSystemPromptBlocksConfig}
-	read := composite.ReadOptions{OAuth: oauth, Gateway: rules, Scheduler: scheduler.DefaultAdminSettingsDefaults(), DefaultBalance: func() float64 { return cfg.Default.UserBalance }, DefaultConcurrency: func() int { return cfg.Default.UserConcurrency }, Forwarded: func() runtimeconfig.ForwardedInput {
+	read := composite.ReadOptions{OAuth: oauth, Gateway: rules, Scheduler: scheduler.DefaultAdminSettingsDefaults(), DefaultBalance: func() float64 { return cfg.UserDefaults.Balance }, DefaultConcurrency: func() int { return cfg.UserDefaults.Concurrency }, Forwarded: func() runtimeconfig.ForwardedInput {
 		v := cfg.ForwardedClientIPSettings()
 		return runtimeconfig.ForwardedInput{APIKeyACLTrustForwardedIP: v.TrustForwardedIP, ForwardedClientIPHeaders: v.Headers}
 	}, PublishModel: func(model string) {
 	}}
-	value.composite = composite.NewRuntime(store, read, composite.PrepareOptions{}, grants, nil, cfg.Totp.EncryptionKeyConfigured, nil)
+	value.composite = composite.NewRuntime(store, read, composite.PrepareOptions{}, grants, nil, cfg.Security.SecretEncryptionKeyConfigured, nil)
 	return value
 }
 

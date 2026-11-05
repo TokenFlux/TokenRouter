@@ -31,7 +31,7 @@ import (
 // resolver's false availability result.
 func provideGeminiAuthorization(proxies egress.ProxyRepository, client provider.GeminiOAuthClient, discovery provider.GeminiCodeAssistClient, drive codeassist.DriveClient, cfg *config.Config) *provider.GeminiAuthorization {
 	options := provideradapter.GeminiAuthorizationOptions(func() google.OAuthConfig {
-		return google.OAuthConfig{ClientID: cfg.Gemini.OAuth.ClientID, ClientSecret: cfg.Gemini.OAuth.ClientSecret, Scopes: cfg.Gemini.OAuth.Scopes}
+		return google.OAuthConfig{ClientID: cfg.Provider.Gemini.OAuth.ClientID, ClientSecret: cfg.Provider.Gemini.OAuth.ClientSecret, Scopes: cfg.Provider.Gemini.OAuth.Scopes}
 	}, func(ctx context.Context, id int64) (string, bool) {
 		proxy, err := proxies.GetByID(ctx, id)
 		// A failed or absent proxy read cannot supply authorization routing.
@@ -49,11 +49,11 @@ func provideGeminiAuthorization(proxies egress.ProxyRepository, client provider.
 // construction, and LoadPolicy reads the shared store when the service requests
 // runtime policy.
 func provideGeminiQuotaPolicy(cfg *config.Config, store *settings.Store) *provider.GeminiQuotaService {
-	tiers := make(map[string]provider.GeminiTierQuotaOverride, len(cfg.Gemini.Quota.Tiers))
-	for id, v := range cfg.Gemini.Quota.Tiers {
+	tiers := make(map[string]provider.GeminiTierQuotaOverride, len(cfg.Provider.Gemini.Quota.Tiers))
+	for id, v := range cfg.Provider.Gemini.Quota.Tiers {
 		tiers[id] = provider.GeminiTierQuotaOverride{ProRPD: v.ProRPD, FlashRPD: v.FlashRPD, CooldownMinutes: v.CooldownMinutes}
 	}
-	return provider.NewGeminiQuotaService(provider.GeminiQuotaOptions{StaticTiers: tiers, StaticPolicy: cfg.Gemini.Quota.Policy, Now: time.Now, Log: log.Printf, NotFound: settings.ErrSettingNotFound, LoadPolicy: func(ctx context.Context) (string, error) {
+	return provider.NewGeminiQuotaService(provider.GeminiQuotaOptions{StaticTiers: tiers, StaticPolicy: cfg.Provider.Gemini.Quota.Policy, Now: time.Now, Log: log.Printf, NotFound: settings.ErrSettingNotFound, LoadPolicy: func(ctx context.Context) (string, error) {
 		return store.GetValue(ctx, provider.GeminiQuotaPolicySettingKey)
 	}})
 }

@@ -1,0 +1,951 @@
+# config.example.yaml documents TokenRouter startup settings for standalone and
+# container deployments. Copy it to the configured application path and adjust
+# connection details and secrets for the deployment; comments describe units,
+# precedence, and optional features without changing the application defaults.
+#
+# Copy this file to /etc/tokenrouter/config.yaml and modify as needed
+#
+# Documentation: https://github.com/TokenFlux/TokenRouter
+
+# Managed by TokenRouter; see docs/interfaces/configuration.md before editing config_version.
+config_version: 2
+# =============================================================================
+# Server Configuration
+# =============================================================================
+server:
+  # Bind address (0.0.0.0 for all interfaces)
+  host: "0.0.0.0"
+  # Port to listen on
+  port: 8080
+  # Mode: "debug" for development, "release" for production
+  mode: release
+  # Return Server-Timing for authenticated requests from admin web pages.
+  enable_server_timing: false
+  # Request header limit in bytes (64 KiB); also bounds the HTTP/2 header list.
+  max_header_bytes: 65536
+  # HTTP/2 Cleartext (h2c) configuration
+  h2c:
+    # Enable HTTP/2 Cleartext for client connections
+    enabled: true
+    # Max concurrent streams per connection
+    max_concurrent_streams: 50
+    # Max upload buffer per connection in bytes (default: 2MB)
+    max_upload_buffer_per_connection_bytes: 2097152
+    # Max upload buffer per stream in bytes (default: 512KB)
+    max_upload_buffer_per_stream_bytes: 524288
+    # Max frame size in bytes (default: 1MB)
+    max_read_frame_bytes: 1048576
+    # Idle timeout for connections (seconds)
+    idle_timeout_seconds: 75
+  client_ip:
+    # Legacy compatibility switch. When true, raw forwarded headers take over
+    # server.trusted_proxies. Set false to enforce the trusted proxy chain above.
+    # This example enforces the trusted proxy chain.
+    trust_forwarded_headers: false
+    # Optional client-IP headers for third-party CDNs, checked in list order before
+    # CF-Connecting-IP, X-Real-IP, and X-Forwarded-For. Valid only while the legacy
+    # compatibility switch above is true; maximum 16 unique HTTP header names.
+    # Environment:
+    # SECURITY_FORWARDED_CLIENT_IP_HEADERS=True-Client-IP,X-CDN-Client-IP
+    forwarded_headers: []
+    # Trusted proxies used when security.trust_forwarded_ip_for_api_key_acl is false.
+    # List only the exact proxy addresses that connect directly to TokenRouter.
+    # Set [] explicitly to disable forwarded-IP trust in high-security mode.
+    trusted_proxies:
+      - 127.0.0.1/32
+      - ::1/128
+  # Global max request body size in bytes (default: 256MB)
+  # Applies to all requests, especially important for h2c first request memory protection
+  max_request_body_bytes: 268435456
+  # Maximum time to receive complete request headers. Does not limit response streams.
+  read_header_timeout_seconds: 10
+  # Keep-alive idle timeout in seconds.
+  idle_timeout_seconds: 120
+# =============================================================================
+# Security Configuration
+# =============================================================================
+security:
+  # Example:
+  # forwarded_client_ip_headers:
+  #   - "True-Client-IP"
+  #   - "X-CDN-Client-IP"
+  url_allowlist:
+    # Enable URL allowlist validation (disable to skip all URL checks)
+    enabled: false
+    # Allowed upstream hosts for API proxying
+    upstream_hosts:
+      - "api.openai.com"
+      - "api.anthropic.com"
+      - "api.kimi.com"
+      - "api.moonshot.ai"
+      - "api.moonshot.cn"
+      - "open.bigmodel.cn"
+      - "api.minimaxi.com"
+      - "generativelanguage.googleapis.com"
+      - "cloudcode-pa.googleapis.com"
+      - "*.openai.azure.com"
+    # Allow localhost/private IPs for upstream/pricing/CRS (use only in trusted networks)
+    allow_private_hosts: true
+    # Allow HTTP URLs when the allowlist is disabled. Defaults to true; false
+    # permits only HTTPS URLs.
+    allow_insecure_http: true
+    # Allowed hosts for pricing data download
+    model_catalog_hosts:
+      - "models.dev"
+      - "raw.githubusercontent.com"
+    # Allowed hosts for CRS sync (required when using CRS sync)
+    crs_sync_hosts: []
+  csp:
+    # Enable Content-Security-Policy header
+    enabled: true
+    # Default CSP policy (override if you host assets on other domains)
+    # Note: __CSP_NONCE__ will be replaced with 'nonce-xxx' at request time for inline script security
+    policy: "default-src 'self'; worker-src 'self' blob:; script-src 'self' __CSP_NONCE__ https://accounts.google.com/gsi/client https://challenges.cloudflare.com https://*.alicdn.com https://static.cloudflareinsights.com https://turing.captcha.qcloud.com https://turing.captcha.gtimg.com https://ca.turing.captcha.qcloud.com https://global.turing.captcha.gtimg.com https://www.tycaptcha.com https://cloudcache.tencentcs.com https://*.stripe.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; style-src 'self' 'unsafe-inline' https://*.captcha.gtimg.com https://accounts.google.com/gsi/style https://fonts.googleapis.com https://*.alicdn.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:43110 http://127.0.0.1:43111 http://127.0.0.1:43112 http://127.0.0.1:43113 http://127.0.0.1:43114 http://127.0.0.1:43115 http://127.0.0.1:43116 http://127.0.0.1:43117 http://127.0.0.1:43118 http://127.0.0.1:43119 https://accounts.google.com/gsi/ https://turing.captcha.qcloud.com https://www.tycaptcha.com https://rce.tencentrio.com https:; frame-src https://accounts.google.com/gsi/ https://challenges.cloudflare.com https://turing.captcha.qcloud.com https://ca.turing.captcha.qcloud.com https://www.tycaptcha.com https://*.stripe.com https://checkout.airwallex.com https://checkout-demo.airwallex.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+  # IMPORTANT: Set a fixed encryption key for TOTP secrets.
+  # If left empty, a random key will be generated on each startup, causing all
+  # existing TOTP configurations to become invalid (users won't be able to
+  # login with 2FA).
+  # Generate with: openssl rand -hex 32
+  secret_encryption_key: ""
+  # =============================================================================
+  # CORS Configuration
+  # =============================================================================
+  cors:
+    # Allowed origins list. Leave empty to disable cross-origin requests.
+    allowed_origins: []
+    # Allow credentials (cookies/authorization headers). Cannot be used with "*".
+    allow_credentials: true
+# =============================================================================
+# Gateway Configuration
+# =============================================================================
+gateway:
+  # The local Grok free-tier soft gate filters scheduling only. Admin quota
+  # queries and import probes bypass it.
+  # Enabled by default; a provider is classified as free only when
+  # subscription_tier or plan_type explicitly equals "free".
+  # Statistics and query failures leave the gate open so database errors do
+  # not block all Grok traffic.
+  grok:
+    # Grok text Responses first-byte timeout (seconds, 0=disabled; default 120)
+    response_header_timeout_seconds: 120
+  openai:
+    # Deployment defaults for persistent Responses connections. Values saved
+    # under Gateway Settings > OpenAI take precedence.
+    # Group protocol settings determine whether clients may use persistent
+    # connections.
+    responses_ws:
+      # Connection-to-concurrency ratio for API key providers.
+      api_key_max_conns_factor: 1
+      # Maximum connections per provider.
+      max_conns_per_provider: 128
+      # Minimum idle connections to prepare.
+      min_idle_per_provider: 4
+      # Maximum idle connections to retain.
+      max_idle_per_provider: 12
+      # Scale the connection limit with provider concurrency.
+      dynamic_max_conns_by_provider_concurrency_enabled: true
+      # Connection-to-concurrency ratio for OAuth providers.
+      oauth_max_conns_factor: 1
+      # Maximum queued requests per connection.
+      queue_limit_per_conn: 64
+      # Target connection pool utilization for prewarming.
+      pool_target_utilization: 0.7
+      # Minimum interval between prewarming attempts (milliseconds).
+      prewarm_cooldown_ms: 300
+      # Timeout for the first client message (seconds).
+      client_first_message_timeout_seconds: 30
+      # Maximum idle time between turns (seconds); zero disables the limit.
+      ingress_inter_turn_idle_timeout_seconds: 300
+      # Maximum client connections per API key; zero disables the limit.
+      max_ingress_connections_per_api_key: 64
+      # Maximum client message size (bytes).
+      client_read_limit_bytes: 67108864
+      # Bridge the first request to HTTP when it reaches this size and the group
+      # permits HTTP (bytes).
+      http_bridge_threshold_bytes: 15728640
+      # Upstream connection timeout (seconds).
+      dial_timeout_seconds: 10
+      # Message read timeout (seconds).
+      read_timeout_seconds: 900
+      # Message write timeout (seconds).
+      write_timeout_seconds: 120
+      # Attempt recovery when the upstream cannot find the previous response.
+      ingress_previous_response_recovery_enabled: true
+    # Optional timeout override for high/xhigh/max effort (seconds). Zero uses
+    # the standard timeout.
+    high_effort_first_output_timeout_seconds: 0
+    # Forward client timeout headers, such as x-stainless-timeout, in OpenAI
+    # passthrough mode.
+    # Defaults to false to filter these headers and reduce the risk of upstream
+    # streams ending prematurely.
+    passthrough_allow_timeout_headers: false
+    codex:
+      # Optional: template file used to build the final top-level Codex `instructions`.
+      #
+      # This is applied on the `/v1/messages -> Responses/Codex` conversion path,
+      # after Claude `system` has already been normalized into Codex `instructions`.
+      #
+      # The template can reference:
+      # - {{ .ExistingInstructions }} : converted client instructions/system
+      # - {{ .OriginalModel }}        : original requested model
+      # - {{ .NormalizedModel }}      : normalized routing model
+      # - {{ .BillingModel }}         : billing model
+      # - {{ .UpstreamModel }}        : final upstream model
+      #
+      # If you want to preserve client system prompts, keep {{ .ExistingInstructions }}
+      # somewhere in the template. If omitted, the template output fully replaces it.
+      #
+      # Docker users can mount a host file to /app/data/codex-instructions.md.tmpl
+      # and point this field there.
+      forced_instructions_template_file: ""
+      # Automatically inject the image_generation tool and bridge instructions
+      # into Codex /responses requests.
+      #
+      # Defaults to false, preserving text-only Codex requests. An explicitly
+      # supplied image_generation tool is still forwarded when the group allows
+      # image generation.
+      image_generation_bridge_enabled: false
+      # Force Codex CLI mode: treat all /openai/v1/responses requests as Codex CLI.
+      # Use this fallback when an intermediary drops or rewrites User-Agent before
+      # forwarding the request to TokenRouter.
+      #
+      # Enabling this changes behavior for every client, including clients other
+      # than VS Code and Codex CLI.
+      force_cli: false
+    # Native OpenAI HTTP Responses first semantic output timeout (seconds, 0=disabled)
+    # Includes response-header wait; does not apply to passthrough or WebSocket transports.
+    # A timed-out request may already have incurred upstream usage; provider failover can therefore duplicate upstream billing.
+    # Each attempt buffers at most 8 MiB before the first output. Exceeding this
+    # limit switches providers without exposing incomplete SSE data.
+    first_output_timeout_seconds: 0
+    # OpenAI/Codex upstream response header timeout (seconds, 0=disabled)
+    response_header_timeout_seconds: 0
+    # OpenAI Responses SSE proxy circuit breaker. Isolation is keyed by proxy_id
+    # across providers and affects only subsequent scheduling.
+    # Isolation is a scheduling preference: fail open when every candidate proxy
+    # is isolated. Concurrent stream failures within three seconds count as one
+    # failure.
+    proxy_stream_circuit:
+      failure_threshold: 2
+      window_seconds: 60
+      ttl_seconds: 600
+      enabled: true
+    # OpenAI HTTP upstream protocol strategy.
+    # Defaults to HTTP/2, with temporary HTTP/1.1 fallback when a proxy is
+    # confirmed incompatible.
+    http2:
+      enabled: true
+      allow_proxy_fallback_to_http1: true
+      fallback_error_threshold: 2
+      fallback_window_seconds: 60
+      fallback_ttl_seconds: 600
+    # Hard duration limit for each ChatGPT Frameless Live session (seconds).
+    live:
+      max_session_duration_seconds: 3600
+  images:
+    # Keepalive interval for non-streaming image JSON responses (seconds); zero
+    # disables it. The first heartbeat commits HTTP status 200.
+    nonstream_keepalive_interval_seconds: 0
+    # Image stream data interval timeout (seconds), 0=disable; independent from ordinary text streams
+    stream_data_idle_timeout_seconds: 900
+    # Image stream keepalive interval (seconds), 0=disable; independent from ordinary text streams
+    stream_keepalive_interval_seconds: 10
+    # Image generation independent concurrency limiter (process-local, default disabled)
+    # The combined limit across instances is approximately the instance count
+    # multiplied by the per-process limit.
+    concurrency:
+      # Enable image-only concurrency protection; false keeps existing behavior unchanged
+      enabled: false
+      # Max concurrent image generation requests in this process, 0=unlimited
+      max_concurrent_requests: 0
+      # Overflow mode when the image concurrency limit is full: reject/wait
+      # Reject requests immediately or wait for a slot when the image
+      # concurrency limit is reached.
+      overflow_mode: "reject"
+      # Wait timeout for overflow_mode=wait (seconds), 0=do not wait
+      wait_timeout_seconds: 30
+      # Max image requests waiting in this process when overflow_mode=wait, 0=unlimited
+      max_waiting_requests: 100
+  upstream_error_body_log:
+    # Max bytes to log from upstream error body
+    max_bytes: 2048
+    # Log upstream error response body summary (safe/truncated; does not log request content)
+    enabled: true
+  # Max bytes to read for non-stream upstream responses (default: 8MB)
+  upstream_response_max_bytes: 8388608
+  gemini:
+    # Enable Gemini upstream response header debug logs (default: false)
+    debug_response_headers: false
+  streaming:
+    # Stream data interval timeout (seconds), 0=disable
+    data_idle_timeout_seconds: 180
+    # Stream keepalive interval (seconds), 0=disable
+    keepalive_interval_seconds: 10
+    # SSE ping interval during concurrency wait (seconds)
+    wait_ping_interval_seconds: 10
+  # Max bytes to read for upstream model-list responses (default: 8MB)
+  models_list_response_max_bytes: 8388608
+  transport:
+    # Connection pool isolation strategy:
+    # - proxy: Isolate by proxy, same proxy shares connection pool (suitable for few proxies, many providers)
+    # - provider: Isolate by provider, same provider shares connection pool (suitable for few providers, strict isolation)
+    # - provider_proxy: Isolate by provider+proxy combination (default, finest granularity)
+    connection_pool_isolation: "provider_proxy"
+    # Idle connection timeout (seconds)
+    idle_conn_timeout_seconds: 90
+    client_cache:
+      # client_idle_ttl_seconds: Client idle reclaim threshold (seconds), reclaimed when idle and no active requests
+      idle_ttl_seconds: 900
+      # Upstream client cache settings
+      # max_upstream_clients: Max cached clients, evicts least recently used when exceeded
+      max_clients: 5000
+    # Max idle connections per host
+    max_idle_conns_per_host: 120
+    # Timeout for waiting upstream response headers (seconds)
+    response_header_timeout_seconds: 600
+    # Max connections per host
+    max_conns_per_host: 1024
+    # HTTP upstream connection pool settings (HTTP/2 + multi-proxy scenario defaults)
+    # Max idle connections across all hosts
+    max_idle_conns: 2560
+  anthropic:
+    # Auto inject anthropic-beta header for API-key providers when needed (default: off)
+    inject_beta_for_api_key: false
+  # Pure-text endpoint body limit (embeddings and alpha/search), default 32 MiB.
+  text_max_request_body_bytes: 33554432
+  upstream_response_headers:
+    # Filter sensitive upstream response headers by default; additional allow
+    # and removal lists below customize which headers reach the client.
+    enabled: true
+    # Extra allowed response headers from upstream
+    additional_allowed: []
+    # Force-remove response headers from upstream
+    force_remove: []
+  failover:
+    # Allow failover on selected 400 errors (default: off)
+    messages_on_400: false
+  # Max request body size in bytes (default: 256MB)
+  max_request_body_bytes: 268435456
+  # SSE max line size in bytes (default: 40MB)
+  max_sse_line_bytes: 41943040
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+log:
+  # Log level: debug/info/warn/error
+  level: "info"
+  # Log format: json/console
+  format: "console"
+  # Service name field written into each log line
+  service_name: "tokenrouter"
+  # Include caller information
+  caller: true
+  # Stacktrace threshold: none/error/fatal
+  stacktrace_level: "error"
+  output:
+    # Keep stdout/stderr output for container log collection
+    to_stdout: true
+    # Enable file output (default path auto-derived)
+    to_file: true
+    # Empty means:
+    # - DATA_DIR set: {{DATA_DIR}}/logs/tokenrouter.log
+    # - otherwise: /app/data/logs/tokenrouter.log
+    file_path: ""
+  rotation:
+    # Max file size before rotation (MB)
+    max_size_mb: 100
+    # Number of rotated files to keep (0 means unlimited)
+    max_backups: 10
+    # Number of days to keep old log files (0 means unlimited)
+    max_age_days: 7
+    # Compress rotated files
+    compress: true
+    # Use local time for timestamp in rotated filename
+    local_time: true
+  sampling:
+    # Enable zap sampler (reduce high-frequency repetitive logs)
+    enabled: false
+    # Number of first entries per second to always log
+    initial: 100
+    # Thereafter keep 1 out of N entries per second
+    thereafter: 100
+# =============================================================================
+# Idempotency for HTTP write operations.
+# Idempotency Configuration
+# =============================================================================
+idempotency:
+  # Observe-only mode:
+  # true: allow requests without Idempotency-Key and record the omission.
+  # false: reject requests without Idempotency-Key on endpoints with
+  # idempotency protection.
+  observe_only: true
+  # Idempotency record lifetime for protected write endpoints (seconds).
+  default_ttl_seconds: 86400
+  # Idempotency record lifetime for system update, rollback, and restart
+  # operations (seconds).
+  system_operation_ttl_seconds: 3600
+  # Timeout for the processing lock (seconds).
+  processing_timeout_seconds: 30
+  # Backoff window after retryable failures (seconds).
+  failed_retry_backoff_seconds: 5
+  # Cleanup interval for expired idempotency records (seconds).
+  cleanup_interval_seconds: 60
+  # Maximum records deleted per cleanup pass.
+  cleanup_batch_size: 500
+  # Maximum persisted response body size (bytes).
+  max_stored_response_bytes: 65536
+# =============================================================================
+# Creative Studio Configuration
+# Asynchronous image generation, editing, and inpainting tasks. The server
+# does not persist images or prompts.
+# =============================================================================
+creative:
+  # Enable the Creative Studio HTTP API.
+  enabled: true
+  # Retention for input payloads and temporary output (seconds). Results
+  # cannot be recovered after expiry.
+  transient_ttl_seconds: 1800
+  # Maximum uploaded source image or mask size (bytes, default 32 MiB).
+  max_asset_bytes: 33554432
+  # Maximum combined input size per task (bytes, default 64 MiB).
+  max_total_input_bytes: 67108864
+  # Maximum characters per prompt.
+  max_prompt_chars: 8000
+  # Default output image size.
+  default_image_size: "1K"
+  # Timeout for each upstream execution attempt (seconds).
+  execute_timeout_seconds: 300
+  # Maximum execution attempts for transient provider errors, including the
+  # initial attempt.
+  max_execute_attempts: 3
+  queue:
+    delayed_mover_interval_seconds: 5
+    default_requeue_delay_seconds: 30
+    lock_conflict_delay_seconds: 5
+    stale_active_after_seconds: 600
+    error_retry_delay_seconds: 60
+    recovery_interval_seconds: 300
+    inflight_ttl_seconds: 604800
+    job_lock_ttl_seconds: 300
+    inflight_key_prefix: "creative:queue:inflight:"
+    delayed_move_limit: 100
+    delayed_key: "creative:queue:delayed"
+    active_key: "creative:queue:active"
+    lock_key_prefix: "creative:queue:lock:"
+    # Redis queue keys; normally leave these unchanged.
+    ready_key: "creative:queue:ready"
+    recover_limit: 100
+  # Enable the Creative Studio queue used by the second-stage worker.
+  queue_worker_enabled: true
+# =============================================================================
+# Database Configuration (PostgreSQL)
+# =============================================================================
+database:
+  # Database host address
+  host: "localhost"
+  # Database port
+  port: 5432
+  # Database username
+  user: "postgres"
+  # Database password
+  password: "your_secure_password_here"
+  # Database name
+  dbname: "tokenrouter"
+  # SSL mode: disable (plaintext), prefer (TLS when available), require (TLS),
+  # verify-ca (validate the CA), verify-full (validate the CA and hostname).
+  # The default "prefer" uses TLS when the database supports it and falls back
+  # to plaintext otherwise.
+  sslmode: "prefer"
+  # Maximum open connections. For high concurrency, consider 256 or more and
+  # adjust PostgreSQL max_connections accordingly.
+  max_open_conns: 256
+  # Maximum idle connections. Consider half of max_open_conns to reduce
+  # repeated connection establishment.
+  max_idle_conns: 128
+  # Connection max lifetime (minutes)
+  conn_max_lifetime_minutes: 30
+  # Connection max idle time (minutes)
+  conn_max_idle_time_minutes: 5
+# =============================================================================
+# Redis Configuration
+# =============================================================================
+redis:
+  # Redis host address
+  host: "localhost"
+  # Redis port
+  port: 6379
+  # Redis ACL username (leave empty for default user)
+  username: ""
+  # Redis password (leave empty if no password is set)
+  password: ""
+  # Database number (0-15)
+  db: 0
+  # Connection pool size (max concurrent connections)
+  pool_size: 1024
+  # Minimum idle connections. For high concurrency, consider at least 128 to
+  # retain enough warm connections.
+  min_idle_conns: 128
+  # Enable TLS/SSL connection
+  enable_tls: false
+# =============================================================================
+# Ops Monitoring (Optional)
+# =============================================================================
+ops:
+  # Enable ops monitoring features (background jobs and APIs)
+  # Set to false to hide ops menu in sidebar and disable all ops features
+  # Configure detailed options, including data cleanup, in the Ops monitoring
+  # settings dialog.
+  enabled: true
+  aggregation:
+    # Deployment capability ceiling. Manage the runtime switch under System
+    # Settings > General Settings > Pre-aggregation.
+    enabled: true
+# =============================================================================
+# Billing Configuration
+# =============================================================================
+billing:
+  # Conservative minimum balance required before forwarding balance-billed requests.
+  # Set to 0 to only require balance > 0.
+  minimum_balance_reserve: 0.000001
+  balance_check_circuit_breaker:
+    # Enable circuit breaker for billing service
+    enabled: true
+    # Number of failures before opening circuit
+    failure_threshold: 5
+    # Time to wait before attempting reset (seconds)
+    reset_timeout_seconds: 30
+    # Number of requests to allow in half-open state
+    half_open_requests: 3
+  # Rate multiplier (affects billing calculation)
+  fallback_rate_multiplier: 1.0
+# Request summaries are stored independently of Ops sampling and buffered in
+# memory for batched database writes.
+request_log:
+  retention_days: 30
+# Plugins run as trusted code in this single backend instance.
+plugins:
+  enabled: true
+  # Empty derives DATA_DIR/plugins, otherwise pricing.data_dir/plugins.
+  dir: ""
+  official_index_url: "https://raw.githubusercontent.com/TokenFlux/tokenrouter-plugins/dist/v1/index.json"
+  download_proxy: ""
+  download_url_prefix: ""
+  plugin_http_proxy: ""
+  max_running: 20
+  dev_mode: false
+  dev_dirs: []
+auth:
+  jwt:
+    access_token_ttl_minutes: 1440
+    # IMPORTANT: Change this to a random string in production!
+    # Generate with: openssl rand -hex 32
+    secret: "change-this-to-a-secure-random-string"
+  # Require Turnstile in release mode (when enabled, login/register will fail if not configured)
+  require_captcha: false
+  oauth:
+    # =============================================================================
+    # LinuxDo Connect OAuth Login (SSO)
+    # =============================================================================
+    linuxdo:
+      enabled: false
+      client_id: ""
+      client_secret: ""
+      authorize_url: "https://connect.linux.do/oauth2/authorize"
+      token_url: "https://connect.linux.do/oauth2/token"
+      userinfo_url: "https://connect.linux.do/api/user"
+      scopes: "user"
+      # Example: "https://your-domain.com/api/v1/auth/oauth/linuxdo/callback"
+      redirect_url: ""
+      # Redirect security:
+      # - Prefer a same-origin relative path starting with / to avoid sending
+      # tokens to an unintended third-party domain.
+      # - Do not include a #fragment; the implementation uses the URL fragment to
+      # carry access_token.
+      frontend_redirect_url: "/auth/linuxdo/callback"
+      token_auth_method: "client_secret_post" # client_secret_post | client_secret_basic | none
+      # PKCE is required when token_auth_method=none identifies a public client.
+      use_pkce: true
+      userinfo_email_path: ""
+      userinfo_id_path: ""
+      userinfo_username_path: ""
+    # =============================================================================
+    # Generic OIDC OAuth Login (SSO)
+    # =============================================================================
+    oidc:
+      enabled: false
+      provider_name: "OIDC"
+      client_id: ""
+      client_secret: ""
+      # Example: "https://keycloak.example.com/realms/myrealm"
+      issuer_url: ""
+      # Optional OIDC Discovery URL. When empty, configure
+      # authorize/token/userinfo/jwks URLs manually.
+      discovery_url: ""
+      authorize_url: ""
+      token_url: ""
+      # Optional; supplements email and username only, and does not establish a
+      # trusted sub binding.
+      userinfo_url: ""
+      # Required when validate_id_token=true.
+      jwks_url: ""
+      scopes: "openid email profile"
+      # Example: "https://your-domain.com/api/v1/auth/oauth/oidc/callback"
+      redirect_url: ""
+      # Redirect security:
+      # - Prefer a same-origin relative path starting with / to avoid sending
+      # tokens to an unintended third-party domain.
+      # - Do not include a #fragment; the implementation uses the URL fragment to
+      # carry access_token.
+      frontend_redirect_url: "/auth/oidc/callback"
+      token_auth_method: "client_secret_post" # client_secret_post | client_secret_basic | none
+      # PKCE is required when token_auth_method=none identifies a public client.
+      use_pkce: false
+      # Validate the id_token signature and claims when enabled (recommended).
+      validate_id_token: true
+      allowed_signing_algs: "RS256,ES256,PS256"
+      # Allowed clock skew (seconds).
+      clock_skew_seconds: 120
+      # Reject login when the provider returns email_verified=false.
+      require_email_verified: false
+      userinfo_email_path: ""
+      userinfo_id_path: ""
+      userinfo_username_path: ""
+  # =============================================================================
+  # WebAuthn / Passkey Configuration
+  # =============================================================================
+  # Passkeys require HTTPS in production. Set RP ID to the domain without a
+  # scheme or port, and set RP origins to the complete origins used by browsers.
+  webauthn:
+    enabled: false
+    rp_display_name: "TokenRouter"
+    # Example: "tokenrouter.example.com"
+    rp_id: ""
+    # Example: ["https://tokenrouter.example.com"]
+    rp_origins: []
+scheduling:
+  session_affinity:
+    # Response continuation record lifetime (seconds).
+    response_id_ttl_seconds: 3600
+    # Provider session record lifetime (seconds).
+    ttl_seconds: 3600
+  sticky_provider_wait:
+    # Sticky session wait timeout (duration)
+    timeout_seconds: 120
+    # Sticky session max waiting queue size
+    max_waiting: 3
+  grok_free_quota:
+    # Statistics cache for the free-tier soft gate. The request path does not
+    # wait for the database; a miss leaves the gate open and triggers
+    # background refresh.
+    # Use at least 60 seconds in production.
+    stats_cache_seconds: 60
+    enabled: true
+    threshold_percent: 95
+    window_hours: 24
+    token_limit: 500000
+  load_batch:
+    # Tiny in-process TTL for batch load reads in milliseconds (0 disables)
+    cache_ttl_ms: 200
+    # Enable batch load calculation for scheduling
+    enabled: true
+  alternate_provider_wait:
+    # Fallback wait timeout (duration)
+    timeout_seconds: 30
+    # Fallback max waiting queue size
+    max_waiting: 100
+  # Slot cleanup interval (duration)
+  slot_cleanup_interval_seconds: 30
+  # In load-aware selection, prefer providers whose session windows reset
+  # soonest. False keeps the default priority, load ratio, then LRU
+  # ordering.
+  prefer_soonest_reset: false
+  # Concurrency slot expiration time (minutes)
+  concurrency_slot_ttl_minutes: 30
+  # Shared advanced scheduler settings. Each group selects this scheduler
+  # through scheduler_type.
+  advanced:
+    # Number of top-scoring candidates retained before each weighted
+    # selection.
+    lb_top_k: 7
+    # Error-rate EWMA smoothing factor (0 < value <= 1). Higher values give
+    # more weight to recent request outcomes.
+    ewma_error_rate_alpha: 0.2
+    # Time-to-first-token EWMA smoothing factor (0 < value <= 1). Higher
+    # values give more weight to recent observations.
+    ewma_ttft_alpha: 0.2
+    score_weights:
+      priority: 1.0
+      load: 1.0
+      queue: 0.7
+      error_rate: 0.8
+      ttft: 0.5
+      # Prefer providers whose session windows reset sooner; shorter remaining
+      # time produces a higher score.
+      reset: 0.0
+      # Prefer providers with more remaining Codex seven-day quota. Providers
+      # without this capability receive a neutral signal.
+      quota_headroom: 0.0
+      previous_response: 5.0
+      session_sticky: 3.0
+    # Allow session_hash affinity to temporarily switch providers when
+    # provider health deteriorates. False retains the previous affinity
+    # behavior.
+    sticky_escape_enabled: true
+    # Bypass affinity when TTFT EWMA exceeds this threshold (milliseconds).
+    # The 15-second default avoids switching on minor fluctuations.
+    sticky_escape_ttft_ms: 15000
+    # Bypass affinity when error-rate EWMA exceeds this threshold. The 0.5
+    # default requires substantial degradation.
+    sticky_escape_error_rate: 0.5
+  # Scheduling configuration
+  snapshot:
+    # Allow controlled database fallback (default true, retaining existing
+    # behavior).
+    db_fallback_enabled: true
+    # Controlled database fallback timeout (seconds); zero adds no tighter
+    # timeout.
+    db_fallback_timeout_seconds: 0
+    # Controlled database fallback rate limit (queries per second per
+    # instance); zero disables the limit.
+    db_fallback_max_qps: 0
+    # Outbox polling interval (seconds).
+    outbox_poll_interval_seconds: 1
+    # Outbox lag warning threshold (seconds).
+    outbox_lag_warn_seconds: 5
+    # Outbox lag threshold that forces a snapshot rebuild (seconds).
+    outbox_lag_rebuild_seconds: 10
+    # Consecutive outbox lag observations required to trigger a rebuild.
+    outbox_lag_rebuild_failures: 3
+    # Outbox backlog size that triggers a rebuild (rows).
+    outbox_backlog_rebuild_rows: 10000
+    # Full snapshot rebuild interval (seconds); zero disables periodic
+    # rebuilds.
+    full_rebuild_interval_seconds: 300
+usage:
+  retention:
+    # Raw usage_logs retention
+    logs_days: 90
+  # =============================================================================
+  # Dashboard Aggregation Configuration
+  # Usage pre-aggregation deployment capability; changes require a restart.
+  # =============================================================================
+  aggregation:
+    # Hourly aggregation retention
+    hourly_retention_days: 180
+    # Daily aggregation retention
+    daily_retention_days: 730
+    # Deployment capability ceiling. Manage the runtime switch under System
+    # Settings > General Settings > Pre-aggregation.
+    enabled: true
+    # Default refresh interval when no runtime setting exists (seconds).
+    interval_seconds: 60
+    # Lookback window (seconds) for late-arriving data
+    lookback_seconds: 120
+    # Allow manual backfill
+    backfill_enabled: false
+    # Backfill max range (days)
+    backfill_max_days: 31
+    # Recompute recent N days on startup
+    recompute_days: 2
+  # =============================================================================
+  # Dashboard Cache Configuration
+  # =============================================================================
+  dashboard_cache:
+    # Enable dashboard cache
+    enabled: true
+    # Redis key prefix for multi-environment isolation
+    key_prefix: "tokenrouter:"
+    # Fresh TTL (seconds); within this window cached stats are considered fresh
+    stats_fresh_ttl_seconds: 15
+    # Cache TTL (seconds) stored in Redis
+    stats_ttl_seconds: 30
+    # Async refresh timeout (seconds)
+    stats_refresh_timeout_seconds: 30
+  # =============================================================================
+  # Usage Cleanup Task Configuration
+  # Usage cleanup worker settings; changes require a restart.
+  # =============================================================================
+  cleanup_tasks:
+    # Enable cleanup task worker
+    enabled: true
+    # Max date range (days) per task
+    max_range_days: 31
+    # Batch delete size
+    batch_size: 5000
+    # Worker interval (seconds)
+    worker_interval_seconds: 10
+    # Task execution timeout (seconds)
+    task_timeout_seconds: 1800
+outbound_proxy:
+  # Allow auxiliary services (update check, pricing data) to fallback to direct
+  # connection when proxy initialization fails. Does NOT affect AI gateway connections.
+  # Defaults to false so proxy initialization errors stop auxiliary requests
+  # before a direct connection can expose the server IP.
+  allow_direct_on_error: false
+  # Proxy URL for accessing GitHub (used for online updates and pricing data)
+  # Supports: http, https, socks5, socks5h
+  # Examples:
+  #   - HTTP proxy: "http://127.0.0.1:7890"
+  #   - SOCKS5 proxy: "socks5://127.0.0.1:1080"
+  #   - With authentication: "http://user:pass@proxy.example.com:8080"
+  # Leave empty for a direct connection.
+  url: ""
+provider:
+  grok:
+    # Email/password OAuth is disabled by default and hidden from the admin
+    # interface.
+    # True enables POST /admin/grok/oauth/password, which exchanges the
+    # password for SSO and then Build OAuth credentials.
+    # Prefer SSO cookies, browser OAuth, or refresh_token reauthentication in
+    # production.
+    password_auth_enabled: false
+  # Token refresh behavior
+  token_refresh:
+    # Consecutive transient failures that open the platform circuit in the
+    # current cycle (maximum 100).
+    platform_failure_threshold: 3
+    # Maximum concurrent refreshes per platform (maximum 32).
+    platform_concurrency: 4
+    # Refresh requests per second per platform in each server process (maximum
+    # 100).
+    platform_qps: 2
+    # Candidate providers loaded per cursor page (maximum 1000).
+    candidate_page_size: 200
+    # Timeout for one upstream refresh attempt (seconds, maximum 300).
+    attempt_timeout_seconds: 15
+    # Total timeout for one background refresh cycle (seconds, maximum 3600).
+    cycle_timeout_seconds: 240
+  cooldown:
+    # Cooldown time (in minutes) when upstream returns 529 (overloaded)
+    overload_minutes: 10
+  # =============================================================================
+  # Gemini OAuth (Required for Gemini providers)
+  # =============================================================================
+  # TokenRouter supports TWO Gemini OAuth modes:
+  #
+  # 1. Code Assist OAuth (requires GCP project_id)
+  #    - Uses: cloudcode-pa.googleapis.com (Code Assist API)
+  #
+  # 2. AI Studio OAuth (no project_id needed)
+  #    - Uses: generativelanguage.googleapis.com (AI Studio API)
+  #
+  # Default: Uses Gemini CLI's public OAuth credentials (same as Google's official CLI tool)
+  gemini:
+    oauth:
+      # OAuth client configuration:
+      # 1) Leave client_id/client_secret empty to use the built-in Gemini CLI
+      # OAuth client; supply its secret through the following environment
+      # variable:
+      #    - GEMINI_CLI_OAUTH_CLIENT_SECRET
+      # 2) Set both client_id and client_secret to use your own OAuth client
+      # (recommended for broader permissions).
+      #
+      # Set both client_id and client_secret, or leave both empty.
+      client_id: ""
+      client_secret: ""
+      # Optional scopes (space-separated). Leave empty to auto-select based on oauth_type.
+      scopes: ""
+    quota:
+      # Optional: local quota simulation for Gemini Code Assist (local billing).
+      # These values are used for UI progress + precheck scheduling, not official Google quotas.
+      tiers:
+        LEGACY:
+          # Pro model requests per day
+          pro_rpd: 50
+          # Flash model requests per day
+          flash_rpd: 1500
+          # Cooldown time (minutes) after hitting quota
+          cooldown_minutes: 30
+        PRO:
+          # Pro model requests per day
+          pro_rpd: 1500
+          # Flash model requests per day
+          flash_rpd: 4000
+          # Cooldown time (minutes) after hitting quota
+          cooldown_minutes: 5
+        ULTRA:
+          # Pro model requests per day
+          pro_rpd: 2000
+          # Flash model requests per day (0 = unlimited)
+          flash_rpd: 0
+          # Cooldown time (minutes) after hitting quota
+          cooldown_minutes: 5
+egress:
+  proxy_probe:
+    # Optional ordered probe targets. Leave empty to use the built-in
+    # ip-api/ipify fallback sequence.
+    # Supported parsers: ip-api, ipify, chatgpt-trace.
+    urls: []
+    # urls:
+    #   - url: "https://chatgpt.com/cdn-cgi/trace"
+    #     parser: "chatgpt-trace"
+    #   - url: "https://api64.ipify.org?format=json"
+    #     parser: "ipify"
+
+    # Max bytes to read for proxy probe responses (default: 1MB)
+    response_max_bytes: 1048576
+api_key:
+  # Maximum concurrent database lookups for authentication cache misses
+  lookup_concurrency: 64
+  # Process-local invalid-auth abuse protection. Counts only missing, malformed,
+  # deprecated-query, and confirmed invalid credentials; valid requests and
+  # Redis/DB failures do not consume the budget.
+  invalid_key_abuse:
+    enabled: true
+    # Invalid attempts per trusted client IP (IPv6 grouped by /64) per window.
+    threshold: 120
+    window_seconds: 60
+    block_seconds: 60
+    # Maximum tracked client identities per process; memory remains bounded.
+    capacity: 16384
+  # API key settings
+  # Prefix for generated API keys
+  prefix: "sk-"
+  # =============================================================================
+  # API Key Auth Cache Configuration
+  # =============================================================================
+  auth_cache:
+    # L1 cache size (entries), in-process LRU/TTL cache
+    l1_size: 65535
+    # L1 cache TTL (seconds)
+    l1_ttl_seconds: 15
+    # L2 cache TTL (seconds), stored in Redis
+    l2_ttl_seconds: 300
+    # Negative cache TTL (seconds)
+    negative_ttl_seconds: 30
+    # TTL jitter percent (0-100)
+    jitter_percent: 10
+    # Enable singleflight for cache misses
+    singleflight: true
+model_catalog:
+  # Configure custom selling prices in the admin pricing settings and
+  # associate them with the relevant groups.
+  # Catalog check interval (minutes): synchronize the remote catalog with
+  # conditional requests and reload custom supplements.
+  # A deleted file restores embedded values. An invalid file retains the last
+  # valid data and is retried at the next check.
+  check_interval_minutes: 10
+  # Official pricing supplements are embedded. Optionally provide a separate
+  # custom JSON file path here.
+  # Catalog prices take precedence, followed by custom supplements; embedded
+  # supplements fill the remaining fields.
+  # File changes and deletion take effect at the next catalog check. Deletion
+  # restores the embedded supplements.
+  supplement_file: ""
+  # URL for the models.dev catalog shared by prices and display attributes.
+  catalog_url: "https://models.dev/catalog.json?type=all"
+user_defaults:
+  # Default settings for new users
+  # Max concurrent requests per user
+  concurrency: 5
+  # Initial balance for new users
+  balance: 0
+site:
+  # Frontend URL for email links and MCP OAuth; OAuth requires an HTTPS origin.
+  # Example: "https://example.com"
+  frontend_url: ""
+storage:
+  # Local data directory for caching
+  dir: "./data"
+# Environment field written into each log line
+environment: "production"

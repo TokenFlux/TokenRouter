@@ -52,8 +52,8 @@ func idempotencyOptions(cfg *config.Config) idempotency.IdempotencyConfig {
 	if cfg.Idempotency.FailedRetryBackoffSeconds > 0 {
 		opts.FailedRetryBackoff = time.Duration(cfg.Idempotency.FailedRetryBackoffSeconds) * time.Second
 	}
-	if cfg.Idempotency.MaxStoredResponseLen > 0 {
-		opts.MaxStoredResponseLen = cfg.Idempotency.MaxStoredResponseLen
+	if cfg.Idempotency.MaxStoredResponseBytes > 0 {
+		opts.MaxStoredResponseLen = cfg.Idempotency.MaxStoredResponseBytes
 	}
 	opts.ObserveOnly = cfg.Idempotency.ObserveOnly
 	return opts

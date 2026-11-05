@@ -53,20 +53,20 @@ func provideCreativeWorkerRuntime(public *creative.Public, executor *creative.Ex
 	// Queue lease, retry, polling, and recovery settings use seconds in cfg
 	// and durations in the worker; normalization replaces nonpositive option values.
 	opts := creative.NormalizeCreativeWorkerOptions(creative.CreativeWorkerOptions{
-		JobLockTTL:          time.Duration(cfg.Creative.JobLockTTLSeconds) * time.Second,
-		LockConflictDelay:   time.Duration(cfg.Creative.LockConflictDelaySeconds) * time.Second,
-		DefaultRequeueDelay: time.Duration(cfg.Creative.DefaultRequeueDelaySeconds) * time.Second,
-		ErrorRetryDelay:     time.Duration(cfg.Creative.ErrorRetryDelaySeconds) * time.Second,
-		DelayedPollInterval: time.Duration(cfg.Creative.DelayedMoverIntervalSeconds) * time.Second,
-		RecoveryInterval:    time.Duration(cfg.Creative.RecoveryIntervalSeconds) * time.Second,
-		StaleActiveAfter:    time.Duration(cfg.Creative.StaleActiveAfterSeconds) * time.Second,
-		DelayedMoveLimit:    cfg.Creative.DelayedMoveLimit,
-		RecoverLimit:        cfg.Creative.RecoverLimit,
+		JobLockTTL:          time.Duration(cfg.Creative.Queue.JobLockTTLSeconds) * time.Second,
+		LockConflictDelay:   time.Duration(cfg.Creative.Queue.LockConflictDelaySeconds) * time.Second,
+		DefaultRequeueDelay: time.Duration(cfg.Creative.Queue.DefaultRequeueDelaySeconds) * time.Second,
+		ErrorRetryDelay:     time.Duration(cfg.Creative.Queue.ErrorRetryDelaySeconds) * time.Second,
+		DelayedPollInterval: time.Duration(cfg.Creative.Queue.DelayedMoverIntervalSeconds) * time.Second,
+		RecoveryInterval:    time.Duration(cfg.Creative.Queue.RecoveryIntervalSeconds) * time.Second,
+		StaleActiveAfter:    time.Duration(cfg.Creative.Queue.StaleActiveAfterSeconds) * time.Second,
+		DelayedMoveLimit:    cfg.Creative.Queue.DelayedMoveLimit,
+		RecoverLimit:        cfg.Creative.Queue.RecoverLimit,
 		MaxAttempts:         cfg.Creative.MaxExecuteAttempts,
 	})
 	worker := creative.NewCreativeRunWorker(public.Queue, public.Repo, public.TransientStore, executor, public.Results, opts, ports)
 	return creative.NewCreativeWorkerRuntime(worker, creative.RuntimeOptions{
-		Enabled:   cfg.Creative.QueueEnabled,
+		Enabled:   cfg.Creative.QueueWorkerEnabled,
 		Outbox:    public.Results.RunCreativeOutboxReconciler,
 		Transient: public.Results.RunCreativeTransientReconciler,
 		WorkerCount: func(ctx context.Context) int {

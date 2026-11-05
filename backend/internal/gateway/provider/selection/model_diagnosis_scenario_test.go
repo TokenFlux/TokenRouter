@@ -75,7 +75,7 @@ func TestBedrockRegionRouting_SchedulerAndDiagnosisAgree(t *testing.T) {
 				}
 				group := &routing.Group{ID: groupID, Status: billing.StatusActive, Hydrated: true}
 				cfg := testConfig()
-				cfg.Gateway.Scheduling.LoadBatchEnabled = loadBatchEnabled
+				cfg.Scheduling.LoadBatch.Enabled = loadBatchEnabled
 				gateway := newGenericSelectionForTest(GenericDependencies{
 					Reads: Reads{
 						Providers: repo,

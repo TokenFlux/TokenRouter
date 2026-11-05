@@ -28,18 +28,18 @@ import (
 // configuration default, and AllowedHosts is copied so this option slice can be
 // held separately.
 func googleForwardOptions(cfg *config.Config) googleforward.Options {
-	limit := cfg.Gateway.UpstreamResponseReadMaxBytes
+	limit := cfg.Gateway.UpstreamResponseMaxBytes
 	if limit <= 0 {
 		limit = config.DefaultUpstreamResponseReadMaxBytes
 	}
 	return googleforward.Options{
 		Configured:           true,
-		LogErrorBody:         cfg.Gateway.LogUpstreamErrorBody,
-		LogErrorBodyMaxBytes: cfg.Gateway.LogUpstreamErrorBodyMaxBytes,
-		DebugHeaders:         cfg.Gateway.GeminiDebugResponseHeaders,
+		LogErrorBody:         cfg.Gateway.UpstreamErrorBodyLog.Enabled,
+		LogErrorBodyMaxBytes: cfg.Gateway.UpstreamErrorBodyLog.MaxBytes,
+		DebugHeaders:         cfg.Gateway.Gemini.DebugResponseHeaders,
 		ResponseReadLimit:    limit,
-		MaxLineSize:          cfg.Gateway.MaxLineSize,
-		StreamInterval:       cfg.Gateway.StreamDataIntervalTimeout,
+		MaxLineSize:          cfg.Gateway.MaxSSELineBytes,
+		StreamInterval:       cfg.Gateway.Streaming.DataIdleTimeoutSeconds,
 		URLAllowlistEnabled:  cfg.Security.URLAllowlist.Enabled,
 		AllowInsecureHTTP:    cfg.Security.URLAllowlist.AllowInsecureHTTP,
 		AllowedHosts:         append([]string(nil), cfg.Security.URLAllowlist.UpstreamHosts...),

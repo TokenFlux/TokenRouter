@@ -60,9 +60,9 @@ func TestOpenCodePublicResponsesContinuation(t *testing.T) {
 				groupID := int64(42)
 				group := &routing.Group{ID: groupID, Hydrated: true, Name: "OpenCode", Status: "active", RateMultiplier: 1, SchedulerType: mode, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolOpenAIResponses}, ProtocolFallbacks: map[protocol.ProtocolID][]protocol.ProtocolID{protocol.ProtocolOpenAIResponses: {protocol.ProtocolOpenAIChatCompletions, protocol.ProtocolAnthropicMessages, protocol.ProtocolGeminiGenerateContent}}}
 				cfg := &config.Config{}
-				cfg.Default.RateMultiplier = 1
+				cfg.Billing.FallbackRateMultiplier = 1
 				cfg.Security.URLAllowlist.AllowInsecureHTTP = true
-				cfg.Gateway.MaxProviderSwitches = 2
+				cfg.Gateway.Failover.MaxProviderSwitches = 2
 				record := &provider.Record{
 					ID: 31, Name: "OpenCode", Platform: provider.PlatformOpenCode,
 					Type: provider.ProviderTypeAPIKey, Status: "active", Schedulable: true,

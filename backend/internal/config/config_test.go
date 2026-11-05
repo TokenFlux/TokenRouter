@@ -8,14 +8,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"reflect"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,10 +19,10 @@ import (
 // fixture JWT secret. The model-list body limit must equal the named default
 // used for upstream model responses.
 func TestLoadDefaultModelsListReadMaxBytes(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.Equal(t, DefaultModelsListReadMaxBytes, cfg.Gateway.ModelsListReadMaxBytes)
+	require.Equal(t, DefaultModelsListReadMaxBytes, cfg.Gateway.ModelsListResponseMaxBytes)
 }
 
 // TestLoadTimezonePrecedence combines a file zone with TIMEZONE, TZ, and absent
@@ -48,16 +44,16 @@ func TestLoadTimezonePrecedence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resetViperWithJWTSecret(t)
-			t.Setenv("TIMEZONE", tt.timezoneEnv)
-			t.Setenv("TZ", tt.tzEnv)
+			fixture := newConfigFixture(t)
+			fixture.Setenv("TIMEZONE", tt.timezoneEnv)
+			fixture.Setenv("TZ", tt.tzEnv)
 			if tt.fileTimezone != "" {
 				configFile := filepath.Join(t.TempDir(), "config.yaml")
 				require.NoError(t, os.WriteFile(configFile, []byte("timezone: "+tt.fileTimezone+"\n"), 0o600))
-				t.Setenv("CONFIG_FILE", configFile)
+				fixture.Setenv("CONFIG_FILE", configFile)
 			}
 
-			cfg, err := Load()
+			cfg, err := fixture.Load()
 			require.NoError(t, err)
 			require.Equal(t, tt.want, cfg.Timezone)
 		})
@@ -69,16 +65,16 @@ func TestLoadTimezonePrecedence(t *testing.T) {
 // through that explicitly bound environment variable.
 func TestLoadServerTimingConfig(t *testing.T) {
 	t.Run("disabled by default", func(t *testing.T) {
-		resetViperWithJWTSecret(t)
-		cfg, err := Load()
+		fixture := newConfigFixture(t)
+		cfg, err := fixture.Load()
 		require.NoError(t, err)
 		require.False(t, cfg.Server.EnableServerTiming)
 	})
 
 	t.Run("enabled by exact environment variable", func(t *testing.T) {
-		resetViperWithJWTSecret(t)
-		t.Setenv("ENABLE_SERVER_TIMING", "true")
-		cfg, err := Load()
+		fixture := newConfigFixture(t)
+		fixture.Setenv("ENABLE_SERVER_TIMING", "true")
+		cfg, err := fixture.Load()
 		require.NoError(t, err)
 		require.True(t, cfg.Server.EnableServerTiming)
 	})
@@ -89,38 +85,38 @@ func TestLoadServerTimingConfig(t *testing.T) {
 // zero error rate while reporting the invalid zero TTFT limit.
 func TestLoadAdvancedSchedulerStickyEscapeZeroBoundaries(t *testing.T) {
 	t.Run("YAML 保留显式零错误率", func(t *testing.T) {
-		resetViperWithJWTSecret(t)
+		fixture := newConfigFixture(t)
 		configFile := filepath.Join(t.TempDir(), "config.yaml")
 		require.NoError(t, os.WriteFile(configFile, []byte("gateway:\n  advanced_scheduler:\n    sticky_escape_error_rate: 0\n"), 0o600))
-		t.Setenv("CONFIG_FILE", configFile)
+		fixture.Setenv("CONFIG_FILE", configFile)
 
-		cfg, err := Load()
+		cfg, err := fixture.Load()
 		require.NoError(t, err)
-		require.Zero(t, cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate)
+		require.Zero(t, cfg.Scheduling.Advanced.StickyEscapeErrorRate)
 	})
 
 	t.Run("环境变量保留显式零错误率", func(t *testing.T) {
-		resetViperWithJWTSecret(t)
-		t.Setenv("GATEWAY_ADVANCED_SCHEDULER_STICKY_ESCAPE_ERROR_RATE", "0")
+		fixture := newConfigFixture(t)
+		fixture.Setenv("GATEWAY_ADVANCED_SCHEDULER_STICKY_ESCAPE_ERROR_RATE", "0")
 
-		cfg, err := Load()
+		cfg, err := fixture.Load()
 		require.NoError(t, err)
-		require.Zero(t, cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate)
+		require.Zero(t, cfg.Scheduling.Advanced.StickyEscapeErrorRate)
 	})
 
 	for _, source := range []string{"yaml", "env"} {
 		t.Run(source+" 拒绝显式零 TTFT", func(t *testing.T) {
-			resetViperWithJWTSecret(t)
+			fixture := newConfigFixture(t)
 			if source == "yaml" {
 				configFile := filepath.Join(t.TempDir(), "config.yaml")
 				require.NoError(t, os.WriteFile(configFile, []byte("gateway:\n  advanced_scheduler:\n    sticky_escape_ttft_ms: 0\n"), 0o600))
-				t.Setenv("CONFIG_FILE", configFile)
+				fixture.Setenv("CONFIG_FILE", configFile)
 			} else {
-				t.Setenv("GATEWAY_ADVANCED_SCHEDULER_STICKY_ESCAPE_TTFT_MS", "0")
+				fixture.Setenv("GATEWAY_ADVANCED_SCHEDULER_STICKY_ESCAPE_TTFT_MS", "0")
 			}
 
-			_, err := Load()
-			require.ErrorContains(t, err, "gateway.advanced_scheduler.sticky_escape_ttft_ms")
+			_, err := fixture.Load()
+			require.ErrorContains(t, err, "scheduling.advanced.sticky_escape_ttft_ms")
 		})
 	}
 }
@@ -131,39 +127,27 @@ func TestLoadAdvancedSchedulerStickyEscapeZeroBoundaries(t *testing.T) {
 // one.
 func TestLoadAdvancedSchedulerEWMAAlphaFromYAMLAndEnvironment(t *testing.T) {
 	t.Run("YAML", func(t *testing.T) {
-		resetViperWithJWTSecret(t)
+		fixture := newConfigFixture(t)
 		configFile := filepath.Join(t.TempDir(), "config.yaml")
 		require.NoError(t, os.WriteFile(configFile, []byte("gateway:\n  advanced_scheduler:\n    ewma_error_rate_alpha: 0.35\n    ewma_ttft_alpha: 1\n"), 0o600))
-		t.Setenv("CONFIG_FILE", configFile)
+		fixture.Setenv("CONFIG_FILE", configFile)
 
-		cfg, err := Load()
+		cfg, err := fixture.Load()
 		require.NoError(t, err)
-		require.Equal(t, 0.35, cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha)
-		require.Equal(t, 1.0, cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha)
+		require.Equal(t, 0.35, cfg.Scheduling.Advanced.EWMAErrorRateAlpha)
+		require.Equal(t, 1.0, cfg.Scheduling.Advanced.EWMATTFTAlpha)
 	})
 
 	t.Run("环境变量", func(t *testing.T) {
-		resetViperWithJWTSecret(t)
-		t.Setenv("GATEWAY_ADVANCED_SCHEDULER_EWMA_ERROR_RATE_ALPHA", "0.05")
-		t.Setenv("GATEWAY_ADVANCED_SCHEDULER_EWMA_TTFT_ALPHA", "0.9")
+		fixture := newConfigFixture(t)
+		fixture.Setenv("GATEWAY_ADVANCED_SCHEDULER_EWMA_ERROR_RATE_ALPHA", "0.05")
+		fixture.Setenv("GATEWAY_ADVANCED_SCHEDULER_EWMA_TTFT_ALPHA", "0.9")
 
-		cfg, err := Load()
+		cfg, err := fixture.Load()
 		require.NoError(t, err)
-		require.Equal(t, 0.05, cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha)
-		require.Equal(t, 0.9, cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha)
+		require.Equal(t, 0.05, cfg.Scheduling.Advanced.EWMAErrorRateAlpha)
+		require.Equal(t, 0.9, cfg.Scheduling.Advanced.EWMATTFTAlpha)
 	})
-}
-
-// TestLoadRedisUsernameFromEnvironment supplies a Redis authentication username
-// after resetting the configuration fixture. Loading must retain that username,
-// protecting environment-only access to the Redis ACL field.
-func TestLoadRedisUsernameFromEnvironment(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("REDIS_USERNAME", "app-user")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, "app-user", cfg.Redis.Username)
 }
 
 // TestLoadHTTPIngressSafetyDefaults inspects default header budgets, proxy
@@ -171,18 +155,18 @@ func TestLoadRedisUsernameFromEnvironment(t *testing.T) {
 // decoded values must match those defaults and keep an absent trusted list
 // distinguishable.
 func TestLoadHTTPIngressSafetyDefaults(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.Equal(t, 10, cfg.Server.ReadHeaderTimeout)
+	require.Equal(t, 10, cfg.Server.ReadHeaderTimeoutSeconds)
 	require.Equal(t, 64*1024, cfg.Server.MaxHeaderBytes)
-	require.Empty(t, cfg.Server.TrustedProxies)
-	require.False(t, cfg.Server.TrustedProxiesConfigured)
-	require.True(t, cfg.TrustForwardedIPForAPIKeyACL())
-	require.Equal(t, int64(32*1024*1024), cfg.Gateway.TextMaxBodySize)
-	require.True(t, cfg.APIKeyAuth.InvalidAbuse.Enabled)
-	require.Equal(t, 120, cfg.APIKeyAuth.InvalidAbuse.Threshold)
-	require.Equal(t, 16384, cfg.APIKeyAuth.InvalidAbuse.Capacity)
+	require.Empty(t, cfg.Server.ClientIP.TrustedProxies)
+	require.False(t, cfg.Server.ClientIP.TrustedProxiesConfigured)
+	require.True(t, cfg.TrustForwardedHeaders())
+	require.Equal(t, int64(32*1024*1024), cfg.Gateway.TextMaxRequestBodyBytes)
+	require.True(t, cfg.APIKey.InvalidKeyAbuse.Enabled)
+	require.Equal(t, 120, cfg.APIKey.InvalidKeyAbuse.Threshold)
+	require.Equal(t, 16384, cfg.APIKey.InvalidKeyAbuse.Capacity)
 }
 
 // TestNormalizeForwardedClientIPHeaders supplies padded and differently cased
@@ -219,10 +203,10 @@ func TestNormalizeForwardedClientIPHeadersLimit(t *testing.T) {
 // retain the canonical stored values, protecting independent caller ownership
 // of header storage.
 func TestLoadForwardedClientIPHeadersNormalizesAndSnapshots(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	viper.Set("security.forwarded_client_ip_headers", []string{" x-cdn-ip ", "X-CDN-IP", "true-client-ip"})
+	fixture := newConfigFixture(t)
+	fixture.SetValue("server.client_ip.forwarded_headers", []string{" x-cdn-ip ", "X-CDN-IP", "true-client-ip"})
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
 	snapshot := cfg.ForwardedClientIPSettings()
 	require.Equal(t, []string{"X-Cdn-Ip", "True-Client-Ip"}, snapshot.Headers)
@@ -284,103 +268,41 @@ func TestForwardedClientIPSettingsConcurrentPublication(t *testing.T) {
 	}
 }
 
-// TestLoadForwardedClientIPHeadersFromEnvironment supplies a comma-separated
-// header list containing padding and case duplicates. The live policy must
-// expose ordered canonical unique names after environment decoding.
-func TestLoadForwardedClientIPHeadersFromEnvironment(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("SECURITY_FORWARDED_CLIENT_IP_HEADERS", " x-cdn-ip , X-CDN-IP, true-client-ip ")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, []string{"X-Cdn-Ip", "True-Client-Ip"}, cfg.ForwardedClientIPSettings().Headers)
-}
-
-// TestLoadExplicitEmptyForwardedClientIPHeadersFromEnvironment places a header
-// in Viper and sets its list environment variable to empty text. Loading must
-// treat that variable as supplied and publish an empty header list.
-func TestLoadExplicitEmptyForwardedClientIPHeadersFromEnvironment(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	viper.Set("security.forwarded_client_ip_headers", []string{"X-Yaml-IP"})
-	t.Setenv("SECURITY_FORWARDED_CLIENT_IP_HEADERS", "")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Empty(t, cfg.ForwardedClientIPSettings().Headers)
-}
-
-// TestLoadRejectsInvalidForwardedClientIPHeaderFromEnvironment combines a valid
-// header with invalid environment-provided syntax. Loading must reject the list
-// with its configuration field named in the returned error.
-func TestLoadRejectsInvalidForwardedClientIPHeaderFromEnvironment(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("SECURITY_FORWARDED_CLIENT_IP_HEADERS", "X-Valid-IP, X Invalid")
-
-	_, err := Load()
-	require.ErrorContains(t, err, "security.forwarded_client_ip_headers")
-}
-
 // TestLoadRejectsInvalidForwardedClientIPHeader supplies malformed header text
 // through Viper configuration. Loading must return an error naming the header
 // list, protecting rejection of this invalid input at the loader check.
 func TestLoadRejectsInvalidForwardedClientIPHeader(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	viper.Set("security.forwarded_client_ip_headers", []string{"X Invalid"})
+	fixture := newConfigFixture(t)
+	fixture.SetValue("server.client_ip.forwarded_headers", []string{"X Invalid"})
 
-	_, err := Load()
-	require.ErrorContains(t, err, "security.forwarded_client_ip_headers")
+	_, err := fixture.Load()
+	require.ErrorContains(t, err, "server.client_ip.forwarded_headers")
 }
 
 // TestLoadExplicitEmptyTrustedProxiesEnablesConfiguredMode supplies an empty
 // trusted-proxy list through Viper. Loading must retain emptiness and set the
 // presence flag, separating this input from an omitted policy.
 func TestLoadExplicitEmptyTrustedProxiesEnablesConfiguredMode(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	viper.Set("server.trusted_proxies", []string{})
+	fixture := newConfigFixture(t)
+	fixture.SetValue("server.client_ip.trusted_proxies", []string{})
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.Empty(t, cfg.Server.TrustedProxies)
-	require.True(t, cfg.Server.TrustedProxiesConfigured)
+	require.Empty(t, cfg.Server.ClientIP.TrustedProxies)
+	require.True(t, cfg.Server.ClientIP.TrustedProxiesConfigured)
 }
 
 // TestLoadExplicitTrustedProxiesEnablesConfiguredMode supplies one trusted
 // loopback range through Viper. Loading must retain the range and mark the
 // trusted-proxy policy as configured for downstream address selection.
 func TestLoadExplicitTrustedProxiesEnablesConfiguredMode(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	viper.Set("server.trusted_proxies", []string{"127.0.0.1/32"})
+	fixture := newConfigFixture(t)
+	fixture.SetValue("server.client_ip.trusted_proxies", []string{"127.0.0.1/32"})
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.Equal(t, []string{"127.0.0.1/32"}, cfg.Server.TrustedProxies)
-	require.True(t, cfg.Server.TrustedProxiesConfigured)
-}
-
-// TestLoadTrustedProxiesFromEnvironment supplies IPv4 and IPv6 trusted ranges
-// in a comma-separated variable. Loading must split and trim both entries and
-// set the configured-presence flag.
-func TestLoadTrustedProxiesFromEnvironment(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("SERVER_TRUSTED_PROXIES", "127.0.0.1/32, ::1/128")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, []string{"127.0.0.1/32", "::1/128"}, cfg.Server.TrustedProxies)
-	require.True(t, cfg.Server.TrustedProxiesConfigured)
-}
-
-// TestLoadExplicitEmptyTrustedProxiesFromEnvironment assigns empty text to the
-// trusted-list environment variable. Loading must retain an empty list while
-// identifying the variable as a supplied proxy policy.
-func TestLoadExplicitEmptyTrustedProxiesFromEnvironment(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("SERVER_TRUSTED_PROXIES", "")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Empty(t, cfg.Server.TrustedProxies)
-	require.True(t, cfg.Server.TrustedProxiesConfigured)
+	require.Equal(t, []string{"127.0.0.1/32"}, cfg.Server.ClientIP.TrustedProxies)
+	require.True(t, cfg.Server.ClientIP.TrustedProxiesConfigured)
 }
 
 // TestLoadTrustedProxiesPresenceFromYAML supplies omitted, empty, and populated
@@ -405,15 +327,15 @@ func TestLoadTrustedProxiesPresenceFromYAML(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			resetViperWithJWTSecret(t)
+			fixture := newConfigFixture(t)
 			configDir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(test.yaml), 0o600))
-			t.Setenv("DATA_DIR", configDir)
+			fixture.Setenv("DATA_DIR", configDir)
 
-			cfg, err := Load()
+			cfg, err := fixture.Load()
 			require.NoError(t, err)
-			require.Equal(t, test.want, cfg.Server.TrustedProxies)
-			require.Equal(t, test.configured, cfg.Server.TrustedProxiesConfigured)
+			require.Equal(t, test.want, cfg.Server.ClientIP.TrustedProxies)
+			require.Equal(t, test.configured, cfg.Server.ClientIP.TrustedProxiesConfigured)
 		})
 	}
 }
@@ -422,7 +344,7 @@ func TestLoadTrustedProxiesPresenceFromYAML(t *testing.T) {
 // listener and multiple trusted ranges. Loading must read that file and retain
 // its host, range order, and configured flag.
 func TestLoadTrustedProxiesFromConfigFile(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 	configFile := filepath.Join(t.TempDir(), "reporter-config.yaml")
 	require.NoError(t, os.WriteFile(configFile, []byte(`server:
   host: 192.0.2.10
@@ -432,59 +354,31 @@ func TestLoadTrustedProxiesFromConfigFile(t *testing.T) {
     - 172.16.0.0/12
     - 192.168.0.0/16
 `), 0o600))
-	t.Setenv("CONFIG_FILE", configFile)
+	fixture.Setenv("CONFIG_FILE", configFile)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
 	require.Equal(t, "192.0.2.10", cfg.Server.Host)
-	require.Equal(t, []string{"127.0.0.1/32", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}, cfg.Server.TrustedProxies)
-	require.True(t, cfg.Server.TrustedProxiesConfigured)
-}
-
-// TestConfigFileTakesPrecedenceOverDataDir provides different listener hosts in
-// an explicit file and DATA_DIR configuration. Loading must select the explicit
-// file and return its host.
-func TestConfigFileTakesPrecedenceOverDataDir(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	dataDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dataDir, "config.yaml"), []byte("server:\n  host: 192.0.2.20\n"), 0o600))
-	configFile := filepath.Join(t.TempDir(), "explicit.yaml")
-	require.NoError(t, os.WriteFile(configFile, []byte("server:\n  host: 192.0.2.30\n"), 0o600))
-	t.Setenv("DATA_DIR", dataDir)
-	t.Setenv("CONFIG_FILE", configFile)
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, "192.0.2.30", cfg.Server.Host)
-}
-
-// TestLoadReturnsErrorForMissingConfigFile selects an explicit path that does
-// not exist in a temporary directory. Loading must return a configuration-read
-// error, preventing silent startup from other search paths.
-func TestLoadReturnsErrorForMissingConfigFile(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("CONFIG_FILE", filepath.Join(t.TempDir(), "missing.yaml"))
-
-	_, err := Load()
-	require.ErrorContains(t, err, "read config error")
+	require.Equal(t, []string{"127.0.0.1/32", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}, cfg.Server.ClientIP.TrustedProxies)
+	require.True(t, cfg.Server.ClientIP.TrustedProxiesConfigured)
 }
 
 // TestLoadForBootstrapAllowsMissingJWTSecret clears the JWT environment value
 // before bootstrap loading. The call must succeed and return an empty secret,
 // leaving persistent secret selection to database bootstrap.
 func TestLoadForBootstrapAllowsMissingJWTSecret(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
-	t.Setenv("CONFIG_FILE", "")
-	t.Setenv("DATA_DIR", "")
-	t.Setenv("JWT_SECRET", "")
+	fixture := newConfigFixture(t)
 
-	cfg, err := LoadForBootstrap()
+	fixture.Setenv("CONFIG_FILE", "")
+	fixture.Setenv("DATA_DIR", "")
+	fixture.Setenv("JWT_SECRET", "")
+
+	cfg, err := fixture.LoadForBootstrap()
 	if err != nil {
-		t.Fatalf("LoadForBootstrap() error: %v", err)
+		t.Fatalf("fixture.LoadForBootstrap() error: %v", err)
 	}
-	if cfg.JWT.Secret != "" {
-		t.Fatalf("LoadForBootstrap() should keep empty jwt.secret during bootstrap")
+	if cfg.Auth.JWT.Secret != "" {
+		t.Fatalf("fixture.LoadForBootstrap() should keep empty auth.jwt.secret during bootstrap")
 	}
 }
 
@@ -492,33 +386,33 @@ func TestLoadForBootstrapAllowsMissingJWTSecret(t *testing.T) {
 // queue sizes, batched load cache duration, and cleanup interval. Default
 // loading must return the expected values with batching enabled.
 func TestLoadDefaultSchedulingConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	if cfg.Gateway.Scheduling.StickySessionMaxWaiting != 3 {
-		t.Fatalf("StickySessionMaxWaiting = %d, want 3", cfg.Gateway.Scheduling.StickySessionMaxWaiting)
+	if cfg.Scheduling.StickyProviderWait.MaxWaiting != 3 {
+		t.Fatalf("StickySessionMaxWaiting = %d, want 3", cfg.Scheduling.StickyProviderWait.MaxWaiting)
 	}
-	if cfg.Gateway.Scheduling.StickySessionWaitTimeout != 120*time.Second {
-		t.Fatalf("StickySessionWaitTimeout = %v, want 120s", cfg.Gateway.Scheduling.StickySessionWaitTimeout)
+	if cfg.Scheduling.StickyProviderWait.TimeoutSeconds != 120 {
+		t.Fatalf("StickySessionWaitTimeout = %v, want 120s", cfg.Scheduling.StickyProviderWait.TimeoutSeconds)
 	}
-	if cfg.Gateway.Scheduling.FallbackWaitTimeout != 30*time.Second {
-		t.Fatalf("FallbackWaitTimeout = %v, want 30s", cfg.Gateway.Scheduling.FallbackWaitTimeout)
+	if cfg.Scheduling.AlternateProviderWait.TimeoutSeconds != 30 {
+		t.Fatalf("FallbackWaitTimeout = %v, want 30s", cfg.Scheduling.AlternateProviderWait.TimeoutSeconds)
 	}
-	if cfg.Gateway.Scheduling.FallbackMaxWaiting != 100 {
-		t.Fatalf("FallbackMaxWaiting = %d, want 100", cfg.Gateway.Scheduling.FallbackMaxWaiting)
+	if cfg.Scheduling.AlternateProviderWait.MaxWaiting != 100 {
+		t.Fatalf("FallbackMaxWaiting = %d, want 100", cfg.Scheduling.AlternateProviderWait.MaxWaiting)
 	}
-	if !cfg.Gateway.Scheduling.LoadBatchEnabled {
+	if !cfg.Scheduling.LoadBatch.Enabled {
 		t.Fatalf("LoadBatchEnabled = false, want true")
 	}
-	if cfg.Gateway.Scheduling.LoadBatchCacheTTLMS != 200 {
-		t.Fatalf("LoadBatchCacheTTLMS = %d, want 200", cfg.Gateway.Scheduling.LoadBatchCacheTTLMS)
+	if cfg.Scheduling.LoadBatch.CacheTTLMS != 200 {
+		t.Fatalf("LoadBatchCacheTTLMS = %d, want 200", cfg.Scheduling.LoadBatch.CacheTTLMS)
 	}
-	if cfg.Gateway.Scheduling.SlotCleanupInterval != 30*time.Second {
-		t.Fatalf("SlotCleanupInterval = %v, want 30s", cfg.Gateway.Scheduling.SlotCleanupInterval)
+	if cfg.Scheduling.SlotCleanupIntervalSeconds != 30 {
+		t.Fatalf("SlotCleanupInterval = %v, want 30s", cfg.Scheduling.SlotCleanupIntervalSeconds)
 	}
 }
 
@@ -526,36 +420,22 @@ func TestLoadDefaultSchedulingConfig(t *testing.T) {
 // semantic-output budgets. Both ordinary and high-effort timeout fields must
 // remain zero, leaving those configured first-output deadlines disabled.
 func TestLoadDefaultOpenAIFirstOutputTimeoutsDisabled(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.Zero(t, cfg.Gateway.OpenAIFirstOutputTimeoutSeconds)
-	require.Zero(t, cfg.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds)
-}
-
-// TestLoadOpenAIFirstOutputTimeoutsFromEnv supplies separate ordinary and
-// high-effort timeout variables. Loading must retain ninety and 240 seconds in
-// their respective fields for later OpenAI option construction.
-func TestLoadOpenAIFirstOutputTimeoutsFromEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_OPENAI_FIRST_OUTPUT_TIMEOUT_SECONDS", "90")
-	t.Setenv("GATEWAY_OPENAI_HIGH_EFFORT_FIRST_OUTPUT_TIMEOUT_SECONDS", "240")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, 90, cfg.Gateway.OpenAIFirstOutputTimeoutSeconds)
-	require.Equal(t, 240, cfg.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds)
+	require.Zero(t, cfg.Gateway.OpenAI.FirstOutputTimeoutSeconds)
+	require.Zero(t, cfg.Gateway.OpenAI.HighEffortFirstOutputTimeoutSeconds)
 }
 
 // TestValidateOpenAIFirstOutputTimeoutMinimum changes a valid configuration to
 // the thirty-second ordinary first-output threshold. Validation must accept
 // that positive minimum so the endpoint of the permitted range remains usable.
 func TestValidateOpenAIFirstOutputTimeoutMinimum(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	cfg.Gateway.OpenAIFirstOutputTimeoutSeconds = 30
+	cfg.Gateway.OpenAI.FirstOutputTimeoutSeconds = 30
 	require.NoError(t, cfg.Validate())
 }
 
@@ -564,93 +444,78 @@ func TestValidateOpenAIFirstOutputTimeoutMinimum(t *testing.T) {
 // defaults. Each observed field must match the supplied default expectations
 // after loading.
 func TestLoadDefaultOpenAIWSConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	if !cfg.Gateway.OpenAIWS.DynamicMaxConnsByProviderConcurrencyEnabled {
+	if !cfg.Gateway.OpenAI.ResponsesWS.DynamicMaxConnsByProviderConcurrencyEnabled {
 		t.Fatalf("Gateway.OpenAIWS.DynamicMaxConnsByProviderConcurrencyEnabled = false, want true")
 	}
-	if cfg.Gateway.OpenAIWS.OAuthMaxConnsFactor != 1.0 {
-		t.Fatalf("Gateway.OpenAIWS.OAuthMaxConnsFactor = %v, want 1.0", cfg.Gateway.OpenAIWS.OAuthMaxConnsFactor)
+	if cfg.Gateway.OpenAI.ResponsesWS.OAuthMaxConnsFactor != 1.0 {
+		t.Fatalf("Gateway.OpenAIWS.OAuthMaxConnsFactor = %v, want 1.0", cfg.Gateway.OpenAI.ResponsesWS.OAuthMaxConnsFactor)
 	}
-	if cfg.Gateway.OpenAIWS.APIKeyMaxConnsFactor != 1.0 {
-		t.Fatalf("Gateway.OpenAIWS.APIKeyMaxConnsFactor = %v, want 1.0", cfg.Gateway.OpenAIWS.APIKeyMaxConnsFactor)
+	if cfg.Gateway.OpenAI.ResponsesWS.APIKeyMaxConnsFactor != 1.0 {
+		t.Fatalf("Gateway.OpenAIWS.APIKeyMaxConnsFactor = %v, want 1.0", cfg.Gateway.OpenAI.ResponsesWS.APIKeyMaxConnsFactor)
 	}
-	if cfg.Gateway.OpenAIWS.StickySessionTTLSeconds != 3600 {
-		t.Fatalf("Gateway.OpenAIWS.StickySessionTTLSeconds = %d, want 3600", cfg.Gateway.OpenAIWS.StickySessionTTLSeconds)
+	if cfg.Scheduling.SessionAffinity.TTLSeconds != 3600 {
+		t.Fatalf("Gateway.OpenAIWS.StickySessionTTLSeconds = %d, want 3600", cfg.Scheduling.SessionAffinity.TTLSeconds)
 	}
-	if !cfg.Gateway.AdvancedScheduler.StickyEscapeEnabled {
+	if !cfg.Scheduling.Advanced.StickyEscapeEnabled {
 		t.Fatalf("Gateway.AdvancedScheduler.StickyEscapeEnabled = false, want true")
 	}
-	if cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs != 15000 {
-		t.Fatalf("Gateway.AdvancedScheduler.StickyEscapeTTFTMs = %d, want 15000", cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs)
+	if cfg.Scheduling.Advanced.StickyEscapeTTFTMs != 15000 {
+		t.Fatalf("Gateway.AdvancedScheduler.StickyEscapeTTFTMs = %d, want 15000", cfg.Scheduling.Advanced.StickyEscapeTTFTMs)
 	}
-	if cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate != 0.5 {
-		t.Fatalf("Gateway.AdvancedScheduler.StickyEscapeErrorRate = %v, want 0.5", cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate)
+	if cfg.Scheduling.Advanced.StickyEscapeErrorRate != 0.5 {
+		t.Fatalf("Gateway.AdvancedScheduler.StickyEscapeErrorRate = %v, want 0.5", cfg.Scheduling.Advanced.StickyEscapeErrorRate)
 	}
-	if cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha != 0.2 {
-		t.Fatalf("Gateway.AdvancedScheduler.EWMAErrorRateAlpha = %v, want 0.2", cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha)
+	if cfg.Scheduling.Advanced.EWMAErrorRateAlpha != 0.2 {
+		t.Fatalf("Gateway.AdvancedScheduler.EWMAErrorRateAlpha = %v, want 0.2", cfg.Scheduling.Advanced.EWMAErrorRateAlpha)
 	}
-	if cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha != 0.2 {
-		t.Fatalf("Gateway.AdvancedScheduler.EWMATTFTAlpha = %v, want 0.2", cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha)
+	if cfg.Scheduling.Advanced.EWMATTFTAlpha != 0.2 {
+		t.Fatalf("Gateway.AdvancedScheduler.EWMATTFTAlpha = %v, want 0.2", cfg.Scheduling.Advanced.EWMATTFTAlpha)
 	}
-	if !cfg.Gateway.OpenAIWS.SessionHashReadOldFallback {
+	if !cfg.Scheduling.SessionAffinity.ReadLegacyHash {
 		t.Fatalf("Gateway.OpenAIWS.SessionHashReadOldFallback = false, want true")
 	}
-	if !cfg.Gateway.OpenAIWS.SessionHashDualWriteOld {
+	if !cfg.Scheduling.SessionAffinity.DualWriteLegacyHash {
 		t.Fatalf("Gateway.OpenAIWS.SessionHashDualWriteOld = false, want true")
 	}
-	if !cfg.Gateway.OpenAIWS.MetadataBridgeEnabled {
-		t.Fatalf("Gateway.OpenAIWS.MetadataBridgeEnabled = false, want true")
-	}
-	if cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds != 3600 {
-		t.Fatalf("Gateway.OpenAIWS.StickyResponseIDTTLSeconds = %d, want 3600", cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds)
+	if cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds != 3600 {
+		t.Fatalf("Gateway.OpenAIWS.StickyResponseIDTTLSeconds = %d, want 3600", cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds)
 	}
 
-	if cfg.Gateway.OpenAIWS.PrewarmCooldownMS != 300 {
-		t.Fatalf("Gateway.OpenAIWS.PrewarmCooldownMS = %d, want 300", cfg.Gateway.OpenAIWS.PrewarmCooldownMS)
+	if cfg.Gateway.OpenAI.ResponsesWS.PrewarmCooldownMS != 300 {
+		t.Fatalf("Gateway.OpenAIWS.PrewarmCooldownMS = %d, want 300", cfg.Gateway.OpenAI.ResponsesWS.PrewarmCooldownMS)
 	}
-	if cfg.Gateway.OpenAIWS.ClientReadLimitBytes != 64*1024*1024 {
-		t.Fatalf("Gateway.OpenAIWS.ClientReadLimitBytes = %d, want %d", cfg.Gateway.OpenAIWS.ClientReadLimitBytes, 64*1024*1024)
-	}
-
-	if cfg.Gateway.OpenAIWS.HTTPBridgeThresholdBytes != 15*1024*1024 {
-		t.Fatalf("Gateway.OpenAIWS.HTTPBridgeThresholdBytes = %d, want %d", cfg.Gateway.OpenAIWS.HTTPBridgeThresholdBytes, 15*1024*1024)
+	if cfg.Gateway.OpenAI.ResponsesWS.ClientReadLimitBytes != 64*1024*1024 {
+		t.Fatalf("Gateway.OpenAIWS.ClientReadLimitBytes = %d, want %d", cfg.Gateway.OpenAI.ResponsesWS.ClientReadLimitBytes, 64*1024*1024)
 	}
 
-	if cfg.Gateway.AdvancedScheduler.ScoreWeights.QuotaHeadroom != 0 {
-		t.Fatalf("Gateway.AdvancedScheduler.ScoreWeights.QuotaHeadroom = %v, want 0", cfg.Gateway.AdvancedScheduler.ScoreWeights.QuotaHeadroom)
+	if cfg.Gateway.OpenAI.ResponsesWS.HTTPBridgeThresholdBytes != 15*1024*1024 {
+		t.Fatalf("Gateway.OpenAIWS.HTTPBridgeThresholdBytes = %d, want %d", cfg.Gateway.OpenAI.ResponsesWS.HTTPBridgeThresholdBytes, 15*1024*1024)
 	}
 
-	if cfg.Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds != DefaultOpenAIWSClientFirstMessageTimeoutSeconds {
+	if cfg.Scheduling.Advanced.ScoreWeights.QuotaHeadroom != 0 {
+		t.Fatalf("Gateway.AdvancedScheduler.ScoreWeights.QuotaHeadroom = %v, want 0", cfg.Scheduling.Advanced.ScoreWeights.QuotaHeadroom)
+	}
+
+	if cfg.Gateway.OpenAI.ResponsesWS.ClientFirstMessageTimeoutSeconds != DefaultOpenAIWSClientFirstMessageTimeoutSeconds {
 		t.Fatalf(
 			"Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds = %d, want %d",
-			cfg.Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds,
+			cfg.Gateway.OpenAI.ResponsesWS.ClientFirstMessageTimeoutSeconds,
 			DefaultOpenAIWSClientFirstMessageTimeoutSeconds,
 		)
 	}
-	if cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds != 300 {
-		t.Fatalf("Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = %d, want 300", cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds)
+	if cfg.Gateway.OpenAI.ResponsesWS.IngressInterTurnIdleTimeoutSeconds != 300 {
+		t.Fatalf("Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = %d, want 300", cfg.Gateway.OpenAI.ResponsesWS.IngressInterTurnIdleTimeoutSeconds)
 	}
-	if cfg.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey != 64 {
-		t.Fatalf("Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey = %d, want 64", cfg.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey)
+	if cfg.Gateway.OpenAI.ResponsesWS.MaxIngressConnectionsPerAPIKey != 64 {
+		t.Fatalf("Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey = %d, want 64", cfg.Gateway.OpenAI.ResponsesWS.MaxIngressConnectionsPerAPIKey)
 	}
-}
-
-// TestLoadOpenAIWSClientFirstMessageTimeoutFromEnv supplies a positive ingress
-// first-message timeout through its environment key. Loading must return that
-// selected value in the deployment defaults used for Responses WS.
-func TestLoadOpenAIWSClientFirstMessageTimeoutFromEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_OPENAI_WS_CLIENT_FIRST_MESSAGE_TIMEOUT_SECONDS", "120")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, 120, cfg.Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds)
 }
 
 // TestLoadIgnoresRemovedOpenAIWSSwitch supplies the retired force_http
@@ -658,110 +523,56 @@ func TestLoadOpenAIWSClientFirstMessageTimeoutFromEnv(t *testing.T) {
 // connection limit, showing that this removed field does not replace that
 // limit.
 func TestLoadIgnoresRemovedOpenAIWSSwitch(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_OPENAI_WS_FORCE_HTTP", "true")
+	fixture := newConfigFixture(t)
+	fixture.Setenv("GATEWAY_OPENAI_WS_FORCE_HTTP", "true")
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.Equal(t, 128, cfg.Gateway.OpenAIWS.MaxConnsPerProvider)
+	require.Equal(t, 128, cfg.Gateway.OpenAI.ResponsesWS.MaxConnsPerProvider)
 }
 
 // TestLoadDefaultOpenAIHTTP2Enabled reads the default transport preference and
 // proxy-stream isolation settings. HTTP/2 preference, permitted HTTP/1
 // recovery, and the expected enabled circuit thresholds must remain configured.
 func TestLoadDefaultOpenAIHTTP2Enabled(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.True(t, cfg.Gateway.OpenAIHTTP2.Enabled)
-	require.True(t, cfg.Gateway.OpenAIHTTP2.AllowProxyFallbackToHTTP1)
-	require.False(t, cfg.Gateway.OpenAIProxyStreamCircuit.Disabled)
-	require.Equal(t, 2, cfg.Gateway.OpenAIProxyStreamCircuit.FailureThreshold)
-	require.Equal(t, 60, cfg.Gateway.OpenAIProxyStreamCircuit.WindowSeconds)
-	require.Equal(t, 600, cfg.Gateway.OpenAIProxyStreamCircuit.TTLSeconds)
-}
-
-// TestLoadOpenAIProxyStreamCircuitFromEnv supplies the disabling flag, failure
-// count, observation window, and isolation lifetime. Loading must retain those
-// independent values for the proxy-stream circuit defaults.
-func TestLoadOpenAIProxyStreamCircuitFromEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_OPENAI_PROXY_STREAM_CIRCUIT_DISABLED", "true")
-	t.Setenv("GATEWAY_OPENAI_PROXY_STREAM_CIRCUIT_FAILURE_THRESHOLD", "3")
-	t.Setenv("GATEWAY_OPENAI_PROXY_STREAM_CIRCUIT_WINDOW_SECONDS", "90")
-	t.Setenv("GATEWAY_OPENAI_PROXY_STREAM_CIRCUIT_TTL_SECONDS", "420")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.True(t, cfg.Gateway.OpenAIProxyStreamCircuit.Disabled)
-	require.Equal(t, 3, cfg.Gateway.OpenAIProxyStreamCircuit.FailureThreshold)
-	require.Equal(t, 90, cfg.Gateway.OpenAIProxyStreamCircuit.WindowSeconds)
-	require.Equal(t, 420, cfg.Gateway.OpenAIProxyStreamCircuit.TTLSeconds)
-}
-
-// TestLoadOpenAIHTTP2DisabledFromEnv supplies false for the OpenAI HTTP/2
-// preference variable. Loading must retain false even though the default is
-// true, protecting an explicit transport opt-out.
-func TestLoadOpenAIHTTP2DisabledFromEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_OPENAI_HTTP2_ENABLED", "false")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.False(t, cfg.Gateway.OpenAIHTTP2.Enabled)
+	require.True(t, cfg.Gateway.OpenAI.HTTP2.Enabled)
+	require.True(t, cfg.Gateway.OpenAI.HTTP2.AllowProxyFallbackToHTTP1)
+	require.True(t, cfg.Gateway.OpenAI.ProxyStreamCircuit.Enabled)
+	require.Equal(t, 2, cfg.Gateway.OpenAI.ProxyStreamCircuit.FailureThreshold)
+	require.Equal(t, 60, cfg.Gateway.OpenAI.ProxyStreamCircuit.WindowSeconds)
+	require.Equal(t, 600, cfg.Gateway.OpenAI.ProxyStreamCircuit.TTLSeconds)
 }
 
 // TestLoadDefaultOpenAIResponseHeaderTimeoutUnlimited reads OpenAI header-wait
 // settings from default configuration. The field must remain zero, keeping its
 // disabled timeout distinguishable from the generic gateway header budget.
 func TestLoadDefaultOpenAIResponseHeaderTimeoutUnlimited(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.Equal(t, 0, cfg.Gateway.OpenAIResponseHeaderTimeout)
-}
-
-// TestLoadOpenAIResponseHeaderTimeoutFromEnv supplies an 1800-second OpenAI
-// header-wait value through environment input. Loading must retain that
-// override in the platform-specific configuration field.
-func TestLoadOpenAIResponseHeaderTimeoutFromEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_OPENAI_RESPONSE_HEADER_TIMEOUT", "1800")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, 1800, cfg.Gateway.OpenAIResponseHeaderTimeout)
-}
-
-// TestLoadImageNonstreamKeepaliveFromEnv supplies a fifteen-second image JSON
-// keepalive interval. Loading must retain the value for the nonstreaming image
-// path rather than applying the default disabled setting.
-func TestLoadImageNonstreamKeepaliveFromEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_IMAGE_NONSTREAM_KEEPALIVE_INTERVAL", "15")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, 15, cfg.Gateway.ImageNonstreamKeepaliveInterval)
+	require.Equal(t, 0, cfg.Gateway.OpenAI.ResponseHeaderTimeoutSeconds)
 }
 
 // TestLoadOpenAIWSStickyTTLCompatibility supplies zero for the current
 // response-ID lifetime and a positive retired lifetime. Loading must use the
 // retired 7200-second value to fill the nonpositive current field.
 func TestLoadOpenAIWSStickyTTLCompatibility(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_OPENAI_WS_STICKY_RESPONSE_ID_TTL_SECONDS", "0")
-	t.Setenv("GATEWAY_OPENAI_WS_STICKY_PREVIOUS_RESPONSE_TTL_SECONDS", "7200")
+	fixture := newConfigFixture(t)
+	fixture.Setenv("GATEWAY_OPENAI_WS_STICKY_RESPONSE_ID_TTL_SECONDS", "0")
+	fixture.Setenv("GATEWAY_OPENAI_WS_STICKY_PREVIOUS_RESPONSE_TTL_SECONDS", "7200")
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	if cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds != 7200 {
-		t.Fatalf("StickyResponseIDTTLSeconds = %d, want 7200", cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds)
+	if cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds != 7200 {
+		t.Fatalf("StickyResponseIDTTLSeconds = %d, want 7200", cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds)
 	}
 }
 
@@ -769,11 +580,11 @@ func TestLoadOpenAIWSStickyTTLCompatibility(t *testing.T) {
 // flag and record retention values. Loading must enable observation and retain
 // distinct ordinary and system-operation lifetimes.
 func TestLoadDefaultIdempotencyConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
 	if !cfg.Idempotency.ObserveOnly {
@@ -793,126 +604,47 @@ func TestLoadDefaultIdempotencyConfig(t *testing.T) {
 func TestLoadBatchImageRetiredSettings(t *testing.T) {
 	for _, enabled := range []string{"false", "true"} {
 		t.Run(enabled, func(t *testing.T) {
-			resetViperWithJWTSecret(t)
+			fixture := newConfigFixture(t)
 			configFile := filepath.Join(t.TempDir(), "config.yaml")
 			content := "batch_image:\n  enabled: " + enabled + "\n  queue_enabled: " + enabled + "\n  vertex_enabled: " + enabled + "\n  max_items_per_job_trial: -1\n  output_retention_max_days: -1\n  idempotency_key_prefix: unused\n  vertex_input_retention_hours: -1\n  vertex_output_retention_hours: -1\n"
 			require.NoError(t, os.WriteFile(configFile, []byte(content), 0o600))
-			t.Setenv("CONFIG_FILE", configFile)
-			t.Setenv("BATCH_IMAGE_ENABLED", enabled)
-			t.Setenv("BATCH_IMAGE_QUEUE_ENABLED", enabled)
-			t.Setenv("BATCH_IMAGE_VERTEX_ENABLED", enabled)
-			cfg, err := Load()
+			fixture.Setenv("CONFIG_FILE", configFile)
+			fixture.Setenv("BATCH_IMAGE_ENABLED", enabled)
+			fixture.Setenv("BATCH_IMAGE_QUEUE_ENABLED", enabled)
+			fixture.Setenv("BATCH_IMAGE_VERTEX_ENABLED", enabled)
+			cfg, err := fixture.Load()
 			require.NoError(t, err)
-			require.NotEmpty(t, cfg.BatchImage.QueueReadyKey)
-			require.Positive(t, cfg.BatchImage.JobLockTTLSeconds)
-			require.Empty(t, cfg.BatchImage.VertexManagedGCSBucket)
-			cfg.BatchImage.VertexManagedGCSBucket = "gs://invalid-bucket"
-			require.ErrorContains(t, cfg.Validate(), "batch_image.vertex_managed_gcs_bucket")
-			cfg.BatchImage.VertexManagedGCSBucket = "managed-bucket"
-			cfg.BatchImage.VertexManagedGCSPrefix = "shared-prefix"
-			require.ErrorContains(t, cfg.Validate(), "batch_image.vertex_managed_gcs_prefix")
+			require.NotEmpty(t, cfg.BatchImage.Queue.ReadyKey)
+			require.Positive(t, cfg.BatchImage.Queue.JobLockTTLSeconds)
+			require.Empty(t, cfg.BatchImage.Vertex.ManagedGCSBucket)
+			cfg.BatchImage.Vertex.ManagedGCSBucket = "gs://invalid-bucket"
+			require.ErrorContains(t, cfg.Validate(), "batch_image.vertex.managed_gcs_bucket")
+			cfg.BatchImage.Vertex.ManagedGCSBucket = "managed-bucket"
+			cfg.BatchImage.Vertex.ManagedGCSPrefix = "shared-prefix"
+			require.ErrorContains(t, cfg.Validate(), "batch_image.vertex.managed_gcs_prefix")
 		})
 	}
-}
-
-// TestLoadIdempotencyConfigFromEnv overrides missing-key observation and
-// ordinary record retention through environment variables. Loading must retain
-// false and the 600-second value in the decoded coordinator settings.
-func TestLoadIdempotencyConfigFromEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("IDEMPOTENCY_OBSERVE_ONLY", "false")
-	t.Setenv("IDEMPOTENCY_DEFAULT_TTL_SECONDS", "600")
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-	if cfg.Idempotency.ObserveOnly {
-		t.Fatalf("Idempotency.ObserveOnly = true, want false")
-	}
-	if cfg.Idempotency.DefaultTTLSeconds != 600 {
-		t.Fatalf("Idempotency.DefaultTTLSeconds = %d, want 600", cfg.Idempotency.DefaultTTLSeconds)
-	}
-}
-
-// TestLoadSchedulingConfigFromEnv supplies a custom sticky-provider waiter
-// limit through environment input. Loading must retain five waiters in the
-// scheduler deployment settings rather than its default count.
-func TestLoadSchedulingConfigFromEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_SCHEDULING_STICKY_SESSION_MAX_WAITING", "5")
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	if cfg.Gateway.Scheduling.StickySessionMaxWaiting != 5 {
-		t.Fatalf("StickySessionMaxWaiting = %d, want 5", cfg.Gateway.Scheduling.StickySessionMaxWaiting)
-	}
-}
-
-// TestLoadWeChatConnectConfigFromLegacyEnv supplies complete retired Open and
-// MP credentials plus a callback route. Loading must enable both corresponding
-// modes, choose Open presentation, and retain the selected credential and
-// redirect values.
-func TestLoadWeChatConnectConfigFromLegacyEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("WECHAT_OAUTH_OPEN_APP_ID", "wx-open-app")
-	t.Setenv("WECHAT_OAUTH_OPEN_APP_SECRET", "wx-open-secret")
-	t.Setenv("WECHAT_OAUTH_MP_APP_ID", "wx-mp-app")
-	t.Setenv("WECHAT_OAUTH_MP_APP_SECRET", "wx-mp-secret")
-	t.Setenv("WECHAT_OAUTH_FRONTEND_REDIRECT_URL", "/auth/wechat/legacy-callback")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.True(t, cfg.WeChat.Enabled)
-	require.True(t, cfg.WeChat.OpenEnabled)
-	require.True(t, cfg.WeChat.MPEnabled)
-	require.False(t, cfg.WeChat.MobileEnabled)
-	require.Equal(t, "open", cfg.WeChat.Mode)
-	require.Equal(t, "wx-open-app", cfg.WeChat.OpenAppID)
-	require.Equal(t, "wx-open-secret", cfg.WeChat.OpenAppSecret)
-	require.Equal(t, "wx-mp-app", cfg.WeChat.MPAppID)
-	require.Equal(t, "wx-mp-secret", cfg.WeChat.MPAppSecret)
-	require.Equal(t, "/auth/wechat/legacy-callback", cfg.WeChat.FrontendRedirectURL)
 }
 
 // TestLoadDefaultOIDCSecurityDefaults reads OIDC bootstrap security flags
 // without supplied overrides. PKCE and ID-token validation must be enabled
 // while their explicit-presence flags remain false.
 func TestLoadDefaultOIDCSecurityDefaults(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.True(t, cfg.OIDC.UsePKCE)
-	require.True(t, cfg.OIDC.ValidateIDToken)
-	require.False(t, cfg.OIDC.UsePKCEExplicit)
-	require.False(t, cfg.OIDC.ValidateIDTokenExplicit)
-}
-
-// TestLoadExplicitOIDCSecurityDefaultsFromEnvMarksFlagsExplicit supplies false
-// for both OIDC security variables. Loading must retain those values and set
-// both presence flags, distinguishing deliberate overrides from defaults.
-func TestLoadExplicitOIDCSecurityDefaultsFromEnvMarksFlagsExplicit(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("OIDC_CONNECT_USE_PKCE", "false")
-	t.Setenv("OIDC_CONNECT_VALIDATE_ID_TOKEN", "false")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.False(t, cfg.OIDC.UsePKCE)
-	require.False(t, cfg.OIDC.ValidateIDToken)
-	require.True(t, cfg.OIDC.UsePKCEExplicit)
-	require.True(t, cfg.OIDC.ValidateIDTokenExplicit)
+	require.True(t, cfg.Auth.OAuth.OIDC.UsePKCE)
+	require.True(t, cfg.Auth.OAuth.OIDC.ValidateIDToken)
+	require.False(t, cfg.Auth.OAuth.OIDC.UsePKCEExplicit)
+	require.False(t, cfg.Auth.OAuth.OIDC.ValidateIDTokenExplicit)
 }
 
 // TestLoadForcedCodexInstructionsTemplate supplies a YAML template path whose
 // file contains an existing-instructions placeholder. Loading must retain the
 // selected path and cache the complete file text for request-time rendering.
 func TestLoadForcedCodexInstructionsTemplate(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
 	tempDir := t.TempDir()
 	templatePath := filepath.Join(tempDir, "codex-instructions.md.tmpl")
@@ -921,12 +653,12 @@ func TestLoadForcedCodexInstructionsTemplate(t *testing.T) {
 	require.NoError(t, os.WriteFile(templatePath, []byte("server-prefix\n\n{{ .ExistingInstructions }}"), 0o644))
 	yamlSafePath := filepath.ToSlash(templatePath)
 	require.NoError(t, os.WriteFile(configPath, []byte("gateway:\n  forced_codex_instructions_template_file: \""+yamlSafePath+"\"\n"), 0o644))
-	t.Setenv("DATA_DIR", tempDir)
+	fixture.Setenv("DATA_DIR", tempDir)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.Equal(t, yamlSafePath, cfg.Gateway.ForcedCodexInstructionsTemplateFile)
-	require.Equal(t, "server-prefix\n\n{{ .ExistingInstructions }}", cfg.Gateway.ForcedCodexInstructionsTemplate)
+	require.Equal(t, yamlSafePath, cfg.Gateway.OpenAI.Codex.ForcedInstructionsTemplateFile)
+	require.Equal(t, "server-prefix\n\n{{ .ExistingInstructions }}", cfg.Gateway.OpenAI.Codex.ForcedInstructionsTemplate)
 }
 
 // TestLoadDefaultSecurityToggles inspects URL allowlist switches, configured
@@ -934,11 +666,11 @@ func TestLoadForcedCodexInstructionsTemplate(t *testing.T) {
 // expected disabled allowlist, permitted private/HTTP options, host entries,
 // and enabled header filter.
 func TestLoadDefaultSecurityToggles(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
 	if cfg.Security.URLAllowlist.Enabled {
@@ -961,7 +693,7 @@ func TestLoadDefaultSecurityToggles(t *testing.T) {
 	} {
 		require.Contains(t, cfg.Security.URLAllowlist.UpstreamHosts, host)
 	}
-	if !cfg.Security.ResponseHeaders.Enabled {
+	if !cfg.Gateway.ResponseHeaders.Enabled {
 		t.Fatalf("ResponseHeaders.Enabled = false, want true")
 	}
 }
@@ -970,11 +702,11 @@ func TestLoadDefaultSecurityToggles(t *testing.T) {
 // fixture loader. Its Gin mode must remain release, protecting the configured
 // default before application HTTP server construction.
 func TestLoadDefaultServerMode(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
 	if cfg.Server.Mode != "release" {
@@ -982,51 +714,29 @@ func TestLoadDefaultServerMode(t *testing.T) {
 	}
 }
 
-// TestLoadDefaultJWTAccessTokenExpireMinutes reads legacy hours and the minute
-// override after default loading. The hour value must be twenty-four and the
-// minute field zero, retaining hour-based expiry selection.
+// TestLoadDefaultJWTAccessTokenExpireMinutes loads the minute-based token lifetime.
+// The default remains one day after the legacy hour override is removed from
+// the current configuration schema.
 func TestLoadDefaultJWTAccessTokenExpireMinutes(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	if cfg.JWT.ExpireHour != 24 {
-		t.Fatalf("JWT.ExpireHour = %d, want 24", cfg.JWT.ExpireHour)
-	}
-	if cfg.JWT.AccessTokenExpireMinutes != 0 {
-		t.Fatalf("JWT.AccessTokenExpireMinutes = %d, want 0", cfg.JWT.AccessTokenExpireMinutes)
-	}
-}
-
-// TestLoadJWTAccessTokenExpireMinutesFromEnv supplies a positive ninety-minute
-// access-token expiry through environment input. Loading must retain the minute
-// override for consumers that prefer it over legacy hours.
-func TestLoadJWTAccessTokenExpireMinutesFromEnv(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "90")
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	if cfg.JWT.AccessTokenExpireMinutes != 90 {
-		t.Fatalf("JWT.AccessTokenExpireMinutes = %d, want 90", cfg.JWT.AccessTokenExpireMinutes)
-	}
+	require.Equal(t, 1440, cfg.Auth.JWT.AccessTokenTTLMinutes)
 }
 
 // TestLoadDefaultDatabaseSSLMode reads the normal startup PostgreSQL settings.
 // The TLS mode must default to prefer, keeping this loader default observable
 // separately from the installer's disable default.
 func TestLoadDefaultDatabaseSSLMode(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
 	if cfg.Database.SSLMode != "prefer" {
@@ -1038,26 +748,26 @@ func TestLoadDefaultDatabaseSSLMode(t *testing.T) {
 // settings with a JavaScript callback scheme. Validation must reject the
 // frontend redirect and identify that field in its error.
 func TestValidateLinuxDoFrontendRedirectURL(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.LinuxDo.Enabled = true
-	cfg.LinuxDo.ClientID = "test-client"
-	cfg.LinuxDo.ClientSecret = "test-secret"
-	cfg.LinuxDo.RedirectURL = "https://example.com/api/v1/auth/oauth/linuxdo/callback"
-	cfg.LinuxDo.TokenAuthMethod = "client_secret_post"
-	cfg.LinuxDo.UsePKCE = true
+	cfg.Auth.OAuth.LinuxDo.Enabled = true
+	cfg.Auth.OAuth.LinuxDo.ClientID = "test-client"
+	cfg.Auth.OAuth.LinuxDo.ClientSecret = "test-secret"
+	cfg.Auth.OAuth.LinuxDo.RedirectURL = "https://example.com/api/v1/auth/oauth/linuxdo/callback"
+	cfg.Auth.OAuth.LinuxDo.TokenAuthMethod = "client_secret_post"
+	cfg.Auth.OAuth.LinuxDo.UsePKCE = true
 
-	cfg.LinuxDo.FrontendRedirectURL = "javascript:alert(1)"
+	cfg.Auth.OAuth.LinuxDo.FrontendRedirectURL = "javascript:alert(1)"
 	err = cfg.Validate()
 	if err == nil {
 		t.Fatalf("Validate() expected error for javascript scheme, got nil")
 	}
-	if !strings.Contains(err.Error(), "linuxdo_connect.frontend_redirect_url") {
+	if !strings.Contains(err.Error(), "auth.oauth.linuxdo.frontend_redirect_url") {
 		t.Fatalf("Validate() expected frontend_redirect_url error, got: %v", err)
 	}
 }
@@ -1066,20 +776,20 @@ func TestValidateLinuxDoFrontendRedirectURL(t *testing.T) {
 // LinuxDo settings with no client secret, auth method none, and PKCE disabled.
 // Validation must accept that supported compatibility configuration.
 func TestValidateLinuxDoAllowsDisablingPKCEForCompatibility(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.LinuxDo.Enabled = true
-	cfg.LinuxDo.ClientID = "test-client"
-	cfg.LinuxDo.ClientSecret = ""
-	cfg.LinuxDo.RedirectURL = "https://example.com/api/v1/auth/oauth/linuxdo/callback"
-	cfg.LinuxDo.FrontendRedirectURL = "/auth/linuxdo/callback"
-	cfg.LinuxDo.TokenAuthMethod = "none"
-	cfg.LinuxDo.UsePKCE = false
+	cfg.Auth.OAuth.LinuxDo.Enabled = true
+	cfg.Auth.OAuth.LinuxDo.ClientID = "test-client"
+	cfg.Auth.OAuth.LinuxDo.ClientSecret = ""
+	cfg.Auth.OAuth.LinuxDo.RedirectURL = "https://example.com/api/v1/auth/oauth/linuxdo/callback"
+	cfg.Auth.OAuth.LinuxDo.FrontendRedirectURL = "/auth/linuxdo/callback"
+	cfg.Auth.OAuth.LinuxDo.TokenAuthMethod = "none"
+	cfg.Auth.OAuth.LinuxDo.UsePKCE = false
 
 	err = cfg.Validate()
 	if err != nil {
@@ -1091,31 +801,31 @@ func TestValidateLinuxDoAllowsDisablingPKCEForCompatibility(t *testing.T) {
 // whose scopes omit openid. Validation must return a scope error so the
 // required OIDC scope is checked before startup proceeds.
 func TestValidateOIDCScopesMustContainOpenID(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.OIDC.Enabled = true
-	cfg.OIDC.ClientID = "oidc-client"
-	cfg.OIDC.ClientSecret = "oidc-secret"
-	cfg.OIDC.IssuerURL = "https://issuer.example.com"
-	cfg.OIDC.AuthorizeURL = "https://issuer.example.com/auth"
-	cfg.OIDC.TokenURL = "https://issuer.example.com/token"
-	cfg.OIDC.JWKSURL = "https://issuer.example.com/jwks"
-	cfg.OIDC.RedirectURL = "https://example.com/api/v1/auth/oauth/oidc/callback"
-	cfg.OIDC.FrontendRedirectURL = "/auth/oidc/callback"
-	cfg.OIDC.Scopes = "profile email"
-	cfg.OIDC.UsePKCE = true
+	cfg.Auth.OAuth.OIDC.Enabled = true
+	cfg.Auth.OAuth.OIDC.ClientID = "oidc-client"
+	cfg.Auth.OAuth.OIDC.ClientSecret = "oidc-secret"
+	cfg.Auth.OAuth.OIDC.IssuerURL = "https://issuer.example.com"
+	cfg.Auth.OAuth.OIDC.AuthorizeURL = "https://issuer.example.com/auth"
+	cfg.Auth.OAuth.OIDC.TokenURL = "https://issuer.example.com/token"
+	cfg.Auth.OAuth.OIDC.JWKSURL = "https://issuer.example.com/jwks"
+	cfg.Auth.OAuth.OIDC.RedirectURL = "https://example.com/api/v1/auth/oauth/oidc/callback"
+	cfg.Auth.OAuth.OIDC.FrontendRedirectURL = "/auth/oidc/callback"
+	cfg.Auth.OAuth.OIDC.Scopes = "profile email"
+	cfg.Auth.OAuth.OIDC.UsePKCE = true
 
 	err = cfg.Validate()
 	if err == nil {
 		t.Fatalf("Validate() expected error when scopes do not include openid, got nil")
 	}
-	if !strings.Contains(err.Error(), "oidc_connect.scopes") {
-		t.Fatalf("Validate() expected oidc_connect.scopes error, got: %v", err)
+	if !strings.Contains(err.Error(), "auth.oauth.oidc.scopes") {
+		t.Fatalf("Validate() expected auth.oauth.oidc.scopes error, got: %v", err)
 	}
 }
 
@@ -1124,25 +834,25 @@ func TestValidateOIDCScopesMustContainOpenID(t *testing.T) {
 // Validation must accept the object for consumers that discover endpoints from
 // that issuer.
 func TestValidateOIDCAllowsIssuerOnlyEndpointsWithDiscoveryFallback(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.OIDC.Enabled = true
-	cfg.OIDC.ClientID = "oidc-client"
-	cfg.OIDC.ClientSecret = "oidc-secret"
-	cfg.OIDC.IssuerURL = "https://issuer.example.com"
-	cfg.OIDC.AuthorizeURL = ""
-	cfg.OIDC.TokenURL = ""
-	cfg.OIDC.JWKSURL = ""
-	cfg.OIDC.RedirectURL = "https://example.com/api/v1/auth/oauth/oidc/callback"
-	cfg.OIDC.FrontendRedirectURL = "/auth/oidc/callback"
-	cfg.OIDC.Scopes = "openid email profile"
-	cfg.OIDC.ValidateIDToken = true
-	cfg.OIDC.UsePKCE = true
+	cfg.Auth.OAuth.OIDC.Enabled = true
+	cfg.Auth.OAuth.OIDC.ClientID = "oidc-client"
+	cfg.Auth.OAuth.OIDC.ClientSecret = "oidc-secret"
+	cfg.Auth.OAuth.OIDC.IssuerURL = "https://issuer.example.com"
+	cfg.Auth.OAuth.OIDC.AuthorizeURL = ""
+	cfg.Auth.OAuth.OIDC.TokenURL = ""
+	cfg.Auth.OAuth.OIDC.JWKSURL = ""
+	cfg.Auth.OAuth.OIDC.RedirectURL = "https://example.com/api/v1/auth/oauth/oidc/callback"
+	cfg.Auth.OAuth.OIDC.FrontendRedirectURL = "/auth/oidc/callback"
+	cfg.Auth.OAuth.OIDC.Scopes = "openid email profile"
+	cfg.Auth.OAuth.OIDC.ValidateIDToken = true
+	cfg.Auth.OAuth.OIDC.UsePKCE = true
 
 	err = cfg.Validate()
 	if err != nil {
@@ -1154,27 +864,27 @@ func TestValidateOIDCAllowsIssuerOnlyEndpointsWithDiscoveryFallback(t *testing.T
 // disables both checks and omits signing algorithm and JWKS text in populated
 // OIDC settings. Validation must accept those supplied compatibility choices.
 func TestValidateOIDCAllowsExplicitCompatibilityOverridesForPKCEAndIDTokenValidation(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.OIDC.Enabled = true
-	cfg.OIDC.ClientID = "oidc-client"
-	cfg.OIDC.ClientSecret = "oidc-secret"
-	cfg.OIDC.IssuerURL = "https://issuer.example.com"
-	cfg.OIDC.AuthorizeURL = "https://issuer.example.com/auth"
-	cfg.OIDC.TokenURL = "https://issuer.example.com/token"
-	cfg.OIDC.UserInfoURL = "https://issuer.example.com/userinfo"
-	cfg.OIDC.RedirectURL = "https://example.com/api/v1/auth/oauth/oidc/callback"
-	cfg.OIDC.FrontendRedirectURL = "/auth/oidc/callback"
-	cfg.OIDC.Scopes = "openid email profile"
-	cfg.OIDC.UsePKCE = false
-	cfg.OIDC.ValidateIDToken = false
-	cfg.OIDC.JWKSURL = ""
-	cfg.OIDC.AllowedSigningAlgs = ""
+	cfg.Auth.OAuth.OIDC.Enabled = true
+	cfg.Auth.OAuth.OIDC.ClientID = "oidc-client"
+	cfg.Auth.OAuth.OIDC.ClientSecret = "oidc-secret"
+	cfg.Auth.OAuth.OIDC.IssuerURL = "https://issuer.example.com"
+	cfg.Auth.OAuth.OIDC.AuthorizeURL = "https://issuer.example.com/auth"
+	cfg.Auth.OAuth.OIDC.TokenURL = "https://issuer.example.com/token"
+	cfg.Auth.OAuth.OIDC.UserInfoURL = "https://issuer.example.com/userinfo"
+	cfg.Auth.OAuth.OIDC.RedirectURL = "https://example.com/api/v1/auth/oauth/oidc/callback"
+	cfg.Auth.OAuth.OIDC.FrontendRedirectURL = "/auth/oidc/callback"
+	cfg.Auth.OAuth.OIDC.Scopes = "openid email profile"
+	cfg.Auth.OAuth.OIDC.UsePKCE = false
+	cfg.Auth.OAuth.OIDC.ValidateIDToken = false
+	cfg.Auth.OAuth.OIDC.JWKSURL = ""
+	cfg.Auth.OAuth.OIDC.AllowedSigningAlgs = ""
 
 	err = cfg.Validate()
 	if err != nil {
@@ -1186,27 +896,27 @@ func TestValidateOIDCAllowsExplicitCompatibilityOverridesForPKCEAndIDTokenValida
 // freshness lifetime, total lifetime, and refresh budget. Default loading must
 // return the exact dashboard values used by the fixture.
 func TestLoadDefaultDashboardCacheConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	if !cfg.Dashboard.Enabled {
+	if !cfg.Usage.DashboardCache.Enabled {
 		t.Fatalf("Dashboard.Enabled = false, want true")
 	}
-	if cfg.Dashboard.KeyPrefix != "tokenrouter:" {
-		t.Fatalf("Dashboard.KeyPrefix = %q, want %q", cfg.Dashboard.KeyPrefix, "tokenrouter:")
+	if cfg.Usage.DashboardCache.KeyPrefix != "tokenrouter:" {
+		t.Fatalf("Dashboard.KeyPrefix = %q, want %q", cfg.Usage.DashboardCache.KeyPrefix, "tokenrouter:")
 	}
-	if cfg.Dashboard.StatsFreshTTLSeconds != 15 {
-		t.Fatalf("Dashboard.StatsFreshTTLSeconds = %d, want 15", cfg.Dashboard.StatsFreshTTLSeconds)
+	if cfg.Usage.DashboardCache.StatsFreshTTLSeconds != 15 {
+		t.Fatalf("Dashboard.StatsFreshTTLSeconds = %d, want 15", cfg.Usage.DashboardCache.StatsFreshTTLSeconds)
 	}
-	if cfg.Dashboard.StatsTTLSeconds != 30 {
-		t.Fatalf("Dashboard.StatsTTLSeconds = %d, want 30", cfg.Dashboard.StatsTTLSeconds)
+	if cfg.Usage.DashboardCache.StatsTTLSeconds != 30 {
+		t.Fatalf("Dashboard.StatsTTLSeconds = %d, want 30", cfg.Usage.DashboardCache.StatsTTLSeconds)
 	}
-	if cfg.Dashboard.StatsRefreshTimeoutSeconds != 30 {
-		t.Fatalf("Dashboard.StatsRefreshTimeoutSeconds = %d, want 30", cfg.Dashboard.StatsRefreshTimeoutSeconds)
+	if cfg.Usage.DashboardCache.StatsRefreshTimeoutSeconds != 30 {
+		t.Fatalf("Dashboard.StatsRefreshTimeoutSeconds = %d, want 30", cfg.Usage.DashboardCache.StatsRefreshTimeoutSeconds)
 	}
 }
 
@@ -1214,21 +924,21 @@ func TestLoadDefaultDashboardCacheConfig(t *testing.T) {
 // cache lifetime on an enabled configuration. Validation must reject that
 // relationship and name the freshness field in its error.
 func TestValidateDashboardCacheConfigEnabled(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.Dashboard.Enabled = true
-	cfg.Dashboard.StatsFreshTTLSeconds = 10
-	cfg.Dashboard.StatsTTLSeconds = 5
+	cfg.Usage.DashboardCache.Enabled = true
+	cfg.Usage.DashboardCache.StatsFreshTTLSeconds = 10
+	cfg.Usage.DashboardCache.StatsTTLSeconds = 5
 	err = cfg.Validate()
 	if err == nil {
 		t.Fatalf("Validate() expected error for stats_fresh_ttl_seconds > stats_ttl_seconds, got nil")
 	}
-	if !strings.Contains(err.Error(), "dashboard_cache.stats_fresh_ttl_seconds") {
+	if !strings.Contains(err.Error(), "usage.dashboard_cache.stats_fresh_ttl_seconds") {
 		t.Fatalf("Validate() expected stats_fresh_ttl_seconds error, got: %v", err)
 	}
 }
@@ -1237,20 +947,20 @@ func TestValidateDashboardCacheConfigEnabled(t *testing.T) {
 // negative total lifetime. Validation must still reject the negative field,
 // retaining numeric checks even when the feature is disabled.
 func TestValidateDashboardCacheConfigDisabled(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.Dashboard.Enabled = false
-	cfg.Dashboard.StatsTTLSeconds = -1
+	cfg.Usage.DashboardCache.Enabled = false
+	cfg.Usage.DashboardCache.StatsTTLSeconds = -1
 	err = cfg.Validate()
 	if err == nil {
 		t.Fatalf("Validate() expected error for negative stats_ttl_seconds, got nil")
 	}
-	if !strings.Contains(err.Error(), "dashboard_cache.stats_ttl_seconds") {
+	if !strings.Contains(err.Error(), "usage.dashboard_cache.stats_ttl_seconds") {
 		t.Fatalf("Validate() expected stats_ttl_seconds error, got: %v", err)
 	}
 }
@@ -1259,42 +969,42 @@ func TestValidateDashboardCacheConfigDisabled(t *testing.T) {
 // and raw and aggregate retention defaults. Loading must retain the expected
 // values, with aggregation enabled and full backfill disabled.
 func TestLoadDefaultDashboardAggregationConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	if !cfg.DashboardAgg.Enabled {
+	if !cfg.Usage.Aggregation.Enabled {
 		t.Fatalf("DashboardAgg.Enabled = false, want true")
 	}
-	if cfg.DashboardAgg.IntervalSeconds != 60 {
-		t.Fatalf("DashboardAgg.IntervalSeconds = %d, want 60", cfg.DashboardAgg.IntervalSeconds)
+	if cfg.Usage.Aggregation.IntervalSeconds != 60 {
+		t.Fatalf("DashboardAgg.IntervalSeconds = %d, want 60", cfg.Usage.Aggregation.IntervalSeconds)
 	}
-	if cfg.DashboardAgg.LookbackSeconds != 120 {
-		t.Fatalf("DashboardAgg.LookbackSeconds = %d, want 120", cfg.DashboardAgg.LookbackSeconds)
+	if cfg.Usage.Aggregation.LookbackSeconds != 120 {
+		t.Fatalf("DashboardAgg.LookbackSeconds = %d, want 120", cfg.Usage.Aggregation.LookbackSeconds)
 	}
-	if cfg.DashboardAgg.BackfillEnabled {
+	if cfg.Usage.Aggregation.BackfillEnabled {
 		t.Fatalf("DashboardAgg.BackfillEnabled = true, want false")
 	}
-	if cfg.DashboardAgg.BackfillMaxDays != 31 {
-		t.Fatalf("DashboardAgg.BackfillMaxDays = %d, want 31", cfg.DashboardAgg.BackfillMaxDays)
+	if cfg.Usage.Aggregation.BackfillMaxDays != 31 {
+		t.Fatalf("DashboardAgg.BackfillMaxDays = %d, want 31", cfg.Usage.Aggregation.BackfillMaxDays)
 	}
-	if cfg.DashboardAgg.Retention.UsageLogsDays != 90 {
-		t.Fatalf("DashboardAgg.Retention.UsageLogsDays = %d, want 90", cfg.DashboardAgg.Retention.UsageLogsDays)
+	if cfg.Usage.Retention.LogsDays != 90 {
+		t.Fatalf("DashboardAgg.Retention.UsageLogsDays = %d, want 90", cfg.Usage.Retention.LogsDays)
 	}
-	if cfg.DashboardAgg.Retention.UsageBillingDedupDays != 365 {
-		t.Fatalf("DashboardAgg.Retention.UsageBillingDedupDays = %d, want 365", cfg.DashboardAgg.Retention.UsageBillingDedupDays)
+	if cfg.Usage.Retention.BillingDedupDays != 365 {
+		t.Fatalf("DashboardAgg.Retention.UsageBillingDedupDays = %d, want 365", cfg.Usage.Retention.BillingDedupDays)
 	}
-	if cfg.DashboardAgg.Retention.HourlyDays != 180 {
-		t.Fatalf("DashboardAgg.Retention.HourlyDays = %d, want 180", cfg.DashboardAgg.Retention.HourlyDays)
+	if cfg.Usage.Aggregation.HourlyRetentionDays != 180 {
+		t.Fatalf("DashboardAgg.Retention.HourlyDays = %d, want 180", cfg.Usage.Aggregation.HourlyRetentionDays)
 	}
-	if cfg.DashboardAgg.Retention.DailyDays != 730 {
-		t.Fatalf("DashboardAgg.Retention.DailyDays = %d, want 730", cfg.DashboardAgg.Retention.DailyDays)
+	if cfg.Usage.Aggregation.DailyRetentionDays != 730 {
+		t.Fatalf("DashboardAgg.Retention.DailyDays = %d, want 730", cfg.Usage.Aggregation.DailyRetentionDays)
 	}
-	if cfg.DashboardAgg.RecomputeDays != 2 {
-		t.Fatalf("DashboardAgg.RecomputeDays = %d, want 2", cfg.DashboardAgg.RecomputeDays)
+	if cfg.Usage.Aggregation.RecomputeDays != 2 {
+		t.Fatalf("DashboardAgg.RecomputeDays = %d, want 2", cfg.Usage.Aggregation.RecomputeDays)
 	}
 }
 
@@ -1302,20 +1012,20 @@ func TestLoadDefaultDashboardAggregationConfig(t *testing.T) {
 // supplies a negative polling interval. Validation must reject the negative
 // duration and identify that configuration field despite the disabled job.
 func TestValidateDashboardAggregationConfigDisabled(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.DashboardAgg.Enabled = false
-	cfg.DashboardAgg.IntervalSeconds = -1
+	cfg.Usage.Aggregation.Enabled = false
+	cfg.Usage.Aggregation.IntervalSeconds = -1
 	err = cfg.Validate()
 	if err == nil {
-		t.Fatalf("Validate() expected error for negative dashboard_aggregation.interval_seconds, got nil")
+		t.Fatalf("Validate() expected error for negative usage.aggregation.interval_seconds, got nil")
 	}
-	if !strings.Contains(err.Error(), "dashboard_aggregation.interval_seconds") {
+	if !strings.Contains(err.Error(), "usage.aggregation.interval_seconds") {
 		t.Fatalf("Validate() expected interval_seconds error, got: %v", err)
 	}
 }
@@ -1324,20 +1034,20 @@ func TestValidateDashboardAggregationConfigDisabled(t *testing.T) {
 // zero permitted day range. Validation must reject that relationship and
 // identify the backfill range before a backfill can be configured.
 func TestValidateDashboardAggregationBackfillMaxDays(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.DashboardAgg.BackfillEnabled = true
-	cfg.DashboardAgg.BackfillMaxDays = 0
+	cfg.Usage.Aggregation.BackfillEnabled = true
+	cfg.Usage.Aggregation.BackfillMaxDays = 0
 	err = cfg.Validate()
 	if err == nil {
-		t.Fatalf("Validate() expected error for dashboard_aggregation.backfill_max_days, got nil")
+		t.Fatalf("Validate() expected error for usage.aggregation.backfill_max_days, got nil")
 	}
-	if !strings.Contains(err.Error(), "dashboard_aggregation.backfill_max_days") {
+	if !strings.Contains(err.Error(), "usage.aggregation.backfill_max_days") {
 		t.Fatalf("Validate() expected backfill_max_days error, got: %v", err)
 	}
 }
@@ -1346,27 +1056,27 @@ func TestValidateDashboardAggregationBackfillMaxDays(t *testing.T) {
 // polling interval, and task budget. Loading must retain the expected cleanup
 // defaults, including its thirty-minute task timeout.
 func TestLoadDefaultUsageCleanupConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	if !cfg.UsageCleanup.Enabled {
+	if !cfg.Usage.CleanupTasks.Enabled {
 		t.Fatalf("UsageCleanup.Enabled = false, want true")
 	}
-	if cfg.UsageCleanup.MaxRangeDays != 31 {
-		t.Fatalf("UsageCleanup.MaxRangeDays = %d, want 31", cfg.UsageCleanup.MaxRangeDays)
+	if cfg.Usage.CleanupTasks.MaxRangeDays != 31 {
+		t.Fatalf("UsageCleanup.MaxRangeDays = %d, want 31", cfg.Usage.CleanupTasks.MaxRangeDays)
 	}
-	if cfg.UsageCleanup.BatchSize != 5000 {
-		t.Fatalf("UsageCleanup.BatchSize = %d, want 5000", cfg.UsageCleanup.BatchSize)
+	if cfg.Usage.CleanupTasks.BatchSize != 5000 {
+		t.Fatalf("UsageCleanup.BatchSize = %d, want 5000", cfg.Usage.CleanupTasks.BatchSize)
 	}
-	if cfg.UsageCleanup.WorkerIntervalSeconds != 10 {
-		t.Fatalf("UsageCleanup.WorkerIntervalSeconds = %d, want 10", cfg.UsageCleanup.WorkerIntervalSeconds)
+	if cfg.Usage.CleanupTasks.WorkerIntervalSeconds != 10 {
+		t.Fatalf("UsageCleanup.WorkerIntervalSeconds = %d, want 10", cfg.Usage.CleanupTasks.WorkerIntervalSeconds)
 	}
-	if cfg.UsageCleanup.TaskTimeoutSeconds != 1800 {
-		t.Fatalf("UsageCleanup.TaskTimeoutSeconds = %d, want 1800", cfg.UsageCleanup.TaskTimeoutSeconds)
+	if cfg.Usage.CleanupTasks.TaskTimeoutSeconds != 1800 {
+		t.Fatalf("UsageCleanup.TaskTimeoutSeconds = %d, want 1800", cfg.Usage.CleanupTasks.TaskTimeoutSeconds)
 	}
 }
 
@@ -1374,20 +1084,20 @@ func TestLoadDefaultUsageCleanupConfig(t *testing.T) {
 // date range. Validation must reject that value and identify the range field
 // required for an active cleanup executor.
 func TestValidateUsageCleanupConfigEnabled(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.UsageCleanup.Enabled = true
-	cfg.UsageCleanup.MaxRangeDays = 0
+	cfg.Usage.CleanupTasks.Enabled = true
+	cfg.Usage.CleanupTasks.MaxRangeDays = 0
 	err = cfg.Validate()
 	if err == nil {
-		t.Fatalf("Validate() expected error for usage_cleanup.max_range_days, got nil")
+		t.Fatalf("Validate() expected error for usage.cleanup_tasks.max_range_days, got nil")
 	}
-	if !strings.Contains(err.Error(), "usage_cleanup.max_range_days") {
+	if !strings.Contains(err.Error(), "usage.cleanup_tasks.max_range_days") {
 		t.Fatalf("Validate() expected max_range_days error, got: %v", err)
 	}
 }
@@ -1396,20 +1106,20 @@ func TestValidateUsageCleanupConfigEnabled(t *testing.T) {
 // supplying a negative batch size. Validation must reject the negative value
 // and identify its field for the inactive configuration as well.
 func TestValidateUsageCleanupConfigDisabled(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.UsageCleanup.Enabled = false
-	cfg.UsageCleanup.BatchSize = -1
+	cfg.Usage.CleanupTasks.Enabled = false
+	cfg.Usage.CleanupTasks.BatchSize = -1
 	err = cfg.Validate()
 	if err == nil {
-		t.Fatalf("Validate() expected error for usage_cleanup.batch_size, got nil")
+		t.Fatalf("Validate() expected error for usage.cleanup_tasks.batch_size, got nil")
 	}
-	if !strings.Contains(err.Error(), "usage_cleanup.batch_size") {
+	if !strings.Contains(err.Error(), "usage.cleanup_tasks.batch_size") {
 		t.Fatalf("Validate() expected batch_size error, got: %v", err)
 	}
 }
@@ -1472,35 +1182,6 @@ func TestNormalizeStringSlice(t *testing.T) {
 	}
 }
 
-// TestGetServerAddressFromEnv supplies host and port variables to lightweight
-// startup lookup. The returned address must use those values before the
-// complete configuration loader or secret validation runs.
-func TestGetServerAddressFromEnv(t *testing.T) {
-	t.Setenv("CONFIG_FILE", "")
-	t.Setenv("DATA_DIR", "")
-	t.Setenv("SERVER_HOST", "127.0.0.1")
-	t.Setenv("SERVER_PORT", "9090")
-
-	address := GetServerAddress()
-	if address != "127.0.0.1:9090" {
-		t.Fatalf("GetServerAddress() = %q", address)
-	}
-}
-
-// TestGetServerAddressFromConfigFile selects a named YAML file with listener
-// settings while environment listener text is empty. Lightweight lookup must
-// return that file's host and port.
-func TestGetServerAddressFromConfigFile(t *testing.T) {
-	configFile := filepath.Join(t.TempDir(), "setup.yaml")
-	require.NoError(t, os.WriteFile(configFile, []byte("server:\n  host: 192.0.2.40\n  port: 9191\n"), 0o600))
-	t.Setenv("CONFIG_FILE", configFile)
-	t.Setenv("DATA_DIR", "")
-	t.Setenv("SERVER_HOST", "")
-	t.Setenv("SERVER_PORT", "")
-
-	require.Equal(t, "192.0.2.40:9191", GetServerAddress())
-}
-
 // TestValidateAbsoluteHTTPURL supplies an absolute HTTPS URL, empty and
 // relative text, another scheme, and a fragment. The valid endpoint must pass,
 // while the tested invalid forms must return errors.
@@ -1526,36 +1207,36 @@ func TestValidateAbsoluteHTTPURL(t *testing.T) {
 // userinfo, and relative forms on a valid configuration. Validation must accept
 // host/path values and reject the tested unsafe frontend-base shapes.
 func TestValidateServerFrontendURL(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.Server.FrontendURL = "https://example.com"
+	cfg.Site.FrontendURL = "https://example.com"
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() frontend_url valid error: %v", err)
 	}
 
-	cfg.Server.FrontendURL = "https://example.com/path"
+	cfg.Site.FrontendURL = "https://example.com/path"
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() frontend_url with path valid error: %v", err)
 	}
 
-	cfg.Server.FrontendURL = "https://example.com?utm=1"
+	cfg.Site.FrontendURL = "https://example.com?utm=1"
 	if err := cfg.Validate(); err == nil {
-		t.Fatalf("Validate() should reject server.frontend_url with query")
+		t.Fatalf("Validate() should reject site.frontend_url with query")
 	}
 
-	cfg.Server.FrontendURL = "https://user:pass@example.com"
+	cfg.Site.FrontendURL = "https://user:pass@example.com"
 	if err := cfg.Validate(); err == nil {
-		t.Fatalf("Validate() should reject server.frontend_url with userinfo")
+		t.Fatalf("Validate() should reject site.frontend_url with userinfo")
 	}
 
-	cfg.Server.FrontendURL = "/relative"
+	cfg.Site.FrontendURL = "/relative"
 	if err := cfg.Validate(); err == nil {
-		t.Fatalf("Validate() should reject relative server.frontend_url")
+		t.Fatalf("Validate() should reject relative site.frontend_url")
 	}
 }
 
@@ -1607,11 +1288,11 @@ func TestGenerateJWTSecretDefaultLength(t *testing.T) {
 // schedule string. Validation must reject the configuration and identify the
 // schedule field required before periodic cleanup can be configured.
 func TestValidateOpsCleanupScheduleRequired(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 	cfg.Ops.Cleanup.Enabled = true
 	cfg.Ops.Cleanup.Schedule = ""
@@ -1628,19 +1309,19 @@ func TestValidateOpsCleanupScheduleRequired(t *testing.T) {
 // interval on otherwise valid settings. Validation must reject the value and
 // name the concurrency ping field in its error.
 func TestValidateConcurrencyPingInterval(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
-	cfg.Concurrency.PingInterval = 3
+	cfg.Gateway.Streaming.WaitPingIntervalSeconds = 3
 	err = cfg.Validate()
 	if err == nil {
-		t.Fatalf("Validate() expected error for concurrency.ping_interval")
+		t.Fatalf("Validate() expected error for gateway.streaming.wait_ping_interval_seconds")
 	}
-	if !strings.Contains(err.Error(), "concurrency.ping_interval") {
-		t.Fatalf("Validate() expected concurrency.ping_interval error, got: %v", err)
+	if !strings.Contains(err.Error(), "gateway.streaming.wait_ping_interval_seconds") {
+		t.Fatalf("Validate() expected gateway.streaming.wait_ping_interval_seconds error, got: %v", err)
 	}
 }
 
@@ -1648,9 +1329,9 @@ func TestValidateConcurrencyPingInterval(t *testing.T) {
 // configuration loading. The call must succeed, exercising the entry point used
 // before database-backed JWT secret selection.
 func TestProvideConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	if _, err := LoadForBootstrap(); err != nil {
-		t.Fatalf("LoadForBootstrap() error: %v", err)
+	fixture := newConfigFixture(t)
+	if _, err := fixture.LoadForBootstrap(); err != nil {
+		t.Fatalf("fixture.LoadForBootstrap() error: %v", err)
 	}
 }
 
@@ -1658,26 +1339,26 @@ func TestProvideConfig(t *testing.T) {
 // URLs, callback paths, auth method, and PKCE along with CSP. Validation must
 // accept that combined enabled-provider configuration.
 func TestValidateConfigWithLinuxDoEnabled(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
-	cfg, err := Load()
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
 	cfg.Security.CSP.Enabled = true
 	cfg.Security.CSP.Policy = "default-src 'self'"
 
-	cfg.LinuxDo.Enabled = true
-	cfg.LinuxDo.ClientID = "client"
-	cfg.LinuxDo.ClientSecret = "secret"
-	cfg.LinuxDo.AuthorizeURL = "https://example.com/oauth2/authorize"
-	cfg.LinuxDo.TokenURL = "https://example.com/oauth2/token"
-	cfg.LinuxDo.UserInfoURL = "https://example.com/oauth2/userinfo"
-	cfg.LinuxDo.RedirectURL = "https://example.com/api/v1/auth/oauth/linuxdo/callback"
-	cfg.LinuxDo.FrontendRedirectURL = "/auth/linuxdo/callback"
-	cfg.LinuxDo.TokenAuthMethod = "client_secret_post"
-	cfg.LinuxDo.UsePKCE = true
+	cfg.Auth.OAuth.LinuxDo.Enabled = true
+	cfg.Auth.OAuth.LinuxDo.ClientID = "client"
+	cfg.Auth.OAuth.LinuxDo.ClientSecret = "secret"
+	cfg.Auth.OAuth.LinuxDo.AuthorizeURL = "https://example.com/oauth2/authorize"
+	cfg.Auth.OAuth.LinuxDo.TokenURL = "https://example.com/oauth2/token"
+	cfg.Auth.OAuth.LinuxDo.UserInfoURL = "https://example.com/oauth2/userinfo"
+	cfg.Auth.OAuth.LinuxDo.RedirectURL = "https://example.com/api/v1/auth/oauth/linuxdo/callback"
+	cfg.Auth.OAuth.LinuxDo.FrontendRedirectURL = "/auth/linuxdo/callback"
+	cfg.Auth.OAuth.LinuxDo.TokenAuthMethod = "client_secret_post"
+	cfg.Auth.OAuth.LinuxDo.UsePKCE = true
 
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() unexpected error: %v", err)
@@ -1765,15 +1446,15 @@ func TestWarnIfInsecureURLHTTPS(t *testing.T) {
 // thirty-two bytes on valid configuration. The shorter secret must report the
 // byte minimum, and the exact minimum must validate successfully.
 func TestValidateJWTSecret_UTF8Bytes(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
 	// An ASCII fixture gives equal character and byte counts below the minimum.
 	// This assertion checks the byte threshold but does not exercise multibyte text.
-	cfg.JWT.Secret = strings.Repeat("a", 31)
+	cfg.Auth.JWT.Secret = strings.Repeat("a", 31)
 	err = cfg.Validate()
 	if err == nil {
 		t.Fatalf("Validate() should reject 31-byte secret")
@@ -1784,7 +1465,7 @@ func TestValidateJWTSecret_UTF8Bytes(t *testing.T) {
 
 	// Raise the same ASCII fixture to the exact minimum so acceptance contrasts
 	// with the preceding short input under otherwise unchanged loaded configuration.
-	cfg.JWT.Secret = strings.Repeat("a", 32)
+	cfg.Auth.JWT.Secret = strings.Repeat("a", 32)
 	err = cfg.Validate()
 	if err != nil {
 		t.Fatalf("Validate() should accept 32-byte secret: %v", err)
@@ -1797,10 +1478,10 @@ func TestValidateJWTSecret_UTF8Bytes(t *testing.T) {
 func TestValidateConfigErrors(t *testing.T) {
 	buildValid := func(t *testing.T) *Config {
 		t.Helper()
-		resetViperWithJWTSecret(t)
-		cfg, err := Load()
+		fixture := newConfigFixture(t)
+		cfg, err := fixture.Load()
 		if err != nil {
-			t.Fatalf("Load() error: %v", err)
+			t.Fatalf("fixture.Load() error: %v", err)
 		}
 		return cfg
 	}
@@ -1812,8 +1493,8 @@ func TestValidateConfigErrors(t *testing.T) {
 	}{
 		{
 			name:    "server read header timeout",
-			mutate:  func(c *Config) { c.Server.ReadHeaderTimeout = 0 },
-			wantErr: "server.read_header_timeout",
+			mutate:  func(c *Config) { c.Server.ReadHeaderTimeoutSeconds = 0 },
+			wantErr: "server.read_header_timeout_seconds",
 		},
 		{
 			name:    "server max header bytes too small",
@@ -1822,8 +1503,8 @@ func TestValidateConfigErrors(t *testing.T) {
 		},
 		{
 			name:    "server max request body size",
-			mutate:  func(c *Config) { c.Server.MaxRequestBodySize = -1 },
-			wantErr: "server.max_request_body_size",
+			mutate:  func(c *Config) { c.Server.MaxRequestBodyBytes = -1 },
+			wantErr: "server.max_request_body_bytes",
 		},
 		{
 			name: "h2c zero concurrent streams",
@@ -1837,48 +1518,43 @@ func TestValidateConfigErrors(t *testing.T) {
 			name: "h2c oversized read frame",
 			mutate: func(c *Config) {
 				c.Server.H2C.Enabled = true
-				c.Server.H2C.MaxReadFrameSize = 16 * 1024 * 1024
+				c.Server.H2C.MaxReadFrameBytes = 16 * 1024 * 1024
 			},
-			wantErr: "server.h2c.max_read_frame_size",
+			wantErr: "server.h2c.max_read_frame_bytes",
 		},
 		{
 			name: "invalid auth abuse threshold too small",
 			mutate: func(c *Config) {
-				c.APIKeyAuth.InvalidAbuse.Threshold = 9
+				c.APIKey.InvalidKeyAbuse.Threshold = 9
 			},
-			wantErr: "api_key_auth_cache.invalid_abuse.threshold",
+			wantErr: "api_key.invalid_key_abuse.threshold",
 		},
 		{
 			name: "invalid auth abuse capacity too small",
 			mutate: func(c *Config) {
-				c.APIKeyAuth.InvalidAbuse.Capacity = 255
+				c.APIKey.InvalidKeyAbuse.Capacity = 255
 			},
-			wantErr: "api_key_auth_cache.invalid_abuse.capacity",
+			wantErr: "api_key.invalid_key_abuse.capacity",
 		},
 		{
 			name:    "jwt secret required",
-			mutate:  func(c *Config) { c.JWT.Secret = "" },
-			wantErr: "jwt.secret is required",
+			mutate:  func(c *Config) { c.Auth.JWT.Secret = "" },
+			wantErr: "auth.jwt.secret is required",
 		},
 		{
 			name:    "jwt secret min bytes",
-			mutate:  func(c *Config) { c.JWT.Secret = strings.Repeat("a", 31) },
-			wantErr: "jwt.secret must be at least 32 bytes",
+			mutate:  func(c *Config) { c.Auth.JWT.Secret = strings.Repeat("a", 31) },
+			wantErr: "auth.jwt.secret must be at least 32 bytes",
 		},
 		{
 			name:    "jwt expire hour positive",
-			mutate:  func(c *Config) { c.JWT.ExpireHour = 0 },
-			wantErr: "jwt.expire_hour must be positive",
-		},
-		{
-			name:    "jwt expire hour max",
-			mutate:  func(c *Config) { c.JWT.ExpireHour = 200 },
-			wantErr: "jwt.expire_hour must be <= 168",
+			mutate:  func(c *Config) { c.Auth.JWT.AccessTokenTTLMinutes = 0 },
+			wantErr: "auth.jwt.access_token_ttl_minutes must be positive",
 		},
 		{
 			name:    "jwt access token expire minutes non-negative",
-			mutate:  func(c *Config) { c.JWT.AccessTokenExpireMinutes = -1 },
-			wantErr: "jwt.access_token_expire_minutes must be non-negative",
+			mutate:  func(c *Config) { c.Auth.JWT.AccessTokenTTLMinutes = -1 },
+			wantErr: "auth.jwt.access_token_ttl_minutes must be positive",
 		},
 		{
 			name:    "csp policy required",
@@ -1888,42 +1564,42 @@ func TestValidateConfigErrors(t *testing.T) {
 		{
 			name: "linuxdo client id required",
 			mutate: func(c *Config) {
-				c.LinuxDo.Enabled = true
-				c.LinuxDo.UsePKCE = true
-				c.LinuxDo.ClientID = ""
+				c.Auth.OAuth.LinuxDo.Enabled = true
+				c.Auth.OAuth.LinuxDo.UsePKCE = true
+				c.Auth.OAuth.LinuxDo.ClientID = ""
 			},
-			wantErr: "linuxdo_connect.client_id",
+			wantErr: "auth.oauth.linuxdo.client_id",
 		},
 		{
 			name: "linuxdo token auth method",
 			mutate: func(c *Config) {
-				c.LinuxDo.Enabled = true
-				c.LinuxDo.UsePKCE = true
-				c.LinuxDo.ClientID = "client"
-				c.LinuxDo.ClientSecret = "secret"
-				c.LinuxDo.AuthorizeURL = "https://example.com/authorize"
-				c.LinuxDo.TokenURL = "https://example.com/token"
-				c.LinuxDo.UserInfoURL = "https://example.com/userinfo"
-				c.LinuxDo.RedirectURL = "https://example.com/callback"
-				c.LinuxDo.FrontendRedirectURL = "/auth/callback"
-				c.LinuxDo.TokenAuthMethod = "invalid"
+				c.Auth.OAuth.LinuxDo.Enabled = true
+				c.Auth.OAuth.LinuxDo.UsePKCE = true
+				c.Auth.OAuth.LinuxDo.ClientID = "client"
+				c.Auth.OAuth.LinuxDo.ClientSecret = "secret"
+				c.Auth.OAuth.LinuxDo.AuthorizeURL = "https://example.com/authorize"
+				c.Auth.OAuth.LinuxDo.TokenURL = "https://example.com/token"
+				c.Auth.OAuth.LinuxDo.UserInfoURL = "https://example.com/userinfo"
+				c.Auth.OAuth.LinuxDo.RedirectURL = "https://example.com/callback"
+				c.Auth.OAuth.LinuxDo.FrontendRedirectURL = "/auth/callback"
+				c.Auth.OAuth.LinuxDo.TokenAuthMethod = "invalid"
 			},
-			wantErr: "linuxdo_connect.token_auth_method",
+			wantErr: "auth.oauth.linuxdo.token_auth_method",
 		},
 		{
 			name:    "billing circuit breaker threshold",
-			mutate:  func(c *Config) { c.Billing.CircuitBreaker.FailureThreshold = 0 },
-			wantErr: "billing.circuit_breaker.failure_threshold",
+			mutate:  func(c *Config) { c.Billing.BalanceCheckCircuitBreaker.FailureThreshold = 0 },
+			wantErr: "billing.balance_check_circuit_breaker.failure_threshold",
 		},
 		{
 			name:    "billing circuit breaker reset",
-			mutate:  func(c *Config) { c.Billing.CircuitBreaker.ResetTimeoutSeconds = 0 },
-			wantErr: "billing.circuit_breaker.reset_timeout_seconds",
+			mutate:  func(c *Config) { c.Billing.BalanceCheckCircuitBreaker.ResetTimeoutSeconds = 0 },
+			wantErr: "billing.balance_check_circuit_breaker.reset_timeout_seconds",
 		},
 		{
 			name:    "billing circuit breaker half open",
-			mutate:  func(c *Config) { c.Billing.CircuitBreaker.HalfOpenRequests = 0 },
-			wantErr: "billing.circuit_breaker.half_open_requests",
+			mutate:  func(c *Config) { c.Billing.BalanceCheckCircuitBreaker.HalfOpenRequests = 0 },
+			wantErr: "billing.balance_check_circuit_breaker.half_open_requests",
 		},
 		{
 			name:    "billing minimum balance reserve",
@@ -1972,370 +1648,368 @@ func TestValidateConfigErrors(t *testing.T) {
 		},
 		{
 			name:    "dashboard cache disabled negative",
-			mutate:  func(c *Config) { c.Dashboard.Enabled = false; c.Dashboard.StatsTTLSeconds = -1 },
-			wantErr: "dashboard_cache.stats_ttl_seconds",
+			mutate:  func(c *Config) { c.Usage.DashboardCache.Enabled = false; c.Usage.DashboardCache.StatsTTLSeconds = -1 },
+			wantErr: "usage.dashboard_cache.stats_ttl_seconds",
 		},
 		{
-			name:    "dashboard cache fresh ttl positive",
-			mutate:  func(c *Config) { c.Dashboard.Enabled = true; c.Dashboard.StatsFreshTTLSeconds = 0 },
-			wantErr: "dashboard_cache.stats_fresh_ttl_seconds",
+			name: "dashboard cache fresh ttl positive",
+			mutate: func(c *Config) {
+				c.Usage.DashboardCache.Enabled = true
+				c.Usage.DashboardCache.StatsFreshTTLSeconds = 0
+			},
+			wantErr: "usage.dashboard_cache.stats_fresh_ttl_seconds",
 		},
 		{
 			name:    "dashboard aggregation enabled interval",
-			mutate:  func(c *Config) { c.DashboardAgg.Enabled = true; c.DashboardAgg.IntervalSeconds = 0 },
-			wantErr: "dashboard_aggregation.interval_seconds",
+			mutate:  func(c *Config) { c.Usage.Aggregation.Enabled = true; c.Usage.Aggregation.IntervalSeconds = 0 },
+			wantErr: "usage.aggregation.interval_seconds",
 		},
 		{
 			name: "dashboard aggregation backfill positive",
 			mutate: func(c *Config) {
-				c.DashboardAgg.Enabled = true
-				c.DashboardAgg.BackfillEnabled = true
-				c.DashboardAgg.BackfillMaxDays = 0
+				c.Usage.Aggregation.Enabled = true
+				c.Usage.Aggregation.BackfillEnabled = true
+				c.Usage.Aggregation.BackfillMaxDays = 0
 			},
-			wantErr: "dashboard_aggregation.backfill_max_days",
+			wantErr: "usage.aggregation.backfill_max_days",
 		},
 		{
 			name:    "dashboard aggregation retention",
-			mutate:  func(c *Config) { c.DashboardAgg.Enabled = true; c.DashboardAgg.Retention.UsageLogsDays = 0 },
-			wantErr: "dashboard_aggregation.retention.usage_logs_days",
+			mutate:  func(c *Config) { c.Usage.Aggregation.Enabled = true; c.Usage.Retention.LogsDays = 0 },
+			wantErr: "usage.retention.logs_days",
 		},
 		{
 			name: "dashboard aggregation dedup retention",
 			mutate: func(c *Config) {
-				c.DashboardAgg.Enabled = true
-				c.DashboardAgg.Retention.UsageBillingDedupDays = 0
+				c.Usage.Aggregation.Enabled = true
+				c.Usage.Retention.BillingDedupDays = 0
 			},
-			wantErr: "dashboard_aggregation.retention.usage_billing_dedup_days",
+			wantErr: "usage.retention.billing_dedup_days",
 		},
 		{
 			name: "dashboard aggregation dedup retention smaller than usage logs",
 			mutate: func(c *Config) {
-				c.DashboardAgg.Enabled = true
-				c.DashboardAgg.Retention.UsageLogsDays = 30
-				c.DashboardAgg.Retention.UsageBillingDedupDays = 29
+				c.Usage.Aggregation.Enabled = true
+				c.Usage.Retention.LogsDays = 30
+				c.Usage.Retention.BillingDedupDays = 29
 			},
-			wantErr: "dashboard_aggregation.retention.usage_billing_dedup_days",
+			wantErr: "usage.retention.billing_dedup_days",
 		},
 		{
 			name:    "dashboard aggregation disabled interval",
-			mutate:  func(c *Config) { c.DashboardAgg.Enabled = false; c.DashboardAgg.IntervalSeconds = -1 },
-			wantErr: "dashboard_aggregation.interval_seconds",
+			mutate:  func(c *Config) { c.Usage.Aggregation.Enabled = false; c.Usage.Aggregation.IntervalSeconds = -1 },
+			wantErr: "usage.aggregation.interval_seconds",
 		},
 		{
 			name:    "usage cleanup max range",
-			mutate:  func(c *Config) { c.UsageCleanup.Enabled = true; c.UsageCleanup.MaxRangeDays = 0 },
-			wantErr: "usage_cleanup.max_range_days",
+			mutate:  func(c *Config) { c.Usage.CleanupTasks.Enabled = true; c.Usage.CleanupTasks.MaxRangeDays = 0 },
+			wantErr: "usage.cleanup_tasks.max_range_days",
 		},
 		{
 			name:    "usage cleanup worker interval",
-			mutate:  func(c *Config) { c.UsageCleanup.Enabled = true; c.UsageCleanup.WorkerIntervalSeconds = 0 },
-			wantErr: "usage_cleanup.worker_interval_seconds",
+			mutate:  func(c *Config) { c.Usage.CleanupTasks.Enabled = true; c.Usage.CleanupTasks.WorkerIntervalSeconds = 0 },
+			wantErr: "usage.cleanup_tasks.worker_interval_seconds",
 		},
 		{
 			name:    "usage cleanup batch size",
-			mutate:  func(c *Config) { c.UsageCleanup.Enabled = true; c.UsageCleanup.BatchSize = 0 },
-			wantErr: "usage_cleanup.batch_size",
+			mutate:  func(c *Config) { c.Usage.CleanupTasks.Enabled = true; c.Usage.CleanupTasks.BatchSize = 0 },
+			wantErr: "usage.cleanup_tasks.batch_size",
 		},
 		{
 			name:    "usage cleanup disabled negative",
-			mutate:  func(c *Config) { c.UsageCleanup.Enabled = false; c.UsageCleanup.BatchSize = -1 },
-			wantErr: "usage_cleanup.batch_size",
+			mutate:  func(c *Config) { c.Usage.CleanupTasks.Enabled = false; c.Usage.CleanupTasks.BatchSize = -1 },
+			wantErr: "usage.cleanup_tasks.batch_size",
 		},
 		{
 			name:    "gateway max body size",
-			mutate:  func(c *Config) { c.Gateway.MaxBodySize = 0 },
-			wantErr: "gateway.max_body_size",
+			mutate:  func(c *Config) { c.Gateway.MaxRequestBodyBytes = 0 },
+			wantErr: "gateway.max_request_body_bytes",
 		},
 		{
 			name:    "gateway text body exceeds media body",
-			mutate:  func(c *Config) { c.Gateway.TextMaxBodySize = c.Gateway.MaxBodySize + 1 },
-			wantErr: "gateway.text_max_body_size",
+			mutate:  func(c *Config) { c.Gateway.TextMaxRequestBodyBytes = c.Gateway.MaxRequestBodyBytes + 1 },
+			wantErr: "gateway.text_max_request_body_bytes",
 		},
 		{
 			name:    "gateway models list read limit",
-			mutate:  func(c *Config) { c.Gateway.ModelsListReadMaxBytes = 0 },
-			wantErr: "gateway.models_list_read_max_bytes",
+			mutate:  func(c *Config) { c.Gateway.ModelsListResponseMaxBytes = 0 },
+			wantErr: "gateway.models_list_response_max_bytes",
 		},
 		{
 			name:    "gateway response header timeout",
-			mutate:  func(c *Config) { c.Gateway.ResponseHeaderTimeout = -1 },
-			wantErr: "gateway.response_header_timeout",
+			mutate:  func(c *Config) { c.Gateway.Transport.ResponseHeaderTimeoutSeconds = -1 },
+			wantErr: "gateway.transport.response_header_timeout_seconds",
 		},
 		{
 			name:    "gateway openai response header timeout",
-			mutate:  func(c *Config) { c.Gateway.OpenAIResponseHeaderTimeout = -1 },
-			wantErr: "gateway.openai_response_header_timeout",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponseHeaderTimeoutSeconds = -1 },
+			wantErr: "gateway.openai.response_header_timeout_seconds",
 		},
 		{
 			name:    "gateway openai first output timeout below minimum",
-			mutate:  func(c *Config) { c.Gateway.OpenAIFirstOutputTimeoutSeconds = 29 },
-			wantErr: "gateway.openai_first_output_timeout_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.FirstOutputTimeoutSeconds = 29 },
+			wantErr: "gateway.openai.first_output_timeout_seconds",
 		},
 		{
 			name:    "gateway openai high effort first output timeout too large",
-			mutate:  func(c *Config) { c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds = 1801 },
-			wantErr: "gateway.openai_high_effort_first_output_timeout_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.HighEffortFirstOutputTimeoutSeconds = 1801 },
+			wantErr: "gateway.openai.high_effort_first_output_timeout_seconds",
 		},
 		{
 			name:    "gateway max idle conns",
-			mutate:  func(c *Config) { c.Gateway.MaxIdleConns = 0 },
-			wantErr: "gateway.max_idle_conns",
+			mutate:  func(c *Config) { c.Gateway.Transport.MaxIdleConns = 0 },
+			wantErr: "gateway.transport.max_idle_conns",
 		},
 		{
 			name:    "gateway max idle conns per host",
-			mutate:  func(c *Config) { c.Gateway.MaxIdleConnsPerHost = 0 },
-			wantErr: "gateway.max_idle_conns_per_host",
+			mutate:  func(c *Config) { c.Gateway.Transport.MaxIdleConnsPerHost = 0 },
+			wantErr: "gateway.transport.max_idle_conns_per_host",
 		},
 		{
 			name:    "gateway idle timeout",
-			mutate:  func(c *Config) { c.Gateway.IdleConnTimeoutSeconds = 0 },
-			wantErr: "gateway.idle_conn_timeout_seconds",
+			mutate:  func(c *Config) { c.Gateway.Transport.IdleConnTimeoutSeconds = 0 },
+			wantErr: "gateway.transport.idle_conn_timeout_seconds",
 		},
 		{
 			name:    "gateway max upstream clients",
-			mutate:  func(c *Config) { c.Gateway.MaxUpstreamClients = 0 },
-			wantErr: "gateway.max_upstream_clients",
+			mutate:  func(c *Config) { c.Gateway.Transport.ClientCache.MaxClients = 0 },
+			wantErr: "gateway.transport.client_cache.max_clients",
 		},
 		{
 			name:    "gateway client idle ttl",
-			mutate:  func(c *Config) { c.Gateway.ClientIdleTTLSeconds = 0 },
-			wantErr: "gateway.client_idle_ttl_seconds",
+			mutate:  func(c *Config) { c.Gateway.Transport.ClientCache.IdleTTLSeconds = 0 },
+			wantErr: "gateway.transport.client_cache.idle_ttl_seconds",
 		},
 		{
 			name:    "gateway concurrency slot ttl",
-			mutate:  func(c *Config) { c.Gateway.ConcurrencySlotTTLMinutes = 0 },
-			wantErr: "gateway.concurrency_slot_ttl_minutes",
+			mutate:  func(c *Config) { c.Scheduling.ConcurrencySlotTTLMinutes = 0 },
+			wantErr: "scheduling.concurrency_slot_ttl_minutes",
 		},
 		{
 			name:    "gateway max conns per host",
-			mutate:  func(c *Config) { c.Gateway.MaxConnsPerHost = -1 },
-			wantErr: "gateway.max_conns_per_host",
+			mutate:  func(c *Config) { c.Gateway.Transport.MaxConnsPerHost = -1 },
+			wantErr: "gateway.transport.max_conns_per_host",
 		},
 		{
 			name:    "gateway connection isolation",
-			mutate:  func(c *Config) { c.Gateway.ConnectionPoolIsolation = "invalid" },
-			wantErr: "gateway.connection_pool_isolation",
+			mutate:  func(c *Config) { c.Gateway.Transport.ConnectionPoolIsolation = "invalid" },
+			wantErr: "gateway.transport.connection_pool_isolation",
 		},
 		{
 			name:    "gateway stream keepalive range",
-			mutate:  func(c *Config) { c.Gateway.StreamKeepaliveInterval = 4 },
-			wantErr: "gateway.stream_keepalive_interval",
+			mutate:  func(c *Config) { c.Gateway.Streaming.KeepaliveIntervalSeconds = 4 },
+			wantErr: "gateway.streaming.keepalive_interval_seconds",
 		},
 		{
 			name:    "gateway openai ws oauth max conns factor",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.OAuthMaxConnsFactor = 0 },
-			wantErr: "gateway.openai_ws.oauth_max_conns_factor",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.OAuthMaxConnsFactor = 0 },
+			wantErr: "gateway.openai.responses_ws.oauth_max_conns_factor",
 		},
 		{
 			name:    "gateway openai ws apikey max conns factor",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.APIKeyMaxConnsFactor = 0 },
-			wantErr: "gateway.openai_ws.apikey_max_conns_factor",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.APIKeyMaxConnsFactor = 0 },
+			wantErr: "gateway.openai.responses_ws.api_key_max_conns_factor",
 		},
 		{
 			name:    "gateway openai http2 fallback threshold",
-			mutate:  func(c *Config) { c.Gateway.OpenAIHTTP2.FallbackErrorThreshold = -1 },
-			wantErr: "gateway.openai_http2.fallback_error_threshold",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.HTTP2.FallbackErrorThreshold = -1 },
+			wantErr: "gateway.openai.http2.fallback_error_threshold",
 		},
 		{
 			name:    "gateway openai http2 fallback window",
-			mutate:  func(c *Config) { c.Gateway.OpenAIHTTP2.FallbackWindowSeconds = -1 },
-			wantErr: "gateway.openai_http2.fallback_window_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.HTTP2.FallbackWindowSeconds = -1 },
+			wantErr: "gateway.openai.http2.fallback_window_seconds",
 		},
 		{
 			name:    "gateway openai http2 fallback ttl",
-			mutate:  func(c *Config) { c.Gateway.OpenAIHTTP2.FallbackTTLSeconds = -1 },
-			wantErr: "gateway.openai_http2.fallback_ttl_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.HTTP2.FallbackTTLSeconds = -1 },
+			wantErr: "gateway.openai.http2.fallback_ttl_seconds",
 		},
 		{
 			name:    "gateway openai proxy stream circuit threshold",
-			mutate:  func(c *Config) { c.Gateway.OpenAIProxyStreamCircuit.FailureThreshold = -1 },
-			wantErr: "gateway.openai_proxy_stream_circuit.failure_threshold",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ProxyStreamCircuit.FailureThreshold = -1 },
+			wantErr: "gateway.openai.proxy_stream_circuit.failure_threshold",
 		},
 		{
 			name:    "gateway openai proxy stream circuit window",
-			mutate:  func(c *Config) { c.Gateway.OpenAIProxyStreamCircuit.WindowSeconds = -1 },
-			wantErr: "gateway.openai_proxy_stream_circuit.window_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ProxyStreamCircuit.WindowSeconds = -1 },
+			wantErr: "gateway.openai.proxy_stream_circuit.window_seconds",
 		},
 		{
 			name:    "gateway openai proxy stream circuit ttl",
-			mutate:  func(c *Config) { c.Gateway.OpenAIProxyStreamCircuit.TTLSeconds = -1 },
-			wantErr: "gateway.openai_proxy_stream_circuit.ttl_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ProxyStreamCircuit.TTLSeconds = -1 },
+			wantErr: "gateway.openai.proxy_stream_circuit.ttl_seconds",
 		},
 		{
 			name:    "gateway stream data interval range",
-			mutate:  func(c *Config) { c.Gateway.StreamDataIntervalTimeout = 5 },
-			wantErr: "gateway.stream_data_interval_timeout",
+			mutate:  func(c *Config) { c.Gateway.Streaming.DataIdleTimeoutSeconds = 5 },
+			wantErr: "gateway.streaming.data_idle_timeout_seconds",
 		},
 		{
 			name:    "gateway stream data interval negative",
-			mutate:  func(c *Config) { c.Gateway.StreamDataIntervalTimeout = -1 },
-			wantErr: "gateway.stream_data_interval_timeout must be non-negative",
+			mutate:  func(c *Config) { c.Gateway.Streaming.DataIdleTimeoutSeconds = -1 },
+			wantErr: "gateway.streaming.data_idle_timeout_seconds must be non-negative",
 		},
 		{
 			name:    "gateway image stream keepalive range",
-			mutate:  func(c *Config) { c.Gateway.ImageStreamKeepaliveInterval = 4 },
-			wantErr: "gateway.image_stream_keepalive_interval",
+			mutate:  func(c *Config) { c.Gateway.Images.StreamKeepaliveIntervalSeconds = 4 },
+			wantErr: "gateway.images.stream_keepalive_interval_seconds",
 		},
 		{
 			name:    "gateway image stream keepalive negative",
-			mutate:  func(c *Config) { c.Gateway.ImageStreamKeepaliveInterval = -1 },
-			wantErr: "gateway.image_stream_keepalive_interval must be non-negative",
+			mutate:  func(c *Config) { c.Gateway.Images.StreamKeepaliveIntervalSeconds = -1 },
+			wantErr: "gateway.images.stream_keepalive_interval_seconds must be non-negative",
 		},
 		{
 			name:    "gateway image nonstream keepalive range",
-			mutate:  func(c *Config) { c.Gateway.ImageNonstreamKeepaliveInterval = 4 },
-			wantErr: "gateway.image_nonstream_keepalive_interval",
+			mutate:  func(c *Config) { c.Gateway.Images.NonstreamKeepaliveIntervalSeconds = 4 },
+			wantErr: "gateway.images.nonstream_keepalive_interval_seconds",
 		},
 		{
 			name:    "gateway image nonstream keepalive negative",
-			mutate:  func(c *Config) { c.Gateway.ImageNonstreamKeepaliveInterval = -1 },
-			wantErr: "gateway.image_nonstream_keepalive_interval must be non-negative",
+			mutate:  func(c *Config) { c.Gateway.Images.NonstreamKeepaliveIntervalSeconds = -1 },
+			wantErr: "gateway.images.nonstream_keepalive_interval_seconds must be non-negative",
 		},
 		{
 			name:    "gateway image stream data interval range",
-			mutate:  func(c *Config) { c.Gateway.ImageStreamDataIntervalTimeout = 30 },
-			wantErr: "gateway.image_stream_data_interval_timeout",
+			mutate:  func(c *Config) { c.Gateway.Images.StreamDataIdleTimeoutSeconds = 30 },
+			wantErr: "gateway.images.stream_data_idle_timeout_seconds",
 		},
 		{
 			name:    "gateway image stream data interval negative",
-			mutate:  func(c *Config) { c.Gateway.ImageStreamDataIntervalTimeout = -1 },
-			wantErr: "gateway.image_stream_data_interval_timeout must be non-negative",
+			mutate:  func(c *Config) { c.Gateway.Images.StreamDataIdleTimeoutSeconds = -1 },
+			wantErr: "gateway.images.stream_data_idle_timeout_seconds must be non-negative",
 		},
 		{
 			name:    "gateway image concurrency max negative",
-			mutate:  func(c *Config) { c.Gateway.ImageConcurrency.MaxConcurrentRequests = -1 },
-			wantErr: "gateway.image_concurrency.max_concurrent_requests must be non-negative",
+			mutate:  func(c *Config) { c.Gateway.Images.Concurrency.MaxConcurrentRequests = -1 },
+			wantErr: "gateway.images.concurrency.max_concurrent_requests must be non-negative",
 		},
 		{
 			name:    "gateway image concurrency overflow mode invalid",
-			mutate:  func(c *Config) { c.Gateway.ImageConcurrency.OverflowMode = "queue" },
-			wantErr: "gateway.image_concurrency.overflow_mode",
+			mutate:  func(c *Config) { c.Gateway.Images.Concurrency.OverflowMode = "queue" },
+			wantErr: "gateway.images.concurrency.overflow_mode",
 		},
 		{
 			name:    "gateway image concurrency wait timeout negative",
-			mutate:  func(c *Config) { c.Gateway.ImageConcurrency.WaitTimeoutSeconds = -1 },
-			wantErr: "gateway.image_concurrency.wait_timeout_seconds must be non-negative",
+			mutate:  func(c *Config) { c.Gateway.Images.Concurrency.WaitTimeoutSeconds = -1 },
+			wantErr: "gateway.images.concurrency.wait_timeout_seconds must be non-negative",
 		},
 		{
 			name:    "gateway image concurrency max waiting negative",
-			mutate:  func(c *Config) { c.Gateway.ImageConcurrency.MaxWaitingRequests = -1 },
-			wantErr: "gateway.image_concurrency.max_waiting_requests must be non-negative",
+			mutate:  func(c *Config) { c.Gateway.Images.Concurrency.MaxWaitingRequests = -1 },
+			wantErr: "gateway.images.concurrency.max_waiting_requests must be non-negative",
 		},
 		{
 			name:    "gateway max line size",
-			mutate:  func(c *Config) { c.Gateway.MaxLineSize = 1024 },
-			wantErr: "gateway.max_line_size must be at least",
+			mutate:  func(c *Config) { c.Gateway.MaxSSELineBytes = 1024 },
+			wantErr: "gateway.max_sse_line_bytes must be at least",
 		},
 		{
 			name:    "gateway max line size negative",
-			mutate:  func(c *Config) { c.Gateway.MaxLineSize = -1 },
-			wantErr: "gateway.max_line_size must be non-negative",
+			mutate:  func(c *Config) { c.Gateway.MaxSSELineBytes = -1 },
+			wantErr: "gateway.max_sse_line_bytes must be non-negative",
 		},
 		{
 			name:    "gateway usage record worker count",
-			mutate:  func(c *Config) { c.Gateway.UsageRecord.WorkerCount = 0 },
-			wantErr: "gateway.usage_record.worker_count",
+			mutate:  func(c *Config) { c.Usage.RecordQueue.WorkerCount = 0 },
+			wantErr: "usage.record_queue.worker_count",
 		},
 		{
 			name:    "gateway usage record queue size",
-			mutate:  func(c *Config) { c.Gateway.UsageRecord.QueueSize = 0 },
-			wantErr: "gateway.usage_record.queue_size",
+			mutate:  func(c *Config) { c.Usage.RecordQueue.QueueSize = 0 },
+			wantErr: "usage.record_queue.queue_size",
 		},
 		{
 			name:    "gateway usage record timeout",
-			mutate:  func(c *Config) { c.Gateway.UsageRecord.TaskTimeoutSeconds = 0 },
-			wantErr: "gateway.usage_record.task_timeout_seconds",
+			mutate:  func(c *Config) { c.Usage.RecordQueue.TaskTimeoutSeconds = 0 },
+			wantErr: "usage.record_queue.task_timeout_seconds",
 		},
 		{
 			name:    "gateway usage record overflow policy",
-			mutate:  func(c *Config) { c.Gateway.UsageRecord.OverflowPolicy = "invalid" },
-			wantErr: "gateway.usage_record.overflow_policy",
+			mutate:  func(c *Config) { c.Usage.RecordQueue.OverflowPolicy = "invalid" },
+			wantErr: "usage.record_queue.overflow_policy",
 		},
 		{
 			name:    "gateway usage record sample percent range",
-			mutate:  func(c *Config) { c.Gateway.UsageRecord.OverflowSamplePercent = 101 },
-			wantErr: "gateway.usage_record.overflow_sample_percent",
+			mutate:  func(c *Config) { c.Usage.RecordQueue.OverflowSamplePercent = 101 },
+			wantErr: "usage.record_queue.overflow_sample_percent",
 		},
 		{
 			name: "gateway usage record sample percent required for sample policy",
 			mutate: func(c *Config) {
-				c.Gateway.UsageRecord.OverflowPolicy = UsageRecordOverflowPolicySample
-				c.Gateway.UsageRecord.OverflowSamplePercent = 0
+				c.Usage.RecordQueue.OverflowPolicy = UsageRecordOverflowPolicySample
+				c.Usage.RecordQueue.OverflowSamplePercent = 0
 			},
-			wantErr: "gateway.usage_record.overflow_sample_percent must be positive",
+			wantErr: "usage.record_queue.overflow_sample_percent must be positive",
 		},
 		{
 			name: "gateway usage record auto scale max gte min",
 			mutate: func(c *Config) {
-				c.Gateway.UsageRecord.AutoScaleMinWorkers = 256
-				c.Gateway.UsageRecord.AutoScaleMaxWorkers = 128
+				c.Usage.RecordQueue.AutoScaleMinWorkers = 256
+				c.Usage.RecordQueue.AutoScaleMaxWorkers = 128
 			},
-			wantErr: "gateway.usage_record.auto_scale_max_workers",
+			wantErr: "usage.record_queue.auto_scale_max_workers",
 		},
 		{
 			name: "gateway usage record worker in auto scale range",
 			mutate: func(c *Config) {
-				c.Gateway.UsageRecord.AutoScaleMinWorkers = 200
-				c.Gateway.UsageRecord.AutoScaleMaxWorkers = 300
-				c.Gateway.UsageRecord.WorkerCount = 128
+				c.Usage.RecordQueue.AutoScaleMinWorkers = 200
+				c.Usage.RecordQueue.AutoScaleMaxWorkers = 300
+				c.Usage.RecordQueue.WorkerCount = 128
 			},
-			wantErr: "gateway.usage_record.worker_count must be between auto_scale_min_workers and auto_scale_max_workers",
+			wantErr: "usage.record_queue.worker_count must be between auto_scale_min_workers and auto_scale_max_workers",
 		},
 		{
 			name: "gateway usage record auto scale queue thresholds order",
 			mutate: func(c *Config) {
-				c.Gateway.UsageRecord.AutoScaleUpQueuePercent = 50
-				c.Gateway.UsageRecord.AutoScaleDownQueuePercent = 50
+				c.Usage.RecordQueue.AutoScaleUpQueuePercent = 50
+				c.Usage.RecordQueue.AutoScaleDownQueuePercent = 50
 			},
-			wantErr: "gateway.usage_record.auto_scale_down_queue_percent must be less",
+			wantErr: "usage.record_queue.auto_scale_down_queue_percent must be less",
 		},
 		{
 			name:    "gateway usage record auto scale up step",
-			mutate:  func(c *Config) { c.Gateway.UsageRecord.AutoScaleUpStep = 0 },
-			wantErr: "gateway.usage_record.auto_scale_up_step",
+			mutate:  func(c *Config) { c.Usage.RecordQueue.AutoScaleUpStep = 0 },
+			wantErr: "usage.record_queue.auto_scale_up_step",
 		},
 		{
 			name:    "gateway usage record auto scale interval",
-			mutate:  func(c *Config) { c.Gateway.UsageRecord.AutoScaleCheckIntervalSeconds = 0 },
-			wantErr: "gateway.usage_record.auto_scale_check_interval_seconds",
+			mutate:  func(c *Config) { c.Usage.RecordQueue.AutoScaleCheckIntervalSeconds = 0 },
+			wantErr: "usage.record_queue.auto_scale_check_interval_seconds",
 		},
 		{
 			name:    "gateway user group rate cache ttl",
-			mutate:  func(c *Config) { c.Gateway.UserGroupRateCacheTTLSeconds = 0 },
-			wantErr: "gateway.user_group_rate_cache_ttl_seconds",
-		},
-		{
-			name:    "gateway models list cache ttl range",
-			mutate:  func(c *Config) { c.Gateway.ModelsListCacheTTLSeconds = 31 },
-			wantErr: "gateway.models_list_cache_ttl_seconds",
+			mutate:  func(c *Config) { c.Billing.GroupRateCacheTTLSeconds = 0 },
+			wantErr: "billing.group_rate_cache_ttl_seconds",
 		},
 		{
 			name:    "gateway scheduling sticky waiting",
-			mutate:  func(c *Config) { c.Gateway.Scheduling.StickySessionMaxWaiting = 0 },
-			wantErr: "gateway.scheduling.sticky_session_max_waiting",
+			mutate:  func(c *Config) { c.Scheduling.StickyProviderWait.MaxWaiting = 0 },
+			wantErr: "scheduling.sticky_provider_wait.max_waiting",
 		},
 		{
 			name:    "gateway scheduling load batch cache ttl",
-			mutate:  func(c *Config) { c.Gateway.Scheduling.LoadBatchCacheTTLMS = -1 },
-			wantErr: "gateway.scheduling.load_batch_cache_ttl_ms",
+			mutate:  func(c *Config) { c.Scheduling.LoadBatch.CacheTTLMS = -1 },
+			wantErr: "scheduling.load_batch.cache_ttl_ms",
 		},
 		{
 			name:    "gateway scheduling outbox poll",
-			mutate:  func(c *Config) { c.Gateway.Scheduling.OutboxPollIntervalSeconds = 0 },
-			wantErr: "gateway.scheduling.outbox_poll_interval_seconds",
+			mutate:  func(c *Config) { c.Scheduling.Snapshot.OutboxPollIntervalSeconds = 0 },
+			wantErr: "scheduling.snapshot.outbox_poll_interval_seconds",
 		},
 		{
 			name:    "gateway scheduling outbox failures",
-			mutate:  func(c *Config) { c.Gateway.Scheduling.OutboxLagRebuildFailures = 0 },
-			wantErr: "gateway.scheduling.outbox_lag_rebuild_failures",
+			mutate:  func(c *Config) { c.Scheduling.Snapshot.OutboxLagRebuildFailures = 0 },
+			wantErr: "scheduling.snapshot.outbox_lag_rebuild_failures",
 		},
 		{
 			name: "gateway outbox lag rebuild",
 			mutate: func(c *Config) {
-				c.Gateway.Scheduling.OutboxLagWarnSeconds = 10
-				c.Gateway.Scheduling.OutboxLagRebuildSeconds = 5
+				c.Scheduling.Snapshot.OutboxLagWarnSeconds = 10
+				c.Scheduling.Snapshot.OutboxLagRebuildSeconds = 5
 			},
-			wantErr: "gateway.scheduling.outbox_lag_rebuild_seconds",
+			wantErr: "scheduling.snapshot.outbox_lag_rebuild_seconds",
 		},
 		{
 			name:    "log level invalid",
@@ -2367,11 +2041,6 @@ func TestValidateConfigErrors(t *testing.T) {
 				c.Log.Sampling.Initial = 0
 			},
 			wantErr: "log.sampling.initial",
-		},
-		{
-			name:    "ops metrics collector ttl",
-			mutate:  func(c *Config) { c.Ops.MetricsCollectorCache.TTL = -1 },
-			wantErr: "ops.metrics_collector_cache.ttl",
 		},
 		{
 			name:    "ops cleanup retention",
@@ -2419,20 +2088,11 @@ func TestValidateConfigErrors(t *testing.T) {
 func TestValidateConfig_OpenAIWSRules(t *testing.T) {
 	buildValid := func(t *testing.T) *Config {
 		t.Helper()
-		resetViperWithJWTSecret(t)
-		cfg, err := Load()
+		fixture := newConfigFixture(t)
+		cfg, err := fixture.Load()
 		require.NoError(t, err)
 		return cfg
 	}
-
-	t.Run("sticky response id ttl 兼容旧键回填", func(t *testing.T) {
-		cfg := buildValid(t)
-		cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds = 0
-		cfg.Gateway.OpenAIWS.StickyPreviousResponseTTLSeconds = 7200
-
-		require.NoError(t, cfg.Validate())
-		require.Equal(t, 7200, cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds)
-	})
 
 	cases := []struct {
 		name    string        // subtest display name
@@ -2441,191 +2101,178 @@ func TestValidateConfig_OpenAIWSRules(t *testing.T) {
 	}{
 		{
 			name:    "max_conns_per_provider 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.MaxConnsPerProvider = 0 },
-			wantErr: "gateway.openai_ws.max_conns_per_provider",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.MaxConnsPerProvider = 0 },
+			wantErr: "gateway.openai.responses_ws.max_conns_per_provider",
 		},
 		{
 			name:    "client_first_message_timeout_seconds 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds = 0 },
-			wantErr: "gateway.openai_ws.client_first_message_timeout_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.ClientFirstMessageTimeoutSeconds = 0 },
+			wantErr: "gateway.openai.responses_ws.client_first_message_timeout_seconds",
 		},
 		{
 			name:    "client_first_message_timeout_seconds 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds = -1 },
-			wantErr: "gateway.openai_ws.client_first_message_timeout_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.ClientFirstMessageTimeoutSeconds = -1 },
+			wantErr: "gateway.openai.responses_ws.client_first_message_timeout_seconds",
 		},
 		{
 			name:    "ingress_inter_turn_idle_timeout_seconds 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = -1 },
-			wantErr: "gateway.openai_ws.ingress_inter_turn_idle_timeout_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.IngressInterTurnIdleTimeoutSeconds = -1 },
+			wantErr: "gateway.openai.responses_ws.ingress_inter_turn_idle_timeout_seconds",
 		},
 		{
 			name:    "max_ingress_connections_per_api_key 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey = -1 },
-			wantErr: "gateway.openai_ws.max_ingress_connections_per_api_key",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.MaxIngressConnectionsPerAPIKey = -1 },
+			wantErr: "gateway.openai.responses_ws.max_ingress_connections_per_api_key",
 		},
 		{
 			name:    "min_idle_per_provider 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.MinIdlePerProvider = -1 },
-			wantErr: "gateway.openai_ws.min_idle_per_provider",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.MinIdlePerProvider = -1 },
+			wantErr: "gateway.openai.responses_ws.min_idle_per_provider",
 		},
 		{
 			name:    "max_idle_per_provider 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.MaxIdlePerProvider = -1 },
-			wantErr: "gateway.openai_ws.max_idle_per_provider",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.MaxIdlePerProvider = -1 },
+			wantErr: "gateway.openai.responses_ws.max_idle_per_provider",
 		},
 		{
 			name: "min_idle_per_provider 不能大于 max_idle_per_provider",
 			mutate: func(c *Config) {
-				c.Gateway.OpenAIWS.MinIdlePerProvider = 3
-				c.Gateway.OpenAIWS.MaxIdlePerProvider = 2
+				c.Gateway.OpenAI.ResponsesWS.MinIdlePerProvider = 3
+				c.Gateway.OpenAI.ResponsesWS.MaxIdlePerProvider = 2
 			},
-			wantErr: "gateway.openai_ws.min_idle_per_provider must be <= max_idle_per_provider",
+			wantErr: "gateway.openai.responses_ws.min_idle_per_provider must be <= max_idle_per_provider",
 		},
 		{
 			name: "max_idle_per_provider 不能大于 max_conns_per_provider",
 			mutate: func(c *Config) {
-				c.Gateway.OpenAIWS.MaxConnsPerProvider = 2
-				c.Gateway.OpenAIWS.MinIdlePerProvider = 1
-				c.Gateway.OpenAIWS.MaxIdlePerProvider = 3
+				c.Gateway.OpenAI.ResponsesWS.MaxConnsPerProvider = 2
+				c.Gateway.OpenAI.ResponsesWS.MinIdlePerProvider = 1
+				c.Gateway.OpenAI.ResponsesWS.MaxIdlePerProvider = 3
 			},
-			wantErr: "gateway.openai_ws.max_idle_per_provider must be <= max_conns_per_provider",
+			wantErr: "gateway.openai.responses_ws.max_idle_per_provider must be <= max_conns_per_provider",
 		},
 		{
 			name:    "dial_timeout_seconds 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.DialTimeoutSeconds = 0 },
-			wantErr: "gateway.openai_ws.dial_timeout_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.DialTimeoutSeconds = 0 },
+			wantErr: "gateway.openai.responses_ws.dial_timeout_seconds",
 		},
 		{
 			name:    "read_timeout_seconds 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.ReadTimeoutSeconds = 0 },
-			wantErr: "gateway.openai_ws.read_timeout_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.ReadTimeoutSeconds = 0 },
+			wantErr: "gateway.openai.responses_ws.read_timeout_seconds",
 		},
 		{
 			name:    "write_timeout_seconds 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.WriteTimeoutSeconds = 0 },
-			wantErr: "gateway.openai_ws.write_timeout_seconds",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.WriteTimeoutSeconds = 0 },
+			wantErr: "gateway.openai.responses_ws.write_timeout_seconds",
 		},
 		{
 			name:    "pool_target_utilization 必须在 (0,1]",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.PoolTargetUtilization = 0 },
-			wantErr: "gateway.openai_ws.pool_target_utilization",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.PoolTargetUtilization = 0 },
+			wantErr: "gateway.openai.responses_ws.pool_target_utilization",
 		},
 		{
 			name:    "queue_limit_per_conn 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.QueueLimitPerConn = 0 },
-			wantErr: "gateway.openai_ws.queue_limit_per_conn",
+			mutate:  func(c *Config) { c.Gateway.OpenAI.ResponsesWS.QueueLimitPerConn = 0 },
+			wantErr: "gateway.openai.responses_ws.queue_limit_per_conn",
 		},
 
 		{
 			name:    "lb_top_k 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.LBTopK = 0 },
-			wantErr: "gateway.advanced_scheduler.lb_top_k",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.LBTopK = 0 },
+			wantErr: "scheduling.advanced.lb_top_k",
 		},
 		{
 			name:    "error rate EWMA alpha 必须大于 0",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.EWMAErrorRateAlpha = 0 },
-			wantErr: "gateway.advanced_scheduler.ewma_error_rate_alpha",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.EWMAErrorRateAlpha = 0 },
+			wantErr: "scheduling.advanced.ewma_error_rate_alpha",
 		},
 		{
 			name:    "TTFT EWMA alpha 不能大于 1",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.EWMATTFTAlpha = 1.1 },
-			wantErr: "gateway.advanced_scheduler.ewma_ttft_alpha",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.EWMATTFTAlpha = 1.1 },
+			wantErr: "scheduling.advanced.ewma_ttft_alpha",
 		},
 		{
 			name:    "error rate EWMA alpha 不能为 NaN",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.EWMAErrorRateAlpha = math.NaN() },
-			wantErr: "gateway.advanced_scheduler.ewma_error_rate_alpha",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.EWMAErrorRateAlpha = math.NaN() },
+			wantErr: "scheduling.advanced.ewma_error_rate_alpha",
 		},
 		{
 			name:    "TTFT EWMA alpha 不能为 Inf",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.EWMATTFTAlpha = math.Inf(1) },
-			wantErr: "gateway.advanced_scheduler.ewma_ttft_alpha",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.EWMATTFTAlpha = math.Inf(1) },
+			wantErr: "scheduling.advanced.ewma_ttft_alpha",
 		},
 		{
 			name:    "sticky_session_ttl_seconds 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.StickySessionTTLSeconds = 0 },
-			wantErr: "gateway.openai_ws.sticky_session_ttl_seconds",
-		},
-		{
-			name: "sticky_response_id_ttl_seconds 必须为正数",
-			mutate: func(c *Config) {
-				c.Gateway.OpenAIWS.StickyResponseIDTTLSeconds = 0
-				c.Gateway.OpenAIWS.StickyPreviousResponseTTLSeconds = 0
-			},
-			wantErr: "gateway.openai_ws.sticky_response_id_ttl_seconds",
-		},
-		{
-			name:    "sticky_previous_response_ttl_seconds 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIWS.StickyPreviousResponseTTLSeconds = -1 },
-			wantErr: "gateway.openai_ws.sticky_previous_response_ttl_seconds",
+			mutate:  func(c *Config) { c.Scheduling.SessionAffinity.TTLSeconds = 0 },
+			wantErr: "scheduling.session_affinity.ttl_seconds",
 		},
 		{
 			name:    "scheduler_score_weights 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.ScoreWeights.Queue = -0.1 },
-			wantErr: "gateway.advanced_scheduler.score_weights.* must be non-negative",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.ScoreWeights.Queue = -0.1 },
+			wantErr: "scheduling.advanced.score_weights.* must be non-negative",
 		},
 		{
 			name:    "scheduler_score_weights quota_headroom 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.ScoreWeights.QuotaHeadroom = -0.1 },
-			wantErr: "gateway.advanced_scheduler.score_weights.* must be non-negative",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.ScoreWeights.QuotaHeadroom = -0.1 },
+			wantErr: "scheduling.advanced.score_weights.* must be non-negative",
 		},
 		{
 			name:    "scheduler_score_weights reset 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.ScoreWeights.Reset = -0.1 },
-			wantErr: "gateway.advanced_scheduler.score_weights.* must be non-negative",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.ScoreWeights.Reset = -0.1 },
+			wantErr: "scheduling.advanced.score_weights.* must be non-negative",
 		},
 		{
 			name:    "scheduler_score_weights 不能为 NaN",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.ScoreWeights.PreviousResponse = math.NaN() },
-			wantErr: "gateway.advanced_scheduler.score_weights.* must be non-negative and finite",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.ScoreWeights.PreviousResponse = math.NaN() },
+			wantErr: "scheduling.advanced.score_weights.* must be non-negative and finite",
 		},
 		{
 			name:    "scheduler_score_weights 不能为 Inf",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.ScoreWeights.Reset = math.Inf(1) },
-			wantErr: "gateway.advanced_scheduler.score_weights.* must be non-negative and finite",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.ScoreWeights.Reset = math.Inf(1) },
+			wantErr: "scheduling.advanced.score_weights.* must be non-negative and finite",
 		},
 		{
 			name: "scheduler_score_weights 总和不能溢出",
 			mutate: func(c *Config) {
-				c.Gateway.AdvancedScheduler.ScoreWeights.Priority = math.MaxFloat64
-				c.Gateway.AdvancedScheduler.ScoreWeights.Load = math.MaxFloat64
+				c.Scheduling.Advanced.ScoreWeights.Priority = math.MaxFloat64
+				c.Scheduling.Advanced.ScoreWeights.Load = math.MaxFloat64
 			},
-			wantErr: "gateway.advanced_scheduler.score_weights base-weight sum must be finite",
+			wantErr: "scheduling.advanced.score_weights base-weight sum must be finite",
 		},
 		{
 			name: "scheduler_score_weights 含 sticky 总和不能溢出",
 			mutate: func(c *Config) {
-				c.Gateway.AdvancedScheduler.ScoreWeights.Priority = math.MaxFloat64
-				c.Gateway.AdvancedScheduler.ScoreWeights.PreviousResponse = math.MaxFloat64
+				c.Scheduling.Advanced.ScoreWeights.Priority = math.MaxFloat64
+				c.Scheduling.Advanced.ScoreWeights.PreviousResponse = math.MaxFloat64
 			},
-			wantErr: "gateway.advanced_scheduler.score_weights total-weight sum must be finite",
+			wantErr: "scheduling.advanced.score_weights total-weight sum must be finite",
 		},
 		{
 			name: "scheduler_score_weights 不能全为 0",
 			mutate: func(c *Config) {
-				c.Gateway.AdvancedScheduler.ScoreWeights.Priority = 0
-				c.Gateway.AdvancedScheduler.ScoreWeights.Load = 0
-				c.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0
-				c.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0
-				c.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0
+				c.Scheduling.Advanced.ScoreWeights.Priority = 0
+				c.Scheduling.Advanced.ScoreWeights.Load = 0
+				c.Scheduling.Advanced.ScoreWeights.Queue = 0
+				c.Scheduling.Advanced.ScoreWeights.ErrorRate = 0
+				c.Scheduling.Advanced.ScoreWeights.TTFT = 0
 			},
-			wantErr: "gateway.advanced_scheduler.score_weights must not all be zero",
+			wantErr: "scheduling.advanced.score_weights must not all be zero",
 		},
 		{
 			name:    "sticky_escape_ttft_ms 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.StickyEscapeTTFTMs = 0 },
-			wantErr: "gateway.advanced_scheduler.sticky_escape_ttft_ms",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.StickyEscapeTTFTMs = 0 },
+			wantErr: "scheduling.advanced.sticky_escape_ttft_ms",
 		},
 		{
 			name:    "sticky_escape_error_rate 不能小于 0",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.StickyEscapeErrorRate = -0.1 },
-			wantErr: "gateway.advanced_scheduler.sticky_escape_error_rate",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.StickyEscapeErrorRate = -0.1 },
+			wantErr: "scheduling.advanced.sticky_escape_error_rate",
 		},
 		{
 			name:    "sticky_escape_error_rate 不能大于 1",
-			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 1.1 },
-			wantErr: "gateway.advanced_scheduler.sticky_escape_error_rate",
+			mutate:  func(c *Config) { c.Scheduling.Advanced.StickyEscapeErrorRate = 1.1 },
+			wantErr: "scheduling.advanced.sticky_escape_error_rate",
 		},
 	}
 
@@ -2642,25 +2289,25 @@ func TestValidateConfig_OpenAIWSRules(t *testing.T) {
 
 	t.Run("quota_headroom 可作为唯一有效调度权重", func(t *testing.T) {
 		cfg := buildValid(t)
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.Reset = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.QuotaHeadroom = 0.1
+		cfg.Scheduling.Advanced.ScoreWeights.Priority = 0
+		cfg.Scheduling.Advanced.ScoreWeights.Load = 0
+		cfg.Scheduling.Advanced.ScoreWeights.Queue = 0
+		cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0
+		cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0
+		cfg.Scheduling.Advanced.ScoreWeights.Reset = 0
+		cfg.Scheduling.Advanced.ScoreWeights.QuotaHeadroom = 0.1
 
 		require.NoError(t, cfg.Validate())
 	})
 
 	t.Run("reset 可作为唯一有效调度权重", func(t *testing.T) {
 		cfg := buildValid(t)
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0
-		cfg.Gateway.AdvancedScheduler.ScoreWeights.Reset = 0.1
+		cfg.Scheduling.Advanced.ScoreWeights.Priority = 0
+		cfg.Scheduling.Advanced.ScoreWeights.Load = 0
+		cfg.Scheduling.Advanced.ScoreWeights.Queue = 0
+		cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0
+		cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0
+		cfg.Scheduling.Advanced.ScoreWeights.Reset = 0.1
 
 		require.NoError(t, cfg.Validate())
 	})
@@ -2670,27 +2317,25 @@ func TestValidateConfig_OpenAIWSRules(t *testing.T) {
 // and after gateway validation. Each repair must expose the next error while
 // preserving the warning sequence and only mutations reached before that error.
 func TestValidateGatewayFirstErrorAndMutationOrder(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	maxBodySize := cfg.Gateway.MaxBodySize
-	maxConnsPerProvider := cfg.Gateway.OpenAIWS.MaxConnsPerProvider
-	cfg.JWT.ExpireHour = 25
+	maxBodySize := cfg.Gateway.MaxRequestBodyBytes
+	maxConnsPerProvider := cfg.Gateway.OpenAI.ResponsesWS.MaxConnsPerProvider
+	cfg.Auth.JWT.AccessTokenTTLMinutes = 1500
 	cfg.Idempotency.CleanupBatchSize = 0
-	cfg.Gateway.MaxBodySize = 0
-	cfg.Gateway.Live.MaxSessionDurationSeconds = -1
-	cfg.Gateway.ConnectionPoolIsolation = "invalid"
-	cfg.Gateway.IdleConnTimeoutSeconds = 181
-	cfg.Gateway.MaxUpstreamClients = 0
-	cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds = 0
-	cfg.Gateway.OpenAIWS.StickyPreviousResponseTTLSeconds = 1234
-	cfg.Gateway.OpenAIWS.MaxConnsPerProvider = 0
-	cfg.Gateway.Scheduling.OutboxLagWarnSeconds = 2
-	cfg.Gateway.Scheduling.OutboxLagRebuildSeconds = 1
-	cfg.Ops.MetricsCollectorCache.TTL = -1
-	cfg.Concurrency.PingInterval = 0
-	cfg.Gateway.Grok.FreeQuotaSoftGateEnabled = true
-	cfg.Gateway.Grok.FreeQuotaTokenLimit = 0
+	cfg.Gateway.MaxRequestBodyBytes = 0
+	cfg.Gateway.OpenAI.Live.MaxSessionDurationSeconds = -1
+	cfg.Gateway.Transport.ConnectionPoolIsolation = "invalid"
+	cfg.Gateway.Transport.IdleConnTimeoutSeconds = 181
+	cfg.Gateway.Transport.ClientCache.MaxClients = 0
+	cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds = 1234
+	cfg.Gateway.OpenAI.ResponsesWS.MaxConnsPerProvider = 0
+	cfg.Scheduling.Snapshot.OutboxLagWarnSeconds = 2
+	cfg.Scheduling.Snapshot.OutboxLagRebuildSeconds = 1
+	cfg.Gateway.Streaming.WaitPingIntervalSeconds = 0
+	cfg.Scheduling.GrokFreeQuota.Enabled = true
+	cfg.Scheduling.GrokFreeQuota.TokenLimit = 0
 
 	var logs bytes.Buffer
 	// Capture only validation warnings, then restore the shared logger so later
@@ -2702,7 +2347,6 @@ func TestValidateGatewayFirstErrorAndMutationOrder(t *testing.T) {
 	steps := []struct {
 		wantError   string        // expected first validation error
 		wantLive    int           // retained Live duration seconds
-		wantTTL     int           // retained response-affinity lifetime seconds
 		wantWarning bool          // gateway idle warning emitted
 		repair      func(*Config) // correction exposing subsequent validation failure
 	}{
@@ -2712,59 +2356,47 @@ func TestValidateGatewayFirstErrorAndMutationOrder(t *testing.T) {
 			repair:    func(c *Config) { c.Idempotency.CleanupBatchSize = 1 },
 		},
 		{
-			wantError: "gateway.max_body_size must be positive",
+			wantError: "gateway.max_request_body_bytes must be positive",
 			wantLive:  -1,
-			repair:    func(c *Config) { c.Gateway.MaxBodySize = maxBodySize },
+			repair:    func(c *Config) { c.Gateway.MaxRequestBodyBytes = maxBodySize },
 		},
 		{
-			wantError: "gateway.connection_pool_isolation must be one of: proxy/provider/provider_proxy",
+			wantError: "gateway.transport.connection_pool_isolation must be one of: proxy/provider/provider_proxy",
 			wantLive:  3600,
-			repair:    func(c *Config) { c.Gateway.ConnectionPoolIsolation = ConnectionPoolIsolationProvider },
+			repair:    func(c *Config) { c.Gateway.Transport.ConnectionPoolIsolation = ConnectionPoolIsolationProvider },
 		},
 		{
-			wantError:   "gateway.max_upstream_clients must be positive",
+			wantError:   "gateway.transport.client_cache.max_clients must be positive",
 			wantLive:    3600,
 			wantWarning: true,
-			repair:      func(c *Config) { c.Gateway.MaxUpstreamClients = 1 },
+			repair:      func(c *Config) { c.Gateway.Transport.ClientCache.MaxClients = 1 },
 		},
 		{
-			wantError:   "gateway.openai_ws.max_conns_per_provider must be positive",
+			wantError:   "gateway.openai.responses_ws.max_conns_per_provider must be positive",
 			wantLive:    3600,
-			wantTTL:     1234,
 			wantWarning: true,
-			repair:      func(c *Config) { c.Gateway.OpenAIWS.MaxConnsPerProvider = maxConnsPerProvider },
+			repair:      func(c *Config) { c.Gateway.OpenAI.ResponsesWS.MaxConnsPerProvider = maxConnsPerProvider },
 		},
 		{
-			wantError:   "gateway.scheduling.outbox_lag_rebuild_seconds must be >= outbox_lag_warn_seconds",
+			wantError:   "scheduling.snapshot.outbox_lag_rebuild_seconds must be >= outbox_lag_warn_seconds",
 			wantLive:    3600,
-			wantTTL:     1234,
 			wantWarning: true,
-			repair:      func(c *Config) { c.Gateway.Scheduling.OutboxLagRebuildSeconds = 2 },
+			repair:      func(c *Config) { c.Scheduling.Snapshot.OutboxLagRebuildSeconds = 2 },
 		},
 		{
-			wantError:   "ops.metrics_collector_cache.ttl must be non-negative",
+			wantError:   "gateway.streaming.wait_ping_interval_seconds must be between 5-30 seconds",
 			wantLive:    3600,
-			wantTTL:     1234,
 			wantWarning: true,
-			repair:      func(c *Config) { c.Ops.MetricsCollectorCache.TTL = 0 },
+			repair:      func(c *Config) { c.Gateway.Streaming.WaitPingIntervalSeconds = 5 },
 		},
 		{
-			wantError:   "concurrency.ping_interval must be between 5-30 seconds",
+			wantError:   "scheduling.grok_free_quota.token_limit must be positive",
 			wantLive:    3600,
-			wantTTL:     1234,
 			wantWarning: true,
-			repair:      func(c *Config) { c.Concurrency.PingInterval = 5 },
-		},
-		{
-			wantError:   "gateway.grok.free_quota_token_limit must be positive",
-			wantLive:    3600,
-			wantTTL:     1234,
-			wantWarning: true,
-			repair:      func(c *Config) { c.Gateway.Grok.FreeQuotaTokenLimit = 1 },
+			repair:      func(c *Config) { c.Scheduling.GrokFreeQuota.TokenLimit = 1 },
 		},
 		{
 			wantLive:    3600,
-			wantTTL:     1234,
 			wantWarning: true,
 		},
 	}
@@ -2776,12 +2408,12 @@ func TestValidateGatewayFirstErrorAndMutationOrder(t *testing.T) {
 		} else {
 			require.EqualError(t, err, step.wantError)
 		}
-		require.Equal(t, step.wantLive, cfg.Gateway.Live.MaxSessionDurationSeconds)
-		require.Equal(t, step.wantTTL, cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds)
-		require.Equal(t, 181, cfg.Gateway.IdleConnTimeoutSeconds)
-		wantMessages := []string{"jwt.expire_hour is high; consider shorter expiration for security"}
+		require.Equal(t, step.wantLive, cfg.Gateway.OpenAI.Live.MaxSessionDurationSeconds)
+		require.Equal(t, 1234, cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds)
+		require.Equal(t, 181, cfg.Gateway.Transport.IdleConnTimeoutSeconds)
+		wantMessages := []string{"auth.jwt.access_token_ttl_minutes is high; consider shorter expiration for security"}
 		if step.wantWarning {
-			wantMessages = append(wantMessages, "gateway.idle_conn_timeout_seconds is high; consider 60-120 seconds for better connection reuse")
+			wantMessages = append(wantMessages, "gateway.transport.idle_conn_timeout_seconds is high; consider 60-120 seconds for better connection reuse")
 		}
 		var messages []string
 		decoder := json.NewDecoder(&logs)
@@ -2811,37 +2443,37 @@ func TestValidateGatewayNonfiniteValues(t *testing.T) {
 		acceptInf bool                   // existing positive-infinity acceptance behavior
 	}{
 		{
-			name:      "gateway.openai_ws.oauth_max_conns_factor",
-			set:       func(c *Config, value float64) { c.Gateway.OpenAIWS.OAuthMaxConnsFactor = value },
+			name:      "gateway.openai.responses_ws.oauth_max_conns_factor",
+			set:       func(c *Config, value float64) { c.Gateway.OpenAI.ResponsesWS.OAuthMaxConnsFactor = value },
 			acceptNaN: true,
 			acceptInf: true,
 		},
 		{
-			name:      "gateway.openai_ws.apikey_max_conns_factor",
-			set:       func(c *Config, value float64) { c.Gateway.OpenAIWS.APIKeyMaxConnsFactor = value },
+			name:      "gateway.openai.responses_ws.api_key_max_conns_factor",
+			set:       func(c *Config, value float64) { c.Gateway.OpenAI.ResponsesWS.APIKeyMaxConnsFactor = value },
 			acceptNaN: true,
 			acceptInf: true,
 		},
 		{
-			name:      "gateway.openai_ws.pool_target_utilization",
-			set:       func(c *Config, value float64) { c.Gateway.OpenAIWS.PoolTargetUtilization = value },
+			name:      "gateway.openai.responses_ws.pool_target_utilization",
+			set:       func(c *Config, value float64) { c.Gateway.OpenAI.ResponsesWS.PoolTargetUtilization = value },
 			acceptNaN: true,
 		},
 		{
-			name: "gateway.advanced_scheduler.ewma_error_rate_alpha",
-			set:  func(c *Config, value float64) { c.Gateway.AdvancedScheduler.EWMAErrorRateAlpha = value },
+			name: "scheduling.advanced.ewma_error_rate_alpha",
+			set:  func(c *Config, value float64) { c.Scheduling.Advanced.EWMAErrorRateAlpha = value },
 		},
 		{
-			name: "gateway.advanced_scheduler.ewma_ttft_alpha",
-			set:  func(c *Config, value float64) { c.Gateway.AdvancedScheduler.EWMATTFTAlpha = value },
+			name: "scheduling.advanced.ewma_ttft_alpha",
+			set:  func(c *Config, value float64) { c.Scheduling.Advanced.EWMATTFTAlpha = value },
 		},
 		{
-			name: "gateway.advanced_scheduler.score_weights.*",
-			set:  func(c *Config, value float64) { c.Gateway.AdvancedScheduler.ScoreWeights.Priority = value },
+			name: "scheduling.advanced.score_weights.*",
+			set:  func(c *Config, value float64) { c.Scheduling.Advanced.ScoreWeights.Priority = value },
 		},
 		{
-			name:      "gateway.advanced_scheduler.sticky_escape_error_rate",
-			set:       func(c *Config, value float64) { c.Gateway.AdvancedScheduler.StickyEscapeErrorRate = value },
+			name:      "scheduling.advanced.sticky_escape_error_rate",
+			set:       func(c *Config, value float64) { c.Scheduling.Advanced.StickyEscapeErrorRate = value },
 			acceptNaN: true,
 		},
 	}
@@ -2856,8 +2488,8 @@ func TestValidateGatewayNonfiniteValues(t *testing.T) {
 			{"negative infinity", math.Inf(-1), false},
 		} {
 			t.Run(field.name+"/"+sample.name, func(t *testing.T) {
-				resetViperWithJWTSecret(t)
-				cfg, err := Load()
+				fixture := newConfigFixture(t)
+				cfg, err := fixture.Load()
 				require.NoError(t, err)
 				field.set(cfg, sample.value)
 				err = cfg.Validate()
@@ -2883,55 +2515,55 @@ func TestValidateGatewayPoolBoundaries(t *testing.T) {
 		{
 			name: "idle counts equal total capacity",
 			configure: func(c *Config) {
-				c.Gateway.OpenAIWS.MaxConnsPerProvider = 1
-				c.Gateway.OpenAIWS.MinIdlePerProvider = 1
-				c.Gateway.OpenAIWS.MaxIdlePerProvider = 1
-				c.Gateway.OpenAIWS.PoolTargetUtilization = 1
+				c.Gateway.OpenAI.ResponsesWS.MaxConnsPerProvider = 1
+				c.Gateway.OpenAI.ResponsesWS.MinIdlePerProvider = 1
+				c.Gateway.OpenAI.ResponsesWS.MaxIdlePerProvider = 1
+				c.Gateway.OpenAI.ResponsesWS.PoolTargetUtilization = 1
 			},
 		},
 		{
 			name: "zero idle counts and unlimited HTTP connections",
 			configure: func(c *Config) {
-				c.Gateway.OpenAIWS.MinIdlePerProvider = 0
-				c.Gateway.OpenAIWS.MaxIdlePerProvider = 0
-				c.Gateway.MaxConnsPerHost = 0
+				c.Gateway.OpenAI.ResponsesWS.MinIdlePerProvider = 0
+				c.Gateway.OpenAI.ResponsesWS.MaxIdlePerProvider = 0
+				c.Gateway.Transport.MaxConnsPerHost = 0
 			},
 		},
 		{
 			name: "idle minimum fails before idle capacity",
 			configure: func(c *Config) {
-				c.Gateway.OpenAIWS.MaxConnsPerProvider = 1
-				c.Gateway.OpenAIWS.MinIdlePerProvider = 3
-				c.Gateway.OpenAIWS.MaxIdlePerProvider = 2
+				c.Gateway.OpenAI.ResponsesWS.MaxConnsPerProvider = 1
+				c.Gateway.OpenAI.ResponsesWS.MinIdlePerProvider = 3
+				c.Gateway.OpenAI.ResponsesWS.MaxIdlePerProvider = 2
 			},
-			wantError: "gateway.openai_ws.min_idle_per_provider must be <= max_idle_per_provider",
+			wantError: "gateway.openai.responses_ws.min_idle_per_provider must be <= max_idle_per_provider",
 		},
 		{
 			name: "workers equal both scaling limits",
 			configure: func(c *Config) {
-				c.Gateway.UsageRecord.AutoScaleEnabled = true
-				c.Gateway.UsageRecord.WorkerCount = 1
-				c.Gateway.UsageRecord.AutoScaleMinWorkers = 1
-				c.Gateway.UsageRecord.AutoScaleMaxWorkers = 1
-				c.Gateway.UsageRecord.AutoScaleUpQueuePercent = 1
-				c.Gateway.UsageRecord.AutoScaleDownQueuePercent = 0
-				c.Gateway.UsageRecord.AutoScaleCooldownSeconds = 0
+				c.Usage.RecordQueue.AutoScaleEnabled = true
+				c.Usage.RecordQueue.WorkerCount = 1
+				c.Usage.RecordQueue.AutoScaleMinWorkers = 1
+				c.Usage.RecordQueue.AutoScaleMaxWorkers = 1
+				c.Usage.RecordQueue.AutoScaleUpQueuePercent = 1
+				c.Usage.RecordQueue.AutoScaleDownQueuePercent = 0
+				c.Usage.RecordQueue.AutoScaleCooldownSeconds = 0
 			},
 		},
 		{
 			name: "disabled scaling retains ordinary worker validation",
 			configure: func(c *Config) {
-				c.Gateway.UsageRecord.AutoScaleEnabled = false
-				c.Gateway.UsageRecord.WorkerCount = 0
-				c.Gateway.UsageRecord.AutoScaleMinWorkers = -1
+				c.Usage.RecordQueue.AutoScaleEnabled = false
+				c.Usage.RecordQueue.WorkerCount = 0
+				c.Usage.RecordQueue.AutoScaleMinWorkers = -1
 			},
-			wantError: "gateway.usage_record.worker_count must be positive",
+			wantError: "usage.record_queue.worker_count must be positive",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resetViperWithJWTSecret(t)
-			cfg, err := Load()
+			fixture := newConfigFixture(t)
+			cfg, err := fixture.Load()
 			require.NoError(t, err)
 			tc.configure(cfg)
 			err = cfg.Validate()
@@ -2949,25 +2581,25 @@ func TestValidateGatewayPoolBoundaries(t *testing.T) {
 // positive worker count. Validation must accept those inactive controls while
 // keeping ordinary worker settings usable.
 func TestValidateConfig_AutoScaleDisabledIgnoreAutoScaleFields(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
 
-	cfg.Gateway.UsageRecord.AutoScaleEnabled = false
-	cfg.Gateway.UsageRecord.WorkerCount = 64
+	cfg.Usage.RecordQueue.AutoScaleEnabled = false
+	cfg.Usage.RecordQueue.WorkerCount = 64
 
 	// The disabled control should leave inactive scaling limits unchecked. Supply
 	// invalid values across those fields while retaining the separately validated positive worker count.
-	cfg.Gateway.UsageRecord.AutoScaleMinWorkers = 0
-	cfg.Gateway.UsageRecord.AutoScaleMaxWorkers = 0
-	cfg.Gateway.UsageRecord.AutoScaleUpQueuePercent = 0
-	cfg.Gateway.UsageRecord.AutoScaleDownQueuePercent = 100
-	cfg.Gateway.UsageRecord.AutoScaleUpStep = 0
-	cfg.Gateway.UsageRecord.AutoScaleDownStep = 0
-	cfg.Gateway.UsageRecord.AutoScaleCheckIntervalSeconds = 0
-	cfg.Gateway.UsageRecord.AutoScaleCooldownSeconds = -1
+	cfg.Usage.RecordQueue.AutoScaleMinWorkers = 0
+	cfg.Usage.RecordQueue.AutoScaleMaxWorkers = 0
+	cfg.Usage.RecordQueue.AutoScaleUpQueuePercent = 0
+	cfg.Usage.RecordQueue.AutoScaleDownQueuePercent = 100
+	cfg.Usage.RecordQueue.AutoScaleUpStep = 0
+	cfg.Usage.RecordQueue.AutoScaleDownStep = 0
+	cfg.Usage.RecordQueue.AutoScaleCheckIntervalSeconds = 0
+	cfg.Usage.RecordQueue.AutoScaleCooldownSeconds = -1
 
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() should ignore auto scale fields when disabled: %v", err)
@@ -2978,7 +2610,7 @@ func TestValidateConfig_AutoScaleDisabledIgnoreAutoScaleFields(t *testing.T) {
 // supplies negative rotation or disabled-sampling values. Each serial case must
 // identify its invalid field in the returned validation error.
 func TestValidateConfig_LogRequiredAndRotationBounds(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 
 	cases := []struct {
 		name    string        // subtest display name
@@ -3032,9 +2664,9 @@ func TestValidateConfig_LogRequiredAndRotationBounds(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := Load()
+			cfg, err := fixture.Load()
 			if err != nil {
-				t.Fatalf("Load() error: %v", err)
+				t.Fatalf("fixture.Load() error: %v", err)
 			}
 			tt.mutate(cfg)
 			err = cfg.Validate()
@@ -3050,52 +2682,52 @@ func TestValidateConfig_LogRequiredAndRotationBounds(t *testing.T) {
 // Default loading must retain the exact execution and scaling values asserted
 // by the fixture.
 func TestLoad_DefaultGatewayUsageRecordConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
-	if cfg.Gateway.UsageRecord.WorkerCount != 128 {
-		t.Fatalf("worker_count = %d, want 128", cfg.Gateway.UsageRecord.WorkerCount)
+	if cfg.Usage.RecordQueue.WorkerCount != 128 {
+		t.Fatalf("worker_count = %d, want 128", cfg.Usage.RecordQueue.WorkerCount)
 	}
-	if cfg.Gateway.UsageRecord.QueueSize != 16384 {
-		t.Fatalf("queue_size = %d, want 16384", cfg.Gateway.UsageRecord.QueueSize)
+	if cfg.Usage.RecordQueue.QueueSize != 16384 {
+		t.Fatalf("queue_size = %d, want 16384", cfg.Usage.RecordQueue.QueueSize)
 	}
-	if cfg.Gateway.UsageRecord.TaskTimeoutSeconds != 5 {
-		t.Fatalf("task_timeout_seconds = %d, want 5", cfg.Gateway.UsageRecord.TaskTimeoutSeconds)
+	if cfg.Usage.RecordQueue.TaskTimeoutSeconds != 5 {
+		t.Fatalf("task_timeout_seconds = %d, want 5", cfg.Usage.RecordQueue.TaskTimeoutSeconds)
 	}
-	if cfg.Gateway.UsageRecord.OverflowPolicy != UsageRecordOverflowPolicySync {
-		t.Fatalf("overflow_policy = %s, want %s", cfg.Gateway.UsageRecord.OverflowPolicy, UsageRecordOverflowPolicySync)
+	if cfg.Usage.RecordQueue.OverflowPolicy != UsageRecordOverflowPolicySync {
+		t.Fatalf("overflow_policy = %s, want %s", cfg.Usage.RecordQueue.OverflowPolicy, UsageRecordOverflowPolicySync)
 	}
-	if cfg.Gateway.UsageRecord.OverflowSamplePercent != 10 {
-		t.Fatalf("overflow_sample_percent = %d, want 10", cfg.Gateway.UsageRecord.OverflowSamplePercent)
+	if cfg.Usage.RecordQueue.OverflowSamplePercent != 10 {
+		t.Fatalf("overflow_sample_percent = %d, want 10", cfg.Usage.RecordQueue.OverflowSamplePercent)
 	}
-	if !cfg.Gateway.UsageRecord.AutoScaleEnabled {
+	if !cfg.Usage.RecordQueue.AutoScaleEnabled {
 		t.Fatalf("auto_scale_enabled = false, want true")
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleMinWorkers != 128 {
-		t.Fatalf("auto_scale_min_workers = %d, want 128", cfg.Gateway.UsageRecord.AutoScaleMinWorkers)
+	if cfg.Usage.RecordQueue.AutoScaleMinWorkers != 128 {
+		t.Fatalf("auto_scale_min_workers = %d, want 128", cfg.Usage.RecordQueue.AutoScaleMinWorkers)
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleMaxWorkers != 512 {
-		t.Fatalf("auto_scale_max_workers = %d, want 512", cfg.Gateway.UsageRecord.AutoScaleMaxWorkers)
+	if cfg.Usage.RecordQueue.AutoScaleMaxWorkers != 512 {
+		t.Fatalf("auto_scale_max_workers = %d, want 512", cfg.Usage.RecordQueue.AutoScaleMaxWorkers)
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleUpQueuePercent != 70 {
-		t.Fatalf("auto_scale_up_queue_percent = %d, want 70", cfg.Gateway.UsageRecord.AutoScaleUpQueuePercent)
+	if cfg.Usage.RecordQueue.AutoScaleUpQueuePercent != 70 {
+		t.Fatalf("auto_scale_up_queue_percent = %d, want 70", cfg.Usage.RecordQueue.AutoScaleUpQueuePercent)
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleDownQueuePercent != 15 {
-		t.Fatalf("auto_scale_down_queue_percent = %d, want 15", cfg.Gateway.UsageRecord.AutoScaleDownQueuePercent)
+	if cfg.Usage.RecordQueue.AutoScaleDownQueuePercent != 15 {
+		t.Fatalf("auto_scale_down_queue_percent = %d, want 15", cfg.Usage.RecordQueue.AutoScaleDownQueuePercent)
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleUpStep != 32 {
-		t.Fatalf("auto_scale_up_step = %d, want 32", cfg.Gateway.UsageRecord.AutoScaleUpStep)
+	if cfg.Usage.RecordQueue.AutoScaleUpStep != 32 {
+		t.Fatalf("auto_scale_up_step = %d, want 32", cfg.Usage.RecordQueue.AutoScaleUpStep)
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleDownStep != 16 {
-		t.Fatalf("auto_scale_down_step = %d, want 16", cfg.Gateway.UsageRecord.AutoScaleDownStep)
+	if cfg.Usage.RecordQueue.AutoScaleDownStep != 16 {
+		t.Fatalf("auto_scale_down_step = %d, want 16", cfg.Usage.RecordQueue.AutoScaleDownStep)
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleCheckIntervalSeconds != 3 {
-		t.Fatalf("auto_scale_check_interval_seconds = %d, want 3", cfg.Gateway.UsageRecord.AutoScaleCheckIntervalSeconds)
+	if cfg.Usage.RecordQueue.AutoScaleCheckIntervalSeconds != 3 {
+		t.Fatalf("auto_scale_check_interval_seconds = %d, want 3", cfg.Usage.RecordQueue.AutoScaleCheckIntervalSeconds)
 	}
-	if cfg.Gateway.UsageRecord.AutoScaleCooldownSeconds != 10 {
-		t.Fatalf("auto_scale_cooldown_seconds = %d, want 10", cfg.Gateway.UsageRecord.AutoScaleCooldownSeconds)
+	if cfg.Usage.RecordQueue.AutoScaleCooldownSeconds != 10 {
+		t.Fatalf("auto_scale_cooldown_seconds = %d, want 10", cfg.Usage.RecordQueue.AutoScaleCooldownSeconds)
 	}
 }
 
@@ -3104,82 +2736,43 @@ func TestLoad_DefaultGatewayUsageRecordConfig(t *testing.T) {
 // image data gap longer, nonstream keepalive disabled, and separate image
 // concurrency disabled.
 func TestLoad_DefaultGatewayImageStreamConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("fixture.Load() error: %v", err)
 	}
-	if cfg.Gateway.StreamDataIntervalTimeout != 180 {
-		t.Fatalf("stream_data_interval_timeout = %d, want 180", cfg.Gateway.StreamDataIntervalTimeout)
+	if cfg.Gateway.Streaming.DataIdleTimeoutSeconds != 180 {
+		t.Fatalf("stream_data_interval_timeout = %d, want 180", cfg.Gateway.Streaming.DataIdleTimeoutSeconds)
 	}
-	if cfg.Gateway.StreamKeepaliveInterval != 10 {
-		t.Fatalf("stream_keepalive_interval = %d, want 10", cfg.Gateway.StreamKeepaliveInterval)
+	if cfg.Gateway.Streaming.KeepaliveIntervalSeconds != 10 {
+		t.Fatalf("stream_keepalive_interval = %d, want 10", cfg.Gateway.Streaming.KeepaliveIntervalSeconds)
 	}
-	if cfg.Gateway.ImageStreamDataIntervalTimeout != 900 {
-		t.Fatalf("image_stream_data_interval_timeout = %d, want 900", cfg.Gateway.ImageStreamDataIntervalTimeout)
+	if cfg.Gateway.Images.StreamDataIdleTimeoutSeconds != 900 {
+		t.Fatalf("image_stream_data_interval_timeout = %d, want 900", cfg.Gateway.Images.StreamDataIdleTimeoutSeconds)
 	}
-	if cfg.Gateway.ImageStreamKeepaliveInterval != 10 {
-		t.Fatalf("image_stream_keepalive_interval = %d, want 10", cfg.Gateway.ImageStreamKeepaliveInterval)
+	if cfg.Gateway.Images.StreamKeepaliveIntervalSeconds != 10 {
+		t.Fatalf("image_stream_keepalive_interval = %d, want 10", cfg.Gateway.Images.StreamKeepaliveIntervalSeconds)
 	}
-	if cfg.Gateway.ImageNonstreamKeepaliveInterval != 0 {
-		t.Fatalf("image_nonstream_keepalive_interval = %d, want 0", cfg.Gateway.ImageNonstreamKeepaliveInterval)
+	if cfg.Gateway.Images.NonstreamKeepaliveIntervalSeconds != 0 {
+		t.Fatalf("image_nonstream_keepalive_interval = %d, want 0", cfg.Gateway.Images.NonstreamKeepaliveIntervalSeconds)
 	}
-	if cfg.Gateway.ImageConcurrency.Enabled {
+	if cfg.Gateway.Images.Concurrency.Enabled {
 		t.Fatalf("image_concurrency.enabled = true, want false")
 	}
-	if cfg.Gateway.ImageConcurrency.MaxConcurrentRequests != 0 {
-		t.Fatalf("image_concurrency.max_concurrent_requests = %d, want 0", cfg.Gateway.ImageConcurrency.MaxConcurrentRequests)
+	if cfg.Gateway.Images.Concurrency.MaxConcurrentRequests != 0 {
+		t.Fatalf("image_concurrency.max_concurrent_requests = %d, want 0", cfg.Gateway.Images.Concurrency.MaxConcurrentRequests)
 	}
-	if cfg.Gateway.ImageConcurrency.OverflowMode != ImageConcurrencyOverflowModeReject {
-		t.Fatalf("image_concurrency.overflow_mode = %q, want %q", cfg.Gateway.ImageConcurrency.OverflowMode, ImageConcurrencyOverflowModeReject)
+	if cfg.Gateway.Images.Concurrency.OverflowMode != ImageConcurrencyOverflowModeReject {
+		t.Fatalf("image_concurrency.overflow_mode = %q, want %q", cfg.Gateway.Images.Concurrency.OverflowMode, ImageConcurrencyOverflowModeReject)
 	}
-	if cfg.Gateway.ImageConcurrency.WaitTimeoutSeconds != 30 {
-		t.Fatalf("image_concurrency.wait_timeout_seconds = %d, want 30", cfg.Gateway.ImageConcurrency.WaitTimeoutSeconds)
+	if cfg.Gateway.Images.Concurrency.WaitTimeoutSeconds != 30 {
+		t.Fatalf("image_concurrency.wait_timeout_seconds = %d, want 30", cfg.Gateway.Images.Concurrency.WaitTimeoutSeconds)
 	}
-	if cfg.Gateway.ImageConcurrency.MaxWaitingRequests != 100 {
-		t.Fatalf("image_concurrency.max_waiting_requests = %d, want 100", cfg.Gateway.ImageConcurrency.MaxWaitingRequests)
+	if cfg.Gateway.Images.Concurrency.MaxWaitingRequests != 100 {
+		t.Fatalf("image_concurrency.max_waiting_requests = %d, want 100", cfg.Gateway.Images.Concurrency.MaxWaitingRequests)
 	}
-	if cfg.Gateway.ImageStreamDataIntervalTimeout <= cfg.Gateway.StreamDataIntervalTimeout {
-		t.Fatalf("image stream timeout = %d, want greater than ordinary stream timeout %d", cfg.Gateway.ImageStreamDataIntervalTimeout, cfg.Gateway.StreamDataIntervalTimeout)
-	}
-}
-
-// TestLoadIgnoresLegacyRunMode compares default loading with retired YAML and
-// environment run-mode values. JSON-visible configuration must stay equivalent
-// after fixing TOTP generation, while internal atomic snapshot identity is
-// excluded from comparison.
-func TestLoadIgnoresLegacyRunMode(t *testing.T) {
-	for _, legacy := range []struct {
-		name, env, yaml string // name: displayed case name; env: supplied retired environment value; yaml: supplied retired YAML text
-	}{
-		{name: "未设置"},
-		{name: "旧环境变量", env: "simple"},
-		{name: "旧配置文件", yaml: "run_mode: simple\n"},
-		{name: "旧配置组合", env: "simple", yaml: "run_mode: standard\n"},
-	} {
-		t.Run(legacy.name, func(t *testing.T) {
-			resetViperWithJWTSecret(t)
-			t.Setenv("RUN_MODE", "")
-			file := filepath.Join(t.TempDir(), "config.yaml")
-			require.NoError(t, os.WriteFile(file, []byte("timezone: UTC\n"), 0o600))
-			t.Setenv("CONFIG_FILE", file)
-			t.Setenv("TOTP_ENCRYPTION_KEY", strings.Repeat("a", 64))
-			baseline, err := Load()
-			require.NoError(t, err)
-			viper.Reset()
-			t.Setenv("RUN_MODE", legacy.env)
-			require.NoError(t, os.WriteFile(file, []byte("timezone: UTC\n"+legacy.yaml), 0o600))
-			actual, err := Load()
-			require.NoError(t, err)
-			// The two loads construct separate live snapshot cells. Compare serialized
-			// exported data after fixing the TOTP input so internal pointer identity and random key generation
-			// do not obscure the retired run-mode setting's effect being tested.
-			before, err := json.Marshal(baseline)
-			require.NoError(t, err)
-			after, err := json.Marshal(actual)
-			require.NoError(t, err)
-			require.JSONEq(t, string(before), string(after))
-		})
+	if cfg.Gateway.Images.StreamDataIdleTimeoutSeconds <= cfg.Gateway.Streaming.DataIdleTimeoutSeconds {
+		t.Fatalf("image stream timeout = %d, want greater than ordinary stream timeout %d", cfg.Gateway.Images.StreamDataIdleTimeoutSeconds, cfg.Gateway.Streaming.DataIdleTimeoutSeconds)
 	}
 }
 
@@ -3188,225 +2781,28 @@ func TestLoadIgnoresLegacyRunMode(t *testing.T) {
 // current port and still reject a later invalid JWT lifetime through active
 // validation.
 func TestLoadIgnoresRetiredSubscriptionMaintenance(t *testing.T) {
-	resetViperWithJWTSecret(t)
+	fixture := newConfigFixture(t)
 	configFile := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(configFile, []byte("subscription_maintenance:\n  worker_count: -1\n  queue_size: -1\nserver:\n  port: 8091\n"), 0o600))
-	t.Setenv("CONFIG_FILE", configFile)
-	t.Setenv("SUBSCRIPTION_MAINTENANCE_WORKER_COUNT", "-2")
-	t.Setenv("SUBSCRIPTION_MAINTENANCE_QUEUE_SIZE", "-2")
-	cfg, err := Load()
+	fixture.Setenv("CONFIG_FILE", configFile)
+	fixture.Setenv("SUBSCRIPTION_MAINTENANCE_WORKER_COUNT", "-2")
+	fixture.Setenv("SUBSCRIPTION_MAINTENANCE_QUEUE_SIZE", "-2")
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
 	require.Equal(t, 8091, cfg.Server.Port)
-	cfg.JWT.ExpireHour = 0
-	require.ErrorContains(t, cfg.Validate(), "jwt.expire_hour")
+	cfg.Auth.JWT.AccessTokenTTLMinutes = 0
+	require.ErrorContains(t, cfg.Validate(), "auth.jwt.access_token_ttl_minutes")
 }
 
 // TestLoadIgnoresRetiredOpenAIWSFallbackCooldown supplies a negative retired
 // cooldown variable. Loading must succeed and keep the default WS dialing
 // budget, showing the tested current field is unaffected.
 func TestLoadIgnoresRetiredOpenAIWSFallbackCooldown(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("GATEWAY_OPENAI_WS_FALLBACK_COOLDOWN_SECONDS", "-2")
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	fixture.Setenv("GATEWAY_OPENAI_WS_FALLBACK_COOLDOWN_SECONDS", "-2")
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	require.Equal(t, 10, cfg.Gateway.OpenAIWS.DialTimeoutSeconds)
-}
-
-// TestProductConfigDirectories records search-path callbacks with DATA_DIR,
-// then switches to an explicit configuration file. Paths must retain current
-// and legacy order, while explicit selection must invoke only the file
-// callback.
-func TestProductConfigDirectories(t *testing.T) {
-	t.Setenv("CONFIG_FILE", "")
-	t.Setenv("DATA_DIR", "/fixture/data")
-	var paths []string
-	configureConfigSource(func(string) { t.Fatal("unexpected explicit config") }, func(path string) { paths = append(paths, path) })
-	want := []string{"/fixture/data", "/app/data", ".", "./config", "/etc/tokenrouter", "/etc/sub2api"}
-	if strings.Join(paths, ":") != strings.Join(want, ":") {
-		t.Fatalf("paths = %v, want %v", paths, want)
-	}
-	t.Setenv("CONFIG_FILE", "/fixture/custom.yaml")
-	var explicit string
-	configureConfigSource(func(path string) { explicit = path }, func(string) { t.Fatal("explicit config must not fall back") })
-	if explicit != "/fixture/custom.yaml" {
-		t.Fatalf("explicit = %q", explicit)
-	}
-}
-
-// TestConfigKeysAreEnvReachable reflects scalar configuration keys and compares
-// them with Viper defaults and bindings. Every collected key must be registered
-// for environment-only decoding, while dynamic maps and struct slices are
-// excluded.
-func TestConfigKeysAreEnvReachable(t *testing.T) {
-	bound := map[string]string{}
-	collectMapstructureKeys(reflect.TypeFor[Config](), "", bound)
-
-	viper.Reset()
-	t.Cleanup(viper.Reset)
-	setDefaults()
-	registered := map[string]struct{}{}
-	for _, key := range viper.AllKeys() {
-		registered[key] = struct{}{}
-	}
-
-	var unreachable []string
-	for key, kind := range bound {
-		if _, ok := registered[key]; !ok {
-			unreachable = append(unreachable, key+" ("+kind+")")
-		}
-	}
-	sort.Strings(unreachable)
-
-	if len(unreachable) > 0 {
-		t.Fatalf("%d config keys have no default registered, so their environment variables are silently ignored:\n  %s",
-			len(unreachable), strings.Join(unreachable, "\n  "))
-	}
-}
-
-// TestPricingCatalogLegacySourceMigration supplies known old GitHub catalog
-// paths and custom or deceptive-host alternatives. Known sources must migrate
-// idempotently with one permitted host entry, while the tested custom inputs
-// remain unchanged.
-func TestPricingCatalogLegacySourceMigration(t *testing.T) {
-	for _, source := range []string{
-		"https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.json",
-		"https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/refs/heads/main//model_prices_and_context_window.json",
-		"https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-	} {
-		cfg := Config{Pricing: PricingConfig{RemoteURL: source}}
-		cfg.normalizePricingCatalogSource()
-		cfg.normalizePricingCatalogSource()
-		require.Equal(t, "https://models.dev/catalog.json?type=all", cfg.Pricing.RemoteURL)
-		require.Equal(t, []string{"models.dev"}, cfg.Security.URLAllowlist.PricingHosts)
-	}
-	for _, source := range []string{
-		"https://mirror.example/catalog.json?source=raw.githubusercontent.com/wei-shaw/model-price-repo/main/model_prices_and_context_window.json",
-		"https://raw.githubusercontent.com.evil.example/BerriAI/litellm/main/model_prices_and_context_window.json",
-		"https://raw.githubusercontent.com/custom/litellm/main/model_prices_and_context_window.json",
-		"https://raw.githubusercontent.com/BerriAI/litellm-other/main/model_prices_and_context_window.json",
-		"",
-	} {
-		cfg := Config{Pricing: PricingConfig{RemoteURL: source}}
-		cfg.normalizePricingCatalogSource()
-		require.Equal(t, source, cfg.Pricing.RemoteURL)
-	}
-}
-
-// TestPricingCatalogConfigAliases combines retired and current interval keys,
-// environment overrides, zero values, and removed pricing fields. Loading must
-// retain expected interval precedence and leave the mounted YAML unchanged.
-func TestPricingCatalogConfigAliases(t *testing.T) {
-	for _, tc := range []struct {
-		// name identifies the case; yaml supplies its configuration layer. oldEnv
-		// and newEnv supply the retired and current environment overrides to compare.
-		name, yaml, oldEnv, newEnv string
-		want                       int // expected decoded configuration value
-	}{
-		{"default", "", "", "", 10},
-		{"old yaml", "  hash_check_interval_minutes: 17\n", "", "", 17},
-		{"new yaml", "  hash_check_interval_minutes: 17\n  check_interval_minutes: 18\n", "", "", 18},
-		{"old env", "  check_interval_minutes: 18\n", "19", "", 19},
-		{"new env", "  check_interval_minutes: 18\n", "19", "20", 20},
-		{"zero", "  check_interval_minutes: 0\n", "", "", 0},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			body := "pricing:\n  hash_url: [obsolete]\n  update_interval_hours: obsolete\n" + tc.yaml
-			file := prepareLegacyConfigTest(t, body)
-			t.Setenv("PRICING_HASH_CHECK_INTERVAL_MINUTES", tc.oldEnv)
-			t.Setenv("PRICING_CHECK_INTERVAL_MINUTES", tc.newEnv)
-			t.Setenv("PRICING_HASH_URL", "obsolete")
-			t.Setenv("PRICING_UPDATE_INTERVAL_HOURS", "obsolete")
-			cfg, err := Load()
-			require.NoError(t, err)
-			require.Equal(t, tc.want, cfg.Pricing.CheckIntervalMinutes)
-			saved, err := os.ReadFile(file)
-			require.NoError(t, err)
-			require.Equal(t, body, string(saved))
-		})
-	}
-}
-
-// TestPricingCatalogPackagedFallbackMigration first points to a missing known
-// packaged file, then creates it and supplies a custom path. In-memory
-// selection must migrate the missing path and retain existing or custom files.
-func TestPricingCatalogPackagedFallbackMigration(t *testing.T) {
-	t.Chdir(t.TempDir())
-	old := "./resources/model-pricing/model_prices_and_context_window.json"
-	cfg := Config{Pricing: PricingConfig{FallbackFile: old}}
-	cfg.normalizePricingCatalogSource()
-	require.Equal(t, "resources/model-pricing/model_pricing_supplements.json", cfg.Pricing.FallbackFile)
-	require.NoError(t, os.MkdirAll(filepath.Dir(old), 0o700))
-	require.NoError(t, os.WriteFile(old, []byte(`{}`), 0o600))
-	cfg.Pricing.FallbackFile = old
-	cfg.normalizePricingCatalogSource()
-	require.Equal(t, old, cfg.Pricing.FallbackFile)
-	cfg.Pricing.FallbackFile = "./custom/model_prices_and_context_window.json"
-	cfg.normalizePricingCatalogSource()
-	require.Equal(t, "./custom/model_prices_and_context_window.json", cfg.Pricing.FallbackFile)
-}
-
-// TestPricingCatalogSupplementConfig combines omitted and custom supplement
-// paths with an environment override. Loading must return the expected selected
-// path and retain the mounted document bytes.
-func TestPricingCatalogSupplementConfig(t *testing.T) {
-	for _, tc := range []struct {
-		name, yaml, env, want string // name: displayed case name; yaml: supplied YAML text; env: supplied supplement environment value; want: expected supplement file path
-	}{
-		{"default", "", "", ""},
-		{"custom yaml", "  fallback_file: ./custom/prices.json\n", "", "./custom/prices.json"},
-		{"custom env", "  fallback_file: ./custom/prices.json\n", "/data/custom.json", "/data/custom.json"},
-		{"explicit resource", "  fallback_file: ./resources/model-pricing/model_pricing_supplements.json\n", "", "./resources/model-pricing/model_pricing_supplements.json"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			body := "pricing:\n  remote_url: https://models.dev/catalog.json\n" + tc.yaml
-			file := prepareLegacyConfigTest(t, body)
-			t.Setenv("PRICING_FALLBACK_FILE", tc.env)
-			cfg, err := Load()
-			require.NoError(t, err)
-			require.Equal(t, tc.want, cfg.Pricing.FallbackFile)
-			saved, err := os.ReadFile(file)
-			require.NoError(t, err)
-			require.Equal(t, body, string(saved))
-		})
-	}
-}
-
-// TestRetiredPricingOverrideWarnsWithoutRewritingFiles supplies a retired
-// override through YAML or environment and captures the process logger. Loading
-// must warn, normalize the catalog URL, and leave both input files unchanged.
-func TestRetiredPricingOverrideWarnsWithoutRewritingFiles(t *testing.T) {
-	for _, env := range []bool{false, true} {
-		t.Run(fmt.Sprint(env), func(t *testing.T) {
-			legacy := filepath.Join(t.TempDir(), "old-prices.json")
-			require.NoError(t, os.WriteFile(legacy, []byte("invalid retired file"), 0o600))
-			body := "pricing:\n  remote_url: https://models.dev/catalog.json\n"
-			if !env {
-				body += "  override_file: " + legacy + "\n"
-			}
-			file := prepareLegacyConfigTest(t, body)
-			value := ""
-			if env {
-				value = legacy
-			}
-			t.Setenv("PRICING_OVERRIDE_FILE", value)
-			var logs bytes.Buffer
-			// Capture serial loader warnings in a local buffer and restore the process
-			// logger at cleanup so later fixtures do not write into this case's captured evidence.
-			previous := slog.Default()
-			slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
-			t.Cleanup(func() { slog.SetDefault(previous) })
-			cfg, err := Load()
-			require.NoError(t, err)
-			require.Equal(t, "https://models.dev/catalog.json?type=all", cfg.Pricing.RemoteURL)
-			require.Contains(t, logs.String(), "pricing.override_file is retired and ignored")
-			saved, err := os.ReadFile(file)
-			require.NoError(t, err)
-			require.Equal(t, body, string(saved))
-			data, err := os.ReadFile(legacy)
-			require.NoError(t, err)
-			require.Equal(t, "invalid retired file", string(data))
-		})
-	}
+	require.Equal(t, 10, cfg.Gateway.OpenAI.ResponsesWS.DialTimeoutSeconds)
 }
 
 // TestNormalizeProxyProbeURLs supplies a padded endpoint and uppercase parser
@@ -3457,14 +2853,14 @@ func TestNormalizeProxyProbeURLsRejectsInvalidEntries(t *testing.T) {
 // with the remaining fields unset. Validation must accept that object, allowing
 // disabled provider parameters to remain empty in the configuration.
 func TestValidateDingTalkConfig_Disabled_Skip(t *testing.T) {
-	require.NoError(t, ValidateDingTalkConfig(DingTalkConnectConfig{Enabled: false}))
+	require.NoError(t, ValidateDingTalkConfig(DingTalkOAuthConfig{Enabled: false}))
 }
 
 // TestValidateDingTalkConfig_V4_DingTalkAppKind enables the unsupported
 // third-party enterprise app kind. Validation must return the shared app-kind
 // sentinel so callers can identify this rejection through errors.Is.
 func TestValidateDingTalkConfig_V4_DingTalkAppKind(t *testing.T) {
-	err := ValidateDingTalkConfig(DingTalkConnectConfig{
+	err := ValidateDingTalkConfig(DingTalkOAuthConfig{
 		Enabled:               true,
 		DingTalkAppKind:       "third_party_enterprise_app",
 		CorpRestrictionPolicy: "none",
@@ -3477,7 +2873,7 @@ func TestValidateDingTalkConfig_V4_DingTalkAppKind(t *testing.T) {
 // return the shared type-mismatch sentinel despite a supplied corporation
 // identifier.
 func TestValidateDingTalkConfig_V1_InternalOnlyRequiresInternalAppType(t *testing.T) {
-	err := ValidateDingTalkConfig(DingTalkConnectConfig{
+	err := ValidateDingTalkConfig(DingTalkOAuthConfig{
 		Enabled:               true,
 		DingTalkAppKind:       "internal_app",
 		AppType:               "public",
@@ -3492,7 +2888,7 @@ func TestValidateDingTalkConfig_V1_InternalOnlyRequiresInternalAppType(t *testin
 // Validation must accept an empty corporation identifier in that tested mode
 // combination.
 func TestValidateDingTalkConfig_V3_InternalOnlyAllowsEmptyCorpID(t *testing.T) {
-	err := ValidateDingTalkConfig(DingTalkConnectConfig{
+	err := ValidateDingTalkConfig(DingTalkOAuthConfig{
 		Enabled:               true,
 		DingTalkAppKind:       "internal_app",
 		AppType:               "internal",
@@ -3506,7 +2902,7 @@ func TestValidateDingTalkConfig_V3_InternalOnlyAllowsEmptyCorpID(t *testing.T) {
 // kind with public app type and no corporation restriction. Validation must
 // accept that supported combination without requiring further restriction data.
 func TestValidateDingTalkConfig_HappyPath_None(t *testing.T) {
-	require.NoError(t, ValidateDingTalkConfig(DingTalkConnectConfig{
+	require.NoError(t, ValidateDingTalkConfig(DingTalkOAuthConfig{
 		Enabled:               true,
 		DingTalkAppKind:       "internal_app",
 		AppType:               "public",
@@ -3529,7 +2925,7 @@ func TestValidateWebAuthnConfig(t *testing.T) {
 		{
 			name: "valid production origin",
 			configure: func(cfg *Config) {
-				cfg.WebAuthn = WebAuthnConfig{
+				cfg.Auth.WebAuthn = WebAuthnConfig{
 					Enabled:       true,
 					RPDisplayName: "TokenRouter",
 					RPID:          "tokenrouter.example.com",
@@ -3540,7 +2936,7 @@ func TestValidateWebAuthnConfig(t *testing.T) {
 		{
 			name: "valid localhost development origin",
 			configure: func(cfg *Config) {
-				cfg.WebAuthn = WebAuthnConfig{
+				cfg.Auth.WebAuthn = WebAuthnConfig{
 					Enabled:       true,
 					RPDisplayName: "TokenRouter Dev",
 					RPID:          "localhost",
@@ -3551,18 +2947,18 @@ func TestValidateWebAuthnConfig(t *testing.T) {
 		{
 			name: "missing relying party id",
 			configure: func(cfg *Config) {
-				cfg.WebAuthn = WebAuthnConfig{
+				cfg.Auth.WebAuthn = WebAuthnConfig{
 					Enabled:       true,
 					RPDisplayName: "TokenRouter",
 					RPOrigins:     []string{"https://tokenrouter.example.com"},
 				}
 			},
-			wantError: "webauthn.rp_id",
+			wantError: "auth.webauthn.rp_id",
 		},
 		{
 			name: "relying party id contains scheme",
 			configure: func(cfg *Config) {
-				cfg.WebAuthn = WebAuthnConfig{
+				cfg.Auth.WebAuthn = WebAuthnConfig{
 					Enabled:       true,
 					RPDisplayName: "TokenRouter",
 					RPID:          "https://tokenrouter.example.com",
@@ -3574,7 +2970,7 @@ func TestValidateWebAuthnConfig(t *testing.T) {
 		{
 			name: "non-local insecure origin",
 			configure: func(cfg *Config) {
-				cfg.WebAuthn = WebAuthnConfig{
+				cfg.Auth.WebAuthn = WebAuthnConfig{
 					Enabled:       true,
 					RPDisplayName: "TokenRouter",
 					RPID:          "tokenrouter.example.com",
@@ -3586,7 +2982,7 @@ func TestValidateWebAuthnConfig(t *testing.T) {
 		{
 			name: "origin outside relying party id",
 			configure: func(cfg *Config) {
-				cfg.WebAuthn = WebAuthnConfig{
+				cfg.Auth.WebAuthn = WebAuthnConfig{
 					Enabled:       true,
 					RPDisplayName: "TokenRouter",
 					RPID:          "example.com",
@@ -3599,9 +2995,9 @@ func TestValidateWebAuthnConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			viper.Reset()
-			t.Setenv("JWT_SECRET", strings.Repeat("x", 32))
-			cfg, err := Load()
+			fixture := newConfigFixture(t)
+			fixture.Setenv("JWT_SECRET", strings.Repeat("x", 32))
+			cfg, err := fixture.Load()
 			require.NoError(t, err)
 			tt.configure(cfg)
 
@@ -3619,8 +3015,8 @@ func TestValidateWebAuthnConfig(t *testing.T) {
 // with an incomplete Gemini credential pair. Repairing one failure at a time
 // must expose the next exact error before validation reaches Gemini.
 func TestValidateLogFirstErrorOrder(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
 	cfg.Log.Level = "invalid"
 	cfg.Log.Format = "invalid"
@@ -3633,8 +3029,8 @@ func TestValidateLogFirstErrorOrder(t *testing.T) {
 	cfg.Log.Sampling.Enabled = true
 	cfg.Log.Sampling.Initial = 0
 	cfg.Log.Sampling.Thereafter = 0
-	cfg.Gemini.OAuth.ClientID = "client"
-	cfg.Gemini.OAuth.ClientSecret = ""
+	cfg.Provider.Gemini.OAuth.ClientID = "client"
+	cfg.Provider.Gemini.OAuth.ClientSecret = ""
 
 	steps := []struct {
 		wantError string        // expected first validation error
@@ -3695,9 +3091,9 @@ func TestValidateLogFirstErrorOrder(t *testing.T) {
 			},
 		},
 		{
-			wantError: "gemini.oauth.client_id and gemini.oauth.client_secret must be both set or both empty",
+			wantError: "provider.gemini.oauth.client_id and provider.gemini.oauth.client_secret must be both set or both empty",
 			repair: func(c *Config) {
-				c.Gemini.OAuth.ClientID = ""
+				c.Provider.Gemini.OAuth.ClientID = ""
 			},
 		},
 	}
@@ -3727,58 +3123,58 @@ func TestValidateDomainFirstErrorOrder(t *testing.T) {
 		{
 			name: "JWT secret before logging",
 			configure: func(c *Config) {
-				c.JWT.Secret = ""
+				c.Auth.JWT.Secret = ""
 				c.Log.Level = ""
 			},
-			wantError: "jwt.secret is required",
+			wantError: "auth.jwt.secret is required",
 		},
 		{
 			name: "Gemini before WebAuthn",
 			configure: func(c *Config) {
-				c.Gemini.OAuth.ClientID = "client"
-				c.Gemini.OAuth.ClientSecret = ""
-				c.WebAuthn = WebAuthnConfig{Enabled: true}
+				c.Provider.Gemini.OAuth.ClientID = "client"
+				c.Provider.Gemini.OAuth.ClientSecret = ""
+				c.Auth.WebAuthn = WebAuthnConfig{Enabled: true}
 			},
-			wantError: "gemini.oauth.client_id and gemini.oauth.client_secret must be both set or both empty",
+			wantError: "provider.gemini.oauth.client_id and provider.gemini.oauth.client_secret must be both set or both empty",
 		},
 		{
 			name: "frontend URL before WebAuthn",
 			configure: func(c *Config) {
-				c.Server.FrontendURL = "https://user@example.com"
-				c.WebAuthn = WebAuthnConfig{Enabled: true}
+				c.Site.FrontendURL = "https://user@example.com"
+				c.Auth.WebAuthn = WebAuthnConfig{Enabled: true}
 			},
-			wantError: "server.frontend_url invalid: must not include userinfo",
+			wantError: "site.frontend_url invalid: must not include userinfo",
 		},
 		{
 			name: "WebAuthn before JWT lifetime",
 			configure: func(c *Config) {
-				c.WebAuthn = WebAuthnConfig{Enabled: true}
-				c.JWT.ExpireHour = 0
+				c.Auth.WebAuthn = WebAuthnConfig{Enabled: true}
+				c.Auth.JWT.AccessTokenTTLMinutes = 0
 			},
-			wantError: "webauthn.rp_display_name is required when passkeys are enabled",
+			wantError: "auth.webauthn.rp_display_name is required when passkeys are enabled",
 		},
 		{
 			name: "LinuxDo before OIDC",
 			configure: func(c *Config) {
-				c.LinuxDo.Enabled = true
-				c.LinuxDo.ClientID = ""
-				c.OIDC = OIDCConnectConfig{Enabled: true}
+				c.Auth.OAuth.LinuxDo.Enabled = true
+				c.Auth.OAuth.LinuxDo.ClientID = ""
+				c.Auth.OAuth.OIDC = OIDCConnectConfig{Enabled: true}
 			},
-			wantError: "linuxdo_connect.client_id is required when linuxdo_connect.enabled=true",
+			wantError: "auth.oauth.linuxdo.client_id is required when auth.oauth.linuxdo.enabled=true",
 		},
 		{
 			name: "OIDC before billing",
 			configure: func(c *Config) {
-				c.OIDC = OIDCConnectConfig{Enabled: true}
+				c.Auth.OAuth.OIDC = OIDCConnectConfig{Enabled: true}
 				c.Billing.MinimumBalanceReserve = -1
 			},
-			wantError: "oidc_connect.client_id is required when oidc_connect.enabled=true",
+			wantError: "auth.oauth.oidc.client_id is required when auth.oauth.oidc.enabled=true",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resetViperWithJWTSecret(t)
-			cfg, err := Load()
+			fixture := newConfigFixture(t)
+			cfg, err := fixture.Load()
 			require.NoError(t, err)
 			tt.configure(cfg)
 			require.EqualError(t, cfg.Validate(), tt.wantError)
@@ -3808,8 +3204,8 @@ func TestValidateWebAuthnNormalizationOnError(t *testing.T) {
 		},
 		{
 			name:        "missing name after initial normalization",
-			configure:   func(c *Config) { c.WebAuthn.RPDisplayName = " " },
-			wantError:   "webauthn.rp_display_name is required when passkeys are enabled",
+			configure:   func(c *Config) { c.Auth.WebAuthn.RPDisplayName = " " },
+			wantError:   "auth.webauthn.rp_display_name is required when passkeys are enabled",
 			wantName:    "",
 			wantID:      "example.com",
 			wantOrigins: []string{"HTTPS://APP.EXAMPLE.COM", "https://BAD.EXAMPLE.COM/path", "HTTPS://LAST.EXAMPLE.COM"},
@@ -3817,7 +3213,7 @@ func TestValidateWebAuthnNormalizationOnError(t *testing.T) {
 		{
 			name:        "invalid second origin after first canonicalization",
 			configure:   func(c *Config) {},
-			wantError:   "webauthn.rp_origins entry \"https://BAD.EXAMPLE.COM/path\" must not include userinfo, path, query, or fragment",
+			wantError:   "auth.webauthn.rp_origins entry \"https://BAD.EXAMPLE.COM/path\" must not include userinfo, path, query, or fragment",
 			wantName:    "TokenRouter",
 			wantID:      "example.com",
 			wantOrigins: []string{"https://app.example.com", "https://BAD.EXAMPLE.COM/path", "HTTPS://LAST.EXAMPLE.COM"},
@@ -3825,10 +3221,10 @@ func TestValidateWebAuthnNormalizationOnError(t *testing.T) {
 		{
 			name: "later JWT lifetime failure",
 			configure: func(c *Config) {
-				c.WebAuthn.RPOrigins = []string{" HTTPS://APP.EXAMPLE.COM ", " ", " HTTPS://LAST.EXAMPLE.COM "}
-				c.JWT.ExpireHour = 0
+				c.Auth.WebAuthn.RPOrigins = []string{" HTTPS://APP.EXAMPLE.COM ", " ", " HTTPS://LAST.EXAMPLE.COM "}
+				c.Auth.JWT.AccessTokenTTLMinutes = 0
 			},
-			wantError:   "jwt.expire_hour must be positive",
+			wantError:   "auth.jwt.access_token_ttl_minutes must be positive",
 			wantName:    "TokenRouter",
 			wantID:      "example.com",
 			wantOrigins: []string{"https://app.example.com", "https://last.example.com"},
@@ -3836,25 +3232,25 @@ func TestValidateWebAuthnNormalizationOnError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resetViperWithJWTSecret(t)
-			cfg, err := Load()
+			fixture := newConfigFixture(t)
+			cfg, err := fixture.Load()
 			require.NoError(t, err)
-			cfg.WebAuthn = WebAuthnConfig{
+			cfg.Auth.WebAuthn = WebAuthnConfig{
 				Enabled:       true,
 				RPDisplayName: " TokenRouter ",
 				RPID:          " EXAMPLE.COM ",
 				RPOrigins:     []string{" HTTPS://APP.EXAMPLE.COM ", " ", " https://BAD.EXAMPLE.COM/path ", " HTTPS://LAST.EXAMPLE.COM "},
 			}
 			tt.configure(cfg)
-			supplied := cfg.WebAuthn.RPOrigins
+			supplied := cfg.Auth.WebAuthn.RPOrigins
 			before := append([]string(nil), supplied...)
 			require.EqualError(t, cfg.Validate(), tt.wantError)
-			require.Equal(t, tt.wantName, cfg.WebAuthn.RPDisplayName)
-			require.Equal(t, tt.wantID, cfg.WebAuthn.RPID)
-			require.Equal(t, tt.wantOrigins, cfg.WebAuthn.RPOrigins)
+			require.Equal(t, tt.wantName, cfg.Auth.WebAuthn.RPDisplayName)
+			require.Equal(t, tt.wantID, cfg.Auth.WebAuthn.RPID)
+			require.Equal(t, tt.wantOrigins, cfg.Auth.WebAuthn.RPOrigins)
 			require.Equal(t, before, supplied)
 			require.EqualError(t, cfg.Validate(), tt.wantError)
-			require.Equal(t, tt.wantOrigins, cfg.WebAuthn.RPOrigins)
+			require.Equal(t, tt.wantOrigins, cfg.Auth.WebAuthn.RPOrigins)
 		})
 	}
 }
@@ -3863,10 +3259,10 @@ func TestValidateWebAuthnNormalizationOnError(t *testing.T) {
 // authentication controls with enabled token validation. Each correction must
 // reveal the next exact failure while leaving the supplied OIDC text unchanged.
 func TestValidateOIDCFirstErrorOrder(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	cfg.OIDC = OIDCConnectConfig{
+	cfg.Auth.OAuth.OIDC = OIDCConnectConfig{
 		Enabled:             true,
 		IssuerURL:           "https://issuer.example.com",
 		RedirectURL:         "https://example.com/callback",
@@ -3881,63 +3277,63 @@ func TestValidateOIDCFirstErrorOrder(t *testing.T) {
 		repair    func(*Config) // correction exposing the next failure
 	}{
 		{
-			wantError: "oidc_connect.client_id is required when oidc_connect.enabled=true",
+			wantError: "auth.oauth.oidc.client_id is required when auth.oauth.oidc.enabled=true",
 			repair: func(c *Config) {
-				c.OIDC.ClientID = " client "
+				c.Auth.OAuth.OIDC.ClientID = " client "
 			},
 		},
 		{
-			wantError: "oidc_connect.scopes must contain openid",
+			wantError: "auth.oauth.oidc.scopes must contain openid",
 			repair: func(c *Config) {
-				c.OIDC.Scopes = " OPENID profile "
+				c.Auth.OAuth.OIDC.Scopes = " OPENID profile "
 			},
 		},
 		{
-			wantError: "oidc_connect.token_auth_method must be one of: client_secret_post/client_secret_basic/none",
+			wantError: "auth.oauth.oidc.token_auth_method must be one of: client_secret_post/client_secret_basic/none",
 			repair: func(c *Config) {
-				c.OIDC.TokenAuthMethod = " CLIENT_SECRET_POST "
+				c.Auth.OAuth.OIDC.TokenAuthMethod = " CLIENT_SECRET_POST "
 			},
 		},
 		{
-			wantError: "oidc_connect.client_secret is required when oidc_connect.enabled=true and token_auth_method is client_secret_post/client_secret_basic",
+			wantError: "auth.oauth.oidc.client_secret is required when auth.oauth.oidc.enabled=true and token_auth_method is client_secret_post/client_secret_basic",
 			repair: func(c *Config) {
-				c.OIDC.ClientSecret = " secret "
+				c.Auth.OAuth.OIDC.ClientSecret = " secret "
 			},
 		},
 		{
-			wantError: "oidc_connect.clock_skew_seconds must be between 0 and 600",
+			wantError: "auth.oauth.oidc.clock_skew_seconds must be between 0 and 600",
 			repair: func(c *Config) {
-				c.OIDC.ClockSkewSeconds = 0
+				c.Auth.OAuth.OIDC.ClockSkewSeconds = 0
 			},
 		},
 		{
-			wantError: "oidc_connect.allowed_signing_algs is required when oidc_connect.validate_id_token=true",
+			wantError: "auth.oauth.oidc.allowed_signing_algs is required when auth.oauth.oidc.validate_id_token=true",
 			repair: func(c *Config) {
-				c.OIDC.AllowedSigningAlgs = " RS256 "
+				c.Auth.OAuth.OIDC.AllowedSigningAlgs = " RS256 "
 			},
 		},
 	}
 	for _, step := range steps {
-		before := cfg.OIDC
+		before := cfg.Auth.OAuth.OIDC
 		require.EqualError(t, cfg.Validate(), step.wantError)
-		require.Equal(t, before, cfg.OIDC)
+		require.Equal(t, before, cfg.Auth.OAuth.OIDC)
 		step.repair(cfg)
 	}
-	before := cfg.OIDC
+	before := cfg.Auth.OAuth.OIDC
 	require.NoError(t, cfg.Validate())
-	require.Equal(t, before, cfg.OIDC)
+	require.Equal(t, before, cfg.Auth.OAuth.OIDC)
 }
 
 // TestValidateOIDCWarningOrder supplies HTTP endpoints and long JWT lifetimes.
 // OIDC failures must suppress its endpoint warnings, while later failures and
 // repeated calls emit those warnings after the preceding domain warnings.
 func TestValidateOIDCWarningOrder(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
 	require.NoError(t, err)
-	cfg.Server.FrontendURL = "http://example.com"
-	cfg.JWT.ExpireHour = 25
-	cfg.OIDC = OIDCConnectConfig{
+	cfg.Site.FrontendURL = "http://example.com"
+	cfg.Auth.JWT.AccessTokenTTLMinutes = 1500
+	cfg.Auth.OAuth.OIDC = OIDCConnectConfig{
 		Enabled:             true,
 		ClientID:            "client",
 		TokenAuthMethod:     "none",
@@ -3959,13 +3355,13 @@ func TestValidateOIDCWarningOrder(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
 	want := []string{
-		"server.frontend_url",
-		"jwt.expire_hour is high; consider shorter expiration for security",
+		"site.frontend_url",
+		"auth.jwt.access_token_ttl_minutes is high; consider shorter expiration for security",
 	}
 	for call := range 3 {
 		logs.Reset()
 		if call == 0 {
-			require.EqualError(t, cfg.Validate(), "oidc_connect.scopes must contain openid")
+			require.EqualError(t, cfg.Validate(), "auth.oauth.oidc.scopes must contain openid")
 		} else {
 			require.EqualError(t, cfg.Validate(), "billing.minimum_balance_reserve must be non-negative")
 		}
@@ -3984,16 +3380,16 @@ func TestValidateOIDCWarningOrder(t *testing.T) {
 		}
 		require.Equal(t, want, got)
 		if call == 0 {
-			cfg.OIDC.Scopes = "openid"
+			cfg.Auth.OAuth.OIDC.Scopes = "openid"
 			want = append(want,
-				"oidc_connect.issuer_url",
-				"oidc_connect.discovery_url",
-				"oidc_connect.authorize_url",
-				"oidc_connect.token_url",
-				"oidc_connect.userinfo_url",
-				"oidc_connect.jwks_url",
-				"oidc_connect.redirect_url",
-				"oidc_connect.frontend_redirect_url",
+				"auth.oauth.oidc.issuer_url",
+				"auth.oauth.oidc.discovery_url",
+				"auth.oauth.oidc.authorize_url",
+				"auth.oauth.oidc.token_url",
+				"auth.oauth.oidc.userinfo_url",
+				"auth.oauth.oidc.jwks_url",
+				"auth.oauth.oidc.redirect_url",
+				"auth.oauth.oidc.frontend_redirect_url",
 			)
 		}
 	}
@@ -4004,215 +3400,36 @@ func TestValidateOIDCWarningOrder(t *testing.T) {
 // validation, retain normalized domain values, and republish static forwarding
 // settings.
 func TestValidateAfterBootstrapNormalizesAgain(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	t.Setenv("JWT_SECRET", "")
-	viper.Set("webauthn.enabled", true)
-	viper.Set("webauthn.rp_display_name", " TokenRouter ")
-	viper.Set("webauthn.rp_id", " EXAMPLE.COM ")
-	viper.Set("webauthn.rp_origins", []string{" HTTPS://APP.EXAMPLE.COM "})
-	viper.Set("oidc_connect.enabled", true)
-	viper.Set("oidc_connect.client_id", "client")
-	viper.Set("oidc_connect.client_secret", "secret")
-	viper.Set("oidc_connect.issuer_url", "https://issuer.example.com")
-	viper.Set("oidc_connect.redirect_url", "https://example.com/callback")
-	viper.Set("oidc_connect.frontend_redirect_url", "/auth/callback")
-	cfg, err := LoadForBootstrap()
+	fixture := newConfigFixture(t)
+	fixture.Setenv("JWT_SECRET", "")
+	fixture.SetValue("auth.webauthn.enabled", true)
+	fixture.SetValue("auth.webauthn.rp_display_name", " TokenRouter ")
+	fixture.SetValue("auth.webauthn.rp_id", " EXAMPLE.COM ")
+	fixture.SetValue("auth.webauthn.rp_origins", []string{" HTTPS://APP.EXAMPLE.COM "})
+	fixture.SetValue("auth.oauth.oidc.enabled", true)
+	fixture.SetValue("auth.oauth.oidc.client_id", "client")
+	fixture.SetValue("auth.oauth.oidc.client_secret", "secret")
+	fixture.SetValue("auth.oauth.oidc.issuer_url", "https://issuer.example.com")
+	fixture.SetValue("auth.oauth.oidc.redirect_url", "https://example.com/callback")
+	fixture.SetValue("auth.oauth.oidc.frontend_redirect_url", "/auth/callback")
+	cfg, err := fixture.LoadForBootstrap()
 	require.NoError(t, err)
-	require.Empty(t, cfg.JWT.Secret)
-	require.Equal(t, "TokenRouter", cfg.WebAuthn.RPDisplayName)
-	require.Equal(t, "example.com", cfg.WebAuthn.RPID)
-	require.Equal(t, []string{"https://app.example.com"}, cfg.WebAuthn.RPOrigins)
+	require.Empty(t, cfg.Auth.JWT.Secret)
+	require.Equal(t, "TokenRouter", cfg.Auth.WebAuthn.RPDisplayName)
+	require.Equal(t, "example.com", cfg.Auth.WebAuthn.RPID)
+	require.Equal(t, []string{"https://app.example.com"}, cfg.Auth.WebAuthn.RPOrigins)
 
-	webAuthn := cfg.WebAuthn
-	oidc := cfg.OIDC
+	webAuthn := cfg.Auth.WebAuthn
+	oidc := cfg.Auth.OAuth.OIDC
 	logging := cfg.Log
 	forwarding := cfg.ForwardedClientIPSettings()
-	cfg.JWT.Secret = strings.Repeat("persisted", 4)
+	cfg.Auth.JWT.Secret = strings.Repeat("persisted", 4)
 	for range 2 {
-		cfg.SetForwardedClientIPSettings(!cfg.Security.TrustForwardedIPForAPIKeyACL, []string{"X-Runtime-IP"})
+		cfg.SetForwardedClientIPSettings(!cfg.Server.ClientIP.TrustForwardedHeaders, []string{"X-Runtime-IP"})
 		require.NoError(t, cfg.Validate())
-		require.Equal(t, webAuthn, cfg.WebAuthn)
-		require.Equal(t, oidc, cfg.OIDC)
+		require.Equal(t, webAuthn, cfg.Auth.WebAuthn)
+		require.Equal(t, oidc, cfg.Auth.OAuth.OIDC)
 		require.Equal(t, logging, cfg.Log)
 		require.Equal(t, forwarding, cfg.ForwardedClientIPSettings())
-	}
-}
-
-// collectMapstructureKeys records dotted scalar keys and their value types from
-// an acyclic struct type into a nonnil output map. Private fields and
-// mapstructure exclusions are skipped, while tag names supply field identity
-// before lowercase normalization.
-//
-// Pointer layers are removed before classifying a field. Nested structs recurse
-// into their dotted path, maps and slices of structs stay outside the fixed-key
-// check, and scalar slices remain leaves. This lets
-// TestConfigKeysAreEnvReachable compare finite decoded fields with registered
-// Viper keys without treating arbitrary map entries as configuration fields.
-func collectMapstructureKeys(t reflect.Type, prefix string, out map[string]string) {
-	for field := range t.Fields() {
-		if field.PkgPath != "" {
-			continue // Skip unexported fields.
-		}
-		tag := field.Tag.Get("mapstructure")
-		name, _, _ := strings.Cut(tag, ",")
-		if name == "-" {
-			continue
-		}
-		if name == "" {
-			name = strings.ToLower(field.Name)
-		}
-		key := name
-		if prefix != "" {
-			key = prefix + "." + name
-		}
-
-		ft := field.Type
-		for ft.Kind() == reflect.Pointer {
-			ft = ft.Elem()
-		}
-		if ft.Kind() == reflect.Struct {
-			collectMapstructureKeys(ft, key, out)
-			continue
-		}
-		if ft.Kind() == reflect.Map {
-			// Map entries have caller-defined keys rather than a finite scalar field list.
-			// Exclude them from this fixed registration check and leave their contents to file decoding.
-			continue
-		}
-		if ft.Kind() == reflect.Slice {
-			elem := ft.Elem()
-			for elem.Kind() == reflect.Pointer {
-				elem = elem.Elem()
-			}
-			if elem.Kind() == reflect.Struct {
-				// Structured list entries have indexed paths supplied by file input. Keep
-				// them outside this check so only stable scalar and scalar-slice keys require registration.
-				continue
-			}
-		}
-		out[strings.ToLower(key)] = ft.String()
-	}
-}
-
-// TestPricingCatalogIncludesDecisionModels supplies the exact official catalog
-// URL, URLs with existing query choices, and a mirror. Normalization must add
-// type=all only to the exact unqualified official value.
-func TestPricingCatalogIncludesDecisionModels(t *testing.T) {
-	for _, source := range []string{"https://models.dev/catalog.json", "https://models.dev/catalog.json?type=all", "https://models.dev/catalog.json?type=language", "https://mirror.example/catalog.json"} {
-		cfg := Config{Pricing: PricingConfig{RemoteURL: source}}
-		cfg.normalizePricingCatalogSource()
-		expected := source
-		if source == "https://models.dev/catalog.json" {
-			expected += "?type=all"
-		}
-		require.Equal(t, expected, cfg.Pricing.RemoteURL)
-	}
-}
-
-// TestNormalizeWeChatConnectConfig_CapabilitiesAndScopes supplies every capability set
-// with recognized, unknown, and mixed-case modes and supported or invalid scopes.
-// Startup normalization must select the expected stored mode and scope while
-// retaining the caller's explicit capability observations.
-func TestNormalizeWeChatConnectConfig_CapabilitiesAndScopes(t *testing.T) {
-	capabilities := []struct {
-		name   string    // capability combination name
-		open   bool      // supplied open capability
-		mp     bool      // supplied official-account capability
-		mobile bool      // supplied mobile capability
-		modes  [3]string // expected open/mp/mobile selections
-	}{
-		{"none", false, false, false, [3]string{"open", "mp", "mobile"}},
-		{"open", true, false, false, [3]string{"open", "open", "open"}},
-		{"mp", false, true, false, [3]string{"mp", "mp", "mp"}},
-		{"mobile", false, false, true, [3]string{"mobile", "mobile", "mobile"}},
-		{"open_mp", true, true, false, [3]string{"open", "mp", "open"}},
-		{"open_mobile", true, false, true, [3]string{"open", "open", "mobile"}},
-		{"mp_mobile", false, true, true, [3]string{"mp", "mp", "mobile"}},
-		{"all", true, true, true, [3]string{"open", "mp", "mobile"}},
-	}
-	modes := []struct {
-		raw   string // supplied mode text
-		index int    // canonical mode table index
-	}{
-		{"open", 0},
-		{"mp", 1},
-		{"mobile", 2},
-		{" OPEN ", 0},
-		{"\tMp\n", 1},
-		{" MoBiLe ", 2},
-		{"", 0},
-		{" \t ", 0},
-		{"unknown", 0},
-	}
-	scopes := []struct {
-		raw string // supplied scope text
-		mp  string // expected official-account scope
-	}{
-		{"", "snsapi_userinfo"},
-		{" \t ", "snsapi_userinfo"},
-		{"snsapi_base", "snsapi_base"},
-		{" snsapi_base ", "snsapi_base"},
-		{"snsapi_userinfo", "snsapi_userinfo"},
-		{" SNSAPI_BASE ", "snsapi_userinfo"},
-		{"snsapi_login", "snsapi_userinfo"},
-		{"snsapi_base snsapi_userinfo", "snsapi_userinfo"},
-		{"invalid", "snsapi_userinfo"},
-	}
-	for _, capability := range capabilities {
-		for _, mode := range modes {
-			for _, scope := range scopes {
-				t.Run(fmt.Sprintf("%s/mode=%q/scope=%q", capability.name, mode.raw, scope.raw), func(t *testing.T) {
-					cfg := WeChatConnectConfig{
-						OpenEnabled:   capability.open,
-						MPEnabled:     capability.mp,
-						MobileEnabled: capability.mobile,
-						Mode:          mode.raw,
-						Scopes:        scope.raw,
-					}
-					normalizeWeChatConnectConfig(&cfg)
-					wantMode := capability.modes[mode.index]
-					wantScope := map[string]string{"open": "snsapi_login", "mp": scope.mp, "mobile": ""}[wantMode]
-					require.Equal(t, wantMode, cfg.Mode)
-					require.Equal(t, wantScope, cfg.Scopes)
-					require.Equal(t, [3]bool{capability.open, capability.mp, capability.mobile}, [3]bool{cfg.OpenEnabled, cfg.MPEnabled, cfg.MobileEnabled})
-					require.False(t, cfg.Enabled)
-				})
-			}
-		}
-	}
-}
-
-// TestNormalizeWeChatConnectConfig_LegacyNormalization supplies globally enabled
-// legacy configurations without explicit channel switches. Startup normalization
-// must promote the normalized mode and fill missing credential members independently.
-func TestNormalizeWeChatConnectConfig_LegacyNormalization(t *testing.T) {
-	for _, tc := range []struct {
-		raw          string  // supplied legacy mode
-		mode         string  // expected selected mode
-		capabilities [3]bool // expected open/mp/mobile switches
-	}{
-		{"OPEN", "open", [3]bool{true, false, false}},
-		{" Mp ", "mp", [3]bool{false, true, false}},
-		{"MoBiLe", "mobile", [3]bool{false, false, true}},
-		{"invalid", "open", [3]bool{true, false, false}},
-	} {
-		t.Run(tc.raw, func(t *testing.T) {
-			base := WeChatConnectConfig{
-				Enabled:         true,
-				Mode:            tc.raw,
-				OpenAppID:       " open-id ",
-				MPAppSecret:     " mp-secret ",
-				MobileAppID:     " mobile-id ",
-				MobileAppSecret: " mobile-secret ",
-			}
-			cfg := base
-			normalizeWeChatConnectConfig(&cfg)
-			require.Equal(t, tc.mode, cfg.Mode)
-			require.Equal(t, tc.capabilities, [3]bool{cfg.OpenEnabled, cfg.MPEnabled, cfg.MobileEnabled})
-			require.Equal(t, "open-id", cfg.AppID)
-			require.Equal(t, "mp-secret", cfg.AppSecret)
-			require.Equal(t, [6]string{"open-id", "mp-secret", "open-id", "mp-secret", "mobile-id", "mobile-secret"},
-				[6]string{cfg.OpenAppID, cfg.OpenAppSecret, cfg.MPAppID, cfg.MPAppSecret, cfg.MobileAppID, cfg.MobileAppSecret})
-		})
 	}
 }

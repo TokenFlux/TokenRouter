@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -31,6 +30,10 @@ import (
 // the retry adapter select their own forwarding base URL.
 
 const (
+	// bundledOAuthClientSecret supplies the default client identity when startup
+	// configuration does not provide an explicit OAuth application secret override.
+	bundledOAuthClientSecret = "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"
+
 	// AuthorizeURL selects the Google consent destination used with the
 	// configured scopes and S256 challenge.
 	AuthorizeURL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -44,14 +47,6 @@ const (
 	// ClientID identifies the configured OAuth application in consent, token
 	// exchange, and refresh requests.
 	ClientID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-
-	// AntigravityOAuthClientSecretEnv names the startup secret override read by
-	// init before OAuth client requests begin.
-	AntigravityOAuthClientSecretEnv = "ANTIGRAVITY_OAUTH_CLIENT_SECRET"
-
-	// AntigravityUserAgentVersionEnv names the startup version override; init
-	// accepts its trimmed numeric three-component spelling.
-	AntigravityUserAgentVersionEnv = "ANTIGRAVITY_USER_AGENT_VERSION"
 
 	// DefaultUserAgentVersion supplies the startup version when the environment
 	// override does not pass normalization.
@@ -102,9 +97,9 @@ var (
 	// independently.
 	userAgentVersionResolver UserAgentVersionResolver
 
-	// defaultClientSecret caches the built-in or nonempty startup environment
+	// defaultClientSecret caches the built-in or nonempty startup configured
 	// value; getClientSecret trims it before token operations.
-	defaultClientSecret = "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"
+	defaultClientSecret = bundledOAuthClientSecret
 
 	// BaseURLs supplies account-management endpoint order and is read by
 	// forwarding selection; callers serialize any replacement with readers.
@@ -136,18 +131,6 @@ type URLAvailability struct {
 	unavailable map[string]time.Time // endpoint failure recovery deadlines
 	ttl         time.Duration        // failure deadline lifetime
 	lastSuccess string               // latest successful endpoint preference
-}
-
-// init reads startup environment overrides into cached OAuth identity values.
-// Only a normalized version replaces the default, while a nonempty secret is
-// stored as supplied and trimmed during later retrieval.
-func init() {
-	if version := NormalizeUserAgentVersion(os.Getenv(AntigravityUserAgentVersionEnv)); version != "" {
-		defaultUserAgentVersion = version
-	}
-	if secret := os.Getenv(AntigravityOAuthClientSecretEnv); secret != "" {
-		defaultClientSecret = secret
-	}
 }
 
 // NormalizeUserAgentVersion returns trimmed decimal major.minor.patch spelling
@@ -225,13 +208,13 @@ func GetUserAgentForContext(ctx context.Context) string {
 
 // getClientSecret returns the trimmed cached OAuth secret or a bad-request
 // error when blank. It reads the startup cache rather than rereading the
-// environment, so replacement of that variable requires caller
+// configuration, so replacement of that default requires caller
 // synchronization.
 func getClientSecret() (string, error) {
 	if v := strings.TrimSpace(defaultClientSecret); v != "" {
 		return v, nil
 	}
-	return "", infraerrors.Newf(infraerrors.CategoryBadRequest, "ANTIGRAVITY_OAUTH_CLIENT_SECRET_MISSING", "missing antigravity oauth client_secret; set %s", AntigravityOAuthClientSecretEnv)
+	return "", infraerrors.Newf(infraerrors.CategoryBadRequest, "ANTIGRAVITY_OAUTH_CLIENT_SECRET_MISSING", "missing antigravity oauth client_secret; set provider.antigravity.oauth_client_secret")
 }
 
 // ForwardBaseURLs returns an independent slice with the exact daily endpoint
@@ -418,4 +401,19 @@ func BuildAuthorizationURL(state, codeChallenge string) string {
 	params.Set("include_granted_scopes", "true")
 
 	return fmt.Sprintf("%s?%s", AuthorizeURL, params.Encode())
+}
+
+// ConfigureIdentity selects the OAuth secret and default User-Agent version.
+// Empty inputs restore the bundled identity; invalid version text also uses
+// the bundled version. Call before constructing clients or serving requests,
+// because these process defaults are startup-owned values rather than runtime settings.
+func ConfigureIdentity(clientSecret, userAgentVersion string) {
+	defaultClientSecret = bundledOAuthClientSecret
+	defaultUserAgentVersion = DefaultUserAgentVersion
+	if clientSecret != "" {
+		defaultClientSecret = clientSecret
+	}
+	if version := NormalizeUserAgentVersion(userAgentVersion); version != "" {
+		defaultUserAgentVersion = version
+	}
 }

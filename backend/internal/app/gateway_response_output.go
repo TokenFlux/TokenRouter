@@ -39,17 +39,17 @@ func provideOpenAIResponseOutput(cfg *config.Config, health *provideradapter.Ope
 	if cfg != nil {
 		v := cfg.Gateway
 		output.Options.Configured = true
-		output.Options.MaxLineSize = v.MaxLineSize
-		output.Options.StreamDataIntervalTimeout = v.StreamDataIntervalTimeout
-		output.Options.ImageStreamDataIntervalTimeout = v.ImageStreamDataIntervalTimeout
-		output.Options.ImageStreamKeepaliveInterval = v.ImageStreamKeepaliveInterval
-		output.Options.OpenAIFirstOutputTimeoutSeconds = v.OpenAIFirstOutputTimeoutSeconds
-		output.Options.OpenAIHighEffortFirstOutputTimeoutSeconds = v.OpenAIHighEffortFirstOutputTimeoutSeconds
-		output.Options.LogUpstreamErrorBody = v.LogUpstreamErrorBody
-		output.Options.LogUpstreamErrorBodyMaxBytes = v.LogUpstreamErrorBodyMaxBytes
-		output.Options.ResponseHeadersEnabled = cfg.Security.ResponseHeaders.Enabled
-		if v.UpstreamResponseReadMaxBytes > 0 {
-			output.Options.ReadLimit = v.UpstreamResponseReadMaxBytes
+		output.Options.MaxLineSize = v.MaxSSELineBytes
+		output.Options.StreamDataIntervalTimeout = v.Streaming.DataIdleTimeoutSeconds
+		output.Options.ImageStreamDataIntervalTimeout = v.Images.StreamDataIdleTimeoutSeconds
+		output.Options.ImageStreamKeepaliveInterval = v.Images.StreamKeepaliveIntervalSeconds
+		output.Options.OpenAIFirstOutputTimeoutSeconds = v.OpenAI.FirstOutputTimeoutSeconds
+		output.Options.OpenAIHighEffortFirstOutputTimeoutSeconds = v.OpenAI.HighEffortFirstOutputTimeoutSeconds
+		output.Options.LogUpstreamErrorBody = v.UpstreamErrorBodyLog.Enabled
+		output.Options.LogUpstreamErrorBodyMaxBytes = v.UpstreamErrorBodyLog.MaxBytes
+		output.Options.ResponseHeadersEnabled = cfg.Gateway.ResponseHeaders.Enabled
+		if v.UpstreamResponseMaxBytes > 0 {
+			output.Options.ReadLimit = v.UpstreamResponseMaxBytes
 		}
 	}
 	return output
@@ -77,5 +77,5 @@ func provideResponseHeaderFilter(cfg *config.Config) *egress.CompiledHeaderFilte
 	if cfg == nil {
 		return nil
 	}
-	return egress.CompileHeaderFilter(egress.ResponseHeaderOptions{Enabled: cfg.Security.ResponseHeaders.Enabled, AdditionalAllowed: cfg.Security.ResponseHeaders.AdditionalAllowed, ForceRemove: cfg.Security.ResponseHeaders.ForceRemove})
+	return egress.CompileHeaderFilter(egress.ResponseHeaderOptions{Enabled: cfg.Gateway.ResponseHeaders.Enabled, AdditionalAllowed: cfg.Gateway.ResponseHeaders.AdditionalAllowed, ForceRemove: cfg.Gateway.ResponseHeaders.ForceRemove})
 }

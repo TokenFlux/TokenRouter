@@ -33,7 +33,7 @@ type testSettingRepo struct {
 // configured service with in-memory settings. It checks a successful HTTP
 // status; this case does not decode or assert individual configuration values.
 func TestOpsRuntimeLoggingHandler_GetConfig(t *testing.T) {
-	h := NewOpsHandler(newRuntimeOpsService(t))
+	h := NewOpsHandler(newRuntimeOpsService(t), OpsWSOptions{})
 	r := newOpsRuntimeRouter(h, false)
 
 	w := httptest.NewRecorder()
@@ -48,7 +48,7 @@ func TestOpsRuntimeLoggingHandler_GetConfig(t *testing.T) {
 // through a router without a subject fixture. It checks the handler rejects
 // that write with an unauthorized HTTP status for the absent subject.
 func TestOpsRuntimeLoggingHandler_UpdateUnauthorized(t *testing.T) {
-	h := NewOpsHandler(newRuntimeOpsService(t))
+	h := NewOpsHandler(newRuntimeOpsService(t), OpsWSOptions{})
 	r := newOpsRuntimeRouter(h, false)
 
 	body := `{"level":"debug","enable_sampling":false,"sampling_initial":100,"sampling_thereafter":100,"caller":true,"stacktrace_level":"error","retention_days":30}`
@@ -66,7 +66,7 @@ func TestOpsRuntimeLoggingHandler_UpdateUnauthorized(t *testing.T) {
 // both HTTP operations succeed with the in-memory settings and process logging
 // implementation.
 func TestOpsRuntimeLoggingHandler_UpdateAndResetSuccess(t *testing.T) {
-	h := NewOpsHandler(newRuntimeOpsService(t))
+	h := NewOpsHandler(newRuntimeOpsService(t), OpsWSOptions{})
 	r := newOpsRuntimeRouter(h, true)
 
 	payload := map[string]any{

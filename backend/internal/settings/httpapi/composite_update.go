@@ -579,7 +579,7 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 	// can be decrypted after a later process restart.
 	if req.TotpEnabled && !previousSettings.TotpEnabled {
 		if !h.settingService.IsTotpEncryptionKeyConfigured() {
-			httpx.BadRequest(c, "Cannot enable TOTP: TOTP_ENCRYPTION_KEY environment variable must be configured first. Generate a key with 'openssl rand -hex 32' and set it in your environment.")
+			httpx.BadRequest(c, "Cannot enable TOTP: configure a persistent security.secret_encryption_key in config.yaml first. Generate a key with 'openssl rand -hex 32'.")
 			return
 		}
 	}

@@ -1,6 +1,9 @@
 package anthropic
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestIsSupportedCLIVersion covers pinned, newer, older, shortened, suffixed,
 // and malformed version values. Complete releases at or above the pin pass,
@@ -78,21 +81,25 @@ func TestDefaultHeadersUserAgentMatchesCLIVersion(t *testing.T) {
 // built-in pin, so an injected environment override would fail this assertion.
 func TestCLIVersionDefaultsToBuiltinPin(t *testing.T) {
 	if got := CLIVersion(); got != CLICurrentVersion {
-		t.Fatalf("CLIVersion() = %q, want built-in pin %q (测试进程未设置 %s)", got, CLICurrentVersion, CLIVersionEnv)
+		t.Fatalf("CLIVersion() = %q, want built-in pin %q (测试进程未设置 %s)", got, CLICurrentVersion, "provider.anthropic.claude_cli_version")
 	}
 }
 
-// TestCLIVersionEnvironmentCompatibility sets legacy and current deployment
-// variables in sequence. The legacy value is used when the current variable is
-// empty, and a nonempty current value takes precedence.
-func TestCLIVersionEnvironmentCompatibility(t *testing.T) {
-	t.Setenv(CLIVersionEnv, "")
-	t.Setenv("SUB2API_CLAUDE_CLI_VERSION", "2.2.0")
-	if got := cliVersionOverride(); got != "2.2.0" {
-		t.Fatalf("legacy override = %q", got)
+// TestConfigureCLIVersion changes the process default before client construction.
+// A supported override becomes visible and an empty value restores the bundled
+// pin, with cleanup restoring the identity used by other serial tests.
+func TestConfigureCLIVersion(t *testing.T) {
+	previous := resolvedCLIVersion
+	t.Cleanup(func() { ConfigureCLIVersion(previous) })
+	ConfigureCLIVersion("3.0.0")
+	if !strings.Contains(DefaultHeaders["User-Agent"], "3.0.0") {
+		t.Fatal("header identity did not follow configured CLI version")
 	}
-	t.Setenv(CLIVersionEnv, "3.0.0")
-	if got := cliVersionOverride(); got != "3.0.0" {
-		t.Fatalf("new override = %q", got)
+	if got := CLIVersion(); got != "3.0.0" {
+		t.Fatalf("CLI version = %s", got)
+	}
+	ConfigureCLIVersion("")
+	if got := CLIVersion(); got != CLICurrentVersion {
+		t.Fatalf("CLI default = %s", got)
 	}
 }

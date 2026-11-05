@@ -1359,7 +1359,6 @@ func TestAPIKeyAuthEnforcesQuotaAndCredentials(t *testing.T) {
 	})
 
 	t.Run("旧配置仍检查配额", func(t *testing.T) {
-		t.Setenv("RUN_MODE", "simple")
 		// An exhausted key quota rejects the request before upstream execution.
 		// This key is shared by sibling subtests. Save both quota values before
 		// exhaustion and restore them afterward so later credential cases start with
@@ -2663,7 +2662,7 @@ func TestAPIKeyAuthIPRestrictionUsesTrustedPathWhenSwitchDisabled(t *testing.T) 
 	}
 
 	cfg := &config.Config{}
-	cfg.SetTrustForwardedIPForAPIKeyACL(false)
+	cfg.SetTrustForwardedHeaders(false)
 	apiKeyService := testkit.NewService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
 	apiKeyService.Start()
 	router := gin.New()
@@ -2779,7 +2778,7 @@ func TestAPIKeyAuthIPRestrictionUsesConfiguredTrustedProxy(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	cfg.SetTrustForwardedIPForAPIKeyACL(false)
+	cfg.SetTrustForwardedHeaders(false)
 	apiKeyService := testkit.NewService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
 	apiKeyService.Start()
 	router := gin.New()
@@ -2832,7 +2831,7 @@ func TestAPIKeyAuthIPRestrictionUsesForwardedClientIPInDenialWhenTrusted(t *test
 	}
 
 	cfg := &config.Config{}
-	cfg.SetTrustForwardedIPForAPIKeyACL(false)
+	cfg.SetTrustForwardedHeaders(false)
 	apiKeyService := testkit.NewService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
 	apiKeyService.Start()
 	router := gin.New()
@@ -4359,14 +4358,13 @@ func RequireGroupAssignment(writeError gatewayhttp.GatewayErrorWriter) gin.Handl
 // Its bounded capacity supports the repeated-client fixtures; tests configure
 // threshold before constructing their service.
 func invalidAuthAbuseTestConfig(threshold int) *config.Config {
-	return &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{InvalidAbuse: config.InvalidAuthAbuseConfig{
-			// Minute-long windows make the retry header predictable in abuse assertions.
-			// Capacity bounds the fixture's retained client buckets during those
-			// repeated attempts.
-			Enabled: true, Threshold: threshold, WindowSeconds: 60, BlockSeconds: 60, Capacity: 256,
-		}},
-	}
+	return &config.Config{APIKey: config.APIKeyConfig{InvalidKeyAbuse: config.InvalidAuthAbuseConfig{
+		Enabled:       true,
+		Threshold:     threshold,
+		WindowSeconds: 60,
+		BlockSeconds:  60,
+		Capacity:      256,
+	}}}
 }
 
 // httpRequest constructs a POST with a fixed public peer and optional

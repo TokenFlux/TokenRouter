@@ -110,9 +110,9 @@ func (t openAITokenTarget) ForwardInputTokens(ctx context.Context, c *gin.Contex
 func provideOpenAITokensHTTP(source *gatewayhttp.OpenAIAuxiliary, funding *admission.FundingAdmission, keys *apikey.APIKeyService, concurrency *scheduler.ConcurrencyService, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Compatible, planner *gatewayprovider.RoutePlanner) *gatewayhttp.OpenAITokensHandler {
 	options := gatewayhttp.OpenAITokenOptions{MaxSwitches: 3}
 	if cfg != nil {
-		options.MaxBodyBytes = cfg.Gateway.MaxBodySize
-		if cfg.Gateway.MaxProviderSwitches > 0 {
-			options.MaxSwitches = cfg.Gateway.MaxProviderSwitches
+		options.MaxBodyBytes = cfg.Gateway.MaxRequestBodyBytes
+		if cfg.Gateway.Failover.MaxProviderSwitches > 0 {
+			options.MaxSwitches = cfg.Gateway.Failover.MaxProviderSwitches
 		}
 	}
 	ports := gatewayhttp.OpenAITokenPorts{Execution: openAITokenExecution{OpenAIAuxiliary: source, choices: choices, planner: planner}, Funding: funding}

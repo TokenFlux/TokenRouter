@@ -17,7 +17,7 @@ import (
 // reads therefore expose capacity alone, while malformed filters fail during
 // HTTP validation.
 func newIngressRejectHandlerForTest() *OpsHandler {
-	return NewOpsHandler(ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{}))
+	return NewOpsHandler(ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{}), OpsWSOptions{})
 }
 
 // TestListIngressRejectsValidatesFilters supplies an unknown reason, an invalid

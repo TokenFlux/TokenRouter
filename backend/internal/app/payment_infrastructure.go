@@ -2,7 +2,6 @@ package app
 
 import (
 	"log/slog"
-	"os"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -47,7 +46,7 @@ func providePaymentEncryptionKey(cfg *config.Config) (payment.EncryptionKey, err
 		slog.Warn("payment encryption key not configured — encrypted payment config and resume signing will be unavailable")
 		return nil, nil
 	}
-	key, warning, err := payment.ConfiguredEncryptionKey(cfg.Totp.EncryptionKey, cfg.Totp.EncryptionKeyConfigured)
+	key, warning, err := payment.ConfiguredEncryptionKey(cfg.Security.SecretEncryptionKey, cfg.Security.SecretEncryptionKeyConfigured)
 	if warning != "" {
 		slog.Warn(warning)
 	}
@@ -79,5 +78,5 @@ func paymentSelectionLog(level, message string, attrs ...any) {
 // providePaymentConfigCore combines stored instances, encryption, plan
 // validation, and environment-backed provider creation.
 func providePaymentConfigCore(store *paymentpostgres.InstanceStore, settings settingscore.Repository, key payment.EncryptionKey, plans *billing.Plans) *payment.ConfigService {
-	return payment.NewConfigService(store, settings, []byte(key), plans, payment.ConfigurationRuntime{CreateProvider: paymentadapter.CreateProvider, LookupEnv: os.LookupEnv, Warn: slog.Warn})
+	return payment.NewConfigService(store, settings, []byte(key), plans, payment.ConfigurationRuntime{CreateProvider: paymentadapter.CreateProvider, Warn: slog.Warn})
 }

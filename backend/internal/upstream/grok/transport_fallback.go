@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -33,11 +32,10 @@ import (
 // These constants select CLI identity, the public recovery host and the bounded
 // error-body size used during denial inspection.
 const (
-	grokCLIProxyHost       = CLIProxyHost
-	grokOfficialAPIHost    = "api.x.ai"
-	grokCLIStableVersion   = CLIClientVersion
-	grokCLIVersionOverride = CLIVersionEnv
-	grokFallbackBodyLimit  = 64 << 10
+	grokCLIProxyHost      = CLIProxyHost
+	grokOfficialAPIHost   = "api.x.ai"
+	grokCLIStableVersion  = CLIClientVersion
+	grokFallbackBodyLimit = 64 << 10
 )
 
 // AccessDeniedFallbackTransport recovers recognized replayable CLI denials
@@ -249,7 +247,7 @@ func bufferSmallResponseBody(resp *http.Response, limit int64) ([]byte, bool) {
 
 // ApplyTransportCLIHeaders applies Grok Build identity when the request hostname
 // matches the CLI proxy. It initializes a missing header map and uses the stable
-// version when the environment override fails canonical SemVer or
+// version when the configuration override fails canonical SemVer or
 // minimum-version checks. Other targets keep their current headers.
 func ApplyTransportCLIHeaders(req *http.Request) {
 	if req == nil || req.URL == nil || !strings.EqualFold(strings.TrimSpace(req.URL.Hostname()), grokCLIProxyHost) {
@@ -258,7 +256,7 @@ func ApplyTransportCLIHeaders(req *http.Request) {
 	if req.Header == nil {
 		req.Header = make(http.Header)
 	}
-	version := strings.TrimSpace(os.Getenv(grokCLIVersionOverride))
+	version := strings.TrimSpace(currentOverrides().CLIVersion)
 	// Subscription requests need a supported CLI version, so invalid environment
 	// overrides select the configured stable identity before transport dispatch.
 	if !IsTransportCLIVersionSupported(version) {

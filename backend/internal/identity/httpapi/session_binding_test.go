@@ -38,7 +38,7 @@ func TestSessionBindingContextFollowsForwardedIPSwitch(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := &config.Config{}
-			cfg.SetTrustForwardedIPForAPIKeyACL(tc.trustForwarded)
+			cfg.SetTrustForwardedHeaders(tc.trustForwarded)
 
 			r := gin.New()
 			require.NoError(t, r.SetTrustedProxies(tc.trustedProxies))
@@ -155,7 +155,7 @@ func TestSecurityClientIPFallsBackWithoutInjectedBinding(t *testing.T) {
 // hash matching those middleware-captured request values.
 func TestRequestSessionBindingPrefersInjectedBinding(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.SetTrustForwardedIPForAPIKeyACL(true)
+	cfg.SetTrustForwardedHeaders(true)
 
 	r := gin.New()
 	require.NoError(t, r.SetTrustedProxies([]string{"127.0.0.1"}))

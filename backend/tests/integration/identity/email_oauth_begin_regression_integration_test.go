@@ -132,10 +132,10 @@ func TestEmailOAuthBeginFailureCompensatesUser(t *testing.T) {
 	})
 	users := identitypostgres.NewUserStore(client, integrationDB)
 	cfg := &config.Config{}
-	cfg.JWT.Secret = "test-local-fixture-only"
-	cfg.JWT.ExpireHour = 1
-	cfg.JWT.RefreshTokenExpireDays = 1
-	cfg.Default.UserConcurrency = 1
+	cfg.Auth.JWT.Secret = "test-local-fixture-only"
+	cfg.Auth.JWT.AccessTokenTTLMinutes = 60
+	cfg.Auth.JWT.RefreshTokenTTLDays = 1
+	cfg.UserDefaults.Concurrency = 1
 	settings := identitytestkit.Settings(oauthSettings{}, cfg)
 	auth := identitytestkit.Auth(client, &identity.AuthDependencies{Users: users, RefreshTokens: rediscache.NewRefreshTokenCache(rediscontainer.New(t)), Options: identitytestkit.AuthOptions(cfg), Settings: settings})
 	flow := &identity.PendingFlow{Store: identitypostgres.NewPendingRepository(client), Database: &identitypostgres.PendingFlowDatabase{Client: client, Auth: auth}, Auth: auth}

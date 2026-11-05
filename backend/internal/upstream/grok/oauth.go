@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 
 	urlvalidator "github.com/TokenFlux/TokenRouter/internal/egress/urlpolicy"
@@ -32,7 +31,7 @@ import (
 // persist credentials; the authorization caller owns those steps and
 // redirect/state verification.
 
-// OAuth defaults and environment keys select issuer, client, scopes, callbacks,
+// OAuth defaults and configuration fields select issuer, client, scopes, callbacks,
 // forwarding hosts, and opt-in policy relaxations before the respective validators run.
 const (
 	OAuthIssuer = "https://auth.x.ai" // default OAuth issuer origin
@@ -48,14 +47,6 @@ const (
 	DefaultScope          = "openid profile email offline_access grok-cli:access api:access" // default authorization scope text
 	DefaultRedirectURI    = "http://127.0.0.1:56121/callback"                                // default loopback callback URL
 
-	EnvAuthorizeURL               = "XAI_OAUTH_AUTHORIZE_URL"                  // authorization endpoint override key
-	EnvTokenURL                   = "XAI_OAUTH_TOKEN_URL"                      // token endpoint override key
-	EnvClientID                   = "XAI_OAUTH_CLIENT_ID"                      // client identifier override key
-	EnvScope                      = "XAI_OAUTH_SCOPE"                          // authorization scope override key
-	EnvRedirectURI                = "XAI_OAUTH_REDIRECT_URI"                   // callback URI override key
-	EnvBaseURL                    = "XAI_BASE_URL"                             // forwarding URL override key
-	EnvAllowUnsafeURLOverrides    = "XAI_ALLOW_UNSAFE_URL_OVERRIDES"           // unsafe URL relaxation key
-	EnvUnsafeAllowHighConcurrency = "XAI_GROK_UNSAFE_ALLOW_CONCURRENCY_GT_ONE" // unsafe concurrency relaxation key
 )
 
 // These host patterns distinguish OAuth issuer endpoints from recognized API
@@ -82,9 +73,9 @@ type RuntimeSanityCheck struct {
 	Value string `json:"value"`           // displayed effective URL text
 	Valid bool   `json:"valid"`           // effective value passed validation
 	Error string `json:"error,omitempty"` // redacted URL validation diagnostic
-	// IsDefault reports whether the associated environment key is blank when the
+	// IsDefault reports whether the associated configuration field is blank when the
 	// check runs. It does not compare the selected text with a default literal.
-	IsDefault bool `json:"is_default,omitempty"` // environment selection was blank
+	IsDefault bool `json:"is_default,omitempty"` // configuration selection was blank
 }
 
 // RuntimeSanityReport summarizes effective URL checks and runtime diagnostic
@@ -109,26 +100,26 @@ type AuthorizationInput = wiregrok.AuthorizationInput
 type TokenResponse = wiregrok.TokenResponse
 
 // EffectiveAuthorizeURL returns the trimmed authorization endpoint
-// environment override or DefaultAuthorizeURL. This selection performs no URL
+// configuration override or DefaultAuthorizeURL. This selection performs no URL
 // validation; callers use ValidatedAuthorizeURL before constructing a
 // credential-related authorization request.
 func EffectiveAuthorizeURL() string {
-	return envOrDefault(EnvAuthorizeURL, DefaultAuthorizeURL)
+	return overrideOrDefault(currentOverrides().AuthorizeURL, DefaultAuthorizeURL)
 }
 
 // ValidatedAuthorizeURL validates the currently selected authorization
 // endpoint through OAuth endpoint policy. It returns validation errors rather
-// than replacing invalid environment input; NewOAuthClient's token
+// than replacing invalid configuration input; NewOAuthClient's token
 // construction has a separate default-on-error rule.
 func ValidatedAuthorizeURL() (string, error) {
 	return ValidateOAuthEndpointURL(EffectiveAuthorizeURL())
 }
 
-// EffectiveTokenURL returns the trimmed token endpoint environment override
+// EffectiveTokenURL returns the trimmed token endpoint configuration override
 // or DefaultTokenURL. The selected text is unvalidated; credential exchange
 // construction uses ValidatedTokenURL or its own checked default selection.
 func EffectiveTokenURL() string {
-	return envOrDefault(EnvTokenURL, DefaultTokenURL)
+	return overrideOrDefault(currentOverrides().TokenURL, DefaultTokenURL)
 }
 
 // ValidatedTokenURL checks the selected token endpoint through OAuth policy.
@@ -139,40 +130,40 @@ func ValidatedTokenURL() (string, error) {
 }
 
 // EffectiveClientID returns the trimmed configured OAuth client identifier,
-// or DefaultClientID when the environment value is blank. The value is
+// or DefaultClientID when the configuration value is blank. The value is
 // selected when called rather than pinned globally at process startup.
 func EffectiveClientID() string {
-	return envOrDefault(EnvClientID, DefaultClientID)
+	return overrideOrDefault(currentOverrides().ClientID, DefaultClientID)
 }
 
 // EffectiveScope returns the trimmed configured OAuth scope or DefaultScope
-// when the environment value is blank. It retains nonblank scope text as
+// when the configuration value is blank. It retains nonblank scope text as
 // supplied after trimming, leaving scope interpretation to authorization
 // requests.
 func EffectiveScope() string {
-	return envOrDefault(EnvScope, DefaultScope)
+	return overrideOrDefault(currentOverrides().Scope, DefaultScope)
 }
 
 // EffectiveRedirectURI prefers a nonblank trimmed argument, then the
-// environment value, then DefaultRedirectURI. It does not validate the
+// configuration value, then DefaultRedirectURI. It does not validate the
 // result; authorization callers validate redirect policy separately before
 // using the selected callback destination.
 func EffectiveRedirectURI(override string) string {
 	if trimmed := strings.TrimSpace(override); trimmed != "" {
 		return trimmed
 	}
-	return envOrDefault(EnvRedirectURI, DefaultRedirectURI)
+	return overrideOrDefault(currentOverrides().RedirectURI, DefaultRedirectURI)
 }
 
 // EffectiveBaseURL prefers a nonblank trimmed argument, then configured
-// environment input, then DefaultBaseURL, trimming trailing slashes from the
+// configuration input, then DefaultBaseURL, trimming trailing slashes from the
 // selected text. It performs no destination validation before endpoint
 // builders apply their policy.
 func EffectiveBaseURL(override string) string {
 	if trimmed := strings.TrimSpace(override); trimmed != "" {
 		return strings.TrimRight(trimmed, "/")
 	}
-	return strings.TrimRight(envOrDefault(EnvBaseURL, DefaultBaseURL), "/")
+	return strings.TrimRight(overrideOrDefault(currentOverrides().BaseURL, DefaultBaseURL), "/")
 }
 
 // ValidatedBaseURL selects an effective base URL and applies ValidateBaseURL.
@@ -186,7 +177,7 @@ func ValidatedBaseURL(override string) (string, error) {
 // validatedBaseURLWithValidator selects the effective base and validates it
 // using the supplied policy. Nil uses ValidatedBaseURL directly. A nonnil
 // validator's successful output passes through normalizeKnownBaseURLPath,
-// even when unsafe environment overrides are enabled.
+// even when unsafe configuration overrides are enabled.
 func validatedBaseURLWithValidator(override string, validator BaseURLValidator) (string, error) {
 	if validator == nil {
 		return ValidatedBaseURL(override)
@@ -197,27 +188,27 @@ func validatedBaseURLWithValidator(override string, validator BaseURLValidator) 
 		return "", err
 	}
 	// Injected policies can permit custom hosts, but path components still need
-	// normalization before callers append an endpoint, including under the unsafe environment switch.
+	// normalization before callers append an endpoint, including under the unsafe configuration switch.
 	return normalizeKnownBaseURLPath(validated)
 }
 
 // RuntimeSanity assembles effective URL checks and unsafe-switch flags for
-// diagnostics. Values are read from the environment during construction;
+// diagnostics. Values are read from the configuration during construction;
 // PublicGatewayScope and ProxyPolicy are fixed diagnostic labels rather than
 // a generated endpoint capability inventory.
 func RuntimeSanity() RuntimeSanityReport {
 	return RuntimeSanityReport{
-		BaseURL: runtimeSanityCheck(EffectiveBaseURL(""), EnvBaseURL, ValidatedBaseURL),
+		BaseURL: runtimeSanityCheck(EffectiveBaseURL(""), currentOverrides().BaseURL, ValidatedBaseURL),
 
-		OAuthAuthorizeURL: runtimeSanityCheck(EffectiveAuthorizeURL(), EnvAuthorizeURL, func(string) (string, error) {
+		OAuthAuthorizeURL: runtimeSanityCheck(EffectiveAuthorizeURL(), currentOverrides().AuthorizeURL, func(string) (string, error) {
 			return ValidatedAuthorizeURL()
 		}),
 
-		OAuthTokenURL: runtimeSanityCheck(EffectiveTokenURL(), EnvTokenURL, func(string) (string, error) {
+		OAuthTokenURL: runtimeSanityCheck(EffectiveTokenURL(), currentOverrides().TokenURL, func(string) (string, error) {
 			return ValidatedTokenURL()
 		}),
 
-		OAuthRedirectURI: runtimeSanityCheck(EffectiveRedirectURI(""), EnvRedirectURI, validateRedirectURI),
+		OAuthRedirectURI: runtimeSanityCheck(EffectiveRedirectURI(""), currentOverrides().RedirectURI, validateRedirectURI),
 
 		UnsafeURLOverrides: AllowUnsafeURLOverrides(),
 
@@ -230,15 +221,15 @@ func RuntimeSanity() RuntimeSanityReport {
 }
 
 // runtimeSanityCheck validates a selected value and records whether its
-// environment source is blank. Successful normalized URLs are sanitized for
+// configuration source is blank. Successful normalized URLs are sanitized for
 // display; failures retain a sanitized supplied value and a redacted error.
 // The validate callback is required.
-func runtimeSanityCheck(value string, envKey string, validate func(string) (string, error)) RuntimeSanityCheck {
+func runtimeSanityCheck(value string, configured string, validate func(string) (string, error)) RuntimeSanityCheck {
 	normalized, err := validate(value)
 	check := RuntimeSanityCheck{
 		Value:     sanitizeRuntimeURLValue(normalized),
 		Valid:     err == nil,
-		IsDefault: strings.TrimSpace(os.Getenv(envKey)) == "",
+		IsDefault: strings.TrimSpace(configured) == "",
 	}
 	if err != nil {
 		check.Value = sanitizeRuntimeURLValue(value)
@@ -329,7 +320,7 @@ func ValidateBaseURL(raw string) (string, error) {
 
 // ValidateTrustedBaseURL normally requires HTTPS and a recognized API or CLI
 // base hostname before known-path normalization. Unsafe overrides return
-// format-only validation directly, so callers choose that environment switch
+// format-only validation directly, so callers choose that configuration switch
 // only when its relaxed destination policy is intended.
 func ValidateTrustedBaseURL(raw string) (string, error) {
 	// This opt-in bypasses official-host and known-path rules for the caller's
@@ -423,41 +414,28 @@ func IsOfficialBaseURL(raw string) bool {
 	return IsOfficialBaseURLHost(parsed.Hostname())
 }
 
-// AllowUnsafeURLOverrides reports whether the URL override environment switch
-// has a recognized true value. Other values are false; callers apply the
-// resulting relaxation in their own endpoint validation branch.
+// AllowUnsafeURLOverrides reports the configured relaxation of upstream URL checks.
+// An absent startup snapshot leaves the flag false. Endpoint validators decide
+// which checks to relax when this explicit process setting is enabled.
 func AllowUnsafeURLOverrides() bool {
-	return envBool(EnvAllowUnsafeURLOverrides)
+	return currentOverrides().AllowUnsafeURLOverrides
 }
 
-// AllowUnsafeHighConcurrency reports whether the concurrency override
-// environment switch has a recognized true value. This helper reads the flag
-// only; the consuming provider policy decides what concurrency it permits.
+// AllowUnsafeHighConcurrency reports the configured higher-concurrency opt-in flag.
+// An absent startup snapshot leaves it disabled. Provider admission owns the
+// effective concurrency limit and uses this value when applying its policy.
 func AllowUnsafeHighConcurrency() bool {
-	return envBool(EnvUnsafeAllowHighConcurrency)
+	return currentOverrides().UnsafeAllowConcurrencyAboveOne
 }
 
-// envOrDefault returns a trimmed nonblank environment value, otherwise
+// overrideOrDefault returns a trimmed nonblank configuration value, otherwise
 // fallback as supplied. Selection happens on each call, letting effective
-// OAuth and API configuration readers observe their current environment
-// values.
-func envOrDefault(key, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+// OAuth and API readers observe the currently published configuration snapshot.
+func overrideOrDefault(raw, fallback string) string {
+	if value := strings.TrimSpace(raw); value != "" {
 		return value
 	}
 	return fallback
-}
-
-// envBool recognizes trimmed case-insensitive 1, true, yes, y, and on values.
-// Every other spelling reports false, so an absent or invalid switch keeps
-// its consuming policy's relaxation disabled.
-func envBool(key string) bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
-	case "1", "true", "yes", "y", "on":
-		return true
-	default:
-		return false
-	}
 }
 
 // GenerateRandomBytes obtains n cryptographic bytes through oauthpkce.

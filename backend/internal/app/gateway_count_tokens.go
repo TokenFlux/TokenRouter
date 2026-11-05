@@ -99,9 +99,9 @@ func provideCountTokensHTTP(planner *gatewayprovider.RoutePlanner, messages *gat
 	limit := int64(0)
 	switches := 10
 	if cfg != nil {
-		limit = cfg.Gateway.MaxBodySize
-		if cfg.Gateway.MaxProviderSwitches > 0 {
-			switches = cfg.Gateway.MaxProviderSwitches
+		limit = cfg.Gateway.MaxRequestBodyBytes
+		if cfg.Gateway.Failover.MaxProviderSwitches > 0 {
+			switches = cfg.Gateway.Failover.MaxProviderSwitches
 		}
 	}
 	var matcher gatewayhttp.ErrorRuleMatcher

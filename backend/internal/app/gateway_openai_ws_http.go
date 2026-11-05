@@ -63,10 +63,10 @@ func responsesWSOptions(cfg *config.Config) wshttp.ResponsesWSOptions {
 		FirstMessageTimeout: wshttp.ResolveOpenAIWSClientFirstMessageTimeout(openAIWSExecutionOptions(cfg)),
 	}
 	if cfg != nil {
-		options.MaxIngressConnectionsPerAPIKey = cfg.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey
-		options.ForceCodexCLI = cfg.Gateway.ForceCodexCLI
-		if cfg.Gateway.MaxProviderSwitches > 0 {
-			options.MaxProviderSwitches = cfg.Gateway.MaxProviderSwitches
+		options.MaxIngressConnectionsPerAPIKey = cfg.Gateway.OpenAI.ResponsesWS.MaxIngressConnectionsPerAPIKey
+		options.ForceCodexCLI = cfg.Gateway.OpenAI.Codex.ForceCLI
+		if cfg.Gateway.Failover.MaxProviderSwitches > 0 {
+			options.MaxProviderSwitches = cfg.Gateway.Failover.MaxProviderSwitches
 		}
 	}
 	return options

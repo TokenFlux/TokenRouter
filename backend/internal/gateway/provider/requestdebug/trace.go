@@ -46,8 +46,8 @@ type Trace struct {
 // New configures request diagnostics from the path and mimic settings. A blank
 // path disables file snapshots; opening failures are logged and leave file
 // snapshots disabled while the mimic switch remains usable.
-func New(path, mimic string) *Trace {
-	trace := &Trace{mimic: parseDebugEnvBool(mimic)}
+func New(path string, mimic bool) *Trace {
+	trace := &Trace{mimic: mimic}
 	if path = strings.TrimSpace(path); path != "" {
 		trace.open(path)
 	}
@@ -78,17 +78,6 @@ func (s *Trace) Capture(req *http.Request, body []byte, target *gatewayprovider.
 		logging.LegacyPrintf("service.gateway", "[ClaudeMimicDebug] %s", line)
 	}
 	return line
-}
-
-// parseDebugEnvBool reports whether trimmed, case-insensitive text enables
-// debug logging.
-func parseDebugEnvBool(raw string) bool {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
-	}
 }
 
 // redactAuthHeaderValue replaces nonempty credentials with a redaction marker.
@@ -226,7 +215,8 @@ func CaptureLine(req *http.Request, body []byte, provider *gatewayprovider.Execu
 // suppressed so diagnostic setup leaves forwarding available with file
 // snapshots disabled.
 func (s *Trace) open(path string) {
-	if parseDebugEnvBool(path) {
+	switch strings.ToLower(strings.TrimSpace(path)) {
+	case "1", "true", "yes", "on":
 		path = debugGatewayBodyDefaultFilename
 	}
 

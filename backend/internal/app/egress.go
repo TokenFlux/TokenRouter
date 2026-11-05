@@ -47,11 +47,10 @@ func provideEgressProxyStore(client *dbent.Client, db *sql.DB) *egresspostgres.P
 func provideEgressProbe(cfg *config.Config) egress.ProxyExitInfoProber {
 	options := egressprovider.ProxyProbeOptions{ValidateResolvedIP: true}
 	if cfg != nil {
-		options.InsecureSkipVerify = cfg.Security.ProxyProbe.InsecureSkipVerify
 		options.AllowPrivateHosts = cfg.Security.URLAllowlist.AllowPrivateHosts
 		options.ValidateResolvedIP = cfg.Security.URLAllowlist.Enabled
-		options.MaxResponseBytes = cfg.Gateway.ProxyProbeResponseReadMaxBytes
-		for _, target := range cfg.Security.ProxyProbe.URLs {
+		options.MaxResponseBytes = cfg.Egress.ProxyProbe.ResponseMaxBytes
+		for _, target := range cfg.Egress.ProxyProbe.URLs {
 			options.Targets = append(options.Targets, egressprovider.ProxyProbeTarget{URL: target.URL, Parser: target.Parser})
 		}
 	}
@@ -81,7 +80,7 @@ func provideEgressRouters(repo egress.TLSFingerprintRouterRepository, cache egre
 func provideEgressCollector(cfg *config.Config) *egressprovider.TLSFingerprintCollectorService {
 	options := egressprovider.CollectorOptions{Now: time.Now, Diagnostics: egress.Diagnostics{Logf: logging.LegacyPrintf}}
 	if cfg != nil {
-		v := cfg.Server.TLSFingerprintCollector
+		v := cfg.Egress.TLSFingerprintCollector
 		options.Host = v.Host
 		options.Port = v.Port
 		options.PublicBaseURL = v.PublicBaseURL

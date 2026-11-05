@@ -40,10 +40,10 @@ func provideGatewayErrorRules(repo errorpolicy.ErrorPassthroughRepository, cache
 }
 
 // provideGatewayRequestDebug constructs the shared trace from gateway debug
-// environment settings. Call before lifecycle startup; its registered stop hook
+// process settings. Call before lifecycle startup; its registered stop hook
 // closes the trace after earlier request and completion shutdown levels.
-func provideGatewayRequestDebug(manager *lifecycle.Manager) *requestdebug.Trace {
-	trace := requestdebug.New(productEnv("DEBUG_GATEWAY_BODY"), productEnv("DEBUG_CLAUDE_MIMIC"))
+func provideGatewayRequestDebug(manager *lifecycle.Manager, cfg *config.Config) *requestdebug.Trace {
+	trace := requestdebug.New(cfg.Debug.GatewayBodyLogFile, cfg.Debug.ClaudeMimicLog)
 	// The trace can be used by in-flight platform and completion work. Register
 	// its close after those shutdown levels so their final diagnostics remain writable.
 	manager.Register(lifecycle.Hook{Name: "GatewayRequestDebug", StopOrder: 90, Stop: func(context.Context) error { return trace.Close() }})
@@ -84,18 +84,18 @@ func messageExecutionOptions(cfg *config.Config) messageforward.Options {
 		return options
 	}
 	options.Configured = true
-	options.InjectAPIKeyBeta = cfg.Gateway.InjectBetaForAPIKey
-	options.LogErrorBody = cfg.Gateway.LogUpstreamErrorBody
-	options.LogErrorBodyMaxBytes = cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-	options.FailoverOn400 = cfg.Gateway.FailoverOn400
-	options.GeminiDebugHeaders = cfg.Gateway.GeminiDebugResponseHeaders
-	options.MaxLineSize = cfg.Gateway.MaxLineSize
+	options.InjectAPIKeyBeta = cfg.Gateway.Anthropic.InjectBetaForAPIKey
+	options.LogErrorBody = cfg.Gateway.UpstreamErrorBodyLog.Enabled
+	options.LogErrorBodyMaxBytes = cfg.Gateway.UpstreamErrorBodyLog.MaxBytes
+	options.FailoverOn400 = cfg.Gateway.Failover.MessagesOn400
+	options.GeminiDebugHeaders = cfg.Gateway.Gemini.DebugResponseHeaders
+	options.MaxLineSize = cfg.Gateway.MaxSSELineBytes
 	// Upstream idle intervals use durations converted from configured seconds.
-	options.StreamInterval = time.Duration(cfg.Gateway.StreamDataIntervalTimeout) * time.Second
-	if cfg.Gateway.UpstreamResponseReadMaxBytes > 0 {
-		options.ResponseReadLimit = cfg.Gateway.UpstreamResponseReadMaxBytes
+	options.StreamInterval = time.Duration(cfg.Gateway.Streaming.DataIdleTimeoutSeconds) * time.Second
+	if cfg.Gateway.UpstreamResponseMaxBytes > 0 {
+		options.ResponseReadLimit = cfg.Gateway.UpstreamResponseMaxBytes
 	}
-	options.PreserveContentType = !cfg.Security.ResponseHeaders.Enabled
+	options.PreserveContentType = !cfg.Gateway.ResponseHeaders.Enabled
 	options.URLAllowlistEnabled = cfg.Security.URLAllowlist.Enabled
 	options.AllowInsecureHTTP = cfg.Security.URLAllowlist.AllowInsecureHTTP
 	options.URLValidation = egress.ValidationOptions{AllowedHosts: cfg.Security.URLAllowlist.UpstreamHosts, RequireAllowlist: true, AllowPrivate: cfg.Security.URLAllowlist.AllowPrivateHosts}

@@ -23,7 +23,7 @@ func TestAuthService_CreateRegisteredUser_RechecksDomainQuotaSwitch(t *testing.T
 		identity.SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
 	}
 	repo := &userRepoStub{nextID: 9, domainCounts: map[string]int{"custom.example": 0}}
-	cfg := &config.Config{Default: config.DefaultConfig{UserConcurrency: 1}}
+	cfg := &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 1}}
 	settingService := newAuthSettingsFixture(&settingRepoStub{values: settings}, cfg)
 	service := identitytestkit.Auth(
 		nil, &identity.AuthDependencies{Users: repo, Options: identitytestkit.AuthOptions(cfg), Settings: authSettingsPort(settingService)},

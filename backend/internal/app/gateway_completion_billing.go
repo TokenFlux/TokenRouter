@@ -81,7 +81,7 @@ func ProvideGatewayCompletionRecorders(
 ) GatewayCompletionRecorders {
 	options := completion.RecorderOptions{DefaultMultiplier: 1, Now: timezone.NewCalendar(time.Local).Now}
 	if cfg != nil {
-		options.DefaultMultiplier = cfg.Default.RateMultiplier
+		options.DefaultMultiplier = cfg.Billing.FallbackRateMultiplier
 	}
 	subscriptions, _ := funds.(completion.SubscriptionReader)
 	effects := func() *completion.CommitEffects {

@@ -1163,15 +1163,14 @@ func newOAuthEmailFlowAuthService(
 	emailCache identity.EmailCache,
 ) *identity.AuthService {
 	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:                   "test-secret",
-			ExpireHour:               1,
-			AccessTokenExpireMinutes: 60,
-			RefreshTokenExpireDays:   7,
-		},
-		Default: config.DefaultConfig{
-			UserBalance:     3.5,
-			UserConcurrency: 2,
+		Auth: config.AuthConfig{JWT: config.JWTConfig{
+			Secret:                "test-secret",
+			AccessTokenTTLMinutes: 60,
+			RefreshTokenTTLDays:   7,
+		}},
+		UserDefaults: config.UserDefaultsConfig{
+			Balance:     3.5,
+			Concurrency: 2,
 		},
 	}
 
@@ -1398,13 +1397,13 @@ func (s *emailCacheStub) IncrNotifyCodeUserRate(ctx context.Context, userID int6
 // fixture state remains shared.
 func newAuthService(repo *userRepoStub, settings map[string]string, emailCache identity.EmailCache) *identity.AuthService {
 	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			Secret:     "test-secret",
-			ExpireHour: 1,
-		},
-		Default: config.DefaultConfig{
-			UserBalance:     3.5,
-			UserConcurrency: 2,
+		Auth: config.AuthConfig{JWT: config.JWTConfig{
+			Secret:                "test-secret",
+			AccessTokenTTLMinutes: 60,
+		}},
+		UserDefaults: config.UserDefaultsConfig{
+			Balance:     3.5,
+			Concurrency: 2,
 		},
 	}
 
@@ -1455,9 +1454,9 @@ func newAuthSettingsFixture(repo settingscore.Repository, cfg *config.Config) *a
 	var defaults *identity.OAuthSettingsDefaults
 	grants := identity.GrantSettingsOptions{}
 	if cfg != nil {
-		defaults = &identity.OAuthSettingsDefaults{LinuxDo: cfg.LinuxDo, DingTalk: cfg.DingTalk, OIDC: cfg.OIDC, WeChat: cfg.WeChat, GitHubOAuth: cfg.GitHubOAuth, GoogleOAuth: cfg.GoogleOAuth}
-		grants.DefaultBalance = cfg.Default.UserBalance
-		grants.DefaultConcurrency = cfg.Default.UserConcurrency
+		defaults = &identity.OAuthSettingsDefaults{LinuxDo: cfg.Auth.OAuth.LinuxDo, DingTalk: cfg.Auth.OAuth.DingTalk.IdentityDefaults(), OIDC: cfg.Auth.OAuth.OIDC, WeChat: cfg.Auth.OAuth.WeChat.IdentityDefaults(), GitHubOAuth: cfg.Auth.OAuth.GitHub, GoogleOAuth: cfg.Auth.OAuth.Google}
+		grants.DefaultBalance = cfg.UserDefaults.Balance
+		grants.DefaultConcurrency = cfg.UserDefaults.Concurrency
 	}
 	return &authSettingsFixture{
 		RuntimeSettings: identity.NewRuntimeSettings(repo, settingscore.ErrSettingNotFound),

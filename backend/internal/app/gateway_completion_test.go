@@ -21,14 +21,14 @@ import (
 // to seconds.
 func TestUsageRecordWorkerPool_OptionsFromConfig_AutoScaleDisabled(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.Gateway.UsageRecord.WorkerCount = 64
-	cfg.Gateway.UsageRecord.QueueSize = 128
-	cfg.Gateway.UsageRecord.TaskTimeoutSeconds = 7
-	cfg.Gateway.UsageRecord.OverflowPolicy = config.UsageRecordOverflowPolicyDrop
-	cfg.Gateway.UsageRecord.OverflowSamplePercent = 0
-	cfg.Gateway.UsageRecord.AutoScaleEnabled = false
-	cfg.Gateway.UsageRecord.AutoScaleMinWorkers = 1
-	cfg.Gateway.UsageRecord.AutoScaleMaxWorkers = 512
+	cfg.Usage.RecordQueue.WorkerCount = 64
+	cfg.Usage.RecordQueue.QueueSize = 128
+	cfg.Usage.RecordQueue.TaskTimeoutSeconds = 7
+	cfg.Usage.RecordQueue.OverflowPolicy = config.UsageRecordOverflowPolicyDrop
+	cfg.Usage.RecordQueue.OverflowSamplePercent = 0
+	cfg.Usage.RecordQueue.AutoScaleEnabled = false
+	cfg.Usage.RecordQueue.AutoScaleMinWorkers = 1
+	cfg.Usage.RecordQueue.AutoScaleMaxWorkers = 512
 
 	opts := usageRecordPoolOptionsFromConfig(cfg)
 	require.False(t, opts.AutoScaleEnabled)
@@ -43,11 +43,11 @@ func TestUsageRecordWorkerPool_OptionsFromConfig_AutoScaleDisabled(t *testing.T)
 // concurrency must match configuration, and test cleanup stops the owned pool.
 func TestNewUsageRecordWorkerPool_FromConfig(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.Gateway.UsageRecord.WorkerCount = 3
-	cfg.Gateway.UsageRecord.QueueSize = 16
-	cfg.Gateway.UsageRecord.TaskTimeoutSeconds = 2
-	cfg.Gateway.UsageRecord.OverflowPolicy = config.UsageRecordOverflowPolicyDrop
-	cfg.Gateway.UsageRecord.AutoScaleEnabled = false
+	cfg.Usage.RecordQueue.WorkerCount = 3
+	cfg.Usage.RecordQueue.QueueSize = 16
+	cfg.Usage.RecordQueue.TaskTimeoutSeconds = 2
+	cfg.Usage.RecordQueue.OverflowPolicy = config.UsageRecordOverflowPolicyDrop
+	cfg.Usage.RecordQueue.AutoScaleEnabled = false
 
 	pool := provideUsageRecordWorkerPool(cfg)
 	pool.Start()

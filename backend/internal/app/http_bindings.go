@@ -84,7 +84,7 @@ func provideRouterRuntime(requests *requestlog.Service, public *site.PublicServi
 		identityhttp.SessionBindingContext(func() identityhttp.ForwardedIPSettings {
 			value := cfg.ForwardedClientIPSettings()
 			return identityhttp.ForwardedIPSettings{TrustForwardedIP: value.TrustForwardedIP, Headers: value.Headers}
-		}), middleware.Logger(), middleware.CORS(cfg.CORS),
+		}), middleware.Logger(), middleware.CORS(cfg.Security.CORS),
 		middleware.SecurityHeaders(cfg.Security.CSP, func() []string { return *origins.Load() }), middleware.ServerTiming(cfg.Server.EnableServerTiming),
 	}}
 	endpoints := make(map[protocol.ProtocolID]string)
@@ -137,14 +137,14 @@ func provideRouterRuntime(requests *requestlog.Service, public *site.PublicServi
 // trusted proxies are copied while H2C settings and timeout values are passed
 // to server.Options.
 func provideHTTPOptions(cfg *config.Config) server.Options {
-	maxBody := cfg.Server.MaxRequestBodySize
+	maxBody := cfg.Server.MaxRequestBodyBytes
 	if maxBody <= 0 {
-		maxBody = cfg.Gateway.MaxBodySize
+		maxBody = cfg.Gateway.MaxRequestBodyBytes
 	}
 	h := cfg.Server.H2C
 	return server.Options{
-		Address: cfg.Server.Address(), Mode: cfg.Server.Mode, TrustedProxies: append([]string(nil), cfg.Server.TrustedProxies...), TrustedProxiesConfigured: cfg.Server.TrustedProxiesConfigured,
-		ReadHeaderTimeout: cfg.Server.ReadHeaderTimeout, IdleTimeout: cfg.Server.IdleTimeout, MaxHeaderBytes: cfg.Server.MaxHeaderBytes, MaxRequestBodySize: maxBody,
-		H2C: server.H2COptions{Enabled: h.Enabled, MaxConcurrentStreams: h.MaxConcurrentStreams, IdleTimeout: h.IdleTimeout, MaxReadFrameSize: h.MaxReadFrameSize, MaxUploadBufferPerConnection: h.MaxUploadBufferPerConnection, MaxUploadBufferPerStream: h.MaxUploadBufferPerStream},
+		Address: cfg.Server.Address(), Mode: cfg.Server.Mode, TrustedProxies: append([]string(nil), cfg.Server.ClientIP.TrustedProxies...), TrustedProxiesConfigured: cfg.Server.ClientIP.TrustedProxiesConfigured,
+		ReadHeaderTimeout: cfg.Server.ReadHeaderTimeoutSeconds, IdleTimeout: cfg.Server.IdleTimeoutSeconds, MaxHeaderBytes: cfg.Server.MaxHeaderBytes, MaxRequestBodySize: maxBody,
+		H2C: server.H2COptions{Enabled: h.Enabled, MaxConcurrentStreams: h.MaxConcurrentStreams, IdleTimeout: h.IdleTimeoutSeconds, MaxReadFrameSize: h.MaxReadFrameBytes, MaxUploadBufferPerConnection: h.MaxUploadBufferPerConnectionBytes, MaxUploadBufferPerStream: h.MaxUploadBufferPerStreamBytes},
 	}
 }

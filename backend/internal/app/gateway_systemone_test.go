@@ -55,7 +55,7 @@ func (s *systemOneTransportStub) Do(request *http.Request, _ string, _ int64, _ 
 // no additional transport call.
 func TestProvideSystemOneExecutor(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.Gateway.UpstreamResponseReadMaxBytes = 1024
+	cfg.Gateway.UpstreamResponseMaxBytes = 1024
 	cfg.Security.URLAllowlist.Enabled = true
 	cfg.Security.URLAllowlist.UpstreamHosts = []string{"api.typesafe.ai"}
 	transport := &systemOneTransportStub{}

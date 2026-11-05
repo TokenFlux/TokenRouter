@@ -257,11 +257,11 @@ func TestDiagnoseSelectionFailure_ModelRateLimitedDetail(t *testing.T) {
 // the target, then tracked refresh makes the generic lookup reject it.
 func TestGetSchedulableProvider_AppliesGrokFreeSoftGate(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.Gateway.Grok.FreeQuotaSoftGateEnabled = true
-	cfg.Gateway.Grok.FreeQuotaTokenLimit = 500_000
-	cfg.Gateway.Grok.FreeQuotaSoftGatePercent = 95
-	cfg.Gateway.Grok.FreeQuotaWindowHours = 24
-	cfg.Gateway.Grok.FreeQuotaStatsCacheSeconds = 60
+	cfg.Scheduling.GrokFreeQuota.Enabled = true
+	cfg.Scheduling.GrokFreeQuota.TokenLimit = 500_000
+	cfg.Scheduling.GrokFreeQuota.ThresholdPercent = 95
+	cfg.Scheduling.GrokFreeQuota.WindowHours = 24
+	cfg.Scheduling.GrokFreeQuota.StatsCacheSeconds = 60
 
 	provider := healthyGrokOAuthGatewayTestProvider(8801, "tok")
 	provider.Record.Credentials["subscription_tier"] = "free"
@@ -370,7 +370,7 @@ func TestGatewayAdvancedSchedulerKeepsFullLoadCandidatesForWaitAndNoSlotSelectio
 		},
 	}
 	cfg := testConfig()
-	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	cfg.Scheduling.LoadBatch.Enabled = true
 	svc := newGenericSelectionForTest(GenericDependencies{
 		Reads: Reads{
 			Groups:    &mockGroupRepoForGateway{groups: map[int64]*routing.Group{group.ID: group}},
@@ -422,7 +422,7 @@ func TestGatewayAdvancedSchedulerForcePlatformUsesGroupOverrides(t *testing.T) {
 		},
 	}
 	cfg := testConfig()
-	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	cfg.Scheduling.LoadBatch.Enabled = true
 	svc := newGenericSelectionForTest(GenericDependencies{
 		Reads: Reads{
 			Providers: repo,
@@ -470,7 +470,7 @@ func TestGatewayAdvancedSchedulerWeightedStickyKeepsStickyOnlyProvider(t *testin
 	windowCache := &sessionLimitCacheHotpathStub{batchData: map[int64]float64{15011: 11}}
 	concurrencyCache := &mockConcurrencyCache{acquireResults: map[int64]bool{15011: true, 15012: true}}
 	cfg := testConfig()
-	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	cfg.Scheduling.LoadBatch.Enabled = true
 	svc := newGenericSelectionForTest(GenericDependencies{
 		Reads: Reads{
 			Providers: repo,
@@ -511,10 +511,10 @@ func TestGatewayAdvancedSchedulerEscapesNonOpenAIHardSticky(t *testing.T) {
 	cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{"sticky": 16011}}
 	concurrencyCache := &mockConcurrencyCache{acquireResults: map[int64]bool{16011: true, 16012: true}}
 	cfg := testConfig()
-	cfg.Gateway.Scheduling.LoadBatchEnabled = true
-	cfg.Gateway.AdvancedScheduler.StickyEscapeEnabled = true
-	cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs = 15000
-	cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 0.55
+	cfg.Scheduling.LoadBatch.Enabled = true
+	cfg.Scheduling.Advanced.StickyEscapeEnabled = true
+	cfg.Scheduling.Advanced.StickyEscapeTTFTMs = 15000
+	cfg.Scheduling.Advanced.StickyEscapeErrorRate = 0.55
 	svc := newGenericSelectionForTest(GenericDependencies{
 		Reads: Reads{
 			Providers: repo,
@@ -1155,17 +1155,17 @@ func TestSelectProviderWithLoadAwareness_StickyReadReuse(t *testing.T) {
 	},
 	)
 
-	cfg := &config.Config{
-		Gateway: config.GatewayConfig{
-			Scheduling: config.GatewaySchedulingConfig{
-				LoadBatchEnabled:         true,
-				StickySessionMaxWaiting:  3,
-				StickySessionWaitTimeout: time.Second,
-				FallbackWaitTimeout:      time.Second,
-				FallbackMaxWaiting:       10,
-			},
+	cfg := &config.Config{Scheduling: config.SchedulingConfig{
+		LoadBatch: config.SchedulingLoadBatchConfig{Enabled: true},
+		StickyProviderWait: config.ProviderWaitConfig{
+			MaxWaiting:     3,
+			TimeoutSeconds: 1,
 		},
-	}
+		AlternateProviderWait: config.ProviderWaitConfig{
+			TimeoutSeconds: 1,
+			MaxWaiting:     10,
+		},
+	}}
 
 	baseCtx := apikey.WithForcePlatform(context.Background(), capability.PlatformAnthropic)
 
@@ -1464,7 +1464,7 @@ func TestSelectProviderWithLoadAwareness_FiltersUpstreamRestrictedProviders(t *t
 				}
 
 				cfg := testConfig()
-				cfg.Gateway.Scheduling.LoadBatchEnabled = loadBatchEnabled
+				cfg.Scheduling.LoadBatch.Enabled = loadBatchEnabled
 				svc := newGenericSelectionForTest(GenericDependencies{
 					Reads: Reads{
 						Providers: providerRepo,
@@ -1570,7 +1570,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		cache := &mockGatewayCacheForPlatform{}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = false
+		cfg.Scheduling.LoadBatch.Enabled = false
 
 		svc := newGenericSelectionForTest(GenericDependencies{Reads: Reads{Providers: repo}, Shared: Shared{Cache: cache, Concurrency: nil}}, cfg)
 
@@ -1617,7 +1617,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		svc := newGenericSelectionForTest(GenericDependencies{
 			Reads:  Reads{Providers: repo, Groups: groupRepo},
@@ -1647,7 +1647,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		cache := &mockGatewayCacheForPlatform{}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		svc := newGenericSelectionForTest(GenericDependencies{Reads: Reads{Providers: repo}, Shared: Shared{Cache: cache, Concurrency: nil}}, cfg)
 
@@ -1673,7 +1673,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		cache := &mockGatewayCacheForPlatform{}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = false
+		cfg.Scheduling.LoadBatch.Enabled = false
 
 		svc := newGenericSelectionForTest(GenericDependencies{Reads: Reads{Providers: repo}, Shared: Shared{Concurrency: nil, Cache: cache}}, cfg)
 
@@ -1701,7 +1701,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{}
 
@@ -1740,7 +1740,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{}
 
@@ -1784,7 +1784,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{}
 
@@ -1817,7 +1817,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		cache := &mockGatewayCacheForPlatform{}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = false
+		cfg.Scheduling.LoadBatch.Enabled = false
 
 		svc := newGenericSelectionForTest(GenericDependencies{Reads: Reads{Providers: repo}, Shared: Shared{Concurrency: nil, Cache: cache}}, cfg)
 
@@ -1844,7 +1844,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 
 		cache := &mockGatewayCacheForPlatform{}
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = false
+		cfg.Scheduling.LoadBatch.Enabled = false
 
 		svc := newGenericSelectionForTest(GenericDependencies{Reads: Reads{Providers: repo}, Shared: Shared{Cache: cache, Concurrency: nil}}, cfg)
 
@@ -1872,7 +1872,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 
 		cache := &mockGatewayCacheForPlatform{}
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = false
+		cfg.Scheduling.LoadBatch.Enabled = false
 
 		svc := newGenericSelectionForTest(GenericDependencies{Reads: Reads{Providers: repo}, Shared: Shared{Concurrency: nil, Cache: cache}}, cfg)
 
@@ -1899,8 +1899,8 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
-		cfg.Gateway.Scheduling.StickySessionMaxWaiting = 1
+		cfg.Scheduling.LoadBatch.Enabled = true
+		cfg.Scheduling.StickyProviderWait.MaxWaiting = 1
 
 		concurrencyCache := &mockConcurrencyCache{
 			acquireResults: map[int64]bool{1: false},
@@ -1940,7 +1940,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		cache := &mockGatewayCacheForPlatform{}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadBatchErr: errors.New("load batch failed"),
@@ -1999,8 +1999,8 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
-		cfg.Gateway.Scheduling.StickySessionMaxWaiting = 1
+		cfg.Scheduling.LoadBatch.Enabled = true
+		cfg.Scheduling.StickyProviderWait.MaxWaiting = 1
 
 		concurrencyCache := &mockConcurrencyCache{
 			acquireResults: map[int64]bool{1: false},
@@ -2062,7 +2062,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{}
 
@@ -2117,7 +2117,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{}
 
@@ -2174,7 +2174,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*schedulercore.ProviderLoadInfo{
@@ -2236,7 +2236,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{
 			acquireResults: map[int64]bool{1: false, 2: false},
@@ -2299,7 +2299,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*schedulercore.ProviderLoadInfo{
@@ -2341,7 +2341,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		cache := &mockGatewayCacheForPlatform{}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadBatchErr:   errors.New("load batch failed"),
@@ -2393,7 +2393,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*schedulercore.ProviderLoadInfo{
@@ -2481,7 +2481,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{}
 
@@ -2539,7 +2539,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = false
+		cfg.Scheduling.LoadBatch.Enabled = false
 
 		svc := newGenericSelectionForTest(GenericDependencies{
 			Reads:  Reads{Providers: repo, Groups: groupRepo},
@@ -2573,7 +2573,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = false
+		cfg.Scheduling.LoadBatch.Enabled = false
 
 		svc := newGenericSelectionForTest(GenericDependencies{
 			Reads:  Reads{Providers: &mockProviderRepoForPlatform{}, Groups: groupRepo},
@@ -2601,7 +2601,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		cache := &mockGatewayCacheForPlatform{}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{
 			acquireResults: map[int64]bool{1: false, 2: false},
@@ -2643,7 +2643,7 @@ func TestGatewayService_SelectProviderWithLoadAwareness(t *testing.T) {
 		cache := &mockGatewayCacheForPlatform{}
 
 		cfg := testConfig()
-		cfg.Gateway.Scheduling.LoadBatchEnabled = true
+		cfg.Scheduling.LoadBatch.Enabled = true
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*schedulercore.ProviderLoadInfo{
@@ -3370,10 +3370,17 @@ func TestGatewaySelectProviderWithLoadAwareness_SkipsAntigravityGeminiFamilyRate
 			Snapshot: schedulerredis.NewSnapshotReader(newHydrationSnapshotForTest(cache, nil)),
 		},
 		Shared: Shared{Concurrency: schedulercore.NewConcurrencyService(&mockConcurrencyCache{}, schedulercore.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event})},
-	}, &config.Config{Gateway: config.GatewayConfig{Scheduling: config.GatewaySchedulingConfig{
-		LoadBatchEnabled: true, StickySessionMaxWaiting: 3, StickySessionWaitTimeout: time.Second,
-		FallbackWaitTimeout: time.Second, FallbackMaxWaiting: 10,
-	}}})
+	}, &config.Config{Scheduling: config.SchedulingConfig{
+		LoadBatch: config.SchedulingLoadBatchConfig{Enabled: true},
+		StickyProviderWait: config.ProviderWaitConfig{
+			MaxWaiting:     3,
+			TimeoutSeconds: 1,
+		},
+		AlternateProviderWait: config.ProviderWaitConfig{
+			TimeoutSeconds: 1,
+			MaxWaiting:     10,
+		},
+	}})
 
 	result, err := svc.SelectProviderWithLoadAwareness(context.Background(), &groupID, "", "gemini-3-flash-preview", nil)
 	if err != nil {

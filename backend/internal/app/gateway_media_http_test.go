@@ -101,11 +101,11 @@ func TestOpenAIGatewayHandlerResponses_ImageIntentRejectedByImageConcurrency(t *
 		},
 		), gatewayhttp.SSEPingFormatNone, 0),
 		Rules: nil,
-		Config: &config.Config{Gateway: config.GatewayConfig{ImageConcurrency: config.ImageConcurrencyConfig{
+		Config: &config.Config{Gateway: config.GatewayConfig{Images: config.GatewayImagesConfig{Concurrency: config.ImageConcurrencyConfig{
 			Enabled:               true,
 			MaxConcurrentRequests: 1,
 			OverflowMode:          config.ImageConcurrencyOverflowModeReject,
-		}}},
+		}}}},
 		Images: &scheduler.ImageConcurrencyLimiter{}, Availability: newExecutionAvailabilityForTest(nil, nil, nil), Choices: newEmptyCompatibleSelectionFixture(),
 	})
 	// Occupy the sole image slot before invoking Responses so the next image
@@ -154,11 +154,11 @@ func TestOpenAIGatewayHandlerResponses_TextOnlyNotRejectedByImageConcurrency(t *
 			Event: logging.Event,
 		},
 		), gatewayhttp.SSEPingFormatNone, 0),
-		Config: &config.Config{Gateway: config.GatewayConfig{ImageConcurrency: config.ImageConcurrencyConfig{
+		Config: &config.Config{Gateway: config.GatewayConfig{Images: config.GatewayImagesConfig{Concurrency: config.ImageConcurrencyConfig{
 			Enabled:               true,
 			MaxConcurrentRequests: 1,
 			OverflowMode:          config.ImageConcurrencyOverflowModeReject,
-		}}},
+		}}}},
 		Images: &scheduler.ImageConcurrencyLimiter{}, Availability: newExecutionAvailabilityForTest(nil, nil, nil), Choices: newEmptyCompatibleSelectionFixture(),
 	})
 	// Occupy the sole image slot before invoking Responses so the next image

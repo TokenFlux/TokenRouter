@@ -1230,15 +1230,14 @@ func newOIDCOauthHTTPFixtureAndClient(t *testing.T, invitationEnabled bool, oaut
 	t.Helper()
 	handler, client := newOAuthPendingFlowTestHandler(t, invitationEnabled)
 	handler.settingSvc = nil
-	handler.cfg = &config.Config{
+	handler.cfg = &config.Config{Auth: config.AuthConfig{
 		JWT: config.JWTConfig{
-			Secret:                   "test-secret",
-			ExpireHour:               1,
-			AccessTokenExpireMinutes: 60,
-			RefreshTokenExpireDays:   7,
+			Secret:                "test-secret",
+			AccessTokenTTLMinutes: 60,
+			RefreshTokenTTLDays:   7,
 		},
-		OIDC: oauthCfg,
-	}
+		OAuth: config.OAuthProvidersConfig{OIDC: oauthCfg},
+	}}
 	bindAuthHTTPFixture(t, handler)
 	return handler, client
 }
@@ -1285,7 +1284,7 @@ func newOIDCOauthHTTPFixtureAndClientWithSettings(
 	if handler.cfg == nil {
 		handler.cfg = &config.Config{}
 	}
-	handler.cfg.OIDC = oauthCfg
+	handler.cfg.Auth.OAuth.OIDC = oauthCfg
 	bindAuthHTTPFixture(t, handler)
 	return handler, client
 }

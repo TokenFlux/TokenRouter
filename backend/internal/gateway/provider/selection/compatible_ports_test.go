@@ -40,7 +40,7 @@ func (s *compatiblePicker) buildOpenAIProviderLoadPlan(ctx context.Context, req 
 // supplied reset weight.
 func openAIResetTestScheduler(reset float64) *compatiblePicker {
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{
+	cfg.Scheduling.Advanced.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{
 		Priority:      1.0,
 		Load:          1.0,
 		Queue:         0.7,
@@ -56,9 +56,7 @@ func openAIResetTestScheduler(reset float64) *compatiblePicker {
 // exclusively by observed quota headroom.
 func openAIQuotaHeadroomTestScheduler(quotaHeadroom float64) *compatiblePicker {
 	cfg := &config.Config{}
-	cfg.Gateway.AdvancedScheduler.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{
-		QuotaHeadroom: quotaHeadroom,
-	}
+	cfg.Scheduling.Advanced.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{QuotaHeadroom: quotaHeadroom}
 	return &compatiblePicker{service: newCompatibleSelectionForTest(CompatibleDependencies{Reads: Reads{}, Shared: Shared{}}, cfg)}
 }
 

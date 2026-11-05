@@ -38,8 +38,8 @@ func provideSystemOneExecutor(cfg *config.Config, transport httpclient.UpstreamT
 			AllowPrivateHosts: policy.AllowPrivateHosts,
 			UpstreamHosts:     append([]string(nil), policy.UpstreamHosts...),
 		}
-		if cfg.Gateway.UpstreamResponseReadMaxBytes > 0 {
-			executor.ReadLimit = cfg.Gateway.UpstreamResponseReadMaxBytes
+		if cfg.Gateway.UpstreamResponseMaxBytes > 0 {
+			executor.ReadLimit = cfg.Gateway.UpstreamResponseMaxBytes
 		}
 	}
 	return executor

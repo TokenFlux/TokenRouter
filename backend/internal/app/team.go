@@ -67,7 +67,7 @@ func (p teamIdentityUsers) GetByEmail(ctx context.Context, email string) (*team.
 func provideTeam(repo team.TeamRepository, users *identitypostgres.UserStore, email *notification.Mailer, cache apikey.APIKeyCache, limiter team.TeamInvitationLimiter, settings *site.DisplaySettings, cfg *config.Config) *team.TeamService {
 	var options *team.Options
 	if cfg != nil {
-		options = &team.Options{Enabled: cfg.Team.Enabled, SelfServiceEnabled: cfg.Team.SelfServiceEnabled, DefaultMemberLimit: cfg.Team.DefaultMemberLimit, FrontendURL: cfg.Server.FrontendURL, Now: time.Now}
+		options = &team.Options{Enabled: cfg.Team.Enabled, SelfServiceEnabled: cfg.Team.SelfServiceEnabled, DefaultMemberLimit: cfg.Team.DefaultMaxMembers, FrontendURL: cfg.Site.FrontendURL, Now: time.Now}
 	}
 	var settingReader team.Settings
 	if settings != nil {

@@ -56,11 +56,11 @@ type openAICodexExtraListRepo struct {
 // admits it, then the refreshed gate rejects the basic compatible lookup.
 func TestOpenAIGetSchedulableProvider_AppliesGrokFreeSoftGate(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.Gateway.Grok.FreeQuotaSoftGateEnabled = true
-	cfg.Gateway.Grok.FreeQuotaTokenLimit = 500_000
-	cfg.Gateway.Grok.FreeQuotaSoftGatePercent = 95
-	cfg.Gateway.Grok.FreeQuotaWindowHours = 24
-	cfg.Gateway.Grok.FreeQuotaStatsCacheSeconds = 60
+	cfg.Scheduling.GrokFreeQuota.Enabled = true
+	cfg.Scheduling.GrokFreeQuota.TokenLimit = 500_000
+	cfg.Scheduling.GrokFreeQuota.ThresholdPercent = 95
+	cfg.Scheduling.GrokFreeQuota.WindowHours = 24
+	cfg.Scheduling.GrokFreeQuota.StatsCacheSeconds = 60
 
 	provider := healthyGrokOAuthGatewayTestProvider(8802, "tok")
 	provider.Record.Credentials["subscription_tier"] = "free"
@@ -669,8 +669,8 @@ func TestOpenAISelectProviderWithLoadAwareness_StickyCapacitySpilloverKeepsBindi
 		},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = true
-	cfg.Gateway.Scheduling.StickySessionMaxWaiting = 1
+	cfg.Scheduling.LoadBatch.Enabled = true
+	cfg.Scheduling.StickyProviderWait.MaxWaiting = 1
 
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{
@@ -1778,7 +1778,7 @@ func TestOpenAIGatewayService_SelectProviderWithLoadAwareness_DBFreshGroupRechec
 		providersByID:     map[int64]*gatewayprovider.ExecutionProvider{stalePrimary.Record.ID: stalePrimary, staleBackup.Record.ID: staleBackup},
 	}
 	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	cfg.Scheduling.LoadBatch.Enabled = true
 	svc := newCompatibleSelectionForTest(CompatibleDependencies{
 		Reads: Reads{
 			Snapshot: schedulerredis.NewSnapshotReader(schedulercore.NewSnapshotService(snapshotCache,

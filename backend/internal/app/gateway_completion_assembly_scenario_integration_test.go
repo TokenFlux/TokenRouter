@@ -80,7 +80,7 @@ func TestNativeCompletionRuntimeOneFinancialEffect(t *testing.T) {
 		logs.StopUsageBatchers()
 	})
 	cfg := &config.Config{}
-	cfg.Default.RateMultiplier = 1
+	cfg.Billing.FallbackRateMultiplier = 1
 	rates := NewGatewayBillingRatesForTest(nil, cfg)
 	health := NewProviderHealthRuntimeForTest(providers, nil, cfg, nil, nil, nil, nil, nil)
 	calculator := billing.NewCalculator(nativeCompletionCatalog{}, billing.CalculatorOptions{})

@@ -121,7 +121,8 @@ func TestGetGrokBaseURLUsesSubscriptionProxyForOAuth(t *testing.T) {
 // OAuth address with the legacy unsafe-override environment setting enabled.
 // It checks endpoint selection returns the same configured custom address.
 func TestGetGrokBaseURLHonorsOAuthCustomRegardlessOfUnsafeOverrides(t *testing.T) {
-	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+	xai.ConfigureOverrides(xai.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 	provider := acct.Record{
 		Type:     capability.ProviderTypeOAuth,
 		Platform: capability.PlatformGrok,
@@ -250,7 +251,8 @@ func TestGetGrokMediaBaseURLRedirectsCLIGatewayToOfficialAPI(t *testing.T) {
 // custom OAuth media address with the legacy unsafe-override setting enabled.
 // It checks the custom endpoint still remains the selected media address.
 func TestGetGrokMediaBaseURLHonorsOAuthCustomRegardlessOfUnsafeOverrides(t *testing.T) {
-	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+	xai.ConfigureOverrides(xai.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { xai.ConfigureOverrides(xai.Overrides{}) })
 	provider := acct.Record{
 		Type:     capability.ProviderTypeOAuth,
 		Platform: capability.PlatformGrok,

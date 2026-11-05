@@ -56,7 +56,7 @@ func provideAuditHTTP(s *audit.AuditLogService, totp *identity.TotpService) *aud
 // providePreAggregationSettings copies required usage and Ops deployment
 // options into shared settings.
 func providePreAggregationSettings(repo *settings.Store, cfg *config.Config) *p.PreAggregationSettingsService {
-	return p.NewPreAggregationSettingsService(repo, &p.Options{Usage: p.UsageOptions{Enabled: cfg.DashboardAgg.Enabled, IntervalSeconds: cfg.DashboardAgg.IntervalSeconds, BackfillEnabled: cfg.DashboardAgg.BackfillEnabled, BackfillMaxDays: cfg.DashboardAgg.BackfillMaxDays}, OpsEnabled: cfg.Ops.Enabled, OpsAggregationEnabled: cfg.Ops.Aggregation.Enabled})
+	return p.NewPreAggregationSettingsService(repo, &p.Options{Usage: p.UsageOptions{Enabled: cfg.Usage.Aggregation.Enabled, IntervalSeconds: cfg.Usage.Aggregation.IntervalSeconds, BackfillEnabled: cfg.Usage.Aggregation.BackfillEnabled, BackfillMaxDays: cfg.Usage.Aggregation.BackfillMaxDays}, OpsEnabled: cfg.Ops.Enabled, OpsAggregationEnabled: cfg.Ops.Aggregation.Enabled})
 }
 
 // provideSystemLogSink constructs persisted system logs with host lookup

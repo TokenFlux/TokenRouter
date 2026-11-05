@@ -79,7 +79,7 @@ func (c *ssoDeviceFakeClient) Do(req *http.Request) (*http.Response, error) {
 // poll, initial SSO cookies, and retained session/CSRF cookies through the
 // verification and approval sequence.
 func TestConvertSSOToBuildCompletesDeviceFlow(t *testing.T) {
-	t.Setenv(EnvClientID, "")
+	setGrokTestOverride(t, "ClientID", "")
 	client := &ssoDeviceFakeClient{t: t}
 	token, err := ConvertSSOToBuild(context.Background(), "sso=sso-token; ignored=1", &SSODeviceOptions{
 		HTTPClient: client,

@@ -44,7 +44,7 @@ func provideBackup(settings *settings.Store, cfg *config.Config, cipher identity
 	options := backup.Options{
 		Log:                     logging.LegacyPrintf,
 		LocalPath:               path,
-		EncryptionKeyConfigured: cfg.Totp.EncryptionKeyConfigured,
+		EncryptionKeyConfigured: cfg.Security.SecretEncryptionKeyConfigured,
 		Now:                     time.Now,
 	}
 	core := backup.New(settings, options, cipher, bp.NewS3BackupStoreFactory(), bp.NewLocalBackupStore(path), bp.NewArchive(dumper, 0), lock)

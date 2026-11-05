@@ -44,9 +44,9 @@ func Settings(repo settings.Repository, cfg *config.Config) *SettingsReaders {
 	var defaults *identity.OAuthSettingsDefaults
 	grants := identity.GrantSettingsOptions{}
 	if cfg != nil {
-		defaults = &identity.OAuthSettingsDefaults{LinuxDo: cfg.LinuxDo, DingTalk: cfg.DingTalk, OIDC: cfg.OIDC, WeChat: cfg.WeChat, GitHubOAuth: cfg.GitHubOAuth, GoogleOAuth: cfg.GoogleOAuth}
-		grants.DefaultBalance = cfg.Default.UserBalance
-		grants.DefaultConcurrency = cfg.Default.UserConcurrency
+		defaults = &identity.OAuthSettingsDefaults{LinuxDo: cfg.Auth.OAuth.LinuxDo, DingTalk: cfg.Auth.OAuth.DingTalk.IdentityDefaults(), OIDC: cfg.Auth.OAuth.OIDC, WeChat: cfg.Auth.OAuth.WeChat.IdentityDefaults(), GitHubOAuth: cfg.Auth.OAuth.GitHub, GoogleOAuth: cfg.Auth.OAuth.Google}
+		grants.DefaultBalance = cfg.UserDefaults.Balance
+		grants.DefaultConcurrency = cfg.UserDefaults.Concurrency
 	}
 	return &SettingsReaders{
 		BackendMode:     admission.NewBackendMode(repo, nil),
@@ -57,7 +57,7 @@ func Settings(repo settings.Repository, cfg *config.Config) *SettingsReaders {
 			if cfg == nil {
 				return ""
 			}
-			return cfg.Server.FrontendURL
+			return cfg.Site.FrontendURL
 		}),
 		promotion: promotion.NewRuntimeSettings(repo),
 	}

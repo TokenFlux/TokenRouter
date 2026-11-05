@@ -2,7 +2,6 @@ package testkit
 
 import (
 	"log/slog"
-	"os"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -29,5 +28,5 @@ func Configuration(client *dbent.Client, settings payment.ConfigurationSettings,
 		store = paymentpostgres.NewInstanceStore(client)
 	}
 	plans := billing.NewPlans(billingpostgres.NewPlanStore(client), paymentpostgres.NewInstanceStore(client), nil)
-	return payment.NewConfigService(store, settings, key, plans, payment.ConfigurationRuntime{CreateProvider: paymentadapter.CreateProvider, LookupEnv: os.LookupEnv, Warn: slog.Warn})
+	return payment.NewConfigService(store, settings, key, plans, payment.ConfigurationRuntime{CreateProvider: paymentadapter.CreateProvider, Warn: slog.Warn})
 }

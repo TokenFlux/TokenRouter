@@ -754,7 +754,8 @@ func TestExtractGrokMediaModelSupportsJSONAndMultipart(t *testing.T) {
 // grok-imagine identity remains in the request and result alongside one
 // returned image and billing size.
 func TestForwardGrokMediaImagesGenerationNormalizesImagineAlias(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -808,7 +809,8 @@ func TestForwardGrokMediaImagesGenerationNormalizesImagineAlias(t *testing.T) {
 // HTTP 200 with an empty image array. It checks a 502 failover error retains
 // the response body and that client output is still empty.
 func TestForwardGrokMediaImagesGenerationRejectsEmptySuccessfulResponse(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -851,7 +853,8 @@ func TestForwardGrokMediaImagesGenerationRejectsEmptySuccessfulResponse(t *testi
 // result model, billing model and upstream model after mapping composes with
 // image-reference and geometry preparation.
 func TestForwardGrokMediaAppliesProviderModelMappingAfterEndpointNormalization(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	tests := []struct {
 		name             string                 // scenario subtest label
@@ -984,7 +987,8 @@ func TestForwardGrokMediaAppliesProviderModelMappingAfterEndpointNormalization(t
 // derived resolution/ratio while the result retains original dimensions and
 // its matching 1k billing tier.
 func TestForwardGrokMediaImagesGenerationStripsUnsupportedSize(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -1029,7 +1033,8 @@ func TestForwardGrokMediaImagesGenerationStripsUnsupportedSize(t *testing.T) {
 // model/prompt output, a base64 data URL under url and the mapped
 // billing/upstream identities.
 func TestForwardGrokMediaImagesEditMultipartConvertsToJSON(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -1091,7 +1096,8 @@ func TestForwardGrokMediaImagesEditMultipartConvertsToJSON(t *testing.T) {
 // totals while video count remains zero and creation resolution/duration stay
 // available.
 func TestForwardGrokMediaVideoGenerationReturnsUsageAndResponseID(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -1144,7 +1150,8 @@ func TestForwardGrokMediaVideoGenerationReturnsUsageAndResponseID(t *testing.T) 
 // identity shape becomes the result ResponseID after successful asynchronous
 // task acceptance.
 func TestForwardGrokMediaVideoGenerationReturnsTaskIDAsResponseID(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -1183,7 +1190,8 @@ func TestForwardGrokMediaVideoGenerationReturnsTaskIDAsResponseID(t *testing.T) 
 // input, retained video model/task identity and the normalized eight-second
 // creation duration.
 func TestForwardGrokMediaVideoGenerationPreservesImageToVideoModel(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -1276,7 +1284,8 @@ func TestForwardGrokMediaOAuthImageToVideoUsesOfficialAPIForLargeBody(t *testing
 // status through API Key authentication. It checks GET, the task URL and empty
 // body/Content-Type alongside the upstream request identifier in the result.
 func TestForwardGrokMediaVideoStatusUsesGETWithoutBody(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -1324,7 +1333,8 @@ func TestForwardGrokMediaVideoStatusUsesGETWithoutBody(t *testing.T) {
 // requests with provider model mapping. It checks each mutation URL and JSON
 // body, retaining task identity/duration with zero completed-video count.
 func TestForwardGrokMediaVideoMutationEndpoints(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	tests := []struct {
 		name     string                 // scenario subtest label
@@ -1379,7 +1389,8 @@ func TestForwardGrokMediaVideoMutationEndpoints(t *testing.T) {
 // presentation still follows recorded provider rate-limit handling and runtime
 // scheduling block.
 func TestForwardGrokMedia429ReconcilesRateLimitBeforeCustomErrorBypass(t *testing.T) {
-	t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+	grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+	t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -1582,7 +1593,8 @@ func TestGrokMediaPoolModeRetryFlagFollowsExplicitPolicies(t *testing.T) {
 	})
 
 	t.Run("mapped model is used by temporary policy", func(t *testing.T) {
-		t.Setenv(grok.EnvAllowUnsafeURLOverrides, "true")
+		grok.ConfigureOverrides(grok.Overrides{AllowUnsafeURLOverrides: true})
+		t.Cleanup(func() { grok.ConfigureOverrides(grok.Overrides{}) })
 		provider := newGrokPoolProvider(632)
 		provider.Record.Credentials["api_key"] = "api-key"
 		provider.Record.Credentials["base_url"] = "https://xai.test/v1"

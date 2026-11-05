@@ -11,12 +11,12 @@ import (
 // initialization receives the values selected during configuration loading.
 
 // OptionsFromConfig converts process log configuration into logger initialization options.
-func OptionsFromConfig(cfg config.LogConfig) logging.InitOptions {
+func OptionsFromConfig(cfg config.LogConfig, environment string) logging.InitOptions {
 	return logging.InitOptions{
 		Level:           cfg.Level,
 		Format:          cfg.Format,
 		ServiceName:     cfg.ServiceName,
-		Environment:     cfg.Environment,
+		Environment:     environment,
 		Caller:          cfg.Caller,
 		StacktraceLevel: cfg.StacktraceLevel,
 		Output: logging.OutputOptions{

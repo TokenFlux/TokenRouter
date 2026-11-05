@@ -279,14 +279,10 @@ func TestAdvancedSchedulerScoreDiagnosticService_UsesProcessConfigBeforeFallback
 		providers: []gatewayprovider.ExecutionProvider{*target, other},
 		pool:      []gatewayprovider.ExecutionProvider{*target, other},
 	}
-	cfg := &config.Config{
-		Gateway: config.GatewayConfig{AdvancedScheduler: config.GatewayAdvancedSchedulerConfig{
-			LBTopK: 1,
-			ScoreWeights: config.GatewayAdvancedSchedulerScoreWeights{
-				Priority: 4,
-			},
-		}},
-	}
+	cfg := &config.Config{Scheduling: config.SchedulingConfig{Advanced: config.GatewayAdvancedSchedulerConfig{
+		LBTopK:       1,
+		ScoreWeights: config.GatewayAdvancedSchedulerScoreWeights{Priority: 4},
+	}}}
 
 	diagnostics := withDiagnosticParameters(newDiagnosticsForTest(source, nil), cfg)
 
@@ -536,8 +532,10 @@ func TestAdvancedSchedulerScoreDiagnosticService_EscapedStickyUsesRegularWindowC
 	source := &advancedSchedulerDiagnosticSourceStub{
 		provider: target, group: group, providers: []gatewayprovider.ExecutionProvider{*target, other}, pool: []gatewayprovider.ExecutionProvider{*target, other},
 	}
-	cfg := &config.Config{Gateway: config.GatewayConfig{AdvancedScheduler: config.GatewayAdvancedSchedulerConfig{
-		StickyEscapeEnabled: true, StickyEscapeTTFTMs: 15000, StickyEscapeErrorRate: 0.55,
+	cfg := &config.Config{Scheduling: config.SchedulingConfig{Advanced: config.GatewayAdvancedSchedulerConfig{
+		StickyEscapeEnabled:   true,
+		StickyEscapeTTFTMs:    15000,
+		StickyEscapeErrorRate: 0.55,
 	}}}
 
 	feedback := schedulercore.NewRuntimeStats(time.Now)

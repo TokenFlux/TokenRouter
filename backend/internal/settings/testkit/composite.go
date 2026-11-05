@@ -98,7 +98,7 @@ func NewComposite(repo settings.Repository, cfg *config.Config) *Composite {
 	store := settings.New(repo)
 	readers := gatewaytestkit.RuntimeReaders(store)
 	defaults := scheduler.DefaultAdminSettingsDefaults()
-	source := cfg.Gateway.AdvancedScheduler
+	source := cfg.Scheduling.Advanced
 	defaults.TopK = source.LBTopK
 	defaults.Weights = source.ScoreWeights
 	defaults.Process.EwmaErrorRateAlpha = source.EWMAErrorRateAlpha
@@ -107,17 +107,17 @@ func NewComposite(repo settings.Repository, cfg *config.Config) *Composite {
 	// milliseconds before normalization, keeping cadence and error-rate settings in their named units.
 	defaults.Process.StickyEscape = policy.NormalizeStickyEscape(policy.StickyEscapeConfig{Enabled: source.StickyEscapeEnabled, TtftMs: float64(source.StickyEscapeTTFTMs), ErrorRate: source.StickyEscapeErrorRate})
 	result := &Composite{Store: store, Gateway: readers.Gateway, Provider: readers.Provider, Quota: readers.Quota, Identity: identity.NewRuntimeSettings(store, settings.ErrSettingNotFound), Promotion: promotion.NewRuntimeSettings(store), Backend: admission.NewBackendMode(store, slog.Warn), Defaults: defaults, Scheduler: scheduler.NewSettingsRuntime(scheduler.Diagnostics{})}
-	oauth := identity.NewOAuthSettings(store, &identity.OAuthSettingsDefaults{LinuxDo: cfg.LinuxDo, DingTalk: cfg.DingTalk, OIDC: cfg.OIDC, WeChat: cfg.WeChat, GitHubOAuth: cfg.GitHubOAuth, GoogleOAuth: cfg.GoogleOAuth}, identityprovider.ResolveSettingsOIDCMetadata)
+	oauth := identity.NewOAuthSettings(store, &identity.OAuthSettingsDefaults{LinuxDo: cfg.Auth.OAuth.LinuxDo, DingTalk: cfg.Auth.OAuth.DingTalk.IdentityDefaults(), OIDC: cfg.Auth.OAuth.OIDC, WeChat: cfg.Auth.OAuth.WeChat.IdentityDefaults(), GitHubOAuth: cfg.Auth.OAuth.GitHub, GoogleOAuth: cfg.Auth.OAuth.Google}, identityprovider.ResolveSettingsOIDCMetadata)
 	validate := func(ctx context.Context, items []billing.DefaultSubscriptionSetting) error {
 		if result.Plans == nil {
 			return billing.ValidateDefaultSubscriptionPlans(ctx, items, nil)
 		}
 		return billing.ValidateDefaultSubscriptionPlans(ctx, items, result.Plans.GetByID)
 	}
-	grants := identity.NewGrantSettings(store, identity.GrantSettingsOptions{DefaultBalance: cfg.Default.UserBalance, DefaultConcurrency: cfg.Default.UserConcurrency, ValidatePlans: validate})
+	grants := identity.NewGrantSettings(store, identity.GrantSettingsOptions{DefaultBalance: cfg.UserDefaults.Balance, DefaultConcurrency: cfg.UserDefaults.Concurrency, ValidatePlans: validate})
 	rules := gateway.AdminSettingsRules{GrokDefaultTextModel: grok.DefaultTextModel, NormalizeUserAgentVersion: antigravity.NormalizeUserAgentVersion, ValidateClaudePromptBlocks: anthropic.ValidateClaudeOAuthSystemPromptBlocksConfig}
-	result.Forwarded = runtimeconfig.NewForwardedSettings(store, runtimeconfig.ForwardedSettingsOptions{InitialTrust: cfg.Security.TrustForwardedIPForAPIKeyACL, TrustedProxiesConfigured: cfg.Server.TrustedProxiesConfigured, Headers: func() []string { return cfg.ForwardedClientIPSettings().Headers }, Publish: cfg.SetForwardedClientIPSettings})
-	result.Read = composite.ReadOptions{OAuth: oauth, Gateway: rules, Scheduler: defaults, DefaultBalance: func() float64 { return cfg.Default.UserBalance }, DefaultConcurrency: func() int { return cfg.Default.UserConcurrency }, Forwarded: func() runtimeconfig.ForwardedInput {
+	result.Forwarded = runtimeconfig.NewForwardedSettings(store, runtimeconfig.ForwardedSettingsOptions{InitialTrust: cfg.Server.ClientIP.TrustForwardedHeaders, TrustedProxiesConfigured: cfg.Server.ClientIP.TrustedProxiesConfigured, Headers: func() []string { return cfg.ForwardedClientIPSettings().Headers }, Publish: cfg.SetForwardedClientIPSettings})
+	result.Read = composite.ReadOptions{OAuth: oauth, Gateway: rules, Scheduler: defaults, DefaultBalance: func() float64 { return cfg.UserDefaults.Balance }, DefaultConcurrency: func() int { return cfg.UserDefaults.Concurrency }, Forwarded: func() runtimeconfig.ForwardedInput {
 		value := cfg.ForwardedClientIPSettings()
 		return runtimeconfig.ForwardedInput{APIKeyACLTrustForwardedIP: value.TrustForwardedIP, ForwardedClientIPHeaders: value.Headers}
 	}, PublishModel: func(model string) {
@@ -162,11 +162,11 @@ func NewComposite(repo settings.Repository, cfg *config.Config) *Composite {
 		}},
 	}
 	result.Applications = steps
-	result.Runtime = composite.NewRuntime(store, result.Read, result.Prepare, grants, result.Gateway, cfg.Totp.EncryptionKeyConfigured, steps)
+	result.Runtime = composite.NewRuntime(store, result.Read, result.Prepare, grants, result.Gateway, cfg.Security.SecretEncryptionKeyConfigured, steps)
 	result.Public = site.NewPublicService(site.NewInputSource(store, site.PublicInputOptions{Auth: func(raw map[string]string) site.PublicAuth {
 		value := oauth.PublicSettingsFromValues(raw)
 		enabled, selfService := team.PublicSettings(raw, cfg.Team.Enabled, cfg.Team.SelfServiceEnabled)
-		return site.PublicAuth{LinuxDo: value.LinuxDo, DingTalk: value.DingTalk, OIDC: value.OIDC, OIDCName: value.OIDCName, WeChat: value.WeChat, WeChatOpen: value.WeChatOpen, WeChatMP: value.WeChatMP, WeChatMobile: value.WeChatMobile, GitHub: value.GitHub, Google: value.Google, GoogleOneTap: value.GoogleOneTap, GoogleClientID: value.GoogleClientID, Team: enabled, TeamSelfService: selfService, Passkey: cfg.WebAuthn.Enabled, TencentRegion: value.TencentRegion, AliyunRegion: value.AliyunRegion, RegistrationSuffixes: value.RegistrationSuffixes}
+		return site.PublicAuth{LinuxDo: value.LinuxDo, DingTalk: value.DingTalk, OIDC: value.OIDC, OIDCName: value.OIDCName, WeChat: value.WeChat, WeChatOpen: value.WeChatOpen, WeChatMP: value.WeChatMP, WeChatMobile: value.WeChatMobile, GitHub: value.GitHub, Google: value.Google, GoogleOneTap: value.GoogleOneTap, GoogleClientID: value.GoogleClientID, Team: enabled, TeamSelfService: selfService, Passkey: cfg.Auth.WebAuthn.Enabled, TencentRegion: value.TencentRegion, AliyunRegion: value.AliyunRegion, RegistrationSuffixes: value.RegistrationSuffixes}
 	}, Usage: func(raw map[string]string) site.PublicUsage {
 		v := usage.ParseRankingSettings(raw)
 		return site.PublicUsage{Limit: v.Limit, Enabled: v.Enabled, SortBy: string(v.SortBy), ShowTotalTokens: v.ShowTotalTokens, ShowRequests: v.ShowRequests, ShowActualCost: v.ShowActualCost}

@@ -35,7 +35,7 @@ import (
 // An unconfigured startup key is ephemeral, so issuance and credential copying
 // remain unavailable until the deployment supplies its fixed TOTP encryption key.
 func provideMCPTokens(db *sql.DB, users *identity.UserService, cipher identity.SecretEncryptor, cfg *config.Config, oauth *identityprovider.MCPOAuthServer) *identity.MCPTokenService {
-	if cfg == nil || !cfg.Totp.EncryptionKeyConfigured {
+	if cfg == nil || !cfg.Security.SecretEncryptionKeyConfigured {
 		cipher = nil
 	}
 	service := identity.NewMCPTokenService(identitypostgres.NewMCPTokenStore(db), users, cipher)
@@ -53,7 +53,7 @@ func provideMCPHTTP(oauth *identityprovider.MCPOAuthServer, tokens *identity.MCP
 		return nil, err
 	}
 	origins := func(ctx context.Context) []string {
-		allowed := slices.Clone(cfg.CORS.AllowedOrigins)
+		allowed := slices.Clone(cfg.Security.CORS.AllowedOrigins)
 		if status, err := oauth.Status(ctx); err == nil && status.Issuer != "" {
 			allowed = append(allowed, status.Issuer)
 		}
@@ -72,7 +72,7 @@ func provideMCPHTTP(oauth *identityprovider.MCPOAuthServer, tokens *identity.MCP
 		return allowed
 	}
 	return mcphttp.NewHandler(tokens, mcpredis.NewState(client, cipher), totp, users, identitySettings, mcphttp.Options{OAuth: oauth, Origins: origins, BrowserBaseURL: func(ctx context.Context) string {
-		return site.ReadFrontendURL(ctx, store, func() string { return cfg.Server.FrontendURL })
+		return site.ReadFrontendURL(ctx, store, func() string { return cfg.Site.FrontendURL })
 	}, Limiter: redisinfra.NewFixedWindowLimiter(client, "mcp:rate:")}), nil
 }
 
@@ -86,7 +86,7 @@ func provideMCPHTTP(oauth *identityprovider.MCPOAuthServer, tokens *identity.MCP
 // persisted secret prevents transport construction; changing deployed key material
 // can make earlier temporary files unavailable until their ordinary TTL expires.
 func mcpArtifactCipher(existing identity.SecretEncryptor, cfg *config.Config) (identity.SecretEncryptor, error) {
-	if cfg == nil || cfg.Totp.EncryptionKeyConfigured {
+	if cfg == nil || cfg.Security.SecretEncryptionKeyConfigured {
 		return existing, nil
 	}
 	secret, err := hex.DecodeString(cfg.MCPOAuthSigningSecret)

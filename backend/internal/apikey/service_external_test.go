@@ -477,12 +477,10 @@ func TestAPIKeyService_GetByKey_UsesL2Cache(t *testing.T) {
 			return nil, errors.New("unexpected repo call")
 		},
 	}
-	cfg := &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{
-			L2TTLSeconds:       60,
-			NegativeTTLSeconds: 30,
-		},
-	}
+	cfg := &config.Config{APIKey: config.APIKeyConfig{AuthCache: config.APIKeyAuthCacheConfig{
+		L2TTLSeconds:       60,
+		NegativeTTLSeconds: 30,
+	}}}
 	svc := testkit.NewService(repo, nil, nil, nil, nil, cache, cfg)
 	svc.Start()
 
@@ -790,7 +788,7 @@ func TestAPIKeyService_GetByKey_KeepsDisabledGroupWithoutConfiguredFallbackFromA
 			},
 		}, nil
 	}
-	cfg := &config.Config{APIKeyAuth: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60}}
+	cfg := &config.Config{APIKey: config.APIKeyConfig{AuthCache: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60}}}
 	svc := testkit.NewService(repo, nil, groupRepo, nil, nil, cache, cfg)
 	svc.Start()
 
@@ -899,12 +897,10 @@ func TestAPIKeyService_GetByKey_NegativeCache(t *testing.T) {
 			return nil, errors.New("unexpected repo call")
 		},
 	}
-	cfg := &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{
-			L2TTLSeconds:       60,
-			NegativeTTLSeconds: 30,
-		},
-	}
+	cfg := &config.Config{APIKey: config.APIKeyConfig{AuthCache: config.APIKeyAuthCacheConfig{
+		L2TTLSeconds:       60,
+		NegativeTTLSeconds: 30,
+	}}}
 	svc := testkit.NewService(repo, nil, nil, nil, nil, cache, cfg)
 	svc.Start()
 	cache.getAuthCache = func(ctx context.Context, key string) (*apikey.APIKeyAuthCacheEntry, error) {
@@ -936,12 +932,10 @@ func TestAPIKeyService_GetByKey_CacheMissStoresL2(t *testing.T) {
 			}, nil
 		},
 	}
-	cfg := &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{
-			L2TTLSeconds:       60,
-			NegativeTTLSeconds: 30,
-		},
-	}
+	cfg := &config.Config{APIKey: config.APIKeyConfig{AuthCache: config.APIKeyAuthCacheConfig{
+		L2TTLSeconds:       60,
+		NegativeTTLSeconds: 30,
+	}}}
 	svc := testkit.NewService(repo, nil, nil, nil, nil, cache, cfg)
 	svc.Start()
 	cache.getAuthCache = func(ctx context.Context, key string) (*apikey.APIKeyAuthCacheEntry, error) {
@@ -968,7 +962,7 @@ func TestAPIKeyService_GetByKeyRejectsInvalidLengthBeforeCaches(t *testing.T) {
 		t.Fatal("invalid credential reached repository")
 		return nil, nil
 	}}
-	svc := testkit.NewService(repo, nil, nil, nil, nil, cache, &config.Config{APIKeyAuth: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60}})
+	svc := testkit.NewService(repo, nil, nil, nil, nil, cache, &config.Config{APIKey: config.APIKeyConfig{AuthCache: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60}}})
 	svc.Start()
 
 	for _, key := range []string{"", strings.Repeat("x", apikey.MaxAPIKeyCredentialBytes+1)} {
@@ -1010,7 +1004,7 @@ func TestAPIKeyService_AuthLookupBulkheadRejectsExcessMisses(t *testing.T) {
 		<-release
 		return nil, apikey.ErrAPIKeyNotFound
 	}}
-	svc := testkit.NewService(repo, nil, nil, nil, nil, nil, &config.Config{APIKeyAuth: config.APIKeyAuthCacheConfig{LookupConcurrency: 1}})
+	svc := testkit.NewService(repo, nil, nil, nil, nil, nil, &config.Config{APIKey: config.APIKeyConfig{LookupConcurrency: 1}})
 	svc.Start()
 
 	// Run the held lookup separately and return its error through a buffered
@@ -1062,11 +1056,7 @@ func TestAPIKeyService_GetByKey_SingleflightCollapses(t *testing.T) {
 			}, nil
 		},
 	}
-	cfg := &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{
-			Singleflight: true,
-		},
-	}
+	cfg := &config.Config{APIKey: config.APIKeyConfig{AuthCache: config.APIKeyAuthCacheConfig{Singleflight: true}}}
 	svc := testkit.NewService(repo, nil, nil, nil, nil, cache, cfg)
 	svc.Start()
 
