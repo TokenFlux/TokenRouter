@@ -78,10 +78,13 @@ type User[K any] struct {
 	Subscriptions []billinghttpapi.UserSubscription `json:"subscriptions,omitempty"`
 }
 
-// AdminUser adds administrator-visible notes and activity data to the account
-// response.
+// AdminUser adds administrator-visible notes, activity, and recharge overrides
+// to the account response.
 type AdminUser[K any] struct {
 	User[K] // ordinary account response
+	// BalanceRechargeMultiplier is the administrator-configured recharge rate.
+	// Null means new balance orders inherit the current global payment setting.
+	BalanceRechargeMultiplier *float64 `json:"balance_recharge_multiplier"`
 
 	Notes string `json:"notes"` // administrator account note
 	// LastUsedAt shares the account's latest request-use timestamp pointer. Nil
@@ -156,12 +159,18 @@ func UserFromIdentity[K any](u *identity.User, keys []K) *User[K] {
 }
 
 // AdminUserFromIdentity adds administrator notes, last use, and group rate
-// data to the user response. Nil input returns nil; the group-rate map and
-// activity pointers remain shared with the supplied account.
+// data to the user response. Nil input returns nil; the group-rate map,
+// recharge override and activity pointers remain shared with the supplied account.
 func AdminUserFromIdentity[K any](u *identity.User, keys []K) *AdminUser[K] {
 	base := UserFromIdentity(u, keys)
 	if base == nil {
 		return nil
 	}
-	return &AdminUser[K]{User: *base, Notes: u.Notes, LastUsedAt: u.LastUsedAt, GroupRates: u.GroupRates}
+	return &AdminUser[K]{
+		User:                      *base,
+		Notes:                     u.Notes,
+		LastUsedAt:                u.LastUsedAt,
+		GroupRates:                u.GroupRates,
+		BalanceRechargeMultiplier: u.BalanceRechargeMultiplier,
+	}
 }

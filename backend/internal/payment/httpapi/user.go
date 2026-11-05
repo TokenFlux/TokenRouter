@@ -54,8 +54,13 @@ type UserCheckoutInfoResponse struct {
 	Plans []UserCheckoutPlan `json:"plans"`
 	// balance purchase disabled flag.
 	BalanceDisabled bool `json:"balance_disabled"`
-	// credited points per principal.
+	// effective credited points per principal.
 	BalanceRechargeMultiplier float64 `json:"balance_recharge_multiplier"`
+	// normalized global recharge rate.
+	DefaultBalanceRechargeMultiplier float64 `json:"default_balance_recharge_multiplier"`
+	// UserBalanceRechargeMultiplier is null when the buyer follows global terms.
+	// A supplied value remains explicit even when it equals the global rate.
+	UserBalanceRechargeMultiplier *float64 `json:"user_balance_recharge_multiplier"`
 	// CNY per subscription USD.
 	SubscriptionUSDToCNYRate float64 `json:"subscription_usd_to_cny_rate"`
 	// legacy recharge percentage rate.
@@ -349,16 +354,21 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 }
 
 // GetCheckoutInfo assembles available method limits, checkout configuration
-// and sale-plan displays for one page response. Limit/configuration errors
-// abort the request, while the sale-plan read error is discarded.
+// and sale-plan displays for the authenticated buyer. Limit, configuration and
+// buyer lookup errors abort the request, while the sale-plan read error is discarded.
 //
 // The Alipay mobile preference requires its setting and a current
 // official-source resolution; source errors remain visible. Plan group
 // slices/rate maps are copied, while quota/original-price pointers remain
 // shared for serialization. Separate configuration and limit reads can observe
 // different updates, and a failed plan list can leave an empty or partial
-// display list rather than failing this combined endpoint.
+// display list rather than failing this combined endpoint. Recharge terms report
+// the default and explicit personal rate alongside the effective credit rate.
 func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
+	subject, ok := UserRequireAuth(c)
+	if !ok {
+		return
+	}
 	ctx := c.Request.Context()
 
 	limitsResp, err := h.configService.GetAvailableMethodLimits(ctx)
@@ -368,6 +378,11 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	}
 
 	cfg, err := h.configService.GetPaymentConfig(ctx)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	rates, err := h.paymentService.GetBalanceRechargeRates(ctx, subject.UserID, cfg.BalanceRechargeMultiplier)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -407,20 +422,22 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	}
 
 	response.Success(c, UserCheckoutInfoResponse{
-		Methods:                       limitsResp.Methods,
-		GlobalMin:                     limitsResp.GlobalMin,
-		GlobalMax:                     limitsResp.GlobalMax,
-		Plans:                         planList,
-		BalanceDisabled:               cfg.BalanceDisabled,
-		BalanceRechargeMultiplier:     cfg.BalanceRechargeMultiplier,
-		SubscriptionUSDToCNYRate:      cfg.SubscriptionUSDToCNYRate,
-		RechargeFeeRate:               cfg.RechargeFeeRate,
-		MethodFees:                    cfg.MethodFees,
-		HelpText:                      cfg.HelpText,
-		HelpImageURL:                  cfg.HelpImageURL,
-		StripePublishableKey:          cfg.StripePublishableKey,
-		AlipayForceQRCode:             cfg.AlipayForceQRCode,
-		AlipayMobilePrecreateDeepLink: alipayMobilePrecreateDeepLink,
+		Methods:                          limitsResp.Methods,
+		GlobalMin:                        limitsResp.GlobalMin,
+		GlobalMax:                        limitsResp.GlobalMax,
+		Plans:                            planList,
+		BalanceDisabled:                  cfg.BalanceDisabled,
+		BalanceRechargeMultiplier:        rates.Effective,
+		DefaultBalanceRechargeMultiplier: rates.Default,
+		UserBalanceRechargeMultiplier:    rates.User,
+		SubscriptionUSDToCNYRate:         cfg.SubscriptionUSDToCNYRate,
+		RechargeFeeRate:                  cfg.RechargeFeeRate,
+		MethodFees:                       cfg.MethodFees,
+		HelpText:                         cfg.HelpText,
+		HelpImageURL:                     cfg.HelpImageURL,
+		StripePublishableKey:             cfg.StripePublishableKey,
+		AlipayForceQRCode:                cfg.AlipayForceQRCode,
+		AlipayMobilePrecreateDeepLink:    alipayMobilePrecreateDeepLink,
 	})
 }
 

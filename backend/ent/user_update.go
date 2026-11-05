@@ -151,6 +151,33 @@ func (_u *UserUpdate) AddFrozenBalance(v float64) *UserUpdate {
 	return _u
 }
 
+// SetBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field.
+func (_u *UserUpdate) SetBalanceRechargeMultiplier(v float64) *UserUpdate {
+	_u.mutation.ResetBalanceRechargeMultiplier()
+	_u.mutation.SetBalanceRechargeMultiplier(v)
+	return _u
+}
+
+// SetNillableBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableBalanceRechargeMultiplier(v *float64) *UserUpdate {
+	if v != nil {
+		_u.SetBalanceRechargeMultiplier(*v)
+	}
+	return _u
+}
+
+// AddBalanceRechargeMultiplier adds value to the "balance_recharge_multiplier" field.
+func (_u *UserUpdate) AddBalanceRechargeMultiplier(v float64) *UserUpdate {
+	_u.mutation.AddBalanceRechargeMultiplier(v)
+	return _u
+}
+
+// ClearBalanceRechargeMultiplier clears the value of the "balance_recharge_multiplier" field.
+func (_u *UserUpdate) ClearBalanceRechargeMultiplier() *UserUpdate {
+	_u.mutation.ClearBalanceRechargeMultiplier()
+	return _u
+}
+
 // SetConcurrency sets the "concurrency" field.
 func (_u *UserUpdate) SetConcurrency(v int) *UserUpdate {
 	_u.mutation.ResetConcurrency()
@@ -1078,6 +1105,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "role", err: fmt.Errorf(`ent: validator failed for field "User.role": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BalanceRechargeMultiplier(); ok {
+		if err := user.BalanceRechargeMultiplierValidator(v); err != nil {
+			return &ValidationError{Name: "balance_recharge_multiplier", err: fmt.Errorf(`ent: validator failed for field "User.balance_recharge_multiplier": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := user.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
@@ -1147,6 +1179,15 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedFrozenBalance(); ok {
 		_spec.AddField(user.FieldFrozenBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BalanceRechargeMultiplier(); ok {
+		_spec.SetField(user.FieldBalanceRechargeMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceRechargeMultiplier(); ok {
+		_spec.AddField(user.FieldBalanceRechargeMultiplier, field.TypeFloat64, value)
+	}
+	if _u.mutation.BalanceRechargeMultiplierCleared() {
+		_spec.ClearField(user.FieldBalanceRechargeMultiplier, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
@@ -2061,6 +2102,33 @@ func (_u *UserUpdateOne) SetNillableFrozenBalance(v *float64) *UserUpdateOne {
 // AddFrozenBalance adds value to the "frozen_balance" field.
 func (_u *UserUpdateOne) AddFrozenBalance(v float64) *UserUpdateOne {
 	_u.mutation.AddFrozenBalance(v)
+	return _u
+}
+
+// SetBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field.
+func (_u *UserUpdateOne) SetBalanceRechargeMultiplier(v float64) *UserUpdateOne {
+	_u.mutation.ResetBalanceRechargeMultiplier()
+	_u.mutation.SetBalanceRechargeMultiplier(v)
+	return _u
+}
+
+// SetNillableBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableBalanceRechargeMultiplier(v *float64) *UserUpdateOne {
+	if v != nil {
+		_u.SetBalanceRechargeMultiplier(*v)
+	}
+	return _u
+}
+
+// AddBalanceRechargeMultiplier adds value to the "balance_recharge_multiplier" field.
+func (_u *UserUpdateOne) AddBalanceRechargeMultiplier(v float64) *UserUpdateOne {
+	_u.mutation.AddBalanceRechargeMultiplier(v)
+	return _u
+}
+
+// ClearBalanceRechargeMultiplier clears the value of the "balance_recharge_multiplier" field.
+func (_u *UserUpdateOne) ClearBalanceRechargeMultiplier() *UserUpdateOne {
+	_u.mutation.ClearBalanceRechargeMultiplier()
 	return _u
 }
 
@@ -3004,6 +3072,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "role", err: fmt.Errorf(`ent: validator failed for field "User.role": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BalanceRechargeMultiplier(); ok {
+		if err := user.BalanceRechargeMultiplierValidator(v); err != nil {
+			return &ValidationError{Name: "balance_recharge_multiplier", err: fmt.Errorf(`ent: validator failed for field "User.balance_recharge_multiplier": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := user.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
@@ -3090,6 +3163,15 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedFrozenBalance(); ok {
 		_spec.AddField(user.FieldFrozenBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BalanceRechargeMultiplier(); ok {
+		_spec.SetField(user.FieldBalanceRechargeMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceRechargeMultiplier(); ok {
+		_spec.AddField(user.FieldBalanceRechargeMultiplier, field.TypeFloat64, value)
+	}
+	if _u.mutation.BalanceRechargeMultiplierCleared() {
+		_spec.ClearField(user.FieldBalanceRechargeMultiplier, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)

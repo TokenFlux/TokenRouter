@@ -392,6 +392,10 @@ export default {
       apiKeyLimitEditPlaceholder: '0 = unlimited',
       apiKeyLimitCreateHint: 'Leave blank to inherit the system default; 0 = unlimited',
       apiKeyLimitEditHint: 'Actual limit for this user; 0 = unlimited',
+      balanceRechargeMultiplier: 'Personal balance recharge multiplier',
+      balanceRechargeMultiplierHint: 'Leave empty to use the global balance recharge multiplier',
+      balanceRechargeMultiplierInvalid:
+        'The personal recharge multiplier must be a finite number greater than 0',
       apiKeyLimitInvalid: 'API Key limit must be an integer from 0 to 2,147,483,647',
     },
     columns: {
@@ -404,6 +408,7 @@ export default {
       groups: 'Groups',
       subscriptions: 'Subscriptions',
       balance: 'Balance',
+      balanceRechargeMultiplier: 'Personal recharge rate',
       usage: 'Usage',
       usageAnthropic: 'Usage (Claude)',
       usageOpenAI: 'Usage (OpenAI)',

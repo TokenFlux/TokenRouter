@@ -31,6 +31,8 @@ const (
 	FieldBalance = "balance"
 	// FieldFrozenBalance holds the string denoting the frozen_balance field in the database.
 	FieldFrozenBalance = "frozen_balance"
+	// FieldBalanceRechargeMultiplier holds the string denoting the balance_recharge_multiplier field in the database.
+	FieldBalanceRechargeMultiplier = "balance_recharge_multiplier"
 	// FieldConcurrency holds the string denoting the concurrency field in the database.
 	FieldConcurrency = "concurrency"
 	// FieldStatus holds the string denoting the status field in the database.
@@ -231,6 +233,7 @@ var Columns = []string{
 	FieldRole,
 	FieldBalance,
 	FieldFrozenBalance,
+	FieldBalanceRechargeMultiplier,
 	FieldConcurrency,
 	FieldStatus,
 	FieldPreferredLocale,
@@ -296,6 +299,8 @@ var (
 	DefaultBalance float64
 	// DefaultFrozenBalance holds the default value on creation for the "frozen_balance" field.
 	DefaultFrozenBalance float64
+	// BalanceRechargeMultiplierValidator is a validator for the "balance_recharge_multiplier" field. It is called by the builders before save.
+	BalanceRechargeMultiplierValidator func(float64) error
 	// DefaultConcurrency holds the default value on creation for the "concurrency" field.
 	DefaultConcurrency int
 	// DefaultStatus holds the default value on creation for the "status" field.
@@ -378,6 +383,11 @@ func ByBalance(opts ...sql.OrderTermOption) OrderOption {
 // ByFrozenBalance orders the results by the frozen_balance field.
 func ByFrozenBalance(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFrozenBalance, opts...).ToFunc()
+}
+
+// ByBalanceRechargeMultiplier orders the results by the balance_recharge_multiplier field.
+func ByBalanceRechargeMultiplier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBalanceRechargeMultiplier, opts...).ToFunc()
 }
 
 // ByConcurrency orders the results by the concurrency field.

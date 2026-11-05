@@ -393,10 +393,7 @@
                         >{{ formatSelectedPaymentAmount(checkoutTotalAmount) }}</dd
                       >
                     </div>
-                    <div
-                      v-if="!isSubscriptionCheckout && balanceRechargeMultiplier !== 1"
-                      class="flex justify-between gap-4"
-                    >
+                    <div v-if="showRechargeRate" class="flex justify-between gap-4">
                       <dt class="text-gray-500 dark:text-dark-400">{{
                         t('payment.creditedBalance')
                       }}</dt>
@@ -406,16 +403,49 @@
                     </div>
                   </dl>
                   <p
-                    v-if="!isSubscriptionCheckout && balanceRechargeMultiplier !== 1"
+                    v-if="showRechargeRate"
                     class="mt-3 text-xs text-gray-500 dark:text-dark-400"
+                    data-test="recharge-rate-preview"
                   >
-                    {{
+                    <template v-if="hasPersonalRechargeRate">
+                      <span class="sr-only">{{
+                        t('payment.personalRechargeRateAccessible', {
+                          currency: selectedCurrency,
+                          amount: balanceRechargeMultiplier.toFixed(2),
+                          defaultAmount: defaultBalanceRechargeMultiplier.toFixed(2),
+                          unitName: balanceUnitName,
+                        })
+                      }}</span>
+                      <I18nT
+                        keypath="payment.rechargeRatePreview"
+                        tag="span"
+                        scope="global"
+                        aria-hidden="true"
+                      >
+                        <template #currency>{{ selectedCurrency }}</template>
+                        <template #amount>
+                          <s
+                            v-if="balanceRechargeMultiplier !== defaultBalanceRechargeMultiplier"
+                            class="mr-1 tabular-nums"
+                            data-test="default-recharge-rate"
+                            >{{ defaultBalanceRechargeMultiplier.toFixed(2) }}</s
+                          >
+                          <span
+                            class="font-semibold tabular-nums text-primary-600 dark:text-primary-400"
+                            data-test="personal-recharge-rate"
+                            >{{ balanceRechargeMultiplier.toFixed(2) }}</span
+                          >
+                        </template>
+                        <template #unitName>{{ balanceUnitName }}</template>
+                      </I18nT>
+                    </template>
+                    <template v-else>{{
                       t('payment.rechargeRatePreview', {
                         currency: selectedCurrency,
                         amount: balanceRechargeMultiplier.toFixed(2),
                         unitName: balanceUnitName,
                       })
-                    }}
+                    }}</template>
                   </p>
 
                   <div class="mt-6 space-y-2">
@@ -513,7 +543,7 @@ import { useLocaleRefresh } from '@/composables/useLocaleRefresh'
 import { vSegmented } from '@/directives/segmented'
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { I18nT, useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -614,6 +644,8 @@ const checkout = ref<CheckoutInfoResponse>({
   plans: [],
   balance_disabled: false,
   balance_recharge_multiplier: 1,
+  default_balance_recharge_multiplier: 1,
+  user_balance_recharge_multiplier: null,
   subscription_usd_to_cny_rate: 0,
   recharge_fee_rate: 0,
   method_fees: {},
@@ -678,8 +710,23 @@ const enabledMethods = computed(() => Object.keys(visibleMethods.value))
 const validAmount = computed(() => amount.value ?? 0)
 const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
-  return multiplier > 0 ? multiplier : 1
+  return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
 })
+// Personal-rate presence remains distinct from equality with global terms, so explicit
+// one-to-one overrides still display the account's recharge terms and credited amount.
+const hasPersonalRechargeRate = computed(
+  () => checkout.value.user_balance_recharge_multiplier != null,
+)
+// Older checkout replies contain only the effective rate, which also supplies their
+// ordinary default display without claiming that a personal override exists.
+const defaultBalanceRechargeMultiplier = computed(
+  () => checkout.value.default_balance_recharge_multiplier ?? balanceRechargeMultiplier.value,
+)
+const showRechargeRate = computed(
+  () =>
+    !isSubscriptionCheckout.value &&
+    (hasPersonalRechargeRate.value || balanceRechargeMultiplier.value !== 1),
+)
 // The subscription rate is CNY per USD. Zero disables conversion and charges the stored plan
 // price, matching the backend opt-in condition.
 const subscriptionUsdToCnyRate = computed(() => {

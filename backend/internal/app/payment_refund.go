@@ -88,7 +88,14 @@ func providePaymentRuntime(client *dbent.Client, registry *payment.Registry, bal
 			if u == nil {
 				return nil, e
 			}
-			return &payment.Buyer{ID: u.ID, Email: u.Email, Username: u.Username, Notes: u.Notes, Status: u.Status}, e
+			return &payment.Buyer{
+				ID:                        u.ID,
+				Email:                     u.Email,
+				Username:                  u.Username,
+				Notes:                     u.Notes,
+				Status:                    u.Status,
+				BalanceRechargeMultiplier: u.BalanceRechargeMultiplier,
+			}, e
 		},
 		WeChatCredential: func(ctx context.Context) (string, string, error) {
 			cfg, e := settings.GetWeChatConnectOAuthConfig(ctx)

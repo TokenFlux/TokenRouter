@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -1517,4 +1518,33 @@ func TestAdminService_UpdateUser_RejectsAPIKeyLimitAboveDatabaseRange(t *testing
 	require.ErrorIs(t, err, identity.ErrUserAPIKeyLimitInvalid)
 	require.Nil(t, repo.lastUpdated)
 	require.Equal(t, 100, base.user.APIKeyLimit)
+}
+
+// TestAdminService_RechargeMultiplierEdits exercises setting, replacing, clearing,
+// and omitting the personal rate. Only explicit edits select the persistence
+// mask, and invalid numbers fail before any account write.
+func TestAdminService_RechargeMultiplierEdits(t *testing.T) {
+	for _, value := range []float64{18, 0.5, 10, 1} {
+		repo := &rpmUserRepoStub{userRepoStub: &userRepoStub{user: &identity.User{ID: 42}}}
+		svc := identity.NewUserAdmin(identity.AdminDependencies{Users: repo})
+		updated, err := svc.UpdateUser(context.Background(), 42, &identity.UpdateUserInput{BalanceRechargeMultiplier: &value})
+		require.NoError(t, err)
+		require.Equal(t, value, *updated.BalanceRechargeMultiplier)
+		require.Equal(t, identity.UserUpdateFields{BalanceRechargeMultiplier: true}, repo.lastFields)
+		updated, err = svc.UpdateUser(context.Background(), 42, &identity.UpdateUserInput{})
+		require.NoError(t, err)
+		require.Equal(t, value, *updated.BalanceRechargeMultiplier)
+		require.Empty(t, repo.lastFields)
+		updated, err = svc.UpdateUser(context.Background(), 42, &identity.UpdateUserInput{ClearBalanceRechargeMultiplier: true})
+		require.NoError(t, err)
+		require.Nil(t, updated.BalanceRechargeMultiplier)
+		require.True(t, repo.lastFields.BalanceRechargeMultiplier)
+	}
+	for _, value := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		repo := &rpmUserRepoStub{userRepoStub: &userRepoStub{user: &identity.User{ID: 42}}}
+		svc := identity.NewUserAdmin(identity.AdminDependencies{Users: repo})
+		_, err := svc.UpdateUser(context.Background(), 42, &identity.UpdateUserInput{BalanceRechargeMultiplier: &value})
+		require.ErrorIs(t, err, identity.ErrBalanceRechargeMultiplierInvalid)
+		require.Nil(t, repo.lastUpdated)
+	}
 }

@@ -95,6 +95,11 @@ func FrozenBalance(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldFrozenBalance, v))
 }
 
+// BalanceRechargeMultiplier applies equality check predicate on the "balance_recharge_multiplier" field. It's identical to BalanceRechargeMultiplierEQ.
+func BalanceRechargeMultiplier(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceRechargeMultiplier, v))
+}
+
 // Concurrency applies equality check predicate on the "concurrency" field. It's identical to ConcurrencyEQ.
 func Concurrency(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldConcurrency, v))
@@ -588,6 +593,56 @@ func FrozenBalanceLT(v float64) predicate.User {
 // FrozenBalanceLTE applies the LTE predicate on the "frozen_balance" field.
 func FrozenBalanceLTE(v float64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldFrozenBalance, v))
+}
+
+// BalanceRechargeMultiplierEQ applies the EQ predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceRechargeMultiplier, v))
+}
+
+// BalanceRechargeMultiplierNEQ applies the NEQ predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierNEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldBalanceRechargeMultiplier, v))
+}
+
+// BalanceRechargeMultiplierIn applies the In predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldBalanceRechargeMultiplier, vs...))
+}
+
+// BalanceRechargeMultiplierNotIn applies the NotIn predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierNotIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldBalanceRechargeMultiplier, vs...))
+}
+
+// BalanceRechargeMultiplierGT applies the GT predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierGT(v float64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldBalanceRechargeMultiplier, v))
+}
+
+// BalanceRechargeMultiplierGTE applies the GTE predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierGTE(v float64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldBalanceRechargeMultiplier, v))
+}
+
+// BalanceRechargeMultiplierLT applies the LT predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierLT(v float64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldBalanceRechargeMultiplier, v))
+}
+
+// BalanceRechargeMultiplierLTE applies the LTE predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierLTE(v float64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldBalanceRechargeMultiplier, v))
+}
+
+// BalanceRechargeMultiplierIsNil applies the IsNil predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldBalanceRechargeMultiplier))
+}
+
+// BalanceRechargeMultiplierNotNil applies the NotNil predicate on the "balance_recharge_multiplier" field.
+func BalanceRechargeMultiplierNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldBalanceRechargeMultiplier))
 }
 
 // ConcurrencyEQ applies the EQ predicate on the "concurrency" field.

@@ -304,7 +304,8 @@ func (s *UserAdmin) AdminAssignDefaultSubscriptions(ctx context.Context, userID 
 // then requests separate multiplier/history effects. Required input/user
 // storage supplies the working account; nonpositive nonnil multipliers are
 // rejected before lookup, and the currently admin account cannot receive
-// literal disabled even when a role change was also submitted.
+// literal disabled even when a role change was also submitted. Personal recharge
+// overrides must be finite and positive; clearing and setting cannot be combined.
 //
 // Credential changes select applicable mailbox guards, while role demotion
 // checks a separately observed administrator count. Working fields and
@@ -316,6 +317,10 @@ func (s *UserAdmin) AdminAssignDefaultSubscriptions(ctx context.Context, userID 
 // multiplier data after synchronization, so callers distinguish that side
 // effect from the returned account view.
 func (s *UserAdmin) UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error) {
+	if input.BalanceRechargeMultiplier != nil &&
+		(input.ClearBalanceRechargeMultiplier || !IsValidBalanceRechargeMultiplier(*input.BalanceRechargeMultiplier)) {
+		return nil, ErrBalanceRechargeMultiplierInvalid
+	}
 	if input.GroupRates != nil {
 		for groupID, rate := range input.GroupRates {
 			if rate != nil && *rate <= 0 {
@@ -346,6 +351,14 @@ func (s *UserAdmin) UpdateUser(ctx context.Context, id int64, input *UpdateUserI
 	// unrelated balance and admission fields written by other requests out of
 	// this account update.
 	var fields UserUpdateFields
+	if input.ClearBalanceRechargeMultiplier {
+		user.BalanceRechargeMultiplier = nil
+		fields.BalanceRechargeMultiplier = true
+	} else if input.BalanceRechargeMultiplier != nil {
+		multiplier := *input.BalanceRechargeMultiplier
+		user.BalanceRechargeMultiplier = &multiplier
+		fields.BalanceRechargeMultiplier = true
+	}
 
 	if input.Email != "" {
 		emailChanged = input.Email != user.Email

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -142,8 +143,12 @@ type CreateUserRequest struct {
 }
 
 // UpdateUserRequest carries account edits with pointer values retaining
-// omission versus zero or empty updates.
+// omission versus zero or empty updates. The raw recharge member additionally
+// distinguishes clearing with null from leaving an existing override unchanged.
 type UpdateUserRequest struct {
+	// BalanceRechargeMultiplier preserves JSON presence: omission retains the
+	// current override, null clears it, and a number sets the recharge rate.
+	BalanceRechargeMultiplier json.RawMessage `json:"balance_recharge_multiplier"`
 	// Email, Password, Role, and Status retain current account values when their
 	// submitted strings are empty. Pointer fields separately distinguish omission
 	// from a requested zero or empty edit.
@@ -460,7 +465,8 @@ func (h *AdminUserHandler[K]) Create(c *gin.Context) {
 // from an explicit zero or empty collection. It bases role step-up on the
 // requested role instead of a preliminary current-role read, keeping a
 // concurrent demotion from turning a later promotion into an unchecked write.
-// Service errors remain panel failures.
+// Raw recharge JSON preserves explicit null as clearing independently of
+// omission. Service errors remain panel failures.
 func (h *AdminUserHandler[K]) Update(c *gin.Context) {
 	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -490,22 +496,33 @@ func (h *AdminUserHandler[K]) Update(c *gin.Context) {
 		}
 	}
 
-	// Pass pointer fields through so nil continues to mean omitted.
+	var balanceRechargeMultiplier *float64
+	if len(req.BalanceRechargeMultiplier) > 0 {
+		if err := json.Unmarshal(req.BalanceRechargeMultiplier, &balanceRechargeMultiplier); err != nil {
+			response.ErrorFrom(c, identity.ErrBalanceRechargeMultiplierInvalid)
+			return
+		}
+	}
+
+	// Preserve raw member presence separately so clearing the recharge override
+	// cannot be confused with an older client's unrelated profile update.
 	user, err := h.adminService.UpdateUser(c.Request.Context(), userID, &identity.UpdateUserInput{
-		Email:                req.Email,
-		Password:             req.Password,
-		Username:             req.Username,
-		Notes:                req.Notes,
-		Role:                 req.Role,
-		Balance:              req.Balance,
-		Concurrency:          req.Concurrency,
-		RPMLimit:             req.RPMLimit,
-		APIKeyLimit:          req.APIKeyLimit,
-		Status:               req.Status,
-		AllowedGroups:        req.AllowedGroups,
-		DisabledPublicGroups: req.DisabledPublicGroups,
-		GroupRates:           req.GroupRates,
-		ActorAdminID:         adminID(c),
+		BalanceRechargeMultiplier:      balanceRechargeMultiplier,
+		ClearBalanceRechargeMultiplier: len(req.BalanceRechargeMultiplier) > 0 && balanceRechargeMultiplier == nil,
+		Email:                          req.Email,
+		Password:                       req.Password,
+		Username:                       req.Username,
+		Notes:                          req.Notes,
+		Role:                           req.Role,
+		Balance:                        req.Balance,
+		Concurrency:                    req.Concurrency,
+		RPMLimit:                       req.RPMLimit,
+		APIKeyLimit:                    req.APIKeyLimit,
+		Status:                         req.Status,
+		AllowedGroups:                  req.AllowedGroups,
+		DisabledPublicGroups:           req.DisabledPublicGroups,
+		GroupRates:                     req.GroupRates,
+		ActorAdminID:                   adminID(c),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

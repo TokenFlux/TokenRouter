@@ -93,6 +93,24 @@
         />
         <p class="input-hint">{{ t('admin.users.form.apiKeyLimitEditHint') }}</p>
       </div>
+      <div>
+        <label for="user-recharge-multiplier" class="input-label">{{
+          t('admin.users.form.balanceRechargeMultiplier')
+        }}</label>
+        <input
+          id="user-recharge-multiplier"
+          v-model="form.balance_recharge_multiplier"
+          type="number"
+          step="any"
+          class="input"
+          data-test="recharge-multiplier-input"
+          aria-describedby="user-recharge-multiplier-hint"
+          :placeholder="t('admin.users.form.balanceRechargeMultiplierHint')"
+        />
+        <p id="user-recharge-multiplier-hint" class="input-hint">{{
+          t('admin.users.form.balanceRechargeMultiplierHint')
+        }}</p>
+      </div>
       <UserAttributeForm v-model="form.customAttributes" :user-id="user?.id" />
     </form>
     <template #footer>
@@ -118,7 +136,7 @@ import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { adminAPI } from '@/api/admin'
-import type { AdminUser } from '@/api/admin/users.types'
+import type { AdminUser, UpdateUserRequest } from '@/api/admin/users.types'
 import type { UserAttributeValuesMap } from '@/api/admin/userAttributes.types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -133,7 +151,7 @@ import {
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { MAX_USER_API_KEY_LIMIT } from '@/constants/user'
 
-// UserEditModal.vue edits user identity, limits, password, and custom attributes. The
+// UserEditModal.vue edits user identity, limits, recharge terms, password, and custom attributes. The
 // selected user seeds the draft, while a blank password means no password update and an
 // unchanged role is omitted from the user request. Role changes can require step-up
 // verification before persistence.
@@ -185,10 +203,12 @@ const form = reactive({
   password: '',
   username: '', // User display name.
   notes: '', // Administrator account notes.
-  role: 'user', // Draft account role.
+  role: 'user' as AdminUser['role'], // Draft account role.
   concurrency: 1, // Concurrent request limit.
   rpm_limit: 0, // Requests per minute.
   api_key_limit: 100, // API-key creation limit.
+  // An empty draft clears the override; unchanged values are omitted from the update.
+  balance_recharge_multiplier: '' as number | string,
   customAttributes: {} as UserAttributeValuesMap, // Edited custom attribute values.
 })
 
@@ -207,6 +227,7 @@ watch(
         concurrency: u.concurrency, // Concurrent request limit.
         rpm_limit: u.rpm_limit ?? 0, // Requests per minute.
         api_key_limit: u.api_key_limit ?? 100, // API-key creation limit.
+        balance_recharge_multiplier: u.balance_recharge_multiplier ?? '', // Personal recharge rate.
         customAttributes: {}, // Edited custom attribute values.
       })
       passwordCopied.value = false
@@ -241,9 +262,10 @@ const copyPassword = async () => {
 // profile request can proceed with elevated verification.
 const stepUp = useStepUp()
 
-// handleUpdateUser validates email, concurrency, and API-key limits before capturing
-// the selected user ID. It sends changed role and nonblank password fields through
-// step-up verification with the profile update.
+// handleUpdateUser validates email, concurrency, API-key limits, and optional recharge
+// terms before capturing the selected user ID. Changed recharge terms send a positive
+// number or null for clearing; unchanged terms are omitted. It sends changed role and
+// nonblank password fields through step-up verification with the profile update.
 //
 // Custom attributes are written afterward when their draft map has entries, so failure
 // in that second request can leave the profile already saved. Success and close events
@@ -270,16 +292,31 @@ const handleUpdateUser = async () => {
     appStore.showError(t('admin.users.form.apiKeyLimitInvalid'))
     return
   }
+  const rechargeDraft = String(form.balance_recharge_multiplier).trim()
+  const rechargeMultiplier = rechargeDraft === '' ? null : Number(rechargeDraft)
+  if (
+    rechargeMultiplier !== null &&
+    (!Number.isFinite(rechargeMultiplier) || rechargeMultiplier <= 0)
+  ) {
+    appStore.showError(t('admin.users.form.balanceRechargeMultiplierInvalid'))
+    return
+  }
   const userId = props.user.id
   submitting.value = true
   try {
-    const data: any = {
+    const data: UpdateUserRequest = {
       email: form.email, // User email address.
       username: form.username, // User display name.
       notes: form.notes, // Administrator account notes.
       concurrency: form.concurrency, // Concurrent request limit.
       rpm_limit: form.rpm_limit, // Requests per minute.
       api_key_limit: form.api_key_limit, // API-key creation limit.
+    }
+
+    // Omit unchanged overrides so an unrelated edit does not restore a stale personal
+    // rate. An emptied draft deliberately sends null to resume following global settings.
+    if (rechargeMultiplier !== (props.user.balance_recharge_multiplier ?? null)) {
+      data.balance_recharge_multiplier = rechargeMultiplier
     }
 
     // Include role only when it changes, since the backend treats role mutation as

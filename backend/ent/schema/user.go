@@ -75,6 +75,18 @@ func (User) Fields() []ent.Field {
 		field.Float("frozen_balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
+		// A missing override follows the current global recharge multiplier.
+		// Stored positive values apply only to newly created balance orders.
+		field.Float("balance_recharge_multiplier").
+			SchemaType(map[string]string{dialect.Postgres: "double precision"}).
+			Optional().
+			Nillable().
+			Validate(func(value float64) error {
+				if !identity.IsValidBalanceRechargeMultiplier(value) {
+					return identity.ErrBalanceRechargeMultiplierInvalid
+				}
+				return nil
+			}),
 		// Concurrent request allowance.
 		field.Int("concurrency").
 			Default(5),

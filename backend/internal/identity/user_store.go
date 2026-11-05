@@ -51,19 +51,20 @@ type UserListFilters struct {
 // Balance and total_recharged are excluded. Use atomic balance operations such as
 // AdjustBalance, SetBalance, UpdateBalance, or DeductBalance to change funds.
 type UserUpdateFields struct {
-	PreferredLocale bool // selected account language preference
-	Email           bool // selected account email address
-	Username        bool // selected account display name
-	Notes           bool // selected administrator account notes
-	PasswordHash    bool // selected account password hash
-	Role            bool // selected global account role
-	Status          bool // selected account admission status
-	Concurrency     bool // selected concurrent-request account limit
-	RPMLimit        bool // selected request-rate account limit
-	APIKeyLimit     bool // selected API Key count limit
-	SignupSource    bool // selected account registration source
-	LastLoginAt     bool // selected account login observation
-	LastActiveAt    bool // selected account activity observation
+	BalanceRechargeMultiplier bool // selected recharge rate override
+	PreferredLocale           bool // selected account language preference
+	Email                     bool // selected account email address
+	Username                  bool // selected account display name
+	Notes                     bool // selected administrator account notes
+	PasswordHash              bool // selected account password hash
+	Role                      bool // selected global account role
+	Status                    bool // selected account admission status
+	Concurrency               bool // selected concurrent-request account limit
+	RPMLimit                  bool // selected request-rate account limit
+	APIKeyLimit               bool // selected API Key count limit
+	SignupSource              bool // selected account registration source
+	LastLoginAt               bool // selected account login observation
+	LastActiveAt              bool // selected account activity observation
 	// BalanceNotifySettings and BalanceNotifyExtraEmails select different
 	// notification writes. Updating threshold controls leaves the recipient list
 	// unchanged unless its separate field is also selected.

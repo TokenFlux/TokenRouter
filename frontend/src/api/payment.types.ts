@@ -98,12 +98,17 @@ export interface MethodLimitsResponse {
 // CheckoutInfoResponse supplies method limits, plan offerings, and public payment page
 // settings.
 export interface CheckoutInfoResponse {
+  // default_balance_recharge_multiplier and user_balance_recharge_multiplier distinguish
+  // inherited terms from explicit account overrides. Older servers omit both fields;
+  // their effective rate still supplies the ordinary recharge preview.
+  default_balance_recharge_multiplier?: number // Global balance recharge rate.
+  user_balance_recharge_multiplier?: number | null // Personal rate, null inherits global.
   methods: Record<string, MethodLimit> // Available payment method limits.
   global_min: number // Widest method minimum.
   global_max: number // Widest method maximum.
   plans: SubscriptionPlan[] // Purchasable subscription plans.
   balance_disabled: boolean // Wallet recharge disabled.
-  balance_recharge_multiplier: number // Balance recharge multiplier.
+  balance_recharge_multiplier: number // Effective balance recharge rate.
   // CNY conversion rate per USD; zero disables conversion and charges the plan price
   // directly.
   subscription_usd_to_cny_rate: number // Subscription USD to CNY rate.

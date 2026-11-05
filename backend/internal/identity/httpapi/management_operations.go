@@ -385,7 +385,7 @@ var ManagementOperations = map[string]*adminapi.Operation{
 		StepUpWhen:  administratorRoleStepUp(),
 		Response:    "json",
 		BrowserPath: "/admin/users",
-		Input:       adminapi.Arguments("/api/v1/admin/users/:id", []string{}, (*UpdateUserRequest)(nil)),
+		Input:       updateUserArguments(),
 	}),
 	"users.usage.list": adminapi.Define(adminapi.Operation{
 		ID:     "users.usage.list",
@@ -401,6 +401,18 @@ var ManagementOperations = map[string]*adminapi.Operation{
 		BrowserPath: "/admin/users",
 		Input:       adminapi.Arguments("/api/v1/admin/users/:id/usage", []string{"period"}, nil),
 	}),
+}
+
+// updateUserArguments describes the raw recharge member's numeric wire shape.
+// Omission retains the override, while explicit null clears it; the account
+// service validates finite positive numbers before persistence.
+func updateUserArguments() *jsonschema.Schema {
+	input := adminapi.Arguments("/api/v1/admin/users/:id", nil, (*UpdateUserRequest)(nil))
+	input.Properties["body"].Properties["balance_recharge_multiplier"] = &jsonschema.Schema{
+		Types:       []string{"number", "null"},
+		Description: "Personal balance recharge multiplier. Omit to retain, send null to follow the global rate, or set a finite positive number.",
+	}
+	return input
 }
 
 // administratorRoleStepUp describes the user handlers' role-dependent verification rule.

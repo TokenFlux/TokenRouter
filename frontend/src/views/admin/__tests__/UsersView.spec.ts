@@ -258,6 +258,54 @@ describe('admin UsersView', () => {
     vi.useRealTimers()
   })
 
+  // The personal-rate column stays visible by default and leaves inherited cells empty.
+  // Both directions reach server sorting, and saved sort preferences survive remounting.
+  it('displays nullable personal rates and requests server sorting', async () => {
+    listUsers.mockResolvedValue({
+      items: [
+        createAdminUser({ id: 1, balance_recharge_multiplier: 18 }),
+        createAdminUser({ id: 2, balance_recharge_multiplier: null }),
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const wrapper = mountUsersView()
+    await flushPromises()
+    const table = wrapper.findComponent(DataTableStub)
+    const columns = table.props('columns')
+    const index = columns.findIndex((column: { key: string }) => column.key === 'balance')
+    expect(columns[index + 1]).toMatchObject({ key: 'balance_recharge_multiplier', sortable: true })
+    const rows = wrapper.findAll('[data-test="row-email"]')
+    expect(rows[0].element.parentElement?.textContent).toContain('18.00')
+    expect(rows[1].element.parentElement?.textContent).not.toContain('18.00')
+    for (const direction of ['asc', 'desc']) {
+      table.vm.$emit('sort', 'balance_recharge_multiplier', direction)
+      await flushPromises()
+      expect(listUsers).toHaveBeenLastCalledWith(
+        1,
+        20,
+        expect.objectContaining({ sort_by: 'balance_recharge_multiplier', sort_order: direction }),
+        expect.anything(),
+      )
+    }
+    wrapper.unmount()
+    localStorage.setItem(
+      'admin-users-table-sort',
+      JSON.stringify({ key: 'balance_recharge_multiplier', order: 'asc' }),
+    )
+    const restored = mountUsersView()
+    await flushPromises()
+    expect(listUsers).toHaveBeenLastCalledWith(
+      1,
+      20,
+      expect.objectContaining({ sort_by: 'balance_recharge_multiplier', sort_order: 'asc' }),
+      expect.anything(),
+    )
+    restored.unmount()
+  })
+
   // The user page loads a fixture with active and used timestamps. Activity columns
   // must appear in the expected order, and selecting last-used sorting must reach the
   // server query.

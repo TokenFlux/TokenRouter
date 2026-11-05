@@ -38,6 +38,9 @@ import (
 // adminUserFixture supplies controlled account and key results while recording
 // administrator handler inputs.
 type adminUserFixture struct {
+	// lastUpdateUser retains the submitted input pointer for assertions after
+	// handler completion. The fixture and caller leave that input unchanged.
+	lastUpdateUser *identity.UpdateUserInput
 	// UserAdministration supplies any promoted fixture methods. Default fixtures
 	// leave it nil, while specialized stubs can retain a base implementation;
 	// tests call only the methods supplied by their selected fixture.
@@ -700,9 +703,12 @@ func (s *adminUserFixture) CreateUser(ctx context.Context, input *identity.Creat
 	return &user, nil
 }
 
-// UpdateUser returns a prepared active fixture account for the requested ID.
+// UpdateUser records the supplied input and returns an active fixture account.
+// The returned recharge override and recorded input retain the caller's pointers,
+// which tests keep unchanged until their assertions finish.
 func (s *adminUserFixture) UpdateUser(ctx context.Context, id int64, input *identity.UpdateUserInput) (*identity.User, error) {
-	user := identity.User{ID: id, Email: "updated@example.com", Status: billing.StatusActive}
+	s.lastUpdateUser = input
+	user := identity.User{ID: id, Email: "updated@example.com", Status: billing.StatusActive, BalanceRechargeMultiplier: input.BalanceRechargeMultiplier}
 	return &user, nil
 }
 
@@ -1007,4 +1013,38 @@ func doJSON(t *testing.T, router *gin.Engine, method, path string, payload map[s
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	return rec
+}
+
+// TestUpdateUserRechargeMultiplierPresence sends omitted, null, numeric and
+// malformed members. The handler retains clear-versus-keep intent and rejects
+// nonnumeric JSON before invoking account administration.
+func TestUpdateUserRechargeMultiplierPresence(t *testing.T) {
+	for _, tc := range []struct {
+		body   string   // submitted administrator edit
+		clear  bool     // expected explicit clearing request
+		value  *float64 // expected numeric override
+		status int      // expected HTTP response code
+	}{
+		{body: `{}`, status: 200},
+		{body: `{"balance_recharge_multiplier":null}`, clear: true, status: 200},
+		{body: `{"balance_recharge_multiplier":18}`, value: new(float64(18)), status: 200},
+		{body: `{"balance_recharge_multiplier":"18"}`, status: 400},
+		{body: `{"balance_recharge_multiplier":false}`, status: 400},
+		{body: `{"balance_recharge_multiplier":[]}`, status: 400},
+	} {
+		fixture := &adminUserFixture{}
+		router := gin.New()
+		router.PUT("/users/:id", newAdminUserTestHandler(fixture).Update)
+		req := httptest.NewRequest(http.MethodPut, "/users/42", bytes.NewBufferString(tc.body))
+		req.Header.Set("Content-Type", "application/json")
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		require.Equal(t, tc.status, res.Code, res.Body.String())
+		if tc.status != 200 {
+			require.Nil(t, fixture.lastUpdateUser)
+			continue
+		}
+		require.Equal(t, tc.clear, fixture.lastUpdateUser.ClearBalanceRechargeMultiplier)
+		require.Equal(t, tc.value, fixture.lastUpdateUser.BalanceRechargeMultiplier)
+	}
 }

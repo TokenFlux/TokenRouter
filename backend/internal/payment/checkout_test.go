@@ -1,9 +1,13 @@
 package payment
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
@@ -488,4 +492,16 @@ func TestCreateOrderResponseSeparatesPriceCurrency(t *testing.T) {
 	if result.AmountCurrency != "USD" || result.Currency != "CNY" || result.Amount != 10 || result.PayAmount != 72 {
 		t.Fatalf("unexpected price/payment fields: amount=%v %s, paid=%v %s", result.Amount, result.AmountCurrency, result.PayAmount, result.Currency)
 	}
+}
+
+// TestGetBalanceRechargeRatesFailsOnBuyerLookupError supplies an unavailable
+// account reader. Checkout preview must return the read error instead of
+// reporting the global rate as this buyer's confirmed recharge terms.
+func TestGetBalanceRechargeRatesFailsOnBuyerLookupError(t *testing.T) {
+	lookupErr := errors.New("buyer unavailable")
+	checkout := NewCheckout(nil, nil, nil, nil, CheckoutRuntime{
+		User: func(context.Context, int64) (*Buyer, error) { return nil, lookupErr },
+	})
+	_, err := checkout.GetBalanceRechargeRates(context.Background(), 42, 10)
+	require.ErrorIs(t, err, lookupErr)
 }

@@ -131,6 +131,20 @@ func (_c *UserCreate) SetNillableFrozenBalance(v *float64) *UserCreate {
 	return _c
 }
 
+// SetBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field.
+func (_c *UserCreate) SetBalanceRechargeMultiplier(v float64) *UserCreate {
+	_c.mutation.SetBalanceRechargeMultiplier(v)
+	return _c
+}
+
+// SetNillableBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field if the given value is not nil.
+func (_c *UserCreate) SetNillableBalanceRechargeMultiplier(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetBalanceRechargeMultiplier(*v)
+	}
+	return _c
+}
+
 // SetConcurrency sets the "concurrency" field.
 func (_c *UserCreate) SetConcurrency(v int) *UserCreate {
 	_c.mutation.SetConcurrency(v)
@@ -760,6 +774,11 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.FrozenBalance(); !ok {
 		return &ValidationError{Name: "frozen_balance", err: errors.New(`ent: missing required field "User.frozen_balance"`)}
 	}
+	if v, ok := _c.mutation.BalanceRechargeMultiplier(); ok {
+		if err := user.BalanceRechargeMultiplierValidator(v); err != nil {
+			return &ValidationError{Name: "balance_recharge_multiplier", err: fmt.Errorf(`ent: validator failed for field "User.balance_recharge_multiplier": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		return &ValidationError{Name: "concurrency", err: errors.New(`ent: missing required field "User.concurrency"`)}
 	}
@@ -879,6 +898,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.FrozenBalance(); ok {
 		_spec.SetField(user.FieldFrozenBalance, field.TypeFloat64, value)
 		_node.FrozenBalance = value
+	}
+	if value, ok := _c.mutation.BalanceRechargeMultiplier(); ok {
+		_spec.SetField(user.FieldBalanceRechargeMultiplier, field.TypeFloat64, value)
+		_node.BalanceRechargeMultiplier = &value
 	}
 	if value, ok := _c.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
@@ -1354,6 +1377,30 @@ func (u *UserUpsert) AddFrozenBalance(v float64) *UserUpsert {
 	return u
 }
 
+// SetBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field.
+func (u *UserUpsert) SetBalanceRechargeMultiplier(v float64) *UserUpsert {
+	u.Set(user.FieldBalanceRechargeMultiplier, v)
+	return u
+}
+
+// UpdateBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field to the value that was provided on create.
+func (u *UserUpsert) UpdateBalanceRechargeMultiplier() *UserUpsert {
+	u.SetExcluded(user.FieldBalanceRechargeMultiplier)
+	return u
+}
+
+// AddBalanceRechargeMultiplier adds v to the "balance_recharge_multiplier" field.
+func (u *UserUpsert) AddBalanceRechargeMultiplier(v float64) *UserUpsert {
+	u.Add(user.FieldBalanceRechargeMultiplier, v)
+	return u
+}
+
+// ClearBalanceRechargeMultiplier clears the value of the "balance_recharge_multiplier" field.
+func (u *UserUpsert) ClearBalanceRechargeMultiplier() *UserUpsert {
+	u.SetNull(user.FieldBalanceRechargeMultiplier)
+	return u
+}
+
 // SetConcurrency sets the "concurrency" field.
 func (u *UserUpsert) SetConcurrency(v int) *UserUpsert {
 	u.Set(user.FieldConcurrency, v)
@@ -1797,6 +1844,34 @@ func (u *UserUpsertOne) AddFrozenBalance(v float64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateFrozenBalance() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateFrozenBalance()
+	})
+}
+
+// SetBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field.
+func (u *UserUpsertOne) SetBalanceRechargeMultiplier(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceRechargeMultiplier(v)
+	})
+}
+
+// AddBalanceRechargeMultiplier adds v to the "balance_recharge_multiplier" field.
+func (u *UserUpsertOne) AddBalanceRechargeMultiplier(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddBalanceRechargeMultiplier(v)
+	})
+}
+
+// UpdateBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateBalanceRechargeMultiplier() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceRechargeMultiplier()
+	})
+}
+
+// ClearBalanceRechargeMultiplier clears the value of the "balance_recharge_multiplier" field.
+func (u *UserUpsertOne) ClearBalanceRechargeMultiplier() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearBalanceRechargeMultiplier()
 	})
 }
 
@@ -2456,6 +2531,34 @@ func (u *UserUpsertBulk) AddFrozenBalance(v float64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateFrozenBalance() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateFrozenBalance()
+	})
+}
+
+// SetBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field.
+func (u *UserUpsertBulk) SetBalanceRechargeMultiplier(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceRechargeMultiplier(v)
+	})
+}
+
+// AddBalanceRechargeMultiplier adds v to the "balance_recharge_multiplier" field.
+func (u *UserUpsertBulk) AddBalanceRechargeMultiplier(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddBalanceRechargeMultiplier(v)
+	})
+}
+
+// UpdateBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateBalanceRechargeMultiplier() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceRechargeMultiplier()
+	})
+}
+
+// ClearBalanceRechargeMultiplier clears the value of the "balance_recharge_multiplier" field.
+func (u *UserUpsertBulk) ClearBalanceRechargeMultiplier() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearBalanceRechargeMultiplier()
 	})
 }
 

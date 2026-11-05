@@ -209,3 +209,54 @@ describe('UserEditModal API Key 上限与并发', () => {
     expect(updateUser).not.toHaveBeenCalled()
   })
 })
+
+// Personal recharge edits preserve unchanged settings, send null when cleared, and
+// reject nonpositive rates before submitting any administrator account mutation.
+describe('UserEditModal personal recharge rate', () => {
+  beforeEach(() => {
+    updateUser.mockReset().mockResolvedValue({})
+    updateUserAttributes.mockReset().mockResolvedValue({})
+    showError.mockReset()
+    runStepUp.mockImplementation((operation: () => Promise<unknown>) => operation())
+  })
+
+  // An unset override remains omitted during an unrelated edit. Setting a lower
+  // positive rate then sends the exact number instead of applying global-rate constraints.
+  it('omits unchanged values and accepts fractional overrides', async () => {
+    const wrapper = mountModal()
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(updateUser.mock.calls[0][1]).not.toHaveProperty('balance_recharge_multiplier')
+    await wrapper.get('[data-test="recharge-multiplier-input"]').setValue('0.5')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(updateUser.mock.calls[1][1].balance_recharge_multiplier).toBe(0.5)
+  })
+
+  // A saved rate is shown when opening an account and survives unchanged saves.
+  // Emptying the same input explicitly clears it rather than silently preserving it.
+  it('loads, retains, and clears a saved override', async () => {
+    const wrapper = mountModal()
+    await wrapper.setProps({ user: { ...user, balance_recharge_multiplier: 18 } })
+    const input = wrapper.get('[data-test="recharge-multiplier-input"]')
+    expect((input.element as HTMLInputElement).value).toBe('18')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(updateUser.mock.calls[0][1]).not.toHaveProperty('balance_recharge_multiplier')
+    await input.setValue('')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(updateUser.mock.calls[1][1].balance_recharge_multiplier).toBeNull()
+  })
+
+  // Zero and negative numbers cannot create valid recharge terms. Validation keeps
+  // the dialog open and prevents the user update request for both invalid inputs.
+  it.each(['0', '-1'])('rejects rate %s', async (rate) => {
+    const wrapper = mountModal()
+    await wrapper.get('[data-test="recharge-multiplier-input"]').setValue(rate)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(updateUser).not.toHaveBeenCalled()
+    expect(showError).toHaveBeenCalledWith('admin.users.form.balanceRechargeMultiplierInvalid')
+  })
+})

@@ -1,12 +1,15 @@
 import type { User } from '@/api/identity.types'
 
 // users.types.ts defines administrative account details and profile update fields.
-// Administrator responses add notes and per-group multipliers to the shared user profile,
-// and an update can remove a user's custom group rate by sending a null entry.
+// Administrator responses add notes, personal recharge terms, and per-group multipliers
+// to the shared user profile. An update can clear the personal recharge rate or a custom
+// group rate by sending null for that override.
 
-// AdminUser extends account information with administrator notes, group rates, and live
-// concurrency.
+// AdminUser extends account information with administrator notes, recharge terms,
+// group rates, and live concurrency.
 export interface AdminUser extends User {
+  // A missing or null override follows the current global recharge rate for subsequent orders.
+  balance_recharge_multiplier?: number | null
   // Administrator notes returned by administrative user endpoints; ordinary user
   // responses omit this information entirely.
   notes: string // Administrator record notes.
@@ -21,6 +24,8 @@ export interface AdminUser extends User {
 // UpdateUserRequest supplies administrative changes to account access, balances, and
 // group permissions.
 export interface UpdateUserRequest {
+  // Omission preserves the override; null clears it to follow current global payment settings.
+  balance_recharge_multiplier?: number | null
   email?: string // Account email address.
   password?: string // Account authentication password.
   username?: string // Account display username.

@@ -869,9 +869,9 @@ func identityUserSearch(search string) predicate.User {
 }
 
 // IdentityUserListOrder returns the selected field order with an ID tie break
-// in the same direction. Unknown fields select ID, last_active_at places nulls
-// last in either direction, and last_used_at delegates its activity-specific
-// ordering.
+// in the same direction. Unknown fields select ID; last_active_at and personal
+// recharge rates place nulls last in either direction. Last_used_at delegates
+// its activity-specific ordering.
 func IdentityUserListOrder(params pagination.PaginationParams) []func(*entsql.Selector) {
 	sortBy := strings.ToLower(strings.TrimSpace(params.SortBy))
 	sortOrder := params.NormalizedSortOrder(pagination.SortOrderDesc)
@@ -893,6 +893,10 @@ func IdentityUserListOrder(params pagination.PaginationParams) []func(*entsql.Se
 	case "role":
 		field = dbuser.FieldRole
 		defaultField = false
+	case "balance_recharge_multiplier":
+		field = dbuser.FieldBalanceRechargeMultiplier
+		defaultField = false
+		nullsLastField = true
 	case "balance":
 		field = dbuser.FieldBalance
 		defaultField = false
@@ -1883,9 +1887,9 @@ func IdentityDeductUserBalance(ctx context.Context, q sqlQueryer, userID int64, 
 }
 
 // IdentityUpdateWithClient writes the selected scalar account flags through
-// the supplied client. Nil locale, activity timestamp, or notification
-// threshold pointers clear their selected fields, while permission and
-// identity synchronization remain with the enclosing updater.
+// the supplied client. Nil locale, recharge override, activity timestamp, or
+// notification threshold pointers clear their selected fields, while permission
+// and identity synchronization remain with the enclosing updater.
 func (r *UserStore) IdentityUpdateWithClient(ctx context.Context, client *dbent.Client, userIn *identitycore.User, fields identitycore.UserUpdateFields) (*dbent.User, error) {
 	updateOp := client.User.UpdateOneID(userIn.ID)
 	if fields.Email {
@@ -1939,6 +1943,13 @@ func (r *UserStore) IdentityUpdateWithClient(ctx context.Context, client *dbent.
 	if fields.APIKeyLimit {
 		updateOp = updateOp.SetAPIKeyLimit(userIn.APIKeyLimit)
 	}
+	if fields.BalanceRechargeMultiplier {
+		if userIn.BalanceRechargeMultiplier == nil {
+			updateOp = updateOp.ClearBalanceRechargeMultiplier()
+		} else {
+			updateOp = updateOp.SetBalanceRechargeMultiplier(*userIn.BalanceRechargeMultiplier)
+		}
+	}
 	if fields.BalanceNotifySettings {
 		updateOp = updateOp.
 			SetBalanceNotifyEnabled(userIn.BalanceNotifyEnabled).
@@ -1972,6 +1983,7 @@ func (r *UserStore) IdentityCreateWithClient(ctx context.Context, client *dbent.
 		SetNillableLastLoginAt(userIn.LastLoginAt).
 		SetNillableLastActiveAt(userIn.LastActiveAt).
 		SetRpmLimit(userIn.RPMLimit).
+		SetNillableBalanceRechargeMultiplier(userIn.BalanceRechargeMultiplier).
 		SetAPIKeyLimit(userIn.APIKeyLimit)
 	billingpostgres.ApplyInitialUserFunds(createOp, billing.InitialUserFunds{Balance: userIn.Balance})
 	return createOp.Save(ctx)

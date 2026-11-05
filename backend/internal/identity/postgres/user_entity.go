@@ -50,6 +50,7 @@ func UserFromEntity(u *dbent.User) *identitycore.User {
 		PasswordHash:               u.PasswordHash,
 		Role:                       u.Role,
 		Balance:                    u.Balance,
+		BalanceRechargeMultiplier:  u.BalanceRechargeMultiplier,
 		FrozenBalance:              u.FrozenBalance,
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,

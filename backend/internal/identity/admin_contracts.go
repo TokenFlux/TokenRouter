@@ -65,6 +65,12 @@ type CreateUserInput struct {
 // UpdateUserInput selects account/profile fields and separate group-rate
 // changes for administrator updates.
 type UpdateUserInput struct {
+	// BalanceRechargeMultiplier sets a positive finite override when supplied.
+	// Nil retains the stored value unless ClearBalanceRechargeMultiplier is true.
+	BalanceRechargeMultiplier *float64
+	// ClearBalanceRechargeMultiplier removes the override, making subsequent
+	// recharge orders follow global settings. Supplying both edit forms is invalid.
+	ClearBalanceRechargeMultiplier bool
 	// Email submits replacement text when nonempty. Empty text leaves the
 	// account mailbox unchanged, and changed text selects applicable
 	// normalized-address write guards.

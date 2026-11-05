@@ -7,6 +7,7 @@
 - [全局入口](#全局入口)：所有请求共同经过的处理顺序。
 - [路由族](#路由族)：URL 前缀、认证方式和负责的模块。
 - [支付管理恢复](#payment_admin_recovery)：订单强制过期和退款查单。
+- [用户专属充值倍率](#personal_recharge_multiplier_api)：管理员覆盖值、排序和用户充值预览。
 - [身份登录接口](#身份登录接口)：修改 OAuth start、人机验证和 One Tap 时读取。
 - [创作台接口](#创作台接口)：修改工作区、任务和输出交付时读取。
 - [提供商管理接口](#提供商管理接口)：修改批量管理、测试、诊断和导入时读取。
@@ -101,6 +102,15 @@ Markdown 正文需要 JWT，并且菜单可见；管理员页面只对管理员�
 - `POST /api/v1/subscriptions/:id/revoke` 需要用户 JWT。服务端只接受当前用户本人的、处于 `active`、并且最高层有限额度已经用完的订阅。成功时在事务里撤销当前记录，让同一套餐的下一份 pending 订阅提前生效，并自动改绑指定了这个订阅的 Key。
 - 成功响应的 `data` 是 `{ revoked_subscription_id, replacement_subscription_id, rebound_api_key_count }`；没有接续的订阅时，`replacement_subscription_id` 为 `null`，改绑数量为 `0`。
 - 订阅不属于当前用户或不存在，返回 `SUBSCRIPTION_NOT_FOUND`；不是当前 active 的记录，返回 `SUBSCRIPTION_NOT_ACTIVE`（409）；最高层额度还有剩余或套餐不限额，返回 `SUBSCRIPTION_QUOTA_NOT_EXHAUSTED`（409）。撤销不退款，用户端也没有恢复接口。
+
+<a id="personal_recharge_multiplier_api"></a>
+## 用户专属充值倍率
+
+管理员用户列表、详情和更新响应包含可空数字 `balance_recharge_multiplier`。`PUT /api/v1/admin/users/:id` 省略该字段时保留原值，传 null 时清除覆盖，传有限正数时设置覆盖；其他数值返回 `INVALID_BALANCE_RECHARGE_MULTIPLIER`。普通用户的资料更新没有这个可写字段。
+
+`GET /api/v1/admin/users` 支持 `sort_by=balance_recharge_multiplier` 和 `sort_order=asc|desc`，数值排序后按同方向用户 ID 排序，NULL 始终末尾。MCP 的 `users.update` 使用相同字段与语义。
+
+`GET /api/v1/payment/checkout-info` 需要当前用户身份，返回 `balance_recharge_multiplier`（实际倍率）、`default_balance_recharge_multiplier`（全局倍率）和 `user_balance_recharge_multiplier`（可空的专属倍率）。下单接口不接收用户指定的倍率，服务端读取当前条款。资金快照规则见[用户专属充值倍率](../domains/payments_and_entitlements.md#personal_recharge_multiplier)。
 
 <a id="payment_admin_recovery"></a>
 ## 支付管理恢复

@@ -56631,91 +56631,93 @@ func (m *UsageLogMutation) ResetEdge(name string) error {
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op                            Op
-	typ                           string
-	id                            *int64
-	created_at                    *time.Time
-	updated_at                    *time.Time
-	deleted_at                    *time.Time
-	email                         *string
-	password_hash                 *string
-	role                          *string
-	balance                       *float64
-	addbalance                    *float64
-	frozen_balance                *float64
-	addfrozen_balance             *float64
-	concurrency                   *int
-	addconcurrency                *int
-	status                        *string
-	preferred_locale              *string
-	username                      *string
-	notes                         *string
-	totp_secret_encrypted         *string
-	totp_enabled                  *bool
-	totp_enabled_at               *time.Time
-	signup_source                 *string
-	last_login_at                 *time.Time
-	last_active_at                *time.Time
-	balance_notify_enabled        *bool
-	balance_notify_threshold_type *string
-	balance_notify_threshold      *float64
-	addbalance_notify_threshold   *float64
-	balance_notify_extra_emails   *string
-	total_recharged               *float64
-	addtotal_recharged            *float64
-	rpm_limit                     *int
-	addrpm_limit                  *int
-	api_key_limit                 *int
-	addapi_key_limit              *int
-	clearedFields                 map[string]struct{}
-	api_keys                      map[int64]struct{}
-	removedapi_keys               map[int64]struct{}
-	clearedapi_keys               bool
-	redeem_codes                  map[int64]struct{}
-	removedredeem_codes           map[int64]struct{}
-	clearedredeem_codes           bool
-	redeem_code_usages            map[int64]struct{}
-	removedredeem_code_usages     map[int64]struct{}
-	clearedredeem_code_usages     bool
-	subscriptions                 map[int64]struct{}
-	removedsubscriptions          map[int64]struct{}
-	clearedsubscriptions          bool
-	assigned_subscriptions        map[int64]struct{}
-	removedassigned_subscriptions map[int64]struct{}
-	clearedassigned_subscriptions bool
-	announcement_reads            map[int64]struct{}
-	removedannouncement_reads     map[int64]struct{}
-	clearedannouncement_reads     bool
-	allowed_groups                map[int64]struct{}
-	removedallowed_groups         map[int64]struct{}
-	clearedallowed_groups         bool
-	disabled_public_groups        map[int64]struct{}
-	removeddisabled_public_groups map[int64]struct{}
-	cleareddisabled_public_groups bool
-	usage_logs                    map[int64]struct{}
-	removedusage_logs             map[int64]struct{}
-	clearedusage_logs             bool
-	attribute_values              map[int64]struct{}
-	removedattribute_values       map[int64]struct{}
-	clearedattribute_values       bool
-	promo_code_usages             map[int64]struct{}
-	removedpromo_code_usages      map[int64]struct{}
-	clearedpromo_code_usages      bool
-	payment_orders                map[int64]struct{}
-	removedpayment_orders         map[int64]struct{}
-	clearedpayment_orders         bool
-	auth_identities               map[int64]struct{}
-	removedauth_identities        map[int64]struct{}
-	clearedauth_identities        bool
-	pending_auth_sessions         map[int64]struct{}
-	removedpending_auth_sessions  map[int64]struct{}
-	clearedpending_auth_sessions  bool
-	team_memberships              map[int64]struct{}
-	removedteam_memberships       map[int64]struct{}
-	clearedteam_memberships       bool
-	done                          bool
-	oldValue                      func(context.Context) (*User, error)
-	predicates                    []predicate.User
+	op                             Op
+	typ                            string
+	id                             *int64
+	created_at                     *time.Time
+	updated_at                     *time.Time
+	deleted_at                     *time.Time
+	email                          *string
+	password_hash                  *string
+	role                           *string
+	balance                        *float64
+	addbalance                     *float64
+	frozen_balance                 *float64
+	addfrozen_balance              *float64
+	balance_recharge_multiplier    *float64
+	addbalance_recharge_multiplier *float64
+	concurrency                    *int
+	addconcurrency                 *int
+	status                         *string
+	preferred_locale               *string
+	username                       *string
+	notes                          *string
+	totp_secret_encrypted          *string
+	totp_enabled                   *bool
+	totp_enabled_at                *time.Time
+	signup_source                  *string
+	last_login_at                  *time.Time
+	last_active_at                 *time.Time
+	balance_notify_enabled         *bool
+	balance_notify_threshold_type  *string
+	balance_notify_threshold       *float64
+	addbalance_notify_threshold    *float64
+	balance_notify_extra_emails    *string
+	total_recharged                *float64
+	addtotal_recharged             *float64
+	rpm_limit                      *int
+	addrpm_limit                   *int
+	api_key_limit                  *int
+	addapi_key_limit               *int
+	clearedFields                  map[string]struct{}
+	api_keys                       map[int64]struct{}
+	removedapi_keys                map[int64]struct{}
+	clearedapi_keys                bool
+	redeem_codes                   map[int64]struct{}
+	removedredeem_codes            map[int64]struct{}
+	clearedredeem_codes            bool
+	redeem_code_usages             map[int64]struct{}
+	removedredeem_code_usages      map[int64]struct{}
+	clearedredeem_code_usages      bool
+	subscriptions                  map[int64]struct{}
+	removedsubscriptions           map[int64]struct{}
+	clearedsubscriptions           bool
+	assigned_subscriptions         map[int64]struct{}
+	removedassigned_subscriptions  map[int64]struct{}
+	clearedassigned_subscriptions  bool
+	announcement_reads             map[int64]struct{}
+	removedannouncement_reads      map[int64]struct{}
+	clearedannouncement_reads      bool
+	allowed_groups                 map[int64]struct{}
+	removedallowed_groups          map[int64]struct{}
+	clearedallowed_groups          bool
+	disabled_public_groups         map[int64]struct{}
+	removeddisabled_public_groups  map[int64]struct{}
+	cleareddisabled_public_groups  bool
+	usage_logs                     map[int64]struct{}
+	removedusage_logs              map[int64]struct{}
+	clearedusage_logs              bool
+	attribute_values               map[int64]struct{}
+	removedattribute_values        map[int64]struct{}
+	clearedattribute_values        bool
+	promo_code_usages              map[int64]struct{}
+	removedpromo_code_usages       map[int64]struct{}
+	clearedpromo_code_usages       bool
+	payment_orders                 map[int64]struct{}
+	removedpayment_orders          map[int64]struct{}
+	clearedpayment_orders          bool
+	auth_identities                map[int64]struct{}
+	removedauth_identities         map[int64]struct{}
+	clearedauth_identities         bool
+	pending_auth_sessions          map[int64]struct{}
+	removedpending_auth_sessions   map[int64]struct{}
+	clearedpending_auth_sessions   bool
+	team_memberships               map[int64]struct{}
+	removedteam_memberships        map[int64]struct{}
+	clearedteam_memberships        bool
+	done                           bool
+	oldValue                       func(context.Context) (*User, error)
+	predicates                     []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -57155,6 +57157,76 @@ func (m *UserMutation) AddedFrozenBalance() (r float64, exists bool) {
 func (m *UserMutation) ResetFrozenBalance() {
 	m.frozen_balance = nil
 	m.addfrozen_balance = nil
+}
+
+// SetBalanceRechargeMultiplier sets the "balance_recharge_multiplier" field.
+func (m *UserMutation) SetBalanceRechargeMultiplier(f float64) {
+	m.balance_recharge_multiplier = &f
+	m.addbalance_recharge_multiplier = nil
+}
+
+// BalanceRechargeMultiplier returns the value of the "balance_recharge_multiplier" field in the mutation.
+func (m *UserMutation) BalanceRechargeMultiplier() (r float64, exists bool) {
+	v := m.balance_recharge_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBalanceRechargeMultiplier returns the old "balance_recharge_multiplier" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldBalanceRechargeMultiplier(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBalanceRechargeMultiplier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBalanceRechargeMultiplier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBalanceRechargeMultiplier: %w", err)
+	}
+	return oldValue.BalanceRechargeMultiplier, nil
+}
+
+// AddBalanceRechargeMultiplier adds f to the "balance_recharge_multiplier" field.
+func (m *UserMutation) AddBalanceRechargeMultiplier(f float64) {
+	if m.addbalance_recharge_multiplier != nil {
+		*m.addbalance_recharge_multiplier += f
+	} else {
+		m.addbalance_recharge_multiplier = &f
+	}
+}
+
+// AddedBalanceRechargeMultiplier returns the value that was added to the "balance_recharge_multiplier" field in this mutation.
+func (m *UserMutation) AddedBalanceRechargeMultiplier() (r float64, exists bool) {
+	v := m.addbalance_recharge_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearBalanceRechargeMultiplier clears the value of the "balance_recharge_multiplier" field.
+func (m *UserMutation) ClearBalanceRechargeMultiplier() {
+	m.balance_recharge_multiplier = nil
+	m.addbalance_recharge_multiplier = nil
+	m.clearedFields[user.FieldBalanceRechargeMultiplier] = struct{}{}
+}
+
+// BalanceRechargeMultiplierCleared returns if the "balance_recharge_multiplier" field was cleared in this mutation.
+func (m *UserMutation) BalanceRechargeMultiplierCleared() bool {
+	_, ok := m.clearedFields[user.FieldBalanceRechargeMultiplier]
+	return ok
+}
+
+// ResetBalanceRechargeMultiplier resets all changes to the "balance_recharge_multiplier" field.
+func (m *UserMutation) ResetBalanceRechargeMultiplier() {
+	m.balance_recharge_multiplier = nil
+	m.addbalance_recharge_multiplier = nil
+	delete(m.clearedFields, user.FieldBalanceRechargeMultiplier)
 }
 
 // SetConcurrency sets the "concurrency" field.
@@ -58828,7 +58900,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 26)
+	fields := make([]string, 0, 27)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -58852,6 +58924,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.frozen_balance != nil {
 		fields = append(fields, user.FieldFrozenBalance)
+	}
+	if m.balance_recharge_multiplier != nil {
+		fields = append(fields, user.FieldBalanceRechargeMultiplier)
 	}
 	if m.concurrency != nil {
 		fields = append(fields, user.FieldConcurrency)
@@ -58931,6 +59006,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Balance()
 	case user.FieldFrozenBalance:
 		return m.FrozenBalance()
+	case user.FieldBalanceRechargeMultiplier:
+		return m.BalanceRechargeMultiplier()
 	case user.FieldConcurrency:
 		return m.Concurrency()
 	case user.FieldStatus:
@@ -58992,6 +59069,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldBalance(ctx)
 	case user.FieldFrozenBalance:
 		return m.OldFrozenBalance(ctx)
+	case user.FieldBalanceRechargeMultiplier:
+		return m.OldBalanceRechargeMultiplier(ctx)
 	case user.FieldConcurrency:
 		return m.OldConcurrency(ctx)
 	case user.FieldStatus:
@@ -59092,6 +59171,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetFrozenBalance(v)
+		return nil
+	case user.FieldBalanceRechargeMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBalanceRechargeMultiplier(v)
 		return nil
 	case user.FieldConcurrency:
 		v, ok := value.(int)
@@ -59233,6 +59319,9 @@ func (m *UserMutation) AddedFields() []string {
 	if m.addfrozen_balance != nil {
 		fields = append(fields, user.FieldFrozenBalance)
 	}
+	if m.addbalance_recharge_multiplier != nil {
+		fields = append(fields, user.FieldBalanceRechargeMultiplier)
+	}
 	if m.addconcurrency != nil {
 		fields = append(fields, user.FieldConcurrency)
 	}
@@ -59260,6 +59349,8 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedBalance()
 	case user.FieldFrozenBalance:
 		return m.AddedFrozenBalance()
+	case user.FieldBalanceRechargeMultiplier:
+		return m.AddedBalanceRechargeMultiplier()
 	case user.FieldConcurrency:
 		return m.AddedConcurrency()
 	case user.FieldBalanceNotifyThreshold:
@@ -59292,6 +59383,13 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddFrozenBalance(v)
+		return nil
+	case user.FieldBalanceRechargeMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBalanceRechargeMultiplier(v)
 		return nil
 	case user.FieldConcurrency:
 		v, ok := value.(int)
@@ -59339,6 +59437,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldDeletedAt) {
 		fields = append(fields, user.FieldDeletedAt)
 	}
+	if m.FieldCleared(user.FieldBalanceRechargeMultiplier) {
+		fields = append(fields, user.FieldBalanceRechargeMultiplier)
+	}
 	if m.FieldCleared(user.FieldPreferredLocale) {
 		fields = append(fields, user.FieldPreferredLocale)
 	}
@@ -59373,6 +59474,9 @@ func (m *UserMutation) ClearField(name string) error {
 	switch name {
 	case user.FieldDeletedAt:
 		m.ClearDeletedAt()
+		return nil
+	case user.FieldBalanceRechargeMultiplier:
+		m.ClearBalanceRechargeMultiplier()
 		return nil
 	case user.FieldPreferredLocale:
 		m.ClearPreferredLocale()
@@ -59423,6 +59527,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldFrozenBalance:
 		m.ResetFrozenBalance()
+		return nil
+	case user.FieldBalanceRechargeMultiplier:
+		m.ResetBalanceRechargeMultiplier()
 		return nil
 	case user.FieldConcurrency:
 		m.ResetConcurrency()

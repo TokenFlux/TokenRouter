@@ -4,16 +4,19 @@ import (
 	"math"
 
 	"github.com/shopspring/decimal"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // amount_rules.go calculates credited recharge amounts and proportional
-// gateway refunds using their respective rounding rules.
+// gateway refunds using their respective rounding rules. Account overrides
+// replace global recharge terms for previews and newly created balance orders.
 // A balance recharge can credit a different reasoning-point amount from
 // the external payment because its configured multiplier applies before
 // credit rounding. Subscription currency conversion has a separate rate:
-// zero disables it, while an invalid balance multiplier selects the
-// ordinary one-to-one credit. Both choices are normalized before checkout
-// uses them.
+// zero disables it, while an invalid global balance multiplier selects the
+// ordinary one-to-one credit. Invalid personal overrides fail selection instead
+// of silently changing the buyer's terms.
 //
 // Refund planning relates the credited or purchased order amount to the
 // channel charge, which can include fees. A requested refund within the
@@ -29,6 +32,39 @@ const (
 	DefaultBalanceRechargeMultiplier = 1.0  // one-to-one recharge credit
 	ProviderAmountTolerance          = 0.01 // legacy absolute payment margin
 )
+
+// BalanceRechargeRates carries the default, personal, and effective checkout rates.
+type BalanceRechargeRates struct {
+	// Default retains the normalized global rate; Effective selects User when it
+	// is present. User is copied so callers can keep an independent rate snapshot.
+	Default   float64  // normalized global recharge rate
+	Effective float64  // selected balance recharge rate
+	User      *float64 // optional personal recharge rate
+}
+
+// ResolveBalanceRechargeRates selects an account override or the normalized
+// global recharge rate. A nil override follows global settings; a present
+// override must be finite and positive or the operation fails.
+//
+// The returned personal value is copied so later account changes cannot alter
+// this observation. Both checkout display and order creation use this selection,
+// preserving the distinction between an explicit rate equal to the default and
+// an account that inherits future global changes.
+//
+// @project-doc docs/domains/payments_and_entitlements.md#personal_recharge_multiplier
+func ResolveBalanceRechargeRates(global float64, override *float64) (BalanceRechargeRates, error) {
+	rates := BalanceRechargeRates{Default: NormalizeBalanceRechargeMultiplier(global)}
+	rates.Effective = rates.Default
+	if override != nil {
+		value := *override
+		if math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 {
+			return BalanceRechargeRates{}, apperror.BadRequest("INVALID_BALANCE_RECHARGE_MULTIPLIER", "balance recharge multiplier must be a finite number greater than 0")
+		}
+		rates.User = &value
+		rates.Effective = value
+	}
+	return rates, nil
+}
 
 // NormalizeBalanceRechargeMultiplier returns a usable positive finite
 // recharge multiplier. Nonpositive, NaN, or infinite input selects the

@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -112,6 +113,9 @@ type User struct {
 	// Loaders select this relation separately, and shallow User copies share the
 	// mutable map.
 	GroupRates map[int64]float64
+	// BalanceRechargeMultiplier overrides the global payment recharge rate when
+	// present. Nil follows the current global rate; it never scales manual funds.
+	BalanceRechargeMultiplier *float64
 
 	// TotpSecretEncrypted, TotpEnabled and TotpEnabledAt record the stored
 	// authenticator secret, activation decision and activation time. Setup can
@@ -238,6 +242,12 @@ func IsReservedEmail(email string) bool {
 		strings.HasSuffix(normalized, OIDCConnectSyntheticEmailDomain) ||
 		strings.HasSuffix(normalized, WeChatConnectSyntheticEmailDomain) ||
 		strings.HasSuffix(normalized, DingTalkConnectSyntheticEmailDomain)
+}
+
+// IsValidBalanceRechargeMultiplier reports whether a recharge override is finite
+// and strictly positive.
+func IsValidBalanceRechargeMultiplier(multiplier float64) bool {
+	return multiplier > 0 && !math.IsNaN(multiplier) && !math.IsInf(multiplier, 0)
 }
 
 // CopyUser returns a new struct containing the supplied user's field values.

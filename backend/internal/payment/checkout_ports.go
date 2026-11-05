@@ -16,6 +16,9 @@ import (
 // Buyer retains the account fields needed to validate and snapshot checkout.
 type Buyer struct {
 	ID int64 // buyer account identity
+	// BalanceRechargeMultiplier applies to new balance orders when present.
+	// Nil follows the current global setting; historical orders use saved credits.
+	BalanceRechargeMultiplier *float64
 	// Email: account email address; Username: account display name; Notes:
 	// account administration notes; Status: account lifecycle state
 	Email, Username, Notes, Status string

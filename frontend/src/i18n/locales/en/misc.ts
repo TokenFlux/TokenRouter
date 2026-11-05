@@ -658,6 +658,8 @@ export default {
     amountTooHigh: 'Maximum amount is {max}',
     amountNoMethod: 'No payment method available for this amount',
     rechargeRatePreview: 'Current rate: 1 {currency} = {amount} {unitName}',
+    personalRechargeRateAccessible:
+      'Current personal rate: 1 {currency} = {amount} {unitName}; global rate: {defaultAmount}',
     refundReason: 'Refund Reason',
     refundReasonPlaceholder: 'Please describe your refund reason',
     stripeLoadFailed: 'Failed to load payment component. Please refresh and try again.',
