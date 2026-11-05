@@ -505,3 +505,14 @@ func TestGetBalanceRechargeRatesFailsOnBuyerLookupError(t *testing.T) {
 	_, err := checkout.GetBalanceRechargeRates(context.Background(), 42, 10)
 	require.ErrorIs(t, err, lookupErr)
 }
+
+// TestCheckoutRejectsUnknownOrderTypes submits noncanonical purchase types with
+// a valid principal. They must fail before balance terms or subscription plans
+// are selected, preventing unknown types from bypassing recharge rates.
+func TestCheckoutRejectsUnknownOrderTypes(t *testing.T) {
+	checkout := NewCheckout(nil, nil, nil, nil, CheckoutRuntime{})
+	for _, orderType := range []string{"wallet", "Balance", "balance ", " "} {
+		_, err := checkout.ValidateOrderInput(context.Background(), CreateOrderRequest{OrderType: orderType, Amount: 100}, &PaymentConfig{})
+		require.Equal(t, "INVALID_CHECKOUT_ORDER_TYPE", apperror.Reason(err))
+	}
+}

@@ -1448,3 +1448,45 @@ describe('PaymentView personal recharge rate', () => {
     },
   )
 })
+
+// Invalid entitlements must stop checkout even when the principal fits the selected
+// payment method. These cases exercise the page's validation and submission boundary.
+describe('PaymentView credit amount validation', () => {
+  // Tiny and oversized personal rates cannot produce a payable order. The page explains
+  // the credit problem and keeps payment disabled without sending a create request.
+  it.each([1e-8, 1e11, 1e308])('blocks unfulfillable credits at rate %s', async (rate) => {
+    createOrder.mockReset()
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockResolvedValue(
+      checkoutInfoFixture({
+        balance_recharge_multiplier: rate,
+        default_balance_recharge_multiplier: 10,
+        user_balance_recharge_multiplier: rate,
+      }),
+    )
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          MotionTransition: motionTransitionStub,
+          AppLayout: { template: '<div><slot /></div>' },
+          RouterLink: true,
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(AmountInput).vm.$emit('update:modelValue', 100)
+    await flushPromises()
+    expect(wrapper.text()).toContain('payment.errors.INVALID_CREDITED_AMOUNT')
+    const pay = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('payment.createOrder'))!
+    expect(pay.attributes('disabled')).toBeDefined()
+    await pay.trigger('click')
+    expect(createOrder).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+})

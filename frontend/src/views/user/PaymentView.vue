@@ -544,6 +544,7 @@ import { vSegmented } from '@/directives/segmented'
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { I18nT, useI18n } from 'vue-i18n'
+import { calculateRechargeCredit, isValidRechargeCredit } from '@/utils/payment/rechargeCredit'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -733,8 +734,8 @@ const subscriptionUsdToCnyRate = computed(() => {
   const rate = checkout.value.subscription_usd_to_cny_rate
   return Number.isFinite(rate) && rate > 0 ? rate : 0
 })
-const creditedAmount = computed(
-  () => Math.round(validAmount.value * balanceRechargeMultiplier.value * 100) / 100,
+const creditedAmount = computed(() =>
+  calculateRechargeCredit(validAmount.value, balanceRechargeMultiplier.value),
 )
 const hasHelpContent = computed(() =>
   Boolean(checkout.value.help_text || checkout.value.help_image_url),
@@ -1007,6 +1008,9 @@ const totalAmount = computed(() => rechargeFeeBreakdown.value.payAmount)
 
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''
+  if (!isValidRechargeCredit(creditedAmount.value)) {
+    return t('payment.errors.INVALID_CREDITED_AMOUNT')
+  }
   // No method can handle this amount
   if (!enabledMethods.value.some((m) => amountFitsMethod(validAmount.value, m))) {
     return t('payment.amountNoMethod')
@@ -1025,6 +1029,7 @@ const amountError = computed(() => {
 const canSubmit = computed(
   () =>
     validAmount.value > 0 &&
+    isValidRechargeCredit(creditedAmount.value) &&
     amountFitsMethod(validAmount.value, selectedMethod.value) &&
     selectedLimit.value?.available !== false &&
     (!isStripeSelected.value ||

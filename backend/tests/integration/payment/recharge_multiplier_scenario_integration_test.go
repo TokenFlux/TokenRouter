@@ -29,6 +29,7 @@ import (
 	paymentpostgres "github.com/TokenFlux/TokenRouter/internal/payment/postgres"
 	paymentadapter "github.com/TokenFlux/TokenRouter/internal/payment/provider"
 	paymenttestkit "github.com/TokenFlux/TokenRouter/internal/payment/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // recharge_multiplier_scenario_integration_test.go exercises checkout.go,
@@ -128,6 +129,30 @@ func TestPersonalRechargeRateCheckoutAndSettlement(t *testing.T) {
 			require.Equal(t, 10.0, preview.Data.DefaultBalanceRechargeMultiplier)
 			require.Equal(t, rate, preview.Data.UserBalanceRechargeMultiplier)
 			request := payment.CreateOrderRequest{UserID: buyer.ID, Amount: 100, PaymentType: payment.TypeAlipay, OrderType: payment.OrderTypeBalance, ReturnURL: "https://site.example.com/payment/result", SrcHost: "site.example.com", SrcURL: "https://site.example.com/purchase"}
+
+			// Reject credits that cannot become a positive redeem code or fit its wallet
+			// precision before saving an order, so no paid purchase is left unfulfillable.
+			for _, invalidRate := range []float64{1e-8, 1e11, 1e308} {
+				_, err := client.User.UpdateOneID(buyer.ID).SetBalanceRechargeMultiplier(invalidRate).Save(ctx)
+				require.NoError(t, err)
+				_, err = checkout.CreateOrder(ctx, request)
+				require.Equal(t, "INVALID_CREDITED_AMOUNT", apperror.Reason(err))
+				count, err := client.PaymentOrder.Query().Count(ctx)
+				require.NoError(t, err)
+				require.Zero(t, count)
+			}
+			update := client.User.UpdateOneID(buyer.ID)
+			if rate == nil {
+				update.ClearBalanceRechargeMultiplier()
+			} else {
+				update.SetBalanceRechargeMultiplier(*rate)
+			}
+			_, err = update.Save(ctx)
+			require.NoError(t, err)
+			invalidType := request
+			invalidType.OrderType = "wallet"
+			_, err = checkout.CreateOrder(ctx, invalidType)
+			require.Equal(t, "INVALID_CHECKOUT_ORDER_TYPE", apperror.Reason(err))
 			created, err := checkout.CreateOrder(ctx, request)
 			require.NoError(t, err)
 			order, err := client.PaymentOrder.Get(ctx, created.OrderID)

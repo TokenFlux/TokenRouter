@@ -112,6 +112,8 @@ Markdown 正文需要 JWT，并且菜单可见；管理员页面只对管理员�
 
 `GET /api/v1/payment/checkout-info` 需要当前用户身份，返回 `balance_recharge_multiplier`（实际倍率）、`default_balance_recharge_multiplier`（全局倍率）和 `user_balance_recharge_multiplier`（可空的专属倍率）。下单接口不接收用户指定的倍率，服务端读取当前条款。资金快照规则见[用户专属充值倍率](../domains/payments_and_entitlements.md#personal_recharge_multiplier)。
 
+创建订单的 `order_type` 省略或空串表示 `balance`，其他有效值只有 `subscription`。未知值返回 `INVALID_CHECKOUT_ORDER_TYPE`。余额到账金额舍入后为零、非有限值或达到 1 万亿时，返回 `INVALID_CREDITED_AMOUNT`；两类错误均在订单保存和渠道支付创建之前返回 HTTP 400。
+
 <a id="payment_admin_recovery"></a>
 ## 支付管理恢复
 

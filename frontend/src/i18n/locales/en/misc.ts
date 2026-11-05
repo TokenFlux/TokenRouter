@@ -702,6 +702,9 @@ export default {
       USER_INACTIVE: 'Your account is disabled.',
       BALANCE_PAYMENT_DISABLED: 'Balance recharge has been disabled.',
       INVALID_AMOUNT: 'Invalid amount.',
+      INVALID_CHECKOUT_ORDER_TYPE: 'Invalid checkout order type.',
+      INVALID_CREDITED_AMOUNT:
+        'The credited balance is outside the supported range at this rate. Adjust the payment amount or contact an administrator.',
       INVALID_INPUT: 'Invalid request.',
       PLAN_NOT_AVAILABLE: 'Plan not found or no longer available.',
       GROUP_NOT_FOUND: 'Subscription group is no longer available.',

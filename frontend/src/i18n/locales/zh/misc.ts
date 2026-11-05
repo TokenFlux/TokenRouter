@@ -675,6 +675,8 @@ export default {
       USER_INACTIVE: '账号已被禁用',
       BALANCE_PAYMENT_DISABLED: '余额充值功能已关闭',
       INVALID_AMOUNT: '金额无效',
+      INVALID_CHECKOUT_ORDER_TYPE: '充值订单类型无效',
+      INVALID_CREDITED_AMOUNT: '当前倍率下的到账余额超出支持范围，请调整充值金额或联系管理员。',
       INVALID_INPUT: '参数有误',
       PLAN_NOT_AVAILABLE: '套餐不存在或已下架',
       GROUP_NOT_FOUND: '订阅分组不可用',

@@ -31,6 +31,9 @@ import (
 const (
 	DefaultBalanceRechargeMultiplier = 1.0  // one-to-one recharge credit
 	ProviderAmountTolerance          = 0.01 // legacy absolute payment margin
+	// BalanceCreditCeiling is exclusive because redemption values and wallet
+	// balances use numeric(20,8), leaving twelve integer digits for credited units.
+	BalanceCreditCeiling = 1e12
 )
 
 // BalanceRechargeRates carries the default, personal, and effective checkout rates.
@@ -40,6 +43,12 @@ type BalanceRechargeRates struct {
 	Default   float64  // normalized global recharge rate
 	Effective float64  // selected balance recharge rate
 	User      *float64 // optional personal recharge rate
+}
+
+// IsValidCreditedBalance reports whether rounded credits fit positive wallet
+// and redemption storage amounts.
+func IsValidCreditedBalance(amount float64) bool {
+	return amount > 0 && amount < BalanceCreditCeiling && !math.IsNaN(amount) && !math.IsInf(amount, 0)
 }
 
 // ResolveBalanceRechargeRates selects an account override or the normalized
