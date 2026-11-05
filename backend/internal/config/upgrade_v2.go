@@ -15,19 +15,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var (
-	// upgrade_v2.go translates the complete version 1 configuration into version 2.
-	// Alias precedence is resolved before environment values are imported, then
-	// value transformations run against the historical paths. Removed and unknown
-	// inputs are reported by name. Moves operate on YAML nodes so deployment
-	// comments stay attached to the settings they explain.
-	//
-	// The tables are historical migration data, independent of future Config
-	// declarations. More specific paths precede their parent moves, allowing a
-	// former section to split across several new owners. Values created by a
-	// semantic transformation are recognized before unknown-key removal, and
-	// destination conflicts stop migration without changing the original file.
+// upgrade_v2.go translates the complete version 1 configuration into version 2.
+// Alias precedence is resolved before environment values are imported, then
+// value transformations run against the historical paths. Removed and unknown
+// inputs are reported by name. Moves operate on YAML nodes so deployment
+// comments stay attached to the settings they explain.
+//
+// The tables are historical migration data, independent of future Config
+// declarations. More specific paths precede their parent moves, allowing a
+// former section to split across several new owners. Values created by a
+// semantic transformation are recognized before unknown-key removal, and
+// destination conflicts stop migration without changing the original file.
 
+var (
 	// v2Moves lists dotted path relocations, with specific children before parents.
 	// Identity paths retain their existing spelling and do not need node movement.
 	v2Moves = []configMove{
@@ -379,6 +379,8 @@ type configMove struct {
 // framework. Alias resolution runs before import so current YAML fields retain
 // precedence over their retired spellings, while eligible environment overrides
 // still win over either file spelling.
+// Null fields inherit defaults; null sections retain their historical effect on
+// environment selection before they are removed from the migrated document.
 //
 // Semantic rules run before deletion and movement. Unknown legacy keys are
 // removed because the old decoder ignored them, but known version 2 destinations
@@ -396,12 +398,22 @@ func upgradeV1ToV2(doc *yaml.Node, env upgradeEnvironment) (upgradeReport, error
 	if err := canonicalizeV1Paths(root, ""); err != nil {
 		return report, err
 	}
+	// Null scalar fields did not count as configured in Viper. Remove them before
+	// alias precedence and transforms, retaining null sections until environment selection.
+	for _, key := range v1Keys {
+		if node := configPath(root, key.Path); node != nil && node.Tag == "!!null" {
+			removeConfigPath(root, key.Path)
+		}
+	}
 	// Version 1 treated reference-looking strings literally. Escape those source
 	// values before importing new references so existing passwords survive loading.
 	if err = visitConfigStrings(doc, "", func(_ string, n *yaml.Node) error { n.Value = strings.ReplaceAll(n.Value, "${", "$${"); return nil }); err != nil {
 		return report, err
 	}
 	for _, alias := range v1Aliases {
+		if node := configPath(root, alias.Old); node != nil && node.Tag == "!!null" {
+			removeConfigPath(root, alias.Old)
+		}
 		if configPath(root, alias.New) != nil {
 			removeConfigPath(root, alias.Old)
 			continue
@@ -413,6 +425,7 @@ func upgradeV1ToV2(doc *yaml.Node, env upgradeEnvironment) (upgradeReport, error
 	if err = importV1Environment(root, env.LookupEnv, &report); err != nil {
 		return report, err
 	}
+	pruneNullV1Mappings(root)
 	if err = transformV1Values(root, env, &report); err != nil {
 		return report, err
 	}
@@ -435,6 +448,29 @@ func upgradeV1ToV2(doc *yaml.Node, env upgradeEnvironment) (upgradeReport, error
 	slices.Sort(report.Dropped)
 	slices.Sort(report.ImportedEnv)
 	return report, nil
+}
+
+// pruneNullV1Mappings removes unset mapping entries after historical environment selection.
+// Null sections can suppress implicit Viper bindings, so callers must finish
+// importing eligible environment values first. Remaining nulls inherit defaults
+// without entering scalar transformations or leaving retired empty sections behind.
+//
+// Sequence elements retain their exact contents because the old decoder handled
+// each list as one value. False, zero, empty strings, and empty sequences remain
+// explicit inputs, preserving policies that distinguish them from omitted settings.
+func pruneNullV1Mappings(root *yaml.Node) {
+	if root.Kind != yaml.MappingNode {
+		return
+	}
+	for index := 0; index < len(root.Content); {
+		value := root.Content[index+1]
+		if value.Tag == "!!null" {
+			root.Content = append(root.Content[:index], root.Content[index+2:]...)
+			continue
+		}
+		pruneNullV1Mappings(value)
+		index += 2
+	}
 }
 
 // pruneUnknownV1Keys removes only paths the old decoder could not consume.
@@ -705,6 +741,13 @@ func transformV1Values(root *yaml.Node, env upgradeEnvironment, report *upgradeR
 // Each credential member selects its first nonblank source independently. A
 // legacy enabled-only configuration activates its chosen mode before generic
 // fields disappear, preserving existing login availability and secret references.
+// Numeric channel flags use the historical nonzero rule, and malformed flags
+// fail before the framework can persist a changed login configuration.
+//
+// Credential selection compares resolved nonblank values but copies the original
+// nodes, so environment secrets stay references on disk. Only an enabled
+// configuration with no active channel receives a mode-derived capability;
+// existing channel choices retain priority over the legacy aggregate flag.
 func transformV1WeChat(root *yaml.Node, lookup func(string) (string, bool)) error {
 	// The legacy normalizer replaced explicit blank callback destinations. Keep
 	// that behavior in migration while current files use registered defaults for omission.
@@ -737,15 +780,19 @@ func transformV1WeChat(root *yaml.Node, lookup func(string) (string, bool)) erro
 			}
 		}
 	}
-	enabled := func(key string) bool {
-		n := configPath(root, "wechat_connect."+key)
-		if n == nil {
-			return false
-		}
-		v, _ := strconv.ParseBool(n.Value)
-		return v
+	enabled, err := legacyBoolean(root, "wechat_connect.enabled")
+	if err != nil {
+		return err
 	}
-	if enabled("enabled") && !enabled("open_enabled") && !enabled("mp_enabled") && !enabled("mobile_enabled") {
+	hasChannel := false
+	for _, mode := range []string{"open", "mp", "mobile"} {
+		active, err := legacyBoolean(root, "wechat_connect."+mode+"_enabled")
+		if err != nil {
+			return err
+		}
+		hasChannel = hasChannel || active
+	}
+	if enabled && !hasChannel {
 		mode := "open"
 		if n := configPath(root, "wechat_connect.mode"); n != nil {
 			switch strings.ToLower(strings.TrimSpace(n.Value)) {
@@ -824,18 +871,18 @@ func migrationWeChatValue(node *yaml.Node, lookup func(string) (string, bool)) s
 }
 
 // legacyBoolean reads a transformed flag without hiding invalid source values.
-// Missing and null fields select false. Numeric YAML scalars retain the old
-// weak decoder's nonzero rule, while text must contain a valid boolean spelling.
+// Missing, null, and empty-string fields select false. Numeric YAML scalars retain
+// the old weak decoder's nonzero rule; other text requires a valid boolean spelling.
 func legacyBoolean(root *yaml.Node, key string) (bool, error) {
 	node := configPath(root, key)
-	if node == nil || node.Tag == "!!null" {
+	if node == nil || node.Tag == "!!null" || node.Tag == "!!str" && node.Value == "" {
 		return false, nil
 	}
 	if node.Kind != yaml.ScalarNode {
 		return false, fmt.Errorf("%s must be a boolean during configuration upgrade", key)
 	}
 	// The historical weak decoder treated numeric flags as nonzero tests.
-	// Preserve that rule before consolidation removes the original boolean field.
+	// Preserve that rule when choosing effective modes or consolidating retired switches.
 	if node.Tag == "!!int" || node.Tag == "!!float" {
 		value, err := strconv.ParseFloat(node.Value, 64)
 		if node.Tag == "!!int" {

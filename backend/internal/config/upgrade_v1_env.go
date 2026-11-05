@@ -113,9 +113,14 @@ func hasV1Environment(lookup func(string) (string, bool)) bool {
 // file values or materialize defaults when absent. Credentials and dependency
 // hosts become references to the selected name; ordinary strings escape
 // reference-looking text before entering the document.
+//
+// Null sections suppress ordinary implicit bindings as Viper's key enumeration
+// did. Explicitly bound fields remain eligible, and direct OIDC presence checks
+// retain their defaults before those sections become ordinary mappings.
 // Unsupported aggregate bindings warn by name, and malformed typed scalars fail
 // before the upgrade framework can write the changed document.
 func importV1Environment(root *yaml.Node, lookup func(string) (string, bool), report *upgradeReport) error {
+	nullParents := v1NullParentKeys(root)
 	for _, key := range v1Keys {
 		for _, name := range key.Env {
 			raw, present := lookup(name)
@@ -124,6 +129,14 @@ func importV1Environment(root *yaml.Node, lookup func(string) (string, bool), re
 			}
 			explicitList := name == "SERVER_TRUSTED_PROXIES" || name == "SECURITY_FORWARDED_CLIENT_IP_HEADERS"
 			explicitOIDC := name == "OIDC_CONNECT_USE_PKCE" || name == "OIDC_CONNECT_VALIDATE_ID_TOKEN"
+			if nullParents[key.Path] && len(key.Env) == 1 && !explicitList {
+				if !explicitOIDC {
+					continue
+				}
+				// Null sections hid implicit value decoding, but OIDC still observed the
+				// variable's presence directly and retained its default true security flag.
+				raw = ""
+			}
 			if name == "TZ" {
 				raw = strings.TrimSpace(raw)
 			}
@@ -176,6 +189,29 @@ func importV1Environment(root *yaml.Node, lookup func(string) (string, bool), re
 		}
 	}
 	return importLegacyWeChatEnvironment(root, lookup, report)
+}
+
+// v1NullParentKeys records fields hidden by a null section before import mutates it.
+// Viper enumerated such sections as single keys, so their default descendants
+// could not discover ordinary implicit environment overrides. Explicit bindings
+// remained enumerated: the frozen multi-name entries and two client-IP lists
+// retain that distinction in importV1Environment, while OIDC has separate presence rules.
+//
+// Snapshotting every affected field first prevents an earlier imported child
+// from accidentally enabling implicit overrides for its remaining sibling fields.
+func v1NullParentKeys(root *yaml.Node) map[string]bool {
+	hidden := map[string]bool{}
+	for _, key := range v1Keys {
+		parts := strings.Split(key.Path, ".")
+		for index := 1; index < len(parts); index++ {
+			parent := configPath(root, strings.Join(parts[:index], "."))
+			if parent != nil && parent.Tag == "!!null" {
+				hidden[key.Path] = true
+				break
+			}
+		}
+	}
+	return hidden
 }
 
 // importLegacyWeChatEnvironment retains the retired Open and MP credential rules.

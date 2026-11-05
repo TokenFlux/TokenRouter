@@ -17,24 +17,33 @@ import (
 // file is written. YAML aliases are expanded before transformations because
 // mutating an aliased mapping through one configuration path would otherwise
 // change settings at another path or leave an anchor pointing at removed data.
+// YAML merge membership uses literal key names; dotted path interpretation only
+// begins when the version 1 canonicalizer reorganizes recognized settings.
 
 // configPath returns the value at a dotted mapping path, or nil when absent.
+// Non-mapping parents also return nil, allowing migration callers to distinguish
+// unreachable fields from supplied scalar values without creating intermediate nodes.
 func configPath(root *yaml.Node, path string) *yaml.Node {
 	current := root
 	for part := range strings.SplitSeq(path, ".") {
 		if current == nil || current.Kind != yaml.MappingNode {
 			return nil
 		}
-		var next *yaml.Node
-		for i := 0; i < len(current.Content); i += 2 {
-			if current.Content[i].Value == part {
-				next = current.Content[i+1]
-				break
-			}
-		}
-		current = next
+		current = configMappingValue(current, part)
 	}
 	return current
+}
+
+// configMappingValue returns the value for one literal key in a mapping.
+// The caller supplies a nonnil mapping node; missing keys return nil, and dots
+// in names have no path meaning at this lookup boundary.
+func configMappingValue(root *yaml.Node, name string) *yaml.Node {
+	for i := 0; i < len(root.Content); i += 2 {
+		if root.Content[i].Value == name {
+			return root.Content[i+1]
+		}
+	}
+	return nil
 }
 
 // configValueNode encodes one typed migration value as an independent YAML node.
@@ -49,17 +58,18 @@ func configValueNode(value any) *yaml.Node {
 }
 
 // setConfigPath installs a value, preserving comments on an existing key.
-// Non-mapping parents are rejected instead of discarded, so malformed deployment
-// input cannot silently erase neighboring settings during a version transition.
+// Null parents become mappings when an eligible field is supplied. Other
+// non-mapping parents are rejected so malformed input cannot erase neighboring settings.
 func setConfigPath(root *yaml.Node, path string, value *yaml.Node) error {
 	return putConfigPath(root, path, nil, value)
 }
 
 // putConfigPath installs a value and optionally relocates an existing key node.
-// Missing parent mappings are created, while non-mapping parents fail instead
-// of discarding neighboring settings. Replacing a leaf retains its key comments
-// and transfers existing value comments when the replacement has none. A supplied
+// Missing or null parents become mappings, while other non-mapping parents fail
+// instead of discarding neighboring settings. Replacing a leaf retains its key
+// comments and transfers value comments when the replacement has none. A supplied
 // key node keeps its comments while taking the destination's final name.
+//
 // This routine changes the in-memory document only; migration callers discard
 // a partially changed document when any subsequent transformation reports an error.
 func putConfigPath(root *yaml.Node, path string, key, value *yaml.Node) error {
@@ -73,6 +83,12 @@ func putConfigPath(root *yaml.Node, path string, key, value *yaml.Node) error {
 		if next == nil {
 			next = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 			current.Content = append(current.Content, configValueNode(part), next)
+		} else if next.Tag == "!!null" {
+			// An eligible alias or explicit environment binding can supply a child of
+			// an unset section; preserve the section's comments while creating its mapping.
+			next.Kind = yaml.MappingNode
+			next.Tag = "!!map"
+			next.Value = ""
 		}
 		current = next
 	}
@@ -243,7 +259,7 @@ func expandConfigAliases(node *yaml.Node, active map[*yaml.Node]bool) (*yaml.Nod
 				return nil, fmt.Errorf("configuration contains an invalid YAML merge")
 			}
 			for i := 0; i < len(mapping.Content); i += 2 {
-				if configPath(&copy, mapping.Content[i].Value) == nil {
+				if configMappingValue(&copy, mapping.Content[i].Value) == nil {
 					copy.Content = append(copy.Content, mapping.Content[i], mapping.Content[i+1])
 				}
 			}
@@ -256,13 +272,14 @@ func expandConfigAliases(node *yaml.Node, active map[*yaml.Node]bool) (*yaml.Nod
 // Specific child moves can create a container before its remaining parent subtree
 // moves, so matching mappings recurse while matching scalar values are conflicts.
 // Original key and value nodes are retained for comments and representation.
+//
 // Earlier siblings can already have been appended when a later conflict fails;
 // callers discard that in-memory migration result rather than persisting it.
 // The source container is removed only by its owning move after a successful merge.
 func mergeConfigMappings(destination, source *yaml.Node, path string) error {
 	for i := 0; i < len(source.Content); i += 2 {
 		key, value := source.Content[i], source.Content[i+1]
-		existing := configPath(destination, key.Value)
+		existing := configMappingValue(destination, key.Value)
 		if existing == nil {
 			destination.Content = append(destination.Content, key, value)
 			continue

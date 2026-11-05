@@ -181,6 +181,171 @@ func TestUpgradeV2DependencyHostsFollowEnvironment(t *testing.T) {
 	require.Equal(t, raw, after)
 }
 
+// TestUpgradeV2NullValuesUseDefaults covers all YAML spellings of an unset scalar.
+// Lifetimes, durations, mode, and presence-sensitive security options must keep
+// their historical defaults through migration and subsequent current-version loading.
+func TestUpgradeV2NullValuesUseDefaults(t *testing.T) {
+	for _, spelling := range []string{"null", "~", ""} {
+		t.Run(spelling, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "config.yaml")
+			raw := strings.ReplaceAll(`server:
+  mode: NULL_VALUE
+  trusted_proxies: NULL_VALUE
+jwt:
+  expire_hour: NULL_VALUE
+  access_token_expire_minutes: NULL_VALUE
+oidc_connect:
+  use_pkce: NULL_VALUE
+  validate_id_token: NULL_VALUE
+gateway:
+  antigravity_fallback_cooldown_minutes: NULL_VALUE
+  scheduling:
+    sticky_session_wait_timeout: NULL_VALUE
+    fallback_wait_timeout: NULL_VALUE
+    slot_cleanup_interval: NULL_VALUE
+  openai_ws:
+    sticky_response_id_ttl_seconds: NULL_VALUE
+    sticky_previous_response_ttl_seconds: NULL_VALUE
+`, "NULL_VALUE", spelling)
+			require.NoError(t, os.WriteFile(file, []byte(raw), 0o600))
+			for range 2 {
+				cfg, err := loadFrom(file, true, upgradeEnvironment{}, true)
+				require.NoError(t, err)
+				require.Equal(t, "release", cfg.Server.Mode)
+				require.False(t, cfg.Server.ClientIP.TrustedProxiesConfigured)
+				require.Equal(t, 1440, cfg.Auth.JWT.AccessTokenTTLMinutes)
+				require.Equal(t, 120, cfg.Scheduling.StickyProviderWait.TimeoutSeconds)
+				require.Equal(t, 30, cfg.Scheduling.AlternateProviderWait.TimeoutSeconds)
+				require.Equal(t, 30, cfg.Scheduling.SlotCleanupIntervalSeconds)
+				require.Equal(t, 3600, cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds)
+				require.Equal(t, 60, cfg.Provider.Antigravity.FallbackCooldownSeconds)
+				require.True(t, cfg.Auth.OAuth.OIDC.UsePKCE)
+				require.True(t, cfg.Auth.OAuth.OIDC.ValidateIDToken)
+				require.False(t, cfg.Auth.OAuth.OIDC.UsePKCEExplicit)
+				require.False(t, cfg.Auth.OAuth.OIDC.ValidateIDTokenExplicit)
+			}
+			backup, err := os.ReadFile(file + ".v1.bak")
+			require.NoError(t, err)
+			require.Equal(t, raw, string(backup))
+		})
+	}
+}
+
+// TestUpgradeV2NullSectionsPreserveEnvironmentRules reproduces historical key enumeration around null containers.
+// Implicit descendants stay hidden, while explicit bindings, client-IP lists,
+// and OIDC presence retain their distinct effective values after migration.
+func TestUpgradeV2NullSectionsPreserveEnvironmentRules(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(file, []byte("database: null\nserver: null\njwt: null\ngateway: null\noidc_connect: null\n"), 0o600))
+	values := map[string]string{
+		"DATABASE_HOST": "ignored-host", "SERVER_MODE": "debug",
+		"SERVER_TRUSTED_PROXIES": "127.0.0.1", "ENABLE_SERVER_TIMING": "true",
+		"GATEWAY_MAX_ACCOUNT_SWITCHES": "8", "GATEWAY_MAX_BODY_SIZE": "1024",
+		"OIDC_CONNECT_USE_PKCE": "false", "OIDC_CONNECT_VALIDATE_ID_TOKEN": "false",
+	}
+	cfg, err := loadFrom(file, true, upgradeEnvironment{LookupEnv: func(name string) (string, bool) {
+		value, ok := values[name]
+		return value, ok
+	}}, true)
+	require.NoError(t, err)
+	require.Equal(t, "localhost", cfg.Database.Host)
+	require.Equal(t, "release", cfg.Server.Mode)
+	require.True(t, cfg.Server.EnableServerTiming)
+	require.Equal(t, []string{"127.0.0.1"}, cfg.Server.ClientIP.TrustedProxies)
+	require.Equal(t, 8, cfg.Gateway.Failover.MaxProviderSwitches)
+	require.Greater(t, cfg.Gateway.MaxRequestBodyBytes, int64(1024))
+	require.Equal(t, 1440, cfg.Auth.JWT.AccessTokenTTLMinutes)
+	require.True(t, cfg.Auth.OAuth.OIDC.UsePKCE)
+	require.True(t, cfg.Auth.OAuth.OIDC.ValidateIDToken)
+	require.True(t, cfg.Auth.OAuth.OIDC.UsePKCEExplicit)
+	require.True(t, cfg.Auth.OAuth.OIDC.ValidateIDTokenExplicit)
+}
+
+// TestUpgradeV2NullDoesNotEraseExplicitValues distinguishes absence from deliberately empty policy input.
+// Quoted empty mode, an empty proxy list, false security flags, and zero limits
+// must retain the same observable meanings after null cleanup runs.
+func TestUpgradeV2NullDoesNotEraseExplicitValues(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "config.yaml")
+	raw := "server: {mode: '', trusted_proxies: []}\noidc_connect: {use_pkce: false}\ngateway: {max_account_switches: 8, max_provider_switches: null, stream_keepalive_interval: 0}\n"
+	require.NoError(t, os.WriteFile(file, []byte(raw), 0o600))
+	cfg, err := loadFrom(file, true, upgradeEnvironment{}, true)
+	require.NoError(t, err)
+	require.Equal(t, "debug", cfg.Server.Mode)
+	require.True(t, cfg.Server.ClientIP.TrustedProxiesConfigured)
+	require.Empty(t, cfg.Server.ClientIP.TrustedProxies)
+	require.False(t, cfg.Auth.OAuth.OIDC.UsePKCE)
+	require.True(t, cfg.Auth.OAuth.OIDC.UsePKCEExplicit)
+	require.Equal(t, 8, cfg.Gateway.Failover.MaxProviderSwitches)
+	require.Zero(t, cfg.Gateway.Streaming.KeepaliveIntervalSeconds)
+}
+
+// TestUpgradeV2DottedMergePrecedence combines literal dotted keys with YAML merge sources.
+// Explicit values and merge-sequence ordering must resolve before dotted keys
+// become nested configuration paths, including an explicit null selecting defaults.
+func TestUpgradeV2DottedMergePrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name string // merge precedence scenario
+		raw  string // legacy configuration YAML
+		port int    // effective listener port
+	}{
+		{name: "explicit", raw: "<<: {server.port: 9090}\nserver.port: 9191\n", port: 9191},
+		{name: "sequence", raw: "<<: [{server.port: 9090}, {server.port: 9191}]\n", port: 9090},
+		{name: "explicit null", raw: "<<: {server.port: 9090}\nserver.port: null\n", port: 8080},
+		{name: "nested", raw: "server:\n  <<: {port: 9090}\n  port: 9191\n", port: 9191},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(file, []byte(tc.raw), 0o600))
+			cfg, err := loadFrom(file, true, upgradeEnvironment{}, true)
+			require.NoError(t, err)
+			require.Equal(t, tc.port, cfg.Server.Port)
+		})
+	}
+}
+
+// TestUpgradeV2WeChatNumericFlags preserves the weak decoder's nonzero boolean semantics.
+// An existing MP channel must remain authoritative without adding Open, and its
+// identity projection must retain the MP login mode and consent scope.
+func TestUpgradeV2WeChatNumericFlags(t *testing.T) {
+	for _, number := range []string{"2", "-1", "0x2", "1.0", "0.5"} {
+		t.Run(number, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "config.yaml")
+			raw := fmt.Sprintf("wechat_connect:\n  enabled: true\n  mp_enabled: %s\n  mp_app_id: fixture-id\n  mp_app_secret: fixture-secret\n", number)
+			require.NoError(t, os.WriteFile(file, []byte(raw), 0o600))
+			cfg, err := loadFrom(file, true, upgradeEnvironment{}, true)
+			require.NoError(t, err)
+			defaults := cfg.Auth.OAuth.WeChat.IdentityDefaults()
+			require.True(t, defaults.MPEnabled)
+			require.False(t, defaults.OpenEnabled)
+			require.Equal(t, "mp", defaults.Mode)
+			require.Equal(t, "snsapi_userinfo", defaults.Scopes)
+		})
+	}
+}
+
+// TestUpgradeV2WeChatBooleanValidation checks empty and invalid historical flag strings.
+// Empty text remains false, while malformed flags stop migration before source
+// replacement and never include the rejected input in their diagnostic.
+func TestUpgradeV2WeChatBooleanValidation(t *testing.T) {
+	for _, value := range []string{"''", "sensitive-invalid"} {
+		file := filepath.Join(t.TempDir(), "config.yaml")
+		raw := "wechat_connect: {enabled: " + value + "}\n"
+		require.NoError(t, os.WriteFile(file, []byte(raw), 0o600))
+		cfg, err := loadFrom(file, true, upgradeEnvironment{}, true)
+		if value == "''" {
+			require.NoError(t, err)
+			require.False(t, cfg.Auth.OAuth.WeChat.Enabled)
+			continue
+		}
+		require.Error(t, err)
+		require.NotContains(t, err.Error(), value)
+		after, err := os.ReadFile(file)
+		require.NoError(t, err)
+		require.Equal(t, raw, string(after))
+		require.NoFileExists(t, file+".v1.bak")
+	}
+}
+
 // TestUpgradeV2PreservesMovedComments checks all key comment positions through relocation.
 // The new key must retain each comment while the original leaf disappears,
 // allowing operators to keep their deployment-specific notes after automatic upgrade.
