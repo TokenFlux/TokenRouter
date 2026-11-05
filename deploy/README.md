@@ -13,11 +13,18 @@ Choose an entry point for your deployment. See the [deployment guide](https://gi
 
 ## Configuration and templates
 
-- [.env.example](.env.example): container environment variables. Copy it to `.env` and configure the values.
-- [config.example.yaml](config.example.yaml): the full application configuration example.
+- [.env.example](.env.example): Compose controls, first-installation inputs, and secrets explicitly referenced by the configuration file. Copy it to a private `.env`.
+- [config.example.yaml](config.example.yaml): the version 2 application configuration example. Edit the persisted `config.yaml` after installation.
 - [Caddyfile](Caddyfile): a reverse proxy baseline. Replace the example domain before use.
 - [tokenrouter.service](tokenrouter.service): a systemd template for manual installation. The installer generates a service definition using the actual installation paths.
 - [codex-instructions.md.tmpl](codex-instructions.md.tmpl): an optional Codex request instructions template, enabled by setting its path in the application configuration.
+
+The first start upgrades legacy configuration, saves `config.yaml.v1.bak`, and
+imports the old environment settings. Current files are not rewritten. For a
+read-only mount, run `tokenrouter -migrate-config -config <source> -out <copy>` with
+the same environment and replace the mount with the output. Restore both the old
+configuration and its deployment environment before rolling back the binary.
+Details and container commands are in [DOCKER.md](DOCKER.md#versioned-application-configuration).
 
 ## Files requiring a source checkout
 

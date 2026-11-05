@@ -6,7 +6,7 @@ TokenRouter publishes multi-architecture images to GitHub Container Registry:
 ghcr.io/tokenflux/tokenrouter:latest
 ```
 
-The application requires PostgreSQL and Redis. Docker Compose provides runtime configuration, persistent storage, health checks, and dependency startup ordering.
+The application requires PostgreSQL and Redis. Docker Compose provides installation inputs, persistent configuration storage, health checks, and dependency startup ordering.
 
 ## Docker Compose
 
@@ -23,7 +23,7 @@ See the [deployment guide](https://github.com/TokenFlux/TokenRouter/blob/main/do
 
 ## Standalone containers
 
-When using `docker run` directly, provide the same settings as the `tokenrouter` service in `docker-compose.standalone.yml`. At minimum, configure:
+When using `docker run` directly, provide the same settings as the `tokenrouter` service in `docker-compose.standalone.yml`. For the first installation, configure:
 
 | Variable | Purpose |
 | --- | --- |
@@ -35,7 +35,7 @@ When using `docker run` directly, provide the same settings as the `tokenrouter`
 | `REDIS_HOST`, `REDIS_PORT` | Redis address. |
 | `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_DB` | Redis credentials and database number. |
 | `JWT_SECRET` | Stable signing key for login sessions. |
-| `TOTP_ENCRYPTION_KEY` | Stable encryption key for two-factor authentication. |
+| `TOTP_ENCRYPTION_KEY` | Stable encryption key for stored credentials and two-factor authentication. |
 
 ## Database startup recovery
 
@@ -59,3 +59,48 @@ Pin a version tag or image digest in production, and verify database backups bef
 
 - [GitHub repository](https://github.com/TokenFlux/TokenRouter)
 - [Deployment guide](https://github.com/TokenFlux/TokenRouter/blob/main/docs/guides/deployment/index.md)
+
+## Versioned application configuration
+
+Environment inputs initialize a new installation. Subsequent starts read
+`/app/data/config.yaml`, which contains `config_version: 2`. Edit the persisted file
+and restart the service:
+
+```bash
+docker compose exec tokenrouter vi /app/data/config.yaml
+docker compose restart tokenrouter
+```
+
+You can also mount `./config.yaml:/app/data/config.yaml`. Writable single-file
+mounts support automatic upgrades. Passwords and other secrets can use explicit
+references such as `${DATABASE_PASSWORD}`; `${NAME:-default}` supplies a fallback,
+and `$${` represents a literal `${`. The templates keep setup inputs and secret
+names that migrated files may reference. Other application variables no longer
+override configuration. For a custom reference, explicitly pass that variable in
+the service's `environment` section.
+
+A version 1 file is backed up to `config.yaml.v1.bak` before its keys and legacy
+environment inputs are migrated. Existing backups receive a UTC timestamp suffix.
+The backup has mode `0600`; the upgraded file retains its original permissions.
+Current-version files are not rewritten. Remaining ineffective variables produce
+one warning listing their names, without values.
+
+Read-only legacy mounts require an offline copy. This command inherits the
+service's environment and writes the upgraded file on the host without changing
+the mounted source:
+
+```bash
+umask 077
+docker compose run --rm --no-deps tokenrouter /app/tokenrouter \
+  -migrate-config -config /app/data/config.yaml -out - > config.v2.yaml
+```
+
+Replace the mounted file with the output, then restart. To roll back the binary,
+stop the new process and restore the original v1 configuration and deployment
+environment first; old binaries do not understand v2 names or references. See the
+[configuration upgrade notes](https://github.com/TokenFlux/TokenRouter/blob/main/docs/operations/upgrade_notes.md#config_version_2).
+
+New installations use the code defaults for database pools, Redis idle connections,
+and the OpenAI compact-model override. Existing values are imported during the
+first upgrade. Changing a listener port also requires matching container port
+mappings and health-check settings.

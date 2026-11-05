@@ -3,8 +3,8 @@ set -eu
 
 # docker-compose-postgres-test.sh checks shared PostgreSQL tuning expressions
 # and the deployment environment example. The templates must pass the same
-# settings to the database, and the example must retain coordinated
-# application pool and server connection capacities.
+# settings to the database, while the versioned YAML example retains application
+# pool capacities independently of the database service environment.
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
@@ -39,12 +39,11 @@ do
   assert_line "$compose_file" '      -c maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-64MB}'
 done
 
-# The environment example coordinates application pool limits with database
-# connection capacity. Verify the intended tuning values before an installer
-# copies the example.
+# Database service tuning stays in .env; application pools live in config.yaml.
+# Check both examples so fresh installations retain the intended capacities.
 assert_line deploy/.env.example 'POSTGRES_SHM_SIZE=1gb'
 assert_line deploy/.env.example 'POSTGRES_MAX_CONNECTIONS=512'
-assert_line deploy/.env.example 'DATABASE_MAX_OPEN_CONNS=256'
-assert_line deploy/.env.example 'DATABASE_MAX_IDLE_CONNS=128'
+assert_line deploy/config.example.yaml '  max_open_conns: 256'
+assert_line deploy/config.example.yaml '  max_idle_conns: 128'
 
 printf 'docker compose postgres test passed\n'

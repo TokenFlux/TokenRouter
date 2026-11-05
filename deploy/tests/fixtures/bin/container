@@ -113,13 +113,18 @@ case "${command}" in
         printf ' %q' "$@" >>"${STATE_DIR}/commands.log"
         printf '\n' >>"${STATE_DIR}/commands.log"
         name=""
+        env_file=""
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --name)
                     name=$2
                     shift 2
                     ;;
-                --label|--network|--platform|--ulimit|--env-file|--volume|--entrypoint|--publish)
+                --env-file)
+                    env_file=$2
+                    shift 2
+                    ;;
+                --label|--network|--platform|--ulimit|--volume|--entrypoint|--publish)
                     shift 2
                     ;;
                 *)
@@ -128,6 +133,9 @@ case "${command}" in
             esac
         done
         [[ -n "${name}" ]]
+        if [[ -n "${env_file}" ]]; then
+            cp "${env_file}" "${STATE_DIR}/${name}.env"
+        fi
         touch "${STATE_DIR}/containers/${name}"
         ;;
     inspect)

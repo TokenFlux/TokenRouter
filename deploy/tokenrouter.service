@@ -23,7 +23,7 @@ ProtectHome=true
 PrivateTmp=true
 ReadWritePaths=/opt/tokenrouter
 
-# Environment - Server configuration
+# Installer listener environment; installed settings come from /opt/tokenrouter/config.yaml.
 # Modify these values to change listen address and port
 Environment=GIN_MODE=release
 Environment=SERVER_HOST=0.0.0.0

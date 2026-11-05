@@ -506,11 +506,45 @@ EOF
     chmod 600 "${POSTGRES_ENV_FILE}" "${POSTGRES_PROBE_ENV_FILE}" "${REDIS_ENV_FILE}"
 }
 
+# prepare_app_environment writes the private environment passed to the application.
+# Dependency addresses must already be known. Only installation inputs, runtime
+# proxy settings, and potential explicit secret references are copied from the
+# deployment file; unrelated service settings stay outside the application.
+#
+# Container-owned addresses and ports are appended after those inputs so the
+# generated environment uses this stack's discovered dependency endpoints. The
+# source deployment file remains unchanged, and the script's temporary-directory
+# cleanup removes this draft after the container receives its environment.
 prepare_app_environment() {
     [[ -n "${POSTGRES_ADDRESS}" && -n "${REDIS_ADDRESS}" ]] || \
         die "Dependency network addresses are not available."
 
-    cp "${ENV_FILE}" "${APP_ENV_FILE}"
+    # Keep deployment-only and retired application settings outside the process.
+    # Named secrets remain available for explicit references in migrated files.
+    : >"${APP_ENV_FILE}"
+    local name value
+    for name in \
+        ADMIN_EMAIL ADMIN_PASSWORD ANTIGRAVITY_OAUTH_CLIENT_SECRET \
+        AUTO_SETUP CONFIG_FILE DATABASE_DBNAME \
+        DATABASE_HOST DATABASE_PASSWORD DATABASE_PORT \
+        DATABASE_SSLMODE DATABASE_USER DATA_DIR \
+        DINGTALK_CONNECT_CLIENT_SECRET GEMINI_OAUTH_CLIENT_SECRET GITHUB_OAUTH_CLIENT_SECRET \
+        GOMEMLIMIT GOOGLE_OAUTH_CLIENT_SECRET HTTPS_PROXY \
+        HTTP_PROXY JWT_EXPIRE_HOUR JWT_SECRET \
+        LINUXDO_CONNECT_CLIENT_SECRET NO_PROXY OIDC_CONNECT_CLIENT_SECRET \
+        PAYMENT_RESUME_SIGNING_KEY PLUGINS_DOWNLOAD_PROXY PLUGINS_PLUGIN_HTTP_PROXY \
+        REDIS_DB REDIS_ENABLE_TLS REDIS_HOST \
+        REDIS_PASSWORD REDIS_PORT REDIS_USERNAME \
+        SERVER_HOST SERVER_MODE SERVER_PORT \
+        SETUP_MIGRATION_TIMEOUT_SECONDS SKIP_SETUP TOTP_ENCRYPTION_KEY \
+        TZ UPDATE_GITHUB_TOKEN UPDATE_PROXY_URL \
+        WECHAT_CONNECT_APP_SECRET WECHAT_CONNECT_MOBILE_APP_SECRET WECHAT_CONNECT_MP_APP_SECRET \
+        WECHAT_CONNECT_OPEN_APP_SECRET WECHAT_OAUTH_MP_APP_SECRET WECHAT_OAUTH_OPEN_APP_SECRET \
+        YESCAPTCHA_API_KEY YESCAPTCHA_CLIENT_KEY
+    do
+        value="$(read_env_value "${name}")"
+        printf '%s=%s\n' "${name}" "${value}" >>"${APP_ENV_FILE}"
+    done
     cat >>"${APP_ENV_FILE}" <<EOF
 
 AUTO_SETUP=true
@@ -526,6 +560,7 @@ REDIS_HOST=${REDIS_ADDRESS}
 REDIS_PORT=6379
 REDIS_PASSWORD=${REDIS_PASSWORD}
 DATA_DIR=/app/storage/data
+TZ=${TZ_VALUE}
 EOF
     chmod 600 "${APP_ENV_FILE}"
 }

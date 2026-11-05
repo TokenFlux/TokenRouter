@@ -631,7 +631,7 @@ ProtectHome=true
 PrivateTmp=true
 ReadWritePaths=${INSTALL_DIR}
 
-# Environment - Server configuration
+# Installer listener environment; installed settings come from ${INSTALL_DIR}/config.yaml.
 Environment=GIN_MODE=release
 Environment=SERVER_HOST=${SERVER_HOST}
 Environment=SERVER_PORT=${SERVER_PORT}

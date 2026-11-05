@@ -48,11 +48,18 @@ if "${SCRIPT}" up >/dev/null 2>&1; then
 fi
 chmod 600 "${ENV_FILE}"
 
+# Deliberately retain one retired scalar and one reference-only secret in the
+# deployment file; application environment construction must distinguish them.
+printf 'GATEWAY_MAX_BODY_SIZE=1234\nUPDATE_GITHUB_TOKEN=fixture-reference-token\n' >>"${ENV_FILE}"
 "${SCRIPT}" up
 assert_exists "${STATE_DIR}/containers/tokenrouter-apple"
 assert_exists "${STATE_DIR}/containers/tokenrouter-apple-postgres"
 assert_exists "${STATE_DIR}/containers/tokenrouter-apple-redis"
 assert_exists "${STATE_DIR}/running/tokenrouter-apple"
+grep -q '^GATEWAY_MAX_BODY_SIZE=' "${STATE_DIR}/tokenrouter-apple.env" && fail "retired scalar reached application environment"
+grep -q '^UPDATE_GITHUB_TOKEN=fixture-reference-token$' "${STATE_DIR}/tokenrouter-apple.env" || fail "explicit-reference secret was dropped"
+grep -q '^DATABASE_PASSWORD=' "${STATE_DIR}/tokenrouter-apple.env" || fail "setup password was dropped"
+grep -q '^POSTGRES_PASSWORD=' "${STATE_DIR}/tokenrouter-apple.env" && fail "database service variable reached application environment"
 grep -Fq 'ghcr.io/tokenflux/tokenrouter:latest' "${STATE_DIR}/commands.log" || fail "up did not use the TokenRouter application image"
 "${SCRIPT}" status >/dev/null
 
