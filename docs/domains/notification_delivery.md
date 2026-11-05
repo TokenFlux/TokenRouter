@@ -35,7 +35,7 @@ notification 支持这些事件：认证验证码、密码重置、通知邮箱�
 
 退订令牌包含收件人、事件和有效期，使用持久密钥签名，有效期为 365 天。第一次生成密钥时，服务通过进程内互斥让并发请求排队，刚发出的令牌不会因为并发生成而失效。
 
-实际发送的退订链接使用站点前端地址：数据库 `frontend_url` 优先，空值或读取失败时使用部署 `server.frontend_url`。两者都为空时保留 `/api/v1/settings/email-unsubscribe?token=...` 相对链接，客户端接入用的 `api_base_url` 不参与选择。独立 Mailer 未装配站点读取器时只读取数据库前端地址；模板预览继续使用样例退订链接。地址选择和其他回调规则见[站点链接与客户端 API 地址](../interfaces/configuration.md#site_link_addresses)。
+实际发送的退订链接使用站点前端地址：数据库 `frontend_url` 优先，空值或读取失败时使用部署 `site.frontend_url`。两者都为空时保留 `/api/v1/settings/email-unsubscribe?token=...` 相对链接，客户端接入用的 `api_base_url` 不参与选择。独立 Mailer 未装配站点读取器时只读取数据库前端地址；模板预览继续使用样例退订链接。地址选择和其他回调规则见[站点链接与客户端 API 地址](../interfaces/configuration.md#site_link_addresses)。
 
 语言目录使用 `en` 和 `zh-Hans`。用户邮件依次读取事件语言、账户偏好、历史用户记录、邮箱记录和站点默认语言。站点名称、发件人名称及余额充值链接按选定语言解析。团队所有权转让也经过同一模板发送入口。语言和账户偏好见[用户侧国际化](../interfaces/user_localization.md#language_selection)。
 

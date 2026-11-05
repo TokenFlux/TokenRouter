@@ -168,11 +168,11 @@ Redis 用于唤醒、重试、worker 协调、单作业锁和下载限制。Post
 
 Redis 结构：
 
-- 就绪队列：`batch_image.queue_ready_key`
-- 延迟队列：`batch_image.queue_delayed_key`
-- 活跃集合：`batch_image.queue_active_key`
-- 执行中键：`batch_image.inflight_key_prefix`
-- 单作业锁键：`batch_image.lock_key_prefix`
+- 就绪队列：`batch_image.queue.ready_key`
+- 延迟队列：`batch_image.queue.delayed_key`
+- 活跃集合：`batch_image.queue.active_key`
+- 执行中键：`batch_image.queue.inflight_key_prefix`
+- 单作业锁键：`batch_image.queue.lock_key_prefix`
 - 由下载限流器管理的下载限制键
 
 `batchimage.Public` 负责提交、目录、查询和取消，`PipelineProcessor` 推进轮询、索引和结算，`Cleanup` 和 `Download` 分别负责清理和读取输出。HTTP 在 `batchimage/httpapi`，元数据和队列在 PostgreSQL 和 Redis 适配层，平台操作在 `batchimage/provider`。app 直接构造 Gemini 和 Vertex 的 provider，把 `batchimage.Registry`（只有一个实例）注入提交、轮询、下载和清理；Vertex 需要的配置也由 app 整理好传入。

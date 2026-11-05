@@ -243,16 +243,16 @@ Qoder 流式请求进入上游后采用完成后释放：客户端断开时停�
 
 保活按连接分别处理。上游心跳只表示 TokenRouter 与提供商之间仍有数据到达；客户端经过的反向代理和 CDN，由 TokenRouter 自己维护下游活跃。文本请求在 `TextRequestTiming` 后安装 `DownstreamSSEKeepalive`，覆盖 Messages、Chat Completions、Responses、Gemini 及 Qoder 的文本输出。协议转换和同协议直通共用这一层，文本读取器只保留上游空闲超时与断开后的用量收集。
 
-统一组件按最近一次下游字节写入计时，间隔使用 `gateway.stream_keepalive_interval`，默认 10 秒，允许 5 至 30 秒，0 关闭该组件。它有两个可写入阶段：
+统一组件按最近一次下游字节写入计时，间隔使用 `gateway.streaming.keepalive_interval_seconds`，默认 10 秒，允许 5 至 30 秒，0 关闭该组件。它有两个可写入阶段：
 
 - 上游等待：流式文本请求经 `timing.Do` 发起 HTTP 交换后，响应尚未提交且空闲满一个间隔时，提交 `200` 和 `text/event-stream`，发送心跳并 Flush。handler 获取可修改 Header 或开始输出时关闭这个等待窗口。读取器初始化的只读 Header 快照不会关闭窗口，因此上游已经返回响应头、首个业务事件仍在等待或暂存时也能保活。非流式请求、明确的非 200 状态或非 SSE 内容类型不会提前提交。
 - 已提交 SSE：状态为 2xx、内容类型为 `text/event-stream`，且输出停在完整帧边界时，按下游空闲时间发送心跳。半帧期间不插入字节；LF 和 CRLF 分隔符可以跨多次 Write。普通正文和排队心跳都会重置下游时钟，上游心跳不会重置它。
 
 Messages 默认发送 `event: ping` 加 `data: {"type": "ping"}`。Claude Code UA 版本至少为 2.1.193 且存在打开的受支持内容块时，发送对应的空 delta；工具块使用空的 `input_json_delta.partial_json`，块关闭后恢复 ping。Gemini 原生协议发送 `\n\n` 空事件，避免 Google SDK 将注释当作 JSON；其他文本协议发送 `: keepalive` 注释。识别到 `[DONE]`、`message_stop`、`error`、`response.completed`、`response.failed` 或 `response.incomplete` 终止帧后停止心跳。读取器也通过 `OutputEvent.Terminal` 提交整条响应的完成信息，终态字节经过现有 writer 链完整写入后才停止心跳；这段写入与终态发布共同排除定时器写入，短写返回 `io.ErrShortWrite`。文本前缀识别仍只保留每帧前 4096 字节，较大的帧继续跟踪边界；结构化终态通知不受此前缀限制。LF 与 CRLF 可以混用。
 
-等待上游响应头期间不应用 `gateway.stream_data_interval_timeout`：传输层的响应头超时和请求的首输出保护负责限制这段等待。`timing.Do` 单独记录尚未返回响应头或错误的请求数，所以心跳提前提交下游 200 不会被误当成上游响应头已经返回；并发交换也分别结束各自的等待。
+等待上游响应头期间不应用 `gateway.streaming.data_idle_timeout_seconds`：传输层的响应头超时和请求的首输出保护负责限制这段等待。`timing.Do` 单独记录尚未返回响应头或错误的请求数，所以心跳提前提交下游 200 不会被误当成上游响应头已经返回；并发交换也分别结束各自的等待。
 
-已提交 SSE 的正文停滞上限使用 `gateway.stream_data_interval_timeout`，默认 180 秒，0 不限制。发起上游请求、收到响应头和实际读到字节都会更新上游活动时间，注释和 ping 字节也算上游活动。停滞判断取上游活动与最近一次 handler 字节写入中较晚的时间；中央组件自己写出的心跳不更新这两个时钟。这样，绕过传输观察的输出路径也能以实际写入维持保活。超过正文停滞上限后，组件不再补发心跳，读取器自己的上游超时仍按原规则处理。下游写失败或连接 Hijack 后停止心跳；请求结束时等待心跳 goroutine 退出。
+已提交 SSE 的正文停滞上限使用 `gateway.streaming.data_idle_timeout_seconds`，默认 180 秒，0 不限制。发起上游请求、收到响应头和实际读到字节都会更新上游活动时间，注释和 ping 字节也算上游活动。停滞判断取上游活动与最近一次 handler 字节写入中较晚的时间；中央组件自己写出的心跳不更新这两个时钟。这样，绕过传输观察的输出路径也能以实际写入维持保活。超过正文停滞上限后，组件不再补发心跳，读取器自己的上游超时仍按原规则处理。下游写失败或连接 Hijack 后停止心跳；请求结束时等待心跳 goroutine 退出。
 
 HTTP 提交与业务输出分别判断。`StreamHeartbeatBytes` 汇总排队、图片流读取器、Compact／图片 SSE、图片 JSON 空白和统一文本组件的心跳字节；`HeartbeatAdjustedWrittenSize` 对尝试前后的观测使用同一口径。只有心跳时返回 Gin 的未写出哨兵 `-1`，没有任何心跳记录时保留原始 Size，包括只提交 Header 后的零。读取异步计数时同时锁定对应 writer 的大小，避免把两次观测之间写入的心跳误判成正文。`OutputWriter.Written()` 表示实际 HTTP 已提交，`ContentWritten()` 表示已有成功交付且关闭重试窗口的正文；重试使用后者，响应头能否发送仍使用前者。
 

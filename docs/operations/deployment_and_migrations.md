@@ -50,7 +50,7 @@ Go 构建使用 1.27.3，后端模块、两个开发工具模块、根目录和 
 
 标准发布的归档命名为 `tokenrouter_<版本>_<系统>_<架构>`，包含 `tokenrouter` 可执行文件。CI 将矩阵编译的二进制导入 GoReleaser，所有归档都写进 `checksums.txt`。当前更新器优先使用 `tokenrouter_` 归档，并支持读取历史发布的 `sub2api_` 归档，替换的位置是当前实际的可执行文件路径。只识别 `sub2api_` 归档或包内 `sub2api` 文件的旧更新器需要手动升级。
 
-官方价格补充和离线模型目录都内嵌在二进制里，后台在线更新、安装脚本、完整归档和 Docker 使用同一份默认数据。替换或回退二进制时，官方补充随版本切换，不需要额外安装资源文件。安装器不会创建或覆盖外部的价格补充。`pricing.fallback_file` 默认为空，手动配置的自定义文件照常读取，并优先于内嵌补充；旧的打包路径按[配置兼容规则](../interfaces/configuration.md#configuration_sources)处理。不再需要旧文件时，清空这个配置，文件本身由部署者管理。
+官方价格补充和离线模型目录都内嵌在二进制里，后台在线更新、安装脚本、完整归档和 Docker 使用同一份默认数据。替换或回退二进制时，官方补充随版本切换，不需要额外安装资源文件。安装器不会创建或覆盖外部的价格补充。`model_catalog.supplement_file` 默认为空，手动配置的自定义文件照常读取，并优先于内嵌补充；旧的打包路径按[配置兼容规则](../interfaces/configuration.md#configuration_sources)处理。不再需要旧文件时，清空这个配置，文件本身由部署者管理。
 
 已有的 Compose 部署保留原来的编排和 `.env`，只升级镜像即可。换用新模板时，先记下实际的应用、PostgreSQL 和 Redis 卷名，分别设置 `TOKENROUTER_DATA_VOLUME`、`TOKENROUTER_POSTGRES_VOLUME`、`TOKENROUTER_REDIS_VOLUME`；同时保留数据库名、用户和密钥，停止旧栈后再启动新模板，不要使用 `down -v`。新变量为空时，按 Compose 项目前缀生成新的卷名。
 
@@ -60,7 +60,9 @@ Apple container 的新栈使用 `org.tokenrouter.stack` 标签；已有的 `sub2
 
 ## 初始化与启动
 
-进程入口先判断是否需要 setup。尚未安装时，可以使用 Web setup、`--setup` 命令行，或容器的 `AUTO_SETUP`。setup 依次测试 PostgreSQL 和 Redis、执行迁移、创建第一个管理员、写入配置，最后创建只读的安装锁。安装锁用来防止被人重新初始化，普通的配置问题不能靠删除它来修复。
+进程入口先处理离线 `-migrate-config` 命令，再按统一文件查找规则判断是否需要 setup。尚未安装时，可以使用 Web setup、`--setup` 命令行，或容器的 `AUTO_SETUP`。setup 依次测试 PostgreSQL 和 Redis、执行迁移、创建第一个管理员、写入配置，最后创建只读的安装锁。安装锁用来防止被人重新初始化，普通的配置问题不能靠删除它来修复。
+
+正常启动先按[配置版本规则](../interfaces/configuration.md#config_versioning)备份并升级旧配置，再检查未知键、展开引用和校验。只读挂载使用离线迁移，恢复旧二进制前也要恢复旧配置，见[配置文件版本 2](upgrade_notes.md#config_version_2)。
 
 正常启动时，`app/bootstrap` 在构造业务依赖图之前，执行同一套嵌入的迁移，所以每个新版本都在监听 HTTP 之前完成 schema 对齐。迁移或安全密钥初始化失败时，应用初始化失败，不会带着不完整的 schema 提供服务。升级先停止旧后端，再由目标版本完成迁移和初始化；各次迁移的额外准备、验证和恢复要求见[版本升级说明](upgrade_notes.md)。
 
@@ -122,7 +124,7 @@ Apple container 的新栈使用 `org.tokenrouter.stack` 标签；已有的 `sub2
 
 ## MCP 管理接入
 
-迁移 300 创建独立的 MCP 令牌表，保存认证摘要和加密凭据，迁移 301 增加默认关闭的跳过浏览器确认设置。服务沿用现有 PostgreSQL、Redis 和持久加密密钥；创建与复制令牌要求配置固定的 `TOTP_ENCRYPTION_KEY`（或 `totp.encryption_key`），重启和升级时保持该值，并与数据库一起备份。入口与网页使用同一监听端口，反向代理需要允许 `/mcp`。浏览器确认链接使用 `frontend_url`，原生客户端通过专用 Bearer 令牌连接，部署时按需限制管理入口的网络可达范围。令牌迁移、回退和临时数据规则见 [MCP 管理接口](../interfaces/mcp_management.md#client_setup)。
+迁移 300 创建独立的 MCP 令牌表，保存认证摘要和加密凭据，迁移 301 增加默认关闭的跳过浏览器确认设置。服务沿用现有 PostgreSQL、Redis 和持久加密密钥；创建与复制令牌要求配置固定的 `security.secret_encryption_key`，重启和升级时保持该值，并与数据库一起备份。入口与网页使用同一监听端口，反向代理需要允许 `/mcp`。浏览器确认链接使用 `frontend_url`，原生客户端通过专用 Bearer 令牌连接，部署时按需限制管理入口的网络可达范围。令牌迁移、回退和临时数据规则见 [MCP 管理接口](../interfaces/mcp_management.md#client_setup)。
 
 ### MCP OAuth 部署
 

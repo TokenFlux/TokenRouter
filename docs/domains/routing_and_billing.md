@@ -224,7 +224,7 @@ Grok 的媒体、搜索和 Voice 有各自的计价维度：
 
 `codex-auto-review` 等目录未收录的内部型号需要手动配置价卡，或者映射到已定价的型号。管理员可以填写零价表示免费。型号在网关的支持列表中，表示可以转发该型号，价格仍需单独解析。
 
-价格预检先按当前请求的协议回退配置解析提供商的上游协议，再选择转换或透传对应的计费模型。经 Responses 执行的 `/responses/compact` 请求复用 `CompactExecutor` 的模型选择：提供商的 `compact_model_mapping` 优先，其次是全局 `gateway.openai_compact_model`，两者都未给出型号时使用常规模型解析结果。最终扣费仍按价格配置指定的模型来源查价。普通 Responses 使用常规模型映射。
+价格预检先按当前请求的协议回退配置解析提供商的上游协议，再选择转换或透传对应的计费模型。经 Responses 执行的 `/responses/compact` 请求复用 `CompactExecutor` 的模型选择：提供商的 `compact_model_mapping` 优先，其次是全局 `gateway.openai.compact_model`，两者都未给出型号时使用常规模型解析结果。最终扣费仍按价格配置指定的模型来源查价。普通 Responses 使用常规模型映射。
 
 转发前的缺价拒绝带有 `ErrModelPricingRejected` 标记。文本尝试循环收到该标记后结束请求，已持有的并发槽由尝试释放回调归还。提供商失败反馈、重试和用量结算在调用上游后的分支处理。
 

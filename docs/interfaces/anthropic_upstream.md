@@ -32,7 +32,7 @@ Claude 浏览器 OAuth 从 `https://claude.com/cai/oauth/authorize` 发起授权
 
 ## 协议分派
 
-Anthropic 的报文类型和 Beta 常量在 `protocol/anthropic`，Responses 和 Chat 之间的转换只在 `protocol/bridge` 实现。`gateway/clientmeta` 只解析客户端字符串和版本；CLI 版本的环境变量覆盖、默认 Header 和平台指纹常量在 `upstream/anthropic`，在进程初始化时解析一次。入站许可由调用方判断。
+Anthropic 的报文类型和 Beta 常量在 `protocol/anthropic`，Responses 和 Chat 之间的转换只在 `protocol/bridge` 实现。`gateway/clientmeta` 只解析客户端字符串和版本；`provider.anthropic.claude_cli_version` 覆盖、默认 Header 和平台指纹常量在 `upstream/anthropic`，在进程初始化时解析一次。入站许可由调用方判断。
 
 Anthropic 的原生入口是 `POST /v1/messages` 和 `POST /v1/messages/count_tokens`。客户端也可以从 OpenAI Chat Completions 和 Responses 入口发来请求：处理器先把请求归一化成 Anthropic 格式，每次 attempt 选提供商并转发，再把非流式或 SSE 结果转回客户端的协议。分组是否开放这三个入口，由分组的 `allowed_protocols` 决定，见[统一协议能力](protocol_capabilities.md)。被关闭的协议，在读取正文和提供商调度之前，就返回对应客户端格式的 `403`，不会产生上游 attempt 或结算。
 
@@ -79,7 +79,7 @@ Claude Code-only 约束在 CLI UA 之后，校验必需的 Header、metadata 和
 
 Auto mode 的安全分类请求，可以在监视器提示词前后带上独立的会话上下文块。校验器遍历所有文本 system 块，查找同时满足固定前缀、最小长度和全部结构标记的提示词；附加的上下文不会导致误拒，但光有上下文块也通不过校验。
 
-Messages 和 CountTokens 的 OAuth 出站请求里，`x-anthropic-billing-header` 的 `cc_version` 需要和最终的 User-Agent 一致。开启 Claude Code 伪装时，使用运行时的 CLI 默认头（包括合法的 CLI 版本环境变量覆盖），即使没有提供商指纹服务、或者指纹统一功能被关闭，也要同步版本；普通的指纹转发使用提供商缓存的 UA。三位十六进制的指纹后缀由版本和用户消息计算得出，版本同步时要重新计算，重复处理的结果相同，用户消息保持不变；这一步在构造最终的出站请求体之前完成。
+Messages 和 CountTokens 的 OAuth 出站请求里，`x-anthropic-billing-header` 的 `cc_version` 需要和最终的 User-Agent 一致。开启 Claude Code 伪装时，使用运行时的 CLI 默认头（包括合法的 CLI 版本配置覆盖），即使没有提供商指纹服务、或者指纹统一功能被关闭，也要同步版本；普通的指纹转发使用提供商缓存的 UA。三位十六进制的指纹后缀由版本和用户消息计算得出，版本同步时要重新计算，重复处理的结果相同，用户消息保持不变；这一步在构造最终的出站请求体之前完成。
 
 这些功能是否启用，可能来自全局运行设置、分组或提供商的 extra。各层的分工见[网关策略控制](../domains/gateway_policy_controls.md)。
 

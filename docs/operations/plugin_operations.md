@@ -19,7 +19,7 @@
 
 确保 `plugins.dir` 可写且持久化。默认目录来自 `DATA_DIR/plugins`；新安装文件在 `installed/<id>/sha256-<archive-digest>/`，旧版的 `<version>/` 目录仍可读取，可丢弃状态在 `state/<id>/`，上传暂存位于 `staging/`。宿主重启清理旧上传 token，上传预览最多保留 30 分钟。
 
-保存 secret 配置前，需要固定的 `TOTP_ENCRYPTION_KEY`。备份和迁移时保留同一密钥，丢失密钥不能通过重新安装插件解密原值。配置与环境变量的完整优先级见[进程配置](../interfaces/configuration.md#configuration_sources)。
+保存 secret 配置前，需要固定的 `security.secret_encryption_key`。备份和迁移时保留同一密钥，丢失密钥不能通过重新安装插件解密原值。配置来源和显式引用规则见[进程配置](../interfaces/configuration.md#configuration_sources)。
 
 <a id="installation"></a>
 ## 安装与配置
@@ -59,7 +59,7 @@
 <a id="emergency"></a>
 ## 紧急关闭与卸载
 
-将 `PLUGINS_ENABLED=false` 后重启宿主。插件进程、调度和 KV 维护不再启动，贡献 API、UI 描述与公开资源返回 503 `PLUGINS_DISABLED`，菜单消失；管理员仍可查看和卸载安装记录。此开关是进程配置，网页上的启用开关不能覆盖它。
+将 `plugins.enabled: false` 后重启宿主。插件进程、调度和 KV 维护不再启动，贡献 API、UI 描述与公开资源返回 503 `PLUGINS_DISABLED`，菜单消失；管理员仍可查看和卸载安装记录。此开关是进程配置，网页上的启用开关不能覆盖它。
 
 普通禁用先停止接收新调用，再排空请求和宿主回调。卸载在排空完成后才事务删除安装记录及可选 KV；排空失败时保留安装记录供重试。默认卸载保留 KV，再安装相同 ID 可读取原业务数据。勾选清除数据会删除该插件的 KV，台账始终保留。
 

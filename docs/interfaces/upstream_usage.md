@@ -112,9 +112,9 @@ API Key 提供商（包括 Kimi、Zhipu、DeepSeek）的用量栏，按以下顺
 
 ## 国产供应商周期监控
 
-监控由 `provider.UsageMonitor` 实现，候选平台从各自声明的监控资格中枚举，官方域名也由对应平台声明。当前启用资格的平台为 Kimi、Zhipu 和 DeepSeek；每条记录仍需通过类型、状态及查询配置检查。启动配置对应 `GatewayUsageMonitorConfig`。部署键 `gateway.cn_providers`、快照键 `extra.cn_usage_monitor_snapshot`、任务锁键和停调原因前缀保留既有格式，配置读取、快照恢复和任务认领继续使用这些键。
+监控由 `provider.UsageMonitor` 实现，候选平台从各自声明的监控资格中枚举，官方域名也由对应平台声明。当前启用资格的平台为 Kimi、Zhipu 和 DeepSeek；每条记录仍需通过类型、状态及查询配置检查。启动配置对应 `GatewayUsageMonitorConfig`。部署键 `provider.usage_monitor`、快照键 `extra.cn_usage_monitor_snapshot`、任务锁键和停调原因前缀保留既有格式，配置读取、快照恢复和任务认领继续使用这些键。
 
-`gateway.cn_providers.monitor_enabled` 默认是 `false`。开启后，`provider.UsageMonitor` 只扫描满足以下条件的 Kimi、Zhipu、DeepSeek 提供商：active、`type=apikey`、没有关闭用量查询、有固定的适配器。
+`provider.usage_monitor.enabled` 默认是 `false`。开启后，`provider.UsageMonitor` 只扫描满足以下条件的 Kimi、Zhipu、DeepSeek 提供商：active、`type=apikey`、没有关闭用量查询、有固定的适配器。
 
 - 第一次探测在一个完整周期之后执行。
 - 每轮执行前取得任务锁；锁被占用时跳过本轮，Redis 不可用时尝试 PostgreSQL advisory lock。

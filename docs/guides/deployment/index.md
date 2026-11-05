@@ -10,13 +10,13 @@
 
 Compose 用户保留现有的 YAML 和 `.env`，用原来的服务名升级镜像。不要直接用新模板覆盖后启动，否则会创建空的数据卷。确实要换成新模板时，先备份，并在 `docker volume ls` 里记下实际使用的卷名，然后在 `.env` 里设置 `TOKENROUTER_DATA_VOLUME`、`TOKENROUTER_POSTGRES_VOLUME`、`TOKENROUTER_REDIS_VOLUME`，保留原来的 `POSTGRES_USER`、`POSTGRES_DB`、密码和安全密钥，再停止旧栈、启动新模板。使用本地目录挂载的部署，继续使用原来的目录；独立容器保留原来的 `DATABASE_USER` 和 `DATABASE_DBNAME`。
 
-直接运行二进制、配置里省略了数据库名的旧部署，先补上 `DATABASE_DBNAME=sub2api` 或对应的 YAML 键。新版也会读取 `/etc/sub2api/config.yaml`，新的系统目录 `/etc/tokenrouter` 优先；手动指定 `CONFIG_FILE` 的规则不变。
+直接运行二进制、配置里省略了数据库名的旧部署，先补上 `DATABASE_DBNAME=sub2api` 或对应的 YAML 键。自动搜索只发现 `/etc/sub2api/config.yaml` 时会拒绝启动；请移动到 `/etc/tokenrouter/config.yaml`，或用 `CONFIG_FILE` 明确指定原路径。
 
 发布归档保留了旧安装器需要的兼容文件，回退到历史版本时，仍可以读取旧归档。品牌设置只在恰好等于旧默认名时才更新；自定义的品牌、已有的登录和 TOTP 密钥都不会被重置。更多约束见[产品名称与升级兼容](../../operations/deployment_and_migrations.md#product_name_compatibility)。
 
 ### 运行模式的变化
 
-所有部署统一执行余额、订阅、Key 配额检查和正常计费。旧的环境变量 `RUN_MODE`、YAML 的 `run_mode` 和 `SIMPLE_MODE_CONFIRM` 已经没有作用，留在配置里也不影响启动，可以直接删除。升级前，为需要继续调用的用户准备好余额或有效订阅；原来简易部署里的请求，升级后同样按正常规则计费。
+所有部署统一执行余额、订阅、Key 配额检查和正常计费。旧的环境变量 `RUN_MODE`、YAML 的 `run_mode` 和 `SIMPLE_MODE_CONFIRM` 已经没有作用，v1 升级会删除这些 YAML 键，残留环境变量会告警；v2 文件不再接受这些未知键。升级前，为需要继续调用的用户准备好余额或有效订阅；原来简易部署里的请求，升级后同样按正常规则计费。
 
 已有的余额、订阅、管理员并发和历史用量保持原值，不会追补历史费用。新安装的管理员默认并发为 5。`GET /api/v1/auth/me` 不再返回 `run_mode`，外部调用方需要去掉对这个字段的依赖。
 
@@ -58,7 +58,7 @@ sudo systemctl enable tokenrouter
 
 在管理后台左上角点击"检测更新"，可以在线升级：自动检测新版本，下载并应用更新，也支持回滚。
 
-匿名访问 GitHub Release API 被限流时，可以在安装脚本的进程环境或 Docker `.env` 里设置 `UPDATE_GITHUB_TOKEN`。这个令牌只会发给 `https://api.github.com` 的版本检查请求，跨目标的重定向会移除认证头；Release 资源和校验和的下载始终是匿名的。系统不会改用 `GITHUB_TOKEN` 或 `GH_TOKEN`。
+匿名访问 GitHub Release API 被限流时，安装脚本仍可读取其进程环境里的 `UPDATE_GITHUB_TOKEN`。已安装应用需在 `config.yaml` 设置 `update.github_token`；使用 `update.github_token: ${UPDATE_GITHUB_TOKEN}` 时，Docker `.env` 提供被引用的值。这个令牌只会发给 `https://api.github.com` 的版本检查请求，跨目标的重定向会移除认证头；Release 资源和校验和的下载始终是匿名的。系统不会改用 `GITHUB_TOKEN` 或 `GH_TOKEN`。
 
 ### 常用命令
 
@@ -276,7 +276,7 @@ go build -tags embed -o tokenrouter ./cmd/server
 
 ### 创建管理员
 
-初始管理员只能通过 setup 向导创建（第一次启动时访问 `http://<host>:8080`）。`config.yaml` 里的 `default.admin_email` 和 `default.admin_password` 字段不会被用来创建管理员，它们只是因为历史原因留在模板里。
+初始管理员只能通过 setup 向导创建（第一次启动时访问 `http://<host>:8080`）。v2 配置不包含初始管理员字段；自动安装使用 `ADMIN_EMAIL` 和 `ADMIN_PASSWORD`。
 
 如果在第一次启动前就创建了 `config.yaml`，服务会认为已经配置完成，跳过 setup 向导、直接进入正常模式；这时 `users` 表是空的，第一次登录会返回 `invalid email or password`。所以建议直接运行程序，让向导生成配置：
 
@@ -285,7 +285,7 @@ go build -tags embed -o tokenrouter ./cmd/server
 ./tokenrouter
 ```
 
-向导会引导你完成数据库、Redis 和管理员账号的配置，并写出 `config.yaml`。
+向导会引导你完成数据库、Redis 和管理员账号的配置，并写出带 `config_version: 2` 和稳定加密密钥的 `config.yaml`。
 
 如果已经手动创建了 `config.yaml`，第一次启动前先把它临时移走，触发向导，完成后再恢复：
 
@@ -306,34 +306,36 @@ cp ../deploy/config.example.yaml ./config.yaml
 ```
 
 ```yaml
+config_version: 2
 server:
   host: "0.0.0.0"
   port: 8080
-  mode: "release"
-
+  mode: release
 database:
-  host: "localhost"
+  host: localhost
   port: 5432
-  user: "postgres"
-  password: "your_password"
-  dbname: "tokenrouter"
-
+  user: postgres
+  password: ${DATABASE_PASSWORD}
+  dbname: tokenrouter
 redis:
-  host: "localhost"
+  host: localhost
   port: 6379
-  username: "" # Redis ACL 用户名；使用默认用户时留空
+  username: ""
   password: ""
-
-jwt:
-  secret: "change-this-to-a-secure-random-string"
-  expire_hour: 24
-
-default:
-  user_concurrency: 5
-  user_balance: 0
-  api_key_prefix: "sk-"
-  rate_multiplier: 1.0
+auth:
+  jwt:
+    secret: "change-this-to-a-secure-random-string"
+    access_token_ttl_minutes: 1440
+user_defaults:
+  concurrency: 5
+  balance: 0
+api_key:
+  prefix: "sk-"
+billing:
+  fallback_rate_multiplier: 1.0
 ```
+
+密码通过文件中的显式引用读取；不要再用 `GATEWAY_*` 等环境变量覆盖应用配置。旧文件首次启动会备份到 `config.yaml.v1.bak` 并自动升级。只读挂载使用 `tokenrouter -migrate-config -config <源文件> -out <输出文件>`，随后替换挂载。回退二进制前恢复旧配置和原部署环境，详见[配置文件版本 2](../../operations/upgrade_notes.md#config_version_2)。
 
 ## 常用配置
 
@@ -342,98 +344,67 @@ default:
 Passkey 由部署配置控制，无法在管理后台直接开启。编辑 `config.yaml`，填写浏览器实际访问站点时使用的公开域名和 Origin：
 
 ```yaml
-webauthn:
-  enabled: true
-  rp_display_name: "TokenRouter"
-  rp_id: "tokenrouter.example.com"
-  rp_origins:
-    - "https://tokenrouter.example.com"
+auth:
+  webauthn:
+    enabled: true
+    rp_display_name: "TokenRouter"
+    rp_id: "tokenrouter.example.com"
+    rp_origins:
+      - "https://tokenrouter.example.com"
 ```
 
-- `webauthn.rp_id` 只填域名，不带协议、端口或路径。
-- `webauthn.rp_origins` 填完整的 Origin，不带路径、查询参数或片段。生产环境要使用 HTTPS；只有 `localhost`、`127.0.0.1` 和 `::1` 的本地开发环境可以使用 HTTP。
+- `auth.webauthn.rp_id` 只填域名，不带协议、端口或路径。
+- `auth.webauthn.rp_origins` 填完整的 Origin，不带路径、查询参数或片段。生产环境要使用 HTTPS；只有 `localhost`、`127.0.0.1` 和 `::1` 的本地开发环境可以使用 HTTP。
 - 每个 Origin 的主机，要等于 `rp_id` 或是它的子域名。通过反向代理部署时，填写浏览器访问的公开 HTTPS Origin，不要填容器名、内网地址或后端的监听端口。
 - 修改配置后需要重启服务。`rp_id` 决定 Passkey 凭据属于哪个站点，上线后保持稳定；更换它之后，已经注册的凭据就无法使用了。
 
-配置不完整或不符合上面的要求时，服务在启动校验阶段报出对应的 `webauthn.*` 错误；Passkey 登录不会改用请求里不可信的 `Host` 或 `Origin` 头作为配置。
+配置不完整或不符合上面的要求时，服务在启动校验阶段报出对应的 `auth.webauthn.*` 错误；Passkey 登录不会改用请求里不可信的 `Host` 或 `Origin` 头作为配置。
 
 ### OpenAI Responses WebSocket 首条消息超时
 
-提供商级的 WS mode（包括 `http_bridge`），只在新版 mode router 开启时生效。关闭时，提供商级的 mode 被忽略，网关继续使用旧的 `ctx_pool` 行为。可以通过 YAML 开启：
+`gateway.openai.responses_ws.client_first_message_timeout_seconds` 限制 WebSocket 升级后读取并解压客户端首条消息的总时间，默认 30 秒。上下文较大或链路较慢时，可在 `config.yaml` 中调整：
 
 ```yaml
 gateway:
-  openai_ws:
-    mode_router_v2_enabled: true
+  openai:
+    responses_ws:
+      client_first_message_timeout_seconds: 120
 ```
 
-也可以设置环境变量 `GATEWAY_OPENAI_WS_MODE_ROUTER_V2_ENABLED=true`。
-
-`gateway.openai_ws.client_first_message_timeout_seconds` 限制 WebSocket 升级之后，完整读取并解压客户端第一条 `response.create` 消息的总时间，默认 30 秒。上下文很大、图片较多或链路较慢时，可以调到 120 到 300 秒。这个截止时间在 HTTP bridge 的路由判断之前生效，bridge 模式同样受它约束。
-
-```yaml
-gateway:
-  openai_ws:
-    client_first_message_timeout_seconds: 30
-```
-
-### 强制 OpenAI 上游使用 HTTP/SSE
-
-出站代理或网络导致 OpenAI Responses 上游的 WebSocket 反复重连时，可以在持久化的 `config.yaml` 里开启全局回退：
-
-```yaml
-gateway:
-  openai_ws:
-    force_http: true
-```
-
-Docker Compose 和 Apple `container` 共用的 `.env` 也可以设置：
-
-```bash
-GATEWAY_OPENAI_WS_FORCE_HTTP=true
-```
-
-这个开关只把网关到 OpenAI 上游的传输改成 HTTP/SSE，客户端协议保持不变，也不会强制使用 HTTP/1.1。代理不兼容 HTTP/2 时，另外设置 `gateway.openai_http2.enabled: false` 或 `GATEWAY_OPENAI_HTTP2_ENABLED=false`。配置写进持久化的 `.env` 或 `config.yaml`，只在运行中的容器里临时修改的话，镜像更新或容器重建后就会丢失。
+旧的 `mode_router_v2_enabled` 和 `force_http` 开关已删除。客户端协议准入由分组控制，连接池和超时可以在管理后台的 OpenAI 长连接设置中调整。代理不兼容 HTTP/2 时，修改 `gateway.openai.http2.enabled` 后重启。
 
 ### 安全相关配置
 
 `config.yaml` 还支持以下安全相关的配置：
 
-- `cors.allowed_origins`：CORS 白名单。
+- `security.cors.allowed_origins`：CORS 白名单。
 - `security.url_allowlist`：上游、价格数据和 CRS 的主机白名单。
 - `security.url_allowlist.enabled`：可以关闭 URL 校验，请谨慎使用。
 - `security.url_allowlist.allow_insecure_http`：关闭校验时允许 HTTP URL。
 - `security.url_allowlist.allow_private_hosts`：允许私有或本地的 IP 地址。
-- `security.response_headers.enabled`：开启可配置的响应头过滤（关闭时使用默认白名单）。
+- `gateway.upstream_response_headers.enabled`：开启可配置的响应头过滤（关闭时使用默认白名单）。
 - `security.csp`：Content-Security-Policy。
-- `billing.circuit_breaker`：计费异常时拒绝请求（fail-closed）。
-- `server.trusted_proxies`：开启可信代理，解析 X-Forwarded-For。
-- `turnstile.required`：在 release 模式下强制启用 Turnstile。
+- `billing.balance_check_circuit_breaker`：计费异常时拒绝请求（fail-closed）。
+- `server.client_ip.trusted_proxies`：开启可信代理，解析 X-Forwarded-For。
+- `auth.require_captcha`：在 release 模式下要求配置有效的验证码提供方。
 
 网关的防护建议：
 
-- `gateway.upstream_response_read_max_bytes`：限制非流式上游响应的读取大小（默认 `8MB`），防止异常响应占用过多内存。
-- `gateway.proxy_probe_response_read_max_bytes`：限制代理探测响应的读取大小（默认 `1MB`）。
-- `gateway.gemini_debug_response_headers`：默认 `false`，排查问题时短时间开启即可，常开会给高频请求带来日志开销。
+- `gateway.upstream_response_max_bytes`：限制非流式上游响应的读取大小（默认 `128MiB`），防止异常响应占用过多内存。
+- `egress.proxy_probe.response_max_bytes`：限制代理探测响应的读取大小（默认 `1MB`）。
+- `gateway.gemini.debug_response_headers`：默认 `false`，排查问题时短时间开启即可，常开会给高频请求带来日志开销。
 - `/auth/register`、`/auth/login`、`/auth/login/2fa`、`/auth/send-verify-code` 在服务端也有限流，Redis 故障时拒绝请求。
 - 建议把 WAF 或 CDN 作为第一层防护，服务端的限流和响应读取上限作为第二层；两层都保留，可以覆盖绕过 CDN 的流量和配置失误。
 
 ### 允许 HTTP URL
 
-`security.url_allowlist.enabled=false` 时，系统仍执行最基本的 URL 校验：默认拒绝 HTTP URL，只允许 HTTPS。开发或内网测试需要使用 HTTP URL 时，手动设置：
+`security.url_allowlist.enabled=false` 时，系统仍执行最基本的 URL 校验：由 `allow_insecure_http` 决定是否接受 HTTP URL。开发或内网测试需要使用 HTTP URL 时，可设置：
 
 ```yaml
 security:
   url_allowlist:
     enabled: false                # 关闭白名单检查
     allow_insecure_http: true     # 允许 HTTP URL（不安全）
-```
-
-或者通过环境变量：
-
-```bash
-SECURITY_URL_ALLOWLIST_ENABLED=false
-SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=true
 ```
 
 允许 HTTP 时，API 密钥和数据以明文传输，可能被截获，也容易受到中间人攻击，所以不适合生产环境。可以用于本地开发服务器（`http://localhost`）、可信的内网端点，以及申请到 HTTPS 证书之前测试提供商的连通性；生产环境只使用 HTTPS。

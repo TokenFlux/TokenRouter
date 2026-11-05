@@ -5,7 +5,9 @@
 ## 章节导航
 
 - [配置分层](#配置分层)：先确定一个选项属于哪一层。
-- [进程配置来源](#进程配置来源)：修改默认值、YAML 或环境变量时读取。
+- [进程配置来源](#configuration_sources)：修改默认值或文件加载时读取。
+- [配置版本](#config_versioning)：修改升级、备份或恢复行为时读取。
+- [显式环境引用](#config_env_references)：修改变量引用或安装输入时读取。
 - [首次初始化](#首次初始化)：修改 setup 和安全密钥引导时读取。
 - [数据库运行时设置](#数据库运行时设置)：修改管理员设置和热更新时读取。
 - [领域配置](#领域配置)：业务实体用专用表，不放进通用键值设置。
@@ -16,64 +18,101 @@
 
 | 层 | 例子 | 来源 | 生效方式 |
 | --- | --- | --- | --- |
-| 进程基础设施配置 | server、database、Redis、日志、CORS、JWT、worker 和队列、连接池、硬性安全开关 | `config.Config`，从默认值、YAML 和环境变量加载 | 通常在启动时读取，修改后需要重启 |
+| 进程基础设施配置 | server、database、Redis、日志、CORS、JWT、worker 和队列、连接池、硬性安全开关 | `config.Config`，从默认值和版本化 YAML 加载，环境变量需显式引用 | 通常在启动时读取，修改后需要重启 |
 | 引导和持久安全密钥 | 初始的数据库和 Redis、创建管理员、JWT secret、安装锁 | setup 流程、`config.yaml`、`security_secrets` | 只在首次安装或启动引导阶段 |
 | 数据库运行时设置 | 注册、OAuth、SMTP、面板限流、step-up、部分调度和超时参数、展示和功能开关 | `settings.Store` 加各模块的运行时读取器 | 通过 getter、缓存快照或更新回调，按各设置的实现热生效 |
 | 领域配置 | 用户、团队、API Key、分组、价格配置、提供商、套餐、支付实例 | 对应的 Ent schema 和 service | 事务提交后让领域缓存失效 |
 | 前端构建和开发配置 | API base、WS base、dev proxy、dev port | Vite 的 `VITE_*` | 构建或 dev server 启动时注入 |
 
-同一个概念可能出现在多层，但哪一层说了算要写清楚。例如进程配置 `security.trust_forwarded_ip_for_api_key_acl` 提供启动时的默认值，数据库设置可以在运行时覆盖安全客户端 IP 策略；读取方使用运行时快照，启动时的 struct 字段在这之后就过时了。反过来，数据库地址和 Redis 连接池无法在管理后台热切换。
+同一个概念可能出现在多层，但哪一层说了算要写清楚。例如进程配置 `server.client_ip.trust_forwarded_headers` 提供启动时的默认值，数据库设置可以在运行时覆盖安全客户端 IP 策略；读取方使用运行时快照，启动时的 struct 字段在这之后就过时了。反过来，数据库地址和 Redis 连接池无法在管理后台热切换。
 
 <a id="configuration_sources"></a>
 ## 进程配置来源
 
-`config.load` 使用 Viper，最终的优先级：
+`config.load` 使用独立的 Viper 实例。配置文件中的值优先于代码默认值；环境变量只有通过文件里的 `${VAR}` 引用才参与常规加载，不再按大写下划线名称隐式覆盖字段。
 
-```text
-环境变量
-  > 选中的 config.yaml
-  > setDefaults 注册的代码默认值
+配置文件查找顺序：
+
+1. `CONFIG_FILE` 非空时只选该路径，包括文件尚不存在的情况。
+2. 否则依次查找 `DATA_DIR`（非空时）、`/app/data`、当前目录、`./config`、`/etc/tokenrouter` 中的 `config.yaml`。
+3. 只找到 `/etc/sub2api/config.yaml` 时拒绝启动，提示移动到新路径或设置 `CONFIG_FILE`。
+4. 没有文件且没有可导入的旧环境变量时，使用代码默认值，不创建文件。没有文件但存在旧配置变量时，升级器在默认配置路径创建 v2 文件。
+
+读取后先检查版本并执行升级，再检查未知键、解析显式引用、解码、规范化和校验。未知键会使启动失败，并在已知时给出改名或删除提示。密码、密钥和代理凭据不会写入迁移报告；报告只包含键名、变量名和处理原因。
+
+<a id="config_versioning"></a>
+### 配置版本与自动升级
+
+顶层 `config_version` 是独立于应用版本的正整数，当前为 `2`。缺少该字段的旧文件视为 v1；字符串、浮点数、零和负数会被拒绝。文件版本高于当前二进制支持的版本时，也会拒绝启动。
+
+v1 升级先合并旧别名，再按原有优先级导入环境变量，执行时长和模式等语义转换，移除失效或原本被忽略的键，最后移动到 v2 结构。敏感环境值保存为 `${实际变量名}`，原文件中的字面量引用语法会被转义。后续版本的升级步骤只转换文件，不再导入隐式环境配置。
+
+升级器保留键的注释和顺序，先将原始字节备份到 `<配置路径>.v1.bak`；同名备份已存在时改用 `.v1.<UTC 时间>.bak`。备份权限为 `0600`。随后同步同目录临时文件并重命名，沿用原配置权限；单文件挂载拒绝重命名时回退到直接写入并同步，原始备份用于恢复。当前版本的文件不会被重写。
+
+不可写的旧配置会使启动失败，错误中给出离线迁移命令：
+
+```bash
+./tokenrouter -migrate-config -config /path/config.yaml -out /path/config.v2.yaml
 ```
 
-选择配置文件的规则：
+使用与原部署相同的环境变量执行命令，再用输出文件替换挂载文件。`-out -` 输出到 stdout；源文件不变，也不创建备份。已有 v2 文件按原始字节输出，源和目标不能指向同一文件。迁移报告写入 stderr。
 
-1. `CONFIG_FILE` 非空时，只使用这个文件。
-2. 否则依次在 `DATA_DIR`（如果设置了）、`/app/data`、当前目录、`./config`、`/etc/tokenrouter`、`/etc/sub2api` 里查找 `config.yaml`。
-3. 文件不存在时，继续使用默认值和环境变量；文件存在但无法读取或解析 YAML 时，启动失败。
+运行旧二进制前必须停止新进程，并恢复原配置备份。旧二进制不理解 v2 键名和 `${VAR}`。完整部署准备见[配置文件版本 2 升级说明](../operations/upgrade_notes.md#config_version_2)。
 
-环境变量把点分的键转成大写加下划线，例如 `database.host` 对应 `DATABASE_HOST`，`gateway.max_body_size` 对应 `GATEWAY_MAX_BODY_SIZE`。`setDefaults` 还负责把所有 struct 键注册进 Viper，这样只用环境变量部署时，`Unmarshal` 也能读到这些键；新增字段时，除了 `mapstructure` tag，还要注册默认值，让这个键可以被环境变量设置。
+<a id="config_env_references"></a>
+### 显式环境引用
 
-少数变量有单独的绑定或解析：`ENABLE_SERVER_TIMING`，逗号分隔的 `SERVER_TRUSTED_PROXIES` 和 `SECURITY_FORWARDED_CLIENT_IP_HEADERS`，以及有兼容条件的旧 WeChat 变量。
+引用只在字符串值和列表元素中展开，键名保持原样：
 
-加载完成后，依次做字符串规范化、枚举回退、派生默认值、读取文件和完整的 `Validate`。安全 header、URL、数值范围、模式组合无效，或缺少必要的 secret 时，启动失败，问题在启动时就会暴露。自动生成的 TOTP key 只适合开发环境，`EncryptionKeyConfigured=false` 时后台不会把 TOTP 当成生产可用的配置。
+| 写法 | 行为 |
+| --- | --- |
+| `${NAME}` | 读取变量；未设置时报错，已设置为空时得到空字符串 |
+| `${NAME:-default}` | 未设置或为空时使用默认文本，不递归展开默认文本 |
+| `$${` | 输出字面量 `${` |
 
-环境变量优先于 YAML，所以排查"改了文件不生效"时，先检查容器的环境变量。数据库密码、JWT 和 TOTP secret、OAuth secret、对象存储 secret 和提供商凭据，都不会出现在日志、错误或管理响应里。
+变量名只允许英文字母、数字和下划线，首字符不能是数字。一个值可以含多个引用或混合普通文本。展开后的节点保持字符串类型，再由字段解码器转换整数、布尔和逗号分隔列表，`0123` 这样的密码保持原文。错误只指出字段和变量名，不显示值。
+
+```yaml
+config_version: 2
+database:
+  password: ${DATABASE_PASSWORD}
+```
+
+文件没有引用的旧应用配置变量会在每次启动时合并告警，只列排序后的变量名，不阻止正常启动。显式引用的变量不告警；安装输入仅在与当前有效配置不一致时告警。`ADMIN_*` 和安装开关不参与告警。
+
+仍由环境提供的输入：
+
+- 读取配置前的路径：`CONFIG_FILE`、`DATA_DIR`。
+- 安装开关：`AUTO_SETUP`、`SKIP_SETUP`。
+- 首次自动安装：`DATABASE_HOST/PORT/USER/PASSWORD/DBNAME/SSLMODE`、`REDIS_HOST/PORT/USERNAME/PASSWORD/DB/ENABLE_TLS`、`ADMIN_EMAIL`、`ADMIN_PASSWORD`、`SERVER_HOST`、`SERVER_PORT`、`SERVER_MODE`、`JWT_SECRET`、`JWT_EXPIRE_HOUR`、`TOTP_ENCRYPTION_KEY`、`TZ`、`SETUP_MIGRATION_TIMEOUT_SECONDS`。安装向导监听地址也使用 `SERVER_HOST`、`SERVER_PORT`。
+- Go、操作系统或依赖库的标准输入，例如 `HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY`、`GIN_MODE`、`GOMEMLIMIT`、`SystemRoot` 和 `TZ`。
+- 配置文件明确引用的变量。应用时区以 `timezone` 为准；`TIMEZONE` 不再用于常规加载或安装。
 
 ### 网关和时区
 
 网关的静态参数（请求体大小、等待、切换上限和完成执行器参数），由 app 整理成单独的 Options 传给网关，核心代码不接收完整的 Config。HTTP 请求、平台尝试和完成队列使用同一个应用依赖图。用户提示词替换和错误规则，按各自的设置来源和生效时机读取，运行状态分别由 `gateway/promptpolicy` 和 `gateway/errorpolicy` 持有。错误规则的管理写入、回源和发布通过进程内协调器控制顺序，缓存加载与失效通知见[网关错误响应策略](gateway_error_policy.md#缓存一致性)。
 
-时区的优先级：标准的 `TZ`、兼容的 `TIMEZONE`、配置文件、默认值 `Asia/Shanghai`。`TZ` 非空时覆盖 `TIMEZONE`，容器运行时、应用的本地日统计和 PostgreSQL 连接的时区因此保持一致；无效的 IANA 名称在启动校验时失败。
+应用时区由 `timezone` 决定，默认 `Asia/Shanghai`。`TZ` 是首次自动安装输入和运行时标准变量；v2 文件加载时不会隐式覆盖应用时区。无效的 IANA 名称在启动校验时失败。
 
-文本 SSE 的下游空闲心跳使用 `gateway.stream_keepalive_interval`，默认 10 秒，允许 5 至 30 秒，0 关闭统一文本保活。`gateway.stream_data_interval_timeout` 默认 180 秒，允许 30 至 300 秒，0 关闭正文停滞上限；收到上游响应头后，统一组件按上游活动与 handler 字节写入中较晚的时间判断停滞，超过上限后停止发心跳。等待上游响应头期间由传输层响应头超时和首输出保护限制，心跳不会因正文停滞上限而中断，读取器仍执行自己的超时处理。排队心跳和图片专用配置分别保留，Compact 的专用 SSE 控制器继续复用文本间隔。提前提交 200 的条件、错误格式和心跳计数见[SSE 保活](../architecture/gateway_request_lifecycle.md#sse_keepalive)。
+文本 SSE 的下游空闲心跳使用 `gateway.streaming.keepalive_interval_seconds`，默认 10 秒，允许 5 至 30 秒，0 关闭统一文本保活。`gateway.streaming.data_idle_timeout_seconds` 默认 180 秒，允许 30 至 300 秒，0 关闭正文停滞上限；收到上游响应头后，统一组件按上游活动与 handler 字节写入中较晚的时间判断停滞，超过上限后停止发心跳。等待上游响应头期间由传输层响应头超时和首输出保护限制，心跳不会因正文停滞上限而中断，读取器仍执行自己的超时处理。排队心跳和图片专用配置分别保留，Compact 的专用 SSE 控制器继续复用文本间隔。提前提交 200 的条件、错误格式和心跳计数见[SSE 保活](../architecture/gateway_request_lifecycle.md#sse_keepalive)。
 
 ### 请求记录
 
-`request_log.retention_days` 控制请求摘要保留天数，默认 30，环境变量为 `REQUEST_LOG_RETENTION_DAYS`。内存批写、失败处理和关闭排空见[请求 ID 与请求查询](../operations/request_lookup.md#request_storage)。
+`request_log.retention_days` 控制请求摘要保留天数，默认 30。内存批写、失败处理和关闭排空见[请求 ID 与请求查询](../operations/request_lookup.md#request_storage)。
 
 ### 插件运行时
 
-`plugins` 是需要重启生效的进程配置，环境变量使用 `PLUGINS_` 前缀。`enabled` 默认 true，`max_running` 默认 20；`dev_mode` 默认 false，只有显式开启后才读取 `dev_dirs`。开发目录中的代码按 manifest 授予权限，不使用正式安装的二进制摘要校验。`enabled=false` 不启动插件进程或 KV 维护，贡献 API、UI 描述和资源路由返回 503 `PLUGINS_DISABLED`；管理员仍可查看和卸载。
+`plugins` 是需要重启生效的进程配置。`enabled` 默认 true，`max_running` 默认 20；`dev_mode` 默认 false，只有显式开启后才读取 `dev_dirs`。开发目录中的代码按 manifest 授予权限，不使用正式安装的二进制摘要校验。`enabled=false` 不启动插件进程或 KV 维护，贡献 API、UI 描述和资源路由返回 503 `PLUGINS_DISABLED`；管理员仍可查看和卸载。
 
-`dir` 显式值优先；缺省时取 `DATA_DIR/plugins`，没有 DATA_DIR 时取 `pricing.data_dir/plugins`，两者都未提供时用 `./data/plugins`。默认官方索引是 `https://raw.githubusercontent.com/TokenFlux/tokenrouter-plugins/dist/v1/index.json`。`download_proxy` 只代理索引与包下载，`download_url_prefix` 供 GitHub 下载前缀使用，`plugin_http_proxy` 才传给子进程的 HTTP_PROXY/HTTPS_PROXY。分发 URL 必须使用 HTTPS，代理支持 HTTP、HTTPS 或 SOCKS5。内置来源保留管理员启用选择，宿主配置改变其 URL 时清除旧缓存；官方验签公钥由项目方配置到源码，空集合会拒绝内置索引。自定义来源的固定公钥通过管理接口保存，来源和缓存规则见[插件运维](../operations/plugin_operations.md#distribution)。
+`dir` 显式值优先；缺省时取 `DATA_DIR/plugins`，没有 DATA_DIR 时取 `storage.dir/plugins`，两者都未提供时用 `./data/plugins`。默认官方索引是 `https://raw.githubusercontent.com/TokenFlux/tokenrouter-plugins/dist/v1/index.json`。`download_proxy` 只代理索引与包下载，`download_url_prefix` 供 GitHub 下载前缀使用，`plugin_http_proxy` 才传给子进程的 HTTP_PROXY/HTTPS_PROXY。分发 URL 必须使用 HTTPS，代理支持 HTTP、HTTPS 或 SOCKS5。内置来源保留管理员启用选择，宿主配置改变其 URL 时清除旧缓存；官方验签公钥由项目方配置到源码，空集合会拒绝内置索引。自定义来源的固定公钥通过管理接口保存，来源和缓存规则见[插件运维](../operations/plugin_operations.md#distribution)。
 
-Compose 变体会传递这些环境变量。Apple container 入口保留整份应用环境文件，因此同样支持这些键。插件信任模型和生命周期见[插件系统](../architecture/plugin_system.md)。
+部署后在 `config.yaml` 中设置插件参数；凭据或代理地址可以使用显式环境引用。插件信任模型和生命周期见[插件系统](../architecture/plugin_system.md)。
 
 ### 模型目录与价格补充
 
-模型目录使用 `pricing.remote_url`（默认 `https://models.dev/catalog.json?type=all`）和 `pricing.check_interval_minutes`（默认 10 分钟），自动同步价格和模型属性。旧的 `pricing.hash_check_interval_minutes` 和对应的环境变量，按下面的兼容键优先级映射到新键。
+模型目录使用 `model_catalog.catalog_url`（默认 `https://models.dev/catalog.json?type=all`）和 `model_catalog.check_interval_minutes`（默认 10 分钟），自动同步价格和模型属性。旧的键名和环境值只在 v1 升级时迁移。
 
-已知的 Wei-Shaw、BerriAI 公共旧价格地址，在内存里转换为 models.dev 地址，并补上新的下载域名；自定义地址保持不变，需要返回 models.dev 的目录格式。配置文件不会被改写。官方模型补充通过 `go:embed` 编进二进制，同一个型号条目包含价格字段和 `attributes`。`pricing.fallback_file` 默认为空，用于指定相同格式的自定义补充。旧的相对资源路径和 `/app/resources/` 打包路径，只在原文件不存在时，迁移到同目录的 `model_pricing_supplements.json`；已存在的文件和其他自定义路径保持不变。路径只在内存里解析，部署文件不会被改写或创建；目标文件也不存在时，使用内嵌的补充。旧的目录缓存不再加载，也不会被删除。
+已知的 Wei-Shaw、BerriAI 公共旧价格地址，在 v1 升级时转换为 models.dev 地址，并补上新的下载域名；自定义地址保持不变，需要返回 models.dev 的目录格式。升级结果写回配置文件。官方模型补充通过 `go:embed` 编进二进制，同一个型号条目包含价格字段和 `attributes`。`model_catalog.supplement_file` 默认为空，用于指定相同格式的自定义补充。旧的相对资源路径和 `/app/resources/` 打包路径，只在原文件不存在时，迁移到同目录的 `model_pricing_supplements.json`；已存在的文件和其他自定义路径保持不变。旧路径变换写入升级后的文件；目标文件也不存在时，使用内嵌的补充。旧的目录缓存不再加载，也不会被删除。
 
 数据的优先级：目录里已有的字段（包括零价）最高，其次是自定义补充，最后由内嵌补充填上有明确来源的缺失模型价格、媒体单价、生图文本输出价和明确的商业规则。媒体尺寸表这类复合字段整体选择一个来源，不同来源的尺寸表不合并。补充文件要求是 JSON 对象；顶层 `null`、非对象条目和非法的价格字段会让整次更新被拒绝，已发布的目录保持不变，并记录错误。自定义文件不存在时，这一层为空，内嵌补充照常生效。修改和删除在下一次周期检查或管理员手动更新时生效，包括远程返回 304 或远程地址为空的情况。首次启动遇到损坏的补充文件时，仍然可以发布带内嵌补充的离线目录，并保留错误，等待修复。
 
@@ -81,30 +120,14 @@ Compose 变体会传递这些环境变量。Apple container 入口保留整份�
 
 本地 JSON 使用 `provider` 字段，读取时兼容 `litellm_provider`；同一条目两者都有时，以新字段为准，包括空值和 `null`。内部的价格类型和来源分类使用目录通用的名称，实际报价来自哪里，由 `source` 和 `price_sources` 区分。
 
-`gateway.models_list_cache_ttl_seconds` 已弃用，保留配置解析和 10 到 30 秒的合法值校验。目录查询使用本次读取的提供商配置，该值已停止控制运行时缓存。
 
 模型属性档案的 rules JSONB 同时用于展示、客户端导出和请求参数处理。每条规则可增加可选的路线匹配条件，已有规则默认适用于所有路线。编辑器保存字段覆盖；停用档案或移除字段后恢复目录与平台默认值。完整解析顺序与预览接口见[模型属性配置](model_catalog_and_marketplace.md#model_attributes)。
 
-精确配置为旧官方目录地址 `https://models.dev/catalog.json` 时，加载器补上 `?type=all`。带查询参数的地址和自定义镜像按配置读取。
-
-### 已退役和改名的键
-
-以下配置已经退役，加载器忽略它们，不做校验，也不影响运行：
-
-- `batch_image.enabled`、`batch_image.queue_enabled`、`batch_image.vertex_enabled` 及对应环境变量。批量图片按统一协议许可接受请求，后台任务自动运行；升级影响见[批量图片配置统一](../operations/upgrade_notes.md#batch_image_protocol_admission)。
-- `batch_image.max_items_per_job_trial`、`batch_image.output_retention_max_days`、`batch_image.idempotency_key_prefix`、`batch_image.vertex_input_retention_hours`、`batch_image.vertex_output_retention_hours` 及对应环境变量。作业输入、输出留存分别使用 `input_retention_after_terminal_hours` 和 `output_retention_after_terminal_hours`。
-- `subscription_maintenance.worker_count`、`subscription_maintenance.queue_size` 和对应的环境变量；订阅维护队列不会启动。
-- `gateway.openai_ws.fallback_cooldown_seconds` 和 `GATEWAY_OPENAI_WS_FALLBACK_COOLDOWN_SECONDS`；WS 请求失败时不会通过这个配置回退到 HTTP，重试退避、重试预算和连接池预热冷却各有自己的配置。
-- `pricing.hash_url`、`pricing.update_interval_hours`。
-- `pricing.override_file` 和 `PRICING_OVERRIDE_FILE`：旧的覆盖文件不读取、不监测也不改写，非空时启动会提示已弃用。升级前，管理员需要把要保留的用户售价转进价格配置并关联分组，提供商成本另外配置。文件内容不会被自动迁移，系统里也没有全局默认价卡。
-
-提供商改名后，六个启动配置项在加载时兼容旧名称：`gateway.max_account_switches`、`gateway.max_account_switches_gemini`，以及 `gateway.openai_ws` 下的 `max_conns_per_account`、`min_idle_per_account`、`max_idle_per_account`、`dynamic_max_conns_by_account_concurrency_enabled`。旧的 YAML 键和对应的大写环境变量都映射到 `provider` 开头的新名称，值保持不变；连接池隔离模式 `account` 和 `account_proxy` 分别规范为 `provider` 和 `provider_proxy`。映射只在内存里完成，部署文件不会被重写，只读挂载和纯环境变量部署都适用。
-
-兼容键的优先级：新环境变量 > 旧环境变量 > 新 YAML 键 > 旧 YAML 键 > 默认值。空的环境变量按 Viper 的"未设置"处理，`0` 和 `false` 会作为有效值保留。使用过期名称不影响启动；映射之后仍按新字段校验类型、范围和组合。
+精确配置为旧官方目录地址 `https://models.dev/catalog.json` 时，v1 升级器补上 `?type=all`。带查询参数的地址和自定义镜像按配置读取。
 
 ### 国产供应商用量监控
 
-国产供应商的周期用量监控属于启动时的进程配置 `gateway.cn_providers`。`monitor_enabled` 默认关闭；开启后，默认每 10 分钟运行一次，并发 4，单个提供商的探测超时 20 秒，每轮预算 300 秒，余额临时停调阈值 `balance_threshold` 默认 `0.5`。对应的键是 `interval_minutes`、`concurrency`、`probe_timeout_seconds` 和 `round_timeout_seconds`，修改后需要重启。管理员手动查询不受监控开关影响；对自定义中继的自动监控，还要求开启并命中 `security.url_allowlist.upstream_hosts`。
+国产供应商的周期用量监控属于启动时的进程配置 `provider.usage_monitor`。`monitor_enabled` 默认关闭；开启后，默认每 10 分钟运行一次，并发 4，单个提供商的探测超时 20 秒，每轮预算 300 秒，余额临时停调阈值 `balance_threshold` 默认 `0.5`。对应的键是 `interval_minutes`、`concurrency`、`probe_timeout_seconds` 和 `round_timeout_seconds`，修改后需要重启。管理员手动查询不受监控开关影响；对自定义中继的自动监控，还要求开启并命中 `security.url_allowlist.upstream_hosts`。
 
 ### 创作台和批量图片
 
@@ -122,14 +145,13 @@ Compose 变体会传递这些环境变量。Apple container 入口保留整份�
 
 新安装默认使用 `tokenrouter` 作为数据库名、日志服务名、日志文件名和仪表盘缓存前缀。明确配置的数据库连接、日志路径和缓存前缀原样保留，升级不会重命名数据库或搬迁数据。只依赖旧的默认数据库名的部署，升级前需要设置 `DATABASE_DBNAME=sub2api`；Compose 部署还要保留原来的 `POSTGRES_USER` 和 `POSTGRES_DB`。
 
-`TOKENROUTER_DEBUG_MODEL_ROUTING`、`TOKENROUTER_DEBUG_GATEWAY_BODY`、`TOKENROUTER_DEBUG_CLAUDE_MIMIC` 和 `TOKENROUTER_CLAUDE_CLI_VERSION` 分别兼容同后缀的 `SUB2API_` 变量。新变量非空时优先，包括 `0` 和 `false`；新变量为空时，使用旧变量。CLI 指纹版本只在进程初始化时解析一次。
 
 迁移 283 只在站点名称、站点标题、发件人名称和支付商品前缀去掉首尾空白后恰好等于旧产品名时，把它们改成 TokenRouter。自定义的值、历史订单、邮件记录和已经绑定的 TOTP 密钥都保持不变。新绑定的 TOTP 显示 TokenRouter，旧的绑定继续用原来的密钥验证。
 
 <a id="site_link_addresses"></a>
 ### 站点链接与客户端 API 地址
 
-`frontend_url` 是邮件链接的公开站点地址；后端优先读取数据库中的非空值，未填写或读取失败时使用部署配置 `server.frontend_url`。退订链接每次生成时读取当前设置，保留地址中的路径前缀，再追加 `/api/v1/settings/email-unsubscribe`。公开入口需要把该请求转发到后端；两处前端地址都为空时保留相对链接。
+`frontend_url` 是邮件链接的公开站点地址；后端优先读取数据库中的非空值，未填写或读取失败时使用部署配置 `site.frontend_url`。退订链接每次生成时读取当前设置，保留地址中的路径前缀，再追加 `/api/v1/settings/email-unsubscribe`。公开入口需要把该请求转发到后端；两处前端地址都为空时保留相对链接。
 
 OAuth 服务端回调必须接收发起阶段写入的状态 Cookie。微信登录和支付 OAuth 的自动回调使用当前请求的公开 origin 和固定的 `/api/v1/auth/oauth/...` 路径，不读取站点前端地址或模型 API 地址；反向代理继续负责提供可信的 Host 和协议转发头。微信登录的显式回调配置保持优先。这样前端站点与面板 API 分域，或前端站点自身带路径前缀时，不会把状态 Cookie 留在另一个域名或路径上。
 
@@ -139,7 +161,7 @@ OAuth 服务端回调必须接收发起阶段写入的状态 Cookie。微信登�
 
 ### MCP OAuth
 
-MCP OAuth 的公开地址使用现有 `frontend_url`，后台保存的非空值优先，部署 `server.frontend_url` 其次。仅接受不含路径、查询、片段或用户信息的 HTTPS origin，回环 HTTP 可用于本地开发。地址缺失或不适用时 OAuth 不可用，管理员可以在 MCP 接入配置中查看原因并前往原前端地址设置。`api_base_url` 继续用于客户端接入展示。
+MCP OAuth 的公开地址使用现有 `frontend_url`，后台保存的非空值优先，部署 `site.frontend_url` 其次。仅接受不含路径、查询、片段或用户信息的 HTTPS origin，回环 HTTP 可用于本地开发。地址缺失或不适用时 OAuth 不可用，管理员可以在 MCP 接入配置中查看原因并前往原前端地址设置。`api_base_url` 继续用于客户端接入展示。
 
 有效前端地址使 OAuth 自动可用。后台修改前端地址无需重启；每个请求读取当前值，数据库读取失败时拒绝 OAuth 访问。前端 origin 变化后，旧地址的 OAuth 连接需要重新授权。
 
@@ -147,13 +169,13 @@ MCP OAuth 的公开地址使用现有 `frontend_url`，后台保存的非空值�
 
 ## 首次初始化
 
-setup 按 `DATA_DIR`、可写的 `/app/data`、当前目录的顺序，选择 `config.yaml` 和 `.installed` 的位置。正常情况下，配置文件和安装锁只要有一个存在，就不会重新开放初始化；`SKIP_SETUP` 是部署者手动跳过的开关。修改这套判断时，要保证"删掉一个文件也无法远程强制重装"。
+setup 使用与主服务相同的配置文件查找规则，包含 `CONFIG_FILE` 和 `/etc/tokenrouter`。新文件写入 `CONFIG_FILE` 或数据目录中的 `config.yaml`；`.installed` 仍放在数据目录。正常情况下，配置文件和安装锁只要有一个存在，就不会重新开放初始化；`SKIP_SETUP` 是部署者手动跳过的开关。修改这套判断时，要保证"删掉一个文件也无法远程强制重装"。
 
-交互式或 `AUTO_SETUP` 流程会：测试 PostgreSQL 和 Redis、执行迁移、只在空数据库里创建初始管理员、以 `0600` 权限写入配置文件、创建安装锁。已经有管理员或普通用户时，不会覆盖密码。自动 setup 使用的 `DATABASE_*`、`REDIS_*`、`ADMIN_*`、`SERVER_*`、`JWT_*` 和时区变量，只用来生成初始文件；生成之后，常规启动仍然走统一的 config loader。
+交互式或 `AUTO_SETUP` 流程会：测试 PostgreSQL 和 Redis、执行迁移、只在空数据库里创建初始管理员、以 `0600` 权限写入 v2 配置文件、创建安装锁。已经有管理员或普通用户时，不会覆盖密码。自动 setup 使用的 `DATABASE_*`、`REDIS_*`、`ADMIN_*`、`SERVER_*`、`JWT_*` 和时区变量，只用来生成初始文件；非空的数据库密码、Redis 密码、JWT 和加密密钥保存为对应环境引用；连接测试使用实际值。未提供 JWT 或加密密钥时生成并持久化随机值。HTTP 和 CLI 安装将输入保存为字面量，并生成稳定加密密钥。
 
 setup 的数据库和 Redis 连接测试由精简版 bootstrap 执行，输入字段、DSN 生成、超时和文件写入的顺序保持不变；首次管理员由 identity 的初始化能力写入，初始化不会创建默认分组。
 
-主服务使用 `LoadForBootstrap`，只在引导阶段允许 `jwt.secret` 暂时为空。`app/bootstrap` 初始化时，从 `security_secrets` 读取已有的 JWT secret，或者原子地生成并持久化一个新的，然后重新执行完整的配置校验。重启和升级沿用这个持久化的 JWT key；明确配置的值和数据库里已有的 secret 不一致时，以数据库里已持久化的值为准，已有会话不会因重启时重新生成密钥而失效。
+主服务使用 `LoadForBootstrap`，只在引导阶段允许 `auth.jwt.secret` 暂时为空。`app/bootstrap` 初始化时，从 `security_secrets` 读取已有的 JWT secret，或者原子地生成并持久化一个新的，然后重新执行完整的配置校验。重启和升级沿用这个持久化的 JWT key；明确配置的值和数据库里已有的 secret 不一致时，以数据库里已持久化的值为准，已有会话不会因重启时重新生成密钥而失效。
 
 <a id="runtime_settings"></a>
 ## 数据库运行时设置
@@ -268,7 +290,7 @@ SMTP 的测试连接和实际发送共用同一条建连路径和超时：
 
 高级调度器的配置分两层：每个分组的 `scheduler_type` 是领域配置，明确选择 `basic` 或 `advanced`；网关通用设置保存高级模式的运行参数，包括 `advanced_scheduler_sticky_weighted_enabled`、`advanced_scheduler_subscription_priority_enabled`、`advanced_scheduler_lb_top_k`、各个 `advanced_scheduler_weight_*`、两个独立的 `advanced_scheduler_ewma_*_alpha`，以及 `advanced_scheduler_sticky_escape_*`。
 
-这些参数在"网关设置 - 通用设置"里编辑，由 `scheduler.SettingsRuntime` 读取，带五秒 TTL 和 singleflight。app 绑定一个实例，设置更新发布到这个实例；每次读取返回一份独立的 map，批量读取失败时，逐个键降级读取。数值留空时，继承 `gateway.advanced_scheduler` 的进程默认值；sticky escape 的开关和两个阈值也支持热更新。系统没有 `advanced_scheduler_enabled` 这样的全局开关，参数缺失时只回退到进程配置的默认值，分组的模式保持不变。
+这些参数在"网关设置 - 通用设置"里编辑，由 `scheduler.SettingsRuntime` 读取，带五秒 TTL 和 singleflight。app 绑定一个实例，设置更新发布到这个实例；每次读取返回一份独立的 map，批量读取失败时，逐个键降级读取。数值留空时，继承 `scheduling.advanced` 的进程默认值；sticky escape 的开关和两个阈值也支持热更新。系统没有 `advanced_scheduler_enabled` 这样的全局开关，参数缺失时只回退到进程配置的默认值，分组的模式保持不变。
 
 管理端的分组 API 还接受稀疏对象 `advanced_scheduler_overrides`，只在 `scheduler_type=advanced` 的实际调度中使用。创建时默认为 `{}`；更新时省略这个字段，保留原对象；传 `{}` 清除全部覆盖；对象里没出现的字段，继续继承全局设置。`false` 和 `0` 都是有效的覆盖值，会被保存。合并后七项基础评分权重全为零也是有效配置，这时评分相同的候选按提供商全局优先级和提供商 ID 稳定排序，全局权重不会被悄悄恢复。
 
@@ -276,15 +298,15 @@ SMTP 的测试连接和实际发送共用同一条建连路径和超时：
 
 管理端的高级调度评分诊断，逐项返回最终的参数和来源：`group_override` 优先于 `global_runtime`，后者缺失时为 `process_default`。诊断只解释当前的实时评分，不保存历史快照，也不会因此启用分组、高级调度器或任何平台专属的策略。
 
-进程配置的默认参数在 `gateway.advanced_scheduler`，包括 `lb_top_k`、`score_weights`、`ewma_error_rate_alpha`、`ewma_ttft_alpha` 和粘性逃逸的阈值。两个 alpha 要求 `0 < alpha <= 1`；sticky escape 的 TTFT 阈值是正数，错误率阈值在 `0..1` 之间，错误率阈值设为 `0` 表示任何正的错误率都会触发逃逸。
+进程配置的默认参数在 `scheduling.advanced`，包括 `lb_top_k`、`score_weights`、`ewma_error_rate_alpha`、`ewma_ttft_alpha` 和粘性逃逸的阈值。两个 alpha 要求 `0 < alpha <= 1`；sticky escape 的 TTFT 阈值是正数，错误率阈值在 `0..1` 之间，错误率阈值设为 `0` 表示任何正的错误率都会触发逃逸。
 
-旧的进程配置 `gateway.openai_ws.lb_top_k`、`gateway.openai_ws.scheduler_score_weights.*` 和 `gateway.openai_scheduler.sticky_escape_*`，在加载时分别映射到 `gateway.advanced_scheduler` 的 `lb_top_k`、`score_weights.*` 和 `sticky_escape_*`，对应的环境变量也兼容，优先级和上面的兼容键相同。管理设置请求里的 `openai_advanced_scheduler_*` 和旧的全局开关，返回已弃用的错误。OpenAI 的配额自动暂停是 OpenAI 专属的设置，不属于通用的高级调度参数。
+旧的进程调度键只由 v1 升级器转换。管理设置请求里的 `openai_advanced_scheduler_*` 和旧的全局开关仍返回已弃用错误。OpenAI 配额自动暂停保持其独立的运行时设置。
 
 ### Responses 长连接参数
 
-“网关设置 → OpenAI → 长连接与连接池”支持在线调整连接数量、超时、消息大小和会话记录期限。数据库 `responses_ws` 保存覆盖对象，未覆盖字段使用 `gateway.openai_ws` 的部署默认值。配置来源和热更新时机见 [Responses 长连接与在线参数](openai_upstream.md#responses_ws_runtime)。
+“网关设置 → OpenAI → 长连接与连接池”支持在线调整连接数量、超时、消息大小和会话记录期限。数据库 `responses_ws` 保存覆盖对象，未覆盖字段使用 `gateway.openai.responses_ws` 的部署默认值。配置来源和热更新时机见 [Responses 长连接与在线参数](openai_upstream.md#responses_ws_runtime)。
 
-旧的 WS 总开关、认证类型开关、强制 HTTP、新旧模式选择和协议版本开关已经退役，加载器提示后忽略。客户端是否允许使用 WS，统一由分组协议控制。HTTP 转 WS 执行路径的预热生成、重试退避、批量刷新、存储恢复和日志采样参数也已退役。连接池自身的预热与逐轮恢复继续按在线参数执行。
+旧的 WS 总开关、认证类型开关、强制 HTTP、新旧模式选择和协议版本开关在 v1 升级时删除；v2 文件中出现这些键会被拒绝。客户端是否允许使用 WS，统一由分组协议控制。HTTP 转 WS 执行路径的预热生成、重试退避、批量刷新、存储恢复和日志采样参数也已退役。连接池自身的预热与逐轮恢复继续按在线参数执行。
 
 ### 平台相关设置
 
@@ -292,7 +314,7 @@ Grok 文本转发有两项数据库运行时设置：`grok_default_text_model` �
 
 base URL 模式只在提供商没有保存手动端点时生效，可以选 CLI 代理、公共 API、`us-east-1`、`us-west-2` 和 `eu-west-1`。这些设置可以热更新；提供商手动配置的 URL 优先，媒体和 Voice 使用各自的官方端点。
 
-`gateway.grok` 属于启动时的进程配置。`password_auth_enabled` 默认关闭，控制从邮箱密码到 SSO 或 OAuth 的敏感入口；Free OAuth 的本地软门禁由 `free_quota_soft_gate_enabled`、`free_quota_token_limit`、`free_quota_soft_gate_percent`、`free_quota_window_hours` 和 `free_quota_stats_cache_seconds` 控制。所有数值在启动时校验，修改后需要重启。统计缓存未命中或查询故障时按 fail-open 处理，OAuth state 的一次性消费、凭据持久化和 URL 信任检查照常执行。
+Grok 的启动配置分为 `provider.grok` 和 `scheduling.grok_free_quota`。`password_auth_enabled` 默认关闭，控制从邮箱密码到 SSO 或 OAuth 的敏感入口；Free OAuth 的本地软门禁由 `free_quota_soft_gate_enabled`、`free_quota_token_limit`、`free_quota_soft_gate_percent`、`free_quota_window_hours` 和 `free_quota_stats_cache_seconds` 控制。所有数值在启动时校验，修改后需要重启。统计缓存未命中或查询故障时按 fail-open 处理，OAuth state 的一次性消费、凭据持久化和 URL 信任检查照常执行。
 
 `provider_scheduling_thresholds` 是整体替换的 JSON map，允许 OpenAI、Anthropic、Grok、Kimi 和 Zhipu 的 1 到 100 的整数，100 表示关闭这个平台的自动停调；提供商可以在自己的凭据里覆盖。管理设置的部分更新省略这个字段时，保留数据库里的值和进程缓存，前端的初始默认值不会被当成一次更新。
 
@@ -308,7 +330,7 @@ base URL 模式只在提供商没有保存手动端点时生效，可以选 CLI 
 
 需要唯一约束、外键、状态机、列表查询或原子计数的数据，放进专门的表；编码成一大段 settings JSON 会失去这些约束。反过来，只被单个进程组件在启动时读取的参数（例如连接池大小）留在进程配置里，不需要新建业务表。
 
-支付配置只在 `payment.ConfigService` 实现，实例读取和批量用量查询在 `payment/postgres`，provider factory、加密键和 `PAYMENT_RESUME_SIGNING_KEY` 由 app 提供。热刷新整体读取失败时保留旧的注册表；首次读取失败时允许之后重试。配置键、缺省值、旧的密文和续接回退密钥都保持兼容；订阅套餐通过 billing 读取。
+支付配置只在 `payment.ConfigService` 实现，实例读取和批量用量查询在 `payment/postgres`，provider factory、加密键和 `payment.resume_signing_key` 由 app 提供。热刷新整体读取失败时保留旧的注册表；首次读取失败时允许之后重试。配置键、缺省值、旧的密文和续接回退密钥都保持兼容；订阅套餐通过 billing 读取。
 
 备份的 Options 只接收数据库名、本地根目录、时钟、日志和加密配置标记，完整的连接凭据只传给归档的技术适配层；S3 凭据按运行时设置读取。
 
@@ -321,10 +343,10 @@ Vite 在构建和 dev server 启动时读取 `VITE_API_BASE_URL`、`VITE_DEV_PRO
 ## 新增配置检查清单
 
 - 判断它属于进程、bootstrap、数据库运行时、领域实体还是前端构建，并确定唯一的来源。
-- 进程字段：添加 `mapstructure`、代码默认值、环境变量可达性、规范化和 `Validate`；需要时更新部署样例。
-- 写清楚环境变量名、YAML 的点分键和优先级；新增旧键兼容时，写明弃用说明和新键优先的条件。
+- 进程字段：添加 `mapstructure`、代码默认值、规范化、未知键检查覆盖和 `Validate`，并更新部署样例。
+- 写清楚 YAML 点分键、单位和默认值。改名、移动、删除或改变语义时递增 `CurrentConfigVersion`，追加升级步骤、对照表和迁移测试；新增带默认值的键不需要增加版本。
 - 写清楚是否热生效、运行时快照何时更新、缓存怎么失效、失败时 fail-open 还是 fail-close。
 - secret 使用只写和掩码，并覆盖日志脱敏；它不能出现在 `VITE_*` 或普通的设置响应里。
-- 更新配置和环境变量可达性、校验、setup 往返、设置读取器和 HTTP，以及部署冒烟测试。
+- 更新升级、显式引用、未知键、校验、setup 往返、设置读取器和 HTTP，以及部署冒烟测试。
 
 相关文档：[HTTP 接口](http_api.md)、[系统架构](../architecture/system_architecture.md)、[部署与迁移](../operations/index.md)、[接口目录](index.md)。

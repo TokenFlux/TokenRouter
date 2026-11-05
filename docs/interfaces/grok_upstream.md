@@ -16,7 +16,7 @@ TokenRouter 支持 Grok OAuth 订阅提供商和标准的 xAI API Key 提供商�
 - [凭据与健康](#凭据与健康)：修改凭据失效、额度观测和错误恢复时读取。
 - [客户端配置](#客户端配置)：核对生成给客户端的 base URL。
 - [模型与执行规则](#模型与执行规则)：修改候选、推理档位和默认请求型号时读取。
-- [环境变量](#环境变量)：修改 OAuth 或上游运行参数时读取。
+- [进程配置](#进程配置)：修改 OAuth 或上游运行参数时读取。
 
 ## 基本信息
 
@@ -46,7 +46,7 @@ Responses WebSocket 是 Grok 和 OpenAI 的原生传输能力，兼容 Responses
 
 管理员可以在控制台选择 OAuth 或 API Key 创建提供商。OAuth 提供商可以通过浏览器授权、refresh token 或 SSO cookie 创建和重新授权；把提供商绑定到分组后，用户就可以生成这个分组的 API Key。OAuth 的 state 和 PKCE 会话优先保存在 Redis，并用一次性消费标记防止并发请求重复兑换；Redis 写入失败时，才使用进程内的短期存储。SSO cookie、邮箱密码等临时输入，只用于兑换 Build OAuth token，不会写进提供商凭据、响应或日志。
 
-邮箱密码授权由进程配置 `gateway.grok.password_auth_enabled` 控制，默认关闭，管理端不显示入口。即使手动开启，服务也只把密码临时换成 SSO，再换成 OAuth token。重新授权成功后，清除 Grok 软性消费上限的重新授权标记，并按凭据快照和 CAS 规则更新提供商，旧请求无法覆盖新的 token。
+邮箱密码授权由进程配置 `provider.grok.password_auth_enabled` 控制，默认关闭，管理端不显示入口。即使手动开启，服务也只把密码临时换成 SSO，再换成 OAuth token。重新授权成功后，清除 Grok 软性消费上限的重新授权标记，并按凭据快照和 CAS 规则更新提供商，旧请求无法覆盖新的 token。
 
 `provider/provider` 统一处理文本和媒体的端点：手动配置的自定义地址保持不变；OAuth 的官方 CLI 主机，在媒体请求里改为官方的媒体 API。实际请求照常执行 URL 信任检查；这个选择不影响官方的授权和刷新端点。
 
@@ -126,18 +126,14 @@ Grok Build CLI 的模型配置指向 TokenRouter 对外的地址（以 `/v1` 结
 
 未知的 Grok 文本型号没有手动定价时保持缺价，不会借用 `grok-4.6` 或其他型号的价格。图片和视频按完整的型号、尺寸和分辨率查询独立的目录报价，Voice 和搜索读取手动配置的操作价格。
 
-## 环境变量
+## 进程配置
 
-- `XAI_OAUTH_CLIENT_ID`
-- `XAI_OAUTH_SCOPE`
-- `XAI_OAUTH_REDIRECT_URI`
-- `XAI_OAUTH_AUTHORIZE_URL`
-- `XAI_OAUTH_TOKEN_URL`
-- `XAI_BASE_URL`
-- `XAI_GROK_CLI_VERSION`：覆盖 Grok CLI 的客户端版本和 User-Agent 中的版本；内置版本为 `1.0.67`。覆盖值需要是不带 `v` 前缀、不含 build metadata 的规范 SemVer。发往 `cli-chat-proxy.grok.com` 的请求在传输层要求覆盖值不低于内置版本，否则使用内置版本。
+Grok 覆盖值位于 `provider.grok`：OAuth 字段在 `oauth.authorize_url`、`token_url`、`client_id`、`scope`、`redirect_uri`，API 地址使用 `base_url`，客户端版本使用 `cli_version`。`allow_unsafe_url_overrides` 和 `unsafe_allow_concurrency_above_one` 是独立的显式放宽开关；密码登录验证码密钥使用 `yescaptcha_client_key`。
 
-进程配置 `gateway.grok` 还包括 Free OAuth 提供商的本地滚动窗口软门禁：默认 24 小时、500000 token、95% 时停调、统计缓存 60 秒。只有明确标记为 Free 的提供商参与；未知或付费的档位，以及数据库或统计查询失败时，都放行（fail-open）。管理端主动的额度查询和导入时的探测，不经过这个软门禁。门禁判断和缓存由 `provider.FreeQuotaGate` 负责，app 传入配置，绑定 usage 批量统计和后台任务屏障；两条普通选择链各自共用自己的缓存，高级调度器按实例使用独立的缓存，第一次缓存未命中时照常放行，并在后台刷新。
+这些值在 app 构造依赖前发布为进程配置，不再读取 `XAI_*` 或 `YESCAPTCHA_*` 隐式覆盖。v1 升级会导入旧值。CLI 覆盖仍要求不带 `v`、不含 build metadata 的规范 SemVer；代理传输继续执行其最低版本检查。
 
-自定义的 base URL，以及媒体和 billing 的子路径，都要通过同一个 URL allowlist 和 SSRF 校验。环境变量里的 client secret、token 和上游 URL，不会进入前端配置或错误响应。
+`scheduling.grok_free_quota` 控制 Free OAuth 提供商的本地滚动窗口软门禁：默认 24 小时、500000 token、95% 时停调、统计缓存 60 秒。只有明确标记为 Free 的提供商参与；未知或付费的档位，以及数据库或统计查询失败时，都放行（fail-open）。管理端主动的额度查询和导入时的探测，不经过这个软门禁。门禁判断和缓存由 `provider.FreeQuotaGate` 负责，app 传入配置，绑定 usage 批量统计和后台任务屏障；两条普通选择链各自共用自己的缓存，高级调度器按实例使用独立的缓存，第一次缓存未命中时照常放行，并在后台刷新。
+
+自定义的 base URL，以及媒体和 billing 的子路径，都要通过同一个 URL allowlist 和 SSRF 校验。配置中的 client secret、token 和上游 URL，不会进入前端配置或错误响应。
 
 相关文档：[上游提供商能力矩阵](upstream_provider_matrix.md)、[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[路由与结算](../domains/routing_and_billing.md)、[HTTP 接口](http_api.md)、[接口目录](index.md)。

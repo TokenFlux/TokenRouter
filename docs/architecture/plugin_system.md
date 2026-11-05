@@ -102,7 +102,7 @@ SDK 控件复用宿主原生实现；对话框的 Teleport 面板携带插件样
 <a id="configuration_secrets"></a>
 ## 配置与密钥
 
-配置经过 manifest schema 校验后，普通值和 secret 分开保存。secret 使用应用共享 AES-GCM 加密器，保存非空密钥要求固定的 `TOTP_ENCRYPTION_KEY`。GET 仅返回每个 secret 的 `{set: true|false}`；PUT 省略 secret 保持旧值，空字符串清除。禁用安装可以保存未填完整的配置，启用前必须通过完整校验。
+配置经过 manifest schema 校验后，普通值和 secret 分开保存。secret 使用应用共享 AES-GCM 加密器，保存非空密钥要求固定的 `security.secret_encryption_key`。GET 仅返回每个 secret 的 `{set: true|false}`；PUT 省略 secret 保持旧值，空字符串清除。禁用安装可以保存未填完整的配置，启用前必须通过完整校验。
 
 配置保存后通知运行中的插件。配置通知不受普通请求容量上限阻挡，但仍计入该代进程的在途数量和排空等待。监管器记录期望配置，各代记录成功应用的配置，失败通知不会使后续相同值重试被跳过；启动期间修改配置会替换旧代，避免旧 Init 输入覆盖新意图。未改值的协调保留原有 backoff 或 crashloop 状态。没有实现 `ConfigChanged` 时重启；回调失败保留已保存的配置并记录警告。版本配置迁移保留旧快照，并禁止把旧 secret 自动搬入新普通字段。配置写入的审计正文和 MCP 确认预览整体隐藏动态值，避免依赖插件作者选定的密钥名称。
 

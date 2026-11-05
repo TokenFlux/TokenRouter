@@ -114,7 +114,7 @@ OpenAI 兼容非流式响应的 usage，按 `usage`、`response.usage`、`data.u
 
 图片入口由 `gateway/httpapi.OpenAIImagesExecutor` 组合请求和输出能力，app 把同一个实例直接绑定到媒体运行时。API Key 和 OAuth 两个分支各有协议转换、实际产出计数和失败资格。图片请求在原位置和客户端的取消脱钩，读取完成后才交付已观测的用量；JSON 心跳不算实际的图片输出。结构化的"图片工具不可用"事件，由 `provider/provider.ImageToolCooldown` 写入模型级冷却；模型改用文字回复时，不触发这项写入。
 
-`stream=true` 的图片请求，在每次实际发送上游 HTTP 请求前启动 SSE 注释心跳，覆盖等待响应头的阶段。API Key 和 OAuth 使用同一个 `gateway.image_stream_keepalive_interval`，默认 10 秒，设为 `0` 关闭。首个周期到达前可以直接返回原有 HTTP 错误；上游返回 SSE 时，取得响应头后交给 SSE 读取器接续保活。上游返回普通 JSON 或 HTTP 错误时，等待心跳持续到有大小限制的读体结束，再停止并交给输出逻辑。心跳字节和已提交的响应格式跨尝试保留，仅有注释时仍按现有规则决定是否重试。
+`stream=true` 的图片请求，在每次实际发送上游 HTTP 请求前启动 SSE 注释心跳，覆盖等待响应头的阶段。API Key 和 OAuth 使用同一个 `gateway.images.stream_keepalive_interval_seconds`，默认 10 秒，设为 `0` 关闭。首个周期到达前可以直接返回原有 HTTP 错误；上游返回 SSE 时，取得响应头后交给 SSE 读取器接续保活。上游返回普通 JSON 或 HTTP 错误时，等待心跳持续到有大小限制的读体结束，再停止并交给输出逻辑。心跳字节和已提交的响应格式跨尝试保留，仅有注释时仍按现有规则决定是否重试。
 
 OpenAI API Key 的生成和编辑分别读取 `credentials.images_generations_mode`、`credentials.images_edits_mode`。`both` 跟随客户端；`non_streaming` 从 JSON 或 multipart 中移除 `stream` 和 `partial_images`；`streaming` 设置 `stream=true`，客户端要求非流式时另设 `partial_images=0`。每次提供商尝试都从原始请求构造出站载荷，上传图片、mask、其他字段和客户端模式独立保留。未配置的旧提供商按 `both` 处理。JSON 顶层重复键先收拢为唯一键，再应用模型和模式改写；关闭流式时全部移除 `stream`、`partial_images`，强制流式时写入唯一的目标值。嵌套字段和大整数保留其 JSON 值。
 
@@ -204,7 +204,7 @@ Responses 历史 Chat 格式的转换、工具 ID 清理、平台 schema 选择�
 
 提供商的 `extra.responses_ws_connection_mode` 在 `pooled` 和 `per_session` 中选择，缺省为 `pooled`。页面分别显示“优先复用已有连接”和“每个会话新建连接”。连接方式与协议许可分别保存。HTTP 转换由分组配置，超大首帧也要通过上游 HTTP 能力和分组转换检查。
 
-管理员在“网关设置 → OpenAI → 长连接与连接池”修改参数。管理员设置 GET/PUT 的 `responses_ws` 保存覆盖对象，GET 和保存响应的 `responses_ws_effective` 返回有效值。字段省略表示不修改，字段为 null 时清除该项覆盖，整个对象为 null 时恢复全部部署默认值。0 和 false 按参数定义保存。管理端覆盖优先于环境变量、YAML 和代码默认值。
+管理员在“网关设置 → OpenAI → 长连接与连接池”修改参数。管理员设置 GET/PUT 的 `responses_ws` 保存覆盖对象，GET 和保存响应的 `responses_ws_effective` 返回有效值。字段省略表示不修改，字段为 null 时清除该项覆盖，整个对象为 null 时恢复全部部署默认值。0 和 false 按参数定义保存。管理端覆盖优先于版本化 YAML 和代码默认值；环境值只有在 YAML 中显式引用时才参与加载。
 
 `gateway/ws.Runtime` 保存一份不可变快照。综合设置完成校验和原子持久化后，运行时立即发布配置；后台每五秒回源刷新，读取失败继续使用最后一次有效快照。发布代次阻止较早的回源覆盖新保存值。启动时首次读取失败使用部署默认值。保存成功但运行时应用失败时，接口返回 `SETTINGS_APPLY_FAILED`，metadata 的 `persisted=true` 表示参数已写入数据库。
 

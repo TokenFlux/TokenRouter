@@ -76,7 +76,7 @@
 
 `GET /api/v1/plugins/ui` 要求登录并遵循 Backend 模式门禁，使用标准 envelope，data.plugins 为按 ID 排序的数组。只包含已启用、所需脚本与样式仍在本地的贡献；后端进程是否可用不影响页面发现。返回版本化资源 URL 和 SHA-384 SRI、按请求语言解析的名称和标题，以及按角色过滤的页面和菜单；管理员同时可见 user/admin audience。菜单继承目标页面的 audience，用户路由为 `/ext/:id[/path]`，管理员为 `/admin/ext/:id[/path]`；SVG 留给现有前端 sanitizer 处理。缺少可选图标时仍保留菜单，缺少必要 bundle 时省略该插件。响应不缓存，不包含配置、密文或本地路径。
 
-全局 `PLUGINS_ENABLED=false` 时，上述插件路由统一返回 503 `PLUGINS_DISABLED`。管理端仍可查看和卸载。
+全局 `plugins.enabled: false` 时，上述插件路由统一返回 503 `PLUGINS_DISABLED`。管理端仍可查看和卸载。
 
 <a id="process_protocol"></a>
 ## 进程协议与 SDK

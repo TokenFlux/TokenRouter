@@ -74,14 +74,14 @@ MCP 与普通管理 HTTP 共用业务 handler。app 装配专用令牌读取、R
 
 `app/http_transport.go` 把传输相关配置整理给下游，`gateway/provider/transport` 组合请求策略和各平台的传输能力。`infra/httpclient.UpstreamPool` 持有客户端缓存和请求占用计数，成功的请求在响应体关闭时归还占用。OpenAI 的 HTTP/2 回退由 egress 处理，Grok CLI Header 和可重放的 403 策略由 upstream/grok 处理。隐私请求使用共享的 req 客户端池，超时 30 秒，使用 Chrome 指纹。
 
-`cmd/server` 负责参数解析、构建版本变量和 `go generate ./cmd/server` 入口。配置只加载一次，日志、数据库引导和应用依赖图共用这份配置；JWT secret 在数据库引导后补齐，然后重新校验配置。修改 Wire provider 后通过这个生成入口更新结果；只改装配时无需运行 Ent 生成。
+`cmd/server` 负责参数解析、构建版本变量和 `go generate ./cmd/server` 入口。配置只加载一次，先执行文件版本升级、未知键检查和显式环境引用解析，日志、数据库引导和应用依赖图共用结果；JWT secret 在数据库引导后补齐，然后重新校验配置。`app/upstream_identity.go` 在依赖图构造前发布 Anthropic、Antigravity 和 Grok 的启动身份参数。修改 Wire provider 后通过这个生成入口更新结果；只改装配时无需运行 Ent 生成。
 
 <a id="startup_and_shutdown"></a>
 ## 启动与关闭
 
 ### 启动顺序
 
-主入口先处理 `-version` 和 `-setup`：前者输出构建信息后退出，后者执行命令行安装。正常启动时，尚未安装就执行 AUTO_SETUP 或启动独立的 setup server，已经配置好就构造完整应用。setup 里的迁移调用精简版 bootstrap，业务 worker 留到完整应用启动后再构造。
+主入口先处理 `-version`、`-migrate-config` 和 `-setup`，分别用于构建信息、离线配置迁移和命令行安装。正常启动时，尚未安装就执行 AUTO_SETUP 或启动独立的 setup server，已经配置好就构造完整应用。setup 里的迁移调用精简版 bootstrap，业务 worker 留到完整应用启动后再构造。
 
 完整应用启动时：
 

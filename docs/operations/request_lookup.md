@@ -58,7 +58,7 @@ request_log:
   retention_days: 30
 ```
 
-`retention_days` 默认 30 天，值为 0 时使用默认值。环境变量为 `REQUEST_LOG_RETENTION_DAYS`。修改配置后重启服务。
+`retention_days` 默认 30 天，值为 0 时使用默认值。在配置文件的 `request_log.retention_days` 中设置。修改配置后重启服务。
 
 请求摘要有独立的清理任务，Ops 开关和采样配置控制各自的监控数据。用量、审计和计费数据按各自规则留存，摘要过期后仍可查询尚存的业务记录。备份的 Ops 日志选项同时控制 `request_records`。
 

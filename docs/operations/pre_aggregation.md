@@ -56,7 +56,7 @@ ops:
     enabled: true
 ```
 
-`dashboard_aggregation.enabled=false` 会强制关闭 Usage 周期聚合；`ops.enabled=false` 或 `ops.aggregation.enabled=false` 会强制关闭 Ops 聚合。数据库设置 `ops_monitoring_enabled` 也会阻止 Ops 聚合作业。修改部署能力需要重启，日常启停通过管理端统一预聚合设置完成。
+`usage.aggregation.enabled=false` 会强制关闭 Usage 周期聚合；`ops.enabled=false` 或 `ops.aggregation.enabled=false` 会强制关闭 Ops 聚合。数据库设置 `ops_monitoring_enabled` 也会阻止 Ops 聚合作业。修改部署能力需要重启，日常启停通过管理端统一预聚合设置完成。
 
 管理员接口注册在 `/api/v1/admin/settings` 下：
 

@@ -54,7 +54,7 @@ Go 模块路径是 `github.com/TokenFlux/TokenRouter`。后端 Go 版本以 `bac
 | `backend/internal/<module>/` | 各业务模块的用例，以及对应的 PostgreSQL、Redis、HTTP 和 provider 适配 | 通用技术实现放在 infra；各模块职责见下方链接的模块地图 |
 | `backend/ent/schema/` | 主要持久实体的 Ent schema 源文件 | `backend/ent/` 下其余文件大多是生成代码 |
 | `backend/migrations/` | 已发布数据库的前向演进 | SQL 嵌入二进制，按文件名顺序执行；已应用的文件保持原样 |
-| `backend/internal/config/` | 启动配置结构、默认值、环境变量映射和校验 | 数据库里的运行时设置由 settings 和各模块的读取器管理，和启动配置是两套东西 |
+| `backend/internal/config/` | 启动配置结构、版本升级、显式环境引用和校验 | 数据库里的运行时设置由 settings 和各模块的读取器管理，和启动配置是两套东西 |
 | `frontend/src/` | Vue 应用、路由、API 客户端、Pinia store、视图、组件和 i18n | 后端接口变化时，通常要同步类型、调用方和前端测试 |
 | `deploy/` | Compose、安装脚本、反向代理基线和运行配置示例 | 和根目录 Dockerfile、GoReleaser、workflow 一起决定发布形态 |
 | `.github/workflows/` | 后端 CI、安全扫描和 release 自动化 | 实际的工具链版本和发布触发条件以 workflow 为准 |
@@ -79,7 +79,7 @@ Go 模块路径是 `github.com/TokenFlux/TokenRouter`。后端 Go 版本以 `bac
 | 上游模型 | 最终发给供应商的模型名或路由键；可以和客户端模型、计费模型不同 |
 | 使用记录（Usage Log） | 一次请求的归属、实际执行平台、模型链、token 和媒体用量、价格、状态和诊断信息；聚合和运维查询都从这里取数 |
 | 权益 | 可以消费的余额、订阅窗口、额度包、团队限制或 Key 自身配额；结算时按策略综合判断 |
-| 运行时设置（Setting） | 存在 PostgreSQL、可以在管理端修改的站点或功能策略；和启动时的 YAML、环境变量配置有不同的生命周期 |
+| 运行时设置（Setting） | 存在 PostgreSQL、可以在管理端修改的站点或功能策略；和启动时的版本化 YAML 配置有不同的生命周期 |
 
 提供商（Provider）专指本地配置的上游接入。用户登录账户、Google Service Account、支付渠道账户和第三方协议里的 `account` 字段保持各自原来的含义。SDK 对象、官方域名、授权端点和上游错误原文照原样保留。
 

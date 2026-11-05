@@ -47,7 +47,7 @@ JSON 响应提供共享 HTTP envelope schema；已声明的具体响应 DTO 会�
 
 令牌更新可以携带 `expected_updated_at`，SQL 在同一次写入中比较所读取的配置时间；不匹配返回 `MCP_TOKEN_CHANGED`。管理页的编辑和启停提交都携带该值，各行分别记录忙状态，避免旧表单覆盖已经完成的修改。需要 TOTP 的页面操作依次发起请求、验证和重试；取消当前验证会释放该项忙状态，再处理排队的下一项。
 
-创建和复制需要固定的 `TOTP_ENCRYPTION_KEY`（或配置文件 `totp.encryption_key`），与现有加密组件共用。各实例必须使用同一密钥，备份时一起保存；缺少固定配置时拒绝创建和复制。更换密钥后，旧密文无法解密。普通令牌认证继续使用摘要。
+创建和复制需要固定的 配置文件中的 `security.secret_encryption_key`，与现有加密组件共用。各实例必须使用同一密钥，备份时一起保存；缺少固定配置时拒绝创建和复制。更换密钥后，旧密文无法解密。普通令牌认证继续使用摘要。
 
 每个请求读取当前令牌和所属用户，检查启用状态、有效期、撤销状态和管理员角色。操作执行前及进入原管理路由时再次检查权限。已提交的撤销、降权和权限收窄影响后续请求；在途业务仍遵循原 handler 的取消规则。
 
@@ -60,7 +60,7 @@ JSON 响应提供共享 HTTP envelope schema；已声明的具体响应 DTO 会�
 <a id="oauth_authorization"></a>
 ## OAuth 应用授权
 
-OAuth 直接复用站点的 `frontend_url`：后台保存的非空地址优先，未填写时使用部署配置 `server.frontend_url`。地址须为 HTTPS origin，不含路径、用户信息、查询或片段；回环 HTTP 用于本地开发。尾部根斜杠会规范化。没有单独的 OAuth 地址或覆盖配置，`api_base_url`、请求 Host 和代理头不参与地址生成。有效前端地址使 OAuth 自动可用；地址缺失或无效时，状态接口说明原因，协议请求拒绝准入，手工 Token 继续工作。
+OAuth 直接复用站点的 `frontend_url`：后台保存的非空地址优先，未填写时使用部署配置 `site.frontend_url`。地址须为 HTTPS origin，不含路径、用户信息、查询或片段；回环 HTTP 用于本地开发。尾部根斜杠会规范化。没有单独的 OAuth 地址或覆盖配置，`api_base_url`、请求 Host 和代理头不参与地址生成。有效前端地址使 OAuth 自动可用；地址缺失或无效时，状态接口说明原因，协议请求拒绝准入，手工 Token 继续工作。
 
 资源发现提供 `/.well-known/oauth-protected-resource/mcp` 和无 `/mcp` 后缀的兼容入口；授权发现位于 `/.well-known/oauth-authorization-server`。`/mcp/oauth` 下的 `authorize`、`token`、`register` 和 `revoke` 分别处理授权、换票/刷新、DCR 和撤销。这些端点使用 OAuth JSON；管理页接口仍使用 HTTP envelope。OAuth 可用时，未认证的 `/mcp` 请求通过 `WWW-Authenticate` 公布资源元数据地址。
 

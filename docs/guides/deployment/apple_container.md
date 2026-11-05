@@ -91,7 +91,7 @@ nano .env
 
 ## 配置
 
-脚本默认使用 `deploy/.env`，与 Docker Compose 共用同一个配置源。若当前 Shell 中的所有命令都要使用其他文件，可导出 `TOKENROUTER_ENV_FILE`：
+脚本默认使用 `deploy/.env`，与 Docker Compose 共用安装输入和被配置文件引用的敏感变量。若当前 Shell 中的所有命令都要使用其他文件，可导出 `TOKENROUTER_ENV_FILE`：
 
 ```bash
 export TOKENROUTER_ENV_FILE=/absolute/path/to/tokenrouter.env
@@ -107,7 +107,7 @@ APPLE_CONTAINER_POSTGRES_IMAGE=postgres:18-alpine
 APPLE_CONTAINER_REDIS_IMAGE=redis:8-alpine
 ```
 
-普通 `up` 命令会重新创建应用容器，因此应用环境变量会立即生效。修改 PostgreSQL、Redis 容器镜像或 Redis 运行配置时，应使用 `up --recreate`。持久化数据仍保留在命名卷中。
+普通 `up` 会重新创建应用容器。安装后在数据卷中的 `/app/storage/data/config.yaml` 修改应用设置；`.env` 只传递安装输入和显式引用所需的敏感变量，其余应用变量不会进入容器。修改 PostgreSQL、Redis 容器镜像或 Redis 运行配置时，应使用 `up --recreate`。持久化数据仍保留在命名卷中。
 
 `POSTGRES_USER`、`POSTGRES_PASSWORD` 和 `POSTGRES_DB` 只在 PostgreSQL 初始化空数据卷时应用。修改 `.env` 并重建容器不会改变现有数据库。密码应通过 `ALTER ROLE` 轮换，用户或数据库变更应制定明确的迁移方案。若确实需要初始化全新空数据库，先备份旧数据，再使用 `destroy --volumes`。
 
@@ -115,12 +115,15 @@ Apple 工作流对共用设置的处理如下：
 
 | 设置 | Apple 工作流行为 |
 |---|---|
-| 应用和网关变量 | 从 `.env` 传给 TokenRouter |
+| 应用和网关设置 | 编辑 `/app/storage/data/config.yaml` 后重启应用 |
+| 安装输入和引用所需的敏感变量 | 从 `.env` 的明确名单传给 TokenRouter |
 | `BIND_HOST`、`SERVER_PORT` | 用于 macOS 公开端口 |
 | `POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_DB` | 仅用于 PostgreSQL 首次初始化 |
 | `REDIS_PASSWORD` | 同时应用到 Redis 和 TokenRouter |
 | `DATABASE_PORT`、`REDIS_PORT` | 内部端口固定为 5432 和 6379 |
 | `POSTGRES_MAX_*`、`REDIS_MAXCLIENTS` | 当前不会应用到数据库或缓存服务 |
+
+旧配置首次启动会备份并升级为 v2。保留文件中 `${VAR}` 引用需要的变量；自定义变量名需要加入脚本的显式传递名单。只读文件、备份命名和回退步骤见[配置升级说明](../../operations/upgrade_notes.md#config_version_2)。
 
 ## 受管资源
 

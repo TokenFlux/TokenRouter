@@ -194,7 +194,7 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 
 `creative_run_outbox` reconciler 负责 provisioning/settle/release 恢复。transient reconciler 每 5 分钟扫描终态任务，选择 `completed_at` 距今至少 10 分钟的记录并删除临时键，包括尚未 ack 且仍有 TTL 的输出。实际删除时间还受轮询、批次上限和清理失败重试影响。队列、临时存储和元数据实现分别位于 `creative/rediscache`、`creative/postgres`，创建与目录位于 `creative.Public`，单次尝试位于 `creative.Executor`，结果推进、恢复与公开查询位于 `creative.Results`/`Queries`，平台请求由 `creative/provider` 使用绑定的技术能力执行。
 
-app 固定唯一生产实例，提供商目录复用 creative/provider 对原生 Record 的只读适配；公开、结果、worker、提供商选择与平台目标都由 app 直接绑定对应能力。`creative.queue_enabled` 默认开启，应用启动时运行 `creative_worker_count` 个任务 worker（默认 128）、一个 delayed mover、一个 stale active recovery 和两个 reconciler；worker 数量通过管理端功能设置热更新，详见[接口](../interfaces/http_api.md)。
+app 固定唯一生产实例，提供商目录复用 creative/provider 对原生 Record 的只读适配；公开、结果、worker、提供商选择与平台目标都由 app 直接绑定对应能力。`creative.queue_worker_enabled` 默认开启，应用启动时运行 `creative_worker_count` 个任务 worker（默认 128）、一个 delayed mover、一个 stale active recovery 和两个 reconciler；worker 数量通过管理端功能设置热更新，详见[接口](../interfaces/http_api.md)。
 
 ## 审核无留存
 
@@ -276,7 +276,7 @@ creative:
 ## 运维检查清单
 
 - 确认 Redis 可用（临时存储与队列都依赖 Redis）。
-- 确认 `creative.enabled`、数据库运行时开关 `creative_enabled` 与 `creative.queue_enabled`。
+- 确认 `creative.enabled`、数据库运行时开关 `creative_enabled` 与 `creative.queue_worker_enabled`。
 - 确认目标分组启用图片生成；未配置图片尺寸价格时按完整型号查询目录价格，提供商模型映射按已保存配置执行，GPT Image 2 缺少 4K 覆盖价时仍使用默认价开放 4K。
 - 确认上游提供商凭据有效（Gemini apikey/Vertex/OAuth、OpenAI、xAI）。
 - 确认价格配置价卡与分组有效倍率，验证估价的 hold/capture/release 行为。

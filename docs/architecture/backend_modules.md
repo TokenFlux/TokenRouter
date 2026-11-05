@@ -70,7 +70,7 @@ backend/
 │   │   └── testkit/                                     该模块测试所需的替身与夹具
 │   ├── bstats/                                          安装统计设置、持久实例标识和官方上报调度
 │   │   └── provider/                                    bStats HTTPS 协议与系统信息采集
-│   ├── config/                                          启动配置加载、默认值、规范化和校验
+│   ├── config/                                          版本化配置升级、加载、显式引用、默认值和校验
 │   ├── creative/                                        创作台任务、临时素材、结果交付和资金恢复
 │   │   ├── httpapi/                                     HTTP 路由、鉴权接入与输入输出适配
 │   │   ├── postgres/                                    PostgreSQL 持久化及事务适配

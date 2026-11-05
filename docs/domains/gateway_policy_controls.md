@@ -61,7 +61,7 @@ Images 的生成和编辑单独控制。Responses 的图片工具使用 `respons
 
 `scheduler_type` 是分组的字段，`basic` 是默认值，`advanced` 表示这个分组在硬过滤后使用通用的高级评分。高级调度的 Top-K、评分权重、粘性加权和订阅优先是网关通用设置，没有全局启用开关；这些设置不会把基础分组切换成高级，OpenAI 和 Grok 特有的能力也只作用于具备这些能力的提供商。
 
-高级分组可以在 `advanced_scheduler_overrides` 里保存稀疏的参数覆盖。没有出现的字段，依次继承数据库里的通用设置和 `gateway.advanced_scheduler` 的配置默认值。可以覆盖的内容：Top-K、评分权重、粘性和订阅开关、错误率和 TTFT 两个 EWMA alpha、sticky escape 开关和两个阈值。出现的字段（包括 `false` 和 `0`）以分组的值为准：alpha 大于 0 且不超过 1，TTFT 阈值是正数，错误率阈值在 `0..1` 之间。空对象表示全部恢复继承。基础分组即使留有这个对象也不会读取，切换为高级之后才重新生效。
+高级分组可以在 `advanced_scheduler_overrides` 里保存稀疏的参数覆盖。没有出现的字段，依次继承数据库里的通用设置和 `scheduling.advanced` 的配置默认值。可以覆盖的内容：Top-K、评分权重、粘性和订阅开关、错误率和 TTFT 两个 EWMA alpha、sticky escape 开关和两个阈值。出现的字段（包括 `false` 和 `0`）以分组的值为准：alpha 大于 0 且不超过 1，TTFT 阈值是正数，错误率阈值在 `0..1` 之间。空对象表示全部恢复继承。基础分组即使留有这个对象也不会读取，切换为高级之后才重新生效。
 
 ## 认证与隐私
 
