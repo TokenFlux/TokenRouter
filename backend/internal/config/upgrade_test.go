@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -220,4 +221,131 @@ func TestUpgradeReadOnlyFileRejectsWritableParent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, original, raw)
 	require.NoFileExists(t, file+".v1.bak")
+}
+
+// TestUpgradeMergedVersionsPreserveSource checks effective versions supplied through YAML merges.
+// Current documents retain their bytes and credentials, while invalid or future
+// markers fail before backups or writes; explicit markers retain YAML precedence.
+func TestUpgradeMergedVersionsPreserveSource(t *testing.T) {
+	for _, tc := range []struct {
+		name    string // version source scenario
+		source  string // version marker YAML
+		wantErr bool   // expected version rejection
+	}{
+		{name: "current merge", source: "<<: {config_version: 2}\n"},
+		{name: "nested merge", source: "<<: {<<: {config_version: 2}}\n"},
+		{name: "sequence precedence", source: "<<: [{config_version: 2}, {config_version: 3}]\n"},
+		{name: "explicit precedence", source: "<<: {config_version: 3}\nconfig_version: 2\n"},
+		{name: "scalar alias", source: "<<: {config_version: &version 2}\nconfig_version: *version\n"},
+		{name: "future merge", source: "<<: {config_version: 3}\n", wantErr: true},
+		{name: "string merge", source: "<<: {config_version: '2'}\n", wantErr: true},
+		{name: "float merge", source: "<<: {config_version: 2.0}\n", wantErr: true},
+		{name: "zero merge", source: "<<: {config_version: 0}\n", wantErr: true},
+		{name: "uppercase merge", source: "<<: {CONFIG_VERSION: 2}\n", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "config.yaml")
+			raw := []byte(tc.source + "auth:\n  jwt:\n    secret: preserved-config-secret\n")
+			require.NoError(t, os.WriteFile(file, raw, 0o600))
+			doc, err := upgradeConfigFile(file, true, upgradeEnvironment{})
+			if tc.wantErr {
+				require.Error(t, err)
+				require.NotContains(t, err.Error(), "preserved-config-secret")
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, doc)
+			}
+			after, err := os.ReadFile(file)
+			require.NoError(t, err)
+			require.Equal(t, raw, after)
+			entries, err := os.ReadDir(filepath.Dir(file))
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
+		})
+	}
+}
+
+// TestUpgradePreservesConfigSymlink exercises relative links into a managed configuration directory.
+// Both atomic replacement and mount fallback must update the target, preserve
+// its permissions and backup bytes, and observe later edits through the original link.
+func TestUpgradePreservesConfigSymlink(t *testing.T) {
+	for _, fallback := range []bool{false, true} {
+		t.Run(fmt.Sprintf("mount_fallback_%t", fallback), func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.Mkdir(filepath.Join(dir, "managed"), 0o700))
+			target := filepath.Join(dir, "managed", "runtime.yaml")
+			file := filepath.Join(dir, "config.yaml")
+			raw := []byte("server:\n  port: 9090\n")
+			require.NoError(t, os.WriteFile(target, raw, 0o640))
+			require.NoError(t, os.Symlink("managed/runtime.yaml", file))
+			env := upgradeEnvironment{}
+			if fallback {
+				resolved, err := filepath.EvalSymlinks(target)
+				require.NoError(t, err)
+				env.Rename = func(from, to string) error {
+					require.Equal(t, resolved, to)
+					require.Equal(t, filepath.Dir(resolved), filepath.Dir(from))
+					return syscall.EBUSY
+				}
+			}
+			_, err := upgradeConfigFile(file, true, env)
+			require.NoError(t, err)
+			link, err := os.Readlink(file)
+			require.NoError(t, err)
+			require.Equal(t, "managed/runtime.yaml", link)
+			info, err := os.Stat(target)
+			require.NoError(t, err)
+			require.Equal(t, os.FileMode(0o640), info.Mode().Perm())
+			backup, err := os.ReadFile(file + ".v1.bak")
+			require.NoError(t, err)
+			require.Equal(t, raw, backup)
+			upgraded, err := os.ReadFile(target)
+			require.NoError(t, err)
+			require.Contains(t, string(upgraded), "config_version: 2")
+			require.NoError(t, os.WriteFile(target, []byte("config_version: 2\nserver:\n  port: 9191\n"), 0o640))
+			loaded, err := loadFrom(file, true, upgradeEnvironment{}, true)
+			require.NoError(t, err)
+			require.Equal(t, 9191, loaded.Server.Port)
+		})
+	}
+}
+
+// TestWriteConfigFileRejectsDanglingSymlink protects missing managed targets from silent detachment.
+// Installation output must report the unresolved target and leave the configured
+// link intact, allowing its owner to restore the intended file location.
+func TestWriteConfigFileRejectsDanglingSymlink(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.Symlink("missing.yaml", file))
+	require.ErrorIs(t, WriteConfigFile(file, []byte("config_version: 2\n")), os.ErrNotExist)
+	link, err := os.Readlink(file)
+	require.NoError(t, err)
+	require.Equal(t, "missing.yaml", link)
+	require.NoFileExists(t, filepath.Join(dir, "missing.yaml"))
+}
+
+// TestUpgradeIgnoresStaleTemporaryFiles models files surviving an interrupted container process.
+// A retry with the same PID must succeed without reusing, following, or deleting
+// either the stale bytes or a preexisting temporary symlink.
+func TestUpgradeIgnoresStaleTemporaryFiles(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(file, []byte("server: {port: 9090}\n"), 0o600))
+	stale := filepath.Join(dir, fmt.Sprintf(".config.yaml.tmp-%d", os.Getpid()))
+	require.NoError(t, os.WriteFile(stale, []byte("interrupted write"), 0o600))
+	link := filepath.Join(dir, ".config.yaml.tmp-preexisting")
+	require.NoError(t, os.Symlink(filepath.Base(stale), link))
+	_, err := upgradeConfigFile(file, true, upgradeEnvironment{})
+	require.NoError(t, err)
+	raw, err := os.ReadFile(stale)
+	require.NoError(t, err)
+	require.Equal(t, "interrupted write", string(raw))
+	_, err = os.Readlink(link)
+	require.NoError(t, err)
+	temps, err := filepath.Glob(filepath.Join(dir, ".config.yaml.tmp-*"))
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{stale, link}, temps)
+	loaded, err := loadFrom(file, true, upgradeEnvironment{}, true)
+	require.NoError(t, err)
+	require.Equal(t, 9090, loaded.Server.Port)
 }

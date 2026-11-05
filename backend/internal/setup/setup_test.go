@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -300,6 +301,50 @@ func TestWriteConfigFileEnvironmentReferences(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, values["DATABASE_PASSWORD"], loaded.Database.Password)
 	require.Equal(t, values["JWT_SECRET"], loaded.Auth.JWT.Secret)
+}
+
+// TestWriteConfigFileDependencyHostReferences compares automatic and manual installation output.
+// Automatic hosts must track changed container addresses on reload, while manual
+// hosts remain literal even when the same environment variables are present.
+func TestWriteConfigFileDependencyHostReferences(t *testing.T) {
+	for _, automatic := range []bool{false, true} {
+		t.Run(strconv.FormatBool(automatic), func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "config.yaml")
+			t.Setenv("CONFIG_FILE", file)
+			t.Setenv("DATABASE_HOST", "192.168.64.2")
+			t.Setenv("REDIS_HOST", "192.168.64.3")
+			cfg := &SetupConfig{
+				environmentReferences: automatic,
+				Server:                ServerConfig{Host: "0.0.0.0", Port: 8080, Mode: "release"},
+				Database:              DatabaseConfig{Host: "192.168.64.2", Port: 5432, User: "app", DBName: "app", SSLMode: "disable"},
+				Redis:                 RedisConfig{Host: "192.168.64.3", Port: 6379},
+				JWT:                   JWTConfig{Secret: strings.Repeat("a", 32), ExpireHour: 24},
+			}
+			require.NoError(t, writeConfigFile(cfg))
+			first, err := config.LoadForBootstrap()
+			require.NoError(t, err)
+			require.Equal(t, cfg.Database.Host, first.Database.Host)
+			require.Equal(t, cfg.Redis.Host, first.Redis.Host)
+			raw, err := os.ReadFile(file)
+			require.NoError(t, err)
+			t.Setenv("DATABASE_HOST", "192.168.64.8")
+			t.Setenv("REDIS_HOST", "192.168.64.9")
+			reloaded, err := config.LoadForBootstrap()
+			require.NoError(t, err)
+			if automatic {
+				require.Contains(t, string(raw), "${DATABASE_HOST}")
+				require.Contains(t, string(raw), "${REDIS_HOST}")
+				require.Equal(t, "192.168.64.8", reloaded.Database.Host)
+				require.Equal(t, "192.168.64.9", reloaded.Redis.Host)
+			} else {
+				require.Equal(t, cfg.Database.Host, reloaded.Database.Host)
+				require.Equal(t, cfg.Redis.Host, reloaded.Redis.Host)
+			}
+			after, err := os.ReadFile(file)
+			require.NoError(t, err)
+			require.Equal(t, raw, after)
+		})
+	}
 }
 
 // TestWriteConfigFileIncludesRedisUsername writes configuration with a Redis

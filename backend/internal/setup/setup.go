@@ -62,7 +62,8 @@ type SetupConfig struct {
 	// Empty input generates a new key before configuration is persisted during setup.
 	SecretEncryptionKey string `json:"-" yaml:"-"`
 	// environmentReferences is set only by automatic setup after reading actual
-	// credentials for connection probes; file output retains their environment names.
+	// credentials and hosts for connection probes; file output retains their names
+	// so container dependency addresses can change between application starts.
 	environmentReferences bool
 
 	Database DatabaseConfig `json:"database" yaml:"database"` // installation PostgreSQL connection settings
@@ -306,8 +307,9 @@ func createAdminUser(cfg *SetupConfig) (bool, string, error) {
 // writeConfigFile persists version 2 configuration after installation succeeds.
 // Administrator credentials and migration timeout stay outside the runtime file.
 // A missing encryption key is generated once for this output; automatic setup
-// retains explicit environment references for supplied credentials while manual
-// installation writes escaped literal values.
+// retains explicit environment references for supplied credentials and dependency
+// hosts while manual installation writes escaped literal values. Host references
+// allow Apple Container's newly discovered addresses to take effect after restart.
 //
 // Encoding finishes before replacement begins, then the shared configuration
 // writer syncs and renames a sibling temporary file. Single-file mounts can
@@ -350,13 +352,15 @@ func writeConfigFile(cfg *SetupConfig) error {
 		return err
 	}
 	// Manual inputs are literal values even when they contain reference syntax.
-	// Escape them before adding the automatic installer's intentional secret references.
+	// Escape them before adding the automatic installer's credential and host references.
 	escapeSetupLiterals(&document)
 	if cfg.environmentReferences {
 		for _, entry := range []struct {
 			Name string   // referenced environment variable name
-			Path []string // serialized credential field path
+			Path []string // serialized configuration field path
 		}{
+			{"DATABASE_HOST", []string{"database", "host"}},
+			{"REDIS_HOST", []string{"redis", "host"}},
 			{"DATABASE_PASSWORD", []string{"database", "password"}},
 			{"REDIS_PASSWORD", []string{"redis", "password"}},
 			{"JWT_SECRET", []string{"auth", "jwt", "secret"}},
@@ -391,7 +395,7 @@ func writeConfigFile(cfg *SetupConfig) error {
 
 // escapeSetupLiterals preserves reference-looking installer input as literal text.
 // Only scalar values are changed; keys remain fixed by the installer output
-// structure, and automatic secret references are added after this traversal.
+// structure, and automatic environment references are added after this traversal.
 func escapeSetupLiterals(node *yaml.Node) {
 	if node.Kind == yaml.MappingNode {
 		for i := 1; i < len(node.Content); i += 2 {

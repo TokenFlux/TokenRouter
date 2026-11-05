@@ -79,6 +79,10 @@ names that migrated files may reference. Other application variables no longer
 override configuration. For a custom reference, explicitly pass that variable in
 the service's `environment` section.
 
+Automatic installation and v1 migration also preserve nonempty `DATABASE_HOST`
+and `REDIS_HOST` as explicit references. Keep passing these variables on later
+starts, or replace the references with fixed hostnames in the configuration.
+
 A version 1 file is backed up to `config.yaml.v1.bak` before its keys and legacy
 environment inputs are migrated. Existing backups receive a UTC timestamp suffix.
 The backup has mode `0600`; the upgraded file retains its original permissions.

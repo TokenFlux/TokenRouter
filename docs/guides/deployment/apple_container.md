@@ -145,6 +145,8 @@ Apple `container` 1.1 不提供 Compose 风格的网络内服务别名。Postgre
 
 每次执行 `up` 和 `restart` 都会重新创建应用容器，因为依赖虚拟机停止后地址可能变化。应用数据保留在 `tokenrouter-apple-data` 中。
 
+自动安装和旧配置升级会把 `database.host` 写为 `${DATABASE_HOST}`、`redis.host` 写为 `${REDIS_HOST}`。每次启动由脚本提供新地址，配置文件保留引用。如果已有 v2 文件仍保存旧 IP，先备份文件，再将这两个字段改为上述引用后执行 `up`；仅重新创建应用容器不会修改 v2 文件中的字面值。
+
 脚本报告成功前会从 macOS 检查已发布的 `/health` 端点。首次启动时需要允许本地网络访问。如果内部探测成功，但宿主机端口探测因连接重置失败，应为 `container-runtime-linux` 开启本地网络权限，依次运行 `container system stop` 和 `container system start`，再执行 `up`。运行时升级后可能再次请求权限。
 
 ## 备份与升级

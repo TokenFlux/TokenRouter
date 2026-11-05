@@ -768,7 +768,8 @@ cmd_up() {
     prepare_app_environment
     # Dependency virtual machines can receive new IP addresses after
     # restarting, so recreate the application with the addresses resolved
-    # above.
+    # above. Auto-setup and v1 migration retain DATABASE_HOST and REDIS_HOST
+    # references so the application loads these addresses on subsequent starts.
     delete_container_if_present "${APP_CONTAINER}"
     create_app_container
     start_app

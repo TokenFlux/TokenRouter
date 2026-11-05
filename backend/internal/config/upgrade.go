@@ -21,9 +21,10 @@ import (
 // replacement, and current-version files are read without any write. Unsupported
 // future versions fail before configuration reaches application construction.
 //
-// Ordinary files are replaced through a synced temporary file in the same
-// directory. Single-file mounts can reject rename, so selected filesystem errors
-// trigger a synced in-place write after the backup exists. That fallback cannot
+// Ordinary files are replaced through a uniquely named, synced temporary file
+// beside their resolved target, preserving configuration symlinks. Single-file
+// mounts can reject rename, so selected filesystem errors trigger a synced
+// in-place write after the backup exists. That fallback cannot
 // promise crash atomicity; the original backup remains the recovery source. The
 // explicit migration command uses the same transformations without modifying or
 // backing up its source and keeps environment secrets as references on disk.
@@ -202,6 +203,11 @@ func prepareConfigUpgrade(path string, exists bool, env upgradeEnvironment) ([]b
 // parseConfigDocument accepts one mapping document and a positive integer version.
 // Empty input is version 1. Malformed YAML diagnostics deliberately omit parser
 // excerpts because those excerpts can contain credentials from the source file.
+//
+// Version detection uses a materialized copy so YAML merges and scalar aliases
+// carry their effective version before any migration can drop unfamiliar keys.
+// The original graph is returned unchanged, allowing current-version files to
+// preserve their anchors, comments, and exact bytes without an unnecessary write.
 func parseConfigDocument(raw []byte, path string) (*yaml.Node, int, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(raw))
 	var doc yaml.Node
@@ -224,14 +230,18 @@ func parseConfigDocument(raw []byte, path string) (*yaml.Node, int, error) {
 	if err := doc.Decode(&check); err != nil {
 		return nil, 0, fmt.Errorf("configuration %s contains invalid or duplicate YAML keys", path)
 	}
-	for index := 0; index < len(doc.Content[0].Content); index += 2 {
-		key := doc.Content[0].Content[index].Value
+	effective, err := expandConfigAliases(&doc, make(map[*yaml.Node]bool))
+	if err != nil {
+		return nil, 0, fmt.Errorf("configuration %s contains invalid YAML aliases", path)
+	}
+	for index := 0; index < len(effective.Content[0].Content); index += 2 {
+		key := effective.Content[0].Content[index].Value
 		if strings.EqualFold(key, "config_version") && key != "config_version" {
 			return nil, 0, fmt.Errorf("configuration %s must spell config_version in lowercase", path)
 		}
 	}
 	version := 1
-	if node := configPath(doc.Content[0], "config_version"); node != nil {
+	if node := configPath(effective.Content[0], "config_version"); node != nil {
 		var parsed int
 		err := node.Decode(&parsed)
 		if node.Tag != "!!int" || err != nil || parsed <= 0 {
@@ -298,20 +308,33 @@ func writeAndSyncConfig(file *os.File, raw []byte) (err error) {
 
 // replaceConfigFile writes a synced sibling before replacing the destination.
 // Caller-supplied permissions are restored explicitly, independently of umask.
+// Existing symbolic links are resolved before writing, keeping the link itself
+// intact; dangling links fail instead of becoming independent configuration files.
 // A failed rename with EBUSY, EXDEV, or EPERM selects an in-place overwrite for
 // single-file mounts; all other failures leave the destination unchanged.
 //
 // The in-place fallback can leave partial bytes if writing or syncing fails.
 // Upgrade callers must create their backup before invoking this routine, while
 // installation callers own recovery of a newly created configuration. Temporary
-// files are exclusively created and removed after either successful replacement
-// or an error, so stale files cannot be followed as symlinks.
+// files have exclusive random names, with best-effort cleanup on return. A killed
+// process can leave its file behind without blocking another attempt with the
+// same PID or causing that attempt to follow a preexisting temporary symlink.
 func replaceConfigFile(path string, raw []byte, mode os.FileMode, rename func(string, string) error) error {
-	temp := filepath.Join(filepath.Dir(path), fmt.Sprintf(".%s.tmp-%d", filepath.Base(path), os.Getpid()))
-	file, err := os.OpenFile(temp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if _, err := os.Lstat(path); err == nil {
+		// Resolve the destination before choosing its sibling so rename updates the
+		// managed target rather than detaching the operator's configuration symlink.
+		path, err = filepath.EvalSymlinks(path)
+		if err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	file, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
 		return err
 	}
+	temp := file.Name()
 	defer func() { _ = os.Remove(temp) }()
 	if err = file.Chmod(mode); err != nil {
 		_ = file.Close()

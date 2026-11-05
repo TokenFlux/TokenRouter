@@ -119,6 +119,68 @@ func TestUpgradeV2SemanticCases(t *testing.T) {
 	}
 }
 
+// TestUpgradeV2OIDCEmptyEnvironmentPreservesFile checks explicit security choices with empty overrides.
+// Historical file values must survive migration, while omitted values materialize
+// true defaults and retain the explicit presence required by OIDC compatibility readers.
+func TestUpgradeV2OIDCEmptyEnvironmentPreservesFile(t *testing.T) {
+	for _, tc := range []struct {
+		name   string // original security setting
+		source string // version one input YAML
+		want   bool   // effective security flag
+	}{
+		{name: "omitted", source: "{}\n", want: true},
+		{name: "false", source: "oidc_connect:\n  use_pkce: false\n  validate_id_token: false\n"},
+		{name: "true", source: "oidc_connect:\n  use_pkce: true\n  validate_id_token: true\n", want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(file, []byte(tc.source), 0o600))
+			env := upgradeEnvironment{LookupEnv: func(name string) (string, bool) {
+				return "", name == "OIDC_CONNECT_USE_PKCE" || name == "OIDC_CONNECT_VALIDATE_ID_TOKEN"
+			}}
+			loaded, err := loadFrom(file, true, env, true)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, loaded.Auth.OAuth.OIDC.UsePKCE)
+			require.Equal(t, tc.want, loaded.Auth.OAuth.OIDC.ValidateIDToken)
+			require.True(t, loaded.Auth.OAuth.OIDC.UsePKCEExplicit)
+			require.True(t, loaded.Auth.OAuth.OIDC.ValidateIDTokenExplicit)
+			reloaded, err := loadFrom(file, true, upgradeEnvironment{}, true)
+			require.NoError(t, err)
+			require.Equal(t, loaded.Auth.OAuth.OIDC, reloaded.Auth.OAuth.OIDC)
+		})
+	}
+}
+
+// TestUpgradeV2DependencyHostsFollowEnvironment models container address changes after migration.
+// Host references must select each newly discovered address on restart without
+// rewriting the current-version document or importing environment overrides again.
+func TestUpgradeV2DependencyHostsFollowEnvironment(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(file, []byte("database: {host: old-db}\nredis: {host: old-cache}\n"), 0o600))
+	values := map[string]string{"DATABASE_HOST": "192.168.64.2", "REDIS_HOST": "192.168.64.3"}
+	env := upgradeEnvironment{LookupEnv: func(name string) (string, bool) {
+		value, ok := values[name]
+		return value, ok
+	}}
+	first, err := loadFrom(file, true, env, true)
+	require.NoError(t, err)
+	require.Equal(t, values["DATABASE_HOST"], first.Database.Host)
+	require.Equal(t, values["REDIS_HOST"], first.Redis.Host)
+	raw, err := os.ReadFile(file)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), "${DATABASE_HOST}")
+	require.Contains(t, string(raw), "${REDIS_HOST}")
+	values["DATABASE_HOST"] = "192.168.64.8"
+	values["REDIS_HOST"] = "192.168.64.9"
+	reloaded, err := loadFrom(file, true, env, true)
+	require.NoError(t, err)
+	require.Equal(t, values["DATABASE_HOST"], reloaded.Database.Host)
+	require.Equal(t, values["REDIS_HOST"], reloaded.Redis.Host)
+	after, err := os.ReadFile(file)
+	require.NoError(t, err)
+	require.Equal(t, raw, after)
+}
+
 // TestUpgradeV2PreservesMovedComments checks all key comment positions through relocation.
 // The new key must retain each comment while the original leaf disappears,
 // allowing operators to keep their deployment-specific notes after automatic upgrade.

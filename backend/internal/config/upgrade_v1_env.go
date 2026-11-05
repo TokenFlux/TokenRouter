@@ -16,7 +16,9 @@ import (
 // Candidate order is frozen with the historical schema. Explicit empty proxy
 // lists retain their presence, while ordinary empty variables remain absent.
 // Sensitive inputs become variable references so the upgraded configuration
-// never serializes their resolved values into the deployment's file.
+// never serializes their resolved values into the deployment's file. Database
+// and Redis host inputs also remain references because container restarts can
+// assign new dependency addresses while retaining the installed configuration.
 //
 // WeChat compatibility considers current file and environment presence before
 // accepting retired credential pairs. Additional module-owned variables follow
@@ -25,9 +27,10 @@ import (
 // permissive legacy options instead retain defaults and record names only.
 
 var (
-	// v1SecretKeys identifies historical inputs that must remain explicit references
-	// when imported, including proxy URLs that can embed authentication credentials.
-	v1SecretKeys = map[string]bool{
+	// v1ReferenceKeys retains credentials and container dependency addresses as
+	// explicit references so secrets stay private and discovered hosts remain current.
+	v1ReferenceKeys = map[string]bool{
+		"database.host": true, "redis.host": true,
 		"database.password": true, "redis.password": true, "jwt.secret": true, "totp.encryption_key": true,
 		"linuxdo_connect.client_secret": true, "wechat_connect.app_secret": true, "wechat_connect.open_app_secret": true,
 		"wechat_connect.mp_app_secret": true, "wechat_connect.mobile_app_secret": true, "oidc_connect.client_secret": true,
@@ -106,9 +109,10 @@ func hasV1Environment(lookup func(string) (string, bool)) bool {
 // importV1Environment overlays historical file values with eligible environment input.
 // Candidate names follow the frozen precedence table, preserving false and zero
 // while ordinary empty values fall through to later candidates. The two client-IP
-// lists use presence alone, and empty OIDC security variables retain explicit
-// default-valued fields. Secret inputs become references to the selected name;
-// ordinary strings escape reference-looking text before entering the document.
+// lists use presence alone, and empty OIDC security variables retain existing
+// file values or materialize defaults when absent. Credentials and dependency
+// hosts become references to the selected name; ordinary strings escape
+// reference-looking text before entering the document.
 // Unsupported aggregate bindings warn by name, and malformed typed scalars fail
 // before the upgrade framework can write the changed document.
 func importV1Environment(root *yaml.Node, lookup func(string) (string, bool), report *upgradeReport) error {
@@ -132,8 +136,13 @@ func importV1Environment(root *yaml.Node, lookup func(string) (string, bool), re
 			case explicitList:
 				value = normalizeStringSlice(strings.Split(raw, ","))
 			case explicitOIDC && raw == "":
+				// Viper ignored empty scalar overrides, so a file's explicit false must
+				// survive; only an omitted field needs its default persisted for presence.
+				if configPath(root, key.Path) != nil {
+					continue
+				}
 				value = true
-			case v1SecretKeys[key.Path]:
+			case v1ReferenceKeys[key.Path]:
 				value = "${" + name + "}"
 			default:
 				switch key.Kind {
