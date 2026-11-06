@@ -401,3 +401,37 @@ describe('PaymentProviderDialog payment guide', () => {
     expect(wrapper.emitted('save')).toBeUndefined()
   })
 })
+
+// A saved GMPay instance hydrates its public configuration with an omitted signing secret.
+// Saving retains the hosted mode and required method while suppressing automatic refund controls.
+it('saves GMPay as hosted cryptocurrency checkout with its existing secret omitted', async () => {
+  const provider = providerFactory({
+    provider_key: 'epusdt',
+    name: 'Crypto',
+    supported_types: ['epusdt'],
+    payment_mode: 'popup',
+    config: {
+      apiBase: 'https://pay.example.com',
+      pid: '1001',
+      currency: 'CNY',
+      notifyUrl: 'https://site.example.com/api/v1/payment/webhook/epusdt',
+    },
+  })
+  const wrapper = mountDialog({ editing: provider })
+  ;(
+    wrapper.vm as unknown as {
+      loadProvider: (provider: ProviderInstance) => void /* public draft hydration method */
+    }
+  ).loadProvider(provider)
+  await nextTick()
+  await wrapper.find('form').trigger('submit.prevent')
+  const event = wrapper.emitted('save')?.[0]?.[0] as Record<string, unknown>
+  expect(event).toMatchObject({
+    provider_key: 'epusdt',
+    payment_mode: 'popup',
+    supported_types: ['epusdt'],
+    refund_enabled: false,
+  })
+  expect(event.config).not.toHaveProperty('secretKey')
+  wrapper.unmount()
+})

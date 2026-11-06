@@ -23,6 +23,7 @@
     <!-- The app-main flex column supplies alignment; automatic side margins would shrink checkout and misalign it with the page heading. -->
     <div
       class="purchase-viewport relative w-full"
+      :class="{ 'pb-24 md:pb-0': isEPUSDTSelected && paymentPhase === 'select' }"
       :style="{ '--purchase-direction': activeTab === 'subscription' ? 1 : -1 }"
     >
       <MotionTransition name="purchase-slide" :css="!loading">
@@ -256,6 +257,25 @@
                     :selected="selectedMethod"
                     @select="selectedMethod = $event"
                   />
+                  <div
+                    v-if="isEPUSDTSelected"
+                    class="mt-4 rounded-control border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-950"
+                  >
+                    <div class="flex items-center gap-2">
+                      <Icon
+                        name="recharge"
+                        size="sm"
+                        class="text-primary-600"
+                        :animate-on-hover="false"
+                      />
+                      <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{
+                        t('payment.crypto.title')
+                      }}</h3>
+                    </div>
+                    <p class="mt-2 text-xs leading-6 text-gray-500 dark:text-dark-300">{{
+                      t('payment.crypto.hint')
+                    }}</p>
+                  </div>
                 </section>
 
                 <!-- Stripe billing details. -->
@@ -465,10 +485,17 @@
                         {{ t('common.processing') }}
                       </template>
                       <template v-else
-                        >{{ t('payment.createOrder') }}
+                        >{{
+                          isEPUSDTSelected ? t('payment.crypto.cashier') : t('payment.createOrder')
+                        }}
                         {{ formatSelectedPaymentAmount(checkoutTotalAmount) }}</template
                       >
                     </button>
+                    <p
+                      v-if="isEPUSDTSelected"
+                      class="text-center text-xs leading-6 text-gray-500 dark:text-dark-300"
+                      >{{ t('payment.crypto.cashierNote') }}</p
+                    >
                     <button
                       v-if="isSubscriptionCheckout"
                       type="button"
@@ -491,6 +518,28 @@
           </template>
         </div>
       </MotionTransition>
+    </div>
+    <!-- Mobile cryptocurrency checkout keeps its charge and action visible while the buyer reviews the amount and payment instructions. -->
+    <div
+      v-if="
+        isEPUSDTSelected && paymentPhase === 'select' && (activeTab === 'recharge' || selectedPlan)
+      "
+      class="fixed inset-x-0 bottom-0 z-header flex items-center justify-between gap-4 border-t border-gray-200 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-dark-600 dark:bg-dark-900 md:hidden"
+    >
+      <div>
+        <p class="text-xs text-gray-500 dark:text-dark-300">{{ t('payment.actualPay') }}</p>
+        <p class="text-lg font-semibold tabular-nums text-gray-900 dark:text-white">{{
+          formatSelectedPaymentAmount(checkoutTotalAmount)
+        }}</p>
+      </div>
+      <button
+        class="btn btn-primary"
+        :disabled="!checkoutCanSubmit || submitting"
+        @click="handleCheckoutSubmit"
+      >
+        {{ submitting ? t('common.processing') : t('payment.crypto.cashier') }}
+        <Icon name="externalLink" size="sm" :animate-on-hover="false" />
+      </button>
     </div>
     <!-- Renewal plan selection dialog. -->
     <BaseDialog
@@ -786,6 +835,8 @@ const globalMaxAmount = computed(() => {
 
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
+// Cryptocurrency checkout uses a hosted cashier and its own explanatory purchase state.
+const isEPUSDTSelected = computed(() => selectedMethod.value === 'epusdt')
 const isStripeSelected = computed(
   () => (normalizeVisibleMethod(selectedMethod.value) || selectedMethod.value) === 'stripe',
 )

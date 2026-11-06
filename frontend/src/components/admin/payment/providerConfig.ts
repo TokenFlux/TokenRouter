@@ -81,6 +81,7 @@ export const PROVIDER_SUPPORTED_TYPES: Record<string, string[]> = {
   // exposes one provider-level selection that also owns its shared limits.
   stripe: ['stripe'],
   airwallex: ['airwallex'],
+  epusdt: ['epusdt'],
 }
 
 // PAYMENT_CURRENCY_OPTIONS lists the currency codes exposed by provider currency
@@ -111,6 +112,7 @@ export const WEBHOOK_PATHS: Record<string, string> = {
   wxpay: '/api/v1/payment/webhook/wxpay',
   stripe: '/api/v1/payment/webhook/stripe',
   airwallex: '/api/v1/payment/webhook/airwallex',
+  epusdt: '/api/v1/payment/webhook/epusdt',
 }
 
 // RETURN_PATH identifies the browser result page appended to configured return origins for
@@ -123,11 +125,31 @@ export const PROVIDER_CALLBACK_PATHS: Record<string, CallbackPaths> = {
   easypay: { notifyUrl: WEBHOOK_PATHS.easypay, returnUrl: RETURN_PATH },
   alipay: { notifyUrl: WEBHOOK_PATHS.alipay, returnUrl: RETURN_PATH },
   wxpay: { notifyUrl: WEBHOOK_PATHS.wxpay },
+  epusdt: { notifyUrl: WEBHOOK_PATHS.epusdt },
 }
 
 // PROVIDER_CONFIG_FIELDS drives credential inputs and validation for each provider;
 // callback URLs and custom EasyPay method rows are handled separately.
 export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
+  epusdt: [
+    {
+      key: 'apiBase',
+      label: '',
+      sensitive: false,
+      hintKey: 'admin.settings.payment.field_epusdtApiBaseHint',
+    },
+    { key: 'pid', label: 'PID', sensitive: false },
+    { key: 'secretKey', label: '', sensitive: true },
+    {
+      key: 'currency',
+      label: '',
+      sensitive: false,
+      defaultValue: 'CNY',
+      options: PAYMENT_CURRENCY_OPTIONS.filter(
+        (option) => option.value === 'CNY' || option.value === 'USD',
+      ),
+    },
+  ],
   easypay: [
     { key: 'pid', label: 'PID', sensitive: false },
     { key: 'pkey', label: 'PKey', sensitive: true },

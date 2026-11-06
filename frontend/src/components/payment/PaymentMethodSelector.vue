@@ -19,7 +19,15 @@
       @click="method.available && emit('select', method.type)"
     >
       <!-- Method icons retain their brand colors while selected cards share the application accent border. -->
+      <Icon
+        v-if="method.type === 'epusdt'"
+        name="recharge"
+        size="lg"
+        class="h-7 w-7 shrink-0 text-primary-600"
+        :animate-on-hover="false"
+      />
       <img
+        v-else
         :src="methodIcon(method.type)"
         :alt="methodLabel(method)"
         class="h-7 w-7 shrink-0 object-contain"

@@ -39,6 +39,7 @@
           @toggle="form.enabled = !form.enabled"
         />
         <ToggleSwitch
+          v-if="form.provider_key !== 'epusdt'"
           :label="t('admin.settings.payment.refundEnabled')"
           :checked="form.refund_enabled"
           @toggle="
@@ -494,9 +495,10 @@ import {
 // requests.
 
 // defaultPaymentMode returns the initial mode for the selected provider key. EasyPay
-// starts with QR checkout, and other providers use the empty mode interpreted by their own
-// checkout implementation.
+// starts with QR checkout, GMPay uses hosted checkout, and other providers use the
+// empty mode interpreted by their own checkout implementation.
 function defaultPaymentMode(providerKey: string): string {
+  if (providerKey === 'epusdt') return PAYMENT_MODE_POPUP
   if (providerKey === 'easypay') return PAYMENT_MODE_QRCODE
   return ''
 }
@@ -509,8 +511,9 @@ function providerSupportsPaymentMode(providerKey: string): boolean {
 
 // isValidPaymentMode checks a stored mode against the selected provider's supported
 // choices. Empty mode is accepted for Alipay and providers without mode controls, while
-// EasyPay requires a named mode.
+// EasyPay requires a named mode, while GMPay always uses hosted popup mode.
 function isValidPaymentMode(providerKey: string, mode: string): boolean {
+  if (providerKey === 'epusdt') return mode === PAYMENT_MODE_POPUP
   if (providerKey === 'easypay') {
     return mode === PAYMENT_MODE_QRCODE || mode === PAYMENT_MODE_POPUP
   }
@@ -948,7 +951,12 @@ function handleSave() {
     name: form.name,
     supported_types: form.supported_types,
     enabled: form.enabled,
-    payment_mode: supportsPaymentMode.value ? form.payment_mode : '',
+    payment_mode:
+      form.provider_key === 'epusdt'
+        ? PAYMENT_MODE_POPUP
+        : supportsPaymentMode.value
+          ? form.payment_mode
+          : '',
     refund_enabled: form.refund_enabled,
     allow_user_refund: form.refund_enabled ? form.allow_user_refund : false,
     config: filteredConfig,

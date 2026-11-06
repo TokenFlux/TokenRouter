@@ -23,6 +23,10 @@ import (
 // stages rather than one interchangeable status value.
 
 const (
+	// CodePaymentCreateUnconfirmed identifies uncertain external creation so callers
+	// keep the committed merchant order available for signed callback recovery.
+	CodePaymentCreateUnconfirmed = "PAYMENT_CREATE_UNCONFIRMED"
+
 	// Payment method labels include canonical visible methods, historical
 	// aliases, and adapter identities interpreted by configuration and dispatch.
 	TypeAlipay PaymentType = "alipay" // visible Alipay method
@@ -35,6 +39,7 @@ const (
 	TypeCard        PaymentType = "card"    // historical Stripe card alias
 	TypeLink        PaymentType = "link"    // historical Stripe Link alias
 	TypeEasyPay     PaymentType = "easypay" // EasyPay adapter identity
+	TypeEPUSDT      PaymentType = "epusdt"  // EPUSDT EPay cryptocurrency checkout
 	// Airwallex checkout adapter identity.
 	TypeAirwallex PaymentType = "airwallex"
 

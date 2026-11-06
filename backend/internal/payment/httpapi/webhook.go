@@ -82,6 +82,13 @@ func (h *PaymentWebhookHandler) EasyPayNotify(c *gin.Context) {
 	h.handleNotify(c, payment.TypeEasyPay)
 }
 
+// EPUSDTNotify authenticates EPUSDT EPay forms through the common callback dispatcher.
+// Successful handling returns the gateway's plain-text success acknowledgement;
+// order identity and merchant checks precede payment confirmation and fulfillment.
+func (h *PaymentWebhookHandler) EPUSDTNotify(c *gin.Context) {
+	h.handleNotify(c, payment.TypeEPUSDT)
+}
+
 // AlipayNotify delegates the official Alipay callback to common body reading
 // and candidate verification. Verified notification handling follows before
 // its plain-text success acknowledgement; errors retain the shared status
@@ -235,13 +242,14 @@ func WebhookShouldAcknowledgeWebhookProviderLookupError(err error) bool {
 // the notification's identity.
 //
 // EasyPay/Alipay read out_trade_no, Stripe reads object metadata orderId, and
-// Airwallex reads its nested merchant_order_id. These representations select
+// Airwallex reads its nested merchant_order_id. EPUSDT EPay uses out_trade_no.
+// These representations select
 // candidate accounts before authentication; no returned value authorizes
 // fulfillment on its own. Trimming is applied to the JSON hints, while form
 // extraction returns the parsed first value.
 func WebhookExtractOutTradeNo(rawBody, providerKey string) string {
 	switch providerKey {
-	case payment.TypeEasyPay, payment.TypeAlipay:
+	case payment.TypeEasyPay, payment.TypeAlipay, payment.TypeEPUSDT:
 		values, err := url.ParseQuery(rawBody)
 		if err == nil {
 			return values.Get("out_trade_no")

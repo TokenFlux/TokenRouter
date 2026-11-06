@@ -112,6 +112,8 @@ func RegisterRoutes(
 	{
 		webhook.GET("/easypay", webhookHandler.EasyPayNotify)
 		webhook.POST("/easypay", webhookHandler.EasyPayNotify)
+		webhook.POST("/epusdt", webhookHandler.EPUSDTNotify)
+		webhook.GET("/epusdt", webhookHandler.EPUSDTNotify)
 		webhook.POST("/alipay", webhookHandler.AlipayNotify)
 		webhook.POST("/wxpay", webhookHandler.WxpayNotify)
 		webhook.POST("/stripe", webhookHandler.StripeWebhook)

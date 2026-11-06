@@ -54,7 +54,7 @@ TokenFlux 官方运营站点：[tokenflux.com](https://tokenflux.com)。
 | 上游平台  | 接入 Anthropic、OpenAI、Gemini、Antigravity、Grok、Qoder、Kimi、智谱和 DeepSeek，支持 OAuth 账号、API Key、AWS Bedrock 和 Vertex AI |
 | 调度与重试 | 按模型、协议能力、限流状态和粘性会话选择上游，上游出错时自动换下一个                                                                              |
 | 访问控制  | 管理用户、团队、分组和 API Key 的额度、并发与 RPM。登录支持邮箱密码、Passkey、两步验证，以及 GitHub、Google、LinuxDo、OIDC、微信和钉钉                       |
-| 计费与支付 | 按用量计费，支持余额、订阅套餐、额度包、兑换码和邀请返利。内置易支付、支付宝、微信支付、Stripe 和 Airwallex                                                  |
+| 计费与支付 | 按用量计费，支持余额、订阅套餐、额度包、兑换码和邀请返利。内置易支付、支付宝、微信支付、Stripe、Airwallex 和 EPUSDT（EPay 协议）                                                  |
 | 内容审核  | 按关键词和哈希规则拦截请求，可以自动封禁违规用户                                                                                        |
 | 管理后台  | 查看用量日志和统计、配置监控告警和邮件报表、在线升级和回滚，网页创作台可以生成和编辑图片。界面支持简体中文和英语                                                        |
 | 插件扩展  | 添加用户页面、管理页面、HTTP 接口和定时任务，在后台安装、配置、更新和回滚插件 |

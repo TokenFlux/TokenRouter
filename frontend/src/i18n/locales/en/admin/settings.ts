@@ -1032,6 +1032,9 @@ export default {
       providerWxpay: 'WeChat Pay (Direct)',
       providerStripe: 'Stripe',
       providerAirwallex: 'Airwallex',
+      providerEPUSDT: 'EPUSDT / GMPay (EPay protocol)',
+      field_epusdtApiBaseHint:
+        'Enter the EPUSDT HTTPS base URL, such as https://pay.example.com. Uses the EPay submit.php flow with MD5 signatures and the merchant API key secret.',
       typeDisabled: 'type disabled',
       enableTypesFirst: 'Enable at least one payment type above first',
       easypayRedirect: 'Redirect',

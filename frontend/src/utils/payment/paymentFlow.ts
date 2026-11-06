@@ -32,12 +32,13 @@ const VISIBLE_METHOD_ALIASES = {
   wxpay_direct: 'wxpay',
   stripe: 'stripe',
   airwallex: 'airwallex',
+  epusdt: 'epusdt',
 } as const
 
 /**
  * VisiblePaymentMethod names the built-in methods presented to checkout users.
  */
-export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex'
+export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex' | 'epusdt'
 /**
  * StripeVisibleMethod identifies a wallet preselected inside Stripe Payment Element.
  */
