@@ -740,7 +740,7 @@ export default {
       ttftModeFirstEvent: 'First upstream event',
       ttftModeFirstOutput: 'First useful output',
       ttftModeHint:
-        'Applies to all text streaming platforms and protocols, measured from the upstream attempt start. Changes affect new requests; TPS always uses the useful-content interval.',
+        'Applies to all text streaming platforms and protocols, measured from the upstream attempt start. Changes affect new requests. TPS is independent of this setting and measures average output speed from the upstream call start to its last useful content.',
       fingerprintUnification: 'Fingerprint Unification',
       fingerprintUnificationHint:
         "Unify X-Stainless-* headers across users sharing the same OAuth provider. Disabling passes through each client's original headers.",

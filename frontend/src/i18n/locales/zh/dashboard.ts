@@ -491,7 +491,7 @@ export default {
     tps: 'TPS',
     tpsExport: 'TPS (tok/s)',
     tpsHint:
-      'TPS = 输出 Token 数 ÷ 首个至最后有效内容的时间（秒）。按数据块估算，受网络、合并发送、下游背压和不可见思考影响。单块输出或 usage 不完整时显示 -；首字／首包设置不影响 TPS。',
+      'TPS 为平均输出速度：输出 Token 数 ÷ 本次上游调用开始至最后有效内容的时间（秒）。包含本次调用的连接、等待、预填充和思考时间，也受网络和下游背压影响。单块输出可计算；缺少计时或 usage 不完整时显示 -。首字／首包设置不影响 TPS。',
     detailedTiming: '详细耗时',
     timingRequestSize: '请求体',
     timingAttempts: '尝试次数',

@@ -260,15 +260,28 @@ func usageTTFTSQL(alias string) string {
 	return "(CASE WHEN " + column + "->>'upstream_stream'='true' AND " + end + ">=" + start + " THEN " + end + "-" + start + " END)"
 }
 
-// usageTPSSQL estimates throughput from the same complete content interval as usage DTOs.
-// A lone chunk, incomplete usage, or invalid interval produces SQL NULL and therefore
-// cannot silently enter averages as a zero-speed observation.
+// usageTPSSQL derives average output speed from attempt start to last useful content.
+// Alias is a trusted internal table alias, never user input. Eligibility and rounding
+// match timing.Performance.TPS so model averages use the same estimates as usage DTOs.
+//
+// Single-chunk output qualifies when the attempt has a positive observed interval.
+// Missing endpoints, nonstreaming exchanges, incomplete usage or nonpositive output
+// tokens produce SQL NULL, keeping unavailable estimates out of averages rather than
+// counting them as zero speed. First-event and first-output timestamps do not select
+// this interval, so changing the TTFT mode cannot alter throughput.
 func usageTPSSQL(alias string) string {
 	prefix := ""
 	if alias != "" {
 		prefix = alias + "."
 	}
 	column := prefix + "timings"
-	elapsed := "((" + column + "->'values'->>'upstream_last_output_ms')::bigint-(" + column + "->'values'->>'upstream_first_output_ms')::bigint)"
-	return "(CASE WHEN " + column + "->>'upstream_stream'='true' AND " + column + "->>'upstream_complete'='true' AND " + column + "->>'usage_complete'='true' AND (" + column + "->'values'->>'upstream_output_event_count')::bigint>=2 AND " + prefix + "output_tokens>0 AND " + elapsed + ">0 THEN ROUND(" + prefix + "output_tokens*1000.0/" + elapsed + ",1) END)"
+	elapsed := "((" + column + "->'values'->>'upstream_last_output_ms')::bigint-" +
+		"(" + column + "->'values'->>'upstream_started_ms')::bigint)"
+	// SQL preserves absent estimates while converting milliseconds and matching
+	// the API's one-decimal rounding for eligible streams.
+	return "(CASE WHEN " + column + "->>'upstream_stream'='true'" +
+		" AND " + column + "->>'upstream_complete'='true'" +
+		" AND " + column + "->>'usage_complete'='true'" +
+		" AND " + prefix + "output_tokens>0 AND " + elapsed + ">0" +
+		" THEN ROUND(" + prefix + "output_tokens*1000.0/" + elapsed + ",1) END)"
 }

@@ -5,8 +5,8 @@ import "time"
 // token_stats_models.go defines filters and response values for model-grouped
 // token statistics.
 // Model token statistics group saved usage observations by their execution
-// model and rank them by request count. TPS uses complete upstream content
-// intervals, while TTFT uses the event selected in each usage snapshot. These
+// model and rank them by request count. TPS measures average output speed from
+// attempt start, while TTFT uses the event selected in each usage snapshot. These
 // metrics have separate sample sets; pagination and leading-model limits select
 // different response metadata.
 
@@ -41,9 +41,9 @@ type OpsTokenStatsFilter struct {
 type OpsTokenStatsItem struct {
 	Model        string `json:"model"`         // saved usage model dimension
 	RequestCount int64  `json:"request_count"` // model usage observation count
-	// AvgTokensPerSec averages eligible per-usage TPS estimates from the first to
-	// last useful upstream content. The query rounds the mean to two decimals and
-	// returns nil when no complete stream has a valid content interval.
+	// AvgTokensPerSec averages eligible per-usage output speeds from attempt start
+	// to last useful upstream content. The query rounds the mean to two decimals
+	// and returns nil when no complete stream has a valid observed interval.
 	AvgTokensPerSec *float64 `json:"avg_tokens_per_sec"`
 	// AvgTTFTMs is the mean selected upstream latency in milliseconds, rounded
 	// to two decimals. Nil represents the absence of TTFT latency samples

@@ -464,7 +464,56 @@ func TestTextRequestTimingFinalUsageAndToolInput(t *testing.T) {
 				require.True(t, observed.Complete)
 				require.True(t, observed.UsageComplete)
 				require.Equal(t, int64(2), observed.Values["upstream_output_event_count"])
-				require.Equal(t, 200.0, *observed.TPS(20))
+				require.Equal(t, 100.0, *observed.TPS(20))
+			})
+		})
+	}
+}
+
+// TestTextRequestTimingBufferedOutputExcludesAdmissionAndDelivery delays a coalesced
+// upstream response and then emits converted downstream text. Average output speed
+// includes only the upstream wait, excluding earlier admission and later delivery.
+func TestTextRequestTimingBufferedOutputExcludesAdmissionAndDelivery(t *testing.T) {
+	for _, coalesced := range []bool{false, true} {
+		t.Run(fmt.Sprintf("coalesced_%t", coalesced), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				router := gin.New()
+				router.Use(TextRequestTiming())
+				var observed *timing.Performance
+				router.POST("/v1/responses", func(c *gin.Context) {
+					SetOpsRequestContext(c, "model", true)
+					time.Sleep(3 * time.Second)
+					MarkOpsProviderSlotAcquired(c)
+					body := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"world\"}]},\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"candidatesTokenCount\":20}}\n\n"
+					if coalesced {
+						body = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"hello\"}]}}]}\n\n" + body
+					}
+					response := &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     http.Header{"Content-Type": {"text/event-stream"}},
+						Body:       io.NopCloser(strings.NewReader(body)),
+					}
+					timing.ObserveResponse(timing.BeginHTTPTrace(c.Request.Context()), response)
+					// A virtual delay precedes the single body read, matching buffered upstream
+					// delivery without manufacturing separate arrival times while parsing events.
+					time.Sleep(2 * time.Second)
+					_, err := io.ReadAll(response.Body)
+					require.NoError(t, err)
+					require.NoError(t, response.Body.Close())
+					// Downstream conversion and delivery occur after the upstream read. Their
+					// later visible output must not replace the usage-producing attempt's endpoint.
+					time.Sleep(4 * time.Second)
+					c.Header("Content-Type", "text/event-stream")
+					_, err = c.Writer.WriteString("data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello world\"}\n\n")
+					require.NoError(t, err)
+					observed = timing.PerformanceFromContext(c.Request.Context())
+				})
+				router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/responses", nil))
+				require.NotNil(t, observed)
+				require.Equal(t, int64(3000), observed.Values["upstream_started_ms"])
+				require.Equal(t, int64(5000), observed.Values["upstream_first_output_ms"])
+				require.Equal(t, int64(5000), observed.Values["upstream_last_output_ms"])
+				require.Equal(t, 10.0, *observed.TPS(20))
 			})
 		})
 	}

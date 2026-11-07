@@ -691,7 +691,7 @@ export default {
       ttftModeFirstEvent: '首包（首个上游事件）',
       ttftModeFirstOutput: '首字（首个有效内容）',
       ttftModeHint:
-        '适用于所有文本流平台和协议，从本次上游请求发起计时。设置影响新请求，TPS 始终按有效内容区间计算。',
+        '适用于所有文本流平台和协议，从本次上游请求发起计时。设置影响新请求。TPS 不受此设置影响，按本次上游调用开始至最后有效内容的时间计算平均输出速度。',
       fingerprintUnification: '指纹统一化',
       fingerprintUnificationHint:
         '统一共享同一 OAuth 提供商的用户的 X-Stainless-* 请求头。关闭后透传客户端原始请求头。',

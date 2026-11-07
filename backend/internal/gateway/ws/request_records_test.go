@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -74,6 +75,44 @@ func TestEntryPerformanceKeepsUsageAttemptOwnership(t *testing.T) {
 	nextContext := second.context(root, 2)
 	next := timing.BeginPerformance(nextContext, 20, time.Now())
 	require.Equal(t, timing.FirstOutput, next.Mode)
+}
+
+// TestEntryPerformanceAverageSpeedAcrossRetryAndTurns delays a failed provider before
+// completing two socket turns. Each TPS includes only its own dispatch interval,
+// and the second turn cannot alter the first turn's captured estimate.
+func TestEntryPerformanceAverageSpeedAcrossRetryAndTurns(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		root := telemetry.WithRequestCapture(t.Context(), telemetry.RequestRecord{RequestID: "connection", StartedAt: time.Now()}, func(telemetry.RequestRecord) {})
+		session := newEntryRequestRecords(root)
+		first := session.attempt()
+		failed := timing.BeginPerformance(first.context(root, 1), 10, time.Now())
+		time.Sleep(5 * time.Second)
+		first.finish(root, TurnCapture{Turn: 1, Err: errors.New("connection failed")}, 10, "openai", true)
+		second := session.attempt()
+		ctx := second.context(root, 1)
+		performance := timing.BeginPerformance(ctx, 20, time.Now())
+		time.Sleep(time.Second)
+		performance.ObserveAt(`{"type":"response.created"}`, "", time.Now())
+		time.Sleep(time.Second)
+		terminal := `{"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}],"usage":{"output_tokens":20}}}`
+		performance.ObserveAt(terminal, "", time.Now())
+		performance.FinishAt(time.Now())
+		require.Equal(t, int64(5000), performance.Values["upstream_started_ms"])
+		require.Equal(t, 10.0, *performance.TPS(20))
+		require.Nil(t, failed.TPS(20))
+		second.finish(root, TurnCapture{Turn: 1, Result: &ForwardResult{OpenAIWSMode: true, UpstreamTerminalEvent: "response.completed", Timings: performance}}, 20, "openai", false)
+		nextContext := second.context(root, 2)
+		next := timing.BeginPerformance(nextContext, 20, time.Now())
+		time.Sleep(500 * time.Millisecond)
+		next.ObserveAt(terminal, "", time.Now())
+		next.FinishAt(time.Now())
+		require.NotEqual(t, telemetry.RequestIDValue(ctx), telemetry.RequestIDValue(nextContext))
+		require.Equal(t, int64(0), next.Values["upstream_started_ms"])
+		require.Equal(t, 40.0, *next.TPS(20))
+		require.Equal(t, 10.0, *performance.TPS(20))
+		second.finish(root, TurnCapture{Turn: 2, Result: &ForwardResult{OpenAIWSMode: true, UpstreamTerminalEvent: "response.completed", Timings: next}}, 20, "openai", false)
+		session.close()
+	})
 }
 
 // TestEntryCloseKeepsDisconnectBeforeIncompleteDrain closes a turn that never received

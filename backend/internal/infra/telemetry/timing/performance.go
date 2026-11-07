@@ -22,8 +22,8 @@ import (
 // Completion owns a cloned snapshot until its acknowledged analytical write
 // finishes. Only usage storage persists this complete value; request records
 // retain lifecycle and failure diagnostics separately. TTFT follows the mode
-// captured for the request, whereas TPS always uses the first and last useful
-// upstream content and requires complete usage from a completed stream.
+// captured for the request, whereas TPS measures average output speed from the
+// exchange start to its last useful content and requires complete stream usage.
 // Socket execution registers its attempt here; HTTP bridges take their ordinal
 // from transport while using the same request clock and event calculations.
 
@@ -167,22 +167,25 @@ func (p *Performance) DurationMs() *int {
 	return p.elapsed("upstream_started_ms", "upstream_finished_ms")
 }
 
-// TPS estimates useful-content throughput from complete output usage and arrival times.
-// Single-chunk output, incomplete usage and a nonpositive interval have no estimate.
-// Packet coalescing and hidden reasoning remain limitations of this gateway measure.
+// TPS estimates average output speed from exchange start to last useful content.
+// Complete streaming usage, positive output tokens and a positive observed interval
+// are required; missing evidence leaves the estimate absent. Single-chunk output
+// qualifies because the interval includes waiting before content arrives.
 //
-// The count comes from final provider usage, while the interval excludes metadata,
-// repeated terminal snapshots and waiting before the first useful event. It is an
-// arrival-based estimate, not an observation of the model's internal decode clock.
-// Rounding happens here so the API, CSV and spreadsheet consumers use one value.
+// The interval includes connection setup, upstream waiting, prefill and reasoning
+// within this attempt, excluding admission and earlier failed attempts. Later usage
+// or repeated terminal snapshots do not extend the last useful content timestamp.
+// This measures observed service speed rather than the model's internal decode rate.
+// Rounding happens here so API, CSV and spreadsheet consumers use one value.
 func (p *Performance) TPS(tokens int) *float64 {
-	if p == nil || !p.Stream || !p.Complete || !p.UsageComplete || tokens <= 0 || p.Values["upstream_output_event_count"] < 2 {
+	if p == nil || !p.Stream || !p.Complete || !p.UsageComplete || tokens <= 0 {
 		return nil
 	}
-	duration := p.elapsed("upstream_first_output_ms", "upstream_last_output_ms")
+	duration := p.elapsed("upstream_started_ms", "upstream_last_output_ms")
 	if duration == nil || *duration <= 0 {
 		return nil
 	}
+	// Convert milliseconds to seconds and round the shared API estimate to one decimal.
 	value := math.Round(float64(tokens)*10000/float64(*duration)) / 10
 	return &value
 }

@@ -509,7 +509,7 @@ export default {
     tps: 'TPS',
     tpsExport: 'TPS (tok/s)',
     tpsHint:
-      'TPS = output tokens divided by the interval from first to last useful upstream content, in seconds. Chunking, network delays, downstream backpressure and hidden reasoning affect this estimate. Single-chunk or incomplete usage shows -; the first-event setting does not change TPS.',
+      'TPS is average output speed: output tokens divided by the time from the upstream call start to its last useful content, in seconds. It includes connection, waiting, prefill and reasoning time for that attempt; network delays and downstream backpressure also affect it. Single-chunk output can be measured. Missing timing or incomplete usage shows -; the first-output/event setting does not change TPS.',
     detailedTiming: 'Detailed Timing',
     timingRequestSize: 'Request size',
     timingAttempts: 'Attempts',
