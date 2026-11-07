@@ -3183,4 +3183,30 @@ describe('admin SettingsView security tab controls', () => {
       }),
     )
   })
+  // Selecting a cover updates only the local settings draft until save. The page
+  // submits the image through the combined request and restores it when changes are discarded.
+  it('saves and discards the social cover draft', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const cover = wrapper
+      .findAllComponents(ImageUploadStub)
+      .find((item) => item.attributes('wide') !== undefined)
+    expect(cover).toBeDefined()
+    cover!.vm.$emit('update:modelValue', 'data:image/png;base64,draft')
+    await flushPromises()
+    expect(updateSettings).not.toHaveBeenCalled()
+    await saveFromSaveBar(wrapper)
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ site_share_image: 'data:image/png;base64,draft' }),
+    )
+    getSettings.mockResolvedValueOnce({
+      ...(await getSettings.mock.results[0].value),
+      site_share_image: 'saved-cover',
+    })
+    cover!.vm.$emit('update:modelValue', '')
+    await flushPromises()
+    await wrapper.get('[data-testid="settings-save-bar-discard"]').trigger('click')
+    await flushPromises()
+    expect(cover!.props('modelValue')).toBe('saved-cover')
+  })
 })

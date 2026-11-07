@@ -1144,3 +1144,42 @@ func (p *blockingPublic) GetPublicSettingsForInjection(context.Context) (any, er
 	}
 	return map[string]any{"site_name": "NEW-TEST"}, nil
 }
+
+// TestFrontendServer_SocialMetadataCache serves multiple destinations from one language cache.
+// Final validators distinguish host and path, and invalidation publishes updated sharing copy without retaining stale metadata or cover URLs.
+func TestFrontendServer_SocialMetadataCache(t *testing.T) {
+	provider := &mockSettingsProvider{settings: map[string]string{
+		"site_name": "Site", "site_share_title": "Before", "site_share_image_url": "/api/v1/settings/share-image/first",
+	}}
+	server, err := NewFrontendServer(provider)
+	require.NoError(t, err)
+	router := gin.New()
+	router.GET("/*path", server.serveIndexHTML)
+	request := func(address, etag string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, address, nil)
+		req.Header.Set("If-None-Match", etag)
+		router.ServeHTTP(recorder, req)
+		return recorder
+	}
+	first := request("https://one.test/models?private=secret", "")
+	require.Contains(t, first.Body.String(), `property="og:title" content="Before"`)
+	require.Contains(t, first.Body.String(), `property="og:url" content="https://one.test/models"`)
+	require.NotContains(t, first.Body.String(), "secret")
+	etag := first.Header().Get("ETag")
+	require.Equal(t, http.StatusNotModified, request("https://one.test/models", etag).Code)
+	for _, address := range []string{"https://two.test/models", "https://one.test/other"} {
+		changed := request(address, etag)
+		require.Equal(t, http.StatusOK, changed.Code)
+		require.NotEqual(t, etag, changed.Header().Get("ETag"))
+	}
+	require.Equal(t, 1, provider.called)
+	provider.settings = map[string]string{"site_name": "Site", "site_share_title": "After"}
+	server.InvalidateCache()
+	changed := request("https://one.test/models", etag)
+	require.Equal(t, http.StatusOK, changed.Code)
+	require.Contains(t, changed.Body.String(), `property="og:title" content="After"`)
+	require.Contains(t, changed.Body.String(), `name="twitter:card" content="summary"`)
+	require.NotContains(t, changed.Body.String(), "share-image/first")
+	require.Equal(t, 2, provider.called)
+}

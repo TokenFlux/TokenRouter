@@ -104,6 +104,13 @@ export interface PublicSettings {
   aliyun_captcha_region?: string // Aliyun verification service region.
   site_name: string // Site display name.
   site_logo: string // Site logo resource.
+  site_share_title?: string // Resolved sharing title.
+  site_share_description?: string // Resolved sharing description.
+  site_share_image_url?: string // Public cover resource path.
+  site_share_image_type?: string // Validated cover MIME type.
+  site_share_image_width?: number // Cover width in pixels.
+  site_share_image_height?: number // Cover height in pixels.
+  frontend_url?: string // Configured frontend base URL.
   site_subtitle: string // Site subtitle text.
   api_base_url: string // Public API base URL.
   contact_info: string // Site contact details.

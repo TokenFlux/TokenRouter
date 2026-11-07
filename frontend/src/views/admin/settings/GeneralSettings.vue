@@ -307,6 +307,37 @@
       </div>
     </SettingsSection>
 
+    <SettingsSection
+      :title="t('admin.settings.site.socialSharing')"
+      :hint="t('admin.settings.site.socialSharingHint')"
+    >
+      <LocalizedEditor
+        v-model="form.site_texts.site_share_title"
+        :label="t('localization.fields.site_share_title')"
+        :default-source-locale="getLocale()"
+      />
+      <p class="input-hint">{{ t('admin.settings.site.shareTitleHint') }}</p>
+      <LocalizedEditor
+        v-model="form.site_texts.site_share_description"
+        :label="t('localization.fields.site_share_description')"
+        :default-source-locale="getLocale()"
+        :rows="3"
+      />
+      <p class="input-hint">{{ t('admin.settings.site.shareDescriptionHint') }}</p>
+      <div>
+        <p class="input-label">{{ t('admin.settings.site.shareCover') }}</p>
+        <ImageUpload
+          v-model="form.site_share_image"
+          mode="image"
+          wide
+          :allowed-types="['image/png', 'image/jpeg', 'image/webp']"
+          :max-size="2 * 1024 * 1024"
+          :max-dimension="4096"
+          :hint="t('admin.settings.site.shareCoverHint')"
+        />
+      </div>
+    </SettingsSection>
+
     <SettingsSection>
       <div>
         <label for="api-base-url" class="input-label">{{

@@ -137,3 +137,6 @@ func (s homeTextSource) LoadSitePublicInputs(context.Context) (PublicInputs, err
 
 // PublicVersion returns a fixed build label for site-copy response assertions.
 func (homeTextSource) PublicVersion() string { return "home-copy-test" }
+
+// LoadSiteShareImage leaves this text-only fixture without an uploaded cover.
+func (homeTextSource) LoadSiteShareImage(context.Context) (string, error) { return "", nil }

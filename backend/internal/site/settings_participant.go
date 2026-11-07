@@ -34,12 +34,42 @@ import (
 // normalization; the result is then filtered to submitted flat keys so omitted
 // fields do not acquire zero values from JSON decoding into AdminSettings.
 func SettingsParticipant() settings.Participant {
-	keys := []string{SettingKeySiteTexts, SettingKeyDefaultLocale, "site_title", SettingKeyAPIBaseURL, SettingKeyContactInfo, SettingKeyCustomEndpoints, SettingKeyCustomMenuItems, SettingKeyDocURL, SettingKeyFooterLinks, SettingKeyFooterText, SettingKeyFrontendURL, SettingKeyHideCcsImportButton, SettingKeyHomeContent, SettingKeyHomeFeaturedModels, SettingKeyLoginAgreementDocuments, SettingKeyLoginAgreementEnabled, SettingKeyLoginAgreementMode, SettingKeyLoginAgreementUpdatedAt, SettingKeyPurchaseSubscriptionEnabled, SettingKeyPurchaseSubscriptionURL, SettingKeySiteLogo, SettingKeySiteName, SettingKeySiteSubtitle, SettingKeyTableDefaultPageSize, SettingKeyTablePageSizeOptions}
+	keys := []string{
+		SettingKeySiteShareImage,
+		SettingKeySiteShareImageMeta,
+		"site_share_title",
+		"site_share_description",
+		SettingKeySiteTexts,
+		SettingKeyDefaultLocale,
+		"site_title",
+		SettingKeyAPIBaseURL,
+		SettingKeyContactInfo,
+		SettingKeyCustomEndpoints,
+		SettingKeyCustomMenuItems,
+		SettingKeyDocURL,
+		SettingKeyFooterLinks,
+		SettingKeyFooterText,
+		SettingKeyFrontendURL,
+		SettingKeyHideCcsImportButton,
+		SettingKeyHomeContent,
+		SettingKeyHomeFeaturedModels,
+		SettingKeyLoginAgreementDocuments,
+		SettingKeyLoginAgreementEnabled,
+		SettingKeyLoginAgreementMode,
+		SettingKeyLoginAgreementUpdatedAt,
+		SettingKeyPurchaseSubscriptionEnabled,
+		SettingKeyPurchaseSubscriptionURL,
+		SettingKeySiteLogo,
+		SettingKeySiteName,
+		SettingKeySiteSubtitle,
+		SettingKeyTableDefaultPageSize,
+		SettingKeyTablePageSizeOptions,
+	}
 	fields := make([]string, 0, len(keys))
 	for _, key := range keys {
-		// site_title belongs to the grouped source-text mirror, not a direct
-		// flat editor field. Owning its storage key still permits prepared group updates to write it.
-		if key != "site_title" {
+		// Text mirrors and the derived cover descriptor are storage-only keys.
+		// Their owning grouped edits or validated upload supply them inside the prepared transaction.
+		if key != "site_title" && key != "site_share_title" && key != "site_share_description" && key != SettingKeySiteShareImageMeta {
 			fields = append(fields, key)
 		}
 	}
@@ -117,6 +147,20 @@ func SettingsParticipant() settings.Participant {
 			if _, ok := input[key]; !ok {
 				delete(values, key)
 			}
+		}
+		if _, sent := input[SettingKeySiteShareImage]; sent {
+			cover, err := ParseShareImage(value.SiteShareImage)
+			if err != nil {
+				return settings.PreparedChange{}, err
+			}
+			// Store the derived public descriptor with its private bytes in the same
+			// batch, so failed commits cannot publish an image URL without its content.
+			values[SettingKeySiteShareImage] = value.SiteShareImage
+			metadata, err := json.Marshal(cover.Metadata)
+			if err != nil {
+				return settings.PreparedChange{}, err
+			}
+			values[SettingKeySiteShareImageMeta] = string(metadata)
 		}
 		// Legacy display readers consume source keys directly. Include the source
 		// mirrors in this same batch so saved localization and legacy source text advance together.

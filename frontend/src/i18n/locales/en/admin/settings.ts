@@ -840,6 +840,16 @@ export default {
       testNoResults: 'No results found',
     },
     site: {
+      socialSharing: 'Social sharing',
+      socialSharingHint:
+        'Use this title, description, and cover for Twitter Card and Open Graph previews.',
+      shareTitleHint:
+        'Leave blank to use the homepage title, or the site name when no title is set.',
+      shareDescriptionHint: 'Leave blank to use the site subtitle.',
+      shareCover: 'Share cover',
+      shareCoverHint:
+        'PNG, JPEG, or WebP, up to 2 MiB and 4096 × 4096 pixels. Suggested size: 1200 × 630. Published when you save settings. Social platforms may cache earlier previews.',
+
       title: 'Site Settings',
       description: 'Customize site branding',
       backendMode: 'Backend Mode',

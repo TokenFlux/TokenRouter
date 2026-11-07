@@ -89,6 +89,13 @@ RequestLogger
 
 网站展示请求使用 `Accept-Language`，语言和回退规则见[用户侧国际化](user_localization.md)。`GET /api/v1/settings/legal/:id` 按语言返回协议，账户资料的 `preferred_locale` 用于保存用户选择。
 
+<a id="social_share_image"></a>
+### 社交分享封面
+
+`GET/HEAD /api/v1/settings/share-image/:hash` 无须登录，返回当前已保存封面的图片字节，继承公开设置接口的限流。地址中的 SHA-256 摘要必须与当前图片一致；图片已替换、已移除或摘要错误时返回 404，存储故障返回错误响应。
+
+成功响应包含实际图片 Content-Type、`X-Content-Type-Options: nosniff`、摘要 ETag，以及 `public, max-age=3600, must-revalidate`。支持条件请求与 HEAD。错误响应使用 `no-store`。更换图片生成新地址；移除图片后源站停止提供旧内容，但客户端和平台此前缓存的图片可能仍然显示。
+
 <a id="site_pages"></a>
 ### 站点页面
 

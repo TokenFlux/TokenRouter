@@ -1,10 +1,11 @@
 {
   "compilerOptions": {
     "composite": true,
+    "outDir": "./node_modules/.cache/tsconfig-node",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "socialMetadata.ts"]
 }

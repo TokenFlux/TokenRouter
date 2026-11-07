@@ -447,6 +447,9 @@ func DiffSettings(before *composite.Snapshot, after *composite.Snapshot, beforeA
 	if before.SiteName != after.SiteName {
 		changed = append(changed, "site_name")
 	}
+	if before.SiteShareImage != after.SiteShareImage {
+		changed = append(changed, "site_share_image")
+	}
 	if before.SiteLogo != after.SiteLogo {
 		changed = append(changed, "site_logo")
 	}

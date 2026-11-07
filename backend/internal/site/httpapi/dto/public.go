@@ -58,6 +58,13 @@ type (
 		AliyunCaptchaRegion         string                   `json:"aliyun_captcha_region"`           // Aliyun SDK region
 		SiteName                    string                   `json:"site_name"`                       // resolved branding name
 		SiteLogo                    string                   `json:"site_logo"`                       // branding image location
+		SiteShareTitle              string                   `json:"site_share_title"`                // resolved sharing title
+		SiteShareDescription        string                   `json:"site_share_description"`          // resolved sharing description
+		SiteShareImageURL           string                   `json:"site_share_image_url"`            // public cover resource path
+		SiteShareImageType          string                   `json:"site_share_image_type"`           // validated cover MIME type
+		SiteShareImageWidth         int                      `json:"site_share_image_width"`          // cover width in pixels
+		SiteShareImageHeight        int                      `json:"site_share_image_height"`         // cover height in pixels
+		FrontendURL                 string                   `json:"frontend_url"`                    // configured frontend base URL
 		SiteSubtitle                string                   `json:"site_subtitle"`                   // resolved branding subtitle
 		APIBaseURL                  string                   `json:"api_base_url"`                    // advertised API base
 		ContactInfo                 string                   `json:"contact_info"`                    // resolved contact details

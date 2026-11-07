@@ -93,6 +93,11 @@ const (
 
 // PublicSource supplies display strings and module-interpreted browser settings from storage.
 type PublicSource interface {
+	// LoadSiteShareImage reads the current encoded cover separately from public
+	// settings. Empty data means no cover is configured; storage errors propagate
+	// so image requests can distinguish missing content from a failed read.
+	LoadSiteShareImage(context.Context) (string, error)
+
 	// LoadSitePublicInputs returns one settings input or an error preventing response assembly.
 	LoadSitePublicInputs(context.Context) (PublicInputs, error)
 	// PublicVersion supplies the build label for the HTML injection response.
@@ -248,6 +253,7 @@ func (s *PublicService) GetPublicSettings(ctx context.Context) (*PublicSettings,
 		_, textLanguages[key] = content.Resolve(locale.FromContext(ctx))
 	}
 	sort.Strings(overrides)
+	cover := ReadShareImageMetadata(settings[SettingKeySiteShareImageMeta])
 	return &PublicSettings{
 		Locale:                              locale.FromContext(ctx),
 		SiteTextOverrides:                   overrides,
@@ -287,6 +293,13 @@ func (s *PublicService) GetPublicSettings(ctx context.Context) (*PublicSettings,
 		AliyunCaptchaRegion:         input.Auth.AliyunRegion,
 		SiteName:                    s.getStringOrDefault(settings, SettingKeySiteName, "TokenRouter"),
 		SiteLogo:                    settings[SettingKeySiteLogo],
+		SiteShareTitle:              settings["site_share_title"],
+		SiteShareDescription:        settings["site_share_description"],
+		SiteShareImageURL:           shareImagePath(cover),
+		SiteShareImageType:          cover.Type,
+		SiteShareImageWidth:         cover.Width,
+		SiteShareImageHeight:        cover.Height,
+		FrontendURL:                 settings[SettingKeyFrontendURL],
 		SiteSubtitle:                settings[SettingKeySiteSubtitle],
 		APIBaseURL:                  settings[SettingKeyAPIBaseURL],
 		ContactInfo:                 settings[SettingKeyContactInfo],
@@ -606,6 +619,13 @@ func (s *PublicService) GetPublicSettingsForInjection(ctx context.Context) (any,
 		SiteTitle                           string                       `json:"site_title"`                              // resolved browser title
 		SiteName                            string                       `json:"site_name"`                               // resolved branding name
 		SiteLogo                            string                       `json:"site_logo,omitempty"`                     // branding image location
+		SiteShareTitle                      string                       `json:"site_share_title"`                        // resolved sharing title
+		SiteShareDescription                string                       `json:"site_share_description"`                  // resolved sharing description
+		SiteShareImageURL                   string                       `json:"site_share_image_url"`                    // public cover resource path
+		SiteShareImageType                  string                       `json:"site_share_image_type"`                   // validated cover MIME type
+		SiteShareImageWidth                 int                          `json:"site_share_image_width"`                  // cover width in pixels
+		SiteShareImageHeight                int                          `json:"site_share_image_height"`                 // cover height in pixels
+		FrontendURL                         string                       `json:"frontend_url"`                            // configured frontend base URL
 		SiteSubtitle                        string                       `json:"site_subtitle,omitempty"`                 // resolved branding subtitle
 		APIBaseURL                          string                       `json:"api_base_url,omitempty"`                  // advertised API base
 		ContactInfo                         string                       `json:"contact_info,omitempty"`                  // resolved contact details
@@ -693,6 +713,13 @@ func (s *PublicService) GetPublicSettingsForInjection(ctx context.Context) (any,
 		SiteTitle:                           settings.SiteTitle,
 		SiteName:                            settings.SiteName,
 		SiteLogo:                            settings.SiteLogo,
+		SiteShareTitle:                      settings.SiteShareTitle,
+		SiteShareDescription:                settings.SiteShareDescription,
+		SiteShareImageURL:                   settings.SiteShareImageURL,
+		SiteShareImageType:                  settings.SiteShareImageType,
+		SiteShareImageWidth:                 settings.SiteShareImageWidth,
+		SiteShareImageHeight:                settings.SiteShareImageHeight,
+		FrontendURL:                         settings.FrontendURL,
 		SiteSubtitle:                        settings.SiteSubtitle,
 		APIBaseURL:                          settings.APIBaseURL,
 		ContactInfo:                         settings.ContactInfo,
@@ -971,5 +998,63 @@ func ParseTablePreferences(defaultPageSizeRaw, optionsRaw string) (int, []int) {
 // InputSource copies these keys from its larger storage batch before returning
 // Values, retaining public copy while credential settings stay inputs to authentication conversion.
 func PublicValueKeys() []string {
-	return []string{"balance_unit_name_localized", "oidc_connect_provider_name_localized", "balance_low_notify_recharge_url_localized", SettingKeySiteTexts, SettingKeyDefaultLocale, SettingKeyAPIBaseURL, SettingKeyProviderQuotaNotifyEnabled, SettingKeyAffiliateEnabled, SettingKeyAliyunCaptchaEnabled, SettingKeyAliyunCaptchaPrefix, SettingKeyAliyunCaptchaSceneID, SettingKeyAllowUserViewErrorRequests, SettingKeyBackendModeEnabled, SettingKeyBalanceIconSVG, SettingKeyBalanceLowNotifyEnabled, SettingKeyBalanceLowNotifyRechargeURL, SettingKeyBalanceLowNotifyThreshold, SettingKeyBalanceUnitName, SettingKeyBalanceUnitSymbol, SettingKeyContactInfo, SettingKeyCreativeEnabled, SettingKeyCustomEndpoints, SettingKeyCustomMenuItems, SettingKeyDocURL, SettingKeyEmailVerifyEnabled, SettingKeyFooterLinks, SettingKeyFooterText, SettingKeyForceEmailOnThirdPartySignup, SettingKeyHideCcsImportButton, SettingKeyHomeContent, SettingKeyHomeFeaturedModels, SettingKeyInvitationCodeEnabled, SettingKeyLoginAgreementDocuments, SettingKeyLoginAgreementEnabled, SettingKeyLoginAgreementMode, SettingKeyLoginAgreementUpdatedAt, SettingKeyPasswordResetEnabled, SettingKeyPromoCodeEnabled, SettingKeyPurchaseSubscriptionEnabled, SettingKeyPurchaseSubscriptionURL, SettingKeyRegistrationEmailDomainQuotaEnabled, SettingKeyRegistrationEnabled, SettingKeyRiskControlEnabled, SettingKeySiteLogo, SettingKeySiteName, SettingKeySiteSubtitle, SettingKeyTableDefaultPageSize, SettingKeyTablePageSizeOptions, SettingKeyTencentCaptchaAppID, SettingKeyTencentCaptchaEnabled, SettingKeyTotpEnabled, SettingKeyTurnstileEnabled, SettingKeyTurnstileSiteKey, SettingKeyUserEmailChangeEnabled, SettingPaymentEnabled}
+	return []string{
+		SettingKeySiteShareImageMeta,
+		SettingKeyFrontendURL,
+		"balance_unit_name_localized",
+		"oidc_connect_provider_name_localized",
+		"balance_low_notify_recharge_url_localized",
+		SettingKeySiteTexts,
+		SettingKeyDefaultLocale,
+		SettingKeyAPIBaseURL,
+		SettingKeyProviderQuotaNotifyEnabled,
+		SettingKeyAffiliateEnabled,
+		SettingKeyAliyunCaptchaEnabled,
+		SettingKeyAliyunCaptchaPrefix,
+		SettingKeyAliyunCaptchaSceneID,
+		SettingKeyAllowUserViewErrorRequests,
+		SettingKeyBackendModeEnabled,
+		SettingKeyBalanceIconSVG,
+		SettingKeyBalanceLowNotifyEnabled,
+		SettingKeyBalanceLowNotifyRechargeURL,
+		SettingKeyBalanceLowNotifyThreshold,
+		SettingKeyBalanceUnitName,
+		SettingKeyBalanceUnitSymbol,
+		SettingKeyContactInfo,
+		SettingKeyCreativeEnabled,
+		SettingKeyCustomEndpoints,
+		SettingKeyCustomMenuItems,
+		SettingKeyDocURL,
+		SettingKeyEmailVerifyEnabled,
+		SettingKeyFooterLinks,
+		SettingKeyFooterText,
+		SettingKeyForceEmailOnThirdPartySignup,
+		SettingKeyHideCcsImportButton,
+		SettingKeyHomeContent,
+		SettingKeyHomeFeaturedModels,
+		SettingKeyInvitationCodeEnabled,
+		SettingKeyLoginAgreementDocuments,
+		SettingKeyLoginAgreementEnabled,
+		SettingKeyLoginAgreementMode,
+		SettingKeyLoginAgreementUpdatedAt,
+		SettingKeyPasswordResetEnabled,
+		SettingKeyPromoCodeEnabled,
+		SettingKeyPurchaseSubscriptionEnabled,
+		SettingKeyPurchaseSubscriptionURL,
+		SettingKeyRegistrationEmailDomainQuotaEnabled,
+		SettingKeyRegistrationEnabled,
+		SettingKeyRiskControlEnabled,
+		SettingKeySiteLogo,
+		SettingKeySiteName,
+		SettingKeySiteSubtitle,
+		SettingKeyTableDefaultPageSize,
+		SettingKeyTablePageSizeOptions,
+		SettingKeyTencentCaptchaAppID,
+		SettingKeyTencentCaptchaEnabled,
+		SettingKeyTotpEnabled,
+		SettingKeyTurnstileEnabled,
+		SettingKeyTurnstileSiteKey,
+		SettingKeyUserEmailChangeEnabled,
+		SettingPaymentEnabled,
+	}
 }

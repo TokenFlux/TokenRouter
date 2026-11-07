@@ -788,6 +788,14 @@ export default {
       testNoResults: '无搜索结果',
     },
     site: {
+      socialSharing: '社交分享',
+      socialSharingHint: '配置 Twitter Card 和 Open Graph 链接预览的标题、简介和封面。',
+      shareTitleHint: '留空使用首页标题；首页标题为空时使用站点名称。',
+      shareDescriptionHint: '留空使用站点副标题。',
+      shareCover: '分享封面',
+      shareCoverHint:
+        '支持 PNG、JPEG、WebP，最大 2 MiB、4096 × 4096 像素。建议尺寸 1200 × 630。保存设置后生效，社交平台可能仍缓存旧预览。',
+
       title: '站点设置',
       description: '自定义站点品牌',
       backendMode: 'Backend 模式',

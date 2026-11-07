@@ -3,6 +3,7 @@ package site
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // public_source.go loads public display values and module decisions from one
@@ -21,6 +22,10 @@ type PublicInputStore interface {
 // PublicInputOptions contains the converters and version source supplied by app
 // for public settings responses.
 type PublicInputOptions struct {
+	// FrontendURL supplies the process-configured address when the database value
+	// is blank; nil leaves origin selection to the HTML response renderer.
+	FrontendURL func() string // deployment frontend URL fallback
+
 	// Auth and Usage receive the same raw storage map, in that order. InputSource
 	// copies display values first, so callback mutations can affect the later
 	// converter but cannot rewrite the Values map already prepared for PublicService.
@@ -58,6 +63,11 @@ func (s *InputSource) LoadSitePublicInputs(ctx context.Context) (PublicInputs, e
 	for _, key := range PublicValueKeys() {
 		values[key] = raw[key]
 	}
+	// Database settings override deployment configuration. The fallback callback only
+	// runs for a blank stored address, keeping both sources on the existing precedence rule.
+	if strings.TrimSpace(values[SettingKeyFrontendURL]) == "" && s.options.FrontendURL != nil {
+		values[SettingKeyFrontendURL] = s.options.FrontendURL()
+	}
 	return PublicInputs{Values: values, Auth: s.options.Auth(raw), Usage: s.options.Usage(raw)}, nil
 }
 
@@ -70,6 +80,8 @@ func (s *InputSource) PublicVersion() string { return s.options.Version() }
 // display data, so this storage-read list is broader than the returned Values map.
 func PublicInputKeys() []string {
 	return []string{
+		SettingKeySiteShareImageMeta,
+		SettingKeyFrontendURL,
 		"balance_unit_name_localized", "oidc_connect_provider_name_localized", "balance_low_notify_recharge_url_localized",
 		SettingKeySiteTexts,
 		SettingKeyDefaultLocale,
@@ -167,4 +179,12 @@ func PublicInputKeys() []string {
 		"risk_control_enabled",
 		"allow_user_view_error_requests",
 	}
+}
+
+// LoadSiteShareImage reads only the encoded cover for the public image endpoint.
+// Ordinary public settings load its small descriptor instead. Storage failures
+// propagate so callers can distinguish unavailable storage from a missing cover.
+func (s *InputSource) LoadSiteShareImage(ctx context.Context) (string, error) {
+	values, err := s.store.GetMultiple(ctx, []string{SettingKeySiteShareImage})
+	return values[SettingKeySiteShareImage], err
 }

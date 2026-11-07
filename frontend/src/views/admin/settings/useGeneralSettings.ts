@@ -46,6 +46,7 @@ export type GeneralSettingsForm = Pick<
   | 'marketplace_availability_window_days'
   | 'reasoning_point_rmb_unit_price'
   | 'site_logo'
+  | 'site_share_image'
   | 'site_texts'
   | 'table_default_page_size'
   | 'usage_ranking_enabled'

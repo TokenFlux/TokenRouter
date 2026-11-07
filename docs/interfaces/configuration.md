@@ -221,6 +221,16 @@ usage、audit 和 ops 的静态参数，由 app 整理成各模块的 Options；
 
 站点文案使用 `site_texts`，其他独立运营文案通过 `localized_settings` 提交，完整字段和存储规则见[用户侧国际化](user_localization.md#content_owners)。`default_locale` 初始为 `en`。管理接口拒绝站点名称、标题和副标题的 `_zh`、`_en` 写入，返回 `REMOVED_SETTING_FIELD`。译文版本、核对和删除操作由统一内容模型处理。
 
+### 社交分享
+
+后台站点设置的分享标题和简介通过 `site_texts.site_share_title`、`site_texts.site_share_description` 编辑，沿用译文核对与版本冲突规则。空白标题使用首页标题，再回退到站点名称；空白简介使用副标题。封面通过 `site_share_image` 提交 data URL，支持 PNG、JPEG、WebP，最大 2 MiB、每边最大 4096 像素。选图只改草稿，保存设置才发布。
+
+站点模块校验完整图片后，将图片和派生的 `site_share_image_meta` 描述在同一个设置事务中保存。省略图片字段保留现值，空字符串移除图片。描述不是可写管理字段。图片随数据库备份恢复，不需要独立文件目录。公开设置与 HTML 仅包含文案、图片地址、格式和尺寸，不包含封面 Base64。
+
+内嵌前端在原始 HTML 中输出 Twitter Card 与 Open Graph 标签。有封面时使用 `summary_large_image`，否则使用 `summary`。HTML 按语言缓存，响应时补齐绝对地址并计算包含地址差异的 ETag；保存后使缓存失效。地址优先使用数据库 `frontend_url`，其次使用进程配置 `site.frontend_url`，两者均为空时读取请求来源。只有显式配置的可信代理可以通过转发头改变来源。
+
+Vite 开发服务器也注入分享标签，未配置前端地址时使用本地开发端口。独立静态托管需由托管服务器实现相同的 HTML 注入；浏览器运行 JavaScript 后添加标签不能替代此步骤。社交平台可能缓存旧预览，应用保存成功不保证平台立即刷新。图片接口见 [HTTP 接口](http_api.md#social_share_image)。
+
 ### 部分更新与敏感字段
 
 运行时设置的部分更新要区分"省略"和"明确清空"。`UpdatePaymentConfig` 只写入请求里实际提供的字段：省略支付方式列表、可见支付路由、手续费 map 或其他指针字段时，保留已有的值；只有明确传入空切片、空 map、空字符串或 `false`，才按对应字段的规则清空或关闭。系统设置的 handler 即使分阶段写入同一批支付设置，第二阶段的缺省值也不会覆盖第一阶段已经持久化的配置。

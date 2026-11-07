@@ -19,7 +19,8 @@ import (
 //
 // ETags combine the base-template digest with a digest of the language and
 // serialized settings bytes. Rendering content and substituted request nonces
-// are not hashed directly. Stored and snapshot HTML have copied byte storage,
+// are not hashed directly. Stored and snapshot HTML and settings have copied
+// byte storage,
 // while Publish returns the caller's HTML slice even when generation mismatch
 // prevents storage. SetBaseHTML establishes the template component before
 // publication and does not itself invalidate existing entries.
@@ -44,7 +45,10 @@ type CachedHTML struct {
 	// Content is copied in stored entries and Snapshot results. A value returned
 	// directly by Publish instead shares the HTML slice supplied by that caller.
 	Content []byte
-	ETag    string // quoted page revalidation tag
+	// SettingsJSON is copied for publication and reads; request-specific metadata
+	// rendering can inspect it without sharing mutable storage with another response.
+	SettingsJSON []byte // public metadata snapshot bytes
+	ETag         string // quoted page revalidation tag
 }
 
 // NewHTMLCache returns an empty language-page cache ready for base-template
@@ -92,7 +96,7 @@ func (c *HTMLCache) Snapshot(code string) (*CachedHTML, uint64) {
 	if !ok {
 		return nil, c.settingsVersion
 	}
-	return &CachedHTML{Content: append([]byte(nil), snapshot.Content...), ETag: snapshot.ETag}, c.settingsVersion
+	return &CachedHTML{Content: append([]byte(nil), snapshot.Content...), SettingsJSON: append([]byte(nil), snapshot.SettingsJSON...), ETag: snapshot.ETag}, c.settingsVersion
 }
 
 // Publish returns html with a validator derived from the template hash, code,
@@ -109,14 +113,14 @@ func (c *HTMLCache) Publish(code string, version uint64, html, settingsJSON []by
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	key := append([]byte(code+"\n"), settingsJSON...)
-	rendered := CachedHTML{Content: html, ETag: c.generateETag(key)}
+	rendered := CachedHTML{Content: html, SettingsJSON: append([]byte(nil), settingsJSON...), ETag: c.generateETag(key)}
 	// Compare under the same lock used for invalidation so an earlier settings
 	// render cannot be stored after its generation has been replaced by a new one.
 	if version == c.settingsVersion {
 		if c.entries == nil {
 			c.entries = map[string]CachedHTML{}
 		}
-		c.entries[code] = CachedHTML{Content: append([]byte(nil), html...), ETag: rendered.ETag}
+		c.entries[code] = CachedHTML{Content: append([]byte(nil), html...), SettingsJSON: append([]byte(nil), settingsJSON...), ETag: rendered.ETag}
 	}
 	return rendered
 }
