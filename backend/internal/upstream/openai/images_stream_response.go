@@ -345,6 +345,9 @@ func ReadImagesBufferedResponse(ctx context.Context, resp *http.Response, option
 		if err == nil {
 			_, err = validateImagesJSONResponse(body)
 		}
+		if err == nil {
+			body, _, err = ValidateGIFImagesResponse(body, options.ExpectedGIF, options.FetchImage)
+		}
 		return body, ImagesStreamResult{}, err
 	}
 	result, err := ReadImagesSSE(ctx, resp, options, nil, nil)
@@ -352,6 +355,9 @@ func ReadImagesBufferedResponse(ctx context.Context, resp *http.Response, option
 		return nil, result, err
 	}
 	body, err := result.JSON(responseFormat)
+	if err == nil {
+		body, result.Usage.ImageFrameCount, err = ValidateGIFImagesResponse(body, options.ExpectedGIF, options.FetchImage)
+	}
 	return body, result, err
 }
 

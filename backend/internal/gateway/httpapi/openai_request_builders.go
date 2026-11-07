@@ -186,3 +186,24 @@ func isOpenAIPassthroughTimeoutHeader(lowerKey string) bool {
 		return false
 	}
 }
+
+// BuildImageResponses prepares a worker-owned OAuth request with no inbound headers.
+// Creative execution supplies the hosted image body and resolved token; the
+// synthetic HTTP context retains only request construction state, never a client
+// writer or client cookies. The standard builder still applies provider identity.
+func (s *OpenAIRequests) BuildImageResponses(ctx context.Context, provider *gatewayprovider.ExecutionProvider, body []byte, token string) (*http.Request, error) {
+	inbound, err := http.NewRequestWithContext(ctx, http.MethodPost, "/v1/responses", nil)
+	if err != nil {
+		return nil, err
+	}
+	c := &gin.Context{Request: inbound}
+	ctx = openai.WithOpenAIImagesSelfBuiltRequest(ctx)
+	req, err := s.Build(ctx, c, provider, body, token, true, "", false)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("OpenAI-Beta", "responses=experimental")
+	return req, nil
+}

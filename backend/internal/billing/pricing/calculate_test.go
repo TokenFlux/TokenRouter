@@ -9,6 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// calculate_test.go verifies configured and catalog token charges across
+// cache, image, service-tier, and context rules. Explicit prices and reported
+// token counts let the assertions distinguish absent amounts, zero prices, and
+// overlapping input subsets.
+
 // TestPriorityCacheTTLUsesPricesRegardlessOfSource supplies identical prices
 // with two source labels. Both TTL cost cases and Fast display rates must
 // agree, while the standard 5m price remains unchanged.
@@ -220,4 +225,20 @@ func TestPerRequestDisplayRequiresDeclaredImageDimensions(t *testing.T) {
 	if !ok || result.PriceStatus != "priced" || len(result.ImagePriceSizes) != 1 || result.ImagePriceSizes[0] != "1K" || result.ImagePrice1K != 0 {
 		t.Fatalf("explicit free image tier lost its dimension or zero price: %+v", result)
 	}
+}
+
+// TestComputeTokenBreakdownImageCache prices an explicit image-cache subdivision.
+// Cached image input is removed from both ordinary image input and aggregate
+// cache input before applying its separate rate, preventing overlapping charges.
+func TestComputeTokenBreakdownImageCache(t *testing.T) {
+	pricing := &ModelPricing{InputPricePerToken: 5e-6, ImageInputPricePerToken: 8e-6, CacheReadPricePerToken: 1.25e-6, ImageCacheReadPricePerToken: 2e-6, ImageCacheReadPriceExplicit: true}
+	cost := ComputeTokenBreakdown(pricing, UsageTokens{InputTokens: 100, ImageInputTokens: 80, CacheReadTokens: 50, ImageCacheReadTokens: 30}, 1, "", false)
+	require.InDelta(t, 50*5e-6, cost.InputCost, 1e-12)
+	require.InDelta(t, 50*8e-6, cost.ImageInputCost, 1e-12)
+	require.InDelta(t, 20*1.25e-6+30*2e-6, cost.CacheReadCost, 1e-12)
+	cost = ComputeTokenBreakdown(pricing, UsageTokens{CacheReadTokens: 50}, 1, "", false)
+	require.InDelta(t, 50*1.25e-6, cost.CacheReadCost, 1e-12)
+	pricing.ImageCacheReadPricePerToken = 0
+	cost = ComputeTokenBreakdown(pricing, UsageTokens{CacheReadTokens: 50, ImageCacheReadTokens: 50}, 1, "", false)
+	require.Zero(t, cost.CacheReadCost)
 }

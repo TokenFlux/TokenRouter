@@ -101,6 +101,42 @@ func RelayTurn(ctx context.Context, p StreamPort, lease StreamLease, input Clien
 			mappedModelBytes = []byte(mappedModel)
 		}
 	}
+	// Build both successful and invalid-result observations from the same turn
+	// state so stopping GIF delivery cannot discard already reported token usage.
+	resultWithUsage := func(terminalEvent string) *ForwardResult {
+		imageCount := imageCounter.Count()
+		performance.FinishAt(time.Now())
+		result := &ForwardResult{
+			RequestID:                   responseID,
+			Usage:                       usage,
+			Model:                       originalModel,
+			UpstreamModel:               mappedModel,
+			UpstreamResponseServiceTier: p.ResponseTier(),
+			UpstreamResponseModel:       modelObserver.Model(),
+			ServiceTier:                 p.ResolvedTier(payload),
+			ReasoningEffort:             p.Reasoning(payload, mappedModel, originalModel),
+			RequestedReasoningEffort:    requestedReasoningEffort,
+			Stream:                      reqStream,
+			OpenAIWSMode:                true,
+			UpstreamTerminalEvent:       terminalEvent,
+			ResponseHeaders:             lease.Headers(),
+			Duration:                    time.Since(turnStart),
+			Timings:                     performance.Clone(),
+		}
+		if replayInput := replayCollector.Items(); len(replayInput) > 0 {
+			result.WSReplayInput = replayInput
+			result.WSReplayInputExists = true
+		}
+		if imageCount > 0 {
+			result.ImageCount = imageCount
+			result.ImageFrameCount = imageCounter.FrameCount()
+			result.ImageSize = imageSizeTier
+			result.ImageInputSize = imageInputSize
+			result.ImageOutputSizes = imageCounter.Sizes()
+			result.BillingModel = imageBillingModel
+		}
+		return result
+	}
 	for {
 		upstreamMessage, readErr := lease.ReadEvent(ctx, o.ReadTimeout)
 		// A failed upstream reader leaves connection health uncertain, so mark the
@@ -248,6 +284,10 @@ func RelayTurn(ctx context.Context, p StreamPort, lease StreamLease, input Clien
 		// predicate can accept empty delta or structural output labels, so this
 		// timestamp is not a content-validity check.
 		performance.ObserveAt(string(upstreamMessage), eventType, time.Now())
+		if err := wire.ValidateGIFImageOutputs(upstreamMessage); err != nil {
+			lease.MarkBroken()
+			return resultWithUsage("response.failed"), err
+		}
 		imageCounter.AddSSEData(upstreamMessage)
 		terminalPolicy := TerminalPolicy{
 			TerminalEvent: p.NormalizeTerminal(eventType),
@@ -357,36 +397,7 @@ func RelayTurn(ctx context.Context, p StreamPort, lease StreamLease, input Clien
 					clientDisconnected,
 				))
 			}
-			imageCount := imageCounter.Count()
-			performance.FinishAt(time.Now())
-			result := &ForwardResult{
-				RequestID:                   responseID,
-				Usage:                       usage,
-				Model:                       originalModel,
-				UpstreamModel:               mappedModel,
-				UpstreamResponseServiceTier: p.ResponseTier(),
-				UpstreamResponseModel:       modelObserver.Model(),
-				ServiceTier:                 p.ResolvedTier(payload),
-				ReasoningEffort:             p.Reasoning(payload, mappedModel, originalModel),
-				RequestedReasoningEffort:    requestedReasoningEffort,
-				Stream:                      reqStream,
-				OpenAIWSMode:                true,
-				UpstreamTerminalEvent:       terminalPolicy.TerminalEvent,
-				ResponseHeaders:             lease.Headers(),
-				Duration:                    time.Since(turnStart),
-				Timings:                     performance.Clone(),
-			}
-			if replayInput := replayCollector.Items(); len(replayInput) > 0 {
-				result.WSReplayInput = replayInput
-				result.WSReplayInputExists = true
-			}
-			if imageCount > 0 {
-				result.ImageCount = imageCount
-				result.ImageSize = imageSizeTier
-				result.ImageInputSize = imageInputSize
-				result.ImageOutputSizes = imageCounter.Sizes()
-				result.BillingModel = imageBillingModel
-			}
+			result := resultWithUsage(terminalPolicy.TerminalEvent)
 			return result, nil
 		}
 	}

@@ -43,11 +43,12 @@ type UsageAccumulator struct {
 	usage ResponsesUsage // accumulated inclusive token counters
 	seen  bool           // object-shaped usage observed
 
-	// imageInputTokens and imageOutputTokens retain accounting categories absent
+	// imageInputTokens, imageOutputTokens, and imageCacheReadTokens retain categories absent
 	// from the typed client model. Sparse observations preserve each bucket until
 	// an explicit replacement or complete zero snapshot arrives.
-	imageInputTokens  int // observed image-input subset
-	imageOutputTokens int // observed image-output subset
+	imageCacheReadTokens int // explicit cached image token subset
+	imageInputTokens     int // observed image-input subset
+	imageOutputTokens    int // observed image-output subset
 }
 
 // UnmarshalJSON decodes Chat usage through the shared Responses compatibility
@@ -168,6 +169,7 @@ func (a *UsageAccumulator) observe(raw []byte, imageGen gjson.Result) *Responses
 		// tail; retaining earlier cache buckets would contradict its zero prompt total.
 		a.usage = current
 		a.imageInputTokens = 0
+		a.imageCacheReadTokens = 0
 		a.imageOutputTokens = 0
 		return a.Snapshot()
 	}
@@ -176,6 +178,9 @@ func (a *UsageAccumulator) observe(raw []byte, imageGen gjson.Result) *Responses
 	}
 	if counters.ImageOutputTokens != 0 || usageHasAny(value, "output_tokens_details.image_tokens", "completion_tokens_details.image_tokens") {
 		a.imageOutputTokens = counters.ImageOutputTokens
+	}
+	if hasRead {
+		a.imageCacheReadTokens = counters.ImageCacheReadTokens
 	}
 	if hasInput {
 		a.usage.InputTokens = current.InputTokens
@@ -255,6 +260,7 @@ func (a *UsageAccumulator) ObserveResponsesEvent(raw []byte, event *ResponsesStr
 func (a *UsageAccumulator) ForwardUsage() ForwardUsage {
 	usage := CopyForwardUsage(&a.usage)
 	usage.ImageInputTokens = a.imageInputTokens
+	usage.ImageCacheReadTokens = a.imageCacheReadTokens
 	usage.ImageOutputTokens = a.imageOutputTokens
 	return usage
 }

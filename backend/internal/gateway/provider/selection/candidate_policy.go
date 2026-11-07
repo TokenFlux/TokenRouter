@@ -227,6 +227,9 @@ func candidateOutputEligibility(ctx context.Context, value *gatewayadapter.Execu
 			err = apperror.BadRequest("MODEL_CAPABILITY_UNSUPPORTED", "the selected model route produces only images")
 		}
 	}
+	if err == nil && media.ImageGIFRequired(ctx) {
+		err = gatewayadapter.RequireImageGIF(target, source, resolution.Attributes)
+	}
 	if err == nil && len(tools.Models) > 0 {
 		group, _ := requeststate.GroupFromContext(ctx)
 		explicit := provider.CodexImagePolicyAllow
@@ -248,6 +251,24 @@ func candidateOutputEligibility(ctx context.Context, value *gatewayadapter.Execu
 				models[0] = model
 			}
 			err = gatewayadapter.ValidateResponsesImageModels(ctx, target, models, nil)
+			if err == nil {
+				for _, gifModel := range tools.GIFModels {
+					if gifModel == "" {
+						gifModel = "gpt-image-2"
+						if source == capability.ProtocolOpenAIResponses && !target.View().IsOpenAIPassthroughEnabled() && resolution.Attributes.OutputOnly("image") {
+							gifModel = model
+						}
+					}
+					gifResolution, resolveErr := gatewayadapter.ResolveModelAttributes(ctx, target, gifModel, nil)
+					if resolveErr != nil {
+						err = resolveErr
+						break
+					}
+					if err = gatewayadapter.RequireImageGIF(target, source, gifResolution.Attributes); err != nil {
+						break
+					}
+				}
+			}
 		}
 	}
 	if state, ok := ctx.Value(capabilitySelectionKey{}).(*capabilitySelectionState); ok {

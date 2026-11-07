@@ -20,6 +20,12 @@ import (
 // OpenAIOptions binds credential, generation transport, and public image
 // download callbacks for one provider.
 type OpenAIOptions struct {
+	OAuth     bool   // selected OAuth image bridge
+	MainModel string // configured Responses carrier model
+	// BuildOAuth applies the same authenticated Responses request construction as
+	// the gateway, after creative execution has prepared the hosted image tool.
+	BuildOAuth func(context.Context, []byte, string) (*http.Request, error)
+
 	// ImageMode reads the selected endpoint capability. Nil follows the default
 	// both-mode behavior for callers that do not bind provider configuration.
 	ImageMode func(protocol.ProtocolID) (protocol.ImageStreamMode, error)

@@ -197,6 +197,7 @@ func ParsePricingEntries(rawData map[string]json.RawMessage) (map[string]*Catalo
 
 		pricing := &CatalogModelPricing{
 			InputPricePresent:           entry.InputCostPerToken != nil,
+			OutputPricePresent:          entry.OutputCostPerToken != nil,
 			CatalogRules:                entry.Clone(),
 			CacheCreation1hPricePresent: entry.CacheCreationInputTokenCostAbove1hr != nil,
 			PriorityInputPresent:        entry.Source != "" && entry.InputCostPerTokenPriority != nil,
@@ -208,6 +209,7 @@ func ParsePricingEntries(rawData map[string]json.RawMessage) (map[string]*Catalo
 			ContextPrices:               entry.ContextPrices,
 			CacheCreationPricePresent:   entry.CacheCreationInputTokenCost != nil,
 			CacheReadPricePresent:       entry.CacheReadInputTokenCost != nil,
+			ImageCacheReadPricePresent:  entry.CacheReadInputImageTokenCost != nil,
 			ImagePricePresent:           entry.OutputCostPerImage != nil,
 			ImageInputPricePresent:      entry.InputCostPerImageToken != nil,
 			ImageOutputPricePresent:     entry.OutputCostPerImageToken != nil,
@@ -254,6 +256,9 @@ func ParsePricingEntries(rawData map[string]json.RawMessage) (map[string]*Catalo
 		}
 		if entry.CacheCreationInputTokenCostAbove1hr != nil {
 			pricing.CacheCreationInputTokenCostAbove1hr = *entry.CacheCreationInputTokenCostAbove1hr
+		}
+		if entry.CacheReadInputImageTokenCost != nil {
+			pricing.CacheReadInputImageTokenCost = *entry.CacheReadInputImageTokenCost
 		}
 		if entry.CacheReadInputTokenCost != nil {
 			pricing.CacheReadInputTokenCost = *entry.CacheReadInputTokenCost

@@ -4,6 +4,13 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 /**
+ * useCreativeStudio.spec.ts exercises catalog selection, pricing, submission,
+ * local recovery, and polling through mocked browser storage and HTTP APIs.
+ * Tests retain independent network and persistence observations so delayed
+ * operations cannot silently overwrite newer workspace state.
+ */
+
+/**
  * refreshUser records account reads separately from task APIs so tests can
  * delay or reject balance refreshes during generation.
  */
@@ -358,6 +365,29 @@ describe('useCreativeStudio', () => {
 
   describe('estimatedCost 定价', () => {
     /**
+     * A GIF-capable route receives explicit frame controls and a per-frame quote.
+     * Submission must preserve those controls while PNG returns to one output unit.
+     */
+    it('prices GIF frames and sends animation parameters', async () => {
+      const { studio, wrapper } = await setupStudio()
+      studio.models.value[0].output_formats = ['png', 'gif']
+      studio.outputFormat.value = 'gif'
+      studio.frameCount.value = 4
+      studio.frameDurationMS.value = 300
+      studio.prompt.value = 'A blinking star'
+      expect(studio.estimatedCost.value).toBe(8)
+      mockedApi.createCreativeRun.mockResolvedValue(makeRun({ id: 'gif-run', status: 'queued' }))
+      expect(await studio.createRun({ sourceBlobs: [], maskBlob: null })).toBe(true)
+      const form = mockedApi.createCreativeRun.mock.calls[0][0] as FormData
+      expect(form.get('output_format')).toBe('gif')
+      expect(form.get('frame_count')).toBe('4')
+      expect(form.get('frame_duration_ms')).toBe('300')
+      studio.outputFormat.value = 'png'
+      expect(studio.estimatedCost.value).toBe(2)
+      wrapper.unmount()
+    })
+
+    /**
      * The selected image size moves through multiple catalog pricing tiers. The
      * estimate must follow each tier's supplied price, including the separately
      * configured 512 option.
@@ -412,7 +442,7 @@ describe('useCreativeStudio', () => {
       expect(form.get('image_size')).toBe('1K')
       expect(form.get('aspect_ratio')).toBe('auto')
       expect(form.get('quality')).toBe('high')
-      expect(form.get('output_format')).toBeNull()
+      expect(form.get('output_format')).toBe('png')
       expect(form.get('output_compression')).toBeNull()
       expect(form.get('background')).toBe('opaque')
       expect(form.get('thinking_level')).toBe('minimal')

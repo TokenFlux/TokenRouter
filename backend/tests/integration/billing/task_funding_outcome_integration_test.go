@@ -23,6 +23,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
+// task_funding_outcome_integration_test.go verifies creative outcome persistence and funding against PostgreSQL.
+//
 // Creative provider outcomes connect a run and its output state to a settlement
 // outbox record. A PostgreSQL trigger rejects that outbox insert so the fixture
 // can check that the run remains running, its output remains pending, and its
@@ -196,4 +198,46 @@ func TestNativeCreativeFundingReplay(t *testing.T) {
 	var count int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM usage_billing_dedup WHERE request_id=$1`, creative.CreativeCaptureRequestID(run.RunID)).Scan(&count))
 	require.Equal(t, 1, count)
+}
+
+// TestCreativeGIFFrameFunding reserves requested frames and captures actual frames.
+// Reloaded PostgreSQL metadata preserves animation controls and provider output
+// counts, while repeated capture charges once and releases the unused reservation.
+func TestCreativeGIFFrameFunding(t *testing.T) {
+	ctx := context.Background()
+	client := committedEntitlementClient(t)
+	user := mustCreateUser(t, client, &identity.User{Email: "test-gif-" + uuid.NewString() + "@example.com", Balance: 10})
+	group := mustCreateGroup(t, client, &routing.Group{Name: "test-gif-" + uuid.NewString()})
+	key := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-test-gif-" + uuid.NewString(), Name: "gif"})
+	repo := creativepg.NewCreativeRunRepository(client)
+	run, err := repo.CreateCreativeRun(ctx, creative.CreateCreativeRunParams{RunID: "crun_" + uuid.NewString(), UserID: user.ID, GroupID: group.ID, APIKeyID: key.ID, Model: "gpt-image-2.6-flare", RequestedModel: "gpt-image-2.6-flare", Operation: creative.CreativeOperationGenerate, RequestedOutputCount: 1, ImageSize: "1K", ResponseMIMEType: "image/gif", FrameCount: 4, FrameDurationMS: 200, PromptHash: "hash", RequestFingerprint: "gif-fingerprint", EstimatedCost: 1, HoldAmount: 1, BaseUnitPrice: 0.25, SubscriptionRateMultiplier: 1, BalanceRateMultiplier: 1, PlanGroupRateEnabled: true})
+	require.NoError(t, err)
+	store := billingpg.NewSettlementStore(integrationDB, timezone.NewCalendar(time.Local), nil, billingpg.TaskProjectionFactories{creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpg.TaskProjection {
+		return creativepg.NewFundingParticipant(tx, ref.ID)
+	}})
+	funding := creative.Funding{Store: billing.NewFunds(store)}
+	require.NoError(t, funding.Reserve(ctx, run))
+	require.NoError(t, repo.MarkCreativeRunRunning(ctx, run.RunID, 0, time.Now()))
+	mime := "image/gif"
+	outcomes, ok := repo.(creative.ProviderOutcomeStore)
+	require.True(t, ok)
+	require.NoError(t, outcomes.RecordProviderOutcome(ctx, run.RunID, 0, []creative.CreativeRunOutput{{OutputIndex: 0, Status: creative.CreativeRunOutputStatusSucceeded, MimeType: &mime, FrameCount: 2}}, time.Now()))
+	restored, err := repo.GetCreativeRunByRunID(ctx, run.RunID)
+	require.NoError(t, err)
+	require.Equal(t, 4, restored.FrameCount)
+	require.Equal(t, 200, restored.FrameDurationMS)
+	output, err := repo.GetCreativeRunOutput(ctx, run.RunID, 0)
+	require.NoError(t, err)
+	require.Equal(t, 2, output.FrameCount)
+	restored.ActualFrameCount = output.FrameCount
+	first, err := funding.Capture(ctx, restored, 1)
+	require.NoError(t, err)
+	require.True(t, first.Applied)
+	replay, err := funding.Capture(ctx, restored, 1)
+	require.NoError(t, err)
+	require.False(t, replay.Applied)
+	var balance, frozen float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT balance,COALESCE(frozen_balance,0) FROM users WHERE id=$1`, user.ID).Scan(&balance, &frozen))
+	require.InDelta(t, 9.5, balance, 1e-10)
+	require.Zero(t, frozen)
 }

@@ -112,17 +112,19 @@ type UsageBillingCommand struct {
 	// ProviderType is fingerprinted after trimming. PostgreSQL quota writes
 	// compare the supplied value to API Key and Bedrock types ignoring case,
 	// without trimming that comparison.
-	ProviderType        string // captured executing provider type
-	Model               string // captured full billing model
-	ServiceTier         string // captured billing service tier
-	ReasoningEffort     string // captured final reasoning effort
-	BillingType         int8   // usage record billing category
-	InputTokens         int    // reported input token count
-	OutputTokens        int    // reported output token count
-	CacheCreationTokens int    // reported aggregate cache writes
-	CacheReadTokens     int    // reported cache read count
-	ImageCount          int    // reported generated image count
-	MediaType           string // captured billed media category
+	ProviderType         string // captured executing provider type
+	Model                string // captured full billing model
+	ServiceTier          string // captured billing service tier
+	ReasoningEffort      string // captured final reasoning effort
+	BillingType          int8   // usage record billing category
+	InputTokens          int    // reported input token count
+	OutputTokens         int    // reported output token count
+	CacheCreationTokens  int    // reported aggregate cache writes
+	CacheReadTokens      int    // reported cache read count
+	ImageCacheReadTokens int    // explicit cached image token subset
+	ImageFrameCount      int    // observed animation frame units
+	ImageCount           int    // reported generated image count
+	MediaType            string // captured billed media category
 
 	// APIKeyQuotaCost, APIKeyRateLimitCost and ProviderQuotaCost are rounded
 	// after fingerprinting. Their positive values enable respective writes; base
@@ -458,6 +460,14 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 		c.APIKeyRateLimitCost,
 		c.ProviderQuotaCost,
 	)
+	// Extend only animated identities so replaying an older static settlement
+	// retains its original fingerprint after the new frame field is introduced.
+	if c.ImageCacheReadTokens > 0 {
+		raw += fmt.Sprintf("|image_cache:%d", c.ImageCacheReadTokens)
+	}
+	if c.ImageFrameCount > 0 {
+		raw += fmt.Sprintf("|image_frames:%d", c.ImageFrameCount)
+	}
 	raw += fmt.Sprintf("|%s|%d", c.APIKeyBillingMode, preferredSubscriptionID)
 	if payloadHash := strings.TrimSpace(c.RequestPayloadHash); payloadHash != "" {
 		raw += "|" + payloadHash

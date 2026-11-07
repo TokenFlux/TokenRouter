@@ -633,136 +633,144 @@ func init() {
 	creativerun.DefaultUpdatedAt = creativerunDescUpdatedAt.Default.(func() time.Time)
 	// creativerun.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	creativerun.UpdateDefaultUpdatedAt = creativerunDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// creativerunDescFrameCount is the schema descriptor for frame_count field.
+	creativerunDescFrameCount := creativerunFields[0].Descriptor()
+	// creativerun.DefaultFrameCount holds the default value on creation for the frame_count field.
+	creativerun.DefaultFrameCount = creativerunDescFrameCount.Default.(int)
+	// creativerunDescFrameDurationMs is the schema descriptor for frame_duration_ms field.
+	creativerunDescFrameDurationMs := creativerunFields[1].Descriptor()
+	// creativerun.DefaultFrameDurationMs holds the default value on creation for the frame_duration_ms field.
+	creativerun.DefaultFrameDurationMs = creativerunDescFrameDurationMs.Default.(int)
 	// creativerunDescRunID is the schema descriptor for run_id field.
-	creativerunDescRunID := creativerunFields[0].Descriptor()
+	creativerunDescRunID := creativerunFields[2].Descriptor()
 	// creativerun.RunIDValidator is a validator for the "run_id" field. It is called by the builders before save.
 	creativerun.RunIDValidator = creativerunDescRunID.Validators[0].(func(string) error)
 	// creativerunDescWorkspaceID is the schema descriptor for workspace_id field.
-	creativerunDescWorkspaceID := creativerunFields[2].Descriptor()
+	creativerunDescWorkspaceID := creativerunFields[4].Descriptor()
 	// creativerun.WorkspaceIDValidator is a validator for the "workspace_id" field. It is called by the builders before save.
 	creativerun.WorkspaceIDValidator = creativerunDescWorkspaceID.Validators[0].(func(string) error)
 	// creativerunDescPlatform is the schema descriptor for platform field.
-	creativerunDescPlatform := creativerunFields[6].Descriptor()
+	creativerunDescPlatform := creativerunFields[8].Descriptor()
 	// creativerun.DefaultPlatform holds the default value on creation for the platform field.
 	creativerun.DefaultPlatform = creativerunDescPlatform.Default.(string)
 	// creativerun.PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
 	creativerun.PlatformValidator = creativerunDescPlatform.Validators[0].(func(string) error)
 	// creativerunDescModel is the schema descriptor for model field.
-	creativerunDescModel := creativerunFields[7].Descriptor()
+	creativerunDescModel := creativerunFields[9].Descriptor()
 	// creativerun.ModelValidator is a validator for the "model" field. It is called by the builders before save.
 	creativerun.ModelValidator = creativerunDescModel.Validators[0].(func(string) error)
 	// creativerunDescRequestedModel is the schema descriptor for requested_model field.
-	creativerunDescRequestedModel := creativerunFields[8].Descriptor()
+	creativerunDescRequestedModel := creativerunFields[10].Descriptor()
 	// creativerun.DefaultRequestedModel holds the default value on creation for the requested_model field.
 	creativerun.DefaultRequestedModel = creativerunDescRequestedModel.Default.(string)
 	// creativerun.RequestedModelValidator is a validator for the "requested_model" field. It is called by the builders before save.
 	creativerun.RequestedModelValidator = creativerunDescRequestedModel.Validators[0].(func(string) error)
 	// creativerunDescOperation is the schema descriptor for operation field.
-	creativerunDescOperation := creativerunFields[9].Descriptor()
+	creativerunDescOperation := creativerunFields[11].Descriptor()
 	// creativerun.OperationValidator is a validator for the "operation" field. It is called by the builders before save.
 	creativerun.OperationValidator = creativerunDescOperation.Validators[0].(func(string) error)
 	// creativerunDescRequestedOutputCount is the schema descriptor for requested_output_count field.
-	creativerunDescRequestedOutputCount := creativerunFields[10].Descriptor()
+	creativerunDescRequestedOutputCount := creativerunFields[12].Descriptor()
 	// creativerun.DefaultRequestedOutputCount holds the default value on creation for the requested_output_count field.
 	creativerun.DefaultRequestedOutputCount = creativerunDescRequestedOutputCount.Default.(int)
 	// creativerunDescImageSize is the schema descriptor for image_size field.
-	creativerunDescImageSize := creativerunFields[11].Descriptor()
+	creativerunDescImageSize := creativerunFields[13].Descriptor()
 	// creativerun.DefaultImageSize holds the default value on creation for the image_size field.
 	creativerun.DefaultImageSize = creativerunDescImageSize.Default.(string)
 	// creativerun.ImageSizeValidator is a validator for the "image_size" field. It is called by the builders before save.
 	creativerun.ImageSizeValidator = creativerunDescImageSize.Validators[0].(func(string) error)
 	// creativerunDescAspectRatio is the schema descriptor for aspect_ratio field.
-	creativerunDescAspectRatio := creativerunFields[12].Descriptor()
+	creativerunDescAspectRatio := creativerunFields[14].Descriptor()
 	// creativerun.DefaultAspectRatio holds the default value on creation for the aspect_ratio field.
 	creativerun.DefaultAspectRatio = creativerunDescAspectRatio.Default.(string)
 	// creativerun.AspectRatioValidator is a validator for the "aspect_ratio" field. It is called by the builders before save.
 	creativerun.AspectRatioValidator = creativerunDescAspectRatio.Validators[0].(func(string) error)
 	// creativerunDescResponseMimeType is the schema descriptor for response_mime_type field.
-	creativerunDescResponseMimeType := creativerunFields[13].Descriptor()
+	creativerunDescResponseMimeType := creativerunFields[15].Descriptor()
 	// creativerun.DefaultResponseMimeType holds the default value on creation for the response_mime_type field.
 	creativerun.DefaultResponseMimeType = creativerunDescResponseMimeType.Default.(string)
 	// creativerun.ResponseMimeTypeValidator is a validator for the "response_mime_type" field. It is called by the builders before save.
 	creativerun.ResponseMimeTypeValidator = creativerunDescResponseMimeType.Validators[0].(func(string) error)
 	// creativerunDescPromptHash is the schema descriptor for prompt_hash field.
-	creativerunDescPromptHash := creativerunFields[14].Descriptor()
+	creativerunDescPromptHash := creativerunFields[16].Descriptor()
 	// creativerun.PromptHashValidator is a validator for the "prompt_hash" field. It is called by the builders before save.
 	creativerun.PromptHashValidator = creativerunDescPromptHash.Validators[0].(func(string) error)
 	// creativerunDescRequestFingerprint is the schema descriptor for request_fingerprint field.
-	creativerunDescRequestFingerprint := creativerunFields[15].Descriptor()
+	creativerunDescRequestFingerprint := creativerunFields[17].Descriptor()
 	// creativerun.RequestFingerprintValidator is a validator for the "request_fingerprint" field. It is called by the builders before save.
 	creativerun.RequestFingerprintValidator = creativerunDescRequestFingerprint.Validators[0].(func(string) error)
 	// creativerunDescIdempotencyKey is the schema descriptor for idempotency_key field.
-	creativerunDescIdempotencyKey := creativerunFields[16].Descriptor()
+	creativerunDescIdempotencyKey := creativerunFields[18].Descriptor()
 	// creativerun.IdempotencyKeyValidator is a validator for the "idempotency_key" field. It is called by the builders before save.
 	creativerun.IdempotencyKeyValidator = creativerunDescIdempotencyKey.Validators[0].(func(string) error)
 	// creativerunDescStatus is the schema descriptor for status field.
-	creativerunDescStatus := creativerunFields[17].Descriptor()
+	creativerunDescStatus := creativerunFields[19].Descriptor()
 	// creativerun.DefaultStatus holds the default value on creation for the status field.
 	creativerun.DefaultStatus = creativerunDescStatus.Default.(string)
 	// creativerun.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	creativerun.StatusValidator = creativerunDescStatus.Validators[0].(func(string) error)
 	// creativerunDescEstimatedCost is the schema descriptor for estimated_cost field.
-	creativerunDescEstimatedCost := creativerunFields[18].Descriptor()
+	creativerunDescEstimatedCost := creativerunFields[20].Descriptor()
 	// creativerun.DefaultEstimatedCost holds the default value on creation for the estimated_cost field.
 	creativerun.DefaultEstimatedCost = creativerunDescEstimatedCost.Default.(float64)
 	// creativerunDescBalanceHoldAmount is the schema descriptor for balance_hold_amount field.
-	creativerunDescBalanceHoldAmount := creativerunFields[21].Descriptor()
+	creativerunDescBalanceHoldAmount := creativerunFields[23].Descriptor()
 	// creativerun.DefaultBalanceHoldAmount holds the default value on creation for the balance_hold_amount field.
 	creativerun.DefaultBalanceHoldAmount = creativerunDescBalanceHoldAmount.Default.(float64)
 	// creativerunDescSubscriptionHoldAllocations is the schema descriptor for subscription_hold_allocations field.
-	creativerunDescSubscriptionHoldAllocations := creativerunFields[22].Descriptor()
+	creativerunDescSubscriptionHoldAllocations := creativerunFields[24].Descriptor()
 	// creativerun.DefaultSubscriptionHoldAllocations holds the default value on creation for the subscription_hold_allocations field.
 	creativerun.DefaultSubscriptionHoldAllocations = creativerunDescSubscriptionHoldAllocations.Default.(func() []billing.BillingAllocation)
 	// creativerunDescBaseUnitPrice is the schema descriptor for base_unit_price field.
-	creativerunDescBaseUnitPrice := creativerunFields[23].Descriptor()
+	creativerunDescBaseUnitPrice := creativerunFields[25].Descriptor()
 	// creativerun.DefaultBaseUnitPrice holds the default value on creation for the base_unit_price field.
 	creativerun.DefaultBaseUnitPrice = creativerunDescBaseUnitPrice.Default.(float64)
 	// creativerunDescSubscriptionRateMultiplier is the schema descriptor for subscription_rate_multiplier field.
-	creativerunDescSubscriptionRateMultiplier := creativerunFields[24].Descriptor()
+	creativerunDescSubscriptionRateMultiplier := creativerunFields[26].Descriptor()
 	// creativerun.DefaultSubscriptionRateMultiplier holds the default value on creation for the subscription_rate_multiplier field.
 	creativerun.DefaultSubscriptionRateMultiplier = creativerunDescSubscriptionRateMultiplier.Default.(float64)
 	// creativerunDescBalanceRateMultiplier is the schema descriptor for balance_rate_multiplier field.
-	creativerunDescBalanceRateMultiplier := creativerunFields[25].Descriptor()
+	creativerunDescBalanceRateMultiplier := creativerunFields[27].Descriptor()
 	// creativerun.DefaultBalanceRateMultiplier holds the default value on creation for the balance_rate_multiplier field.
 	creativerun.DefaultBalanceRateMultiplier = creativerunDescBalanceRateMultiplier.Default.(float64)
 	// creativerunDescPlanGroupRateMultiplierEnabled is the schema descriptor for plan_group_rate_multiplier_enabled field.
-	creativerunDescPlanGroupRateMultiplierEnabled := creativerunFields[26].Descriptor()
+	creativerunDescPlanGroupRateMultiplierEnabled := creativerunFields[28].Descriptor()
 	// creativerun.DefaultPlanGroupRateMultiplierEnabled holds the default value on creation for the plan_group_rate_multiplier_enabled field.
 	creativerun.DefaultPlanGroupRateMultiplierEnabled = creativerunDescPlanGroupRateMultiplierEnabled.Default.(bool)
 	// creativerunDescErrorCode is the schema descriptor for error_code field.
-	creativerunDescErrorCode := creativerunFields[27].Descriptor()
+	creativerunDescErrorCode := creativerunFields[29].Descriptor()
 	// creativerun.ErrorCodeValidator is a validator for the "error_code" field. It is called by the builders before save.
 	creativerun.ErrorCodeValidator = creativerunDescErrorCode.Validators[0].(func(string) error)
 	// creativerunDescReleaseTargetStatus is the schema descriptor for release_target_status field.
-	creativerunDescReleaseTargetStatus := creativerunFields[29].Descriptor()
+	creativerunDescReleaseTargetStatus := creativerunFields[31].Descriptor()
 	// creativerun.DefaultReleaseTargetStatus holds the default value on creation for the release_target_status field.
 	creativerun.DefaultReleaseTargetStatus = creativerunDescReleaseTargetStatus.Default.(string)
 	// creativerun.ReleaseTargetStatusValidator is a validator for the "release_target_status" field. It is called by the builders before save.
 	creativerun.ReleaseTargetStatusValidator = creativerunDescReleaseTargetStatus.Validators[0].(func(string) error)
 	// creativerunDescAttemptCount is the schema descriptor for attempt_count field.
-	creativerunDescAttemptCount := creativerunFields[30].Descriptor()
+	creativerunDescAttemptCount := creativerunFields[32].Descriptor()
 	// creativerun.DefaultAttemptCount holds the default value on creation for the attempt_count field.
 	creativerun.DefaultAttemptCount = creativerunDescAttemptCount.Default.(int)
 	// creativerunDescAllowanceReserved is the schema descriptor for allowance_reserved field.
-	creativerunDescAllowanceReserved := creativerunFields[31].Descriptor()
+	creativerunDescAllowanceReserved := creativerunFields[33].Descriptor()
 	// creativerun.DefaultAllowanceReserved holds the default value on creation for the allowance_reserved field.
 	creativerun.DefaultAllowanceReserved = creativerunDescAllowanceReserved.Default.(bool)
 	// creativerunDescProvisioningPhase is the schema descriptor for provisioning_phase field.
-	creativerunDescProvisioningPhase := creativerunFields[32].Descriptor()
+	creativerunDescProvisioningPhase := creativerunFields[34].Descriptor()
 	// creativerun.DefaultProvisioningPhase holds the default value on creation for the provisioning_phase field.
 	creativerun.DefaultProvisioningPhase = creativerunDescProvisioningPhase.Default.(string)
 	// creativerun.ProvisioningPhaseValidator is a validator for the "provisioning_phase" field. It is called by the builders before save.
 	creativerun.ProvisioningPhaseValidator = creativerunDescProvisioningPhase.Validators[0].(func(string) error)
 	// creativerunDescSettlementAttemptCount is the schema descriptor for settlement_attempt_count field.
-	creativerunDescSettlementAttemptCount := creativerunFields[34].Descriptor()
+	creativerunDescSettlementAttemptCount := creativerunFields[36].Descriptor()
 	// creativerun.DefaultSettlementAttemptCount holds the default value on creation for the settlement_attempt_count field.
 	creativerun.DefaultSettlementAttemptCount = creativerunDescSettlementAttemptCount.Default.(int)
 	// creativerunDescReleaseAttemptCount is the schema descriptor for release_attempt_count field.
-	creativerunDescReleaseAttemptCount := creativerunFields[35].Descriptor()
+	creativerunDescReleaseAttemptCount := creativerunFields[37].Descriptor()
 	// creativerun.DefaultReleaseAttemptCount holds the default value on creation for the release_attempt_count field.
 	creativerun.DefaultReleaseAttemptCount = creativerunDescReleaseAttemptCount.Default.(int)
 	// creativerunDescVersion is the schema descriptor for version field.
-	creativerunDescVersion := creativerunFields[38].Descriptor()
+	creativerunDescVersion := creativerunFields[40].Descriptor()
 	// creativerun.DefaultVersion holds the default value on creation for the version field.
 	creativerun.DefaultVersion = creativerunDescVersion.Default.(int64)
 	creativerunoutboxFields := schema.CreativeRunOutbox{}.Fields()
@@ -818,22 +826,26 @@ func init() {
 	creativerunoutput.DefaultUpdatedAt = creativerunoutputDescUpdatedAt.Default.(func() time.Time)
 	// creativerunoutput.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	creativerunoutput.UpdateDefaultUpdatedAt = creativerunoutputDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// creativerunoutputDescFrameCount is the schema descriptor for frame_count field.
+	creativerunoutputDescFrameCount := creativerunoutputFields[0].Descriptor()
+	// creativerunoutput.DefaultFrameCount holds the default value on creation for the frame_count field.
+	creativerunoutput.DefaultFrameCount = creativerunoutputDescFrameCount.Default.(int)
 	// creativerunoutputDescRunID is the schema descriptor for run_id field.
-	creativerunoutputDescRunID := creativerunoutputFields[0].Descriptor()
+	creativerunoutputDescRunID := creativerunoutputFields[1].Descriptor()
 	// creativerunoutput.RunIDValidator is a validator for the "run_id" field. It is called by the builders before save.
 	creativerunoutput.RunIDValidator = creativerunoutputDescRunID.Validators[0].(func(string) error)
 	// creativerunoutputDescStatus is the schema descriptor for status field.
-	creativerunoutputDescStatus := creativerunoutputFields[2].Descriptor()
+	creativerunoutputDescStatus := creativerunoutputFields[3].Descriptor()
 	// creativerunoutput.DefaultStatus holds the default value on creation for the status field.
 	creativerunoutput.DefaultStatus = creativerunoutputDescStatus.Default.(string)
 	// creativerunoutput.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	creativerunoutput.StatusValidator = creativerunoutputDescStatus.Validators[0].(func(string) error)
 	// creativerunoutputDescMimeType is the schema descriptor for mime_type field.
-	creativerunoutputDescMimeType := creativerunoutputFields[3].Descriptor()
+	creativerunoutputDescMimeType := creativerunoutputFields[4].Descriptor()
 	// creativerunoutput.MimeTypeValidator is a validator for the "mime_type" field. It is called by the builders before save.
 	creativerunoutput.MimeTypeValidator = creativerunoutputDescMimeType.Validators[0].(func(string) error)
 	// creativerunoutputDescErrorCode is the schema descriptor for error_code field.
-	creativerunoutputDescErrorCode := creativerunoutputFields[7].Descriptor()
+	creativerunoutputDescErrorCode := creativerunoutputFields[8].Descriptor()
 	// creativerunoutput.ErrorCodeValidator is a validator for the "error_code" field. It is called by the builders before save.
 	creativerunoutput.ErrorCodeValidator = creativerunoutputDescErrorCode.Validators[0].(func(string) error)
 	errorpassthroughruleMixin := schema.ErrorPassthroughRule{}.Mixin()
@@ -2323,24 +2335,32 @@ func init() {
 	usagecleanuptask.DefaultDeletedRows = usagecleanuptaskDescDeletedRows.Default.(int64)
 	usagelogFields := schema.UsageLog{}.Fields()
 	_ = usagelogFields
+	// usagelogDescImageFrameCount is the schema descriptor for image_frame_count field.
+	usagelogDescImageFrameCount := usagelogFields[0].Descriptor()
+	// usagelog.DefaultImageFrameCount holds the default value on creation for the image_frame_count field.
+	usagelog.DefaultImageFrameCount = usagelogDescImageFrameCount.Default.(int)
+	// usagelogDescImageCacheReadTokens is the schema descriptor for image_cache_read_tokens field.
+	usagelogDescImageCacheReadTokens := usagelogFields[1].Descriptor()
+	// usagelog.DefaultImageCacheReadTokens holds the default value on creation for the image_cache_read_tokens field.
+	usagelog.DefaultImageCacheReadTokens = usagelogDescImageCacheReadTokens.Default.(int)
 	// usagelogDescRequestSource is the schema descriptor for request_source field.
-	usagelogDescRequestSource := usagelogFields[0].Descriptor()
+	usagelogDescRequestSource := usagelogFields[2].Descriptor()
 	// usagelog.DefaultRequestSource holds the default value on creation for the request_source field.
 	usagelog.DefaultRequestSource = usagelogDescRequestSource.Default.(string)
 	// usagelog.RequestSourceValidator is a validator for the "request_source" field. It is called by the builders before save.
 	usagelog.RequestSourceValidator = usagelogDescRequestSource.Validators[0].(func(string) error)
 	// usagelogDescPlatform is the schema descriptor for platform field.
-	usagelogDescPlatform := usagelogFields[7].Descriptor()
+	usagelogDescPlatform := usagelogFields[9].Descriptor()
 	// usagelog.DefaultPlatform holds the default value on creation for the platform field.
 	usagelog.DefaultPlatform = usagelogDescPlatform.Default.(string)
 	// usagelog.PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
 	usagelog.PlatformValidator = usagelogDescPlatform.Validators[0].(func(string) error)
 	// usagelogDescBillingKey is the schema descriptor for billing_key field.
-	usagelogDescBillingKey := usagelogFields[8].Descriptor()
+	usagelogDescBillingKey := usagelogFields[10].Descriptor()
 	// usagelog.BillingKeyValidator is a validator for the "billing_key" field. It is called by the builders before save.
 	usagelog.BillingKeyValidator = usagelogDescBillingKey.Validators[0].(func(string) error)
 	// usagelogDescRequestID is the schema descriptor for request_id field.
-	usagelogDescRequestID := usagelogFields[9].Descriptor()
+	usagelogDescRequestID := usagelogFields[11].Descriptor()
 	// usagelog.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
 	usagelog.RequestIDValidator = func() func(string) error {
 		validators := usagelogDescRequestID.Validators
@@ -2358,7 +2378,7 @@ func init() {
 		}
 	}()
 	// usagelogDescModel is the schema descriptor for model field.
-	usagelogDescModel := usagelogFields[10].Descriptor()
+	usagelogDescModel := usagelogFields[12].Descriptor()
 	// usagelog.ModelValidator is a validator for the "model" field. It is called by the builders before save.
 	usagelog.ModelValidator = func() func(string) error {
 		validators := usagelogDescModel.Validators
@@ -2376,143 +2396,143 @@ func init() {
 		}
 	}()
 	// usagelogDescRequestedModel is the schema descriptor for requested_model field.
-	usagelogDescRequestedModel := usagelogFields[11].Descriptor()
+	usagelogDescRequestedModel := usagelogFields[13].Descriptor()
 	// usagelog.RequestedModelValidator is a validator for the "requested_model" field. It is called by the builders before save.
 	usagelog.RequestedModelValidator = usagelogDescRequestedModel.Validators[0].(func(string) error)
 	// usagelogDescUpstreamModel is the schema descriptor for upstream_model field.
-	usagelogDescUpstreamModel := usagelogFields[12].Descriptor()
+	usagelogDescUpstreamModel := usagelogFields[14].Descriptor()
 	// usagelog.UpstreamModelValidator is a validator for the "upstream_model" field. It is called by the builders before save.
 	usagelog.UpstreamModelValidator = usagelogDescUpstreamModel.Validators[0].(func(string) error)
 	// usagelogDescUpstreamResponseModel is the schema descriptor for upstream_response_model field.
-	usagelogDescUpstreamResponseModel := usagelogFields[13].Descriptor()
+	usagelogDescUpstreamResponseModel := usagelogFields[15].Descriptor()
 	// usagelog.UpstreamResponseModelValidator is a validator for the "upstream_response_model" field. It is called by the builders before save.
 	usagelog.UpstreamResponseModelValidator = usagelogDescUpstreamResponseModel.Validators[0].(func(string) error)
 	// usagelogDescModelMappingChain is the schema descriptor for model_mapping_chain field.
-	usagelogDescModelMappingChain := usagelogFields[16].Descriptor()
+	usagelogDescModelMappingChain := usagelogFields[18].Descriptor()
 	// usagelog.ModelMappingChainValidator is a validator for the "model_mapping_chain" field. It is called by the builders before save.
 	usagelog.ModelMappingChainValidator = usagelogDescModelMappingChain.Validators[0].(func(string) error)
 	// usagelogDescBillingTier is the schema descriptor for billing_tier field.
-	usagelogDescBillingTier := usagelogFields[17].Descriptor()
+	usagelogDescBillingTier := usagelogFields[19].Descriptor()
 	// usagelog.BillingTierValidator is a validator for the "billing_tier" field. It is called by the builders before save.
 	usagelog.BillingTierValidator = usagelogDescBillingTier.Validators[0].(func(string) error)
 	// usagelogDescBillingMode is the schema descriptor for billing_mode field.
-	usagelogDescBillingMode := usagelogFields[18].Descriptor()
+	usagelogDescBillingMode := usagelogFields[20].Descriptor()
 	// usagelog.BillingModeValidator is a validator for the "billing_mode" field. It is called by the builders before save.
 	usagelog.BillingModeValidator = usagelogDescBillingMode.Validators[0].(func(string) error)
 	// usagelogDescInputTokens is the schema descriptor for input_tokens field.
-	usagelogDescInputTokens := usagelogFields[21].Descriptor()
+	usagelogDescInputTokens := usagelogFields[23].Descriptor()
 	// usagelog.DefaultInputTokens holds the default value on creation for the input_tokens field.
 	usagelog.DefaultInputTokens = usagelogDescInputTokens.Default.(int)
 	// usagelogDescOutputTokens is the schema descriptor for output_tokens field.
-	usagelogDescOutputTokens := usagelogFields[22].Descriptor()
+	usagelogDescOutputTokens := usagelogFields[24].Descriptor()
 	// usagelog.DefaultOutputTokens holds the default value on creation for the output_tokens field.
 	usagelog.DefaultOutputTokens = usagelogDescOutputTokens.Default.(int)
 	// usagelogDescCacheCreationTokens is the schema descriptor for cache_creation_tokens field.
-	usagelogDescCacheCreationTokens := usagelogFields[23].Descriptor()
+	usagelogDescCacheCreationTokens := usagelogFields[25].Descriptor()
 	// usagelog.DefaultCacheCreationTokens holds the default value on creation for the cache_creation_tokens field.
 	usagelog.DefaultCacheCreationTokens = usagelogDescCacheCreationTokens.Default.(int)
 	// usagelogDescCacheReadTokens is the schema descriptor for cache_read_tokens field.
-	usagelogDescCacheReadTokens := usagelogFields[24].Descriptor()
+	usagelogDescCacheReadTokens := usagelogFields[26].Descriptor()
 	// usagelog.DefaultCacheReadTokens holds the default value on creation for the cache_read_tokens field.
 	usagelog.DefaultCacheReadTokens = usagelogDescCacheReadTokens.Default.(int)
 	// usagelogDescCacheCreation5mTokens is the schema descriptor for cache_creation_5m_tokens field.
-	usagelogDescCacheCreation5mTokens := usagelogFields[25].Descriptor()
+	usagelogDescCacheCreation5mTokens := usagelogFields[27].Descriptor()
 	// usagelog.DefaultCacheCreation5mTokens holds the default value on creation for the cache_creation_5m_tokens field.
 	usagelog.DefaultCacheCreation5mTokens = usagelogDescCacheCreation5mTokens.Default.(int)
 	// usagelogDescCacheCreation1hTokens is the schema descriptor for cache_creation_1h_tokens field.
-	usagelogDescCacheCreation1hTokens := usagelogFields[26].Descriptor()
+	usagelogDescCacheCreation1hTokens := usagelogFields[28].Descriptor()
 	// usagelog.DefaultCacheCreation1hTokens holds the default value on creation for the cache_creation_1h_tokens field.
 	usagelog.DefaultCacheCreation1hTokens = usagelogDescCacheCreation1hTokens.Default.(int)
 	// usagelogDescInputCost is the schema descriptor for input_cost field.
-	usagelogDescInputCost := usagelogFields[27].Descriptor()
+	usagelogDescInputCost := usagelogFields[29].Descriptor()
 	// usagelog.DefaultInputCost holds the default value on creation for the input_cost field.
 	usagelog.DefaultInputCost = usagelogDescInputCost.Default.(float64)
 	// usagelogDescOutputCost is the schema descriptor for output_cost field.
-	usagelogDescOutputCost := usagelogFields[28].Descriptor()
+	usagelogDescOutputCost := usagelogFields[30].Descriptor()
 	// usagelog.DefaultOutputCost holds the default value on creation for the output_cost field.
 	usagelog.DefaultOutputCost = usagelogDescOutputCost.Default.(float64)
 	// usagelogDescCacheCreationCost is the schema descriptor for cache_creation_cost field.
-	usagelogDescCacheCreationCost := usagelogFields[29].Descriptor()
+	usagelogDescCacheCreationCost := usagelogFields[31].Descriptor()
 	// usagelog.DefaultCacheCreationCost holds the default value on creation for the cache_creation_cost field.
 	usagelog.DefaultCacheCreationCost = usagelogDescCacheCreationCost.Default.(float64)
 	// usagelogDescCacheReadCost is the schema descriptor for cache_read_cost field.
-	usagelogDescCacheReadCost := usagelogFields[30].Descriptor()
+	usagelogDescCacheReadCost := usagelogFields[32].Descriptor()
 	// usagelog.DefaultCacheReadCost holds the default value on creation for the cache_read_cost field.
 	usagelog.DefaultCacheReadCost = usagelogDescCacheReadCost.Default.(float64)
 	// usagelogDescTotalCost is the schema descriptor for total_cost field.
-	usagelogDescTotalCost := usagelogFields[31].Descriptor()
+	usagelogDescTotalCost := usagelogFields[33].Descriptor()
 	// usagelog.DefaultTotalCost holds the default value on creation for the total_cost field.
 	usagelog.DefaultTotalCost = usagelogDescTotalCost.Default.(float64)
 	// usagelogDescActualCost is the schema descriptor for actual_cost field.
-	usagelogDescActualCost := usagelogFields[32].Descriptor()
+	usagelogDescActualCost := usagelogFields[34].Descriptor()
 	// usagelog.DefaultActualCost holds the default value on creation for the actual_cost field.
 	usagelog.DefaultActualCost = usagelogDescActualCost.Default.(float64)
 	// usagelogDescSubscriptionAmountUsd is the schema descriptor for subscription_amount_usd field.
-	usagelogDescSubscriptionAmountUsd := usagelogFields[33].Descriptor()
+	usagelogDescSubscriptionAmountUsd := usagelogFields[35].Descriptor()
 	// usagelog.DefaultSubscriptionAmountUsd holds the default value on creation for the subscription_amount_usd field.
 	usagelog.DefaultSubscriptionAmountUsd = usagelogDescSubscriptionAmountUsd.Default.(float64)
 	// usagelogDescBalanceAmountUsd is the schema descriptor for balance_amount_usd field.
-	usagelogDescBalanceAmountUsd := usagelogFields[34].Descriptor()
+	usagelogDescBalanceAmountUsd := usagelogFields[36].Descriptor()
 	// usagelog.DefaultBalanceAmountUsd holds the default value on creation for the balance_amount_usd field.
 	usagelog.DefaultBalanceAmountUsd = usagelogDescBalanceAmountUsd.Default.(float64)
 	// usagelogDescRateMultiplier is the schema descriptor for rate_multiplier field.
-	usagelogDescRateMultiplier := usagelogFields[36].Descriptor()
+	usagelogDescRateMultiplier := usagelogFields[38].Descriptor()
 	// usagelog.DefaultRateMultiplier holds the default value on creation for the rate_multiplier field.
 	usagelog.DefaultRateMultiplier = usagelogDescRateMultiplier.Default.(float64)
 	// usagelogDescLongContextBillingApplied is the schema descriptor for long_context_billing_applied field.
-	usagelogDescLongContextBillingApplied := usagelogFields[37].Descriptor()
+	usagelogDescLongContextBillingApplied := usagelogFields[39].Descriptor()
 	// usagelog.DefaultLongContextBillingApplied holds the default value on creation for the long_context_billing_applied field.
 	usagelog.DefaultLongContextBillingApplied = usagelogDescLongContextBillingApplied.Default.(bool)
 	// usagelogDescBillingType is the schema descriptor for billing_type field.
-	usagelogDescBillingType := usagelogFields[39].Descriptor()
+	usagelogDescBillingType := usagelogFields[41].Descriptor()
 	// usagelog.DefaultBillingType holds the default value on creation for the billing_type field.
 	usagelog.DefaultBillingType = usagelogDescBillingType.Default.(int8)
 	// usagelogDescStream is the schema descriptor for stream field.
-	usagelogDescStream := usagelogFields[40].Descriptor()
+	usagelogDescStream := usagelogFields[42].Descriptor()
 	// usagelog.DefaultStream holds the default value on creation for the stream field.
 	usagelog.DefaultStream = usagelogDescStream.Default.(bool)
 	// usagelogDescUserAgent is the schema descriptor for user_agent field.
-	usagelogDescUserAgent := usagelogFields[43].Descriptor()
+	usagelogDescUserAgent := usagelogFields[45].Descriptor()
 	// usagelog.UserAgentValidator is a validator for the "user_agent" field. It is called by the builders before save.
 	usagelog.UserAgentValidator = usagelogDescUserAgent.Validators[0].(func(string) error)
 	// usagelogDescIPAddress is the schema descriptor for ip_address field.
-	usagelogDescIPAddress := usagelogFields[44].Descriptor()
+	usagelogDescIPAddress := usagelogFields[46].Descriptor()
 	// usagelog.IPAddressValidator is a validator for the "ip_address" field. It is called by the builders before save.
 	usagelog.IPAddressValidator = usagelogDescIPAddress.Validators[0].(func(string) error)
 	// usagelogDescImageCount is the schema descriptor for image_count field.
-	usagelogDescImageCount := usagelogFields[45].Descriptor()
+	usagelogDescImageCount := usagelogFields[47].Descriptor()
 	// usagelog.DefaultImageCount holds the default value on creation for the image_count field.
 	usagelog.DefaultImageCount = usagelogDescImageCount.Default.(int)
 	// usagelogDescImageSize is the schema descriptor for image_size field.
-	usagelogDescImageSize := usagelogFields[46].Descriptor()
+	usagelogDescImageSize := usagelogFields[48].Descriptor()
 	// usagelog.ImageSizeValidator is a validator for the "image_size" field. It is called by the builders before save.
 	usagelog.ImageSizeValidator = usagelogDescImageSize.Validators[0].(func(string) error)
 	// usagelogDescImageInputSize is the schema descriptor for image_input_size field.
-	usagelogDescImageInputSize := usagelogFields[47].Descriptor()
+	usagelogDescImageInputSize := usagelogFields[49].Descriptor()
 	// usagelog.ImageInputSizeValidator is a validator for the "image_input_size" field. It is called by the builders before save.
 	usagelog.ImageInputSizeValidator = usagelogDescImageInputSize.Validators[0].(func(string) error)
 	// usagelogDescImageOutputSize is the schema descriptor for image_output_size field.
-	usagelogDescImageOutputSize := usagelogFields[48].Descriptor()
+	usagelogDescImageOutputSize := usagelogFields[50].Descriptor()
 	// usagelog.ImageOutputSizeValidator is a validator for the "image_output_size" field. It is called by the builders before save.
 	usagelog.ImageOutputSizeValidator = usagelogDescImageOutputSize.Validators[0].(func(string) error)
 	// usagelogDescImageSizeSource is the schema descriptor for image_size_source field.
-	usagelogDescImageSizeSource := usagelogFields[49].Descriptor()
+	usagelogDescImageSizeSource := usagelogFields[51].Descriptor()
 	// usagelog.ImageSizeSourceValidator is a validator for the "image_size_source" field. It is called by the builders before save.
 	usagelog.ImageSizeSourceValidator = usagelogDescImageSizeSource.Validators[0].(func(string) error)
 	// usagelogDescVideoCount is the schema descriptor for video_count field.
-	usagelogDescVideoCount := usagelogFields[51].Descriptor()
+	usagelogDescVideoCount := usagelogFields[53].Descriptor()
 	// usagelog.DefaultVideoCount holds the default value on creation for the video_count field.
 	usagelog.DefaultVideoCount = usagelogDescVideoCount.Default.(int)
 	// usagelogDescVideoResolution is the schema descriptor for video_resolution field.
-	usagelogDescVideoResolution := usagelogFields[52].Descriptor()
+	usagelogDescVideoResolution := usagelogFields[54].Descriptor()
 	// usagelog.VideoResolutionValidator is a validator for the "video_resolution" field. It is called by the builders before save.
 	usagelog.VideoResolutionValidator = usagelogDescVideoResolution.Validators[0].(func(string) error)
 	// usagelogDescCacheTTLOverridden is the schema descriptor for cache_ttl_overridden field.
-	usagelogDescCacheTTLOverridden := usagelogFields[54].Descriptor()
+	usagelogDescCacheTTLOverridden := usagelogFields[56].Descriptor()
 	// usagelog.DefaultCacheTTLOverridden holds the default value on creation for the cache_ttl_overridden field.
 	usagelog.DefaultCacheTTLOverridden = usagelogDescCacheTTLOverridden.Default.(bool)
 	// usagelogDescCreatedAt is the schema descriptor for created_at field.
-	usagelogDescCreatedAt := usagelogFields[55].Descriptor()
+	usagelogDescCreatedAt := usagelogFields[57].Descriptor()
 	// usagelog.DefaultCreatedAt holds the default value on creation for the created_at field.
 	usagelog.DefaultCreatedAt = usagelogDescCreatedAt.Default.(func() time.Time)
 	userMixin := schema.User{}.Mixin()

@@ -282,6 +282,7 @@ func (s *OpenAIAuxiliary) ForwardEmbeddings(
 		Usage: openaiprotocol.ForwardUsage{
 			InputTokens:              result.Usage.InputTokens,
 			ImageInputTokens:         result.ImageInputTokens,
+			ImageCacheReadTokens:     result.ImageCacheReadTokens,
 			OutputTokens:             result.Usage.OutputTokens,
 			CacheReadInputTokens:     result.Usage.CacheReadInputTokens,
 			CacheCreationInputTokens: result.Usage.CacheCreationInputTokens,

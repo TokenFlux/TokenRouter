@@ -34,6 +34,7 @@ import (
 // ImageResponseOptions binds image readers to request-specific output,
 // accounting, and error policy callbacks.
 type ImageResponseOptions struct {
+	ExpectedGIF bool // requested GIF output validation
 	// ExpectedImages is the requested final image count; zero uses one when
 	// validating a native Images stream before buffered or streaming delivery.
 	ExpectedImages int
@@ -210,6 +211,10 @@ func ReadImagesOAuthNonStreaming(
 	responseBody, err := BuildOpenAIImagesAPIResponse(results, createdAt, usageRaw, firstMeta, responseFormat, time.Now)
 	if err != nil {
 		return wire.ForwardUsage{}, 0, nil, err
+	}
+	responseBody, usage.ImageFrameCount, err = ValidateGIFImagesResponse(responseBody, options.ExpectedGIF, options.FetchImage)
+	if err != nil {
+		return usage, len(results), OpenAIResponsesImageResultSizes(results), err
 	}
 	c := upstream.NewOutputContext(sink)
 	options.ResponseHeaders(c.Writer.Header(), resp.Header)

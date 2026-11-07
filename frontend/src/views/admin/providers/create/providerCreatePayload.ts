@@ -63,6 +63,7 @@ export interface OpenAICreateExtraDraft {
   openAINativeCompactionV2Mode: OpenAICompactMode // second-generation compaction mode
   // openAIImagesURLToB64JSON is an opt-in API Key policy; disabled or OAuth
   // drafts remove the inherited image backfill setting from resulting metadata.
+  openAIImagesGIFEnabled?: boolean // Missing values keep GIF enabled.
   openAIImagesURLToB64JSON: boolean
   // openAIResponsesContinuationSupported is always written for API Key drafts,
   // including false, so unsupported continuation remains an explicit capability decision.
@@ -86,6 +87,10 @@ export const buildOpenAICreateExtra = (
   }
 
   const extra: Record<string, unknown> = { ...base }
+  if (draft.type === 'oauth' || draft.providerCategory === 'apikey') {
+    if (draft.openAIImagesGIFEnabled === false) extra.images_gif_enabled = false
+    else delete extra.images_gif_enabled
+  }
   if (draft.type === 'oauth') {
     applyCodexImageResponsesModel(extra, draft.codexImageResponsesModel || '')
   }

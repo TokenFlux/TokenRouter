@@ -224,8 +224,9 @@ type StreamingResult struct {
 	// upstream usage.
 	Usage *wire.ForwardUsage
 
-	ResponseID string // observed upstream Responses identity
-	ImageCount int    // observed completed image count
+	ResponseID      string // observed upstream Responses identity
+	ImageCount      int    // observed completed image count
+	ImageFrameCount int    // encoded output frame billing units
 	// ImageOutputSizes contains known image dimensions from the counter snapshot;
 	// missing metadata is omitted, so its positions need not correspond to every
 	// counted image.
@@ -511,7 +512,8 @@ func ReadStreamingResponse(ctx context.Context, resp *http.Response, c *upstream
 
 			ResponseID: responseID,
 
-			ImageCount: imageCounter.Count(),
+			ImageCount:      imageCounter.Count(),
+			ImageFrameCount: imageCounter.FrameCount(),
 
 			ImageOutputSizes: imageCounter.Sizes(),
 
@@ -803,6 +805,11 @@ func ReadStreamingResponse(ctx context.Context, resp *http.Response, c *upstream
 				dataBytes = normalizedData
 				data = string(normalizedData)
 				line = "data: " + data
+			}
+			if err := wire.ValidateGIFImageOutputs(dataBytes); err != nil {
+				wire.ParseSSEUsageBytes(dataBytes, usage)
+				streamEarlyErr = err
+				return
 			}
 			imageCounter.AddSSEData(dataBytes)
 			searchCounter += options.CountSearch(dataBytes, streamSearchSeen)

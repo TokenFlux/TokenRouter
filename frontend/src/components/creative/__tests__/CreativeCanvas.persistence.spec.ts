@@ -369,6 +369,35 @@ function mountCanvas() {
 }
 
 describe('CreativeCanvas 本地恢复与快照持久化', () => {
+  /**
+   * A generated GIF keeps its original bytes while the canvas receives a PNG
+   * poster. Opening and closing playback must release its temporary animation URL.
+   */
+  it('keeps GIF bytes for playback while rendering a separate poster', async () => {
+    const contextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D)
+    const poster = new Blob(['poster'], { type: 'image/png' })
+    const encodeSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'toBlob')
+      .mockImplementation((callback) => callback(poster))
+    const wrapper = mountCanvas()
+    await flushPromises()
+    const animation = new Blob(['GIF89a'], { type: 'image/gif' })
+    await (wrapper.vm as any).placeOutput({ blob: animation, runId: 'gif-run', outputIndex: 0 })
+    await flushPromises()
+    expect(URL.createObjectURL).toHaveBeenCalledWith(poster)
+    expect(await (wrapper.vm as any).getSelectedImageBlob()).toBe(animation)
+    expect(fabricState.images[0].data.animatedGIF).toBe(true)
+    await wrapper.get('button[title="creative.canvas.playGIF"]').trigger('click')
+    await flushPromises()
+    expect(URL.createObjectURL).toHaveBeenCalledWith(animation)
+    wrapper.unmount()
+    expect(URL.revokeObjectURL).toHaveBeenCalled()
+    contextSpy.mockRestore()
+    encodeSpy.mockRestore()
+  })
+
   beforeEach(() => {
     fabricState.main = null
     fabricState.mask = null

@@ -558,6 +558,7 @@ export default {
     exportFailed: '使用数据导出失败',
     exportExcelSuccess: '使用数据导出成功（Excel格式）',
     exportExcelFailed: '使用数据导出失败',
+    imageFrameUnit: ' 帧',
     imageUnit: '张',
     userAgent: 'User-Agent',
     ipGeo: {

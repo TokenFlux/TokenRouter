@@ -157,6 +157,7 @@ export function createProviderEditDraft() {
     openAICompactMode: ref<OpenAICompactMode>('force_on'), // Legacy compaction request mode.
     openAINativeCompactionV2Mode: ref<OpenAICompactMode>('force_on'), // Native compaction request mode.
     openAIResponsesContinuationSupported: ref(false), // HTTP response continuation capability.
+    openAIImagesGIFEnabled: ref(true), // Missing settings enable GIF generation.
     openAIImagesURLToB64JSON: ref(false), // Image URL backfill switch.
     responsesWSConnectionMode: ref<ResponsesWSConnectionMode>(RESPONSES_WS_POOLED), // Responses WebSocket connection mode.
     codexCLIOnlyAllowClaudeCodeEnabled: ref(false), // Claude Code client exemption.

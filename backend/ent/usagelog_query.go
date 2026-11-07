@@ -480,12 +480,12 @@ func (_q *UsageLogQuery) WithTeam(opts ...func(*TeamQuery)) *UsageLogQuery {
 // Example:
 //
 //	var v []struct {
-//		RequestSource string `json:"request_source,omitempty"`
+//		ImageFrameCount int `json:"image_frame_count,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.UsageLog.Query().
-//		GroupBy(usagelog.FieldRequestSource).
+//		GroupBy(usagelog.FieldImageFrameCount).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (_q *UsageLogQuery) GroupBy(field string, fields ...string) *UsageLogGroupBy {
@@ -503,11 +503,11 @@ func (_q *UsageLogQuery) GroupBy(field string, fields ...string) *UsageLogGroupB
 // Example:
 //
 //	var v []struct {
-//		RequestSource string `json:"request_source,omitempty"`
+//		ImageFrameCount int `json:"image_frame_count,omitempty"`
 //	}
 //
 //	client.UsageLog.Query().
-//		Select(usagelog.FieldRequestSource).
+//		Select(usagelog.FieldImageFrameCount).
 //		Scan(ctx, &v)
 func (_q *UsageLogQuery) Select(fields ...string) *UsageLogSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

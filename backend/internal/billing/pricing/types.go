@@ -41,8 +41,13 @@ type ModelPricing struct {
 	ContextPrices              []ContextModelPrice
 	InputPricePerToken         float64 // USD per text-input token
 	InputPricePerTokenPriority float64 // USD per priority-input token
-	// ImageInputPricePerToken prices the image subset of InputTokens. Zero uses
-	// the selected text-input amount after service-tier and context selection.
+	// ImageCacheReadPricePerToken and ImageCacheReadPriceExplicit distinguish a
+	// supplied zero from a missing image-cache rate. Missing rates use aggregate
+	// cache pricing; explicit administrator cache overrides disable the subdivision.
+	ImageCacheReadPricePerToken float64 // USD per cached image token
+	ImageCacheReadPriceExplicit bool    // cached image amount supplied
+	// ImageInputPricePerToken prices uncached image input after removing an
+	// explicitly reported cached image subset. Zero uses the text input price.
 	ImageInputPricePerToken            float64 // USD per image-input token
 	OutputPricePerToken                float64 // USD per text-output token
 	OutputPricePerTokenPriority        float64 // USD per priority-output token
@@ -111,10 +116,11 @@ type ContextModelPrice struct {
 // charging.
 type UsageTokens struct {
 	InputTokens int // reported aggregate input-token count
-	// ImageInputTokens identifies image input already included in InputTokens.
-	// Ordinary token calculation splits and caps this subset; provider statistics
-	// reads aggregate input separately.
+	// ImageInputTokens retains the upstream image input subset, including any
+	// ImageCacheReadTokens reported within it. Calculation removes that explicit
+	// cached subset before capping image input at the ordinary InputTokens bucket.
 	ImageInputTokens      int // image subset of input tokens
+	ImageCacheReadTokens  int // explicit cached image token subset
 	OutputTokens          int // aggregate reported output-token count
 	CacheCreationTokens   int // aggregate cache-creation token count
 	CacheReadTokens       int // reported cache-read token count

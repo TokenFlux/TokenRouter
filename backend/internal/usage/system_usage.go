@@ -101,7 +101,8 @@ func (r *SystemRecorder) price(ctx context.Context, row *UsageLog) {
 		InputTokens: row.InputTokens, OutputTokens: row.OutputTokens,
 		CacheCreationTokens: row.CacheCreationTokens, CacheReadTokens: row.CacheReadTokens,
 		CacheCreation5mTokens: row.CacheCreation5mTokens, CacheCreation1hTokens: row.CacheCreation1hTokens,
-		ImageInputTokens: row.ImageInputTokens, ImageOutputTokens: row.ImageOutputTokens,
+		ImageInputTokens:     row.ImageInputTokens,
+		ImageCacheReadTokens: row.ImageCacheReadTokens, ImageOutputTokens: row.ImageOutputTokens,
 	}
 	model := row.Model
 	if row.UpstreamModel != nil && *row.UpstreamModel != "" {

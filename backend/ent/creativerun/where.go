@@ -64,6 +64,16 @@ func UpdatedAt(v time.Time) predicate.CreativeRun {
 	return predicate.CreativeRun(sql.FieldEQ(FieldUpdatedAt, v))
 }
 
+// FrameCount applies equality check predicate on the "frame_count" field. It's identical to FrameCountEQ.
+func FrameCount(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldEQ(FieldFrameCount, v))
+}
+
+// FrameDurationMs applies equality check predicate on the "frame_duration_ms" field. It's identical to FrameDurationMsEQ.
+func FrameDurationMs(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldEQ(FieldFrameDurationMs, v))
+}
+
 // RunID applies equality check predicate on the "run_id" field. It's identical to RunIDEQ.
 func RunID(v string) predicate.CreativeRun {
 	return predicate.CreativeRun(sql.FieldEQ(FieldRunID, v))
@@ -347,6 +357,86 @@ func UpdatedAtLT(v time.Time) predicate.CreativeRun {
 // UpdatedAtLTE applies the LTE predicate on the "updated_at" field.
 func UpdatedAtLTE(v time.Time) predicate.CreativeRun {
 	return predicate.CreativeRun(sql.FieldLTE(FieldUpdatedAt, v))
+}
+
+// FrameCountEQ applies the EQ predicate on the "frame_count" field.
+func FrameCountEQ(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldEQ(FieldFrameCount, v))
+}
+
+// FrameCountNEQ applies the NEQ predicate on the "frame_count" field.
+func FrameCountNEQ(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldNEQ(FieldFrameCount, v))
+}
+
+// FrameCountIn applies the In predicate on the "frame_count" field.
+func FrameCountIn(vs ...int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldIn(FieldFrameCount, vs...))
+}
+
+// FrameCountNotIn applies the NotIn predicate on the "frame_count" field.
+func FrameCountNotIn(vs ...int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldNotIn(FieldFrameCount, vs...))
+}
+
+// FrameCountGT applies the GT predicate on the "frame_count" field.
+func FrameCountGT(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldGT(FieldFrameCount, v))
+}
+
+// FrameCountGTE applies the GTE predicate on the "frame_count" field.
+func FrameCountGTE(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldGTE(FieldFrameCount, v))
+}
+
+// FrameCountLT applies the LT predicate on the "frame_count" field.
+func FrameCountLT(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldLT(FieldFrameCount, v))
+}
+
+// FrameCountLTE applies the LTE predicate on the "frame_count" field.
+func FrameCountLTE(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldLTE(FieldFrameCount, v))
+}
+
+// FrameDurationMsEQ applies the EQ predicate on the "frame_duration_ms" field.
+func FrameDurationMsEQ(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldEQ(FieldFrameDurationMs, v))
+}
+
+// FrameDurationMsNEQ applies the NEQ predicate on the "frame_duration_ms" field.
+func FrameDurationMsNEQ(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldNEQ(FieldFrameDurationMs, v))
+}
+
+// FrameDurationMsIn applies the In predicate on the "frame_duration_ms" field.
+func FrameDurationMsIn(vs ...int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldIn(FieldFrameDurationMs, vs...))
+}
+
+// FrameDurationMsNotIn applies the NotIn predicate on the "frame_duration_ms" field.
+func FrameDurationMsNotIn(vs ...int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldNotIn(FieldFrameDurationMs, vs...))
+}
+
+// FrameDurationMsGT applies the GT predicate on the "frame_duration_ms" field.
+func FrameDurationMsGT(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldGT(FieldFrameDurationMs, v))
+}
+
+// FrameDurationMsGTE applies the GTE predicate on the "frame_duration_ms" field.
+func FrameDurationMsGTE(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldGTE(FieldFrameDurationMs, v))
+}
+
+// FrameDurationMsLT applies the LT predicate on the "frame_duration_ms" field.
+func FrameDurationMsLT(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldLT(FieldFrameDurationMs, v))
+}
+
+// FrameDurationMsLTE applies the LTE predicate on the "frame_duration_ms" field.
+func FrameDurationMsLTE(v int) predicate.CreativeRun {
+	return predicate.CreativeRun(sql.FieldLTE(FieldFrameDurationMs, v))
 }
 
 // RunIDEQ applies the EQ predicate on the "run_id" field.

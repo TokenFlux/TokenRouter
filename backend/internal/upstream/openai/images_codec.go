@@ -435,7 +435,7 @@ func BuildOpenAIImagesStreamCompletedPayload(
 	return payload
 }
 
-// OpenAIImageOutputMIMEType maps PNG, JPEG, and WebP format names to image MIME
+// OpenAIImageOutputMIMEType maps PNG, JPEG, WebP, and GIF format names to image MIME
 // types and defaults unknown names to PNG. A supplied value containing a slash
 // passes through unchanged, allowing callers to provide an existing MIME label.
 func OpenAIImageOutputMIMEType(outputFormat string) string {
@@ -450,6 +450,8 @@ func OpenAIImageOutputMIMEType(outputFormat string) string {
 		return "image/png"
 	case "jpg", "jpeg":
 		return "image/jpeg"
+	case "gif":
+		return "image/gif"
 	case "webp":
 		return "image/webp"
 	default:
@@ -568,6 +570,12 @@ func BuildOpenAIImagesResponsesRequest(parsed *upstream.ImageRequest, toolModel,
 		if trimmed := strings.TrimSpace(field.value); trimmed != "" {
 			tool, _ = sjson.SetBytes(tool, field.path, trimmed)
 		}
+	}
+	if parsed.FrameCount != nil {
+		tool, _ = sjson.SetBytes(tool, "frame_count", *parsed.FrameCount)
+	}
+	if parsed.FrameDurationMS != nil {
+		tool, _ = sjson.SetBytes(tool, "frame_duration_ms", *parsed.FrameDurationMS)
 	}
 	if parsed.OutputCompression != nil {
 		tool, _ = sjson.SetBytes(tool, "output_compression", *parsed.OutputCompression)
@@ -1204,7 +1212,15 @@ func BuildOpenAIImagesAPIResponse(
 	if format == "" {
 		format = "b64_json"
 	}
+	if len(results) > 0 && strings.HasPrefix(results[0].Result, "R0lGOD") {
+		firstMeta.OutputFormat = "gif"
+	}
 	for _, img := range results {
+		// GIF output needs its own data-URL MIME even when a compatible provider
+		// omits the format metadata; full container validation follows before delivery.
+		if strings.HasPrefix(img.Result, "R0lGOD") {
+			img.OutputFormat = "gif"
+		}
 		item := []byte(`{}`)
 		// Nonstream entries select one image representation; encode URL output as
 		// a data URI using this entry's format even when top-level metadata differs.
@@ -1288,7 +1304,8 @@ func BuildOpenAIImagesStreamErrorBodyFromUpstream(err *OpenAIImagesUpstreamError
 // leaves that ordinary parsing outcome intact.
 //
 // Replacement assigns a new ForwardUsage value, including zero values for
-// fields absent from the tool representation, such as cache counts. It does not
+// fields absent from the tool representation. Explicit cache subdivisions are
+// retained when supplied. It does not
 // merge token fields from different records. Requiring all mandatory tool
 // counters together prevents a partial image-only observation from discarding
 // an otherwise usable Responses usage record.
@@ -1312,7 +1329,7 @@ func ParseOpenAIImagesSSEUsageBytes(data []byte, usage *wire.ForwardUsage) {
 // This all-or-nothing result lets ParseOpenAIImagesSSEUsageBytes replace
 // ordinary usage using one representation. A rejected record returns ok=false
 // for that caller to retain its prior observation. The returned value contains
-// token fields only; other ForwardUsage accounting fields remain zero.
+// token and explicit cache fields; frame observations remain independent.
 func OpenAIImagesToolUsageFromGJSON(value gjson.Result) (wire.ForwardUsage, bool) {
 	if !value.Exists() || !value.IsObject() {
 		return wire.ForwardUsage{}, false
@@ -1332,9 +1349,11 @@ func OpenAIImagesToolUsageFromGJSON(value gjson.Result) (wire.ForwardUsage, bool
 		}
 	}
 	return wire.ForwardUsage{
-		InputTokens:       inputTokens,
-		ImageInputTokens:  imageInputTokens,
-		OutputTokens:      outputTokens,
-		ImageOutputTokens: imageOutputTokens,
+		InputTokens:          inputTokens,
+		ImageInputTokens:     imageInputTokens,
+		ImageCacheReadTokens: wire.OpenAIImageCacheReadTokens(value),
+		CacheReadInputTokens: wire.OpenAICacheReadTokensFromUsage(value),
+		OutputTokens:         outputTokens,
+		ImageOutputTokens:    imageOutputTokens,
 	}, true
 }

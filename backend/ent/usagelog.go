@@ -25,6 +25,10 @@ type UsageLog struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int64 `json:"id,omitempty"`
+	// ImageFrameCount holds the value of the "image_frame_count" field.
+	ImageFrameCount int `json:"image_frame_count,omitempty"`
+	// ImageCacheReadTokens holds the value of the "image_cache_read_tokens" field.
+	ImageCacheReadTokens int `json:"image_cache_read_tokens,omitempty"`
 	// RequestSource holds the value of the "request_source" field.
 	RequestSource string `json:"request_source,omitempty"`
 	// SystemUsage holds the value of the "system_usage" field.
@@ -239,7 +243,7 @@ func (*UsageLog) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case usagelog.FieldInputCost, usagelog.FieldOutputCost, usagelog.FieldCacheCreationCost, usagelog.FieldCacheReadCost, usagelog.FieldTotalCost, usagelog.FieldActualCost, usagelog.FieldSubscriptionAmountUsd, usagelog.FieldBalanceAmountUsd, usagelog.FieldRateMultiplier, usagelog.FieldProviderRateMultiplier:
 			values[i] = new(sql.NullFloat64)
-		case usagelog.FieldID, usagelog.FieldUserID, usagelog.FieldBillingUserID, usagelog.FieldTeamID, usagelog.FieldAPIKeyID, usagelog.FieldProviderID, usagelog.FieldPricingConfigID, usagelog.FieldGroupID, usagelog.FieldSubscriptionID, usagelog.FieldInputTokens, usagelog.FieldOutputTokens, usagelog.FieldCacheCreationTokens, usagelog.FieldCacheReadTokens, usagelog.FieldCacheCreation5mTokens, usagelog.FieldCacheCreation1hTokens, usagelog.FieldBillingType, usagelog.FieldDurationMs, usagelog.FieldImageCount, usagelog.FieldVideoCount, usagelog.FieldVideoDurationSeconds:
+		case usagelog.FieldID, usagelog.FieldImageFrameCount, usagelog.FieldImageCacheReadTokens, usagelog.FieldUserID, usagelog.FieldBillingUserID, usagelog.FieldTeamID, usagelog.FieldAPIKeyID, usagelog.FieldProviderID, usagelog.FieldPricingConfigID, usagelog.FieldGroupID, usagelog.FieldSubscriptionID, usagelog.FieldInputTokens, usagelog.FieldOutputTokens, usagelog.FieldCacheCreationTokens, usagelog.FieldCacheReadTokens, usagelog.FieldCacheCreation5mTokens, usagelog.FieldCacheCreation1hTokens, usagelog.FieldBillingType, usagelog.FieldDurationMs, usagelog.FieldImageCount, usagelog.FieldVideoCount, usagelog.FieldVideoDurationSeconds:
 			values[i] = new(sql.NullInt64)
 		case usagelog.FieldRequestSource, usagelog.FieldPlatform, usagelog.FieldBillingKey, usagelog.FieldRequestID, usagelog.FieldModel, usagelog.FieldRequestedModel, usagelog.FieldUpstreamModel, usagelog.FieldUpstreamResponseModel, usagelog.FieldModelMappingChain, usagelog.FieldBillingTier, usagelog.FieldBillingMode, usagelog.FieldUserAgent, usagelog.FieldIPAddress, usagelog.FieldImageSize, usagelog.FieldImageInputSize, usagelog.FieldImageOutputSize, usagelog.FieldImageSizeSource, usagelog.FieldVideoResolution:
 			values[i] = new(sql.NullString)
@@ -266,6 +270,18 @@ func (_m *UsageLog) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			_m.ID = int64(value.Int64)
+		case usagelog.FieldImageFrameCount:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field image_frame_count", values[i])
+			} else if value.Valid {
+				_m.ImageFrameCount = int(value.Int64)
+			}
+		case usagelog.FieldImageCacheReadTokens:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field image_cache_read_tokens", values[i])
+			} else if value.Valid {
+				_m.ImageCacheReadTokens = int(value.Int64)
+			}
 		case usagelog.FieldRequestSource:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field request_source", values[i])
@@ -701,6 +717,12 @@ func (_m *UsageLog) String() string {
 	var builder strings.Builder
 	builder.WriteString("UsageLog(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("image_frame_count=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ImageFrameCount))
+	builder.WriteString(", ")
+	builder.WriteString("image_cache_read_tokens=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ImageCacheReadTokens))
+	builder.WriteString(", ")
 	builder.WriteString("request_source=")
 	builder.WriteString(_m.RequestSource)
 	builder.WriteString(", ")

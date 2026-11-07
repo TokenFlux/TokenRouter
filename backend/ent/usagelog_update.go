@@ -35,6 +35,48 @@ func (_u *UsageLogUpdate) Where(ps ...predicate.UsageLog) *UsageLogUpdate {
 	return _u
 }
 
+// SetImageFrameCount sets the "image_frame_count" field.
+func (_u *UsageLogUpdate) SetImageFrameCount(v int) *UsageLogUpdate {
+	_u.mutation.ResetImageFrameCount()
+	_u.mutation.SetImageFrameCount(v)
+	return _u
+}
+
+// SetNillableImageFrameCount sets the "image_frame_count" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableImageFrameCount(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetImageFrameCount(*v)
+	}
+	return _u
+}
+
+// AddImageFrameCount adds value to the "image_frame_count" field.
+func (_u *UsageLogUpdate) AddImageFrameCount(v int) *UsageLogUpdate {
+	_u.mutation.AddImageFrameCount(v)
+	return _u
+}
+
+// SetImageCacheReadTokens sets the "image_cache_read_tokens" field.
+func (_u *UsageLogUpdate) SetImageCacheReadTokens(v int) *UsageLogUpdate {
+	_u.mutation.ResetImageCacheReadTokens()
+	_u.mutation.SetImageCacheReadTokens(v)
+	return _u
+}
+
+// SetNillableImageCacheReadTokens sets the "image_cache_read_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableImageCacheReadTokens(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetImageCacheReadTokens(*v)
+	}
+	return _u
+}
+
+// AddImageCacheReadTokens adds value to the "image_cache_read_tokens" field.
+func (_u *UsageLogUpdate) AddImageCacheReadTokens(v int) *UsageLogUpdate {
+	_u.mutation.AddImageCacheReadTokens(v)
+	return _u
+}
+
 // SetRequestSource sets the "request_source" field.
 func (_u *UsageLogUpdate) SetRequestSource(v string) *UsageLogUpdate {
 	_u.mutation.SetRequestSource(v)
@@ -1322,6 +1364,18 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			}
 		}
 	}
+	if value, ok := _u.mutation.ImageFrameCount(); ok {
+		_spec.SetField(usagelog.FieldImageFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedImageFrameCount(); ok {
+		_spec.AddField(usagelog.FieldImageFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.ImageCacheReadTokens(); ok {
+		_spec.SetField(usagelog.FieldImageCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedImageCacheReadTokens(); ok {
+		_spec.AddField(usagelog.FieldImageCacheReadTokens, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.RequestSource(); ok {
 		_spec.SetField(usagelog.FieldRequestSource, field.TypeString, value)
 	}
@@ -1807,6 +1861,48 @@ type UsageLogUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *UsageLogMutation
+}
+
+// SetImageFrameCount sets the "image_frame_count" field.
+func (_u *UsageLogUpdateOne) SetImageFrameCount(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetImageFrameCount()
+	_u.mutation.SetImageFrameCount(v)
+	return _u
+}
+
+// SetNillableImageFrameCount sets the "image_frame_count" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableImageFrameCount(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetImageFrameCount(*v)
+	}
+	return _u
+}
+
+// AddImageFrameCount adds value to the "image_frame_count" field.
+func (_u *UsageLogUpdateOne) AddImageFrameCount(v int) *UsageLogUpdateOne {
+	_u.mutation.AddImageFrameCount(v)
+	return _u
+}
+
+// SetImageCacheReadTokens sets the "image_cache_read_tokens" field.
+func (_u *UsageLogUpdateOne) SetImageCacheReadTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetImageCacheReadTokens()
+	_u.mutation.SetImageCacheReadTokens(v)
+	return _u
+}
+
+// SetNillableImageCacheReadTokens sets the "image_cache_read_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableImageCacheReadTokens(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetImageCacheReadTokens(*v)
+	}
+	return _u
+}
+
+// AddImageCacheReadTokens adds value to the "image_cache_read_tokens" field.
+func (_u *UsageLogUpdateOne) AddImageCacheReadTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.AddImageCacheReadTokens(v)
+	return _u
 }
 
 // SetRequestSource sets the "request_source" field.
@@ -3125,6 +3221,18 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.ImageFrameCount(); ok {
+		_spec.SetField(usagelog.FieldImageFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedImageFrameCount(); ok {
+		_spec.AddField(usagelog.FieldImageFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.ImageCacheReadTokens(); ok {
+		_spec.SetField(usagelog.FieldImageCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedImageCacheReadTokens(); ok {
+		_spec.AddField(usagelog.FieldImageCacheReadTokens, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.RequestSource(); ok {
 		_spec.SetField(usagelog.FieldRequestSource, field.TypeString, value)

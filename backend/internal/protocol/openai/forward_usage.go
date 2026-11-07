@@ -22,8 +22,10 @@ import (
 
 // ForwardUsage holds token, cache, and image observations for downstream accounting.
 type ForwardUsage struct {
+	ImageFrameCount          int `json:"-"`                                     // independently observed animation frame units
 	InputTokens              int `json:"input_tokens"`                          // reported input tokens
 	ImageInputTokens         int `json:"image_input_tokens,omitempty"`          // reported image-input tokens
+	ImageCacheReadTokens     int `json:"image_cache_read_tokens,omitempty"`     // explicit cached image token subset
 	OutputTokens             int `json:"output_tokens"`                         // reported output tokens
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"` // reported cache-write tokens
 	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`     // reported cache-read tokens
@@ -58,6 +60,7 @@ func AddForwardUsage(dst *ForwardUsage, usage ForwardUsage) {
 	}
 	dst.InputTokens += usage.InputTokens
 	dst.ImageInputTokens += usage.ImageInputTokens
+	dst.ImageCacheReadTokens += usage.ImageCacheReadTokens
 	dst.OutputTokens += usage.OutputTokens
 	dst.CacheCreationInputTokens += usage.CacheCreationInputTokens
 	dst.CacheReadInputTokens += usage.CacheReadInputTokens
@@ -99,6 +102,7 @@ func ExtractEmbeddingsUsage(body []byte) ForwardUsage {
 	return ForwardUsage{
 		InputTokens:              inputTokens,
 		ImageInputTokens:         imageInputTokens,
+		ImageCacheReadTokens:     OpenAIImageCacheReadTokens(usage),
 		OutputTokens:             outputTokens,
 		CacheReadInputTokens:     cacheReadTokens,
 		CacheCreationInputTokens: cacheCreationTokens,
@@ -123,7 +127,7 @@ func MergeImageResponseUsage(dst *ForwardUsage, body []byte) {
 	// A selected snapshot can omit individual positive counters. Update those
 	// it supplies so earlier image observations remain available in the other
 	// destination buckets.
-	if parsed, ok := ExtractOpenAIUsageFromJSONBytes(body); ok {
+	if parsed, ok := ExtractNativeImageUsage(body); ok {
 		if parsed.InputTokens > 0 {
 			dst.InputTokens = parsed.InputTokens
 		}
@@ -132,6 +136,7 @@ func MergeImageResponseUsage(dst *ForwardUsage, body []byte) {
 		}
 		if parsed.CacheReadInputTokens > 0 {
 			dst.CacheReadInputTokens = parsed.CacheReadInputTokens
+			dst.ImageCacheReadTokens = parsed.ImageCacheReadTokens
 		}
 		if parsed.ImageInputTokens > 0 {
 			dst.ImageInputTokens = parsed.ImageInputTokens
@@ -140,4 +145,31 @@ func MergeImageResponseUsage(dst *ForwardUsage, body []byte) {
 			dst.ImageOutputTokens = parsed.ImageOutputTokens
 		}
 	}
+}
+
+// ExtractNativeImageUsage reads usage from a native Images response or completion.
+// Only native image readers may use this function: without output-token details,
+// their reported output tokens describe image generation rather than text output.
+// An explicit details object, including zero image tokens, remains authoritative.
+//
+// The same envelope precedence as ordinary usage extraction selects the detail
+// object. This prevents a wrapper's absent details from changing the meaning of
+// a nested authoritative record. Responses carrier usage must continue using
+// its ordinary extractor because that model can produce text alongside images.
+func ExtractNativeImageUsage(body []byte) (ForwardUsage, bool) {
+	usage, ok := ExtractOpenAIUsageFromJSONBytes(body)
+	if !ok {
+		return usage, false
+	}
+	for _, path := range []string{"usage", "response.usage", "data.usage", "data.response.usage"} {
+		value := gjson.GetBytes(body, path)
+		if !value.IsObject() {
+			continue
+		}
+		if !value.Get("output_tokens_details").Exists() && !value.Get("completion_tokens_details").Exists() {
+			usage.ImageOutputTokens = max(usage.OutputTokens, 0)
+		}
+		break
+	}
+	return usage, true
 }

@@ -48,8 +48,9 @@ type GenerationResult struct {
 	Duration                 time.Duration               // observed media attempt elapsed time
 	// Timings is nil when performance was not observed. CloneGenerationResult
 	// copies the snapshot and its maps before completion retains or modifies them.
-	Timings *timing.Performance // frozen exchange performance observations
-	// ImageCount and VideoCount represent different billable media units,
+	Timings         *timing.Performance // frozen exchange performance observations
+	ImageFrameCount int                 // observed animation frame units
+	// ImageCount and VideoCount retain image and video file counts,
 	// while VideoDurationSeconds supplies video duration evidence. RunImages
 	// uses positive ImageCount to retain partial success even when forwarding
 	// returns an error.

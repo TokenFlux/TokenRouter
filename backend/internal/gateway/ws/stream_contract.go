@@ -85,6 +85,8 @@ type ImageCounter interface {
 	AddSSEData([]byte)
 	// Count returns the generated image count observed for the current turn.
 	Count() int
+	// FrameCount returns observed frame units, or zero for exclusively static outputs.
+	FrameCount() int
 	// Sizes returns the observed output image size labels for turn accounting.
 	Sizes() []string
 }

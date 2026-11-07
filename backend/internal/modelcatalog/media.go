@@ -38,6 +38,10 @@ func MediaForModel(platform, model string) *MediaCapabilities {
 			result.BackgroundOptions = append(result.BackgroundOptions, "transparent")
 			result.InputFidelity = valuePointer(false)
 		}
+		if model == "gpt-image-2.6-sunburst" || model == "gpt-image-2.6-flare" {
+			result.Qualities = []string{"low", "medium", "high", "xhigh", "max", "auto"}
+			result.OutputFormats = []string{"png", "jpeg", "webp", "gif"}
+		}
 	case "grok":
 		if slices.Contains([]string{"grok-imagine-video", "grok-imagine-video-1.5", "grok-imagine-video-1.5-preview", "grok-imagine-video-2"}, model) {
 			result.VideoOperations = []string{"generate", "edit", "extend"}

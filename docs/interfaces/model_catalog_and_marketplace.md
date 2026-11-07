@@ -231,6 +231,12 @@ HTTP 请求和媒体执行使用固定的目录版本，同一分组的配置读
 
 OpenCode 导出显示名、附件、推理、温度、工具调用、模态和长度。它要求 `limit.context` 与 `limit.output` 同时存在，缺少其中一项时省略 `limit`。它的 schema 无法表达条件能力，条件温度与工具调用按 false 导出。Grok 模型列表的可调推理档位也读取分组解析结果。
 
+### GPT Image 2.6 补充
+
+内嵌补充登记 `gpt-image-2.6-sunburst` 和 `gpt-image-2.6-flare` 的文字／图片输入与图片输出，以及官方 token 单价。每百万 token 的美元价格为：文字输入 5、文字缓存输入 1.25、图片输入 8、图片缓存输入 2、图片输出 30。图片缓存单价由 `cache_read_input_image_token_cost` 保存，默认价格页单独展示；未报告的图片缓存用量不推算。
+
+两个完整型号遵循现有缺项补充和管理员覆盖规则，不为裸的 `gpt-image-2.6` 创建隐式别名，也不从 token 费率推导固定按张售价。创作台仍需要可用的按张价卡。媒体参数增加 `xhigh`、`max` 和 GIF，提供商关闭 GIF 后不参与该格式的选路。
+
 ### 平台执行规则
 
 - OpenAI 使用目录的 effort 集合。GPT-5.2/5.4 的采样参数在 effort 为 none 时可用；GPT-6 的 Chat 工具能力依型号与 effort 设置条件。Codex OAuth 禁用采样与输出参数字段，模型的输出容量仍保留。Spark 的当前接入为文本输入。GPT-5.6 Sol/Terra/Luna 的 OAuth Compact 将 max 编码成 xhigh，规则在最终型号确定后执行。

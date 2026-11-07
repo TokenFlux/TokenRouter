@@ -107,6 +107,9 @@ type generationRequestAdapter struct {
 // retained target.
 func (p *generationRequestAdapter) SelectGeneration(ctx context.Context, excluded map[int64]struct{}) (gatewaymedia.GenerationSelection, bool, error) {
 	var err error
+	if p.parsed != nil {
+		ctx = gatewaymedia.WithImageGIFRequirement(ctx, strings.EqualFold(p.parsed.OutputFormat, "gif"))
+	}
 	if p.grok && (p.endpoint == upstreamgrok.GrokMediaEndpointImagesGenerations || p.endpoint == upstreamgrok.GrokMediaEndpointImagesEdits) {
 		ctx = apikey.WithForcePlatform(ctx, capability.PlatformGrok)
 		p.selection, p.decision, err = p.h.bindings.Platform.SelectImages(ctx, p.apiKey.GroupID, p.sessionHash, p.requestModel, excluded, gatewaymedia.ImageCapabilityNative)
@@ -524,6 +527,7 @@ func generationResultView(r *forwardcore.OpenAIResult) *gatewaymedia.GenerationR
 		Duration:             r.Duration,
 		Timings:              r.Timings,
 		ImageCount:           r.ImageCount,
+		ImageFrameCount:      r.ImageFrameCount,
 		VideoCount:           r.VideoCount,
 		VideoState:           r.VideoState,
 		VideoDurationSeconds: r.VideoDurationSeconds,
@@ -569,6 +573,7 @@ func legacyGenerationResult(r *gatewaymedia.GenerationResult) *forwardcore.OpenA
 		Duration:             r.Duration,
 		Timings:              r.Timings,
 		ImageCount:           r.ImageCount,
+		ImageFrameCount:      r.ImageFrameCount,
 		VideoCount:           r.VideoCount,
 		VideoState:           r.VideoState,
 		VideoDurationSeconds: r.VideoDurationSeconds,

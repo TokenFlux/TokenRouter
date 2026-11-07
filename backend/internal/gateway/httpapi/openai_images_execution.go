@@ -123,6 +123,15 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesAPIKey(
 	if err := s.resolveModelAttributes(ctx, provider, upstreamModel); err != nil {
 		return nil, err
 	}
+	if parsed.OutputFormat == "gif" {
+		operation := protocol.ProtocolImagesGenerations
+		if parsed.IsEdits() {
+			operation = protocol.ProtocolImagesEdits
+		}
+		if err := gatewayprovider.RequireImageGIF(provider, operation, provider.Capabilities.Attributes); err != nil {
+			return nil, err
+		}
+	}
 	SetOpsUpstreamModel(c, upstreamModel)
 	logging.LegacyPrintf(
 		"service.openai_gateway",
@@ -143,6 +152,12 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesAPIKey(
 	forwardBody, forwardContentType, err := upstream.RewriteImageRequest(body, parsed.ContentType, upstreamModel, mode, parsed.Stream)
 	if err != nil {
 		return nil, err
+	}
+	if parsed.OutputFormat == "gif" {
+		forwardBody, forwardContentType, err = upstream.RewriteImageGIFOptions(forwardBody, forwardContentType, *parsed.FrameCount, *parsed.FrameDurationMS)
+		if err != nil {
+			return nil, err
+		}
 	}
 	// Continue the selected exchange after client departure so an image and its
 	// observed tokens can still reach completion. A retained server-abort signal can
@@ -172,6 +187,7 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesAPIKey(
 	}
 
 	options := s.Output.ImageOptions(c)
+	options.ExpectedGIF = parsed.OutputFormat == "gif"
 	options.ExpectedImages = parsed.N
 	download := s.imageBackfillOptions(provider)
 	options.FetchImage = func(rawURL string) (string, error) {

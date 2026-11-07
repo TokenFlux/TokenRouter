@@ -7,6 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// image_output_test.go checks output counting across native images and
+// Responses events. Repeated item identities, incomplete observations, and
+// encoded animations exercise the separation between completed file counts,
+// frame billing units, and reported image sizes.
+
 // TestOpenAIImageOutputCounterCompletedEventFamilies supplies generation and
 // editing completions with repeated final snapshots. Both event families count
 // payload-bearing images once, preserve sizes, and exclude partial or empty events.
@@ -248,4 +253,25 @@ func TestOpenAIImageOutputCounterUsesEventTypes(t *testing.T) {
 		require.Equal(t, 1, counter.Count())
 		require.Equal(t, []string{"1024x1024"}, counter.Sizes())
 	}
+}
+
+// TestImageOutputCounterGIFFrames deduplicates item and terminal observations.
+// A two-frame animation remains one generated file and two frame billing units
+// when the same completed item is repeated by the terminal response.
+func TestImageOutputCounterGIFFrames(t *testing.T) {
+	body := []byte(`{"type":"response.completed","response":{"output":[{"type":"image_generation_call","id":"gif","result":"R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBACwAAAAAAQABAAACAkQBADs=","output_format":"gif"}]}}`)
+	counter := NewOpenAIImageOutputCounter()
+	counter.AddSSEData(body)
+	counter.AddSSEData(body)
+	require.Equal(t, 1, counter.Count())
+	require.Equal(t, 2, counter.FrameCount())
+}
+
+// TestValidateGIFImageOutputs rejects claimed GIF results whose bytes are incomplete.
+// Static images and partial previews retain their previous behavior, while a
+// complete supported animation passes without changing its encoded representation.
+func TestValidateGIFImageOutputs(t *testing.T) {
+	require.ErrorIs(t, ValidateGIFImageOutputs([]byte(`{"output":[{"type":"image_generation_call","output_format":"gif","result":"broken"}]}`)), ErrGIFResultInvalid)
+	require.NoError(t, ValidateGIFImageOutputs([]byte(`{"output":[{"type":"image_generation_call","output_format":"png","result":"fixture"}]}`)))
+	require.NoError(t, ValidateGIFImageOutputs([]byte(`{"type":"response.image_generation_call.partial_image","output_format":"gif","result":"incomplete"}`)))
 }

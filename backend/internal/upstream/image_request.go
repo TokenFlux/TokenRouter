@@ -8,6 +8,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/textproto"
+	"strconv"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -64,6 +65,21 @@ func RewriteImageRequest(body []byte, contentType string, model string, mode pro
 			fields["partial_images"] = &partial
 		}
 	}
+	return rewriteImageFields(body, contentType, fields)
+}
+
+// RewriteImageGIFOptions writes normalized animation fields without changing uploads.
+// The original body remains immutable. JSON and multipart callers receive a
+// matching content type after every duplicate animation control has been replaced.
+func RewriteImageGIFOptions(body []byte, contentType string, frames, duration int) ([]byte, string, error) {
+	format, count, delay := "gif", strconv.Itoa(frames), strconv.Itoa(duration)
+	return rewriteImageFields(body, contentType, map[string]*string{"output_format": &format, "frame_count": &count, "frame_duration_ms": &delay})
+}
+
+// rewriteImageFields applies typed control replacements to either image encoding.
+// Nil values remove every occurrence. String model and format fields retain
+// string encoding, while validated numeric and transport controls remain literals.
+func rewriteImageFields(body []byte, contentType string, fields map[string]*string) ([]byte, string, error) {
 	if len(fields) == 0 {
 		return body, contentType, nil
 	}
@@ -80,7 +96,7 @@ func RewriteImageRequest(body []byte, contentType string, model string, mode pro
 	for key, value := range fields {
 		if value == nil {
 			delete(values, key)
-		} else if key == "model" {
+		} else if key == "model" || key == "output_format" {
 			// Encoding a string cannot fail; unrelated raw member values remain
 			// intact until the complete validated object is encoded below.
 			values[key], _ = json.Marshal(*value)
@@ -162,7 +178,7 @@ func rewriteImageMultipartFields(body []byte, contentType string, fields map[str
 			return nil, "", err
 		}
 	}
-	for _, key := range []string{"model", "stream", "partial_images"} {
+	for _, key := range []string{"model", "stream", "partial_images", "output_format", "frame_count", "frame_duration_ms"} {
 		if value := fields[key]; value != nil && !written[key] {
 			if err := writer.WriteField(key, *value); err != nil {
 				return nil, "", err

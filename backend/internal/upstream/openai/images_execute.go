@@ -260,7 +260,9 @@ func (ImagesExecutor) Execute(ctx context.Context, input upstream.AttemptInput, 
 		CacheCreationInputTokens: usage.CacheCreationInputTokens,
 		ImageOutputTokens:        usage.ImageOutputTokens,
 	}
+	result.ImageFrameCount = usage.ImageFrameCount
 	result.ImageInputTokens = usage.ImageInputTokens
+	result.ImageCacheReadTokens = usage.ImageCacheReadTokens
 	result.HasUsage = result.Usage.HasObservedTokens() || usage.ImageInputTokens > 0
 	result.Served = result.ObservedImages > 0
 	if output != nil {
@@ -268,7 +270,7 @@ func (ImagesExecutor) Execute(ctx context.Context, input upstream.AttemptInput, 
 	}
 	// Responses failure policy may retry before image output. Images JSON failures
 	// remain terminal because a successful HTTP exchange may already have generated images.
-	if err != nil && !streamJSON && t.OAuth && (!input.Stream || result.ObservedImages <= 0) {
+	if err != nil && !streamJSON && t.OAuth && result.ObservedImages <= 0 {
 		err = t.ResponseError(resp, before, err)
 	}
 	return result, err

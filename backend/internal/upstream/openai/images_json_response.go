@@ -59,7 +59,7 @@ func WriteImagesJSONStreaming(
 			sizes = append(sizes, size)
 		}
 	}
-	usage, _ := wire.ExtractOpenAIUsageFromJSONBytes(body)
+	usage, _ := wire.ExtractNativeImageUsage(body)
 	createdAt := root.Get("created").Int()
 	if createdAt <= 0 {
 		// Images timestamps use Unix seconds when the upstream omits creation time.

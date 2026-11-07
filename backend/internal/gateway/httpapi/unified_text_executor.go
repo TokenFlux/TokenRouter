@@ -308,7 +308,8 @@ func nativeTextResult(value *forward.MessagesResult, endpoint string) *forward.O
 		ServiceTier:                 value.ServiceTier,
 		UpstreamResponseServiceTier: value.UpstreamResponseServiceTier,
 		UpstreamResponseModel:       value.UpstreamResponseModel,
-		ImageCount:                  value.ImageCount, ImageSize: value.ImageSize, ImageInputSize: value.ImageInputSize, ImageOutputSize: value.ImageOutputSize,
+		ImageCount:                  value.ImageCount,
+		ImageFrameCount:             value.ImageFrameCount, ImageSize: value.ImageSize, ImageInputSize: value.ImageInputSize, ImageOutputSize: value.ImageOutputSize,
 		ImageOutputSizes: value.ImageOutputSizes, ImageSizeSource: value.ImageSizeSource, ImageSizeBreakdown: value.ImageSizeBreakdown,
 		SearchCount: value.SearchCount, AudioUsage: value.AudioUsage,
 	}

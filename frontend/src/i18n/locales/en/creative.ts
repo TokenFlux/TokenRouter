@@ -8,6 +8,9 @@ export default {
     title: 'Creative Studio',
     description: 'Generate and edit images with AI models; assets stay in this browser only.',
     panel: {
+      outputFormat: 'Output format',
+      frameCount: 'Frame count',
+      frameDuration: 'Frame delay (ms)',
       model: 'Model',
       // Image selection guidance shared with generation validation when no reference image is selected.
       selectImageHint: 'Select an image on the canvas before generating.',
@@ -78,6 +81,8 @@ export default {
     },
     // Quality labels correspond to the generation quality values exposed by model settings.
     qualities: {
+      xhigh: 'Extra high',
+      max: 'Maximum',
       low: 'Low',
       medium: 'Medium',
       high: 'High',
@@ -93,6 +98,9 @@ export default {
       high: 'High',
     },
     canvas: {
+      playGIF: 'Play GIF',
+      gifPreview: 'GIF preview',
+      gifReadOnly: 'GIF outputs can be previewed and downloaded. Use a still image for editing.',
       brushSize: 'Brush size',
       shapeRound: 'Round stroke',
       shapeSquare: 'Square stroke',

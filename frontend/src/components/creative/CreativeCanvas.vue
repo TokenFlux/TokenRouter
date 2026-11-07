@@ -44,6 +44,15 @@
         <Icon name="download" size="sm" />
       </button>
 
+      <button
+        v-if="selectedImage && objectData(selectedImage).animatedGIF"
+        type="button"
+        class="canvas-tool-btn"
+        :title="t('creative.canvas.playGIF')"
+        :aria-label="t('creative.canvas.playGIF')"
+        @click="previewSelectedGIF"
+        >GIF ▷</button
+      >
       <span class="canvas-tool-divider"></span>
       <button
         type="button"
@@ -134,6 +143,19 @@
       </button>
     </div>
 
+    <BaseDialog
+      :show="!!gifPreviewURL"
+      :title="t('creative.canvas.gifPreview')"
+      width="wide"
+      @close="closeGIFPreview"
+    >
+      <img
+        v-if="gifPreviewURL"
+        :src="gifPreviewURL"
+        :alt="t('creative.canvas.gifPreview')"
+        class="max-h-[70vh] w-full object-contain"
+      />
+    </BaseDialog>
     <CropperModal
       :show="cropQueue.length > 0"
       :blob="cropQueue[0] ?? null"
@@ -146,6 +168,7 @@
 
 <script setup lang="ts">
 import MotionTransition from '@/components/common/MotionTransition.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
@@ -483,7 +506,7 @@ function refreshResolutionTag(image: FabricImage | null): void {
     removeResolutionTag()
     return
   }
-  const label = `${resolution.width} × ${resolution.height}`
+  const label = `${objectData(image).animatedGIF ? 'GIF · ' : ''}${resolution.width} × ${resolution.height}`
   if (!resolutionTag || resolutionTag.image !== image || resolutionTag.text.text !== label) {
     removeResolutionTag()
     /**
@@ -637,6 +660,8 @@ const brushShape = ref<BrushShape>('round')
  * inpaintAnchor retains the target image.
  */
 const selectedImage = shallowRef<FabricObject | null>(null)
+/** The preview owns one original-animation URL, released on closure or disposal. */
+const gifPreviewURL = ref('')
 /**
  * selectedObjectCount enables removal for grouped selections as well as a
  * single selected image object.
@@ -867,6 +892,7 @@ onMounted(() => {
  * resources; flush only a restored, dirty scene to protect the stored snapshot.
  */
 onBeforeUnmount(() => {
+  closeGIFPreview()
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('pagehide', onPageHide)
   document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -1575,6 +1601,11 @@ function syncImageCount(): void {
 function onImageSelected(image: FabricObject | null): void {
   selectedImage.value = image
   refreshResolutionTag(image instanceof FabricImage ? image : null)
+  if (image && objectData(image).animatedGIF) {
+    inpaintAnchor.value = null
+    paintSuspended.value = true
+    return
+  }
   if (image && isInpaint.value) {
     inpaintAnchor.value = image
     paintSuspended.value = false
@@ -1586,7 +1617,12 @@ function onImageSelected(image: FabricObject | null): void {
  * an existing selection can enable drawing in the same update.
  */
 watch(isInpaint, (inpaint) => {
-  if (inpaint && !inpaintAnchor.value && selectedImage.value) {
+  if (
+    inpaint &&
+    !inpaintAnchor.value &&
+    selectedImage.value &&
+    !objectData(selectedImage.value).animatedGIF
+  ) {
     inpaintAnchor.value = selectedImage.value
     paintSuspended.value = false
   }
@@ -1756,12 +1792,16 @@ function togglePainting(): void {
 /**
  * syncEditRefFromSelection replaces edit references with images from a nonempty
  * selection. It acts only in edit mode and keeps existing references when
- * selection contains no images or is cleared.
+ * selection contains no images or is cleared. A GIF-only selection clears old
+ * references so generating cannot accidentally reuse a previously selected still.
  */
 function syncEditRefFromSelection(selected: FabricObject[] | undefined): void {
   if (!isEdit.value || !selected?.length) return
-  const images = selected.filter((object): object is FabricObject => object instanceof FabricImage)
-  if (images.length) {
+  const images = selected.filter(
+    (object): object is FabricObject =>
+      object instanceof FabricImage && !objectData(object).animatedGIF,
+  )
+  if (images.length || selected.some((object) => objectData(object).animatedGIF)) {
     editRefs.value = images
   }
 }
@@ -2216,7 +2256,7 @@ async function addImageToScene(
   scale = 1,
 ): Promise<FabricImage | null> {
   if (!canvas) return null
-  const url = URL.createObjectURL(blob)
+  const url = URL.createObjectURL(await canvasImagePoster(blob))
   try {
     const image = await FabricImage.fromURL(url)
     image.set({
@@ -2235,6 +2275,7 @@ async function addImageToScene(
     const resolution = imageResolution(image)
     setObjectData(image, {
       kind: 'image',
+      animatedGIF: blob.type === 'image/gif',
       assetKey: meta.assetKey,
       ...(resolution ? { resolution } : {}),
       ...(meta.runId !== undefined ? { runId: meta.runId, outputIndex: meta.outputIndex } : {}),
@@ -2555,7 +2596,7 @@ async function getEditRefBlobs(): Promise<Blob[]> {
 async function getMaskBlob(): Promise<Blob | null> {
   if (!canvas || !maskCanvas) return null
   const image = selectedImageObject()
-  if (!image) return null
+  if (!image || objectData(image).animatedGIF) return null
   const maskObjects = getMaskPaths()
   if (!maskObjects.length) return null
 
@@ -2853,7 +2894,8 @@ async function restoreScene(generation: number): Promise<void> {
           continue
         }
         runtimeBlobs.set(assetKey, blob)
-        const objectUrl = URL.createObjectURL(blob)
+        const objectUrl = URL.createObjectURL(await canvasImagePoster(blob))
+        object.data = { ...object.data, animatedGIF: blob.type === 'image/gif' }
         object.src = objectUrl
         pendingUrls.push(objectUrl)
       } else if (
@@ -2954,6 +2996,53 @@ defineExpose({
   imageCount,
   sceneReady,
 })
+
+/**
+ * canvasImagePoster decodes the first GIF frame into an independent PNG Blob.
+ * Static inputs retain their original bytes. The bitmap closes after rendering,
+ * while callers keep the original animation separately for playback and download.
+ */
+async function canvasImagePoster(blob: Blob): Promise<Blob> {
+  if (blob.type !== 'image/gif') return blob
+  const bitmap = await createImageBitmap(blob)
+  try {
+    const surface = document.createElement('canvas')
+    surface.width = bitmap.width
+    surface.height = bitmap.height
+    const context = surface.getContext('2d')
+    if (!context) throw new Error('GIF poster context unavailable')
+    context.drawImage(bitmap, 0, 0)
+    return await new Promise<Blob>((resolve, reject) =>
+      surface.toBlob(
+        (value) => (value ? resolve(value) : reject(new Error('GIF poster encoding failed'))),
+        'image/png',
+      ),
+    )
+  } finally {
+    // The poster owns copied pixels; release the decoder without discarding the
+    // original animation Blob retained by the canvas asset store.
+    bitmap.close()
+  }
+}
+
+/** closeGIFPreview releases its animation URL and closes the preview dialog. */
+function closeGIFPreview(): void {
+  if (gifPreviewURL.value) URL.revokeObjectURL(gifPreviewURL.value)
+  gifPreviewURL.value = ''
+}
+
+/**
+ * previewSelectedGIF opens the selected animation from its original stored bytes.
+ * A selection change or disposal during loading cancels publication, preventing
+ * an outdated image from opening after the user has moved to another asset.
+ */
+async function previewSelectedGIF(): Promise<void> {
+  const selected = selectedImage.value
+  const blob = await getSelectedImageBlob()
+  if (sceneDisposed || selectedImage.value !== selected || blob?.type !== 'image/gif') return
+  closeGIFPreview()
+  gifPreviewURL.value = URL.createObjectURL(blob)
+}
 </script>
 
 <style scoped>

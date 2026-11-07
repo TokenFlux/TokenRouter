@@ -19,6 +19,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 )
 
+// openai_test.go checks creative OpenAI request construction, OAuth conversion, and image delivery.
+//
 // OpenAI image fixtures simulate response bodies and download callbacks to
 // observe delivery order without real transport. Tests inspect exact request
 // fields, base64 preference, signed URL preservation, bounded download counts,
@@ -298,4 +300,34 @@ func TestCreativeOpenAIStreamingMode(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestCreativeOpenAIOAuthGIF executes a worker request through the shared
+// Responses bridge. The returned two-frame animation remains byte-identical even
+// when the task requested four frames for its initial funding reservation.
+func TestCreativeOpenAIOAuthGIF(t *testing.T) {
+	encoded := "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBACwAAAAAAQABAAACAkQBADs="
+	target := &Target{OpenAI: &OpenAIOptions{
+		OAuth: true, MainModel: "gpt-6-luna",
+		Token: func(context.Context) (string, error) { return "test-token", nil },
+		BuildOAuth: func(ctx context.Context, body []byte, token string) (*http.Request, error) {
+			require.Equal(t, "test-token", token)
+			require.Equal(t, "gpt-6-luna", gjson.GetBytes(body, "model").String())
+			require.Equal(t, "gpt-image-2.6-flare", gjson.GetBytes(body, "tools.0.model").String())
+			require.Equal(t, "gif", gjson.GetBytes(body, "tools.0.output_format").String())
+			require.Equal(t, int64(4), gjson.GetBytes(body, "tools.0.frame_count").Int())
+			require.True(t, gjson.GetBytes(body, "stream").Bool())
+			return http.NewRequestWithContext(ctx, http.MethodPost, "https://example.test/responses", strings.NewReader(string(body)))
+		},
+		Do: func(*http.Request) (*http.Response, error) {
+			body := `data: {"type":"response.completed","response":{"output":[{"type":"image_generation_call","id":"gif-call","result":"` + encoded + `","output_format":"gif"}]}}` + "\n\n"
+			return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+		},
+	}}
+	run := creative.CreativeRun{Operation: creative.CreativeOperationGenerate, ImageSize: "1K", ResponseMIMEType: "image/gif", FrameCount: 4, FrameDurationMS: 200}
+	outputs, err := target.ExecuteOpenAI(context.Background(), run, creative.CreativeRunPayload{Prompt: "A blinking star"}, "gpt-image-2.6-flare")
+	require.NoError(t, err)
+	require.Len(t, outputs, 1)
+	require.Equal(t, "image/gif", outputs[0].Mime)
+	require.Equal(t, encoded, base64.StdEncoding.EncodeToString(outputs[0].Bytes))
 }

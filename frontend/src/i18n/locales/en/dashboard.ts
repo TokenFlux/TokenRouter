@@ -576,6 +576,7 @@ export default {
     exportFailed: 'Failed to export usage data',
     exportExcelSuccess: 'Usage data exported successfully (Excel format)',
     exportExcelFailed: 'Failed to export usage data',
+    imageFrameUnit: ' frames',
     imageUnit: ' images',
     userAgent: 'User-Agent',
     ipGeo: {

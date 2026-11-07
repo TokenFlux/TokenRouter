@@ -47,6 +47,11 @@ import (
 	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
+// openai_images_execution_test.go verifies authenticated image exchanges through
+// API-key and OAuth routes. Local transports expose request bytes, response
+// framing, observed usage, retry decisions, and client-disconnect behavior without
+// calling a paid generation provider.
+
 // openAIOAuthImageActualSizeTestRun retains execution and HTTP observations
 // from one dimension fixture.
 type openAIOAuthImageActualSizeTestRun struct {
@@ -3724,5 +3729,43 @@ func TestOpenAIImagesOAuthDriverRejection(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+// TestForwardImagesGIFBothCredentials preserves actual animation observations.
+// Native JSON and OAuth Responses fixtures omit image format and size metadata;
+// returned bytes must still establish GIF MIME, frame units, and dimensions.
+func TestForwardImagesGIFBothCredentials(t *testing.T) {
+	encoded := "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBACwAAAAAAQABAAACAkQBADs="
+	for _, kind := range []string{capability.ProviderTypeAPIKey, capability.ProviderTypeOAuth} {
+		t.Run(kind, func(t *testing.T) {
+			body := []byte(`{"model":"gpt-image-2.6-flare","prompt":"A blinking star","output_format":"gif","frame_count":4,"response_format":"url"}`)
+			parsed, err := media.ParseImageRequest("/v1/images/generations", "application/json", body, true)
+			require.NoError(t, err)
+			response := `{"data":[{"b64_json":"` + encoded + `"}],"usage":{"input_tokens":5,"output_tokens":100}}`
+			contentType := "application/json"
+			if kind == capability.ProviderTypeOAuth {
+				response = `data: {"type":"response.completed","response":{"tool_usage":{"image_gen":{"input_tokens":5,"output_tokens":100,"output_tokens_details":{"image_tokens":100}}},"output":[{"type":"image_generation_call","id":"gif-test","result":"` + encoded + `"}]}}` + "\n\n"
+				contentType = "text/event-stream"
+			}
+			transport := &auxiliaryHTTPRecorder{resp: &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(response))}}
+			service := newImagesFixture(imagesFixtureInputs{transport: transport})
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+			value := &gatewayprovider.ExecutionProvider{Record: providerimages.Record{ID: 12, Platform: capability.PlatformOpenAI, Type: kind, Credentials: map[string]any{"api_key": "test-key", "access_token": "test-oauth"}}}
+			result, err := service.ForwardImages(context.Background(), c, value, body, parsed, "")
+			require.NoError(t, err)
+			require.Equal(t, 1, result.ImageCount)
+			require.Equal(t, 2, result.ImageFrameCount)
+			require.Equal(t, 100, result.Usage.ImageOutputTokens)
+			require.Contains(t, result.ImageOutputSizes, "1x1")
+			require.Equal(t, "gif", gjson.Get(recorder.Body.String(), "output_format").String())
+			if kind == capability.ProviderTypeOAuth {
+				require.Equal(t, "data:image/gif;base64,"+encoded, gjson.Get(recorder.Body.String(), "data.0.url").String())
+				require.Equal(t, int64(4), gjson.GetBytes(transport.lastBody, "tools.0.frame_count").Int())
+			}
+			require.Len(t, transport.requests, 1)
+		})
 	}
 }

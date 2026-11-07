@@ -130,6 +130,11 @@ type GroupReader interface {
 // CatalogProvider supplies a provider scheduling state, platform, model
 // mappings, and protocol capabilities.
 type CatalogProvider interface {
+	// SupportsImageGIF reports the provider's animation switch and endpoint mode.
+	// Model format support is resolved separately; this method cannot grant a
+	// model capability missing from its final-route attributes.
+	SupportsImageGIF(protocol.ProtocolID) bool
+
 	// PlatformID returns the provider platform used to select creative image
 	// adapter rules.
 	PlatformID() string
@@ -341,6 +346,10 @@ type creativeModelRoute struct {
 // ValidatedCreativeParams retains normalized creation controls, source bytes,
 // and distinct public/upstream model identities.
 type ValidatedCreativeParams struct {
+	OutputFormat    string `json:"output_format,omitempty"`     // explicit animation format selection
+	FrameCount      int    `json:"frame_count,omitempty"`       // normalized animation frame count
+	FrameDurationMS int    `json:"frame_duration_ms,omitempty"` // milliseconds per animation frame
+
 	// Model, FinalModel, and Platform retain public identity, resolved upstream
 	// identity, and route selection separately. Sources and Mask retain caller
 	// bytes with normalized MIME labels and hashes; callers keep them stable
@@ -375,6 +384,14 @@ type ValidatedCreativeParams struct {
 // CreativeFingerprintPayload fixes normalized request JSON field order and
 // carries ordered media content digests.
 type CreativeFingerprintPayload struct {
+	// OutputFormat, FrameCount, and FrameDurationMS carry animation controls only.
+	// Static requests retain omitted fields so their existing idempotency fingerprints
+	// remain compatible with tasks accepted before animation support.
+
+	OutputFormat    string `json:"output_format,omitempty"`     // explicit animation format selection
+	FrameCount      int    `json:"frame_count,omitempty"`       // normalized animation frame count
+	FrameDurationMS int    `json:"frame_duration_ms,omitempty"` // milliseconds per animation frame
+
 	GroupID int64  `json:"group_id"` // target request group identifier
 	Model   string `json:"model"`    // public request model name
 	// normalized creative operation name
@@ -599,6 +616,8 @@ func (s *Public) ListModels(ctx context.Context, userID int64) (*CreativeModelsR
 				AspectRatios:       capabilities.AspectRatios,
 				Qualities:          capabilities.Qualities,
 				OutputFormats:      capabilities.OutputFormats,
+				GIFFrameCount:      creativeGIFRange(capabilities.OutputFormats, false),
+				GIFFrameDurationMS: creativeGIFRange(capabilities.OutputFormats, true),
 				OutputCompression:  capabilities.OutputCompression,
 				BackgroundOptions:  capabilities.BackgroundOptions,
 				ThinkingLevels:     capabilities.ThinkingLevels,
@@ -900,6 +919,7 @@ func (s *Public) CreateRun(ctx context.Context, scope CreativeRunScope, params C
 	}
 	holdAmount := pricing.EstimatedCost
 	run, err := s.Repo.CreateCreativeRun(ctx, CreateCreativeRunParams{
+		FrameCount: validated.FrameCount, FrameDurationMS: validated.FrameDurationMS,
 		RunID:                      runID,
 		UserID:                     userID,
 		WorkspaceID:                scope.WorkspaceID,
@@ -912,7 +932,7 @@ func (s *Public) CreateRun(ctx context.Context, scope CreativeRunScope, params C
 		RequestedOutputCount:       validated.OutputCount,
 		ImageSize:                  validated.ImageSize,
 		AspectRatio:                validated.AspectRatio,
-		ResponseMIMEType:           DefaultCreativeResponseMime,
+		ResponseMIMEType:           creativeRequestedMIME(validated.OutputFormat),
 		PromptHash:                 validated.PromptHash,
 		RequestFingerprint:         validated.Fingerprint,
 		IdempotencyKey:             CreativeStringPtr(idempotencyKey),
@@ -1030,6 +1050,7 @@ func (s *Public) SaveRunTransient(ctx context.Context, run *CreativeRun, validat
 		return errors.New("creative transient store is not configured")
 	}
 	payload := &CreativeRunPayload{
+		FrameCount: run.FrameCount, FrameDurationMS: run.FrameDurationMS,
 		RunID:              run.RunID,
 		UserID:             run.UserID,
 		GroupID:            run.GroupID,
@@ -1144,6 +1165,20 @@ func (s *Public) ValidateCreateParams(ctx context.Context, userID int64, params 
 		return nil, ErrCreativeInvalidParams
 	}
 
+	format := strings.ToLower(strings.TrimSpace(params.OutputFormat))
+	if format == "png" {
+		format = ""
+	}
+	if format != "" && format != "gif" {
+		return nil, ErrCreativeInvalidParams
+	}
+	frames, duration, gifErr := protocol.NormalizeGIFOptions(format, params.FrameCount, params.FrameDurationMS)
+	if gifErr != nil {
+		return nil, ErrCreativeInvalidParams.WithCause(gifErr)
+	}
+	if format == "gif" && (operation == CreativeOperationInpaint || !slices.Contains(capabilities.OutputFormats, "gif")) {
+		return nil, ErrCreativeOperationUnsupported
+	}
 	prompt := strings.TrimSpace(params.Prompt)
 	if prompt == "" {
 		return nil, ErrCreativeInvalidParams
@@ -1280,6 +1315,7 @@ func (s *Public) ValidateCreateParams(ctx context.Context, userID int64, params 
 
 	promptHash := Sha256Hex([]byte(prompt))
 	fingerprint := BuildCreativeRequestFingerprint(CreativeFingerprintPayload{
+		OutputFormat: format, FrameCount: frames, FrameDurationMS: duration,
 		GroupID:       group.ID,
 		Model:         model,
 		Operation:     operation,
@@ -1294,6 +1330,7 @@ func (s *Public) ValidateCreateParams(ctx context.Context, userID int64, params 
 		OutputCount:   outputCount,
 	})
 	return &ValidatedCreativeParams{
+		OutputFormat: format, FrameCount: frames, FrameDurationMS: duration,
 		Group:         group,
 		Platform:      route.Platform,
 		Model:         model,
@@ -1545,7 +1582,7 @@ func (s *Public) ResolveCreativePricing(ctx context.Context, userID int64, valid
 	pricingModel := s.BillingModel(ctx, group, validated.Model, validated.FinalModel)
 	if resolvedUnitPrice, ok := s.ImageUnitPrice(ctx, group, pricingModel, validated.ImageSize); ok {
 		baseUnitPrice = resolvedUnitPrice
-		estimatedCost = resolvedUnitPrice * float64(validated.OutputCount) * effective
+		estimatedCost = resolvedUnitPrice * float64(validated.OutputCount) * float64(max(1, validated.FrameCount)) * effective
 	} else {
 		return nil, billing.ErrImageTaskPricingMissing
 	}
@@ -1594,4 +1631,27 @@ func intersectCreativeOperations(left, right []string) []string {
 		}
 	}
 	return result
+}
+
+// creativeRequestedMIME records the requested animation format without changing
+// static defaults. Actual output MIME remains attached to each provider result
+// and is checked before generated GIF work is settled.
+func creativeRequestedMIME(format string) string {
+	if format == "gif" {
+		return "image/gif"
+	}
+	return DefaultCreativeResponseMime
+}
+
+// creativeGIFRange exposes shared animation bounds only for GIF-capable routes.
+// Duration ranges use milliseconds and ten-millisecond steps; count ranges use
+// whole frames. Other formats retain absent animation controls in the directory.
+func creativeGIFRange(formats []string, duration bool) *CreativeNumericRange {
+	if !slices.Contains(formats, "gif") {
+		return nil
+	}
+	if duration {
+		return &CreativeNumericRange{Min: protocol.GIFMinFrameDurationMS, Max: protocol.GIFMaxFrameDurationMS, Step: 10}
+	}
+	return &CreativeNumericRange{Min: protocol.GIFMinFrameCount, Max: protocol.GIFMaxFrameCount, Step: 1}
 }

@@ -8,7 +8,7 @@ import (
 // image_bytes.go decodes base64 image payloads, detects supported image
 // signatures, and reads bounded response bodies.
 // Image responses may encode their bytes with or without base64 padding.
-// Decoding tries both standard forms, then assigns PNG, JPEG, or WebP from a
+// Decoding tries both standard forms, then assigns PNG, JPEG, WebP, or GIF from a
 // short signature check; unknown bytes retain the PNG default used by image
 // response consumers.
 
@@ -63,12 +63,15 @@ func DecodeBase64Image(raw string) (DecodedImage, error) {
 	return DecodedImage{Bytes: data, Mime: mime}, nil
 }
 
-// SniffImageMIME reports PNG, JPEG, or WebP from the recognized leading byte
+// SniffImageMIME reports PNG, JPEG, WebP, or GIF from the recognized leading byte
 // signatures. Unknown or insufficient bytes return empty; this signature check
 // does not decode or validate a complete image.
 func SniffImageMIME(data []byte) string {
 	// These short signature checks supply output labels for the image consumer;
 	// they accept matching prefixes even when the rest of the payload is malformed.
+	if len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a") {
+		return "image/gif"
+	}
 	if len(data) >= 8 && data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G' {
 		return "image/png"
 	}

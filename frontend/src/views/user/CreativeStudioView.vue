@@ -335,6 +335,11 @@ async function onGenerate(): Promise<void> {
   let maskBlob: Blob | null = null
   if (operation === 'edit') {
     sourceBlobs = (await canvasRef.value?.getEditRefBlobs()) ?? []
+    if (sourceBlobs.some((blob) => blob.type === 'image/gif')) {
+      cancelSubmissionAnimation()
+      studio.error.value = t('creative.canvas.gifReadOnly')
+      return
+    }
     if (!sourceBlobs.length) {
       cancelSubmissionAnimation()
       studio.error.value = t('creative.panel.selectImageHint')
@@ -342,6 +347,11 @@ async function onGenerate(): Promise<void> {
     }
   } else if (operation === 'inpaint') {
     const blob = await canvasRef.value?.getSelectedImageBlob()
+    if (blob?.type === 'image/gif') {
+      cancelSubmissionAnimation()
+      studio.error.value = t('creative.canvas.gifReadOnly')
+      return
+    }
     if (!blob) {
       cancelSubmissionAnimation()
       studio.error.value = t('creative.panel.selectImageHint')

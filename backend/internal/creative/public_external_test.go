@@ -29,6 +29,8 @@ import (
 	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 )
 
+// public_external_test.go verifies creative model admission, parameter validation, task identity, and pricing.
+//
 // Creative model discovery and submission share current group, provider and
 // administrator settings rules. In-memory cases inspect finite image routes,
 // requested parameters, pricing availability and sequential replay effects,
@@ -1285,4 +1287,36 @@ func TestCreativeCatalogueReturnsAttributeFailure(t *testing.T) {
 	models, err := service.CreativeModelsForGroup(context.Background(), group)
 	require.ErrorContains(t, err, "MODEL_ATTRIBUTES_UNAVAILABLE")
 	require.Empty(t, models)
+}
+
+// TestCreativeGIFQuotesAndProviderSwitch exercises a mixed-capability group.
+// An enabled route exposes GIF controls and quotes requested frames; disabling
+// every matching provider rejects new GIF tasks without reserving additional funds.
+func TestCreativeGIFQuotesAndProviderSwitch(t *testing.T) {
+	svc := newCreativeTestService()
+	configureOpenAICreativeTestService(svc)
+	providers := testassert.MustType[*creativeFakeProviderRepo](testassert.MustType[creativeProviderReader](svc.ProviderRepo).source)
+	model := "gpt-image-2.6-flare"
+	providers.byGroup[12] = []providercore.Record{
+		{ID: 57, Platform: capability.PlatformOpenAI, Type: providercore.ProviderTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Credentials: map[string]any{"model_mapping": map[string]any{model: model}}, Extra: map[string]any{"images_gif_enabled": false}},
+		{ID: 58, Platform: capability.PlatformOpenAI, Type: providercore.ProviderTypeOAuth, Status: billing.StatusActive, Schedulable: true, Credentials: map[string]any{"model_mapping": map[string]any{model: model}}},
+	}
+	testassert.MustType[*creativeFakeSettingReader](svc.Settings).models = []creative.CreativeModelSetting{{GroupID: 12, Model: model, Operations: []string{creative.CreativeOperationGenerate, creative.CreativeOperationEdit, creative.CreativeOperationInpaint}}}
+	svc.ImageUnitPrice = func(context.Context, *creative.GroupView, string, string) (float64, bool) { return 0.25, true }
+	params := validCreateParams()
+	params.Model, params.OutputFormat = model, "gif"
+	frames, delay := 4, 255
+	params.FrameCount, params.FrameDurationMS = &frames, &delay
+	run, err := svc.CreateRun(context.Background(), testCreativeScope(7), params, "gif-four")
+	require.NoError(t, err)
+	require.Equal(t, 4, run.FrameCount)
+	require.Equal(t, 260, run.FrameDurationMS)
+	require.Equal(t, "gif", run.OutputFormat)
+	require.InDelta(t, 1.0, run.EstimatedCost, 1e-9)
+	frames = 5
+	_, err = svc.CreateRun(context.Background(), testCreativeScope(7), params, "gif-four")
+	require.Error(t, err)
+	providers.byGroup[12][1].Extra = map[string]any{"images_gif_enabled": false}
+	_, err = svc.CreateRun(context.Background(), testCreativeScope(7), params, "gif-disabled")
+	require.ErrorIs(t, err, creative.ErrCreativeOperationUnsupported)
 }

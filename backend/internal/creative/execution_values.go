@@ -1,5 +1,7 @@
 package creative
 
+import "github.com/TokenFlux/TokenRouter/internal/protocol"
+
 // execution_values.go validates and deduplicates generated images before
 // selecting the retained creative output.
 // A creative execution delivers one retained image even when an upstream
@@ -52,6 +54,11 @@ func NormalizeCreativeOutputs(outputs []CreativeOutput) ([]CreativeOutput, error
 		sum := Sha256Hex(output.Bytes)
 		if _, ok := seen[sum]; ok {
 			continue
+		}
+		if output.Mime == "image/gif" {
+			if _, err := protocol.ParseGIFMetadata(output.Bytes); err != nil {
+				return nil, CreativeImageResultError("INVALID_IMAGE_RESPONSE", "platform returned an incomplete GIF")
+			}
 		}
 		seen[sum] = struct{}{}
 		out = append(out, output)

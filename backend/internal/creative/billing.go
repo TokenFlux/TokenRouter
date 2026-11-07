@@ -144,7 +144,7 @@ func BuildHoldCommand(run *CreativeRun, requestID string, actualBaseAmount float
 		HoldAmount:                      holdAmount,
 		ActualAmount:                    0,
 		PricingSnapshotVersion:          creativePricingSnapshotVersion,
-		BaseAmountUSD:                   math.Max(run.BaseUnitPrice, 0) * float64(max(run.RequestedOutputCount, 0)),
+		BaseAmountUSD:                   math.Max(run.BaseUnitPrice, 0) * float64(max(run.RequestedOutputCount, 0)) * float64(max(1, run.FrameCount)),
 		ActualBaseAmountUSD:             actualBaseAmount,
 		SubscriptionRateMultiplier:      math.Max(run.SubscriptionRateMultiplier, 0),
 		SubscriptionRateMultiplierScale: 1,
@@ -217,12 +217,18 @@ func (funding Funding) Reserve(ctx context.Context, run *CreativeRun) error {
 
 // Capture charges the nonnegative successful-image count using the run base
 // price and saved funding sources. Callers supply a nonnil run; a returned
-// funds result also updates its ActualCost for settlement completion.
+// funds result also updates its ActualCost for settlement completion. GIF calls
+// require ActualFrameCount rebuilt from durable successful output metadata;
+// requested frames determine only the hold, never the actual capture quantity.
 func (funding Funding) Capture(ctx context.Context, run *CreativeRun, successCount int) (*billing.TaskFundsResult, error) {
 	if funding.Store == nil {
 		return nil, ErrCreativeSettlementBillingFail.WithCause(errors.New("creative billing repository is not configured"))
 	}
-	actualBase := math.Max(run.BaseUnitPrice, 0) * float64(max(successCount, 0))
+	units := successCount
+	if run.FrameCount > 0 || run.ActualFrameCount > 0 {
+		units = run.ActualFrameCount
+	}
+	actualBase := math.Max(run.BaseUnitPrice, 0) * float64(max(units, 0))
 	cmd, err := BuildHoldCommand(run, CreativeCaptureRequestID(run.RunID), actualBase)
 	if err != nil {
 		return nil, err

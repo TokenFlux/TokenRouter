@@ -36,7 +36,8 @@ import (
 var supplementFields = map[string]string{
 	"input_cost_per_token": "input", "output_cost_per_token": "output",
 	"input_cost_per_token_priority": "priority_input", "output_cost_per_token_priority": "priority_output",
-	"cache_read_input_token_cost": "cache_read", "cache_read_input_token_cost_priority": "priority_cache_read",
+	"cache_read_input_image_token_cost": "image_cache_read",
+	"cache_read_input_token_cost":       "cache_read", "cache_read_input_token_cost_priority": "priority_cache_read",
 	"cache_creation_input_token_cost": "cache_write", "cache_creation_input_token_cost_priority": "priority_cache_write",
 	"cache_creation_input_token_cost_above_1hr": "cache_write_1h",
 	"input_cost_per_image_token":                "image_input", "output_cost_per_image_token": "image_output", "output_cost_per_image": "image",

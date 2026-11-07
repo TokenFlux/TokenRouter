@@ -44,9 +44,18 @@ func ReadImagesNonStreaming(resp *http.Response, sink upstream.OutputSink, optio
 	}
 	// Observe accounting before Backfill changes the client representation, so URL
 	// download outcomes cannot remove upstream-reported image usage or dimensions.
-	usage, _ := wire.ExtractOpenAIUsageFromJSONBytes(body)
+	usage, _ := wire.ExtractNativeImageUsage(body)
 	imageCount := wire.CountOpenAIResponseImageOutputsFromJSONBytes(body)
 	imageSizes := wire.CollectOpenAIResponseImageOutputSizesFromJSONBytes(body)
+	body, usage.ImageFrameCount, err = ValidateGIFImagesResponse(body, options.ExpectedGIF, options.FetchImage)
+	if err != nil {
+		return usage, imageCount, imageSizes, err
+	}
+	if usage.ImageFrameCount > 0 {
+		// GIF validation obtained complete bytes before delivery. Use their actual
+		// dimensions for billing even when the upstream omitted its size metadata.
+		imageSizes = wire.CollectOpenAIResponseImageOutputSizesFromJSONBytes(body)
+	}
 	body = options.Backfill(body)
 	c := upstream.NewOutputContext(sink)
 	options.ResponseHeaders(c.Writer.Header(), resp.Header)
@@ -125,6 +134,7 @@ func ReadImagesStreaming(ctx context.Context, resp *http.Response, c *upstream.O
 			c.Writer.Flush()
 		}
 	}
+	result.Usage.ImageFrameCount = result.Counter.FrameCount()
 	return result.Usage, result.Counter.Count(), result.Counter.Sizes(), err
 }
 

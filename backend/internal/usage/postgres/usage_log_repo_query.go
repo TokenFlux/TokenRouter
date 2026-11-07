@@ -37,7 +37,7 @@ import (
 // usageLogSelectColumns defines the positional raw-row read shape; scanUsageLog
 // consumes the same order, and financial BillingKey is currently outside this
 // shape.
-const usageLogSelectColumns = "id, user_id, billing_user_id, team_id, api_key_id, provider_id, request_id, model, requested_model, upstream_model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, image_output_tokens, image_output_cost, image_input_tokens, image_input_cost, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, subscription_amount_usd, balance_amount_usd, billing_allocations, rate_multiplier, provider_rate_multiplier, billing_type, request_type, stream, openai_ws_mode, duration_ms, timings, user_agent, ip_address, image_count, image_size, image_input_size, image_output_size, image_size_source, image_size_breakdown, video_count, video_resolution, video_duration_seconds, service_tier, reasoning_effort, inbound_endpoint, upstream_endpoint, cache_ttl_overridden, long_context_billing_applied, pricing_config_id, model_mapping_chain, billing_tier, billing_mode, provider_stats_cost, upstream_request_id, session_id, created_at, requested_reasoning_effort, native_compaction_v2, platform, upstream_response_model, upstream_model_mismatch, request_source, system_usage"
+const usageLogSelectColumns = "id, user_id, billing_user_id, team_id, api_key_id, provider_id, request_id, model, requested_model, upstream_model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, image_output_tokens, image_output_cost, image_input_tokens, image_input_cost, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, subscription_amount_usd, balance_amount_usd, billing_allocations, rate_multiplier, provider_rate_multiplier, billing_type, request_type, stream, openai_ws_mode, duration_ms, timings, user_agent, ip_address, image_count, image_frame_count, image_cache_read_tokens, image_size, image_input_size, image_output_size, image_size_source, image_size_breakdown, video_count, video_resolution, video_duration_seconds, service_tier, reasoning_effort, inbound_endpoint, upstream_endpoint, cache_ttl_overridden, long_context_billing_applied, pricing_config_id, model_mapping_chain, billing_tier, billing_mode, provider_stats_cost, upstream_request_id, session_id, created_at, requested_reasoning_effort, native_compaction_v2, platform, upstream_response_model, upstream_model_mismatch, request_source, system_usage"
 
 // UsageLogFilters carries the usage module's selectors for authorized record
 // listings.
@@ -705,6 +705,8 @@ func scanUsageLog(scanner interface {
 		userAgent                 sql.NullString
 		ipAddress                 sql.NullString
 		imageCount                int
+		imageFrameCount           int
+		imageCacheReadTokens      int
 		imageSize                 sql.NullString
 		imageInputSize            sql.NullString
 		imageOutputSize           sql.NullString
@@ -777,6 +779,8 @@ func scanUsageLog(scanner interface {
 		&userAgent,
 		&ipAddress,
 		&imageCount,
+		&imageFrameCount,
+		&imageCacheReadTokens,
 		&imageSize,
 		&imageInputSize,
 		&imageOutputSize,
@@ -843,6 +847,8 @@ func scanUsageLog(scanner interface {
 		BillingType:               int8(billingType),
 		RequestType:               usage.RequestTypeFromInt16(requestTypeRaw),
 		ImageCount:                imageCount,
+		ImageFrameCount:           imageFrameCount,
+		ImageCacheReadTokens:      imageCacheReadTokens,
 		VideoCount:                videoCount,
 		CacheTTLOverridden:        cacheTTLOverridden,
 		LongContextBillingApplied: longContextBillingApplied,

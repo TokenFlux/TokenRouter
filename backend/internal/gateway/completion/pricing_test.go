@@ -11,6 +11,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
+// pricing_test.go checks how completion selects image and token prices from
+// observed output. Fixtures separate returned files, animation frames, and
+// token counts so only the configured billing mode determines which quantity
+// supplies the charge.
+
 // imageTokenCatalog supplies token prices for the specified image model.
 type imageTokenCatalog struct{}
 
@@ -51,4 +56,17 @@ func TestImageTokenUsageUsesExactTokenPricing(t *testing.T) {
 	result.Usage = TokenUsage{}
 	_, err = recorder.CalculateOpenAIRecordUsageCostAt(context.Background(), result, &KeySnapshot{}, []string{result.Model}, 1, 1, 1, 1, UsageTokens{}, "", time.Now())
 	require.ErrorIs(t, err, pricing.ErrModelPricingUnavailable)
+}
+
+// TestImageBillingUnits preserves file counts for request and token cards.
+// Only image mode consumes separately observed frame units, including mixed outputs
+// whose static files each contribute one unit.
+func TestImageBillingUnits(t *testing.T) {
+	result := &Result{ImageCount: 2, ImageFrameCount: 18}
+	require.Equal(t, 18, imageBillingUnits(result, nil))
+	require.Equal(t, 18, imageBillingUnits(result, &ResolvedPricing{Mode: BillingModeImage}))
+	require.Equal(t, 2, imageBillingUnits(result, &ResolvedPricing{Mode: BillingModePerRequest}))
+	require.Equal(t, 2, imageBillingUnits(result, &ResolvedPricing{Mode: BillingModeToken}))
+	result.ImageFrameCount = 0
+	require.Equal(t, 2, imageBillingUnits(result, nil))
 }

@@ -89,6 +89,9 @@ export interface LocalSettingRecord {
  * restored controls.
  */
 export interface LocalRunParams {
+  outputFormat?: string // Submitted output format name.
+  frameCount?: number // Submitted animation frame count.
+  frameDurationMS?: number // Submitted frame delay, milliseconds.
   runId: string // server run identifier
   optionKey: string // group_id::model selector key
   groupName: string // submitted group label

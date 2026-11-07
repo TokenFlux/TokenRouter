@@ -552,6 +552,8 @@ var (
 		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "frame_count", Type: field.TypeInt, Default: 0},
+		{Name: "frame_duration_ms", Type: field.TypeInt, Default: 0},
 		{Name: "run_id", Type: field.TypeString, Size: 64},
 		{Name: "user_id", Type: field.TypeInt64},
 		{Name: "workspace_id", Type: field.TypeString, Nullable: true, Size: 64},
@@ -604,22 +606,22 @@ var (
 			{
 				Name:    "creativerun_run_id",
 				Unique:  true,
-				Columns: []*schema.Column{CreativeRunsColumns[3]},
+				Columns: []*schema.Column{CreativeRunsColumns[5]},
 			},
 			{
 				Name:    "creativerun_user_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{CreativeRunsColumns[4], CreativeRunsColumns[1]},
+				Columns: []*schema.Column{CreativeRunsColumns[6], CreativeRunsColumns[1]},
 			},
 			{
 				Name:    "creativerun_user_id_workspace_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{CreativeRunsColumns[4], CreativeRunsColumns[5], CreativeRunsColumns[1]},
+				Columns: []*schema.Column{CreativeRunsColumns[6], CreativeRunsColumns[7], CreativeRunsColumns[1]},
 			},
 			{
 				Name:    "creativerun_status",
 				Unique:  false,
-				Columns: []*schema.Column{CreativeRunsColumns[20]},
+				Columns: []*schema.Column{CreativeRunsColumns[22]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "status IN ('queued', 'running')",
 				},
@@ -627,7 +629,7 @@ var (
 			{
 				Name:    "creativerun_user_id_workspace_id_idempotency_key",
 				Unique:  true,
-				Columns: []*schema.Column{CreativeRunsColumns[4], CreativeRunsColumns[5], CreativeRunsColumns[19]},
+				Columns: []*schema.Column{CreativeRunsColumns[6], CreativeRunsColumns[7], CreativeRunsColumns[21]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "workspace_id IS NOT NULL AND idempotency_key IS NOT NULL AND idempotency_key <> ''",
 				},
@@ -676,6 +678,7 @@ var (
 		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "frame_count", Type: field.TypeInt, Default: 0},
 		{Name: "run_id", Type: field.TypeString, Size: 64},
 		{Name: "output_index", Type: field.TypeInt},
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "pending"},
@@ -695,17 +698,17 @@ var (
 			{
 				Name:    "creativerunoutput_run_id_output_index",
 				Unique:  true,
-				Columns: []*schema.Column{CreativeRunOutputsColumns[3], CreativeRunOutputsColumns[4]},
+				Columns: []*schema.Column{CreativeRunOutputsColumns[4], CreativeRunOutputsColumns[5]},
 			},
 			{
 				Name:    "creativerunoutput_run_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{CreativeRunOutputsColumns[3], CreativeRunOutputsColumns[5]},
+				Columns: []*schema.Column{CreativeRunOutputsColumns[4], CreativeRunOutputsColumns[6]},
 			},
 			{
 				Name:    "creativerunoutput_transient_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{CreativeRunOutputsColumns[8]},
+				Columns: []*schema.Column{CreativeRunOutputsColumns[9]},
 			},
 		},
 	}
@@ -1872,6 +1875,8 @@ var (
 	// UsageLogsColumns holds the columns for the "usage_logs" table.
 	UsageLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "image_frame_count", Type: field.TypeInt, Default: 0},
+		{Name: "image_cache_read_tokens", Type: field.TypeInt, Default: 0},
 		{Name: "request_source", Type: field.TypeString, Size: 32, Default: "user"},
 		{Name: "system_usage", Type: field.TypeJSON, Nullable: true},
 		{Name: "billing_user_id", Type: field.TypeInt64, Nullable: true},
@@ -1937,37 +1942,37 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "usage_logs_api_keys_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[51]},
+				Columns:    []*schema.Column{UsageLogsColumns[53]},
 				RefColumns: []*schema.Column{APIKeysColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "usage_logs_groups_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[52]},
+				Columns:    []*schema.Column{UsageLogsColumns[54]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "usage_logs_providers_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[53]},
+				Columns:    []*schema.Column{UsageLogsColumns[55]},
 				RefColumns: []*schema.Column{ProvidersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "usage_logs_teams_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[54]},
+				Columns:    []*schema.Column{UsageLogsColumns[56]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "usage_logs_users_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[55]},
+				Columns:    []*schema.Column{UsageLogsColumns[57]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "usage_logs_user_subscriptions_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[56]},
+				Columns:    []*schema.Column{UsageLogsColumns[58]},
 				RefColumns: []*schema.Column{UserSubscriptionsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1976,72 +1981,72 @@ var (
 			{
 				Name:    "usagelog_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[55]},
+				Columns: []*schema.Column{UsageLogsColumns[57]},
 			},
 			{
 				Name:    "usagelog_billing_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[3]},
+				Columns: []*schema.Column{UsageLogsColumns[5]},
 			},
 			{
 				Name:    "usagelog_team_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[54]},
+				Columns: []*schema.Column{UsageLogsColumns[56]},
 			},
 			{
 				Name:    "usagelog_api_key_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[51]},
+				Columns: []*schema.Column{UsageLogsColumns[53]},
 			},
 			{
 				Name:    "usagelog_provider_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[53]},
+				Columns: []*schema.Column{UsageLogsColumns[55]},
 			},
 			{
 				Name:    "usagelog_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[52]},
+				Columns: []*schema.Column{UsageLogsColumns[54]},
 			},
 			{
 				Name:    "usagelog_subscription_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[56]},
+				Columns: []*schema.Column{UsageLogsColumns[58]},
 			},
 			{
 				Name:    "usagelog_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[50]},
+				Columns: []*schema.Column{UsageLogsColumns[52]},
 			},
 			{
 				Name:    "usagelog_model",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[7]},
+				Columns: []*schema.Column{UsageLogsColumns[9]},
 			},
 			{
 				Name:    "usagelog_requested_model",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[8]},
+				Columns: []*schema.Column{UsageLogsColumns[10]},
 			},
 			{
 				Name:    "usagelog_request_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[6]},
+				Columns: []*schema.Column{UsageLogsColumns[8]},
 			},
 			{
 				Name:    "usagelog_user_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[55], UsageLogsColumns[50]},
+				Columns: []*schema.Column{UsageLogsColumns[57], UsageLogsColumns[52]},
 			},
 			{
 				Name:    "usagelog_api_key_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[51], UsageLogsColumns[50]},
+				Columns: []*schema.Column{UsageLogsColumns[53], UsageLogsColumns[52]},
 			},
 			{
 				Name:    "usagelog_group_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[52], UsageLogsColumns[50]},
+				Columns: []*schema.Column{UsageLogsColumns[54], UsageLogsColumns[52]},
 			},
 		},
 	}

@@ -197,6 +197,15 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 	if err := s.resolveModelAttributes(ctx, provider, upstreamModel); err != nil {
 		return nil, err
 	}
+	if parsed.OutputFormat == "gif" {
+		operation := protocol.ProtocolImagesGenerations
+		if parsed.IsEdits() {
+			operation = protocol.ProtocolImagesEdits
+		}
+		if err := gatewayprovider.RequireImageGIF(provider, operation, provider.Capabilities.Attributes); err != nil {
+			return nil, err
+		}
+	}
 	logging.LegacyPrintf(
 		"service.openai_gateway",
 		"[OpenAI] Images request routing request_model=%s upstream_model=%s endpoint=%s provider_type=%s uploads=%d",
@@ -239,6 +248,7 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 	}
 
 	options := s.Output.ImageOptions(c)
+	options.ExpectedGIF = parsed.OutputFormat == "gif"
 	var legacyHTTPResult *forwardcore.OpenAIResult
 	httpFailure := false
 	retryAgent := false

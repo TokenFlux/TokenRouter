@@ -1293,6 +1293,13 @@
                 :hint="t('admin.providers.openai.flattenNamespacesDesc')"
                 testid="create-openai-flatten-namespaces-toggle"
               />
+              <SettingToggleRow
+                v-if="isOpenAIOAuthCategory || providerCategory === 'apikey'"
+                id="create-openai-images-gif"
+                v-model="openAIImagesGIFEnabled"
+                :label="t('admin.providers.openai.imagesGIFEnabled')"
+                :hint="t('admin.providers.openai.imagesGIFEnabledDesc')"
+              />
               <template v-if="providerCategory === 'apikey'">
                 <SettingToggleRow
                   id="create-openai-continuation-supported"
@@ -2442,6 +2449,8 @@ const openAINativeCompactionV2Mode = ref<OpenAICompactMode>('force_on')
 // HTTP continuation starts disabled and is enabled only by the administrator for upstream previous_response_id support.
 const openAIResponsesContinuationSupported = ref(false)
 // Image URL backfill starts disabled and is serialized only for OpenAI API Key providers.
+/** GIF defaults to enabled for each new OpenAI provider draft. */
+const openAIImagesGIFEnabled = ref(true)
 const openAIImagesURLToB64JSON = ref(false)
 const responsesWSConnectionMode = ref<ResponsesWSConnectionMode>(RESPONSES_WS_POOLED)
 const codexCLIOnlyAllowClaudeCodeEnabled = ref(false)
@@ -3130,6 +3139,7 @@ watch(
       openaiPassthroughEnabled.value = false
       openaiFlattenNamespacesEnabled.value = false
       openAIResponsesContinuationSupported.value = false
+      openAIImagesGIFEnabled.value = true
       openAIImagesURLToB64JSON.value = false
       responsesWSConnectionMode.value = RESPONSES_WS_POOLED
       codexCLIOnlyAllowClaudeCodeEnabled.value = false
@@ -3510,6 +3520,7 @@ const resetForm = () => {
   openAICompactMode.value = 'force_on'
   openAINativeCompactionV2Mode.value = 'force_on'
   openAIResponsesContinuationSupported.value = false
+  openAIImagesGIFEnabled.value = true
   openAIImagesURLToB64JSON.value = false
   responsesWSConnectionMode.value = RESPONSES_WS_POOLED
   codexCLIOnlyAllowClaudeCodeEnabled.value = false
@@ -3614,6 +3625,7 @@ const buildOpenAIExtra = (base?: Record<string, unknown>) =>
       codexImageResponsesModel: codexImageResponsesModel.value,
       openAICompactMode: openAICompactMode.value,
       openAINativeCompactionV2Mode: openAINativeCompactionV2Mode.value,
+      openAIImagesGIFEnabled: openAIImagesGIFEnabled.value,
       openAIImagesURLToB64JSON: openAIImagesURLToB64JSON.value,
       openAIResponsesContinuationSupported: openAIResponsesContinuationSupported.value,
     },

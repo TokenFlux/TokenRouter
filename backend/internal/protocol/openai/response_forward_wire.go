@@ -498,6 +498,7 @@ func OpenAIUsageFromGJSON(value gjson.Result) (ForwardUsage, bool) {
 	return ForwardUsage{
 		InputTokens:              int(inputTokens),
 		ImageInputTokens:         imageInputTokens,
+		ImageCacheReadTokens:     OpenAIImageCacheReadTokens(value),
 		OutputTokens:             int(outputTokens),
 		CacheCreationInputTokens: cacheCreationTokens,
 		CacheReadInputTokens:     cacheReadTokens,
@@ -1144,4 +1145,22 @@ func ReplaceModelInResponseBody(body []byte, fromModel, toModel string) []byte {
 		return newBody
 	}
 	return body
+}
+
+// OpenAIImageCacheReadTokens reads only explicitly separated cached image input.
+// Aggregate cache hits do not establish their modality. Invalid, missing, and
+// negative subdivisions return zero; reported image hits cannot exceed total hits.
+func OpenAIImageCacheReadTokens(value gjson.Result) int {
+	for _, path := range []string{"input_tokens_details.cached_tokens_details.image_tokens", "prompt_tokens_details.cached_tokens_details.image_tokens"} {
+		raw := value.Get(path)
+		if !raw.Exists() {
+			continue
+		}
+		count, ok := BoundedJSONNonNegativeInt(raw)
+		if !ok {
+			return 0
+		}
+		return min(count, OpenAICacheReadTokensFromUsage(value))
+	}
+	return 0
 }

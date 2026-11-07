@@ -7,7 +7,7 @@ package architecture
 
 // pureStandard permits in-memory parsing, encoding, Unicode validation, and caller-owned
 // streams for pure packages. File and network acquisition require narrower permissions.
-const pureStandard = `bufio bytes context crypto/rand crypto/sha256 encoding/base64 encoding/hex encoding/json errors fmt
+const pureStandard = `bufio bytes context crypto/rand crypto/sha256 encoding/base64 encoding/binary encoding/hex encoding/json errors fmt
 golang.org/x/mod/semver golang.org/x/net/http/httpguts golang.org/x/sync/singleflight io iter maps
 math net/textproto net/url reflect regexp slices sort strconv strings sync testing time unicode unicode/utf8
 unsafe`

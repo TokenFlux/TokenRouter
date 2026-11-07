@@ -48,7 +48,8 @@ type Result struct {
 	// producers count response objects; Gemini assigns one after a successful
 	// Antigravity attempt for a selected image model. The quantity can therefore
 	// be a model-derived billing estimate.
-	ImageCount int // producer image quantity
+	ImageCount      int // producer image quantity
+	ImageFrameCount int // encoded output frame billing units
 	// billing image size hint; input image size hint; output image size hint
 	ImageSize, ImageInputSize, ImageOutputSize string
 	// ImageOutputSizes and ImageSizeBreakdown can share their producer's slice

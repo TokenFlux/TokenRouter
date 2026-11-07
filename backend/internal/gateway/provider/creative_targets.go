@@ -32,6 +32,10 @@ import (
 // CreativeTargets binds app-owned request, credential, transport, and activity
 // dependencies to creative execution.
 type CreativeTargets struct {
+	// ImageResponses constructs an OAuth carrier request using gateway headers
+	// and identity. It is required only for selected OAuth creative execution.
+	ImageResponses func(context.Context, *ExecutionProvider, []byte, string) (*http.Request, error)
+
 	// Requests supplies endpoint validation and generation transport policy. Configure
 	// it before invoking target callbacks that resolve URLs, downloads, or TLS profiles.
 	Requests interface {
@@ -82,6 +86,14 @@ func (s *CreativeTargets) ForProvider(provider *ExecutionProvider) *creativeprov
 		},
 	}
 	target.OpenAI = &creativeprovider.OpenAIOptions{
+		OAuth:     provider.View().IsOpenAIOAuthLike(),
+		MainModel: provider.View().CodexImageResponsesModel(),
+		BuildOAuth: func(ctx context.Context, body []byte, token string) (*http.Request, error) {
+			if s.ImageResponses == nil {
+				return nil, errors.New("creative OAuth image bridge is unavailable")
+			}
+			return s.ImageResponses(ctx, provider, body, token)
+		},
 		ImageMode:  ExecutionProtocolRecord(provider).ImageStreamMode,
 		FetchImage: imageDownload.FetchBase64,
 		Token:      token,

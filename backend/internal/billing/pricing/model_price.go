@@ -89,6 +89,8 @@ func ResolveModelPricing(model string, catalogPrice *CatalogModelPricing) (*Mode
 		LongContextInputMultiplier:         catalogPricing.LongContextInputCostMultiplier,
 		LongContextOutputMultiplier:        catalogPricing.LongContextOutputCostMultiplier,
 		ImageInputPricePerToken:            catalogPricing.InputCostPerImageToken,
+		ImageCacheReadPricePerToken:        catalogPricing.CacheReadInputImageTokenCost,
+		ImageCacheReadPriceExplicit:        catalogPricing.ImageCacheReadPricePresent,
 		ImageOutputPricePerToken:           catalogPricing.OutputCostPerImageToken,
 		ImageOutputPriceExplicit:           catalogPricing.ImageOutputPricePresent,
 		MaxReasoningEffortMultiplier:       rules.MaxReasoningEffortMultiplier,
