@@ -155,6 +155,7 @@
           <div class="md:col-span-2">
             <p class="input-label">{{ t('admin.settings.balanceDisplay.iconSvg') }}</p>
             <ImageUpload
+              :disabled="imagesDisabled"
               v-model="form.balance_icon_svg"
               mode="svg"
               :upload-label="t('admin.settings.balanceDisplay.uploadSvg')"
@@ -297,6 +298,7 @@
         <p class="input-label">{{ t('admin.settings.site.siteLogo') }}</p>
         <!-- The logo upload limit is expressed in bytes, with 300 KiB converted for ImageUpload. -->
         <ImageUpload
+          :disabled="imagesDisabled"
           v-model="form.site_logo"
           mode="image"
           :upload-label="t('admin.settings.site.uploadImage')"
@@ -327,6 +329,7 @@
       <div>
         <p class="input-label">{{ t('admin.settings.site.shareCover') }}</p>
         <ImageUpload
+          :disabled="imagesDisabled"
           v-model="form.site_share_image"
           mode="image"
           wide
@@ -594,6 +597,7 @@
             <div class="sm:col-span-2">
               <p class="input-label">{{ t('admin.settings.customMenu.iconSvg') }}</p>
               <ImageUpload
+                :disabled="imagesDisabled"
                 :model-value="item.icon_svg"
                 mode="svg"
                 size="sm"
@@ -804,6 +808,9 @@ import type { useGeneralSettings, GeneralSettingsForm } from './useGeneralSettin
 // The parent supplies one controller and its shared draft for this mounted
 // panel; template writes mutate that draft before the page save action runs.
 const props = defineProps<{
+  // imagesDisabled cancels pending reads while the page restores saved settings.
+  // Every image editor in this panel remains disabled until that reload finishes.
+  imagesDisabled?: boolean
   // controller retains page-scoped refs and actions; its closures target the
   // same form object provided below for this panel's editable controls.
   controller: ReturnType<typeof useGeneralSettings>

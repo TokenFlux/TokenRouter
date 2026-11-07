@@ -98,4 +98,61 @@ describe('cover uploads', () => {
     await flushPromises()
     expect(wrapper.emitted('update:modelValue')).toEqual([['data:image/png;base64,fixture'], ['']])
   })
+  // A parent restores its draft during either file reading or image decoding.
+  // Resets must invalidate callbacks even when the restored value equals the previous value.
+  it.each([
+    ['changed value', 'reading'],
+    ['changed value', 'decoding'],
+    ['same-value reload', 'reading'],
+    ['same-value reload', 'decoding'],
+  ])('cancels %s during %s and accepts a later selection', async (reset, stage) => {
+    // Controlled browser callbacks preserve the order of reset and completion.
+    const readers: Array<{ onload: (() => void) | null }> = []
+    const images: Array<{ onload: (() => void) | null }> = []
+    vi.stubGlobal(
+      'FileReader',
+      class {
+        onload: (() => void) | null = null // Captured file-read completion.
+        result = 'data:image/png;base64,new-cover' // Encoded replacement cover.
+        /** constructor registers this pending read for deterministic completion control. */
+        constructor() {
+          readers.push(this)
+        }
+        /** readAsDataURL waits for the test to complete this read. */
+        readAsDataURL() {}
+      },
+    )
+    vi.stubGlobal(
+      'Image',
+      class {
+        onload: (() => void) | null = null // Captured image-decode completion.
+        naturalWidth = 1200 // Decoded width in pixels.
+        naturalHeight = 630 // Decoded height in pixels.
+        /** constructor registers this decoder for completion after the parent reset. */
+        constructor() {
+          images.push(this)
+        }
+      },
+    )
+    const wrapper = mountCover()
+    const file = new File(['png'], 'cover.png', { type: 'image/png' })
+    await choose(wrapper, file)
+    if (stage === 'decoding') readers[0].onload!()
+    if (reset === 'changed value') {
+      await wrapper.setProps({ modelValue: 'restored-cover' })
+    } else {
+      await wrapper.setProps({ disabled: true })
+      expect((wrapper.get('input').element as HTMLInputElement).disabled).toBe(true)
+      await choose(wrapper, file)
+      expect(readers).toHaveLength(1)
+      await wrapper.setProps({ modelValue: 'saved-cover', disabled: false })
+    }
+    if (stage === 'reading') readers[0].onload!()
+    else images[0].onload!()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    await choose(wrapper, file)
+    readers[1].onload!()
+    images.at(-1)!.onload!()
+    expect(wrapper.emitted('update:modelValue')).toEqual([['data:image/png;base64,new-cover']])
+  })
 })

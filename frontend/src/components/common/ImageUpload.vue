@@ -34,8 +34,18 @@
     <!-- Controls -->
     <div class="flex-1 space-y-2">
       <div class="flex items-center gap-2">
-        <label class="btn btn-secondary btn-sm cursor-pointer">
-          <input type="file" :accept="acceptTypes" class="hidden" @change="handleUpload" />
+        <label
+          class="btn btn-secondary btn-sm"
+          :class="disabled ? 'cursor-not-allowed' : 'cursor-pointer'"
+          :aria-disabled="disabled"
+        >
+          <input
+            type="file"
+            :accept="acceptTypes"
+            :disabled="disabled"
+            class="hidden"
+            @change="handleUpload"
+          />
           <Icon name="upload" size="sm" class="mr-1.5" :stroke-width="2" />
           {{ resolvedUploadLabel }}
         </label>
@@ -43,6 +53,7 @@
           v-if="modelValue"
           type="button"
           class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
+          :disabled="disabled"
           @click="removeImage"
         >
           <Icon name="trash" size="sm" class="mr-1.5" :stroke-width="2" />
@@ -56,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
@@ -68,7 +79,8 @@ import { sanitizeSvg } from '@/utils/sanitize'
 // previous draft untouched, and removing an image publishes an empty value.
 //
 // File reads and image dimension checks finish asynchronously. Each selection owns a
-// generation that is invalidated by another selection, removal, or component teardown,
+// generation invalidated by selection, removal, external value changes, disabled-state
+// transitions, or component teardown,
 // preventing stale callbacks from restoring a removed image or overwriting a newer one.
 // No network upload occurs inside this component; persistence belongs to its caller.
 
@@ -94,6 +106,9 @@ const props = withDefaults(
     allowedTypes?: string[] // Accepted image MIME types.
     maxDimension?: number // Maximum pixels per side; zero disables validation.
     wide?: boolean // Landscape preview for covers.
+    // disabled prevents edits and cancels pending reads on either transition, so
+    // parent reloads can restore the same value without allowing late callbacks.
+    disabled?: boolean
   }>(),
   {
     mode: 'image',
@@ -105,6 +120,7 @@ const props = withDefaults(
     allowedTypes: () => [],
     maxDimension: 0,
     wide: false,
+    disabled: false,
   },
 )
 
@@ -140,14 +156,28 @@ const previewSizeClass = computed(() =>
 const innerSizeClass = computed(() => (props.size === 'sm' ? 'h-7 w-7' : 'h-12 w-12'))
 const placeholderSizeClass = computed(() => (props.size === 'sm' ? 'h-5 w-5' : 'h-8 w-8'))
 
-// selectionVersion invalidates file and decoder callbacks after selection, removal, or teardown.
+// selectionVersion invalidates callbacks when selection or parent-owned editing state
+// changes, including reloads that restore the same value while controls are disabled.
 let selectionVersion = 0
+// Watch parent state synchronously so a queued decoder cannot publish into a draft
+// restored during discard. Disabled transitions also cover reloads with unchanged values.
+watch(
+  [() => props.modelValue, () => props.disabled],
+  () => {
+    selectionVersion += 1
+    error.value = ''
+  },
+  { flush: 'sync' },
+)
 onBeforeUnmount(() => {
   selectionVersion += 1
 })
 
-// removeImage clears the draft and invalidates any pending file or dimension reads.
+// removeImage clears the editable draft and invalidates pending file or dimension reads.
+// Disabled controls retain their current value, including when an event is dispatched
+// programmatically while the parent is restoring its saved form.
 function removeImage() {
+  if (props.disabled) return
   // Invalidate first so callbacks already queued by the browser cannot restore
   // the discarded image after this empty value reaches the parent draft.
   selectionVersion += 1
@@ -160,14 +190,14 @@ function removeImage() {
 // dimension failures produce local feedback while preserving the previous image.
 //
 // A generation captured before reading owns every callback from that selection.
-// Later selections, removals, and teardown advance the counter, so completed reads
+// Later selections, removals, parent resets, and teardown advance the counter, so reads
 // cannot publish outdated content. Clearing the native input permits selecting the
 // same file again after either a validation failure or a successful draft update.
 function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file) return
+  if (!file || props.disabled) return
   const version = ++selectionVersion
   error.value = ''
   if (props.maxSize && file.size > props.maxSize) {
