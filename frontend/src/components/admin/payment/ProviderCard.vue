@@ -71,6 +71,7 @@
           @toggle="emit('toggleField', 'enabled')"
         />
         <ToggleSwitch
+          v-if="provider.provider_key !== 'epusdt'"
           :label="t('admin.settings.payment.refundEnabled')"
           :checked="provider.refund_enabled"
           :disabled="updating"
@@ -131,6 +132,7 @@ const PROVIDER_KEY_LABELS: Record<string, string> = {
   wxpay: 'admin.settings.payment.providerWxpay',
   stripe: 'admin.settings.payment.providerStripe',
   airwallex: 'admin.settings.payment.providerAirwallex',
+  epusdt: 'admin.settings.payment.providerEPUSDT',
 }
 
 // props supplies parent-owned records and presentation state consumed by this component
@@ -185,12 +187,12 @@ const selectedTypes = computed(() => {
   return Array.isArray(props.provider.supported_types) ? props.provider.supported_types : []
 })
 
-// displayTypes hides Stripe subtype controls because Stripe Dashboard owns Checkout
-// methods; other providers use the supplied choices.
+// displayTypes hides subtype controls for Stripe and the single GMPay checkout method.
+// Other providers expose their supplied method choices for administrator selection.
 const displayTypes = computed(() => {
-  // Stripe Dashboard controls the Checkout methods; suppress legacy subtype toggles even
-  // when older provider records still contain subtype selections.
-  if (props.provider.provider_key === 'stripe') {
+  // Stripe controls its methods in its dashboard, and GMPay has one hosted method.
+  // Suppress subtype toggles so a single-method instance cannot lose its required selection.
+  if (props.provider.provider_key === 'stripe' || props.provider.provider_key === 'epusdt') {
     return []
   }
   return props.availableTypes

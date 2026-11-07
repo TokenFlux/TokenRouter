@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Payment route registration exposes purchase/recovery endpoints while
+// routes_test.go verifies purchase, recovery, and provider callback registration while
 // omitting an AI-channel listing. The fixture supplies empty handlers and
 // pass-through guards, then inspects Gin's registered route table; it checks
 // endpoint presence rather than invoking authentication or payment operations.
@@ -19,8 +19,8 @@ type routePlansStub struct{}
 
 // TestPaymentRoutesDoNotExposeAIChannels registers payment handlers with
 // pass-through guards and inspects Gin's route table. It requires
-// checkout-info, force-expire and draft-provider test routes while the payment
-// channels route remains absent.
+// checkout-info, force-expire and draft-provider test routes. EPUSDT EPay accepts
+// GET and POST callbacks, and the payment channels route remains absent.
 func TestPaymentRoutesDoNotExposeAIChannels(t *testing.T) {
 	router := gin.New()
 	passThrough := func(c *gin.Context) { c.Next() }
@@ -39,6 +39,8 @@ func TestPaymentRoutesDoNotExposeAIChannels(t *testing.T) {
 		registered[route.Method+" "+route.Path] = true
 	}
 
+	require.True(t, registered[http.MethodPost+" /api/v1/payment/webhook/epusdt"])
+	require.True(t, registered[http.MethodGet+" /api/v1/payment/webhook/epusdt"])
 	require.False(t, registered[http.MethodGet+" /api/v1/payment/channels"])
 	require.True(t, registered[http.MethodGet+" /api/v1/payment/checkout-info"])
 	require.True(t, registered[http.MethodPost+" /api/v1/admin/payment/orders/:id/force-expire"])

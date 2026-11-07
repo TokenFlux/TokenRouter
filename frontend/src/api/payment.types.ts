@@ -41,6 +41,7 @@ export type PaymentType =
   | 'card'
   | 'link'
   | 'airwallex'
+  | 'epusdt'
 
 // OrderType distinguishes a wallet recharge from a subscription plan purchase.
 export type OrderType = 'balance' | 'subscription'

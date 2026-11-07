@@ -729,3 +729,25 @@ describe('readPaymentRecoverySnapshot', () => {
     expect(restored?.paymentEnv).toBe('')
   })
 })
+
+// GMPay supplies an opaque cashier URL and a hosted checkout mode. Desktop and mobile
+// launch decisions retain the merchant order and fiat amount for payment recovery.
+it('launches EPUSDT hosted checkout and retains fiat recovery data', () => {
+  for (const isMobile of [false, true]) {
+    const decision = decidePaymentLaunch(
+      createOrderResult({
+        payment_type: 'epusdt',
+        payment_mode: 'popup',
+        pay_url: 'https://pay.example/cashier/trade',
+        currency: 'CNY',
+        out_trade_no: 'tr_merchant',
+      }),
+      { visibleMethod: 'epusdt', orderType: 'balance', isMobile },
+    )
+    expect(decision.kind).toBe('redirect_waiting')
+    expect(decision.recovery.paymentType).toBe('epusdt')
+    expect(decision.recovery.outTradeNo).toBe('tr_merchant')
+    expect(decision.recovery.currency).toBe('CNY')
+    expect(decision.recovery.payAmount).toBe(88)
+  }
+})

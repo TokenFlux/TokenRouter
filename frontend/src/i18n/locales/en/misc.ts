@@ -545,7 +545,24 @@ export default {
     actualPay: 'Actual Payment',
     orderSummary: 'Order summary',
     createOrder: 'Confirm Payment',
+    crypto: {
+      title: 'Pay with cryptocurrency',
+      hint: 'Choose a token and network at checkout, then transfer the displayed amount. Your purchase is fulfilled after payment confirmation.',
+      cashier: 'Go to checkout',
+      cashierNote: 'Confirm the token, network, and transfer amount at checkout.',
+      waiting: 'Complete payment at checkout',
+      waitingHint: 'Return here after the transfer. Payment results update automatically.',
+      continue: 'Continue payment',
+      checkStatus: 'Check payment status',
+      confirmationHint:
+        'If you have transferred funds, keep your order number and transaction record. Wait for payment confirmation before making another transfer.',
+      expiredHint:
+        'If you have already transferred funds, contact support with your order number and transaction hash.',
+      creationUnconfirmed:
+        'Order creation is being checked. Please do not submit another order; check your order history for updates.',
+    },
     methods: {
+      epusdt: 'Cryptocurrency',
       easypay: 'EasyPay',
       alipay: 'Alipay',
       wxpay: 'WeChat Pay',
