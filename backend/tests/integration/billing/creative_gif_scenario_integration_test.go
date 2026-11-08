@@ -169,8 +169,11 @@ func TestCreativeGIFActualFramesSettlement(t *testing.T) {
 			require.Equal(t, test.actual, output.FrameCount)
 			if test.unitPrice > 0 && test.balanceRate == 0 {
 				// Earlier workers could capture extra frames at a zero wallet rate.
-				// Commit that original command before current recovery rebuilds its identity.
-				legacy, err := creative.BuildHoldCommand(run, creative.CreativeCaptureRequestID(run.RunID), float64(test.actual)*test.unitPrice)
+				// Reload their persisted snapshot: PostgreSQL stores microseconds, while
+				// the creation timestamp can retain nanoseconds in the caller's copy.
+				legacyRun, err := repo.GetCreativeRunByRunID(ctx, run.RunID)
+				require.NoError(t, err)
+				legacy, err := creative.BuildHoldCommand(legacyRun, creative.CreativeCaptureRequestID(run.RunID), float64(test.actual)*test.unitPrice)
 				require.NoError(t, err)
 				_, err = funding.Store.Capture(ctx, legacy)
 				require.NoError(t, err)
