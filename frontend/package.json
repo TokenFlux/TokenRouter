@@ -38,6 +38,7 @@
     "driver.js": "^1.4.0",
     "fabric": "^7.4.0",
     "file-saver": "^2.0.5",
+    "gifuct-js": "2.1.2",
     "lottie-web": "^5.13.0",
     "marked": "^17.0.1",
     "motion-v": "2.5.1",

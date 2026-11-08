@@ -96,7 +96,7 @@ export default {
     },
     canvas: {
       playGIF: '播放 GIF',
-      gifPreview: 'GIF 预览',
+      stopGIF: '停止播放 GIF',
       gifReadOnly: 'GIF 可预览和下载；编辑请使用静态图片。',
       brushSize: '画笔粗细',
       shapeRound: '圆头笔迹',
@@ -173,6 +173,7 @@ export default {
       skip: '跳过裁剪',
     },
     error: {
+      playGIFFailed: 'GIF 播放失败，请重试。',
       loadModelsFailed: '模型目录加载失败，请稍后重试。',
       noModel: '请先选择模型。',
       operationNotSupported: '所选模型不支持该操作。',

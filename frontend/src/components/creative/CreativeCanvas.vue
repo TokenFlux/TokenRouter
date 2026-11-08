@@ -7,6 +7,33 @@
     <canvas ref="canvasElRef"></canvas>
     <!-- Composite mask strokes on a separate layer so shared opacity is applied after overlaps, while pointer input continues to reach Fabric. -->
     <canvas ref="maskCanvasElRef" class="mask-overlay"></canvas>
+    <!-- Keys separate the centered play control from the corner stop control so one fades out in place while the other appears. -->
+    <MotionTransition name="canvas-gif-toggle">
+      <button
+        v-if="gifControlPosition"
+        :key="gifControlState === 'stop' ? 'corner' : 'center'"
+        type="button"
+        class="canvas-gif-toggle"
+        :class="gifControlState === 'stop' && 'canvas-gif-toggle-compact'"
+        :style="gifControlPosition"
+        :title="gifControlLabel"
+        :aria-label="gifControlLabel"
+        :aria-busy="gifControlState === 'loading'"
+        @pointerdown.stop
+        @click.stop="toggleSelectedGIF"
+      >
+        <span v-if="gifControlState === 'loading'" class="spinner" aria-hidden="true"></span>
+        <Icon
+          v-else-if="gifControlState === 'play'"
+          name="play"
+          size="lg"
+          fill="currentColor"
+          class="canvas-gif-play-icon"
+          :animate-on-hover="false"
+        />
+        <Icon v-else name="square" size="xs" fill="currentColor" :animate-on-hover="false" />
+      </button>
+    </MotionTransition>
     <div
       v-if="dropTargetActive"
       class="pointer-events-none absolute inset-2 z-[2] rounded-surface border-2 border-dashed border-primary-500/70 bg-primary-500/5"
@@ -44,15 +71,6 @@
         <Icon name="download" size="sm" />
       </button>
 
-      <button
-        v-if="selectedImage && objectData(selectedImage).animatedGIF"
-        type="button"
-        class="canvas-tool-btn"
-        :title="t('creative.canvas.playGIF')"
-        :aria-label="t('creative.canvas.playGIF')"
-        @click="previewSelectedGIF"
-        >GIF ▷</button
-      >
       <span class="canvas-tool-divider"></span>
       <button
         type="button"
@@ -143,19 +161,6 @@
       </button>
     </div>
 
-    <BaseDialog
-      :show="!!gifPreviewURL"
-      :title="t('creative.canvas.gifPreview')"
-      width="wide"
-      @close="closeGIFPreview"
-    >
-      <img
-        v-if="gifPreviewURL"
-        :src="gifPreviewURL"
-        :alt="t('creative.canvas.gifPreview')"
-        class="max-h-[70vh] w-full object-contain"
-      />
-    </BaseDialog>
     <CropperModal
       :show="cropQueue.length > 0"
       :blob="cropQueue[0] ?? null"
@@ -168,7 +173,6 @@
 
 <script setup lang="ts">
 import MotionTransition from '@/components/common/MotionTransition.vue'
-import BaseDialog from '@/components/common/BaseDialog.vue'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
@@ -185,6 +189,7 @@ import {
   type TMat2D,
 } from 'fabric'
 import { SquarePencilBrush } from './SquarePencilBrush'
+import type { GIFPlayback } from './gifPlayback'
 import Icon from '@/components/icons/Icon.vue'
 import CropperModal from './CropperModal.vue'
 import type { CreativeOperation } from '@/api/creative'
@@ -218,7 +223,9 @@ import {
  * into transparent PNG pixels. Scene revisions serialize snapshot writes,
  * restoration generations reject stale recovery work, and unmount removes
  * listeners and disposes both canvases. These responsibilities share the same
- * image identity and lifetime state.
+ * image identity and lifetime state. Selected GIFs replace their poster with a
+ * decoded frame canvas during playback, preserving Fabric transforms and scene
+ * stacking. Playback ends on deselection, removal, page hiding, or disposal.
  */
 
 /**
@@ -660,8 +667,33 @@ const brushShape = ref<BrushShape>('round')
  * inpaintAnchor retains the target image.
  */
 const selectedImage = shallowRef<FabricObject | null>(null)
-/** The preview owns one original-animation URL, released on closure or disposal. */
-const gifPreviewURL = ref('')
+/**
+ * GIF playback belongs to the selected image. The generation invalidates pending
+ * asset reads, while the poster restores the persistent image before releasing
+ * its temporary frame canvas. Control position follows Fabric's rendered scene.
+ */
+const gifPlaybackTarget = shallowRef<FabricImage | null>(null)
+const gifPlaybackLoading = ref(false)
+const gifControlPosition = ref<{
+  left: string // horizontal viewport CSS pixels
+  top: string // vertical viewport CSS pixels
+} | null>(null)
+let gifPlayback: GIFPlayback | null = null
+let gifPoster: ReturnType<FabricImage['getElement']> | null = null
+let gifPlaybackGeneration = 0
+/**
+ * gifControlState selects the playback control's icon and placement. Loading
+ * keeps the spinner at the clicked center; only a published player moves the
+ * compact stop control to the image's upper-left corner.
+ */
+const gifControlState = computed<'play' | 'loading' | 'stop'>(() => {
+  if (!gifPlaybackTarget.value) return 'play'
+  return gifPlaybackLoading.value ? 'loading' : 'stop'
+})
+/** gifControlLabel names the action a click performs: start, or cancel and stop. */
+const gifControlLabel = computed(() =>
+  t(gifControlState.value === 'play' ? 'creative.canvas.playGIF' : 'creative.canvas.stopGIF'),
+)
 /**
  * selectedObjectCount enables removal for grouped selections as well as a
  * single selected image object.
@@ -892,7 +924,7 @@ onMounted(() => {
  * resources; flush only a restored, dirty scene to protect the stored snapshot.
  */
 onBeforeUnmount(() => {
-  closeGIFPreview()
+  stopGIFPlayback()
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('pagehide', onPageHide)
   document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -1059,6 +1091,7 @@ function onDrop(event: DragEvent): void {
  */
 function bindCanvasEvents(): void {
   if (!canvas) return
+  canvas.on('after:render', syncGIFControlPosition)
   canvas.on('mouse:down', (event) => {
     if (!canvas) return
     if (painting.value) {
@@ -1159,6 +1192,7 @@ function bindCanvasEvents(): void {
     refreshResolutionTag(selectedImage.value instanceof FabricImage ? selectedImage.value : null)
   })
   canvas.on('object:removed', (event) => {
+    if (event.target === gifPlaybackTarget.value) stopGIFPlayback()
     if (event.target && inpaintAnchor.value === event.target) {
       inpaintAnchor.value = null
     }
@@ -1430,21 +1464,22 @@ function onCanvasTouchCancel(event: TouchEvent): void {
 }
 
 /**
- * onPageHide starts a best-effort flush of the latest dirty scene snapshot.
+ * onPageHide stops playback and flushes the latest dirty scene snapshot.
  * Browser shutdown may interrupt asynchronous IndexedDB work, so this callback
  * starts the write before normal debounce delay.
  */
 function onPageHide(): void {
+  stopGIFPlayback()
   flushSceneSave()
 }
 
 /**
  * onVisibilityChange flushes scene changes when the document becomes hidden.
  * Visible transitions keep the debounce schedule, while hidden transitions
- * reuse the same best-effort persistence path as pagehide.
+ * stop GIF playback and reuse the same best-effort persistence path as pagehide.
  */
 function onVisibilityChange(): void {
-  if (document.visibilityState === 'hidden') flushSceneSave()
+  if (document.visibilityState === 'hidden') onPageHide()
 }
 
 /**
@@ -2705,6 +2740,7 @@ async function downloadSelected(): Promise<void> {
  */
 function resetCanvas(): void {
   if (!canvas) return
+  stopGIFPlayback()
   /**
    * Invalidate recovery before clearing scene state, so pending reads fail their
    * generation check when they resume after the user reset.
@@ -3025,24 +3061,132 @@ async function canvasImagePoster(blob: Blob): Promise<Blob> {
   }
 }
 
-/** closeGIFPreview releases its animation URL and closes the preview dialog. */
-function closeGIFPreview(): void {
-  if (gifPreviewURL.value) URL.revokeObjectURL(gifPreviewURL.value)
-  gifPreviewURL.value = ''
+/**
+ * syncGIFControlPosition anchors playback controls inside the selected GIF.
+ * The play button and loading spinner sit at its center; once frames play, the
+ * compact stop button moves inward from its upper-left corner, where it covers
+ * less of the animation. Scene and viewport transforms keep the
+ * control attached while objects rotate, scale, or move and the canvas pans.
+ * Its hit area stays fixed in screen pixels and its icon remains upright.
+ * Smaller images clamp the inset at their center so the control stays anchored
+ * to the image instead of an unrelated point in the workspace.
+ */
+function syncGIFControlPosition(): void {
+  const selected = selectedImage.value
+  if (!canvas || !(selected instanceof FabricImage) || !objectData(selected).animatedGIF) {
+    gifControlPosition.value = null
+    return
+  }
+  const matrix = selected.calcTransformMatrix()
+  let position = new Point(0, 0)
+  if (gifPlaybackTarget.value === selected && gifControlState.value === 'stop') {
+    // Keep the 32px stop button's center 28 screen pixels inside each image edge,
+    // leaving a 12px gap; smaller images clamp those insets at their center.
+    const insetX = Math.min(
+      selected.width / 2,
+      28 / (Math.hypot(matrix[0], matrix[1]) * canvas.getZoom()),
+    )
+    const insetY = Math.min(
+      selected.height / 2,
+      28 / (Math.hypot(matrix[2], matrix[3]) * canvas.getZoom()),
+    )
+    position = new Point(-selected.width / 2 + insetX, -selected.height / 2 + insetY)
+  }
+  position = position.transform(matrix).transform(canvas.viewportTransform)
+  gifControlPosition.value = { left: `${position.x}px`, top: `${position.y}px` }
 }
 
 /**
- * previewSelectedGIF opens the selected animation from its original stored bytes.
- * A selection change or disposal during loading cancels publication, preventing
- * an outdated image from opening after the user has moved to another asset.
+ * stopGIFPlayback invalidates pending loads and restores the selected poster.
+ * Restoring the element precedes buffer disposal so Fabric never references a
+ * released canvas. Repeated calls also cancel a load that has not published a
+ * player yet, and leave original asset bytes untouched.
+ *
+ * Pending decoders compare their captured generation before installing a frame
+ * surface. Invalidating that generation first prevents a late load from
+ * restarting playback after cleanup or replacing the next selected image.
  */
-async function previewSelectedGIF(): Promise<void> {
-  const selected = selectedImage.value
-  const blob = await getSelectedImageBlob()
-  if (sceneDisposed || selectedImage.value !== selected || blob?.type !== 'image/gif') return
-  closeGIFPreview()
-  gifPreviewURL.value = URL.createObjectURL(blob)
+function stopGIFPlayback(): void {
+  gifPlaybackGeneration++
+  const target = gifPlaybackTarget.value
+  if (target && gifPoster) {
+    target.setElement(gifPoster)
+    target.dirty = true
+  }
+  gifPlayback?.dispose()
+  gifPlayback = null
+  gifPoster = null
+  gifPlaybackTarget.value = null
+  gifPlaybackLoading.value = false
+  syncGIFControlPosition()
+  canvas?.requestRenderAll()
 }
+
+/**
+ * toggleSelectedGIF plays original GIF frames on the existing Fabric image.
+ * A second click stops either loading or playback. Selection changes, reset,
+ * hiding, and unmount invalidate the captured generation before publishing a
+ * decoded player, so obsolete work cannot replace another image's poster.
+ *
+ * Only the image element changes: its geometry, stacking, and asset metadata
+ * remain owned by the scene. Each frame marks the image dirty and requests a
+ * render; failures restore the poster and report a localized playback error.
+ */
+async function toggleSelectedGIF(): Promise<void> {
+  if (gifPlaybackTarget.value) {
+    stopGIFPlayback()
+    return
+  }
+  const selected = selectedImage.value
+  if (!(selected instanceof FabricImage) || !objectData(selected).animatedGIF) return
+  const generation = ++gifPlaybackGeneration
+  gifPlaybackTarget.value = selected
+  gifPlaybackLoading.value = true
+  syncGIFControlPosition()
+  try {
+    const blob = await getSelectedImageBlob()
+    if (!blob || blob.type !== 'image/gif') throw new Error('GIF asset unavailable')
+    const { createGIFPlayback } = await import('./gifPlayback')
+    const player = await createGIFPlayback(
+      blob,
+      () => {
+        selected.dirty = true
+        canvas?.requestRenderAll()
+      },
+      () => {
+        stopGIFPlayback()
+        emit('error', t('creative.error.playGIFFailed'))
+      },
+    )
+    if (sceneDisposed || generation !== gifPlaybackGeneration || selectedImage.value !== selected) {
+      // A newer selection owns the scene now. Release the unpublished player
+      // without changing that selection or installing the stale animation surface.
+      player.dispose()
+      return
+    }
+    gifPoster = selected.getElement()
+    gifPlayback = player
+    selected.setElement(player.surface)
+    gifPlaybackLoading.value = false
+    // Fabric renders the first frame on a later animation frame. Syncing now keeps
+    // the compact stop button from entering at the old center position meanwhile.
+    syncGIFControlPosition()
+    player.start()
+  } catch {
+    if (generation !== gifPlaybackGeneration) return
+    stopGIFPlayback()
+    emit('error', t('creative.error.playGIFFailed'))
+  }
+}
+
+/**
+ * A selected animation owns playback resources; changing selection restores its
+ * poster before the new image can start loading or receive playback controls.
+ */
+watch(selectedImage, () => {
+  if (gifPlaybackTarget.value && gifPlaybackTarget.value !== selectedImage.value) stopGIFPlayback()
+  syncGIFControlPosition()
+})
 </script>
 
 <style scoped>
@@ -3085,6 +3229,56 @@ async function previewSelectedGIF(): Promise<void> {
 
 .canvas-toolbar .canvas-tool-btn {
   border-radius: 9999px;
+}
+
+/*
+ * GIF playback controls sit on image pixels rather than workspace chrome, so both
+ * themes use a dark media scrim with a white glyph and a faint light edge. The
+ * standalone translate property centers the button on synchronized coordinates,
+ * leaving scale free for hover, press, and enter or leave transitions.
+ */
+.canvas-gif-toggle {
+  @apply absolute inline-flex h-14 w-14 items-center justify-center rounded-full;
+  @apply bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500;
+  z-index: 2; /* check-ui-allow: Canvas-local playback control stacking. */
+  translate: -50% -50%;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    scale var(--motion-fast) var(--motion-ease);
+}
+
+.canvas-gif-toggle:hover {
+  @apply bg-black/70;
+  scale: 1.06;
+}
+
+.canvas-gif-toggle:active {
+  scale: 0.96;
+}
+
+/* During playback the stop control shrinks so it covers less of the animation. */
+.canvas-gif-toggle-compact {
+  @apply h-8 w-8;
+}
+
+/* The play triangle's visual mass sits left of its box, so it shifts right by 2px. */
+.canvas-gif-play-icon {
+  @apply translate-x-0.5;
+}
+
+/* Switching between play and stop cross-fades the two buttons while each scales from 80%. */
+.canvas-gif-toggle-enter-active,
+.canvas-gif-toggle-leave-active {
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    scale var(--motion-fast) var(--motion-ease);
+}
+
+.canvas-gif-toggle-enter-from,
+.canvas-gif-toggle-leave-to {
+  opacity: 0;
+  scale: 0.8;
 }
 
 /* Pointer events pass through to Fabric while whole-layer opacity keeps overlapping mask strokes at the same visible intensity. */

@@ -99,7 +99,7 @@ export default {
     },
     canvas: {
       playGIF: 'Play GIF',
-      gifPreview: 'GIF preview',
+      stopGIF: 'Stop GIF',
       gifReadOnly: 'GIF outputs can be previewed and downloaded. Use a still image for editing.',
       brushSize: 'Brush size',
       shapeRound: 'Round stroke',
@@ -176,6 +176,7 @@ export default {
       skip: 'Skip cropping',
     },
     error: {
+      playGIFFailed: 'Could not play this GIF. Please try again.',
       loadModelsFailed: 'Failed to load creative models. Please try again later.',
       noModel: 'Please select a model first.',
       operationNotSupported: 'The selected model does not support this operation.',
