@@ -44,6 +44,8 @@ import {
  * carries selection in its return URL, and its resume query is removed before
  * another create request. Mobile gateway failures can create a desktop QR order;
  * only a QR reply becomes the displayed recovery state for that attempt.
+ * Unconfirmed GMPay creation keeps the committed order in the waiting panel
+ * with no cashier link until its signed callback resolves payment.
  */
 
 /** CheckoutInputs supplies reactive selection and billing data owned by the page. */
@@ -562,6 +564,31 @@ export function usePaymentCheckout(inputs: CheckoutInputs) {
         const metadata = apiErr.metadata as Record<string, unknown> | undefined
         errorMessage.value = t('payment.errors.tooManyPending', { max: metadata?.max || '' })
         errorHintMessage.value = ''
+      } else if (apiErr.reason === 'PAYMENT_CREATE_UNCONFIRMED') {
+        const metadata = apiErr.metadata as Record<string, unknown> | undefined
+        const orderId = Number(metadata?.order_id)
+        errorMessage.value = t('payment.crypto.creationUnconfirmed')
+        errorHintMessage.value = ''
+        if (Number.isSafeInteger(orderId) && orderId > 0) {
+          // An uncertain gateway reply still names a committed local order. Enter its
+          // waiting panel instead of submitting another checkout for the same purchase.
+          paymentState.value = {
+            ...emptyPaymentState(),
+            orderId,
+            amount: Number(metadata?.amount) || orderAmount,
+            payAmount: Number(metadata?.pay_amount) || orderAmount,
+            currency: String(metadata?.currency || ''),
+            outTradeNo: String(metadata?.out_trade_no || ''),
+            expiresAt: String(metadata?.expires_at || ''),
+            paymentType: 'epusdt',
+            orderType,
+            paymentMode: 'popup',
+            createdAt: Date.now(),
+          }
+          persistRecoverySnapshot(paymentState.value)
+          paymentPhase.value = 'paying'
+          return
+        }
       } else if (apiErr.reason === 'CANCEL_RATE_LIMITED') {
         errorMessage.value = t('payment.errors.cancelRateLimited')
         errorHintMessage.value = ''

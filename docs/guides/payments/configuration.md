@@ -1,6 +1,6 @@
 # 支付系统配置指南
 
-TokenRouter 内置支付系统，支持用户自助充值、购买套餐和发放订阅权益，不需要另外部署支付服务。其他管理员手册见[指南目录](../index.md)；订单状态机和结算规则见[支付与权益 Project Doc](../../domains/payments_and_entitlements.md)。
+TokenRouter 内置支付系统，支持用户自助充值、购买套餐和发放订阅权益。使用 EPUSDT / GMPay（EPay 协议）时，需要部署对应的收款网关。其他管理员手册见[指南目录](../index.md)；订单状态机和结算规则见[支付与权益 Project Doc](../../domains/payments_and_entitlements.md)。
 
 ## 目录
 
@@ -22,6 +22,7 @@ TokenRouter 内置支付系统，支持用户自助充值、购买套餐和发�
 | 支付宝官方 | 桌面二维码扫码、移动端跳转支付宝或当面付唤起 | 直接对接支付宝开放平台；移动端默认使用手机网站支付（WAP），也可以选择当面付二维码唤起支付宝 |
 | 微信官方 | Native 扫码、H5、公众号和 JSAPI 支付 | 直接对接微信支付 APIv3，按终端环境自动选择 |
 | Stripe | 银行卡、支付宝、微信支付、Link 等 | 国际支付，支持多币种 |
+| EPUSDT / GMPay（EPay 协议） | 加密货币 | 通过独立部署的 epusdt 收银台选择币种和网络，支持 CNY / USD 计价 |
 | Airwallex（空中云汇） | Airwallex 托管收银台支持的支付方式 | 国际支付，支持测试和生产 API、多币种和可选的平台提供商 |
 
 支付宝官方、微信官方和易支付可以同时作为后台的服务商实例存在，但前台只展示"支付宝"和"微信支付"两个按钮。管理员需要为每个按钮选择一个支付来源：官方或易支付。官方渠道直接对接 API，资金直接进入商户账户，手续费较低；易支付通过第三方平台聚合，接入门槛较低。
@@ -164,6 +165,24 @@ TokenRouter 内置支付系统，支持用户自助充值、购买套餐和发�
 | 币种 | 三位的支付币种代码，例如 `CNY`、`USD` | 是 |
 | Provider ID | 平台提供商或被授权提供商的 ID | 否 |
 
+### EPUSDT / GMPay（EPay 协议）
+
+本接入使用 [EPay（易支付）兼容协议](https://epusdt.com/zh/guide/integration/epay.html)，签名算法为 MD5。EPUSDT / GMPay 需提供 `/payments/epay/v1/order/create-transaction/submit.php` 及收银台状态接口。先在 epusdt 后台配置收款钱包、对应链和节点，并准备商户 API Key 的 PID 与密钥。在 TokenRouter 支付设置中启用加密货币渠道，添加 EPUSDT / GMPay（EPay 协议）实例。
+
+| 字段 | 说明 |
+| --- | --- |
+| API 基础地址 | epusdt 的 HTTPS 地址，例如 `https://pay.example.com` |
+| PID | 商户 API Key 的 PID |
+| Secret Key | 同一商户 API Key 的签名密钥 |
+| 支付币种 | CNY 或 USD，默认 CNY；表示订单的法币价格 |
+| 异步通知地址 | TokenRouter 的 `/api/v1/payment/webhook/epusdt` 公网 HTTPS 地址 |
+
+用户在购买页选择加密货币后，前往 epusdt 收银台选择币种和网络。链上转账数量以收银台为准，TokenRouter 根据原订单发放余额或订阅。自动退款不开放。
+
+下单提示结果正在核实时，先查看已有订单。上游交易号未保存时，自动查单无法按商户订单号恢复，请等待回调或到 epusdt 后台核实后处理。
+
+网关明确返回验签或已知的配置、参数校验错误时，本地订单会标为失败，可修正实例配置后重新下单。商品名称中的 `&` 和 `=` 仅在传给网关时改为全角字符，本地仍显示原名称。
+
 ## 服务商实例管理
 
 同一种服务商可以创建多个实例，用于分流和风控：
@@ -199,6 +218,7 @@ TokenRouter 内置支付系统，支持用户自助充值、购买套餐和发�
 | 支付宝官方 | `https://your-domain.com/api/v1/payment/webhook/alipay` |
 | 微信官方 | `https://your-domain.com/api/v1/payment/webhook/wxpay` |
 | Stripe | `https://your-domain.com/api/v1/payment/webhook/stripe` |
+| EPUSDT / GMPay（EPay 协议） | `https://your-domain.com/api/v1/payment/webhook/epusdt` |
 | Airwallex | `https://your-domain.com/api/v1/payment/webhook/airwallex` |
 
 把 `your-domain.com` 换成实际的域名。EasyPay、支付宝和微信的回调地址，在添加服务商时自动填入，不需要手动配置。

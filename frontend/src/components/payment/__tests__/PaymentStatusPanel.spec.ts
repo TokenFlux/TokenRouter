@@ -78,6 +78,53 @@ const orderFactory = (status: string) => ({
 })
 
 describe('PaymentStatusPanel', () => {
+  // A GMPay order remains pending after checkout opens and after a manual status check.
+  // The panel shows cashier guidance and emits success only after a confirmed server result.
+  it('keeps cryptocurrency payment pending while showing cashier and recovery actions', async () => {
+    pollOrderStatus.mockResolvedValue({ ...orderFactory('PENDING'), payment_type: 'epusdt' })
+    verifyOrder.mockResolvedValue({ data: { ...orderFactory('PENDING'), payment_type: 'epusdt' } })
+    const wrapper = mount(PaymentStatusPanel, {
+      props: {
+        orderId: 42,
+        outTradeNo: 'tr_fixture',
+        paymentType: 'epusdt',
+        payUrl: 'https://pay.example/cashier/trade',
+        expiresAt: '2099-01-01T12:30:00Z',
+        payAmount: 100,
+        currency: 'CNY',
+      },
+      global: { stubs: { Icon: true } },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('payment.crypto.waiting')
+    expect(wrapper.text()).toContain('payment.crypto.confirmationHint')
+    const check = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'payment.crypto.checkStatus')
+    expect(check).toBeDefined()
+    await check!.trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('success')).toBeUndefined()
+    expect(pollOrderStatus).toHaveBeenCalledWith(42)
+    wrapper.unmount()
+  })
+
+  // An unconfirmed creation response can retain an order without a usable cashier URL.
+  // The waiting panel offers status checks and avoids presenting an invented payment destination.
+  it('shows pending creation recovery without a cashier link', async () => {
+    pollOrderStatus.mockResolvedValue({ ...orderFactory('PENDING'), payment_type: 'epusdt' })
+    verifyOrder.mockResolvedValue({ data: { ...orderFactory('PENDING'), payment_type: 'epusdt' } })
+    const wrapper = mount(PaymentStatusPanel, {
+      props: { orderId: 42, paymentType: 'epusdt', expiresAt: '2099-01-01T12:30:00Z' },
+      global: { stubs: { Icon: true } },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('payment.crypto.creationUnconfirmed')
+    expect(wrapper.text()).not.toContain('payment.crypto.continue')
+    expect(wrapper.emitted('success')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   beforeEach(() => {
     vi.useFakeTimers()
     pollOrderStatus.mockReset()

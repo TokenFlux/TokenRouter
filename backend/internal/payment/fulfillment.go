@@ -17,7 +17,7 @@ import (
 // repeatable balance or subscription delivery.
 // Verified provider progress can arrive repeatedly or after a local pending
 // order was closed. Notification handling first resolves merchant identity and
-// checks saved provider metadata and EasyPay transaction identity, then
+// checks saved provider metadata and EasyPay/EPUSDT EPay transaction identity, then
 // conditionally records payment state and resumes entitlement work. Only Stripe failure
 // notifications select the terminal payment-failure transition; other failure
 // callbacks are ignored before lookup.
@@ -179,10 +179,10 @@ func ParseLegacyPaymentOrderID(orderID string, notFound bool) (int64, bool) {
 // ordinary audit before returning. Snapshot metadata validation separately has
 // its own absent/unrecognized-key rules and is not implied by a successful key
 // comparison. The caller retains signature verification ownership before this
-// order association stage. EasyPay observations must retain an existing
-// transaction number, because that reference also identifies later refunds.
+// order association stage. EasyPay and EPUSDT EPay observations must retain a saved
+// transaction number so another external payment cannot replace that binding.
 func (s *Fulfillment) ValidatePaymentNotificationOrder(ctx context.Context, o *Order, pk, tradeNo string, metadata map[string]string) error {
-	if err := validateEasyPayTradeNumber(o, pk, tradeNo); err != nil {
+	if err := validatePaymentTradeNumber(o, pk, tradeNo); err != nil {
 		return err
 	}
 	instanceProviderKey := ""
@@ -211,13 +211,13 @@ func (s *Fulfillment) ValidatePaymentNotificationOrder(ctx context.Context, o *O
 	return nil
 }
 
-// validateEasyPayTradeNumber checks a reported EasyPay transaction against a
+// validatePaymentTradeNumber checks EasyPay and EPUSDT EPay observations against a
 // previously stored nonempty reference. Other adapters retain their own
 // reference rules, including Stripe's session, invoice and intent transitions.
-func validateEasyPayTradeNumber(order *Order, providerKey, tradeNo string) error {
-	if GetBasePaymentType(providerKey) == TypeEasyPay && order.PaymentTradeNo != "" &&
+func validatePaymentTradeNumber(order *Order, providerKey, tradeNo string) error {
+	if (GetBasePaymentType(providerKey) == TypeEasyPay || providerKey == TypeEPUSDT) && order.PaymentTradeNo != "" &&
 		order.PaymentTradeNo != tradeNo {
-		return fmt.Errorf("easypay transaction number conflicts with the stored order")
+		return fmt.Errorf("%s transaction number conflicts with the stored order", providerKey)
 	}
 	return nil
 }
@@ -409,7 +409,7 @@ func (s *Fulfillment) ToPaid(ctx context.Context, o *Order, tradeNo string, paid
 	// late success, while already paid/granted states follow their continuation
 	// path.
 	for range 5 {
-		if err := validateEasyPayTradeNumber(o, pk, tradeNo); err != nil {
+		if err := validatePaymentTradeNumber(o, pk, tradeNo); err != nil {
 			return err
 		}
 		previousStatus := o.Status

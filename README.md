@@ -54,7 +54,7 @@ Visit the service officially operated by TokenFlux at [tokenflux.com](https://to
 | Upstream platforms | Connect Anthropic, OpenAI, Gemini, Antigravity, Grok, Qoder, Kimi, Zhipu, and DeepSeek through OAuth accounts, API keys, AWS Bedrock, or Vertex AI |
 | Routing and retries | Pick an upstream by model, protocol support, rate limit state, and sticky sessions, and move to the next one when an upstream fails |
 | Access control | Manage users, teams, groups, and API key quotas, concurrency, and RPM limits. Sign in with email and password, passkeys, two-factor authentication, GitHub, Google, LinuxDo, OIDC, WeChat, or DingTalk |
-| Billing and payments | Charge by usage, with balance, subscription plans, quota packs, redeem codes, and referral rebates. Built-in payments support EasyPay, Alipay, WeChat Pay, Stripe, and Airwallex |
+| Billing and payments | Charge by usage, with balance, subscription plans, quota packs, redeem codes, and referral rebates. Built-in payments support EasyPay, Alipay, WeChat Pay, Stripe, Airwallex, and EPUSDT (EPay protocol) |
 | Content moderation | Block requests with keyword and hash rules, and ban offending users automatically |
 | Admin dashboard | Browse usage logs and statistics, set up alerts and email reports, and upgrade or roll back online. The creative studio generates and edits images in the browser. The UI is available in Simplified Chinese and English |
 | Plugins | Add user and admin pages, HTTP APIs, and scheduled tasks. Install, configure, update, and roll back plugins from the admin dashboard |

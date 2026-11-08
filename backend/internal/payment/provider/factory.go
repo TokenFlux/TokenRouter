@@ -8,7 +8,7 @@ import (
 
 // factory.go constructs the payment adapter selected by a persisted provider
 // key.
-// Persisted payment instances identify one of five provider adapters by an
+// Persisted payment instances identify a supported provider adapter by an
 // exact key. Construction delegates credential validation and configuration
 // ownership to that adapter, so callers receive its concrete provider or the
 // error from its initialization checks.
@@ -19,6 +19,8 @@ import (
 // unknown key returns an error.
 func CreateProvider(providerKey string, instanceID string, config map[string]string) (payment.Provider, error) {
 	switch providerKey {
+	case payment.TypeEPUSDT:
+		return NewEPUSDT(instanceID, config)
 	case payment.TypeEasyPay:
 		return NewEasyPay(instanceID, config)
 	case payment.TypeAlipay:

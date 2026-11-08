@@ -12,6 +12,7 @@ export const METHOD_ORDER = [
   'wxpay_direct',
   'stripe',
   'airwallex',
+  'epusdt',
 ] as const
 
 /**

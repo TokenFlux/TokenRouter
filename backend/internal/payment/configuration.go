@@ -636,16 +636,16 @@ func ConfigValidateMethodFeeSettings(settings MethodFeeSettings) error {
 	return nil
 }
 
-// ConfigIsSupportedMethodFeeMethod reports normalized Stripe, Alipay or WeChat
+// ConfigIsSupportedMethodFeeMethod reports Stripe, Alipay, WeChat or GMPay
 // fee method identity. Internal EasyPay source labels and other normalized
 // methods return false, so overrides attach to visible checkout methods rather
 // than arbitrary provider keys.
 func ConfigIsSupportedMethodFeeMethod(method string) bool {
 	// Normalize visible method identity before checking fee support so historical
 	// direct aliases share their checkout override. Internal source labels still
-	// remain outside these three fee categories.
+	// remain outside the supported visible fee categories.
 	switch NormalizeVisibleMethod(method) {
-	case TypeStripe, TypeAlipay, TypeWxpay:
+	case TypeStripe, TypeAlipay, TypeWxpay, TypeEPUSDT:
 		return true
 	default:
 		return false

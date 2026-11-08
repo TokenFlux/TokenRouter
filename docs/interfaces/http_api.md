@@ -124,6 +124,8 @@ Markdown 正文需要 JWT，并且菜单可见；管理员页面只对管理员�
 <a id="payment_admin_recovery"></a>
 ## 支付管理恢复
 
+`GET/POST /api/v1/payment/webhook/epusdt` 接收 EPay（易支付）MD5 签名的 query 或 form，成功返回 HTTP 200 和纯文本 `success`。该路由通过商户验签、收银台付款查询和订单绑定授权。下单返回 `PAYMENT_CREATE_UNCONFIRMED`（503）时，`metadata` 提供 `order_id`、`out_trade_no`、`amount`、`pay_amount`、`currency` 和 `expires_at`，购买页使用它们继续查看已创建订单，规则见 [EPUSDT 加密货币支付（EPay 协议）](../domains/payments_and_entitlements.md#epusdt_payments)。
+
 支付、推广和 Promo 的路由分别绑定 `payment/httpapi` 和 `promotion/httpapi`。Webhook 按原始的 body、query 和 Header 验签。
 
 管理员可以用以下接口恢复支付订单，它们都经过管理员认证、面板限流和审计中间件：
