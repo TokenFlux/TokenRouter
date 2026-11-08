@@ -145,6 +145,11 @@ func ExpiresAt(v time.Time) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldExpiresAt, v))
 }
 
+// MaxTokenRateMultiplier applies equality check predicate on the "max_token_rate_multiplier" field. It's identical to MaxTokenRateMultiplierEQ.
+func MaxTokenRateMultiplier(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldMaxTokenRateMultiplier, v))
+}
+
 // ConcurrencyLimit applies equality check predicate on the "concurrency_limit" field. It's identical to ConcurrencyLimitEQ.
 func ConcurrencyLimit(v int) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldConcurrencyLimit, v))
@@ -1013,6 +1018,46 @@ func ExpiresAtIsNil() predicate.APIKey {
 // ExpiresAtNotNil applies the NotNil predicate on the "expires_at" field.
 func ExpiresAtNotNil() predicate.APIKey {
 	return predicate.APIKey(sql.FieldNotNull(FieldExpiresAt))
+}
+
+// MaxTokenRateMultiplierEQ applies the EQ predicate on the "max_token_rate_multiplier" field.
+func MaxTokenRateMultiplierEQ(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldMaxTokenRateMultiplier, v))
+}
+
+// MaxTokenRateMultiplierNEQ applies the NEQ predicate on the "max_token_rate_multiplier" field.
+func MaxTokenRateMultiplierNEQ(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldMaxTokenRateMultiplier, v))
+}
+
+// MaxTokenRateMultiplierIn applies the In predicate on the "max_token_rate_multiplier" field.
+func MaxTokenRateMultiplierIn(vs ...float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldMaxTokenRateMultiplier, vs...))
+}
+
+// MaxTokenRateMultiplierNotIn applies the NotIn predicate on the "max_token_rate_multiplier" field.
+func MaxTokenRateMultiplierNotIn(vs ...float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldMaxTokenRateMultiplier, vs...))
+}
+
+// MaxTokenRateMultiplierGT applies the GT predicate on the "max_token_rate_multiplier" field.
+func MaxTokenRateMultiplierGT(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldMaxTokenRateMultiplier, v))
+}
+
+// MaxTokenRateMultiplierGTE applies the GTE predicate on the "max_token_rate_multiplier" field.
+func MaxTokenRateMultiplierGTE(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldMaxTokenRateMultiplier, v))
+}
+
+// MaxTokenRateMultiplierLT applies the LT predicate on the "max_token_rate_multiplier" field.
+func MaxTokenRateMultiplierLT(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldMaxTokenRateMultiplier, v))
+}
+
+// MaxTokenRateMultiplierLTE applies the LTE predicate on the "max_token_rate_multiplier" field.
+func MaxTokenRateMultiplierLTE(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldMaxTokenRateMultiplier, v))
 }
 
 // ConcurrencyLimitEQ applies the EQ predicate on the "concurrency_limit" field.

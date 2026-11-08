@@ -68,6 +68,9 @@ type APIKeyAuthSnapshot struct {
 	Quota     float64    `json:"quota"`                // total USD allowance; zero unbounded
 	QuotaUsed float64    `json:"quota_used"`           // observed total USD spending
 	ExpiresAt *time.Time `json:"expires_at,omitempty"` // nil: no expiry
+	// MaxTokenRateMultiplier caps the effective group Token multiplier. Zero
+	// disables protection; positive values reject requests above the saved ceiling.
+	MaxTokenRateMultiplier float64 `json:"max_token_rate_multiplier"` // maximum effective Token multiplier
 	// ConcurrencyLimit and RPMLimit use zero to disable each request check
 	// independently. RateLimit5h, RateLimit1d and RateLimit7d configure USD
 	// spending allowances, with current window usage read separately during

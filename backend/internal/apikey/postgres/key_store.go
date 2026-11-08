@@ -247,6 +247,7 @@ func KeyCreateAPIKeyRecord(ctx context.Context, client *dbent.Client, key *keyco
 		SetQuota(key.Quota).
 		SetQuotaUsed(key.QuotaUsed).
 		SetNillableExpiresAt(key.ExpiresAt).
+		SetMaxTokenRateMultiplier(key.MaxTokenRateMultiplier).
 		SetConcurrencyLimit(key.ConcurrencyLimit).
 		SetRpmLimit(key.RPMLimit).
 		SetRateLimit5h(key.RateLimit5h).
@@ -432,6 +433,7 @@ func (r *KeyStore) GetByKeyForAuth(ctx context.Context, key string) (*keycore.AP
 			apikey.FieldQuota,
 			apikey.FieldQuotaUsed,
 			apikey.FieldExpiresAt,
+			apikey.FieldMaxTokenRateMultiplier,
 			apikey.FieldConcurrencyLimit,
 			apikey.FieldRpmLimit,
 			apikey.FieldRateLimit5h,
@@ -585,6 +587,9 @@ func (r *KeyStore) Update(ctx context.Context, key *keycore.APIKey, fields keyco
 	}
 	if fields.Quota {
 		builder.SetQuota(key.Quota)
+	}
+	if fields.MaxTokenRateMultiplier {
+		builder.SetMaxTokenRateMultiplier(key.MaxTokenRateMultiplier)
 	}
 	if fields.ConcurrencyLimit {
 		builder.SetConcurrencyLimit(key.ConcurrencyLimit)
@@ -1270,6 +1275,7 @@ func KeyApiKeyEntityToService(m *dbent.APIKey) *keycore.APIKey {
 		Quota:                        m.Quota,
 		QuotaUsed:                    m.QuotaUsed,
 		ExpiresAt:                    m.ExpiresAt,
+		MaxTokenRateMultiplier:       m.MaxTokenRateMultiplier,
 		ConcurrencyLimit:             m.ConcurrencyLimit,
 		RPMLimit:                     m.RpmLimit,
 		RateLimit5h:                  m.RateLimit5h,

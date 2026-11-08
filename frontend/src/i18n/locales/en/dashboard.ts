@@ -395,6 +395,13 @@ export default {
     rateLimitColumn: 'Rate Limit',
     concurrencyLimit: 'Concurrency limit',
     rpmLimit: 'Requests per minute (RPM)',
+    tokenRateLimit: 'Token multiplier limit',
+    tokenRateLimitHint:
+      'Enabling protection fills the current group multiplier. You can edit the limit or turn protection off.',
+    tokenRateLimitCurrentHint:
+      'The highest current group Token multiplier is {rate}x. When protection is enabled, requests above the limit are rejected.',
+    tokenRateLimitInvalid:
+      'When protection is enabled, the Token multiplier limit must be finite, positive, and below 1000000000000',
     requestLimitsInvalid: 'Request limits must be integers between 0 and 2147483647',
     requestLimitsHint:
       '0 means no limit for this key. User and group limits still apply. RPM counts requests admitted to the gateway in the last 60 seconds.',

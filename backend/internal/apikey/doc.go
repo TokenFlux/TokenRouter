@@ -9,7 +9,8 @@
 // auth_cache*.go handles versioned snapshots, local caching, subscriptions and
 // durable outbox delivery. lifecycle.go gates authentication work and drains it
 // before cache closure. request_limits.go and rediscache maintain admitted
-// request leases separately from cached configuration.
+// request leases separately from cached configuration. token_rate_limit.go
+// checks current payer-group Token rates before dispatch and provides form previews.
 //
 // composite.go, model_mapping.go and runtime_group.go resolve group prefixes,
 // Key aliases and permitted fallback targets. access_context.go and

@@ -10,11 +10,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-// Key request admission translates the limiter result into either standard or
-// Google errors and releases successful HTTP leases after use. Responses upgrades
-// defer admission to individual turns, while non-consuming paths bypass the limiter.
+// authorization_test.go checks request admission responses for ordinary and
+// Google clients using controlled storage and limiter observations. Protected
+// requests reject excessive Token rates before capacity reservation, while
+// nonconsuming queries retain access and successful leases release after processing.
+
+// tokenProtectionGroups supplies the current group price to request admission.
+type tokenProtectionGroups struct {
+	apikey.GroupRepository // unused group repository operations
+}
 
 // gatewayLimitCache returns a configured admission result and counts lease releases.
 type gatewayLimitCache struct {
@@ -24,6 +31,47 @@ type gatewayLimitCache struct {
 	// store failures can require cleanup despite failed admission, unlike known limit rejections.
 	calls    int // reservation call count
 	released int // lease release count
+}
+
+// GetByIDLite returns an active group whose rate exceeds the test ceiling.
+func (tokenProtectionGroups) GetByIDLite(context.Context, int64) (*routing.Group, error) {
+	return &routing.Group{ID: 3, Status: apikey.StatusActive, RateMultiplier: .081}, nil
+}
+
+// TestTokenRateProtectionHTTP rejects protected requests before handler execution.
+// Standard and Google responses both use 403, while model-list queries remain
+// readable and consume no request-capacity reservation.
+func TestTokenRateProtectionHTTP(t *testing.T) {
+	for _, google := range []bool{false, true} {
+		cache := &gatewayLimitCache{}
+		keys := apikey.NewAPIKeyService(nil, nil, tokenProtectionGroups{}, nil, nil, cache, nil)
+		t.Cleanup(keys.Stop)
+		id := int64(3)
+		key := &apikey.APIKey{ID: 1, User: &apikey.User{ID: 7}, GroupID: &id, MaxTokenRateMultiplier: .08}
+		for _, method := range []string{"POST", "GET"} {
+			path := "/v1/responses"
+			if method == "GET" {
+				path = "/v1/models"
+			}
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(method, path, nil)
+			options := APIKeyAuthorizationOptions{}
+			options.Authentication.Google = google
+			release, admitted := acquireKeyRequest(c, keys, key, options)
+			if method == "POST" {
+				require.False(t, admitted)
+				require.Equal(t, 403, recorder.Code)
+				if !google {
+					require.Contains(t, recorder.Body.String(), "API_KEY_TOKEN_RATE_LIMIT_EXCEEDED")
+				}
+			} else {
+				require.True(t, admitted)
+				release()
+			}
+			require.Zero(t, cache.calls)
+		}
+	}
 }
 
 // ReserveRequest records admission and returns the configured reservation result.

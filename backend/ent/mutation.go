@@ -149,6 +149,8 @@ type APIKeyMutation struct {
 	quota_used                      *float64
 	addquota_used                   *float64
 	expires_at                      *time.Time
+	max_token_rate_multiplier       *float64
+	addmax_token_rate_multiplier    *float64
 	concurrency_limit               *int
 	addconcurrency_limit            *int
 	rpm_limit                       *int
@@ -1239,6 +1241,62 @@ func (m *APIKeyMutation) ResetExpiresAt() {
 	delete(m.clearedFields, apikey.FieldExpiresAt)
 }
 
+// SetMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field.
+func (m *APIKeyMutation) SetMaxTokenRateMultiplier(f float64) {
+	m.max_token_rate_multiplier = &f
+	m.addmax_token_rate_multiplier = nil
+}
+
+// MaxTokenRateMultiplier returns the value of the "max_token_rate_multiplier" field in the mutation.
+func (m *APIKeyMutation) MaxTokenRateMultiplier() (r float64, exists bool) {
+	v := m.max_token_rate_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxTokenRateMultiplier returns the old "max_token_rate_multiplier" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldMaxTokenRateMultiplier(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxTokenRateMultiplier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxTokenRateMultiplier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxTokenRateMultiplier: %w", err)
+	}
+	return oldValue.MaxTokenRateMultiplier, nil
+}
+
+// AddMaxTokenRateMultiplier adds f to the "max_token_rate_multiplier" field.
+func (m *APIKeyMutation) AddMaxTokenRateMultiplier(f float64) {
+	if m.addmax_token_rate_multiplier != nil {
+		*m.addmax_token_rate_multiplier += f
+	} else {
+		m.addmax_token_rate_multiplier = &f
+	}
+}
+
+// AddedMaxTokenRateMultiplier returns the value that was added to the "max_token_rate_multiplier" field in this mutation.
+func (m *APIKeyMutation) AddedMaxTokenRateMultiplier() (r float64, exists bool) {
+	v := m.addmax_token_rate_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaxTokenRateMultiplier resets all changes to the "max_token_rate_multiplier" field.
+func (m *APIKeyMutation) ResetMaxTokenRateMultiplier() {
+	m.max_token_rate_multiplier = nil
+	m.addmax_token_rate_multiplier = nil
+}
+
 // SetConcurrencyLimit sets the "concurrency_limit" field.
 func (m *APIKeyMutation) SetConcurrencyLimit(i int) {
 	m.concurrency_limit = &i
@@ -2142,7 +2200,7 @@ func (m *APIKeyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *APIKeyMutation) Fields() []string {
-	fields := make([]string, 0, 34)
+	fields := make([]string, 0, 35)
 	if m.created_at != nil {
 		fields = append(fields, apikey.FieldCreatedAt)
 	}
@@ -2205,6 +2263,9 @@ func (m *APIKeyMutation) Fields() []string {
 	}
 	if m.expires_at != nil {
 		fields = append(fields, apikey.FieldExpiresAt)
+	}
+	if m.max_token_rate_multiplier != nil {
+		fields = append(fields, apikey.FieldMaxTokenRateMultiplier)
 	}
 	if m.concurrency_limit != nil {
 		fields = append(fields, apikey.FieldConcurrencyLimit)
@@ -2295,6 +2356,8 @@ func (m *APIKeyMutation) Field(name string) (ent.Value, bool) {
 		return m.QuotaUsed()
 	case apikey.FieldExpiresAt:
 		return m.ExpiresAt()
+	case apikey.FieldMaxTokenRateMultiplier:
+		return m.MaxTokenRateMultiplier()
 	case apikey.FieldConcurrencyLimit:
 		return m.ConcurrencyLimit()
 	case apikey.FieldRpmLimit:
@@ -2372,6 +2435,8 @@ func (m *APIKeyMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldQuotaUsed(ctx)
 	case apikey.FieldExpiresAt:
 		return m.OldExpiresAt(ctx)
+	case apikey.FieldMaxTokenRateMultiplier:
+		return m.OldMaxTokenRateMultiplier(ctx)
 	case apikey.FieldConcurrencyLimit:
 		return m.OldConcurrencyLimit(ctx)
 	case apikey.FieldRpmLimit:
@@ -2554,6 +2619,13 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetExpiresAt(v)
 		return nil
+	case apikey.FieldMaxTokenRateMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxTokenRateMultiplier(v)
+		return nil
 	case apikey.FieldConcurrencyLimit:
 		v, ok := value.(int)
 		if !ok {
@@ -2662,6 +2734,9 @@ func (m *APIKeyMutation) AddedFields() []string {
 	if m.addquota_used != nil {
 		fields = append(fields, apikey.FieldQuotaUsed)
 	}
+	if m.addmax_token_rate_multiplier != nil {
+		fields = append(fields, apikey.FieldMaxTokenRateMultiplier)
+	}
 	if m.addconcurrency_limit != nil {
 		fields = append(fields, apikey.FieldConcurrencyLimit)
 	}
@@ -2700,6 +2775,8 @@ func (m *APIKeyMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedQuota()
 	case apikey.FieldQuotaUsed:
 		return m.AddedQuotaUsed()
+	case apikey.FieldMaxTokenRateMultiplier:
+		return m.AddedMaxTokenRateMultiplier()
 	case apikey.FieldConcurrencyLimit:
 		return m.AddedConcurrencyLimit()
 	case apikey.FieldRpmLimit:
@@ -2745,6 +2822,13 @@ func (m *APIKeyMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddQuotaUsed(v)
+		return nil
+	case apikey.FieldMaxTokenRateMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxTokenRateMultiplier(v)
 		return nil
 	case apikey.FieldConcurrencyLimit:
 		v, ok := value.(int)
@@ -2966,6 +3050,9 @@ func (m *APIKeyMutation) ResetField(name string) error {
 		return nil
 	case apikey.FieldExpiresAt:
 		m.ResetExpiresAt()
+		return nil
+	case apikey.FieldMaxTokenRateMultiplier:
+		m.ResetMaxTokenRateMultiplier()
 		return nil
 	case apikey.FieldConcurrencyLimit:
 		m.ResetConcurrencyLimit()

@@ -235,6 +235,8 @@ Ollama Cloud 的设置、状态、会话、自动刷新和主动刷新路由绑�
 
 创建和更新 API Key 时，`quota`、`rate_limit_5h`、`rate_limit_1d`、`rate_limit_7d` 要求是有限的、非负的、小于 `1e12` 的 USD 数值，以适配数据库的 `DECIMAL(20,8)`；`0` 表示不限额。创建时省略 `expires_in_days` 表示永不过期，提供时要大于 0；更新时用空的 `expires_at` 清除到期时间，用合法的 RFC3339 时间设置到期点。handler 的早期校验和 service 的最终校验使用同一套规则，内部调用同样要经过校验。
 
+Key 创建、更新和查询支持 `max_token_rate_multiplier`，0 表示关闭 Token 倍率保护，更新时省略保留当前值。`GET /api/v1/groups/rates?token_rates=true&scope=personal|team&billing_mode=auto|balance|subscription` 返回当前可用分组 ID 到最高实际 Token 倍率的映射；指定订阅模式需要 `subscription_id`。默认查询继续返回用户专属分组倍率。保护计算和拒绝规则见 [Token 倍率上限](../domains/routing_and_billing.md#api_key_token_rate_limit)。
+
 `GET /api/v1/keys/billing-options?scope=personal|team` 返回当前作用域下可以指定的有效订阅摘要，包括 `id`、`plan_id`、`plan_name`、`expires_at`、`groups_restricted` 和 `applicable_groups`。`GET /api/v1/groups/available?scope=personal|team&subscription_id={id}` 带 `subscription_id` 时，返回付款主体已有的分组权限和这个订阅套餐分组的交集；不带时返回普通的可用分组列表。两个接口在团队作用域下都不会返回成员自己的订阅。可见分组的 `models` 和 `model_protocols` 来自有限模型目录，供客户端配置时选择型号，权限由请求时的分组策略校验。`include_models` 默认为 `true`；传 `false` 时保留作用域、套餐和分组权限过滤，跳过模型、协议和模型属性计算。使用记录及仪表盘的筛选项使用轻量查询，Key 配置导出使用完整查询。非法的 `include_models` 值返回 400。
 
 网关的 `GET /v1/usage` 除了 Key 配额、订阅或余额字段，总是返回一个 `billing` 对象，至少包含 `mode`、`source`、`preferred_subscription_id`、`available` 和 `unit`：

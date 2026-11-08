@@ -106,7 +106,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	concurrencyService := provideConcurrency(concurrencyCache, cfg)
 	postgresStore := provideUsageStore(client, db, preAggregationSettingsService, calendar)
 	teamRepository := provideTeamRepository(db, calendar, postgresStore)
-	apiKeyService := provideKeys(keyStore, userStore, groupStore, subscriptionStore, groupRateStore, apiKeyCache, cfg, eligibility, concurrencyService, teamRepository, calendar)
+	apiKeyService := provideKeys(keyStore, userStore, groupStore, pricingConfigStore, subscriptionStore, groupRateStore, apiKeyCache, cfg, eligibility, concurrencyService, teamRepository, calendar)
 	apiKeyAuthCacheInvalidator := provideKeyInvalidator(apiKeyService)
 	pricingConfigService := providePricingConfigService(pricingConfigStore, groupStore, apiKeyAuthCacheInvalidator)
 	modelAttributeStore := postgres.NewModelAttributeStore(db)

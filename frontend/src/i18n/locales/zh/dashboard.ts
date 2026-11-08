@@ -377,6 +377,11 @@ export default {
     rateLimitColumn: '速率限制',
     concurrencyLimit: '并发上限',
     rpmLimit: '每分钟请求上限（RPM）',
+    tokenRateLimit: 'Token 倍率上限保护',
+    tokenRateLimitHint: '开启后默认填入当前分组倍率，可自行修改。关闭保护表示不限制。',
+    tokenRateLimitCurrentHint:
+      '当前分组最高实际 Token 倍率为 {rate}x，开启保护后，超过上限的请求将被拒绝。',
+    tokenRateLimitInvalid: '开启保护后，Token 倍率上限需为大于 0 且小于 1000000000000 的有限数值',
     requestLimitsInvalid: '请求上限需为 0 到 2147483647 之间的整数',
     requestLimitsHint:
       '0 表示不限制此 Key。用户和分组的限制仍然生效。RPM 按最近 60 秒获准进入网关的请求计数。',

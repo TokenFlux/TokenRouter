@@ -149,6 +149,11 @@ func (APIKey) Fields() []ent.Field {
 			Nillable().
 			Comment("Expiration time for this API key (null = never expires)"),
 
+		// max_token_rate_multiplier protects users from increased group Token rates.
+		// Zero disables the guard; admission compares positive caps before upstream dispatch.
+		field.Float("max_token_rate_multiplier").
+			Min(0).
+			Default(0),
 		// concurrency_limit and rpm_limit are per-key request admission limits.
 		// Generated Ent validation rejects negative values, and zero disables
 		// each key-specific limit while user and group admission checks remain

@@ -164,7 +164,8 @@ func TestAuthorizeTurnReloadsSubscription(t *testing.T) {
 // TestKeyAdmissionUsesCurrentTurnLimits reserves allowance before and after
 // successful reauthorization with a reduced RPM limit. Later admission uses
 // the current Key and presents RPM rejection as 1013, while the original Key's
-// limit stays unchanged.
+// limit stays unchanged. A Token price rejection closes the current turn with
+// policy status 1008 so the client receives a distinct configuration failure.
 func TestKeyAdmissionUsesCurrentTurnLimits(t *testing.T) {
 	original := &apikey.APIKey{ID: 1, User: &identity.User{ID: 2}, BillingMode: billing.APIKeyBillingModeBalance, RPMLimit: 20}
 	original.Group = &routing.Group{AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolResponsesWebSocket}}
@@ -183,6 +184,10 @@ func TestKeyAdmissionUsesCurrentTurnLimits(t *testing.T) {
 	require.Equal(t, 1013, adapter.CloseInfo(err).Status)
 	require.Same(t, current, auth.acquired)
 	require.Equal(t, 20, original.RPMLimit)
+	auth.acquireErr = apikey.ErrTokenRateLimitExceeded
+	_, _, err = adapter.AcquireKey(t.Context())
+	require.ErrorIs(t, err, apikey.ErrTokenRateLimitExceeded)
+	require.Equal(t, 1008, adapter.CloseInfo(err).Status)
 }
 
 // TestAuthorizeTurnRejectsRevokedWSProtocol reauthenticates a Key whose
