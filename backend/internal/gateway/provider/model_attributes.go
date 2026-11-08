@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -11,10 +12,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/ollama"
 )
 
@@ -291,6 +295,9 @@ func ModelRequestState(body []byte) modelcatalog.RequestState {
 // retains the main model's resolution; named and default image tool models are
 // validated independently against the same request attribute session.
 func PrepareModelAttributeParameters(ctx context.Context, value *ExecutionProvider, model string, body []byte, service *routing.ModelAttributeService, protocols ...string) ([]byte, error) {
+	if err := upstream.ValidateGIFJSONControls(body); err != nil {
+		return nil, apperror.BadRequest("IMAGE_GIF_PARAMS_INVALID", err.Error())
+	}
 	if routing.ModelAttributesFromContext(ctx) == nil {
 		ctx = routing.WithModelAttributes(ctx, service)
 	}
@@ -322,6 +329,42 @@ func PrepareModelAttributeParameters(ctx context.Context, value *ExecutionProvid
 		}
 		if err := routing.RequireImageOutput(image.Attributes); err != nil {
 			return nil, err
+		}
+		// Lifecycle streaming belongs to Responses, while frame controls belong
+		// to its image tool. Normalize only the tool so OAuth event delivery remains intact.
+		if strings.EqualFold(tool.Get("output_format").String(), "gif") || tool.Get("frame_count").Exists() || tool.Get("frame_duration_ms").Exists() {
+			parsed := &upstream.ImageRequest{OutputFormat: tool.Get("output_format").String(), Size: tool.Get("size").String(), HasMask: tool.Get("input_image_mask").Exists()}
+			for _, field := range []struct {
+				name   string // numeric image control name
+				target **int  // parsed optional integer destination
+			}{{"frame_count", &parsed.FrameCount}, {"frame_duration_ms", &parsed.FrameDurationMS}, {"output_compression", &parsed.OutputCompression}} {
+				raw := tool.Get(field.name)
+				if raw.Exists() {
+					number, parseErr := strconv.Atoi(raw.Raw)
+					if raw.Type != gjson.Number || parseErr != nil {
+						return nil, apperror.BadRequest("IMAGE_GIF_PARAMS_INVALID", field.name+" must be an integer")
+					}
+					*field.target = &number
+				}
+			}
+			if raw := tool.Get("partial_images"); raw.Exists() && raw.Raw != "0" {
+				return nil, apperror.BadRequest("IMAGE_GIF_PARAMS_INVALID", "GIF output does not support partial images")
+			}
+			if err := parsed.NormalizeGIF(); err != nil {
+				return nil, apperror.BadRequest("IMAGE_GIF_PARAMS_INVALID", err.Error())
+			}
+			if err := RequireImageGIF(value, protocol.ProtocolOpenAIResponses, image.Attributes); err != nil {
+				return nil, err
+			}
+			prefix := "tools." + strconv.Itoa(index) + "."
+			body, err = sjson.SetBytes(body, prefix+"frame_count", *parsed.FrameCount)
+			if err != nil {
+				return nil, err
+			}
+			body, err = sjson.SetBytes(body, prefix+"frame_duration_ms", *parsed.FrameDurationMS)
+			if err != nil {
+				return nil, err
+			}
 		}
 		media := image.Attributes.Media
 		if media != nil && media.InputFidelity != nil && !*media.InputFidelity {
@@ -426,4 +469,15 @@ func ResolvedImageOutput(ctx context.Context, record *providercore.Record, model
 	}
 	supported := resolution.Attributes.OutputSupport("image")
 	return supported != nil && *supported
+}
+
+// RequireImageGIF checks provider transport policy and final model capabilities.
+// Administrators can declare formats for aliases through model attributes, but
+// those declarations cannot override a provider's disabled GIF switch or native
+// streaming-only endpoint. Unknown output formats do not establish GIF support.
+func RequireImageGIF(value *ExecutionProvider, operation protocol.ProtocolID, attrs modelcatalog.Attributes) error {
+	if value == nil || !ExecutionProtocolRecord(value).SupportsImageGIF(operation) || attrs.Media == nil || !slices.Contains(attrs.Media.OutputFormats, "gif") {
+		return apperror.BadRequest("IMAGE_GIF_UNSUPPORTED", "the selected provider or model does not support GIF output")
+	}
+	return nil
 }

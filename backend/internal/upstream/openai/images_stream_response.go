@@ -51,16 +51,17 @@ type imagesReadLine struct {
 // URL format uses the existing data-URL convention when only Base64 is available.
 // Callers check the reader error before delivering this document to a client.
 //
-// Per-image encoded content and revised prompts remain separate, while response
-// metadata comes from the first completed image. The latest raw usage object
-// describes the request and is attached once to the response. A missing positive
-// creation timestamp uses the current Unix time. Existing upstream URLs remain
-// usable when the client requests URL output; Base64-only entries use data URLs.
+// Per-image encoded content, revised prompts, and sizes remain separate, while
+// other response metadata comes from the first completed image. The latest raw
+// usage object describes the request and is attached once to the response.
+// A missing positive creation timestamp uses the current Unix time. Existing
+// upstream URLs remain usable when the client requests URL output; Base64-only
+// entries use data URLs.
 func (r ImagesStreamResult) JSON(responseFormat string) ([]byte, error) {
 	data := make([]map[string]json.RawMessage, 0, len(r.Images))
 	for _, fields := range r.Images {
 		item := map[string]json.RawMessage{}
-		for _, key := range []string{"b64_json", "url", "revised_prompt"} {
+		for _, key := range []string{"b64_json", "url", "revised_prompt", "size"} {
 			if value, ok := fields[key]; ok {
 				item[key] = value
 			}
@@ -345,6 +346,9 @@ func ReadImagesBufferedResponse(ctx context.Context, resp *http.Response, option
 		if err == nil {
 			_, err = validateImagesJSONResponse(body)
 		}
+		if err == nil {
+			body, _, err = ValidateGIFImagesResponse(body, options.ExpectedGIF, options.FetchImage)
+		}
 		return body, ImagesStreamResult{}, err
 	}
 	result, err := ReadImagesSSE(ctx, resp, options, nil, nil)
@@ -352,6 +356,9 @@ func ReadImagesBufferedResponse(ctx context.Context, resp *http.Response, option
 		return nil, result, err
 	}
 	body, err := result.JSON(responseFormat)
+	if err == nil {
+		body, result.Usage.ImageFrameCount, err = ValidateGIFImagesResponse(body, options.ExpectedGIF, options.FetchImage)
+	}
 	return body, result, err
 }
 

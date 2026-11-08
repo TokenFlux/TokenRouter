@@ -225,13 +225,16 @@ func defaultTokenPrices(base *pricing.ModelPricing, raw *pricing.CatalogModelPri
 	}
 	add(prefix+"input", perMTok(quote(UsageTokens{InputTokens: 1}).InputCost, 1+gate), "USD/MTok")
 	// Output display uses the same million-token amount unit.
-	add(prefix+"output", quote(UsageTokens{OutputTokens: 1}).OutputCost*1e6, "USD/MTok")
+	addOptional("output", quote(UsageTokens{OutputTokens: 1}).OutputCost, raw == nil || raw.OutputPricePresent || base.OutputPricePerToken > 0)
 	readPresent := base.CacheReadPricePerToken > 0 || raw != nil && raw.CacheReadPricePresent
 	writePresent := base.CacheCreationPricePerToken > 0 || base.SupportsCacheBreakdown || raw != nil && raw.CacheCreationPricePresent
 	addOptional("cache_read", quote(UsageTokens{CacheReadTokens: 1}).CacheReadCost, readPresent)
 	addOptional("cache_write", quote(UsageTokens{CacheCreationTokens: 1, CacheCreation5mTokens: 1}).CacheCreationCost, writePresent)
 	addOptional("cache_write_1h", quote(UsageTokens{CacheCreationTokens: 1, CacheCreation1hTokens: 1}).CacheCreationCost, base.SupportsCacheBreakdown)
 	addOptional("image_input", quote(UsageTokens{InputTokens: 1, ImageInputTokens: 1}).ImageInputCost, base.ImageInputPricePerToken > 0 || raw != nil && (raw.SupportsVision || raw.ImageInputPricePresent))
+	if raw != nil && raw.ImageCacheReadPricePresent {
+		addOptional("image_cache_read", quote(UsageTokens{CacheReadTokens: 1, ImageCacheReadTokens: 1}).CacheReadCost, true)
+	}
 	addOptional("image_output", quote(UsageTokens{OutputTokens: 1, ImageOutputTokens: 1}).ImageOutputCost, base.ImageOutputPricePerToken > 0 || raw != nil && raw.ImageOutputPricePresent)
 	return prices
 }

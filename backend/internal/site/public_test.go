@@ -47,3 +47,6 @@ func TestPublicSettingsExcludeMetricsIdentity(t *testing.T) {
 		require.NotContains(t, string(encoded), "private-instance-identifier")
 	}
 }
+
+// LoadSiteShareImage leaves this text-only fixture without an uploaded cover.
+func (metricsInputSource) LoadSiteShareImage(context.Context) (string, error) { return "", nil }

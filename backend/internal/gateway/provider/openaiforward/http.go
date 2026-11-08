@@ -3,6 +3,7 @@ package openaiforward
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -106,8 +107,9 @@ type Result struct {
 	Duration                     time.Duration // elapsed request duration
 	// Timings is captured from the shared observer after response processing.
 	// Callers retain this immutable exchange snapshot until completion copies it for persistence.
-	Timings    *timing.Performance
-	ImageCount int // observed generated images
+	Timings         *timing.Performance
+	ImageCount      int // observed generated images
+	ImageFrameCount int // encoded output frame billing units
 	// ImageSize is the generated-image tier; ImageInputSize is the input-image
 	// tier.
 	ImageSize, ImageInputSize string
@@ -272,14 +274,16 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 		o.WrapResponseBody(resp)
 		tier := o.ExtractServiceTier(body)
 		o.ReleaseDecodedRequest()
+		var deliveryErr error
 		var usage *wire.ForwardUsage
 		var performance *timing.Performance
 		responseID := ""
 		imageCount := 0
+		imageFrameCount := 0
 		var imageSizes []string
 		if input.Stream {
 			result, readErr := openai.ReadStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.StreamOptions(), input.StartedAt, input.OriginalModel, upstreamModel, input.ReasoningEffortValue)
-			if readErr != nil {
+			if readErr != nil && !errors.Is(readErr, wire.ErrGIFResultInvalid) {
 				// A withheld Compact stream failure carries HTTP-like evidence; close the
 				// failed reader body before either model replay or final failure
 				// presentation.
@@ -306,14 +310,16 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 				}
 				return nil, readErr
 			}
+			deliveryErr = readErr
 			usage = result.Usage
 			performance = timing.PerformanceFromContext(ctx)
 			responseID = strings.TrimSpace(result.ResponseID)
 			imageCount = result.ImageCount
+			imageFrameCount = result.ImageFrameCount
 			imageSizes = result.ImageOutputSizes
 		} else {
 			result, readErr := openai.ReadNonStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.NonStreamOptions(), input.OriginalModel, upstreamModel)
-			if readErr != nil {
+			if readErr != nil && !errors.Is(readErr, wire.ErrGIFResultInvalid) {
 				// Buffered Compact decoding can request a replacement model; release the
 				// current body before replay because its reader has already reported
 				// failure.
@@ -329,9 +335,11 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 				}
 				return nil, readErr
 			}
+			deliveryErr = readErr
 			usage = result.Usage
 			responseID = strings.TrimSpace(result.ResponseID)
 			imageCount = result.ImageCount
+			imageFrameCount = result.ImageFrameCount
 			imageSizes = result.ImageOutputSizes
 		}
 		o.BindResponseOwner(ctx, responseID)
@@ -354,11 +362,12 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 		// size evidence, while text-only results retain the text billing model.
 		if imageCount > 0 {
 			result.ImageCount = imageCount
+			result.ImageFrameCount = imageFrameCount
 			result.ImageSize = input.ImageSizeTier
 			result.ImageInputSize = input.ImageInputSize
 			result.ImageOutputSizes = imageSizes
 			result.BillingModel = input.ImageBillingModel
 		}
-		return result, nil
+		return result, deliveryErr
 	}
 }

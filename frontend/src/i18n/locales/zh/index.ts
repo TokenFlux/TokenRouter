@@ -54,6 +54,8 @@ export default {
       site_name: '站点名称',
       site_title: '首页标题',
       site_subtitle: '副标题',
+      site_share_title: '分享标题',
+      site_share_description: '分享简介',
     },
     original: '原文',
     originalLanguage: '原文语言',

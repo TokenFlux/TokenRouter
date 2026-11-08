@@ -8,7 +8,7 @@ import { outputAssetKey, type LocalAsset } from '@/utils/creativeLocalStore'
  * writes through the mounted canvas component with controlled storage promises.
  * A lightweight Fabric substitute records loadFromJSON input and inserted
  * images, allowing the suite to check restore-versus-placement ordering, image
- * placeholder resolution, and cleanup of temporary preview URLs. It also
+ * placeholder resolution, and cleanup of temporary poster URLs. It also
  * verifies that incomplete or missing-asset recovery does not overwrite saved
  * data.
  */
@@ -33,6 +33,10 @@ const storeMocks = vi.hoisted(() => ({
   loadSceneJson: vi.fn(),
   saveSceneJson: vi.fn(),
 }))
+
+/** Playback substitutes expose surface ownership without decoding pixels in component tests. */
+const playbackMocks = vi.hoisted(() => ({ create: vi.fn(), start: vi.fn(), dispose: vi.fn() }))
+vi.mock('../gifPlayback', () => ({ createGIFPlayback: playbackMocks.create }))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
@@ -83,6 +87,18 @@ vi.mock('fabric', () => {
      */
     setCoords(): void {}
 
+    /** calcTransformMatrix maps centered image coordinates into the fixture scene. */
+    calcTransformMatrix(): [number, number, number, number, number, number] {
+      return [
+        this.scaleX,
+        0,
+        0,
+        this.scaleY,
+        this.left + (this.width * this.scaleX) / 2,
+        this.top + (this.height * this.scaleY) / 2,
+      ]
+    }
+
     /**
      * getBoundingRect returns translated dimensions scaled by the fixture's
      * horizontal and vertical factors.
@@ -109,13 +125,21 @@ vi.mock('fabric', () => {
   class MockImage extends MockObject {
     width = 400 // horizontal dimension pixels
     height = 200 // vertical dimension pixels
+    element: HTMLImageElement | HTMLCanvasElement = Object.assign(document.createElement('img'), {
+      width: 400,
+      height: 200,
+    }) // current fixture pixel source
 
     /**
-     * getElement supplies fixed natural image dimensions for resolution and
-     * placement assertions.
+     * getElement returns the current poster or animation source for playback assertions.
      */
-    getElement(): Partial<HTMLImageElement> {
-      return { naturalWidth: 400, naturalHeight: 200, width: 400, height: 200 }
+    getElement(): HTMLImageElement | HTMLCanvasElement {
+      return this.element
+    }
+
+    /** setElement replaces the rendered source while retaining fixture scene geometry. */
+    setElement(element: HTMLImageElement | HTMLCanvasElement): void {
+      this.element = element
     }
 
     /**
@@ -143,6 +167,7 @@ vi.mock('fabric', () => {
     objects: MockObject[] = [] // ordered shared scene objects
     active: MockObject | null = null // currently selected fixture object
     loadedJSON: Record<string, unknown> | null = null // last supplied scene snapshot
+    handlers = new Map<string, (event: any) => void>() // registered scene event callbacks
 
     /**
      * constructor registers this fixture as the main canvas or its mask overlay.
@@ -155,10 +180,11 @@ vi.mock('fabric', () => {
     }
 
     /**
-     * on accepts event registration without emitting callbacks in this
-     * persistence-focused fixture.
+     * on retains scene callbacks so tests can reproduce render and removal events.
      */
-    on(): void {}
+    on(name: string, handler: (event: any) => void): void {
+      this.handlers.set(name, handler)
+    }
     /**
      * getWidth returns the fixture viewport width used by canvas placement.
      */
@@ -197,10 +223,11 @@ vi.mock('fabric', () => {
       this.height = value.height
     }
     /**
-     * requestRenderAll accepts render requests without drawing pixels in the
-     * fixture.
+     * requestRenderAll refreshes overlay positions without drawing fixture pixels.
      */
-    requestRenderAll(): void {}
+    requestRenderAll(): void {
+      this.handlers.get('after:render')?.({})
+    }
     /**
      * add appends shared scene objects to the fixture's ordered object list.
      */
@@ -212,6 +239,7 @@ vi.mock('fabric', () => {
      */
     remove(...objects: MockObject[]): void {
       this.objects = this.objects.filter((object) => !objects.includes(object))
+      for (const target of objects) this.handlers.get('object:removed')?.({ target })
     }
     /**
      * setActiveObject stores one fixture object as the current canvas selection.
@@ -313,6 +341,14 @@ vi.mock('fabric', () => {
       public x: number, // horizontal point coordinate
       public y: number, // vertical point coordinate
     ) {}
+
+    /** transform returns a new point after applying the supplied affine matrix. */
+    transform(matrix: number[]): MockPoint {
+      return new MockPoint(
+        matrix[0] * this.x + matrix[2] * this.y + matrix[4],
+        matrix[1] * this.x + matrix[3] * this.y + matrix[5],
+      )
+    }
   }
 
   return {
@@ -358,18 +394,119 @@ function deferred<T>(): {
 
 /**
  * mountCanvas mounts the real canvas component with crop and icon children
- * stubbed. It uses generation mode by default; the caller owns unmounting to
- * exercise listener and resource cleanup.
+ * stubbed. Transitions are stubbed too, so a replaced GIF control leaves the DOM
+ * immediately instead of lingering until a later animation frame that
+ * flushPromises does not await. It uses generation mode by default; the caller
+ * owns unmounting to exercise listener and resource cleanup.
  */
 function mountCanvas() {
   return mount(CreativeCanvas, {
     props: { operation: 'generate' },
-    global: { stubs: { CropperModal: true, Icon: true } },
+    global: { stubs: { CropperModal: true, Icon: true, transition: true } },
   })
 }
 
 describe('CreativeCanvas 本地恢复与快照持久化', () => {
+  /**
+   * A generated GIF keeps its original bytes while the canvas receives a PNG
+   * poster. Playing replaces the existing image surface, and stopping restores
+   * the poster without changing original downloads or persistent asset references.
+   */
+  it('keeps GIF bytes for playback while rendering a separate poster', async () => {
+    const contextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D)
+    const poster = new Blob(['poster'], { type: 'image/png' })
+    const encodeSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'toBlob')
+      .mockImplementation((callback) => callback(poster))
+    const wrapper = mountCanvas()
+    await flushPromises()
+    const animation = new Blob(['GIF89a'], { type: 'image/gif' })
+    await (wrapper.vm as any).placeOutput({ blob: animation, runId: 'gif-run', outputIndex: 0 })
+    await flushPromises()
+    expect(URL.createObjectURL).toHaveBeenCalledWith(poster)
+    expect(await (wrapper.vm as any).getSelectedImageBlob()).toBe(animation)
+    expect(fabricState.images[0].data.animatedGIF).toBe(true)
+    const image = fabricState.images[0]
+    const originalElement = image.getElement()
+    expect(wrapper.find('.canvas-toolbar button[title="creative.canvas.playGIF"]').exists()).toBe(
+      false,
+    )
+    await wrapper.get('button[title="creative.canvas.playGIF"]').trigger('click')
+    await flushPromises()
+    expect(playbackMocks.start).toHaveBeenCalledOnce()
+    expect(image.getElement()).toBeInstanceOf(HTMLCanvasElement)
+    expect(await (wrapper.vm as any).getSelectedImageBlob()).toBe(animation)
+    const control = wrapper.get('button[title="creative.canvas.stopGIF"]')
+    expect(control.classes()).toContain('canvas-gif-toggle')
+    const beforeMove = control.attributes('style')
+    image.left += 80
+    fabricState.main.requestRenderAll()
+    await flushPromises()
+    expect(control.attributes('style')).not.toBe(beforeMove)
+    await control.trigger('click')
+    expect(image.getElement()).toBe(originalElement)
+    expect(playbackMocks.dispose).toHaveBeenCalledOnce()
+    await wrapper.get('button[title="creative.canvas.playGIF"]').trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+    expect(playbackMocks.dispose).toHaveBeenCalledTimes(2)
+    expect(image.getElement()).toBe(originalElement)
+    contextSpy.mockRestore()
+    encodeSpy.mockRestore()
+  })
+
+  /**
+   * A decoder finishes after the user selects another image. The obsolete
+   * player must be disposed without replacing either image's poster or starting
+   * a timer for a selection that no longer owns playback.
+   */
+  it('disposes a late GIF player after selection changes', async () => {
+    const contextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D)
+    const encodeSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'toBlob')
+      .mockImplementation((callback) => callback(new Blob(['poster'], { type: 'image/png' })))
+    const pending = deferred<any>()
+    playbackMocks.create.mockReturnValueOnce(pending.promise)
+    const wrapper = mountCanvas()
+    await flushPromises()
+    await (wrapper.vm as any).placeOutput({
+      blob: new Blob(['GIF89a'], { type: 'image/gif' }),
+      runId: 'gif-run',
+      outputIndex: 0,
+    })
+    await flushPromises()
+    const originalElement = fabricState.images[0].getElement()
+    await wrapper.get('button[title="creative.canvas.playGIF"]').trigger('click')
+    await flushPromises()
+    await (wrapper.vm as any).addUploadedImage(new Blob(['static'], { type: 'image/png' }))
+    await flushPromises()
+    pending.resolve({
+      surface: document.createElement('canvas'),
+      start: playbackMocks.start,
+      dispose: playbackMocks.dispose,
+    })
+    await flushPromises()
+    expect(playbackMocks.start).not.toHaveBeenCalled()
+    expect(playbackMocks.dispose).toHaveBeenCalledOnce()
+    expect(fabricState.images[0].getElement()).toBe(originalElement)
+    expect(wrapper.find('.canvas-gif-toggle').exists()).toBe(false)
+    wrapper.unmount()
+    contextSpy.mockRestore()
+    encodeSpy.mockRestore()
+  })
+
   beforeEach(() => {
+    playbackMocks.start.mockReset()
+    playbackMocks.dispose.mockReset()
+    playbackMocks.create.mockReset().mockImplementation(async () => ({
+      surface: Object.assign(document.createElement('canvas'), { width: 400, height: 200 }),
+      start: playbackMocks.start,
+      dispose: playbackMocks.dispose,
+    }))
     fabricState.main = null
     fabricState.mask = null
     fabricState.images = []

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
+import { flushPromises } from '@vue/test-utils'
 import { createSettingsSaveRegistry } from '@/composables/useSettingsSaveRegistry'
 
 // useSettingsSaveRegistry.spec.ts checks page-level saving against independently owned
@@ -71,4 +72,38 @@ describe('createSettingsSaveRegistry', () => {
     expect(dirtyDiscard).toHaveBeenCalledTimes(1)
     expect(cleanDiscard).not.toHaveBeenCalled()
   })
+  // One section fails before another section finishes restoring its draft. Discard
+  // must remain pending until every selected section settles, including synchronous failures.
+  it.each(['synchronous', 'asynchronous'])(
+    'waits for remaining reloads after a %s failure',
+    async (mode) => {
+      const { discardDirty, registry } = createSettingsSaveRegistry()
+      const error = new Error('reload failed')
+      let finishReload!: () => void
+      const pending = new Promise<void>((resolve) => {
+        finishReload = resolve
+      })
+      const slowReload = vi.fn(() => pending)
+      registry.register('failed', {
+        dirty: true,
+        save: async () => true,
+        discard: () => {
+          if (mode === 'synchronous') throw error
+          return Promise.reject(error)
+        },
+      })
+      registry.register('slow', { dirty: true, save: async () => true, discard: slowReload })
+      let finished = false
+      const completion = discardDirty().catch((reason) => {
+        finished = true
+        return reason
+      })
+      await flushPromises()
+      expect(slowReload).toHaveBeenCalledTimes(1)
+      expect(finished).toBe(false)
+      finishReload()
+      await expect(completion).resolves.toBe(error)
+      expect(finished).toBe(true)
+    },
+  )
 })

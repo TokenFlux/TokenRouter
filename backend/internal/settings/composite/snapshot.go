@@ -190,6 +190,7 @@ type Snapshot struct {
 	DefaultLocale               string                          `json:"default_locale"`     // default user-facing language code
 	SiteName                    string                          // source site display name
 	SiteLogo                    string                          // site logo reference text
+	SiteShareImage              string                          `json:"site_share_image"` // Saved cover image data URL.
 	SiteSubtitle                string                          // source site subtitle text
 	APIBaseURL                  string                          // displayed gateway API address
 	ContactInfo                 string                          // source administrator contact text

@@ -25,8 +25,9 @@ import (
 // Tasks retain their reservation sources for later capture. Legacy snapshots
 // spend held monetary amounts; versioned snapshots convert completed base
 // dollars through each recorded source rate. Subscription entries are consumed
-// in their supplied order, unused portions become release records above the
-// monetary tolerance, and balance coverage is capped by the recorded hold.
+// in their supplied order. Unused portions become release records above the
+// monetary tolerance. Capture normally caps balance coverage at the hold;
+// tasks accepting excess completed usage explicitly charge the wallet difference.
 // These calculations return plans for storage to apply in its transaction;
 // command normalization itself mutates caller-owned data.
 
@@ -38,6 +39,11 @@ const (
 	// taskCostEpsilon bounds monetary release and excess comparisons during
 	// capture; smaller residuals remain within the accepted held-funds tolerance.
 	taskCostEpsilon = 0.00000001
+
+	// Task overage policies keep reservations bounded unless the task owner accepts
+	// completed usage beyond its estimate and charges the uncovered wallet cost.
+	TaskOverageReject        TaskOveragePolicy = ""               // reject charges above reserved funds
+	TaskOverageChargeBalance TaskOveragePolicy = "charge_balance" // debit uncovered completed usage
 )
 
 // Task and request settlement errors distinguish missing financial identities,
@@ -112,17 +118,19 @@ type UsageBillingCommand struct {
 	// ProviderType is fingerprinted after trimming. PostgreSQL quota writes
 	// compare the supplied value to API Key and Bedrock types ignoring case,
 	// without trimming that comparison.
-	ProviderType        string // captured executing provider type
-	Model               string // captured full billing model
-	ServiceTier         string // captured billing service tier
-	ReasoningEffort     string // captured final reasoning effort
-	BillingType         int8   // usage record billing category
-	InputTokens         int    // reported input token count
-	OutputTokens        int    // reported output token count
-	CacheCreationTokens int    // reported aggregate cache writes
-	CacheReadTokens     int    // reported cache read count
-	ImageCount          int    // reported generated image count
-	MediaType           string // captured billed media category
+	ProviderType         string // captured executing provider type
+	Model                string // captured full billing model
+	ServiceTier          string // captured billing service tier
+	ReasoningEffort      string // captured final reasoning effort
+	BillingType          int8   // usage record billing category
+	InputTokens          int    // reported input token count
+	OutputTokens         int    // reported output token count
+	CacheCreationTokens  int    // reported aggregate cache writes
+	CacheReadTokens      int    // reported cache read count
+	ImageCacheReadTokens int    // explicit cached image token subset
+	ImageFrameCount      int    // observed animation frame units
+	ImageCount           int    // reported generated image count
+	MediaType            string // captured billed media category
 
 	// APIKeyQuotaCost, APIKeyRateLimitCost and ProviderQuotaCost are rounded
 	// after fingerprinting. Their positive values enable respective writes; base
@@ -220,6 +228,10 @@ type TaskFundsCommand struct {
 	// retained charge.
 	HoldAmount   float64 // USD
 	ActualAmount float64 // USD
+	// OveragePolicy permits completed usage beyond the reservation only when set
+	// to TaskOverageChargeBalance. Subscription holds remain capped; excess uses
+	// the saved balance rate and can leave the available wallet negative.
+	OveragePolicy TaskOveragePolicy // completed usage overage policy
 	// PricingSnapshotVersion selects monetary fingerprints below two and
 	// base/rate fingerprints from two. Version three additionally fingerprints
 	// the captured funding mode and pinned subscription.
@@ -262,6 +274,9 @@ type TaskFundsCommand struct {
 	// reservation path can substitute current time for its Key write when zero.
 	ReservedAt time.Time // original reservation window instant
 }
+
+// TaskOveragePolicy determines how capture handles completed usage above reserved funds.
+type TaskOveragePolicy string
 
 // TaskFundsResult reports task funding application, wallet observations and
 // allocations reconstructed or returned by storage.
@@ -458,6 +473,14 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 		c.APIKeyRateLimitCost,
 		c.ProviderQuotaCost,
 	)
+	// Extend only animated identities so replaying an older static settlement
+	// retains its original fingerprint after the new frame field is introduced.
+	if c.ImageCacheReadTokens > 0 {
+		raw += fmt.Sprintf("|image_cache:%d", c.ImageCacheReadTokens)
+	}
+	if c.ImageFrameCount > 0 {
+		raw += fmt.Sprintf("|image_frames:%d", c.ImageFrameCount)
+	}
 	raw += fmt.Sprintf("|%s|%d", c.APIKeyBillingMode, preferredSubscriptionID)
 	if payloadHash := strings.TrimSpace(c.RequestPayloadHash); payloadHash != "" {
 		raw += "|" + payloadHash
@@ -533,7 +556,8 @@ func (c *TaskFundsCommand) Normalize() {
 // actor, team, Key, trimmed task ID and UTC RFC3339Nano reservation instant,
 // plus any trimmed nonempty payload digest. Scope, reserve key, mutable
 // allowance flag and split hold details are omitted so task reconciliation can
-// reuse its historical identity encoding.
+// reuse its historical identity encoding. A nondefault overage policy adds a
+// suffix; omitted policies retain the fingerprints of previously settled tasks.
 func buildTaskFundsFingerprint(c *TaskFundsCommand) string {
 	if c == nil {
 		return ""
@@ -586,6 +610,11 @@ func buildTaskFundsFingerprint(c *TaskFundsCommand) string {
 	}
 	if payloadHash := strings.TrimSpace(c.RequestPayloadHash); payloadHash != "" {
 		raw += "|" + payloadHash
+	}
+	if c.OveragePolicy != TaskOverageReject {
+		// Keep existing reservation and bounded-capture identities unchanged while
+		// distinguishing an explicit authorization to charge completed excess usage.
+		raw += "|overage:" + string(c.OveragePolicy)
 	}
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])
@@ -643,12 +672,12 @@ func TotalTaskHoldAmount(cmd *TaskFundsCommand) float64 {
 //
 // Legacy capture visits positive subscription entries with IDs in supplied
 // order, keeping each amount up to the remaining charge and recording its
-// unused part above taskCostEpsilon. Balance covers the remaining charge up to
-// the effective hold. Excess beyond the same tolerance returns
-// ErrTaskSettlementCostExceedsHold; accepted residuals within tolerance can
-// make the retained total slightly smaller than the target. Input amounts and
-// ID pointers remain unchanged. Callers validate finite amount and rate inputs
-// before planning.
+// unused part above taskCostEpsilon. TaskOverageChargeBalance assigns the entire
+// remaining charge to balance while preserving the original wallet hold.
+// Otherwise excess beyond that hold and tolerance returns
+// ErrTaskSettlementCostExceedsHold; accepted residuals within tolerance can make
+// the retained total slightly smaller than the target. Input amounts and ID
+// pointers remain unchanged. Callers validate finite amount and rate inputs.
 func PlanTaskCapture(cmd *TaskFundsCommand) (*TaskCapturePlan, error) {
 	plan := &TaskCapturePlan{}
 	if cmd == nil {
@@ -682,14 +711,16 @@ func PlanTaskCapture(cmd *TaskFundsCommand) (*TaskCapturePlan, error) {
 		}
 	}
 
-	// After subscription coverage, the effective recorded balance hold caps the
-	// final charge. A larger residual beyond tolerance rejects the whole plan
-	// before storage receives it.
+	// Keep the original hold separate from the full wallet charge. Storage releases
+	// only this task's frozen funds and debits any explicitly accepted excess.
 	plan.BalanceHoldAmount = EffectiveTaskBalanceHoldAmount(cmd)
-	if remaining-plan.BalanceHoldAmount > taskCostEpsilon {
+	if cmd.OveragePolicy == TaskOverageChargeBalance {
+		plan.BalanceAmountUSD = remaining
+	} else if remaining-plan.BalanceHoldAmount > taskCostEpsilon {
 		return nil, ErrTaskSettlementCostExceedsHold
+	} else {
+		plan.BalanceAmountUSD = math.Min(remaining, plan.BalanceHoldAmount)
 	}
-	plan.BalanceAmountUSD = math.Min(remaining, plan.BalanceHoldAmount)
 	if plan.BalanceAmountUSD > 0 {
 		plan.BillingAllocations = append(plan.BillingAllocations, BillingAllocation{
 			Type:      BillingAllocationTypeBalance,
@@ -708,11 +739,11 @@ func PlanTaskCapture(cmd *TaskFundsCommand) (*TaskCapturePlan, error) {
 //
 // Positive-rate entries consume base in supplied order up to their held
 // monetary amount and produce cloned retained IDs and unused monetary releases
-// above tolerance. The nonnegative balance rate covers remaining base up to
-// its effective hold. Excess balance cost or remaining base above tolerance
-// with a positive balance rate rejects capture; a zero balance rate can leave
-// base uncovered with zero charge. The result describes storage work and
-// leaves the reservation command unchanged.
+// above tolerance. The nonnegative balance rate prices remaining base. An
+// explicit TaskOverageChargeBalance policy retains that full charge; otherwise
+// exceeding the effective wallet hold rejects capture. A zero balance rate can
+// leave base uncovered with zero charge. The result describes storage work and
+// leaves the reservation command unchanged, including all original source rates.
 func planTaskBaseAmountCapture(cmd *TaskFundsCommand) (*TaskCapturePlan, error) {
 	plan := &TaskCapturePlan{BalanceHoldAmount: EffectiveTaskBalanceHoldAmount(cmd)}
 	// Clamp negative completed base cost and settlement scale before source-rate
@@ -755,10 +786,13 @@ func planTaskBaseAmountCapture(cmd *TaskFundsCommand) (*TaskCapturePlan, error) 
 	// balance charge.
 	balanceRate := math.Max(cmd.BalanceRateMultiplier, 0) * settlementScale
 	balanceAmount := remainingBase * balanceRate
-	if balanceAmount-plan.BalanceHoldAmount > taskCostEpsilon {
+	if cmd.OveragePolicy == TaskOverageChargeBalance {
+		plan.BalanceAmountUSD = balanceAmount
+	} else if balanceAmount-plan.BalanceHoldAmount > taskCostEpsilon {
 		return nil, ErrTaskSettlementCostExceedsHold
+	} else {
+		plan.BalanceAmountUSD = math.Min(balanceAmount, plan.BalanceHoldAmount)
 	}
-	plan.BalanceAmountUSD = math.Min(balanceAmount, plan.BalanceHoldAmount)
 	if plan.BalanceAmountUSD > 0 {
 		baseAmount := 0.0
 		if balanceRate > 0 {

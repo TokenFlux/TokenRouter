@@ -95,6 +95,7 @@ type ForwardResult struct {
 	Timings            *timing.Performance // frozen exchange performance observations
 	ClientDisconnect   bool                // downstream client disconnected marker
 	ImageCount         int                 // observed generated image count
+	ImageFrameCount    int                 // encoded output frame billing units
 	ImageSize          string              // image billing size tier
 	ImageInputSize     string              // input image size label
 	ImageOutputSize    string              // selected output image size

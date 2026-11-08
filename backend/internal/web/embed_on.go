@@ -202,17 +202,17 @@ func (s *FrontendServer) fileExists(path string) bool {
 // SecurityHeaders supplies the nonce substituted into the reusable rendered
 // script.
 //
-// A cached page accepts only an exact If-None-Match value as a 304 condition;
-// that early return occurs before this method sets ETag or Cache-Control. Other
-// successful rendered responses emit the cache ETag and no-cache. A cache miss
+// A page accepts an exact final If-None-Match value as a 304 condition.
+// Metadata is completed before validation, and both 200 and 304 responses emit
+// the final ETag and no-cache. A cache miss
 // supplies a two-second request-derived context to the settings provider and
 // returns the raw base page on read or JSON encoding failure.
 //
 // Rendering retains the nonce placeholder and adjusts the opening html language
 // before Publish checks the observed generation. A concurrent invalidation can
 // prevent storage while this request still returns its rendered page. ETags
-// derive from base-template, language, and settings bytes, and exclude the
-// substituted per-request nonce.
+// include the completed social metadata, template, language, and settings bytes,
+// and exclude the substituted per-request nonce.
 func (s *FrontendServer) serveIndexHTML(c *gin.Context) {
 	// Retrieve this request's trusted nonce before rendering. Cached pages keep
 	// the placeholder so response substitution uses this value rather than a prior request's nonce.
@@ -223,20 +223,7 @@ func (s *FrontendServer) serveIndexHTML(c *gin.Context) {
 	c.Header("Content-Language", language)
 	cached, version := s.cache.Snapshot(language)
 	if cached != nil {
-		if match := c.GetHeader("If-None-Match"); match == cached.ETag {
-			c.Status(http.StatusNotModified)
-			c.Abort()
-			return
-		}
-
-		// Substitute after cache lookup so one language render can serve this request
-		// with its own SecurityHeaders nonce while the stored HTML keeps reusable placeholder bytes.
-		content := replaceNoncePlaceholder(cached.Content, nonce)
-
-		c.Header("ETag", cached.ETag)
-		c.Header("Cache-Control", "no-cache") // Must revalidate
-		c.Data(http.StatusOK, "text/html; charset=utf-8", content)
-		c.Abort()
+		s.writeIndexHTML(c, *cached, nonce)
 		return
 	}
 
@@ -269,10 +256,24 @@ func (s *FrontendServer) serveIndexHTML(c *gin.Context) {
 	// can reject cache storage while this initiating request still receives its completed render.
 	snapshot := s.cache.Publish(language, version, rendered, settingsJSON)
 
-	content := replaceNoncePlaceholder(rendered, nonce)
+	s.writeIndexHTML(c, snapshot, nonce)
+}
 
-	c.Header("ETag", snapshot.ETag)
+// writeIndexHTML completes request-specific metadata before conditional response handling.
+// The validator excludes the CSP nonce, but includes the destination URL and
+// language snapshot. Both successful and not-modified responses carry cache headers.
+func (s *FrontendServer) writeIndexHTML(c *gin.Context, snapshot CachedHTML, nonce string) {
+	content, etag := renderSocialMetadata(c, snapshot)
+	c.Header("ETag", etag)
 	c.Header("Cache-Control", "no-cache")
+	if c.GetHeader("If-None-Match") == etag {
+		c.Status(http.StatusNotModified)
+		c.Abort()
+		return
+	}
+	// Keep nonce replacement after metadata hashing so random per-request CSP
+	// values do not prevent conditional requests from reusing otherwise identical HTML.
+	content = replaceNoncePlaceholder(content, nonce)
 	c.Data(http.StatusOK, "text/html; charset=utf-8", content)
 	c.Abort()
 }

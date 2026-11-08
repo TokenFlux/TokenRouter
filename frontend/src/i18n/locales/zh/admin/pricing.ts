@@ -435,6 +435,7 @@ export default {
         cache_read: '缓存读取',
         cache_write: '缓存写入 / 5m',
         cache_write_1h: '缓存写入 / 1h',
+        image_cache_read: '图片缓存输入 Token',
         image_input: '图片输入 token',
         image_output: '图片输出 token',
         peak: '当前官方峰谷倍率',

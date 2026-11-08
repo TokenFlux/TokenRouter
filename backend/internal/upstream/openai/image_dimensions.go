@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image"
+	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
@@ -16,7 +17,7 @@ import (
 // reconciles reported result sizes.
 // Image billing metadata can carry auto dimensions even after image bytes have
 // a concrete size. Dimension probing reads bounded Base64 headers and
-// recognizes WebP layouts directly, while registered JPEG and PNG decoders
+// recognizes WebP layouts directly, while registered JPEG, PNG, and GIF decoders
 // provide configuration sizes without decoding all pixels.
 //
 // The probe tries padded then unpadded standard Base64 and returns empty text

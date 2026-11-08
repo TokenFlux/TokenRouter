@@ -66,6 +66,8 @@ export interface UsageLog {
   ttft_mode?: string // First-token measurement method.
 
   // Image generation usage observations.
+  image_frame_count?: number // Observed animation frame units.
+  image_cache_read_tokens?: number // Explicit cached image tokens.
   image_count: number // Generated image count.
   image_size: string | null // Billed image resolution.
   image_input_size: string | null // Input image resolution.

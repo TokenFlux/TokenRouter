@@ -35,7 +35,18 @@ const (
 
 // siteTextKeys lists the source fields initialized for the editor when saved
 // localized content does not yet define an editable block for those keys.
-var siteTextKeys = []string{"site_name", "site_title", "site_subtitle", "contact_info", "doc_url", "home_content", "purchase_subscription_url", "footer_text"}
+var siteTextKeys = []string{
+	"site_name",
+	"site_title",
+	"site_subtitle",
+	"site_share_title",
+	"site_share_description",
+	"contact_info",
+	"doc_url",
+	"home_content",
+	"purchase_subscription_url",
+	"footer_text",
+}
 
 // LocalizedTexts stores site text by field so each field can resolve translations independently.
 type LocalizedTexts = locale.TextUpdates

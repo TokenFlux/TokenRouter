@@ -3,6 +3,7 @@ package timing
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -21,15 +22,16 @@ func TestPerformanceSeparatesMetadataAndContent(t *testing.T) {
 	p.Observe(`{"type":"response.output_text.done","item_id":"m","text":"hello world"}`, "", 950)
 	p.Observe(`{"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"output_text","text":"hello world"}]}],"usage":{"output_tokens":20}}}`, "", 1100)
 	require.Equal(t, 200, *p.TTFTMs())
-	require.Equal(t, 40.0, *p.TPS(20))
+	require.Equal(t, 28.6, *p.TPS(20))
 	require.Equal(t, int64(800), p.Values["upstream_last_output_ms"])
 	p.Mode = FirstEvent
 	require.Equal(t, 50, *p.TTFTMs())
-	require.Equal(t, 40.0, *p.TPS(20))
+	require.Equal(t, 28.6, *p.TPS(20))
 }
 
-// TestPerformanceRejectsIncompleteThroughput exercises partial usage and empty intervals.
-// A completion marker alone cannot create a throughput estimate or useful output.
+// TestPerformanceRejectsIncompleteThroughput supplies final counters after a terminal.
+// Single and coalesced outputs qualify only with complete usage, while a later error
+// invalidates throughput even if another successful terminal follows it.
 func TestPerformanceRejectsIncompleteThroughput(t *testing.T) {
 	p := NewPerformance(FirstOutput, 0)
 	p.Observe(`{"type":"message_start","message":{"usage":{"output_tokens":0}}}`, "", 0)
@@ -38,14 +40,86 @@ func TestPerformanceRejectsIncompleteThroughput(t *testing.T) {
 	p.Observe(`{"type":"message_stop"}`, "", 20)
 	require.Nil(t, p.TPS(10))
 	p.UsageComplete = true
-	require.Nil(t, p.TPS(10))
+	require.Equal(t, 1000.0, *p.TPS(10))
 	p.Observe(`{"type":"content_block_delta","delta":{"text":"b"}}`, "", 10)
-	require.Nil(t, p.TPS(10))
+	require.Equal(t, 1000.0, *p.TPS(10))
 	p.Observe(`{"type":"error","error":{"message":"lost"}}`, "", 40)
 	require.False(t, p.Complete)
 	p.Observe("[DONE]", "", 50)
 	require.False(t, p.Complete)
 	require.Nil(t, p.TPS(10))
+}
+
+// TestPerformanceTPSRequiresCompleteObservedInterval varies stored timing evidence.
+// Only complete streams with positive output and an ordered positive attempt interval
+// produce an estimate; first-output timing and event counts are not prerequisites.
+func TestPerformanceTPSRequiresCompleteObservedInterval(t *testing.T) {
+	complete := NewPerformance(FirstOutput, 100)
+	complete.Stream = true
+	complete.Complete = true
+	complete.UsageComplete = true
+	complete.Values["upstream_last_output_ms"] = 900
+	wantSpeed := 21.3
+	for _, tc := range []struct {
+		name   string             // independent evidence scenario
+		change func(*Performance) // per-snapshot evidence mutation
+		tokens int                // final output token count
+		want   *float64           // nil means unavailable estimate
+	}{
+		{"last_output_only", func(*Performance) {}, 17, &wantSpeed},
+		{"first_event_mode", func(p *Performance) { p.Mode = FirstEvent }, 17, &wantSpeed},
+		{"missing_start", func(p *Performance) { delete(p.Values, "upstream_started_ms") }, 17, nil},
+		{"missing_output", func(p *Performance) { delete(p.Values, "upstream_last_output_ms") }, 17, nil},
+		{"zero_interval", func(p *Performance) { p.Values["upstream_last_output_ms"] = 100 }, 17, nil},
+		{"inverted_interval", func(p *Performance) { p.Values["upstream_last_output_ms"] = 99 }, 17, nil},
+		{"nonstreaming", func(p *Performance) { p.Stream = false }, 17, nil},
+		{"unfinished", func(p *Performance) { p.Complete = false }, 17, nil},
+		{"partial_usage", func(p *Performance) { p.UsageComplete = false }, 17, nil},
+		{"zero_tokens", func(*Performance) {}, 0, nil},
+		{"negative_tokens", func(*Performance) {}, -1, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := complete.Clone()
+			tc.change(p)
+			require.Equal(t, tc.want, p.TPS(tc.tokens))
+		})
+	}
+	var missing *Performance
+	require.Nil(t, missing.TPS(17))
+}
+
+// TestPerformanceTPSBufferedGemini uses timing offsets from buffered-output examples.
+// A lone final chunk and coalesced chunks include the preceding wait, even when
+// the first response byte arrives only milliseconds before all useful content.
+func TestPerformanceTPSBufferedGemini(t *testing.T) {
+	for _, tc := range []struct {
+		name      string  // buffered delivery scenario
+		started   int64   // attempt offset milliseconds
+		arrived   int64   // output offset milliseconds
+		tokens    int     // final output token count
+		coalesced bool    // additional same-arrival content event
+		want      float64 // expected rounded output speed
+	}{
+		{"single_chunk", 11103, 26297, 119, false, 7.8},
+		{"long_wait", 5198, 58731, 61, false, 1.1},
+		{"coalesced_chunks", 11103, 26297, 119, true, 7.8},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := NewPerformance(FirstOutput, tc.started)
+			p.Values["upstream_first_response_byte_ms"] = tc.arrived - 6
+			if tc.coalesced {
+				p.Observe(`{"candidates":[{"content":{"parts":[{"text":"hello"}]}}]}`, "", tc.arrived)
+			}
+			terminal := fmt.Sprintf(`{"candidates":[{"content":{"parts":[{"text":"world"}]},"finishReason":"STOP"}],"usageMetadata":{"candidatesTokenCount":%d}}`, tc.tokens)
+			p.Observe(terminal, "", tc.arrived)
+			require.Equal(t, tc.want, *p.TPS(tc.tokens))
+			require.Equal(t, tc.arrived, p.Values["upstream_first_output_ms"])
+			require.Equal(t, tc.arrived, p.Values["upstream_last_output_ms"])
+			p.Observe("[DONE]", "", tc.arrived+500)
+			p.Values["upstream_finished_ms"] = tc.arrived + 1000
+			require.Equal(t, tc.want, *p.TPS(tc.tokens))
+		})
+	}
 }
 
 // TestPerformanceClassifiesNativeProtocols verifies equal treatment of content across
@@ -104,14 +178,14 @@ func TestPerformanceCountsIncrementalFinalContent(t *testing.T) {
 	p.Observe(`{"candidates":[{"content":{"parts":[{"text":"hello"}]}}]}`, "", 100)
 	p.Observe(`{"candidates":[{"content":{"parts":[{"text":" world"}]},"finishReason":"STOP"}],"usageMetadata":{"candidatesTokenCount":10}}`, "", 600)
 	require.Equal(t, int64(2), p.Values["upstream_output_event_count"])
-	require.Equal(t, 20.0, *p.TPS(10))
+	require.Equal(t, 16.7, *p.TPS(10))
 	q := NewPerformance(FirstOutput, 0)
 	q.Observe(`{"body":"{\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}"}`, "", 100)
 	q.Observe(`{"body":"{\"choices\":[{\"delta\":{\"content\":\" world\"}}]}"}`, "", 600)
 	q.Observe(`{"body":"{\"choices\":[{\"message\":{\"content\":\"hello world\"},\"finish_reason\":\"stop\"}],\"usage\":{\"output_tokens\":10}}"}`, "", 900)
 	require.True(t, q.Complete)
 	require.Equal(t, int64(600), q.Values["upstream_last_output_ms"])
-	require.Equal(t, 20.0, *q.TPS(10))
+	require.Equal(t, 16.7, *q.TPS(10))
 }
 
 // TestPerformanceIncompleteTerminalCannotProduceTPS supplies completed framing with an
@@ -166,7 +240,7 @@ func TestPerformanceChatCompletionWithoutDone(t *testing.T) {
 			require.Equal(t, tc.complete, p.Complete)
 			require.Equal(t, tc.usageComplete, p.UsageComplete)
 			if tc.complete && tc.usageComplete {
-				require.Equal(t, 40.0, *p.TPS(20))
+				require.Equal(t, 33.3, *p.TPS(20))
 			} else {
 				require.Nil(t, p.TPS(20))
 			}
@@ -221,7 +295,7 @@ func TestPerformanceToolInputsKeepItemAndCloneOwnership(t *testing.T) {
 	p.Observe(`{"type":"response.completed","response":{"output":[{"id":"a","type":"function_call","name":"first","arguments":"{}"},{"id":"b","type":"custom_tool_call","name":"second","input":"actual input"}],"usage":{"output_tokens":20}}}`, "", 800)
 	require.Equal(t, int64(4), p.Values["upstream_output_event_count"])
 	require.Equal(t, int64(600), p.Values["upstream_last_output_ms"])
-	require.Equal(t, 40.0, *p.TPS(20))
+	require.Equal(t, 33.3, *p.TPS(20))
 	require.Equal(t, int64(250), copied.Values["upstream_last_output_ms"])
 	encoded, err := json.Marshal(p)
 	require.NoError(t, err)

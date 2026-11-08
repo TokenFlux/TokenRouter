@@ -735,6 +735,7 @@ export interface SystemSettings {
   default_locale: string // Configured default locale.
   site_name: string // Configured site name.
   site_logo: string // Configured site logo.
+  site_share_image: string // Saved cover image data URL.
   site_subtitle: string // Configured site subtitle.
   api_base_url: string // API base URL.
   contact_info: string // Configured contact info.
@@ -1100,6 +1101,7 @@ export interface UpdateSettingsRequest {
   default_locale?: string // Requested default locale.
   site_name?: string // Requested site name.
   site_logo?: string // Requested site logo.
+  site_share_image?: string // Uploaded cover; empty removes it.
   site_subtitle?: string // Requested site subtitle.
   api_base_url?: string // API base URL.
   contact_info?: string // Requested contact info.

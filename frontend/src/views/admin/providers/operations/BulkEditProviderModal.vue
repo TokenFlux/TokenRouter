@@ -545,6 +545,19 @@
           </template>
 
           <BulkApplyField
+            v-if="allOpenAIPassthroughCapable"
+            id="bulk-edit-images-gif"
+            v-model="enableImagesGIF"
+            :label="t('admin.providers.openai.imagesGIFEnabled')"
+            :hint="t('admin.providers.openai.imagesGIFEnabledDesc')"
+          >
+            <Toggle
+              v-model="imagesGIFEnabled"
+              :label="t('admin.providers.openai.imagesGIFEnabled')"
+            />
+          </BulkApplyField>
+
+          <BulkApplyField
             v-if="allOpenAIOAuth"
             id="bulk-edit-image-responses-model"
             v-model="enableCodexImageResponsesModel"
@@ -1065,6 +1078,9 @@ const enableOpenAIFlattenNamespaces = ref(false)
 const enableCodexImageToolMode = ref(false)
 // These drafts apply an image driver only when selected OAuth targets opt into the patch.
 const enableCodexImageResponsesModel = ref(false)
+/** GIF bulk changes remain opt-in while their proposed value defaults on. */
+const enableImagesGIF = ref(false)
+const imagesGIFEnabled = ref(true)
 const codexImageResponsesModel = ref('')
 const enableUpstreamProtocols = ref(false)
 const upstreamProtocols = ref<ProtocolID[] | undefined>(undefined)
@@ -1576,6 +1592,9 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     extra.openai_responses_flatten_namespaces = openaiFlattenNamespacesEnabled.value
   }
 
+  if (enableImagesGIF.value && allOpenAIPassthroughCapable.value) {
+    ensureExtra().images_gif_enabled = imagesGIFEnabled.value
+  }
   if (enableCodexImageResponsesModel.value && allOpenAIOAuth.value) {
     applyCodexImageResponsesModel(ensureExtra(), codexImageResponsesModel.value)
   }
@@ -1784,6 +1803,7 @@ const handleSubmit = async () => {
   }
 
   const hasAnyFieldEnabled =
+    enableImagesGIF.value ||
     applyImageModes.images_generations_mode ||
     applyImageModes.images_edits_mode ||
     enableUpstreamProtocols.value ||
@@ -1920,6 +1940,8 @@ const resetBulkEditFormState = () => {
   enableOpenAIFlattenNamespaces.value = false
   enableCodexImageToolMode.value = false
   enableCodexImageResponsesModel.value = false
+  enableImagesGIF.value = false
+  imagesGIFEnabled.value = true
   codexImageResponsesModel.value = ''
   enableUpstreamProtocols.value = false
   upstreamProtocols.value = undefined

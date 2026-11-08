@@ -46,6 +46,9 @@ type AdminSettings struct {
 	PurchaseSubscriptionEnabled bool   `json:"purchase_subscription_enabled"` // subscription purchase switch
 	PurchaseSubscriptionURL     string `json:"purchase_subscription_url"`     // subscription purchase destination
 	SiteLogo                    string `json:"site_logo"`                     // branding image location
+	// SiteShareImage is validated by SettingsParticipant when supplied. Its
+	// derived descriptor is stored in that same batch, and empty input removes it.
+	SiteShareImage string `json:"site_share_image"` // Saved cover image data URL.
 	// SiteTexts carries per-field localization updates; nil omits the grouped
 	// setting from the returned write map and leaves preparation to its caller.
 	SiteTexts LocalizedTexts `json:"site_texts"` // localized source content

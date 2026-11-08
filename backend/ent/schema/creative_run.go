@@ -43,6 +43,10 @@ func (CreativeRun) Mixin() []ent.Mixin {
 // the creative repository records those phases.
 func (CreativeRun) Fields() []ent.Field {
 	return []ent.Field{
+		// Requested animation count; zero preserves static task pricing.
+		field.Int("frame_count").Default(0),
+		// Requested frame delay, in milliseconds, for animated tasks only.
+		field.Int("frame_duration_ms").Default(0),
 		// Immutable public identity.
 		field.String("run_id").MaxLen(64).Immutable(),
 		// Resource owner identity.

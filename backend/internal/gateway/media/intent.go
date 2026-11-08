@@ -46,8 +46,9 @@ const (
 // unspecified tool model until the route chooses conversion or the hosted default.
 // Codex enables provider tool stripping.
 type ResponsesImageSelection struct {
-	Models []string // declared image tool models
-	Codex  bool     // client uses Codex preparation
+	Models    []string // declared image tool models
+	GIFModels []string // tool identities requesting GIF output
+	Codex     bool     // client uses Codex preparation
 }
 
 // responsesImageSelectionKey identifies one request or turn's image tool requirements.
@@ -95,11 +96,20 @@ type OpenAIResponsesImageBillingConfig struct {
 	InputSize string // trimmed selected raw size evidence
 }
 
+// imageGIFRequirementKey isolates native image intent from Responses tool choices.
+type imageGIFRequirementKey struct{}
+
 // WithResponsesImageSelection captures image tool identities for candidate checks.
 // Each call replaces the previous turn's requirements, including an empty list;
 // callers supply the client classification used by their forwarding preparation.
 func WithResponsesImageSelection(ctx context.Context, body []byte, codex bool) context.Context {
-	return context.WithValue(ctx, responsesImageSelectionKey{}, ResponsesImageSelection{Models: ResponsesImageModels(body), Codex: codex})
+	selection := ResponsesImageSelection{Models: ResponsesImageModels(body), Codex: codex}
+	for _, tool := range gjson.GetBytes(body, "tools").Array() {
+		if tool.Get("type").String() == "image_generation" && strings.EqualFold(tool.Get("output_format").String(), "gif") {
+			selection.GIFModels = append(selection.GIFModels, strings.TrimSpace(tool.Get("model").String()))
+		}
+	}
+	return context.WithValue(ctx, responsesImageSelectionKey{}, selection)
 }
 
 // ResponsesImageSelectionFromContext returns the request's immutable image requirements.
@@ -685,4 +695,17 @@ func (p ImageIntentPolicy) OpenAIJSONString(value gjson.Result) string {
 		return ""
 	}
 	return strings.TrimSpace(value.String())
+}
+
+// WithImageGIFRequirement marks a native image request for candidate filtering.
+// The flag belongs to this request context and survives retries; ordinary image
+// requests explicitly carry false so reused contexts cannot retain earlier intent.
+func WithImageGIFRequirement(ctx context.Context, enabled bool) context.Context {
+	return context.WithValue(ctx, imageGIFRequirementKey{}, enabled)
+}
+
+// ImageGIFRequired reports whether native image execution requires GIF output.
+func ImageGIFRequired(ctx context.Context) bool {
+	enabled, _ := ctx.Value(imageGIFRequirementKey{}).(bool)
+	return enabled
 }

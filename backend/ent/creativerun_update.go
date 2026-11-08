@@ -36,6 +36,48 @@ func (_u *CreativeRunUpdate) SetUpdatedAt(v time.Time) *CreativeRunUpdate {
 	return _u
 }
 
+// SetFrameCount sets the "frame_count" field.
+func (_u *CreativeRunUpdate) SetFrameCount(v int) *CreativeRunUpdate {
+	_u.mutation.ResetFrameCount()
+	_u.mutation.SetFrameCount(v)
+	return _u
+}
+
+// SetNillableFrameCount sets the "frame_count" field if the given value is not nil.
+func (_u *CreativeRunUpdate) SetNillableFrameCount(v *int) *CreativeRunUpdate {
+	if v != nil {
+		_u.SetFrameCount(*v)
+	}
+	return _u
+}
+
+// AddFrameCount adds value to the "frame_count" field.
+func (_u *CreativeRunUpdate) AddFrameCount(v int) *CreativeRunUpdate {
+	_u.mutation.AddFrameCount(v)
+	return _u
+}
+
+// SetFrameDurationMs sets the "frame_duration_ms" field.
+func (_u *CreativeRunUpdate) SetFrameDurationMs(v int) *CreativeRunUpdate {
+	_u.mutation.ResetFrameDurationMs()
+	_u.mutation.SetFrameDurationMs(v)
+	return _u
+}
+
+// SetNillableFrameDurationMs sets the "frame_duration_ms" field if the given value is not nil.
+func (_u *CreativeRunUpdate) SetNillableFrameDurationMs(v *int) *CreativeRunUpdate {
+	if v != nil {
+		_u.SetFrameDurationMs(*v)
+	}
+	return _u
+}
+
+// AddFrameDurationMs adds value to the "frame_duration_ms" field.
+func (_u *CreativeRunUpdate) AddFrameDurationMs(v int) *CreativeRunUpdate {
+	_u.mutation.AddFrameDurationMs(v)
+	return _u
+}
+
 // SetUserID sets the "user_id" field.
 func (_u *CreativeRunUpdate) SetUserID(v int64) *CreativeRunUpdate {
 	_u.mutation.ResetUserID()
@@ -934,6 +976,18 @@ func (_u *CreativeRunUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(creativerun.FieldUpdatedAt, field.TypeTime, value)
 	}
+	if value, ok := _u.mutation.FrameCount(); ok {
+		_spec.SetField(creativerun.FieldFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedFrameCount(); ok {
+		_spec.AddField(creativerun.FieldFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.FrameDurationMs(); ok {
+		_spec.SetField(creativerun.FieldFrameDurationMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedFrameDurationMs(); ok {
+		_spec.AddField(creativerun.FieldFrameDurationMs, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(creativerun.FieldUserID, field.TypeInt64, value)
 	}
@@ -1172,6 +1226,48 @@ type CreativeRunUpdateOne struct {
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *CreativeRunUpdateOne) SetUpdatedAt(v time.Time) *CreativeRunUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
+	return _u
+}
+
+// SetFrameCount sets the "frame_count" field.
+func (_u *CreativeRunUpdateOne) SetFrameCount(v int) *CreativeRunUpdateOne {
+	_u.mutation.ResetFrameCount()
+	_u.mutation.SetFrameCount(v)
+	return _u
+}
+
+// SetNillableFrameCount sets the "frame_count" field if the given value is not nil.
+func (_u *CreativeRunUpdateOne) SetNillableFrameCount(v *int) *CreativeRunUpdateOne {
+	if v != nil {
+		_u.SetFrameCount(*v)
+	}
+	return _u
+}
+
+// AddFrameCount adds value to the "frame_count" field.
+func (_u *CreativeRunUpdateOne) AddFrameCount(v int) *CreativeRunUpdateOne {
+	_u.mutation.AddFrameCount(v)
+	return _u
+}
+
+// SetFrameDurationMs sets the "frame_duration_ms" field.
+func (_u *CreativeRunUpdateOne) SetFrameDurationMs(v int) *CreativeRunUpdateOne {
+	_u.mutation.ResetFrameDurationMs()
+	_u.mutation.SetFrameDurationMs(v)
+	return _u
+}
+
+// SetNillableFrameDurationMs sets the "frame_duration_ms" field if the given value is not nil.
+func (_u *CreativeRunUpdateOne) SetNillableFrameDurationMs(v *int) *CreativeRunUpdateOne {
+	if v != nil {
+		_u.SetFrameDurationMs(*v)
+	}
+	return _u
+}
+
+// AddFrameDurationMs adds value to the "frame_duration_ms" field.
+func (_u *CreativeRunUpdateOne) AddFrameDurationMs(v int) *CreativeRunUpdateOne {
+	_u.mutation.AddFrameDurationMs(v)
 	return _u
 }
 
@@ -2102,6 +2198,18 @@ func (_u *CreativeRunUpdateOne) sqlSave(ctx context.Context) (_node *CreativeRun
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(creativerun.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.FrameCount(); ok {
+		_spec.SetField(creativerun.FieldFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedFrameCount(); ok {
+		_spec.AddField(creativerun.FieldFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.FrameDurationMs(); ok {
+		_spec.SetField(creativerun.FieldFrameDurationMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedFrameDurationMs(); ok {
+		_spec.AddField(creativerun.FieldFrameDurationMs, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(creativerun.FieldUserID, field.TypeInt64, value)

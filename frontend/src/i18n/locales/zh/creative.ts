@@ -8,6 +8,9 @@ export default {
     title: '创作台',
     description: '使用 AI 模型生成与编辑图片，素材仅保存在当前浏览器。',
     panel: {
+      outputFormat: '输出格式',
+      frameCount: '帧数',
+      frameDuration: '每帧时长（毫秒）',
       model: '模型',
       // Image selection guidance shared with generation validation when no reference image is selected.
       selectImageHint: '请先在画布中选中一张图片，再开始生成。',
@@ -75,6 +78,8 @@ export default {
     },
     // Quality labels correspond to the generation quality values exposed by model settings.
     qualities: {
+      xhigh: '极高',
+      max: '最高',
       low: '低',
       medium: '中',
       high: '高',
@@ -90,6 +95,9 @@ export default {
       high: '高',
     },
     canvas: {
+      playGIF: '播放 GIF',
+      stopGIF: '停止播放 GIF',
+      gifReadOnly: 'GIF 可预览和下载；编辑请使用静态图片。',
       brushSize: '画笔粗细',
       shapeRound: '圆头笔迹',
       shapeSquare: '方头笔迹',
@@ -165,6 +173,7 @@ export default {
       skip: '跳过裁剪',
     },
     error: {
+      playGIFFailed: 'GIF 播放失败，请重试。',
       loadModelsFailed: '模型目录加载失败，请稍后重试。',
       noModel: '请先选择模型。',
       operationNotSupported: '所选模型不支持该操作。',

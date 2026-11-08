@@ -17,7 +17,8 @@ import {
 // Saving snapshots registration order and then rechecks each target's dirty flag
 // immediately before invoking it. A false result records failure while allowing later
 // saves, whereas a rejected promise interrupts the sequence. Discard selects dirty targets
-// first and starts their reloads concurrently. Component registrations are removed on
+// first and starts their reloads concurrently, waiting for every operation before
+// reporting a failure. Component registrations are removed on
 // unmount; hiding a mounted panel leaves registration active.
 
 // SettingsSaveTarget exposes section-owned dirty state, persistence, and server reload
@@ -30,8 +31,8 @@ export interface SettingsSaveTarget {
   // run, while rejection interrupts saving; the target records its own clean baseline.
   save: () => Promise<boolean> // section persistence result callback
   // discard reloads or replaces the section draft and updates its clean baseline. Dirty
-  // targets start these operations concurrently, and callers receive any Promise.all
-  // rejection after dispatch.
+  // targets start these operations concurrently. Failures propagate only after all
+  // dispatched reloads settle, so callers can keep editing disabled throughout restoration.
   discard: () => Promise<void> // section draft reload callback
 }
 
@@ -86,14 +87,22 @@ export function createSettingsSaveRegistry() {
   }
 
   // discardDirty starts reloads concurrently for targets dirty when the list is selected.
-  // It propagates Promise.all rejection while other started reloads continue; each target
-  // updates its own draft and dirty baseline.
+  // Each target updates its own draft and dirty baseline. After every reload settles,
+  // the first failure in registration order is rethrown to the page.
+  //
+  // A quick failure must not release page controls while another target can still
+  // overwrite its draft. Async callbacks also convert synchronous throws into rejected
+  // promises, allowing all selected targets to start and preserving the same wait rule.
   async function discardDirty() {
-    await Promise.all(
+    // Wait for successful and failed reloads together before the page clears its
+    // activity flag; remaining callbacks must not race with newly enabled image editors.
+    const results = await Promise.allSettled(
       [...targets.values()]
         .filter((target) => unref(target.dirty))
-        .map((target) => target.discard()),
+        .map(async (target) => target.discard()),
     )
+    const failure = results.find((result) => result.status === 'rejected')
+    if (failure) throw failure.reason
   }
 
   const registry: SettingsSaveRegistry = {

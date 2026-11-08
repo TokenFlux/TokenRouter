@@ -71,6 +71,8 @@ type ImageRequest struct {
 	// OutputCompression retains the native parser's optional integer pointer.
 	// NativeImageRequest and ApplyNativeImageRequest share that pointer, so
 	// consumers coordinate mutation or copy the pointed value.
+	FrameCount        *int // requested animation frame count
+	FrameDurationMS   *int // milliseconds per animation frame
 	OutputCompression *int // optional image compression percentage
 	// PartialImages retains the native parser's optional integer pointer.
 	// Converted request structs share this value, so callers copy it before
@@ -270,6 +272,8 @@ func NativeImageRequest(value *ImageRequest) *upstreamcore.ImageRequest {
 		Moderation:        value.Moderation,
 		InputFidelity:     value.InputFidelity,
 		Style:             value.Style,
+		FrameCount:        value.FrameCount,
+		FrameDurationMS:   value.FrameDurationMS,
 		OutputCompression: value.OutputCompression,
 		PartialImages:     value.PartialImages,
 		HasMask:           value.HasMask,
@@ -309,6 +313,8 @@ func ApplyNativeImageRequest(target *ImageRequest, value *upstreamcore.ImageRequ
 	target.Moderation = value.Moderation
 	target.InputFidelity = value.InputFidelity
 	target.Style = value.Style
+	target.FrameCount = value.FrameCount
+	target.FrameDurationMS = value.FrameDurationMS
 	target.OutputCompression = value.OutputCompression
 	target.PartialImages = value.PartialImages
 	target.HasMask = value.HasMask

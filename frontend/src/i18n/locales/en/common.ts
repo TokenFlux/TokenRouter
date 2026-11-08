@@ -96,6 +96,8 @@ export default {
     selectedFile: 'Selected: {name}',
     fileReadFailed: 'Failed to read file',
     selectImageFile: 'Please select an image file',
+    unsupportedImageType: 'Select a PNG, JPEG, or WebP image',
+    imageDimensionsTooLarge: 'Image dimensions must not exceed {max} pixels per side',
     fileTooLargeKb: 'File too large ({size} KB), max {max} KB',
     copy: 'Copy',
     notAvailable: 'N/A',

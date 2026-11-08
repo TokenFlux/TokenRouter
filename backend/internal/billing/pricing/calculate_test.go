@@ -7,7 +7,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
+
+// calculate_test.go verifies configured and catalog token charges across
+// cache, image, service-tier, and context rules. Explicit prices and reported
+// token counts let the assertions distinguish absent amounts, zero prices, and
+// overlapping input subsets.
 
 // TestPriorityCacheTTLUsesPricesRegardlessOfSource supplies identical prices
 // with two source labels. Both TTL cost cases and Fast display rates must
@@ -219,5 +226,43 @@ func TestPerRequestDisplayRequiresDeclaredImageDimensions(t *testing.T) {
 	result, ok := DisplayPricingFromResolved("canvas", 1, image)
 	if !ok || result.PriceStatus != "priced" || len(result.ImagePriceSizes) != 1 || result.ImagePriceSizes[0] != "1K" || result.ImagePrice1K != 0 {
 		t.Fatalf("explicit free image tier lost its dimension or zero price: %+v", result)
+	}
+}
+
+// TestComputeTokenBreakdownImageCache prices an explicit image-cache subdivision.
+// Cached image input is removed from both ordinary image input and aggregate
+// cache input before applying its separate rate, preventing overlapping charges.
+func TestComputeTokenBreakdownImageCache(t *testing.T) {
+	pricing := &ModelPricing{InputPricePerToken: 5e-6, ImageInputPricePerToken: 8e-6, CacheReadPricePerToken: 1.25e-6, ImageCacheReadPricePerToken: 2e-6, ImageCacheReadPriceExplicit: true}
+	cost := ComputeTokenBreakdown(pricing, UsageTokens{InputTokens: 100, ImageInputTokens: 80, CacheReadTokens: 50, ImageCacheReadTokens: 30}, 1, "", false)
+	require.InDelta(t, 50*5e-6, cost.InputCost, 1e-12)
+	require.InDelta(t, 50*8e-6, cost.ImageInputCost, 1e-12)
+	require.InDelta(t, 20*1.25e-6+30*2e-6, cost.CacheReadCost, 1e-12)
+	cost = ComputeTokenBreakdown(pricing, UsageTokens{CacheReadTokens: 50}, 1, "", false)
+	require.InDelta(t, 50*1.25e-6, cost.CacheReadCost, 1e-12)
+	pricing.ImageCacheReadPricePerToken = 0
+	cost = ComputeTokenBreakdown(pricing, UsageTokens{CacheReadTokens: 50, ImageCacheReadTokens: 50}, 1, "", false)
+	require.Zero(t, cost.CacheReadCost)
+}
+
+// TestComputeTokenBreakdownProgressiveImageCache prices identical complete and
+// streamed observations. Explicit cached image input must survive a terminal
+// event without usage so its cache discount and uncached input split stay equal.
+func TestComputeTokenBreakdownProgressiveImageCache(t *testing.T) {
+	event := []byte(`{"type":"response.in_progress","response":{"usage":{"input_tokens":150,"input_tokens_details":{"image_tokens":80,"cached_tokens":50,"cached_tokens_details":{"image_tokens":30}}}}}`)
+	direct, ok := openai.ExtractOpenAIUsageFromJSONBytes(event)
+	require.True(t, ok)
+	var streamed openai.ForwardUsage
+	openai.ParseSSEUsageBytes(event, &streamed)
+	openai.ParseSSEUsageBytes([]byte(`{"type":"response.completed","response":{"output":[]}}`), &streamed)
+	prices := &ModelPricing{InputPricePerToken: 5e-6, ImageInputPricePerToken: 8e-6, CacheReadPricePerToken: 1.25e-6, ImageCacheReadPricePerToken: 2e-6, ImageCacheReadPriceExplicit: true}
+	for _, usage := range []openai.ForwardUsage{direct, streamed} {
+		cost := ComputeTokenBreakdown(prices, UsageTokens{
+			InputTokens: usage.InputTokens - usage.CacheReadInputTokens, ImageInputTokens: usage.ImageInputTokens,
+			CacheReadTokens: usage.CacheReadInputTokens, ImageCacheReadTokens: usage.ImageCacheReadTokens,
+		}, 1, "", false)
+		require.Equal(t, 30, usage.ImageCacheReadTokens)
+		// Permit binary arithmetic residue beneath the monetary storage precision.
+		require.InDelta(t, 0.000735, cost.ActualCost, 1e-12)
 	}
 }

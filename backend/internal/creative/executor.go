@@ -257,6 +257,9 @@ func (t *preparedExecution) Execute(ctx context.Context, run CreativeRun, payloa
 	}
 	if resolved := t.selection.attributes; resolved != nil {
 		if media := resolved.Attributes.Media; media != nil {
+			if run.FrameCount > 0 && !slices.Contains(media.OutputFormats, "gif") {
+				return nil, CreativeNonRetryableError("GIF output is not supported by the selected model")
+			}
 			imageSize := payload.ImageSize
 			if imageSize == "" {
 				imageSize = run.ImageSize
@@ -296,6 +299,9 @@ func (t *preparedExecution) Execute(ctx context.Context, run CreativeRun, payloa
 	outputs, err := s.Execute(ctx, run, payload, model)
 	if err == nil {
 		outputs, err = NormalizeCreativeOutputs(outputs)
+	}
+	if err == nil && run.FrameCount > 0 && (len(outputs) != 1 || outputs[0].Mime != "image/gif") {
+		err = CreativeImageResultError("INVALID_IMAGE_RESPONSE", "platform did not return GIF output")
 	}
 	if s.Report != nil {
 		s.Report(model, err == nil)

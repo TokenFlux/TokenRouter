@@ -67,3 +67,6 @@ func (calendarPublicSource) LoadSitePublicInputs(context.Context) (site.PublicIn
 
 // PublicVersion returns the fixed source build label used by injection fixtures.
 func (calendarPublicSource) PublicVersion() string { return "calendar-contract" }
+
+// LoadSiteShareImage leaves this text-only fixture without an uploaded cover.
+func (calendarPublicSource) LoadSiteShareImage(context.Context) (string, error) { return "", nil }

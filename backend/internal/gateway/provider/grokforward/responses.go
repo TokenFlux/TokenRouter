@@ -217,6 +217,7 @@ func Forward(ctx context.Context, p Ports, o Options, in Input) (*forwardcore.Op
 	usage := &protocolopenai.ForwardUsage{
 		InputTokens:              nativeResult.Usage.InputTokens,
 		ImageInputTokens:         nativeResult.ImageInputTokens,
+		ImageCacheReadTokens:     nativeResult.ImageCacheReadTokens,
 		OutputTokens:             nativeResult.Usage.OutputTokens,
 		CacheCreationInputTokens: nativeResult.Usage.CacheCreationInputTokens,
 		CacheReadInputTokens:     nativeResult.Usage.CacheReadInputTokens,

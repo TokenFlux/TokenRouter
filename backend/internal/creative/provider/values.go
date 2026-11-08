@@ -102,12 +102,14 @@ func DecodeBase64Image(raw string) (upstream.DecodedImage, error) {
 }
 
 // CreativeFileExtension chooses the multipart filename suffix from the trimmed
-// lowercase MIME label. JPEG uses jpg, WebP uses webp, and every other label
+// lowercase MIME label. JPEG uses jpg, WebP and GIF keep their suffix, and every other label
 // selects the png default.
 func CreativeFileExtension(mime string) string {
 	switch strings.ToLower(strings.TrimSpace(mime)) {
 	case "image/jpeg":
 		return "jpg"
+	case "image/gif":
+		return "gif"
 	case "image/webp":
 		return "webp"
 	default:

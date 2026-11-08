@@ -156,6 +156,7 @@ func ProjectMessagesCompletionResult(v *forwardcore.MessagesResult, a *provider.
 		Duration:                    v.Duration,
 		Timings:                     v.Timings,
 		ImageCount:                  v.ImageCount,
+		ImageFrameCount:             v.ImageFrameCount,
 		ImageSize:                   v.ImageSize,
 		ImageInputSize:              v.ImageInputSize,
 		ImageOutputSize:             v.ImageOutputSize,
@@ -211,6 +212,7 @@ func ProjectOpenAICompletionResult(v *forwardcore.OpenAIResult, a *provider.Reco
 		Duration:                    v.Duration,
 		Timings:                     v.Timings,
 		ImageCount:                  v.ImageCount,
+		ImageFrameCount:             v.ImageFrameCount,
 		ImageSize:                   v.ImageSize,
 		ImageInputSize:              v.ImageInputSize,
 		ImageOutputSize:             v.ImageOutputSize,
@@ -229,6 +231,7 @@ func ProjectOpenAICompletionResult(v *forwardcore.OpenAIResult, a *provider.Reco
 			CacheCreationInputTokens: v.Usage.CacheCreationInputTokens,
 			CacheReadInputTokens:     v.Usage.CacheReadInputTokens,
 			ImageInputTokens:         v.Usage.ImageInputTokens,
+			ImageCacheReadTokens:     v.Usage.ImageCacheReadTokens,
 			ImageOutputTokens:        v.Usage.ImageOutputTokens,
 		},
 	}
@@ -286,6 +289,11 @@ func completionUserSummary(u *identity.User) *billing.UserSummary {
 // response headers are cloned, while upstream headers and image-size
 // collections remain borrowed.
 func ImagesForwardResult(result upstream.AttemptResult, parsed *media.ImageRequest, imageCount int) *forwardcore.OpenAIResult {
+	// A requested animation requires validated returned frames before image units
+	// are billable. Token evidence remains available after a malformed GIF result.
+	if parsed.OutputFormat == "gif" && result.ImageFrameCount == 0 {
+		imageCount = 0
+	}
 	return &forwardcore.OpenAIResult{
 		RequestAttempt:  result.RequestAttempt,
 		RequestID:       result.RequestID,
@@ -297,6 +305,7 @@ func ImagesForwardResult(result upstream.AttemptResult, parsed *media.ImageReque
 			CacheReadInputTokens:     result.Usage.CacheReadInputTokens,
 			CacheCreationInputTokens: result.Usage.CacheCreationInputTokens,
 			ImageInputTokens:         result.ImageInputTokens,
+			ImageCacheReadTokens:     result.ImageCacheReadTokens,
 			ImageOutputTokens:        result.Usage.ImageOutputTokens,
 		},
 
@@ -307,6 +316,7 @@ func ImagesForwardResult(result upstream.AttemptResult, parsed *media.ImageReque
 		Duration:         result.Duration,
 		Timings:          result.Timings,
 		ImageCount:       imageCount,
+		ImageFrameCount:  result.ImageFrameCount,
 		ImageSize:        parsed.SizeTier,
 		ImageInputSize:   parsed.Size,
 		ImageOutputSizes: result.ImageOutputSizes,

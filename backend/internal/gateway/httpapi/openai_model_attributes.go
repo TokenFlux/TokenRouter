@@ -102,7 +102,7 @@ func WriteOpenAIModelAttributeError(c *gin.Context, err error, stream bool) bool
 	}
 	reason := apperror.Reason(err)
 	switch reason {
-	case "MODEL_CAPABILITY_UNKNOWN", "MODEL_CAPABILITY_UNSUPPORTED", "MODEL_ATTRIBUTES_UNAVAILABLE":
+	case "MODEL_CAPABILITY_UNKNOWN", "MODEL_CAPABILITY_UNSUPPORTED", "MODEL_ATTRIBUTES_UNAVAILABLE", "IMAGE_GIF_UNSUPPORTED", "IMAGE_GIF_PARAMS_INVALID":
 		if IsResponseCommitted(c) {
 			return true
 		}

@@ -181,7 +181,7 @@ app 把进程配置整理成 `server.Options`，并提供装配好的全局 midd
 
 Gin engine 的中间件顺序：Recovery、可信代理设置、全局日志、客户端指纹、CORS、CSP、Server-Timing、可选的嵌入前端 middleware。之后注册健康检查、`/api/v1` 面板 API，以及不带面板前缀的网关入口。嵌入前端 middleware 会放行 API 和协议路径。`/models` 既是模型广场页面也是 API，按请求方法、认证信息、查询参数和 `Accept` 头区分。
 
-`embed` 构建从 `backend/internal/web/dist/` 提供静态资源，在 HTML 里注入公开设置和 CSP nonce，`data/public` 下的文件可以覆盖静态文件。非 `embed` 构建不注册 SPA middleware，API 进程可以和 Vite 或外部静态服务器分开部署。
+`embed` 构建从 `backend/internal/web/dist/` 提供静态资源，在 HTML 里注入公开设置和 CSP nonce，`data/public` 下的文件可以覆盖静态文件。社交分享标签在语言缓存之外补齐请求地址，最终 ETag 包含这些地址，具体配置见[社交分享](../interfaces/configuration.md#社交分享)。非 `embed` 构建不注册 SPA middleware，API 进程可以和 Vite 或外部静态服务器分开部署。
 
 <a id="deployment_and_failures"></a>
 ## 单实例部署与故障处理

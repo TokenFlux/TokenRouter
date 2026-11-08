@@ -37,6 +37,11 @@ func ProvideRouter(cfg Options, runtime *RouterRuntime) *gin.Engine {
 	r := gin.New()
 	r.Use(middleware2.Recovery())
 	configureTrustedProxies(r, cfg)
+	var originProxies []string
+	if cfg.TrustedProxiesConfigured {
+		originProxies = cfg.TrustedProxies
+	}
+	r.Use(middleware2.RequestOrigin(originProxies))
 
 	return SetupRouter(r, runtime)
 }

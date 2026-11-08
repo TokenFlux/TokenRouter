@@ -13,6 +13,38 @@ import (
 // selected count values remain available after the timed loop finishes.
 var benchmarkUsageSink ForwardUsage
 
+// TestProgressiveImageCacheUsage retains explicit modality counts across sparse
+// SSE and WebSocket observations. Missing terminal usage preserves those counts;
+// a complete terminal snapshot can authoritatively replace them with zero.
+func TestProgressiveImageCacheUsage(t *testing.T) {
+	for _, test := range []struct {
+		name  string                      // usage transport scenario
+		parse func([]byte, *ForwardUsage) // cumulative usage parser
+	}{
+		{name: "SSE", parse: ParseSSEUsageBytes},
+		{name: "SSE with event label", parse: func(body []byte, usage *ForwardUsage) { ParseSSEUsageBytesWithType(body, "", usage) }},
+		{name: "WebSocket", parse: ParseWSResponseUsageFromCompletedEvent},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var usage ForwardUsage
+			test.parse([]byte(`{"type":"response.in_progress","response":{"usage":{"input_tokens":150,"input_tokens_details":{"image_tokens":80,"cached_tokens":50,"cached_tokens_details":{"image_tokens":30}}}}}`), &usage)
+			require.Equal(t, 30, usage.ImageCacheReadTokens)
+			test.parse([]byte(`{"type":"response.in_progress","response":{"usage":{"output_tokens":11}}}`), &usage)
+			test.parse([]byte(`{"type":"response.completed","response":{"output":[]}}`), &usage)
+			require.Equal(t, 150, usage.InputTokens)
+			require.Equal(t, 80, usage.ImageInputTokens)
+			require.Equal(t, 50, usage.CacheReadInputTokens)
+			require.Equal(t, 30, usage.ImageCacheReadTokens)
+			require.Equal(t, 11, usage.OutputTokens)
+			test.parse([]byte(`{"type":"response.completed","response":{"usage":{"input_tokens":150,"input_tokens_details":{"image_tokens":80,"cached_tokens":50,"cached_tokens_details":{"image_tokens":0}}}}}`), &usage)
+			require.Zero(t, usage.ImageCacheReadTokens)
+			var aggregateOnly ForwardUsage
+			test.parse([]byte(`{"type":"response.in_progress","response":{"usage":{"input_tokens":150,"input_tokens_details":{"image_tokens":80,"cached_tokens":50}}}}`), &aggregateOnly)
+			require.Zero(t, aggregateOnly.ImageCacheReadTokens)
+		})
+	}
+}
+
 // BenchmarkOpenAIUsageExtractLegacy measures typed decoding of a fixed
 // canonical usage response. Fixture construction precedes timing, and each
 // successful extraction is retained in the shared usage sink.

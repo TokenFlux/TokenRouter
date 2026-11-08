@@ -10,6 +10,7 @@ import (
 	creativeprovider "github.com/TokenFlux/TokenRouter/internal/creative/provider"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
@@ -76,6 +77,15 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 			return policy.UpstreamModel(ctx, model)
 		}
 		selection.Execute = func(ctx context.Context, run creative.CreativeRun, payload creative.CreativeRunPayload, model string) ([]creative.CreativeOutput, error) {
+			if run.FrameCount > 0 {
+				resolved, err := gatewayprovider.ResolveModelAttributes(ctx, value, model, attributes)
+				if err != nil {
+					return nil, err
+				}
+				if err := gatewayprovider.RequireImageGIF(value, creative.OperationProtocol(value.Record.Platform, run.Operation), resolved.Attributes); err != nil {
+					return nil, creative.CreativeNonRetryableError("GIF output is unavailable on the selected provider")
+				}
+			}
 			return targets.ForProvider(value).ExecutePlatform(ctx, value.Record.Platform, run, payload, model)
 		}
 		selection.Report = func(model string, success bool) {
@@ -98,6 +108,7 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 	if targets != nil {
 		out.OpenAI = func(ctx context.Context, run creative.CreativeRun) (*creative.Selection, error) {
 			id := run.GroupID
+			ctx = media.WithImageGIFRequirement(ctx, run.FrameCount > 0)
 			value, _, err := choices.SelectProviderWithSchedulerForImages(ctx, &id, "", run.Model, nil, provider.OpenAIImagesCapabilityNative)
 			return project(value, err)
 		}
@@ -124,12 +135,13 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 func provideCreativeTargets(cfg *config.Config, auxiliary *gatewayhttp.OpenAIAuxiliary, tokens *provider.GeminiTokenSource, activity *gatewayRequestActivity) *gatewayprovider.CreativeTargets {
 	requests := auxiliary.Requests
 	return &gatewayprovider.CreativeTargets{
-		Requests:     requests,
-		Credentials:  requests.Credentials,
-		Identity:     requests.Identity,
-		Transport:    requests.Transport,
-		Routes:       provideGrokRoutes(cfg, nil),
-		GeminiTokens: tokens,
-		Enter:        activity.Enter,
+		Requests:       requests,
+		ImageResponses: requests.BuildImageResponses,
+		Credentials:    requests.Credentials,
+		Identity:       requests.Identity,
+		Transport:      requests.Transport,
+		Routes:         provideGrokRoutes(cfg, nil),
+		GeminiTokens:   tokens,
+		Enter:          activity.Enter,
 	}
 }

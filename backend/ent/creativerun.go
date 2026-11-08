@@ -23,6 +23,10 @@ type CreativeRun struct {
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	// FrameCount holds the value of the "frame_count" field.
+	FrameCount int `json:"frame_count,omitempty"`
+	// FrameDurationMs holds the value of the "frame_duration_ms" field.
+	FrameDurationMs int `json:"frame_duration_ms,omitempty"`
 	// RunID holds the value of the "run_id" field.
 	RunID string `json:"run_id,omitempty"`
 	// UserID holds the value of the "user_id" field.
@@ -121,7 +125,7 @@ func (*CreativeRun) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case creativerun.FieldEstimatedCost, creativerun.FieldHoldAmount, creativerun.FieldActualCost, creativerun.FieldBalanceHoldAmount, creativerun.FieldBaseUnitPrice, creativerun.FieldSubscriptionRateMultiplier, creativerun.FieldBalanceRateMultiplier:
 			values[i] = new(sql.NullFloat64)
-		case creativerun.FieldID, creativerun.FieldUserID, creativerun.FieldGroupID, creativerun.FieldAPIKeyID, creativerun.FieldProviderID, creativerun.FieldRequestedOutputCount, creativerun.FieldAttemptCount, creativerun.FieldSettlementAttemptCount, creativerun.FieldReleaseAttemptCount, creativerun.FieldVersion:
+		case creativerun.FieldID, creativerun.FieldFrameCount, creativerun.FieldFrameDurationMs, creativerun.FieldUserID, creativerun.FieldGroupID, creativerun.FieldAPIKeyID, creativerun.FieldProviderID, creativerun.FieldRequestedOutputCount, creativerun.FieldAttemptCount, creativerun.FieldSettlementAttemptCount, creativerun.FieldReleaseAttemptCount, creativerun.FieldVersion:
 			values[i] = new(sql.NullInt64)
 		case creativerun.FieldRunID, creativerun.FieldWorkspaceID, creativerun.FieldPlatform, creativerun.FieldModel, creativerun.FieldRequestedModel, creativerun.FieldOperation, creativerun.FieldImageSize, creativerun.FieldAspectRatio, creativerun.FieldResponseMimeType, creativerun.FieldPromptHash, creativerun.FieldRequestFingerprint, creativerun.FieldIdempotencyKey, creativerun.FieldStatus, creativerun.FieldErrorCode, creativerun.FieldErrorMessage, creativerun.FieldReleaseTargetStatus, creativerun.FieldProvisioningPhase, creativerun.FieldLastReconcileError:
 			values[i] = new(sql.NullString)
@@ -159,6 +163,18 @@ func (_m *CreativeRun) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
 			} else if value.Valid {
 				_m.UpdatedAt = value.Time
+			}
+		case creativerun.FieldFrameCount:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field frame_count", values[i])
+			} else if value.Valid {
+				_m.FrameCount = int(value.Int64)
+			}
+		case creativerun.FieldFrameDurationMs:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field frame_duration_ms", values[i])
+			} else if value.Valid {
+				_m.FrameDurationMs = int(value.Int64)
 			}
 		case creativerun.FieldRunID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -468,6 +484,12 @@ func (_m *CreativeRun) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("updated_at=")
 	builder.WriteString(_m.UpdatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("frame_count=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FrameCount))
+	builder.WriteString(", ")
+	builder.WriteString("frame_duration_ms=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FrameDurationMs))
 	builder.WriteString(", ")
 	builder.WriteString("run_id=")
 	builder.WriteString(_m.RunID)

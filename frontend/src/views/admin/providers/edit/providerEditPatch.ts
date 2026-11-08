@@ -142,6 +142,7 @@ export function applyProviderExtraPatch(
     openAICompactMode,
     openAINativeCompactionV2Mode,
     openAIResponsesContinuationSupported,
+    openAIImagesGIFEnabled,
     openAIImagesURLToB64JSON,
     responsesWSConnectionMode,
     codexCLIOnlyAllowClaudeCodeEnabled,
@@ -360,6 +361,10 @@ export function applyProviderExtraPatch(
     // Normalize the copied OpenAI extra settings before applying current controls so
     // obsolete compaction and forwarding fields do not survive the edit.
     const newExtra = normalizeLegacyOpenAIExtra(currentExtra)
+    if (provider.type === 'oauth' || provider.type === 'apikey') {
+      if (openAIImagesGIFEnabled.value) delete newExtra.images_gif_enabled
+      else newExtra.images_gif_enabled = false
+    }
     const hadCodexCLIOnlyEnabled = currentExtra.codex_cli_only === true
     newExtra.responses_ws_connection_mode = responsesWSConnectionMode.value
     clearLegacyResponsesWSSettings(newExtra)

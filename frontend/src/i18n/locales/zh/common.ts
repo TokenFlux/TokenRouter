@@ -96,6 +96,8 @@ export default {
     selectedFile: '已选：{name}',
     fileReadFailed: '读取文件失败',
     selectImageFile: '请选择图片文件',
+    unsupportedImageType: '请选择 PNG、JPEG 或 WebP 图片',
+    imageDimensionsTooLarge: '图片每边不能超过 {max} 像素',
     fileTooLargeKb: '文件过大（{size} KB），上限 {max} KB',
     copy: '复制',
     notAvailable: '不可用',

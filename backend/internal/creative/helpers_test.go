@@ -8,6 +8,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
+// helpers_test.go supplies target-query fixtures that record creative group and provider reads.
+//
 // Target-query fixtures count group/provider reads and candidate-inventory
 // access separately. Provider support checks retain their requested names,
 // allowing direct validation and saved-setting discovery tests to distinguish
@@ -128,3 +130,6 @@ func (f *targetQueryFixture) GetCreativeModelSettings(context.Context) []Creativ
 func newTargetQueryPublic(fixture *targetQueryFixture) *Public {
 	return &Public{Attributes: &routing.ModelAttributeService{Catalog: routing.ModelAttributeCatalog{View: testkit.OfflineView}}, Repo: &targetQueryRunRepository{}, ProviderRepo: fixture, UserRepo: fixture, GroupRepo: fixture, Settings: fixture, Options: PublicOptions{Enabled: true}, ImageUnitPrice: func(context.Context, *GroupView, string, string) (float64, bool) { return 0.1, true }}
 }
+
+// SupportsImageGIF keeps the generic target-query fixture limited to static images.
+func (f *targetQueryFixture) SupportsImageGIF(protocol.ProtocolID) bool { return false }

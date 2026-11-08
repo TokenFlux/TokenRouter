@@ -122,7 +122,7 @@ OpenAI API Key 的生成和编辑分别读取 `credentials.images_generations_mo
 
 SSE 转 JSON 收集、去重完成图片，输出 `created`、`data[]` 和 usage。非流式汇总跳过预览图片字段校验和下载，同时继续校验 SSE 帧与 JSON 结构；错误事件、读体失败、帧中断、字节超限和完成图片少于请求张数都会结束尝试。客户端要求 `response_format=url` 而结果只有 Base64 时，沿用 data URL 格式。原生 SSE 的逐帧转发与聚合共用读取器；事件多行 data 会合并，声明 SSE 却返回完整 Images JSON 的兼容上游也会转换成客户端要求的格式。
 
-图片数量、尺寸和 usage 从上游原始结果观察，转换后的内容不再次参与结算。HTTP 200 中的 `error` 对象按失败处理。转换和下载失败不会再次提交生图；已经观测到的原生完成图片和用量在失败时保留，包括非流式客户端聚合到一半的情况。客户端断开后，原生流停止下游写入并继续收集上游结果；等待心跳和实际输出仍分别决定 HTTP 提交与重试窗口。诊断记录客户端模式、出站模式、响应格式和是否转换。错误提交规则见[网关错误响应策略](gateway_error_policy.md#处理位置)。
+图片数量、尺寸和 usage 从上游原始结果观察，转换后的内容不再次参与结算。原生 Images 未提供可选的 `output_tokens_details` 时，已报告的输出 token 按图片输出计费；显式细分（包括零）优先。Responses 主控模型的用量不使用这项 Images 推断。HTTP 200 中的 `error` 对象按失败处理。转换和下载失败不会再次提交生图；已经观测到的原生完成图片和用量在失败时保留，包括非流式客户端聚合到一半的情况。客户端断开后，原生流停止下游写入并继续收集上游结果；等待心跳和实际输出仍分别决定 HTTP 提交与重试窗口。诊断记录客户端模式、出站模式、响应格式和是否转换。错误提交规则见[网关错误响应策略](gateway_error_policy.md#处理位置)。
 
 流式客户端在已发送图片或 SSE 心跳后遇到上游错误，会收到一个 `error` 事件，网关同时记录失败状态；错误后不发送 `[DONE]`。尚未提交响应时使用 HTTP JSON 错误。
 
@@ -136,7 +136,7 @@ OpenAI API Key 提供商可以通过 `extra.images_url_to_b64_json=true` 开启�
 
 ### 创作台的 Images 请求
 
-创作台的异步执行器读取同一套端点模式能力，流式上游由共享 Images 读取器汇总为最终图片。`generate` 使用 `/v1/images/generations` 的 JSON，`edit` 和 `inpaint` 使用 `/v1/images/edits` 的 multipart；固定发送 PNG、单张 `n=1`，并按最终模型的能力透传尺寸、质量和背景。GPT Image 模型不发送 `response_format`，只有 DALL-E 模型带 `response_format=b64_json`。inpaint 的 mask 需要是和源图同尺寸、4 MiB 以内的 PNG，透明像素表示需要重绘的区域。
+创作台的异步执行器读取同一套端点模式能力，流式上游由共享 Images 读取器汇总为最终图片。`generate` 使用 `/v1/images/generations` 的 JSON，`edit` 和 `inpaint` 使用 `/v1/images/edits` 的 multipart；默认发送 PNG、单份 `n=1`，GPT Image 2.6 可选择 GIF，并按最终模型的能力透传尺寸、质量和背景。GPT Image 模型不发送 `response_format`，只有 DALL-E 模型带 `response_format=b64_json`。inpaint 的 mask 需要是和源图同尺寸、4 MiB 以内的 PNG，透明像素表示需要重绘的区域。
 
 兼容上游可能只返回 `data[].url`。创作台优先解析可用的 `b64_json`，没有可用的 Base64 时下载 URL 图片；这条路径一定要拿到图片的字节，不依赖普通 API 的 `images_url_to_b64_json` 开关。下载复用上面的回填下载器和提供商代理，保留签名 URL，不带生图的认证和自定义请求头，并应用相同的公网、重定向、格式、20 MiB 大小和单次 60 秒的限制。生图的响应在下载之前关闭，释放连接。
 
@@ -145,6 +145,22 @@ OpenAI API Key 提供商可以通过 `extra.images_url_to_b64_json=true` 开启�
 分组可以按协议开放 Messages、Responses 和 Chat，新建时默认开放这三个文本入口，三项都可以关闭。旧字段 `allow_messages_dispatch` 是 Messages 已弃用的兼容镜像；迁移时，只有这个旧字段开启的分组才加入 Messages。Messages 的模型改写，统一使用分组的 `routing_policy.model_mapping` 和提供商的模型规则。Responses WebSocket 是 OpenAI 和 Grok 的原生传输能力，其他平台启用了兼容 Responses，也不会因此开放它。
 
 <a id="openai_fast_policy"></a>
+### GPT Image 2.6 与 GIF
+
+`gpt-image-2.6-sunburst` 与 `gpt-image-2.6-flare` 使用内嵌目录补充，并开放 `xhigh`、`max` 质量选项。GIF 使用 `output_format=gif`，`frame_count` 为 2 至 16，缺省 9；`frame_duration_ms` 为 20 至 2000，缺省 200，按 10 毫秒舍入。尺寸为 `auto` 或两边均为 16 倍数的正整数，供应商负责总像素预算校验。
+
+原生 Images JSON 的 `frame_count` 和 `frame_duration_ms` 接受 `null`，与省略字段相同：GIF 请求使用对应默认值，静态图片请求不设置动画参数；显式整数继续按范围校验。
+
+OpenAI OAuth 和 API Key 提供商的 `extra.images_gif_enabled` 缺省开启，显式 false 关闭。调度、粘性复核和实际发送都检查开关与最终模型的 GIF 格式能力；API Key 的对应 Images 端点配置为仅流式时不接收 GIF。创建、编辑、批量编辑和导入导出保留该设置，缓存快照保留显式 false。
+
+Images GIF 请求不接受 `stream=true`、`partial_images`、mask 或 `output_compression`。OAuth 通过 Responses 图片工具发送动画参数，承载请求继续使用生命周期事件流，工具不发送中间图片帧。创作台 OAuth 复用相同的请求构造与身份头。
+
+GIF 的 MIME、尺寸和帧数读取返回字节，下载及本地保存保留原始动画。返回帧数可以与请求不同，单帧或超过请求帧数范围的有效 GIF 也会接受；按图片计费使用实际帧数，token 和按次计费保持各自的计费单位。URL 结果使用现有的安全下载器取得字节，即使未启用普通 URL 回填也需要验证动画。无法下载或容器不完整时结束结果处理，不重新提交生成；已观测用量仍保留。文件数量与计费帧数分别记录，计费规则见[路由与结算](../domains/routing_and_billing.md#group_model_pricing)。
+
+Responses 的 HTTP、SSE 和 WebSocket 结果同样按完整 GIF 容器校验并记录实际帧数，不把请求的 2 至 16 帧限制用于返回结果。GIF 容器不完整或缺少图像帧记录时仍作为结果失败处理。
+
+Images 响应中的 GIF 项按实际字节校正 `data[].size`。当全部输出都是同尺寸 GIF 时，顶层 `size` 同步为该尺寸；尺寸不一致或混有其他格式时移除顶层 `size`，各项保留自己的尺寸信息。成功的 GIF 原生 JSON 和 SSE 汇总响应都使用校正后的条目尺寸计费。仅含静态图片的响应保持原有元数据。
+
 ### Fast 与 Ultra Fast 策略
 
 `service_tier` 报文字段的校验、归一化和类型化错误由 `protocol/openai` 提供；策略求值和拒绝错误在 `gateway/tierpolicy`；认证范围和模型白名单动作复用 routing 的纯规则。

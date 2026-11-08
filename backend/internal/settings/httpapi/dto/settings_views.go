@@ -167,6 +167,7 @@ type SystemSettings struct {
 	DefaultLocale               string                          `json:"default_locale"`                  // default user-facing language code
 	SiteName                    string                          `json:"site_name"`                       // source site display name
 	SiteLogo                    string                          `json:"site_logo"`                       // site logo reference text
+	SiteShareImage              string                          `json:"site_share_image"`                // Saved cover image data URL.
 	SiteSubtitle                string                          `json:"site_subtitle"`                   // source site subtitle text
 	APIBaseURL                  string                          `json:"api_base_url"`                    // displayed gateway API address
 	ContactInfo                 string                          `json:"contact_info"`                    // source administrator contact text

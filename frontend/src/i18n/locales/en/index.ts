@@ -54,6 +54,8 @@ export default {
       site_name: 'Site name',
       site_title: 'Homepage title',
       site_subtitle: 'Subtitle',
+      site_share_title: 'Share title',
+      site_share_description: 'Share description',
     },
     original: 'Original',
     originalLanguage: 'Original language',

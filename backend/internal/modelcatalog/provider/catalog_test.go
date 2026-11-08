@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// catalog_test.go verifies catalog publication, missing-field supplements, and concurrent reads.
+//
 // Catalog queries can run while publication replaces the retained price map.
 // Readers compare related input and output rates from each returned record,
 // while metadata fixtures verify that successful updates replace identities
@@ -139,4 +141,26 @@ func TestOutputModalityMetadata(t *testing.T) {
 	require.Equal(t, []string{"image"}, *service.ModelEntry("arbitrary-output").Attributes.OutputModalities)
 	require.Equal(t, []string{"text"}, *service.ModelEntry("gemini-text-image-name").Attributes.OutputModalities)
 	require.Nil(t, service.ModelEntry("unknown").Attributes.OutputModalities)
+}
+
+// TestImage26Supplements supplies an offline catalog without the new models.
+// Both complete model identities retain official metadata and distinct image-token
+// prices, while subsequent authoritative prices preserve explicit zero overrides.
+func TestImage26Supplements(t *testing.T) {
+	service := NewService(Options{DataDir: t.TempDir()}, nil)
+	require.NoError(t, service.publishModelsCatalog([]byte(`{"providers":{"openai":{"models":{"gpt-test":{"cost":{"input":1,"output":2}}}}}}`), time.Now(), false))
+	for _, model := range []string{"gpt-image-2.6-sunburst", "gpt-image-2.6-flare"} {
+		price := service.GetModelPricing(model)
+		require.NotNil(t, price)
+		require.InDelta(t, 5e-6, price.InputCostPerToken, 1e-12)
+		require.InDelta(t, 1.25e-6, price.CacheReadInputTokenCost, 1e-12)
+		require.InDelta(t, 8e-6, price.InputCostPerImageToken, 1e-12)
+		require.InDelta(t, 2e-6, price.CacheReadInputImageTokenCost, 1e-12)
+		require.InDelta(t, 30e-6, price.OutputCostPerImageToken, 1e-12)
+		attrs := service.ModelAttributes(model)
+		require.NotNil(t, attrs.OutputModalities)
+		require.Equal(t, []string{"image"}, *attrs.OutputModalities)
+	}
+	require.NoError(t, service.publishModelsCatalog([]byte(`{"providers":{"openai":{"models":{"gpt-image-2.6-sunburst":{"cost":{"input":0,"output":0}}}}}}`), time.Now(), false))
+	require.Zero(t, service.GetModelPricing("gpt-image-2.6-sunburst").InputCostPerToken)
 }

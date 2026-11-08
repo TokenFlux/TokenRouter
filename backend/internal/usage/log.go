@@ -100,10 +100,11 @@ type UsageLog struct {
 	CacheCreation5mTokens int `gorm:"column:cache_creation_5m_tokens"` // five minute cache creation tokens
 	CacheCreation1hTokens int `gorm:"column:cache_creation_1h_tokens"` // one hour cache creation tokens
 
-	ImageInputTokens  int     // image input token count
-	ImageInputCost    float64 // image input cost USD
-	ImageOutputTokens int     // image output token count
-	ImageOutputCost   float64 // image output cost USD
+	ImageInputTokens     int     // image input token count
+	ImageCacheReadTokens int     // explicit cached image token subset
+	ImageInputCost       float64 // image input cost USD
+	ImageOutputTokens    int     // image output token count
+	ImageOutputCost      float64 // image output cost USD
 
 	InputCost         float64 // standard input cost USD
 	OutputCost        float64 // standard output cost USD
@@ -157,6 +158,7 @@ type UsageLog struct {
 	CacheTTLOverridden bool // cache TTL price override flag
 
 	ImageCount      int     // generated image count
+	ImageFrameCount int     // encoded output frame billing units
 	ImageSize       *string // image billing size tier
 	ImageInputSize  *string // observed input image size
 	ImageOutputSize *string // observed output image size

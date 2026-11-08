@@ -15,6 +15,40 @@ import (
 // absent historical image metadata, so mapping expectations stay tied to
 // encoded responses.
 
+// TestUsageLogFromService_AverageSpeedUsesStoredAttempt restores a buffered stream's
+// persisted observations. User and administrator responses expose the same rounded
+// TPS, while historical rows without timing retain an explicit JSON null.
+func TestUsageLogFromService_AverageSpeedUsesStoredAttempt(t *testing.T) {
+	var row usage.UsageLog
+	require.NoError(t, json.Unmarshal([]byte(`{"Timings":{
+		"ttft_mode":"first_event",
+		"upstream_stream":true,
+		"upstream_complete":true,
+		"usage_complete":true,
+		"values":{
+			"upstream_started_ms":11103,
+			"upstream_first_output_ms":26297,
+			"upstream_last_output_ms":26297,
+			"upstream_output_event_count":1
+		}
+	}}`), &row))
+	row.OutputTokens = 119
+	for _, got := range []*UsageLog{FromUsage(&row), &FromUsageAdmin(&row).UsageLog} {
+		require.NotNil(t, got.TPS)
+		require.Equal(t, 7.8, *got.TPS)
+		body, marshalErr := json.Marshal(got)
+		require.NoError(t, marshalErr)
+		require.Contains(t, string(body), `"tps":7.8`)
+	}
+	row.Timings = nil
+	for _, got := range []*UsageLog{FromUsage(&row), &FromUsageAdmin(&row).UsageLog} {
+		require.Nil(t, got.TPS)
+		body, marshalErr := json.Marshal(got)
+		require.NoError(t, marshalErr)
+		require.Contains(t, string(body), `"tps":null`)
+	}
+}
+
 // TestUsageLogFromService_IncludesOpenAIWSMode supplies WebSocket and
 // ordinary HTTP legacy flags. It requires user and administrator mappers to
 // expose the corresponding OpenAIWSMode values.

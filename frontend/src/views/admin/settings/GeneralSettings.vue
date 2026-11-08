@@ -155,6 +155,7 @@
           <div class="md:col-span-2">
             <p class="input-label">{{ t('admin.settings.balanceDisplay.iconSvg') }}</p>
             <ImageUpload
+              :disabled="imagesDisabled"
               v-model="form.balance_icon_svg"
               mode="svg"
               :upload-label="t('admin.settings.balanceDisplay.uploadSvg')"
@@ -297,12 +298,45 @@
         <p class="input-label">{{ t('admin.settings.site.siteLogo') }}</p>
         <!-- The logo upload limit is expressed in bytes, with 300 KiB converted for ImageUpload. -->
         <ImageUpload
+          :disabled="imagesDisabled"
           v-model="form.site_logo"
           mode="image"
           :upload-label="t('admin.settings.site.uploadImage')"
           :remove-label="t('admin.settings.site.remove')"
           :hint="t('admin.settings.site.logoHint')"
           :max-size="300 * 1024"
+        />
+      </div>
+    </SettingsSection>
+
+    <SettingsSection
+      :title="t('admin.settings.site.socialSharing')"
+      :hint="t('admin.settings.site.socialSharingHint')"
+    >
+      <LocalizedEditor
+        v-model="form.site_texts.site_share_title"
+        :label="t('localization.fields.site_share_title')"
+        :default-source-locale="getLocale()"
+      />
+      <p class="input-hint">{{ t('admin.settings.site.shareTitleHint') }}</p>
+      <LocalizedEditor
+        v-model="form.site_texts.site_share_description"
+        :label="t('localization.fields.site_share_description')"
+        :default-source-locale="getLocale()"
+        :rows="3"
+      />
+      <p class="input-hint">{{ t('admin.settings.site.shareDescriptionHint') }}</p>
+      <div>
+        <p class="input-label">{{ t('admin.settings.site.shareCover') }}</p>
+        <ImageUpload
+          :disabled="imagesDisabled"
+          v-model="form.site_share_image"
+          mode="image"
+          wide
+          :allowed-types="['image/png', 'image/jpeg', 'image/webp']"
+          :max-size="2 * 1024 * 1024"
+          :max-dimension="4096"
+          :hint="t('admin.settings.site.shareCoverHint')"
         />
       </div>
     </SettingsSection>
@@ -563,6 +597,7 @@
             <div class="sm:col-span-2">
               <p class="input-label">{{ t('admin.settings.customMenu.iconSvg') }}</p>
               <ImageUpload
+                :disabled="imagesDisabled"
                 :model-value="item.icon_svg"
                 mode="svg"
                 size="sm"
@@ -773,6 +808,9 @@ import type { useGeneralSettings, GeneralSettingsForm } from './useGeneralSettin
 // The parent supplies one controller and its shared draft for this mounted
 // panel; template writes mutate that draft before the page save action runs.
 const props = defineProps<{
+  // imagesDisabled cancels pending reads while the page restores saved settings.
+  // Every image editor in this panel remains disabled until that reload finishes.
+  imagesDisabled?: boolean
   // controller retains page-scoped refs and actions; its closures target the
   // same form object provided below for this panel's editable controls.
   controller: ReturnType<typeof useGeneralSettings>

@@ -84,6 +84,7 @@ type Result struct {
 	// VideoDurationSeconds: producer duration seconds. WebSearchCalls: Alpha search calls.
 	// SearchCount: additional search operations. ImageCount may be a model-derived
 	// estimate; video duration and dimensions are normalized before cost calculation.
+	ImageFrameCount                                                           int // encoded output frame billing units
 	ImageCount, VideoCount, VideoDurationSeconds, WebSearchCalls, SearchCount int
 	// ImageSize: current billing tier. ImageInputSize: caller dimension evidence.
 	// ImageOutputSize: selected output dimensions. ImageSizeSource: chosen dimension source.
@@ -111,6 +112,7 @@ type TokenUsage struct {
 	// ImageInputTokens: image input subset. ImageOutputTokens: image output subset.
 	// TTL detail sits beneath aggregate writes; image subsets let pricing select
 	// modality-specific rates without adding the same reported tokens twice.
+	ImageCacheReadTokens                                                              int // explicit cached image token subset
 	CacheCreation5mTokens, CacheCreation1hTokens, ImageInputTokens, ImageOutputTokens int
 	Speed                                                                             string // Anthropic processing speed
 }

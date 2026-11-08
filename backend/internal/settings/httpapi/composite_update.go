@@ -1425,6 +1425,7 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 		DefaultLocale:                          req.DefaultLocale,
 		SiteName:                               req.SiteName,
 		SiteLogo:                               req.SiteLogo,
+		SiteShareImage:                         req.SiteShareImage,
 		SiteSubtitle:                           req.SiteSubtitle,
 		APIBaseURL:                             req.APIBaseURL,
 		ContactInfo:                            req.ContactInfo,

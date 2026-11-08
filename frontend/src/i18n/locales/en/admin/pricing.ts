@@ -470,6 +470,7 @@ export default {
         cache_read: 'Cache read',
         cache_write: 'Cache write / 5m',
         cache_write_1h: 'Cache write / 1h',
+        image_cache_read: 'Cached image input tokens',
         image_input: 'Image input tokens',
         image_output: 'Image output tokens',
         peak: 'Current built-in peak multiplier',

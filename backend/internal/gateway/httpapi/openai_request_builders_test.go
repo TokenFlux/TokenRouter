@@ -27,6 +27,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
+// openai_request_builders_test.go verifies authenticated Responses headers and image-worker request construction.
+//
 // Outgoing Responses requests derive authentication and session identity from
 // the selected OAuth credential, including shadow-provider sources. Builder
 // tests inspect headers and payloads at construction time, covering staged
@@ -849,4 +851,22 @@ func TestOpenCodeResponsesRetainsPersistenceFields(t *testing.T) {
 		require.Equal(t, "client/1", req.Header.Get("User-Agent"))
 		require.Equal(t, "conversation", req.Header.Get("X-OpenCode-Session"))
 	}
+}
+
+// TestBuildImageResponsesUsesWorkerIdentity constructs a creative OAuth carrier
+// without a browser request or writer. The shared builder applies OAuth identity,
+// hosted GIF defaults, and lifecycle-stream headers without forwarding client cookies.
+func TestBuildImageResponsesUsesWorkerIdentity(t *testing.T) {
+	requests := newAuxiliaryFixture(auxiliaryFixtureInputs{}).Requests
+	value := &gatewayprovider.ExecutionProvider{Record: providercore.Record{ID: 29, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "test-image-account"}}}
+	req, err := requests.BuildImageResponses(context.Background(), value, []byte(`{"model":"gpt-6-luna","input":[],"stream":true,"tools":[{"type":"image_generation","model":"gpt-image-2.6-flare","output_format":"gif"}]}`), "test-image-token")
+	require.NoError(t, err)
+	require.Equal(t, "Bearer test-image-token", req.Header.Get("Authorization"))
+	require.Equal(t, "test-image-account", req.Header.Get("ChatGPT-Account-Id"))
+	require.Equal(t, "text/event-stream", req.Header.Get("Accept"))
+	require.Equal(t, "responses=experimental", req.Header.Get("OpenAI-Beta"))
+	require.Empty(t, req.Header.Get("Cookie"))
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	require.Equal(t, int64(9), gjson.GetBytes(body, "tools.0.frame_count").Int())
 }

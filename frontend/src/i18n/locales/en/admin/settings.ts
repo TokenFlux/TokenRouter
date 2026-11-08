@@ -740,7 +740,7 @@ export default {
       ttftModeFirstEvent: 'First upstream event',
       ttftModeFirstOutput: 'First useful output',
       ttftModeHint:
-        'Applies to all text streaming platforms and protocols, measured from the upstream attempt start. Changes affect new requests; TPS always uses the useful-content interval.',
+        'Applies to all text streaming platforms and protocols, measured from the upstream attempt start. Changes affect new requests. TPS is independent of this setting and measures average output speed from the upstream call start to its last useful content.',
       fingerprintUnification: 'Fingerprint Unification',
       fingerprintUnificationHint:
         "Unify X-Stainless-* headers across users sharing the same OAuth provider. Disabling passes through each client's original headers.",
@@ -840,6 +840,16 @@ export default {
       testNoResults: 'No results found',
     },
     site: {
+      socialSharing: 'Social sharing',
+      socialSharingHint:
+        'Use this title, description, and cover for Twitter Card and Open Graph previews.',
+      shareTitleHint:
+        'Leave blank to use the homepage title, or the site name when no title is set.',
+      shareDescriptionHint: 'Leave blank to use the site subtitle.',
+      shareCover: 'Share cover',
+      shareCoverHint:
+        'PNG, JPEG, or WebP, up to 2 MiB and 4096 × 4096 pixels. Suggested size: 1200 × 630. Published when you save settings. Social platforms may cache earlier previews.',
+
       title: 'Site Settings',
       description: 'Customize site branding',
       backendMode: 'Backend Mode',

@@ -89,6 +89,7 @@ type OpenAIResult struct {
 	// Native protocol conversion can pass a model-derived estimate, while image
 	// response readers can supply counted output objects.
 	ImageCount      int    // producer image quantity
+	ImageFrameCount int    // encoded output frame billing units
 	ImageSize       string // image billing size hint
 	ImageInputSize  string // input image size hint
 	ImageOutputSize string // output image size hint

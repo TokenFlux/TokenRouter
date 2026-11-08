@@ -30,6 +30,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
+// helpers_external_test.go supplies in-memory fixtures for creative routing, persistence, funding, and worker tests.
+//
 // Creative fixtures adapt native users, groups, providers, Keys, and review
 // data into shared Public/Results dependencies. They retain task pointers,
 // byte slices, and call observations in local maps so scenarios can inspect
@@ -645,6 +647,8 @@ func (r *creativeFakeRunRepo) CreateCreativeRun(ctx context.Context, params crea
 		Operation:                  params.Operation,
 		RequestedOutputCount:       params.RequestedOutputCount,
 		ImageSize:                  params.ImageSize,
+		FrameCount:                 params.FrameCount,
+		FrameDurationMS:            params.FrameDurationMS,
 		AspectRatio:                params.AspectRatio,
 		ResponseMIMEType:           params.ResponseMIMEType,
 		PromptHash:                 params.PromptHash,

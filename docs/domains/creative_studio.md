@@ -54,7 +54,7 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 
 `GET /creative/models` 返回当前用户可用分组与图片模型的组合。每项除分组、模型、操作、尺寸和图片单价（`price_512`、`price_1k`、`price_2k`、`price_4k`）外，还按具体模型返回 `aspect_ratios`、`qualities`、`output_formats`、`output_compression`、`background_options`、`thinking_levels`、`max_output_count` 与 `max_reference_images`；不支持的集合返回空数组，压缩范围返回对象或 `null`。
 
-创作台不提供输出格式选择，因此 `output_formats` 对所有模型为空数组、`output_compression` 为 `null`，这两个字段只是为能力协议保留的；输出格式取决于供应商实际返回的内容，任务输出 metadata 的 `mime_type` 记录实际的 MIME（例如 `image/png` 或 `image/jpeg`），前端按该 MIME 保存和下载。`max_output_count` 固定为 1，创作台每次任务只生成一张图片。
+创作台默认请求 PNG。`output_formats_by_operation` 按已开放的 generate、edit、inpaint 分别返回可用格式，前端按当前操作读取；只有该操作存在可用 GIF 路线时才提供 GIF。`output_formats` 为旧客户端保留合并选项：至少一个已开放操作支持 GIF 时返回 PNG／GIF 和 `gif_frame_count`、`gif_frame_duration_ms` 范围，否则保留空列表表示默认 PNG。GIF 只用于 generate 和静态参考图 edit；inpaint 继续使用 PNG。`max_output_count` 固定为 1，表示一次生成一份动画或一张静态图片。输出 metadata 的 `mime_type` 和 `frame_count` 来自实际结果，前端保存并下载原始文件。
 
 `price_512` 仅用于支持 Gemini 512 档位的模型，按共享价格配置和内置按张价格的顺序解析；价卡中的 `512` 分层价格优先于该价卡的默认单价。前端按服务端返回的能力渲染参数，模型名不参与判断。列表只包含用户可绑定、已启用对应图片入口且能解析图片价格的分组与模型。按张价格只能来自完整型号的手动价卡、目录或已登记的静态价；缺价时，通用单价不能顶替，提交在资金预留之前结束。手动填写的零价是有效报价。一个分组可以同时展示多个供应商模型；每个模型按实际候选提供商计算操作。OpenAI 图片模型支持 `generate`/`edit`/`inpaint`，Gemini（含 Vertex 提供商）与 Grok 图片模型支持 `generate`/`edit`。
 
@@ -84,6 +84,9 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 | `aspect_ratio` | 文本 | 可选，须位于模型目录返回的 `aspect_ratios`；缺失时优先使用 `auto`，不支持 `auto` 时使用模型能力第一项 |
 | `quality` | 文本 | 可选，OpenAI GPT Image 支持 `low`/`medium`/`high`/`auto`，Grok 仅 `grok-imagine-image-2.0` 支持 `low`/`medium`；支持质量参数时缺失默认 `medium` |
 | `background` | 文本 | 可选，OpenAI 支持 `auto`/`opaque`/`transparent`；支持背景参数时缺失默认 `auto` |
+| `output_format` | 文本 | 可选，默认 `png`；可用 GIF 路线可选 `gif` |
+| `frame_count` | 整数 | 仅 GIF，2 至 16，默认 9 |
+| `frame_duration_ms` | 整数 | 仅 GIF，20 至 2000 毫秒，默认 200，按 10 毫秒舍入 |
 | `thinking_level` | 文本 | 可选，Gemini 3.1 图片模型按目录能力支持 `minimal`/`high`；支持思考强度时缺失默认 `minimal` |
 
 请求限制（默认值来自 `creative.*` 配置，可通过 `/creative/capabilities` 获取）：
@@ -144,7 +147,7 @@ worker 从 Redis 预留任务后先读取用户最新并发配置，并通过现
 
 - 客户端可对 `POST /creative/runs` 携带 `Idempotency-Key` 头；同一用户同一工作区同一键重放时，若请求指纹一致则直接返回原任务（`idempotent_replay=true`），不重复建单、不重复计费。
 - 同一用户同一工作区同一键但请求体不同（指纹不一致）返回 `409 CREATIVE_IDEMPOTENCY_CONFLICT`；不同工作区即使使用相同键也会创建独立任务。
-- 请求指纹是规范化 JSON（分组、模型、操作、prompt sha256、各源图 sha256、mask sha256、尺寸、比例、质量、背景、思考强度和固定单张输出）的 sha256；输出格式由供应商决定并写入输出 metadata，不是用户输入，所以不参与指纹；`creative_runs.request_fingerprint` 用来比较同一个幂等键下的请求体，这一列没有全局唯一约束。
+- 请求指纹是规范化 JSON（分组、模型、操作、prompt sha256、各源图 sha256、mask sha256、尺寸、比例、质量、背景、思考强度和固定单张输出）的 sha256。GIF 请求还包含规范化后的输出格式、帧数和帧间隔，改变这些参数并复用原幂等键会返回冲突。默认或显式 PNG 省略这三个动画字段，保持历史静态任务的指纹兼容。实际返回的 MIME 和帧数写入输出 metadata，不改写请求指纹。`creative_runs.request_fingerprint` 用来比较同一个幂等键下的请求体，这一列没有全局唯一约束。
 - `(user_id, workspace_id, idempotency_key)` 部分唯一索引只约束带工作区的非空键；迁移前 `workspace_id IS NULL` 的旧任务不参与新的幂等查询，键本身最长 255 字符。
 - 计费与结算请求 ID 全部经由 `usage_billing_dedup` 幂等表去重，worker 重试、重复回调不会产生重复资金动作。
 
@@ -158,9 +161,9 @@ worker 从 Redis 预留任务后先读取用户最新并发配置，并通过现
 
 ## 计费
 
-创作台资金规则由 `creative.Funding` 拥有，调用唯一 `billing.Funds.Reserve/Capture/Release`。`creative/postgres.FundingParticipant` 使用 billing 这次的 SQL 事务写入冻结分配和预记标记，billing 不需要知道任务表。app 登记任务的 scope 和参与工厂，资金引用里带有原预占动作的 ID，新增的字段不加入历史指纹。创作台按所选尺寸基础单价估价，快照订阅/余额倍率；没有批量折扣与提供商倍率。
+创作台资金规则由 `creative.Funding` 拥有，调用唯一 `billing.Funds.Reserve/Capture/Release`。`creative/postgres.FundingParticipant` 使用 billing 这次的 SQL 事务写入冻结分配和预记标记，billing 不需要知道任务表。app 登记任务的 scope 和参与工厂，资金引用里带有原预占动作的 ID，这些任务引用信息不加入历史指纹。创作台按所选尺寸基础单价估价，快照订阅/余额倍率；没有批量折扣与提供商倍率。
 
-质量、背景和思考强度不参与创作台价格计算，输出格式不参与价格计算且不由客户端指定，实际 MIME 以供应商返回为准。每次任务固定只生成一张图片。资金动作的请求 ID 前缀固定，全部经 `usage_billing_dedup` 幂等：
+质量、背景和思考强度不参与创作台价格计算。静态图片按单张价格计费；GIF 按单帧价格乘帧数，提交时按请求帧数预占，结算时按已验证的实际帧数捕获。上游返回的有效 GIF 即使帧数与请求不同也会接受，请求帧数的范围不限制结果帧数。每次任务固定生成一份输出，`image_count` 保留文件数量，`image_frame_count` 单独记录动画的计费帧数。实际 MIME 以供应商返回为准。资金动作的请求 ID 前缀固定，全部经 `usage_billing_dedup` 幂等：
 
 ```text
 creative_hold:{run_id}      创建任务时预占
@@ -170,7 +173,8 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 ```
 
 - 创建任务时先估价并冻结（auto 模式先预留订阅额度、只冻结未覆盖部分的钱包余额）；免费分组（估价为 0）跳过资金动作。
-- 成功时按实际成功输出数捕获，并写一条 `usage_logs`：`BillingMode` 为 `"image"`，`ImageCount` 为成功输出数，`request_id` 为任务对应的统一请求 ID，`billing_key` 为 `creative_settle:{run_id}`，入站端点记录 `/v1/creative/runs`，上游端点记录 `creative:{operation}`。
+- 成功时按实际成功输出数捕获，GIF 使用实际成功帧数，并写一条 `usage_logs`：`BillingMode` 为 `"image"`，`ImageCount` 为成功输出数，`request_id` 为任务对应的统一请求 ID，`billing_key` 为 `creative_settle:{run_id}`，入站端点记录 `/v1/creative/runs`，上游端点记录 `creative:{operation}`。
+- 实际 GIF 的费用超过预占时，包括请求 PNG、上游返回有效 GIF 的情况，先使用保存的订阅预占和余额预占，剩余基础费用按任务保存的余额倍率补扣；订阅不超扣，余额不足时记为欠费，生成结果仍可交付。实际帧数较少时释放未使用预占。余额、Key 用量、资金去重和预记标记在同一事务中更新，补扣失败会整体回滚。恢复使用原价格快照和持久化的实际帧数，不重新调用上游；已有静态任务及未超量 GIF 的资金指纹保持不变。
 - 失败与内部取消状态通过幂等路径释放全部未使用预占；指纹冲突时按已释放处理，这样同一条消息不会反复失败、无限重试。
 - provider 已成功但结果丢失（`result_lost` 且已捕获）时保持计费；payload 过期导致 provider 未执行的 `result_lost` 释放预占。
 - 任务执行期间进入 `cancelled` 但 provider 已成功：费用按实际成功输出捕获、用量照写，终态保持 `cancelled`。
@@ -211,7 +215,7 @@ app 固定唯一生产实例，提供商目录复用 creative/provider 对原生
 
 执行器按本次实际提供商的平台直接构造上游 HTTP 请求，不经过本地 HTTP 回环；执行超时为 `creative.execute_timeout_seconds`（默认 300 秒）。单张输出不超过 32 MiB，同一任务内按 sha256 去重重复输出：
 
-- `openai`：`generate` 走 `/v1/images/generations`（JSON）；`edit`/`inpaint` 走 `/v1/images/edits`（multipart，多源图 + mask）。内部固定 `output_format: "png"`、单张 `n=1`；仅 DALL-E 路径发送 `response_format: "b64_json"`，GPT Image 路径省略该字段。响应优先取可解码的 Base64，否则下载上游返回的 URL 图片，三种操作共用此交付逻辑。URL 下载最多尝试三次，失败返回 `IMAGE_DOWNLOAD_FAILED`；无可解析图片返回 `INVALID_IMAGE_RESPONSE`。两类错误均结束任务、释放预占，不重新请求生图；得到可交付图片后继续沿用既有存储与结算流程。下载限制及凭据隔离见 [OpenAI 上游](../interfaces/openai_upstream.md#images_url_backfill)。
+- `openai`：`generate` 走 `/v1/images/generations`（JSON）；`edit`/`inpaint` 走 `/v1/images/edits`（multipart，多源图 + mask）。内部默认 `output_format: "png"`、单份 `n=1`；GIF 任务发送保存的格式、帧数和帧间隔；仅 DALL-E 路径发送 `response_format: "b64_json"`，GPT Image 路径省略该字段。响应优先取可解码的 Base64，否则下载上游返回的 URL 图片，三种操作共用此交付逻辑。静态图片 URL 下载最多尝试三次，失败返回 `IMAGE_DOWNLOAD_FAILED`；GIF 在共享读取器中下载并验证，失败返回 `INVALID_IMAGE_RESPONSE`；无可解析图片返回 `INVALID_IMAGE_RESPONSE`。两类错误均结束任务、释放预占，不重新请求生图；得到可交付图片后继续沿用既有存储与结算流程。下载限制及凭据隔离见 [OpenAI 上游](../interfaces/openai_upstream.md#images_url_backfill)。
 - `grok`：`generate` 走 `/v1/images/generations`；`edit` 走 `/v1/images/edits` 的 JSON 格式，单张源图放入 `image: {type: "image_url", url: "data:image/...;base64,..."}`，多张放入 `images` 数组，最多 3 张；两条路径都透传分辨率、比例和 `grok-imagine-image-2.0` 的质量，并固定请求单张 `n=1` 与 `response_format: "b64_json"`；`inpaint` 直接拒绝。
 - `gemini`：`generate` 与普通参考图 `edit` 统一使用原生 `generateContent`，prompt 与源图以 inlineData 放入 parts，不发送独立 mask；图片尺寸与比例位于 `generationConfig.imageConfig`，支持的 3.1 图片模型可附加 `generationConfig.thinkingConfig`，`includeThoughts` 固定为 false；执行器取最后一个图片 part 作为最终输出。凭据按提供商类型选择：API Key 提供商用 `x-goog-api-key`，Vertex 服务账号与 OAuth 用 Bearer token。
 
@@ -219,11 +223,14 @@ app 固定唯一生产实例，提供商目录复用 creative/provider 对原生
 
 模型候选合并提供商配置、平台执行规则、分组规则和创作台配置，再执行图片型号、协议、站点与白名单检查。自定义请求别名按最终上游型号判断图片能力。统一元数据目录未收录的具体型号可通过管理员配置加入。
 
-可选的尺寸档位只由平台和模型能力决定，是否填写了单价不影响；GPT Image 2 开放 `4K`；Gemini 3.1 Flash Image 额外开放 `512`，该档位优先使用价格配置价卡的 `512` 分层价格，未配置时回退价卡默认价格；`gemini-2.5-flash-image` 与 `gemini-3.1-flash-lite-image` 固定为 `1K`。接口同时返回按模型广场分组倍率计算的各尺寸展示单价，创作台预估费用按所选尺寸单价计算，每次任务固定单张输出。
+可选的尺寸档位只由平台和模型能力决定，是否填写了单价不影响；GPT Image 2 开放 `4K`；Gemini 3.1 Flash Image 额外开放 `512`，该档位优先使用价格配置价卡的 `512` 分层价格，未配置时回退价卡默认价格；`gemini-2.5-flash-image` 与 `gemini-3.1-flash-lite-image` 固定为 `1K`。接口同时返回按模型广场分组倍率计算的各尺寸展示单价，创作台预估费用按所选尺寸单价计算，GIF 再乘请求帧数；每次任务固定一份输出。
 
 管理员候选接口 `GET /api/v1/admin/settings/creative-model-candidates` 返回当前 active、启用图片生成且存在可调度图片模型的全部分组和模型，不按管理员用户分组权限过滤，因此可以配置 exclusive 分组。OpenAI 候选返回 `generate`/`edit`/`inpaint`，Gemini/Grok 候选返回 `generate`/`edit`。
 
 ## 前端本地存储
+
+GIF 原始字节保存在 IndexedDB，历史列表直接播放动画。画布默认显示独立的 PNG 封面，选中 GIF 后在图片中央显示播放按钮；点击后按钮原地转圈等待解码，随后在原位置按实际帧间隔循环播放，缩小的停止按钮移到图片左上角，拖动、缩放、旋转和图片层级保持不变。停止、取消选中、移除图片、页面隐藏或离开创作台时恢复封面并释放播放资源。下载保留原始 GIF。GIF 不作为编辑、裁剪或蒙版重绘的输入，避免把动画隐式变成静态图片。格式、帧数和帧间隔随草稿与历史参数保存。
+
 
 前端 `/creative` 页面要求登录，路由带 `requiresCreative` 守卫（公开设置 `creative_enabled === false` 时用户跳 `/dashboard`、管理员跳 `/admin/settings`），侧栏入口由公开设置 `creative_enabled !== false` 门控；模型目录为空时，输入框的模型弹层展示空态文案（功能关闭提示联系管理员，否则提示分组未配置图片生成）。页面是满幅无限画布：顶部居中是工具条，左上角是设置菜单，右上角是历史入口，三块浮层同高；底部居中是输入框，它顶部的状态行显示错误、最近一次失败、当前操作缺少的画布输入或进行中任务的阶段和计时。画布上没有图片时，中央显示上传入口和示例提示词。
 

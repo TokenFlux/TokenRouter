@@ -145,6 +145,7 @@ func buildSystemSettingsResponse(
 		DefaultLocale:                                    settings.DefaultLocale,
 		SiteName:                                         settings.SiteName,
 		SiteLogo:                                         settings.SiteLogo,
+		SiteShareImage:                                   settings.SiteShareImage,
 		SiteSubtitle:                                     settings.SiteSubtitle,
 		APIBaseURL:                                       settings.APIBaseURL,
 		ContactInfo:                                      settings.ContactInfo,

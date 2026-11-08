@@ -691,7 +691,7 @@ export default {
       ttftModeFirstEvent: '首包（首个上游事件）',
       ttftModeFirstOutput: '首字（首个有效内容）',
       ttftModeHint:
-        '适用于所有文本流平台和协议，从本次上游请求发起计时。设置影响新请求，TPS 始终按有效内容区间计算。',
+        '适用于所有文本流平台和协议，从本次上游请求发起计时。设置影响新请求。TPS 不受此设置影响，按本次上游调用开始至最后有效内容的时间计算平均输出速度。',
       fingerprintUnification: '指纹统一化',
       fingerprintUnificationHint:
         '统一共享同一 OAuth 提供商的用户的 X-Stainless-* 请求头。关闭后透传客户端原始请求头。',
@@ -788,6 +788,14 @@ export default {
       testNoResults: '无搜索结果',
     },
     site: {
+      socialSharing: '社交分享',
+      socialSharingHint: '配置 Twitter Card 和 Open Graph 链接预览的标题、简介和封面。',
+      shareTitleHint: '留空使用首页标题；首页标题为空时使用站点名称。',
+      shareDescriptionHint: '留空使用站点副标题。',
+      shareCover: '分享封面',
+      shareCoverHint:
+        '支持 PNG、JPEG、WebP，最大 2 MiB、4096 × 4096 像素。建议尺寸 1200 × 630。保存设置后生效，社交平台可能仍缓存旧预览。',
+
       title: '站点设置',
       description: '自定义站点品牌',
       backendMode: 'Backend 模式',

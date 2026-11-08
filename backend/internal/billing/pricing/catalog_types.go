@@ -27,8 +27,9 @@ import (
 // label and a supplied amount in ParsePricingEntries; positive legacy amounts
 // can still select priority prices without these markers.
 type CatalogModelPricing struct {
-	CatalogRules           // supplemental media and modifier rules
-	InputPricePresent bool `json:"-"` // input amount presence flag
+	CatalogRules            // supplemental media and modifier rules
+	InputPricePresent  bool `json:"-"` // input amount presence flag
+	OutputPricePresent bool `json:"-"` // text-output amount presence flag
 	// CacheCreation1hPricePresent records a supplied hourly cache amount,
 	// including zero. ResolveModelPricing uses it to enable TTL detail pricing
 	// independently of positive legacy amounts.
@@ -77,7 +78,9 @@ type CatalogModelPricing struct {
 	// USD per hourly cache-write token
 	CacheCreationInputTokenCostAbove1hr float64 `json:"cache_creation_input_token_cost_above_1hr"`
 	// USD per standard cache-read token
-	CacheReadInputTokenCost float64 `json:"cache_read_input_token_cost"`
+	CacheReadInputTokenCost      float64 `json:"cache_read_input_token_cost"`
+	ImageCacheReadPricePresent   bool    `json:"-"`                                 // image cache amount supplied
+	CacheReadInputImageTokenCost float64 `json:"cache_read_input_image_token_cost"` // USD per cached image token
 	// USD per priority cache-read token
 	CacheReadInputTokenCostPriority float64 `json:"cache_read_input_token_cost_priority"`
 	// aggregate input-context token threshold
@@ -155,7 +158,8 @@ type CatalogRawEntry struct {
 	// USD per hourly cache-write token
 	CacheCreationInputTokenCostAbove1hr *float64 `json:"cache_creation_input_token_cost_above_1hr"`
 	// USD per standard cache-read token
-	CacheReadInputTokenCost *float64 `json:"cache_read_input_token_cost"`
+	CacheReadInputTokenCost      *float64 `json:"cache_read_input_token_cost"`
+	CacheReadInputImageTokenCost *float64 `json:"cache_read_input_image_token_cost"` // optional USD per cached image token
 	// USD per priority cache-read token
 	CacheReadInputTokenCostPriority *float64 `json:"cache_read_input_token_cost_priority"`
 	// aggregate input-context token threshold

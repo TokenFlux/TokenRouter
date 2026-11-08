@@ -37,6 +37,10 @@ func (UsageLog) Annotations() []schema.Annotation {
 // schema and preserve supplied historical attribution.
 func (UsageLog) Fields() []ent.Field {
 	return []ent.Field{
+		// Actual frame billing units for animated output; zero denotes static output.
+		field.Int("image_frame_count").Default(0),
+		// Explicit cached image input; absent upstream subdivision remains zero.
+		field.Int("image_cache_read_tokens").Default(0),
 		// Recorded customer or internal execution source.
 		field.String("request_source").MaxLen(32).Default("user"),
 		// Internal execution attribution and measurement completeness.

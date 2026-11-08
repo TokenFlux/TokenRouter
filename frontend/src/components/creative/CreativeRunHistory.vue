@@ -500,6 +500,19 @@ function paramTags(run: CreativeRun): ParamTag[] {
   push('operation', t(`creative.operations.${run.operation}`, run.operation))
   push('group', params?.groupName, t('creative.history.params.group'))
   push('size', params?.imageSize || run.image_size, t('creative.history.params.size'))
+  if (run.output_format === 'gif' || params?.outputFormat === 'gif') {
+    push('format', 'GIF', t('creative.panel.outputFormat'))
+    push(
+      'frames',
+      String(run.frame_count ?? params?.frameCount ?? 9),
+      t('creative.panel.frameCount'),
+    )
+    push(
+      'duration',
+      String(run.frame_duration_ms ?? params?.frameDurationMS ?? 200),
+      t('creative.panel.frameDuration'),
+    )
+  }
   const ratio = params?.aspectRatio || run.aspect_ratio
   push(
     'ratio',

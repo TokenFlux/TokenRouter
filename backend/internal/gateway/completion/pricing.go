@@ -159,7 +159,7 @@ func (s *Recorder) CalculateImageCost(
 			GroupID: &gid,
 
 			Tokens:         tokens,
-			RequestCount:   result.ImageCount,
+			RequestCount:   imageBillingUnits(result, resolved),
 			SizeTier:       sizeTier,
 			RateMultiplier: multiplier,
 			PricingAt:      pricingAt,
@@ -175,7 +175,7 @@ func (s *Recorder) CalculateImageCost(
 		return cost
 	}
 
-	cost, err := s.billingService.CalculateImageCost(resolvedModel, sizeTier, result.ImageCount, multiplier)
+	cost, err := s.billingService.CalculateImageCost(resolvedModel, sizeTier, imageBillingUnits(result, nil), multiplier)
 	if err != nil {
 		// Missing catalogue image pricing retains image mode for the measured output
 		// row, leaving the actual charge at zero and reporting the failed price lookup.
@@ -510,7 +510,7 @@ func (s *Recorder) CalculateOpenAIImageCost(ctx context.Context, billingModel st
 	if resolved != nil {
 		cost, err := s.billingService.CalculateCostUnified(CostInput{
 			Ctx: ctx, Model: billingModel, GroupID: apiKey.GroupID,
-			RequestCount: result.ImageCount, SizeTier: sizeTier, RateMultiplier: multiplier,
+			RequestCount: imageBillingUnits(result, resolved), SizeTier: sizeTier, RateMultiplier: multiplier,
 			Resolver: s.resolver, Resolved: resolved,
 		})
 		if err != nil {
@@ -521,7 +521,7 @@ func (s *Recorder) CalculateOpenAIImageCost(ctx context.Context, billingModel st
 		}
 		return cost, nil
 	}
-	cost, err := s.billingService.CalculateImageCost(lookupModel, sizeTier, result.ImageCount, multiplier)
+	cost, err := s.billingService.CalculateImageCost(lookupModel, sizeTier, imageBillingUnits(result, nil), multiplier)
 	if err != nil {
 		// Retain image mode beside the catalogue failure so the recorder can classify
 		// measured media while choosing whether this pricing error allows zero charging.
@@ -692,4 +692,14 @@ func GroupBillsOpenAIFastAtStandard(apiKey *KeySnapshot, provider *ProviderSnaps
 	default:
 		return false
 	}
+}
+
+// imageBillingUnits selects observed frames only for image-priced output.
+// Per-request cards retain file counts, and token cards ignore this quantity.
+// Historical and static results have no frame observation and keep image counts.
+func imageBillingUnits(result *Result, resolved *ResolvedPricing) int {
+	if result.ImageFrameCount > 0 && (resolved == nil || resolved.Mode == BillingModeImage) {
+		return result.ImageFrameCount
+	}
+	return result.ImageCount
 }

@@ -39,7 +39,8 @@ type AdminReadSettings struct {
 	PurchaseSubscriptionEnabled bool           // subscription purchase switch
 	PurchaseSubscriptionURL     string         // subscription purchase destination
 	SiteLogo                    string         // branding image location
-	SiteTexts                   LocalizedTexts `json:"site_texts"` // localized source content
+	SiteShareImage              string         `json:"site_share_image"` // Saved cover image data URL.
+	SiteTexts                   LocalizedTexts `json:"site_texts"`       // localized source content
 	// DefaultLocale contains the stored default language; an empty string selects
 	// en here, while any nonempty stored spelling remains available to the editor.
 	DefaultLocale string `json:"default_locale"` // default display language
@@ -79,6 +80,7 @@ func ReadAdminSettings(settings map[string]string) *AdminReadSettings {
 	result.LoginAgreementDocuments = loginAgreementDocuments
 	result.SiteName = settingvalues.StringOrDefault(settings, SettingKeySiteName, "TokenRouter")
 	result.SiteLogo = settings[SettingKeySiteLogo]
+	result.SiteShareImage = settings[SettingKeySiteShareImage]
 	result.SiteSubtitle = settingvalues.StringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform")
 	result.APIBaseURL = settings[SettingKeyAPIBaseURL]
 	result.ContactInfo = settings[SettingKeyContactInfo]

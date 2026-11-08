@@ -125,6 +125,8 @@ func BuildCommand(requestID string, usageLog *UsageLog, p *usageBillingParams) *
 		cmd.CacheCreationTokens = usageLog.CacheCreationTokens
 		cmd.CacheReadTokens = usageLog.CacheReadTokens
 		cmd.ImageCount = usageLog.ImageCount
+		cmd.ImageFrameCount = usageLog.ImageFrameCount
+		cmd.ImageCacheReadTokens = usageLog.ImageCacheReadTokens
 		if usageLog.ServiceTier != nil {
 			cmd.ServiceTier = *usageLog.ServiceTier
 		}

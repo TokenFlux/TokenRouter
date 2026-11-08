@@ -19,6 +19,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
+// usage_log_repo_insert_test.go verifies usage insert columns, values, and retry behavior.
+//
 // Usage inserts share a positional schema across single-row, result-aware batch,
 // and best-effort SQL. Static shape checks inspect columns, placeholder
 // numbering, casts, and bound values, while SQL mocks exercise deadlock recovery
@@ -267,6 +269,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // user_agent
 			sqlmock.AnyArg(), // ip_address
 			log.ImageCount,
+			log.ImageFrameCount,
+			log.ImageCacheReadTokens,
 			sqlmock.AnyArg(), // image_size
 			sqlmock.AnyArg(), // image_input_size
 			sqlmock.AnyArg(), // image_output_size
@@ -374,6 +378,8 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			log.ImageCount,
+			log.ImageFrameCount,
+			log.ImageCacheReadTokens,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(), // image_input_size
 			sqlmock.AnyArg(), // image_output_size
@@ -556,28 +562,32 @@ func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 	outputSize := "3840x2160"
 	source := "output"
 	prepared := prepareUsageLogInsert(&usage.UsageLog{
-		UserID:             1,
-		APIKeyID:           2,
-		ProviderID:         3,
-		RequestID:          "req-image-metadata",
-		Model:              "gpt-image-2",
-		RequestedModel:     "gpt-image-2",
-		ImageCount:         2,
-		ImageSize:          &imageSize,
-		ImageInputSize:     &inputSize,
-		ImageOutputSize:    &outputSize,
-		ImageSizeSource:    &source,
-		ImageSizeBreakdown: map[string]int{"1K": 1, "4K": 1},
-		CreatedAt:          time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
+		UserID:               1,
+		APIKeyID:             2,
+		ProviderID:           3,
+		RequestID:            "req-image-metadata",
+		Model:                "gpt-image-2",
+		RequestedModel:       "gpt-image-2",
+		ImageCount:           2,
+		ImageFrameCount:      18,
+		ImageCacheReadTokens: 3,
+		ImageSize:            &imageSize,
+		ImageInputSize:       &inputSize,
+		ImageOutputSize:      &outputSize,
+		ImageSizeSource:      &source,
+		ImageSizeBreakdown:   map[string]int{"1K": 1, "4K": 1},
+		CreatedAt:            time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[41])
-	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[42])
-	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[43])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[44])
-	breakdownJSON, ok := prepared.args[45].(string)
+	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[43])
+	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[44])
+	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[45])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[46])
+	breakdownJSON, ok := prepared.args[47].(string)
 	require.True(t, ok)
 	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
+	require.Equal(t, 18, prepared.args[41])
+	require.Equal(t, 3, prepared.args[42])
 }
 
 // TestBuildUsageLogBatchInsertQuery_UsesConflictDoNothing builds a charged
@@ -610,7 +620,7 @@ func TestBuildUsageLogBatchInsertQuery_UsesConflictDoNothing(t *testing.T) {
 // correlation ID. It checks the nullable session argument and the following
 // timestamp, reasoning, and compaction type positions.
 func TestPrepareUsageLogInsert_SessionIDArgWiring(t *testing.T) {
-	require.Len(t, usageLogInsert.argTypes, 71, "arg-type table must include billing key")
+	require.Len(t, usageLogInsert.argTypes, 73, "arg-type table must include billing key")
 
 	sessionID := "sess-persisted-123"
 	prepared := prepareUsageLogInsert(newSessionIDUsageLog(&sessionID))

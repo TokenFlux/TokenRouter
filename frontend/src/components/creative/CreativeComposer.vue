@@ -164,6 +164,44 @@
                   </div>
                 </div>
               </template>
+              <div v-if="studio.outputFormatOptions.value.length > 1">
+                <p class="param-label">{{ t('creative.panel.outputFormat') }}</p>
+                <SettingsSegmented
+                  v-model="studio.outputFormat.value"
+                  :options="
+                    studio.outputFormatOptions.value.map((value) => ({
+                      value,
+                      label: value.toUpperCase(),
+                    }))
+                  "
+                  :ariaLabel="t('creative.panel.outputFormat')"
+                  block
+                />
+              </div>
+              <div v-if="studio.outputFormat.value === 'gif'" class="grid grid-cols-2 gap-3">
+                <label class="param-label">
+                  {{ t('creative.panel.frameCount') }}
+                  <input
+                    v-model.number="studio.frameCount.value"
+                    type="number"
+                    class="input mt-1"
+                    :min="studio.selectedOption.value?.gif_frame_count?.min ?? 2"
+                    :max="studio.selectedOption.value?.gif_frame_count?.max ?? 16"
+                    step="1"
+                  />
+                </label>
+                <label class="param-label">
+                  {{ t('creative.panel.frameDuration') }}
+                  <input
+                    v-model.number="studio.frameDurationMS.value"
+                    type="number"
+                    class="input mt-1"
+                    :min="studio.selectedOption.value?.gif_frame_duration_ms?.min ?? 20"
+                    :max="studio.selectedOption.value?.gif_frame_duration_ms?.max ?? 2000"
+                    step="10"
+                  />
+                </label>
+              </div>
               <div v-if="studio.aspectRatioOptions.value.length">
                 <p class="param-label">{{ t('creative.panel.aspectRatio') }}</p>
                 <div class="flex flex-wrap gap-1.5">

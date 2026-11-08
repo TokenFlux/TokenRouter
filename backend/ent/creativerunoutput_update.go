@@ -34,6 +34,27 @@ func (_u *CreativeRunOutputUpdate) SetUpdatedAt(v time.Time) *CreativeRunOutputU
 	return _u
 }
 
+// SetFrameCount sets the "frame_count" field.
+func (_u *CreativeRunOutputUpdate) SetFrameCount(v int) *CreativeRunOutputUpdate {
+	_u.mutation.ResetFrameCount()
+	_u.mutation.SetFrameCount(v)
+	return _u
+}
+
+// SetNillableFrameCount sets the "frame_count" field if the given value is not nil.
+func (_u *CreativeRunOutputUpdate) SetNillableFrameCount(v *int) *CreativeRunOutputUpdate {
+	if v != nil {
+		_u.SetFrameCount(*v)
+	}
+	return _u
+}
+
+// AddFrameCount adds value to the "frame_count" field.
+func (_u *CreativeRunOutputUpdate) AddFrameCount(v int) *CreativeRunOutputUpdate {
+	_u.mutation.AddFrameCount(v)
+	return _u
+}
+
 // SetRunID sets the "run_id" field.
 func (_u *CreativeRunOutputUpdate) SetRunID(v string) *CreativeRunOutputUpdate {
 	_u.mutation.SetRunID(v)
@@ -291,6 +312,12 @@ func (_u *CreativeRunOutputUpdate) sqlSave(ctx context.Context) (_node int, err 
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(creativerunoutput.FieldUpdatedAt, field.TypeTime, value)
 	}
+	if value, ok := _u.mutation.FrameCount(); ok {
+		_spec.SetField(creativerunoutput.FieldFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedFrameCount(); ok {
+		_spec.AddField(creativerunoutput.FieldFrameCount, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.RunID(); ok {
 		_spec.SetField(creativerunoutput.FieldRunID, field.TypeString, value)
 	}
@@ -365,6 +392,27 @@ type CreativeRunOutputUpdateOne struct {
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *CreativeRunOutputUpdateOne) SetUpdatedAt(v time.Time) *CreativeRunOutputUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
+	return _u
+}
+
+// SetFrameCount sets the "frame_count" field.
+func (_u *CreativeRunOutputUpdateOne) SetFrameCount(v int) *CreativeRunOutputUpdateOne {
+	_u.mutation.ResetFrameCount()
+	_u.mutation.SetFrameCount(v)
+	return _u
+}
+
+// SetNillableFrameCount sets the "frame_count" field if the given value is not nil.
+func (_u *CreativeRunOutputUpdateOne) SetNillableFrameCount(v *int) *CreativeRunOutputUpdateOne {
+	if v != nil {
+		_u.SetFrameCount(*v)
+	}
+	return _u
+}
+
+// AddFrameCount adds value to the "frame_count" field.
+func (_u *CreativeRunOutputUpdateOne) AddFrameCount(v int) *CreativeRunOutputUpdateOne {
+	_u.mutation.AddFrameCount(v)
 	return _u
 }
 
@@ -654,6 +702,12 @@ func (_u *CreativeRunOutputUpdateOne) sqlSave(ctx context.Context) (_node *Creat
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(creativerunoutput.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.FrameCount(); ok {
+		_spec.SetField(creativerunoutput.FieldFrameCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedFrameCount(); ok {
+		_spec.AddField(creativerunoutput.FieldFrameCount, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.RunID(); ok {
 		_spec.SetField(creativerunoutput.FieldRunID, field.TypeString, value)

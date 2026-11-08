@@ -21,6 +21,8 @@ type CreativeRunOutput struct {
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	// FrameCount holds the value of the "frame_count" field.
+	FrameCount int `json:"frame_count,omitempty"`
 	// RunID holds the value of the "run_id" field.
 	RunID string `json:"run_id,omitempty"`
 	// OutputIndex holds the value of the "output_index" field.
@@ -47,7 +49,7 @@ func (*CreativeRunOutput) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case creativerunoutput.FieldID, creativerunoutput.FieldOutputIndex, creativerunoutput.FieldByteSize:
+		case creativerunoutput.FieldID, creativerunoutput.FieldFrameCount, creativerunoutput.FieldOutputIndex, creativerunoutput.FieldByteSize:
 			values[i] = new(sql.NullInt64)
 		case creativerunoutput.FieldRunID, creativerunoutput.FieldStatus, creativerunoutput.FieldMimeType, creativerunoutput.FieldErrorCode, creativerunoutput.FieldErrorMessage:
 			values[i] = new(sql.NullString)
@@ -85,6 +87,12 @@ func (_m *CreativeRunOutput) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
 			} else if value.Valid {
 				_m.UpdatedAt = value.Time
+			}
+		case creativerunoutput.FieldFrameCount:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field frame_count", values[i])
+			} else if value.Valid {
+				_m.FrameCount = int(value.Int64)
 			}
 		case creativerunoutput.FieldRunID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -187,6 +195,9 @@ func (_m *CreativeRunOutput) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("updated_at=")
 	builder.WriteString(_m.UpdatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("frame_count=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FrameCount))
 	builder.WriteString(", ")
 	builder.WriteString("run_id=")
 	builder.WriteString(_m.RunID)

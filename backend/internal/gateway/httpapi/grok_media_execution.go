@@ -55,6 +55,7 @@ type grokMediaUsageMetadata struct {
 	Model            string   // status-observed result model
 	BillingModel     string   // status-resolved billing model
 	ImageCount       int      // returned image output count
+	ImageFrameCount  int      // encoded output frame billing units
 	ImageSize        string   // image billing size tier
 	ImageInputSize   string   // requested image dimensions
 	ImageOutputSizes []string // observed output image sizes
@@ -280,7 +281,8 @@ func (s *GrokExecutor) ForwardGrokMedia(
 
 		Duration: time.Since(startTime),
 
-		ImageCount: usage.ImageCount,
+		ImageCount:      usage.ImageCount,
+		ImageFrameCount: usage.ImageFrameCount,
 
 		ImageSize: usage.ImageSize,
 

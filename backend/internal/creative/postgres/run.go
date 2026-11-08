@@ -103,6 +103,8 @@ func (r *creativeRunRepository) CreateCreativeRun(ctx context.Context, params cr
 		SetOperation(params.Operation).
 		SetRequestedOutputCount(params.RequestedOutputCount).
 		SetImageSize(params.ImageSize).
+		SetFrameCount(params.FrameCount).
+		SetFrameDurationMs(params.FrameDurationMS).
 		SetAspectRatio(params.AspectRatio).
 		SetResponseMimeType(params.ResponseMIMEType).
 		SetPromptHash(params.PromptHash).
@@ -845,6 +847,8 @@ func creativeRunEntityToService(entity *dbent.CreativeRun) *creative.CreativeRun
 		Operation:                   entity.Operation,
 		RequestedOutputCount:        entity.RequestedOutputCount,
 		ImageSize:                   entity.ImageSize,
+		FrameCount:                  entity.FrameCount,
+		FrameDurationMS:             entity.FrameDurationMs,
 		AspectRatio:                 entity.AspectRatio,
 		ResponseMIMEType:            entity.ResponseMimeType,
 		PromptHash:                  entity.PromptHash,
@@ -892,6 +896,7 @@ func creativeRunOutputEntityToService(entity *dbent.CreativeRunOutput) *creative
 		ID:                 entity.ID,
 		RunID:              entity.RunID,
 		OutputIndex:        entity.OutputIndex,
+		FrameCount:         entity.FrameCount,
 		Status:             entity.Status,
 		MimeType:           entity.MimeType,
 		ByteSize:           entity.ByteSize,

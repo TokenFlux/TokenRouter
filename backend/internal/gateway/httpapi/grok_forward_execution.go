@@ -327,6 +327,7 @@ func (a *grokForwardAdapter) ReadStream(ctx context.Context, resp *http.Response
 		ResponseID:       v.ResponseID,
 		SearchCount:      v.SearchCount,
 		ImageCount:       v.ImageCount,
+		ImageFrameCount:  v.ImageFrameCount,
 		ImageOutputSizes: v.ImageOutputSizes,
 	}, err
 }
@@ -357,6 +358,7 @@ func (a *grokForwardAdapter) ReadNonStream(ctx context.Context, resp *http.Respo
 		ResponseID:            v.ResponseID,
 		SearchCount:           v.SearchCount,
 		ImageCount:            v.ImageCount,
+		ImageFrameCount:       v.ImageFrameCount,
 		ImageOutputSizes:      v.ImageOutputSizes,
 	}, nil
 }

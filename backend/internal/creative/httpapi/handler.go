@@ -29,8 +29,8 @@ import (
 //
 // Multipart parsing bounds the request body and cumulative file bytes before
 // submission validation. Uploaded sources retain arrival order and MIME
-// labels, text operations are normalized, and client output-format fields are
-// rejected. History responses place task arrays directly in the common
+// labels, text operations are normalized, and output format plus optional GIF
+// controls are passed to domain validation. History responses place task arrays directly in the common
 // envelope; active pagination encodes a decimal offset in base64 rather than
 // capturing a stable task snapshot. Output content uses private no-store
 // headers instead of the JSON envelope.
@@ -57,10 +57,13 @@ type CreativeHandler struct {
 // creativeCreateRunRequest retains parsed creative fields and uploaded image
 // buffers for submission.
 type creativeCreateRunRequest struct {
-	GroupID   int64  // requested target group identifier
-	Model     string // requested public model name
-	Operation string // normalized creative operation name
-	Prompt    string // trimmed multipart prompt text
+	OutputFormat    string // requested output format name
+	FrameCount      *int   // requested animation frame count
+	FrameDurationMS *int   // requested frame delay milliseconds
+	GroupID         int64  // requested target group identifier
+	Model           string // requested public model name
+	Operation       string // normalized creative operation name
+	Prompt          string // trimmed multipart prompt text
 	// source uploads in arrival order
 	SourceImages []creative.CreativeInputImage
 	// Mask keeps the last nonempty mask upload, while later empty parts leave
@@ -223,6 +226,7 @@ func (h *CreativeHandler) CreateRun(c *gin.Context) {
 		return
 	}
 	got, err := h.service.CreateRun(c.Request.Context(), scope, creative.CreateCreativeRunParamsPublic{
+		OutputFormat: req.OutputFormat, FrameCount: req.FrameCount, FrameDurationMS: req.FrameDurationMS,
 		GroupID:       req.GroupID,
 		Model:         req.Model,
 		Operation:     req.Operation,
@@ -362,13 +366,21 @@ func parseCreativeCreateRunMultipart(c *gin.Context, partLimit, totalInputLimit 
 			req.AspectRatio = value
 		case "quality":
 			req.Quality = value
-		case "output_format", "output_compression", "response_mime_type":
-			// Provider results determine saved MIME and format.
-			// Reject these client format
-			// controls so a submitted option cannot claim a
-			// different persisted output
-			// representation from the image bytes eventually
-			// returned by the adapter.
+		case "output_format":
+			req.OutputFormat = strings.ToLower(value)
+		case "frame_count", "frame_duration_ms":
+			number, err := strconv.Atoi(value)
+			if err != nil {
+				return nil, creative.ErrCreativeInvalidParams
+			}
+			if name == "frame_count" {
+				req.FrameCount = &number
+			} else {
+				req.FrameDurationMS = &number
+			}
+		case "output_compression", "response_mime_type":
+			// Output MIME comes from verified provider bytes. Compression and
+			// response MIME overrides are not exposed by the creative input contract.
 			return nil, creative.ErrCreativeInvalidParams
 		case "background":
 			req.Background = strings.ToLower(value)

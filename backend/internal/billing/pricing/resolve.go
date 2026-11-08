@@ -381,6 +381,7 @@ func MultiplyModelPricing(pricing *ModelPricing, multiplier float64) *ModelPrici
 	scaled.InputPricePerToken *= multiplier
 	scaled.InputPricePerTokenPriority *= multiplier
 	scaled.ImageInputPricePerToken *= multiplier
+	scaled.ImageCacheReadPricePerToken *= multiplier
 	scaled.OutputPricePerToken *= multiplier
 	scaled.OutputPricePerTokenPriority *= multiplier
 	scaled.CacheCreationPricePerToken *= multiplier
@@ -553,9 +554,13 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 	if iv.CacheReadPrice != nil {
 		priority := ConfigTierOverridePrice(pricing.CacheReadPricePerToken, pricing.CacheReadPricePerTokenPriority, *iv.CacheReadPrice)
 		pricing.CacheReadPricePerToken = *iv.CacheReadPrice
+		// A manual aggregate cache price also owns the image subset; retaining the
+		// catalog image rate would partially bypass this administrator override.
+		pricing.ImageCacheReadPriceExplicit = false
 		pricing.CacheReadPricePerTokenPriority = priority
 	} else if iv.CacheReadMultiplier != nil {
 		pricing.CacheReadPricePerToken *= *iv.CacheReadMultiplier
+		pricing.ImageCacheReadPricePerToken *= *iv.CacheReadMultiplier
 		pricing.CacheReadPricePerTokenPriority *= *iv.CacheReadMultiplier
 	}
 	// Intervals carry no independent image fields; apply the card image rules

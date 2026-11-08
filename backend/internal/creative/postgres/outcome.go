@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/ent/creativerun"
+	"github.com/TokenFlux/TokenRouter/ent/creativerunoutput"
 	"github.com/TokenFlux/TokenRouter/internal/creative"
 )
 
@@ -72,6 +73,9 @@ func (r *creativeRunRepository) RecordProviderOutcome(ctx context.Context, id st
 	// that provider-success fact before transient image saves begin.
 	participant := &creativeRunRepository{client: tx.Client()}
 	for _, output := range outputs {
+		if err := tx.CreativeRunOutput.Update().Where(creativerunoutput.RunIDEQ(id), creativerunoutput.OutputIndexEQ(output.OutputIndex)).SetFrameCount(output.FrameCount).Exec(ctx); err != nil {
+			return err
+		}
 		if err := participant.UpdateCreativeRunOutput(ctx, id, output.OutputIndex, output.Status, creative.CreativeDerefString(output.MimeType), creative.CreativeDerefInt64(output.ByteSize), output.TransientExpiresAt, creative.CreativeDerefString(output.ErrorCode), creative.CreativeDerefString(output.ErrorMessage)); err != nil {
 			return err
 		}

@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/tidwall/gjson"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 )
 
 // image_request_parse.go parses image generation and editing requests into
@@ -28,9 +30,10 @@ import (
 //
 // The normalized request retains its original body storage for forwarding and
 // builds separate prompt/image JSON for moderation. JSON numeric options use
-// integer conversion after a number-type check; multipart text uses integer
-// parsing and caps each named part at twenty MiB, returning its prefix when
-// larger. Parsing collects request evidence and defaults, while model-family
+// integer conversion after a number-type check; null animation controls remain
+// absent until GIF defaults are applied. Multipart text uses integer parsing
+// and caps each named part at twenty MiB, returning its prefix when larger.
+// Parsing collects request evidence and defaults, while model-family
 // validation, billing size tiers, and provider capability selection are
 // performed by gateway consumers.
 
@@ -72,6 +75,11 @@ type ImageRequest struct {
 	Moderation     string // supplied image moderation setting
 	InputFidelity  string // supplied input fidelity setting
 	Style          string // supplied image style setting
+	// FrameCount and FrameDurationMS retain optional animation controls. JSON null
+	// and omitted fields remain nil until NormalizeGIF supplies defaults for GIF
+	// output; static requests leave both fields unset.
+	FrameCount      *int // requested animation frame count
+	FrameDurationMS *int // milliseconds per animation frame
 	// OutputCompression and PartialImages retain optional integer settings, with
 	// nil representing absence. Gateway request conversion shares both pointers;
 	// copy their values before independent mutation. Their ranges are not validated here.
@@ -207,13 +215,17 @@ func (r *ImageRequest) StickySessionSeed() string {
 // presence before defaults, appends edit image references, and can leave
 // partial updates when validation fails.
 //
-// Stream requires a JSON boolean, while n and the two optional integer
-// controls require numbers and then use gjson integer conversion, including
-// fractional truncation. Editing requires an image_url reference; file_id-only
-// images and any mask.file_id are rejected. This helper performs path
-// extraction, leaving whole-document validation and defaults to
+// Stream requires a JSON boolean, while n, compression, and preview controls
+// require numbers and then use gjson integer conversion, including fractional
+// truncation. Animation controls accept integers or null; null leaves the
+// setting unspecified for later GIF defaults. Editing requires an image_url
+// reference; file_id-only images and any mask.file_id are rejected. This helper
+// performs path extraction, leaving whole-document validation and defaults to
 // ParseImageRequest.
 func ParseOpenAIImagesJSONRequest(body []byte, req *ImageRequest) error {
+	if err := ValidateGIFJSONControls(body); err != nil {
+		return err
+	}
 	// Model and size presence is recorded before defaults so gateway capability
 	// selection can distinguish a client-selected value from the parser's default model.
 	if modelResult := gjson.GetBytes(body, "model"); modelResult.Exists() {
@@ -270,6 +282,21 @@ func ParseOpenAIImagesJSONRequest(body []byte, req *ImageRequest) error {
 		}
 		v := int(partialImages.Int())
 		req.PartialImages = &v
+	}
+	for _, field := range []struct {
+		name   string // numeric animation field name
+		target **int  // parsed optional value destination
+	}{{"frame_count", &req.FrameCount}, {"frame_duration_ms", &req.FrameDurationMS}} {
+		raw := gjson.GetBytes(body, field.name)
+		// Native Images accepts null animation controls. Preserve their absent state
+		// so GIF normalization supplies defaults without adding animation to static requests.
+		if raw.Exists() && raw.Type != gjson.Null {
+			number, err := strconv.Atoi(raw.Raw)
+			if raw.Type != gjson.Number || err != nil {
+				return fmt.Errorf("%s must be an integer", field.name)
+			}
+			*field.target = &number
+		}
 	}
 	if req.IsEdits() {
 		images := gjson.GetBytes(body, "images")
@@ -331,6 +358,8 @@ func ParseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ima
 	}
 
 	reader := multipart.NewReader(bytes.NewReader(body), boundary)
+	gifSeen := false
+	controls := map[string]int{}
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -390,6 +419,10 @@ func ParseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ima
 		}
 
 		value := strings.TrimSpace(string(data))
+		if imageGIFControl(name) {
+			controls[name]++
+		}
+		gifSeen = gifSeen || name == "output_format" && strings.EqualFold(value, "gif") || name == "frame_count" || name == "frame_duration_ms"
 		switch name {
 		case "model":
 			req.Model = value
@@ -438,6 +471,17 @@ func ParseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ima
 			}
 			req.OutputCompression = &n
 			req.HasNativeOptions = true
+		case "frame_count", "frame_duration_ms":
+			number, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("%s must be an integer", name)
+			}
+			if name == "frame_count" {
+				req.FrameCount = &number
+			} else {
+				req.FrameDurationMS = &number
+			}
+			req.HasNativeOptions = true
 		case "partial_images":
 			n, err := strconv.Atoi(value)
 			if err != nil {
@@ -454,6 +498,13 @@ func ParseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ima
 		}
 	}
 
+	if gifSeen {
+		for field, count := range controls {
+			if count > 1 {
+				return fmt.Errorf("duplicate GIF control: %s", field)
+			}
+		}
+	}
 	if len(req.Uploads) == 0 && req.IsEdits() {
 		return fmt.Errorf("image file is required")
 	}
@@ -512,6 +563,8 @@ func HasOpenAINativeImageOptions(exists func(path string) bool) bool {
 		"moderation",
 		"input_fidelity",
 		"partial_images",
+		"frame_count",
+		"frame_duration_ms",
 	}, exists)
 }
 
@@ -521,7 +574,7 @@ func HasOpenAINativeImageOptions(exists func(path string) bool) bool {
 // capability.
 func IsOpenAINativeImageOption(name string) bool {
 	switch strings.TrimSpace(strings.ToLower(name)) {
-	case "background", "quality", "style", "output_format", "output_compression", "moderation", "input_fidelity", "partial_images":
+	case "background", "quality", "style", "output_format", "output_compression", "moderation", "input_fidelity", "partial_images", "frame_count", "frame_duration_ms":
 		return true
 	default:
 		return false
@@ -579,6 +632,9 @@ func ParseImageRequest(path, contentType string, body []byte) (*ImageRequest, er
 	}
 
 	ApplyOpenAIImagesDefaults(req)
+	if err := req.NormalizeGIF(); err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -587,3 +643,88 @@ func ParseImageRequest(path, contentType string, body []byte) (*ImageRequest, er
 // interface. That path omits prompts, upload bytes, and signed image URLs;
 // other formatting modes follow their own representation rules.
 func (*ImageRequest) String() string { return "image wire request" }
+
+// NormalizeGIF validates animation-only controls and supplies normalized defaults.
+// Images requests cannot stream GIFs or combine them with masks, previews, or
+// compression. Static image requests reject supplied animation values instead of dropping them.
+func (r *ImageRequest) NormalizeGIF() error {
+	frames, duration, err := protocol.NormalizeGIFOptions(r.OutputFormat, r.FrameCount, r.FrameDurationMS)
+	if err != nil {
+		return err
+	}
+	if frames == 0 {
+		return nil
+	}
+	if r.Stream || r.HasMask || r.PartialImages != nil || r.OutputCompression != nil {
+		return fmt.Errorf("GIF output does not support streaming, partial_images, masks, or output_compression")
+	}
+	if r.Size != "" && r.Size != "auto" {
+		widthText, heightText, found := strings.Cut(r.Size, "x")
+		width, widthErr := strconv.Atoi(widthText)
+		height, heightErr := strconv.Atoi(heightText)
+		if !found || widthErr != nil || heightErr != nil || width <= 0 || height <= 0 || width%16 != 0 || height%16 != 0 {
+			return fmt.Errorf("GIF size must be auto or positive dimensions divisible by 16")
+		}
+	}
+	r.OutputFormat = "gif"
+	r.FrameCount, r.FrameDurationMS = &frames, &duration
+	return nil
+}
+
+// ValidateGIFJSONControls rejects duplicate controls on animated image requests.
+// Native image fields and each Responses image tool are examined independently.
+// A duplicated tools list is rejected when any occurrence requests GIF output,
+// preventing provider eligibility and upstream parsing from choosing different values.
+func ValidateGIFJSONControls(body []byte) error {
+	_, err := validateGIFJSONObject(gjson.ParseBytes(body))
+	return err
+}
+
+// validateGIFJSONObject checks one image request object and hosted image tools.
+// It reports whether any checked occurrence requests animation, including an
+// overwritten tools member. Non-animation requests retain their existing duplicate-key behavior.
+func validateGIFJSONObject(value gjson.Result) (bool, error) {
+	animated := false
+	counts := map[string]int{}
+	var failure error
+	value.ForEach(func(key, field gjson.Result) bool {
+		if imageGIFControl(key.String()) {
+			counts[key.String()]++
+		}
+		if key.String() == "output_format" && strings.EqualFold(field.String(), "gif") || key.String() == "frame_count" || key.String() == "frame_duration_ms" {
+			animated = true
+		}
+		if key.String() == "tools" {
+			for _, tool := range field.Array() {
+				child, err := validateGIFJSONObject(tool)
+				animated = animated || child
+				if err != nil {
+					failure = err
+					return false
+				}
+			}
+		}
+		return true
+	})
+	if failure != nil {
+		return animated, failure
+	}
+	if animated {
+		for field, count := range counts {
+			if count > 1 {
+				return true, fmt.Errorf("duplicate GIF control: %s", field)
+			}
+		}
+	}
+	return animated, nil
+}
+
+// imageGIFControl identifies fields whose ambiguity can alter animation eligibility.
+func imageGIFControl(name string) bool {
+	switch name {
+	case "output_format", "frame_count", "frame_duration_ms", "stream", "partial_images", "output_compression", "mask", "input_image_mask", "tools", "type", "model", "action", "n":
+		return true
+	default:
+		return false
+	}
+}

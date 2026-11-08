@@ -62,6 +62,7 @@ type AttemptResult struct {
 	RequestID                     string // upstream request correlation identifier
 	ResponseID                    string // upstream Responses object identifier
 	// SearchCount: observed search operations. ImageInputTokens: image input tokens.
+	ImageCacheReadTokens          int // explicit cached image token subset
 	SearchCount, ImageInputTokens int
 	// ImageOutputSizes retains per-image size evidence for completion pricing.
 	// Some executors share the reader's slice, so copy before independent mutation.
@@ -84,6 +85,7 @@ type AttemptResult struct {
 	// EstimatedTokenCount carries the local countTokens estimate when available.
 	// Settlement consumes Usage separately and decides whether this estimate is usable.
 	EstimatedTokenCount *int // optional local token estimate
+	ImageFrameCount     int  // encoded output frame billing units
 	// ObservedImages counts upstream image results before pricing defaults are applied.
 	// Completion combines this observation with transport format and failure state.
 	ObservedImages int // observed upstream image count

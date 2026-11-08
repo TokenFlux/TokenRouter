@@ -201,7 +201,10 @@
             <Icon name="modalityImage" size="sm" class="h-4 w-4 text-indigo-500" />
             <!-- The image count provides the mobile card label's text baseline. -->
             <span class="self-baseline font-medium text-gray-900 dark:text-white"
-              >{{ row.image_count }}{{ t('usage.imageUnit') }}</span
+              >{{ row.image_count }}{{ t('usage.imageUnit')
+              }}<span v-if="row.image_frame_count">
+                · {{ row.image_frame_count }}{{ t('usage.imageFrameUnit') }}</span
+              ></span
             >
             <span class="text-gray-400">({{ formatImageBillingSize(row, t) }})</span>
           </div>
@@ -227,7 +230,7 @@
                 <div class="inline-flex items-center gap-1">
                   <Icon name="arrowDown" size="sm" class="h-3.5 w-3.5 text-fuchsia-500" />
                   <span class="font-medium text-fuchsia-600 dark:text-fuchsia-400">{{
-                    row.image_input_tokens.toLocaleString()
+                    uncachedImageInputTokens(row).toLocaleString()
                   }}</span>
                 </div>
               </div>
@@ -535,7 +538,7 @@
               >
                 <span class="text-gray-400">{{ t('usage.imageInputTokens') }}</span>
                 <span class="font-medium text-fuchsia-300">{{
-                  tokenTooltipData.image_input_tokens.toLocaleString()
+                  uncachedImageInputTokens(tokenTooltipData).toLocaleString()
                 }}</span>
               </div>
               <div
@@ -836,7 +839,7 @@
                     >{{
                       formatTokenPricePerMillion(
                         tooltipData.image_input_cost ?? 0,
-                        tooltipData.image_input_tokens,
+                        uncachedImageInputTokens(tooltipData),
                       )
                     }}
                     {{ t('usage.perMillionTokens') }}</span
@@ -879,7 +882,10 @@
                 <div class="flex items-center justify-between gap-4">
                   <span class="text-gray-400">{{ t('usage.imageCount') }}</span>
                   <span class="font-medium text-white"
-                    >{{ tooltipData.image_count }}{{ t('usage.imageUnit') }}</span
+                    >{{ tooltipData.image_count }}{{ t('usage.imageUnit')
+                    }}<span v-if="tooltipData.image_frame_count">
+                      · {{ tooltipData.image_frame_count }}{{ t('usage.imageFrameUnit') }}</span
+                    ></span
                   >
                 </div>
                 <div class="flex items-center justify-between gap-4">
@@ -1122,6 +1128,7 @@ import {
   hasImageOutputTokens,
   textOutputTokens,
   hasImageInputTokens,
+  uncachedImageInputTokens,
   textInputTokens,
   hasImageInputCost,
 } from '@/utils/imageUsage'

@@ -68,6 +68,9 @@ export interface CreativeExportInput {
  * unsupported, allowing submission to omit those optional parameters.
  */
 interface CreativeSelectionSettings {
+  outputFormat?: string // Submitted output format name.
+  frameCount?: number // Submitted animation frame count.
+  frameDurationMS?: number // Submitted frame delay, milliseconds.
   optionKey: string // selected group-model key
   operation: string // selected image operation
   imageSize: string // selected image tier
@@ -193,6 +196,23 @@ export function useCreativeStudio() {
   const prompt = ref('')
   const imageSize = ref('')
   const aspectRatio = ref('auto')
+  /** Animation controls preserve upstream defaults until a GIF route is selected. */
+  const outputFormat = ref('png')
+  const frameCount = ref(9)
+  const frameDurationMS = ref(200)
+  /**
+   * outputFormatOptions follows the selected operation's routes, keeping inpaint
+   * static. Only servers without an operation map use the legacy combined list;
+   * a missing operation in a supplied map offers no formats.
+   */
+  const outputFormatOptions = computed(() => {
+    if (operation.value === 'inpaint') return ['png']
+    const option = selectedOption.value
+    if (option?.output_formats_by_operation) {
+      return option.output_formats_by_operation[operation.value] ?? []
+    }
+    return option?.output_formats?.length ? option.output_formats : ['png']
+  })
   /**
    * quality, background, and thinkingLevel are optional model parameters
    * normalized to empty strings when the selected model lacks those capabilities.
@@ -374,7 +394,7 @@ export function useCreativeStudio() {
       default:
         unitPrice = option.price_1k
     }
-    return unitPrice
+    return unitPrice * (outputFormat.value === 'gif' ? frameCount.value : 1)
   })
 
   /**
@@ -384,6 +404,17 @@ export function useCreativeStudio() {
   const canGenerate = computed(() => {
     if (!selectedOption.value || busy.value) return false
     if (!operationOptions.value.includes(operation.value)) return false
+    if (!outputFormatOptions.value.includes(outputFormat.value)) return false
+    if (
+      outputFormat.value === 'gif' &&
+      (!Number.isInteger(frameCount.value) ||
+        frameCount.value < 2 ||
+        frameCount.value > 16 ||
+        !Number.isInteger(frameDurationMS.value) ||
+        frameDurationMS.value < 20 ||
+        frameDurationMS.value > 2000)
+    )
+      return false
     if (prompt.value.trim().length === 0) return false
     if (Array.from(prompt.value).length > capabilities.value.max_prompt_chars) return false
     return true
@@ -443,6 +474,9 @@ export function useCreativeStudio() {
       if (saved.operation) operation.value = saved.operation
       if (saved.imageSize) imageSize.value = saved.imageSize
       if (saved.aspectRatio) aspectRatio.value = saved.aspectRatio
+      outputFormat.value = saved.outputFormat ?? 'png'
+      frameCount.value = saved.frameCount ?? 9
+      frameDurationMS.value = saved.frameDurationMS ?? 200
       if (typeof saved.quality === 'string') quality.value = saved.quality
       if (typeof saved.background === 'string') background.value = saved.background
       if (typeof saved.thinkingLevel === 'string') thinkingLevel.value = saved.thinkingLevel
@@ -470,6 +504,7 @@ export function useCreativeStudio() {
   function normalizeSelection(): void {
     const option = selectedOption.value
     if (!option) return
+    if (!outputFormatOptions.value.includes(outputFormat.value)) outputFormat.value = 'png'
     if (!option.operations.includes(operation.value)) {
       operation.value = option.operations[0] ?? 'generate'
     }
@@ -522,6 +557,9 @@ export function useCreativeStudio() {
       operation: operation.value,
       imageSize: imageSize.value,
       aspectRatio: aspectRatio.value,
+      outputFormat: outputFormat.value,
+      frameCount: frameCount.value,
+      frameDurationMS: frameDurationMS.value,
       quality: quality.value,
       background: background.value,
       thinkingLevel: thinkingLevel.value,
@@ -592,6 +630,12 @@ export function useCreativeStudio() {
     return settingsWriteChain
   }
 
+  // Operation changes can remove GIF support before submission. Reset only the
+  // output format, retaining animation settings for the next compatible selection.
+  watch(outputFormatOptions, (formats) => {
+    if (!formats.includes(outputFormat.value)) outputFormat.value = 'png'
+  })
+
   watch(
     [
       selectedOptionKey,
@@ -599,6 +643,9 @@ export function useCreativeStudio() {
       imageSize,
       aspectRatio,
       quality,
+      outputFormat,
+      frameCount,
+      frameDurationMS,
       background,
       thinkingLevel,
       prompt,
@@ -763,6 +810,9 @@ export function useCreativeStudio() {
     operation.value = params.operation
     imageSize.value = params.imageSize
     aspectRatio.value = params.aspectRatio
+    outputFormat.value = params.outputFormat ?? 'png'
+    frameCount.value = params.frameCount ?? 9
+    frameDurationMS.value = params.frameDurationMS ?? 200
     quality.value = params.quality
     background.value = params.background
     thinkingLevel.value = params.thinkingLevel
@@ -791,7 +841,10 @@ export function useCreativeStudio() {
       error.value = t('creative.error.noModel')
       return false
     }
-    if (!option.operations.includes(operation.value)) {
+    if (
+      !option.operations.includes(operation.value) ||
+      !outputFormatOptions.value.includes(outputFormat.value)
+    ) {
       error.value = t('creative.error.operationNotSupported')
       return false
     }
@@ -859,6 +912,11 @@ export function useCreativeStudio() {
       form.append('prompt', prompt.value)
       form.append('image_size', imageSize.value)
       form.append('aspect_ratio', aspectRatio.value)
+      form.append('output_format', outputFormat.value)
+      if (outputFormat.value === 'gif') {
+        form.append('frame_count', String(frameCount.value))
+        form.append('frame_duration_ms', String(frameDurationMS.value))
+      }
       if (quality.value) {
         form.append('quality', quality.value)
       }
@@ -886,6 +944,9 @@ export function useCreativeStudio() {
         prompt: prompt.value,
         imageSize: imageSize.value,
         aspectRatio: aspectRatio.value,
+        outputFormat: outputFormat.value,
+        frameCount: frameCount.value,
+        frameDurationMS: frameDurationMS.value,
         quality: quality.value,
         background: background.value,
         thinkingLevel: thinkingLevel.value,
@@ -1566,6 +1627,10 @@ export function useCreativeStudio() {
     imageSize,
     aspectRatio,
     quality,
+    outputFormat,
+    frameCount,
+    frameDurationMS,
+    outputFormatOptions,
     background,
     thinkingLevel,
     currentRun,

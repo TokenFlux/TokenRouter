@@ -70,24 +70,34 @@ export const hasImageOutputCost = (row: ImageOutputCostRow | null | undefined): 
 /**
  * ImageInputTokenRow supplies total and image input counts for token separation.
  */
-type ImageInputTokenRow = Pick<UsageLog, 'input_tokens' | 'image_input_tokens'>
+type ImageInputTokenRow = Pick<
+  UsageLog,
+  'input_tokens' | 'image_input_tokens' | 'image_cache_read_tokens'
+>
 /**
  * ImageInputCostRow supplies the recorded charge attributed to image input.
  */
 type ImageInputCostRow = Pick<UsageLog, 'image_input_cost'>
 
 /**
- * hasImageInputTokens reports a positive recorded image input token count. Missing rows
+ * uncachedImageInputTokens separates explicitly reported cached image tokens from
+ * the upstream image-input total. Missing subdivisions remain zero; malformed
+ * negative remainders clamp to zero before usage tables calculate unit prices.
+ */
+export const uncachedImageInputTokens = (row: ImageInputTokenRow | null | undefined): number =>
+  Math.max(0, (row?.image_input_tokens ?? 0) - (row?.image_cache_read_tokens ?? 0))
+
+/**
+ * hasImageInputTokens reports a positive uncached image input token count. Missing rows
  * and nullish counts use zero, allowing consumers to hide the input-image section when
  * its count is absent.
  */
 export const hasImageInputTokens = (row: ImageInputTokenRow | null | undefined): boolean =>
-  (row?.image_input_tokens ?? 0) > 0
+  uncachedImageInputTokens(row) > 0
 
 /**
  * textInputTokens returns the nonnegative text remainder of the recorded total
- * input tokens. Total and image counts overlap because the image count
- * represents a portion of that total, so subtraction is needed before displaying
+ * input tokens. The uncached image portion belongs to that ordinary input total, so subtraction is needed before displaying
  * separate text and image quantities.
  *
  * Each missing count is treated as zero. When the image portion exceeds the
@@ -99,7 +109,7 @@ export const textInputTokens = (row: ImageInputTokenRow | null | undefined): num
   /**
    * Clamp inconsistent totals so the text input count cannot become negative.
    */
-  Math.max(0, (row?.input_tokens ?? 0) - (row?.image_input_tokens ?? 0))
+  Math.max(0, (row?.input_tokens ?? 0) - uncachedImageInputTokens(row))
 
 /**
  * hasImageInputCost reports a positive recorded image input charge. Missing rows and

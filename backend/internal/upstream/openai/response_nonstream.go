@@ -38,6 +38,7 @@ type NonStreamingResult struct {
 	Usage            *wire.ForwardUsage // parsed upstream token observations
 	ResponseID       string             // extracted upstream response identifier
 	ImageCount       int                // observed completed image count
+	ImageFrameCount  int                // encoded output frame billing units
 	ImageOutputSizes []string           // observed produced image dimensions
 	SearchCount      int                // observed hosted search count
 }
@@ -131,6 +132,9 @@ func ReadNonStreamingResponse(ctx context.Context, resp *http.Response, c *upstr
 		return nil, fmt.Errorf("parse response: invalid json response")
 	}
 	usage := &usageValue
+	if err := wire.ValidateGIFImageOutputs(body); err != nil {
+		return &NonStreamingResult{Usage: usage}, err
+	}
 
 	// Return the requested model identity after capturing upstream usage, so
 	// downstream responses name the client model while billing retains the observed upstream values.
@@ -160,6 +164,7 @@ func ReadNonStreamingResponse(ctx context.Context, resp *http.Response, c *upstr
 		Usage:            usage,
 		ResponseID:       wire.ExtractOpenAIResponseIDFromJSONBytes(body),
 		ImageCount:       wire.CountOpenAIResponseImageOutputsFromJSONBytes(body),
+		ImageFrameCount:  wire.CountOpenAIImageFramesFromJSON(body),
 		ImageOutputSizes: wire.CollectOpenAIResponseImageOutputSizesFromJSONBytes(body),
 		SearchCount:      options.CountJSONSearch(body),
 	}, nil
@@ -179,6 +184,9 @@ func ReadNonStreamingResponse(ctx context.Context, resp *http.Response, c *upstr
 // original stream payloads, while image and search counts remain observations
 // from that stream.
 func ReadSSEAsJSON(ctx context.Context, resp *http.Response, c *upstream.OutputContext, options NonStreamOptions, body []byte, originalModel, mappedModel string) (*NonStreamingResult, error) {
+	if err := wire.ValidateGIFSSEOutputs(string(body)); err != nil {
+		return &NonStreamingResult{Usage: wire.ParseSSEUsageFromBody(string(body))}, err
+	}
 	bodyText := string(body)
 	options.ObserveSSE(bodyText)
 	terminalType, terminalPayload, terminalOK := wire.ExtractOpenAISSETerminalEvent(bodyText)
@@ -272,6 +280,7 @@ func ReadSSEAsJSON(ctx context.Context, resp *http.Response, c *upstream.OutputC
 		Usage:            usage,
 		ResponseID:       wire.ExtractOpenAIResponseIDFromJSONBytes(body),
 		ImageCount:       wire.CountOpenAIImageOutputsFromSSEBody(bodyText),
+		ImageFrameCount:  wire.CountOpenAIImageFramesFromSSE(bodyText),
 		ImageOutputSizes: wire.CollectOpenAIImageOutputSizesFromSSEBody(bodyText),
 		SearchCount:      options.CountSSESearch(bodyText),
 	}, nil

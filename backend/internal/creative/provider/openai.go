@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 // callback. That callback owns download transport and credential isolation.
 //
 // Generation uses JSON and editing uses multipart references with an optional
-// mask, while both request one PNG result. GPT Image bodies omit the legacy
+// mask, while both request one output in the task format. GPT Image bodies omit the legacy
 // response_format field and DALL-E names include it. URL downloads have
 // bounded retries under the execution context, but exhausted downloads and
 // unusable successful response bodies produce nonretryable result errors so
@@ -77,31 +78,47 @@ func (e *Target) ExecuteOpenAI(ctx context.Context, run creative.CreativeRun, pa
 	if err != nil {
 		return nil, creative.CreativeHTTPStatusError(0, err.Error())
 	}
-	targetURL, err := e.CreativeOpenAIURL(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req = e.OpenAI.Prepare(req)
-	authHeaders, err := e.OpenAI.AuthHeaders(ctx, token)
-	if err != nil {
-		return nil, creative.CreativeHTTPStatusError(0, err.Error())
-	}
-	for key, values := range authHeaders {
-		for _, value := range values {
-			req.Header.Add(key, value)
+	var req *http.Request
+	if e.OpenAI.OAuth {
+		parsed, parseErr := upstream.ParseImageRequest(endpoint, contentType, body)
+		if parseErr != nil {
+			return nil, creative.CreativeNonRetryableError("invalid image request: %v", parseErr)
 		}
+		responsesBody, buildErr := openai.BuildOpenAIImagesResponsesRequest(parsed, upstreamModel, e.OpenAI.MainModel)
+		if buildErr != nil {
+			return nil, buildErr
+		}
+		req, err = e.OpenAI.BuildOAuth(ctx, responsesBody, token)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		targetURL, err := e.CreativeOpenAIURL(endpoint)
+		if err != nil {
+			return nil, err
+		}
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		req = e.OpenAI.Prepare(req)
+		authHeaders, err := e.OpenAI.AuthHeaders(ctx, token)
+		if err != nil {
+			return nil, creative.CreativeHTTPStatusError(0, err.Error())
+		}
+		for key, values := range authHeaders {
+			for _, value := range values {
+				req.Header.Add(key, value)
+			}
+		}
+		if strings.TrimSpace(contentType) != "" {
+			req.Header.Set("Content-Type", contentType)
+		}
+		// Authentication headers and protocol Content-Type are prepared before the
+		// provider override callback. Apply it last so configured provider header
+		// values take precedence on the generation request sent by this transport.
+		e.OpenAI.ApplyHeaders(req.Header)
 	}
-	if strings.TrimSpace(contentType) != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	// Authentication headers and protocol Content-Type are prepared before the
-	// provider override callback. Apply it last so configured provider header
-	// values take precedence on the generation request sent by this transport.
-	e.OpenAI.ApplyHeaders(req.Header)
 
 	resp, err := e.OpenAI.Do(req)
 	if err != nil {
@@ -110,8 +127,28 @@ func (e *Target) ExecuteOpenAI(ctx context.Context, run creative.CreativeRun, pa
 	var respBody []byte
 	if resp.StatusCode >= 400 {
 		respBody, err = ReadCreativeUpstreamBody(resp.Body, 64<<20)
+	} else if e.OpenAI.OAuth {
+		var raw []byte
+		raw, err = ReadCreativeUpstreamBody(resp.Body, 64<<20)
+		if err == nil {
+			var images []openai.OpenAIResponsesImageResult
+			var created int64
+			var usage []byte
+			var metadata openai.OpenAIResponsesImageResult
+			images, created, usage, metadata, _, err = openai.CollectOpenAIImagesFromResponsesBody(raw, time.Now)
+			if err == nil && len(images) == 0 {
+				err = errors.New("upstream returned no image output")
+			}
+			if err == nil {
+				respBody, err = openai.BuildOpenAIImagesAPIResponse(images, created, usage, metadata, "b64_json", time.Now)
+			}
+			if err == nil {
+				respBody, _, err = openai.ValidateGIFImagesResponse(respBody, run.FrameCount > 0, nil)
+			}
+		}
 	} else {
 		options := openai.ImageResponseOptions{
+			ExpectedGIF:    run.FrameCount > 0,
 			ExpectedImages: 1,
 			ReadLimit:      func() int64 { return 64 << 20 },
 			ReadBody:       func(reader io.Reader) ([]byte, error) { return ReadCreativeUpstreamBody(reader, 64<<20) },
@@ -207,7 +244,7 @@ func (e *Target) CreativeOpenAIURL(endpoint string) (string, error) { return e.O
 // before calling.
 //
 // Both representations carry the fixed upstream model, prompt, size mapping,
-// and one PNG output. Only DALL-E names request the legacy base64
+// and one output in the saved task format. Only DALL-E names request the legacy base64
 // response_format field. Editing repeats the image form field for sources and
 // adds a supplied mask; closing the multipart writer completes its boundary
 // before bytes and content type are returned. Optional quality and background
@@ -218,11 +255,15 @@ func BuildCreativeOpenAIRequestBody(run creative.CreativeRun, payload creative.C
 			"model":         upstreamModel,
 			"prompt":        payload.Prompt,
 			"n":             1,
-			"output_format": "png",
+			"output_format": creative.OutputFormatFromMIME(run.ResponseMIMEType),
 			"size":          CreativeOpenAIImageSize(run.ImageSize, run.AspectRatio),
 		}
+		if run.FrameCount > 0 {
+			bodyMap["frame_count"] = run.FrameCount
+			bodyMap["frame_duration_ms"] = run.FrameDurationMS
+		}
 		// DALL-E selects base64 delivery with its legacy response_format field.
-		// Restrict that field to its model family so GPT Image keeps the PNG
+		// Restrict that field to its model family so GPT Image keeps the selected
 		// output_format request already constructed above.
 		if CreativeOpenAIUsesResponseFormat(upstreamModel) {
 			bodyMap["response_format"] = "b64_json"
@@ -267,15 +308,23 @@ func BuildCreativeOpenAIRequestBody(run creative.CreativeRun, payload creative.C
 		return nil, "", err
 	}
 	// Multipart edits use the same model-family response option as JSON generation.
-	// Include the legacy base64 field for DALL-E while GPT Image receives the PNG
+	// Include the legacy base64 field for DALL-E while GPT Image receives the selected
 	// output_format written below.
 	if CreativeOpenAIUsesResponseFormat(upstreamModel) {
 		if err := writer.WriteField("response_format", "b64_json"); err != nil {
 			return nil, "", err
 		}
 	}
-	if err := writer.WriteField("output_format", "png"); err != nil {
+	if err := writer.WriteField("output_format", creative.OutputFormatFromMIME(run.ResponseMIMEType)); err != nil {
 		return nil, "", err
+	}
+	if run.FrameCount > 0 {
+		if err := writer.WriteField("frame_count", strconv.Itoa(run.FrameCount)); err != nil {
+			return nil, "", err
+		}
+		if err := writer.WriteField("frame_duration_ms", strconv.Itoa(run.FrameDurationMS)); err != nil {
+			return nil, "", err
+		}
 	}
 	if err := writer.WriteField("size", CreativeOpenAIImageSize(run.ImageSize, run.AspectRatio)); err != nil {
 		return nil, "", err

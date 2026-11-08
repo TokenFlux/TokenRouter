@@ -38,6 +38,23 @@ function provider(overrides: Partial<Provider> = {}): Provider {
 }
 
 describe('provider edit patch representations', () => {
+  // Each OpenAI authentication type hydrates a disabled GIF flag and can restore
+  // its default. Editing must preserve unrelated metadata while retaining explicit false.
+  it.each(['oauth', 'apikey'] as const)('preserves GIF policy for %s providers', (type) => {
+    const source = provider({ type, extra: { images_gif_enabled: false, retained: true } })
+    const draft = createProviderEditDraft()
+    hydrateProviderEditDraft(draft, source, { loadFromExtra: vi.fn(), reset: vi.fn() })
+    expect(draft.openAIImagesGIFEnabled.value).toBe(false)
+    const disabled = buildProviderBasePatch(draft)
+    applyProviderExtraPatch(draft, source, disabled, vi.fn())
+    expect(disabled.extra?.images_gif_enabled).toBe(false)
+    draft.openAIImagesGIFEnabled.value = true
+    const enabled = buildProviderBasePatch(draft)
+    applyProviderExtraPatch(draft, source, enabled, vi.fn())
+    expect(enabled.extra).not.toHaveProperty('images_gif_enabled')
+    expect(enabled.extra?.retained).toBe(true)
+  })
+
   // Separate dialogs receive their own nested endpoint maps and model arrays.
   // Mutating one draft leaves the other draft's default values and collections unchanged.
   it('allocates independent draft refs and nested collections', () => {

@@ -254,6 +254,8 @@ func filterSchedulerCredentials(credentials map[string]any) map[string]any {
 		"opencode_catalog_protocols",
 		"api_protocol",
 		"openai_workload_capabilities",
+		"images_generations_mode",
+		"images_edits_mode",
 		"api_key",
 		"project_id",
 		"oauth_type",
@@ -287,6 +289,7 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 	// capabilities before hydration, so this allowlist carries the runtime
 	// observations used by those checks.
 	keys := []string{
+		"images_gif_enabled",
 		"quota_limit",
 		"quota_used",
 		"quota_daily_limit",

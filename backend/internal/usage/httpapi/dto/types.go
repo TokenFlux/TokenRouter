@@ -94,15 +94,17 @@ type UsageLog struct {
 	TPS                *float64 `json:"tps"`                  // estimated output tokens per second
 	TTFTMode           string   `json:"ttft_mode,omitempty"`  // captured request timing mode
 
-	ImageCount        int     `json:"image_count"`         // recorded generated image count
-	ImageSize         *string `json:"image_size"`          // optional image billing size tier
-	ImageInputSize    *string `json:"image_input_size"`    // optional input image size
-	ImageOutputSize   *string `json:"image_output_size"`   // optional output image size
-	ImageInputTokens  int     `json:"image_input_tokens"`  // image input token count
-	ImageInputCost    float64 `json:"image_input_cost"`    // image input cost USD
-	ImageOutputTokens int     `json:"image_output_tokens"` // image output token count
-	ImageOutputCost   float64 `json:"image_output_cost"`   // image output cost USD
-	ImageSizeSource   *string `json:"image_size_source"`   // optional size selection source
+	ImageCount           int     `json:"image_count"`                       // recorded generated image count
+	ImageFrameCount      int     `json:"image_frame_count,omitempty"`       // encoded output frame billing units
+	ImageSize            *string `json:"image_size"`                        // optional image billing size tier
+	ImageInputSize       *string `json:"image_input_size"`                  // optional input image size
+	ImageOutputSize      *string `json:"image_output_size"`                 // optional output image size
+	ImageInputTokens     int     `json:"image_input_tokens"`                // image input token count
+	ImageCacheReadTokens int     `json:"image_cache_read_tokens,omitempty"` // explicit cached image token subset
+	ImageInputCost       float64 `json:"image_input_cost"`                  // image input cost USD
+	ImageOutputTokens    int     `json:"image_output_tokens"`               // image output token count
+	ImageOutputCost      float64 `json:"image_output_cost"`                 // image output cost USD
+	ImageSizeSource      *string `json:"image_size_source"`                 // optional size selection source
 	// ImageSizeBreakdown carries image counts grouped by size tier. Usage
 	// mappers retain the source map, so callers leave it unchanged during JSON
 	// encoding.

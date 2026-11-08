@@ -54,6 +54,7 @@ type MessagesResult struct {
 	// Antigravity attempt for a selected image model. The quantity can therefore
 	// be a model-derived billing estimate.
 	ImageCount      int    // producer image quantity
+	ImageFrameCount int    // encoded output frame billing units
 	ImageSize       string // image billing size hint
 	ImageInputSize  string // input image size hint
 	ImageOutputSize string // output image size hint

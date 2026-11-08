@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-start gap-4">
+  <div class="flex items-start gap-4" :class="{ 'flex-col sm:flex-row': wide }">
     <!-- Preview Box -->
     <div class="flex-shrink-0">
       <div
@@ -34,8 +34,18 @@
     <!-- Controls -->
     <div class="flex-1 space-y-2">
       <div class="flex items-center gap-2">
-        <label class="btn btn-secondary btn-sm cursor-pointer">
-          <input type="file" :accept="acceptTypes" class="hidden" @change="handleUpload" />
+        <label
+          class="btn btn-secondary btn-sm"
+          :class="disabled ? 'cursor-not-allowed' : 'cursor-pointer'"
+          :aria-disabled="disabled"
+        >
+          <input
+            type="file"
+            :accept="acceptTypes"
+            :disabled="disabled"
+            class="hidden"
+            @change="handleUpload"
+          />
           <Icon name="upload" size="sm" class="mr-1.5" :stroke-width="2" />
           {{ resolvedUploadLabel }}
         </label>
@@ -43,7 +53,8 @@
           v-if="modelValue"
           type="button"
           class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
-          @click="$emit('update:modelValue', '')"
+          :disabled="disabled"
+          @click="removeImage"
         >
           <Icon name="trash" size="sm" class="mr-1.5" :stroke-width="2" />
           {{ resolvedRemoveLabel }}
@@ -56,14 +67,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 
-// ImageUpload.vue reads a chosen image or SVG into a parent-owned string value. SVG
-// previews pass through sanitization, image previews use data URLs, and file-size or
-// read failures remain local feedback beside the upload control.
+// ImageUpload.vue reads a selected image into a parent-owned draft and previews it.
+// SVG mode sanitizes inline markup; image mode retains a data URL until the parent
+// saves its form. Optional MIME and dimension limits let cover uploads impose stricter
+// requirements without changing existing logo uploads. Validation errors leave the
+// previous draft untouched, and removing an image publishes an empty value.
+//
+// File reads and image dimension checks finish asynchronously. Each selection owns a
+// generation invalidated by selection, removal, external value changes, disabled-state
+// transitions, or component teardown,
+// preventing stale callbacks from restoring a removed image or overwriting a newer one.
+// No network upload occurs inside this component; persistence belongs to its caller.
 
 // t resolves the component action and status labels using the active application
 // locale.
@@ -82,6 +101,14 @@ const props = withDefaults(
     // Maximum file size in bytes; the default is 300 KiB, and zero disables the size
     // rejection before browser reading begins.
     maxSize?: number
+    // allowedTypes restricts image mode when nonempty; an empty list retains
+    // the general image picker used by existing logo controls.
+    allowedTypes?: string[] // Accepted image MIME types.
+    maxDimension?: number // Maximum pixels per side; zero disables validation.
+    wide?: boolean // Landscape preview for covers.
+    // disabled prevents edits and cancels pending reads on either transition, so
+    // parent reloads can restore the same value without allowing late callbacks.
+    disabled?: boolean
   }>(),
   {
     mode: 'image',
@@ -90,6 +117,10 @@ const props = withDefaults(
     removeLabel: '',
     hint: '',
     maxSize: 300 * 1024,
+    allowedTypes: () => [],
+    maxDimension: 0,
+    wide: false,
+    disabled: false,
   },
 )
 
@@ -109,7 +140,9 @@ const error = ref('')
 const resolvedUploadLabel = computed(() => props.uploadLabel || t('common.upload'))
 const resolvedRemoveLabel = computed(() => props.removeLabel || t('common.remove'))
 
-const acceptTypes = computed(() => (props.mode === 'svg' ? '.svg' : 'image/*'))
+const acceptTypes = computed(() =>
+  props.mode === 'svg' ? '.svg' : props.allowedTypes.join(',') || 'image/*',
+)
 
 const sanitizedValue = computed(() =>
   props.mode === 'svg' ? sanitizeSvg(props.modelValue ?? '') : '',
@@ -117,62 +150,106 @@ const sanitizedValue = computed(() =>
 
 // previewSizeClass, innerSizeClass, and placeholderSizeClass select outer, SVG, and
 // empty-state dimensions from the same caller size option.
-const previewSizeClass = computed(() => (props.size === 'sm' ? 'h-14 w-14' : 'h-20 w-20'))
+const previewSizeClass = computed(() =>
+  props.wide ? 'h-24 w-44' : props.size === 'sm' ? 'h-14 w-14' : 'h-20 w-20',
+)
 const innerSizeClass = computed(() => (props.size === 'sm' ? 'h-7 w-7' : 'h-12 w-12'))
 const placeholderSizeClass = computed(() => (props.size === 'sm' ? 'h-5 w-5' : 'h-8 w-8'))
 
-// handleUpload reads the first chosen file and publishes its encoded contents. A
-// truthy maxSize rejects larger files, image mode checks the MIME prefix, and SVG mode
-// reads trimmed text. The input is cleared so the same file can be selected again.
-// FileReader failures set local feedback; readers are not cancelled when another
-// selection starts.
+// selectionVersion invalidates callbacks when selection or parent-owned editing state
+// changes, including reloads that restore the same value while controls are disabled.
+let selectionVersion = 0
+// Watch parent state synchronously so a queued decoder cannot publish into a draft
+// restored during discard. Disabled transitions also cover reloads with unchanged values.
+watch(
+  [() => props.modelValue, () => props.disabled],
+  () => {
+    selectionVersion += 1
+    error.value = ''
+  },
+  { flush: 'sync' },
+)
+onBeforeUnmount(() => {
+  selectionVersion += 1
+})
+
+// removeImage clears the editable draft and invalidates pending file or dimension reads.
+// Disabled controls retain their current value, including when an event is dispatched
+// programmatically while the parent is restoring its saved form.
+function removeImage() {
+  if (props.disabled) return
+  // Invalidate first so callbacks already queued by the browser cannot restore
+  // the discarded image after this empty value reaches the parent draft.
+  selectionVersion += 1
+  error.value = ''
+  emit('update:modelValue', '')
+}
+
+// handleUpload reads and validates a selected file before updating the parent draft.
+// Empty selections leave the draft unchanged. Size, MIME, decoding, and optional
+// dimension failures produce local feedback while preserving the previous image.
+//
+// A generation captured before reading owns every callback from that selection.
+// Later selections, removals, parent resets, and teardown advance the counter, so reads
+// cannot publish outdated content. Clearing the native input permits selecting the
+// same file again after either a validation failure or a successful draft update.
 function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
+  input.value = ''
+  if (!file || props.disabled) return
+  const version = ++selectionVersion
   error.value = ''
-
-  if (!file) return
-
   if (props.maxSize && file.size > props.maxSize) {
     error.value = t('common.fileTooLargeKb', {
-      // Report sizes in kibibytes with one fractional digit for the selected file.
+      // Display the file and limit in kibibytes for the existing translated message.
       size: (file.size / 1024).toFixed(1),
       max: (props.maxSize / 1024).toFixed(0),
     })
-    // Reset the native selection so choosing the same file again still dispatches a
-    // change event after this attempt.
-    input.value = ''
     return
   }
-
+  if (
+    props.mode === 'image' &&
+    (!file.type.startsWith('image/') ||
+      (props.allowedTypes.length > 0 && !props.allowedTypes.includes(file.type)))
+  ) {
+    error.value = props.allowedTypes.length
+      ? t('common.unsupportedImageType')
+      : t('common.selectImageFile')
+    return
+  }
   const reader = new FileReader()
-  if (props.mode === 'svg') {
-    reader.onload = (e) => {
-      const text = e.target?.result as string
-      if (text) emit('update:modelValue', text.trim())
-    }
-    reader.readAsText(file)
-  } else {
-    if (!file.type.startsWith('image/')) {
-      error.value = t('common.selectImageFile')
-      // Reset the native selection so choosing the same file again still dispatches a
-      // change event after this attempt.
-      input.value = ''
+  reader.onload = () => {
+    if (version !== selectionVersion) return
+    const value = String(reader.result || '')
+    if (props.mode === 'svg') {
+      if (value.trim()) emit('update:modelValue', value.trim())
       return
     }
-    reader.onload = (e) => {
-      emit('update:modelValue', e.target?.result as string)
+    if (!props.maxDimension) {
+      emit('update:modelValue', value)
+      return
     }
-    reader.readAsDataURL(file)
+    const preview = new Image()
+    preview.onload = () => {
+      // Decode completion may follow a newer selection or removal. Only the
+      // owning generation can replace the parent draft or report validation feedback.
+      if (version !== selectionVersion) return
+      if (preview.naturalWidth > props.maxDimension || preview.naturalHeight > props.maxDimension) {
+        error.value = t('common.imageDimensionsTooLarge', { max: props.maxDimension })
+        return
+      }
+      emit('update:modelValue', value)
+    }
+    preview.onerror = () => {
+      if (version === selectionVersion) error.value = t('common.fileReadFailed')
+    }
+    preview.src = value
   }
-
-  // A failed browser read leaves the parent model untouched; local feedback identifies
-  // the failure beside the file controls for another attempt.
   reader.onerror = () => {
-    error.value = t('common.fileReadFailed')
+    if (version === selectionVersion) error.value = t('common.fileReadFailed')
   }
-  // Reset the native selection so choosing the same file again still dispatches a
-  // change event after this attempt.
-  input.value = ''
+  if (props.mode === 'svg') reader.readAsText(file)
+  else reader.readAsDataURL(file)
 }
 </script>

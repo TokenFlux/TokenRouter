@@ -960,6 +960,8 @@ export default {
       textRouteForceResponses: '强制 Responses',
       textRouteForceChatCompletions: '强制 Chat Completions',
       textRouteTextDisabledHint: '关闭文本生成能力后，文本协议路由设置不适用。',
+      imagesGIFEnabled: 'GIF 生成',
+      imagesGIFEnabledDesc: '默认开启。上游不支持 GIF 动画输出时，请关闭此开关。',
       imagesURLToB64JSON: '自动补全图片 Base64',
       imagesURLToB64JSONDesc:
         '非流式生图结果只有 URL 时，下载图片并补全 b64_json。明确请求 URL 格式时不转换；下载失败仍返回原始 URL。',

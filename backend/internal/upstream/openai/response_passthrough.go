@@ -194,6 +194,7 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 			Usage:            usage,
 			ResponseID:       responseID,
 			ImageCount:       imageCounter.Count(),
+			ImageFrameCount:  imageCounter.FrameCount(),
 			ImageOutputSizes: imageCounter.Sizes(),
 		}
 	}
@@ -388,6 +389,10 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 					line = "data: " + data
 					eventType = strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
 				}
+				if err := wire.ValidateGIFImageOutputs(dataBytes); err != nil {
+					wire.ParseSSEUsageBytes(dataBytes, usage)
+					return resultWithUsage(), err
+				}
 				imageCounter.AddSSEData(dataBytes)
 				if sanitizedData, sanitized := SanitizeOpenAIResponseFailedEventForClient(
 					dataBytes,
@@ -560,6 +565,9 @@ func ReadPassthroughNonStreaming(ctx context.Context, resp *http.Response, sink 
 		usage = wire.ParseSSEUsageFromBody(string(body))
 	}
 	options.MissingUsage(resp, usage, "json", false)
+	if err := wire.ValidateGIFImageOutputs(body); err != nil {
+		return &NonStreamingResult{Usage: usage}, err
+	}
 
 	c := upstream.NewOutputContext(sink)
 	options.Headers(c.Writer.Header(), resp.Header)
@@ -582,6 +590,7 @@ func ReadPassthroughNonStreaming(ctx context.Context, resp *http.Response, sink 
 		Usage:            usage,
 		ResponseID:       wire.ExtractOpenAIResponseIDFromJSONBytes(body),
 		ImageCount:       wire.CountOpenAIResponseImageOutputsFromJSONBytes(body),
+		ImageFrameCount:  wire.CountOpenAIImageFramesFromJSON(body),
 		ImageOutputSizes: wire.CollectOpenAIResponseImageOutputSizesFromJSONBytes(body),
 	}, nil
 }
@@ -600,6 +609,9 @@ func ReadPassthroughNonStreaming(ctx context.Context, resp *http.Response, sink 
 // the returned response ID follows delivered body extraction. Served and
 // SearchCount remain zero in this result.
 func ReadPassthroughSSEAsJSON(resp *http.Response, sink upstream.OutputSink, options PassthroughOptions, body []byte, originalModel, mappedModel string) (*NonStreamingResult, error) {
+	if err := wire.ValidateGIFSSEOutputs(string(body)); err != nil {
+		return &NonStreamingResult{Usage: wire.ParseSSEUsageFromBody(string(body))}, err
+	}
 	bodyText := string(body)
 	terminalType, terminalPayload, terminalOK := wire.ExtractOpenAISSETerminalEvent(bodyText)
 	if terminalOK && (terminalType == "response.failed" || terminalType == "error") {
@@ -672,6 +684,7 @@ func ReadPassthroughSSEAsJSON(resp *http.Response, sink upstream.OutputSink, opt
 		Usage:            usage,
 		ResponseID:       wire.ExtractOpenAIResponseIDFromJSONBytes(body),
 		ImageCount:       wire.CountOpenAIImageOutputsFromSSEBody(bodyText),
+		ImageFrameCount:  wire.CountOpenAIImageFramesFromSSE(bodyText),
 		ImageOutputSizes: wire.CollectOpenAIImageOutputSizesFromSSEBody(bodyText),
 	}, nil
 }

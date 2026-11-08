@@ -486,9 +486,11 @@ func (s *Results) SettleRun(ctx context.Context, runID string) error {
 		return err
 	}
 	successCount := 0
+	run.ActualFrameCount = 0
 	for _, output := range outputs {
 		if output != nil && output.Status == CreativeRunOutputStatusSucceeded {
 			successCount++
+			run.ActualFrameCount += output.FrameCount
 		}
 	}
 	// Capture confirmed provider work before delivery reads. If availability
@@ -775,6 +777,7 @@ func (s *Results) RecordCreativeUsageLog(ctx context.Context, run *CreativeRun, 
 		UpstreamEndpoint:      &upstreamEndpoint,
 		GroupID:               &run.GroupID,
 		ImageCount:            successCount,
+		ImageFrameCount:       run.ActualFrameCount,
 		ImageOutputCost:       actualCost,
 		TotalCost:             actualCost,
 		ActualCost:            actualCost,

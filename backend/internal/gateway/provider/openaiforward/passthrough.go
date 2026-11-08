@@ -282,6 +282,8 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 
 	responseID := ""
 	imageCount := 0
+	imageFrameCount := 0
+	var deliveryErr error
 	var imageOutputSizes []string
 	for {
 		actualModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
@@ -361,7 +363,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 
 		if reqStream {
 			result, handleErr := openai.ReadPassthroughStreaming(ctx, resp, upstream.NewOutputContext(p.Sink()), p.ResponseOptions(ctx), startTime, reqModel, upstreamPassthroughModel)
-			if handleErr != nil {
+			if handleErr != nil && !errors.Is(handleErr, wire.ErrGIFResultInvalid) {
 				// The installed Compact signal helper closes a rejected response when it
 				// adopts recovery, releasing its body before this loop constructs the
 				// replacement exchange.
@@ -385,14 +387,16 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 				_ = resp.Body.Close()
 				return nil, handleErr
 			}
+			deliveryErr = handleErr
 			usage = result.Usage
 
 			responseID = strings.TrimSpace(result.ResponseID)
 			imageCount = result.ImageCount
+			imageFrameCount = result.ImageFrameCount
 			imageOutputSizes = result.ImageOutputSizes
 		} else {
 			result, handleErr := openai.ReadPassthroughNonStreaming(ctx, resp, p.Sink(), p.ResponseOptions(ctx), reqModel, upstreamPassthroughModel)
-			if handleErr != nil {
+			if handleErr != nil && !errors.Is(handleErr, wire.ErrGIFResultInvalid) {
 				// The installed Compact signal helper closes a rejected response when it
 				// adopts recovery, releasing its body before this loop constructs the
 				// replacement exchange.
@@ -416,9 +420,11 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 				_ = resp.Body.Close()
 				return nil, handleErr
 			}
+			deliveryErr = handleErr
 			usage = result.Usage
 			responseID = strings.TrimSpace(result.ResponseID)
 			imageCount = result.ImageCount
+			imageFrameCount = result.ImageFrameCount
 			imageOutputSizes = result.ImageOutputSizes
 		}
 		break
@@ -458,10 +464,11 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	// count.
 	if imageCount > 0 {
 		forwardResult.ImageCount = imageCount
+		forwardResult.ImageFrameCount = imageFrameCount
 		forwardResult.ImageSize = imageSizeTier
 		forwardResult.ImageInputSize = imageInputSize
 		forwardResult.ImageOutputSizes = imageOutputSizes
 		forwardResult.BillingModel = imageBillingModel
 	}
-	return forwardResult, nil
+	return forwardResult, deliveryErr
 }

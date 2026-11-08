@@ -17,6 +17,8 @@ const (
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
 	FieldUpdatedAt = "updated_at"
+	// FieldFrameCount holds the string denoting the frame_count field in the database.
+	FieldFrameCount = "frame_count"
 	// FieldRunID holds the string denoting the run_id field in the database.
 	FieldRunID = "run_id"
 	// FieldOutputIndex holds the string denoting the output_index field in the database.
@@ -44,6 +46,7 @@ var Columns = []string{
 	FieldID,
 	FieldCreatedAt,
 	FieldUpdatedAt,
+	FieldFrameCount,
 	FieldRunID,
 	FieldOutputIndex,
 	FieldStatus,
@@ -72,6 +75,8 @@ var (
 	DefaultUpdatedAt func() time.Time
 	// UpdateDefaultUpdatedAt holds the default value on update for the "updated_at" field.
 	UpdateDefaultUpdatedAt func() time.Time
+	// DefaultFrameCount holds the default value on creation for the "frame_count" field.
+	DefaultFrameCount int
 	// RunIDValidator is a validator for the "run_id" field. It is called by the builders before save.
 	RunIDValidator func(string) error
 	// DefaultStatus holds the default value on creation for the "status" field.
@@ -100,6 +105,11 @@ func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByUpdatedAt orders the results by the updated_at field.
 func ByUpdatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUpdatedAt, opts...).ToFunc()
+}
+
+// ByFrameCount orders the results by the frame_count field.
+func ByFrameCount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFrameCount, opts...).ToFunc()
 }
 
 // ByRunID orders the results by the run_id field.

@@ -233,6 +233,7 @@ func (s *GrokExecutor) ChatResponses(
 				ResponseID:       result.ResponseID,
 				SearchCount:      result.SearchCount,
 				ImageCount:       result.ImageCount,
+				ImageFrameCount:  result.ImageFrameCount,
 				ImageOutputSizes: result.ImageOutputSizes,
 				HTTPCommitted:    c.Writer.Written(),
 				RetryCommitted:   IsResponseCommitted(c),

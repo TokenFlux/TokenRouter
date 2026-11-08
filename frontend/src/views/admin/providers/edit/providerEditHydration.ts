@@ -279,6 +279,7 @@ export function hydrateProviderEditDraft(
     openAICompactMode,
     openAINativeCompactionV2Mode,
     openAIResponsesContinuationSupported,
+    openAIImagesGIFEnabled,
     openAIImagesURLToB64JSON,
     responsesWSConnectionMode,
     codexCLIOnlyAllowClaudeCodeEnabled,
@@ -554,6 +555,7 @@ export function hydrateProviderEditDraft(
   openAICompactMode.value = 'force_on'
   openAINativeCompactionV2Mode.value = 'force_on'
   openAIResponsesContinuationSupported.value = false
+  openAIImagesGIFEnabled.value = extra?.images_gif_enabled !== false
   openAIImagesURLToB64JSON.value = false
   openAICompactModelMappings.value = []
   responsesWSConnectionMode.value = RESPONSES_WS_POOLED

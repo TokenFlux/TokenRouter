@@ -905,6 +905,9 @@ export default {
       textRouteForceChatCompletions: 'Force Chat Completions',
       textRouteTextDisabledHint:
         'Text protocol routing is not applicable when text generation is disabled.',
+      imagesGIFEnabled: 'GIF generation',
+      imagesGIFEnabledDesc:
+        'Enabled by default. Disable this for upstreams that do not support animated GIF output.',
       imagesURLToB64JSON: 'Fill image Base64 from URL',
       imagesURLToB64JSONDesc:
         'For non-streaming image results that only contain a URL, download the image and fill b64_json. Explicit URL-format requests are preserved; failed downloads keep the original URL.',

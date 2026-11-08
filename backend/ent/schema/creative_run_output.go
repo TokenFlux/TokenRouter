@@ -42,6 +42,8 @@ func (CreativeRunOutput) Mixin() []ent.Mixin {
 // outcomes for the indexed result.
 func (CreativeRunOutput) Fields() []ent.Field {
 	return []ent.Field{
+		// Observed GIF frames; static outputs retain the historical zero value.
+		field.Int("frame_count").Default(0),
 		// Associated run identity.
 		field.String("run_id").MaxLen(64),
 		// Run-local output position.

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -103,6 +104,98 @@ func TestImagesExecuteSelectsStreamFormat(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestImagesExecuteGIFSizeMetadata presents buffered generation and edit results
+// for API keys and OAuth across JSON, SSE, and URL delivery. Both response size
+// levels and billing dimensions must match the actual GIF while preserving
+// original bytes, file counts, and frame billing units.
+func TestImagesExecuteGIFSizeMetadata(t *testing.T) {
+	encoded := "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBACwAAAAAAQABAAACAkQBADs="
+	for _, transport := range []string{"apikey_json", "apikey_sse", "apikey_sse_url", "oauth_sse"} {
+		for _, operation := range []protocol.ProtocolID{protocol.ProtocolImagesGenerations, protocol.ProtocolImagesEdits} {
+			t.Run(fmt.Sprintf("%s/%s", transport, operation), func(t *testing.T) {
+				body := `{"size":"3840x2160","output_format":"gif","data":[{"b64_json":"` + encoded + `"}]}`
+				contentType := "application/json"
+				if transport == "oauth_sse" {
+					// OAuth carries the finished GIF through Responses lifecycle events even
+					// when the Images client receives one buffered JSON document.
+					body = `data: {"type":"response.completed","response":{"output":[{"type":"image_generation_call","id":"gif-output","result":"` + encoded + `","size":"3840x2160","output_format":"gif"}]}}` + "\n\n"
+					contentType = "text/event-stream"
+				} else if transport != "apikey_json" {
+					kind := "image_generation.completed"
+					if operation == protocol.ProtocolImagesEdits {
+						kind = "image_edit.completed"
+					}
+					image := `"b64_json":"` + encoded + `"`
+					if transport == "apikey_sse_url" {
+						image = `"url":"https://example.invalid/result.gif"`
+					}
+					body = `data: {"type":"` + kind + `",` + image + `,"size":"3840x2160","output_format":"gif"}` + "\n\n"
+					contentType = "text/event-stream"
+				}
+				options := imagesTestResponseOptions()
+				options.ExpectedGIF = true
+				downloads := 0
+				options.FetchImage = func(url string) (string, error) {
+					downloads++
+					require.Equal(t, "https://example.invalid/result.gif", url)
+					return encoded, nil
+				}
+				target := &ImagesTarget{
+					OAuth: transport == "oauth_sse", Model: "gpt-image-2.6-flare", ResponseFormat: "b64_json", Options: options,
+					Request: httptest.NewRequest(http.MethodPost, "https://example.invalid/images", nil),
+					Do: func(*http.Request) (*http.Response, error) {
+						return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+					},
+					ResponseError: func(_ *http.Response, _ int, err error) error { return err },
+				}
+				sink := &imagesContractSink{}
+				result, err := (ImagesExecutor{}).Execute(t.Context(), upstream.AttemptInput{Protocol: operation, Target: target}, sink)
+				require.NoError(t, err)
+				require.Equal(t, 1, result.ObservedImages)
+				require.Equal(t, 2, result.ImageFrameCount)
+				require.Equal(t, []string{"1x1"}, result.ImageOutputSizes)
+				delivered := strings.Join(sink.chunks, "")
+				require.Equal(t, "1x1", gjson.Get(delivered, "size").String())
+				require.Equal(t, "1x1", gjson.Get(delivered, "data.0.size").String())
+				require.Equal(t, encoded, gjson.Get(delivered, "data.0.b64_json").String())
+				if transport == "apikey_sse_url" {
+					require.Equal(t, 1, downloads)
+				} else {
+					require.Zero(t, downloads)
+				}
+			})
+		}
+	}
+}
+
+// TestImagesExecuteMixedGIFSizeMetadata preserves static size evidence while
+// correcting an animation's reported canvas. Reading the normalized response for
+// billing must retain both outputs rather than lose the static entry's size.
+func TestImagesExecuteMixedGIFSizeMetadata(t *testing.T) {
+	encoded := "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBACwAAAAAAQABAAACAkQBADs="
+	body := `data: {"type":"image_generation.completed","id":"static","b64_json":"c3RhdGlj","output_format":"png","size":"2048x1536"}` + "\n\n" +
+		`data: {"type":"image_generation.completed","id":"gif","b64_json":"` + encoded + `","output_format":"gif","size":"3840x2160"}` + "\n\n"
+	options := imagesTestResponseOptions()
+	options.ExpectedImages = 2
+	target := &ImagesTarget{
+		Options: options,
+		Request: httptest.NewRequest(http.MethodPost, "https://example.invalid/images", nil),
+		Do: func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+		},
+	}
+	sink := &imagesContractSink{}
+	result, err := (ImagesExecutor{}).Execute(t.Context(), upstream.AttemptInput{Protocol: protocol.ProtocolImagesGenerations, Target: target}, sink)
+	require.NoError(t, err)
+	require.Equal(t, 2, result.ObservedImages)
+	require.Equal(t, 3, result.ImageFrameCount)
+	require.Equal(t, []string{"2048x1536", "1x1"}, result.ImageOutputSizes)
+	delivered := strings.Join(sink.chunks, "")
+	require.False(t, gjson.Get(delivered, "size").Exists())
+	require.Equal(t, "2048x1536", gjson.Get(delivered, "data.0.size").String())
+	require.Equal(t, "1x1", gjson.Get(delivered, "data.1.size").String())
 }
 
 // Begin captures the synchronous image response head for assertions.

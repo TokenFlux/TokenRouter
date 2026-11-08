@@ -50,6 +50,20 @@ func (_c *CreativeRunOutputCreate) SetNillableUpdatedAt(v *time.Time) *CreativeR
 	return _c
 }
 
+// SetFrameCount sets the "frame_count" field.
+func (_c *CreativeRunOutputCreate) SetFrameCount(v int) *CreativeRunOutputCreate {
+	_c.mutation.SetFrameCount(v)
+	return _c
+}
+
+// SetNillableFrameCount sets the "frame_count" field if the given value is not nil.
+func (_c *CreativeRunOutputCreate) SetNillableFrameCount(v *int) *CreativeRunOutputCreate {
+	if v != nil {
+		_c.SetFrameCount(*v)
+	}
+	return _c
+}
+
 // SetRunID sets the "run_id" field.
 func (_c *CreativeRunOutputCreate) SetRunID(v string) *CreativeRunOutputCreate {
 	_c.mutation.SetRunID(v)
@@ -203,6 +217,10 @@ func (_c *CreativeRunOutputCreate) defaults() {
 		v := creativerunoutput.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.FrameCount(); !ok {
+		v := creativerunoutput.DefaultFrameCount
+		_c.mutation.SetFrameCount(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := creativerunoutput.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -216,6 +234,9 @@ func (_c *CreativeRunOutputCreate) check() error {
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "CreativeRunOutput.updated_at"`)}
+	}
+	if _, ok := _c.mutation.FrameCount(); !ok {
+		return &ValidationError{Name: "frame_count", err: errors.New(`ent: missing required field "CreativeRunOutput.frame_count"`)}
 	}
 	if _, ok := _c.mutation.RunID(); !ok {
 		return &ValidationError{Name: "run_id", err: errors.New(`ent: missing required field "CreativeRunOutput.run_id"`)}
@@ -280,6 +301,10 @@ func (_c *CreativeRunOutputCreate) createSpec() (*CreativeRunOutput, *sqlgraph.C
 	if value, ok := _c.mutation.UpdatedAt(); ok {
 		_spec.SetField(creativerunoutput.FieldUpdatedAt, field.TypeTime, value)
 		_node.UpdatedAt = value
+	}
+	if value, ok := _c.mutation.FrameCount(); ok {
+		_spec.SetField(creativerunoutput.FieldFrameCount, field.TypeInt, value)
+		_node.FrameCount = value
 	}
 	if value, ok := _c.mutation.RunID(); ok {
 		_spec.SetField(creativerunoutput.FieldRunID, field.TypeString, value)
@@ -378,6 +403,24 @@ func (u *CreativeRunOutputUpsert) SetUpdatedAt(v time.Time) *CreativeRunOutputUp
 // UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
 func (u *CreativeRunOutputUpsert) UpdateUpdatedAt() *CreativeRunOutputUpsert {
 	u.SetExcluded(creativerunoutput.FieldUpdatedAt)
+	return u
+}
+
+// SetFrameCount sets the "frame_count" field.
+func (u *CreativeRunOutputUpsert) SetFrameCount(v int) *CreativeRunOutputUpsert {
+	u.Set(creativerunoutput.FieldFrameCount, v)
+	return u
+}
+
+// UpdateFrameCount sets the "frame_count" field to the value that was provided on create.
+func (u *CreativeRunOutputUpsert) UpdateFrameCount() *CreativeRunOutputUpsert {
+	u.SetExcluded(creativerunoutput.FieldFrameCount)
+	return u
+}
+
+// AddFrameCount adds v to the "frame_count" field.
+func (u *CreativeRunOutputUpsert) AddFrameCount(v int) *CreativeRunOutputUpsert {
+	u.Add(creativerunoutput.FieldFrameCount, v)
 	return u
 }
 
@@ -593,6 +636,27 @@ func (u *CreativeRunOutputUpsertOne) SetUpdatedAt(v time.Time) *CreativeRunOutpu
 func (u *CreativeRunOutputUpsertOne) UpdateUpdatedAt() *CreativeRunOutputUpsertOne {
 	return u.Update(func(s *CreativeRunOutputUpsert) {
 		s.UpdateUpdatedAt()
+	})
+}
+
+// SetFrameCount sets the "frame_count" field.
+func (u *CreativeRunOutputUpsertOne) SetFrameCount(v int) *CreativeRunOutputUpsertOne {
+	return u.Update(func(s *CreativeRunOutputUpsert) {
+		s.SetFrameCount(v)
+	})
+}
+
+// AddFrameCount adds v to the "frame_count" field.
+func (u *CreativeRunOutputUpsertOne) AddFrameCount(v int) *CreativeRunOutputUpsertOne {
+	return u.Update(func(s *CreativeRunOutputUpsert) {
+		s.AddFrameCount(v)
+	})
+}
+
+// UpdateFrameCount sets the "frame_count" field to the value that was provided on create.
+func (u *CreativeRunOutputUpsertOne) UpdateFrameCount() *CreativeRunOutputUpsertOne {
+	return u.Update(func(s *CreativeRunOutputUpsert) {
+		s.UpdateFrameCount()
 	})
 }
 
@@ -1000,6 +1064,27 @@ func (u *CreativeRunOutputUpsertBulk) SetUpdatedAt(v time.Time) *CreativeRunOutp
 func (u *CreativeRunOutputUpsertBulk) UpdateUpdatedAt() *CreativeRunOutputUpsertBulk {
 	return u.Update(func(s *CreativeRunOutputUpsert) {
 		s.UpdateUpdatedAt()
+	})
+}
+
+// SetFrameCount sets the "frame_count" field.
+func (u *CreativeRunOutputUpsertBulk) SetFrameCount(v int) *CreativeRunOutputUpsertBulk {
+	return u.Update(func(s *CreativeRunOutputUpsert) {
+		s.SetFrameCount(v)
+	})
+}
+
+// AddFrameCount adds v to the "frame_count" field.
+func (u *CreativeRunOutputUpsertBulk) AddFrameCount(v int) *CreativeRunOutputUpsertBulk {
+	return u.Update(func(s *CreativeRunOutputUpsert) {
+		s.AddFrameCount(v)
+	})
+}
+
+// UpdateFrameCount sets the "frame_count" field to the value that was provided on create.
+func (u *CreativeRunOutputUpsertBulk) UpdateFrameCount() *CreativeRunOutputUpsertBulk {
+	return u.Update(func(s *CreativeRunOutputUpsert) {
+		s.UpdateFrameCount()
 	})
 }
 

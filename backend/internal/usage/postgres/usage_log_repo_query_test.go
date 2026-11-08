@@ -16,6 +16,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
+// usage_log_repo_query_test.go verifies usage query filters and positional row decoding.
+//
 // Raw usage decoding must keep positional fields aligned while transport
 // compatibility and display-model selection interpret older records. SQL-mock
 // cases check filter precedence, request-ID lookup, internal-model predicates,
@@ -193,6 +195,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			2,
+			0, 0, // Animation frames and explicit image-cache tokens.
 			sql.NullString{Valid: true, String: "4K"},
 			sql.NullString{Valid: true, String: "1024x1024"},
 			sql.NullString{Valid: true, String: "3840x2160"},
@@ -280,6 +283,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			0,
+			0, 0, // Animation frames and explicit image-cache tokens.
 			sql.NullString{},
 			sql.NullString{}, // image_input_size
 			sql.NullString{}, // image_output_size
@@ -348,6 +352,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			0,
+			0, 0, // Animation frames and explicit image-cache tokens.
 			sql.NullString{},
 			sql.NullString{}, // image_input_size
 			sql.NullString{}, // image_output_size
@@ -416,6 +421,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			0,
+			0, 0, // Animation frames and explicit image-cache tokens.
 			sql.NullString{},
 			sql.NullString{}, // image_input_size
 			sql.NullString{}, // image_output_size

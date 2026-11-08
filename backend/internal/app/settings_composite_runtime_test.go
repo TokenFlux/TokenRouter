@@ -3,8 +3,11 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/png"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -474,7 +477,7 @@ func TestSettingsFieldOwnership(t *testing.T) {
 		delete(owners, name)
 		count++
 	}
-	require.Equal(t, 287, count, "HTTP 字段变化需要同步字段登记")
+	require.Equal(t, 288, count, "HTTP 字段变化需要同步字段登记")
 	require.Empty(t, owners, "参与者不应声明不存在的输入字段")
 }
 
@@ -2235,4 +2238,36 @@ func TestSettingsBStatsDefaultsAndPartialUpdates(t *testing.T) {
 	require.Equal(t, "false", repo.values[bstats.SettingKeyLogErrors])
 	require.Equal(t, "true", repo.values[bstats.SettingKeyLogSentData])
 	require.Equal(t, "true", repo.values[bstats.SettingKeyLogResponseStatusText])
+}
+
+// TestSettingsCoverAtomicSave publishes an uploaded cover through the real combined handler.
+// Failed persistence preserves the previous bytes and descriptor; omission keeps them, while clearing removes both in one committed update.
+func TestSettingsCoverAtomicSave(t *testing.T) {
+	var imageBytes bytes.Buffer
+	require.NoError(t, png.Encode(&imageBytes, image.NewRGBA(image.Rect(0, 0, 2, 3))))
+	upload := "data:image/png;base64," + base64.StdEncoding.EncodeToString(imageBytes.Bytes())
+	repo := &settingAtomicRepo{settingHandlerRepoStub: &settingHandlerRepoStub{values: map[string]string{}}}
+	options, store := newCompositeSettingsHTTPFixture(repo, &config.Config{UserDefaults: config.UserDefaultsConfig{Concurrency: 5}})
+	handler := settingshttp.NewHandler(options)
+	response := doUpdateSettings(t, handler, map[string]any{"site_share_image": upload}, nil)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Equal(t, upload, repo.values[site.SettingKeySiteShareImage])
+	require.Equal(t, 2, site.ReadShareImageMetadata(repo.values[site.SettingKeySiteShareImageMeta]).Width)
+	metadata := repo.values[site.SettingKeySiteShareImageMeta]
+	notified := false
+	store.Subscribe(func() { notified = true })
+	repo.failWrite = true
+	response = doUpdateSettings(t, handler, map[string]any{"site_share_image": ""}, nil)
+	require.Equal(t, http.StatusInternalServerError, response.Code)
+	require.False(t, notified)
+	require.Equal(t, upload, repo.values[site.SettingKeySiteShareImage])
+	require.Equal(t, metadata, repo.values[site.SettingKeySiteShareImageMeta])
+	repo.failWrite = false
+	response = doUpdateSettings(t, handler, map[string]any{"site_name": "Another name"}, nil)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Equal(t, upload, repo.values[site.SettingKeySiteShareImage])
+	response = doUpdateSettings(t, handler, map[string]any{"site_share_image": ""}, nil)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Empty(t, repo.values[site.SettingKeySiteShareImage])
+	require.Empty(t, site.ReadShareImageMetadata(repo.values[site.SettingKeySiteShareImageMeta]).Hash)
 }

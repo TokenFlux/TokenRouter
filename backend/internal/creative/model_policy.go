@@ -253,6 +253,13 @@ func (q *creativeModelQuery) resolve(ctx context.Context, model string, display 
 					capabilityErr = err
 					continue
 				}
+				if resolved.Attributes.Media != nil {
+					formats := []string{}
+					if operation != CreativeOperationInpaint && provider.SupportsImageGIF(OperationProtocol(platform, operation)) && slices.Contains(resolved.Attributes.Media.OutputFormats, "gif") {
+						formats = []string{"png", "gif"}
+					}
+					resolved.Attributes = modelcatalog.Merge(resolved.Attributes, modelcatalog.Attributes{Media: &modelcatalog.MediaCapabilities{OutputFormats: formats}})
+				}
 				if route.Model == "" {
 					route.Model = finalModel
 				}
@@ -264,9 +271,9 @@ func (q *creativeModelQuery) resolve(ctx context.Context, model string, display 
 			}
 		}
 		if len(route.Operations) > 0 {
-			route.Attributes, _ = modelcatalog.Common(values)
+			route.Attributes = creativeCommonAttributes(values)
 			for operation, attributes := range perOperation {
-				route.OperationAttributes[operation], _ = modelcatalog.Common(attributes)
+				route.OperationAttributes[operation] = creativeCommonAttributes(attributes)
 			}
 			return route, true, nil
 		}
@@ -275,4 +282,21 @@ func (q *creativeModelQuery) resolve(ctx context.Context, model string, display 
 		return creativeModelRoute{}, false, capabilityErr
 	}
 	return creativeModelRoute{}, false, nil
+}
+
+// creativeCommonAttributes keeps common controls and unions selectable GIF output.
+// GIF selection adds a request eligibility requirement, so only providers with
+// that format execute it. Static controls retain the existing common-route rules.
+func creativeCommonAttributes(values []modelcatalog.Attributes) modelcatalog.Attributes {
+	attrs, _ := modelcatalog.Common(values)
+	for _, value := range values {
+		if value.Media != nil && slices.Contains(value.Media.OutputFormats, "gif") {
+			if attrs.Media == nil {
+				attrs.Media = &modelcatalog.MediaCapabilities{}
+			}
+			attrs.Media.OutputFormats = []string{"png", "gif"}
+			break
+		}
+	}
+	return attrs
 }

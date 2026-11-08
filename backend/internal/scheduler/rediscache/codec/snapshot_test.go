@@ -10,6 +10,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 )
 
+// snapshot_test.go verifies cached provider capability and quota metadata.
+//
 // Gemini quota prechecks run on cached provider records before full hydration
 // supplies execution data. The fixture exceeds the free daily allowance while
 // leaving the current minute empty, exposing whether source and tier fields
@@ -155,5 +157,21 @@ func TestProviderCodecOpenCodeRetainsModelRoutes(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, "nemotron-3.5-lightning-free", resolved.Model)
 		})
+	}
+}
+
+// TestGIFPolicySurvivesSnapshotRoundTrip preserves explicit false and image modes.
+// Cached candidate selection must make the same GIF eligibility decision as the
+// complete provider record before credentials are hydrated for execution.
+func TestGIFPolicySurvivesSnapshotRoundTrip(t *testing.T) {
+	value := provider.Record{ID: 7, Platform: "openai", Type: "apikey", Extra: map[string]any{"images_gif_enabled": false}, Credentials: map[string]any{"images_generations_mode": "streaming", "images_edits_mode": "non_streaming"}}
+	full, metadata, err := marshalSchedulerCacheProvider(value)
+	require.NoError(t, err)
+	for _, body := range [][]byte{full, metadata} {
+		decoded, err := decodeCachedProvider(string(body))
+		require.NoError(t, err)
+		require.Equal(t, false, decoded.Extra["images_gif_enabled"])
+		require.Equal(t, "streaming", decoded.Credentials["images_generations_mode"])
+		require.False(t, decoded.SupportsImageGIF("openai_images_generations"))
 	}
 }

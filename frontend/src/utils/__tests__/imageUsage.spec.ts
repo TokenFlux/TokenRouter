@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { hasImageInputCost, hasImageInputTokens, textInputTokens } from '@/utils/imageUsage'
+import {
+  hasImageInputCost,
+  hasImageInputTokens,
+  textInputTokens,
+  uncachedImageInputTokens,
+} from '@/utils/imageUsage'
 
 /**
  * imageUsage.spec.ts tests separation of image and text input usage. Positive
@@ -9,6 +14,17 @@ import { hasImageInputCost, hasImageInputTokens, textInputTokens } from '@/utils
  */
 
 describe('imageUsage input helpers', () => {
+  /**
+   * Cached image input overlaps the upstream image total but belongs to the
+   * separate cache bucket. Displayed uncached image and text counts must match pricing.
+   */
+  it('separates explicitly reported cached image input', () => {
+    const row = { input_tokens: 100, image_input_tokens: 80, image_cache_read_tokens: 30 }
+    expect(uncachedImageInputTokens(row)).toBe(50)
+    expect(textInputTokens(row)).toBe(50)
+    expect(hasImageInputTokens({ ...row, image_cache_read_tokens: 80 })).toBe(false)
+  })
+
   /**
    * Input rows contain positive and zero image token counts and charges. The predicates
    * enable image sections for positive observations and leave zero-valued observations

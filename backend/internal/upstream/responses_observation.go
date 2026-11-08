@@ -31,6 +31,7 @@ type ResponsesObservation struct {
 
 	ResponseID string // observed Responses object identifier
 	// SearchCount: observed search operations. ImageCount: observed image results.
+	ImageFrameCount         int // observed animation frame units
 	SearchCount, ImageCount int
 	// ImageOutputSizes retains per-image size labels for later completion pricing.
 	// The executor can share this slice; copy before modifying retained observations.
