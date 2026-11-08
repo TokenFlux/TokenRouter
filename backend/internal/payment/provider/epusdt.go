@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/shopspring/decimal"
 
@@ -29,7 +30,10 @@ import (
 // its signature, and a paid cashier observation before fulfillment checks the
 // saved local order. Redirects are inspected without following them, responses
 // are bounded, and ambiguous creation failures retain the local order because
-// the gateway may already have accepted the signed form.
+// the gateway may already have accepted the signed form. Recognized rejections
+// before gateway creation release the local order through checkout failure
+// handling. Product names are normalized for signing without changing the
+// original title retained in the local order snapshot.
 
 // EPUSDT transport bounds limit one provider operation and its decoded response;
 // gateway statuses distinguish waiting, paid, expired, and asset-selection orders.
@@ -40,6 +44,17 @@ const (
 	epusdtPaid        = 2                // gateway confirmed payment
 	epusdtExpired     = 3                // gateway expired order
 	epusdtSelecting   = 4                // awaiting cashier asset selection
+
+	// EPay business codes below reject creation before an order is persisted.
+	// Duplicate-order and system errors remain uncertain because payment may exist.
+	epusdtNoWallet         = 10003 // no available receiving wallet
+	epusdtInvalidAmount    = 10004 // rejected fiat or token amount
+	epusdtNoAmountChannel  = 10005 // no available transfer amount
+	epusdtInvalidRate      = 10006 // unavailable currency conversion rate
+	epusdtInvalidParams    = 10009 // malformed checkout request parameters
+	epusdtChainDisabled    = 10014 // selected payment chain disabled
+	epusdtUnsupportedAsset = 10016 // selected payment asset unavailable
+	epusdtInvalidNotifyURL = 10041 // rejected merchant callback URL
 )
 
 // Adapter assertions keep checkout and merchant identity capabilities checked
@@ -130,10 +145,13 @@ func (e *EPUSDT) MerchantIdentityMetadata() map[string]string {
 // unrecognized response failures retain the pending order for signed callback
 // recovery because repeating creation could submit the same purchase twice.
 // EPay does not return an expiry timestamp, so the local order keeps its deadline.
+//
+// Recognized gateway rejections return ordinary errors for checkout failure
+// handling. The signed product name replaces delimiters and control characters;
+// the caller's original display text remains unchanged.
 func (e *EPUSDT) CreatePayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {
 	if _, err := easyPayPositiveMoney(req.Amount); err != nil ||
-		!easyPaySafeNotifyValue(req.OrderID) || req.OrderID == "" || len(req.OrderID) > 32 ||
-		!easyPaySafeNotifyValue(req.Subject) {
+		!easyPaySafeNotifyValue(req.OrderID) || req.OrderID == "" || len(req.OrderID) > 32 {
 		return nil, fmt.Errorf("epusdt EPay checkout order or amount is invalid")
 	}
 	notifyURL := req.NotifyURL
@@ -143,7 +161,7 @@ func (e *EPUSDT) CreatePayment(ctx context.Context, req payment.CreatePaymentReq
 	params := map[string]string{
 		"pid": e.pid, "type": "alipay", "out_trade_no": req.OrderID,
 		"money": req.Amount, "currency": strings.ToLower(e.currency),
-		"notify_url": notifyURL, "return_url": req.ReturnURL, "name": req.Subject,
+		"notify_url": notifyURL, "return_url": req.ReturnURL, "name": epusdtPaymentSubject(req.Subject),
 	}
 	params["sign"] = easyPaySign(params, e.secret)
 	params["sign_type"] = signTypeMD5
@@ -167,6 +185,9 @@ func (e *EPUSDT) CreatePayment(ctx context.Context, req payment.CreatePaymentReq
 	// keeping checkout creation separate from browser navigation and payment selection.
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusFound && response.StatusCode != http.StatusSeeOther {
+		if epusdtCreateRejected(response) {
+			return nil, fmt.Errorf("epusdt EPay checkout was rejected (HTTP %d)", response.StatusCode)
+		}
 		return nil, apperror.ServiceUnavailable(payment.CodePaymentCreateUnconfirmed, "EPUSDT EPay cashier redirect was not returned")
 	}
 	location, err := response.Location()
@@ -185,6 +206,71 @@ func (e *EPUSDT) CreatePayment(ctx context.Context, req payment.CreatePaymentReq
 		PayURL:   location.String(),
 		Currency: e.currency,
 	}, nil
+}
+
+// epusdtPaymentSubject prepares product text for unambiguous EPay signing.
+// Full-width ampersands and equals signs preserve readable punctuation, while
+// control characters become spaces and outer whitespace is removed. The
+// returned description is used only for the gateway request and its callbacks.
+func epusdtPaymentSubject(subject string) string {
+	return strings.TrimSpace(strings.Map(func(ch rune) rune {
+		// Callback verification rejects signing delimiters and controls in every
+		// field, so normalize product text before the gateway stores and signs it.
+		switch ch {
+		case '&':
+			return '＆'
+		case '=':
+			return '＝'
+		default:
+			if unicode.IsControl(ch) {
+				return ' '
+			}
+			return ch
+		}
+	}, subject))
+}
+
+// epusdtCreateRejected recognizes gateway responses proving checkout was refused.
+// It consumes a bounded error body only for HTTP 400 or 401 and requires the
+// corresponding EPay error code with no order data. The caller closes the body.
+//
+// Only authentication and validation failures known to precede order creation
+// qualify. Duplicate orders, system errors, malformed replies, and transport
+// failures cannot establish that payment is absent, so they preserve the
+// uncertain local order instead of releasing its merchant binding.
+func epusdtCreateRejected(response *http.Response) bool {
+	if response.StatusCode != http.StatusBadRequest && response.StatusCode != http.StatusUnauthorized {
+		return false
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, epusdtMaxBody+1))
+	// An incomplete or oversized error envelope cannot prove rejection. Keep
+	// checkout uncertain so a truncated response cannot discard a payable order.
+	if err != nil || len(data) > epusdtMaxBody {
+		return false
+	}
+	var reply struct {
+		Code int             `json:"status_code"` // gateway rejection reason code
+		Data json.RawMessage `json:"data"`        // absent or null order data
+	}
+	// Only complete error envelopes without order data establish rejection;
+	// conflicting or malformed replies retain the local order for later recovery.
+	if json.Unmarshal(data, &reply) != nil {
+		return false
+	}
+	if payload := strings.TrimSpace(string(reply.Data)); payload != "" && payload != "null" {
+		return false
+	}
+	if response.StatusCode == http.StatusUnauthorized {
+		return reply.Code == http.StatusUnauthorized
+	}
+	switch reply.Code {
+	case epusdtNoWallet, epusdtInvalidAmount, epusdtNoAmountChannel,
+		epusdtInvalidRate, epusdtInvalidParams, epusdtChainDisabled,
+		epusdtUnsupportedAsset, epusdtInvalidNotifyURL:
+		return true
+	default:
+		return false
+	}
 }
 
 // QueryOrder observes the saved opaque gateway trade identifier over HTTPS.

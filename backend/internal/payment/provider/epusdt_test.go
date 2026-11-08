@@ -21,7 +21,9 @@ import (
 // epusdt_test.go exercises EPay redirect checkout and payment observation
 // against local TLS gateway fixtures. Callback cases require signed fiat money
 // and a matching paid cashier, while malformed forms and redirect destinations
-// remain unable to reach successful local payment confirmation.
+// remain unable to reach successful local payment confirmation. Creation cases
+// distinguish explicit rejection from uncertain acceptance and retain callback
+// verification for normalized product descriptions.
 
 // TestEPUSDTCreatePayment sends one EPay form and inspects the cashier redirect.
 // It checks a fixed MD5 signing vector and ensures browser navigation is not followed.
@@ -77,6 +79,121 @@ func TestEPUSDTCreateRejectsUnconfirmedResponses(t *testing.T) {
 			require.ErrorAs(t, err, &appErr)
 			require.Equal(t, payment.CodePaymentCreateUnconfirmed, appErr.Reason)
 			require.NotContains(t, err.Error(), "merchant-secret")
+		})
+	}
+}
+
+// TestEPUSDTCreatePaymentClassifiesRejections exercises complete and ambiguous gateway errors.
+// Only documented pre-creation rejections release checkout; duplicate orders, inconsistent
+// envelopes, and unavailable responses must keep the original order recoverable.
+func TestEPUSDTCreatePaymentClassifiesRejections(t *testing.T) {
+	cases := []struct {
+		name     string // gateway response scenario
+		status   int    // HTTP response status
+		body     string // gateway JSON error envelope
+		rejected bool   // definite pre-creation rejection expected
+	}{
+		{"signature", 401, `{"status_code":401,"message":"signature verification failed","data":null}`, true},
+		{"wallet", 400, `{"status_code":10003,"data":null}`, true},
+		{"amount", 400, `{"status_code":10004,"data":null}`, true},
+		{"amount channel", 400, `{"status_code":10005,"data":null}`, true},
+		{"rate", 400, `{"status_code":10006,"data":null}`, true},
+		{"parameters", 400, `{"status_code":10009}`, true},
+		{"chain", 400, `{"status_code":10014,"data":null}`, true},
+		{"asset", 400, `{"status_code":10016,"data":null}`, true},
+		{"callback URL", 400, `{"status_code":10041,"data":null}`, true},
+		{"duplicate order", 400, `{"status_code":10002,"data":null}`, false},
+		{"system error", 400, `{"status_code":400,"data":null}`, false},
+		{"unknown code", 400, `{"status_code":19999,"data":null}`, false},
+		{"server error", 500, `{"status_code":401,"data":null}`, false},
+		{"request timeout", 408, `{"status_code":401,"data":null}`, false},
+		{"unexpected success status", 200, `{"status_code":401,"data":null}`, false},
+		{"conflicting code", 401, `{"status_code":10004,"data":null}`, false},
+		{"order data", 401, `{"status_code":401,"data":{"trade_id":"gateway_trade"}}`, false},
+		{"invalid JSON", 401, `merchant-secret`, false},
+		{"truncated JSON", 401, `{"status_code":401`, false},
+		{"oversized body", 401, `{"status_code":401}` + strings.Repeat(" ", 1<<20), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+			adapter := newEPUSDTFixture(t, server)
+			result, err := adapter.CreatePayment(t.Context(), payment.CreatePaymentRequest{
+				OrderID: "tr_rejected", Amount: "100.00", Subject: "Balance recharge",
+			})
+			require.Nil(t, result)
+			require.Error(t, err)
+			require.NotContains(t, err.Error(), "merchant-secret")
+			if tc.rejected {
+				require.NotEqual(t, payment.CodePaymentCreateUnconfirmed, apperror.Reason(err))
+			} else {
+				require.Equal(t, payment.CodePaymentCreateUnconfirmed, apperror.Reason(err))
+			}
+		})
+	}
+}
+
+// TestEPUSDTProductNameRoundTrip sends ordinary and punctuated subscription names to checkout.
+// Gateway callbacks reuse the signed normalized name, while the original plan and
+// local display subject retain their punctuation and remain eligible for purchase.
+func TestEPUSDTProductNameRoundTrip(t *testing.T) {
+	cases := []struct {
+		original string // original subscription product name
+		gateway  string // expected gateway product description
+	}{
+		{"Team Pro", "Team Pro"},
+		{"Pro & Team = Plus", "Pro ＆ Team ＝ Plus"},
+		{"  团队\nPro & Plus\t", "团队 Pro ＆ Plus"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.original, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/payments/epay/v1/order/create-transaction/submit.php":
+					require.NoError(t, r.ParseForm())
+					require.Equal(t, tc.gateway, r.Form.Get("name"))
+					w.Header().Set("Location", "/pay/checkout-counter/gateway_trade")
+					w.WriteHeader(http.StatusFound)
+				case "/pay/checkout-counter-resp/gateway_trade":
+					_, _ = w.Write([]byte(`{"status_code":200,"data":{"trade_id":"gateway_trade","amount":100,"currency":"CNY"}}`))
+				case "/pay/check-status/gateway_trade":
+					_, _ = w.Write([]byte(`{"status_code":200,"data":{"trade_id":"gateway_trade","status":2}}`))
+				default:
+					t.Errorf("unexpected path: %s", r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+			adapter := newEPUSDTFixture(t, server)
+			plan := &payment.SubscriptionPlan{ProductName: tc.original}
+			subject := payment.PaymentSubject(plan, 100, nil, nil, "en")
+			result, err := adapter.CreatePayment(t.Context(), payment.CreatePaymentRequest{
+				OrderID: "tr_named", Amount: "100.00", Subject: subject,
+			})
+			require.NoError(t, err)
+			require.Equal(t, "gateway_trade", result.TradeNo)
+			require.Equal(t, tc.original, plan.ProductName)
+			require.Equal(t, tc.original, subject)
+
+			params := map[string]string{
+				"pid": "1001", "out_trade_no": "tr_named", "trade_no": result.TradeNo,
+				"money": "100.0000", "type": "alipay", "name": tc.gateway,
+				"trade_status": "TRADE_SUCCESS", "sign_type": "MD5",
+			}
+			form := url.Values{}
+			for key, value := range params {
+				form.Set(key, value)
+			}
+			form.Set("sign", easyPaySign(params, "merchant-secret"))
+			notification, err := adapter.VerifyNotification(t.Context(), form.Encode(), nil)
+			require.NoError(t, err)
+			require.Equal(t, "tr_named", notification.OrderID)
+			require.Equal(t, 100.0, notification.Amount)
 		})
 	}
 }
