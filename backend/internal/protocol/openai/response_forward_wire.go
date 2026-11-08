@@ -24,7 +24,8 @@ import (
 // Usage observations need independent precedence rules: nested cache presence
 // can preserve zero, hosted-image details fill exact zero image buckets, and
 // reasoning uses the total gap to avoid overlap. The two stream usage entry
-// points differ on all-zero terminal objects and separate labels. Image
+// points differ on all-zero terminal objects and separate labels. Progressive
+// image-cache observations remain separate from aggregate cache counts. Image
 // integer parsing keeps decimal scaling exact instead of converting through
 // float64; callers choose the appropriate observation and validation scope
 // before using these values.
@@ -307,10 +308,11 @@ func ParseSSEUsageBytes(data []byte, usage *ForwardUsage) {
 	MergeOpenAIUsageNonZero(usage, parsedUsage)
 }
 
-// MergeOpenAIUsageNonZero replaces each aggregate field with a positive source
+// MergeOpenAIUsageNonZero replaces each token counter with a positive source
 // count independently. Nil destinations do nothing, while zero and negative
 // source fields retain their earlier destination values; callers serialize
-// this in-place update.
+// this in-place update. Explicit image-cache counts remain distinct from the
+// aggregate cache bucket; absent subdivisions do not infer a cache modality.
 func MergeOpenAIUsageNonZero(dst *ForwardUsage, src ForwardUsage) {
 	if dst == nil {
 		return
@@ -329,6 +331,9 @@ func MergeOpenAIUsageNonZero(dst *ForwardUsage, src ForwardUsage) {
 	}
 	if src.CacheReadInputTokens > 0 {
 		dst.CacheReadInputTokens = src.CacheReadInputTokens
+	}
+	if src.ImageCacheReadTokens > 0 {
+		dst.ImageCacheReadTokens = src.ImageCacheReadTokens
 	}
 	if src.ImageOutputTokens > 0 {
 		dst.ImageOutputTokens = src.ImageOutputTokens

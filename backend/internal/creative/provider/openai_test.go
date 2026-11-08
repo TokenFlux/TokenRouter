@@ -65,6 +65,36 @@ func TestParseCreativeOpenAIImageOutputs(t *testing.T) {
 	require.True(t, upstreamErr.Retryable)
 }
 
+// TestCreativeOpenAIUnexpectedGIF preserves a valid animation returned for a
+// static request. The adapter must retain the real MIME and original bytes so
+// outcome persistence can count frames before the funding layer captures costs.
+func TestCreativeOpenAIUnexpectedGIF(t *testing.T) {
+	encoded := "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBACwAAAAAAQABAAACAkQBADs="
+	original, err := base64.StdEncoding.DecodeString(encoded)
+	require.NoError(t, err)
+	response := &creativeImageResponseBody{Reader: strings.NewReader(`{"data":[{"b64_json":"` + encoded + `"}]}`)}
+	target := &Target{OpenAI: &OpenAIOptions{
+		Token:        func(context.Context) (string, error) { return "fixture", nil },
+		URL:          func(endpoint string) (string, error) { return "https://example.invalid" + endpoint, nil },
+		Prepare:      func(req *http.Request) *http.Request { return req },
+		AuthHeaders:  func(context.Context, string) (http.Header, error) { return http.Header{}, nil },
+		ApplyHeaders: func(http.Header) {},
+		Do: func(req *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+			require.Equal(t, "png", gjson.GetBytes(body, "output_format").String())
+			require.False(t, gjson.GetBytes(body, "frame_count").Exists())
+			return &http.Response{StatusCode: http.StatusOK, Body: response}, nil
+		},
+	}}
+	outputs, err := target.ExecuteOpenAI(t.Context(), creative.CreativeRun{Operation: creative.CreativeOperationGenerate, ImageSize: "1K", ResponseMIMEType: "image/png"}, creative.CreativeRunPayload{Prompt: "fixture"}, "gpt-image-2.6-flare")
+	require.NoError(t, err)
+	require.Len(t, outputs, 1)
+	require.Equal(t, "image/gif", outputs[0].Mime)
+	require.Equal(t, original, outputs[0].Bytes)
+	require.True(t, response.closed)
+}
+
 // TestBuildCreativeOpenAIRequestBody inspects JSON generation and multipart
 // inpaint fields using a two-output run. Requests still use one PNG output;
 // the fixture checks DALL-E response_format and the listed four-K dimensions.

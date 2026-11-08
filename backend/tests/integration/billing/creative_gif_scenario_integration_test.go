@@ -65,8 +65,9 @@ func (p gifCaptureProjection) SetAllowanceReserved(ctx context.Context, reserved
 }
 
 // TestCreativeGIFActualFramesSettlement accepts GIFs with different requested
-// and encoded frame counts. It verifies durable recovery, original Redis bytes,
-// actual usage records, quota reconciliation, and one capture after replay.
+// and encoded frame counts, including GIFs returned for PNG requests. It verifies
+// durable recovery, original Redis bytes, actual usage records, quota reconciliation,
+// and one capture after replay.
 func TestCreativeGIFActualFramesSettlement(t *testing.T) {
 	rdb := rediscontainer.New(t)
 	for _, test := range []struct {
@@ -81,6 +82,11 @@ func TestCreativeGIFActualFramesSettlement(t *testing.T) {
 		wantBalance    float64 // final available wallet
 		rollback       bool    // inject first capture failure
 	}{
+		{name: "png_request_receives_gif", requested: 0, actual: 9, initialBalance: 100, unitPrice: 4, balanceRate: 1, wantCost: 36, wantBalance: 64, rollback: true},
+		{name: "png_request_gif_wallet_debt", requested: 0, actual: 9, initialBalance: 4, unitPrice: 4, balanceRate: 1, wantCost: 36, wantBalance: -32},
+		{name: "png_request_one_frame", requested: 0, actual: 1, initialBalance: 100, unitPrice: 4, balanceRate: 1, wantCost: 4, wantBalance: 96},
+		{name: "png_request_free_gif", requested: 0, actual: 9, balanceRate: 1},
+		{name: "png_request_zero_rate_replay", requested: 0, actual: 9, initialBalance: 100, unitPrice: 4, wantBalance: 100},
 		{name: "fewer_frames", requested: 9, actual: 3, initialBalance: 100, unitPrice: 4, balanceRate: 1, wantCost: 12, wantBalance: 88},
 		{name: "equal_frames", requested: 3, actual: 3, initialBalance: 100, unitPrice: 4, balanceRate: 1, wantCost: 12, wantBalance: 88},
 		{name: "one_returned_frame", requested: 3, actual: 1, initialBalance: 100, unitPrice: 4, balanceRate: 1, wantCost: 4, wantBalance: 96},
@@ -111,13 +117,17 @@ func TestCreativeGIFActualFramesSettlement(t *testing.T) {
 				})
 			}
 			repo := creativepg.NewCreativeRunRepository(client)
-			estimate := float64(test.requested) * test.unitPrice * test.balanceRate
+			estimate := float64(max(1, test.requested)) * test.unitPrice * test.balanceRate
 			params := creative.CreateCreativeRunParams{
 				RunID: "crun_" + uuid.NewString(), UserID: user.ID, GroupID: group.ID, APIKeyID: key.ID,
 				Model: "gpt-image-2.6-flare", RequestedModel: "gpt-image-2.6-flare", Operation: creative.CreativeOperationGenerate,
 				RequestedOutputCount: 1, ImageSize: "1K", ResponseMIMEType: "image/gif", FrameCount: test.requested, FrameDurationMS: 200,
 				PromptHash: "hash", RequestFingerprint: "gif-snapshot", EstimatedCost: estimate, HoldAmount: estimate,
 				BaseUnitPrice: test.unitPrice, SubscriptionRateMultiplier: 1, BalanceRateMultiplier: test.balanceRate, PlanGroupRateEnabled: true,
+			}
+			if test.requested == 0 {
+				params.ResponseMIMEType = "image/png"
+				params.FrameDurationMS = 0
 			}
 			run, err := repo.CreateCreativeRun(ctx, params)
 			require.NoError(t, err)

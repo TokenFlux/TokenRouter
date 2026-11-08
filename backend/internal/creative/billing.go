@@ -223,7 +223,8 @@ func (funding Funding) Reserve(ctx context.Context, run *CreativeRun) error {
 // requested frames determine only the hold, never the actual capture quantity.
 //
 // When verified GIF frames exceed the estimate and bounded capture rejects the
-// charge, capture authorizes a wallet debit beyond the hold using saved pricing.
+// charge, capture authorizes a wallet debit beyond the hold using saved pricing,
+// including an animation returned for a static request.
 // Other captures retain their historical fingerprints, including zero-rate GIFs
 // that earlier workers could already have charged successfully.
 func (funding Funding) Capture(ctx context.Context, run *CreativeRun, successCount int) (*billing.TaskFundsResult, error) {
@@ -239,7 +240,7 @@ func (funding Funding) Capture(ctx context.Context, run *CreativeRun, successCou
 	if err != nil {
 		return nil, err
 	}
-	if run.FrameCount > 0 && actualBase > cmd.BaseAmountUSD {
+	if run.ActualFrameCount > 0 && actualBase > cmd.BaseAmountUSD {
 		// Check the original plan first: zero-rate and sub-tolerance captures may
 		// already have committed under the historical fingerprint before recovery.
 		if _, planErr := billing.PlanTaskCapture(cmd); errors.Is(planErr, billing.ErrTaskSettlementCostExceedsHold) {

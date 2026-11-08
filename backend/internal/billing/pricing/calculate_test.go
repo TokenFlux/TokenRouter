@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // calculate_test.go verifies configured and catalog token charges across
@@ -241,4 +243,26 @@ func TestComputeTokenBreakdownImageCache(t *testing.T) {
 	pricing.ImageCacheReadPricePerToken = 0
 	cost = ComputeTokenBreakdown(pricing, UsageTokens{CacheReadTokens: 50, ImageCacheReadTokens: 50}, 1, "", false)
 	require.Zero(t, cost.CacheReadCost)
+}
+
+// TestComputeTokenBreakdownProgressiveImageCache prices identical complete and
+// streamed observations. Explicit cached image input must survive a terminal
+// event without usage so its cache discount and uncached input split stay equal.
+func TestComputeTokenBreakdownProgressiveImageCache(t *testing.T) {
+	event := []byte(`{"type":"response.in_progress","response":{"usage":{"input_tokens":150,"input_tokens_details":{"image_tokens":80,"cached_tokens":50,"cached_tokens_details":{"image_tokens":30}}}}}`)
+	direct, ok := openai.ExtractOpenAIUsageFromJSONBytes(event)
+	require.True(t, ok)
+	var streamed openai.ForwardUsage
+	openai.ParseSSEUsageBytes(event, &streamed)
+	openai.ParseSSEUsageBytes([]byte(`{"type":"response.completed","response":{"output":[]}}`), &streamed)
+	prices := &ModelPricing{InputPricePerToken: 5e-6, ImageInputPricePerToken: 8e-6, CacheReadPricePerToken: 1.25e-6, ImageCacheReadPricePerToken: 2e-6, ImageCacheReadPriceExplicit: true}
+	for _, usage := range []openai.ForwardUsage{direct, streamed} {
+		cost := ComputeTokenBreakdown(prices, UsageTokens{
+			InputTokens: usage.InputTokens - usage.CacheReadInputTokens, ImageInputTokens: usage.ImageInputTokens,
+			CacheReadTokens: usage.CacheReadInputTokens, ImageCacheReadTokens: usage.ImageCacheReadTokens,
+		}, 1, "", false)
+		require.Equal(t, 30, usage.ImageCacheReadTokens)
+		// Permit binary arithmetic residue beneath the monetary storage precision.
+		require.InDelta(t, 0.000735, cost.ActualCost, 1e-12)
+	}
 }
