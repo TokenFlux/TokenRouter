@@ -25,8 +25,10 @@ import (
 // while task submission requires a fully funded reservation before upstream
 // work starts. Ordinary settlement caps subscription usage and records
 // uncovered costs as wallet debt; task funding freezes available wallet money
-// and retains source allocations for capture or release. Both use a billing
-// action key plus API Key identity to detect repeats and conflicting inputs.
+// and retains source allocations for capture or release. Tasks explicitly
+// accepting excess completed usage can debit the wallet beyond that hold.
+// Both use a billing action key plus API Key identity to detect repeats and
+// conflicting inputs.
 //
 // Each write attempt owns a fresh SQL transaction, claims its financial
 // identity, locks the payer before subscriptions and commits funding with
@@ -658,10 +660,11 @@ func taskAllowanceOperationName(operation taskAllowanceOperation) string {
 // task owners retain their original timestamp for later refunds.
 //
 // Capture with a recorded allowance refunds positive hold-minus-actual usage
-// under a savepoint. Older snapshots charge actual Key and eligible member
-// usage at capture instead. Release refunds the recorded hold when its flag is
-// set. Capture and release then clear that flag; successful savepoint recovery
-// can retain conservative counts even while the flag and funding commit.
+// under a savepoint and charges any accepted excess to current Key and member
+// windows. Older snapshots charge the full actual usage at capture instead.
+// Release refunds the recorded hold when its flag is set. Capture and release
+// then clear that flag; successful savepoint recovery can retain conservative
+// counts even while the flag and funding commit.
 func (r *SettlementStore) applyTaskAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, operation taskAllowanceOperation, projection TaskProjection) error {
 	if cmd == nil || (cmd.HoldAmount <= 0 && cmd.BaseAmountUSD <= 0) {
 		return nil
@@ -683,11 +686,13 @@ func (r *SettlementStore) applyTaskAllowance(ctx context.Context, tx *sql.Tx, cm
 		}
 		return projection.SetAllowanceReserved(ctx, true)
 	case taskAllowanceCapture:
+		chargeAmount := cmd.ActualAmount
 		if cmd.AllowanceReserved {
 			// The saved flag identifies allowance already counted at submission. Refund
 			// only unused held usage; savepoint recovery keeps completed funding
 			// committable when paired counter refunds fail.
 			adjustment := cmd.HoldAmount - cmd.ActualAmount
+			chargeAmount = math.Max(-adjustment, 0)
 			if adjustment > 0 {
 				if err := rollbackTaskAllowanceBestEffort(ctx, tx, cmd.Task.ID, func() error {
 					if err := releaseTaskAPIKeyAllowance(ctx, tx, cmd.APIKeyID, adjustment, cmd.ReservedAt); err != nil {
@@ -698,15 +703,15 @@ func (r *SettlementStore) applyTaskAllowance(ctx context.Context, tx *sql.Tx, cm
 					return err
 				}
 			}
-		} else if cmd.ActualAmount > 0 {
-			// A snapshot without recorded allowance needs actual usage counted at
-			// capture. This compatibility path charges the original Key and current
-			// active member after the funding calculation.
-			if err := chargeLegacyTaskAPIKey(ctx, tx, cmd.APIKeyID, cmd.ActualAmount); err != nil {
+		}
+		if chargeAmount > 0 {
+			// Count accepted excess, or the full legacy charge, only after funding
+			// succeeds. These writes share its transaction and cannot double-count a replay.
+			if err := chargeTaskAPIKey(ctx, tx, cmd.APIKeyID, chargeAmount); err != nil {
 				return err
 			}
 			if cmd.TeamID != nil && cmd.ActorUserID > 0 && cmd.ActorUserID != cmd.UserID {
-				if err := r.incrementUsageBillingTeamMember(ctx, tx, *cmd.TeamID, cmd.ActorUserID, cmd.ActualAmount, time.Now()); err != nil {
+				if err := r.incrementUsageBillingTeamMember(ctx, tx, *cmd.TeamID, cmd.ActorUserID, chargeAmount, time.Now()); err != nil {
 					return err
 				}
 			}
@@ -1033,18 +1038,18 @@ func releaseTaskMemberAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.Ta
 	return err
 }
 
-// chargeLegacyTaskAPIKey charges actual usage for task snapshots whose
-// allowance was not reserved at submission. It updates the original Key ID
-// without admission or deletion filters, and a missing row is a successful
-// no-op. Rolling windows use database NOW for their expiration and replacement
-// anchors.
+// chargeTaskAPIKey records completed usage absent from a task's allowance hold.
+// Legacy captures supply the entire actual charge; captures above a recorded
+// hold supply only the excess. It updates the original Key ID without admission
+// or deletion filters, and a missing row is a successful no-op. Rolling windows
+// use database NOW for their expiration and replacement anchors.
 //
 // Reaching a positive total quota stores quota_exhausted when the stored
 // team_owner_disabled flag is false, including a row with another status. This differs from
 // ordinary request quota transitions, which require an active undeleted row
 // for status changes. The caller executes this compatibility charge in the
 // same transaction as capture and member accounting.
-func chargeLegacyTaskAPIKey(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) error {
+func chargeTaskAPIKey(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) error {
 	_, err := tx.ExecContext(ctx, `
 		UPDATE api_keys SET
 			quota_used = quota_used + $1,
@@ -1933,12 +1938,12 @@ func reserveUsageBillingTaskBalance(ctx context.Context, tx *sql.Tx, cmd *billin
 // Hold and actual amounts use scaled-binary eight-place rounding; wholly
 // nonpositive inputs return an empty result.
 //
-// A rounded actual-minus-hold difference greater than 1e-8 fails before SQL.
-// Otherwise the update removes the full hold from frozen funds and adjusts
-// available balance by their difference, requiring enough frozen money. A
-// missing update is classified by a payer reread as missing user or
-// insufficient frozen balance, leaving the owner to recover preceding funding
-// writes.
+// Without TaskOverageChargeBalance, a rounded actual-minus-hold difference
+// greater than 1e-8 fails before SQL. An authorized excess debits available
+// balance even when it becomes negative. The update removes only the original
+// hold from frozen funds, preserving other tasks' reservations. A missing update
+// is classified by a payer reread as missing user or insufficient frozen
+// balance, leaving the owner to recover preceding funding writes.
 func captureUsageBillingTaskBalance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
 	// Round both task wallet operands before the excess check and frozen-balance
 	// adjustment. The comparison therefore uses the same eight-place amounts sent
@@ -1948,10 +1953,9 @@ func captureUsageBillingTaskBalance(ctx context.Context, tx *sql.Tx, cmd *billin
 	if holdAmount <= 0 && actualAmount <= 0 {
 		return &billing.TaskFundsResult{}, nil
 	}
-	// Compare the rounded difference with an absolute 1e-8 tolerance before
-	// consuming frozen funds; binary floating-point subtraction still governs
-	// this test.
-	if actualAmount-holdAmount > 0.00000001 {
+	// Bounded tasks retain their excess guard. Accepted overages use this same
+	// atomic update to release the original hold and debit only its missing funds.
+	if cmd.OveragePolicy != billing.TaskOverageChargeBalance && actualAmount-holdAmount > 0.00000001 {
 		return nil, billing.ErrTaskSettlementCostExceedsHold
 	}
 	var balance, frozen float64

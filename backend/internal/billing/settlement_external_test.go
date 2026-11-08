@@ -167,3 +167,86 @@ func TestPlanBatchImageBillingCapture_UsesPerSourceRates(t *testing.T) {
 	require.InDelta(t, 0.8, plan.BillingAllocations[0].BaseAmountUSD, 0.000001)
 	require.InDelta(t, 0.25, plan.BillingAllocations[0].RateMultiplier, 0.000001)
 }
+
+// TestPlanTaskCaptureOveragePolicy keeps subscription reservations bounded while
+// charging completed excess at the saved wallet rate. Omitted policies reject
+// the same overage, and a zero wallet rate preserves free residual usage.
+func TestPlanTaskCaptureOveragePolicy(t *testing.T) {
+	for _, version := range []int{0, 2} {
+		for _, policy := range []billing.TaskOveragePolicy{billing.TaskOverageReject, billing.TaskOverageChargeBalance} {
+			command := &billing.TaskFundsCommand{
+				PricingSnapshotVersion: version,
+				HoldAmount:             12,
+				BalanceHoldAmount:      12,
+				ActualAmount:           36,
+				BaseAmountUSD:          12,
+				ActualBaseAmountUSD:    36,
+				BalanceRateMultiplier:  1,
+				SettlementRateScale:    1,
+				OveragePolicy:          policy,
+			}
+			plan, err := billing.PlanTaskCapture(command)
+			if policy == billing.TaskOverageReject {
+				require.ErrorIs(t, err, billing.ErrTaskSettlementCostExceedsHold)
+				continue
+			}
+			require.NoError(t, err)
+			require.Equal(t, 12.0, plan.BalanceHoldAmount)
+			require.Equal(t, 36.0, plan.BalanceAmountUSD)
+			require.Equal(t, 36.0, plan.ActualAmountUSD)
+			require.Equal(t, 12.0, command.HoldAmount)
+		}
+	}
+	subscriptionID := int64(11)
+	command := &billing.TaskFundsCommand{
+		PricingSnapshotVersion: 2,
+		BaseAmountUSD:          12,
+		ActualBaseAmountUSD:    36,
+		BalanceRateMultiplier:  2,
+		SettlementRateScale:    1,
+		BalanceHoldAmount:      8,
+		OveragePolicy:          billing.TaskOverageChargeBalance,
+		SubscriptionHoldAllocations: []billing.BillingAllocation{{
+			Type: billing.BillingAllocationTypeSubscription, SubscriptionID: &subscriptionID,
+			AmountUSD: 4, BaseAmountUSD: 8, RateMultiplier: 0.5,
+		}},
+	}
+	plan, err := billing.PlanTaskCapture(command)
+	require.NoError(t, err)
+	require.Equal(t, 4.0, plan.SubscriptionAmountUSD)
+	require.Equal(t, 56.0, plan.BalanceAmountUSD)
+	require.Equal(t, 60.0, plan.ActualAmountUSD)
+	require.Equal(t, 8.0, plan.BalanceHoldAmount)
+	require.Empty(t, plan.SubscriptionReleases)
+	require.Equal(t, 28.0, plan.BillingAllocations[1].BaseAmountUSD)
+	command.BalanceRateMultiplier = 0
+	plan, err = billing.PlanTaskCapture(command)
+	require.NoError(t, err)
+	require.Equal(t, 4.0, plan.ActualAmountUSD)
+	require.Zero(t, plan.BalanceAmountUSD)
+}
+
+// TestTaskCaptureOverageFingerprint separates excess-charge authorization from
+// bounded captures. Clearing that policy restores the historical fingerprint,
+// and mutable allowance flags do not affect an authorized capture replay.
+func TestTaskCaptureOverageFingerprint(t *testing.T) {
+	command := &billing.TaskFundsCommand{
+		UserID: 7, APIKeyID: 9, Task: batchimage.FundingReference("fingerprint"),
+		PricingSnapshotVersion: 2, BaseAmountUSD: 12, ActualBaseAmountUSD: 36,
+	}
+	command.Normalize()
+	original := command.RequestFingerprint
+	command.OveragePolicy = billing.TaskOverageChargeBalance
+	command.RequestFingerprint = ""
+	command.Normalize()
+	overage := command.RequestFingerprint
+	require.NotEqual(t, original, overage)
+	command.AllowanceReserved = true
+	command.RequestFingerprint = ""
+	command.Normalize()
+	require.Equal(t, overage, command.RequestFingerprint)
+	command.OveragePolicy = billing.TaskOverageReject
+	command.RequestFingerprint = ""
+	command.Normalize()
+	require.Equal(t, original, command.RequestFingerprint)
+}

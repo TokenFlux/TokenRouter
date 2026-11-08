@@ -153,7 +153,7 @@ OpenAI OAuth 和 API Key 提供商的 `extra.images_gif_enabled` 缺省开启，
 
 Images GIF 请求不接受 `stream=true`、`partial_images`、mask 或 `output_compression`。OAuth 通过 Responses 图片工具发送动画参数，承载请求继续使用生命周期事件流，工具不发送中间图片帧。创作台 OAuth 复用相同的请求构造与身份头。
 
-GIF 的 MIME、尺寸和帧数读取返回字节，下载及本地保存保留原始动画。URL 结果使用现有的安全下载器取得字节，即使未启用普通 URL 回填也需要验证动画。无法下载或容器不完整时结束结果处理，不重新提交生成；已观测用量仍保留。文件数量与计费帧数分别记录，计费规则见[路由与结算](../domains/routing_and_billing.md#group_model_pricing)。
+GIF 的 MIME、尺寸和帧数读取返回字节，下载及本地保存保留原始动画。返回帧数可以与请求不同，单帧或超过请求帧数范围的有效 GIF 也会接受；按图片计费使用实际帧数，token 和按次计费保持各自的计费单位。URL 结果使用现有的安全下载器取得字节，即使未启用普通 URL 回填也需要验证动画。无法下载或容器不完整时结束结果处理，不重新提交生成；已观测用量仍保留。文件数量与计费帧数分别记录，计费规则见[路由与结算](../domains/routing_and_billing.md#group_model_pricing)。
 
 ### Fast 与 Ultra Fast 策略
 

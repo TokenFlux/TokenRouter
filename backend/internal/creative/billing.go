@@ -22,7 +22,8 @@ import (
 // copies retain source identities independently. Successful reservation
 // updates the caller run for subsequent compensation, and release treats an
 // existing conflicting billing fingerprint as completed to stop repeated
-// recovery attempts on that release identifier.
+// recovery attempts on that release identifier. GIF capture accepts verified
+// frames beyond the request and charges their uncovered cost to the wallet.
 
 const (
 	// Funds operations use the hold, capture, and release identifiers for billing
@@ -220,6 +221,11 @@ func (funding Funding) Reserve(ctx context.Context, run *CreativeRun) error {
 // funds result also updates its ActualCost for settlement completion. GIF calls
 // require ActualFrameCount rebuilt from durable successful output metadata;
 // requested frames determine only the hold, never the actual capture quantity.
+//
+// When verified GIF frames exceed the estimate and bounded capture rejects the
+// charge, capture authorizes a wallet debit beyond the hold using saved pricing.
+// Other captures retain their historical fingerprints, including zero-rate GIFs
+// that earlier workers could already have charged successfully.
 func (funding Funding) Capture(ctx context.Context, run *CreativeRun, successCount int) (*billing.TaskFundsResult, error) {
 	if funding.Store == nil {
 		return nil, ErrCreativeSettlementBillingFail.WithCause(errors.New("creative billing repository is not configured"))
@@ -232,6 +238,13 @@ func (funding Funding) Capture(ctx context.Context, run *CreativeRun, successCou
 	cmd, err := BuildHoldCommand(run, CreativeCaptureRequestID(run.RunID), actualBase)
 	if err != nil {
 		return nil, err
+	}
+	if run.FrameCount > 0 && actualBase > cmd.BaseAmountUSD {
+		// Check the original plan first: zero-rate and sub-tolerance captures may
+		// already have committed under the historical fingerprint before recovery.
+		if _, planErr := billing.PlanTaskCapture(cmd); errors.Is(planErr, billing.ErrTaskSettlementCostExceedsHold) {
+			cmd.OveragePolicy = billing.TaskOverageChargeBalance
+		}
 	}
 	result, err := funding.Store.Capture(ctx, cmd)
 	if err != nil {

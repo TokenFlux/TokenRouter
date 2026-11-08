@@ -1,7 +1,12 @@
 package openai
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
+	"image"
+	"image/color"
+	"image/gif"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,4 +51,27 @@ func TestValidateGIFDataURLMetadata(t *testing.T) {
 	require.Equal(t, "gif", gjson.GetBytes(result, "output_format").String())
 	require.Equal(t, "1x1", gjson.GetBytes(result, "data.0.size").String())
 	require.Equal(t, "data:image/gif;base64,"+encoded, gjson.GetBytes(result, "data.0.url").String())
+}
+
+// TestValidateGIFImagesResponseAcceptsActualFrameCounts accepts complete GIFs
+// independently of request-only frame bounds. Incorrect upstream frame metadata
+// is replaced by the encoded count without changing the returned image bytes.
+func TestValidateGIFImagesResponseAcceptsActualFrameCounts(t *testing.T) {
+	for _, count := range []int{1, 3, 9, 17} {
+		animation := &gif.GIF{}
+		for range count {
+			animation.Image = append(animation.Image, image.NewPaletted(image.Rect(0, 0, 1, 1), color.Palette{color.Black, color.White}))
+			// GIF stores delays in centiseconds; twenty represents 200 milliseconds.
+			animation.Delay = append(animation.Delay, 20)
+		}
+		var buffer bytes.Buffer
+		require.NoError(t, gif.EncodeAll(&buffer, animation))
+		encoded := base64.StdEncoding.EncodeToString(buffer.Bytes())
+		body := []byte(`{"data":[{"b64_json":"` + encoded + `","frame_count":3}]}`)
+		result, frames, err := ValidateGIFImagesResponse(body, true, nil)
+		require.NoError(t, err)
+		require.Equal(t, count, frames)
+		require.Equal(t, int64(count), gjson.GetBytes(result, "data.0.frame_count").Int())
+		require.Equal(t, encoded, gjson.GetBytes(result, "data.0.b64_json").String())
+	}
 }

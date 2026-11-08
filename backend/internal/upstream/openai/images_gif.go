@@ -26,13 +26,14 @@ import (
 
 // ValidateGIFImagesResponse normalizes GIF results and returns actual frame units.
 // Static-only documents are unchanged and return zero. Expected GIF documents
-// require every result to be animated; callers bound the original body and the
+// require every result to contain a GIF; callers bound the original body and the
 // download callback's byte budget before passing them to this function.
 //
 // Successful containers contribute their encoded frame count. Static items in
-// mixed responses contribute one unit only when another item is a GIF. No
-// requested count is used to repair missing or invalid provider output, and
-// errors retain any frame units validated before the failing item.
+// mixed responses contribute one unit only when another item is a GIF. The
+// request-only frame range does not constrain returned containers. Missing or
+// invalid output cannot be repaired with the requested count; errors retain any
+// frame units validated before the failing item.
 func ValidateGIFImagesResponse(body []byte, expected bool, fetch func(string) (string, error)) ([]byte, int, error) {
 	items := gjson.GetBytes(body, "data").Array()
 	frames, animated := 0, false
@@ -68,9 +69,6 @@ func ValidateGIFImagesResponse(body []byte, expected bool, fetch func(string) (s
 		metadata, err := protocol.ParseGIFMetadata(decoded.Bytes)
 		if err != nil {
 			return nil, frames, imagesProtocolError("Upstream returned an incomplete GIF")
-		}
-		if metadata.FrameCount > protocol.GIFMaxFrameCount || (expected && metadata.FrameCount < 2) {
-			return nil, frames, imagesProtocolError("Upstream returned an unsupported GIF frame count")
 		}
 		animated = true
 		gifCount++

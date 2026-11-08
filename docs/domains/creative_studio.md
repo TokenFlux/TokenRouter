@@ -161,9 +161,9 @@ worker 从 Redis 预留任务后先读取用户最新并发配置，并通过现
 
 ## 计费
 
-创作台资金规则由 `creative.Funding` 拥有，调用唯一 `billing.Funds.Reserve/Capture/Release`。`creative/postgres.FundingParticipant` 使用 billing 这次的 SQL 事务写入冻结分配和预记标记，billing 不需要知道任务表。app 登记任务的 scope 和参与工厂，资金引用里带有原预占动作的 ID，新增的字段不加入历史指纹。创作台按所选尺寸基础单价估价，快照订阅/余额倍率；没有批量折扣与提供商倍率。
+创作台资金规则由 `creative.Funding` 拥有，调用唯一 `billing.Funds.Reserve/Capture/Release`。`creative/postgres.FundingParticipant` 使用 billing 这次的 SQL 事务写入冻结分配和预记标记，billing 不需要知道任务表。app 登记任务的 scope 和参与工厂，资金引用里带有原预占动作的 ID，这些任务引用信息不加入历史指纹。创作台按所选尺寸基础单价估价，快照订阅/余额倍率；没有批量折扣与提供商倍率。
 
-质量、背景和思考强度不参与创作台价格计算。静态图片按单张价格计费；GIF 按单帧价格乘帧数，提交时按请求帧数预占，结算时按已验证的实际帧数捕获。每次任务固定生成一份输出，`image_count` 保留文件数量，`image_frame_count` 单独记录动画的计费帧数。实际 MIME 以供应商返回为准。资金动作的请求 ID 前缀固定，全部经 `usage_billing_dedup` 幂等：
+质量、背景和思考强度不参与创作台价格计算。静态图片按单张价格计费；GIF 按单帧价格乘帧数，提交时按请求帧数预占，结算时按已验证的实际帧数捕获。上游返回的有效 GIF 即使帧数与请求不同也会接受，请求帧数的范围不限制结果帧数。每次任务固定生成一份输出，`image_count` 保留文件数量，`image_frame_count` 单独记录动画的计费帧数。实际 MIME 以供应商返回为准。资金动作的请求 ID 前缀固定，全部经 `usage_billing_dedup` 幂等：
 
 ```text
 creative_hold:{run_id}      创建任务时预占
@@ -174,6 +174,7 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 
 - 创建任务时先估价并冻结（auto 模式先预留订阅额度、只冻结未覆盖部分的钱包余额）；免费分组（估价为 0）跳过资金动作。
 - 成功时按实际成功输出数捕获，GIF 使用实际成功帧数，并写一条 `usage_logs`：`BillingMode` 为 `"image"`，`ImageCount` 为成功输出数，`request_id` 为任务对应的统一请求 ID，`billing_key` 为 `creative_settle:{run_id}`，入站端点记录 `/v1/creative/runs`，上游端点记录 `creative:{operation}`。
+- GIF 实际帧数超过请求时，先使用保存的订阅预占和余额预占，剩余基础费用按任务保存的余额倍率补扣；订阅不超扣，余额不足时记为欠费，生成结果仍可交付。实际帧数较少时释放未使用预占。余额、Key 用量、资金去重和预记标记在同一事务中更新，补扣失败会整体回滚。恢复使用原价格快照和持久化的实际帧数，不重新调用上游；已有静态任务及未超量 GIF 的资金指纹保持不变。
 - 失败与内部取消状态通过幂等路径释放全部未使用预占；指纹冲突时按已释放处理，这样同一条消息不会反复失败、无限重试。
 - provider 已成功但结果丢失（`result_lost` 且已捕获）时保持计费；payload 过期导致 provider 未执行的 `result_lost` 释放预占。
 - 任务执行期间进入 `cancelled` 但 provider 已成功：费用按实际成功输出捕获、用量照写，终态保持 `cancelled`。
