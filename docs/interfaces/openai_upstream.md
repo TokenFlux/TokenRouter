@@ -149,6 +149,8 @@ OpenAI API Key 提供商可以通过 `extra.images_url_to_b64_json=true` 开启�
 
 `gpt-image-2.6-sunburst` 与 `gpt-image-2.6-flare` 使用内嵌目录补充，并开放 `xhigh`、`max` 质量选项。GIF 使用 `output_format=gif`，`frame_count` 为 2 至 16，缺省 9；`frame_duration_ms` 为 20 至 2000，缺省 200，按 10 毫秒舍入。尺寸为 `auto` 或两边均为 16 倍数的正整数，供应商负责总像素预算校验。
 
+原生 Images JSON 的 `frame_count` 和 `frame_duration_ms` 接受 `null`，与省略字段相同：GIF 请求使用对应默认值，静态图片请求不设置动画参数；显式整数继续按范围校验。
+
 OpenAI OAuth 和 API Key 提供商的 `extra.images_gif_enabled` 缺省开启，显式 false 关闭。调度、粘性复核和实际发送都检查开关与最终模型的 GIF 格式能力；API Key 的对应 Images 端点配置为仅流式时不接收 GIF。创建、编辑、批量编辑和导入导出保留该设置，缓存快照保留显式 false。
 
 Images GIF 请求不接受 `stream=true`、`partial_images`、mask 或 `output_compression`。OAuth 通过 Responses 图片工具发送动画参数，承载请求继续使用生命周期事件流，工具不发送中间图片帧。创作台 OAuth 复用相同的请求构造与身份头。

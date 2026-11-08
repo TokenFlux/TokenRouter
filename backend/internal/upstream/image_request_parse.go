@@ -30,9 +30,10 @@ import (
 //
 // The normalized request retains its original body storage for forwarding and
 // builds separate prompt/image JSON for moderation. JSON numeric options use
-// integer conversion after a number-type check; multipart text uses integer
-// parsing and caps each named part at twenty MiB, returning its prefix when
-// larger. Parsing collects request evidence and defaults, while model-family
+// integer conversion after a number-type check; null animation controls remain
+// absent until GIF defaults are applied. Multipart text uses integer parsing
+// and caps each named part at twenty MiB, returning its prefix when larger.
+// Parsing collects request evidence and defaults, while model-family
 // validation, billing size tiers, and provider capability selection are
 // performed by gateway consumers.
 
@@ -74,11 +75,14 @@ type ImageRequest struct {
 	Moderation     string // supplied image moderation setting
 	InputFidelity  string // supplied input fidelity setting
 	Style          string // supplied image style setting
+	// FrameCount and FrameDurationMS retain optional animation controls. JSON null
+	// and omitted fields remain nil until NormalizeGIF supplies defaults for GIF
+	// output; static requests leave both fields unset.
+	FrameCount      *int // requested animation frame count
+	FrameDurationMS *int // milliseconds per animation frame
 	// OutputCompression and PartialImages retain optional integer settings, with
 	// nil representing absence. Gateway request conversion shares both pointers;
 	// copy their values before independent mutation. Their ranges are not validated here.
-	FrameCount        *int // requested animation frame count
-	FrameDurationMS   *int // milliseconds per animation frame
 	OutputCompression *int // requested output compression percentage
 	PartialImages     *int // requested partial image count
 	// HasMask records mask-field presence in JSON, including null, or a nonempty
@@ -211,11 +215,12 @@ func (r *ImageRequest) StickySessionSeed() string {
 // presence before defaults, appends edit image references, and can leave
 // partial updates when validation fails.
 //
-// Stream requires a JSON boolean, while n and the two optional integer
-// controls require numbers and then use gjson integer conversion, including
-// fractional truncation. Editing requires an image_url reference; file_id-only
-// images and any mask.file_id are rejected. This helper performs path
-// extraction, leaving whole-document validation and defaults to
+// Stream requires a JSON boolean, while n, compression, and preview controls
+// require numbers and then use gjson integer conversion, including fractional
+// truncation. Animation controls accept integers or null; null leaves the
+// setting unspecified for later GIF defaults. Editing requires an image_url
+// reference; file_id-only images and any mask.file_id are rejected. This helper
+// performs path extraction, leaving whole-document validation and defaults to
 // ParseImageRequest.
 func ParseOpenAIImagesJSONRequest(body []byte, req *ImageRequest) error {
 	if err := ValidateGIFJSONControls(body); err != nil {
@@ -283,7 +288,9 @@ func ParseOpenAIImagesJSONRequest(body []byte, req *ImageRequest) error {
 		target **int  // parsed optional value destination
 	}{{"frame_count", &req.FrameCount}, {"frame_duration_ms", &req.FrameDurationMS}} {
 		raw := gjson.GetBytes(body, field.name)
-		if raw.Exists() {
+		// Native Images accepts null animation controls. Preserve their absent state
+		// so GIF normalization supplies defaults without adding animation to static requests.
+		if raw.Exists() && raw.Type != gjson.Null {
 			number, err := strconv.Atoi(raw.Raw)
 			if raw.Type != gjson.Number || err != nil {
 				return fmt.Errorf("%s must be an integer", field.name)
@@ -639,7 +646,7 @@ func (*ImageRequest) String() string { return "image wire request" }
 
 // NormalizeGIF validates animation-only controls and supplies normalized defaults.
 // Images requests cannot stream GIFs or combine them with masks, previews, or
-// compression. Static image requests reject animation fields instead of dropping them.
+// compression. Static image requests reject supplied animation values instead of dropping them.
 func (r *ImageRequest) NormalizeGIF() error {
 	frames, duration, err := protocol.NormalizeGIFOptions(r.OutputFormat, r.FrameCount, r.FrameDurationMS)
 	if err != nil {
