@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/png"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -1319,4 +1320,73 @@ func TestCreativeGIFQuotesAndProviderSwitch(t *testing.T) {
 	providers.byGroup[12][1].Extra = map[string]any{"images_gif_enabled": false}
 	_, err = svc.CreateRun(context.Background(), testCreativeScope(7), params, "gif-disabled")
 	require.ErrorIs(t, err, creative.ErrCreativeOperationUnsupported)
+}
+
+// TestCreativeGIFFormatsByOperation compares discovery with operation admission.
+// Generation-only, edit-only, disabled, and restricted routes must advertise GIF
+// exactly where the same provider snapshots permit a submitted task.
+func TestCreativeGIFFormatsByOperation(t *testing.T) {
+	var reference bytes.Buffer
+	require.NoError(t, png.Encode(&reference, image.NewRGBA(image.Rect(0, 0, 1, 1))))
+	for _, test := range []struct {
+		name       string   // scenario display name
+		generation string   // native generation transport mode
+		edit       string   // native editing transport mode
+		operations []string // administrator-admitted operation names
+		disabled   bool     // provider GIF switch disabled
+		gifOps     []string // operations with usable GIF routes
+	}{
+		{name: "generation only", generation: "both", edit: "streaming", operations: []string{"generate", "edit", "inpaint"}, gifOps: []string{"generate"}},
+		{name: "editing only", generation: "streaming", edit: "both", operations: []string{"generate", "edit"}, gifOps: []string{"edit"}},
+		{name: "disabled provider", generation: "both", edit: "both", operations: []string{"generate", "edit"}, disabled: true},
+		{name: "generation not admitted", generation: "both", edit: "streaming", operations: []string{"edit"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			svc := newCreativeTestService()
+			configureOpenAICreativeTestService(svc)
+			providers := testassert.MustType[*creativeFakeProviderRepo](testassert.MustType[creativeProviderReader](svc.ProviderRepo).source)
+			model := "gpt-image-2.6-flare"
+			providers.byGroup[12] = []providercore.Record{{
+				ID: 58, Platform: capability.PlatformOpenAI, Type: providercore.ProviderTypeAPIKey,
+				Status: billing.StatusActive, Schedulable: true,
+				Credentials: map[string]any{
+					"model_mapping":           map[string]any{model: model},
+					"images_generations_mode": test.generation, "images_edits_mode": test.edit,
+				},
+				Extra: map[string]any{"images_gif_enabled": !test.disabled},
+			}}
+			testassert.MustType[*creativeFakeSettingReader](svc.Settings).models = []creative.CreativeModelSetting{{GroupID: 12, Model: model, Operations: test.operations}}
+			svc.ImageUnitPrice = func(context.Context, *creative.GroupView, string, string) (float64, bool) { return 0.25, true }
+			catalog, err := svc.ListModels(context.Background(), 7)
+			require.NoError(t, err)
+			require.Len(t, catalog.Data, 1)
+			entry := catalog.Data[0]
+			require.Len(t, entry.OutputFormatsByOperation, len(test.operations))
+			for _, operation := range test.operations {
+				formats := entry.OutputFormatsByOperation[operation]
+				require.Contains(t, formats, "png")
+				supportsGIF := slices.Contains(test.gifOps, operation)
+				require.Equal(t, supportsGIF, slices.Contains(formats, "gif"))
+				params := validCreateParams()
+				params.Model, params.Operation, params.OutputFormat = model, operation, "gif"
+				if operation == creative.CreativeOperationEdit {
+					params.SourceImages = []creative.CreativeInputImage{{Mime: "image/png", Bytes: reference.Bytes()}}
+				}
+				_, err := svc.ValidateCreateParams(context.Background(), 7, &params)
+				if supportsGIF {
+					require.NoError(t, err)
+				} else {
+					require.ErrorIs(t, err, creative.ErrCreativeOperationUnsupported)
+				}
+			}
+			if len(test.gifOps) == 0 {
+				require.NotContains(t, entry.OutputFormats, "gif")
+				require.Nil(t, entry.GIFFrameCount)
+				require.Nil(t, entry.GIFFrameDurationMS)
+			} else {
+				require.Contains(t, entry.OutputFormats, "gif")
+				require.NotNil(t, entry.GIFFrameCount)
+			}
+		})
+	}
 }

@@ -200,13 +200,19 @@ export function useCreativeStudio() {
   const outputFormat = ref('png')
   const frameCount = ref(9)
   const frameDurationMS = ref(200)
-  const outputFormatOptions = computed(() =>
-    operation.value === 'inpaint'
-      ? ['png']
-      : selectedOption.value?.output_formats?.length
-        ? selectedOption.value.output_formats
-        : ['png'],
-  )
+  /**
+   * outputFormatOptions follows the selected operation's routes, keeping inpaint
+   * static. Only servers without an operation map use the legacy combined list;
+   * a missing operation in a supplied map offers no formats.
+   */
+  const outputFormatOptions = computed(() => {
+    if (operation.value === 'inpaint') return ['png']
+    const option = selectedOption.value
+    if (option?.output_formats_by_operation) {
+      return option.output_formats_by_operation[operation.value] ?? []
+    }
+    return option?.output_formats?.length ? option.output_formats : ['png']
+  })
   /**
    * quality, background, and thinkingLevel are optional model parameters
    * normalized to empty strings when the selected model lacks those capabilities.

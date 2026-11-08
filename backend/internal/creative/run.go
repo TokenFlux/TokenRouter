@@ -659,9 +659,12 @@ type CreativeModelPublic struct {
 	AspectRatios []string `json:"aspect_ratios"`
 	Qualities    []string `json:"qualities"` // supported quality option names
 	// exposed output format option names
-	OutputFormats      []string              `json:"output_formats"`
-	GIFFrameCount      *CreativeNumericRange `json:"gif_frame_count,omitempty"`       // supported frame count range
-	GIFFrameDurationMS *CreativeNumericRange `json:"gif_frame_duration_ms,omitempty"` // supported frame delay range
+	OutputFormats []string `json:"output_formats"`
+	// OutputFormatsByOperation limits each admitted operation to its available
+	// routes. Clients use this map before the combined legacy OutputFormats list.
+	OutputFormatsByOperation map[string][]string   `json:"output_formats_by_operation"`
+	GIFFrameCount            *CreativeNumericRange `json:"gif_frame_count,omitempty"`       // supported frame count range
+	GIFFrameDurationMS       *CreativeNumericRange `json:"gif_frame_duration_ms,omitempty"` // supported frame delay range
 	// optional compression option numeric range
 	OutputCompression *CreativeNumericRange `json:"output_compression"`
 	// supported background option names

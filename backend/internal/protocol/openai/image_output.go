@@ -24,8 +24,9 @@ import (
 // Item sizes retain first-seen identity order, and later observations can fill a
 // missing size. Any recorded item size suppresses the data-array size list, whose
 // latest nonempty observation may describe fewer images than the largest count.
-// Readers pass these observations onward for response accounting; field evidence
-// here does not validate image bytes, URL reachability, or dimension syntax.
+// Readers pass these observations onward for response accounting. Static image
+// bytes and URL reachability are not validated here; GIF completion checks
+// require complete containers independently from request frame limits.
 
 // ErrGIFResultInvalid identifies generated animation bytes that cannot establish
 // a complete supported result; callers must stop delivery without resubmitting generation.
@@ -434,8 +435,9 @@ func CountOpenAIImageFramesFromSSE(body string) int {
 // are allocated beyond the bounded Base64 payload already received by the reader.
 //
 // The format label and byte prefix identify candidate animations independently.
-// A complete container must also stay within the generation frame limits before
-// any response reader can deliver it as a successful animation.
+// A complete container must contain at least one encoded frame. Request frame
+// limits do not constrain returned GIFs, so HTTP and WebSocket readers accept
+// the same observed frame counts as the native Images response validator.
 func ValidateGIFImageOutputs(body []byte) error {
 	root := gjson.ParseBytes(body)
 	items := []gjson.Result{}
@@ -467,7 +469,7 @@ func ValidateGIFImageOutputs(body []byte) error {
 			continue
 		}
 		frames := imageOutputFrames(encoded)
-		if frames < protocol.GIFMinFrameCount || frames > protocol.GIFMaxFrameCount {
+		if frames == 0 {
 			return ErrGIFResultInvalid
 		}
 	}

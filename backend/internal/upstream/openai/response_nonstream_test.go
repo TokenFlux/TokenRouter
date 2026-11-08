@@ -3,8 +3,12 @@ package openai
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/gif"
 	"io"
 	"net/http"
 	"testing"
@@ -30,6 +34,37 @@ type nonStreamingTestSink struct {
 	// bodies owns copies of emitted payloads so assertions can inspect them after
 	// Emit returns and the reader's borrowed buffers are available for reuse.
 	bodies [][]byte
+}
+
+// TestNonStreamingGIFActualFrames receives completed GIFs beyond request bounds
+// through JSON and buffered SSE. Both paths must deliver original bytes and
+// preserve actual frame counts independently from upstream token usage.
+func TestNonStreamingGIFActualFrames(t *testing.T) {
+	for _, count := range []int{1, 17} {
+		animation := &gif.GIF{}
+		for range count {
+			animation.Image = append(animation.Image, image.NewPaletted(image.Rect(0, 0, 1, 1), color.Palette{color.Black, color.White}))
+			// GIF stores delays in centiseconds, making twenty equal 200 milliseconds.
+			animation.Delay = append(animation.Delay, 20)
+		}
+		var buffer bytes.Buffer
+		require.NoError(t, gif.EncodeAll(&buffer, animation))
+		encoded := base64.StdEncoding.EncodeToString(buffer.Bytes())
+		body := []byte(`{"id":"gif-response","model":"upstream-model","output":[{"id":"gif","type":"image_generation_call","output_format":"gif","result":"` + encoded + `"}],"usage":{"input_tokens":7,"output_tokens":11}}`)
+		for _, asSSE := range []bool{false, true} {
+			t.Run(fmt.Sprintf("frames=%d/sse=%t", count, asSSE), func(t *testing.T) {
+				var calls []string
+				result, _, sink, err := readNonStreamingFixture(nonStreamingFixtureBody(body, asSSE), asSSE, nonStreamingTestOptions(&calls), &calls, "client-model", "upstream-model")
+				require.NoError(t, err)
+				require.Equal(t, 1, result.ImageCount)
+				require.Equal(t, count, result.ImageFrameCount)
+				require.Equal(t, 7, result.Usage.InputTokens)
+				require.Equal(t, 11, result.Usage.OutputTokens)
+				require.Len(t, sink.bodies, 1)
+				require.Equal(t, encoded, gjson.GetBytes(sink.bodies[0], "output.0.result").String())
+			})
+		}
+	}
 }
 
 // TestNonStreamingToolRestorationOrder combines model remapping with each tool

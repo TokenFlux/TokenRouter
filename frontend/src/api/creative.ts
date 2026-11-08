@@ -34,8 +34,9 @@ export interface CreativeNumericRange {
 /**
  * CreativeModelOption combines a group-model identity with the server-advertised
  * generation choices. operations, image_sizes, aspect_ratios, qualities and
- * output_formats govern separate controls; optional compression, background and
- * thinking fields extend those choices when available.
+ * output_formats govern separate controls. Operation-specific output formats
+ * override the legacy combined list; optional compression, background and thinking
+ * fields extend those choices when available.
  */
 export interface CreativeModelOption {
   group_id: string // Group record identifier.
@@ -48,6 +49,11 @@ export interface CreativeModelOption {
   gif_frame_count?: CreativeNumericRange // Supported GIF frame counts.
   gif_frame_duration_ms?: CreativeNumericRange // Supported frame delays, milliseconds.
   output_formats: string[] // Supported output formats.
+  /**
+   * Each admitted operation has its own format choices. An absent map permits
+   * older servers to retain their combined output_formats behavior.
+   */
+  output_formats_by_operation?: Record<string, string[]> // Formats per admitted operation.
   /**
    * Compression bounds are optional capability metadata; callers offer
    * compression controls only when the model advertises usable bounds.

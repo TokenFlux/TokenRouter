@@ -36,7 +36,8 @@ import (
 // allowlist entries directly, while administrator candidate discovery combines
 // finite configured names across providers and groups. Image capabilities
 // choose parameter options independently from pricing, whose quote
-// availability is checked before new task funding.
+// availability is checked before new task funding. Output formats are exposed
+// per admitted operation so a generation route cannot grant GIF editing support.
 //
 // Creation validates and moderates before idempotency lookup, so replay still
 // depends on current admission. A new task obtains a price snapshot and hidden
@@ -527,7 +528,8 @@ func (s *Public) GetCapabilities(ctx context.Context) *CreativeCapabilitiesRespo
 // operations, while route capabilities determine sizes independently from
 // price overrides. A missing first-tier quote excludes a model. Display prices
 // use the group multiplier, whereas creation separately calculates its user
-// and subscription funding estimate.
+// and subscription funding estimate. Output format choices use each admitted
+// operation's route attributes; their legacy union excludes disabled operations.
 func (s *Public) ListModels(ctx context.Context, userID int64) (*CreativeModelsResponse, error) {
 	if !s.Enabled(ctx) {
 		// Disabled discovery uses an empty successful array for the
@@ -607,26 +609,44 @@ func (s *Public) ListModels(ctx context.Context, userID int64) (*CreativeModelsR
 			if _, ok := s.ImageUnitPrice(ctx, group, pricingModel, imageSizes[0]); !ok {
 				continue
 			}
+			// Format eligibility follows the same operation attributes as submission.
+			// Restrict the legacy union too, so disabled generation cannot expose GIF
+			// when the only admitted operation has no usable animation route.
+			outputFormats := []string{}
+			formatsByOperation := make(map[string][]string, len(operations))
+			for _, operation := range operations {
+				attrs := routes[model].Attributes
+				if specific, ok := routes[model].OperationAttributes[operation]; ok {
+					attrs = specific
+				}
+				formats := []string{"png"}
+				if operation != CreativeOperationInpaint && attrs.Media != nil && slices.Contains(attrs.Media.OutputFormats, "gif") {
+					formats = append(formats, "gif")
+					outputFormats = []string{"png", "gif"}
+				}
+				formatsByOperation[operation] = formats
+			}
 			out.Data = append(out.Data, CreativeModelPublic{
-				GroupID:            group.ID,
-				GroupName:          group.Name,
-				Model:              model,
-				Operations:         operations,
-				ImageSizes:         imageSizes,
-				AspectRatios:       capabilities.AspectRatios,
-				Qualities:          capabilities.Qualities,
-				OutputFormats:      capabilities.OutputFormats,
-				GIFFrameCount:      creativeGIFRange(capabilities.OutputFormats, false),
-				GIFFrameDurationMS: creativeGIFRange(capabilities.OutputFormats, true),
-				OutputCompression:  capabilities.OutputCompression,
-				BackgroundOptions:  capabilities.BackgroundOptions,
-				ThinkingLevels:     capabilities.ThinkingLevels,
-				MaxOutputCount:     capabilities.MaxOutputCount,
-				MaxReferenceImages: capabilities.MaxReferenceImages,
-				Price512:           s.CreativePrice(ctx, group, pricingModel, "512"),
-				Price1K:            s.CreativePrice(ctx, group, pricingModel, "1K"),
-				Price2K:            s.CreativePrice(ctx, group, pricingModel, "2K"),
-				Price4K:            s.CreativePrice(ctx, group, pricingModel, "4K"),
+				GroupID:                  group.ID,
+				GroupName:                group.Name,
+				Model:                    model,
+				Operations:               operations,
+				ImageSizes:               imageSizes,
+				AspectRatios:             capabilities.AspectRatios,
+				Qualities:                capabilities.Qualities,
+				OutputFormats:            outputFormats,
+				OutputFormatsByOperation: formatsByOperation,
+				GIFFrameCount:            creativeGIFRange(outputFormats, false),
+				GIFFrameDurationMS:       creativeGIFRange(outputFormats, true),
+				OutputCompression:        capabilities.OutputCompression,
+				BackgroundOptions:        capabilities.BackgroundOptions,
+				ThinkingLevels:           capabilities.ThinkingLevels,
+				MaxOutputCount:           capabilities.MaxOutputCount,
+				MaxReferenceImages:       capabilities.MaxReferenceImages,
+				Price512:                 s.CreativePrice(ctx, group, pricingModel, "512"),
+				Price1K:                  s.CreativePrice(ctx, group, pricingModel, "1K"),
+				Price2K:                  s.CreativePrice(ctx, group, pricingModel, "2K"),
+				Price4K:                  s.CreativePrice(ctx, group, pricingModel, "4K"),
 			})
 		}
 	}

@@ -345,6 +345,87 @@ describe('useCreativeStudio', () => {
 
   describe('canGenerate 表单门禁', () => {
     /**
+     * Generation supports GIF while editing only supports PNG. Switching operations
+     * resets the invalid selection and its estimate before a static edit is submitted.
+     */
+    it('uses operation-specific formats and resets GIF when switching to static editing', async () => {
+      const { studio, wrapper } = await setupStudio()
+      studio.models.value[0].output_formats = ['png', 'gif']
+      studio.models.value[0].output_formats_by_operation = {
+        generate: ['png', 'gif'],
+        edit: ['png'],
+        inpaint: ['png'],
+      }
+      studio.prompt.value = 'A blinking star'
+      studio.outputFormat.value = 'gif'
+      studio.frameCount.value = 4
+      expect(studio.outputFormatOptions.value).toEqual(['png', 'gif'])
+      expect(studio.estimatedCost.value).toBe(8)
+
+      studio.operation.value = 'edit'
+      await flushPromises()
+      expect(studio.outputFormatOptions.value).toEqual(['png'])
+      expect(studio.outputFormat.value).toBe('png')
+      expect(studio.estimatedCost.value).toBe(2)
+      expect(studio.canGenerate.value).toBe(true)
+      expect(
+        await studio.createRun({
+          sourceBlobs: [new Blob(['source'], { type: 'image/png' })],
+          maskBlob: null,
+        }),
+      ).toBe(true)
+      const form = mockedApi.createCreativeRun.mock.calls[0][0] as FormData
+      expect(form.get('operation')).toBe('edit')
+      expect(form.get('output_format')).toBe('png')
+      expect(form.has('frame_count')).toBe(false)
+      wrapper.unmount()
+    })
+
+    /**
+     * A stale restored format conflicts with the current editing route. Submission
+     * rejects GIF immediately, even before the reactive format-reset watcher runs.
+     */
+    it('blocks a stale GIF selection before sending an unsupported edit', async () => {
+      const { studio, wrapper } = await setupStudio()
+      studio.models.value[0].output_formats = ['png', 'gif']
+      studio.models.value[0].output_formats_by_operation = {
+        generate: ['png', 'gif'],
+        edit: ['png'],
+      }
+      studio.operation.value = 'edit'
+      await flushPromises()
+      studio.prompt.value = 'A blinking star'
+      studio.outputFormat.value = 'gif'
+      expect(studio.canGenerate.value).toBe(false)
+      expect(await studio.createRun({ sourceBlobs: [new Blob(['source'])], maskBlob: null })).toBe(
+        false,
+      )
+      expect(mockedApi.createCreativeRun).not.toHaveBeenCalled()
+      wrapper.unmount()
+    })
+
+    /**
+     * The server publishes a GIF-capable editing route separately from static generation.
+     * A missing entry in that map must not inherit the combined GIF list.
+     */
+    it('exposes GIF editing independently and rejects missing operation entries', async () => {
+      const { studio, wrapper } = await setupStudio()
+      studio.models.value[0].output_formats = ['png', 'gif']
+      studio.models.value[0].output_formats_by_operation = {
+        generate: ['png'],
+        edit: ['png', 'gif'],
+      }
+      expect(studio.outputFormatOptions.value).toEqual(['png'])
+      studio.operation.value = 'edit'
+      expect(studio.outputFormatOptions.value).toEqual(['png', 'gif'])
+      delete studio.models.value[0].output_formats_by_operation.edit
+      expect(studio.outputFormatOptions.value).toEqual([])
+      studio.prompt.value = 'A blinking star'
+      expect(studio.canGenerate.value).toBe(false)
+      wrapper.unmount()
+    })
+
+    /**
      * The prompt changes from empty text to whitespace and then meaningful content.
      * The reactive generation gate must remain closed until a nonblank prompt is
      * present.

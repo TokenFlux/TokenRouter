@@ -54,7 +54,7 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 
 `GET /creative/models` 返回当前用户可用分组与图片模型的组合。每项除分组、模型、操作、尺寸和图片单价（`price_512`、`price_1k`、`price_2k`、`price_4k`）外，还按具体模型返回 `aspect_ratios`、`qualities`、`output_formats`、`output_compression`、`background_options`、`thinking_levels`、`max_output_count` 与 `max_reference_images`；不支持的集合返回空数组，压缩范围返回对象或 `null`。
 
-创作台默认请求 PNG。具有可用 GIF 路线的 GPT Image 2.6 模型返回 PNG／GIF 选项，以及 `gif_frame_count`、`gif_frame_duration_ms` 的最小值、最大值和步长。GIF 只用于 generate 和静态参考图 edit；inpaint 继续使用 PNG。`max_output_count` 固定为 1，表示一次生成一份动画或一张静态图片。输出 metadata 的 `mime_type` 和 `frame_count` 来自实际结果，前端保存并下载原始文件。
+创作台默认请求 PNG。`output_formats_by_operation` 按已开放的 generate、edit、inpaint 分别返回可用格式，前端按当前操作读取；只有该操作存在可用 GIF 路线时才提供 GIF。`output_formats` 为旧客户端保留合并选项：至少一个已开放操作支持 GIF 时返回 PNG／GIF 和 `gif_frame_count`、`gif_frame_duration_ms` 范围，否则保留空列表表示默认 PNG。GIF 只用于 generate 和静态参考图 edit；inpaint 继续使用 PNG。`max_output_count` 固定为 1，表示一次生成一份动画或一张静态图片。输出 metadata 的 `mime_type` 和 `frame_count` 来自实际结果，前端保存并下载原始文件。
 
 `price_512` 仅用于支持 Gemini 512 档位的模型，按共享价格配置和内置按张价格的顺序解析；价卡中的 `512` 分层价格优先于该价卡的默认单价。前端按服务端返回的能力渲染参数，模型名不参与判断。列表只包含用户可绑定、已启用对应图片入口且能解析图片价格的分组与模型。按张价格只能来自完整型号的手动价卡、目录或已登记的静态价；缺价时，通用单价不能顶替，提交在资金预留之前结束。手动填写的零价是有效报价。一个分组可以同时展示多个供应商模型；每个模型按实际候选提供商计算操作。OpenAI 图片模型支持 `generate`/`edit`/`inpaint`，Gemini（含 Vertex 提供商）与 Grok 图片模型支持 `generate`/`edit`。
 
@@ -147,7 +147,7 @@ worker 从 Redis 预留任务后先读取用户最新并发配置，并通过现
 
 - 客户端可对 `POST /creative/runs` 携带 `Idempotency-Key` 头；同一用户同一工作区同一键重放时，若请求指纹一致则直接返回原任务（`idempotent_replay=true`），不重复建单、不重复计费。
 - 同一用户同一工作区同一键但请求体不同（指纹不一致）返回 `409 CREATIVE_IDEMPOTENCY_CONFLICT`；不同工作区即使使用相同键也会创建独立任务。
-- 请求指纹是规范化 JSON（分组、模型、操作、prompt sha256、各源图 sha256、mask sha256、尺寸、比例、质量、背景、思考强度和固定单张输出）的 sha256；输出格式由供应商决定并写入输出 metadata，不是用户输入，所以不参与指纹；`creative_runs.request_fingerprint` 用来比较同一个幂等键下的请求体，这一列没有全局唯一约束。
+- 请求指纹是规范化 JSON（分组、模型、操作、prompt sha256、各源图 sha256、mask sha256、尺寸、比例、质量、背景、思考强度和固定单张输出）的 sha256。GIF 请求还包含规范化后的输出格式、帧数和帧间隔，改变这些参数并复用原幂等键会返回冲突。默认或显式 PNG 省略这三个动画字段，保持历史静态任务的指纹兼容。实际返回的 MIME 和帧数写入输出 metadata，不改写请求指纹。`creative_runs.request_fingerprint` 用来比较同一个幂等键下的请求体，这一列没有全局唯一约束。
 - `(user_id, workspace_id, idempotency_key)` 部分唯一索引只约束带工作区的非空键；迁移前 `workspace_id IS NULL` 的旧任务不参与新的幂等查询，键本身最长 255 字符。
 - 计费与结算请求 ID 全部经由 `usage_billing_dedup` 幂等表去重，worker 重试、重复回调不会产生重复资金动作。
 
