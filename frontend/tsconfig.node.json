@@ -5,6 +5,7 @@
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "rewriteRelativeImportExtensions": true,
     "allowSyntheticDefaultImports": true
   },
   "include": ["vite.config.ts", "socialMetadata.ts"]

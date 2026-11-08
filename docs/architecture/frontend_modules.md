@@ -62,6 +62,8 @@ API 记录按所属领域维护在 `api/*.types.ts` 或 `api/admin/*.types.ts`�
 
 前端开发、构建和预览命令显式使用 `vite.config.ts`。旧检出目录可能保留此前 TypeScript 编译生成的 `vite.config.js`；即使该文件仍在，项目命令也不加载它。Node 配置编译产物位于 `node_modules/.cache/tsconfig-node`，避免在源码旁生成会遮蔽配置的文件。
 
+Vite 配置中的相对 TypeScript 导入显式写 `.ts` 后缀，以兼容原生配置加载。`tsconfig.node.json` 启用 `rewriteRelativeImportExtensions`，编译输出时将这些导入改写为对应的 JavaScript 扩展名。
+
 应用先设置主题和 viewport，再安装 Pinia 并读取注入配置。语言初始化及公开设置的语言匹配完成后安装路由和 i18n，等待初次路由就绪后挂载。CLI 导入会话的 fragment 在创建浏览器 history 前清理，导航进度在鉴权守卫前安装。
 
 路由记录分为公开、用户和管理员三组，匹配顺序保持该顺序，catch-all 最后。守卫测试调用实际安装的守卫，验证身份、功能开关、首次设置和重定向，而不是复制另一份判断逻辑。

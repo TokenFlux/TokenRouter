@@ -2,7 +2,9 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
-import { renderSocialMetadata } from './socialMetadata'
+// Native config loading requires source extensions; tsconfig.node.json rewrites
+// this extension so emitted JavaScript resolves the compiled metadata module.
+import { renderSocialMetadata } from './socialMetadata.ts'
 
 // vite.config.ts configures development proxying and the browser assets embedded
 // in release builds. Development documents receive public settings and branding
