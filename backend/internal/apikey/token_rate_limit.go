@@ -31,7 +31,8 @@ var (
 
 // CheckTokenRateLimit rejects effective group Token rates above a positive
 // credential ceiling. Zero disables protection, and callers provide the final
-// authorized group before forwarding or reserving request capacity.
+// authorized group before forwarding or reserving request capacity. Rejections
+// include the current rate and saved ceiling in their public message and metadata.
 // @project-doc docs/domains/routing_and_billing.md#api_key_token_rate_limit
 func (s *APIKeyService) CheckTokenRateLimit(ctx context.Context, key *APIKey) error {
 	if key == nil || key.MaxTokenRateMultiplier == 0 {
@@ -47,10 +48,19 @@ func (s *APIKeyService) CheckTokenRateLimit(ctx context.Context, key *APIKey) er
 	// Relative tolerance permits equivalent decimal rates after floating-point multiplication.
 	excess := rate - key.MaxTokenRateMultiplier
 	if excess > 1e-12*math.Max(rate, key.MaxTokenRateMultiplier) {
-		return ErrTokenRateLimitExceeded.WithMetadata(map[string]string{
-			"actual_multiplier": fmt.Sprintf("%.12g", rate),
-			"max_multiplier":    fmt.Sprintf("%.12g", key.MaxTokenRateMultiplier),
+		actualRate := fmt.Sprintf("%.12g", rate)
+		maximumRate := fmt.Sprintf("%.12g", key.MaxTokenRateMultiplier)
+		failure := ErrTokenRateLimitExceeded.WithMetadata(map[string]string{
+			"actual_multiplier": actualRate,
+			"max_multiplier":    maximumRate,
 		})
+		failure.Message = fmt.Sprintf(
+			"Token multiplier %sx exceeds API key limit %sx. "+
+				"Check group pricing or update the key limit.",
+			actualRate,
+			maximumRate,
+		)
+		return failure
 	}
 	return nil
 }

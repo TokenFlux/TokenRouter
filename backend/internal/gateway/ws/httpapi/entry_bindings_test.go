@@ -23,6 +23,7 @@ import (
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -184,10 +185,12 @@ func TestKeyAdmissionUsesCurrentTurnLimits(t *testing.T) {
 	require.Equal(t, 1013, adapter.CloseInfo(err).Status)
 	require.Same(t, current, auth.acquired)
 	require.Equal(t, 20, original.RPMLimit)
-	auth.acquireErr = apikey.ErrTokenRateLimitExceeded
+	message := "Token multiplier 0.2x exceeds API key limit 0.1x. Check group pricing or update the key limit."
+	auth.acquireErr = apperror.Forbidden("API_KEY_TOKEN_RATE_LIMIT_EXCEEDED", message)
 	_, _, err = adapter.AcquireKey(t.Context())
 	require.ErrorIs(t, err, apikey.ErrTokenRateLimitExceeded)
 	require.Equal(t, 1008, adapter.CloseInfo(err).Status)
+	require.Equal(t, message, adapter.CloseInfo(err).Reason)
 }
 
 // TestAuthorizeTurnRejectsRevokedWSProtocol reauthenticates a Key whose

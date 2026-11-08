@@ -29,6 +29,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
@@ -387,7 +388,7 @@ func (p *openAIWSEntryAdapter) AcquireKey(ctx context.Context) (context.Context,
 		message := err.Error()
 		if errors.Is(err, apikey.ErrTokenRateLimitExceeded) {
 			status = 1008
-			message = apikey.ErrTokenRateLimitExceeded.Message
+			message = apperror.Message(err)
 		}
 		if errors.Is(err, apikey.ErrTokenRateUnavailable) {
 			message = apikey.ErrTokenRateUnavailable.Message

@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // authorization.go authenticates gateway requests, resolves their group and
@@ -476,7 +477,7 @@ func acquireKeyRequest(c *gin.Context, keys *apikey.APIKeyService, key *apikey.A
 	case errors.Is(err, apikey.ErrTokenRateLimitExceeded):
 		status = http.StatusForbidden
 		code = "API_KEY_TOKEN_RATE_LIMIT_EXCEEDED"
-		message = apikey.ErrTokenRateLimitExceeded.Message
+		message = apperror.Message(err)
 	case errors.Is(err, apikey.ErrTokenRateUnavailable):
 		status = http.StatusServiceUnavailable
 		code = "API_KEY_TOKEN_RATE_UNAVAILABLE"

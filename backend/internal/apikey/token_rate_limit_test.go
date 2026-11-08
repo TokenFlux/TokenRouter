@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -106,16 +107,22 @@ func TestCheckTokenRateLimitBoundary(t *testing.T) {
 // after admission. Subsequent requests observe those prices, and lookup failures
 // reject protected work instead of admitting an unverifiable rate.
 func TestCheckTokenRateLimitCurrentPrices(t *testing.T) {
-	groups := &tokenLimitGroups{group: &routing.Group{ID: 3, Status: StatusActive, RateMultiplier: .08}}
+	groups := &tokenLimitGroups{group: &routing.Group{ID: 3, Status: StatusActive, RateMultiplier: .1}}
 	rates := &tokenLimitRates{}
 	service := NewAPIKeyService(nil, nil, groups, nil, rates, nil, nil)
 	t.Cleanup(service.Stop)
 	id := int64(3)
-	key := &APIKey{GroupID: &id, User: &User{ID: 7}, MaxTokenRateMultiplier: .08, BillingMode: APIKeyBillingModeBalance}
+	key := &APIKey{GroupID: &id, User: &User{ID: 7}, MaxTokenRateMultiplier: .1, BillingMode: APIKeyBillingModeBalance}
 	require.NoError(t, service.CheckTokenRateLimit(t.Context(), key))
 	groups.group.RateMultiplier = .2
-	require.ErrorIs(t, service.CheckTokenRateLimit(t.Context(), key), ErrTokenRateLimitExceeded)
-	override := .08
+	err := service.CheckTokenRateLimit(t.Context(), key)
+	require.ErrorIs(t, err, ErrTokenRateLimitExceeded)
+	failure := apperror.FromError(err)
+	require.Equal(t, "Token multiplier 0.2x exceeds API key limit 0.1x. Check group pricing or update the key limit.", failure.Message)
+	require.Equal(t, map[string]string{"actual_multiplier": "0.2", "max_multiplier": "0.1"}, failure.Metadata)
+	require.Equal(t, .1, key.MaxTokenRateMultiplier)
+	require.Equal(t, "The group's effective Token multiplier exceeds this API key's limit", ErrTokenRateLimitExceeded.Message)
+	override := .1
 	rates.rate = &override
 	require.NoError(t, service.CheckTokenRateLimit(t.Context(), key))
 	rates.err = errors.New("rate store unavailable")

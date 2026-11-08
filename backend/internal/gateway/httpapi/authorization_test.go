@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -20,7 +22,8 @@ import (
 
 // tokenProtectionGroups supplies the current group price to request admission.
 type tokenProtectionGroups struct {
-	apikey.GroupRepository // unused group repository operations
+	apikey.GroupRepository         // unused group repository operations
+	rate                   float64 // current persisted group multiplier
 }
 
 // gatewayLimitCache returns a configured admission result and counts lease releases.
@@ -33,9 +36,9 @@ type gatewayLimitCache struct {
 	released int // lease release count
 }
 
-// GetByIDLite returns an active group whose rate exceeds the test ceiling.
-func (tokenProtectionGroups) GetByIDLite(context.Context, int64) (*routing.Group, error) {
-	return &routing.Group{ID: 3, Status: apikey.StatusActive, RateMultiplier: .081}, nil
+// GetByIDLite returns the active group with its current test-store multiplier.
+func (s *tokenProtectionGroups) GetByIDLite(context.Context, int64) (*routing.Group, error) {
+	return &routing.Group{ID: 3, Status: apikey.StatusActive, RateMultiplier: s.rate}, nil
 }
 
 // TestTokenRateProtectionHTTP rejects protected requests before handler execution.
@@ -44,7 +47,7 @@ func (tokenProtectionGroups) GetByIDLite(context.Context, int64) (*routing.Group
 func TestTokenRateProtectionHTTP(t *testing.T) {
 	for _, google := range []bool{false, true} {
 		cache := &gatewayLimitCache{}
-		keys := apikey.NewAPIKeyService(nil, nil, tokenProtectionGroups{}, nil, nil, cache, nil)
+		keys := apikey.NewAPIKeyService(nil, nil, &tokenProtectionGroups{rate: .081}, nil, nil, cache, nil)
 		t.Cleanup(keys.Stop)
 		id := int64(3)
 		key := &apikey.APIKey{ID: 1, User: &apikey.User{ID: 7}, GroupID: &id, MaxTokenRateMultiplier: .08}
@@ -90,6 +93,46 @@ func (s *gatewayLimitCache) RefreshRequest(context.Context, int64, string) error
 func (s *gatewayLimitCache) ReleaseRequest(context.Context, int64, string) error {
 	s.released++
 	return nil
+}
+
+// TestTokenRateProtectionHTTPAfterPriceIncrease admits a Key capped at 0.1
+// before its group price rises to 0.2. The same saved Key then receives a
+// precise 403 explanation and remains capped at its user's original value.
+func TestTokenRateProtectionHTTPAfterPriceIncrease(t *testing.T) {
+	for _, google := range []bool{false, true} {
+		groups := &tokenProtectionGroups{rate: .1}
+		keys := apikey.NewAPIKeyService(nil, nil, groups, nil, nil, nil, nil)
+		t.Cleanup(keys.Stop)
+		id := int64(3)
+		key := &apikey.APIKey{
+			ID: 1, User: &apikey.User{ID: 7}, GroupID: &id,
+			MaxTokenRateMultiplier: .1, Group: &routing.Group{ID: id, RateMultiplier: .1},
+		}
+		options := APIKeyAuthorizationOptions{}
+		options.Authentication.Google = google
+		for _, rate := range []float64{.1, .2} {
+			groups.rate = rate
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			release, admitted := acquireKeyRequest(c, keys, key, options)
+			if rate == .1 {
+				require.True(t, admitted)
+				release()
+				continue
+			}
+			require.False(t, admitted)
+			require.Equal(t, 403, recorder.Code)
+			message := "Token multiplier 0.2x exceeds API key limit 0.1x. Check group pricing or update the key limit."
+			if google {
+				require.JSONEq(t, `{"error":{"code":403,"status":"PERMISSION_DENIED","message":`+strconv.Quote(message)+`}}`, recorder.Body.String())
+			} else {
+				require.JSONEq(t, `{"code":"API_KEY_TOKEN_RATE_LIMIT_EXCEEDED","message":`+strconv.Quote(message)+`}`, recorder.Body.String())
+			}
+			require.Equal(t, .1, key.MaxTokenRateMultiplier)
+			require.Equal(t, .1, key.Group.RateMultiplier)
+		}
+	}
 }
 
 // TestKeyRequestAdmissionHTTP exercises standard and Google admission options
