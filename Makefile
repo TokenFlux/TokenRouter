@@ -174,17 +174,24 @@ check:
 # verify runs the CI acceptance targets locally and requires Docker services.
 verify: lint test-tools test test-integration build test-embed test-scripts test-installer
 
-# security checks both dependency graphs against current vulnerability reports.
+# security checks application and plugin SDK dependencies against current reports.
 security: security-go security-frontend
 
-# security-go scans backend dependencies with the pinned govulncheck tool.
+# security-go checks the backend and Go plugin SDK with the pinned govulncheck tool.
+# Each module is scanned from its own directory so SDK-only packages and dependency
+# versions are included.
 security-go:
 	cd backend && go run golang.org/x/vuln/cmd/govulncheck@$$(cat ../.govulncheck-version) ./...
+	cd plugin-sdk/go && go run golang.org/x/vuln/cmd/govulncheck@$$(cat ../../.govulncheck-version) ./...
 
-# security-frontend installs the frozen graph and verifies audit exceptions.
+# security-frontend installs and audits frontend and Web SDK production dependencies.
+# Frontend findings use the repository exception list; high and critical SDK
+# findings fail directly because frontend mitigations do not establish SDK safety.
 security-frontend:
 	$(PNPM) install --frozen-lockfile
 	python3 tools/check_pnpm_audit_exceptions.py --run --exceptions .github/audit-exceptions.yml
+	pnpm --dir plugin-sdk/web install --frozen-lockfile
+	pnpm --dir plugin-sdk/web audit --prod --audit-level=high
 
 # hooks enables repository pre-push checks for this local checkout.
 hooks:

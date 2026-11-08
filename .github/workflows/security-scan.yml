@@ -1,3 +1,7 @@
+# security-scan.yml runs dependency vulnerability checks on pushes, pull requests,
+# and the weekly schedule. The jobs use the repository security targets so local
+# checks and CI cover the backend, frontend, and both independently versioned
+# plugin SDKs.
 name: Security Scan
 
 on:
@@ -20,8 +24,10 @@ jobs:
         with:
           go-version-file: backend/go.mod
           check-latest: false
-          cache-dependency-path: backend/go.sum
-      - name: Backend security
+          cache-dependency-path: |
+            backend/go.sum
+            plugin-sdk/go/go.sum
+      - name: Backend and Go SDK security
         run: make security-go
 
   frontend-security:
@@ -37,6 +43,8 @@ jobs:
         with:
           node-version-file: .node-version
           cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - name: Frontend security
+          cache-dependency-path: |
+            frontend/pnpm-lock.yaml
+            plugin-sdk/web/pnpm-lock.yaml
+      - name: Frontend and Web SDK security
         run: make security-frontend

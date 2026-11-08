@@ -359,7 +359,11 @@ make test-frontend
 make build
 ```
 
-部署文件变更时执行 `make test-scripts` 和 `make test-installer`。依赖安全检查使用 `make security`，Security Scan workflow 分别调用它的 `security-go` 和 `security-frontend`。govulncheck 版本在 `.govulncheck-version` 固定，漏洞数据在线更新。前端审计的 stderr 原样输出；报告为空、包含错误对象或结构不完整时返回失败，高危漏洞按 `.github/audit-exceptions.yml` 核对例外与有效期。pnpm 按高危等级过滤漏洞明细，汇总仍包含低等级计数；脚本检查高危计数与明细是否一致。
+部署文件变更时执行 `make test-scripts` 和 `make test-installer`。依赖安全检查使用 `make security`，Security Scan workflow 分别调用它的 `security-go` 和 `security-frontend`。
+
+`security-go` 分别在 `backend` 和 `plugin-sdk/go` 运行 govulncheck，按各模块自己的依赖版本检查源码与依赖，覆盖后端未引用的 SDK 包。govulncheck 版本在 `.govulncheck-version` 固定，漏洞数据在线更新。
+
+`security-frontend` 分别按 `frontend` 和 `plugin-sdk/web` 的锁文件执行冻结安装，并审计生产依赖，阻止未获豁免的 high 和 critical 漏洞。主前端审计的 stderr 原样输出；报告为空、包含错误对象或结构不完整时返回失败，高危漏洞按 `.github/audit-exceptions.yml` 核对例外与有效期。pnpm 按高危等级过滤漏洞明细，汇总仍包含低等级计数；脚本检查高危计数与明细是否一致。Web SDK 直接执行 `pnpm audit --prod --audit-level=high`，不套用主前端的例外。Security Scan 的 Go 和 pnpm 缓存键分别包含两个对应模块的依赖锁文件。
 
 Vue 的最低版本为 `3.5.42`，该版本修复了 `@vue/server-renderer` 属性名检查中的 XSS 漏洞。`frontend/pnpm-workspace.yaml` 将低于 `1.2.2` 的 `source-map-js` 依赖提升到修复版本，覆盖 Vue 编译器和 i18n 引入的索引偏移 DoS 漏洞。更新这些依赖时同步维护锁文件，并运行前端测试、生产构建和安全扫描。
 
