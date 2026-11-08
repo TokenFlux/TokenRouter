@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -100,6 +101,46 @@ func TestImagesExecuteSelectsStreamFormat(t *testing.T) {
 				require.Positive(t, reads.Load())
 				require.Zero(t, result.ObservedImages)
 				require.False(t, result.HasUsage)
+			})
+		}
+	}
+}
+
+// TestImagesExecuteGIFSizeMetadata presents buffered generation and edit results
+// for API keys and OAuth. Both response size levels must match the actual GIF
+// while preserving original bytes, file counts, and frame billing units.
+func TestImagesExecuteGIFSizeMetadata(t *testing.T) {
+	encoded := "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBACwAAAAAAQABAAACAkQBADs="
+	for _, oauth := range []bool{false, true} {
+		for _, operation := range []protocol.ProtocolID{protocol.ProtocolImagesGenerations, protocol.ProtocolImagesEdits} {
+			t.Run(fmt.Sprintf("oauth=%t/%s", oauth, operation), func(t *testing.T) {
+				body := `{"size":"1024x1024","output_format":"gif","data":[{"b64_json":"` + encoded + `"}]}`
+				contentType := "application/json"
+				if oauth {
+					// OAuth carries the finished GIF through Responses lifecycle events even
+					// when the Images client receives one buffered JSON document.
+					body = `data: {"type":"response.completed","response":{"output":[{"type":"image_generation_call","id":"gif-output","result":"` + encoded + `","size":"1024x1024","output_format":"gif"}]}}` + "\n\n"
+					contentType = "text/event-stream"
+				}
+				options := imagesTestResponseOptions()
+				options.ExpectedGIF = true
+				target := &ImagesTarget{
+					OAuth: oauth, Model: "gpt-image-2.6-flare", ResponseFormat: "b64_json", Options: options,
+					Request: httptest.NewRequest(http.MethodPost, "https://example.invalid/images", nil),
+					Do: func(*http.Request) (*http.Response, error) {
+						return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+					},
+					ResponseError: func(_ *http.Response, _ int, err error) error { return err },
+				}
+				sink := &imagesContractSink{}
+				result, err := (ImagesExecutor{}).Execute(t.Context(), upstream.AttemptInput{Protocol: operation, Target: target}, sink)
+				require.NoError(t, err)
+				require.Equal(t, 1, result.ObservedImages)
+				require.Equal(t, 2, result.ImageFrameCount)
+				delivered := strings.Join(sink.chunks, "")
+				require.Equal(t, "1x1", gjson.Get(delivered, "size").String())
+				require.Equal(t, "1x1", gjson.Get(delivered, "data.0.size").String())
+				require.Equal(t, encoded, gjson.Get(delivered, "data.0.b64_json").String())
 			})
 		}
 	}

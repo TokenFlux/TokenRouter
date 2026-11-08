@@ -23,6 +23,8 @@ import (
 // payload and receive the MIME label established by their validated bytes.
 // Download or container failure is a terminal result error, so consumers must
 // not submit another generation after the provider has produced its response.
+// A response-level size is derived only from uniformly sized GIF results;
+// otherwise each item retains its own dimensions without a shared size claim.
 
 // ValidateGIFImagesResponse normalizes GIF results and returns actual frame units.
 // Static-only documents are unchanged and return zero. Expected GIF documents
@@ -33,11 +35,14 @@ import (
 // mixed responses contribute one unit only when another item is a GIF. The
 // request-only frame range does not constrain returned containers. Missing or
 // invalid output cannot be repaired with the requested count; errors retain any
-// frame units validated before the failing item.
+// frame units validated before the failing item. The top-level size reflects
+// matching dimensions across all-GIF results and is removed for mixed formats
+// or differing sizes; static-only responses retain their original metadata.
 func ValidateGIFImagesResponse(body []byte, expected bool, fetch func(string) (string, error)) ([]byte, int, error) {
 	items := gjson.GetBytes(body, "data").Array()
 	frames, animated := 0, false
 	gifCount := 0
+	commonSize := ""
 	for index, item := range items {
 		encoded := item.Get("b64_json").String()
 		rawURL := item.Get("url").String()
@@ -73,6 +78,12 @@ func ValidateGIFImagesResponse(body []byte, expected bool, fetch func(string) (s
 		animated = true
 		gifCount++
 		frames += metadata.FrameCount
+		size := fmt.Sprintf("%dx%d", metadata.Width, metadata.Height)
+		if gifCount == 1 {
+			commonSize = size
+		} else if size != commonSize {
+			commonSize = ""
+		}
 		// Keep the signed URL while adding verified bytes. Subsequent delivery and
 		// frame accounting then refer to the same downloaded animation representation.
 		prefix := "data." + strconv.Itoa(index) + "."
@@ -87,7 +98,7 @@ func ValidateGIFImagesResponse(body []byte, expected bool, fetch func(string) (s
 		}
 		// Decoded container dimensions and format are authoritative for GIFs,
 		// including data URLs whose absent upstream format previously defaulted to PNG.
-		body, err = sjson.SetBytes(body, prefix+"size", fmt.Sprintf("%dx%d", metadata.Width, metadata.Height))
+		body, err = sjson.SetBytes(body, prefix+"size", size)
 		if err != nil {
 			return nil, frames, err
 		}
@@ -115,6 +126,17 @@ func ValidateGIFImagesResponse(body []byte, expected bool, fetch func(string) (s
 		if err != nil {
 			return nil, frames, err
 		}
+	}
+	// A requested or upstream-reported canvas can differ from the returned GIF.
+	// Publish a shared size only when every result verifies the same dimensions.
+	var err error
+	if gifCount == len(items) && commonSize != "" {
+		body, err = sjson.SetBytes(body, "size", commonSize)
+	} else {
+		body, err = sjson.DeleteBytes(body, "size")
+	}
+	if err != nil {
+		return nil, frames, err
 	}
 	// Expanded encoded bytes and their metadata share the native response limit.
 	if len(body) > 128<<20 {

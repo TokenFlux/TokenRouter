@@ -155,6 +155,8 @@ Images GIF 请求不接受 `stream=true`、`partial_images`、mask 或 `output_c
 
 GIF 的 MIME、尺寸和帧数读取返回字节，下载及本地保存保留原始动画。返回帧数可以与请求不同，单帧或超过请求帧数范围的有效 GIF 也会接受；按图片计费使用实际帧数，token 和按次计费保持各自的计费单位。URL 结果使用现有的安全下载器取得字节，即使未启用普通 URL 回填也需要验证动画。无法下载或容器不完整时结束结果处理，不重新提交生成；已观测用量仍保留。文件数量与计费帧数分别记录，计费规则见[路由与结算](../domains/routing_and_billing.md#group_model_pricing)。
 
+Images 响应中的 GIF 项按实际字节校正 `data[].size`。当全部输出都是同尺寸 GIF 时，顶层 `size` 同步为该尺寸；尺寸不一致或混有其他格式时移除顶层 `size`，各项保留自己的尺寸信息。仅含静态图片的响应保持原有元数据。
+
 ### Fast 与 Ultra Fast 策略
 
 `service_tier` 报文字段的校验、归一化和类型化错误由 `protocol/openai` 提供；策略求值和拒绝错误在 `gateway/tierpolicy`；认证范围和模型白名单动作复用 routing 的纯规则。
