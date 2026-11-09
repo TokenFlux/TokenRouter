@@ -50,3 +50,49 @@ func TestCodexBaseInstructionsForModel(t *testing.T) {
 		}
 	}
 }
+
+// TestGPT6CodexInstructions exercises the OAuth transform with GPT-6 model
+// names. It checks that aliases receive the intended prompt, unsupported
+// variants retain the fallback, and explicit caller instructions survive.
+func TestGPT6CodexInstructions(t *testing.T) {
+	cases := []struct {
+		model string // model name sent upstream
+		want  string // expected instruction text
+	}{
+		{"gpt-6", instructionsGPT6Astra},
+		{"gpt-6-astra", instructionsGPT6Astra},
+		{" OpenAI/GPT-6-ASTRA-2026-09-01 ", instructionsGPT6Astra},
+		{"gpt-6.1-sol", instructionsGPT61Sol},
+		{"openai/gpt-6.1-sol-high", instructionsGPT61Sol},
+		{"openai/gpt-6.1_sol-openai-compact", instructionsGPT61Sol},
+		{"gpt-6-astral", instructionsGPT55},
+		{"gpt-6-sol", instructionsGPT55},
+		{"gpt-6.1-terra", instructionsGPT61Terra},
+		{" OpenAI/GPT-6.1-TERRA-HIGH ", instructionsGPT61Terra},
+		{"gpt-6.1-terra-minimal", instructionsGPT61Terra},
+		{"gpt-6.1-terra-openai-compact", instructionsGPT61Terra},
+		{"gpt-6.1-terra-preview", instructionsGPT55},
+		{"gpt-6.1-sol-preview", instructionsGPT55},
+	}
+	for _, tc := range cases {
+		t.Run(tc.model, func(t *testing.T) {
+			body := map[string]any{"model": tc.model, "input": "hello"}
+			result := ApplyCodexOAuthTransformWithOptions(body, CodexOAuthTransformOptions{})
+			if result.Error != nil {
+				t.Fatal(result.Error)
+			}
+			if got := body["instructions"]; got != strings.TrimSpace(tc.want) || got == "" {
+				t.Fatal("OAuth transform did not insert the expected model instructions")
+			}
+
+			body["instructions"] = " Client instructions. "
+			result = ApplyCodexOAuthTransformWithOptions(body, CodexOAuthTransformOptions{})
+			if result.Error != nil {
+				t.Fatal(result.Error)
+			}
+			if got := body["instructions"]; got != " Client instructions. " {
+				t.Fatal("OAuth transform changed explicit instructions")
+			}
+		})
+	}
+}
