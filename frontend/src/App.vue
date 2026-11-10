@@ -5,6 +5,7 @@ import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
+import GlobalSearchPalette from '@/components/layout/search/GlobalSearchPalette.vue'
 import {
   useAppStore,
   useAuthStore,
@@ -17,7 +18,9 @@ import { sanitizeUrl } from '@/utils/url'
 import { updateFavicon } from '@/utils/branding'
 import { usePluginsStore } from '@/stores/plugins'
 
-// App.vue renders the routed page and shared progress, toast, and announcement surfaces.
+// App.vue renders the routed page and shared progress, toast, announcement, and global
+// search surfaces. The search palette is mounted once here; header triggers on each page
+// open it through shared state.
 // It updates branding and document titles from reactive configuration, and refreshes
 // shared translated data when the locale changes. Announcement popups stay hidden on the
 // root destination and Home page.
@@ -172,6 +175,7 @@ onMounted(async () => {
 <template>
   <NavigationProgress />
   <RouterView />
+  <GlobalSearchPalette />
   <Toast />
   <AnnouncementPopup v-if="shouldShowAnnouncementPopup" />
 </template>

@@ -29,6 +29,7 @@ const {
   rotateKey,
   toggleStatus,
   replaceRoute,
+  routeQuery,
 } = vi.hoisted(() => ({
   listKeys: vi.fn(),
   getPublicSettings: vi.fn(),
@@ -46,6 +47,7 @@ const {
   rotateKey: vi.fn(),
   toggleStatus: vi.fn(),
   replaceRoute: vi.fn(),
+  routeQuery: {} as Record<string, string>, // Query of the mocked current route.
 }))
 
 // messages gives stable readable labels to table and form controls so tests can invoke user
@@ -175,7 +177,7 @@ vi.mock('@/composables/useBalanceDisplay', () => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: { scope: 'personal' } }),
+  useRoute: () => ({ query: routeQuery }),
   useRouter: () => ({ replace: replaceRoute }),
 }))
 
@@ -444,6 +446,8 @@ describe('user KeysView column settings', () => {
     rotateKey.mockReset()
     toggleStatus.mockReset()
     replaceRoute.mockReset()
+    for (const key of Object.keys(routeQuery)) delete routeQuery[key]
+    routeQuery.scope = 'personal'
 
     listKeys.mockResolvedValue({
       items: [createApiKey()],
@@ -894,6 +898,17 @@ describe('user KeysView column settings', () => {
     const wrapper = await mountView()
 
     expect(wrapper.find('[data-test="key-concurrency"]').exists()).toBe(false)
+  })
+
+  // The global search "Create API key" action opens the page with create=1. The page opens
+  // the create dialog after loading and removes only that parameter from the URL, so a
+  // reload does not reopen the dialog.
+  it('opens the create dialog from the create query parameter', async () => {
+    routeQuery.create = '1'
+    const wrapper = await mountView()
+
+    expect(wrapper.find('form#key-form').exists()).toBe(true)
+    expect(replaceRoute).toHaveBeenCalledWith({ query: { scope: 'personal' } })
   })
 
   // The user opens the key creation dialog in the production page. The test protects normal

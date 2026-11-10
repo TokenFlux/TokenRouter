@@ -56,11 +56,13 @@
       </div>
 
       <!--
-        Labeled navigation entries and the language switcher come first, the guest
-        theme toggle follows, and the balance and avatar form the trailing account
-        group.
+        The global search entry leads the right-hand group, followed by labeled
+        navigation entries and the language switcher, the guest theme toggle, and the
+        balance and avatar that form the trailing account group.
       -->
       <div class="header-status-actions">
+        <GlobalSearchTrigger />
+
         <!-- Navigation entries show text labels from md upward and icons below md. -->
         <div class="header-nav-group">
           <router-link
@@ -316,6 +318,7 @@ import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMi
 import AnnouncementBell from '@/components/announcements/AnnouncementBell.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import HeaderContactSupport from '@/components/layout/HeaderContactSupport.vue'
+import GlobalSearchTrigger from '@/components/layout/search/GlobalSearchTrigger.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { IconName } from '@/components/icons'
 import VersionBadge from '@/components/admin/system/VersionBadge.vue'
@@ -323,13 +326,14 @@ import { sanitizeUrl } from '@/utils/url'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useTheme, type ThemeMode } from '@/composables/useTheme'
 
-// AppHeader.vue renders the shared brand, labeled navigation entries, balance, and
-// account menu. Marketplace, announcement, docs, support, and language entries show
-// text from md upward so new users can read what each entry does; narrower headers
-// fall back to icons. Authenticated users choose themes in the account menu, while
-// guests keep a header theme toggle. Public pages add guest navigation, authenticated
-// menus follow public feature settings, and the creative workspace provides a
-// dashboard return link beside the brand. Menu listeners belong to the mounted header.
+// AppHeader.vue renders the shared brand, the global search entry, labeled navigation
+// entries, balance, and account menu. Marketplace, announcement, docs, support, and
+// language entries show text from md upward so new users can read what each entry does;
+// narrower headers fall back to icons. Authenticated users choose themes in the account
+// menu, while guests keep a header theme toggle. Public pages add guest navigation,
+// authenticated menus follow public feature settings, and the creative workspace
+// provides a dashboard return link beside the brand. Menu listeners belong to the
+// mounted header.
 
 // publicPage hides the sidebar toggle and enables marketplace and guest login links
 // while keeping the shared brand and account controls.
@@ -514,8 +518,12 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/*
+ * The right-hand group may shrink so a crowded header narrows the search entry, the
+ * only child with a flexible width; navigation and account controls keep their size.
+ */
 .header-status-actions {
-  @apply ml-auto flex min-w-0 shrink-0 items-center gap-2 sm:gap-5;
+  @apply ml-auto flex min-w-0 items-center gap-2 sm:gap-5;
 }
 
 /*

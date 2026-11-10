@@ -28,6 +28,8 @@
 
 列表工具栏的范围下拉使用 `components/common/ScopeSelector.vue`，桌面显示图标和当前范围，窄屏显示带无障碍名称的图标按钮。`components/team/ScopeDropdown.vue` 负责个人和团队密钥的 URL 状态，MCP 管理页复用相同控件切换手工令牌和已授权应用。
 
+侧栏和全局搜索的导航入口都来自 `components/layout/navigationItems.ts`，各角色的入口列表、功能开关、自定义菜单和插件菜单只在这里定义，侧栏负责渲染，`components/layout/search/` 负责搜索和排序。模型广场和全局搜索共用 `utils/marketplaceCatalog.ts` 的分组排序和品牌来源规则，全局搜索还用它把各分组的模型合并成按模型去重的索引，见[全局搜索](frontend_ui_conventions.md#global_search)。
+
 设置页面保留 `views/admin/SettingsView.vue` 入口，`settings/` 持有领域面板、控制器、草稿、校验和持久化编排。根页面在 setup 时建立领域控制器；bulk 设置分区按字段范围访问同一份 `form`。联网搜索保留自己的草稿，由保存编排按顺序持久化；管理员 API Key 和支付提供商配置使用各自的即时接口。面板隐藏与卸载有不同效果，保存登记、轮询和草稿保留继续遵循 [设置表单](frontend_ui_conventions.md#settings_form) 的规则。
 
 提供商页面的列表、选择、用量、缓存、创建、编辑和操作组件放在 `views/admin/providers/`。创建和编辑各自拥有授权或草稿生命周期，共同依赖 `components/provider/` 的字段与编辑器。模型白名单选择器也被风控页面使用，因此继续作为领域共享组件维护。

@@ -120,6 +120,56 @@ export default {
       },
     },
   },
+  // Global search palette
+  globalSearch: {
+    open: 'Search',
+    placeholder: 'Search models and pages…',
+    dialogLabel: 'Global search',
+    inputPlaceholder: 'Search models, pages, and actions…',
+    clear: 'Clear',
+    scopeLabel: 'Search scope',
+    resultsLabel: 'Search results',
+    scopes: {
+      all: 'All',
+      model: 'Models',
+      page: 'Pages',
+      action: 'Actions',
+    },
+    sections: {
+      model: 'Models',
+      page: 'Pages',
+      action: 'Actions',
+      recent: 'Recent',
+      featured: 'Featured models',
+      common: 'Common pages',
+    },
+    areas: {
+      admin: 'Admin',
+    },
+    pages: {
+      login: 'Log in',
+      register: 'Sign up',
+    },
+    actions: {
+      createKey: 'Create API key',
+      switchTheme: 'Switch to {mode}',
+      switchLanguage: 'Switch language: {name}',
+      copyApiUrl: 'Copy API base URL',
+    },
+    hints: {
+      navigate: 'Navigate',
+      open: 'Open',
+      copy: 'Copy ID',
+      scope: 'Switch scope',
+    },
+    searchMarketplace: 'Search the marketplace for "{query}"',
+    noResults: 'No results for "{query}"',
+    loadingModels: 'Loading models',
+    loadFailed: 'Could not load models',
+    truncated: 'Showing the first {count} results. Keep typing to narrow them down.',
+    priceFrom: 'from',
+    copyModelId: 'Copy model ID',
+  },
   // Navigation
   nav: {
     dashboard: 'Dashboard',

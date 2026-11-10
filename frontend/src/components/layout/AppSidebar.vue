@@ -117,7 +117,7 @@
           </div>
 
           <router-link
-            v-for="item in personalNavItems"
+            v-for="item in accountNavItems"
             :key="item.path"
             :to="item.path"
             class="sidebar-link mb-1"
@@ -155,7 +155,7 @@
       <template v-else-if="!appStore.backendModeEnabled">
         <div class="sidebar-section">
           <router-link
-            v-for="item in userNavItems"
+            v-for="item in accountNavItems"
             :key="item.path"
             :to="item.path"
             class="sidebar-link mb-1"
@@ -207,38 +207,23 @@ import Collapse from '@/components/common/Collapse.vue'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { IconName } from '@/components/icons/registry'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
-import { usePluginsStore } from '@/stores/plugins'
-import type { PluginAudience } from '@/api/plugins.types'
+import { useNavigationItems, type NavItem } from '@/components/layout/navigationItems'
 
-// AppSidebar.vue builds role-specific navigation from public and administrator settings.
-// Feature predicates filter optional destinations, custom links retain their configured
-// order, and administrator groups highlight the current exact child route. The mobile
-// drawer closes after route changes and also handles clicks on the current route.
+// AppSidebar.vue renders role-specific navigation from the shared destination lists in
+// navigationItems.ts. Administrators see their management destinations followed by the
+// personal account section, while ordinary users see only the account destinations.
+// Administrator groups highlight the current exact child route. The mobile drawer closes
+// after route changes and also handles clicks on the current route.
 //
 // Group expansion uses route activity until the user supplies a local override; that
 // override can keep an active group collapsed. The sidebar saves its scroll position
 // into application state before unmount and restores it after the next mounted render.
 // Collapsed labels remain in the layout for transitions while accessibility attributes
 // hide their text.
-
-// NavItem represents a destination or collapsible group in sidebar navigation.
-interface NavItem {
-  path: string // Destination or group key
-  label: string // Translated navigation text
-  // Selects a registered icon; null permits a custom SVG, and templates use home when
-  // neither supplies an icon.
-  icon: IconName | null
-  iconSvg?: string // Custom uploaded SVG
-  // featureFlag hides an entry when it returns false; omitted predicates leave the
-  // destination visible in its navigation group.
-  featureFlag?: () => boolean
-  children?: NavItem[] // Nested navigation entries
-}
 
 // Translation, routing, role, settings, and onboarding state
 // determine which destinations the sidebar renders for the current account.
@@ -249,7 +234,7 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
-const pluginsStore = usePluginsStore()
+const { accountNavItems, adminNavItems } = useNavigationItems()
 
 // Sidebar width and mobile visibility come from shared application state, allowing the
 // header toggle and layout offsets to follow the same values.
@@ -273,308 +258,6 @@ const sidebarNavRef = ref<HTMLElement | null>(null)
 // groupExpandOverrides records local user choices by group path. An absent entry follows
 // route activity, while a recorded false keeps even the active group collapsed.
 const groupExpandOverrides = ref<Map<string, boolean>>(new Map())
-
-// flagCreativeStudioAccess permits creative navigation unless the public setting is
-// false. An omitted setting leaves the entry visible; the creative page resolves its
-// available models independently after navigation.
-const flagCreativeStudioAccess = () => appStore.cachedPublicSettings?.creative_enabled !== false
-// flagTeamAccess permits the team destination unless its public setting is false.
-//
-// An omitted setting keeps the entry visible, matching the optional feature predicate
-// used by both personal and user menus.
-const flagTeamAccess = () => appStore.cachedPublicSettings?.team_enabled !== false
-// flagUsageRankingAccess permits the usage-ranking destination unless its public setting
-// is false.
-//
-// An omitted setting keeps the entry visible, matching the optional feature predicate
-// used by both personal and user menus.
-const flagUsageRankingAccess = () => appStore.cachedPublicSettings?.usage_ranking_enabled !== false
-
-/** pluginNavItems projects accepted menus into the existing sanitized sidebar renderer.
- * Audience filtering preserves administrator and personal sections. Ordering uses the
- * declared priority, plugin ID, then declaration order without mutating store descriptions.
- */
-function pluginNavItems(audience: PluginAudience): NavItem[] {
-  return pluginsStore.plugins
-    .flatMap((plugin) => plugin.menus.map((menu, index) => ({ pluginId: plugin.id, menu, index })))
-    .filter((entry) => entry.menu.audience === audience)
-    .sort(
-      (a, b) =>
-        a.menu.order - b.menu.order ||
-        a.pluginId.localeCompare(b.pluginId, 'en') ||
-        a.index - b.index,
-    )
-    .map(({ menu }) => ({
-      path: menu.route,
-      label: menu.label,
-      icon: null,
-      iconSvg: menu.icon_svg,
-    }))
-}
-
-// userNavItems builds the ordinary user destinations, applies feature predicates, and
-// appends custom links followed by ordered plugin contributions for the current role.
-const userNavItems = computed((): NavItem[] => {
-  const items: NavItem[] = [
-    { path: '/dashboard', label: t('nav.dashboard'), icon: 'dashboard' as const },
-    { path: '/models', label: t('nav.modelMarketplace'), icon: 'modelMarketplace' as const },
-    {
-      path: '/usage-ranking',
-      label: t('nav.usageRanking'),
-      icon: 'ranking' as const,
-      featureFlag: flagUsageRankingAccess,
-    },
-    { path: '/keys', label: t('nav.apiKeys'), icon: 'key' as const },
-    { path: '/team', label: t('nav.team'), icon: 'users' as const, featureFlag: flagTeamAccess },
-    {
-      path: '/creative',
-      label: t('nav.creative'),
-      icon: 'creative' as const,
-      featureFlag: flagCreativeStudioAccess,
-    },
-    { path: '/usage', label: t('nav.usage'), icon: 'chart' as const },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: 'creditCard' as const },
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/purchase',
-            label: t('nav.buySubscription'),
-            icon: 'recharge' as const,
-          },
-        ]
-      : []),
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/orders',
-            label: t('nav.myOrders'),
-            icon: 'orderList' as const,
-          },
-        ]
-      : []),
-    { path: '/redeem', label: t('nav.redeem'), icon: 'gift' as const },
-    ...(appStore.cachedPublicSettings?.affiliate_enabled === true
-      ? [
-          {
-            path: '/affiliate',
-            label: t('nav.affiliate'),
-            icon: 'affiliate' as const,
-          },
-        ]
-      : []),
-    { path: '/profile', label: t('nav.profile'), icon: 'user' as const },
-    ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: `/custom/${item.id}`,
-      label: item.label,
-      icon: null,
-      iconSvg: item.icon_svg,
-    })),
-    ...pluginNavItems('user'),
-  ]
-  const visibleItems = items.filter((item) => item.featureFlag?.() !== false)
-  return visibleItems
-})
-
-// personalNavItems builds the administrator's personal account section using public
-// feature flags, user-visible custom links, and authenticated plugin menu entries.
-const personalNavItems = computed((): NavItem[] => {
-  const items: NavItem[] = [
-    { path: '/dashboard', label: t('nav.dashboard'), icon: 'dashboard' as const },
-    { path: '/models', label: t('nav.modelMarketplace'), icon: 'modelMarketplace' as const },
-    {
-      path: '/usage-ranking',
-      label: t('nav.usageRanking'),
-      icon: 'ranking' as const,
-      featureFlag: flagUsageRankingAccess,
-    },
-    { path: '/keys', label: t('nav.apiKeys'), icon: 'key' as const },
-    { path: '/team', label: t('nav.team'), icon: 'users' as const, featureFlag: flagTeamAccess },
-    {
-      path: '/creative',
-      label: t('nav.creative'),
-      icon: 'creative' as const,
-      featureFlag: flagCreativeStudioAccess,
-    },
-    { path: '/usage', label: t('nav.usage'), icon: 'chart' as const },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: 'creditCard' as const },
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/purchase',
-            label: t('nav.buySubscription'),
-            icon: 'recharge' as const,
-          },
-        ]
-      : []),
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/orders',
-            label: t('nav.myOrders'),
-            icon: 'orderList' as const,
-          },
-        ]
-      : []),
-    { path: '/redeem', label: t('nav.redeem'), icon: 'gift' as const },
-    ...(appStore.cachedPublicSettings?.affiliate_enabled === true
-      ? [
-          {
-            path: '/affiliate',
-            label: t('nav.affiliate'),
-            icon: 'affiliate' as const,
-          },
-        ]
-      : []),
-    { path: '/profile', label: t('nav.profile'), icon: 'user' as const },
-    ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: `/custom/${item.id}`,
-      label: item.label,
-      icon: null,
-      iconSvg: item.icon_svg,
-    })),
-    ...pluginNavItems('user'),
-  ]
-  const visibleItems = items.filter((item) => item.featureFlag?.() !== false)
-  return visibleItems
-})
-
-// customMenuItemsForUser filters public settings to user-visible links and sorts the
-// resulting array by configured order before navigation entries are built.
-const customMenuItemsForUser = computed(() => {
-  const items = appStore.cachedPublicSettings?.custom_menu_items ?? []
-  return items
-    .filter((item) => item.visibility === 'user')
-    .sort((a, b) => a.sort_order - b.sort_order)
-})
-
-// customMenuItemsForAdmin filters administrator settings to administrator-visible links
-// and sorts that filtered array before the entries are appended after settings.
-const customMenuItemsForAdmin = computed(() => {
-  return adminSettingsStore.customMenuItems
-    .filter((item) => item.visibility === 'admin')
-    .sort((a, b) => a.sort_order - b.sort_order)
-})
-
-// adminNavItems combines administrator destinations, feature-gated groups, settings, and
-// custom links and plugin contributions; child routes retain their declared group order.
-const adminNavItems = computed((): NavItem[] => {
-  const baseItems: NavItem[] = [
-    { path: '/admin/dashboard', label: t('nav.dashboard'), icon: 'dashboard' as const },
-    ...(adminSettingsStore.opsMonitoringEnabled
-      ? [{ path: '/admin/ops', label: t('nav.ops'), icon: 'chart' as const }]
-      : []),
-    { path: '/admin/users', label: t('nav.users'), icon: 'users' as const },
-    {
-      path: '/admin/teams',
-      label: t('nav.teams'),
-      icon: 'users' as const,
-      featureFlag: flagTeamAccess,
-    },
-    { path: '/admin/groups', label: t('nav.groups'), icon: 'folder' as const },
-    {
-      path: '/admin/model-management',
-      label: t('nav.modelManagement'),
-      icon: 'pricing' as const,
-      children: [
-        { path: '/admin/pricing', label: t('nav.pricing'), icon: 'pricing' as const },
-        { path: '/admin/model-attributes', label: t('nav.modelAttributes'), icon: 'cog' as const },
-      ],
-    },
-    {
-      path: '/admin/subscriptions',
-      label: t('nav.subscriptions'),
-      icon: 'creditCard' as const,
-      children: [
-        { path: '/admin/subscriptions', label: t('nav.userSubscriptions'), icon: 'users' as const },
-        // Payment settings control plan management while user subscription management
-        // remains available in the same administrator group.
-        ...(adminSettingsStore.paymentEnabled
-          ? [
-              {
-                path: '/admin/orders/plans',
-                label: t('nav.paymentPlans'),
-                icon: 'creditCard' as const,
-              },
-            ]
-          : []),
-      ],
-    },
-    { path: '/admin/providers', label: t('nav.providers'), icon: 'globe' as const },
-    { path: '/admin/announcements', label: t('nav.announcements'), icon: 'bell' as const },
-    { path: '/admin/proxies', label: t('nav.proxies'), icon: 'server' as const },
-    {
-      path: '/admin/risk-control',
-      label: t('nav.riskControl'),
-      icon: 'shieldCheck' as const,
-      featureFlag: () => appStore.cachedPublicSettings?.risk_control_enabled === true,
-    },
-    { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: 'ticket' as const },
-    { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: 'gift' as const },
-    ...(appStore.cachedPublicSettings?.affiliate_enabled === true
-      ? [
-          {
-            path: '/admin/affiliates',
-            label: t('nav.affiliateManagement'),
-            icon: 'users' as const,
-            children: [
-              {
-                path: '/admin/affiliates/invites',
-                label: t('nav.affiliateInviteRecords'),
-                icon: 'users' as const,
-              },
-              {
-                path: '/admin/affiliates/rebates',
-                label: t('nav.affiliateRebateRecords'),
-                icon: 'order' as const,
-              },
-              {
-                path: '/admin/affiliates/transfers',
-                label: t('nav.affiliateTransferRecords'),
-                icon: 'creditCard' as const,
-              },
-            ],
-          },
-        ]
-      : []),
-    ...(adminSettingsStore.paymentEnabled
-      ? [
-          {
-            path: '/admin/orders',
-            label: t('nav.orderManagement'),
-            icon: 'order' as const,
-            children: [
-              {
-                path: '/admin/orders/dashboard',
-                label: t('nav.paymentDashboard'),
-                icon: 'chart' as const,
-              },
-              { path: '/admin/orders', label: t('nav.orderManagement'), icon: 'order' as const },
-            ],
-          },
-        ]
-      : []),
-    { path: '/admin/usage', label: t('nav.usage'), icon: 'chart' as const },
-    { path: '/admin/requests', label: t('requests.title'), icon: 'search' as const },
-    { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: 'shieldCheck' as const },
-    { path: '/admin/mcp', label: t('admin.mcp.title'), icon: 'key' as const },
-    { path: '/admin/plugins', label: t('admin.plugins.title'), icon: 'puzzle' as const },
-  ]
-
-  const visibleItems = baseItems.filter((item) => item.featureFlag?.() !== false)
-  visibleItems.push({ path: '/admin/settings', label: t('nav.settings'), icon: 'cog' as const })
-  // Administrator custom links follow settings so the built-in management destinations
-  // keep their established navigation order ahead of configured pages.
-  for (const cm of customMenuItemsForAdmin.value) {
-    visibleItems.push({
-      path: `/custom/${cm.id}`,
-      label: cm.label,
-      icon: null,
-      iconSvg: cm.icon_svg,
-    })
-  }
-  visibleItems.push(...pluginNavItems('admin'))
-  return visibleItems
-})
 
 // closeMobile closes the shared mobile drawer when its overlay is clicked.
 function closeMobile() {

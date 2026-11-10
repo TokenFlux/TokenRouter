@@ -48,7 +48,12 @@
             }}</span>
           </router-link>
 
-          <div class="flex items-center gap-2 sm:gap-3">
+          <!--
+            The global search entry leads the right-hand controls, matching the shared
+            header; the group may shrink so a narrow header narrows the search entry.
+          -->
+          <div class="flex min-w-0 items-center gap-2 sm:gap-3">
+            <GlobalSearchTrigger />
             <div
               class="hidden items-center gap-5 text-sm font-medium text-gray-600 dark:text-dark-300 md:flex"
             >
@@ -90,7 +95,7 @@
     </template>
 
     <section
-      v-content-reveal="!isAuthenticated && motionRoute?.path"
+      v-content-reveal="!isAuthenticated && route?.path"
       :class="isAuthenticated ? 'space-y-4' : 'relative z-10 px-4 pb-12 pt-6 sm:px-6 lg:px-8'"
     >
       <div :class="isAuthenticated ? 'space-y-4' : 'relative mx-auto max-w-[1400px] space-y-5'">
@@ -164,7 +169,7 @@
           </div>
         </div>
 
-        <div v-else class="space-y-4">
+        <div v-else ref="groupListRef" class="space-y-4">
           <section
             v-for="group in filteredGroups"
             :key="group.id"
@@ -262,6 +267,7 @@
               <article
                 v-for="model in group.models"
                 :key="`${group.id}-${model.id}`"
+                :data-model-id="model.id"
                 class="group min-w-0 max-w-full rounded-surface border border-gray-100 bg-gray-50/80 p-4 transition-colors hover:border-black/20 dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
               >
                 <div class="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -320,9 +326,9 @@
 <script setup lang="ts">
 import { useLocaleRefresh } from '@/composables/useLocaleRefresh'
 import { vContentReveal } from '@/directives/contentReveal'
-import { useRoute as useMotionRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -339,6 +345,7 @@ import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
 import ModelIdLabel from '@/components/common/ModelIdLabel.vue'
+import GlobalSearchTrigger from '@/components/layout/search/GlobalSearchTrigger.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { initTheme, useTheme } from '@/composables/useTheme'
 import { getAvailableMarketplaceModels, getMarketplaceModels } from '@/api/marketplace'
@@ -349,6 +356,7 @@ import {
 } from '@/utils/providerBrand'
 import { formatCompactTokenRange } from '@/utils/formatters'
 import { formatPriceNumber, pricingKind, videoPricingEntries } from '@/utils/marketplacePricing'
+import { compareMarketplaceGroups, groupBrandSource } from '@/utils/marketplaceCatalog'
 import { marketplaceProtocols } from '@/utils/marketplaceProtocols'
 import { sanitizeUrl } from '@/utils/url'
 import type {
@@ -374,8 +382,9 @@ import { useAppStore, useAuthStore } from '@/stores'
 // and unmounting invalidates outstanding requests. Exclusive groups appear first
 // with an inline exclusive tag; all filters operate on that same authorized response.
 
-// motionRoute supplies the route identity used by the public page's reveal directive.
-const motionRoute = useMotionRoute()
+// route supplies the path for the public page's reveal directive and the `q` query that
+// opens the marketplace filtered to one search term.
+const route = useRoute()
 
 // VisibleMarketplaceGroup retains the authorized group shape after client-side model filtering.
 type VisibleMarketplaceGroup = MarketplaceGroup
@@ -444,19 +453,7 @@ const activeFilterCount = computed(
 
 // Exclusive groups precede public groups, then use server order and ID ties.
 // Brand choices deduplicate normalized labels while retaining that group order.
-const sortedGroups = computed(() =>
-  [...groups.value].sort((left, right) => {
-    const exclusiveDiff = Number(Boolean(right.is_exclusive)) - Number(Boolean(left.is_exclusive))
-    if (exclusiveDiff !== 0) {
-      return exclusiveDiff
-    }
-    const sortDiff = (left.sort_order ?? 0) - (right.sort_order ?? 0)
-    if (sortDiff !== 0) {
-      return sortDiff
-    }
-    return left.id - right.id
-  }),
-)
+const sortedGroups = computed(() => [...groups.value].sort(compareMarketplaceGroups))
 
 const availableBrands = computed(() => {
   const seen = new Set<string>()
@@ -593,6 +590,59 @@ function resetFilters() {
   resetPanelFilters()
 }
 
+// highlightModelId holds a model ID from the `q` query until the catalog has rendered
+// and its cards can be scrolled to and highlighted inside groupListRef.
+const highlightModelId = ref<string | null>(null)
+const groupListRef = ref<HTMLElement | null>(null)
+
+// The global search palette opens `/models?q=<model id>`, including while this page is
+// already shown. Each new `q` replaces the text query and clears the select filters,
+// which could otherwise hide the requested model. Typing in the search box does not
+// write back to the URL, so the query only flows from the route into the page.
+watch(
+  () => route?.query?.q,
+  (value) => {
+    if (typeof value !== 'string' || value.trim() === '') return
+    search.value = value
+    resetPanelFilters()
+    highlightModelId.value = value.trim()
+  },
+  { immediate: true },
+)
+
+// flashModelCard restarts the card's one-shot highlight animation and removes the class
+// when the animation ends, so the next request can replay it on the same card.
+function flashModelCard(card: HTMLElement) {
+  card.classList.remove('marketplace-card-flash')
+  // Reading layout between removal and re-adding restarts an animation already running.
+  void card.offsetWidth
+  card.classList.add('marketplace-card-flash')
+  card.addEventListener('animationend', () => card.classList.remove('marketplace-card-flash'), {
+    once: true,
+  })
+}
+
+// After the catalog finishes loading, scroll the first card whose model ID equals the
+// requested term into the middle of the viewport and highlight every group's copy of
+// that model. Terms that are not an exact model ID only filter the list. The request is
+// consumed either way, so later catalog refreshes do not scroll the page again.
+watch(
+  [highlightModelId, loading],
+  async ([modelId, isLoading]) => {
+    if (!modelId || isLoading) return
+    await nextTick()
+    if (highlightModelId.value !== modelId) return
+    highlightModelId.value = null
+    const cards = Array.from(
+      groupListRef.value?.querySelectorAll<HTMLElement>('[data-model-id]') ?? [],
+    ).filter((card) => card.dataset.modelId === modelId)
+    if (cards.length === 0) return
+    cards[0].scrollIntoView({ block: 'center' })
+    cards.forEach(flashModelCard)
+  },
+  { flush: 'post' },
+)
+
 // formatMultiplier prefixes the multiplier and uses two decimals only for fractional values.
 function formatMultiplier(multiplier: number): string {
   return `x${multiplier.toFixed(multiplier % 1 === 0 ? 0 : 2)}`
@@ -634,13 +684,6 @@ function formatCompactPerMillion(value: number): string {
 // formatPerImage appends the translated per-image unit to the formatted balance amount.
 function formatPerImage(value: number): string {
   return `${formatPrice(value)} ${t('marketplace.perImage')}`
-}
-
-// groupBrandSource selects the group's source text for brand labels and artwork.
-// A nonblank display_brand wins after trimming; otherwise the group name is
-// returned as supplied, including its surrounding whitespace.
-function groupBrandSource(group: Pick<MarketplaceGroup, 'display_brand' | 'name'>): string {
-  return group.display_brand?.trim() || group.name
 }
 
 // groupBrandLabel resolves the group's selected brand source into its shared display name.
@@ -1024,6 +1067,37 @@ useLocaleRefresh(fetchMarketplace)
   border-color: #dfcea3;
   background-color: #f7f2e5;
   color: #7c6128;
+}
+
+/*
+ * A card opened from global search pulses a brand-colored ring twice and fades out.
+ * Reduced motion skips the pulse; the card is still scrolled into view and filtered.
+ */
+.marketplace-card-flash {
+  animation: marketplace-card-flash 1.6s var(--motion-ease);
+  --flash-color: theme('colors.primary.600');
+}
+
+.dark .marketplace-card-flash {
+  --flash-color: theme('colors.primary.500');
+}
+
+@keyframes marketplace-card-flash {
+  0%,
+  50% {
+    box-shadow: 0 0 0 2px var(--flash-color);
+  }
+
+  25%,
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketplace-card-flash {
+    animation-duration: 1ms;
+  }
 }
 
 .dark .marketplace-exclusive-tag {

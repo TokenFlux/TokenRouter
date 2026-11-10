@@ -1460,7 +1460,7 @@ import {
   type ComponentPublicInstance,
 } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { useClipboard } from '@/composables/useClipboard'
@@ -1568,6 +1568,7 @@ interface GroupOption {
 // list actions to their shared page dependencies.
 const appStore = useAppStore()
 const route = useRoute()
+const router = useRouter()
 const scope = ref<DataScope>(route?.query?.scope === 'team' ? 'team' : 'personal')
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
@@ -2548,6 +2549,20 @@ const openCreateModal = () => {
   void Promise.all([loadBillingOptions(), loadFormGroups()])
 }
 
+// openCreateFromRoute opens the create dialog when the URL carries create=1, as the global
+// search "Create API key" action does, then removes the parameter so reloading the page
+// or navigating back does not open the dialog again.
+const openCreateFromRoute = () => {
+  if (route?.query?.create !== '1') return
+  openCreateModal()
+  const { create: _create, ...query } = route.query
+  void router.replace({ query })
+}
+
+// The action can run while this page is already open, which changes only the query on
+// the mounted instance; mount handles the first visit after the list loads.
+watch(() => route?.query?.create, openCreateFromRoute)
+
 // editKey converts a persisted key into the shared edit draft and loads its billing choices.
 // Composite bindings receive stable local IDs, model mappings become sorted rows, and expiry
 // uses browser-local datetime text. Server terminal statuses display as inactive, with
@@ -3229,6 +3244,7 @@ onMounted(async () => {
     loadBillingOptions(),
     loadFormGroups(),
   ])
+  openCreateFromRoute()
 })
 
 onUnmounted(() => {

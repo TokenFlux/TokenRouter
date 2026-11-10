@@ -77,9 +77,10 @@ vi.mock('@/components/announcements/AnnouncementPopup.vue', () => ({
   },
 }))
 
-// mountApp selects a mocked route and mounts the actual application shell. The caller
-// awaits startup promises and owns unmounting the returned wrapper so shell event
-// listeners are released.
+// mountApp selects a mocked route and mounts the actual application shell. The global
+// search palette is stubbed because these cases cover shell surfaces and install no i18n.
+// The caller awaits startup promises and owns unmounting the returned wrapper so shell
+// event listeners are released.
 function mountApp(path: string, name?: string) {
   mocks.route.path = path
   mocks.route.fullPath = path
@@ -90,6 +91,7 @@ function mountApp(path: string, name?: string) {
       stubs: {
         NavigationProgress: true,
         Toast: true,
+        GlobalSearchPalette: true,
       },
     },
   })

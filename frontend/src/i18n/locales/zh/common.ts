@@ -120,6 +120,56 @@ export default {
       },
     },
   },
+  // Global search palette
+  globalSearch: {
+    open: '搜索',
+    placeholder: '搜索模型和功能…',
+    dialogLabel: '全局搜索',
+    inputPlaceholder: '搜索模型、页面和操作…',
+    clear: '清空',
+    scopeLabel: '搜索范围',
+    resultsLabel: '搜索结果',
+    scopes: {
+      all: '全部',
+      model: '模型',
+      page: '页面',
+      action: '操作',
+    },
+    sections: {
+      model: '模型',
+      page: '页面',
+      action: '操作',
+      recent: '最近访问',
+      featured: '推荐模型',
+      common: '常用页面',
+    },
+    areas: {
+      admin: '管理',
+    },
+    pages: {
+      login: '登录',
+      register: '注册',
+    },
+    actions: {
+      createKey: '创建 API 密钥',
+      switchTheme: '切换到{mode}',
+      switchLanguage: '切换语言：{name}',
+      copyApiUrl: '复制 API 地址',
+    },
+    hints: {
+      navigate: '选择',
+      open: '打开',
+      copy: '复制 ID',
+      scope: '切换分类',
+    },
+    searchMarketplace: '在模型广场中搜索“{query}”',
+    noResults: '没有找到“{query}”',
+    loadingModels: '正在加载模型',
+    loadFailed: '模型列表加载失败',
+    truncated: '只显示前 {count} 个结果，继续输入可以缩小范围',
+    priceFrom: '低至',
+    copyModelId: '复制模型 ID',
+  },
   // Navigation
   nav: {
     dashboard: '仪表盘',

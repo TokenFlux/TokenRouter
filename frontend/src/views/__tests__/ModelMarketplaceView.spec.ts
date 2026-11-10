@@ -23,6 +23,14 @@ vi.mock('@/api/marketplace', () => ({
   getMarketplaceModels,
 }))
 
+// routeState is the current route; tests set its `q` query before mounting the page.
+const routeState = reactive({ path: '/models', query: {} as Record<string, string> })
+
+vi.mock('vue-router', async () => ({
+  ...(await vi.importActual<typeof import('vue-router')>('vue-router')),
+  useRoute: () => routeState,
+}))
+
 vi.mock('@/composables/useClipboard', () => ({
   // useClipboard exposes a stable copied flag and the observable copy replacement.
   useClipboard: () => ({ copied: { value: false }, copyToClipboard }),
@@ -263,6 +271,7 @@ function visibleTooltips() {
 describe('ModelMarketplaceView', () => {
   beforeEach(() => {
     localStorage.clear()
+    routeState.query = {}
     authState.isAuthenticated = true
     authState.user = { id: 7 }
     getAvailableMarketplaceModels.mockReset()
@@ -272,6 +281,25 @@ describe('ModelMarketplaceView', () => {
     checkAuth.mockClear()
     fetchPublicSettings.mockClear()
     copyToClipboard.mockClear()
+  })
+
+  // The global search palette opens the page with q set to a model ID. The page applies it
+  // as the search text, scrolls to that model's first card, and highlights every group's
+  // copy of the model, while other models are filtered out.
+  it('applies the q query and highlights the requested model', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    routeState.query = { q: 'gpt-5.5' }
+    const wrapper = await mountMarketplace()
+
+    expect(
+      (wrapper.get('[data-testid="marketplace-search"]').element as HTMLInputElement).value,
+    ).toBe('gpt-5.5')
+    const cards = wrapper.findAll('[data-model-id="gpt-5.5"]')
+    expect(cards).toHaveLength(4)
+    expect(cards.every((card) => card.classes('marketplace-card-flash'))).toBe(true)
+    expect(scrollIntoView).toHaveBeenCalledOnce()
+    expect(wrapper.find('[data-model-id="legacy-unpriced"]').exists()).toBe(false)
   })
 
   // Guest browsing stays on the public endpoint even though personal browsing exists.

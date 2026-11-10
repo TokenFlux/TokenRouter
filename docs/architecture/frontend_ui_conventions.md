@@ -2,13 +2,14 @@
 
 > 上级目录：[架构文档目录](index.md)
 
-本文记录前端设计 token 和组件样式的约定：圆角层级、间距网格、控件尺寸、菜单与浮层、弹窗与设置表单、层级、断点、加载反馈、图标与动画时长、行列表编辑器、表格密度、深色配色、图表主题、字体栈和字号下限。适用范围是 `frontend/tailwind.config.js`、`frontend/src/style.css` 和全部 Vue 组件；浅色配色主题和业务组件内部的局部布局由各组件自行决定。修改前端组件、样式或这两个文件前，先读本文。
+本文记录前端设计 token 和组件样式的约定：圆角层级、间距网格、控件尺寸、菜单与浮层、弹窗与设置表单、全局搜索、层级、断点、加载反馈、图标与动画时长、行列表编辑器、表格密度、深色配色、图表主题、字体栈和字号下限。适用范围是 `frontend/tailwind.config.js`、`frontend/src/style.css` 和全部 Vue 组件；浅色配色主题和业务组件内部的局部布局由各组件自行决定。修改前端组件、样式或这两个文件前，先读本文。
 
 ## 章节导航
 
 - [圆角层级](#圆角层级)、[间距约定](#间距约定)、[控件尺寸](#控件尺寸)、[开关](#开关)：调整基础组件时读取。
 - [菜单与浮层](#菜单与浮层)、[层级 z-index](#层级-z-index)、[弹窗](#弹窗)：调整浮层和遮罩时读取。
 - [设置表单](#settings_form)：新增或调整分页设置弹窗、整页设置、设置项行和批量编辑项时读取。
+- [全局搜索](#global_search)：调整顶栏搜索入口、搜索面板、快捷键、可搜索的页面和操作时读取。
 - [通用图标](#通用图标)：选择图标、调整悬停动画、迁移内联 SVG 时读取。
 - [断点](#断点)、[加载反馈](#loading_feedback)、[动画与时长](#动画与时长)、[表格密度](#表格密度)：调整响应式布局和交互时读取。
 - [行列表编辑器](#rule_list_editor)：新增或修改逐条添加的映射、规则列表时读取。
@@ -47,7 +48,7 @@
 - 用户仪表盘的页头由标题、实时状态和筛选工具组成。手机指标卡收紧内部间距，环比保留“较上期”说明；请求数、Token 和消费的涨跌使用中性色，缓存命中率的升降使用状态色。快捷操作在窄屏和文档顺序中位于公告之前，桌面上仍排在公告右侧。管理员配置了联系方式时，快捷操作下方显示“联系我们”卡片，条目和顶栏菜单共用 `utils/contactInfo.ts` 的解析规则：链接在新标签页打开，其他值点击复制；桌面上这张卡片撑满右列剩余高度，和公告卡片底边对齐。公告标题最多两行，摘要跳过表格和代码块，优先取首段正文，详情展示完整内容。
 - 控制台的 header 和 main 共用 `px-4 md:px-6 lg:px-8`，两侧边缘在各断点对齐。
 - 默认首页正文使用 `px-6 md:px-8`，页脚使用 `px-6 md:px-12`。首屏两个按钮在手机上各占一行并撑满正文宽度，640px 起并排居中。四项统计在各断点保持同一行，标签可在各自列内换行。
-- 默认首页和控制台共用 `AppHeader`，品牌、导航入口、余额和用户菜单都在这里。右侧从左到右依次是文字导航（模型广场、公告、文档、联系我们、当前语言）、访客的主题按钮，以及分隔线后的余额和头像。导航入口只显示文字，末尾不加箭头或下拉标记；公告有未读时在文字右上角显示红点。登录用户在头像菜单里切换主题，访客用顶栏的主题按钮。首页通过 `public-page` 隐藏侧栏开关，保留模型广场和访客登录入口，并为固定顶栏预留高度；自定义 HTML 或 iframe 首页使用全页模式。操作台的返回仪表盘图标在品牌右侧。
+- 默认首页和控制台共用 `AppHeader`，品牌、全局搜索入口、导航入口、余额和用户菜单都在这里。左侧是品牌，操作台的返回仪表盘图标在品牌右侧。右侧从左到右依次是[全局搜索](#global_search)入口、文字导航（模型广场、公告、文档、联系我们、当前语言）、访客的主题按钮，以及分隔线后的余额和头像。导航入口只显示文字，末尾不加箭头或下拉标记；公告有未读时在文字右上角显示红点。登录用户在头像菜单里切换主题，访客用顶栏的主题按钮。首页通过 `public-page` 隐藏侧栏开关，保留模型广场和访客登录入口，并为固定顶栏预留高度；自定义 HTML 或 iframe 首页使用全页模式。
 - 布局尺寸 token 在 `style.css` 的 `:root` 里定义，各有一份：`--header-h`（3.5rem，顶栏高度）、`--sidebar-w`（14rem，侧栏展开宽度）、`--sidebar-w-collapsed`（4.5rem，侧栏折叠宽度）。顶栏高度、主区 `padding-top`、侧栏遮罩 `top`、侧栏宽度和主区 `lg:ml-*` 偏移都引用这些变量（例如 `h-[var(--header-h)]`），`h-14`、`top-14`、`w-56` 这类字面量会和变量脱节。吸顶偏移和锚点 `scroll-margin-top` 写成 `calc(var(--header-h) + 余量)`（参考 SettingsView 的 tabs 吸顶），并在注释里写明余量由什么组成。
 - 垂直空间由 AppLayout 的 flex 链分配：wrapper（`flex-col`，普通模式 `min-h-screen`，锁定模式 `h-full min-h-0`）→ `.app-main`（`flex-1 flex-col`）→ 页头（自然高度）+ 页面内容。需要撑满剩余高度的页面容器（例如 `TablePageLayout`、`CustomPageView` 的根元素）自己加 `flex-1 min-h-0`。手写 `calc(100vh - …)` 视口差值和用负 margin 抵消父级内边距都会破坏这条链；`--main-pad-*`、`--page-heading-space` 这类和布局重复的尺寸变量也不要引入。
 - 系统设置页的内容容器用 `w-full min-w-0` 填满主区，各页签的卡片同宽。容器不设居中外边距和最大宽度，否则在纵向 flex 布局里会按内容收缩。
@@ -139,6 +140,16 @@
 - 分页表单可以设置 `BaseDialog` 的 `bodyScroll=false`，由表单内部管理滚动，标题、页签和底部操作区始终可见。默认由弹窗内容区滚动。分组的创建和编辑（`GroupSettingsForm`）、提供商的创建、编辑和批量编辑，以及属性配置的编辑，都按[设置表单](#settings_form)的约定分页。
 - 安全凭证流程（TOTP 设置、禁用、登录验证、提权）使用 `AuthCardDialog`：居中的图标头，右上角没有关闭按钮，整张卡片 p-6，是和 BaseDialog 并存的另一种风格。它不 teleport，在原位置渲染，嵌套时的层级由 `z-index` prop 决定。
 - 手写弹窗的处理方式：结构是"标题头、内容、按钮行"的，迁移到 BaseDialog；有特殊视觉结构的继续手写，并登记在下面的[合法例外](#合法例外)里。
+
+<a id="global_search"></a>
+## 全局搜索
+
+- 入口：`AppHeader` 和未登录模型广场的自绘顶栏都把 `GlobalSearchTrigger` 放在右侧控件组的最前面，紧挨着文字导航。顶栏变窄时只有搜索入口收缩，导航和账户控件保持原宽度。`sm` 起它是一个 36px 高、外观像输入框的按钮，宽度从 `w-44` 逐级加到 `w-72`，不小于 `min-w-32`；`lg` 起右侧显示 `.kbd` 快捷键提示，苹果设备是 `⌘K`，其他平台是 `Ctrl K`。`sm` 以下收成 `.header-status-icon-button`。
+- 面板：`GlobalSearchPalette` 由 `App.vue` 挂载一次，打开状态在 `components/layout/search/globalSearchState.ts`。有入口挂载时才响应快捷键：`⌘K`（其他平台 `Ctrl K`）打开或关闭面板，`/` 在输入框以外打开面板，其他弹窗打开时两者都不响应。面板顶边在视口 12vh 处，最宽 `max-w-2xl`，手机上全屏并用“取消”按钮关闭。
+- 键盘：焦点一直在输入框，当前行用 `aria-activedescendant` 指出。↑↓ 移动当前行，回车打开，`⌘↵`（其他平台 `Ctrl↵`）复制模型 ID 且不关闭面板，Tab 和 Shift+Tab 切换“全部、模型、页面、操作”，Esc 先清空查询，查询为空时才关闭。输入法组词期间不处理这些按键。
+- 结果行：当前行和 `.menu-item` 悬停态同色，命中的字符用链接悬停的品牌色加粗。模型行显示模型图标、展示名、等宽字体的模型 ID 和最低价，多个分组报价不同时价格前加“低至”；管理员的页面行在右侧标出“管理”或“我的账户”。
+- 内容：模型来自模型广场接口，`utils/marketplaceCatalog.ts` 把同一模型在各分组的报价合并成一行。页面来自 `components/layout/navigationItems.ts`，角色、功能开关和 backend mode 的规则和侧栏一致；访客只有模型广场、登录、注册和文档。操作包括创建 API 密钥、切换主题和语言、复制 API 地址和退出登录。中英文别名表在 `components/layout/search/searchCatalog.ts`，新增侧栏入口时按需补充。
+- 空查询时依次显示最近访问（按账号存在浏览器本地，最多 5 条）、推荐模型（`home_featured_models`）和常用页面；查询没有结果时提供“在模型广场中搜索”。选中模型跳到 `/models?q=<模型 ID>`，模型广场把 `q` 填进搜索框、清除筛选，并让对应卡片闪一次品牌色描边；“创建 API 密钥”打开 `/keys?create=1`，页面弹出创建框后移除这个参数。
 
 <a id="settings_form"></a>
 ## 设置表单
@@ -346,7 +357,7 @@ Vue 的 `<style scoped>` 中，深色后代规则写成 `.dark .component-class`
 - `onboarding.css` 覆盖 driver.js 第三方样式时使用的 `!important`。
 - i18n 文案里内嵌的导览 HTML（`src/i18n/**`）属于内容字符串，它的 inline style 不参与 token 校验。
 - 测试文件里断言"某个类名不存在"的负断言会被扫描命中，在该语句旁加 `check-ui-allow` 注释豁免。
-- 保留手写外壳的弹窗：BackupSettings 的 R2Guide 和 SubscriptionsView 的指南弹窗（max-w-2xl，BaseDialog 没有对应档位）、AnnouncementPopup 和 AnnouncementBell 的弹窗（独立的层级和定制过渡）、ProviderTestModal 的图片灯箱（媒体覆盖层，用强遮罩档）。新增弹窗默认用 BaseDialog，不要照搬这些结构。
+- 保留手写外壳的弹窗：BackupSettings 的 R2Guide 和 SubscriptionsView 的指南弹窗（max-w-2xl，BaseDialog 没有对应档位）、AnnouncementPopup 和 AnnouncementBell 的弹窗（独立的层级和定制过渡）、ProviderTestModal 的图片灯箱（媒体覆盖层，用强遮罩档）、GlobalSearchPalette（没有标题栏，顶部定位，手机全屏；滚动锁、焦点恢复和最上层判断仍用 `useDialogLifecycle`）。新增弹窗默认用 BaseDialog，不要照搬这些结构。
 - RiskControlView 搜索框的 `pl-9` 图标留白（和 `input-icon-*` 的各档数值都不同，局部保留）。
 - ProvidersView 跟随鼠标的操作菜单（定位方式特殊，不使用 `getFloatingPanelPosition`）。
 - textarea 按内容决定高度、GroupBadge 的方角造型、OpsDashboard 250ms 的路由同步防抖（用途和搜索防抖不同）、CreativeCanvas 工具条和 CreativeRunHistory 条目详情的结构性展开动画，都是局部写法，保持原样。

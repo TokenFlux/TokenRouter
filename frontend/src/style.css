@@ -995,6 +995,16 @@
   }
 
   /*
+   * Key caps show keyboard shortcuts in compact monospace text with a faint border.
+   * The global search trigger and palette use them for their shortcut hints.
+   */
+  .kbd {
+    @apply inline-flex shrink-0 items-center rounded-compact border px-1.5 font-mono text-xs leading-5;
+    @apply border-primary-900/10 bg-white text-primary-900/50;
+    @apply dark:border-dark-600 dark:bg-dark-900 dark:text-dark-400;
+  }
+
+  /*
    * AppHeader icon actions, such as the guest theme toggle, share this icon-button
    * size and interaction styling so the utility group stays aligned.
    */
