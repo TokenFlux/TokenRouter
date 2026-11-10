@@ -129,8 +129,9 @@ export default {
       modelCount: 'Models',
     },
     featured: {
-      byProvider: 'by {provider}',
-      discountOff: 'Up to {percent}% off',
+      byAuthor: 'by {author}',
+      modalities: 'Input / Output',
+      maxDiscount: 'Max. discount',
     },
     stats: {
       todayTokens: 'Today Total Tokens',
@@ -141,27 +142,20 @@ export default {
       unavailable: 'Stats are temporarily unavailable',
     },
     steps: {
+      title: 'How it works',
       signup: {
         title: 'Sign up',
-        description:
-          'Create an account and add API keys. Team space and quotas can be configured later.',
+        description: 'Start with a personal account. You can create a team later.',
       },
-      browse: {
-        title: 'Choose models',
-        description:
-          'Use the model marketplace to compare supported models, provider types, and relative pricing.',
+      recharge: {
+        title: 'Top up your balance',
+        description: 'Top up in the dashboard and pay as you go.',
       },
       apiKey: {
-        title: 'Get your API key',
-        description:
-          'Send OpenAI-compatible, OpenAI Responses, or Anthropic-format requests and settle by actual token usage.',
+        title: 'Create an API key',
+        description: 'Use a key from the dashboard to send your first request.',
+        docs: 'Read the API docs',
       },
-    },
-    // CTA section
-    cta: {
-      title: 'Connect your application',
-      description: 'Create an account to manage API keys and track model usage.',
-      button: 'Create an account',
     },
     footer: {
       allRightsReserved: 'All rights reserved.',

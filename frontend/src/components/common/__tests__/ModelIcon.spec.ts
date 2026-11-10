@@ -67,16 +67,34 @@ describe('ProviderIcon', () => {
   })
 
   /**
-   * Nano Banana aliases are supplied as provider brand names. The provider icon
-   * resolves them to the Google graphic with its expected blue path color.
+   * The provider icon receives the Google name or a Nano Banana alias. All
+   * inputs resolve to the four-color Google mark at the requested size.
    */
-  it.each(['nano-banana-2', 'nano-banana-pro'])('%s 使用 Google 徽标而不是首字母回退', (model) => {
+  it.each(['Google', 'nano-banana-2', 'nano-banana-pro'])('%s 使用彩色 Google 徽标', (brand) => {
     const wrapper = mount(ProviderIcon, {
-      props: { brand: model },
+      props: { brand, size: '22px' },
     })
 
-    expect(wrapper.find('svg').exists()).toBe(true)
-    expect(wrapper.find('.provider-icon-fallback').exists()).toBe(false)
-    expect(wrapper.get('path').attributes('fill')).toBe('#4285F4')
+    expect(wrapper.get('svg').attributes('width')).toBe('22px')
+    expect(wrapper.findAll('path').map((path) => path.attributes('fill'))).toEqual([
+      '#4285F4',
+      '#34A853',
+      '#FBBC05',
+      '#EA4335',
+    ])
+  })
+
+  /**
+   * A caller explicitly requests a monochrome Google mark using currentColor.
+   * The requested color applies to every path so the graphic follows the surrounding text.
+   */
+  it('Google 徽标保留显式指定的颜色', () => {
+    const wrapper = mount(ProviderIcon, {
+      props: { brand: 'Google', color: 'currentColor' },
+    })
+
+    expect(wrapper.findAll('path').map((path) => path.attributes('fill'))).toEqual(
+      Array(4).fill('currentColor'),
+    )
   })
 })

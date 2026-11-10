@@ -17,7 +17,7 @@
           : 'admin.modelAttributes.none',
       )
     }}</span>
-    <Icon name="moveRight" size="xs" :stroke-width="2" class="text-gray-400 dark:text-dark-500" />
+    <Icon name="moveRight" size="xs" :stroke-width="2" class="text-gray-950 dark:text-white" />
     <ModalityIcon
       v-for="modality in capabilities.output"
       :key="`output-${modality}`"

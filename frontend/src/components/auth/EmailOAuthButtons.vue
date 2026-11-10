@@ -30,7 +30,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import GitHubMark from './GitHubMark.vue'
-import GoogleMark from './GoogleMark.vue'
+import GoogleMark from '@/components/common/GoogleMark.vue'
 import type { OAuthLoginStart } from '@/api/auth'
 import { resolveAffiliateCode, storeOAuthAffiliateCode } from '@/utils/oauthAffiliate'
 

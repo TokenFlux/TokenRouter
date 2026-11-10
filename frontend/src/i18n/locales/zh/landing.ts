@@ -124,8 +124,9 @@ export default {
       modelCount: '模型',
     },
     featured: {
-      byProvider: 'by {provider}',
-      discountOff: '最高优惠{percent}%',
+      byAuthor: '由 {author} 开发',
+      modalities: '输入 / 输出',
+      maxDiscount: '最高优惠',
     },
     stats: {
       todayTokens: '今日总 Token 量',
@@ -136,25 +137,20 @@ export default {
       unavailable: '统计数据暂不可用',
     },
     steps: {
+      title: '开始使用',
       signup: {
         title: '注册账号',
-        description: '登录后即可创建密钥，团队空间和额度配置可以后续再完善。',
+        description: '先注册个人账号，团队可以之后再建。',
       },
-      browse: {
-        title: '选择模型',
-        description: '在模型广场查看已支持模型、服务类型和相对官方价格。',
+      recharge: {
+        title: '充值余额',
+        description: '在控制台充值，调用模型时按用量扣费。',
       },
       apiKey: {
-        title: '获取 API Key',
-        description:
-          '支持 OpenAI 兼容、OpenAI Responses 和 Anthropic 格式请求，按实际 Token 用量结算。',
+        title: '创建 API 密钥',
+        description: '在控制台创建密钥，用它发出第一条请求。',
+        docs: '查看 API 文档',
       },
-    },
-    // Call-to-action section
-    cta: {
-      title: '接入你的应用',
-      description: '创建账号，在控制台管理 API 密钥并查看模型用量。',
-      button: '创建账号',
     },
     footer: {
       allRightsReserved: '保留所有权利。',

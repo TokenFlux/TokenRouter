@@ -1,8 +1,8 @@
 <!--
-  GoogleMark.vue renders the Google mark used beside email-provider sign-in
-  actions. The template supplies fixed SVG geometry and colors, while the
-  consuming button provides accessible action text and any inherited sizing
-  classes.
+  GoogleMark.vue renders the full-color Google mark used by provider badges,
+  sign-in buttons, and the homepage signup illustration. The SVG shares its
+  geometry and four brand colors across these surfaces. Callers set its size
+  and provide accessible text when the mark accompanies an action.
 -->
 <template>
   <svg viewBox="0 0 24 24" aria-hidden="true">

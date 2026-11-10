@@ -26,7 +26,7 @@
 
     <main
       v-content-reveal="motionRoute?.path"
-      class="relative z-10 flex-1 px-4 pb-20 pt-16 sm:px-6 lg:px-8"
+      class="relative z-10 flex-1 px-6 pb-16 pt-16 md:px-8 md:pb-20"
     >
       <section class="mx-auto max-w-5xl text-center">
         <h1
@@ -38,17 +38,17 @@
           {{ homeHeroSubtitle }}
         </p>
 
-        <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <div class="mt-8 grid grid-cols-1 gap-3 sm:mx-auto sm:w-fit sm:grid-cols-2 sm:gap-4">
           <router-link
             :to="isAuthenticated ? dashboardPath : '/login'"
-            class="inline-flex min-h-[44px] min-w-[180px] items-center justify-center gap-2 rounded-control bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-none transition hover:bg-primary-700"
+            class="inline-flex min-h-11 min-w-[180px] items-center justify-center gap-2 rounded-control bg-primary-600 px-6 py-2 text-sm font-semibold text-white shadow-none transition hover:bg-primary-700"
           >
             {{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }}
             <Icon name="arrowRight" size="sm" :stroke-width="2" />
           </router-link>
           <router-link
             to="/models"
-            class="inline-flex min-h-[44px] min-w-[180px] items-center justify-center gap-2 rounded-control border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-gray-900 shadow-sm transition hover:border-black/20 hover:text-primary-600 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100 dark:hover:border-primary-500"
+            class="inline-flex min-h-11 min-w-[180px] items-center justify-center gap-2 rounded-control border border-gray-200 bg-white px-6 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:border-black/20 hover:text-primary-600 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100 dark:hover:border-primary-500"
           >
             {{ t('home.exploreMarketplace') }}
             <span class="relative flex h-5 w-5 items-center justify-center overflow-hidden">
@@ -72,14 +72,19 @@
         </div>
       </section>
 
-      <section class="mx-auto mt-16 grid max-w-4xl grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-4">
-        <div v-for="card in homeStatsCards" :key="card.key" class="text-center">
+      <section class="mx-auto mt-12 grid max-w-4xl grid-cols-4 gap-2 sm:gap-4 md:mt-16 md:gap-6">
+        <div v-for="card in homeStatsCards" :key="card.key" class="min-w-0 text-center">
+          <!-- Scale the numbers on wider phones while leaving room for compact values with localized suffixes. -->
           <p
-            class="min-h-[1.1em] text-3xl font-bold tabular-nums tracking-tight text-gray-950 dark:text-white md:text-4xl"
+            class="break-words text-[clamp(0.75rem,calc(5vw_-_0.1875rem),1.5rem)] font-bold leading-tight tabular-nums tracking-tight text-gray-950 dark:text-white sm:text-3xl md:text-4xl"
           >
             {{ card.value }}
           </p>
-          <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">{{ card.label }}</p>
+          <p
+            class="mt-1 break-words text-xs leading-snug text-gray-500 dark:text-dark-400 md:mt-2 md:text-sm"
+          >
+            {{ card.label }}
+          </p>
         </div>
       </section>
       <p v-if="homeStatsError" class="mt-4 text-center text-xs text-gray-500 dark:text-dark-400">
@@ -95,21 +100,21 @@
             class="relative h-44 shrink-0 overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
           >
             <div
-              class="absolute inset-0 transition-transform duration-normal motion-safe:group-hover:scale-105"
+              class="absolute inset-0 grid grid-rows-5 p-2 transition-transform duration-normal motion-safe:group-hover:scale-105"
             >
-              <span
-                v-for="icon in homeProviderCloudIcons"
-                :key="icon.brand"
-                class="absolute flex h-7 w-7 items-center justify-center rounded-full border border-gray-100 bg-white/95 text-gray-700 shadow-[0_5px_16px_rgba(0,0,0,0.13)] ring-1 ring-black/[0.02] dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100 dark:ring-white/[0.04]"
-                :style="{
-                  left: icon.left,
-                  top: icon.top,
-                  opacity: icon.opacity,
-                  transform: `translate(-50%, -50%) scale(${icon.scale})`,
-                }"
+              <div
+                v-for="row in homeProviderCloudRows"
+                :key="row[0]"
+                class="grid w-full grid-flow-col auto-cols-fr place-items-center justify-self-center even:w-4/5"
               >
-                <ProviderIcon :brand="icon.brand" size="14px" />
-              </span>
+                <span
+                  v-for="brand in row"
+                  :key="brand"
+                  class="flex h-7 w-7 items-center justify-center rounded-full border border-gray-100 bg-white/95 text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100"
+                >
+                  <ProviderIcon :brand="brand" size="18px" />
+                </span>
+              </div>
             </div>
           </div>
           <div class="flex flex-1 flex-col p-5">
@@ -139,7 +144,7 @@
               class="relative h-full w-full transition-transform duration-normal motion-safe:group-hover:scale-105"
             >
               <div
-                class="absolute left-1/2 top-7 z-10 max-w-[82%] -translate-x-1/2 truncate rounded-control bg-gray-100 px-3.5 py-1.5 text-xs font-medium text-gray-800 shadow-sm dark:bg-dark-900 dark:text-dark-100"
+                class="absolute left-1/2 top-7 z-10 max-w-[82%] -translate-x-1/2 truncate rounded-control bg-gray-100 px-3.5 py-1.5 text-xs font-medium text-gray-800 dark:bg-dark-900 dark:text-dark-100"
               >
                 {{ homeRouteLabel }}
               </div>
@@ -168,7 +173,7 @@
                 <span
                   v-for="brand in homeRouteProviderBrands"
                   :key="brand"
-                  class="flex h-9 w-9 items-center justify-center rounded-control border border-gray-100 bg-white text-gray-700 shadow-[0_5px_16px_rgba(0,0,0,0.13)] dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100"
+                  class="flex h-9 w-9 items-center justify-center rounded-control border border-gray-100 bg-white text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100"
                 >
                   <ProviderIcon :brand="brand" size="20px" />
                 </span>
@@ -271,21 +276,24 @@
       </section>
 
       <section class="mx-auto mt-20 max-w-7xl">
-        <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 class="text-2xl font-bold text-gray-950 dark:text-white">
+        <div class="mb-6 flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <h2 class="text-base font-medium leading-[1.35] text-gray-950 dark:text-white">
               {{ t('home.providers.title') }}
             </h2>
-            <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
+            <p class="mt-1 text-sm leading-relaxed text-gray-600 dark:text-dark-300">
               {{ formatMarketplaceStat(totalModelCount) }} {{ t('marketplace.modelsStat') }}
               ·
               {{ formatMarketplaceStat(supportedProviders.length) }}
               {{ t('home.stats.providerTypes') }}
             </p>
           </div>
-          <router-link to="/models" class="text-sm font-medium text-link">
+          <router-link
+            to="/models"
+            class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-sm leading-relaxed text-link"
+          >
             {{ t('home.viewAll') }}
-            <Icon name="arrowRight" size="xs" class="inline-block" />
+            <Icon name="arrowRight" size="xs" />
           </router-link>
         </div>
 
@@ -322,24 +330,41 @@
                   <h3 class="truncate text-lg font-semibold text-gray-950 dark:text-white">
                     {{ featured.model.display_name || featured.model.id }}
                   </h3>
-                  <p class="truncate text-sm text-gray-500 dark:text-dark-400">
-                    {{
-                      t('home.featured.byProvider', {
-                        provider: homeProviderCategory(featured.group).label,
-                      })
-                    }}
+                  <p
+                    v-if="featured.author"
+                    class="truncate text-sm text-gray-500 dark:text-dark-400"
+                  >
+                    {{ t('home.featured.byAuthor', { author: featured.author }) }}
                   </p>
                 </div>
               </div>
-              <!-- Omit the entire discount footer when the group has no valid saving against its official reference price. -->
-              <div
-                v-if="featured.discountOff"
-                class="mt-5 border-t border-gray-200 pt-5 dark:border-dark-800"
+              <dl
+                class="mt-5 grid grid-cols-2 gap-1 border-t border-gray-200 pt-5 text-sm leading-relaxed dark:border-dark-800 sm:gap-4"
               >
-                <p class="text-sm font-semibold tabular-nums text-gray-950 dark:text-white">
-                  {{ featured.discountOff }}
-                </p>
-              </div>
+                <div class="min-w-0">
+                  <dt class="text-gray-600 dark:text-dark-300">{{
+                    t('home.featured.modalities')
+                  }}</dt>
+                  <dd class="flex min-h-[1.625em] items-center">
+                    <ModelCapabilityTags :model="featured.model" class="home-featured-modalities" />
+                  </dd>
+                </div>
+                <div class="min-w-0 text-right">
+                  <dt class="text-gray-600 dark:text-dark-300">{{
+                    t('home.featured.maxDiscount')
+                  }}</dt>
+                  <dd
+                    class="font-medium tabular-nums"
+                    :class="
+                      featured.discountOff
+                        ? 'text-gray-950 dark:text-white'
+                        : 'text-gray-500 dark:text-dark-400'
+                    "
+                  >
+                    {{ featured.discountOff ?? '—' }}
+                  </dd>
+                </div>
+              </dl>
             </article>
           </template>
 
@@ -391,93 +416,127 @@
         </div>
       </section>
 
-      <section class="mx-auto mt-16 max-w-7xl px-2 sm:px-0">
-        <div class="grid gap-8 md:grid-cols-3">
-          <article v-for="step in homeSteps" :key="step.key" class="flex min-h-[190px] flex-col">
-            <div class="flex items-center gap-3">
+      <section
+        aria-labelledby="home-steps-heading"
+        class="mt-16 text-sm font-[450] leading-[1.625] text-gray-950 dark:text-dark-50 md:mt-20"
+      >
+        <h2 id="home-steps-heading" class="sr-only">{{ t('home.steps.title') }}</h2>
+        <div class="mx-auto grid max-w-4xl gap-12 px-6 md:grid-cols-3">
+          <article v-for="step in homeSteps" :key="step.key" class="flex min-w-0 flex-col gap-4">
+            <div class="flex items-center gap-2 md:gap-3">
               <span
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-base font-semibold text-primary-600 dark:bg-primary-500/10 dark:text-primary-300"
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-950/[0.03] font-medium dark:bg-dark-50/[0.03]"
               >
                 {{ step.index }}
               </span>
-              <h2 class="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">
-                {{ step.title }}
-              </h2>
+              <h3 class="text-base font-medium leading-[1.35]">{{ step.title }}</h3>
             </div>
-            <p class="mt-4 max-w-sm text-sm leading-6 text-gray-600 dark:text-dark-300">
+
+            <p class="min-h-10 text-gray-950/[0.69] dark:text-dark-50/[0.69] md:min-h-12">
               {{ step.description }}
+              <template v-if="step.key === 'api-key' && docUrl">
+                {{ ' ' }}
+                <a
+                  :href="docUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-link underline-offset-2 decoration-current/40"
+                >
+                  {{ t('home.steps.apiKey.docs') }}
+                </a>
+              </template>
             </p>
 
-            <div v-if="step.key === 'signup'" class="mt-8">
-              <div class="flex items-center gap-3 text-primary-500">
-                <Icon name="user" size="md" :stroke-width="1.8" />
-                <div class="space-y-1.5">
-                  <div class="h-1.5 w-7 rounded-full bg-primary-100 dark:bg-primary-400/20"></div>
-                  <div class="h-1.5 w-20 rounded-full bg-primary-100 dark:bg-primary-400/20"></div>
-                </div>
-              </div>
-              <div class="mt-4 grid max-w-[156px] grid-cols-3 gap-3">
-                <span
-                  class="flex h-10 w-10 items-center justify-center rounded-control bg-white/90 shadow-sm ring-1 ring-gray-100 dark:bg-dark-950 dark:ring-dark-800"
+            <div class="flex w-full max-w-56 flex-col gap-3 pt-4 md:px-2" aria-hidden="true">
+              <div class="flex items-center gap-2">
+                <svg
+                  class="h-5 w-5 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
                 >
-                  <ProviderIcon brand="Google" size="20px" />
+                  <path :d="onboardingPaths[step.icon]" />
+                </svg>
+                <span
+                  v-for="(width, index) in step.illustrationLineWidths"
+                  :key="index"
+                  class="home-step-lines flex h-4 flex-col justify-center gap-0.5"
+                  :class="width"
+                ></span>
+                <span
+                  v-if="step.key === 'api-key'"
+                  class="home-step-sample flex h-6 min-w-0 flex-1 items-center bg-gray-950/5 px-2 text-xs leading-[1.35] tracking-wide text-gray-950/[0.69] dark:bg-dark-50/5 dark:text-dark-50/[0.69]"
+                >
+                  <span class="truncate">TOKENFLUX_API_KEY</span>
+                </span>
+              </div>
+
+              <div v-if="step.key === 'signup'" class="flex gap-2">
+                <span
+                  class="flex h-10 w-10 items-center justify-center rounded-control bg-gray-950/[0.03] dark:bg-dark-50/[0.03]"
+                >
+                  <GoogleMark class="h-5 w-5" />
                 </span>
                 <span
-                  class="flex h-10 w-10 items-center justify-center rounded-control bg-white/90 text-gray-800 shadow-sm ring-1 ring-gray-100 dark:bg-dark-950 dark:text-gray-100 dark:ring-dark-800"
+                  class="flex h-10 w-10 items-center justify-center rounded-control bg-gray-950/[0.03] dark:bg-dark-50/[0.03]"
                 >
                   <GitHubMark class="h-5 w-5" />
                 </span>
                 <span
-                  class="flex h-10 w-10 items-center justify-center rounded-control bg-white/90 text-primary-500 shadow-sm ring-1 ring-gray-100 dark:bg-dark-950 dark:ring-dark-800"
+                  class="flex h-10 w-10 items-center justify-center rounded-control bg-gray-950/[0.03] dark:bg-dark-50/[0.03]"
                 >
-                  <Icon name="mail" size="md" :stroke-width="1.8" />
+                  <LinuxDoMark class="h-5 w-5" />
+                </span>
+                <span
+                  class="flex h-10 w-10 items-center justify-center rounded-control bg-gray-950/[0.03] text-primary-600 dark:bg-dark-50/[0.03] dark:text-primary-500"
+                >
+                  <svg
+                    class="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path :d="onboardingPaths.envelope" />
+                  </svg>
                 </span>
               </div>
-            </div>
 
-            <div v-else-if="step.key === 'browse'" class="mt-auto max-w-[270px] pt-6">
-              <div class="flex items-center gap-3 text-primary-500">
-                <Icon name="grid" size="md" :stroke-width="1.8" />
-                <div class="grid flex-1 grid-cols-4 gap-2">
-                  <div class="h-1 rounded-full bg-primary-100 dark:bg-primary-400/20"></div>
-                  <div class="h-1 rounded-full bg-primary-100 dark:bg-primary-400/20"></div>
-                  <div class="h-1 rounded-full bg-primary-100 dark:bg-primary-400/20"></div>
-                  <div class="h-1 rounded-full bg-primary-100 dark:bg-primary-400/20"></div>
+              <div v-else-if="step.key === 'recharge'" class="flex flex-col gap-2">
+                <div
+                  v-for="example in homeRechargeExamples"
+                  :key="example.date"
+                  class="home-step-sample flex h-6 items-center gap-2 bg-gray-950/5 px-2 dark:bg-dark-50/5"
+                >
+                  <span
+                    class="shrink-0 text-xs leading-[1.35] text-gray-950/[0.69] dark:text-dark-50/[0.69]"
+                  >
+                    {{
+                      formatDate(
+                        example.date,
+                        { month: 'short', day: 'numeric', timeZone: 'UTC' },
+                        locale,
+                      )
+                    }}
+                  </span>
+                  <span
+                    class="home-step-sample h-2 min-w-0 flex-1 bg-gray-950/[0.08] dark:bg-dark-50/[0.08]"
+                  ></span>
+                  <span
+                    class="home-step-sample h-2 min-w-0 flex-1 bg-gray-950/[0.08] dark:bg-dark-50/[0.08]"
+                  ></span>
+                  <span class="shrink-0 font-medium">{{ example.amount }}</span>
                 </div>
               </div>
-              <div class="mt-4 space-y-2">
-                <div
-                  class="flex items-center gap-2 rounded-control bg-white/90 px-3 py-2 text-gray-700 shadow-sm ring-1 ring-gray-100 dark:bg-dark-950 dark:text-dark-200 dark:ring-dark-800"
-                >
-                  <span class="w-14 text-xs font-medium">Claude</span>
-                  <span
-                    class="h-2 flex-1 rounded-full bg-primary-100 dark:bg-primary-400/20"
-                  ></span>
-                  <span class="h-2 w-12 rounded-full bg-primary-100 dark:bg-primary-400/20"></span>
-                </div>
-                <div
-                  class="flex items-center gap-2 rounded-control bg-white/90 px-3 py-2 text-gray-700 shadow-sm ring-1 ring-gray-100 dark:bg-dark-950 dark:text-dark-200 dark:ring-dark-800"
-                >
-                  <span class="w-14 text-xs font-medium">GPT</span>
-                  <span
-                    class="h-2 flex-1 rounded-full bg-primary-100 dark:bg-primary-400/20"
-                  ></span>
-                  <span class="h-2 w-12 rounded-full bg-primary-100 dark:bg-primary-400/20"></span>
-                </div>
-              </div>
-            </div>
 
-            <div v-else class="mt-8 max-w-[270px]">
-              <div class="flex items-center gap-3 text-primary-500">
-                <Icon name="key" size="md" :stroke-width="1.8" />
-                <div
-                  class="flex-1 rounded-control bg-white/90 px-3 py-2 font-mono text-xs text-gray-600 shadow-sm ring-1 ring-gray-100 dark:bg-dark-950 dark:text-dark-300 dark:ring-dark-800"
-                >
-                  TOKENFLUX_API_KEY
-                </div>
-              </div>
               <div
-                class="mt-3 rounded-control bg-white/90 px-3 py-2 font-mono text-sm tracking-[0.2em] text-gray-950 shadow-sm ring-1 ring-gray-100 dark:bg-dark-950 dark:text-white dark:ring-dark-800"
+                v-else
+                class="home-step-sample flex h-6 items-center bg-gray-950/5 px-2 text-xs leading-[1.35] tracking-wider text-gray-950/[0.69] dark:bg-dark-50/5 dark:text-dark-50/[0.69]"
               >
                 ••••••••••••••••
               </div>
@@ -485,28 +544,10 @@
           </article>
         </div>
       </section>
-
-      <section class="mx-auto mt-24 max-w-3xl text-center">
-        <h2 class="text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
-          {{ t('home.cta.title') }}
-        </h2>
-        <p class="mx-auto mt-4 max-w-xl text-base leading-7 text-gray-600 dark:text-dark-300">
-          {{ t('home.cta.description') }}
-        </p>
-        <div class="mt-8">
-          <router-link
-            :to="isAuthenticated ? dashboardPath : '/login'"
-            class="inline-flex min-h-[44px] min-w-[180px] items-center justify-center gap-2 rounded-control bg-primary-600 px-8 py-3 text-sm font-semibold text-white transition hover:bg-primary-700"
-          >
-            {{ isAuthenticated ? t('home.goToDashboard') : t('home.cta.button') }}
-            <Icon name="arrowRight" size="sm" :stroke-width="2" />
-          </router-link>
-        </div>
-      </section>
     </main>
 
     <!-- The footer shares the page backdrop in both themes, with a border separating it from the main content. -->
-    <footer class="relative z-10 border-t border-gray-200 px-6 py-12 dark:border-dark-800">
+    <footer class="relative z-10 border-t border-gray-200 px-6 py-12 dark:border-dark-800 md:px-12">
       <div class="mx-auto max-w-7xl">
         <div
           class="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:flex lg:justify-between lg:gap-8"
@@ -575,13 +616,19 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
 import GitHubMark from '@/components/auth/GitHubMark.vue'
+import GoogleMark from '@/components/common/GoogleMark.vue'
 import GoogleOneTap from '@/components/auth/GoogleOneTap.vue'
+import LinuxDoMark from '@/components/auth/LinuxDoMark.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import ModelIcon from '@/components/common/ModelIcon.vue'
+import ModelCapabilityTags from '@/components/marketplace/ModelCapabilityTags.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { getMarketplaceModels, getMarketplaceStats } from '@/api/marketplace'
 import type { MarketplaceGroup, MarketplaceModel, MarketplaceStats } from '@/api/marketplace.types'
+import { formatDate } from '@/utils/format'
+import { onboardingPaths } from './home/onboardingArtwork'
+import { modelAuthor } from './home/modelAuthor'
 import { sanitizeUrl } from '@/utils/url'
 import { hasAcceptedLoginAgreement } from '@/utils/loginAgreement'
 import { isGoogleOneTapEligible, isGoogleOneTapOriginSupported } from '@/utils/googleIdentity'
@@ -613,7 +660,7 @@ type HomeStatsKey = 'today-tokens' | 'total-tokens' | 'total-users' | 'supported
 // HomeStatsIcon restricts configured statistic icon metadata to the supported icon names.
 type HomeStatsIcon = 'bolt' | 'database' | 'users' | 'grid'
 // HomeStepIcon identifies the configured icon for a public onboarding step.
-type HomeStepIcon = 'userPlus' | 'grid' | 'key'
+type HomeStepIcon = 'user' | 'creditCard' | 'key'
 // HomeStatFormat chooses compact notation or whole-number formatting for animated totals.
 type HomeStatFormat = 'compact' | 'number'
 
@@ -654,22 +701,17 @@ interface HomeStep {
   title: string // Translated instruction heading.
   description: string // Translated instruction description.
   icon: HomeStepIcon // Configured instruction icon name.
+  illustrationLineWidths: string[] // Placeholder bar width classes.
 }
 
-// HomeProviderCloudIcon positions one decorative brand mark in the gateway illustration.
-interface HomeProviderCloudIcon {
-  brand: string // Shared artwork brand identifier.
-  left: string // Horizontal CSS percentage position.
-  top: string // Vertical CSS percentage position.
-  opacity: number // Icon opacity fraction.
-  scale: number // Relative icon scale.
-}
-
-// HomeFeaturedModel pairs a public model with its first resolved group and discount.
+// HomeFeaturedModel pairs a public model with its developer byline and formatted discount.
 interface HomeFeaturedModel {
   model: MarketplaceModel // Selected public model record.
-  group: MarketplaceGroup // Owning brand and pricing group.
-  // Translated savings against the official price; null hides the footer when the ratio is unusable or undiscounted.
+  // author names the developer of the recognized model family. Null omits the
+  // byline because the marketplace group only identifies a serving product.
+  author: string | null
+  // discountOff displays savings against the official reference price for the group.
+  // A missing, invalid, or undiscounted ratio leaves the value unavailable.
   discountOff: string | null
 }
 
@@ -809,40 +851,20 @@ const homeAnimatedStatKeys = new Set<HomeStatsKey>()
 const homeStatAnimationFrames = new Map<HomeStatsKey, number>()
 const homeStatAnimationDurationMs = 3200
 
-// homeProviderCloudIcons places a different brand in each slot and distributes warm,
-// cool, and neutral marks across rows. Fixed positions and brands keep the illustration
-// consistent when the marketplace loads or its group order changes.
-const homeProviderCloudIcons: readonly HomeProviderCloudIcon[] = [
-  { brand: 'Mistral', left: '7%', top: '13%', opacity: 0.72, scale: 0.94 },
-  { brand: 'Meta', left: '25%', top: '13%', opacity: 0.8, scale: 0.94 },
-  { brand: 'MiniMax', left: '43%', top: '13%', opacity: 0.9, scale: 1 },
-  { brand: 'Moonshot', left: '62%', top: '13%', opacity: 0.8, scale: 0.94 },
-  { brand: 'Cohere', left: '81%', top: '13%', opacity: 0.72, scale: 0.94 },
-  { brand: 'DeepSeek', left: '17%', top: '35%', opacity: 0.86, scale: 0.98 },
-  { brand: 'Anthropic', left: '39%', top: '35%', opacity: 0.92, scale: 1 },
-  { brand: 'Perplexity', left: '61%', top: '35%', opacity: 0.96, scale: 1.04 },
-  { brand: 'xAI', left: '83%', top: '35%', opacity: 0.9, scale: 0.98 },
-  { brand: 'Cloudflare', left: '7%', top: '57%', opacity: 0.82, scale: 0.94 },
-  { brand: 'Google', left: '25%', top: '57%', opacity: 0.9, scale: 0.98 },
-  { brand: 'OpenAI', left: '43%', top: '57%', opacity: 1, scale: 1.06 },
-  { brand: 'Alibaba', left: '62%', top: '57%', opacity: 0.9, scale: 0.98 },
-  { brand: 'OpenCode', left: '81%', top: '57%', opacity: 0.82, scale: 0.94 },
-  { brand: 'Doubao', left: '17%', top: '79%', opacity: 0.72, scale: 0.94 },
-  { brand: 'Xiaomi', left: '39%', top: '79%', opacity: 0.78, scale: 0.96 },
-  { brand: 'TypeSafe', left: '61%', top: '79%', opacity: 0.82, scale: 0.98 },
-  { brand: 'OpenRouter', left: '83%', top: '79%', opacity: 0.78, scale: 0.96 },
-  { brand: 'Tencent', left: '7%', top: '98%', opacity: 0.6, scale: 0.9 },
-  { brand: 'Suno', left: '25%', top: '98%', opacity: 0.66, scale: 0.92 },
-  { brand: 'Zhipu', left: '43%', top: '98%', opacity: 0.7, scale: 0.94 },
-  { brand: 'ZeroOne', left: '62%', top: '98%', opacity: 0.66, scale: 0.92 },
-  { brand: 'Baidu', left: '81%', top: '98%', opacity: 0.6, scale: 0.9 },
-  { brand: 'iFlytek', left: '99%', top: '98%', opacity: 0.48, scale: 0.86 },
+// homeProviderCloudRows arranges the gateway marks in staggered rows. Warm and
+// neutral marks separate the blue icons within each row and across adjacent rows.
+const homeProviderCloudRows = [
+  ['Meta', 'Mistral', 'DeepSeek', 'MiniMax', 'Baidu'],
+  ['Cloudflare', 'OpenRouter', 'Moonshot', 'Xiaomi'],
+  ['Tencent', 'OpenAI', 'Perplexity', 'Google', 'Dify'],
+  ['Alibaba', 'TypeSafe', 'Coze', 'OpenCode'],
+  ['Doubao', 'xAI', 'Zhipu', 'Anthropic', 'iFlytek'],
 ]
 
-// homeRouteLabel and homeRouteProviderBrands supply the example route illustration.
-// The three destinations use violet, neutral, and orange marks in a fixed order.
-const homeRouteLabel = 'OpenAI/GPT-5.4'
-const homeRouteProviderBrands = ['OpenRouter', 'OpenAI', 'Cloudflare']
+// homeRouteLabel and homeRouteProviderBrands set the model label and the
+// left-to-right provider order in the routing illustration.
+const homeRouteLabel = 'GPT-6 Astra'
+const homeRouteProviderBrands = ['Google', 'OpenAI', 'Anthropic']
 
 // totalModelCount counts model entries across groups, including aliases repeated
 // in separate groups; it supplies both the summary and supported-model animation target.
@@ -867,7 +889,7 @@ const featuredModels = computed<HomeFeaturedModel[]>(() => {
       if (model) {
         resolved.push({
           model,
-          group,
+          author: modelAuthor(model.id),
           discountOff: formatFeaturedDiscountOff(group.official_price_ratio),
         })
         break
@@ -1018,22 +1040,24 @@ const homeMarketplaceButtonBrand = computed(() => {
   return brands[homeMarketplaceButtonIconIndex.value % brands.length]
 })
 
-// Introductory steps keep their fixed signup, browsing, and API-key sequence while
-// translating each heading and description for the active interface language.
+// homeSteps translates the signup, balance top-up, and API key instructions in
+// order and pairs each step with the icon used in its illustration.
 const homeSteps = computed<HomeStep[]>(() => [
   {
     key: 'signup',
     index: 1,
     title: t('home.steps.signup.title'),
     description: t('home.steps.signup.description'),
-    icon: 'userPlus',
+    icon: 'user',
+    illustrationLineWidths: ['w-6', 'w-12'],
   },
   {
-    key: 'browse',
+    key: 'recharge',
     index: 2,
-    title: t('home.steps.browse.title'),
-    description: t('home.steps.browse.description'),
-    icon: 'grid',
+    title: t('home.steps.recharge.title'),
+    description: t('home.steps.recharge.description'),
+    icon: 'creditCard',
+    illustrationLineWidths: ['w-6', 'w-6', 'w-6', 'w-6'],
   },
   {
     key: 'api-key',
@@ -1041,8 +1065,16 @@ const homeSteps = computed<HomeStep[]>(() => [
     title: t('home.steps.apiKey.title'),
     description: t('home.steps.apiKey.description'),
     icon: 'key',
+    illustrationLineWidths: [],
   },
 ])
+
+// homeRechargeExamples supplies fixed dates and amounts for the homepage recharge
+// illustration. These examples never read the current user's payment history.
+const homeRechargeExamples = [
+  { date: '2025-04-01', amount: '$99' },
+  { date: '2025-03-30', amount: '$10' },
+]
 
 // homeProviderCategory chooses an explicit display brand before the trimmed group name.
 // Known brands use the shared category mapping. Unknown brands retain their selected
@@ -1105,17 +1137,17 @@ function formatOfficialPriceRatio(ratio: number): string {
 }
 
 // formatFeaturedDiscountOff formats savings only for a positive ratio below one.
-// Invalid or undiscounted comparisons return null so the feature card omits its
-// discount footer. Percentage formatting uses the browser's default number locale.
+// Invalid or undiscounted comparisons return null so the card can show a placeholder.
+// Percentage formatting uses the active interface locale and one fractional digit.
 function formatFeaturedDiscountOff(ratio?: number): string | null {
   const valid = validOfficialPriceRatio(ratio)
   if (valid === null || valid >= 1) {
     return null
   }
-  const percent = new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(numberLocale.value, {
+    style: 'percent',
     maximumFractionDigits: 1,
-  }).format((1 - valid) * 100)
-  return t('home.featured.discountOff', { percent })
+  }).format(1 - valid)
 }
 
 // formatAnimatedHomeStat formats the current animated value for a prepared target.
@@ -1381,6 +1413,28 @@ useLocaleRefresh(fetchHomeMarketplace)
 </script>
 
 <style scoped>
+/* Keep wrapped modality badges aligned with the left column's label. */
+.home-featured-modalities {
+  justify-content: flex-start;
+}
+
+/* The recharge rows, key samples, and their placeholder strokes share the
+   reference illustration's tighter corners within this section. */
+.home-step-sample,
+.home-step-lines::before,
+.home-step-lines::after {
+  /* check-ui-allow: The 4px radius matches the homepage illustration reference. */
+  border-radius: 4px;
+}
+
+.home-step-lines::before {
+  @apply h-1 bg-gray-950/20 content-[''] dark:bg-dark-50/20;
+}
+
+.home-step-lines::after {
+  @apply h-0.5 bg-gray-950/[0.08] content-[''] dark:bg-dark-50/[0.08];
+}
+
 /* Stretch the native link over the illustration and draw its focus ring inside
    the clipped card. The text remains the link's accessible label. */
 .home-feature-link::after {

@@ -1,6 +1,12 @@
 <template>
+  <GoogleMark
+    v-if="brandInfo.key === 'google' && !color"
+    :width="size"
+    :height="size"
+    class="provider-icon"
+  />
   <span
-    v-if="iconInfo?.maskUrl"
+    v-else-if="iconInfo?.maskUrl"
     class="inline-block shrink-0"
     :style="{
       width: size,
@@ -39,14 +45,15 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import GoogleMark from './GoogleMark.vue'
 import { modelIconData } from '@/utils/modelIconData'
 import { providerBrandDisplayName, resolveProviderBrand } from '@/utils/providerBrand'
 
 /**
- * ProviderIcon.vue renders a resolved provider brand using a mask, SVG paths, or
- * initial. Callers can override the icon color; otherwise brand color precedes graphic
- * color and current text color, and the resolver unknown display label receives a question mark
- * placeholder.
+ * ProviderIcon.vue renders provider marks from shared brand artwork or an initial.
+ * Google uses the same full-color mark as sign-in unless a caller supplies a
+ * color override. Other marks use the brand color, then the graphic color and
+ * current text color. Unknown providers with no display name use a question mark.
  */
 
 /**
@@ -79,8 +86,9 @@ const iconInfo = computed(() => {
   return iconKey ? modelIconData[iconKey] : null
 })
 /**
- * iconColor prefers the caller override, then brand color, graphic color, and finally
- * the inherited current text color.
+ * iconColor selects the fill for single-color marks, masks, and initials. A
+ * caller override takes precedence over the brand color, graphic color, and
+ * inherited text color.
  */
 const iconColor = computed(
   () => props.color || brandInfo.value.iconColor || iconInfo.value?.color || 'currentColor',
