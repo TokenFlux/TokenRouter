@@ -23,7 +23,9 @@ import (
 // compatibility rule.
 //
 // Most whole-body rewrites decode with UseNumber, and Compact copies accepted
-// fields as raw JSON. Empty Base64 image cleanup uses ordinary encoding/json
+// fields as raw JSON. Compact recovery patches only the gateway's model
+// prompt so caller guidance and unrelated fields survive replay.
+// Empty Base64 image cleanup uses ordinary encoding/json
 // decoding, so changing that body can also round large numeric values.
 // Decoded-map helpers mutate the supplied request and can share item maps or
 // slice storage with their callers. Raw-body helpers return the supplied bytes
@@ -640,9 +642,9 @@ func NormalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, boo
 }
 
 // DetectOpenAIPassthroughInstructionsRejectReason returns a diagnostic for
-// present non-string or blank instructions on a Codex-named model. Missing
-// instructions and other models return an empty reason. Default instruction
-// injection and rejection policy belong to the caller.
+// present non-string or blank instructions on models subject to the Codex
+// passthrough instruction rule. It accepts omitted instructions so the caller
+// can fill them, and it returns an empty reason for models outside the rule.
 func DetectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byte) string {
 	if !IsOpenAICodexModel(reqModel) {
 		return ""
@@ -661,10 +663,79 @@ func DetectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byt
 	return ""
 }
 
-// IsOpenAICodexModel recognizes the codex substring in a trimmed, case-folded
-// model name.
+// IsOpenAICodexModel reports whether OAuth passthrough requires instructions
+// for the model. It accepts Codex names and the GPT-6 families recognized by
+// the embedded prompt lookup, including their supported aliases.
 func IsOpenAICodexModel(model string) bool {
-	return strings.Contains(strings.ToLower(strings.TrimSpace(model)), "codex")
+	model = strings.ToLower(strings.TrimSpace(model))
+	if strings.Contains(model, "codex") {
+		return true
+	}
+	_, matched := gpt6CodexInstructions(model)
+	return matched
+}
+
+// HasResponsesLiteDeveloperInstructions reports whether Lite input carries
+// nonblank developer text. Official clients send base instructions in a
+// developer message, and custom providers may receive that message without
+// internal content-kind metadata. Developer tool declarations do not supply
+// instruction text.
+func HasResponsesLiteDeveloperInstructions(body []byte) bool {
+	input := gjson.GetBytes(body, "input")
+	if !input.IsArray() {
+		return false
+	}
+	found := false
+	input.ForEach(func(_, item gjson.Result) bool {
+		if item.Get("role").String() != "developer" {
+			return true
+		}
+		if kind := item.Get("type").String(); kind != "" && kind != "message" {
+			return true
+		}
+		content := item.Get("content")
+		if content.Type == gjson.String {
+			found = strings.TrimSpace(content.String()) != ""
+			return !found
+		}
+		if !content.IsArray() {
+			return true
+		}
+		for _, part := range content.Array() {
+			value := part.Get("text")
+			if part.Get("type").String() == "input_text" && value.Type == gjson.String && strings.TrimSpace(value.String()) != "" {
+				found = true
+				return false
+			}
+		}
+		return true
+	})
+	return found
+}
+
+// RefreshCodexDefaultInstructions updates a gateway-generated prompt after
+// Compact selects a replacement model. The caller supplies the exact prompt
+// it synthesized for the first exchange, and an empty value leaves the body
+// intact. Ordinary OAuth preparation prepends promoted client system text and
+// appends fixed tool guidance, so the last occurrence of the old prompt is the
+// generated segment even if the client's system text contains an earlier copy.
+// If the segment is absent or the replacement is identical, reuse the body.
+func RefreshCodexDefaultInstructions(body []byte, previous, model string) ([]byte, error) {
+	if previous == "" {
+		return body, nil
+	}
+	instructions := gjson.GetBytes(body, "instructions").String()
+	before, after, found := strings.CutLast(instructions, previous)
+	if !found {
+		return body, nil
+	}
+	next := DefaultCodexSynthInstructions(model)
+	if next == previous {
+		return body, nil
+	}
+	// Patch just the generated segment to preserve promoted client text, tool
+	// guidance, and raw representations of unrelated Compact request fields.
+	return sjson.SetBytes(body, "instructions", before+next+after)
 }
 
 // OpenAIRequestBodyMayContainImageInput probes Responses input and the

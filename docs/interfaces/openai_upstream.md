@@ -273,9 +273,13 @@ HTTP 提交、首输出超时与重试资格仍由响应处理策略判断。统
 
 ### Codex 基础指令和 Responses Lite
 
-OAuth passthrough 的 Codex 请求可以省略 `instructions`，网关按请求的模型补上内置的 Codex 基础指令；明确提供的非空字符串保持不变，空白或非字符串的值在本地拒绝。这条规则同时适用于 Responses SSE 和旧版 Compact 请求。
+OpenAI OAuth 转发按最终上游模型补齐默认 `instructions`。模型选择会应用提供商映射和旧版 Compact 的模型覆盖。Compact 换模型重试时，网关按备用模型补齐或更新默认提示词，保留客户端指令和其他附加内容。Codex 和下文列出的 GPT-6 型号走 OAuth passthrough 时，可以省略 `instructions`，显式提供的非空字符串保持不变，空白或非字符串的值在本地拒绝。这条规则适用于 Responses SSE 和旧版 Compact。
+
+网关补齐默认指令时，`gpt-6`、`gpt-6-astra` 和 `gpt-6-astra-*` 使用 Astra 提示词。`gpt-6.1-sol` 和 `gpt-6.1-terra` 使用各自的提示词，并识别推理档位和 `-openai-compact` 后缀。这些模型名都接受供应商前缀。这里的别名匹配用于识别指令规则，出站模型名和推理档位由各自的映射规则决定。其余模型继续按 Codex、GPT-5.1 和 GPT-5.2 规则选择，未命中专用提示词时回退到 GPT-5.5。
 
 Responses Lite 由 HTTP 的 `X-OpenAI-Internal-Codex-Responses-Lite: true`，或者 WebSocket `client_metadata` 里对应的标记识别，模型名不参与判断。所有向 OpenAI 上游转发这个标记的 HTTP、passthrough、旧版 Compact 和 WebSocket 请求，都强制设置顶层的 `parallel_tool_calls=false`。OAuth 提供商还统一设置 `reasoning.context=all_turns`，并把私有的 namespace 工具声明移到 `input.additional_tools`；API Key 提供商在这之外保持标准的 Responses 请求。不带 Lite 标记的普通 Responses、Grok 和专用的 Images 请求，不应用这些约束。Responses Lite 的报文重建和工具校验只在 `upstream/openai` 实现，执行适配按提供商资格，选择完整转换或只禁用并行工具。
+
+OAuth 的 Responses Lite 请求可以通过 `input` 里的 developer 消息提供基础指令。消息已有非空文本时，网关保留客户端省略的顶层 `instructions`。
 
 ### Anthropic count_tokens
 

@@ -646,54 +646,121 @@ func TestOpenAIGatewayForwardUsesGlobalCompactModelOnInitialLegacyRequest(t *tes
 
 // TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce rejects
 // native compaction over HTTP before a successful model recovery. It checks
-// two bodies, model switch, retained trigger, unchanged Responses path and one
-// retry Ops event.
+// that the retry supplies the replacement model's prompt even if the first
+// model omitted it, preserves caller guidance and the trigger, and records one
+// retry without changing the endpoint.
 func TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.5","stream":false,"instructions":"compact-test","input":[{"type":"message","role":"user","content":"hello"},{"type":"compaction_trigger"}]}`)
-	c := newOpenAICompactFallbackTestContext(t, "/v1/responses")
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	c.Request.Header.Set("Content-Type", "application/json")
-	MarkOpenAINativeCompactionV2(c)
+	const sol = "gpt-6.1-sol"
+	solPrompt := openaicore.DefaultCodexSynthInstructions(sol)
+	retryPrompt := openaicore.DefaultCodexSynthInstructions("gpt-6.1-terra")
+	for _, tc := range []struct {
+		name        string // forwarding scenario name
+		model       string // first upstream model
+		passthrough bool   // provider passthrough enabled
+		explicit    bool   // top-level prompt supplied by caller
+		systemText  string // caller system text to promote
+		lite        bool   // developer input supplies instructions
+	}{
+		{name: "managed", model: sol, systemText: solPrompt},
+		{name: "passthrough", model: sol, passthrough: true},
+		{name: "passthrough-without-initial-default", model: "gpt-5.5", passthrough: true},
+		{name: "passthrough-lite-without-initial-default", model: "gpt-5.5", passthrough: true, lite: true},
+		{name: "managed-explicit", model: sol, explicit: true},
+		{name: "passthrough-explicit", model: sol, passthrough: true, explicit: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := []map[string]any{
+				{"type": "message", "role": "user", "content": "hello"},
+				{"type": "compaction_trigger"},
+			}
+			if tc.systemText != "" {
+				input = append([]map[string]any{{"type": "message", "role": "system", "content": tc.systemText}}, input...)
+			}
+			if tc.lite {
+				input = append([]map[string]any{{"type": "message", "role": "developer", "content": "Client base instructions."}}, input...)
+			}
+			request := map[string]any{"model": tc.model, "stream": tc.passthrough, "input": input}
+			if tc.explicit {
+				request["instructions"] = solPrompt
+			}
+			body, err := json.Marshal(request)
+			require.NoError(t, err)
+			c := newOpenAICompactFallbackTestContext(t, "/v1/responses")
+			c.Request.Body = io.NopCloser(bytes.NewReader(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			if tc.lite {
+				c.Request.Header.Set(media.ResponsesLiteHeader, "true")
+			}
+			MarkOpenAINativeCompactionV2(c)
 
-	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
-		{
-			StatusCode: http.StatusBadRequest,
-			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"context_length_exceeded","message":"context window exceeded"}}`)),
-		},
-		{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_compact","status":"completed","model":"gpt-5.4","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`)),
-		},
-	}}
-	svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-5.4", transport: upstream})
-	provider := &gatewayprovider.ExecutionProvider{
-		Record: providercore.Record{
-			LoadLocation: time.LoadLocation, ID: 1, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth, Concurrency: 1,
-			Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-provider"},
-			Status:      billingcore.StatusActive, Schedulable: true,
-		},
+			completed := `{"id":"resp_compact","status":"completed","model":"gpt-6.1-terra","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`
+			contentType := "application/json"
+			if tc.passthrough {
+				completed = `data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"hi"}` + "\n\n" +
+					`data: {"type":"response.completed","response":` + completed + "}\n\ndata: [DONE]\n\n"
+				contentType = "text/event-stream"
+			}
+			upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
+				{
+					StatusCode: http.StatusBadRequest,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"context_length_exceeded","message":"context window exceeded"}}`)),
+				},
+				{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{contentType}},
+					Body:       io.NopCloser(strings.NewReader(completed)),
+				},
+			}}
+			svc := newResponsesFixture(responsesFixtureInputs{compactModel: "gpt-6.1-terra", transport: upstream})
+			provider := &gatewayprovider.ExecutionProvider{
+				Record: providercore.Record{
+					LoadLocation: time.LoadLocation, ID: 1, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth, Concurrency: 1,
+					Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-provider"},
+					Extra:       map[string]any{"openai_passthrough": tc.passthrough},
+					Status:      billingcore.StatusActive, Schedulable: true,
+				},
+			}
+
+			result, err := svc.Forward(context.Background(), c, provider, body)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.Len(t, upstream.bodies, 2)
+			require.Equal(t, tc.model, gjson.GetBytes(upstream.bodies[0], "model").String())
+			require.Equal(t, "gpt-6.1-terra", gjson.GetBytes(upstream.bodies[1], "model").String())
+			firstInstructions, secondInstructions := solPrompt, retryPrompt
+			if tc.model != sol {
+				firstInstructions = ""
+				require.False(t, gjson.GetBytes(upstream.bodies[0], "instructions").Exists())
+			}
+			if tc.explicit {
+				secondInstructions = solPrompt
+			}
+			if tc.systemText != "" {
+				firstInstructions = tc.systemText + "\n\n" + firstInstructions
+				secondInstructions = tc.systemText + "\n\n" + secondInstructions
+			}
+			require.True(t, firstInstructions == gjson.GetBytes(upstream.bodies[0], "instructions").String(), "unexpected first attempt instructions")
+			if tc.lite {
+				secondInstructions = ""
+				require.False(t, gjson.GetBytes(upstream.bodies[1], "instructions").Exists())
+				require.Equal(t, "Client base instructions.", gjson.GetBytes(upstream.bodies[1], `input.#(role=="developer").content`).String())
+			}
+			require.True(t, secondInstructions == gjson.GetBytes(upstream.bodies[1], "instructions").String(), "unexpected retry instructions")
+			require.True(t, protocolopenai.HasCompactionTriggerInInput(upstream.bodies[1]))
+			require.Equal(t, upstream.requests[0].URL.Path, upstream.requests[1].URL.Path)
+			require.NotContains(t, upstream.requests[1].URL.Path, "/compact")
+			rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
+			require.True(t, ok)
+			events, ok := rawEvents.([]*ops.OpsUpstreamErrorEvent)
+			require.True(t, ok)
+			require.Len(t, events, 1)
+			require.Equal(t, "retry", events[0].Kind)
+			require.Equal(t, "compact_model_fallback", events[0].Reason)
+			require.Equal(t, http.StatusBadRequest, events[0].UpstreamStatusCode)
+		})
 	}
-
-	result, err := svc.Forward(context.Background(), c, provider, body)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Len(t, upstream.bodies, 2)
-	require.Equal(t, "gpt-5.5", gjson.GetBytes(upstream.bodies[0], "model").String())
-	require.Equal(t, "gpt-5.4", gjson.GetBytes(upstream.bodies[1], "model").String())
-	require.True(t, protocolopenai.HasCompactionTriggerInInput(upstream.bodies[1]))
-	require.Equal(t, upstream.requests[0].URL.Path, upstream.requests[1].URL.Path)
-	require.NotContains(t, upstream.requests[1].URL.Path, "/compact")
-	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
-	require.True(t, ok)
-	events, ok := rawEvents.([]*ops.OpsUpstreamErrorEvent)
-	require.True(t, ok)
-	require.Len(t, events, 1)
-	require.Equal(t, "retry", events[0].Kind)
-	require.Equal(t, "compact_model_fallback", events[0].Reason)
-	require.Equal(t, http.StatusBadRequest, events[0].UpstreamStatusCode)
 }
 
 // TestOpenAIGatewayForwardRetriesExplicitNativeCompactSSEFailureBeforeOutput
@@ -4737,55 +4804,109 @@ func TestOpenAIGatewayService_OAuthPassthrough_UpstreamRequestIgnoresClientCance
 	require.NoError(t, upstream.lastReq.Context().Err())
 }
 
-// TestOpenAIGatewayService_OAuthPassthrough_CodexMissingInstructionsGetsDefault
-// omits instructions in Codex passthrough streaming and Compact requests. It
-// checks the model-specific synthesized instructions and stream flag behavior
-// for each path.
-func TestOpenAIGatewayService_OAuthPassthrough_CodexMissingInstructionsGetsDefault(t *testing.T) {
-	for _, stream := range []bool{false, true} {
-		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
+// TestOpenAIGatewayService_OAuthDefaultInstructions captures Responses and
+// legacy Compact requests after provider mapping and passthrough preparation.
+// It checks that the upstream model selects the default prompt and that
+// supplied instructions survive both top-level and Responses Lite input.
+func TestOpenAIGatewayService_OAuthDefaultInstructions(t *testing.T) {
+	const liteDeveloperInput = `[{"type":"additional_tools","role":"developer","tools":[]},{"type":"message","role":"developer","content":[{"type":"input_text","text":"Client base instructions."}]},{"type":"message","role":"user","content":"hi"}]`
+	const liteToolsOnlyInput = `[{"type":"additional_tools","role":"developer","tools":[]},{"type":"message","role":"user","content":"hi"}]`
+	for _, tc := range []struct {
+		name         string // forwarding scenario name
+		model        string // client model identifier
+		mappedModel  string // configured provider target
+		compactModel string // configured Compact override
+		instructions string // optional client instructions
+		passthrough  bool   // provider passthrough enabled
+		compact      bool   // legacy Compact request
+		liteInput    string // raw input for Lite requests
+		omitPrompt   bool   // expected absent top-level prompt
+	}{
+		{name: "codex-passthrough", model: "gpt-5.1-codex-max", passthrough: true},
+		{name: "codex-passthrough-compact", model: "gpt-5.1-codex-max", passthrough: true, compact: true},
+		{name: "astra-passthrough", model: "gpt-6-astra", passthrough: true},
+		{name: "sol-passthrough-mapped", model: "client-model", mappedModel: "gpt-6.1-sol", passthrough: true},
+		{name: "terra-passthrough-compact", model: "gpt-6.1-terra", passthrough: true, compact: true},
+		{name: "sol-transform-mapped", model: "client-model", mappedModel: "gpt-6.1-sol"},
+		{name: "terra-transform-compact", model: "gpt-6.1-sol", compactModel: "gpt-6.1-terra", compact: true},
+		{name: "mapped-with-client-instructions", model: "client-model", mappedModel: "gpt-6.1-sol", instructions: " Client instructions. "},
+		{name: "passthrough-with-client-instructions", model: "gpt-6-astra", instructions: " Client instructions. ", passthrough: true},
+		{name: "lite-passthrough-developer-input", model: "gpt-6-astra", passthrough: true, liteInput: liteDeveloperInput, omitPrompt: true},
+		{name: "lite-managed-developer-input", model: "gpt-6-astra", liteInput: liteDeveloperInput, omitPrompt: true},
+		{name: "lite-passthrough-tools-only", model: "gpt-6-astra", passthrough: true, liteInput: liteToolsOnlyInput},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			path := "/v1/responses"
 			responseBody := strings.Join([]string{
+				`data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"hi"}`,
 				`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}`,
 				"", "data: [DONE]", "",
 			}, "\n")
 			responseContentType := "text/event-stream"
-			if !stream {
+			if tc.compact {
 				path = "/v1/responses/compact"
 				responseBody = `{"id":"resp_1","status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`
 				responseContentType = "application/json"
 			}
 			c.Request = httptest.NewRequest(http.MethodPost, path, bytes.NewReader(nil))
 			c.Request.Header.Set("User-Agent", "codex_cli_rs/0.98.0")
+			SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
-			originalBody := []byte(fmt.Sprintf(`{"model":"gpt-5.1-codex-max","stream":%t,"store":true,"input":[{"type":"text","text":"hi"}]}`, stream))
+			body := map[string]any{"model": tc.model, "stream": !tc.compact, "store": true, "input": "hi"}
+			if tc.liteInput != "" {
+				c.Request.Header.Set(media.ResponsesLiteHeader, "true")
+				body["input"] = json.RawMessage(tc.liteInput)
+			}
+			if tc.instructions != "" {
+				body["instructions"] = tc.instructions
+			}
+			originalBody, err := json.Marshal(body)
+			require.NoError(t, err)
 			upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{responseContentType}, "x-request-id": []string{"rid"}},
 				Body:       io.NopCloser(strings.NewReader(responseBody)),
 			}}
-			svc := newResponsesFixture(responsesFixtureInputs{options: &responsesFixtureOptions{}, transport: upstream})
+			svc := newResponsesFixture(responsesFixtureInputs{compactModel: tc.compactModel, transport: upstream})
 			provider := &gatewayprovider.ExecutionProvider{
 				Record: providercore.Record{
 					LoadLocation: time.LoadLocation, ID: 123, Name: "acc", Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth, Concurrency: 1,
 					Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
-					Extra:       map[string]any{"openai_passthrough": true, "openai_oauth_responses_websockets_v2_mode": "off"},
+					Extra:       map[string]any{"openai_passthrough": tc.passthrough, "openai_oauth_responses_websockets_v2_mode": "off"},
 					Status:      billingcore.StatusActive, Schedulable: true, RateMultiplier: new(float64(1)),
 				},
+			}
+			wantModel := tc.model
+			if tc.mappedModel != "" {
+				provider.Record.Credentials["model_mapping"] = map[string]any{tc.model: tc.mappedModel}
+				wantModel = tc.mappedModel
+			}
+			if tc.compactModel != "" {
+				wantModel = tc.compactModel
 			}
 
 			result, err := svc.Forward(context.Background(), c, provider, originalBody)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.NotNil(t, upstream.lastReq)
-			if stream {
-				require.True(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
-			} else {
+			if tc.compact {
 				require.False(t, gjson.GetBytes(upstream.lastBody, "stream").Exists())
+			} else {
+				require.True(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
 			}
-			require.Equal(t, strings.TrimSpace(openaicore.DefaultCodexSynthInstructions("gpt-5.1-codex-max")), strings.TrimSpace(gjson.GetBytes(upstream.lastBody, "instructions").String()))
+			require.Equal(t, wantModel, gjson.GetBytes(upstream.lastBody, "model").String())
+			if tc.omitPrompt {
+				require.False(t, gjson.GetBytes(upstream.lastBody, "instructions").Exists())
+				require.Equal(t, "Client base instructions.", gjson.GetBytes(upstream.lastBody, `input.#(type=="message").content.0.text`).String())
+				return
+			}
+			wantInstructions := tc.instructions
+			if wantInstructions == "" {
+				wantInstructions = openaicore.DefaultCodexSynthInstructions(wantModel)
+			}
+			require.Equal(t, wantInstructions, gjson.GetBytes(upstream.lastBody, "instructions").String())
 		})
 	}
 }
@@ -7300,7 +7421,8 @@ func TestSecondImageToolErrorPresentation(t *testing.T) {
 
 // TestOpenAIResponsesOAuthImageDriverOverride prepares an image-only Responses
 // request using a provider override. An explicit text model keeps its identity,
-// while automatic image adaptation selects the provider's configured driver.
+// while automatic image adaptation selects the provider's configured driver
+// and the corresponding default instructions.
 func TestOpenAIResponsesOAuthImageDriverOverride(t *testing.T) {
 	for _, model := range []string{"gpt-image-2", "gpt-6-luna"} {
 		upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
@@ -7327,6 +7449,7 @@ func TestOpenAIResponsesOAuthImageDriverOverride(t *testing.T) {
 			expected = "gpt-6.1-sol"
 		}
 		require.Equal(t, expected, gjson.GetBytes(upstream.lastBody, "model").String())
+		require.Equal(t, openaicore.DefaultCodexSynthInstructions(expected), gjson.GetBytes(upstream.lastBody, "instructions").String())
 		require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "tools.0.model").String())
 	}
 }

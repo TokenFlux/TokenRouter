@@ -22,8 +22,9 @@ import (
 // when serialization finishes. The installed decoder and marshaler retain JSON
 // number values through object rewriting.
 //
-// Model resolution keeps requested, billing, and vendor identities separate,
-// while canonical image intent is checked before later tool policy changes.
+// Model resolution keeps requested, billing, and vendor identities separate.
+// Canonical image intent is checked before later tool policy changes, and
+// synthesized Codex instructions follow the resolved vendor identity.
 // OAuth preparation saves the client cache seed before provider namespace
 // changes and derives fingerprint values for the later header stage. Final
 // serialization rebuilds the view and then moves the compaction trigger after
@@ -52,6 +53,9 @@ type TransformResult struct {
 	// Fingerprint carries this attempt's derived IDs for header construction; the
 	// caller stages them with the same selected provider.
 	Fingerprint *openai.FingerprintIDs
+	// DefaultInstructions retains the exact synthesized prompt for Compact
+	// recovery. An empty value prevents replacement of client-supplied content.
+	DefaultInstructions string
 }
 
 // FastDecision describes fast-tier edits or a policy rejection before request serialization.
@@ -72,11 +76,12 @@ type FastDecision struct {
 // Object mutation disables patch queuing, while successful byte patching
 // rebuilds the view and clears the decoded cache. Image admission separates
 // explicit declarations from broad billing intent, and selected-model
-// attributes precede OAuth compatibility transformation. Client cache identity
-// is retained before provider-scoped metadata changes so header isolation can
-// use the caller seed. Final serialization and trigger ordering rebuild the
-// returned view; patch or encoding errors stop preparation before an exchange
-// can use inconsistent bytes.
+// attributes precede OAuth compatibility transformation. Default Codex
+// instructions use the resolved vendor model before image guidance is added.
+// Client cache identity is retained before provider-scoped metadata changes so
+// header isolation can use the caller seed. Final serialization and trigger
+// ordering rebuild the returned view; patch or encoding errors stop preparation
+// before an exchange can use inconsistent bytes.
 func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p TransformPorts) (*TransformResult, error) {
 	body := prepared.Body
 	requestView := prepared.View
@@ -88,6 +93,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	bodyModified := false
 	imageMainModelAdapted := false
 	clientPromptCacheKey := promptCacheKey
+	defaultInstructions := ""
 	var reqBody map[string]any
 	// Apply and adopt queued byte edits before exposing a decoded map; otherwise
 	// later object transformations would read fields from the earlier body and
@@ -149,8 +155,9 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 
 	codexImageGenerationExplicitToolPolicy = p.GroupImagePolicy(codexImageGenerationExplicitToolPolicy)
 	imageGenerationAllowed := p.ImageAllowed()
+	liteHeader := p.LiteHeader()
 	codexImageGenerationBridgeEnabled := isCodexCLI &&
-		!p.LiteHeader() &&
+		!liteHeader &&
 		imageGenerationAllowed &&
 		codexImageGenerationExplicitToolPolicy != "strip" &&
 		p.BridgeEnabled(ctx)
@@ -180,15 +187,6 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	if explicitImageIntent && !imageGenerationAllowed {
 		p.Reject(Rejection{Status: 403, Type: "permission_error", Message: p.ImagePermissionMessage(), FeatureDenied: true})
 		return nil, errors.New("image generation disabled for group")
-	}
-
-	instructions := gjson.GetBytes(body, "instructions")
-	instructionsEmpty := !instructions.Exists() || instructions.Type != gjson.String || strings.TrimSpace(instructions.String()) == ""
-	// Synthesize missing usable instructions for this Codex route before queued
-	// edits are adopted; Messages bridges and Kimi and DeepSeek requests use
-	// their own instruction preparation.
-	if instructionsEmpty && profile.UsesCodex && !compatMessagesBridge && !statelessResponses {
-		markPatchSet("instructions", openai.DefaultCodexSynthInstructions(reqModel))
 	}
 
 	isCompactRequest := compactPath
@@ -296,13 +294,33 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 			imageIntent = true
 			p.Log("[OpenAI] /responses image_generation request inbound_model=%s mapped_model=%s provider_type=%s", requestView.Model, upstreamModel, profile.Type)
 		}
-		if codexImageGenerationBridgeEnabled && p.ApplyCodexImageGenerationBridgeInstructions(decoded) {
-			markDecodedModified()
-			p.Log("[OpenAI] Added Codex image_generation bridge instructions")
-		}
 	} else if imageGenerationAllowed && imageIntent && p.OpenAIRequestBodyHasImageGenerationDeclaration(body) {
 		// A complete image tool declaration can be read from raw JSON; validation, bridging, or legacy migration requires decoding input.
 		p.Log("[OpenAI] /responses image_generation request inbound_model=%s mapped_model=%s provider_type=%s", requestView.Model, upstreamModel, profile.Type)
+	}
+
+	// Wait until provider, Compact, and image driver mapping have resolved the
+	// outgoing model. The image bridge appends its guidance after the default
+	// prompt so it cannot suppress synthesis by filling an empty field first.
+	instructions := gjson.GetBytes(body, "instructions")
+	instructionsEmpty := !instructions.Exists() || instructions.Type != gjson.String || strings.TrimSpace(instructions.String()) == ""
+	// Lite clients may omit the top-level field because developer input already
+	// carries their base instructions. Both synthesis steps honor that choice.
+	liteDeveloperInstructions := profile.OpenAI && liteHeader && !instructions.Exists() &&
+		openai.HasResponsesLiteDeveloperInstructions(body)
+	if instructionsEmpty && profile.UsesCodex && !compatMessagesBridge && !statelessResponses && !liteDeveloperInstructions {
+		defaultInstructions = openai.DefaultCodexSynthInstructions(upstreamModel)
+		markPatchSet("instructions", defaultInstructions)
+	}
+	if codexImageGenerationBridgeEnabled && !isCompactRequest {
+		decoded, decodeErr := ensureReqBody()
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+		if p.ApplyCodexImageGenerationBridgeInstructions(decoded) {
+			markDecodedModified()
+			p.Log("[OpenAI] Added Codex image_generation bridge instructions")
+		}
 	}
 
 	imageToolsDisabled := attributes.Rules.ImageGenerationTool != nil && !*attributes.Rules.ImageGenerationTool
@@ -360,6 +378,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 			codexResult = p.CodexTransform(decoded, openai.CodexOAuthTransformOptions{
 				IsCodexCLI:                          isCodexCLI,
 				IsCompact:                           isCompactRequest,
+				SkipDefaultInstructions:             liteDeveloperInstructions,
 				OmitPromotedSystemMessagesFromInput: omitPromotedSystemMessages,
 			})
 		}
@@ -574,6 +593,6 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		BillingModel: billingModel, UpstreamModel: upstreamModel,
 		PromptCacheKey: promptCacheKey, ClientPromptCacheKey: clientPromptCacheKey,
 		ImageIntent: imageIntent, ImageMainModelAdapted: imageMainModelAdapted,
-		Fingerprint: fingerprintIDs,
+		Fingerprint: fingerprintIDs, DefaultInstructions: defaultInstructions,
 	}, nil
 }
