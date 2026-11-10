@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { applyTokens, cssRules, parseVue } from '@/__tests__/helpers/sourceSyntax'
 import AppHeader from '../AppHeader.vue'
 
-// AppHeader.spec.ts exercises account navigation and theme controls through
-// rendered header elements. Store and navigation collaborators use local mocks,
-// allowing feature combinations and click handlers to be checked without account
-// requests, onboarding work, or changes to the browser's persisted theme.
+// AppHeader.spec.ts exercises header navigation, account navigation, and theme
+// controls through rendered header elements. Store and navigation collaborators use
+// local mocks, allowing feature combinations and click handlers to be checked without
+// account requests, onboarding work, or changes to the browser's persisted theme.
 
 // state supplies account and feature settings before each mount and records theme actions locally.
 const state = vi.hoisted(() => ({
@@ -104,7 +104,7 @@ describe('AppHeader controls', () => {
   })
 
   // Small screens keep account controls while deferring announcement and docs
-  // shortcuts. The shared icon group keeps its compact mobile and desktop gaps.
+  // shortcuts. The navigation group keeps compact icon gaps below md.
   it('hides lower-priority actions on mobile', async () => {
     const wrapper = await openUserMenu()
     expect(wrapper.get('announcement-bell-stub').element.parentElement?.classList).toContain(
@@ -116,12 +116,9 @@ describe('AppHeader controls', () => {
     expect(wrapper.get('a[href="https://docs.example.com/"]').classes()).toEqual(
       expect.arrayContaining(['hidden', 'sm:flex']),
     )
-    const rules = cssRules(
-      parseVue('components/layout/AppHeader.vue').styles,
-      '.header-status-icon-group',
-    )
+    const rules = cssRules(parseVue('components/layout/AppHeader.vue').styles, '.header-nav-group')
     expect(rules.flatMap(applyTokens)).toEqual(
-      expect.arrayContaining(['flex', 'items-center', 'gap-1', 'sm:gap-2']),
+      expect.arrayContaining(['flex', 'items-center', 'gap-1', 'sm:gap-2', 'md:gap-1']),
     )
   })
 
@@ -151,11 +148,50 @@ describe('AppHeader controls', () => {
     }
   })
 
-  // Support belongs to a separate header control that remains available while
-  // the account menu is closed. It must not be duplicated inside that menu.
-  it('places contact support in its own header control', async () => {
+  // Support belongs to the header navigation group and remains available while the
+  // account menu is closed. It must not be duplicated inside that menu.
+  it('places contact support in the header navigation group', async () => {
     const wrapper = await openUserMenu()
     expect(wrapper.findAll('header-contact-support-stub')).toHaveLength(1)
+    expect(wrapper.get('.header-nav-group').find('header-contact-support-stub').exists()).toBe(true)
     expect(wrapper.get('.user-menu-panel').find('header-contact-support-stub').exists()).toBe(false)
+  })
+
+  // New users read what the marketplace and docs entries do from md upward. Each entry
+  // uses the shared text style and renders only its translated label next to its
+  // narrow-screen icon, without a trailing marker.
+  it('labels header navigation entries', () => {
+    const wrapper = mountHeader()
+    for (const [selector, label] of [
+      ['router-link-stub[to="/models"]', 'nav.modelMarketplace'],
+      ['a[href="https://docs.example.com/"]', 'nav.docs'],
+    ]) {
+      const entry = wrapper.get(selector)
+      expect(entry.classes()).toContain('header-nav-link')
+      expect(entry.get('span').text()).toBe(label)
+      expect(entry.findAll('icon-stub')).toHaveLength(1)
+    }
+  })
+
+  // Language switching stays in the header for every visitor. Guests and signed-in
+  // users both get the labeled trigger, and the account menu holds no language row.
+  it('shows the header language switcher for guests and users', async () => {
+    expect(mountHeader().get('locale-switcher-stub').attributes('variant')).toBe('text')
+    const user = await openUserMenu()
+    expect(user.get('.header-nav-group locale-switcher-stub').attributes('variant')).toBe('text')
+    expect(user.get('.user-menu-panel').find('locale-switcher-stub').exists()).toBe(false)
+  })
+
+  // Announcements are a labeled navigation entry rather than part of the balance
+  // group. The entry sits in the navigation group, before the divider that starts
+  // the account controls.
+  it('places announcements in the navigation group', async () => {
+    const wrapper = await openUserMenu()
+    const bell = wrapper.get('.header-nav-group announcement-bell-stub')
+    expect(bell.attributes('variant')).toBe('text')
+    const divider = wrapper.get('.header-status-divider').element
+    expect(
+      bell.element.compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 })

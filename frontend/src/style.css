@@ -995,11 +995,29 @@
   }
 
   /*
-   * AppHeader and its support and language controls share this icon-button size and
-   * interaction styling so the utility group stays aligned.
+   * AppHeader icon actions, such as the guest theme toggle, share this icon-button
+   * size and interaction styling so the utility group stays aligned.
    */
   .header-status-icon-button {
     @apply flex h-9 w-9 items-center justify-center rounded-control text-primary-900 transition-colors hover:bg-primary-100 dark:text-dark-100 dark:hover:bg-dark-700 dark:hover:text-white;
+  }
+
+  /*
+   * Header navigation entries show text labels from md upward and collapse to the
+   * 36px icon-button square below md, so callers swap label and icon with md
+   * utilities. They follow the .text-link colors without its underline: black or white
+   * at rest, and the brand color while hovered, keyboard focused, or holding an open
+   * dropdown. No background is painted in any state.
+   */
+  .header-nav-link {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-control text-sm font-medium transition-colors duration-fast;
+    @apply text-black dark:text-white;
+    @apply md:w-auto md:px-3;
+    @apply disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .header-nav-link:is(:hover, :focus-visible, [aria-expanded='true']) {
+    @apply text-primary-600 dark:text-primary-500;
   }
 
   /*

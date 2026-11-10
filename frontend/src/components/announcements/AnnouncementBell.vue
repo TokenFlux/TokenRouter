@@ -1,16 +1,25 @@
 <template>
   <div>
-    <!-- Announcement list trigger. -->
+    <!--
+      Announcement list trigger. The header text variant shows its label from md upward
+      and the bell below md; unread state uses only the red dot there because the header
+      label color is owned by the shared navigation style.
+    -->
     <button
       @click="openModal"
-      :class="[triggerClass, { 'text-primary-600 dark:text-primary-500': unreadCount > 0 }]"
+      :class="[
+        triggerClass,
+        variant !== 'text' && unreadCount > 0 && 'text-primary-600 dark:text-primary-500',
+      ]"
       :aria-label="t('announcements.title')"
-      :title="t('announcements.title')"
+      :title="variant === 'text' ? undefined : t('announcements.title')"
     >
-      <Icon name="bell" size="md" />
+      <Icon name="bell" size="md" :class="variant === 'text' && 'md:hidden'" />
+      <span v-if="variant === 'text'" class="hidden md:inline">{{ t('announcements.title') }}</span>
       <!-- Unread indicator. -->
       <span
         v-if="unreadCount > 0"
+        data-testid="announcement-unread-dot"
         class="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500"
         aria-hidden="true"
       ></span>
@@ -214,11 +223,11 @@ import Icon from '@/components/icons/Icon.vue'
 // keyboard listener and releases body overflow so navigation can remove the
 // header dialogs together.
 
-// props chooses the header trigger appearance while retaining the same
-// announcement list behavior in both variants.
+// props chooses the bell button or the header navigation text entry while
+// retaining the same announcement list behavior in both variants.
 const props = withDefaults(
   defineProps<{
-    variant?: 'default' | 'status' // Header trigger appearance variant.
+    variant?: 'default' | 'text' // Header trigger appearance variant.
   }>(),
   {
     variant: 'default',
@@ -240,8 +249,8 @@ const displayedAnnouncements = computed(() => announcements.value.slice(0, 20))
 // triggerClass selects the trigger recipe from the requested header variant and
 // keeps unread indicator placement shared.
 const triggerClass = computed(() => {
-  if (props.variant === 'status') {
-    return 'relative flex h-9 w-9 items-center justify-center rounded-control text-primary-900 transition-colors hover:bg-primary-100 dark:text-dark-100 dark:hover:bg-dark-700 dark:hover:text-white'
+  if (props.variant === 'text') {
+    return 'header-nav-link relative'
   }
   return 'relative flex h-9 w-9 items-center justify-center rounded-control text-gray-600 transition hover:bg-gray-100 hover:scale-105 dark:text-gray-400 dark:hover:bg-dark-800'
 })

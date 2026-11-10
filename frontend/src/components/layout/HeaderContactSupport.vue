@@ -1,15 +1,16 @@
 <template>
   <div v-if="contactEntries.length" class="relative" ref="dropdownRef">
+    <!-- From md upward the trigger reads "Contact Us"; narrower headers show the chat icon. -->
     <button
       type="button"
       data-testid="contact-support-toggle"
-      class="header-status-icon-button"
+      class="header-nav-link"
       :aria-label="t('common.contactSupport')"
       :aria-expanded="isOpen"
-      :title="t('common.contactSupport')"
       @click="toggleDropdown"
     >
-      <Icon name="chat" size="md" />
+      <Icon name="chat" size="md" class="md:hidden" />
+      <span class="hidden md:inline">{{ t('common.contactSupport') }}</span>
     </button>
 
     <!-- Each contact occupies one row; links open a new tab and text values can be copied. -->
@@ -67,9 +68,10 @@ import { useAppStore } from '@/stores'
 import { formatContactUrl, parseContactInfo } from '@/utils/contactInfo'
 
 // HeaderContactSupport.vue shows configured contact entries in a header menu of links and
-// copy actions. The shared contactInfo parser splits the setting and decides which entries
-// are links, so this menu and the dashboard contact card show the same rows. Menu
-// visibility is local, and document click observation lasts until the component
+// copy actions. Its trigger is a labeled header navigation entry from md upward and a
+// chat icon below md. The shared contactInfo parser splits the setting and decides which
+// entries are links, so this menu and the dashboard contact card show the same rows.
+// Menu visibility is local, and document click observation lasts until the component
 // unmounts.
 
 // Translation, public contact settings, and clipboard feedback supply the menu labels

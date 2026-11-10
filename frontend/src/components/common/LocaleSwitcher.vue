@@ -6,12 +6,20 @@
       :class="triggerClass"
       :title="currentLocale?.name"
       :aria-label="currentLocale?.name"
+      :aria-expanded="isOpen"
     >
-      <Icon v-if="variant === 'status'" name="languages" size="md" />
+      <!--
+        The header text trigger shows the current language name from md upward and the
+        language icon below md, matching the other header navigation entries.
+      -->
+      <template v-if="variant === 'text'">
+        <Icon name="languages" size="md" class="md:hidden" />
+        <span class="hidden md:inline">{{ currentLocale?.name }}</span>
+      </template>
       <span v-else class="text-base leading-none">{{ currentLocale?.flag }}</span>
-      <span v-if="variant !== 'status'" class="hidden sm:inline">{{ currentLocale?.name }}</span>
+      <span v-if="variant !== 'text'" class="hidden sm:inline">{{ currentLocale?.name }}</span>
       <Icon
-        v-if="variant !== 'status'"
+        v-if="variant !== 'text'"
         name="chevronDown"
         size="xs"
         class="text-gray-400 transition-transform duration-normal"
@@ -56,19 +64,19 @@ import Icon from '@/components/icons/Icon.vue'
 import { setLocale, availableLocales } from '@/i18n'
 
 /**
- * LocaleSwitcher.vue switches the application locale from a compact dropdown or status
- * icon. The component locks selection while setLocale runs, closes after successful
- * selection, and owns the document click listener that dismisses the menu outside its
- * root.
+ * LocaleSwitcher.vue switches the application locale from a dropdown opened by a flag
+ * button or by the header's language-name entry. The component locks selection while
+ * setLocale runs, closes after successful selection, and owns the document click
+ * listener that dismisses the menu outside its root.
  */
 
 /**
- * props chooses the ordinary language and flag button or the compact header language
- * icon used to open the menu.
+ * props chooses the ordinary language and flag button or the header navigation entry
+ * that shows the language name from md upward and an icon below md.
  */
 const props = withDefaults(
   defineProps<{
-    variant?: 'default' | 'status' /* visual presentation variant */
+    variant?: 'default' | 'text' /* visual presentation variant */
   }>(),
   {
     variant: 'default',
@@ -113,12 +121,12 @@ const currentLocale = computed(() => availableLocales.find((l) => l.code === loc
  */
 const variant = computed(() => props.variant)
 /**
- * triggerClass selects the header status icon geometry or the ordinary flag and
+ * triggerClass selects the shared header navigation styling or the ordinary flag and
  * language-name button styling.
  */
 const triggerClass = computed(() => {
-  if (variant.value === 'status') {
-    return 'flex h-9 w-9 items-center justify-center rounded-control text-primary-900 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-dark-100 dark:hover:bg-dark-700 dark:hover:text-white'
+  if (variant.value === 'text') {
+    return 'header-nav-link'
   }
   return 'flex items-center gap-1.5 rounded-control px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-300 dark:hover:bg-dark-700'
 })

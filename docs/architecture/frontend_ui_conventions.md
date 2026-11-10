@@ -47,7 +47,7 @@
 - 用户仪表盘的页头由标题、实时状态和筛选工具组成。手机指标卡收紧内部间距，环比保留“较上期”说明；请求数、Token 和消费的涨跌使用中性色，缓存命中率的升降使用状态色。快捷操作在窄屏和文档顺序中位于公告之前，桌面上仍排在公告右侧。管理员配置了联系方式时，快捷操作下方显示“联系我们”卡片，条目和顶栏菜单共用 `utils/contactInfo.ts` 的解析规则：链接在新标签页打开，其他值点击复制；桌面上这张卡片撑满右列剩余高度，和公告卡片底边对齐。公告标题最多两行，摘要跳过表格和代码块，优先取首段正文，详情展示完整内容。
 - 控制台的 header 和 main 共用 `px-4 md:px-6 lg:px-8`，两侧边缘在各断点对齐。
 - 默认首页正文使用 `px-6 md:px-8`，页脚使用 `px-6 md:px-12`。首屏两个按钮在手机上各占一行并撑满正文宽度，640px 起并排居中。四项统计在各断点保持同一行，标签可在各自列内换行。
-- 默认首页和控制台共用 `AppHeader`，品牌、工具按钮、余额和用户菜单都在这里。首页通过 `public-page` 隐藏侧栏开关，保留模型广场和访客登录入口，并为固定顶栏预留高度；自定义 HTML 或 iframe 首页使用全页模式。操作台的返回仪表盘图标在品牌右侧。
+- 默认首页和控制台共用 `AppHeader`，品牌、导航入口、余额和用户菜单都在这里。右侧从左到右依次是文字导航（模型广场、公告、文档、联系我们、当前语言）、访客的主题按钮，以及分隔线后的余额和头像。导航入口只显示文字，末尾不加箭头或下拉标记；公告有未读时在文字右上角显示红点。登录用户在头像菜单里切换主题，访客用顶栏的主题按钮。首页通过 `public-page` 隐藏侧栏开关，保留模型广场和访客登录入口，并为固定顶栏预留高度；自定义 HTML 或 iframe 首页使用全页模式。操作台的返回仪表盘图标在品牌右侧。
 - 布局尺寸 token 在 `style.css` 的 `:root` 里定义，各有一份：`--header-h`（3.5rem，顶栏高度）、`--sidebar-w`（14rem，侧栏展开宽度）、`--sidebar-w-collapsed`（4.5rem，侧栏折叠宽度）。顶栏高度、主区 `padding-top`、侧栏遮罩 `top`、侧栏宽度和主区 `lg:ml-*` 偏移都引用这些变量（例如 `h-[var(--header-h)]`），`h-14`、`top-14`、`w-56` 这类字面量会和变量脱节。吸顶偏移和锚点 `scroll-margin-top` 写成 `calc(var(--header-h) + 余量)`（参考 SettingsView 的 tabs 吸顶），并在注释里写明余量由什么组成。
 - 垂直空间由 AppLayout 的 flex 链分配：wrapper（`flex-col`，普通模式 `min-h-screen`，锁定模式 `h-full min-h-0`）→ `.app-main`（`flex-1 flex-col`）→ 页头（自然高度）+ 页面内容。需要撑满剩余高度的页面容器（例如 `TablePageLayout`、`CustomPageView` 的根元素）自己加 `flex-1 min-h-0`。手写 `calc(100vh - …)` 视口差值和用负 margin 抵消父级内边距都会破坏这条链；`--main-pad-*`、`--page-heading-space` 这类和布局重复的尺寸变量也不要引入。
 - 系统设置页的内容容器用 `w-full min-w-0` 填满主区，各页签的卡片同宽。容器不设居中外边距和最大宽度，否则在纵向 flex 布局里会按内容收缩。
@@ -81,7 +81,7 @@
 
 - 菜单和搜索建议列表用 `.dropdown` 容器样式，圆角、边框、阴影和深色背景都包含在内。默认绝对定位，上下留白 `py-1`；需要固定定位时补 `fixed`，内容自带留白时补 `py-0`。定位偏移、尺寸和箭头由调用处维护，展开和收起使用公共动效。
 - 深底的信息提示（`HelpTooltip`、表格悬停明细、状态说明等）用 `.tooltip-panel`：浅色模式是 `gray-900` 深底白字；深色模式是 `dark-900` 底色、`dark-100` 文字和 `dark-600` 描边。箭头用 `.tooltip-caret` 旋转方块，一半嵌进面板边缘；调用处补定位和朝外的两条边（向下 `border-b border-r`，向上 `border-l border-t`，向左 `border-b border-l`，向右 `border-r border-t`）。手写的 `dark:bg-gray-*` 面板和边框三角箭头，在深色配色调整时容易漏改，统一用这两个类。浮层内的分隔线在深色模式下用 `dark-600`。
-- 菜单项有两档：`.dropdown-item`（px-4）和紧凑档 `.dropdown-item-sm`（px-3）。配色、hover 和过渡都已包含，调用处只补 `gap-*`、`rounded-control` 这类布局类。基础配色是中性色。顶栏用户菜单、联系我们、语言切换这类导航型浮层，用内缩菜单样式：面板 `.dropdown py-0`，内容按 `.menu-section` 分区（`p-1.5` 留白，相邻分区之间自动加分隔线），分区标题 `.menu-heading`，菜单项 `.menu-item` 内缩并带 `rounded-control` 的悬停底色，悬停配色和 `.sidebar-link` 一致，图标继承文字颜色；危险操作再加 `.menu-item-danger`。顶栏工具区的图标按钮用全局的 `.header-status-icon-button`。
+- 菜单项有两档：`.dropdown-item`（px-4）和紧凑档 `.dropdown-item-sm`（px-3）。配色、hover 和过渡都已包含，调用处只补 `gap-*`、`rounded-control` 这类布局类。基础配色是中性色。顶栏用户菜单、联系我们、语言切换这类导航型浮层，用内缩菜单样式：面板 `.dropdown py-0`，内容按 `.menu-section` 分区（`p-1.5` 留白，相邻分区之间自动加分隔线），分区标题 `.menu-heading`，菜单项 `.menu-item` 内缩并带 `rounded-control` 的悬停底色，悬停配色和 `.sidebar-link` 一致，图标继承文字颜色；危险操作再加 `.menu-item-danger`。顶栏的导航入口用全局的 `.header-nav-link`：`md` 及以上显示文字，配色和 `.text-link` 相同但不加下划线，平时浅色主题用黑色、深色主题用白色，悬停、键盘聚焦和菜单展开时换成品牌色（`primary-600`，深色 `primary-500`），任何状态都不铺底色；`md` 以下同一个元素收成 36px 的图标按钮，调用处用 `md:hidden` 和 `hidden md:inline` 切换图标与文字。主题切换这类纯图标按钮用全局的 `.header-status-icon-button`。
 - 列表工具栏的漏斗筛选用 `FilterDropdown`，每个字段用 `FilterField` 包裹；按钮、面板和点击外部关闭的逻辑都由组件提供。
   - 面板外观和 `DateRangePicker` 一致：`rounded-surface`、淡描边和柔和阴影。头部、已选条件和字段区之间靠留白分层，中间没有分割线。
   - 头部是标题、条件数和「重置」，没有生效的条件时「重置」置灰。有生效条件时，头部下方列出已选条件标签（字段名、当前取值和 ×），顺序和字段一致，点 × 只移除这一项。再往下是可滚动的字段栅格。

@@ -65,6 +65,22 @@ describe('AnnouncementBell', () => {
     vi.restoreAllMocks()
   })
 
+  // The header text variant shows the translated label from md upward and the bell
+  // below md. An unread announcement adds only the red dot; the label keeps the shared
+  // navigation color instead of switching to the unread accent.
+  it('renders the header text trigger with an unread dot', () => {
+    const store = useAnnouncementStore()
+    store.announcements = [createAnnouncement(1)]
+
+    const wrapper = mount(AnnouncementBell, { props: { variant: 'text' } })
+    const trigger = wrapper.get('button')
+    expect(trigger.classes()).toContain('header-nav-link')
+    expect(trigger.classes()).not.toContain('text-primary-600')
+    expect(trigger.get('span.md\\:inline').text()).toBe('announcements.title')
+    expect(trigger.get('svg').classes()).toContain('md:hidden')
+    expect(trigger.find('[data-testid="announcement-unread-dot"]').exists()).toBe(true)
+  })
+
   // The list contains one unread and one acknowledged announcement. The dialog
   // must render its shared card styles, separate read indicators, and an unread
   // count of one.
