@@ -612,43 +612,50 @@ defineExpose({ reload: load })
   border-radius: var(--radius-cell);
 }
 
-/* Interactive cells enlarge and gain an outer ring on pointer hover or keyboard focus. */
+/* One box-shadow composes an inner today mark and an outer hairline ring, so today,
+   selection, hover, and keyboard focus overlap without replacing each other. Both
+   layers hug the cell edge instead of using offset outlines that would fill the
+   three-pixel gap between neighbouring dates. */
 .heatmap-cell-interactive {
+  --cell-mark: 0 0 #0000;
+  --cell-ring: 0 0 #0000;
   cursor: pointer;
+  box-shadow: var(--cell-mark), var(--cell-ring);
   transition:
     transform var(--motion-fast) var(--motion-ease),
     box-shadow var(--motion-fast) var(--motion-ease);
 }
 
+/* Pointer hover and keyboard focus enlarge the cell and add a soft attached ring. */
 .heatmap-cell-interactive:hover,
 .heatmap-cell-interactive:focus-visible {
+  --cell-ring: 0 0 0 1px theme('colors.gray.400');
   transform: scale(1.25);
   outline: none;
-  box-shadow: 0 0 0 1px theme('colors.gray.400');
 }
 
 .dark .heatmap-cell-interactive:hover,
 .dark .heatmap-cell-interactive:focus-visible {
-  box-shadow: 0 0 0 1px theme('colors.dark.300');
+  --cell-ring: 0 0 0 1px theme('colors.dark.300');
 }
 
-/* Neutral outlines distinguish today and the selected date from green intensity bands; selection uses the stronger outline. */
+/* Today keeps a translucent inner hairline that tints whatever intensity colour the cell has. */
 .heatmap-cell-today {
-  outline: 1px solid theme('colors.gray.400');
-  outline-offset: 1px;
-}
-
-.heatmap-cell-selected {
-  outline: 2px solid theme('colors.gray.900');
-  outline-offset: 1px;
+  --cell-mark: inset 0 0 0 1px rgb(17 24 39 / 0.3);
 }
 
 .dark .heatmap-cell-today {
-  outline-color: theme('colors.dark.400');
+  --cell-mark: inset 0 0 0 1px rgb(255 255 255 / 0.35);
 }
 
-.dark .heatmap-cell-selected {
-  outline-color: theme('colors.dark.50');
+/* Selection uses the same attached ring as hover in a stronger neutral; the compound
+   selector keeps it in place while the selected cell is hovered or focused. */
+.heatmap-cell-interactive.heatmap-cell-selected {
+  --cell-ring: 0 0 0 1px theme('colors.gray.700');
+}
+
+.dark .heatmap-cell-interactive.heatmap-cell-selected {
+  --cell-ring: 0 0 0 1px theme('colors.dark.200');
 }
 
 /* Initial cells fade and grow with column delays supplied through --wave-delay. */
