@@ -273,13 +273,9 @@
       <section class="mx-auto mt-20 max-w-7xl">
         <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <router-link
-              to="/models"
-              class="inline-flex items-center gap-2 text-2xl font-bold text-link"
-            >
+            <h2 class="text-2xl font-bold text-gray-950 dark:text-white">
               {{ t('home.providers.title') }}
-              <Icon name="chevronRight" size="md" :animate-on-hover="false" />
-            </router-link>
+            </h2>
             <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
               {{ formatMarketplaceStat(totalModelCount) }} {{ t('marketplace.modelsStat') }}
               ·
