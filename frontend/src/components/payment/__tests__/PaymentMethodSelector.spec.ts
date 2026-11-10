@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
+import alipayIcon from '@/assets/icons/alipay.svg'
+import wxpayIcon from '@/assets/icons/wxpay.svg'
+import stripeIcon from '@/assets/icons/stripe.svg'
+import airwallexIcon from '@/assets/icons/airwallex.svg'
+import paymentIcon from '@/assets/icons/payment.svg'
 
 /**
  * PaymentMethodSelector.spec.ts checks custom payment method labels, fee text, wrapping, and
@@ -88,18 +93,29 @@ describe('PaymentMethodSelector', () => {
     expect(wrapper.text()).not.toContain('payment.methods.ldc')
   })
 
-  // A custom method code contains a built-in wallet name as a substring. Selection styling must
-  // remain generic because built-in wallet aliases require an exact match.
-  it('uses the generic selected style for custom methods that contain built-in names', () => {
+  // Built-in aliases share their wallet artwork, and a custom code containing a wallet name
+  // uses the generic icon. Each selected method uses the same green check.
+  it.each([
+    ['alipay', alipayIcon],
+    ['alipay_direct', alipayIcon],
+    ['wxpay', wxpayIcon],
+    ['wxpay_direct', wxpayIcon],
+    ['stripe', stripeIcon],
+    ['airwallex', airwallexIcon],
+    ['card_alipay', paymentIcon],
+  ])('shows the correct icon and green check for %s', (type, icon) => {
     const wrapper = mount(PaymentMethodSelector, {
       props: {
-        selected: 'card_alipay',
-        methods: [{ type: 'card_alipay', display_name: 'Card Pay', fee_rate: 0, available: true }],
+        selected: type,
+        methods: [{ type, fee_fixed: 0, fee_rate: 0, available: true }],
       },
     })
 
     const button = wrapper.get('button')
-    expect(button.classes()).toContain('border-primary-500')
-    expect(button.classes()).not.toContain('border-[#02A9F1]')
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.get('img').attributes('src')).toBe(icon)
+    expect(button.get('[data-animated-icon="check"]').classes()).toEqual(
+      expect.arrayContaining(['text-emerald-700', 'dark:text-emerald-400']),
+    )
   })
 })

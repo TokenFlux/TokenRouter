@@ -397,6 +397,8 @@ async function mountSubscriptionConfirm(
   const wrapper = shallowMount(PaymentView, {
     global: {
       stubs: {
+        Collapse: false,
+        RetainedContent: false,
         MotionTransition: motionTransitionStub,
         AppLayout: {
           template: '<div><slot /></div>',
@@ -1135,12 +1137,15 @@ describe('PaymentView Stripe billing form', () => {
     window.localStorage.clear()
   })
 
-  // Stripe checkout starts with account username and registered email. Untouched billing fields
-  // must receive those defaults while optional address fields remain visibly marked as optional.
-  it('uses the username and registered email as the Stripe billing defaults and marks optional fields', async () => {
+  // Stripe checkout shows the default name and email with the address fields collapsed.
+  // Opening the optional section must reveal the editable address fields.
+  it('shows Stripe billing defaults and keeps the optional address collapsed', async () => {
     const wrapper = shallowMount(PaymentView, {
       global: {
         stubs: {
+          Collapse: false,
+          Disclosure: false,
+          RetainedContent: false,
           MotionTransition: motionTransitionStub,
           AppLayout: { template: '<main><slot /></main>' },
           Teleport: true,
@@ -1154,14 +1159,22 @@ describe('PaymentView Stripe billing form', () => {
     const emailInput = wrapper.get('input[autocomplete="email"]')
     expect((nameInput.element as HTMLInputElement).value).toBe('demo-user')
     expect((emailInput.element as HTMLInputElement).value).toBe('buyer@example.com')
+    const disclosure = wrapper.get('button[aria-expanded="false"]')
+    const address = wrapper.get(`#${disclosure.attributes('aria-controls')}`)
+    expect(disclosure.text()).toBe('payment.billing.optionalAddress')
+    expect(address.attributes('aria-hidden')).toBe('true')
+    await disclosure.trigger('click')
+    expect(disclosure.attributes('aria-expanded')).toBe('true')
+    expect(address.attributes('aria-hidden')).toBeUndefined()
+
     const labels = wrapper.findAll('label').map((label) => label.text())
     expect(labels).toContain('payment.billing.name')
     expect(labels).toContain('payment.billing.email')
-    expect(labels).toContain('payment.billing.countrypayment.billing.optionalMark')
-    expect(labels).toContain('payment.billing.postalCodepayment.billing.optionalMark')
-    expect(labels).toContain('payment.billing.line1payment.billing.optionalMark')
-    expect(labels).toContain('payment.billing.citypayment.billing.optionalMark')
-    expect(labels).toContain('payment.billing.statepayment.billing.optionalMark')
+    expect(labels).toContain('payment.billing.country')
+    expect(labels).toContain('payment.billing.postalCode')
+    expect(labels).toContain('payment.billing.line1')
+    expect(labels).toContain('payment.billing.city')
+    expect(labels).toContain('payment.billing.state')
   })
 
   // The account has an email address but no username. Stripe billing must use that email for the
@@ -1176,6 +1189,8 @@ describe('PaymentView Stripe billing form', () => {
     const wrapper = shallowMount(PaymentView, {
       global: {
         stubs: {
+          Collapse: false,
+          RetainedContent: false,
           MotionTransition: motionTransitionStub,
           AppLayout: { template: '<main><slot /></main>' },
           Teleport: true,
@@ -1196,6 +1211,8 @@ describe('PaymentView Stripe billing form', () => {
     const wrapper = shallowMount(PaymentView, {
       global: {
         stubs: {
+          Collapse: false,
+          RetainedContent: false,
           MotionTransition: motionTransitionStub,
           AppLayout: { template: '<main><slot /></main>' },
           Teleport: true,
@@ -1218,6 +1235,45 @@ describe('PaymentView Stripe billing form', () => {
     expect(wrapper.text()).toContain('¥104.70')
   })
 
+  // Checkout initially selects its sole Stripe method. Deselecting it must disable payment
+  // and survive subsequent amount edits until the buyer clicks the method again.
+  it('keeps the only payment method deselected until the user selects it again', async () => {
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          MotionTransition: motionTransitionStub,
+          AppLayout: { template: '<main><slot /></main>' },
+          PaymentMethodSelector: false,
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    const amount = wrapper.getComponent(AmountInput)
+    const method = wrapper.get('[data-testid="payment-method-grid"] button')
+    const submit = wrapper.get('[data-testid="checkout-summary"] button')
+    amount.vm.$emit('update:modelValue', 100)
+    await flushPromises()
+    expect(method.attributes('aria-pressed')).toBe('true')
+    expect(submit.attributes('disabled')).toBeUndefined()
+
+    await method.trigger('click')
+    expect(method.attributes('aria-pressed')).toBe('false')
+    expect(submit.attributes('disabled')).toBeDefined()
+    amount.vm.$emit('update:modelValue', 200)
+    await flushPromises()
+    expect(method.attributes('aria-pressed')).toBe('false')
+    expect(submit.attributes('disabled')).toBeDefined()
+    expect(createOrder).not.toHaveBeenCalled()
+
+    await method.trigger('click')
+    expect(method.attributes('aria-pressed')).toBe('true')
+    expect(submit.attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   // The selected payment currency supports three fractional digits. Fixed and percentage fee
   // previews must use that precision when rounding the final gateway charge.
   it('calculates fee preview with three-decimal payment currencies', async () => {
@@ -1227,6 +1283,8 @@ describe('PaymentView Stripe billing form', () => {
     const wrapper = shallowMount(PaymentView, {
       global: {
         stubs: {
+          Collapse: false,
+          RetainedContent: false,
           MotionTransition: motionTransitionStub,
           AppLayout: { template: '<main><slot /></main>' },
           Teleport: true,
@@ -1253,6 +1311,8 @@ describe('PaymentView Stripe billing form', () => {
     const wrapper = shallowMount(PaymentView, {
       global: {
         stubs: {
+          Collapse: false,
+          RetainedContent: false,
           MotionTransition: motionTransitionStub,
           AppLayout: { template: '<main><slot /></main>' },
           Teleport: true,
@@ -1429,7 +1489,7 @@ describe('PaymentView personal recharge rate', () => {
       const personal = wrapper.get('[data-test="personal-recharge-rate"]')
       expect(personal.text()).toBe(rate.toFixed(2))
       expect(personal.classes()).toEqual(
-        expect.arrayContaining(['text-primary-600', 'dark:text-primary-400', 'font-semibold']),
+        expect.arrayContaining(['text-gray-900', 'dark:text-dark-100', 'font-semibold']),
       )
       expect(wrapper.find('[data-test="default-recharge-rate"]').exists()).toBe(struck)
       expect(wrapper.get('[data-test="recharge-rate-preview"]').text()).toContain('CNY')

@@ -9,16 +9,15 @@
       :disabled="!method.available"
       :aria-pressed="selected === method.type"
       :class="[
-        'relative flex h-14 min-w-0 items-center gap-3 rounded-control border px-3 text-left transition-colors',
+        'relative flex h-14 min-w-0 items-center gap-3 rounded-control border px-3 text-left',
         !method.available
           ? 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-50 dark:border-dark-700 dark:bg-dark-900'
           : selected === method.type
-            ? 'border-primary-500 bg-primary-500/5 text-gray-900 ring-1 ring-primary-500 dark:text-white'
+            ? 'border-gray-300 bg-gray-100 text-gray-900 max-sm:pr-5 dark:border-dark-500 dark:bg-dark-700 dark:text-white'
             : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-950 dark:text-dark-100 dark:hover:border-dark-500',
       ]"
-      @click="method.available && emit('select', method.type)"
+      @click="method.available && emit('select', selected === method.type ? '' : method.type)"
     >
-      <!-- Method icons retain their brand colors while selected cards share the application accent border. -->
       <Icon
         v-if="method.type === 'epusdt'"
         name="recharge"
@@ -46,13 +45,15 @@
           {{ methodFeeLabel(method) }}
         </span>
       </span>
-      <!-- At narrow widths the selection border leaves room for method names and fees within the two-column grid. -->
-      <span
+      <!-- Move the check to the corner in the two-column grid to leave more room for names and fees. -->
+      <Icon
         v-if="selected === method.type && method.available"
-        class="hidden h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white sm:flex"
-      >
-        <Icon name="check" size="xs" :stroke-width="3" :animate-on-hover="false" />
-      </span>
+        name="check"
+        size="xs"
+        class="pointer-events-none absolute right-1 top-1 text-emerald-700 sm:static sm:h-4 sm:w-4 dark:text-emerald-400"
+        :stroke-width="3"
+        :animate-on-hover="false"
+      />
     </button>
   </div>
 </template>
@@ -74,9 +75,9 @@ import paymentIcon from '@/assets/icons/payment.svg'
 
 /**
  * PaymentMethodSelector.vue renders available payment methods with fees, icons, and
- * controlled selection. Built-in methods follow the shared display order, while
- * administrator-defined methods retain their labels and use a generic payment icon when no
- * built-in mapping applies.
+ * controlled selection. Clicking the selected available method requests an empty
+ * selection. Built-in wallets share artwork with their direct aliases, while custom
+ * methods keep their labels and use the generic payment icon.
  */
 
 /**
@@ -92,24 +93,24 @@ export interface PaymentMethodOption {
 
 const props = defineProps<{
   methods: PaymentMethodOption[] // offered checkout payment methods
-  selected: string // controlled selected method code
+  // selected holds the checkout method code, or an empty string when no card is pressed.
+  selected: string
 }>()
 
 const emit = defineEmits<{
-  select: [type: string] // requested method selection
+  // select requests the clicked method code or an empty string to clear the current choice.
+  select: [type: string]
 }>()
 
 const { t } = useI18n()
 
-// Method icons identify the built-in gateways while administrator-defined codes use the
-// generic payment artwork when no mapping exists.
-const METHOD_ICONS: Record<string, string> = {
-  alipay: alipayIcon,
-  wxpay: wxpayIcon,
-  stripe: stripeIcon,
-  airwallex: airwallexIcon,
-  credit_card: paymentIcon,
-}
+// Bundled icons identify built-in methods, with one asset shared by each wallet's exact aliases.
+const METHOD_ICONS = new Map([
+  ['alipay', alipayIcon],
+  ['wxpay', wxpayIcon],
+  ['stripe', stripeIcon],
+  ['airwallex', airwallexIcon],
+])
 
 // Sorting copies the input array so the selector can order cards without changing the checkout
 // page's method collection.
@@ -123,15 +124,15 @@ const sortedMethods = computed(() => {
 })
 
 /**
- * methodIcon returns the icon for exact built-in aliases or known methods. Other method
- * codes use the generic payment icon, allowing administrator-defined EasyPay options to
- * remain selectable without a bundled asset.
+ * methodIcon resolves exact built-in wallet aliases and method codes to their bundled
+ * artwork. Unmapped codes use the generic icon so custom EasyPay methods can render
+ * without a bundled asset.
  */
 function methodIcon(type: string): string {
-  if (isBuiltInAlipayMethod(type)) return METHOD_ICONS.alipay
-  if (isBuiltInWxpayMethod(type)) return METHOD_ICONS.wxpay
-  if (type === 'airwallex') return METHOD_ICONS.airwallex
-  return METHOD_ICONS[type] || paymentIcon
+  let iconMethod = type
+  if (isBuiltInAlipayMethod(type)) iconMethod = 'alipay'
+  if (isBuiltInWxpayMethod(type)) iconMethod = 'wxpay'
+  return METHOD_ICONS.get(iconMethod) ?? paymentIcon
 }
 
 /**

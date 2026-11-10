@@ -12,11 +12,19 @@
           type="button"
           role="tab"
           :aria-selected="activeTab === tab.key"
-          class="segmented-item flex h-8 items-center justify-center px-4 text-sm"
+          class="segmented-item flex h-8 items-center justify-center gap-1 whitespace-nowrap px-1 text-sm sm:gap-2 sm:px-4"
           :class="{ 'segmented-item-active': activeTab === tab.key }"
           @click="activeTab = tab.key"
         >
           {{ tab.label }}
+          <span
+            v-if="tab.key === 'subscription' && checkout.plans.length > 0"
+            class="badge-success inline-flex items-center gap-1 rounded-compact px-1 py-0.5 text-xs font-medium sm:px-2"
+          >
+            <!-- Center the gift's visible strokes against the label glyphs. -->
+            <Icon name="gift" size="xs" class="translate-y-px" :animate-on-hover="false" />
+            {{ t('payment.subscriptionSavingsBadge') }}
+          </span>
         </button>
       </div>
     </template>
@@ -151,7 +159,7 @@
             <!-- Recharge and subscription confirmation share checkout. Selection and summary stack below xl because the sidebar reduces available width; the summary becomes sticky at xl. -->
             <div v-else class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22.5rem] xl:items-start">
               <!-- Amount or plan, payment methods, and billing details form separate checkout cards. -->
-              <div class="min-w-0 space-y-4">
+              <div class="min-w-0">
                 <!-- Selected subscription summary. -->
                 <section v-if="isSubscriptionCheckout && selectedPlan" class="card p-4 sm:p-6">
                   <p class="text-xs font-medium text-gray-500 dark:text-dark-400">{{
@@ -245,7 +253,7 @@
                   }}</p>
                 </section>
 
-                <section v-if="enabledMethods.length >= 1" class="card p-4 sm:p-6">
+                <section v-if="enabledMethods.length >= 1" class="card mt-4 p-4 sm:p-6">
                   <h2 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{
                     t('payment.paymentMethod')
                   }}</h2>
@@ -275,72 +283,82 @@
                   </div>
                 </section>
 
-                <!-- Stripe billing details. -->
-                <section v-if="isStripeSelected" class="card p-4 sm:p-6">
-                  <h2 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{
-                    t('payment.billing.title')
-                  }}</h2>
-                  <div class="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label class="input-label">{{ t('payment.billing.name') }}</label>
-                      <input
-                        v-model="billingInfo.name"
-                        class="input mt-1 w-full"
-                        autocomplete="name"
-                      />
+                <!-- Include the card's top margin in the collapse so the gap closes with the form. -->
+                <Collapse :open="isStripeSelected" unmount-on-hide>
+                  <section class="card mt-4 p-4 sm:p-6">
+                    <h2 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{
+                      t('payment.billing.title')
+                    }}</h2>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                      <label class="block">
+                        <span class="input-label">{{ t('payment.billing.name') }}</span>
+                        <input
+                          v-model="billingInfo.name"
+                          class="input mt-1 w-full"
+                          autocomplete="name"
+                        />
+                      </label>
+                      <label class="block">
+                        <span class="input-label">{{ t('payment.billing.email') }}</span>
+                        <input
+                          v-model="billingInfo.email"
+                          class="input mt-1 w-full"
+                          autocomplete="email"
+                          type="email"
+                        />
+                      </label>
                     </div>
-                    <div>
-                      <label class="input-label">{{ t('payment.billing.email') }}</label>
-                      <input
-                        v-model="billingInfo.email"
-                        class="input mt-1 w-full"
-                        autocomplete="email"
-                        type="email"
-                      />
-                    </div>
-                    <div>
-                      <label class="input-label">{{ optionalBillingLabel('country') }}</label>
-                      <input
-                        v-model="billingInfo.country"
-                        class="input mt-1 w-full"
-                        autocomplete="country"
-                        maxlength="2"
-                      />
-                    </div>
-                    <div>
-                      <label class="input-label">{{ optionalBillingLabel('postalCode') }}</label>
-                      <input
-                        v-model="billingInfo.postal_code"
-                        class="input mt-1 w-full"
-                        autocomplete="postal-code"
-                      />
-                    </div>
-                    <div class="sm:col-span-2">
-                      <label class="input-label">{{ optionalBillingLabel('line1') }}</label>
-                      <input
-                        v-model="billingInfo.line1"
-                        class="input mt-1 w-full"
-                        autocomplete="address-line1"
-                      />
-                    </div>
-                    <div>
-                      <label class="input-label">{{ optionalBillingLabel('city') }}</label>
-                      <input
-                        v-model="billingInfo.city"
-                        class="input mt-1 w-full"
-                        autocomplete="address-level2"
-                      />
-                    </div>
-                    <div>
-                      <label class="input-label">{{ optionalBillingLabel('state') }}</label>
-                      <input
-                        v-model="billingInfo.state"
-                        class="input mt-1 w-full"
-                        autocomplete="address-level1"
-                      />
-                    </div>
-                  </div>
-                </section>
+                    <Disclosure
+                      class="mt-4 border-t border-gray-100 pt-2 dark:border-dark-700"
+                      summary-class="flex min-h-9 w-full items-center gap-2 rounded-control text-left text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white"
+                    >
+                      <template #summary>{{ t('payment.billing.optionalAddress') }}</template>
+                      <div class="grid gap-4 pt-2 sm:grid-cols-2">
+                        <label class="block">
+                          <span class="input-label">{{ t('payment.billing.country') }}</span>
+                          <input
+                            v-model="billingInfo.country"
+                            class="input mt-1 w-full"
+                            autocomplete="country"
+                            maxlength="2"
+                          />
+                        </label>
+                        <label class="block">
+                          <span class="input-label">{{ t('payment.billing.postalCode') }}</span>
+                          <input
+                            v-model="billingInfo.postal_code"
+                            class="input mt-1 w-full"
+                            autocomplete="postal-code"
+                          />
+                        </label>
+                        <label class="block sm:col-span-2">
+                          <span class="input-label">{{ t('payment.billing.line1') }}</span>
+                          <input
+                            v-model="billingInfo.line1"
+                            class="input mt-1 w-full"
+                            autocomplete="address-line1"
+                          />
+                        </label>
+                        <label class="block">
+                          <span class="input-label">{{ t('payment.billing.city') }}</span>
+                          <input
+                            v-model="billingInfo.city"
+                            class="input mt-1 w-full"
+                            autocomplete="address-level2"
+                          />
+                        </label>
+                        <label class="block">
+                          <span class="input-label">{{ t('payment.billing.state') }}</span>
+                          <input
+                            v-model="billingInfo.state"
+                            class="input mt-1 w-full"
+                            autocomplete="address-level1"
+                          />
+                        </label>
+                      </div>
+                    </Disclosure>
+                  </section>
+                </Collapse>
               </div>
 
               <!-- The sticky offset includes the header height and page padding so the checkout summary stays below the navigation. -->
@@ -366,59 +384,49 @@
                   <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{
                     t('payment.orderSummary')
                   }}</h2>
-                  <dl class="mt-3 space-y-2 text-sm">
-                    <div class="flex justify-between gap-4">
+                  <div class="mt-3 text-sm">
+                    <dl class="flex justify-between gap-4">
                       <dt class="text-gray-500 dark:text-dark-400">{{ checkoutBaseLabel }}</dt>
                       <dd class="tabular-nums text-gray-900 dark:text-dark-100">{{
                         checkoutBaseText
                       }}</dd>
-                    </div>
-                    <div
-                      v-if="checkoutFeeBreakdown.fixedFee > 0"
-                      class="flex justify-between gap-4"
+                    </dl>
+                    <!-- Each fee row collapses with its spacing, so the total follows the visible breakdown. -->
+                    <Collapse
+                      v-for="fee in checkoutFeeRows"
+                      :key="fee.key"
+                      :open="fee.amount > 0"
+                      unmount-on-hide
                     >
-                      <dt class="text-gray-500 dark:text-dark-400">{{ t('payment.fixedFee') }}</dt>
-                      <dd class="tabular-nums text-gray-900 dark:text-dark-100">{{
-                        formatSelectedPaymentAmount(checkoutFeeBreakdown.fixedFee)
-                      }}</dd>
-                    </div>
-                    <div v-if="checkoutFeeBreakdown.rateFee > 0" class="flex justify-between gap-4">
-                      <dt class="text-gray-500 dark:text-dark-400"
-                        >{{ t('payment.rateFee') }} ({{ checkoutFeeBreakdown.feeRate }}%)</dt
+                      <dl class="flex justify-between gap-4 pt-2">
+                        <dt class="text-gray-500 dark:text-dark-400">{{ fee.label }}</dt>
+                        <dd class="tabular-nums text-gray-900 dark:text-dark-100">{{
+                          formatSelectedPaymentAmount(fee.amount)
+                        }}</dd>
+                      </dl>
+                    </Collapse>
+                    <dl class="mt-2 space-y-2">
+                      <div
+                        class="flex items-baseline justify-between gap-4 border-t border-gray-100 pt-3 dark:border-dark-700"
                       >
-                      <dd class="tabular-nums text-gray-900 dark:text-dark-100">{{
-                        formatSelectedPaymentAmount(checkoutFeeBreakdown.rateFee)
-                      }}</dd>
-                    </div>
-                    <div
-                      v-if="checkoutFeeBreakdown.totalFee > 0"
-                      class="flex justify-between gap-4"
-                    >
-                      <dt class="text-gray-500 dark:text-dark-400">{{ t('payment.feeTotal') }}</dt>
-                      <dd class="tabular-nums text-gray-900 dark:text-dark-100">{{
-                        formatSelectedPaymentAmount(checkoutFeeBreakdown.totalFee)
-                      }}</dd>
-                    </div>
-                    <div
-                      class="flex items-baseline justify-between gap-4 border-t border-gray-100 pt-3 dark:border-dark-700"
-                    >
-                      <dt class="font-medium text-gray-900 dark:text-white">{{
-                        t('payment.actualPay')
-                      }}</dt>
-                      <dd
-                        class="text-xl font-semibold tabular-nums text-gray-900 dark:text-white"
-                        >{{ formatSelectedPaymentAmount(checkoutTotalAmount) }}</dd
-                      >
-                    </div>
-                    <div v-if="showRechargeRate" class="flex justify-between gap-4">
-                      <dt class="text-gray-500 dark:text-dark-400">{{
-                        t('payment.creditedBalance')
-                      }}</dt>
-                      <dd class="font-medium tabular-nums text-primary-600 dark:text-primary-400">{{
-                        formatBalanceAmount(creditedAmount, { fractionDigits: 2 })
-                      }}</dd>
-                    </div>
-                  </dl>
+                        <dt class="font-medium text-gray-900 dark:text-white">{{
+                          t('payment.actualPay')
+                        }}</dt>
+                        <dd
+                          class="text-xl font-semibold tabular-nums text-gray-900 dark:text-white"
+                          >{{ formatSelectedPaymentAmount(checkoutTotalAmount) }}</dd
+                        >
+                      </div>
+                      <div v-if="showRechargeRate" class="flex justify-between gap-4">
+                        <dt class="text-gray-500 dark:text-dark-400">{{
+                          t('payment.creditedBalance')
+                        }}</dt>
+                        <dd class="font-medium tabular-nums text-gray-900 dark:text-dark-100">{{
+                          formatBalanceAmount(creditedAmount, { fractionDigits: 2 })
+                        }}</dd>
+                      </div>
+                    </dl>
+                  </div>
                   <p
                     v-if="showRechargeRate"
                     class="mt-3 text-xs text-gray-500 dark:text-dark-400"
@@ -448,7 +456,7 @@
                             >{{ defaultBalanceRechargeMultiplier.toFixed(2) }}</s
                           >
                           <span
-                            class="font-semibold tabular-nums text-primary-600 dark:text-primary-400"
+                            class="font-semibold tabular-nums text-gray-900 dark:text-dark-100"
                             data-test="personal-recharge-rate"
                             >{{ balanceRechargeMultiplier.toFixed(2) }}</span
                           >
@@ -588,6 +596,8 @@
 import { useLocaleRefresh } from '@/composables/useLocaleRefresh'
 import { vSegmented } from '@/directives/segmented'
 import MotionTransition from '@/components/common/MotionTransition.vue'
+import Collapse from '@/components/common/Collapse.vue'
+import Disclosure from '@/components/common/Disclosure.vue'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { I18nT, useI18n } from 'vue-i18n'
 import { calculateRechargeCredit, isValidRechargeCredit } from '@/utils/payment/rechargeCredit'
@@ -661,8 +671,8 @@ marked.setOptions({
 const user = computed(() => authStore.user)
 const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
 
-// Editable purchase fields stay on the page; the checkout controller owns submission errors,
-// waiting state, and browser launch operations.
+// Editable purchase fields stay on the page. An empty selectedMethod represents an
+// unselected checkout, and the controller owns submission errors and launch operations.
 const loading = ref(true)
 const activeTab = ref<'recharge' | 'subscription'>('recharge')
 const amount = ref<number | null>(null)
@@ -841,13 +851,6 @@ const registeredEmail = computed(() => (user.value?.email || '').trim())
 const defaultBillingName = computed(
   () => (user.value?.username || '').trim() || registeredEmail.value,
 )
-
-/**
- * optionalBillingLabel appends the localized optional marker to a billing field label.
- */
-function optionalBillingLabel(key: 'country' | 'postalCode' | 'line1' | 'city' | 'state'): string {
-  return `${t(`payment.billing.${key}`)}${t('payment.billing.optionalMark')}`
-}
 
 /**
  * fillBillingNameFromUser applies the current username or registered email to untouched
@@ -1133,11 +1136,22 @@ const checkoutMethodOptions = computed(() =>
 const checkoutFeeBreakdown = computed(() =>
   isSubscriptionCheckout.value ? subscriptionFeeBreakdown.value : rechargeFeeBreakdown.value,
 )
+// Stable fee keys let each summary row expand or collapse independently as its charge changes.
+const checkoutFeeRows = computed(() => {
+  const { fixedFee, rateFee, feeRate, totalFee } = checkoutFeeBreakdown.value
+  return [
+    { key: 'fixed', label: t('payment.fixedFee'), amount: fixedFee },
+    { key: 'rate', label: `${t('payment.rateFee')} (${feeRate}%)`, amount: rateFee },
+    { key: 'total', label: t('payment.feeTotal'), amount: totalFee },
+  ]
+})
 const checkoutTotalAmount = computed(() =>
   isSubscriptionCheckout.value ? subTotalAmount.value : totalAmount.value,
 )
-const checkoutCanSubmit = computed(() =>
-  isSubscriptionCheckout.value ? canSubmitSubscription.value : canSubmit.value,
+const checkoutCanSubmit = computed(
+  () =>
+    selectedMethod.value !== '' &&
+    (isSubscriptionCheckout.value ? canSubmitSubscription.value : canSubmit.value),
 )
 const checkoutBaseLabel = computed(() =>
   isSubscriptionCheckout.value ? t('payment.orders.amount') : t('payment.paymentAmount'),
@@ -1161,11 +1175,12 @@ function handleCheckoutSubmit() {
   void handleSubmitRecharge()
 }
 
-// Auto-switch to first available method when current selection can't handle the amount
+// Switch a selected method when its limits reject the current amount. Leave an empty
+// selection alone so amount edits cannot undo the user's decision to deselect.
 watch(
   () => [validAmount.value, selectedMethod.value] as const,
   ([amt, method]) => {
-    if (amt <= 0 || amountFitsMethod(amt, method)) return
+    if (!method || amt <= 0 || amountFitsMethod(amt, method)) return
     const available = enabledMethods.value.find((m) => amountFitsMethod(amt, m))
     if (available) selectedMethod.value = available
   },

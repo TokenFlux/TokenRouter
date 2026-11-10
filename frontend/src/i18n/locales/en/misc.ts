@@ -648,7 +648,7 @@ export default {
       line1: 'Address',
       city: 'City',
       state: 'State',
-      optionalMark: ' (optional)',
+      optionalAddress: 'Billing address (optional)',
     },
     result: {
       success: 'Payment Successful',
@@ -667,6 +667,7 @@ export default {
     noActiveSubscription: 'No active subscription',
     tabTopUp: 'Pay-as-you-go',
     tabSubscribe: 'Subscribe',
+    subscriptionSavingsBadge: 'Pay less',
     noPlans: 'No subscription plans available',
     notAvailable: 'Top-up is currently unavailable',
     confirmSubscription: 'Confirm Subscription',

@@ -369,9 +369,10 @@ export function usePaymentCheckout(inputs: CheckoutInputs) {
 
   /**
    * createOrder creates an order and executes the launch action chosen from its reply.
-   * Callers validate editable billing data before calling; resume options can supply an
-   * authorization token or OpenID and override the selected method. The waiting state is
-   * published and persisted before opening a payment destination.
+   * Callers validate editable billing data before calling. Resume options can supply an
+   * authorization token or OpenID and override the selected method. If the selection is
+   * cleared while a subscription check is pending, the missing method stops order creation.
+   * The waiting state is published and persisted before opening a payment destination.
    *
    * WeChat cancellation returns to selection, successful JSAPI replies navigate to result
    * verification, and supported mobile failures can retry with desktop QR parameters. Error-
@@ -385,13 +386,14 @@ export function usePaymentCheckout(inputs: CheckoutInputs) {
     planId?: number,
     options: CreateOrderOptions = {},
   ) {
-    submitting.value = true
-    errorMessage.value = ''
-    errorHintMessage.value = ''
     const requestType =
       normalizeVisibleMethod(options.paymentType || selectedMethod.value) ||
       options.paymentType ||
       selectedMethod.value
+    if (!requestType) return
+    submitting.value = true
+    errorMessage.value = ''
+    errorHintMessage.value = ''
     try {
       const payload = buildCreateOrderPayload({
         amount: orderAmount,

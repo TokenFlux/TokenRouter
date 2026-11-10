@@ -630,7 +630,7 @@ export default {
       line1: '地址',
       city: '城市',
       state: '省/州',
-      optionalMark: '（可选）',
+      optionalAddress: '账单地址（可选）',
     },
     result: {
       success: '支付成功',
@@ -648,6 +648,7 @@ export default {
     noActiveSubscription: '暂无有效订阅',
     tabTopUp: '按量',
     tabSubscribe: '订阅',
+    subscriptionSavingsBadge: '更省',
     noPlans: '暂无可用订阅套餐',
     notAvailable: '充值功能暂未开放',
     confirmSubscription: '确认订阅',

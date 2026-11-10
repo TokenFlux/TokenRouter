@@ -256,7 +256,7 @@ Vue 的 `<style scoped>` 中，深色后代规则写成 `.dark .component-class`
 - 原生 details 的交互改用 `Disclosure`，折叠头是一个按钮，带 `aria-expanded` 和 `aria-controls`。校验和引导通过 `form-field-reveal`、`onboarding-reveal` 展开字段时，Collapse 跳过动画，下一次 DOM 更新后就能定位到字段。
 - 分段切换用 `vSegmented` 定位轨道 `::before` 的背景，位置、宽度和高度以 `--motion-normal`（200ms）和公共缓动过渡。选中项由调用方的 `.segmented-item-active` 标记，点击、键盘和 ARIA 属性由调用方提供；指令不增加可聚焦节点。首屏显示和隐藏后重新出现时直接定位，没有选中项时移除背景。指令在 Vue 更新和 ResizeObserver 通知时重新测量，能处理宽度不同的文案、换行、字体和尺寸变化，卸载时释放观察器。快速连续切换时，CSS 从当前位置继续过渡；减少动态效果时，按公共时长变量立即完成。
 - 页签和页面内容用 `vContentReveal`：默认对已有元素做 150ms 的透明度动画，不增加包装层，也不重新挂载组件。AppLayout 只处理 main，AuthLayout 只处理内容区，公开页面在各自的内容容器上接入。路由以 `route.path` 触发，同一路径下 query 或 hash 变化时不重播；快速换页时取消旧动画，导航进度条独立表示路由加载。页签用 v-if 还是 v-show，由各页面自己决定。
-- 购买页用 `MotionTransition` 在同一个视窗内横向切换，面板只以 `activeTab` 为 key：进入 Subscribe 时向左翻页，返回 Pay-as-you-go 时向右翻页，时长 `--motion-layout`（220ms）。退出的面板绝对定位，由公共生命周期隔离交互；动画期间裁剪视窗，结束后恢复摘要吸顶和浮层布局。在同一个页签内填写表单或推进支付流程时，面板不重新挂载。首次加载显示骨架时不播放切换动画，减少动态效果时按公共时长变量直接切换。
+- 购买页用 `MotionTransition` 在同一个视窗内横向切换，面板只以 `activeTab` 为 key：进入 Subscribe 时向左翻页，返回 Pay-as-you-go 时向右翻页，时长 `--motion-layout`（220ms）。退出的面板绝对定位，由公共生命周期隔离交互；动画期间裁剪视窗，结束后恢复摘要吸顶和浮层布局。在同一个页签内填写表单或推进支付流程时，面板不重新挂载。Stripe 账单表单和摘要中的各项手续费通过 `Collapse` 展开和收起，手续费行退出时保留上一帧的数值，实付金额随当前选择更新。首次加载显示骨架时不播放切换动画，减少动态效果时按公共时长变量直接切换。
 - 两种弹窗共用 `useDialogLifecycle`：滚动锁保持到弹窗实际退出完成，快速重新打开不会重复计数，旧弹窗不会抢走新弹窗的焦点，Escape 只关闭最上层的 BaseDialog。父级按需挂载的安全凭证弹窗使用 `useLeavingPresence`，关闭后等外壳的 `after-leave` 再卸载。
 - Toast 和用户直接增删的短列表用 `motion-list`，以稳定的业务 key 识别进入、退出和位置变化。分页表格、虚拟列表和轮询结果不做逐行动效。
 - 系统开启减少动态效果时，普通过渡变量缩短到 1ms，位移归零，Collapse 和内容淡入直接切到最终状态；动态修改这个偏好会取消正在进行的内容淡入。完成和清理通过 Vue 生命周期和动画完成事件执行，业务代码里不用定时器估算结束时间。
