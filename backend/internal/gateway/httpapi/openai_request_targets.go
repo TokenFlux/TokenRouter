@@ -27,6 +27,7 @@ import (
 // credentials. Raw Chat has a Grok-specific route, native Anthropic uses its
 // protocol base, and images choose generation or edit endpoints; each request
 // path applies the matching body attributes and outgoing transport policy.
+// Chat uses the selected provider's body policy for each outgoing attempt.
 
 // ChatURL builds a validated Chat Completions URL for a non-Grok provider. An
 // empty protocol base uses https://api.openai.com. The endpoint helper handles
@@ -71,9 +72,10 @@ func (s *OpenAIRequests) ChatFallbackTarget(ctx context.Context, provider *gatew
 }
 
 // SendChat prepares and sends Chat input using the selected provider's
-// transport. It applies model attributes first and returns attribute errors
-// before sending. The upstream sender detaches its request context through
-// DetachUpstreamContext; callers read and close any returned response body.
+// transport. It applies model attributes and then the provider's Chat body
+// policy. Preparation errors return before sending. The upstream sender
+// detaches its request context through DetachUpstreamContext, and callers read
+// and close any returned response body.
 //
 // Transport preparation resolves TLS routing when a match was not supplied,
 // applies platform user-agent and Grok cache headers, then finalizes provider
@@ -93,6 +95,10 @@ func (s *OpenAIRequests) SendChat(
 ) (*http.Response, error) {
 	var err error
 	body, err = s.applyModelAttributes(ctx, provider, body, "openai_chat_completions")
+	if err != nil {
+		return nil, err
+	}
+	body, err = provider.View().PrepareChatRequestBody(body)
 	if err != nil {
 		return nil, err
 	}

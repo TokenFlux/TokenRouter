@@ -46,6 +46,8 @@ API Key 提供商可以在管理员列表里配置并手动查询上游用量。
 
 协议能力、地址选择和 Responses 状态策略分别判断。支持原生 Responses 的平台可以保留或去掉续接状态；协议地址槽和 DeepSeek 的 `/responses` 路径由端点规则选择。DeepSeek 的客户端工具转换由自己的操作策略启用。模型别名是否要求显式 Claude 价格、成功后是否清除 403 计数，作为两个独立字段进入完成快照。
 
+DeepSeek 的平台规则为原生 Chat Completions 登记了请求体转换。发送时，网关按本次选中的提供商执行规则，将 `developer` 指令转成 `system`，并保留消息的位置。文本分片按原顺序用空行连接成字符串，符合该端点的系统消息格式。故障转移时，下一次尝试从原请求准备报文。
+
 模式读取保留历史配置的解释方式，保存时再执行平台的校验规则。例如 DeepSeek 的历史 `coding` 值仍能读取原有端点，但没有用量适配器，重新保存时返回既有错误码。配置键、监控快照键和错误码保留原有格式。
 
 Kimi、Zhipu 和 DeepSeek 只接受 `type=apikey`。提供商模式和原生协议集合互相独立：DeepSeek 只有 `payg`，Kimi 和 Zhipu 支持 `payg` 和 `coding`。DeepSeek 和 Kimi 的原生集合包括 Messages、Responses、Chat；Zhipu 只有 Messages 和 Chat。原生集合统一保存在 `credentials.upstream_protocols`，可以全部关闭；非法组合被拒绝。

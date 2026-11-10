@@ -1,15 +1,18 @@
 package openai
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
-// compatibility_fields.go normalizes OAuth Responses input fields,
-// instructions, and model values for upstream preparation.
+// compatibility_fields.go normalizes Responses fields and Chat instructions
+// for upstream preparation.
 // OAuth-compatible request preparation accepts prompt as an input source when
 // input is missing or null, then removes prompt and commands from the forwarded
 // shape. Existing nonnull input takes precedence even when its content is empty.
@@ -21,6 +24,18 @@ import (
 // fields under their own rules. Byte-oriented paths inspect fields without
 // establishing full JSON validity, so callers validate request structure and
 // keep model-selection policy outside these mechanical compatibility operations.
+//
+// Chat instruction edits retain the positions of the original field values.
+// One output buffer holds the rewritten body, with tool history and all other
+// untouched bytes copied directly from the input. A later provider attempt
+// can still use the original history.
+
+// chatFieldEdit replaces one original JSON field value with encoded bytes.
+type chatFieldEdit struct {
+	start int    // inclusive byte offset
+	end   int    // exclusive byte offset
+	value []byte // encoded replacement value
+}
 
 // NormalizeOpenAIOAuthResponsesCompatibilityFields moves a nonnil prompt value
 // into missing or nil input before removing prompt and commands in place.
@@ -161,4 +176,106 @@ func ReplaceModelInBody(body []byte, newModel string) []byte {
 		return body
 	}
 	return newBody
+}
+
+// NormalizeChatDeveloperMessages converts developer instructions into system
+// messages for Chat destinations that accept system instructions as strings.
+// String content retains its original encoding, while text parts become one
+// string separated by blank lines. Unsupported content shapes remain available
+// for the destination to validate.
+//
+// Edits follow source offsets even when content appears before role. The
+// function copies unchanged spans directly into one output buffer so unrelated
+// fields retain their wire representation and the original body remains
+// available for another provider attempt. A body with no edits is returned
+// as supplied. Invalid edit positions return the original body with an error.
+func NormalizeChatDeveloperMessages(body []byte) ([]byte, error) {
+	messages := wirejson.ParseView(body).Get("messages")
+	if !messages.IsArray() {
+		return body, nil
+	}
+
+	systemRole := []byte(`"system"`)
+	var edits []chatFieldEdit
+	messages.ForEach(func(_, message gjson.Result) bool {
+		role := message.Get("role")
+		if role.String() != "developer" {
+			return true
+		}
+		content := message.Get("content")
+		text, ok := chatDeveloperText(content)
+		if !ok {
+			return true
+		}
+
+		roleEdit := chatFieldEdit{start: role.Index, end: role.Index + len(role.Raw), value: systemRole}
+		// Scalar content already has the required wire shape, so changing the role
+		// preserves its original JSON string encoding as well as its text.
+		if !content.IsArray() {
+			edits = append(edits, roleEdit)
+			return true
+		}
+
+		// Text parts require a JSON string for the destination's system message.
+		// Marshaling a plain string cannot return an encoding error.
+		encodedText, _ := json.Marshal(text)
+		contentEdit := chatFieldEdit{start: content.Index, end: content.Index + len(content.Raw), value: encodedText}
+		// JSON object fields can arrive in either order. Appending the earlier edit
+		// first lets the final copy advance through the original request once.
+		if contentEdit.start < roleEdit.start {
+			edits = append(edits, contentEdit, roleEdit)
+			return true
+		}
+		edits = append(edits, roleEdit, contentEdit)
+		return true
+	})
+	if len(edits) == 0 {
+		return body, nil
+	}
+
+	// Check the source spans before allocating output, and size the buffer for
+	// the final encoded values so appending the spans never grows the buffer.
+	size := len(body)
+	cursor := 0
+	for _, edit := range edits {
+		if edit.start < cursor || edit.end <= edit.start || edit.end > len(body) {
+			return body, fmt.Errorf("invalid Chat developer message edit at byte %d", edit.start)
+		}
+		size += len(edit.value) - (edit.end - edit.start)
+		cursor = edit.end
+	}
+
+	normalized := make([]byte, 0, size)
+	cursor = 0
+	for _, edit := range edits {
+		normalized = append(normalized, body[cursor:edit.start]...)
+		normalized = append(normalized, edit.value...)
+		cursor = edit.end
+	}
+	normalized = append(normalized, body[cursor:]...)
+	return normalized, nil
+}
+
+// chatDeveloperText reads scalar instructions or joins an array of text parts
+// in order. It reports false for other content shapes or malformed parts so
+// normalization can preserve the original message for upstream validation.
+func chatDeveloperText(content gjson.Result) (string, bool) {
+	if content.Type == gjson.String {
+		return content.Str, true
+	}
+	if !content.IsArray() {
+		return "", false
+	}
+
+	var texts []string
+	for _, part := range content.Array() {
+		text := part.Get("text")
+		if part.Get("type").String() != "text" || text.Type != gjson.String {
+			return "", false
+		}
+		texts = append(texts, text.Str)
+	}
+	// Separate adjacent parts with blank lines so their boundary survives the
+	// conversion to a single string, including when the parts lack whitespace.
+	return strings.Join(texts, "\n\n"), true
 }

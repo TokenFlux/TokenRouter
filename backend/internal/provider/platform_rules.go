@@ -16,9 +16,9 @@ import (
 // Text mode reads and save validation have different compatibility obligations.
 // Historical records can retain a readable mode that new writes must reject,
 // so mode entries carry both endpoint data and an optional validation error.
-// The registry stays private and immutable after initialization. Accessors
-// return scalar decisions or fresh lists, keeping callers from changing another
-// platform's rules through shared slices or maps.
+// The registry stays private and immutable after initialization. Callers read
+// policy values or request an operation without access to the underlying
+// declarations, so shared maps and slices cannot be changed through a lookup.
 
 // platformRuleRegistry binds platform identities to independently declared policies.
 // Unlisted platforms retain their existing dedicated credential and execution paths.
@@ -58,6 +58,10 @@ type platformRules struct {
 	repairToolSchema         bool                 // repair compatible tool schemas
 	apiKeyHeaderOverrides    bool                 // allow API-key Header overrides
 	oauthHeaderOverrides     bool                 // allow OAuth Header overrides
+
+	// prepareChatBody adapts the outbound Chat payload for this platform. A nil
+	// function leaves the supplied body available to the sender as-is.
+	prepareChatBody func([]byte) ([]byte, error)
 }
 
 // textEndpointRules describes legacy selection and endpoint defaults for text APIs.
@@ -110,6 +114,18 @@ func (r *Record) rules() platformRules {
 // credential type and enabled protocols.
 func (r *Record) HasProtocolEndpointDefaults() bool {
 	return r.rules().text != nil
+}
+
+// PrepareChatRequestBody applies the platform's wire policy to a Chat
+// Completions payload after that upstream operation has been selected. A nil
+// record or an unconfigured policy returns the supplied bytes. Preparation
+// errors stop request construction in the caller.
+func (r *Record) PrepareChatRequestBody(body []byte) ([]byte, error) {
+	prepare := r.rules().prepareChatBody
+	if prepare == nil {
+		return body, nil
+	}
+	return prepare(body)
 }
 
 // RequiresStatelessResponses reports whether the platform forbids stored Responses continuation.

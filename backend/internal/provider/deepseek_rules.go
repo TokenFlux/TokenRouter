@@ -1,9 +1,12 @@
 package provider
 
+import "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 // deepseek_rules.go declares DeepSeek protocol roots, wallet queries, and
-// provider policies. New writes accept pay-as-you-go mode. Historical coding
-// records retain their prior endpoint lookup but have no usage adapter, and
-// save validation rejects that mode after checking the selected protocol.
+// provider policies. The native Chat endpoint receives system instructions
+// through its own body policy. New writes accept pay-as-you-go mode, while
+// historical coding records retain endpoint lookup for existing credentials
+// and lack a usage adapter.
 
 // DeepSeek endpoint constants supply the Chat and Messages roots used by
 // provider defaults and administrator presets; operation paths are appended later.
@@ -48,5 +51,6 @@ func deepseekRules() platformRules {
 		apiKeyTLSFingerprint:     true,
 		repairToolSchema:         true,
 		apiKeyHeaderOverrides:    true,
+		prepareChatBody:          openai.NormalizeChatDeveloperMessages,
 	}
 }

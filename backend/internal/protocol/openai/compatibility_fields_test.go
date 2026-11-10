@@ -92,6 +92,35 @@ func TestReplaceModelInBody_InvalidJSON(t *testing.T) {
 	require.Equal(t, arrayBody, result2)
 }
 
+// TestNormalizeChatDeveloperMessages_PreservesSourceFieldOrder places content
+// before an escaped role and a scalar instruction in the next message. It
+// checks the exact output bytes and verifies that the source remains intact.
+func TestNormalizeChatDeveloperMessages_PreservesSourceFieldOrder(t *testing.T) {
+	const body = ` {
+		"messages": [
+			{"content": [{"type":"text","text":"Read \"A\"."},{"type":"text","text":"Then act."}], "r\u006fle": "devel\u006fper"},
+			{"role": "developer", "content": "\u0042", "name": "policy"},
+			{"role": "user", "content": "go"}
+		],
+		"custom": 9007199254740993
+	} `
+	const want = ` {
+		"messages": [
+			{"content": "Read \"A\".\n\nThen act.", "r\u006fle": "system"},
+			{"role": "system", "content": "\u0042", "name": "policy"},
+			{"role": "user", "content": "go"}
+		],
+		"custom": 9007199254740993
+	} `
+
+	input := []byte(body)
+	result, err := NormalizeChatDeveloperMessages(input)
+
+	require.NoError(t, err)
+	require.Equal(t, want, string(result))
+	require.Equal(t, body, string(input))
+}
+
 // assertJSONTokenOrder requires each token's first byte-string occurrence to
 // follow the preceding token. Missing or out-of-order tokens fail the test;
 // the helper checks positions directly without decoding JSON field structure.
