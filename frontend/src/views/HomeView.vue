@@ -86,32 +86,20 @@
         {{ t('home.stats.unavailable') }}
       </p>
 
-      <!-- The duplicated decorative brand list supports continuous scrolling without repeated accessible announcements. -->
-      <section class="mx-auto mt-14 max-w-5xl" aria-hidden="true">
-        <div class="home-marquee relative overflow-hidden">
-          <div class="home-marquee-track flex w-max items-center gap-8">
-            <span
-              v-for="(brand, index) in homeMarqueeBrands"
-              :key="`${brand}-${index}`"
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200/80 bg-white text-gray-700 shadow-sm dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100"
-            >
-              <ProviderIcon :brand="brand" size="17px" />
-            </span>
-          </div>
-        </div>
-      </section>
-
+      <!-- Feature illustrations use the page background and scale inside clipped panels so hovering leaves the card layout steady. -->
       <section class="mx-auto mt-20 grid max-w-7xl gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <article
           class="group overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
         >
           <div
-            class="relative h-44 overflow-hidden border-b border-gray-200 bg-white dark:border-dark-800 dark:bg-dark-950"
+            class="relative h-44 overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
           >
-            <div class="absolute inset-0">
+            <div
+              class="absolute inset-0 transition-transform duration-normal motion-safe:group-hover:scale-105"
+            >
               <span
-                v-for="(icon, index) in homeProviderCloudIcons"
-                :key="`${icon.brand}-${index}`"
+                v-for="icon in homeProviderCloudIcons"
+                :key="icon.brand"
                 class="absolute flex h-7 w-7 items-center justify-center rounded-full border border-gray-100 bg-white/95 text-gray-700 shadow-[0_5px_16px_rgba(0,0,0,0.13)] ring-1 ring-black/[0.02] dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100 dark:ring-white/[0.04]"
                 :style="{
                   left: icon.left,
@@ -123,9 +111,6 @@
                 <ProviderIcon :brand="icon.brand" size="14px" />
               </span>
             </div>
-            <span
-              class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white via-white/35 to-transparent dark:from-dark-950 dark:via-dark-950/35"
-            ></span>
           </div>
           <div class="p-5">
             <h2 class="text-base font-semibold text-gray-900 dark:text-white">
@@ -148,9 +133,11 @@
           class="group overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
         >
           <div
-            class="relative flex h-44 items-center justify-center overflow-hidden border-b border-gray-200 bg-white dark:border-dark-800 dark:bg-dark-950"
+            class="relative flex h-44 items-center justify-center overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
           >
-            <div class="relative h-full w-full">
+            <div
+              class="relative h-full w-full transition-transform duration-normal motion-safe:group-hover:scale-105"
+            >
               <div
                 class="absolute left-1/2 top-7 z-10 max-w-[82%] -translate-x-1/2 truncate rounded-control bg-gray-100 px-3.5 py-1.5 text-xs font-medium text-gray-800 shadow-sm dark:bg-dark-900 dark:text-dark-100"
               >
@@ -183,7 +170,7 @@
                   :key="brand"
                   class="flex h-9 w-9 items-center justify-center rounded-control border border-gray-100 bg-white text-gray-700 shadow-[0_5px_16px_rgba(0,0,0,0.13)] dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100"
                 >
-                  <ProviderIcon :brand="brand" size="17px" />
+                  <ProviderIcon :brand="brand" size="20px" />
                 </span>
               </div>
             </div>
@@ -209,10 +196,10 @@
           class="group overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
         >
           <div
-            class="flex h-44 items-center justify-center border-b border-gray-200 bg-gray-50 p-6 dark:border-dark-800 dark:bg-dark-950"
+            class="flex h-44 items-center justify-center overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] p-6 dark:border-dark-800"
           >
             <div
-              class="w-full max-w-[200px] rounded-surface border border-gray-200 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-900"
+              class="w-full max-w-[200px] rounded-surface border border-gray-200 bg-white p-4 shadow-sm transition-transform duration-normal motion-safe:group-hover:scale-105 dark:border-dark-700 dark:bg-dark-900"
             >
               <div
                 class="mb-4 flex items-center justify-between text-xs text-gray-500 dark:text-dark-400"
@@ -249,10 +236,10 @@
           class="group overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
         >
           <div
-            class="flex h-44 items-center justify-center border-b border-gray-200 bg-gray-50 dark:border-dark-800 dark:bg-dark-950"
+            class="flex h-44 items-center justify-center overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
           >
             <div
-              class="relative flex h-24 w-24 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900"
+              class="relative flex h-24 w-24 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition-transform duration-normal motion-safe:group-hover:scale-105 dark:border-dark-700 dark:bg-dark-900"
             >
               <Icon name="shield" size="xl" class="text-gray-400 dark:text-dark-300" />
               <span
@@ -525,9 +512,8 @@
       </section>
     </main>
 
-    <footer
-      class="relative z-10 border-t border-gray-200 bg-white/90 px-6 py-12 backdrop-blur dark:border-dark-800 dark:bg-dark-950/90"
-    >
+    <!-- The footer shares the page backdrop in both themes, with a border separating it from the main content. -->
+    <footer class="relative z-10 border-t border-gray-200 px-6 py-12 dark:border-dark-800">
       <div class="mx-auto max-w-7xl">
         <div
           class="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:flex lg:justify-between lg:gap-8"
@@ -806,13 +792,6 @@ const footerColumns = computed(() => {
   return [{ title: t('home.footer.quickLinks'), links: quickLinks }]
 })
 
-// homeMarqueeBrands duplicates the first twenty resolved visual brands so the
-// decorative track can translate halfway through its contents and repeat continuously.
-const homeMarqueeBrands = computed(() => {
-  const brands = homeProviderVisuals.value.slice(0, 20)
-  return [...brands, ...brands]
-})
-
 // Marketplace and aggregate statistics keep independent loading/error states so
 // one failed read can clear its content without discarding the other's result.
 const marketplaceGroups = ref<MarketplaceGroup[]>([])
@@ -837,61 +816,40 @@ const homeAnimatedStatKeys = new Set<HomeStatsKey>()
 const homeStatAnimationFrames = new Map<HomeStatsKey, number>()
 const homeStatAnimationDurationMs = 3200
 
-// Fallback brands keep decorative layouts populated before data arrives and after
-// failed marketplace loads; the merge retains loaded brand names before these entries.
-const providerVisualFallbacks = [
-  'Google',
-  'Meta',
-  'Gemini',
-  'OpenAI',
-  'Qwen',
-  'DeepSeek',
-  'Mistral',
-  'Moonshot',
-  'Claude',
-  'xAI',
-  'Antigravity',
-  'Zhipu',
-  'Cohere',
-  'Perplexity',
-  'Minimax',
-  'Doubao',
-  'Baidu',
-  'Tencent',
-  'Cloudflare',
-  'OpenRouter',
+// homeProviderCloudIcons places a different brand in each slot and distributes warm,
+// cool, and neutral marks across rows. Fixed positions and brands keep the illustration
+// consistent when the marketplace loads or its group order changes.
+const homeProviderCloudIcons: readonly HomeProviderCloudIcon[] = [
+  { brand: 'Mistral', left: '7%', top: '13%', opacity: 0.72, scale: 0.94 },
+  { brand: 'Meta', left: '25%', top: '13%', opacity: 0.8, scale: 0.94 },
+  { brand: 'MiniMax', left: '43%', top: '13%', opacity: 0.9, scale: 1 },
+  { brand: 'Moonshot', left: '62%', top: '13%', opacity: 0.8, scale: 0.94 },
+  { brand: 'Cohere', left: '81%', top: '13%', opacity: 0.72, scale: 0.94 },
+  { brand: 'DeepSeek', left: '17%', top: '35%', opacity: 0.86, scale: 0.98 },
+  { brand: 'Anthropic', left: '39%', top: '35%', opacity: 0.92, scale: 1 },
+  { brand: 'Perplexity', left: '61%', top: '35%', opacity: 0.96, scale: 1.04 },
+  { brand: 'xAI', left: '83%', top: '35%', opacity: 0.9, scale: 0.98 },
+  { brand: 'Cloudflare', left: '7%', top: '57%', opacity: 0.82, scale: 0.94 },
+  { brand: 'Google', left: '25%', top: '57%', opacity: 0.9, scale: 0.98 },
+  { brand: 'OpenAI', left: '43%', top: '57%', opacity: 1, scale: 1.06 },
+  { brand: 'Alibaba', left: '62%', top: '57%', opacity: 0.9, scale: 0.98 },
+  { brand: 'OpenCode', left: '81%', top: '57%', opacity: 0.82, scale: 0.94 },
+  { brand: 'Doubao', left: '17%', top: '79%', opacity: 0.72, scale: 0.94 },
+  { brand: 'Xiaomi', left: '39%', top: '79%', opacity: 0.78, scale: 0.96 },
+  { brand: 'TypeSafe', left: '61%', top: '79%', opacity: 0.82, scale: 0.98 },
+  { brand: 'OpenRouter', left: '83%', top: '79%', opacity: 0.78, scale: 0.96 },
+  { brand: 'Tencent', left: '7%', top: '98%', opacity: 0.6, scale: 0.9 },
+  { brand: 'Suno', left: '25%', top: '98%', opacity: 0.66, scale: 0.92 },
+  { brand: 'Zhipu', left: '43%', top: '98%', opacity: 0.7, scale: 0.94 },
+  { brand: 'ZeroOne', left: '62%', top: '98%', opacity: 0.66, scale: 0.92 },
+  { brand: 'Baidu', left: '81%', top: '98%', opacity: 0.6, scale: 0.9 },
+  { brand: 'iFlytek', left: '99%', top: '98%', opacity: 0.48, scale: 0.86 },
 ]
 
-// Decorative cloud positions and opacity/scale values define the fixed illustration
-// geometry; resolved brand marks cycle through these slots without changing their placement.
-const providerCloudLayout = [
-  { left: '7%', top: '13%', opacity: 0.72, scale: 0.94 },
-  { left: '25%', top: '13%', opacity: 0.8, scale: 0.94 },
-  { left: '43%', top: '13%', opacity: 0.9, scale: 1 },
-  { left: '62%', top: '13%', opacity: 0.8, scale: 0.94 },
-  { left: '81%', top: '13%', opacity: 0.72, scale: 0.94 },
-  { left: '17%', top: '35%', opacity: 0.86, scale: 0.98 },
-  { left: '35%', top: '35%', opacity: 0.92, scale: 1 },
-  { left: '53%', top: '35%', opacity: 0.96, scale: 1.04 },
-  { left: '72%', top: '35%', opacity: 0.9, scale: 0.98 },
-  { left: '91%', top: '35%', opacity: 0.76, scale: 0.94 },
-  { left: '7%', top: '57%', opacity: 0.82, scale: 0.94 },
-  { left: '25%', top: '57%', opacity: 0.9, scale: 0.98 },
-  { left: '43%', top: '57%', opacity: 1, scale: 1.06 },
-  { left: '62%', top: '57%', opacity: 0.9, scale: 0.98 },
-  { left: '81%', top: '57%', opacity: 0.82, scale: 0.94 },
-  { left: '17%', top: '79%', opacity: 0.72, scale: 0.94 },
-  { left: '35%', top: '79%', opacity: 0.78, scale: 0.96 },
-  { left: '53%', top: '79%', opacity: 0.82, scale: 0.98 },
-  { left: '72%', top: '79%', opacity: 0.78, scale: 0.96 },
-  { left: '91%', top: '79%', opacity: 0.66, scale: 0.92 },
-  { left: '7%', top: '98%', opacity: 0.6, scale: 0.9 },
-  { left: '25%', top: '98%', opacity: 0.66, scale: 0.92 },
-  { left: '43%', top: '98%', opacity: 0.7, scale: 0.94 },
-  { left: '62%', top: '98%', opacity: 0.66, scale: 0.92 },
-  { left: '81%', top: '98%', opacity: 0.6, scale: 0.9 },
-  { left: '99%', top: '98%', opacity: 0.48, scale: 0.86 },
-] as const
+// homeRouteLabel and homeRouteProviderBrands supply the example route illustration.
+// The three destinations use violet, neutral, and orange marks in a fixed order.
+const homeRouteLabel = 'OpenAI/GPT-5.4'
+const homeRouteProviderBrands = ['OpenRouter', 'OpenAI', 'Cloudflare']
 
 // totalModelCount counts model entries across groups, including aliases repeated
 // in separate groups; it supplies both the summary and supported-model animation target.
@@ -1054,13 +1012,7 @@ const homeStatsCards = computed<HomeStatsCard[]>(() => [
   },
 ])
 
-// Decorative provider displays reuse the resolved brands and stable fallbacks;
-// the rotating action only cycles through categories actually present in the catalog.
-const homeProviderVisuals = computed(() => {
-  const brands = supportedProviders.value.map((provider) => provider.iconBrand)
-  return mergeProviderVisualBrands(brands)
-})
-
+// The marketplace action rotates through the provider categories present in the catalog.
 const homeMarketplaceButtonBrands = computed(() =>
   supportedProviders.value.map((provider) => provider.iconBrand),
 )
@@ -1071,22 +1023,6 @@ const homeMarketplaceButtonBrand = computed(() => {
     return ''
   }
   return brands[homeMarketplaceButtonIconIndex.value % brands.length]
-})
-
-const homeProviderCloudIcons = computed<HomeProviderCloudIcon[]>(() => {
-  const brands = homeProviderVisuals.value
-  return providerCloudLayout.map((layout, index) => ({
-    brand: brands[index % brands.length],
-    ...layout,
-  }))
-})
-
-const homeRouteProviderBrands = computed(() => homeProviderVisuals.value.slice(0, 3))
-
-// The routing illustration uses a fixed example model label rather than a live
-// route result, independently of the decorative provider marks beside it.
-const homeRouteLabel = computed(() => {
-  return 'OpenAI/GPT-5.4'
 })
 
 // Introductory steps keep their fixed signup, browsing, and API-key sequence while
@@ -1362,25 +1298,6 @@ watch(
   { immediate: true },
 )
 
-// mergeProviderVisualBrands appends fallback brands after the supplied catalog names.
-// It trims names and removes exact repeated strings while retaining first occurrence
-// order; aliases or names differing only by case remain separate entries.
-function mergeProviderVisualBrands(brands: string[]): string[] {
-  const seen = new Set<string>()
-  const merged: string[] = []
-
-  ;[...brands, ...providerVisualFallbacks].forEach((brand) => {
-    const normalizedBrand = brand.trim()
-    if (!normalizedBrand || seen.has(normalizedBrand)) {
-      return
-    }
-    seen.add(normalizedBrand)
-    merged.push(normalizedBrand)
-  })
-
-  return merged
-}
-
 // providerIconWrapClass applies the home-specific Antigravity palette before shared brand styling.
 function providerIconWrapClass(provider: Pick<HomeProviderSummary, 'key' | 'iconBrand'>): string {
   if (provider.key === 'antigravity') {
@@ -1486,35 +1403,5 @@ useLocaleRefresh(fetchHomeMarketplace)
 .home-marketplace-icon-leave-to {
   opacity: 0;
   transform: translateY(70%);
-}
-
-/* Fade the decorative marquee edges while its duplicated track translates through
-   half its width; hovering pauses the animation and reduced motion disables it. */
-.home-marquee {
-  -webkit-mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
-  mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
-}
-
-.home-marquee-track {
-  animation: home-marquee-scroll 48s linear infinite;
-}
-
-.home-marquee:hover .home-marquee-track {
-  animation-play-state: paused;
-}
-
-@keyframes home-marquee-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-marquee-track {
-    animation: none;
-  }
 }
 </style>
