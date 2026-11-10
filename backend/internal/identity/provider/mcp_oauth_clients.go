@@ -25,6 +25,9 @@ import (
 // callback list determine which application receives an authorization code.
 // Confidential registration secrets are issued once and stored as password
 // verifiers, separate from the metadata returned to a consenting administrator.
+// A document can advertise capabilities for several authorization servers.
+// The cache stores only grants usable at this server. Exchanges that read the
+// cached record use the same grant list as the request that populated it.
 //
 // Document retrieval validates resolved addresses inside the dial operation and
 // connects directly to the checked address. Environment proxies and redirects
@@ -98,6 +101,7 @@ func publicCIMDAddress(ip netip.Addr) bool {
 // client resolves a registered client or a currently valid HTTPS metadata document.
 // Missing cached metadata can trigger retrieval. Storage errors are propagated,
 // and discovered applications use public-client PKCE authentication.
+// A nonempty grant list must include the authorization code flow.
 //
 // The document's client identifier must match its requested URL exactly before
 // callbacks become eligible for authorization. Retrieval rejects redirects,
@@ -151,6 +155,16 @@ func (s *MCPOAuthServer) client(ctx context.Context, id string) (*identity.MCPOA
 	}
 	if metadata.AuthMethod != "none" {
 		return nil, errors.New("unsupported client metadata authentication method")
+	}
+	// Select the local subset from a shared CIMD document before validation and
+	// caching. Leave a nonempty list without authorization_code for validation
+	// to reject, since an empty list would default to authorization_code.
+	if slices.Contains(metadata.GrantTypes, "authorization_code") {
+		grants := []string{"authorization_code"}
+		if slices.Contains(metadata.GrantTypes, "refresh_token") {
+			grants = append(grants, "refresh_token")
+		}
+		metadata.GrantTypes = grants
 	}
 	if err := validateOAuthClient(&metadata); err != nil {
 		return nil, err

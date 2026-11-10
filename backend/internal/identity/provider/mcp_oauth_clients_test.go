@@ -135,6 +135,63 @@ func TestCIMDAuthenticationMethodNegotiation(t *testing.T) {
 	}
 }
 
+// TestCIMDGrantTypeNegotiation resolves documents that advertise additional
+// grants for other servers. The cached client keeps only its supported grants,
+// and documents that omit the authorization code grant from a nonempty list
+// cannot acquire it through the default.
+func TestCIMDGrantTypeNegotiation(t *testing.T) {
+	const clientID = "https://chatgpt.com/oauth/client.json"
+	for _, test := range []struct {
+		name   string   // named grant negotiation scenario
+		grants string   // JSON array of advertised grants
+		want   []string // effective grants, or nil for rejection
+	}{
+		{
+			name:   "ChatGPT with JWT bearer grant",
+			grants: `["authorization_code","refresh_token","urn:ietf:params:oauth:grant-type:jwt-bearer"]`,
+			want:   []string{"authorization_code", "refresh_token"},
+		},
+		{
+			name:   "code and extension without refresh",
+			grants: `["authorization_code","urn:ietf:params:oauth:grant-type:jwt-bearer"]`,
+			want:   []string{"authorization_code"},
+		},
+		{
+			name:   "extension without code",
+			grants: `["urn:ietf:params:oauth:grant-type:jwt-bearer"]`,
+		},
+		{
+			name:   "refresh and extension without code",
+			grants: `["refresh_token","urn:ietf:params:oauth:grant-type:jwt-bearer"]`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := &metadataRepository{}
+			transport := &metadataTransport{body: `{
+				"client_id":"https://chatgpt.com/oauth/client.json",
+				"client_name":"ChatGPT",
+				"redirect_uris":["https://chatgpt.com/connector_platform_oauth_redirect"],
+				"token_endpoint_auth_method":"private_key_jwt",
+				"token_endpoint_auth_methods_supported":["none","private_key_jwt"],
+				"response_types":["code"],
+				"grant_types":` + test.grants + `
+			}`}
+			server := &MCPOAuthServer{repo: repo, clientHTTP: &http.Client{Transport: transport}}
+			client, err := server.client(t.Context(), clientID)
+			if test.want == nil {
+				require.ErrorContains(t, err, "authorization_code grant is required")
+				require.Nil(t, repo.client)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, client.GrantTypes)
+			cached, err := repo.GetClient(t.Context(), clientID)
+			require.NoError(t, err)
+			require.Equal(t, test.want, cached.GrantTypes)
+		})
+	}
+}
+
 // TestDCRAcceptsOptionalClientName registers the minimal public authorization client.
 // Missing display text receives a neutral label while the issued identifier and
 // callback remain the authoritative application details shown during browser consent.
@@ -148,4 +205,22 @@ func TestDCRAcceptsOptionalClientName(t *testing.T) {
 	require.Equal(t, "MCP application", repo.client.Name)
 	require.Equal(t, "none", repo.client.AuthMethod)
 	require.NotEmpty(t, repo.client.ID)
+}
+
+// TestDCRRejectsUnsupportedGrant submits an extension grant alongside the
+// authorization code grant. The registration endpoint rejects the request
+// before writing a client record.
+func TestDCRRejectsUnsupportedGrant(t *testing.T) {
+	repo := &metadataRepository{}
+	server := &MCPOAuthServer{repo: repo}
+	request := httptest.NewRequest(http.MethodPost, "https://gateway.example/mcp/oauth/register", strings.NewReader(`{
+		"redirect_uris":["https://client.example/callback"],
+		"token_endpoint_auth_method":"none",
+		"grant_types":["authorization_code","urn:ietf:params:oauth:grant-type:jwt-bearer"]
+	}`))
+	response := httptest.NewRecorder()
+	server.Register(response, request)
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	require.Contains(t, response.Body.String(), "invalid_client_metadata")
+	require.Nil(t, repo.client)
 }

@@ -66,6 +66,8 @@ OAuth 直接复用站点的 `frontend_url`：后台保存的非空地址优先�
 
 支持授权码与强制 S256 PKCE。客户端通过 HTTPS CIMD 文档或动态注册确定身份，DCR 支持 `none`、`client_secret_basic` 和 `client_secret_post`。CIMD 使用 `none`；客户端提供 `token_endpoint_auth_methods_supported` 数组时，按双方支持的方法取交集，数组包含 `none` 才接受；数组缺省时使用旧的单值字段。这支持 ChatGPT 同时公布 `private_key_jwt` 偏好和 `none` 能力的元数据。文档中的 client_id 与 URL 精确一致，读取禁止代理和重定向，DNS 解析及实际拨号排除内网、回环和保留地址。客户端显示名称属于未验证文本。回调与注册信息匹配，允许规范中的本机回环 HTTP 回调。
 
+CIMD 的 `grant_types` 与服务端支持的授权类型取交集。非空列表必须包含 `authorization_code`，只有声明了 `refresh_token` 才支持刷新。DCR 提交的授权类型须全部受服务端支持。
+
 短期授权请求保存首次验证的完整回调地址。客户端只有一个已注册回调时可省略 `redirect_uri`，浏览器仍展示已解析的地址。决定授权时重新检查该地址是否仍被客户端注册允许；CIMD 回调变化不能替换待授权请求的回调。授权码保留原请求是否提交 `redirect_uri` 的信息，以便换票执行对应的参数校验。
 
 授权服务器公布 RFC 9207 issuer 支持，并在已验证的成功或错误回调中返回 `iss`。授权和授权码换票需要匹配 resource；刷新请求省略 resource 时继承凭据族已绑定的 resource，提交不同值则拒绝。`mcp` scope 表示接入资格，实际可调用操作由持久授权中的具体 ID 决定。`offline_access` 由授权服务器公布，资源发现不将它作为必需权限。支持 refresh_token 的客户端获得可轮换的刷新凭据。
