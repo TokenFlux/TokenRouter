@@ -70,13 +70,16 @@ type ImageBilling struct {
 // provenance is observed at successful headers, while ownership and usage
 // snapshots follow successful reading. The result keeps the incoming response
 // model; UpstreamModel records initial mapping or Compact replacement and can
-// remain empty, and observed images supply the image billing fields.
+// remain empty, and observed images supply the image billing fields. Compact
+// recovery updates a gateway-generated prompt before the replacement exchange.
 func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts) (*Result, error) {
 	profile := p.Profile()
 	body, canonicalImageIntentBody, reqModel := in.Body, in.CanonicalImageIntentBody, in.Model
 	attemptImageIntentInvalidated, reasoningEffort, reqStream, startTime := in.ImageIntentInvalidated, in.ReasoningEffort, in.Stream, in.StartedAt
 	requestedModel := reqModel
 	upstreamPassthroughModel := ""
+	responsesLite := profile.OpenAI && ((p.HasContext() && p.LiteHeader()) || p.LitePayloadFlag(body))
+	defaultInstructions := ""
 	// Patch the model field in raw bytes so large bodies and unknown extension
 	// fields retain their existing JSON representation through provider mapping.
 	policyInputModel := p.ForwardModel(reqModel, p.CompactPath())
@@ -101,11 +104,13 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 			p.Reject(403, "forbidden_error", rejectMsg, "")
 			return nil, fmt.Errorf("openai passthrough rejected before upstream: %s", rejectReason)
 		}
-		// Synthesize omitted Codex instructions before OAuth preparation; invalid
-		// supplied values have already been rejected, so explicit text keeps its
-		// caller-provided instruction content.
-		if p.CodexModel(policyInputModel) && !gjson.GetBytes(body, "instructions").Exists() {
-			nextBody, setErr := sjson.SetBytes(body, "instructions", openai.DefaultCodexSynthInstructions(policyInputModel))
+		// Lite clients can send their instructions as developer input. Synthesize
+		// only when both that input and the top-level field are absent, and retain
+		// the generated text for possible Compact recovery.
+		if p.CodexModel(policyInputModel) && !gjson.GetBytes(body, "instructions").Exists() &&
+			(!responsesLite || !openai.HasResponsesLiteDeveloperInstructions(body)) {
+			defaultInstructions = openai.DefaultCodexSynthInstructions(policyInputModel)
+			nextBody, setErr := sjson.SetBytes(body, "instructions", defaultInstructions)
 			if setErr != nil {
 				return nil, fmt.Errorf("set passthrough codex instructions: %w", setErr)
 			}
@@ -159,11 +164,6 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	// reserved names are then aliased for OAuth-like credentials with reverse
 	// names retained for output restoration.
 	if profile.OpenAI {
-		responsesLite := false
-		if p.HasContext() {
-			responsesLite = p.LiteHeader()
-		}
-		responsesLite = responsesLite || p.LitePayloadFlag(body)
 		normalizedBody, normalized, normalizeErr := p.CompatibilityBody(body, responsesLite)
 		if normalizeErr != nil {
 			return nil, fmt.Errorf("normalize passthrough Responses compatibility: %w", normalizeErr)
@@ -286,6 +286,16 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	var deliveryErr error
 	var imageOutputSizes []string
 	for {
+		// Every Compact recovery reenters this loop. Refresh the gateway prompt
+		// once before sending the fallback request and preserve client instructions.
+		if compactModelFallbackRetried && defaultInstructions != "" {
+			retryBody, refreshErr := openai.RefreshCodexDefaultInstructions(body, defaultInstructions, upstreamPassthroughModel)
+			if refreshErr != nil {
+				return nil, fmt.Errorf("refresh Compact default instructions: %w", refreshErr)
+			}
+			body = retryBody
+			defaultInstructions = ""
+		}
 		actualModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 		if actualModel == "" {
 			actualModel = reqModel

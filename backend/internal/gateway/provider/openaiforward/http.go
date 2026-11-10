@@ -26,7 +26,9 @@ import (
 // ciphertext, unsupported fields, or a Compact-model failure before final error
 // output. Those mechanisms have separate retry state so one repair does not
 // consume another repair's opportunity, and rejected-field state tracks adopted
-// payloads to prevent repeated normalization of the same body.
+// payloads to prevent repeated normalization of the same body. Compact recovery
+// carries the generated prompt separately from caller text so changing models
+// can refresh the prompt without replaying request preparation.
 //
 // Error responses are read and their network bodies closed before replay or
 // presentation. Successful response bodies stay owned by the runner while
@@ -56,6 +58,9 @@ type HTTPInput struct {
 	// ImageMainModelAdapted permits terminal configuration errors for an automatically
 	// selected image driver; explicit client text models retain ordinary failover.
 	ImageMainModelAdapted bool
+	// DefaultInstructions identifies the gateway prompt prepared for the initial
+	// model. Compact recovery uses it to retain any client and tool guidance.
+	DefaultInstructions string
 	// Stream chooses streaming output; OAuth enables usage snapshots; Shadow
 	// suppresses OAuth snapshots; Grok identifies the platform branch.
 	Stream, OAuth, Shadow, Grok bool
@@ -185,7 +190,8 @@ type HTTPOptions struct {
 //
 // Repairs adopt a new body before another exchange; ciphertext recovery also
 // marks the entry lineage, and Compact recovery updates the effective upstream
-// model. Rejected-field state prevents replay of a remembered payload. Health
+// model and refreshes a synthesized prompt before sending the replacement.
+// Rejected-field state prevents replay of a remembered payload. Health
 // handling can decline an HTTP failover by returning nil, after which final
 // presentation uses the current response. A reader error returns before
 // ownership binding, usage snapshots, and successful result assembly unless its
@@ -193,9 +199,20 @@ type HTTPOptions struct {
 func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, error) {
 	body := input.Body
 	upstreamModel := input.UpstreamModel
+	defaultInstructions := input.DefaultInstructions
 	encryptedRetried, compactRetried, agentRetried := false, false, false
 	rejected := openai.NewOpenAIResponsesRejectedFieldRetryState(body)
 	for {
+		// A Compact recovery can come from an HTTP status or a response reader.
+		// Both return here, where only the gateway's prompt is replaced once.
+		if compactRetried && defaultInstructions != "" {
+			retryBody, refreshErr := openai.RefreshCodexDefaultInstructions(body, defaultInstructions, upstreamModel)
+			if refreshErr != nil {
+				return nil, fmt.Errorf("refresh Compact default instructions: %w", refreshErr)
+			}
+			body = retryBody
+			defaultInstructions = ""
+		}
 		resp, err := openai.ExchangeHTTP(ctx, body, o.Exchange)
 		if err != nil {
 			return nil, err

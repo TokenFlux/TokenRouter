@@ -53,6 +53,9 @@ type TransformResult struct {
 	// Fingerprint carries this attempt's derived IDs for header construction; the
 	// caller stages them with the same selected provider.
 	Fingerprint *openai.FingerprintIDs
+	// DefaultInstructions retains the exact synthesized prompt for Compact
+	// recovery. An empty value prevents replacement of client-supplied content.
+	DefaultInstructions string
 }
 
 // FastDecision describes fast-tier edits or a policy rejection before request serialization.
@@ -90,6 +93,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	bodyModified := false
 	imageMainModelAdapted := false
 	clientPromptCacheKey := promptCacheKey
+	defaultInstructions := ""
 	var reqBody map[string]any
 	// Apply and adopt queued byte edits before exposing a decoded map; otherwise
 	// later object transformations would read fields from the earlier body and
@@ -151,8 +155,9 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 
 	codexImageGenerationExplicitToolPolicy = p.GroupImagePolicy(codexImageGenerationExplicitToolPolicy)
 	imageGenerationAllowed := p.ImageAllowed()
+	liteHeader := p.LiteHeader()
 	codexImageGenerationBridgeEnabled := isCodexCLI &&
-		!p.LiteHeader() &&
+		!liteHeader &&
 		imageGenerationAllowed &&
 		codexImageGenerationExplicitToolPolicy != "strip" &&
 		p.BridgeEnabled(ctx)
@@ -299,8 +304,13 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	// prompt so it cannot suppress synthesis by filling an empty field first.
 	instructions := gjson.GetBytes(body, "instructions")
 	instructionsEmpty := !instructions.Exists() || instructions.Type != gjson.String || strings.TrimSpace(instructions.String()) == ""
-	if instructionsEmpty && profile.UsesCodex && !compatMessagesBridge && !statelessResponses {
-		markPatchSet("instructions", openai.DefaultCodexSynthInstructions(upstreamModel))
+	// Lite clients may omit the top-level field because developer input already
+	// carries their base instructions. Both synthesis steps honor that choice.
+	liteDeveloperInstructions := profile.OpenAI && liteHeader && !instructions.Exists() &&
+		openai.HasResponsesLiteDeveloperInstructions(body)
+	if instructionsEmpty && profile.UsesCodex && !compatMessagesBridge && !statelessResponses && !liteDeveloperInstructions {
+		defaultInstructions = openai.DefaultCodexSynthInstructions(upstreamModel)
+		markPatchSet("instructions", defaultInstructions)
 	}
 	if codexImageGenerationBridgeEnabled && !isCompactRequest {
 		decoded, decodeErr := ensureReqBody()
@@ -368,6 +378,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 			codexResult = p.CodexTransform(decoded, openai.CodexOAuthTransformOptions{
 				IsCodexCLI:                          isCodexCLI,
 				IsCompact:                           isCompactRequest,
+				SkipDefaultInstructions:             liteDeveloperInstructions,
 				OmitPromotedSystemMessagesFromInput: omitPromotedSystemMessages,
 			})
 		}
@@ -582,6 +593,6 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		BillingModel: billingModel, UpstreamModel: upstreamModel,
 		PromptCacheKey: promptCacheKey, ClientPromptCacheKey: clientPromptCacheKey,
 		ImageIntent: imageIntent, ImageMainModelAdapted: imageMainModelAdapted,
-		Fingerprint: fingerprintIDs,
+		Fingerprint: fingerprintIDs, DefaultInstructions: defaultInstructions,
 	}, nil
 }
