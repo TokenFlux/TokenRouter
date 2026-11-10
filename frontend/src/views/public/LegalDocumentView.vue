@@ -86,7 +86,11 @@
           </div>
         </div>
 
-        <div v-if="hasContent" class="legal-document-content" v-html="renderedHtml"></div>
+        <div
+          v-if="hasContent"
+          class="legal-document-content text-link-content"
+          v-html="renderedHtml"
+        ></div>
         <div
           v-else
           class="rounded-control border border-dashed border-gray-300 bg-white px-6 py-14 text-center text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-400"
@@ -243,10 +247,6 @@ const documentIcon = computed<LegalDocumentIcon>(() => {
 
 .legal-document-content :deep(p) {
   @apply mb-4 text-gray-700 dark:text-dark-200;
-}
-
-.legal-document-content :deep(a) {
-  @apply text-primary-600 underline underline-offset-4 hover:text-primary-700 dark:text-primary-300 dark:hover:text-primary-200;
 }
 
 .legal-document-content :deep(ul) {

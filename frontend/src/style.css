@@ -527,6 +527,21 @@
 
 @layer components {
   /*
+   * Text links share the same affordance in templates and rendered documents.
+   * A linked card can apply the style to its label while the anchor owns focus.
+   */
+  .text-link,
+  :where(.text-link-content) a[href] {
+    @apply text-black underline underline-offset-2 transition-colors duration-fast dark:text-white;
+  }
+
+  .text-link:is(:hover, :focus-visible),
+  :where(.text-link-content) a[href]:is(:hover, :focus-visible),
+  :where(.text-link-area:is(:hover, :focus-visible)) .text-link {
+    @apply text-primary-600 dark:text-primary-500;
+  }
+
+  /*
    * Buttons share geometry, focus indication, and disabled behavior before their
    * semantic color variants are applied.
    */

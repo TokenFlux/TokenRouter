@@ -65,7 +65,7 @@
 
           <div
             ref="markdownContainer"
-            class="markdown-page-content flex-1 h-full overflow-auto p-6 md:p-10"
+            class="markdown-page-content text-link-content flex-1 h-full overflow-auto p-6 md:p-10"
             v-html="renderedHtml"
             @scroll="onContentScroll"
           ></div>
@@ -655,9 +655,6 @@ onUnmounted(() => {
 }
 .markdown-page-content li {
   @apply mb-1;
-}
-.markdown-page-content a {
-  @apply text-primary-500 hover:text-primary-600 underline;
 }
 .markdown-page-content blockquote {
   @apply border-l-4 border-gray-300 dark:border-dark-500 pl-4 italic text-gray-600 dark:text-dark-300 my-4;

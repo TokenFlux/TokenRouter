@@ -357,7 +357,7 @@ function uploaded(result: PluginChange): void {
     <div class="flex min-h-0 flex-1 flex-col">
       <RouterLink
         :to="{ name: 'Plugins' }"
-        class="mb-4 inline-flex w-fit items-center gap-1 text-sm text-gray-500 transition-colors hover:text-gray-900 dark:text-dark-400 dark:hover:text-dark-50"
+        class="mb-4 inline-flex w-fit items-center gap-1 text-sm text-link"
         ><Icon name="chevronLeft" size="sm" />{{ t('admin.plugins.title') }}</RouterLink
       >
 
@@ -399,7 +399,7 @@ function uploaded(result: PluginChange): void {
                   :href="publisherURL"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="hover:text-gray-900 dark:hover:text-dark-50"
+                  class="text-link"
                   >{{ manifest.publisher.name }}</a
                 >
                 <span v-else>{{ manifest.publisher.name }}</span>
@@ -417,7 +417,7 @@ function uploaded(result: PluginChange): void {
                     :href="repository"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-dark-50"
+                    class="inline-flex items-center gap-1 text-link"
                     >{{ t('admin.plugins.market.repository') }}<Icon name="externalLink" size="xs"
                   /></a>
                 </template>

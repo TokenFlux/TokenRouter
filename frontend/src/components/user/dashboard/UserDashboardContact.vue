@@ -15,7 +15,7 @@
           :href="entry.url"
           target="_blank"
           rel="noopener noreferrer"
-          class="group flex w-full items-center gap-3 rounded-control bg-gray-50 p-3 text-left transition duration-normal hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800"
+          class="group text-link-area flex w-full items-center gap-3 rounded-control bg-gray-50 p-3 text-left transition duration-normal hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800"
           :title="entry.value"
           data-testid="dashboard-contact-link"
         >
@@ -25,7 +25,7 @@
             <Icon name="link" size="md" class="text-primary-600 dark:text-primary-400" />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium text-gray-900 dark:text-dark-50">
+            <p class="text-link truncate text-sm font-medium">
               {{ entry.label || formatContactUrl(entry.url) }}
             </p>
             <p v-if="entry.label" class="truncate text-xs text-gray-500 dark:text-dark-400">

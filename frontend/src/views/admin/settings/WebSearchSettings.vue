@@ -257,12 +257,7 @@
         :key="rIdx"
         class="mt-2 border-t border-gray-200 pt-2 first:mt-0 first:border-0 first:pt-0 dark:border-dark-600"
       >
-        <a
-          :href="r.url"
-          target="_blank"
-          class="text-sm font-medium text-primary-600 hover:underline dark:text-primary-500"
-          >{{ r.title }}</a
-        >
+        <a :href="r.url" target="_blank" class="text-sm font-medium text-link">{{ r.title }}</a>
         <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
           {{ r.snippet }}
         </p>

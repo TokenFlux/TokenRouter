@@ -132,7 +132,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
       :to="destination"
       :title="value"
       :class="full ? 'break-all' : 'truncate'"
-      class="min-w-0 font-mono text-xs text-gray-600 underline-offset-2 transition-colors hover:text-primary-600 hover:underline dark:text-dark-200 dark:hover:text-primary-400"
+      class="min-w-0 font-mono text-xs text-link"
       @click.stop
       >{{ value }}</RouterLink
     >

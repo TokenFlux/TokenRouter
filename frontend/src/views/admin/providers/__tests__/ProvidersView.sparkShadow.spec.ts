@@ -399,8 +399,8 @@ describe('admin ProvidersView — 提供商行展示', () => {
   })
 
   // Rows include API Key and OAuth accounts with safe, credential-bearing,
-  // relative, and script URLs. Only safe API Key origins become links, with
-  // credentials and paths removed.
+  // relative, and script URLs. Only safe API Key origins become text links,
+  // with credentials and paths removed.
   it('仅将具有安全 base_url 的 API Key 提供商名称链接到站点主页', async () => {
     listProviders.mockResolvedValue({
       items: [
@@ -464,10 +464,7 @@ describe('admin ProvidersView — 提供商行展示', () => {
     expect(credentialLink.attributes('href')).toBe('https://secure.example.com:8443')
     expect(credentialLink.attributes('href')).not.toContain('secret')
     expect(credentialLink.attributes('href')).not.toContain('/api/v1')
-    expect(link.classes()).toEqual(
-      expect.arrayContaining(['border-dotted', 'text-gray-900', 'dark:text-white']),
-    )
-    expect(link.classes()).not.toContain('text-primary-600')
+    expect(link.classes()).toContain('text-link')
     const tooltip = wrapper.findComponent(HelpTooltip)
     expect(tooltip.props('content')).toBe('https://relay.example.com')
     expect(tooltip.props('widthClass')).toBe('w-max max-w-sm break-all')

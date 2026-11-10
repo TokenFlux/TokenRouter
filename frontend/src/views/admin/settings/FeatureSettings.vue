@@ -342,7 +342,7 @@
             href="https://bstats.org/plugin/server-implementation/tokenrouter/35120"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-primary-600 hover:underline dark:text-primary-500"
+            class="text-link"
           >
             {{ t('admin.settings.features.bstats.viewStatistics') }}
           </a>

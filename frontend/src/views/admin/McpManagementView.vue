@@ -503,7 +503,7 @@
             oauthStatus?.reason === 'frontend_url_invalid'
           "
           :to="{ path: '/admin/settings', query: { tab: 'security' } }"
-          class="text-sm text-primary-600 hover:underline dark:text-primary-400"
+          class="text-sm text-link"
           >{{ t('admin.mcp.oauth.siteSettings') }}</RouterLink
         >
       </div>

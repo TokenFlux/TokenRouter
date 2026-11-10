@@ -55,7 +55,8 @@
 ## 控件尺寸
 
 - 按钮、输入框和下拉触发器共用 36px 基线（`.btn` 和 `.input` 都是 `min-h-9`）。分页器是例外，控件用 28px，见[表格密度](#表格密度)。在基线之上再写 `h-9` 是冗余写法，门禁会拦截；紧凑档需要 36px 时，用 `btn-sm/md/lg + h-9` 提到这一档。
-- 主操作用 `.btn-primary`；普通的编辑、查询、筛选和链接操作用 `primary-*` 品牌色。状态提示、业务分类和第三方品牌使用各自的配色。radio 和 range 通过全局 `accent-color` 使用 `primary-600`。checkbox 是原生 input，勾选、半选、禁用和键盘行为都由浏览器提供，外观由 `style.css` 统一设置：浅色填充 `primary-700`，深色填充 `primary-600`，白色勾选标记复用通用的 check 路径，描边 1.75。选中和取消时用 `--motion-fast` 做缩放和透明度过渡，半选显示一条横线；系统强制配色时显示浏览器的原生外观。
+- 主操作用 `.btn-primary`；普通的编辑、查询和筛选操作用 `primary-*` 品牌色。状态提示、业务分类和第三方品牌使用各自的配色。radio 和 range 通过全局 `accent-color` 使用 `primary-600`。checkbox 是原生 input，勾选、半选、禁用和键盘行为都由浏览器提供，外观由 `style.css` 统一设置：浅色填充 `primary-700`，深色填充 `primary-600`，白色勾选标记复用通用的 check 路径，描边 1.75。选中和取消时用 `--motion-fast` 做缩放和透明度过渡，半选显示一条横线；系统强制配色时显示浏览器的原生外观。
+- 跳转文字用 `.text-link`，始终带下划线。浅色主题默认用黑色，悬停或键盘聚焦时用 `primary-600`。深色主题默认用白色，悬停或键盘聚焦时用 `primary-500`。整块可点击的链接在外层加 `.text-link-area`，在文字上加 `.text-link`。渲染 Markdown 的容器用 `.text-link-content`，统一处理正文链接。首页底栏链接默认用灰色，悬停时用正文色。侧栏、菜单和按钮式入口沿用各自的组件样式。
 - 原生按钮、`role="button"` 和 `.btn` 的文字不可选中，按钮内的图片不可拖拽；正文、表格数据和输入内容可以选中复制。
 - 图标按钮有两档：`.btn-icon`（h-9 w-9）和 `.btn-icon-sm`（h-8 w-8），自带 `rounded-control` 和居中布局，调用处只需补 hover 和颜色类。`.btn-sm` 用在表格行内等紧凑场景。
 - 需要选择框时使用 `frontend/src/components/common/Select.vue`。原生 `<select>` 的面板样式、深色配色和键盘交互与项目组件对不上；`check:ui` 检查不到它，评审时需要人工确认。
@@ -195,7 +196,7 @@ Vue 的 `<style scoped>` 中，深色后代规则写成 `.dark .component-class`
 
 表头和卡片同为 `dark-900`，表格行 hover 用 `dark-800`。控件底 `dark-950` 比卡片略亮。
 
-导航、分段控件和列表选中行使用 `primary-500/8` 的淡品牌青底和 `primary-500` 文字，带边框的选中控件用 `primary-500/15`。侧栏和 Select 未选中项的 hover 用 `dark-800` 弱填充和品牌青文字；已选中项在 hover 或获得键盘焦点时保持选中底色。主操作、链接、开关和图表使用品牌青；状态色和徽章使用各自的配色。
+导航、分段控件和列表选中行使用 `primary-500/8` 的淡品牌青底和 `primary-500` 文字，带边框的选中控件用 `primary-500/15`。侧栏和 Select 未选中项的 hover 用 `dark-800` 弱填充和品牌青文字；已选中项在 hover 或获得键盘焦点时保持选中底色。主操作、链接的悬停和焦点状态、开关和图表使用品牌青；状态色和徽章使用各自的配色。
 
 输入框焦点、次级按钮焦点和 Select 展开时，使用 `dark-400` 边线（灰白 30%）和 `white/6` 外圈。按钮在深色模式下的焦点环 offset 用 `dark-900`。深色遮罩由 `html.dark` 把 `--overlay-bg` 和 `--overlay-bg-strong` 加深到 0.7 和 0.85。
 

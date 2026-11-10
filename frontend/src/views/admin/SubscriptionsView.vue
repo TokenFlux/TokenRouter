@@ -672,7 +672,7 @@
                 <router-link
                   to="/admin/groups"
                   @click="showGuideModal = false"
-                  class="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                  class="inline-flex items-center gap-1 text-sm font-medium text-link"
                 >
                   {{ t('admin.subscriptions.guide.step1.link') }}
                   <Icon name="arrowRight" size="xs" />

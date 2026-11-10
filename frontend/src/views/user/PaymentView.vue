@@ -114,10 +114,7 @@
                   <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{
                     t('payment.activeSubscription')
                   }}</h2>
-                  <router-link
-                    to="/subscriptions"
-                    class="shrink-0 text-sm text-primary-600 hover:underline dark:text-primary-400"
-                  >
+                  <router-link to="/subscriptions" class="shrink-0 text-sm text-link">
                     {{ t('subscriptionProgress.viewAll') }}
                   </router-link>
                 </div>

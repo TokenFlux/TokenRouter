@@ -178,7 +178,7 @@ function shortDigest(value: string): string {
             <RouterLink
               v-if="pagesLive"
               :to="pageRoute(page.audience, page.path)"
-              class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary-600 hover:underline"
+              class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-link"
               >{{ t('admin.plugins.overview.open') }}<Icon name="arrowRight" size="xs"
             /></RouterLink>
           </li>

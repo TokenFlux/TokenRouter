@@ -148,10 +148,7 @@
     </div>
 
     <template #footer>
-      <button
-        @click="handleBack"
-        class="flex items-center gap-2 text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-gray-300"
-      >
+      <button @click="handleBack" class="flex items-center gap-2 text-link">
         <Icon name="arrowLeft" size="sm" />
         {{ t('auth.backToRegistration') }}
       </button>

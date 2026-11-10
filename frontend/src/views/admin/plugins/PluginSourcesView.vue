@@ -28,7 +28,7 @@ const table = ref<InstanceType<typeof PluginSourcesTable> | null>(null)
   <AppLayout hide-page-heading>
     <RouterLink
       :to="{ name: 'Plugins' }"
-      class="mb-4 inline-flex w-fit items-center gap-1 text-sm text-gray-500 transition-colors hover:text-gray-900 dark:text-dark-400 dark:hover:text-dark-50"
+      class="mb-4 inline-flex w-fit items-center gap-1 text-sm text-link"
       ><Icon name="chevronLeft" size="sm" />{{ t('admin.plugins.title') }}</RouterLink
     >
     <header class="mb-4 flex flex-wrap items-end justify-between gap-3">

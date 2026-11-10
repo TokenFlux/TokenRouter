@@ -354,10 +354,7 @@
     <template #footer>
       <p class="text-gray-500 dark:text-dark-400">
         {{ t('auth.alreadyHaveAccount') }}
-        <router-link
-          to="/login"
-          class="font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
-        >
+        <router-link to="/login" class="font-medium text-link">
           {{ t('auth.signIn') }}
         </router-link>
       </p>

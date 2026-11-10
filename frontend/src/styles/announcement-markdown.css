@@ -30,7 +30,7 @@
 }
 
 .markdown-body a {
-  @apply font-medium text-blue-600 underline decoration-blue-600/30 decoration-2 underline-offset-2 transition-all hover:decoration-blue-600 dark:text-blue-400 dark:decoration-blue-400/30 dark:hover:decoration-blue-400;
+  @apply font-medium;
 }
 
 .markdown-body ul,

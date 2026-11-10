@@ -7,7 +7,7 @@
           :href="paymentGuideHref"
           target="_blank"
           rel="noopener noreferrer"
-          class="ml-2 inline-flex items-center text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+          class="ml-2 inline-flex items-center text-link"
         >
           <Icon name="externalLink" size="xs" class="mr-0.5 h-3.5 w-3.5" />
           {{ t('admin.settings.payment.configGuide') }}

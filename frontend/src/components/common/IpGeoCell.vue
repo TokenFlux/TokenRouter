@@ -21,12 +21,7 @@
   </div>
 
   <div v-else-if="entry.status === 'success'" class="mt-0.5 flex items-center gap-1 text-xs">
-    <button
-      type="button"
-      class="truncate text-gray-500 underline decoration-dotted underline-offset-2 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400"
-      :title="tooltipText"
-      @click="handleOpenDetail"
-    >
+    <button type="button" class="truncate text-link" :title="tooltipText" @click="handleOpenDetail">
       {{ entry.label }}
     </button>
     <button

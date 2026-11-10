@@ -55,7 +55,7 @@
         <div class="border-t border-gray-100 p-2 dark:border-dark-700">
           <router-link
             to="/subscriptions"
-            class="block w-full py-1 text-center text-xs text-primary-600 hover:underline dark:text-primary-400"
+            class="block w-full py-1 text-center text-xs text-link"
             @click="closeTooltip"
           >
             {{ t('subscriptionProgress.viewAll') }}

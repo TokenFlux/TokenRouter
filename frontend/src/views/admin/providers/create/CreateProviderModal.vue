@@ -372,7 +372,7 @@
                   <p>{{ t('admin.providers.gemini.providerType.apiKeyNote') }}</p>
                   <a
                     :href="geminiHelpLinks.apiKey"
-                    class="font-medium text-primary-600 hover:underline dark:text-primary-500"
+                    class="font-medium text-link"
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -419,7 +419,7 @@
                       {{ t('admin.providers.gemini.oauthType.codeAssistRequirement') }}
                       <a
                         :href="geminiHelpLinks.gcpProject"
-                        class="ml-1 text-primary-600 hover:underline dark:text-primary-500"
+                        class="ml-1 text-link"
                         target="_blank"
                         rel="noreferrer"
                         @click.stop
@@ -1615,7 +1615,7 @@
                 href="https://policies.google.com/terms"
                 target="_blank"
                 rel="noreferrer"
-                class="text-sm text-primary-600 hover:underline dark:text-primary-500"
+                class="text-sm text-link"
               >
                 {{ t('admin.providers.gemini.setupGuide.links.countryCheck') }}
               </a>
@@ -1624,7 +1624,7 @@
                 href="https://policies.google.com/country-association-form"
                 target="_blank"
                 rel="noreferrer"
-                class="text-sm text-primary-600 hover:underline dark:text-primary-500"
+                class="text-sm text-link"
               >
                 修改归属地
               </a>
@@ -1633,7 +1633,7 @@
                 href="https://gemini.google.com/gems/create?hl=en-US&pli=1"
                 target="_blank"
                 rel="noreferrer"
-                class="text-sm text-primary-600 hover:underline dark:text-primary-500"
+                class="text-sm text-link"
               >
                 {{ t('admin.providers.gemini.setupGuide.links.geminiWebActivation') }}
               </a>
@@ -1642,7 +1642,7 @@
                 href="https://console.cloud.google.com"
                 target="_blank"
                 rel="noreferrer"
-                class="text-sm text-primary-600 hover:underline dark:text-primary-500"
+                class="text-sm text-link"
               >
                 {{ t('admin.providers.gemini.setupGuide.links.gcpProject') }}
               </a>
@@ -1738,7 +1738,7 @@
             :href="geminiQuotaDocs.codeAssist"
             target="_blank"
             rel="noreferrer"
-            class="text-sm text-primary-600 hover:underline dark:text-primary-500"
+            class="text-sm text-link"
           >
             {{ t('admin.providers.gemini.quotaPolicy.docs.codeAssist') }}
           </a>
@@ -1746,7 +1746,7 @@
             :href="geminiQuotaDocs.aiStudio"
             target="_blank"
             rel="noreferrer"
-            class="text-sm text-primary-600 hover:underline dark:text-primary-500"
+            class="text-sm text-link"
           >
             {{ t('admin.providers.gemini.quotaPolicy.docs.aiStudio') }}
           </a>
@@ -1754,7 +1754,7 @@
             :href="geminiQuotaDocs.vertex"
             target="_blank"
             rel="noreferrer"
-            class="text-sm text-primary-600 hover:underline dark:text-primary-500"
+            class="text-sm text-link"
           >
             {{ t('admin.providers.gemini.quotaPolicy.docs.vertex') }}
           </a>
@@ -1771,7 +1771,7 @@
             :href="geminiHelpLinks.apiKey"
             target="_blank"
             rel="noreferrer"
-            class="text-sm text-primary-600 hover:underline dark:text-primary-500"
+            class="text-sm text-link"
           >
             {{ t('admin.providers.gemini.providerType.apiKeyLink') }}
           </a>
@@ -1779,7 +1779,7 @@
             :href="geminiHelpLinks.aiStudioPricing"
             target="_blank"
             rel="noreferrer"
-            class="text-sm text-primary-600 hover:underline dark:text-primary-500"
+            class="text-sm text-link"
           >
             {{ t('admin.providers.gemini.providerType.quotaLink') }}
           </a>

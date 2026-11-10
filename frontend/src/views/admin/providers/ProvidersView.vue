@@ -342,7 +342,7 @@
                       :href="providerHomepageUrl(row)"
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="border-b border-dotted border-gray-300 font-medium text-gray-900 dark:border-dark-500 dark:text-white"
+                      class="font-medium text-link"
                     >
                       {{ value }}
                     </a>

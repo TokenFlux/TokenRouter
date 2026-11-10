@@ -330,12 +330,9 @@
               />
               <p class="input-hint">
                 {{ t('admin.settings.turnstile.siteKeyHint') }}
-                <a
-                  href="https://dash.cloudflare.com/"
-                  target="_blank"
-                  class="text-primary-600 hover:text-primary-500 dark:text-primary-500"
-                  >{{ t('admin.settings.turnstile.cloudflareDashboard') }}</a
-                >
+                <a href="https://dash.cloudflare.com/" target="_blank" class="text-link">{{
+                  t('admin.settings.turnstile.cloudflareDashboard')
+                }}</a>
               </p>
             </div>
             <div>
@@ -470,7 +467,7 @@
                   :href="tencentCaptchaLinks.console"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-primary-600 hover:text-primary-500 dark:text-primary-500"
+                  class="text-link"
                 >
                   {{ t('admin.settings.tencentCaptcha.openCaptchaConsole') }}
                 </a>
@@ -478,7 +475,7 @@
                   :href="tencentCaptchaLinks.cloudKeys"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-primary-600 hover:text-primary-500 dark:text-primary-500"
+                  class="text-link"
                 >
                   {{ t('admin.settings.tencentCaptcha.createCloudKeys') }}
                 </a>
@@ -486,7 +483,7 @@
                   :href="tencentCaptchaLinks.webDocs"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-primary-600 hover:text-primary-500 dark:text-primary-500"
+                  class="text-link"
                 >
                   {{ t('admin.settings.tencentCaptcha.openWebDocs') }}
                 </a>

@@ -10,7 +10,7 @@
     <div class="min-w-0 flex-1 space-y-3">
       <div
         v-if="html"
-        class="payment-help-markdown break-words leading-relaxed"
+        class="payment-help-markdown text-link-content break-words leading-relaxed"
         v-html="html"
       ></div>
       <button
@@ -60,14 +60,7 @@ const emit = defineEmits<{
 }
 
 .payment-help-markdown :deep(a) {
-  color: theme('colors.primary.600');
   font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.dark .payment-help-markdown :deep(a) {
-  color: theme('colors.primary.400');
 }
 
 .payment-help-markdown :deep(ul),

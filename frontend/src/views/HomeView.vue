@@ -86,13 +86,13 @@
         {{ t('home.stats.unavailable') }}
       </p>
 
-      <!-- Feature illustrations use the page background and scale inside clipped panels so hovering leaves the card layout steady. -->
+      <!-- Each link covers its card, and flexible text panels align the links along the bottom when descriptions wrap. -->
       <section class="mx-auto mt-20 grid max-w-7xl gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <article
-          class="group overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
+          class="group relative isolate flex flex-col overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
         >
           <div
-            class="relative h-44 overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
+            class="relative h-44 shrink-0 overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
           >
             <div
               class="absolute inset-0 transition-transform duration-normal motion-safe:group-hover:scale-105"
@@ -112,7 +112,7 @@
               </span>
             </div>
           </div>
-          <div class="p-5">
+          <div class="flex flex-1 flex-col p-5">
             <h2 class="text-base font-semibold text-gray-900 dark:text-white">
               {{ t('home.features.unifiedGateway') }}
             </h2>
@@ -121,7 +121,7 @@
             </p>
             <router-link
               to="/models"
-              class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300"
+              class="mt-auto inline-flex items-center gap-1 self-start pt-4 text-sm font-medium home-feature-link text-link"
             >
               {{ t('home.features.browseAll') }}
               <Icon name="arrowRight" size="xs" />
@@ -130,10 +130,10 @@
         </article>
 
         <article
-          class="group overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
+          class="group relative isolate flex flex-col overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
         >
           <div
-            class="relative flex h-44 items-center justify-center overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
+            class="relative flex h-44 shrink-0 items-center justify-center overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
           >
             <div
               class="relative h-full w-full transition-transform duration-normal motion-safe:group-hover:scale-105"
@@ -175,7 +175,7 @@
               </div>
             </div>
           </div>
-          <div class="p-5">
+          <div class="flex flex-1 flex-col p-5">
             <h2 class="text-base font-semibold text-gray-900 dark:text-white">
               {{ t('home.features.multiProvider') }}
             </h2>
@@ -184,7 +184,7 @@
             </p>
             <router-link
               :to="isAuthenticated ? dashboardPath : '/login'"
-              class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300"
+              class="mt-auto inline-flex items-center gap-1 self-start pt-4 text-sm font-medium home-feature-link text-link"
             >
               {{ t('home.features.learnMore') }}
               <Icon name="arrowRight" size="xs" />
@@ -193,10 +193,10 @@
         </article>
 
         <article
-          class="group overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
+          class="group relative isolate flex flex-col overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
         >
           <div
-            class="flex h-44 items-center justify-center overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] p-6 dark:border-dark-800"
+            class="flex h-44 shrink-0 items-center justify-center overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] p-6 dark:border-dark-800"
           >
             <div
               class="w-full max-w-[200px] rounded-surface border border-gray-200 bg-white p-4 shadow-sm transition-transform duration-normal motion-safe:group-hover:scale-105 dark:border-dark-700 dark:bg-dark-900"
@@ -215,7 +215,7 @@
               </div>
             </div>
           </div>
-          <div class="p-5">
+          <div class="flex flex-1 flex-col p-5">
             <h2 class="text-base font-semibold text-gray-900 dark:text-white">
               {{ t('home.features.balanceQuota') }}
             </h2>
@@ -224,7 +224,7 @@
             </p>
             <router-link
               :to="isAuthenticated ? dashboardPath : '/login'"
-              class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300"
+              class="mt-auto inline-flex items-center gap-1 self-start pt-4 text-sm font-medium home-feature-link text-link"
             >
               {{ t('home.features.viewUsage') }}
               <Icon name="arrowRight" size="xs" />
@@ -233,10 +233,10 @@
         </article>
 
         <article
-          class="group overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
+          class="group relative isolate flex flex-col overflow-hidden rounded-surface border border-gray-200 bg-white transition-colors duration-fast hover:border-black/20 focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600"
         >
           <div
-            class="flex h-44 items-center justify-center overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
+            class="flex h-44 shrink-0 items-center justify-center overflow-hidden border-b border-gray-200 bg-[var(--page-bg)] dark:border-dark-800"
           >
             <div
               class="relative flex h-24 w-24 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition-transform duration-normal motion-safe:group-hover:scale-105 dark:border-dark-700 dark:bg-dark-900"
@@ -249,7 +249,7 @@
               </span>
             </div>
           </div>
-          <div class="p-5">
+          <div class="flex flex-1 flex-col p-5">
             <h2 class="text-base font-semibold text-gray-900 dark:text-white">
               {{ t('home.features.dataPolicies') }}
             </h2>
@@ -261,7 +261,7 @@
               :href="docUrl"
               target="_blank"
               rel="noopener noreferrer"
-              class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300"
+              class="mt-auto inline-flex items-center gap-1 self-start pt-4 text-sm font-medium home-feature-link text-link"
             >
               {{ t('home.docs') }}
               <Icon name="externalLink" size="xs" />
@@ -275,7 +275,7 @@
           <div>
             <router-link
               to="/models"
-              class="inline-flex items-center gap-2 text-2xl font-bold text-gray-950 hover:text-primary-600 dark:text-white dark:hover:text-primary-300"
+              class="inline-flex items-center gap-2 text-2xl font-bold text-link"
             >
               {{ t('home.providers.title') }}
               <Icon name="chevronRight" size="md" :animate-on-hover="false" />
@@ -287,10 +287,7 @@
               {{ t('home.stats.providerTypes') }}
             </p>
           </div>
-          <router-link
-            to="/models"
-            class="text-sm font-medium text-gray-500 transition hover:text-primary-600 dark:text-dark-400 dark:hover:text-primary-300"
-          >
+          <router-link to="/models" class="text-sm font-medium text-link">
             {{ t('home.viewAll') }}
             <Icon name="arrowRight" size="xs" class="inline-block" />
           </router-link>
@@ -1388,6 +1385,16 @@ useLocaleRefresh(fetchHomeMarketplace)
 </script>
 
 <style scoped>
+/* Stretch the native link over the illustration and draw its focus ring inside
+   the clipped card. The text remains the link's accessible label. */
+.home-feature-link::after {
+  @apply absolute inset-0 z-20 content-[''];
+}
+
+.home-feature-link:focus-visible::after {
+  @apply ring-2 ring-inset ring-primary-600 dark:ring-primary-500;
+}
+
 .home-marketplace-icon-enter-active,
 .home-marketplace-icon-leave-active {
   transition:

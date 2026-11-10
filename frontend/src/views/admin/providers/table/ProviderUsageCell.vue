@@ -216,7 +216,7 @@
             :href="validationURL"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-xs text-primary-600 hover:text-primary-800 hover:underline dark:text-primary-500 dark:hover:text-primary-500"
+            class="text-xs text-link"
             :title="t('admin.providers.openVerification')"
           >
             {{ t('admin.providers.openVerification') }}
@@ -559,7 +559,7 @@
                   :href="geminiQuotaPolicyDocsUrl"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-primary-400 hover:text-primary-300 underline"
+                  class="text-link"
                 >
                   {{ t('admin.providers.gemini.quotaPolicy.columns.docs') }} →
                 </a>

@@ -40,10 +40,7 @@
 
       <p class="mt-8 text-sm text-gray-400 dark:text-dark-500">
         {{ t('notFoundPage.help') }}
-        <a
-          href="#"
-          class="text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
-        >
+        <a href="#" class="text-link">
           {{ t('notFoundPage.support') }}
         </a>
       </p>

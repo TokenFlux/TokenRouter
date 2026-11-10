@@ -52,10 +52,7 @@
             <div
               class="hidden items-center gap-5 text-sm font-medium text-gray-600 dark:text-dark-300 md:flex"
             >
-              <router-link
-                to="/models"
-                class="transition hover:text-gray-950 dark:hover:text-white"
-              >
+              <router-link to="/models" class="text-link">
                 {{ t('home.nav.models') }}
               </router-link>
               <a
@@ -63,7 +60,7 @@
                 :href="docUrl"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="transition hover:text-gray-950 dark:hover:text-white"
+                class="text-link"
               >
                 {{ t('home.docs') }}
               </a>

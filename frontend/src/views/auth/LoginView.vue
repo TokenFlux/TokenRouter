@@ -74,7 +74,7 @@
             <router-link
               v-if="passwordResetEnabled && !backendModeEnabled"
               to="/forgot-password"
-              class="text-sm font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+              class="text-sm font-medium text-link"
             >
               {{ t('auth.forgotPassword') }}
             </router-link>
@@ -188,10 +188,7 @@
     <template v-if="!backendModeEnabled" #footer>
       <p class="text-gray-500 dark:text-dark-400">
         {{ t('auth.dontHaveAccount') }}
-        <router-link
-          to="/register"
-          class="font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
-        >
+        <router-link to="/register" class="font-medium text-link">
           {{ t('auth.signUp') }}
         </router-link>
       </p>

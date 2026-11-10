@@ -70,7 +70,7 @@ function detailRoute(item: PluginInstallation, tab?: string) {
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <RouterLink
             :to="detailRoute(item)"
-            class="truncate text-sm font-semibold text-gray-900 after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-primary-600 dark:text-dark-50"
+            class="truncate text-sm font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-primary-600 text-link"
             >{{ pluginText(item.manifest.name, locale, item.plugin_id) }}</RouterLink
           >
           <span class="font-mono text-xs text-gray-500 dark:text-dark-400"

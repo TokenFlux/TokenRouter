@@ -601,14 +601,10 @@
             :href="docUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
+            class="text-sm text-link"
             >{{ t('home.docs') }}</a
           >
-          <a
-            :href="githubUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
+          <a :href="githubUrl" target="_blank" rel="noopener noreferrer" class="text-sm text-link"
             >GitHub</a
           >
         </div>

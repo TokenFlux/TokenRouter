@@ -59,7 +59,7 @@
             class="announcement-popup-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-3 sm:px-6 sm:py-3.5"
           >
             <div
-              class="announcement-popup-content markdown-body max-w-none"
+              class="announcement-popup-content markdown-body text-link-content max-w-none"
               v-html="renderedContent"
             ></div>
           </div>

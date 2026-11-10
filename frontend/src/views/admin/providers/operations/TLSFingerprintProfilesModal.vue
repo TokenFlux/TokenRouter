@@ -460,7 +460,7 @@
                 href="https://tls.sub2api.org"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 underline"
+                class="text-link"
                 >{{ t('admin.tlsFingerprintProfiles.form.openCollector') }}</a
               >
             </p>

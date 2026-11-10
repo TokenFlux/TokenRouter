@@ -132,12 +132,12 @@ function categoryTags(entry: PluginCatalogEntry) {
         params: { pluginId: entry.id },
         query: { source: String(entry.index_id) },
       }"
-      class="card flex flex-col p-5 transition-colors duration-fast hover:border-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 dark:hover:border-dark-500"
+      class="card text-link-area flex flex-col p-5 transition-colors duration-fast hover:border-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 dark:hover:border-dark-500"
     >
       <div class="flex items-start gap-3">
         <PluginIcon :src="catalogIconURL(entry)" :size="48" />
         <div class="min-w-0 flex-1 pt-0.5">
-          <h3 class="truncate text-base font-semibold text-gray-900 dark:text-dark-50">{{
+          <h3 class="text-link truncate text-base font-semibold">{{
             pluginText(entry.manifest.name, locale, entry.id)
           }}</h3>
           <p

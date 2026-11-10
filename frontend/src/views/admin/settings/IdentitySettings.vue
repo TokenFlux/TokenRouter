@@ -103,7 +103,7 @@
               href="https://github.com/settings/developers"
               target="_blank"
               rel="noopener noreferrer"
-              class="font-medium underline"
+              class="font-medium text-link"
               >OAuth Apps</a
             >
             {{ t('admin.settings.emailOAuth.githubGuideAfterLink') }}

@@ -23,7 +23,7 @@ const html = computed(() =>
 
 <template>
   <div
-    class="release-notes rounded-surface border border-gray-100 bg-gray-50/70 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-dark-700 dark:bg-dark-950 dark:text-dark-200"
+    class="release-notes text-link-content rounded-surface border border-gray-100 bg-gray-50/70 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-dark-700 dark:bg-dark-950 dark:text-dark-200"
     v-html="html"
   />
 </template>
@@ -58,10 +58,6 @@ const html = computed(() =>
 
 .release-notes :deep(li::marker) {
   @apply text-gray-400 dark:text-dark-500;
-}
-
-.release-notes :deep(a) {
-  @apply text-primary-600 underline underline-offset-2;
 }
 
 .release-notes :deep(code) {

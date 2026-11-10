@@ -298,7 +298,7 @@
                   :href="safeReleaseUrl"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="flex items-center justify-center gap-2 py-2 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200"
+                  class="flex items-center justify-center gap-2 py-2 text-sm text-link"
                 >
                   <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                     <path
@@ -597,7 +597,7 @@
               target="_blank"
               rel="noopener noreferrer"
               data-testid="changelog-github-link"
-              class="inline-flex items-center gap-1 font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+              class="inline-flex items-center gap-1 font-medium text-link"
             >
               <span>{{ t('version.viewRelease') }}</span>
               <Icon name="externalLink" size="xs" :stroke-width="2" />
@@ -609,7 +609,7 @@
         <article
           v-if="hasChangelogNotes"
           data-testid="changelog-markdown-body"
-          class="changelog-markdown mt-4 rounded-surface border border-gray-100 bg-white px-4 py-4 text-sm leading-6 text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100 sm:px-5"
+          class="changelog-markdown text-link-content mt-4 rounded-surface border border-gray-100 bg-white px-4 py-4 text-sm leading-6 text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100 sm:px-5"
           v-html="sanitizedChangelogHtml"
         ></article>
 
@@ -1215,7 +1215,7 @@ onBeforeUnmount(() => {
 }
 
 .changelog-markdown :deep(a[href]) {
-  @apply font-medium text-primary-600 underline underline-offset-2 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300;
+  @apply font-medium;
 }
 
 .changelog-markdown :deep(strong) {

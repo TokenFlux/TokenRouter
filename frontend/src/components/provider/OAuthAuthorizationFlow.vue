@@ -187,7 +187,7 @@
               href="https://console.cloud.google.com/"
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline dark:text-primary-500"
+              class="inline-flex items-center gap-1 text-xs text-link"
             >
               <Icon name="questionCircle" size="xs" />
               {{ t('admin.providers.oauth.gemini.howToGetProjectId') }}

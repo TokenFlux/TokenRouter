@@ -13,9 +13,9 @@
       </div>
       <router-link
         to="/usage"
-        class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
+        class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-link"
       >
-        <span class="underline underline-offset-2">{{ t('dashboard.topModels.viewAll') }}</span>
+        {{ t('dashboard.topModels.viewAll') }}
         <Icon name="chevronRight" size="xs" :animate-on-hover="false" />
       </router-link>
     </div>

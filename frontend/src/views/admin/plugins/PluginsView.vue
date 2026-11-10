@@ -240,11 +240,9 @@ function installed(result: PluginChange): void {
       <SettingsNotice v-if="sourceFailed && view === 'discover'" tone="warning">
         <p
           >{{ t('admin.plugins.market.sourceErrors') }}
-          <RouterLink
-            :to="{ name: 'AdminPluginSources' }"
-            class="font-medium underline underline-offset-2"
-            >{{ t('admin.plugins.directory.viewSources') }}</RouterLink
-          ></p
+          <RouterLink :to="{ name: 'AdminPluginSources' }" class="font-medium text-link">{{
+            t('admin.plugins.directory.viewSources')
+          }}</RouterLink></p
         >
       </SettingsNotice>
       <div class="flex flex-wrap items-center gap-2">
