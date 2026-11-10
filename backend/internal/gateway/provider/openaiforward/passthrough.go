@@ -71,7 +71,8 @@ type ImageBilling struct {
 // snapshots follow successful reading. The result keeps the incoming response
 // model; UpstreamModel records initial mapping or Compact replacement and can
 // remain empty, and observed images supply the image billing fields. Compact
-// recovery updates a gateway-generated prompt before the replacement exchange.
+// recovery reapplies instruction preparation for the replacement model before
+// sending it, including when the first model did not require a default prompt.
 func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts) (*Result, error) {
 	profile := p.Profile()
 	body, canonicalImageIntentBody, reqModel := in.Body, in.CanonicalImageIntentBody, in.Model
@@ -80,24 +81,17 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	upstreamPassthroughModel := ""
 	responsesLite := profile.OpenAI && ((p.HasContext() && p.LiteHeader()) || p.LitePayloadFlag(body))
 	defaultInstructions := ""
-	// Patch the model field in raw bytes so large bodies and unknown extension
-	// fields retain their existing JSON representation through provider mapping.
-	policyInputModel := p.ForwardModel(reqModel, p.CompactPath())
-	if policyInputModel == "" {
-		policyInputModel = reqModel
-	}
-	if policyInputModel != reqModel {
-		nextBody, setErr := sjson.SetBytes(body, "model", policyInputModel)
-		if setErr != nil {
-			return nil, fmt.Errorf("set passthrough model: %w", setErr)
+	prepareInstructions := func(body []byte, model string) ([]byte, error) {
+		// An existing gateway prompt belongs to the previous model. Replace only
+		// that segment, then reuse the prepared body on same-model retries.
+		if defaultInstructions != "" {
+			updated, err := openai.RefreshCodexDefaultInstructions(body, defaultInstructions, model)
+			if err != nil {
+				return nil, fmt.Errorf("refresh Compact default instructions: %w", err)
+			}
+			return updated, nil
 		}
-		body = nextBody
-		upstreamPassthroughModel = policyInputModel
-		attemptImageIntentInvalidated = true
-	}
-
-	if profile.UsesCodex {
-		if rejectReason := p.InstructionsRejection(policyInputModel, body); rejectReason != "" {
+		if rejectReason := p.InstructionsRejection(model, body); rejectReason != "" {
 			rejectMsg := "OpenAI codex passthrough requires a non-empty instructions field"
 			p.PolicyDenied()
 			p.LogInstructionsRejected(ctx, reqModel, rejectReason, body)
@@ -107,15 +101,40 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		// Lite clients can send their instructions as developer input. Synthesize
 		// only when both that input and the top-level field are absent, and retain
 		// the generated text for possible Compact recovery.
-		if p.CodexModel(policyInputModel) && !gjson.GetBytes(body, "instructions").Exists() &&
+		if p.CodexModel(model) && !gjson.GetBytes(body, "instructions").Exists() &&
 			(!responsesLite || !openai.HasResponsesLiteDeveloperInstructions(body)) {
-			defaultInstructions = openai.DefaultCodexSynthInstructions(policyInputModel)
+			defaultInstructions = openai.DefaultCodexSynthInstructions(model)
 			nextBody, setErr := sjson.SetBytes(body, "instructions", defaultInstructions)
 			if setErr != nil {
 				return nil, fmt.Errorf("set passthrough codex instructions: %w", setErr)
 			}
-			body = nextBody
+			return nextBody, nil
 		}
+		return body, nil
+	}
+
+	// Patch the model field in raw bytes so large bodies and unknown extension
+	// fields retain their existing JSON representation through provider mapping.
+	instructionModel := p.ForwardModel(reqModel, p.CompactPath())
+	if instructionModel == "" {
+		instructionModel = reqModel
+	}
+	if instructionModel != reqModel {
+		nextBody, setErr := sjson.SetBytes(body, "model", instructionModel)
+		if setErr != nil {
+			return nil, fmt.Errorf("set passthrough model: %w", setErr)
+		}
+		body = nextBody
+		upstreamPassthroughModel = instructionModel
+		attemptImageIntentInvalidated = true
+	}
+
+	if profile.UsesCodex {
+		preparedBody, instructionErr := prepareInstructions(body, instructionModel)
+		if instructionErr != nil {
+			return nil, instructionErr
+		}
+		body = preparedBody
 
 		// Apply Codex body compatibility before reading its stream flag and scoping
 		// metadata, so subsequent request identity handling uses the adopted OAuth
@@ -286,15 +305,15 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	var deliveryErr error
 	var imageOutputSizes []string
 	for {
-		// Every Compact recovery reenters this loop. Refresh the gateway prompt
-		// once before sending the fallback request and preserve client instructions.
-		if compactModelFallbackRetried && defaultInstructions != "" {
-			retryBody, refreshErr := openai.RefreshCodexDefaultInstructions(body, defaultInstructions, upstreamPassthroughModel)
-			if refreshErr != nil {
-				return nil, fmt.Errorf("refresh Compact default instructions: %w", refreshErr)
+		// Every Compact recovery reenters this loop. Apply the replacement model's
+		// instruction rules once, even if the first model left the field absent.
+		if profile.UsesCodex && compactModelFallbackRetried && instructionModel != upstreamPassthroughModel {
+			retryBody, instructionErr := prepareInstructions(body, upstreamPassthroughModel)
+			if instructionErr != nil {
+				return nil, instructionErr
 			}
 			body = retryBody
-			defaultInstructions = ""
+			instructionModel = upstreamPassthroughModel
 		}
 		actualModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 		if actualModel == "" {

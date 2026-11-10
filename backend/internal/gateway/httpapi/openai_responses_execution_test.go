@@ -646,21 +646,27 @@ func TestOpenAIGatewayForwardUsesGlobalCompactModelOnInitialLegacyRequest(t *tes
 
 // TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce rejects
 // native compaction over HTTP before a successful model recovery. It checks
-// that the retry uses the replacement prompt, retains caller instructions and
-// the trigger, and records one retry without changing the endpoint.
+// that the retry supplies the replacement model's prompt even if the first
+// model omitted it, preserves caller guidance and the trigger, and records one
+// retry without changing the endpoint.
 func TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce(t *testing.T) {
-	initialPrompt := openaicore.DefaultCodexSynthInstructions("gpt-6.1-sol")
+	const sol = "gpt-6.1-sol"
+	solPrompt := openaicore.DefaultCodexSynthInstructions(sol)
 	retryPrompt := openaicore.DefaultCodexSynthInstructions("gpt-6.1-terra")
 	for _, tc := range []struct {
 		name        string // forwarding scenario name
+		model       string // first upstream model
 		passthrough bool   // provider passthrough enabled
 		explicit    bool   // top-level prompt supplied by caller
 		systemText  string // caller system text to promote
+		lite        bool   // developer input supplies instructions
 	}{
-		{name: "managed", systemText: initialPrompt},
-		{name: "passthrough", passthrough: true},
-		{name: "managed-explicit", explicit: true},
-		{name: "passthrough-explicit", passthrough: true, explicit: true},
+		{name: "managed", model: sol, systemText: solPrompt},
+		{name: "passthrough", model: sol, passthrough: true},
+		{name: "passthrough-without-initial-default", model: "gpt-5.5", passthrough: true},
+		{name: "passthrough-lite-without-initial-default", model: "gpt-5.5", passthrough: true, lite: true},
+		{name: "managed-explicit", model: sol, explicit: true},
+		{name: "passthrough-explicit", model: sol, passthrough: true, explicit: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			input := []map[string]any{
@@ -670,15 +676,21 @@ func TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce(t *test
 			if tc.systemText != "" {
 				input = append([]map[string]any{{"type": "message", "role": "system", "content": tc.systemText}}, input...)
 			}
-			request := map[string]any{"model": "gpt-6.1-sol", "stream": tc.passthrough, "input": input}
+			if tc.lite {
+				input = append([]map[string]any{{"type": "message", "role": "developer", "content": "Client base instructions."}}, input...)
+			}
+			request := map[string]any{"model": tc.model, "stream": tc.passthrough, "input": input}
 			if tc.explicit {
-				request["instructions"] = initialPrompt
+				request["instructions"] = solPrompt
 			}
 			body, err := json.Marshal(request)
 			require.NoError(t, err)
 			c := newOpenAICompactFallbackTestContext(t, "/v1/responses")
 			c.Request.Body = io.NopCloser(bytes.NewReader(body))
 			c.Request.Header.Set("Content-Type", "application/json")
+			if tc.lite {
+				c.Request.Header.Set(media.ResponsesLiteHeader, "true")
+			}
 			MarkOpenAINativeCompactionV2(c)
 
 			completed := `{"id":"resp_compact","status":"completed","model":"gpt-6.1-terra","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`
@@ -715,17 +727,26 @@ func TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce(t *test
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, upstream.bodies, 2)
-			require.Equal(t, "gpt-6.1-sol", gjson.GetBytes(upstream.bodies[0], "model").String())
+			require.Equal(t, tc.model, gjson.GetBytes(upstream.bodies[0], "model").String())
 			require.Equal(t, "gpt-6.1-terra", gjson.GetBytes(upstream.bodies[1], "model").String())
-			firstInstructions, secondInstructions := initialPrompt, retryPrompt
+			firstInstructions, secondInstructions := solPrompt, retryPrompt
+			if tc.model != sol {
+				firstInstructions = ""
+				require.False(t, gjson.GetBytes(upstream.bodies[0], "instructions").Exists())
+			}
 			if tc.explicit {
-				secondInstructions = initialPrompt
+				secondInstructions = solPrompt
 			}
 			if tc.systemText != "" {
 				firstInstructions = tc.systemText + "\n\n" + firstInstructions
 				secondInstructions = tc.systemText + "\n\n" + secondInstructions
 			}
 			require.True(t, firstInstructions == gjson.GetBytes(upstream.bodies[0], "instructions").String(), "unexpected first attempt instructions")
+			if tc.lite {
+				secondInstructions = ""
+				require.False(t, gjson.GetBytes(upstream.bodies[1], "instructions").Exists())
+				require.Equal(t, "Client base instructions.", gjson.GetBytes(upstream.bodies[1], `input.#(role=="developer").content`).String())
+			}
 			require.True(t, secondInstructions == gjson.GetBytes(upstream.bodies[1], "instructions").String(), "unexpected retry instructions")
 			require.True(t, protocolopenai.HasCompactionTriggerInInput(upstream.bodies[1]))
 			require.Equal(t, upstream.requests[0].URL.Path, upstream.requests[1].URL.Path)

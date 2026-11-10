@@ -273,7 +273,7 @@ HTTP 提交、首输出超时与重试资格仍由响应处理策略判断。统
 
 ### Codex 基础指令和 Responses Lite
 
-OpenAI OAuth 转发按最终上游模型补齐默认 `instructions`。模型选择会应用提供商映射和旧版 Compact 的模型覆盖。Compact 换模型重试时，只重新生成网关补入的默认提示词，保留客户端指令和其他附加内容。Codex 和下文列出的 GPT-6 型号走 OAuth passthrough 时，可以省略 `instructions`，显式提供的非空字符串保持不变，空白或非字符串的值在本地拒绝。这条规则适用于 Responses SSE 和旧版 Compact。
+OpenAI OAuth 转发按最终上游模型补齐默认 `instructions`。模型选择会应用提供商映射和旧版 Compact 的模型覆盖。Compact 换模型重试时，网关按备用模型补齐或更新默认提示词，保留客户端指令和其他附加内容。Codex 和下文列出的 GPT-6 型号走 OAuth passthrough 时，可以省略 `instructions`，显式提供的非空字符串保持不变，空白或非字符串的值在本地拒绝。这条规则适用于 Responses SSE 和旧版 Compact。
 
 网关补齐默认指令时，`gpt-6`、`gpt-6-astra` 和 `gpt-6-astra-*` 使用 Astra 提示词。`gpt-6.1-sol` 和 `gpt-6.1-terra` 使用各自的提示词，并识别推理档位和 `-openai-compact` 后缀。这些模型名都接受供应商前缀。这里的别名匹配用于识别指令规则，出站模型名和推理档位由各自的映射规则决定。其余模型继续按 Codex、GPT-5.1 和 GPT-5.2 规则选择，未命中专用提示词时回退到 GPT-5.5。
 
