@@ -8,7 +8,7 @@
         type="button"
         :aria-pressed="modelValue === amt"
         :class="[
-          'relative flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-control border px-1 text-sm tabular-nums sm:text-base',
+          'relative flex h-9 min-w-0 items-center justify-center gap-1 rounded-control border px-1 text-sm tabular-nums sm:text-base',
           modelValue === amt
             ? 'border-gray-300 bg-gray-50 font-semibold text-gray-900 dark:border-dark-500 dark:bg-dark-700 dark:text-white'
             : 'border-gray-200 bg-white font-medium text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-950 dark:text-dark-100 dark:hover:border-dark-500',
