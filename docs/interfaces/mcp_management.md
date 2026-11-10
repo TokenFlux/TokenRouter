@@ -27,7 +27,7 @@ TokenRouter 在主 HTTP 服务的 `/mcp` 提供 Streamable HTTP MCP，支持专�
 
 目录同时供 MCP 发现、管理页面权限选择和 OpenAPI 导出使用。前端的模块译名属于展示文本，操作权限仍使用后端提供的 ID。WebSocket 原路由通过 `http_upgrade` 声明升级要求，OpenAPI 输出 101 响应；`x-tokenrouter-mcp-alias` 标明 MCP 实际使用的等效查询操作。
 
-JSON 响应提供共享 HTTP envelope schema；已声明的具体响应 DTO 会展开其字段。动态 map 的结果保持开放，由操作说明解释字段和业务状态。`response_schema` 描述原 HTTP 结果，MCP 在外层补充执行状态、关联 ID，并对敏感字段脱敏。
+JSON 响应提供共享 HTTP envelope schema，已声明的具体响应 DTO 会展开其字段。动态 map 的结果保持开放，由操作说明解释字段和业务状态。`response_schema` 描述原 HTTP 结果，MCP 在外层补充执行状态和关联 ID，并按调用凭据的设置决定是否遮蔽响应字段。
 
 <a id="access_tokens"></a>
 ## 访问令牌
@@ -38,7 +38,7 @@ JSON 响应提供共享 HTTP envelope schema；已声明的具体响应 DTO 会�
 | --- | --- |
 | `GET /tokens`、`POST /tokens` | 查询元数据、创建令牌 |
 | `GET /tokens/:id/credential` | 所属管理员在浏览器中复制完整令牌 |
-| `PUT /tokens/:id`、`DELETE /tokens/:id` | 替换名称、有效期、启用状态和权限；永久撤销 |
+| `PUT /tokens/:id`、`DELETE /tokens/:id` | 更新名称、有效期、启用状态、权限和工具结果脱敏设置，或永久撤销 |
 | `GET /operations`、`GET /openapi` | 权限目录、管理 API 描述 |
 | `GET /confirmations/:id`、`POST /confirmations/:id/approve` | 浏览器查看和批准请求 |
 | `POST /files`、`GET /files/:id` | 上传 JSON 请求体、下载受保护结果 |
@@ -104,7 +104,9 @@ Fosite 负责协议验证，identity/provider 负责 MCP resource、CIMD 和浏�
 
 执行器由目录决定方法和路径，拒绝可改变路由的路径分隔符、转义以及未知参数。调用方不能提供目标主机或认证请求头。内部 HTTP 请求通过私有 context 携带令牌身份，原管理员中间件复核最终路由，再运行已有的限流、审计、强认证和业务处理。
 
-结果包含请求关联 ID、HTTP 状态和原接口数据。JSON 与有限 SSE 的数值在通用转换中保留原十进制表示，大整数 ID 不经过浮点舍入。成功结果、错误结果、有限 SSE 和确认预览共用 MCP 字段脱敏策略，文本结果与结构化结果使用同一份处理后的数据。业务错误通过 MCP 的 `isError` 返回，保留脱敏后的错误原因。`succeeded` 表示该 API 调用完成；创建备份等后台任务后，仍要查询任务状态。执行器不自动重试写操作，也不提供跨管理接口的事务回滚。响应中断时，写操作返回 `outcome_unknown`，不能据此判断业务未执行。
+结果包含请求关联 ID、HTTP 状态和原接口数据。JSON 与有限 SSE 的数值在通用转换中保留原十进制表示，大整数 ID 不经过浮点舍入。文本结果与结构化结果使用同一份数据，业务错误通过 MCP 的 `isError` 返回。`succeeded` 表示该 API 调用完成。创建备份等后台任务后，仍要查询任务状态。执行器不自动重试写操作，也不提供跨管理接口的事务回滚。响应中断时，写操作返回 `outcome_unknown`，不能据此判断业务未执行。
+
+在 MCP 管理页编辑手工令牌或 OAuth 应用时，可以开启「工具结果脱敏」（`redact_tool_results`）。新建和已有凭据默认关闭，保存后从下一次工具调用生效。管理 API 更新凭据时，省略该字段或传 `null` 会保留已保存的值。关闭时保留原接口返回的字段。开启时对内联 JSON（含业务错误）和有限 SSE 事件应用 MCP 字段规则。浏览器确认预览和审计按各自的规则脱敏，凭据导出仍通过受保护文件交付。
 
 已有幂等接口可以接收 `idempotency_key`，继续使用原协调器；未声明支持的接口拒绝该参数。普通审计沿用异步尽力写入机制，额外记录 `mcp_token_id` 和 `mcp_operation_id`。审计额外记录 `mcp_source`：空值表示手工令牌，`oauth` 表示应用授权。应用授权使用 `oauth:<id>` 作为审计标识。审计关键词可以搜索显示前缀，管理页据此链接到对应令牌的记录。上传文件的审计正文整体省略，防止编码后的凭据绕过字段脱敏。
 
@@ -130,7 +132,7 @@ Fosite 负责协议验证，identity/provider 负责 MCP resource、CIMD 和浏�
 <a id="files_and_interaction"></a>
 ## 文件与交互流程
 
-普通 JSON 输出继续使用原 DTO 的脱敏，并补充 MCP 字段处理。敏感键默认遮蔽；已登记的 token 数量、限制、价格、配置开关、凭据存在标记及 API Key 管理元数据按明确的字段名和 JSON 类型保留。`null` 保留为空值，例如定价区间的 `max_tokens:null` 仍表示无上限。元数据对象和数组继续递归检查内部凭据，异常类型不会通过元数据规则放行。
+普通 JSON 输出保留原 DTO 的脱敏。开启工具结果脱敏后，MCP 再遮蔽敏感键。已登记的 token 数量、限制、价格、配置开关、凭据存在标记及 API Key 管理元数据按明确的字段名和 JSON 类型保留。`null` 保留为空值，例如定价区间的 `max_tokens:null` 仍表示无上限。元数据对象和数组继续递归检查内部凭据，异常类型不会通过元数据规则放行。
 
 字段归一化兼容大小写和分隔符差异；不同协议共用归一化名称时，明确登记各自允许的结构。例如 OpenAI 的 `prompt_tokens_details` 对象和 Gemini 的 `promptTokensDetails` 对象数组都保持可读，内部凭据仍被遮蔽。审计的 `extra.mcp_token_id` 保留数字类型，提供商的 `session_token_present` 和 `antigravity_force_token_refresh` 保留布尔类型。
 
@@ -167,4 +169,4 @@ bearer_token_env_var = "TOKENROUTER_MCP_TOKEN"
 
 每个令牌每分钟最多 300 个 MCP HTTP 请求，Redis 计数不可用时拒绝准入。后端最多同时处理八个 MCP HTTP 请求；外层入口与 SDK 的请求体限制均为 16 MiB，内部有限响应捕获上限也为 16 MiB，单次执行使用两分钟超时。大 JSON 使用文件交付，备份下载按原接口流式传输。限制与推理网关流量分别处理。
 
-迁移 300 增加令牌表，迁移 301 增加默认关闭的跳过确认设置。既有管理员、网关 Key 和登录凭据不转换。部署沿用现有 PostgreSQL、Redis 和持久加密密钥。回退到旧二进制后 MCP 入口不可用，新增表可以保留；临时确认和文件按 TTL 过期。完整数据备份包含令牌摘要与密文，恢复完整令牌还需要对应的固定加密密钥。迁移与回退仍遵循[部署与数据库迁移](../operations/deployment_and_migrations.md)。
+迁移 300 增加令牌表，迁移 301 增加默认关闭的跳过确认设置。迁移 310 给令牌和 OAuth 应用授权增加工具结果脱敏设置，已有行取默认值 `false`。回退到支持 MCP 但早于此开关的版本时，可以保留新增列，旧后端会对工具结果执行额外脱敏。既有管理员、网关 Key 和登录凭据不转换。部署沿用现有 PostgreSQL、Redis 和持久加密密钥。临时确认和文件按 TTL 过期。完整数据备份包含令牌摘要与密文，恢复完整令牌还需要对应的固定加密密钥。迁移与回退遵循[部署与数据库迁移](../operations/deployment_and_migrations.md)。

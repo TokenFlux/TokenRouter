@@ -174,8 +174,8 @@ func requestSchema(t reflect.Type, visited map[reflect.Type]bool) *jsonschema.Sc
 
 // JSONResponse describes the shared HTTP envelope and an optional concrete data type.
 // Dynamic responses leave data unconstrained; known DTOs reuse their JSON field
-// shapes. MCP execution adds transport status and applies credential redaction
-// around this underlying HTTP response.
+// shapes. MCP execution adds transport status and can apply field redaction
+// to this underlying HTTP response according to the credential's settings.
 func JSONResponse(body any) *jsonschema.Schema {
 	data := &jsonschema.Schema{}
 	if body != nil {

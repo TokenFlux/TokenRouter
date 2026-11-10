@@ -191,7 +191,7 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 	admin := identityhttp.MCPAdminAuth(tokens, normal)
 	group := router.Group("/api/v1/admin", admin)
 	group.GET("/fixture/:id", func(c *gin.Context) {
-		c.JSON(200, gin.H{"code": 0, "data": gin.H{"id": c.Param("id"), "api_key": "must-not-reach-model"}})
+		c.JSON(200, gin.H{"code": 0, "data": gin.H{"id": c.Param("id"), "integration_token": "fixture-routing-label"}})
 	})
 	group.POST("/fixture", func(c *gin.Context) {
 		fixture.writes.Add(1)
@@ -250,8 +250,8 @@ func (f *mcpFixture) browser(t *testing.T, method, path, credential string) *htt
 }
 
 // TestSDKDiscoveryDispatchAndRevocation connects the official MCP client to the mounted
-// management transport. It verifies schema rejection, exact permissions, redacted output,
-// mutation isolation from the query tool, and live revocation after discovery.
+// management transport. It verifies schema rejection, exact permissions,
+// default and opt-in result masking, query isolation, and live revocation.
 func TestSDKDiscoveryDispatchAndRevocation(t *testing.T) {
 	f := newMCPFixture(t)
 	tools, err := f.session.ListTools(t.Context(), nil)
@@ -260,9 +260,18 @@ func TestSDKDiscoveryDispatchAndRevocation(t *testing.T) {
 	result, data := f.invoke(t, "search_operations", map[string]any{})
 	require.False(t, result.IsError)
 	require.Equal(t, float64(4), data["total"])
-	result, data = f.invoke(t, "read_operation", map[string]any{"operation_id": "fixture.get", "path": map[string]string{"id": "7"}})
+	arguments := map[string]any{"operation_id": "fixture.get", "path": map[string]string{"id": "7"}}
+	result, _ = f.invoke(t, "read_operation", arguments)
 	require.False(t, result.IsError)
-	require.Equal(t, "***", jsonTestValue[map[string]any](t, jsonTestValue[map[string]any](t, data["data"])["data"])["api_key"])
+	require.Contains(t, jsonTestValue[*mcp.TextContent](t, result.Content[0]).Text, `"integration_token":"fixture-routing-label"`)
+	// Change the stored preference while keeping the session open to exercise
+	// the live credential read used for the next tool invocation.
+	f.repo.mu.Lock()
+	f.repo.token.RedactToolResults = true
+	f.repo.mu.Unlock()
+	result, data = f.invoke(t, "read_operation", arguments)
+	require.False(t, result.IsError)
+	require.Equal(t, "***", jsonTestValue[map[string]any](t, jsonTestValue[map[string]any](t, data["data"])["data"])["integration_token"])
 	for _, arguments := range []map[string]any{
 		{"operation_id": "fixture.create"},
 		{"operation_id": "fixture.get", "path": map[string]string{"id": "../protected"}},
@@ -519,7 +528,7 @@ func TestStreamCompletionAndOutputBounds(t *testing.T) {
 		{"truncated", "data: {\"type\":\"content\",\"text\":\"partial\"}\n\n", "outcome_unknown"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			result := f.handler.streamResult(op, []byte(test.body), "request-fixture")
+			result := f.handler.streamResult(f.token, op, []byte(test.body), "request-fixture")
 			require.Equal(t, test.status, jsonTestValue[map[string]any](t, result.StructuredContent)["status"])
 		})
 	}
@@ -856,7 +865,7 @@ func TestOperationResultsRetainExactNumbers(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(encoded), `"id":9007199254740993`)
 	require.Contains(t, string(encoded), `"total_tokens":9007199254740993`)
-	result = f.handler.streamResult(&adminapi.Operation{TerminalEvent: "done"}, []byte("data: {\"type\":\"done\",\"success\":true,\"id\":9007199254740993}\n\n"), "fixture")
+	result = f.handler.streamResult(f.token, &adminapi.Operation{TerminalEvent: "done"}, []byte("data: {\"type\":\"done\",\"success\":true,\"id\":9007199254740993}\n\n"), "fixture")
 	encoded, err = json.Marshal(result.StructuredContent)
 	require.NoError(t, err)
 	require.Contains(t, string(encoded), `"id":9007199254740993`)
@@ -873,7 +882,7 @@ func TestResultParsingRequiresOneCompleteJSONValue(t *testing.T) {
 	result := f.handler.operationResult(t.Context(), f.token, &adminapi.Operation{ID: "fixture.get", ReadOnly: true}, capture)
 	metadata := jsonTestValue[map[string]any](t, result.StructuredContent)
 	require.Equal(t, "file_ready", metadata["status"])
-	result = f.handler.streamResult(&adminapi.Operation{TerminalEvent: "done"}, []byte("data: {\"type\":\"done\",\"success\":true}{}\n\n"), "fixture")
+	result = f.handler.streamResult(f.token, &adminapi.Operation{TerminalEvent: "done"}, []byte("data: {\"type\":\"done\",\"success\":true}{}\n\n"), "fixture")
 	require.True(t, result.IsError)
 	require.Equal(t, "outcome_unknown", jsonTestValue[map[string]any](t, result.StructuredContent)["status"])
 }

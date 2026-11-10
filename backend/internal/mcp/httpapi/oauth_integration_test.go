@@ -199,7 +199,7 @@ func (f *oauthFixture) exchange(t *testing.T, values url.Values) (int, map[strin
 
 // TestOAuthSDKDiscoveryAndInvocation follows discovery, dynamic registration, browser
 // approval, PKCE exchange, and a management query with the official SDK. The
-// successful request proves the issued credential reaches the existing tool dispatcher.
+// same OAuth connection reflects later changes to its result masking preference.
 func TestOAuthSDKDiscoveryAndInvocation(t *testing.T) {
 	f := newOAuthFixture(t)
 	handler, err := auth.NewAuthorizationCodeHandler(&auth.AuthorizationCodeHandlerConfig{DynamicClientRegistrationConfig: &auth.DynamicClientRegistrationConfig{Metadata: &oauthex.ClientRegistrationMetadata{ClientName: "Official SDK", RedirectURIs: []string{"http://127.0.0.1:43111/callback"}, GrantTypes: []string{"authorization_code", "refresh_token"}, TokenEndpointAuthMethod: "none"}}, RequestRefreshToken: true, NewTokenSource: func(ctx context.Context, config *oauth2.Config, token *oauth2.Token) (oauth2.TokenSource, error) {
@@ -217,9 +217,34 @@ func TestOAuthSDKDiscoveryAndInvocation(t *testing.T) {
 	session, err := client.Connect(t.Context(), &mcp.StreamableClientTransport{Endpoint: f.http.URL + "/mcp", OAuthHandler: handler, DisableStandaloneSSE: true, MaxRetries: -1}, nil)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, session.Close()) }()
-	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "read_operation", Arguments: map[string]any{"operation_id": "fixture.get", "path": map[string]string{"id": "42"}}})
+	params := &mcp.CallToolParams{Name: "read_operation", Arguments: map[string]any{"operation_id": "fixture.get", "path": map[string]string{"id": "42"}}}
+	result, err := session.CallTool(t.Context(), params)
 	require.NoError(t, err)
 	require.False(t, result.IsError, result)
+	require.Contains(t, jsonTestValue[*mcp.TextContent](t, result.Content[0]).Text, `"integration_token":"fixture-routing-label"`)
+
+	grants, err := f.repo.ListGrants(t.Context(), f.userID)
+	require.NoError(t, err)
+	require.Len(t, grants, 1)
+	grant := grants[0]
+	require.False(t, grant.RedactToolResults)
+	input := identity.MCPTokenInput{
+		Name: grant.Name, Enabled: true, Permissions: grant.Permissions,
+		RedactToolResults: new(true), ExpectedUpdatedAt: &grant.UpdatedAt,
+	}
+	updated, err := f.oauth.UpdateGrant(t.Context(), f.userID, grant.ID, input)
+	require.NoError(t, err)
+	require.True(t, updated.RedactToolResults)
+	input.ExpectedUpdatedAt = &updated.UpdatedAt
+	input.RedactToolResults = nil
+	updated, err = f.oauth.UpdateGrant(t.Context(), f.userID, grant.ID, input)
+	require.NoError(t, err)
+	require.True(t, updated.RedactToolResults)
+
+	result, err = session.CallTool(t.Context(), params)
+	require.NoError(t, err)
+	require.False(t, result.IsError, result)
+	require.Contains(t, jsonTestValue[*mcp.TextContent](t, result.Content[0]).Text, `"integration_token":"***"`)
 }
 
 // TestOAuthRotationReplayAndLiveGrants exchanges real credentials and rotates the

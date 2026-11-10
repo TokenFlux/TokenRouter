@@ -49,6 +49,9 @@ export default {
     skipBrowserConfirmation: 'Skip browser confirmation',
     skipConfirmationHint:
       'Authorized sensitive actions can run directly. Actions requiring recent two-factor verification or browser authorization still continue in the browser.',
+    redactToolResults: 'Redact tool results',
+    redactToolResultsHint:
+      'Mask fields in MCP tool results that may contain credentials. This can also hide useful data.',
     confirmationSkipped: 'Browser confirmation skipped',
     sensitiveOperation: 'Sensitive action',
     preset: 'Permission preset',

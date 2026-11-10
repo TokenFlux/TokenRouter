@@ -19,8 +19,9 @@ import (
 // credentials or public configuration no longer match the approved digest.
 
 // TestMCPConfirmationRedactionKeepsDispatchAndDigest submits mixed configuration
-// and credentials through the SDK. The browser preview keeps public values,
-// changed masked values cannot reuse approval, and dispatch receives original JSON.
+// and credentials through the SDK with default tool result settings. The preview
+// masks credentials, changed values cannot reuse approval, and both dispatch and
+// the tool result retain the original JSON values.
 func TestMCPConfirmationRedactionKeepsDispatchAndDigest(t *testing.T) {
 	f := newMCPFixture(t)
 	op := &adminapi.Operation{
@@ -82,6 +83,6 @@ func TestMCPConfirmationRedactionKeepsDispatchAndDigest(t *testing.T) {
 	require.Equal(t, "consumed", approval.State)
 	text := jsonTestValue[*mcp.TextContent](t, result.Content[0]).Text
 	require.Contains(t, text, `"max_tokens":null`)
-	require.Contains(t, text, `"api_key":"***"`)
+	require.Contains(t, text, `"api_key":123456`)
 	require.Contains(t, text, `"total_tokens":9007199254740993`)
 }

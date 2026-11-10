@@ -21,9 +21,9 @@ import (
 // resolver, which returns the same permission representation with its source.
 //
 // Every authorization reads the current owner and grant, so revocation, expiry,
-// disabling, and administrator demotion affect subsequent calls. Confirmation
-// preferences and configuration timestamps accompany both sources; usage writes
-// leave that configuration version unchanged. Browser and internal dispatch
+// disabling, and administrator demotion affect subsequent calls. The browser
+// confirmation and tool result preferences accompany both sources. Usage writes
+// leave their configuration timestamps unchanged. Browser and internal dispatch
 // callers pass source-qualified identifiers so equal numeric IDs cannot select
 // a grant from a different credential store.
 
@@ -51,23 +51,29 @@ type MCPToken struct {
 	Enabled     bool     `json:"enabled"`     // current admission switch
 	// SkipBrowserConfirmation permits sensitive MCP calls to run directly when
 	// their existing HTTP route does not require recent browser TOTP verification.
-	SkipBrowserConfirmation bool       `json:"skip_browser_confirmation"`
-	ExpiresAt               *time.Time `json:"expires_at"`   // optional absolute expiry
-	LastUsedAt              *time.Time `json:"last_used_at"` // most recent admitted request
-	CreatedAt               time.Time  `json:"created_at"`   // initial creation instant
-	UpdatedAt               time.Time  `json:"updated_at"`   // latest settings change
-	RevokedAt               *time.Time `json:"revoked_at"`   // permanent revocation instant
+	SkipBrowserConfirmation bool `json:"skip_browser_confirmation"`
+	// RedactToolResults applies MCP field masking to operation responses for
+	// this credential when enabled. Confirmation previews use their own policy.
+	RedactToolResults bool       `json:"redact_tool_results"`
+	ExpiresAt         *time.Time `json:"expires_at"`   // optional absolute expiry
+	LastUsedAt        *time.Time `json:"last_used_at"` // most recent admitted request
+	CreatedAt         time.Time  `json:"created_at"`   // initial creation instant
+	UpdatedAt         time.Time  `json:"updated_at"`   // latest settings change
+	RevokedAt         *time.Time `json:"revoked_at"`   // permanent revocation instant
 }
 
-// MCPTokenInput selects a complete token label, grant set, and expiry policy.
+// MCPTokenInput carries the settings for creating or updating an MCP credential.
 type MCPTokenInput struct {
 	Name        string   `json:"name" binding:"required,max=120"` // administrator chosen label
 	Permissions []string `json:"permissions"`                     // exact selected operation identifiers
 	Enabled     bool     `json:"enabled"`                         // requested admission switch
 	// SkipBrowserConfirmation opts into direct sensitive calls; omitted values
 	// remain false and existing recent-TOTP requirements still govern those routes.
-	SkipBrowserConfirmation bool       `json:"skip_browser_confirmation"`
-	ExpiresAt               *time.Time `json:"expires_at"` // nil permits no expiry
+	SkipBrowserConfirmation bool `json:"skip_browser_confirmation"`
+	// RedactToolResults selects response masking. Nil uses the creation default
+	// of false or preserves the stored preference when updating a credential.
+	RedactToolResults *bool      `json:"redact_tool_results,omitempty"`
+	ExpiresAt         *time.Time `json:"expires_at"` // nil permits no expiry
 	// ExpectedUpdatedAt makes updates conditional on the last observed configuration.
 	// Nil keeps ordinary replacement semantics; creation does not consult this update precondition.
 	ExpectedUpdatedAt *time.Time `json:"expected_updated_at,omitempty"`
@@ -152,6 +158,7 @@ func (s *MCPTokenService) Create(ctx context.Context, userID int64, input MCPTok
 		Permissions:             slices.Clone(input.Permissions),
 		Enabled:                 input.Enabled,
 		SkipBrowserConfirmation: input.SkipBrowserConfirmation,
+		RedactToolResults:       input.RedactToolResults != nil && *input.RedactToolResults,
 		ExpiresAt:               input.ExpiresAt,
 	}
 	if token.Permissions == nil {

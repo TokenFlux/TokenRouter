@@ -26,8 +26,9 @@ import (
 // Credential exports and large results are stored as encrypted, owned files
 // instead of being expanded into model content. Storage failure after a handler
 // has returned is reported as an uncertain mutation outcome, because delivery
-// failure cannot roll back that handler's side effects. Ordinary API errors
-// retain their status and redacted response fields for callers to inspect.
+// failure cannot roll back that handler's side effects. Inline JSON and finite
+// stream events use the credential's response masking preference. The original
+// HTTP handler still determines which fields are available in its response.
 
 const (
 	// Larger JSON results become protected files so one broad query cannot fill
@@ -95,7 +96,7 @@ func (c *capture) close() { c.stop() }
 // operationResult converts a completed HTTP response into a structured MCP
 // result. HTTP server errors on mutations remain uncertain because a handler
 // may fail after committing its business write. Ordinary client errors
-// preserve their status and redacted reason.
+// preserve their status and apply the same masking preference as successes.
 //
 // Finite streams require their declared terminal event. Files and oversized
 // results are stored with token ownership before a browser link is returned;
@@ -120,12 +121,15 @@ func (h *Handler) operationResult(ctx context.Context, token *identity.MCPToken,
 		if status >= 500 && !op.ReadOnly {
 			outcome = "outcome_unknown"
 		}
-		result := toolResult(map[string]any{"status": outcome, "http_status": status, "request_id": requestID, "data": h.redact(op.ID, decoded, "response", 0)})
+		result := toolResult(map[string]any{
+			"status": outcome, "http_status": status, "request_id": requestID,
+			"data": h.toolResultData(token, op.ID, decoded, "response"),
+		})
 		result.IsError = true
 		return result
 	}
 	if op.Response == adminapi.ResponseSSE {
-		result := h.streamResult(op, response.body.Bytes(), requestID)
+		result := h.streamResult(token, op, response.body.Bytes(), requestID)
 		if response.body.Len() <= maxInlineResultBytes {
 			return result
 		}
@@ -157,7 +161,10 @@ func (h *Handler) operationResult(ctx context.Context, token *identity.MCPToken,
 		}
 		return h.artifactResult(ctx, file)
 	}
-	return toolResult(map[string]any{"status": "succeeded", "http_status": status, "request_id": requestID, "data": h.redact(op.ID, decoded, "response", 0)})
+	return toolResult(map[string]any{
+		"status": "succeeded", "http_status": status, "request_id": requestID,
+		"data": h.toolResultData(token, op.ID, decoded, "response"),
+	})
 }
 
 // streamResult joins SSE data lines and verifies the finite operation outcome.
@@ -166,11 +173,11 @@ func (h *Handler) operationResult(ctx context.Context, token *identity.MCPToken,
 // authoritative even when a later event claims completion.
 //
 // A missing terminal or malformed stream cannot establish mutation failure, so
-// it returns an unknown outcome for writes. Returned event values pass through
-// MCP credential redaction while retaining the operation's progress and
-// business error details. Numeric event values retain their decimal spelling
-// so result rendering does not round identifiers or precise observation amounts.
-func (h *Handler) streamResult(op *adminapi.Operation, raw []byte, requestID string) *mcp.CallToolResult {
+// it returns an unknown outcome for writes. The credential's redaction
+// preference controls masking of event data after the outcome checks read it.
+// Numeric event values retain their decimal spelling so result rendering does
+// not round identifiers or precise observation amounts.
+func (h *Handler) streamResult(token *identity.MCPToken, op *adminapi.Operation, raw []byte, requestID string) *mcp.CallToolResult {
 	scanner := bufio.NewScanner(bytes.NewReader(raw))
 	scanner.Buffer(make([]byte, 4096), maxResultBytes)
 	var lines []string
@@ -208,7 +215,7 @@ func (h *Handler) streamResult(op *adminapi.Operation, raw []byte, requestID str
 			// progress and successful terminal payloads may instead carry a protected credential code.
 			root = "event/error"
 		}
-		events = append(events, h.redact(op.ID, event, root, 0))
+		events = append(events, h.toolResultData(token, op.ID, event, root))
 	}
 	for scanner.Scan() {
 		line := strings.TrimSuffix(scanner.Text(), "\r")

@@ -147,7 +147,7 @@ func TestMCPMetadataAcrossHandlers(t *testing.T) {
 	}
 	credential := "tr_mcp_" + strings.Repeat("a", 43)
 	repository := tokenRepository{
-		token: identity.MCPToken{ID: 1, UserID: 1, Enabled: true, Permissions: []string{
+		token: identity.MCPToken{ID: 1, UserID: 1, Enabled: true, RedactToolResults: true, Permissions: []string{
 			"pricing.configs.get", "pricing.defaults.list", protocolOperation.ID, credentialOperation.ID,
 			"audit_logs.get", "providers.get",
 		}},

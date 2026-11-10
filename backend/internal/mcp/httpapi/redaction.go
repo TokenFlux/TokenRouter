@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/audit"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 // redaction.go prepares management results and confirmation previews for MCP
@@ -16,12 +17,12 @@ import (
 // key and authorization additionally require the owning operation and field path.
 // Null values retain their absence semantics without exposing credential bytes.
 //
-// Responses, finite stream events, and confirmation arguments use the same
-// traversal with distinct path roots. Allowed containers are still traversed,
-// so their nested credentials receive the usual masking. Copies preserve exact
-// JSON numbers and leave the original response and approval digest inputs
-// unchanged. Preview size limits remain independent of protected file delivery;
-// neither preview formatting nor output redaction changes stored file contents.
+// Confirmation arguments always use the traversal. JSON responses and finite
+// stream events use it when enabled for the calling credential. Each input has
+// its own path root. Allowed containers are still traversed, so their nested
+// credentials receive the usual masking. Copies preserve exact JSON numbers and
+// leave the original response and approval digest inputs unchanged. Preview
+// size limits remain independent of protected file delivery.
 
 const (
 	// Metadata kinds restrict each explicit exception to the management DTO's
@@ -247,6 +248,16 @@ func publicMCPField(operation, path, key string, value any) bool {
 		return path == "response/data/auxiliary_operations/*/authorization"
 	}
 	return false
+}
+
+// toolResultData applies the calling credential's masking preference to decoded
+// response data. Disabled masking returns the original values, including their
+// types and precision. Confirmation previews use redact directly.
+func (h *Handler) toolResultData(token *identity.MCPToken, operation string, value any, root string) any {
+	if token.RedactToolResults {
+		return h.redact(operation, value, root, 0)
+	}
+	return value
 }
 
 // redact copies decoded JSON while retaining explicitly classified management

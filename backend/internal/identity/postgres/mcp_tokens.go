@@ -13,12 +13,13 @@ import (
 // mcp_tokens.go persists MCP credential digests, ciphertext, and operation grants.
 // Owner checks are part of each mutation predicate, and revoked rows remain
 // readable as management history. Authorization reads use the primary SQL
-// connection directly so subsequent calls observe committed permission changes.
+// connection directly so subsequent calls observe committed permission and
+// redaction changes.
 
 const (
 	// mcpTokenColumns fixes the scan order used by creation, reads, and updates;
 	// digests and ciphertext are absent from management result records.
-	mcpTokenColumns = `id,user_id,name,token_prefix,permissions,enabled,skip_browser_confirmation,expires_at,last_used_at,created_at,updated_at,revoked_at`
+	mcpTokenColumns = `id,user_id,name,token_prefix,permissions,enabled,skip_browser_confirmation,redact_tool_results,expires_at,last_used_at,created_at,updated_at,revoked_at`
 )
 
 // MCPTokenStore implements uncached identity credential persistence using PostgreSQL.
@@ -38,8 +39,9 @@ func NewMCPTokenStore(db *sql.DB) *MCPTokenStore {
 }
 
 // Create persists a digest and ciphertext, then fills generated token metadata.
-// A successful insert returns its row through the same statement; no secret
-// plaintext is passed to the database; returned metadata excludes both stored secrets.
+// A successful insert returns its row through the same statement. The digest
+// and ciphertext are the only stored forms of the credential and stay out of
+// the returned metadata.
 func (s *MCPTokenStore) Create(ctx context.Context, token *identity.MCPToken, digest, sealed string) error {
 	permissions, err := json.Marshal(token.Permissions)
 	if err != nil {
@@ -48,10 +50,10 @@ func (s *MCPTokenStore) Create(ctx context.Context, token *identity.MCPToken, di
 	stored, err := scanMCPToken(s.db.QueryRowContext(ctx, `
         INSERT INTO mcp_access_tokens (
             user_id,name,token_hash,token_prefix,permissions,enabled,
-            expires_at,skip_browser_confirmation,token_ciphertext
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING `+mcpTokenColumns,
+            expires_at,skip_browser_confirmation,redact_tool_results,token_ciphertext
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING `+mcpTokenColumns,
 		token.UserID, token.Name, digest, token.Prefix, string(permissions),
-		token.Enabled, token.ExpiresAt, token.SkipBrowserConfirmation, sealed,
+		token.Enabled, token.ExpiresAt, token.SkipBrowserConfirmation, token.RedactToolResults, sealed,
 	))
 	if err == nil {
 		*token = *stored
@@ -101,10 +103,11 @@ func (s *MCPTokenStore) FindHash(ctx context.Context, digest string) (*identity.
 	return scanMCPToken(s.db.QueryRowContext(ctx, `SELECT `+mcpTokenColumns+` FROM mcp_access_tokens WHERE token_hash=$1`, digest))
 }
 
-// Update replaces the complete settings of one owned, unrevoked credential.
+// Update saves the editable settings of one owned, unrevoked credential.
 // The conditional write prevents a concurrent revocation from being undone;
 // an optional observed timestamp also prevents stale forms from replacing a newer
-// configuration. Conditional misses return conflict so callers can reload their draft.
+// configuration. Conditional misses return conflict so callers can reload their
+// draft. Clients can omit RedactToolResults to keep the stored preference.
 func (s *MCPTokenStore) Update(ctx context.Context, userID, id int64, input identity.MCPTokenInput) (*identity.MCPToken, error) {
 	permissions, err := json.Marshal(input.Permissions)
 	if err != nil {
@@ -112,12 +115,12 @@ func (s *MCPTokenStore) Update(ctx context.Context, userID, id int64, input iden
 	}
 	stored, err := scanMCPToken(s.db.QueryRowContext(ctx, `
         UPDATE mcp_access_tokens SET name=$3,permissions=$4,enabled=$5,expires_at=$6,
-            skip_browser_confirmation=$7,updated_at=NOW()
+            skip_browser_confirmation=$7,redact_tool_results=COALESCE($8,redact_tool_results),updated_at=NOW()
         WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL
-            AND ($8::timestamptz IS NULL OR updated_at=$8)
+            AND ($9::timestamptz IS NULL OR updated_at=$9)
         RETURNING `+mcpTokenColumns,
 		id, userID, input.Name, string(permissions), input.Enabled, input.ExpiresAt,
-		input.SkipBrowserConfirmation, input.ExpectedUpdatedAt,
+		input.SkipBrowserConfirmation, input.RedactToolResults, input.ExpectedUpdatedAt,
 	))
 	if errors.Is(err, identity.ErrMCPTokenNotFound) && input.ExpectedUpdatedAt != nil {
 		return nil, apperror.Conflict("MCP_TOKEN_CHANGED", "Token changed or is unavailable; reload before saving")
@@ -154,7 +157,11 @@ func (s *MCPTokenStore) Touch(ctx context.Context, id int64) error {
 func scanMCPToken(row mcpTokenScanner) (*identity.MCPToken, error) {
 	var token identity.MCPToken
 	var permissions []byte
-	err := row.Scan(&token.ID, &token.UserID, &token.Name, &token.Prefix, &permissions, &token.Enabled, &token.SkipBrowserConfirmation, &token.ExpiresAt, &token.LastUsedAt, &token.CreatedAt, &token.UpdatedAt, &token.RevokedAt)
+	err := row.Scan(
+		&token.ID, &token.UserID, &token.Name, &token.Prefix, &permissions,
+		&token.Enabled, &token.SkipBrowserConfirmation, &token.RedactToolResults,
+		&token.ExpiresAt, &token.LastUsedAt, &token.CreatedAt, &token.UpdatedAt, &token.RevokedAt,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, identity.ErrMCPTokenNotFound
 	}

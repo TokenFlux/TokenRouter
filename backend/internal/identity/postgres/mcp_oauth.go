@@ -32,7 +32,8 @@ const (
 	// Grant reads retain the shared permission shape and calculate connection expiry
 	// from unrevoked credentials instead of storing a second independently mutable deadline.
 	oauthGrantColumns = `
-        g.id,g.user_id,g.name,g.permissions,g.enabled,g.skip_browser_confirmation,g.expires_at,g.last_used_at,g.created_at,g.updated_at,g.revoked_at,g.client_id,g.client_name,g.resource,(SELECT MAX(s.expires_at)
+        g.id,g.user_id,g.name,g.permissions,g.enabled,g.skip_browser_confirmation,g.redact_tool_results,
+        g.expires_at,g.last_used_at,g.created_at,g.updated_at,g.revoked_at,g.client_id,g.client_name,g.resource,(SELECT MAX(s.expires_at)
         FROM mcp_oauth_sessions s
         WHERE s.grant_id=g.id AND s.kind IN ('refresh','access') AND s.active)
     `
@@ -276,7 +277,11 @@ func (s *MCPOAuthStore) GetGrant(ctx context.Context, id int64) (*identity.MCPOA
 func scanOAuthGrant(row mcpTokenScanner) (*identity.MCPOAuthGrant, error) {
 	g := new(identity.MCPOAuthGrant)
 	var permissions []byte
-	err := row.Scan(&g.ID, &g.UserID, &g.Name, &permissions, &g.Enabled, &g.SkipBrowserConfirmation, &g.ExpiresAt, &g.LastUsedAt, &g.CreatedAt, &g.UpdatedAt, &g.RevokedAt, &g.ClientID, &g.ClientName, &g.Resource, &g.ConnectionExpiresAt)
+	err := row.Scan(
+		&g.ID, &g.UserID, &g.Name, &permissions, &g.Enabled, &g.SkipBrowserConfirmation,
+		&g.RedactToolResults, &g.ExpiresAt, &g.LastUsedAt, &g.CreatedAt, &g.UpdatedAt,
+		&g.RevokedAt, &g.ClientID, &g.ClientName, &g.Resource, &g.ConnectionExpiresAt,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, identity.ErrMCPTokenNotFound
 	}
@@ -311,7 +316,8 @@ func (s *MCPOAuthStore) ListGrants(ctx context.Context, userID int64) ([]identit
 
 // UpdateGrant replaces an owned application's settings using optimistic concurrency.
 // The caller validates operations and browser identity. A stale configuration
-// or revoked grant returns conflict and cannot be silently re-enabled.
+// or revoked grant returns conflict and cannot be silently re-enabled. Clients
+// can omit RedactToolResults to keep the stored preference.
 func (s *MCPOAuthStore) UpdateGrant(ctx context.Context, userID, id int64, input identity.MCPTokenInput) (*identity.MCPOAuthGrant, error) {
 	raw, err := json.Marshal(input.Permissions)
 	if err != nil {
@@ -319,9 +325,11 @@ func (s *MCPOAuthStore) UpdateGrant(ctx context.Context, userID, id int64, input
 	}
 	result, err := s.query(ctx).ExecContext(ctx, `
         UPDATE mcp_oauth_grants
-        SET name=$3,permissions=$4,enabled=$5,skip_browser_confirmation=$6,expires_at=$7,updated_at=clock_timestamp()
-        WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND updated_at=$8
-    `, id, userID, input.Name, string(raw), input.Enabled, input.SkipBrowserConfirmation, input.ExpiresAt, input.ExpectedUpdatedAt)
+        SET name=$3,permissions=$4,enabled=$5,skip_browser_confirmation=$6,expires_at=$7,
+            redact_tool_results=COALESCE($8,redact_tool_results),updated_at=clock_timestamp()
+        WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND updated_at=$9
+    `, id, userID, input.Name, string(raw), input.Enabled, input.SkipBrowserConfirmation,
+		input.ExpiresAt, input.RedactToolResults, input.ExpectedUpdatedAt)
 	if err != nil {
 		return nil, err
 	}

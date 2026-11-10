@@ -421,6 +421,20 @@
             :aria-label="t('admin.mcp.skipBrowserConfirmation')"
           />
         </div>
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0" for="mcp-redact-tool-results">{{
+              t('admin.mcp.redactToolResults')
+            }}</label>
+            <p class="input-hint">{{ t('admin.mcp.redactToolResultsHint') }}</p>
+          </div>
+          <Toggle
+            id="mcp-redact-tool-results"
+            v-model="form.redactToolResults"
+            size="sm"
+            :aria-label="t('admin.mcp.redactToolResults')"
+          />
+        </div>
         <McpPermissionPicker
           :key="`${editingID}:${editorOpen}`"
           v-model="selected"
@@ -658,8 +672,15 @@ const actionPosition = ref({ top: 0, left: 0 })
 const revoking = ref<MCPToken | null>(null)
 const formError = ref('')
 const unknownPermissions = ref(false)
-// The editor retains the saved admission flag while row actions control status; editing configuration must not re-enable a disabled token.
-const form = reactive({ name: '', expiry: '', enabled: true, skipBrowserConfirmation: false })
+// The editor keeps a separate credential draft. Admission stays at its saved
+// value during edits because the row actions own enable and disable changes.
+const form = reactive({
+  name: '',
+  expiry: '',
+  enabled: true,
+  skipBrowserConfirmation: false,
+  redactToolResults: false,
+})
 const selected = ref(new Set<string>())
 let loadController: AbortController | null = null
 let disposed = false
@@ -886,6 +907,7 @@ function openEditor(token?: MCPToken) {
   form.name = token?.name ?? ''
   form.enabled = token?.enabled ?? true
   form.skipBrowserConfirmation = token?.skip_browser_confirmation ?? false
+  form.redactToolResults = token?.redact_tool_results ?? false
   form.expiry = token
     ? token.expires_at
       ? localDate(token.expires_at)
@@ -927,6 +949,7 @@ async function save() {
       permissions: [...selected.value],
       enabled: form.enabled,
       skip_browser_confirmation: form.skipBrowserConfirmation,
+      redact_tool_results: form.redactToolResults,
       expires_at: form.expiry ? new Date(form.expiry).toISOString() : null,
     }
     if (tokenID !== null)

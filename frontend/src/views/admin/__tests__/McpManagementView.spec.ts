@@ -491,7 +491,7 @@ describe('MCP token management', () => {
   })
 
   // A selected grant becomes hidden by another search before submission. The saved
-  // token must retain that exact operation without granting the newly visible action.
+  // token retains that exact operation and starts with result masking disabled.
   it('retains selected permissions across filtering and submits exact grants', async () => {
     api.createToken.mockResolvedValue({ credential: 'tr_mcp_fixture_only', token: { id: 1 } })
     const wrapper = page()
@@ -509,6 +509,7 @@ describe('MCP token management', () => {
         name: 'Catalogue viewer',
         enabled: true,
         skip_browser_confirmation: false,
+        redact_tool_results: false,
         permissions: ['groups.list'],
       }),
     )
@@ -838,7 +839,8 @@ describe('MCP token management', () => {
 })
 
 // Applications and manual tokens can share a numeric ID. Editing an application
-// must use its OAuth endpoint and observed version, while retaining the manual row.
+// uses its OAuth endpoint and observed version. The editor loads the saved masking
+// preference and submits an explicit false when the administrator switches it off.
 it('edits an application through its independent authorization endpoint', async () => {
   const grant = {
     id: 1,
@@ -851,6 +853,7 @@ it('edits an application through its independent authorization endpoint', async 
     permissions: ['groups.list'],
     enabled: true,
     skip_browser_confirmation: false,
+    redact_tool_results: true,
     expires_at: null,
     last_used_at: null,
     created_at: '2026-10-23T00:00:00Z',
@@ -871,12 +874,19 @@ it('edits an application through its independent authorization endpoint', async 
   await wrapper.get('[data-test="scope-dropdown-trigger"]').trigger('click')
   await wrapper.get('[data-test="scope-option-applications"]').trigger('click')
   await clickText(wrapper, 'common.edit')
+  const redact = wrapper.getComponent('[aria-label="admin.mcp.redactToolResults"]')
+  expect(redact.attributes('modelvalue')).toBe('true')
+  redact.vm.$emit('update:modelValue', false)
   await wrapper.get('input[required]').setValue('My application')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
   expect(api.updateOAuthGrant).toHaveBeenCalledWith(
     1,
-    expect.objectContaining({ name: 'My application', expected_updated_at: grant.updated_at }),
+    expect.objectContaining({
+      name: 'My application',
+      expected_updated_at: grant.updated_at,
+      redact_tool_results: false,
+    }),
   )
   wrapper.unmount()
 })

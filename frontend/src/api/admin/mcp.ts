@@ -30,6 +30,7 @@ export interface MCPToken {
   permissions: string[] // Exact granted operation identifiers.
   enabled: boolean // Current admission switch.
   skip_browser_confirmation: boolean // Direct sensitive execution preference.
+  redact_tool_results: boolean // Current response masking preference.
   expires_at: string | null // Optional absolute expiry.
   last_used_at: string | null // Last admitted request time.
   created_at: string // Initial creation time.
@@ -37,12 +38,14 @@ export interface MCPToken {
   revoked_at: string | null // Permanent revocation time.
 }
 
-// MCPTokenInput replaces the complete editable settings of one owned token.
+// MCPTokenInput carries editable settings for one owned MCP credential.
 export interface MCPTokenInput {
   name: string // Required display name.
   permissions: string[] // Exact selected permission set.
   enabled: boolean // Requested admission switch.
   skip_browser_confirmation: boolean // Opt-in MCP confirmation bypass.
+  // Omission leaves response masking off at creation and preserves the saved value on update.
+  redact_tool_results?: boolean
   expires_at: string | null // Null permits no expiry.
   // expected_updated_at rejects replacement when another operation has changed the token since this snapshot.
   expected_updated_at?: string

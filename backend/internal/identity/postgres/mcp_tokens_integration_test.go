@@ -37,6 +37,7 @@ func (r mcpAccountReader) GetByID(ctx context.Context, id int64) (*identity.User
 // TestMCPTokenPersistenceAndLiveAuthorization exercises issuance, permission changes,
 // ownership rejection, expiry, role demotion, and permanent revocation. It also
 // verifies that persisted and listed records do not contain the complete credential.
+// Response masking starts disabled and survives updates that omit the preference.
 func TestMCPTokenPersistenceAndLiveAuthorization(t *testing.T) {
 	db := postgrescontainer.New(t)
 	ctx := t.Context()
@@ -64,15 +65,20 @@ func TestMCPTokenPersistenceAndLiveAuthorization(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, current.Allows("providers.list"))
 	require.False(t, current.SkipBrowserConfirmation)
+	require.False(t, current.RedactToolResults)
 	_, err = service.Update(ctx, userID+1, token.ID, identity.MCPTokenInput{Name: "wrong owner", Enabled: true})
 	require.ErrorIs(t, err, identity.ErrMCPTokenNotFound)
-	_, err = service.Update(ctx, userID, token.ID, identity.MCPTokenInput{Name: "Read groups", Enabled: true, Permissions: []string{"groups.list"}, SkipBrowserConfirmation: true})
+	_, err = service.Update(ctx, userID, token.ID, identity.MCPTokenInput{
+		Name: "Read groups", Enabled: true, Permissions: []string{"groups.list"},
+		SkipBrowserConfirmation: true, RedactToolResults: new(true),
+	})
 	require.NoError(t, err)
 	current, _, err = service.Authenticate(ctx, credential)
 	require.NoError(t, err)
 	require.False(t, current.Allows("providers.list"))
 	require.True(t, current.Allows("groups.list"))
 	require.True(t, current.SkipBrowserConfirmation)
+	require.True(t, current.RedactToolResults)
 	_, err = db.ExecContext(ctx, `UPDATE users SET role='user' WHERE id=$1`, userID)
 	require.NoError(t, err)
 	_, _, err = service.Authenticate(ctx, credential)
@@ -89,6 +95,10 @@ func TestMCPTokenPersistenceAndLiveAuthorization(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, current.Permissions)
 	require.False(t, current.SkipBrowserConfirmation)
+	require.True(t, current.RedactToolResults)
+	current, err = service.Update(ctx, userID, token.ID, identity.MCPTokenInput{Name: "No grants", Enabled: true, RedactToolResults: new(false)})
+	require.NoError(t, err)
+	require.False(t, current.RedactToolResults)
 	require.NoError(t, service.Revoke(ctx, userID, token.ID))
 	_, _, err = repo.Credential(ctx, userID, token.ID)
 	require.ErrorIs(t, err, identity.ErrMCPTokenNotFound)
@@ -104,11 +114,14 @@ func TestMCPTokenPersistenceAndLiveAuthorization(t *testing.T) {
 	require.NotContains(t, string(encoded), credential)
 	require.NotContains(t, string(encoded), storedHash)
 	require.NotContains(t, string(encoded), sealed)
-	direct, _, err := service.Create(ctx, userID, identity.MCPTokenInput{Name: "Direct operations", Enabled: true, SkipBrowserConfirmation: true})
+	direct, _, err := service.Create(ctx, userID, identity.MCPTokenInput{
+		Name: "Direct operations", Enabled: true, SkipBrowserConfirmation: true, RedactToolResults: new(true),
+	})
 	require.NoError(t, err)
 	stored, err := repo.Get(ctx, direct.ID)
 	require.NoError(t, err)
 	require.True(t, stored.SkipBrowserConfirmation)
+	require.True(t, stored.RedactToolResults)
 	_, err = db.ExecContext(ctx, `DELETE FROM users WHERE id=$1`, userID)
 	require.NoError(t, err)
 	_, err = repo.Get(ctx, token.ID)

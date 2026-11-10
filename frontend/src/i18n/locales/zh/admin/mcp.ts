@@ -45,6 +45,8 @@ export default {
     skipBrowserConfirmation: '跳过浏览器确认',
     skipConfirmationHint:
       '开启后，已授权的敏感操作可直接执行。需要近期两步验证或浏览器授权的操作仍须在浏览器中完成。',
+    redactToolResults: '工具结果脱敏',
+    redactToolResultsHint: '开启后会遮蔽 MCP 工具结果中可能包含凭据的字段，也可能隐藏有用的信息。',
     confirmationSkipped: '跳过浏览器确认',
     sensitiveOperation: '敏感操作',
     preset: '权限预设',
