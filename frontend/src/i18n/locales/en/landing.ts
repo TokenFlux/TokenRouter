@@ -160,6 +160,7 @@ export default {
     footer: {
       allRightsReserved: 'All rights reserved.',
       quickLinks: 'Quick links',
+      poweredBy: 'Powered by {name}',
     },
   },
   // Key Usage Query Page

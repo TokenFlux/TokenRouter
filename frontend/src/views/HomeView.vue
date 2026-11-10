@@ -575,6 +575,10 @@
             >
               {{ line }}
             </p>
+            <!-- A flex wrapper keeps the inline badge out of a line box, so no baseline gap appears below it. -->
+            <div class="mt-4 flex">
+              <PoweredByBadge />
+            </div>
           </div>
 
           <div v-for="column in footerColumns" :key="column.title" class="lg:min-w-[140px]">
@@ -629,6 +633,7 @@ import type { MarketplaceGroup, MarketplaceModel, MarketplaceStats } from '@/api
 import { formatDate } from '@/utils/format'
 import { onboardingPaths } from './home/onboardingArtwork'
 import { modelAuthor } from './home/modelAuthor'
+import PoweredByBadge from './home/PoweredByBadge.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { hasAcceptedLoginAgreement } from '@/utils/loginAgreement'
 import { isGoogleOneTapEligible, isGoogleOneTapOriginSupported } from '@/utils/googleIdentity'

@@ -155,6 +155,7 @@ export default {
     footer: {
       allRightsReserved: '保留所有权利。',
       quickLinks: '快速链接',
+      poweredBy: '基于 {name} 构建',
     },
   },
   // Key Usage Query Page
