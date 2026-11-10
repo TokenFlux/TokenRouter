@@ -5,11 +5,15 @@ import (
 	"strings"
 )
 
-// constants.go selects embedded Codex instructions by model and defines
-// default provider probe models.
-// GPT-6 Astra, GPT-6.1 Sol, and GPT-6.1 Terra use their own embedded prompts
-// when their model names match the supported spellings. The GPT-5 rules give
-// Codex names precedence over GPT-5 version prefixes, with GPT-5.5 as the
+// constants.go selects embedded Codex instructions by model and defines default
+// provider probe models. GPT-6 Astra, GPT-6.1 Sol, and GPT-6.1 Terra share their
+// alias lookup with passthrough, where recognizing a model also controls
+// whether the gateway fills omitted instructions or rejects an invalid value.
+//
+// The lookup identifies a family independently of prompt availability. A
+// recognized model still requires instructions if its embedded text is blank,
+// so selection then uses the general fallback. For other models, Codex names
+// take precedence over GPT-5 version prefixes, and GPT-5.5 supplies the
 // fallback for models without dedicated text.
 
 // Probe models select ordinary inference and quota-query compatibility targets;
@@ -83,28 +87,16 @@ func latestCodexInstructions() string {
 // so callers can still synthesize the request's instructions.
 func CodexBaseInstructionsForModel(model string) string {
 	m := strings.ToLower(strings.TrimSpace(model))
-	// Normalize the GPT-6 lookup separately so the new aliases do not change
-	// how existing GPT-5 and Codex names are classified.
-	gpt6Model := strings.TrimSpace(m[strings.LastIndexByte(m, '/')+1:])
-	gpt6Model = strings.ReplaceAll(gpt6Model, "_", "-")
-	gpt6Model = strings.Join(strings.Fields(gpt6Model), "-")
-	for strings.Contains(gpt6Model, "--") {
-		gpt6Model = strings.ReplaceAll(gpt6Model, "--", "-")
+	if instructions, matched := gpt6CodexInstructions(m); matched {
+		if strings.TrimSpace(instructions) != "" {
+			return instructions
+		}
+		// A matched family with a blank prompt still needs usable instructions,
+		// so use the same fallback as for models without dedicated text.
+		return latestCodexInstructions()
 	}
 
 	switch {
-	case isGPT61InstructionModel(gpt6Model, "gpt-6.1-sol"):
-		if strings.TrimSpace(instructionsGPT61Sol) != "" {
-			return instructionsGPT61Sol
-		}
-	case isGPT61InstructionModel(gpt6Model, "gpt-6.1-terra"):
-		if strings.TrimSpace(instructionsGPT61Terra) != "" {
-			return instructionsGPT61Terra
-		}
-	case gpt6Model == "gpt-6", gpt6Model == "gpt-6-astra", strings.HasPrefix(gpt6Model, "gpt-6-astra-"):
-		if strings.TrimSpace(instructionsGPT6Astra) != "" {
-			return instructionsGPT6Astra
-		}
 	case strings.Contains(m, "codex"):
 		return DefaultInstructions
 	case strings.HasPrefix(m, "gpt-5.5"):
@@ -118,9 +110,34 @@ func CodexBaseInstructionsForModel(model string) string {
 			return instructionsGPT51
 		}
 	}
-	// Unknown families and blank dedicated prompts use the latest available
-	// instruction body so synthesized OAuth requests receive a non-family-specific default.
+	// Unknown families and blank GPT-5 prompts use the latest available
+	// instruction body so OAuth requests still receive a usable default.
 	return latestCodexInstructions()
+}
+
+// gpt6CodexInstructions returns the embedded prompt and whether a lowercase
+// name belongs to a supported GPT-6 family. The match remains true for empty
+// embedded text so passthrough still requires instructions for that model.
+func gpt6CodexInstructions(model string) (string, bool) {
+	// Normalize GPT-6 spellings in this lookup so callers keep the original
+	// name for existing GPT-5 and Codex matching.
+	model = strings.TrimSpace(model[strings.LastIndexByte(model, '/')+1:])
+	model = strings.ReplaceAll(model, "_", "-")
+	model = strings.Join(strings.Fields(model), "-")
+	for strings.Contains(model, "--") {
+		model = strings.ReplaceAll(model, "--", "-")
+	}
+
+	switch {
+	case isGPT61InstructionModel(model, "gpt-6.1-sol"):
+		return instructionsGPT61Sol, true
+	case isGPT61InstructionModel(model, "gpt-6.1-terra"):
+		return instructionsGPT61Terra, true
+	case model == "gpt-6", model == "gpt-6-astra", strings.HasPrefix(model, "gpt-6-astra-"):
+		return instructionsGPT6Astra, true
+	default:
+		return "", false
+	}
 }
 
 // isGPT61InstructionModel reports whether a normalized name selects the prompt

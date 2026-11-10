@@ -640,9 +640,9 @@ func NormalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, boo
 }
 
 // DetectOpenAIPassthroughInstructionsRejectReason returns a diagnostic for
-// present non-string or blank instructions on a Codex-named model. Missing
-// instructions and other models return an empty reason. Default instruction
-// injection and rejection policy belong to the caller.
+// present non-string or blank instructions on models subject to the Codex
+// passthrough instruction rule. It accepts omitted instructions so the caller
+// can fill them, and it returns an empty reason for models outside the rule.
 func DetectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byte) string {
 	if !IsOpenAICodexModel(reqModel) {
 		return ""
@@ -661,10 +661,16 @@ func DetectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byt
 	return ""
 }
 
-// IsOpenAICodexModel recognizes the codex substring in a trimmed, case-folded
-// model name.
+// IsOpenAICodexModel reports whether OAuth passthrough requires instructions
+// for the model. It accepts Codex names and the GPT-6 families recognized by
+// the embedded prompt lookup, including their supported aliases.
 func IsOpenAICodexModel(model string) bool {
-	return strings.Contains(strings.ToLower(strings.TrimSpace(model)), "codex")
+	model = strings.ToLower(strings.TrimSpace(model))
+	if strings.Contains(model, "codex") {
+		return true
+	}
+	_, matched := gpt6CodexInstructions(model)
+	return matched
 }
 
 // OpenAIRequestBodyMayContainImageInput probes Responses input and the
