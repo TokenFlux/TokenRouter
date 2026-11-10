@@ -112,7 +112,7 @@ export default {
       users: 'Users',
     },
     noResults: 'No matching results',
-    title: 'MCP management',
+    title: 'MCP Management',
     description: 'Give agents access to the management operations you choose.',
     create: 'Create token',
     edit: 'Edit token',
