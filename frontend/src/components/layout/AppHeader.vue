@@ -18,9 +18,7 @@
         </button>
 
         <!-- Version details and the homepage link remain separate controls. -->
-        <div
-          class="header-brand flex min-w-0 items-center gap-2.5 rounded-control px-1.5 py-1 transition-colors hover:bg-primary-100/70 dark:hover:bg-dark-700"
-        >
+        <div class="header-brand group/brand flex min-w-0 items-center gap-2.5 px-1.5 py-1">
           <router-link
             :to="homePath"
             class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-control bg-primary-100 dark:bg-dark-800"
@@ -36,7 +34,7 @@
           <span class="hidden min-w-0 sm:block">
             <router-link
               :to="homePath"
-              class="block max-w-44 truncate text-base font-bold leading-tight text-gray-900 dark:text-white"
+              class="block max-w-44 truncate text-base font-bold leading-tight text-gray-900 transition-colors duration-fast focus-visible:text-primary-600 group-hover/brand:text-primary-600 dark:text-white dark:focus-visible:text-primary-500 dark:group-hover/brand:text-primary-500"
               >{{ siteName }}</router-link
             >
             <VersionBadge :version="siteVersion" />
