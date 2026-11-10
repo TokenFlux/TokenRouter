@@ -6,26 +6,27 @@ import { mockMotionEnvironment } from '@/__tests__/helpers/motion'
 import { useCountUp } from '../useCountUp'
 
 // useCountUp.spec.ts checks animated numeric display through a mounted component and
-// controlled animation frames. The cases cover interpolation, reduced-motion preference,
-// and unmount cancellation, keeping elapsed-time behavior separate from the browser's real
+// controlled animation frames. The cases cover interpolation, context changes,
+// reduced-motion preference, and unmount cancellation without relying on the browser's
 // rendering schedule.
 
 // mountCounter mounts a component displaying a reactive count with a one-second animation
-// duration. It returns the source, display reader, and wrapper; callers unmount the
-// wrapper to dispose its lifecycle hooks.
-const mountCounter = (initial: number) => {
+// duration. It returns the source, reset key, display reader, and wrapper. Callers unmount
+// the wrapper to dispose its lifecycle hooks.
+const mountCounter = (initial: number, initialKey = '') => {
   const source = ref(initial)
+  const resetKey = ref(initialKey)
   let display!: ReturnType<typeof useCountUp>
   const wrapper = mount(
     defineComponent({
       // setup connects the test source to the rendered animated counter.
       setup() {
-        display = useCountUp(source, 1000)
+        display = useCountUp(source, 1000, resetKey)
         return () => h('span', display.value)
       },
     }),
   )
-  return { source, display: () => display.value, wrapper }
+  return { source, resetKey, display: () => display.value, wrapper }
 }
 
 describe('useCountUp', () => {
@@ -66,14 +67,41 @@ describe('useCountUp', () => {
   })
 
   // The motion environment requests reduced motion before the counter is mounted. Updating
-  // its source must publish the target after Vue flushes without intermediate
-  // interpolation.
+  // its source must publish the target after Vue flushes without interpolation.
+  // Enabling the preference during a later count must also finish that count immediately.
   it('系统减少动态效果时直接显示新值', async () => {
-    mockMotionEnvironment(true)
+    const motion = mockMotionEnvironment(true)
     const counter = mountCounter(0)
     counter.source.value = 42
     await nextTick()
     expect(counter.display()).toBe(42)
+
+    motion.reduce(false)
+    counter.source.value = 84
+    await nextTick()
+    expect(counter.display()).toBe(42)
+    motion.reduce(true)
+    await nextTick()
+    expect(counter.display()).toBe(84)
+    counter.wrapper.unmount()
+  })
+
+  // An in-flight count belongs to the old currency. Changing currency and amount together
+  // must cancel its frame and display the new value immediately.
+  it('上下文变化时取消计数并直接显示当前值', async () => {
+    mockMotionEnvironment(false)
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame')
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(7)
+    const counter = mountCounter(10, 'CNY')
+
+    counter.source.value = 50
+    await nextTick()
+    counter.resetKey.value = 'USD'
+    counter.source.value = 7
+    await nextTick()
+    expect(cancel).toHaveBeenCalledWith(7)
+    expect(counter.display()).toBe(7)
+
     counter.wrapper.unmount()
   })
 

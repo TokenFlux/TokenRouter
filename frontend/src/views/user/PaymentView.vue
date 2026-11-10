@@ -44,28 +44,28 @@
             :aria-label="t('common.loading')"
             class="space-y-4"
           >
-            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22.5rem] xl:items-start">
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
               <div class="space-y-4">
                 <div class="card space-y-4 p-4 sm:p-6">
                   <Skeleton width="6rem" height="1rem" />
-                  <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                    <Skeleton v-for="n in 10" :key="n" height="2.25rem" />
+                  <div class="grid grid-cols-3 gap-2">
+                    <Skeleton v-for="n in 9" :key="n" height="2.75rem" />
                   </div>
                   <Skeleton height="2.25rem" />
                 </div>
                 <div class="card space-y-4 p-4 sm:p-6">
                   <Skeleton width="6rem" height="1rem" />
-                  <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <Skeleton v-for="n in 3" :key="n" height="3.5rem" />
+                  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Skeleton v-for="n in 2" :key="n" height="3.5rem" />
                   </div>
                 </div>
               </div>
               <div class="card space-y-3 p-4 sm:p-6">
-                <Skeleton width="5rem" height="0.75rem" />
-                <Skeleton width="9rem" height="2rem" />
-                <Skeleton height="1rem" class="mt-6" />
+                <Skeleton width="5rem" height="1rem" />
                 <Skeleton height="1rem" />
-                <Skeleton height="2.25rem" class="mt-6" />
+                <Skeleton height="1rem" />
+                <Skeleton width="9rem" height="1.75rem" class="ml-auto" />
+                <Skeleton height="2.5rem" />
               </div>
             </div>
           </div>
@@ -157,65 +157,84 @@
             </div>
 
             <!-- Recharge and subscription confirmation share checkout. Selection and summary stack below xl because the sidebar reduces available width; the summary becomes sticky at xl. -->
-            <div v-else class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22.5rem] xl:items-start">
+            <div v-else class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
               <!-- Amount or plan, payment methods, and billing details form separate checkout cards. -->
               <div class="min-w-0">
-                <!-- Selected subscription summary. -->
+                <!-- Keep the price beside the plan details when space permits, and let quota pairs wrap together below. -->
                 <section v-if="isSubscriptionCheckout && selectedPlan" class="card p-4 sm:p-6">
-                  <p class="text-xs font-medium text-gray-500 dark:text-dark-400">{{
-                    t('payment.confirmSubscription')
-                  }}</p>
-                  <h2
-                    class="mt-1 break-words text-lg font-semibold text-gray-900 dark:text-white"
-                    >{{ selectedPlan.name }}</h2
+                  <div
+                    class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
                   >
-                  <div class="mt-3 flex flex-wrap items-baseline gap-x-2">
-                    <span
-                      class="text-3xl font-semibold tracking-tight tabular-nums text-gray-900 dark:text-white"
+                    <div class="min-w-0">
+                      <p class="text-xs font-medium text-gray-500 dark:text-dark-400">{{
+                        t('payment.confirmSubscription')
+                      }}</p>
+                      <h2
+                        class="mt-1 break-words text-2xl font-semibold leading-tight text-gray-900 dark:text-white"
+                        >{{ selectedPlan.name }}</h2
+                      >
+                      <p
+                        v-if="selectedPlan.description"
+                        class="mt-1 break-words text-sm leading-relaxed text-gray-500 dark:text-dark-400"
+                      >
+                        {{ selectedPlan.description }}
+                      </p>
+                    </div>
+                    <div
+                      class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 sm:max-w-xs sm:shrink-0 sm:justify-end sm:text-right"
                     >
-                      {{ formatSelectedSubscriptionPaymentAmount(selectedPlan.price) }}
-                    </span>
-                    <span class="text-sm text-gray-500 dark:text-dark-400"
-                      >/ {{ planValiditySuffix }}</span
-                    >
-                    <span
-                      v-if="selectedPlan.original_price"
-                      class="text-sm text-gray-400 line-through dark:text-dark-500"
-                    >
-                      {{ formatSelectedSubscriptionPaymentAmount(selectedPlan.original_price) }}
-                    </span>
+                      <span
+                        class="min-w-0 break-words text-3xl font-semibold leading-tight tracking-tight tabular-nums text-gray-900 dark:text-white"
+                      >
+                        {{ formatSelectedSubscriptionPaymentAmount(selectedPlan.price) }}
+                      </span>
+                      <span class="text-sm text-gray-500 dark:text-dark-400"
+                        >/ {{ planValiditySuffix }}</span
+                      >
+                      <span
+                        v-if="selectedPlan.original_price"
+                        class="min-w-0 break-words text-sm text-gray-400 line-through dark:text-dark-400"
+                      >
+                        {{ formatSelectedSubscriptionPaymentAmount(selectedPlan.original_price) }}
+                      </span>
+                    </div>
                   </div>
-                  <p
-                    v-if="selectedPlan.description"
-                    class="mt-2 text-sm leading-relaxed text-gray-500 dark:text-dark-400"
+                  <dl
+                    class="mt-4 flex flex-wrap items-baseline gap-x-8 gap-y-2 border-t border-gray-100 pt-3 dark:border-dark-700"
                   >
-                    {{ selectedPlan.description }}
-                  </p>
-                  <dl class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    <div v-if="hasPlanQuota(selectedPlan.daily_limit_usd)">
+                    <div
+                      v-if="hasPlanQuota(selectedPlan.daily_limit_usd)"
+                      class="flex min-w-0 flex-wrap items-baseline gap-x-2"
+                    >
                       <dt class="text-xs text-gray-500 dark:text-dark-400">{{
                         t('payment.planCard.dailyLimit')
                       }}</dt>
                       <dd
-                        class="mt-1 text-base font-semibold tabular-nums text-gray-900 dark:text-dark-100"
+                        class="min-w-0 break-words text-sm font-semibold tabular-nums text-gray-900 dark:text-dark-100"
                         >{{ formatPlanQuota(selectedPlan.daily_limit_usd) }}</dd
                       >
                     </div>
-                    <div v-if="hasPlanQuota(selectedPlan.weekly_limit_usd)">
+                    <div
+                      v-if="hasPlanQuota(selectedPlan.weekly_limit_usd)"
+                      class="flex min-w-0 flex-wrap items-baseline gap-x-2"
+                    >
                       <dt class="text-xs text-gray-500 dark:text-dark-400">{{
                         t('payment.planCard.weeklyLimit')
                       }}</dt>
                       <dd
-                        class="mt-1 text-base font-semibold tabular-nums text-gray-900 dark:text-dark-100"
+                        class="min-w-0 break-words text-sm font-semibold tabular-nums text-gray-900 dark:text-dark-100"
                         >{{ formatPlanQuota(selectedPlan.weekly_limit_usd) }}</dd
                       >
                     </div>
-                    <div v-if="hasPlanQuota(selectedPlan.monthly_limit_usd)">
+                    <div
+                      v-if="hasPlanQuota(selectedPlan.monthly_limit_usd)"
+                      class="flex min-w-0 flex-wrap items-baseline gap-x-2"
+                    >
                       <dt class="text-xs text-gray-500 dark:text-dark-400">{{
                         t('payment.planCard.monthlyLimit')
                       }}</dt>
                       <dd
-                        class="mt-1 text-base font-semibold tabular-nums text-gray-900 dark:text-dark-100"
+                        class="min-w-0 break-words text-sm font-semibold tabular-nums text-gray-900 dark:text-dark-100"
                         >{{ formatPlanQuota(selectedPlan.monthly_limit_usd) }}</dd
                       >
                     </div>
@@ -225,11 +244,12 @@
                         !hasPlanQuota(selectedPlan.weekly_limit_usd) &&
                         !hasPlanQuota(selectedPlan.monthly_limit_usd)
                       "
+                      class="flex min-w-0 flex-wrap items-baseline gap-x-2"
                     >
                       <dt class="text-xs text-gray-500 dark:text-dark-400">{{
                         t('payment.planCard.quota')
                       }}</dt>
-                      <dd class="mt-1 text-base font-semibold text-gray-900 dark:text-dark-100">{{
+                      <dd class="text-sm font-semibold text-gray-900 dark:text-dark-100">{{
                         t('payment.planCard.unlimited')
                       }}</dd>
                     </div>
@@ -238,7 +258,7 @@
 
                 <!-- Recharge amount selection. -->
                 <section v-else class="card p-4 sm:p-6">
-                  <h2 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{
+                  <h2 class="mb-4 text-base font-semibold text-gray-900 dark:text-white">{{
                     t('payment.amountLabel')
                   }}</h2>
                   <AmountInput
@@ -254,7 +274,7 @@
                 </section>
 
                 <section v-if="enabledMethods.length >= 1" class="card mt-4 p-4 sm:p-6">
-                  <h2 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{
+                  <h2 class="mb-4 text-base font-semibold text-gray-900 dark:text-white">{{
                     t('payment.paymentMethod')
                   }}</h2>
                   <PaymentMethodSelector
@@ -286,7 +306,7 @@
                 <!-- Include the card's top margin in the collapse so the gap closes with the form. -->
                 <Collapse :open="isStripeSelected" unmount-on-hide>
                   <section class="card mt-4 p-4 sm:p-6">
-                    <h2 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{
+                    <h2 class="mb-4 text-base font-semibold text-gray-900 dark:text-white">{{
                       t('payment.billing.title')
                     }}</h2>
                     <div class="grid gap-4 sm:grid-cols-2">
@@ -364,32 +384,22 @@
               <!-- The sticky offset includes the header height and page padding so the checkout summary stays below the navigation. -->
               <aside class="min-w-0 space-y-4 xl:sticky xl:top-[calc(var(--header-h)+1.5rem)]">
                 <section data-testid="checkout-summary" class="card p-4 sm:p-6">
-                  <dl
-                    v-if="!isSubscriptionCheckout"
-                    class="mb-5 border-b border-gray-100 pb-5 dark:border-dark-700"
-                  >
-                    <dt class="text-xs font-medium text-gray-500 dark:text-dark-400">{{
-                      t('payment.currentBalance')
-                    }}</dt>
-                    <dd
-                      class="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white"
-                    >
-                      {{ formatBalanceAmount(user?.balance, { fractionDigits: 2 }) }}
-                    </dd>
-                    <dd class="mt-1 truncate text-xs text-gray-500 dark:text-dark-400">
-                      {{ t('payment.rechargeAccount') }}: {{ user?.username || '' }}
-                    </dd>
-                  </dl>
-
-                  <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{
+                  <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{
                     t('payment.orderSummary')
                   }}</h2>
                   <div class="mt-3 text-sm">
                     <dl class="flex justify-between gap-4">
                       <dt class="text-gray-500 dark:text-dark-400">{{ checkoutBaseLabel }}</dt>
-                      <dd class="tabular-nums text-gray-900 dark:text-dark-100">{{
-                        checkoutBaseText
-                      }}</dd>
+                      <dd class="tabular-nums text-gray-900 dark:text-dark-100">
+                        <span v-if="isRechargeAmountAnimating" class="sr-only">{{
+                          checkoutBaseText
+                        }}</span>
+                        <span :aria-hidden="isRechargeAmountAnimating || undefined">{{
+                          isRechargeAmountAnimating
+                            ? formatSelectedPaymentAmount(animatedRechargeAmount)
+                            : checkoutBaseText
+                        }}</span>
+                      </dd>
                     </dl>
                     <!-- Each fee row collapses with its spacing, so the total follows the visible breakdown. -->
                     <Collapse
@@ -400,9 +410,14 @@
                     >
                       <dl class="flex justify-between gap-4 pt-2">
                         <dt class="text-gray-500 dark:text-dark-400">{{ fee.label }}</dt>
-                        <dd class="tabular-nums text-gray-900 dark:text-dark-100">{{
-                          formatSelectedPaymentAmount(fee.amount)
-                        }}</dd>
+                        <dd class="tabular-nums text-gray-900 dark:text-dark-100">
+                          <span v-if="fee.displayAmount !== fee.amount" class="sr-only">{{
+                            formatSelectedPaymentAmount(fee.amount)
+                          }}</span>
+                          <span :aria-hidden="fee.displayAmount !== fee.amount || undefined">{{
+                            formatSelectedPaymentAmount(fee.displayAmount)
+                          }}</span>
+                        </dd>
                       </dl>
                     </Collapse>
                     <dl class="mt-2 space-y-2">
@@ -413,17 +428,28 @@
                           t('payment.actualPay')
                         }}</dt>
                         <dd
-                          class="text-xl font-semibold tabular-nums text-gray-900 dark:text-white"
-                          >{{ formatSelectedPaymentAmount(checkoutTotalAmount) }}</dd
+                          class="min-w-0 break-words text-right text-2xl font-semibold tabular-nums text-gray-900 dark:text-white"
                         >
+                          <span v-if="isRechargeAmountAnimating" class="sr-only">{{
+                            formatSelectedPaymentAmount(checkoutTotalAmount)
+                          }}</span>
+                          <span :aria-hidden="isRechargeAmountAnimating || undefined">{{
+                            formatSelectedPaymentAmount(displayedCheckoutFeeBreakdown.payAmount)
+                          }}</span>
+                        </dd>
                       </div>
                       <div v-if="showRechargeRate" class="flex justify-between gap-4">
                         <dt class="text-gray-500 dark:text-dark-400">{{
                           t('payment.creditedBalance')
                         }}</dt>
-                        <dd class="font-medium tabular-nums text-gray-900 dark:text-dark-100">{{
-                          formatBalanceAmount(creditedAmount, { fractionDigits: 2 })
-                        }}</dd>
+                        <dd class="font-medium tabular-nums text-gray-900 dark:text-dark-100">
+                          <span v-if="isRechargeAmountAnimating" class="sr-only">{{
+                            formatBalanceAmount(creditedAmount, { fractionDigits: 2 })
+                          }}</span>
+                          <span :aria-hidden="isRechargeAmountAnimating || undefined">{{
+                            formatBalanceAmount(displayedCreditedAmount, { fractionDigits: 2 })
+                          }}</span>
+                        </dd>
                       </div>
                     </dl>
                   </div>
@@ -476,7 +502,7 @@
                   <div class="mt-6 space-y-2">
                     <button
                       type="button"
-                      :class="['btn w-full', paymentButtonClass]"
+                      :class="['btn min-h-10 w-full', paymentButtonClass]"
                       :disabled="!checkoutCanSubmit || submitting"
                       @click="handleCheckoutSubmit"
                     >
@@ -628,6 +654,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Skeleton from '@/components/common/Skeleton.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { useCountUp } from '@/composables/useCountUp'
 import {
   DEFAULT_PAYMENT_CURRENCY,
   formatPaymentAmount,
@@ -1136,13 +1163,52 @@ const checkoutMethodOptions = computed(() =>
 const checkoutFeeBreakdown = computed(() =>
   isSubscriptionCheckout.value ? subscriptionFeeBreakdown.value : rechargeFeeBreakdown.value,
 )
-// Stable fee keys let each summary row expand or collapse independently as its charge changes.
+
+// The summary uses a shorter count-up than the landing page so preset changes settle
+// quickly. The payment button and submission retain the exact current checkout values.
+const RECHARGE_COUNT_UP_MS = 500
+
+// Interpolate the principal once so every visible fee and credit follows the same
+// progression. Changes in tab, method, or currency reset the count to avoid showing
+// the old amount under a new set of payment terms.
+const animatedRechargeAmount = useCountUp(
+  validAmount,
+  RECHARGE_COUNT_UP_MS,
+  () => `${activeTab.value}:${selectedMethod.value}:${selectedCurrency.value}`,
+)
+const isRechargeAmountAnimating = computed(
+  () => activeTab.value === 'recharge' && animatedRechargeAmount.value !== validAmount.value,
+)
+const displayedCheckoutFeeBreakdown = computed(() =>
+  isRechargeAmountAnimating.value
+    ? calculateFeeBreakdown(animatedRechargeAmount.value, selectedMethod.value)
+    : checkoutFeeBreakdown.value,
+)
+const displayedCreditedAmount = computed(() =>
+  isRechargeAmountAnimating.value
+    ? calculateRechargeCredit(animatedRechargeAmount.value, balanceRechargeMultiplier.value)
+    : creditedAmount.value,
+)
+
+// Actual fees control row visibility and screen-reader text. Stable keys let each
+// row retain its outgoing content when the corresponding actual fee reaches zero.
 const checkoutFeeRows = computed(() => {
   const { fixedFee, rateFee, feeRate, totalFee } = checkoutFeeBreakdown.value
+  const displayedFees = displayedCheckoutFeeBreakdown.value
   return [
-    { key: 'fixed', label: t('payment.fixedFee'), amount: fixedFee },
-    { key: 'rate', label: `${t('payment.rateFee')} (${feeRate}%)`, amount: rateFee },
-    { key: 'total', label: t('payment.feeTotal'), amount: totalFee },
+    { key: 'fixed', label: t('payment.fixedFee'), amount: fixedFee, displayAmount: fixedFee },
+    {
+      key: 'rate',
+      label: `${t('payment.rateFee')} (${feeRate}%)`,
+      amount: rateFee,
+      displayAmount: displayedFees.rateFee,
+    },
+    {
+      key: 'total',
+      label: t('payment.feeTotal'),
+      amount: totalFee,
+      displayAmount: displayedFees.totalFee,
+    },
   ]
 })
 const checkoutTotalAmount = computed(() =>

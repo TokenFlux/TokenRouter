@@ -40,7 +40,7 @@ describe('PaymentMethodSelector', () => {
 
     const grid = wrapper.get('[data-testid="payment-method-grid"]')
     expect(grid.classes()).toEqual(
-      expect.arrayContaining(['grid', 'grid-cols-2', 'sm:grid-cols-3']),
+      expect.arrayContaining(['grid', 'grid-cols-1', 'sm:grid-cols-2']),
     )
     expect(grid.classes()).not.toContain('sm:flex')
 

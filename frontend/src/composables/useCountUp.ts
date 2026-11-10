@@ -3,23 +3,28 @@ import { usePreferredReducedMotion } from '@vueuse/core'
 
 // useCountUp.ts animates numeric changes from the currently displayed value to each new
 // target. A replacement target cancels the pending frame and starts from the intermediate
-// display value, allowing successive updates to remain visually continuous. Reduced-motion
-// preference and missing animation-frame support publish the target immediately.
+// display value, allowing successive updates to remain visually continuous. A reset key
+// separates values that should not interpolate across contexts, such as different currencies.
 //
 // A single frame handle belongs to the current animation, and component teardown cancels
 // that handle. Progress uses elapsed time divided by the supplied duration, with a quartic
 // ease-out curve and an exact final assignment. Callers provide a positive duration in
-// milliseconds; the composable does not validate duration or numeric targets.
+// milliseconds. Changes to the reset key or reduced-motion preference can stop interpolation
+// and publish the current target before the next frame.
 
 // useCountUp returns a reactive value that eases toward changes in source. Invoke it
 // during component setup and supply a positive millisecond duration. Every target change
 // cancels the prior frame before reading the current displayed value, so a replacement
 // animation starts from the visible intermediate number.
 //
-// Reduced-motion preference or missing frame support skips interpolation. The unmount hook
-// cancels unfinished work, and a completed animation writes the target exactly to remove
-// floating-point interpolation residue.
-export function useCountUp(source: MaybeRefOrGetter<number>, duration: number) {
+// Pass a reset key for changes in unit or context that should snap to the target. Reduced
+// motion, nonfinite values, and missing frame support also bypass interpolation. The
+// unmount hook cancels unfinished work, and completion writes the exact target.
+export function useCountUp(
+  source: MaybeRefOrGetter<number>,
+  duration: number,
+  resetKey?: MaybeRefOrGetter<string>,
+) {
   const reducedMotion = usePreferredReducedMotion()
   // display holds the visible interpolation value, while frame identifies the pending
   // callback that replacement targets and teardown cancel.
@@ -37,17 +42,20 @@ export function useCountUp(source: MaybeRefOrGetter<number>, duration: number) {
   }
 
   watch(
-    () => toValue(source),
-    (target) => {
+    [() => toValue(source), () => toValue(resetKey), reducedMotion],
+    ([target, key, preference], [, previousKey]) => {
       // Cancel the prior callback before capturing display so a previous target cannot
       // advance the new animation's starting value.
       cancel()
       const from = display.value
-      // Publish the target immediately when animation cannot run or is unnecessary, keeping
-      // reduced-motion users on the latest numeric value.
+      // Publish the new target directly when the unit changes, the preference disables motion,
+      // or interpolation would encounter a nonfinite value.
       if (
         from === target ||
-        reducedMotion.value === 'reduce' ||
+        key !== previousKey ||
+        preference === 'reduce' ||
+        !Number.isFinite(from) ||
+        !Number.isFinite(target) ||
         typeof requestAnimationFrame !== 'function'
       ) {
         display.value = target

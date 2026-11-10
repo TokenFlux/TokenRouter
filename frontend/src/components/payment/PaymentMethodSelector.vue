@@ -1,6 +1,6 @@
 <template>
-  <!-- The parent supplies the section heading. Administrator-defined EasyPay methods wrap inside the panel grid as the method list grows. -->
-  <div data-testid="payment-method-grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+  <!-- Wider cards leave room for fee terms, and administrator-defined EasyPay methods wrap into additional rows. -->
+  <div data-testid="payment-method-grid" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
     <button
       v-for="method in sortedMethods"
       :key="method.type"
@@ -9,11 +9,11 @@
       :disabled="!method.available"
       :aria-pressed="selected === method.type"
       :class="[
-        'relative flex h-14 min-w-0 items-center gap-3 rounded-control border px-3 text-left',
+        'flex min-h-14 min-w-0 items-center gap-3 rounded-control border px-3 py-2 text-left',
         !method.available
           ? 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-50 dark:border-dark-700 dark:bg-dark-900'
           : selected === method.type
-            ? 'border-gray-300 bg-gray-100 text-gray-900 max-sm:pr-5 dark:border-dark-500 dark:bg-dark-700 dark:text-white'
+            ? 'border-gray-300 bg-gray-50 text-gray-900 dark:border-dark-500 dark:bg-dark-700 dark:text-white'
             : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-950 dark:text-dark-100 dark:hover:border-dark-500',
       ]"
       @click="method.available && emit('select', selected === method.type ? '' : method.type)"
@@ -22,14 +22,14 @@
         v-if="method.type === 'epusdt'"
         name="recharge"
         size="lg"
-        class="h-7 w-7 shrink-0 text-primary-600"
+        class="h-6 w-6 shrink-0 text-primary-600"
         :animate-on-hover="false"
       />
       <img
         v-else
         :src="methodIcon(method.type)"
         :alt="methodLabel(method)"
-        class="h-7 w-7 shrink-0 object-contain"
+        class="h-6 w-6 shrink-0 object-contain"
       />
       <span class="flex min-w-0 flex-1 flex-col gap-0.5">
         <span
@@ -38,19 +38,16 @@
         >
           {{ methodLabel(method) }}
         </span>
-        <span
-          v-if="methodFeeLabel(method)"
-          class="truncate text-xs text-gray-500 dark:text-dark-400"
-        >
+        <span v-if="methodFeeLabel(method)" class="text-xs text-gray-500 dark:text-dark-400">
           {{ methodFeeLabel(method) }}
         </span>
       </span>
-      <!-- Move the check to the corner in the two-column grid to leave more room for names and fees. -->
+      <!-- Keep the check in the flex row so a wrapped fee never overlaps it. -->
       <Icon
         v-if="selected === method.type && method.available"
         name="check"
-        size="xs"
-        class="pointer-events-none absolute right-1 top-1 text-emerald-700 sm:static sm:h-4 sm:w-4 dark:text-emerald-400"
+        size="sm"
+        class="shrink-0 text-emerald-700 dark:text-emerald-400"
         :stroke-width="3"
         :animate-on-hover="false"
       />
