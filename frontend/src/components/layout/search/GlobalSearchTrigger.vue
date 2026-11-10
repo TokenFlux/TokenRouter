@@ -4,10 +4,10 @@
     navigation beside it; min-w-32 keeps it recognizable as a field.
   -->
   <div class="flex min-w-0 shrink items-center sm:w-44 sm:min-w-32 md:w-48 lg:w-60 xl:w-72">
-    <!-- Narrow headers keep a square icon button beside the brand. -->
+    <!-- The narrow search button shares the color and hover behavior of the navigation icons. -->
     <button
       type="button"
-      class="header-status-icon-button sm:hidden"
+      class="header-nav-link sm:hidden"
       data-testid="global-search-icon-trigger"
       aria-haspopup="dialog"
       :aria-expanded="globalSearchOpen"

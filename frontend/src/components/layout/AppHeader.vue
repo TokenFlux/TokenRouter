@@ -7,10 +7,11 @@
     <div class="flex h-[var(--header-h)] items-center justify-between gap-3 px-4 md:px-6 lg:px-8">
       <!-- The global header owns site branding. -->
       <div class="flex min-w-0 shrink-0 items-center gap-2 sm:gap-4">
+        <!-- The sidebar toggle stays square at widths where navigation labels begin to show. -->
         <button
           v-if="!publicPage && !isCreativeStudio"
           @click="appStore.toggleMobileSidebar()"
-          class="btn-ghost btn-icon lg:hidden"
+          class="header-nav-link md:w-9 md:px-0 lg:hidden"
           :aria-label="t('common.toggleMenu')"
           :title="t('common.toggleMenu')"
         >

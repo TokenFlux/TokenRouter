@@ -83,6 +83,7 @@
 - 菜单和搜索建议列表用 `.dropdown` 容器样式，圆角、边框、阴影和深色背景都包含在内。默认绝对定位，上下留白 `py-1`；需要固定定位时补 `fixed`，内容自带留白时补 `py-0`。定位偏移、尺寸和箭头由调用处维护，展开和收起使用公共动效。
 - 深底的信息提示（`HelpTooltip`、表格悬停明细、状态说明等）用 `.tooltip-panel`：浅色模式是 `gray-900` 深底白字；深色模式是 `dark-900` 底色、`dark-100` 文字和 `dark-600` 描边。箭头用 `.tooltip-caret` 旋转方块，一半嵌进面板边缘；调用处补定位和朝外的两条边（向下 `border-b border-r`，向上 `border-l border-t`，向左 `border-b border-l`，向右 `border-r border-t`）。手写的 `dark:bg-gray-*` 面板和边框三角箭头，在深色配色调整时容易漏改，统一用这两个类。浮层内的分隔线在深色模式下用 `dark-600`。
 - 菜单项有两档：`.dropdown-item`（px-4）和紧凑档 `.dropdown-item-sm`（px-3）。配色、hover 和过渡都已包含，调用处只补 `gap-*`、`rounded-control` 这类布局类。基础配色是中性色。顶栏用户菜单、联系我们、语言切换这类导航型浮层，用内缩菜单样式：面板 `.dropdown py-0`，内容按 `.menu-section` 分区（`p-1.5` 留白，相邻分区之间自动加分隔线），分区标题 `.menu-heading`，菜单项 `.menu-item` 内缩并带 `rounded-control` 的悬停底色，悬停配色和 `.sidebar-link` 一致，图标继承文字颜色；危险操作再加 `.menu-item-danger`。顶栏的导航入口用全局的 `.header-nav-link`：`md` 及以上显示文字，配色和 `.text-link` 相同但不加下划线，平时浅色主题用黑色、深色主题用白色，悬停、键盘聚焦和菜单展开时换成品牌色（`primary-600`，深色 `primary-500`），任何状态都不铺底色；`md` 以下同一个元素收成 36px 的图标按钮，调用处用 `md:hidden` 和 `hidden md:inline` 切换图标与文字。主题切换这类纯图标按钮用全局的 `.header-status-icon-button`。
+- 顶栏的侧栏开关也用 `.header-nav-link`，在 `lg` 以下保持 36 px 的方形点击区域。
 - 列表工具栏的漏斗筛选用 `FilterDropdown`，每个字段用 `FilterField` 包裹；按钮、面板和点击外部关闭的逻辑都由组件提供。
   - 面板外观和 `DateRangePicker` 一致：`rounded-surface`、淡描边和柔和阴影。头部、已选条件和字段区之间靠留白分层，中间没有分割线。
   - 头部是标题、条件数和「重置」，没有生效的条件时「重置」置灰。有生效条件时，头部下方列出已选条件标签（字段名、当前取值和 ×），顺序和字段一致，点 × 只移除这一项。再往下是可滚动的字段栅格。
@@ -144,7 +145,7 @@
 <a id="global_search"></a>
 ## 全局搜索
 
-- 入口：`AppHeader` 和未登录模型广场的自绘顶栏都把 `GlobalSearchTrigger` 放在右侧控件组的最前面，紧挨着文字导航。顶栏变窄时只有搜索入口收缩，导航和账户控件保持原宽度。`sm` 起它是一个 36px 高、外观像输入框的按钮，宽度从 `w-44` 逐级加到 `w-72`，不小于 `min-w-32`；`lg` 起右侧显示 `.kbd` 快捷键提示，苹果设备是 `⌘K`，其他平台是 `Ctrl K`。`sm` 以下收成 `.header-status-icon-button`。
+- 入口：`AppHeader` 和未登录模型广场的自绘顶栏都把 `GlobalSearchTrigger` 放在右侧控件组的最前面，紧挨着文字导航。顶栏变窄时只有搜索入口收缩，导航和账户控件保持原宽度。`sm` 起它是一个 36px 高、外观像输入框的按钮，宽度从 `w-44` 逐级加到 `w-72`，不小于 `min-w-32`；`lg` 起右侧显示 `.kbd` 快捷键提示，苹果设备是 `⌘K`，其他平台是 `Ctrl K`。`sm` 以下的搜索图标和语言切换等导航图标共用 `.header-nav-link`，悬停时只改变图标颜色。
 - 面板：`GlobalSearchPalette` 由 `App.vue` 挂载一次，打开状态在 `components/layout/search/globalSearchState.ts`。有入口挂载时才响应快捷键：`⌘K`（其他平台 `Ctrl K`）打开或关闭面板，`/` 在输入框以外打开面板，其他弹窗打开时两者都不响应。面板顶边在视口 12vh 处，最宽 `max-w-2xl`，手机上全屏并用“取消”按钮关闭。
 - 键盘：焦点一直在输入框，当前行用 `aria-activedescendant` 指出。↑↓ 移动当前行，回车打开，`⌘↵`（其他平台 `Ctrl↵`）复制模型 ID 且不关闭面板，Tab 和 Shift+Tab 切换“全部、模型、页面、操作”，Esc 先清空查询，查询为空时才关闭。输入法组词期间不处理这些按键。
 - 结果行：当前行和 `.menu-item` 悬停态同色，命中的字符用链接悬停的品牌色加粗。模型行显示模型图标、展示名、等宽字体的模型 ID 和最低价，多个分组报价不同时价格前加“低至”；管理员的页面行在右侧标出“管理”或“我的账户”。
