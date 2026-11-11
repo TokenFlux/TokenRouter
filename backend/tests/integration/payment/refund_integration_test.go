@@ -19,6 +19,7 @@ import (
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/paymentauditlog"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // Refund recovery retains prepared deductions when later audit work fails, and
@@ -56,7 +57,7 @@ func refundOrderFixture(t *testing.T, status string) (*dbent.Client, *payment.Re
 	// Create the order after both referenced fixtures exist; independent
 	// row cleanup is registered below only after this save succeeds, so
 	// partial setup can outlive the shared user truncation.
-	o, e := c.PaymentOrder.Create().SetUserID(u.ID).SetUserEmail(u.Email).SetUserName(u.Username).SetAmount(50).SetPayAmount(50).SetRechargeCode("test-refund").SetOutTradeNo("test-refund").SetPaymentType(payment.TypeStripe).SetPaymentTradeNo("pi_test").SetOrderType(payment.OrderTypeBalance).SetStatus(status).SetRefundAmount(50).SetExpiresAt(time.Now().Add(time.Hour)).SetPaidAt(time.Now()).SetClientIP("127.0.0.1").SetSrcHost("test.local").SetProviderInstanceID(strconv.FormatInt(inst.ID, 10)).Save(ctx)
+	o, e := c.PaymentOrder.Create().SetUserID(u.ID).SetUserEmail(u.Email).SetUserName(u.Username).SetAmount(50).SetPayAmount(50).SetRechargeCode("test-refund").SetOutTradeNo("test-refund").SetPaymentType(payment.TypeStripe).SetPaymentTradeNo("pi_test").SetProviderSnapshot(map[string]any{"currency": "USD"}).SetOrderType(payment.OrderTypeBalance).SetStatus(status).SetRefundAmount(50).SetExpiresAt(time.Now().Add(time.Hour)).SetPaidAt(time.Now()).SetClientIP("127.0.0.1").SetSrcHost("test.local").SetProviderInstanceID(strconv.FormatInt(inst.ID, 10)).Save(ctx)
 	require.NoError(t, e)
 	// Delete dependent audit records before their order and provider
 	// instance so these committed fixtures are removed before the shared
@@ -146,7 +147,10 @@ func TestStaleRefundFailureOverwritesSuccess(t *testing.T) {
 		// Return the configured local refund status while discarding
 		// response-write errors; assertions in the caller inspect
 		// workflow errors or stored confirmation effects.
-		_ = json.NewEncoder(w).Encode(map[string]string{"id": "re_test", "object": "refund", "status": status})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "re_test", "object": "refund", "status": status,
+			"payment_intent": "pi_test", "amount": 5000, "currency": "usd",
+		})
 	})
 	done := make(chan struct{})
 	// Observe this older call through completion and final stored status;
@@ -183,17 +187,17 @@ func TestPendingRefundAuditLossSkipsDeduction(t *testing.T) {
 			_, _ = w.Write([]byte(`{"id":"re_test","object":"refund","status":"pending"}`))
 			return
 		}
-		// Send the local status-query list response while discarding
-		// write errors; workflow assertions inspect recovery results
-		// and retained deduction state.
-		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"re_test","object":"refund","status":"succeeded"}],"has_more":false}`))
+		// Recovery retrieves the saved refund reference. Return the matching
+		// payment and amount so the workflow can confirm it without listing refunds.
+		_, _ = w.Write([]byte(`{"id":"re_test","object":"refund","status":"succeeded","payment_intent":"pi_test","amount":5000,"currency":"usd"}`))
 	})
 	refundFailAudit(t, c, o.ID, "REFUND_PENDING")
 	plan, warning, e := s.PrepareRefund(ctx, o.ID, 50, "test", false, true)
 	require.NoError(t, e)
 	require.Nil(t, warning)
 	result, e := s.ExecuteRefund(ctx, plan)
-	require.ErrorContains(t, e, "test forced audit failure")
+	require.Equal(t, "REFUND_RECOVERY_REQUIRED", apperror.Reason(e))
+	require.Equal(t, "could not record pending refund", apperror.FromError(e).Metadata["reason"])
 	require.Nil(t, result)
 	cur, readErr := c.PaymentOrder.Get(ctx, o.ID)
 	require.NoError(t, readErr)
@@ -291,10 +295,9 @@ func TestRefundPreparedRecoveryDoesNotRepeatChannelOrDeduction(t *testing.T) {
 			_, _ = w.Write([]byte(`{"id":"re_test","object":"refund","status":"succeeded"}`))
 			return
 		}
-		// Send the local status-query list response while discarding
-		// write errors; workflow assertions inspect recovery results
-		// and retained deduction state.
-		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"re_test","object":"refund","status":"succeeded"}],"has_more":false}`))
+		// Recovery retrieves the saved refund reference. Return the matching
+		// payment and amount so the workflow can confirm it without listing refunds.
+		_, _ = w.Write([]byte(`{"id":"re_test","object":"refund","status":"succeeded","payment_intent":"pi_test","amount":5000,"currency":"usd"}`))
 	})
 	refundFailAudit(t, c, o.ID, "REFUND_SUCCESS")
 	plan, warning, err := s.PrepareRefund(ctx, o.ID, 50, "recover", false, true)
@@ -436,7 +439,7 @@ func TestRefundRepeatedAttemptsPreserveFactsWithUniqueAction(t *testing.T) {
 			// discarding write errors; the repeated-attempt
 			// assertions inspect compensation and archived
 			// operation facts.
-			_, _ = w.Write([]byte(`{"error":{"type":"invalid_request_error","message":"fixture refund rejected"}}`))
+			_, _ = w.Write([]byte(`{"error":{"type":"invalid_request_error","code":"parameter_invalid_integer","message":"fixture refund rejected"}}`))
 			return
 		}
 		// Return the configured local refund status while discarding

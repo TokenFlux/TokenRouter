@@ -205,7 +205,7 @@ func TestSubscriptionRefundWorkflow(t *testing.T) {
 					SetDetail(fmt.Sprintf(`{"refundID":"re_fixture","deductBalance":true,"deductionType":"subscription","subDaysDeducted":30,"subscriptionID":%d,"deductionRollbackOK":false}`, sub.ID)).
 					Save(ctx)
 				require.NoError(t, err)
-				result, err := workflow.QueryAndFinalizeRefund(ctx, order.ID, "")
+				result, err := workflow.QueryAndFinalizeRefund(ctx, order.ID)
 				require.NoError(t, err)
 				require.True(t, result.Success)
 				unchanged, err := client.UserSubscription.Get(ctx, next.ID)
@@ -326,9 +326,9 @@ func TestSubscriptionRefundWorkflow(t *testing.T) {
 				}
 				refundID := ""
 				if tc.manualReference {
-					_, err := workflow.QueryAndFinalizeRefund(ctx, order.ID, "")
+					_, err := workflow.QueryAndFinalizeRefund(ctx, order.ID)
 					require.Equal(t, "REFUND_REFERENCE_REQUIRED", apperror.Reason(err))
-					_, err = workflow.QueryAndFinalizeRefund(ctx, order.ID, "re_unrelated")
+					_, err = workflow.QueryAndFinalizeRefundWithReference(ctx, order.ID, "re_unrelated")
 					require.Equal(t, "REFUND_REFERENCE_UNVERIFIED", apperror.Reason(err))
 					persisted, err := store.Order(ctx, order.ID)
 					require.NoError(t, err)
@@ -340,7 +340,7 @@ func TestSubscriptionRefundWorkflow(t *testing.T) {
 					require.NotNil(t, stillHeld.RefundHoldOperationID)
 					refundID = "re_fixture"
 				}
-				result, err := workflow.QueryAndFinalizeRefund(ctx, order.ID, refundID)
+				result, err := workflow.QueryAndFinalizeRefundWithReference(ctx, order.ID, refundID)
 				require.NoError(t, err)
 				require.Equal(t, tc.terminal == payment.ProviderStatusSuccess, result.Success)
 				if tc.initial != "unknown" {

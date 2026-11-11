@@ -18,6 +18,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/ent/paymentauditlog"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // Refund confirmation can compete after two callers have already loaded the
@@ -74,8 +75,9 @@ func TestPaymentRefundPostgresAtomicity(t *testing.T) {
 				// needed by confirmation; this handler discards
 				// encoding errors while the caller assertions
 				// inspect workflow and stored effects.
-				_ = json.NewEncoder(w).Encode(map[string]string{
+				_ = json.NewEncoder(w).Encode(map[string]any{
 					"id": "re_test", "object": "refund", "status": "succeeded",
+					"payment_intent": "pi_test", "amount": 5000, "currency": "usd",
 				})
 			}))
 			// Keep the provider server alive through workflow
@@ -111,6 +113,7 @@ func TestPaymentRefundPostgresAtomicity(t *testing.T) {
 				SetAmount(50).SetPayAmount(50).SetRechargeCode("test-refund").
 				SetOutTradeNo("test-refund").SetPaymentType(payment.TypeStripe).
 				SetPaymentTradeNo("pi_test").SetOrderType(payment.OrderTypeBalance).
+				SetProviderSnapshot(map[string]any{"currency": "USD"}).
 				SetStatus(payment.OrderStatusRefundPending).SetRefundAmount(50).
 				SetExpiresAt(time.Now().Add(time.Hour)).SetPaidAt(time.Now()).
 				SetClientIP("127.0.0.1").SetSrcHost("test.local").
@@ -196,7 +199,8 @@ $$`, functionName, orderID, user.ID))
 
 				result, callErr := svc.QueryAndFinalizeRefund(ctx, order.ID)
 				require.Nil(t, result)
-				require.ErrorContains(t, callErr, "forced refund audit failure")
+				require.Equal(t, "REFUND_RECOVERY_REQUIRED", apperror.Reason(callErr))
+				require.Equal(t, "could not record the confirmed refund", apperror.FromError(callErr).Metadata["reason"])
 				assertRefundPostgresState(t, ctx, client, user.ID, order.ID, 100, payment.OrderStatusRefundPending, 0)
 
 				// Disable the injected audit failure before

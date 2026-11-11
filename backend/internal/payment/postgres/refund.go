@@ -74,17 +74,14 @@ func (s *RefundStore) Order(ctx context.Context, id int64) (*payment.Order, erro
 // changes.
 func refundConflict() error { return apperror.Conflict("CONFLICT", "order status changed") }
 
-// refundAudit writes required recovery detail for one text-keyed order/action
-// and archives a prior detail when that action repeats. Callers hold the order
-// row lock through the supplied transaction and pass detail that encodes as a
-// nonnull JSON object.
+// refundAudit writes required recovery detail for one order and action.
+// Callers hold the order row lock through the supplied transaction and pass
+// detail that encodes as a nonnull JSON object.
 //
-// The current record receives UTC recordedAt and a default version when
-// absent. A repeated action carries previous history forward, removes nested
-// history from the archived entry, and supplies its creation time when
-// recordedAt was absent. Damaged previous object/history returns manual
-// recovery rather than replacing evidence. The caller commits this write with
-// its refund state and entitlement mutation.
+// A later attempt archives the preceding detail and preserves earlier history.
+// Adding a provider reference to the same prepared attempt preserves its
+// original timestamp and history. Damaged history requires manual recovery
+// before any evidence can be replaced.
 func refundAudit(ctx context.Context, client *dbent.Client, id int64, action string, detail any) error {
 	data, err := json.Marshal(detail)
 	if err != nil {
@@ -132,11 +129,20 @@ func refundAudit(ctx context.Context, client *dbent.Client, id int64, action str
 				return err
 			}
 		}
-		prior, marshalErr := json.Marshal(previous)
-		if marshalErr != nil {
-			return marshalErr
+		// Attaching a channel reference enriches the current preparation.
+		// Archive only a different operation so the audit counts each attempt once.
+		previousOperation := string(previous["operationID"])
+		if action == "REFUND_PREPARED" && previousOperation != "" &&
+			previousOperation == string(current["operationID"]) {
+			current["recordedAt"] = previous["recordedAt"]
+		} else {
+			prior, marshalErr := json.Marshal(previous)
+			if marshalErr != nil {
+				return marshalErr
+			}
+			history = append(history, prior)
 		}
-		history = append(history, prior)
+
 		current["history"], err = json.Marshal(history)
 		if err != nil {
 			return err

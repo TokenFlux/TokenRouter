@@ -553,7 +553,7 @@ func (h *AdminHandler) QueryAndFinalizeRefund(c *gin.Context) {
 			return
 		}
 	}
-	result, err := h.paymentService.QueryAndFinalizeRefund(c.Request.Context(), orderID, req.RefundID)
+	result, err := h.paymentService.QueryAndFinalizeRefundWithReference(c.Request.Context(), orderID, req.RefundID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

@@ -163,7 +163,14 @@ func (s *RefundWorkflow) compensateFailure(ctx context.Context, p *RefundPlan, r
 	return &RefundResult{Status: RefundResultFailed, Warning: "gateway failed: " + cause.Error() + ", rolled back"}, nil
 }
 
-// QueryAndFinalizeRefund queries an existing pending or recoverable refunding
+// QueryAndFinalizeRefund reconciles an order using the refund evidence already
+// saved locally. It returns the same recovery guidance as the administrative
+// lookup when the provider cannot verify the existing attempt.
+func (s *RefundWorkflow) QueryAndFinalizeRefund(ctx context.Context, id int64) (*RefundResult, error) {
+	return s.QueryAndFinalizeRefundWithReference(ctx, id, "")
+}
+
+// QueryAndFinalizeRefundWithReference queries an existing pending or recoverable refunding
 // operation and completes local recovery from that observation. It requires
 // valid pending detail or prepared receipt before resolving the order's
 // refund-query provider; unsupported query capability returns a manual-check
@@ -177,7 +184,7 @@ func (s *RefundWorkflow) compensateFailure(ctx context.Context, p *RefundPlan, r
 // rights and completion. An administrator may supply a missing Stripe refund
 // ID for a prepared order. Its association is checked by the provider before
 // persistence, and an existing reference cannot be replaced by operator input.
-func (s *RefundWorkflow) QueryAndFinalizeRefund(ctx context.Context, id int64, suppliedRefundID string) (*RefundResult, error) {
+func (s *RefundWorkflow) QueryAndFinalizeRefundWithReference(ctx context.Context, id int64, suppliedRefundID string) (*RefundResult, error) {
 	order, err := s.store.Order(ctx, id)
 	if err != nil {
 		return nil, apperror.NotFound("NOT_FOUND", "order not found")
@@ -296,7 +303,8 @@ func (s *RefundWorkflow) QueryAndFinalizeRefund(ctx context.Context, id int64, s
 	}
 	result, err := s.FinalizePendingRefundSuccess(ctx, s.RefundFinalizePlan(order, detail))
 	if err != nil {
-		if apperror.Reason(err) == "REFUND_RECOVERY_REQUIRED" {
+		switch apperror.Reason(err) {
+		case "CONFLICT", "REFUND_RECOVERY_REQUIRED":
 			return nil, err
 		}
 		s.runtime.Warn("refund: pending finalization failed", "orderID", id, "error", err)
