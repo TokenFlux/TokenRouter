@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -175,6 +176,14 @@ type airwallexPaymentIntent struct {
 	Status   string `json:"status"` // reported intent state label.
 	// reported unused intent attributes.
 	Metadata map[string]string `json:"metadata"`
+}
+
+// airwallexHTTPError retains the response information needed to classify a
+// failed request without parsing its diagnostic message.
+type airwallexHTTPError struct {
+	status  int    // HTTP response status
+	code    string // Airwallex error code
+	summary string // sanitized response summary
 }
 
 // airwallexRefund decodes the upstream refund reference and state used during
@@ -511,6 +520,11 @@ func (a *Airwallex) Refund(ctx context.Context, req payment.RefundRequest) (*pay
 
 	var resp airwallexRefund
 	if err := a.doJSON(ctx, http.MethodPost, "/pa/refunds/create", token, payload, &resp); err != nil {
+		// A parameter or authorization rejection cannot create a refund.
+		// Unknown responses keep the prepared rights available for recovery.
+		if airwallexRefundDefinitelyRejected(err) {
+			return nil, fmt.Errorf("airwallex refund rejected: %w", err)
+		}
 		return nil, fmt.Errorf("%w: airwallex refund submission: %v", payment.ErrRefundOutcomeUnknown, err)
 	}
 	if strings.TrimSpace(resp.ID) == "" {
@@ -524,6 +538,29 @@ func (a *Airwallex) Refund(ctx context.Context, req payment.RefundRequest) (*pay
 		return refundResp, fmt.Errorf("airwallex refund not settled: status %s", strings.ToUpper(strings.TrimSpace(resp.Status)))
 	}
 	return refundResp, nil
+}
+
+// airwallexRefundDefinitelyRejected recognizes documented pre-execution
+// rejections. Other HTTP or transport failures leave the provider outcome
+// unknown so the caller cannot compensate a possibly accepted refund.
+func airwallexRefundDefinitelyRejected(err error) bool {
+	var apiErr *airwallexHTTPError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.status {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return true
+	case http.StatusBadRequest:
+		switch apiErr.code {
+		case "invalid_argument", "validation_error", "field_required", "validation_failed",
+			"invalid_status_for_operation", "amount_above_limit", "operation_not_supported", "resource_not_found":
+			return true
+		}
+	case http.StatusNotFound:
+		return apiErr.code == "not_found" || apiErr.code == "resource_not_found"
+	}
+	return false
 }
 
 // QueryRefund retrieves the saved Airwallex refund and verifies its original
@@ -729,7 +766,15 @@ func (a *Airwallex) doJSON(ctx context.Context, method, path, token string, payl
 		return err
 	}
 	if status < http.StatusOK || status >= http.StatusMultipleChoices {
-		return fmt.Errorf("HTTP %d: %s", status, summarizeAirwallexResponse(body))
+		var failure struct {
+			Code string `json:"code"` // provider classification code
+		}
+		// An unreadable error body has no trustworthy classification code.
+		// Preserve the status and safe diagnostic without treating it as success.
+		if err := json.Unmarshal(body, &failure); err != nil {
+			failure.Code = ""
+		}
+		return &airwallexHTTPError{status: status, code: failure.Code, summary: summarizeAirwallexResponse(body)}
 	}
 	// Accept a successful empty body with output unchanged; operation-specific
 	// required fields decide whether that response is sufficient afterward.
@@ -740,6 +785,11 @@ func (a *Airwallex) doJSON(ctx context.Context, method, path, token string, payl
 		return fmt.Errorf("parse response: %w", err)
 	}
 	return nil
+}
+
+// Error formats the HTTP status and response summary for existing diagnostics.
+func (e *airwallexHTTPError) Error() string {
+	return fmt.Sprintf("HTTP %d: %s", e.status, e.summary)
 }
 
 // do sends the supplied request through the reused client or a fifteen-second

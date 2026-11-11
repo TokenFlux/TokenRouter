@@ -40,6 +40,7 @@ type subscriptionRefundChannel struct {
 	started          chan struct{} // optional submission notification
 	resume           chan struct{} // optional submission release
 	queriedID        string        // recorded query reference
+	referenceOnly    bool          // query requires fixture refund ID
 }
 
 // ProviderKey identifies the channel fixture as Stripe to the workflow.
@@ -67,8 +68,13 @@ func (c *subscriptionRefundChannel) Refund(ctx context.Context, req payment.Refu
 }
 
 // QueryRefund supplies the terminal observation without creating a refund.
+// A reference-only fixture rejects missing or mismatched identifiers so the
+// workflow can exercise verification before updating the local refund.
 func (c *subscriptionRefundChannel) QueryRefund(_ context.Context, req payment.RefundQueryRequest) (*payment.RefundResponse, error) {
 	c.queriedID = req.RefundID
+	if c.referenceOnly && req.RefundID != "re_fixture" {
+		return nil, fmt.Errorf("fixture refund reference could not be verified")
+	}
 	return &payment.RefundResponse{RefundID: "re_fixture", Status: c.terminal}, nil
 }
 
@@ -81,22 +87,26 @@ func TestSubscriptionRefundWorkflow(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	now := time.Now().UTC().Truncate(time.Second)
 	cases := []struct {
-		name             string // scenario identifier
-		initial          string // first provider outcome
-		terminal         string // queried provider outcome
-		queued           bool   // grant has an earlier sibling
-		expire           bool   // grant expires during the hold
-		optOut           bool   // refund retains subscription
-		concurrent       bool   // attempt a second simultaneous refund
-		legacy           bool   // refund already applied a historical revocation
-		missing          bool   // target already revoked before submission
-		rejectCompletion bool   // database rejects the first finalization
+		name                   string // scenario identifier
+		initial                string // first provider outcome
+		terminal               string // queried provider outcome
+		queued                 bool   // grant has an earlier sibling
+		expire                 bool   // grant expires during the hold
+		optOut                 bool   // refund retains subscription
+		concurrent             bool   // attempt a second simultaneous refund
+		legacy                 bool   // refund already applied a historical revocation
+		missing                bool   // target already revoked before submission
+		rejectCompletion       bool   // database rejects the first finalization
+		cancelBeforeSubmission bool   // disconnect after preparation
+		manualReference        bool   // refund requires reference recovery
 	}{
 		{name: "immediate", initial: payment.ProviderStatusSuccess},
 		{name: "pending success", initial: payment.ProviderStatusPending, terminal: payment.ProviderStatusSuccess, concurrent: true},
 		{name: "queued success", initial: payment.ProviderStatusPending, terminal: payment.ProviderStatusSuccess, queued: true},
 		{name: "pending failure", initial: payment.ProviderStatusPending, terminal: payment.ProviderStatusFailed, queued: true},
 		{name: "lost reply", initial: "unknown", terminal: payment.ProviderStatusSuccess},
+		{name: "lost reply then failed", initial: "unknown", terminal: payment.ProviderStatusFailed, manualReference: true},
+		{name: "cancel before provider submission", cancelBeforeSubmission: true},
 		{name: "expires while pending", initial: payment.ProviderStatusPending, terminal: payment.ProviderStatusFailed, expire: true},
 		{name: "keep subscription", initial: payment.ProviderStatusSuccess, optOut: true},
 		{name: "force without a grant", initial: payment.ProviderStatusSuccess, missing: true},
@@ -161,16 +171,26 @@ func TestSubscriptionRefundWorkflow(t *testing.T) {
 				SetStatus(billing.SubscriptionStatusPending).Save(ctx)
 			require.NoError(t, err)
 
-			channel := &subscriptionRefundChannel{initial: tc.initial, terminal: tc.terminal}
+			channel := &subscriptionRefundChannel{initial: tc.initial, terminal: tc.terminal, referenceOnly: tc.manualReference}
 			clock := billing.DateRuntime{Now: func() time.Time { return now }}
 			store := paymentpostgres.NewRefundStore(client, func(tx *ent.Tx) payment.RefundRights {
 				return newPaymentRefundRights(tx, nil, clock)
 			})
+			requestCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
 			workflow := payment.NewRefundWorkflow(store, payment.RefundRuntime{
 				Instance: func(context.Context, *payment.Order) (*payment.ProviderInstance, error) {
 					return &payment.ProviderInstance{RefundEnabled: true}, nil
 				},
-				Provider: func(context.Context, *payment.Order) (payment.Provider, error) { return channel, nil },
+				Provider: func(context.Context, *payment.Order) (payment.Provider, error) {
+					if tc.cancelBeforeSubmission {
+						// Disconnect after the preparation commit but before a
+						// refund provider can send a request.
+						cancel()
+						return nil, requestCtx.Err()
+					}
+					return channel, nil
+				},
 			})
 			if tc.legacy {
 				// Model the stored state from an old pending refund whose attempt
@@ -185,7 +205,7 @@ func TestSubscriptionRefundWorkflow(t *testing.T) {
 					SetDetail(fmt.Sprintf(`{"refundID":"re_fixture","deductBalance":true,"deductionType":"subscription","subDaysDeducted":30,"subscriptionID":%d,"deductionRollbackOK":false}`, sub.ID)).
 					Save(ctx)
 				require.NoError(t, err)
-				result, err := workflow.QueryAndFinalizeRefund(ctx, order.ID)
+				result, err := workflow.QueryAndFinalizeRefund(ctx, order.ID, "")
 				require.NoError(t, err)
 				require.True(t, result.Success)
 				unchanged, err := client.UserSubscription.Get(ctx, next.ID)
@@ -199,6 +219,20 @@ func TestSubscriptionRefundWorkflow(t *testing.T) {
 			draft, _, err := workflow.PrepareRefund(ctx, order.ID, 39.9, "fixture", false, !tc.optOut)
 			require.NoError(t, err)
 			require.Equal(t, 42.6, draft.GatewayAmount)
+			if tc.cancelBeforeSubmission {
+				result, err := workflow.ExecuteRefund(requestCtx, draft)
+				require.NoError(t, err)
+				require.Equal(t, payment.RefundResultFailed, result.Status)
+				require.Zero(t, channel.submissions.Load())
+				persisted, err := store.Order(ctx, order.ID)
+				require.NoError(t, err)
+				require.Equal(t, payment.OrderStatusCompleted, persisted.Status)
+				restored, err := client.UserSubscription.Get(ctx, sub.ID)
+				require.NoError(t, err)
+				require.Nil(t, restored.RefundHoldOperationID)
+				require.Equal(t, sub.ExpiresAt, restored.ExpiresAt)
+				return
+			}
 			if tc.missing {
 				require.NoError(t, client.UserSubscription.UpdateOneID(sub.ID).SetDeletedAt(now).Exec(ctx))
 				result, err := workflow.ExecuteRefund(ctx, draft)
@@ -290,7 +324,23 @@ func TestSubscriptionRefundWorkflow(t *testing.T) {
 					_, err := db.ExecContext(ctx, "DROP TRIGGER reject_refund_fixture ON payment_orders")
 					require.NoError(t, err)
 				}
-				result, err := workflow.QueryAndFinalizeRefund(ctx, order.ID)
+				refundID := ""
+				if tc.manualReference {
+					_, err := workflow.QueryAndFinalizeRefund(ctx, order.ID, "")
+					require.Equal(t, "REFUND_REFERENCE_REQUIRED", apperror.Reason(err))
+					_, err = workflow.QueryAndFinalizeRefund(ctx, order.ID, "re_unrelated")
+					require.Equal(t, "REFUND_REFERENCE_UNVERIFIED", apperror.Reason(err))
+					persisted, err := store.Order(ctx, order.ID)
+					require.NoError(t, err)
+					receipt, err := store.RefundRecovery(ctx, persisted)
+					require.NoError(t, err)
+					require.Empty(t, receipt.RefundID)
+					stillHeld, err := client.UserSubscription.Get(ctx, sub.ID)
+					require.NoError(t, err)
+					require.NotNil(t, stillHeld.RefundHoldOperationID)
+					refundID = "re_fixture"
+				}
+				result, err := workflow.QueryAndFinalizeRefund(ctx, order.ID, refundID)
 				require.NoError(t, err)
 				require.Equal(t, tc.terminal == payment.ProviderStatusSuccess, result.Success)
 				if tc.initial != "unknown" {

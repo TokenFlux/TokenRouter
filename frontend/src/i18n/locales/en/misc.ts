@@ -766,6 +766,11 @@ export default {
       SUBSCRIPTION_REFUND_FULL_ONLY: 'Subscription orders can only be refunded in full.',
       REFUND_RECOVERY_REQUIRED:
         'The refund result is unconfirmed. Query the refund status in the order or verify it with the payment provider.',
+      REFUND_REFERENCE_REQUIRED: 'Enter the refund ID shown in the Stripe Dashboard.',
+      REFUND_REFERENCE_UNVERIFIED:
+        'Stripe could not verify this ID for the prepared refund. Check it and try again.',
+      REFUND_REFERENCE_UNAVAILABLE:
+        'This Stripe refund ID cannot be associated with the current order.',
       REFUND_QUERY_UNSUPPORTED:
         'This payment provider does not support refund status queries. Verify the refund in the provider console.',
       REFUND_FAILED: 'Refund failed.',
@@ -867,6 +872,10 @@ export default {
       refundSuccess: 'Refund successful',
       refundPending: 'Refund pending gateway confirmation',
       queryRefundStatus: 'Query refund status',
+      verifyStripeRefund: 'Verify Stripe refund',
+      verifyStripeRefundHint:
+        'Copy the refund ID for order #{order} from the Stripe Dashboard. The verified result determines how the local order is updated.',
+      stripeRefundReference: 'Stripe refund ID',
       refundInfo: 'Refund Info',
       refundEnabled: 'Refund Enabled',
       allowUserRefund: 'Allow User Refund',

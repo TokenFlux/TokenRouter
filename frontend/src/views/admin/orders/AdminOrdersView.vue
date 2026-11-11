@@ -402,6 +402,49 @@
       </template>
     </BaseDialog>
 
+    <BaseDialog
+      :show="refundReferenceOrder !== null"
+      :title="t('payment.admin.verifyStripeRefund')"
+      width="narrow"
+      @close="closeRefundReferenceDialog"
+    >
+      <form id="refund-reference-form" class="space-y-3" @submit.prevent="submitRefundReference">
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          {{ t('payment.admin.verifyStripeRefundHint', { order: refundReferenceOrder?.id }) }}
+        </p>
+        <div>
+          <label class="input-label" for="stripe-refund-reference">
+            {{ t('payment.admin.stripeRefundReference') }}
+          </label>
+          <input
+            id="stripe-refund-reference"
+            v-model.trim="refundReference"
+            class="input font-mono"
+            type="text"
+            placeholder="re_"
+            autocomplete="off"
+            spellcheck="false"
+            required
+          />
+        </div>
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-secondary" @click="closeRefundReferenceDialog">
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="submit"
+            form="refund-reference-form"
+            class="btn btn-primary"
+            :disabled="!refundReference || refundReferenceSubmitting"
+          >
+            {{ t('payment.admin.verifyStripeRefund') }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
     <AdminRefundDialog
       :show="showRefundDialog"
       :order="selectedOrder"
@@ -525,6 +568,18 @@ const refundWarning = ref('')
 // refundQueryingIds tracks rows with outstanding refund status queries; each completion
 // removes its identifier from the latest set.
 const refundQueryingIds = ref(new Set<number>())
+// refundReferenceOrder and refundReference retain the order and draft for
+// Stripe verification. Only a lookup that explicitly asks for a reference
+// opens this form. Closing it clears the input before another order uses it.
+const refundReferenceOrder = ref<PaymentOrder | null>(null)
+const refundReference = ref('')
+// refundReferenceSubmitting reuses the per-order query state so an active
+// verification cannot be submitted twice from the reference dialog.
+const refundReferenceSubmitting = computed(
+  () =>
+    refundReferenceOrder.value !== null &&
+    refundQueryingIds.value.has(refundReferenceOrder.value.id),
+)
 // orderAuditLogs belongs to the detail dialog and is cleared before fetching another
 // selected order to remove previous entries.
 const orderAuditLogs = ref<AuditLog[]>([])
@@ -859,18 +914,36 @@ async function handleRefund(data: {
   }
 }
 
+// closeRefundReferenceDialog clears the current order and typed reference.
+function closeRefundReferenceDialog() {
+  refundReferenceOrder.value = null
+  refundReference.value = ''
+}
+
+// submitRefundReference asks the server to verify the entered ID against the
+// captured order. A blank draft leaves the dialog open without querying.
+async function submitRefundReference() {
+  const order = refundReferenceOrder.value
+  if (order && refundReference.value) {
+    await handleQueryRefund(order, refundReference.value)
+  }
+}
+
 // handleQueryRefund asks the API to resolve a refund already associated with the supplied
 // order. The order ID enters the busy set until the request finishes, and successful
 // responses refresh the list after reporting success, pending, or failure guidance.
-// Completion removes only this order's ID from a copy of the latest set. Other rows'
-// outstanding queries therefore keep their indicators when this request completes or
-// fails.
-async function handleQueryRefund(order: PaymentOrder) {
+// A missing Stripe reference opens the verification dialog when another order
+// is not already being edited. Completion clears only this order's busy state.
+async function handleQueryRefund(order: PaymentOrder, refundID?: string) {
+  if (refundQueryingIds.value.has(order.id)) return
   // Track this row independently of other queries; replacing the set publishes its busy
   // indicator while preserving identifiers for outstanding requests.
   refundQueryingIds.value = new Set(refundQueryingIds.value).add(order.id)
   try {
-    const res = await adminPaymentAPI.queryRefund(order.id)
+    const res = await adminPaymentAPI.queryRefund(order.id, refundID)
+    if (refundID && refundReferenceOrder.value?.id === order.id) {
+      closeRefundReferenceDialog()
+    }
     if (res.data.success) {
       appStore.showSuccess(t('payment.admin.refundSuccess'))
     } else if (res.data.status === 'pending') {
@@ -880,7 +953,16 @@ async function handleQueryRefund(order: PaymentOrder) {
     }
     loadOrders()
   } catch (err: unknown) {
-    if (extractApiErrorCode(err) === 'REFUND_RECOVERY_REQUIRED') {
+    const code = extractApiErrorCode(err)
+    if (code === 'REFUND_REFERENCE_REQUIRED') {
+      if (!refundReferenceOrder.value) {
+        refundReferenceOrder.value = order
+      } else if (refundReferenceOrder.value.id !== order.id) {
+        appStore.showWarning(t('payment.errors.REFUND_REFERENCE_REQUIRED'))
+      }
+      return
+    }
+    if (code === 'REFUND_RECOVERY_REQUIRED') {
       appStore.showWarning(t('payment.errors.REFUND_RECOVERY_REQUIRED'))
       await loadOrders()
       return

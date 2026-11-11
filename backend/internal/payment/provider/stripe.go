@@ -837,8 +837,8 @@ func (s *Stripe) Refund(ctx context.Context, req payment.RefundRequest) (*paymen
 }
 
 // QueryRefund verifies a known refund against the order's intent, currency and
-// minor-unit amount. Without a saved ID, it searches the preparation interval
-// and accepts only one matching successful refund.
+// minor-unit amount. A supplied ID also needs to date from preparation or
+// later. Without any ID, discovery accepts only a unique matching success.
 //
 // A missing, ambiguous or unconfirmed match leaves the local preparation
 // intact. The method reads Stripe and cannot submit a replacement refund.
@@ -860,6 +860,9 @@ func (s *Stripe) QueryRefund(ctx context.Context, req payment.RefundQueryRequest
 		}
 		if !stripeRefundMatches(refund, intent, req.Currency, amount) || refund.ID != refundID {
 			return nil, fmt.Errorf("stripe query refund: refund does not match the prepared payment")
+		}
+		if !req.EarliestCreatedAt.IsZero() && refund.Created < req.EarliestCreatedAt.Unix() {
+			return nil, fmt.Errorf("stripe query refund: supplied refund predates preparation")
 		}
 		return &payment.RefundResponse{RefundID: refund.ID, Status: stripeRefundProviderStatus(refund.Status)}, nil
 	}

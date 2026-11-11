@@ -221,11 +221,14 @@ export const adminPaymentAPI = {
   },
 
   /**
-   * queryRefund asks the server to reconcile the selected order's pending
-   * refund.
+   * queryRefund reconciles an existing refund. An optional Stripe refund ID
+   * is verified by the server before it is associated with the order.
    */
-  queryRefund(id: number) {
-    return apiClient.post<RefundResult>(`/admin/payment/orders/${id}/refund/query`)
+  queryRefund(id: number, refundID?: string) {
+    return apiClient.post<RefundResult>(
+      `/admin/payment/orders/${id}/refund/query`,
+      refundID ? { refund_id: refundID } : undefined,
+    )
   },
 
   /**

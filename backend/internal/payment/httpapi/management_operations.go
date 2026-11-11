@@ -160,15 +160,15 @@ var ManagementOperations = map[string]*adminapi.Operation{
 		Module: "payment",
 		Title:  "Query And Finalize Refund",
 		Description: "QueryAndFinalizeRefund delegates provider status lookup and recovery finalization for the " +
-			"numeric order. It queries an existing refund rather than initiating another submission; " +
-			"unknown or manual-recovery outcomes remain represented by the runtime result/error. Browser " +
+			"numeric order. An optional Stripe refund ID can be verified when the prepared refund has " +
+			"no recorded reference. This operation never submits a refund. Browser " +
 			"confirmation by the token owner is required.",
 		Method:      "POST",
 		Path:        "/api/v1/admin/payment/orders/:id/refund/query",
 		Sensitive:   true,
 		Response:    "json",
 		BrowserPath: "/admin/payment",
-		Input:       adminapi.Arguments("/api/v1/admin/payment/orders/:id/refund/query", []string{}, nil),
+		Input:       adminapi.Arguments("/api/v1/admin/payment/orders/:id/refund/query", []string{}, (*AdminQueryRefundRequest)(nil)),
 	}),
 	"payment.orders.retry.create": adminapi.Define(adminapi.Operation{
 		ID:     "payment.orders.retry.create",

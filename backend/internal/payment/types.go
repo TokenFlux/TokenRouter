@@ -304,8 +304,9 @@ type RefundQueryRequest struct {
 	RefundID string // known provider refund identity
 	Amount   string // supplied formatted query amount
 	Currency string // expected gateway currency
-	// EarliestCreatedAt bounds discovery when no exact provider refund ID was
-	// recorded. Stripe only accepts a unique matching success from that period.
+	// EarliestCreatedAt bounds Stripe discovery and verification of an
+	// administrator-supplied ID. A saved ID uses a zero value because it has
+	// already been bound to this local refund.
 	EarliestCreatedAt time.Time
 }
 

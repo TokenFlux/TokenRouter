@@ -57,6 +57,11 @@ func (s *RefundWorkflow) GwRefund(ctx context.Context, p *RefundPlan) (*RefundRe
 		})
 		return nil, err
 	}
+	// Cancellation observed here proves that the provider call has not
+	// started. Return a definitive local failure so preparation is released.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	finishProviderCall := s.runtime.Observe(ctx)
 	resp, err := prov.Refund(ctx, RefundRequest{
 		TradeNo: p.Order.PaymentTradeNo,

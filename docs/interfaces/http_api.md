@@ -130,7 +130,7 @@ Markdown 正文需要 JWT，并且菜单可见；管理员页面只对管理员�
 
 管理员可以用以下接口恢复支付订单，它们都经过管理员认证、面板限流和审计中间件：
 
-- `POST /api/v1/admin/payment/orders/{id}/refund` 和 `POST /api/v1/admin/payment/orders/{id}/refund/query` 的退款结果增加 `status`，取值为 `succeeded`、`pending`、`failed` 或 `requires_force`。原有 `success`、`warning`、`require_force` 字段继续可用。订阅金额按订单价格币种校验，部分退款返回 `SUBSCRIPTION_REFUND_FULL_ONLY`。订阅订单的 `deduct_balance` 表示是否暂停并撤销原订阅。待确认和结果未知的订单走退款查单入口。
+- `POST /api/v1/admin/payment/orders/{id}/refund` 和 `POST /api/v1/admin/payment/orders/{id}/refund/query` 的退款结果增加 `status`，取值为 `succeeded`、`pending`、`failed` 或 `requires_force`。原有 `success`、`warning`、`require_force` 字段继续可用。订阅金额按订单价格币种校验，部分退款返回 `SUBSCRIPTION_REFUND_FULL_ONLY`。订阅订单的 `deduct_balance` 表示是否暂停并撤销原订阅。待确认和结果未知的订单走退款查单入口。查单请求体可省略。收到 `REFUND_REFERENCE_REQUIRED` 后，可传 `{"refund_id":"re_…"}`，由 Stripe 核验所属支付、金额、币种和创建时间。此操作仅用于待恢复且缺少渠道参考的 Stripe 退款，已经保存的退款 ID 禁止替换。
 - `POST /api/v1/admin/payment/orders/{id}/force-expire`：必填 JSON 字段 `reason`（1 到 500 个字符）。只有当前为 `PENDING` 的订单可以被改成 `EXPIRED`，整个过程不调用上游，成功时 `data.message=force_expired`。订单不存在返回 `NOT_FOUND`，状态被并发修改返回 `ORDER_STATUS_CHANGED`（409）。之后迟到的付款仍可以通过正常的 webhook 恢复。
 - 退款查单：同时接受 `REFUND_PENDING`，以及带有有效准备记录的 `REFUNDING`。页面上是同一个查单按钮；接口只查询已经发起过的渠道退款，渠道退款只发起那一次。恢复记录不完整、互相矛盾或渠道无法确认时，返回要求人工核实的错误，调用方不能据此认为退款没发生。
 - `POST /api/v1/admin/payment/providers/test`：接受 `provider_key`、`config` 和可选的 `instance_id`，目前只支持 `easypay`。带实例 ID 时，服务端按更新规则合并请求里没回传的敏感字段，再用随机订单号做一次只读查单。接口不保存草稿，也不创建订单；成功时只返回 `data.reachable=true`，上游的 body、URL 细节和凭据都不会出现在响应里。

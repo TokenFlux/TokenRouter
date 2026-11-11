@@ -27,6 +27,10 @@ import (
 // claims prevent a stale observation from changing a completed refund or the
 // grant owned by a different operation.
 
+// refundLocalRecoveryTimeout bounds critical local writes that must finish
+// even after the administrative request disconnects.
+const refundLocalRecoveryTimeout = 5 * time.Second
+
 // ExecuteRefund persists preparation and its deduction receipt before making
 // the gateway request. Preparation failure returns before external submission,
 // and the store publishes committed mutation results into the plan.
@@ -81,7 +85,7 @@ func (s *RefundWorkflow) recordProviderRefund(ctx context.Context, receipt *Refu
 		// A disconnected browser can cancel the request after the provider
 		// returned its refund ID. Give that ID five seconds to reach storage
 		// so a later query can recover the exact operation.
-		recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), refundLocalRecoveryTimeout)
 		defer cancel()
 		if err := s.store.RecordRefundProviderID(recordCtx, receipt, id); err != nil {
 			s.runtime.Warn("refund: provider reference persistence failed", "orderID", receipt.OrderID, "error", err)
@@ -141,14 +145,18 @@ func (s *RefundWorkflow) FinishRefund(ctx context.Context, p *RefundPlan, r *Ref
 // gateway cause and local recovery error.
 //
 // The earlier preparation remains the persisted progress used for later
-// recovery until the compensation transaction succeeds. This method uses the
-// supplied context and does not create a detached retry budget; it also does
-// not make another provider refund request.
+// recovery until the compensation transaction succeeds. Definitive failure
+// compensation has a separate bounded context so disconnecting the request
+// cannot strand the hold after the provider was rejected or never called.
 func (s *RefundWorkflow) compensateFailure(ctx context.Context, p *RefundPlan, r *RefundReceipt, cause error) (*RefundResult, error) {
 	// Use the receipt to compensate exactly this local preparation and record its
 	// gateway failure. A failed recovery transaction leaves the earlier prepared
 	// state for later verification.
-	if err := s.store.CompensateRefund(ctx, p, r, "", cause.Error(), CompensateRefundDeduction); err != nil {
+	// Once failure is known, the request can disconnect while the application
+	// still owes the customer a release of the committed entitlement hold.
+	compensationCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), refundLocalRecoveryTimeout)
+	defer cancel()
+	if err := s.store.CompensateRefund(compensationCtx, p, r, "", cause.Error(), CompensateRefundDeduction); err != nil {
 		s.runtime.Warn("refund: compensation failed", "orderID", p.OrderID, "providerError", cause, "error", err)
 		return nil, RefundRecoveryRequired("could not restore the prepared entitlement")
 	}
@@ -166,8 +174,10 @@ func (s *RefundWorkflow) compensateFailure(ctx context.Context, p *RefundPlan, r
 // failed pending result conditionally records failure and accepts an already
 // newer refund success. A valid prepared response reuses FinishRefund, while
 // pending success rebuilds deduction intent and invokes one transaction for
-// rights and completion. No gateway refund is submitted by this query path.
-func (s *RefundWorkflow) QueryAndFinalizeRefund(ctx context.Context, id int64) (*RefundResult, error) {
+// rights and completion. An administrator may supply a missing Stripe refund
+// ID for a prepared order. Its association is checked by the provider before
+// persistence, and an existing reference cannot be replaced by operator input.
+func (s *RefundWorkflow) QueryAndFinalizeRefund(ctx context.Context, id int64, suppliedRefundID string) (*RefundResult, error) {
 	order, err := s.store.Order(ctx, id)
 	if err != nil {
 		return nil, apperror.NotFound("NOT_FOUND", "order not found")
@@ -203,19 +213,46 @@ func (s *RefundWorkflow) QueryAndFinalizeRefund(ctx context.Context, id int64) (
 	if !ok {
 		return nil, apperror.BadRequest("REFUND_QUERY_UNSUPPORTED", "this payment provider does not support refund status query; please verify manually")
 	}
+	suppliedRefundID = strings.TrimSpace(suppliedRefundID)
+	refundID := detail.RefundID
+	earliest := detail.ObservedAt
+	if refundID != "" {
+		earliest = time.Time{}
+	}
+	stripePreparation := receipt != nil && provider.ProviderKey() == TypeStripe
+	canSupplyReference := stripePreparation && refundID == ""
+	if suppliedRefundID != "" {
+		if !stripePreparation || (refundID != "" && refundID != suppliedRefundID) ||
+			!strings.HasPrefix(suppliedRefundID, "re_") || len(suppliedRefundID) == len("re_") {
+			return nil, apperror.BadRequest("REFUND_REFERENCE_UNAVAILABLE", "this Stripe refund ID cannot be associated with the prepared refund")
+		}
+		// Keep the preparation timestamp for an unbound reference. Stripe
+		// checks it together with the payment, amount and currency before
+		// this workflow can record the reference or release any rights.
+		refundID = suppliedRefundID
+	}
 	finish := s.runtime.Observe(ctx)
 	resp, err := query.QueryRefund(ctx, RefundQueryRequest{
 		TradeNo:           order.PaymentTradeNo,
 		OrderID:           order.OutTradeNo,
-		RefundID:          detail.RefundID,
+		RefundID:          refundID,
 		Amount:            FormatAmountForCurrency(amount, currency),
 		Currency:          currency,
-		EarliestCreatedAt: detail.ObservedAt,
+		EarliestCreatedAt: earliest,
 	})
 	finish()
 	if err != nil {
 		s.runtime.Warn("refund: provider query inconclusive", "orderID", id, "error", err)
+		if canSupplyReference {
+			if suppliedRefundID != "" {
+				return nil, apperror.BadRequest("REFUND_REFERENCE_UNVERIFIED", "Stripe did not verify this refund ID for the prepared refund")
+			}
+			return nil, apperror.Conflict("REFUND_REFERENCE_REQUIRED", "provide the Stripe refund ID to verify this refund")
+		}
 		return nil, RefundRecoveryRequired("provider refund could not be verified")
+	}
+	if suppliedRefundID != "" && RefundResponseID(resp) != suppliedRefundID {
+		return nil, apperror.BadRequest("REFUND_REFERENCE_UNVERIFIED", "Stripe did not verify this refund ID for the prepared refund")
 	}
 	if receipt != nil {
 		if err = s.recordProviderRefund(ctx, receipt, resp); err != nil {

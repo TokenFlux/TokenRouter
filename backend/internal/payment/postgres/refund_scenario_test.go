@@ -571,7 +571,7 @@ func TestQueryAndFinalizeRefundFinalizesProviderStatuses(t *testing.T) {
 				refundResponse: &payment.RefundResponse{RefundID: "rf_test", Status: tc.status},
 			}
 
-			result, err := svc.QueryAndFinalizeRefund(ctx, order.ID)
+			result, err := svc.QueryAndFinalizeRefund(ctx, order.ID, "")
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Equal(t, tc.status == payment.ProviderStatusSuccess, result.Success)
@@ -685,7 +685,7 @@ func TestQueryAndFinalizeRefundPreservesNoDeductionChoice(t *testing.T) {
 		refundResponse: &payment.RefundResponse{RefundID: "rf_test", Status: payment.ProviderStatusSuccess},
 	}
 
-	result, err := svc.QueryAndFinalizeRefund(ctx, order.ID)
+	result, err := svc.QueryAndFinalizeRefund(ctx, order.ID, "")
 	require.NoError(t, err)
 	require.True(t, result.Success)
 	require.Zero(t, deducted)
@@ -707,7 +707,7 @@ func TestQueryAndFinalizeRefundUnsupportedProviderReturnsClearError(t *testing.T
 	svc := newRefundWorkflowFixture(client, nil, &paymenttestkit.CaptureLoadBalancer{}, func(string, string, map[string]string) (payment.Provider, error) { return selectedProvider, nil })
 	selectedProvider = refundProviderTestDouble{}
 
-	result, err := svc.QueryAndFinalizeRefund(ctx, order.ID)
+	result, err := svc.QueryAndFinalizeRefund(ctx, order.ID, "")
 	require.Nil(t, result)
 	require.Error(t, err)
 	require.Equal(t, "REFUND_QUERY_UNSUPPORTED", apperror.Reason(err))

@@ -932,21 +932,28 @@ func TestStripeRefundRetainsUnknownOutcome(t *testing.T) {
 
 // TestStripeQueryRefundMatchesExactOperation checks that recovery can find a
 // unique success behind a newer unrelated refund. Ambiguous discovery and an
-// exact reference with the wrong amount both leave the result unverified.
+// exact reference with the wrong amount or time leave the result unverified.
+// An exact reference can verify failure even though discovery only finds success.
 func TestStripeQueryRefundMatchesExactOperation(t *testing.T) {
 	const correct = `{"id":"re_match","created":1000,"amount":4260,"currency":"cny","payment_intent":"pi_fixture","status":"succeeded"}`
 	const other = `{"id":"re_other","created":1001,"amount":100,"currency":"cny","payment_intent":"pi_fixture","status":"succeeded"}`
 	const duplicate = `{"id":"re_duplicate","created":1001,"amount":4260,"currency":"cny","payment_intent":"pi_fixture","status":"succeeded"}`
+	failed := strings.ReplaceAll(correct, "succeeded", "failed")
+	older := strings.ReplaceAll(correct, "1000", "999")
 	for _, tc := range []struct {
-		name     string // scenario name
-		response string // Stripe response JSON
-		refundID string // saved refund identity, if known
-		wantID   string // expected unique confirmed refund
+		name       string // scenario name
+		response   string // Stripe response JSON
+		refundID   string // saved refund identity, if known
+		wantID     string // expected unique verified refund
+		wantFailed bool   // terminal failure returned
 	}{
 		{name: "one matching success", response: `{"data":[` + other + `,` + correct + `],"has_more":false}`, wantID: "re_match"},
 		{name: "multiple matches", response: `{"data":[` + duplicate + `,` + correct + `],"has_more":false}`},
 		{name: "saved reference mismatch", response: other, refundID: "re_other"},
-		{name: "saved reference matches", response: correct, refundID: "re_match", wantID: "re_match"},
+		{name: "reference matches", response: correct, refundID: "re_match", wantID: "re_match"},
+		{name: "reference predates preparation", response: older, refundID: "re_match"},
+		{name: "discovery excludes failed refund", response: `{"data":[` + failed + `],"has_more":false}`},
+		{name: "exact reference confirms failure", response: failed, refundID: "re_match", wantID: "re_match", wantFailed: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -978,7 +985,11 @@ func TestStripeQueryRefundMatchesExactOperation(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.wantID, response.RefundID)
-			require.Equal(t, payment.ProviderStatusSuccess, response.Status)
+			wantStatus := payment.ProviderStatusSuccess
+			if tc.wantFailed {
+				wantStatus = payment.ProviderStatusFailed
+			}
+			require.Equal(t, wantStatus, response.Status)
 		})
 	}
 }

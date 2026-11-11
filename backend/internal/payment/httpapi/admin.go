@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"errors"
+	"io"
 	"strconv"
 	"time"
 
@@ -200,6 +202,13 @@ type AdminProcessRefundRequest struct {
 	// including false. The workflow persists that choice in required recovery
 	// evidence before the external refund call.
 	DeductBalance bool `json:"deduct_balance"`
+}
+
+// AdminQueryRefundRequest carries a missing channel reference for manual recovery.
+type AdminQueryRefundRequest struct {
+	// RefundID is an optional Stripe refund identifier. The service verifies
+	// its association with the prepared operation before recording any result.
+	RefundID string `json:"refund_id,omitempty"`
 }
 
 // NewAdminHandler retains runtime, configuration, plans and calendar
@@ -526,16 +535,25 @@ func (h *AdminHandler) ProcessRefund(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// QueryAndFinalizeRefund delegates provider status lookup and recovery
-// finalization for the numeric order. It queries an existing refund rather
-// than initiating another submission; unknown or manual-recovery outcomes
-// remain represented by the runtime result/error.
+// QueryAndFinalizeRefund reads the current channel outcome and applies it to
+// the existing refund. The JSON body is optional for ordinary status checks.
+// An administrator can supply a missing Stripe reference for verification;
+// parsing a body or receiving a reference never initiates another refund.
 func (h *AdminHandler) QueryAndFinalizeRefund(c *gin.Context) {
 	orderID, ok := AdminParseIDParam(c, "id")
 	if !ok {
 		return
 	}
-	result, err := h.paymentService.QueryAndFinalizeRefund(c.Request.Context(), orderID)
+	var req AdminQueryRefundRequest
+	// Existing browser and MCP callers send no body. Preserve that entry
+	// point while rejecting malformed input before accessing the channel.
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+			response.BadRequest(c, "Invalid request: "+err.Error())
+			return
+		}
+	}
+	result, err := h.paymentService.QueryAndFinalizeRefund(c.Request.Context(), orderID, req.RefundID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
