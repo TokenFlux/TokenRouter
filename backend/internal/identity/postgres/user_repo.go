@@ -805,11 +805,13 @@ func (r *UserStore) ListWithFilters(ctx context.Context, params pagination.Pagin
 
 	shouldLoadSubscriptions := filters.IncludeSubscriptions == nil || *filters.IncludeSubscriptions
 	if shouldLoadSubscriptions {
-		// Load active subscriptions and their plans in a batch.
+		// Load the batch of active grants without showing a refund-held
+		// subscription as usable on the administrator's user list.
 		subs, err := r.client.UserSubscription.Query().
 			Where(
 				usersubscription.UserIDIn(userIDs...),
 				usersubscription.StatusEQ(billing.SubscriptionStatusActive),
+				usersubscription.RefundHoldOperationIDIsNil(),
 			).
 			WithPlan().
 			All(ctx)

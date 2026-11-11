@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -48,8 +49,6 @@ const (
 	alipayFundChangeYes = "Y"
 	// missing trade diagnostic marker.
 	alipayErrTradeNotExist = "ACQ.TRADE_NOT_EXIST"
-	// fallback refund reference suffix.
-	alipayRefundSuffix = "-refund"
 )
 
 // Alipay operation variables delegate to pinned SDK calls and let package
@@ -461,29 +460,39 @@ func (a *Alipay) VerifyNotification(ctx context.Context, rawBody string, _ map[s
 // workflow's preparation OperationID is not sent here, so this construction is
 // not its stable retry key.
 //
-// FundChange Y maps to success and other returned markers map to pending.
-// RefundID uses response TradeNo, falling back to merchant number plus the
-// local suffix when absent; this reference differs from OutRequestNo. The
-// adapter does not implement RefundQueryProvider, so unresolved refund recovery
-// follows the workflow's unsupported-query/manual-review behavior. Local
-// entitlement and order persistence remain outside this API operation.
+// FundChange Y maps to success and other successful replies remain pending.
+// The adapter returns the merchant refund request number even after an
+// ambiguous submission. Alipay queries require manual verification here, so
+// the stored request number identifies the operation at the provider.
 func (a *Alipay) Refund(ctx context.Context, req payment.RefundRequest) (*payment.RefundResponse, error) {
 	client, err := a.getClient()
 	if err != nil {
 		return nil, err
 	}
 
+	// Retain this merchant refund request number even if the response is lost
+	// so operators can reconcile the operation at Alipay without resubmitting.
+	refundID := fmt.Sprintf("%s-refund-%d", req.OrderID, time.Now().UnixNano())
 	result, err := client.TradeRefund(ctx, alipay.TradeRefund{
 		OutTradeNo:   req.OrderID,
 		RefundAmount: req.Amount,
 		RefundReason: req.Reason,
-		// Construct the request label from merchant number and the current Unix
-		// nanoseconds on each call. Its spelling does not carry the workflow
-		// preparation ID for replay association.
-		OutRequestNo: fmt.Sprintf("%s-refund-%d", req.OrderID, time.Now().UnixNano()),
+		OutRequestNo: refundID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("alipay TradeRefund: %w", err)
+		var apiErr *alipay.Error
+		if errors.As(err, &apiErr) && alipayRefundDefinitelyRejected(apiErr.Code) {
+			return nil, fmt.Errorf("alipay refund rejected: %w", err)
+		}
+		return &payment.RefundResponse{RefundID: refundID},
+			fmt.Errorf("%w: alipay refund submission: %v", payment.ErrRefundOutcomeUnknown, err)
+	}
+	if result == nil || !result.IsSuccess() {
+		if result != nil && alipayRefundDefinitelyRejected(result.Code) {
+			return nil, fmt.Errorf("alipay refund rejected: %s", result.Code)
+		}
+		return &payment.RefundResponse{RefundID: refundID},
+			fmt.Errorf("%w: alipay refund response was not confirmed", payment.ErrRefundOutcomeUnknown)
 	}
 
 	refundStatus := payment.ProviderStatusPending
@@ -491,18 +500,21 @@ func (a *Alipay) Refund(ctx context.Context, req payment.RefundRequest) (*paymen
 		refundStatus = payment.ProviderStatusSuccess
 	}
 
-	refundID := result.TradeNo
-	// An absent returned trade reference uses a merchant-derived local suffix for
-	// the workflow response. This does not reproduce the timestamped OutRequestNo
-	// submitted to Alipay or establish query support.
-	if refundID == "" {
-		refundID = req.OrderID + alipayRefundSuffix
-	}
-
 	return &payment.RefundResponse{
 		RefundID: refundID,
 		Status:   refundStatus,
 	}, nil
+}
+
+// alipayRefundDefinitelyRejected recognizes validation and authorization failures
+// that precede refund execution. Other responses require provider verification.
+func alipayRefundDefinitelyRejected(code alipay.Code) bool {
+	switch code {
+	case alipay.CodeInvalidAuthToken, alipay.CodeMissingParam, alipay.CodeInvalidParam, alipay.CodePermissionDenied:
+		return true
+	default:
+		return false
+	}
 }
 
 // CancelPayment closes the supplied merchant OutTradeNo using the

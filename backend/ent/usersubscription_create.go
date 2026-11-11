@@ -273,6 +273,20 @@ func (_c *UserSubscriptionCreate) SetNillableSourceOrderID(v *int64) *UserSubscr
 	return _c
 }
 
+// SetRefundHoldOperationID sets the "refund_hold_operation_id" field.
+func (_c *UserSubscriptionCreate) SetRefundHoldOperationID(v string) *UserSubscriptionCreate {
+	_c.mutation.SetRefundHoldOperationID(v)
+	return _c
+}
+
+// SetNillableRefundHoldOperationID sets the "refund_hold_operation_id" field if the given value is not nil.
+func (_c *UserSubscriptionCreate) SetNillableRefundHoldOperationID(v *string) *UserSubscriptionCreate {
+	if v != nil {
+		_c.SetRefundHoldOperationID(*v)
+	}
+	return _c
+}
+
 // SetNotes sets the "notes" field.
 func (_c *UserSubscriptionCreate) SetNotes(v string) *UserSubscriptionCreate {
 	_c.mutation.SetNotes(v)
@@ -548,6 +562,10 @@ func (_c *UserSubscriptionCreate) createSpec() (*UserSubscription, *sqlgraph.Cre
 	if value, ok := _c.mutation.SourceOrderID(); ok {
 		_spec.SetField(usersubscription.FieldSourceOrderID, field.TypeInt64, value)
 		_node.SourceOrderID = &value
+	}
+	if value, ok := _c.mutation.RefundHoldOperationID(); ok {
+		_spec.SetField(usersubscription.FieldRefundHoldOperationID, field.TypeString, value)
+		_node.RefundHoldOperationID = &value
 	}
 	if value, ok := _c.mutation.Notes(); ok {
 		_spec.SetField(usersubscription.FieldNotes, field.TypeString, value)
@@ -996,6 +1014,24 @@ func (u *UserSubscriptionUpsert) ClearSourceOrderID() *UserSubscriptionUpsert {
 	return u
 }
 
+// SetRefundHoldOperationID sets the "refund_hold_operation_id" field.
+func (u *UserSubscriptionUpsert) SetRefundHoldOperationID(v string) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldRefundHoldOperationID, v)
+	return u
+}
+
+// UpdateRefundHoldOperationID sets the "refund_hold_operation_id" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateRefundHoldOperationID() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldRefundHoldOperationID)
+	return u
+}
+
+// ClearRefundHoldOperationID clears the value of the "refund_hold_operation_id" field.
+func (u *UserSubscriptionUpsert) ClearRefundHoldOperationID() *UserSubscriptionUpsert {
+	u.SetNull(usersubscription.FieldRefundHoldOperationID)
+	return u
+}
+
 // SetNotes sets the "notes" field.
 func (u *UserSubscriptionUpsert) SetNotes(v string) *UserSubscriptionUpsert {
 	u.Set(usersubscription.FieldNotes, v)
@@ -1434,6 +1470,27 @@ func (u *UserSubscriptionUpsertOne) UpdateSourceOrderID() *UserSubscriptionUpser
 func (u *UserSubscriptionUpsertOne) ClearSourceOrderID() *UserSubscriptionUpsertOne {
 	return u.Update(func(s *UserSubscriptionUpsert) {
 		s.ClearSourceOrderID()
+	})
+}
+
+// SetRefundHoldOperationID sets the "refund_hold_operation_id" field.
+func (u *UserSubscriptionUpsertOne) SetRefundHoldOperationID(v string) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetRefundHoldOperationID(v)
+	})
+}
+
+// UpdateRefundHoldOperationID sets the "refund_hold_operation_id" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateRefundHoldOperationID() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateRefundHoldOperationID()
+	})
+}
+
+// ClearRefundHoldOperationID clears the value of the "refund_hold_operation_id" field.
+func (u *UserSubscriptionUpsertOne) ClearRefundHoldOperationID() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.ClearRefundHoldOperationID()
 	})
 }
 
@@ -2044,6 +2101,27 @@ func (u *UserSubscriptionUpsertBulk) UpdateSourceOrderID() *UserSubscriptionUpse
 func (u *UserSubscriptionUpsertBulk) ClearSourceOrderID() *UserSubscriptionUpsertBulk {
 	return u.Update(func(s *UserSubscriptionUpsert) {
 		s.ClearSourceOrderID()
+	})
+}
+
+// SetRefundHoldOperationID sets the "refund_hold_operation_id" field.
+func (u *UserSubscriptionUpsertBulk) SetRefundHoldOperationID(v string) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetRefundHoldOperationID(v)
+	})
+}
+
+// UpdateRefundHoldOperationID sets the "refund_hold_operation_id" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateRefundHoldOperationID() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateRefundHoldOperationID()
+	})
+}
+
+// ClearRefundHoldOperationID clears the value of the "refund_hold_operation_id" field.
+func (u *UserSubscriptionUpsertBulk) ClearRefundHoldOperationID() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.ClearRefundHoldOperationID()
 	})
 }
 

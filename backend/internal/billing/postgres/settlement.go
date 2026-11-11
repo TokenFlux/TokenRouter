@@ -274,8 +274,8 @@ func (r *SettlementStore) ResolvePreferredSubscriptionForGroup(ctx context.Conte
 
 // resolveUsableSubscriptionForGroup reads eligible grant rows in expiry, start
 // and ID order using one Go observation time. Rows must belong to the positive
-// user, be undeleted, have stored active or pending status, contain that time
-// and cover the positive group through an unrestricted or matching plan. An
+// user, be undeleted and unheld, have stored active or pending status, contain
+// that time and cover the positive group through an unrestricted or matching plan. An
 // optional preferred ID narrows the same query.
 //
 // Each row's window counters are normalized in memory before the minimum
@@ -322,6 +322,7 @@ func (r *SettlementStore) resolveUsableSubscriptionForGroup(ctx context.Context,
 		JOIN subscription_plans sp ON sp.id = us.plan_id
 		WHERE us.user_id = $1
 			AND us.deleted_at IS NULL
+			AND us.refund_hold_operation_id IS NULL
 			AND us.starts_at <= $5
 			AND us.expires_at > $5
 			AND us.status IN ($2, $3)
@@ -1298,8 +1299,8 @@ func usageBillingNullableFloat64Ptr(v sql.NullFloat64) *float64 {
 // narrows the eligible rows.
 //
 // Positive groups require an unrestricted or matching plan, while pinned mode
-// without a group requires an unrestricted plan. Rows use database NOW for
-// eligibility; the planner observes Go time after rows close for effective
+// without a group requires an unrestricted plan. Rows must be free of refund
+// holds and use database NOW for eligibility; the planner observes Go time after rows close for effective
 // windows and source rates. Each planned counter update is persisted in order
 // on the same transaction, so a later failure requires owner rollback before
 // exposing any allocation.
@@ -1336,6 +1337,7 @@ func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, cmd *bil
 		FROM user_subscriptions
 		WHERE user_id = $1
 			AND deleted_at IS NULL
+			AND refund_hold_operation_id IS NULL
 			AND starts_at <= NOW()
 			AND expires_at > NOW()
 			AND status IN ($2, $3)

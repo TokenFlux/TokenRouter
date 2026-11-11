@@ -303,6 +303,10 @@ type RefundQueryRequest struct {
 	OrderID  string // stored merchant order number
 	RefundID string // known provider refund identity
 	Amount   string // supplied formatted query amount
+	Currency string // expected gateway currency
+	// EarliestCreatedAt bounds discovery when no exact provider refund ID was
+	// recorded. Stripe only accepts a unique matching success from that period.
+	EarliestCreatedAt time.Time
 }
 
 // RefundResponse carries the provider refund identity and normalized

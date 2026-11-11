@@ -4,9 +4,8 @@ import type { PaymentOrder } from '@/api/payment.types'
 import AdminRefundDialog from '../AdminRefundDialog.vue'
 
 // orderCurrencyDisplay.spec.ts checks monetary labels in the administrator refund dialog
-// for a partially refunded subscription. The fixture supplies USD order amounts while the
-// balance-display replacement uses a different unit, making gateway and entitlement
-// displays distinguishable.
+// for subscription orders. Separate gateway and order currencies keep the full charge
+// and the refund request's order amount distinguishable.
 
 // formatBalanceAmountMock replaces balance amount formatting while the rendered order
 // amounts exercise the subscription currency formatter in this test.
@@ -62,31 +61,27 @@ function orderFactory(overrides: Partial<PaymentOrder> = {}): PaymentOrder {
 }
 
 describe('admin order currency display', () => {
-  // A subscription order uses a currency distinct from the configured balance display. Its
-  // paid, credited, already-refunded, and refundable amounts must render with the USD
-  // symbol and expected numeric values.
-  it('uses order currency for subscription refund amounts', () => {
+  // An administrator can keep a subscription while refunding the complete charge.
+  // The form displays the channel amount and submits the full subscription price.
+  it('shows the full paid amount and lets the administrator keep the subscription', async () => {
     const wrapper = mount(AdminRefundDialog, {
-      props: {
-        show: true,
-        order: orderFactory({
-          status: 'PARTIALLY_REFUNDED',
-          refund_amount: 20,
-        }),
-        userBalance: 200,
-      },
-      global: {
-        stubs: {
-          BaseDialog: BaseDialogStub,
-        },
-      },
+      props: { show: true, order: orderFactory(), userBalance: 0 },
+      global: { stubs: { BaseDialog: BaseDialogStub } },
     })
 
-    const text = wrapper.text()
-    expect(text).toContain('$108.00')
-    expect(text).toContain('$100.00')
-    expect(text).toContain('$20.00')
-    expect(text).toContain('$80.00')
+    expect(wrapper.get('[data-testid="subscription-refund-amount"]').text()).toBe('$108.00')
+    expect(wrapper.find('input[type="number"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('payment.admin.revokeRefundSubscriptionHint')
+    expect(wrapper.text()).not.toContain('payment.admin.insufficientBalance')
+    const revoke = wrapper.get<HTMLInputElement>('#deduct-balance')
+    expect(revoke.element.checked).toBe(true)
+    await revoke.setValue(false)
+    expect(wrapper.text()).toContain('payment.admin.keepRefundSubscription')
+    await wrapper.get('textarea').setValue('Customer request')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('confirm')).toEqual([
+      [{ amount: 100, reason: 'Customer request', deduct_balance: false, force: false }],
+    ])
   })
   // Subscription face quantities and collected payment can use different currencies. The
   // dialog must label its face amounts with USD while keeping the channel charge in CNY.

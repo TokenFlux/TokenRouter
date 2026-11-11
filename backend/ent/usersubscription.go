@@ -59,6 +59,8 @@ type UserSubscription struct {
 	AssignedAt time.Time `json:"assigned_at,omitempty"`
 	// SourceOrderID holds the value of the "source_order_id" field.
 	SourceOrderID *int64 `json:"source_order_id,omitempty"`
+	// RefundHoldOperationID holds the value of the "refund_hold_operation_id" field.
+	RefundHoldOperationID *string `json:"refund_hold_operation_id,omitempty"`
 	// Notes holds the value of the "notes" field.
 	Notes *string `json:"notes,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -133,7 +135,7 @@ func (*UserSubscription) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullFloat64)
 		case usersubscription.FieldID, usersubscription.FieldUserID, usersubscription.FieldPlanID, usersubscription.FieldAssignedBy, usersubscription.FieldSourceOrderID:
 			values[i] = new(sql.NullInt64)
-		case usersubscription.FieldStatus, usersubscription.FieldNotes:
+		case usersubscription.FieldStatus, usersubscription.FieldRefundHoldOperationID, usersubscription.FieldNotes:
 			values[i] = new(sql.NullString)
 		case usersubscription.FieldCreatedAt, usersubscription.FieldUpdatedAt, usersubscription.FieldDeletedAt, usersubscription.FieldStartsAt, usersubscription.FieldExpiresAt, usersubscription.FieldDailyWindowStart, usersubscription.FieldWeeklyWindowStart, usersubscription.FieldMonthlyWindowStart, usersubscription.FieldAssignedAt:
 			values[i] = new(sql.NullTime)
@@ -287,6 +289,13 @@ func (_m *UserSubscription) assignValues(columns []string, values []any) error {
 				_m.SourceOrderID = new(int64)
 				*_m.SourceOrderID = value.Int64
 			}
+		case usersubscription.FieldRefundHoldOperationID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field refund_hold_operation_id", values[i])
+			} else if value.Valid {
+				_m.RefundHoldOperationID = new(string)
+				*_m.RefundHoldOperationID = value.String
+			}
 		case usersubscription.FieldNotes:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field notes", values[i])
@@ -426,6 +435,11 @@ func (_m *UserSubscription) String() string {
 	if v := _m.SourceOrderID; v != nil {
 		builder.WriteString("source_order_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.RefundHoldOperationID; v != nil {
+		builder.WriteString("refund_hold_operation_id=")
+		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")
 	if v := _m.Notes; v != nil {

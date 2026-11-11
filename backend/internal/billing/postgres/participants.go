@@ -18,8 +18,8 @@ import (
 // mutation call. An optional concurrency writer supplies the identity-owned
 // update, while balance changes use the bound balance store. Refund deductions
 // cap the requested amount at positive raw balance, and compensation uses the
-// ordinary credit path, including its cumulative recharge rule for positive
-// amounts.
+// balance-only credit path so restoring previously held money does not increase
+// the cumulative recharge total.
 
 // RedeemParticipant binds redemption balance and concurrency mutations to one
 // caller-owned Ent transaction.
@@ -82,10 +82,9 @@ func (r *BalanceStore) DeductRefundBalance(ctx context.Context, id int64, amount
 	return deducted, err
 }
 
-// CompensateRefundBalance delegates a refund credit through the
-// context-selected client. Positive amounts also increase total recharges via
-// UpdateBalance, and the caller owns transaction completion and post-commit
-// effects for this compensation.
+// CompensateRefundBalance restores the previously deducted amount without changing
+// the recharge total. It uses the context-selected transaction, whose owner
+// commits the restoration together with the refund state.
 func (r *BalanceStore) CompensateRefundBalance(ctx context.Context, id int64, amount float64) error {
-	return r.UpdateBalance(ctx, id, amount)
+	return r.AddBalance(ctx, id, amount)
 }

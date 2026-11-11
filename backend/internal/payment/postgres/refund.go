@@ -199,19 +199,21 @@ func claimRefund(ctx context.Context, client *dbent.Client, o *payment.Order, st
 // PrepareRefund commits entitlement preparation and a mandatory receipt before
 // the workflow initiates the provider refund. Supply a nonnil plan/order,
 // transaction-specific rights and a nonnil mutation; completed,
-// refund-requested, pending and failed observations are eligible for its
+// refund-requested and failed observations are eligible for its
 // locked status/time claim.
 //
 // An existing rollback-failed audit blocks preparation because the earlier
 // deduction is unknown. The mutation changes a local plan copy, then refund
-// metadata is stored and reread for database timestamp precision. A
-// version-one receipt records local/gateway quantities, deduction intent and
-// actual bookkeeping with a fresh operation ID. Contradictory deductions or
+// metadata is stored and reread for database timestamp precision. The receipt
+// records local and gateway quantities and the committed wallet deduction or
+// subscription hold under a fresh operation ID. Contradictory deductions or
 // audit errors return before commit. Only successful commit publishes the
 // local plan copy and receipt to the caller.
 func (s *RefundStore) PrepareRefund(ctx context.Context, p *payment.RefundPlan, apply payment.RefundMutation) (*payment.RefundReceipt, error) {
 	switch p.Order.Status {
-	case payment.OrderStatusCompleted, payment.OrderStatusRefundRequested, payment.OrderStatusRefundPending, payment.OrderStatusRefundFailed:
+	case payment.OrderStatusCompleted, payment.OrderStatusRefundRequested, payment.OrderStatusRefundFailed:
+	case payment.OrderStatusRefunding, payment.OrderStatusRefundPending:
+		return nil, payment.RefundRecoveryRequired("a refund already awaits confirmation")
 	default:
 		return nil, refundConflict()
 	}
@@ -238,6 +240,7 @@ func (s *RefundStore) PrepareRefund(ctx context.Context, p *payment.RefundPlan, 
 		return nil, payment.RefundRecoveryRequired("legacy deduction rollback failure")
 	}
 	local := *p
+	local.OperationID = uuid.NewString()
 	if err = apply(txctx, s.rights(tx), &local); err != nil {
 		return nil, err
 	}
@@ -252,17 +255,28 @@ func (s *RefundStore) PrepareRefund(ctx context.Context, p *payment.RefundPlan, 
 	if err != nil {
 		return nil, err
 	}
+	version := 1
+	if local.SubscriptionHold {
+		version = 2
+	}
 	receipt := &payment.RefundReceipt{
-		Version:             1,
-		OperationID:         uuid.NewString(),
-		OrderID:             p.OrderID,
-		OperationVersion:    order.UpdatedAt,
-		PreviousStatus:      p.Order.Status,
-		RefundAmount:        p.RefundAmount,
-		GatewayAmount:       p.GatewayAmount,
-		Reason:              p.Reason,
-		Force:               p.Force,
-		RefundPendingDetail: payment.RefundPendingDetail{DeductBalance: p.DeductBalance, DeductionType: p.DeductionType, BalanceDeducted: local.BalanceToDeduct, SubDaysDeducted: local.SubDaysToDeduct, SubscriptionID: p.SubscriptionID},
+		Version:          version,
+		OperationID:      local.OperationID,
+		OrderID:          p.OrderID,
+		OperationVersion: order.UpdatedAt,
+		PreviousStatus:   p.Order.Status,
+		RefundAmount:     p.RefundAmount,
+		GatewayAmount:    p.GatewayAmount,
+		Reason:           p.Reason,
+		Force:            p.Force,
+		RefundPendingDetail: payment.RefundPendingDetail{
+			DeductBalance:    local.DeductBalance,
+			DeductionType:    local.DeductionType,
+			BalanceDeducted:  local.BalanceToDeduct,
+			SubDaysDeducted:  local.SubDaysToDeduct,
+			SubscriptionID:   local.SubscriptionID,
+			SubscriptionHold: local.SubscriptionHold,
+		},
 	}
 	if !validRefundDeduction(receipt.RefundPendingDetail, false) {
 		return nil, payment.RefundRecoveryRequired("preparation deduction is contradictory")
@@ -279,9 +293,57 @@ func (s *RefundStore) PrepareRefund(ctx context.Context, p *payment.RefundPlan, 
 	// Publish the mutation's local plan copy only after commit succeeds. A failed
 	// preparation leaves the caller's plan unchanged for its error and recovery
 	// handling.
-	local.OperationID = receipt.OperationID
 	*p = local
 	return receipt, nil
+}
+
+// RecordRefundProviderID persists a channel reference before attempting rights
+// finalization. It locks the order without changing its version, then checks
+// that the stored preparation owns this observation before updating it.
+//
+// A repeated observation of the same reference succeeds without another audit
+// write. A different reference requires manual verification. A committed
+// reference survives a later compensation or completion failure and lets
+// recovery query the exact refund rather than rely on discovery.
+func (s *RefundStore) RecordRefundProviderID(ctx context.Context, receipt *payment.RefundReceipt, id string) error {
+	tx, err := s.client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	// Roll back any uncommitted observation so a later recovery reads a
+	// complete receipt with the same order version and channel identity.
+	defer func() { _ = tx.Rollback() }()
+	ctx = dbent.NewTxContext(ctx, tx)
+	current, err := lockedRefundOrder(ctx, tx.Client(), receipt.OrderID)
+	if err != nil {
+		return err
+	}
+	if current.Status != payment.OrderStatusRefunding || !current.UpdatedAt.Equal(receipt.OperationVersion) {
+		return refundConflict()
+	}
+	stored, err := readRefundReceipt(ctx, tx.Client(), receipt.OrderID)
+	if err != nil {
+		return err
+	}
+	if stored.OperationID != receipt.OperationID || !stored.OperationVersion.Equal(receipt.OperationVersion) {
+		return refundConflict()
+	}
+	if stored.RefundID != "" && stored.RefundID != id {
+		return payment.RefundRecoveryRequired("provider refund identity changed")
+	}
+	// Keep the local operation version unchanged so the same committed receipt
+	// can still claim order finalization after the provider reference is recorded.
+	if stored.RefundID == "" {
+		stored.RefundID = id
+		if err = refundAudit(ctx, tx.Client(), receipt.OrderID, "REFUND_PREPARED", stored); err != nil {
+			return err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	receipt.RefundID = id
+	return nil
 }
 
 // expected verifies the refund preparation or pending action identity before
@@ -366,6 +428,9 @@ func (s *RefundStore) CompleteRefund(ctx context.Context, p *payment.RefundPlan,
 		"force":           local.Force,
 		"operationID":     local.OperationID,
 	}
+	if local.SubscriptionHold {
+		detail["subscriptionRevoked"] = local.SubscriptionID > 0
+	}
 	if err = refundAudit(txctx, tx.Client(), p.OrderID, "REFUND_SUCCESS", detail); err != nil {
 		return nil, err
 	}
@@ -373,7 +438,7 @@ func (s *RefundStore) CompleteRefund(ctx context.Context, p *payment.RefundPlan,
 		return nil, fmt.Errorf("commit refund finalization: %w", err)
 	}
 	*p = local
-	return &payment.RefundResult{Success: true, BalanceDeducted: local.BalanceToDeduct, SubDaysDeducted: local.SubDaysToDeduct}, nil
+	return &payment.RefundResult{Status: payment.RefundResultSucceeded, Success: true, BalanceDeducted: local.BalanceToDeduct, SubDaysDeducted: local.SubDaysToDeduct}, nil
 }
 
 // CompensateRefund commits entitlement compensation and the corresponding
@@ -434,9 +499,10 @@ func (s *RefundStore) CompensateRefund(ctx context.Context, p *payment.RefundPla
 			"subscriptionID":      p.SubscriptionID,
 			"balanceRolledBack":   p.BalanceToDeduct,
 			"subDaysRolledBack":   p.SubDaysToDeduct,
-			"deductionRollbackOK": true,
+			"deductionRollbackOK": !r.SubscriptionHold,
+			"subscriptionHold":    r.SubscriptionHold,
 			"operationID":         r.OperationID,
-			"version":             1,
+			"version":             r.Version,
 		}
 	}
 	// Persist the compensated state before its required recovery action and
@@ -485,6 +551,16 @@ func (s *RefundStore) FailPendingRefund(ctx context.Context, o *payment.Order, c
 		if err = matchPendingRefundIdentity(txctx, tx.Client(), o.ID, claim.OperationID, claim.RefundID); err != nil {
 			return nil, err
 		}
+		// Release only a verified operation-owned hold. Legacy subscription
+		// deductions without successful compensation need an operator to
+		// reconstruct the original entitlement before recording failure.
+		if claim.SubscriptionHold && claim.SubscriptionID > 0 {
+			if err = s.rights(tx).ResolveSubscriptionHold(txctx, claim.SubscriptionID, claim.OperationID, false); err != nil {
+				return nil, err
+			}
+		} else if o.OrderType == payment.OrderTypeSubscription && claim.DeductBalance && !claim.DeductionRollbackOK && !claim.SubscriptionHold {
+			return nil, payment.RefundRecoveryRequired("legacy subscription deduction needs manual compensation")
+		}
 		current, err = tx.PaymentOrder.UpdateOneID(o.ID).SetStatus(payment.OrderStatusRefundFailed).SetFailedAt(time.Now()).SetFailedReason(failure).Save(txctx)
 		if err != nil {
 			return nil, err
@@ -507,7 +583,7 @@ func (s *RefundStore) FailPendingRefund(ctx context.Context, o *payment.Order, c
 // malformed or contradictory data becomes REFUND_RECOVERY_REQUIRED because a
 // deduction cannot be reconstructed from absent evidence.
 //
-// Version one, nonempty operation ID, matching order ID and nonzero stored
+// A supported version, nonempty operation ID, matching order ID and nonzero stored
 // time are required. Money values must be finite/nonnegative and the deduction
 // representation must agree with its type and intent. The result preserves
 // explicit false intent and recorded subscription days; it validates recovery
@@ -548,7 +624,7 @@ func readRefundReceipt(ctx context.Context, client *dbent.Client, id int64) (*pa
 	if err = json.Unmarshal([]byte(log.Detail), &receipt); err != nil {
 		return nil, payment.RefundRecoveryRequired("preparation record malformed")
 	}
-	if receipt.Version != 1 || receipt.OperationID == "" || receipt.OrderID != id || receipt.OperationVersion.IsZero() || !validRefundAmount(receipt.RefundAmount) || !validRefundAmount(receipt.GatewayAmount) || !validRefundAmount(receipt.BalanceDeducted) || receipt.SubDaysDeducted < 0 || !validRefundDeduction(receipt.RefundPendingDetail, false) {
+	if !validRefundVersion(receipt.Version, receipt.SubscriptionHold) || receipt.OperationID == "" || receipt.OrderID != id || receipt.OperationVersion.IsZero() || !validRefundAmount(receipt.RefundAmount) || !validRefundAmount(receipt.GatewayAmount) || !validRefundAmount(receipt.BalanceDeducted) || receipt.SubDaysDeducted < 0 || !validRefundDeduction(receipt.RefundPendingDetail, false) {
 		return nil, payment.RefundRecoveryRequired("preparation record invalid")
 	}
 	return &receipt, nil
@@ -585,8 +661,8 @@ func validRefundAmount(v float64) bool { return v >= 0 && !math.IsNaN(v) && !mat
 //
 // Legacy decoding starts with successful rollback and can omit deduction type.
 // Explicitly stored rollback false remains false. A supplied version requires
-// version one, an operation ID and modern deduction consistency; malformed
-// versioned data cannot fall through to legacy handling. Any nonempty
+// a supported version, an operation ID and consistent entitlement data.
+// Malformed versioned data cannot fall through to legacy handling. Any nonempty
 // operation ID also matches preparation intent/type/quantities/grant identity
 // before the result is returned for query finalization.
 func (s *RefundStore) PendingDetail(ctx context.Context, id int64) (payment.RefundPendingDetail, error) {
@@ -617,18 +693,23 @@ func (s *RefundStore) PendingDetail(ctx context.Context, id int64) (payment.Refu
 	// legacy interpretation can accept it.
 	if raw, ok := fields["version"]; ok {
 		var version int
-		if json.Unmarshal(raw, &version) != nil || version != 1 || d.OperationID == "" || !validRefundDeduction(d, false) {
+		if json.Unmarshal(raw, &version) != nil || !validRefundVersion(version, d.SubscriptionHold) || d.OperationID == "" || !validRefundDeduction(d, false) {
 			return d, payment.RefundRecoveryRequired("pending record version or deduction invalid")
 		}
 	}
+	if d.SubscriptionHold && (d.OperationID == "" || fields["version"] == nil || d.DeductionRollbackOK) {
+		return d, payment.RefundRecoveryRequired("pending subscription hold is inconsistent")
+	}
+	d.ObservedAt = log.CreatedAt
 	// A supplied operation ID binds pending deductions to preparation quantities
 	// and intent. Read and compare that receipt so finalization cannot associate
 	// a different deduction with this provider result.
 	if d.OperationID != "" {
 		r, e := readRefundReceipt(ctx, s.client, id)
-		if e != nil || r.OperationID != d.OperationID || r.DeductBalance != d.DeductBalance || r.DeductionType != d.DeductionType || r.BalanceDeducted != d.BalanceDeducted || r.SubDaysDeducted != d.SubDaysDeducted || r.SubscriptionID != d.SubscriptionID {
+		if e != nil || r.OperationID != d.OperationID || r.DeductBalance != d.DeductBalance || r.DeductionType != d.DeductionType || r.BalanceDeducted != d.BalanceDeducted || r.SubDaysDeducted != d.SubDaysDeducted || r.SubscriptionID != d.SubscriptionID || r.SubscriptionHold != d.SubscriptionHold || (r.RefundID != "" && r.RefundID != d.RefundID) {
 			return d, payment.RefundRecoveryRequired("pending preparation mismatch")
 		}
+		d.ObservedAt = r.OperationVersion
 	}
 	return d, nil
 }
@@ -699,6 +780,10 @@ func validRefundDeduction(d payment.RefundPendingDetail, legacy bool) bool {
 	if !legacy && !d.DeductBalance && (d.BalanceDeducted != 0 || d.SubDaysDeducted != 0) {
 		return false
 	}
+	if d.SubscriptionHold {
+		return d.DeductBalance && d.DeductionType == payment.DeductionTypeSubscription &&
+			d.BalanceDeducted == 0 && d.SubDaysDeducted == 0
+	}
 	switch d.DeductionType {
 	case payment.DeductionTypeNone:
 		return d.BalanceDeducted == 0 && d.SubDaysDeducted == 0 && d.SubscriptionID == 0
@@ -711,4 +796,9 @@ func validRefundDeduction(d payment.RefundPendingDetail, legacy bool) bool {
 	default:
 		return false
 	}
+}
+
+// validRefundVersion checks which entitlement encoding a receipt version permits.
+func validRefundVersion(version int, hold bool) bool {
+	return (version == 1 && !hold) || (version == 2 && hold)
 }

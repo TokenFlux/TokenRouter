@@ -80,6 +80,10 @@ type UserSubscription struct {
 	// labels become active there.
 	Status string // stored subscription status label
 
+	// RefundHoldOperationID identifies the refund that blocks use of this
+	// grant without changing its stored lifecycle, schedule, or quota.
+	RefundHoldOperationID *string
+
 	// DailyWindowStart, WeeklyWindowStart and MonthlyWindowStart identify
 	// independent quota periods. Nil anchors can request first activation for a
 	// positive limit; reset-time displays return nil for their missing anchors.
@@ -162,11 +166,11 @@ func (a SubscriptionWindowActivation) Any() bool {
 }
 
 // IsActive reports whether a nonnil grant has stored active status and
-// currently lies in its half-open lifetime. Soft deletion rejects it; callers
-// needing derived-label behavior use IsEffective instead.
+// currently lies in its half-open lifetime. Deleted or refund-held grants
+// fail this check. Callers needing derived status use IsEffective.
 func (s *UserSubscription) IsActive() bool {
 	now := time.Now()
-	return s.DeletedAt == nil && s.Status == SubscriptionStatusActive && !now.Before(s.StartsAt) && now.Before(s.ExpiresAt)
+	return s.DeletedAt == nil && s.RefundHoldOperationID == nil && s.Status == SubscriptionStatusActive && !now.Before(s.StartsAt) && now.Before(s.ExpiresAt)
 }
 
 // IsPending reports a nondeleted stored pending grant whose start is still
@@ -192,8 +196,8 @@ func (s *UserSubscription) IsEffective() bool {
 
 // EffectiveStatus derives a grant's display state at the supplied instant. Nil
 // yields expired, deletion yields revoked, and expiry equality or earlier
-// yields expired before any future-start or suspension decision. A future
-// start then yields pending.
+// yields expired before any future-start or suspension decision. A refund
+// hold suspends a current or queued grant. A future start otherwise yields pending.
 //
 // Inside the live interval, stored suspension remains suspended and every
 // other stored label becomes active. Callers therefore cannot treat a stored
@@ -209,6 +213,9 @@ func (s *UserSubscription) EffectiveStatus(now time.Time) string {
 	}
 	if !s.ExpiresAt.After(now) {
 		return SubscriptionStatusExpired
+	}
+	if s.RefundHoldOperationID != nil {
+		return SubscriptionStatusSuspended
 	}
 	if now.Before(s.StartsAt) {
 		return SubscriptionStatusPending

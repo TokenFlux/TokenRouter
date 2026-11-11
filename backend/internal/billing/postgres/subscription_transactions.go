@@ -7,6 +7,7 @@ import (
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/apikey"
+	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
 	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -235,4 +236,88 @@ func (m *SubscriptionMutations) LockSubscription(ctx context.Context, id int64) 
 	}
 	_, err = tx.UserSubscription.Query().Where(usersubscription.IDEQ(id)).ForUpdate().Only(ctx)
 	return translatePersistenceError(err, billing.ErrSubscriptionNotFound, nil)
+}
+
+// HoldRefundSubscription locks the owner and the exact purchase grant before
+// writing the refund marker. A missing or expired grant returns not-found for
+// the caller's force decision. An already held grant or ambiguous source
+// blocks the refund because a second operation cannot safely claim it.
+//
+// The caller supplies the transaction and operation identity that it records
+// with the payment order. The hold changes neither quota nor renewal dates,
+// so the grant keeps its position in the chain while funding excludes it.
+func (m *SubscriptionMutations) HoldRefundSubscription(ctx context.Context, userID, orderID int64, operationID string) (int64, error) {
+	tx := m.transaction(ctx)
+	if tx == nil || operationID == "" {
+		return 0, fmt.Errorf("refund hold requires a transaction and operation identity")
+	}
+	// Match issuance and settlement's user-first lock order so the purchase
+	// grant and its eligibility cannot change before the hold commits.
+	if err := m.LockGrantUser(ctx, userID); err != nil {
+		return 0, err
+	}
+	sub, err := tx.UserSubscription.Query().
+		Where(usersubscription.UserIDEQ(userID), usersubscription.SourceOrderIDEQ(orderID)).
+		ForUpdate().
+		Only(ctx)
+	if err != nil {
+		return 0, translatePersistenceError(err, billing.ErrSubscriptionNotFound, nil)
+	}
+	if sub.RefundHoldOperationID != nil {
+		return 0, billing.ErrSubscriptionRefundHeld
+	}
+	status := SubscriptionFromEntity(sub).EffectiveStatus(time.Now())
+	if status != billing.SubscriptionStatusActive && status != billing.SubscriptionStatusPending {
+		return 0, billing.ErrSubscriptionNotFound
+	}
+	err = tx.UserSubscription.UpdateOneID(sub.ID).SetRefundHoldOperationID(operationID).Exec(ctx)
+	return sub.ID, err
+}
+
+// ClearRefundSubscriptionHold releases the specified operation's marker while
+// retaining the transaction locks. The caller can revoke the same grant before
+// commit on success, or commit the release alone on a definitive failure.
+func (m *SubscriptionMutations) ClearRefundSubscriptionHold(ctx context.Context, id int64, operationID string) error {
+	tx := m.transaction(ctx)
+	if tx == nil || operationID == "" {
+		return fmt.Errorf("refund hold release requires a transaction and operation identity")
+	}
+	if err := m.LockSubscription(ctx, id); err != nil {
+		return err
+	}
+	// The identity predicate prevents a stale refund from clearing a newer
+	// hold. Keep the same transaction open if the grant is being revoked.
+	err := tx.UserSubscription.UpdateOneID(id).
+		Where(usersubscription.RefundHoldOperationIDEQ(operationID)).
+		ClearRefundHoldOperationID().
+		Exec(ctx)
+	return translatePersistenceError(err, billing.ErrSubscriptionRefundHeld, nil)
+}
+
+// VerifyRevokedRefundSubscription confirms that a legacy refund already revoked
+// the matching purchase grant. The caller holds the refund transaction open;
+// a missing or ambiguous match leaves finalization for manual recovery.
+func (m *SubscriptionMutations) VerifyRevokedRefundSubscription(ctx context.Context, userID, orderID, id int64) error {
+	tx := m.transaction(ctx)
+	if tx == nil {
+		return fmt.Errorf("legacy refund verification requires a transaction")
+	}
+	if err := m.LockGrantUser(ctx, userID); err != nil {
+		return err
+	}
+	query := tx.UserSubscription.Query().Where(
+		usersubscription.UserIDEQ(userID),
+		usersubscription.SourceOrderIDEQ(orderID),
+	)
+	if id > 0 {
+		query.Where(usersubscription.IDEQ(id))
+	}
+	sub, err := query.ForUpdate().Only(mixins.SkipSoftDelete(ctx))
+	if err != nil {
+		return err
+	}
+	if sub.DeletedAt == nil {
+		return billing.ErrSubscriptionRefundHeld
+	}
+	return nil
 }

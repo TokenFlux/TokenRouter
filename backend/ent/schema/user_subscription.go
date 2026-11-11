@@ -139,6 +139,12 @@ func (UserSubscription) Fields() []ent.Field {
 		field.Int64("source_order_id").
 			Optional().
 			Nillable(),
+		// refund_hold_operation_id identifies the refund that temporarily blocks
+		// this grant from funding new work. NULL leaves the usual lifecycle and
+		// quota rules in effect. Only the owning refund may release its hold.
+		field.String("refund_hold_operation_id").
+			Optional().
+			Nillable(),
 		// Optional grant notes.
 		field.String("notes").
 			Optional().

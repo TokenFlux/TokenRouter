@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -883,4 +887,112 @@ func stripeStringValues(values []*string) []string {
 		out = append(out, *value)
 	}
 	return out
+}
+
+// TestStripeRefundRetainsUnknownOutcome covers a lost response and an internal
+// Stripe error after submission. Both leave refund preparation recoverable,
+// while a definite pre-execution parameter rejection remains compensatable.
+func TestStripeRefundRetainsUnknownOutcome(t *testing.T) {
+	for _, tc := range []struct {
+		name        string // scenario name
+		status      int    // Stripe HTTP status
+		code        string // Stripe error code
+		wantUnknown bool   // outcome may already have been accepted
+	}{
+		{name: "lost reply", wantUnknown: true},
+		{name: "internal error", status: 500, wantUnknown: true},
+		{name: "already refunded", status: 400, code: "charge_already_refunded", wantUnknown: true},
+		{name: "validation rejection", status: 400, code: "parameter_missing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if req.Method != http.MethodPost || req.URL.Path != "/v1/refunds" {
+					http.NotFound(w, req)
+					return
+				}
+				if tc.status == 0 {
+					// Abort the connection after receiving the POST to reproduce
+					// a transport failure with no authoritative Stripe result.
+					panic(http.ErrAbortHandler)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": map[string]string{"type": "invalid_request_error", "code": tc.code, "message": "refund fixture"},
+				})
+			}))
+			defer server.Close()
+			adapter := stripeRefundHTTPFixture(server)
+			_, err := adapter.Refund(t.Context(), payment.RefundRequest{TradeNo: "pi_fixture", OrderID: "fixture", Amount: "42.60"})
+			require.Error(t, err)
+			require.Equal(t, tc.wantUnknown, errors.Is(err, payment.ErrRefundOutcomeUnknown))
+		})
+	}
+}
+
+// TestStripeQueryRefundMatchesExactOperation checks that recovery can find a
+// unique success behind a newer unrelated refund. Ambiguous discovery and an
+// exact reference with the wrong amount both leave the result unverified.
+func TestStripeQueryRefundMatchesExactOperation(t *testing.T) {
+	const correct = `{"id":"re_match","created":1000,"amount":4260,"currency":"cny","payment_intent":"pi_fixture","status":"succeeded"}`
+	const other = `{"id":"re_other","created":1001,"amount":100,"currency":"cny","payment_intent":"pi_fixture","status":"succeeded"}`
+	const duplicate = `{"id":"re_duplicate","created":1001,"amount":4260,"currency":"cny","payment_intent":"pi_fixture","status":"succeeded"}`
+	for _, tc := range []struct {
+		name     string // scenario name
+		response string // Stripe response JSON
+		refundID string // saved refund identity, if known
+		wantID   string // expected unique confirmed refund
+	}{
+		{name: "one matching success", response: `{"data":[` + other + `,` + correct + `],"has_more":false}`, wantID: "re_match"},
+		{name: "multiple matches", response: `{"data":[` + duplicate + `,` + correct + `],"has_more":false}`},
+		{name: "saved reference mismatch", response: other, refundID: "re_other"},
+		{name: "saved reference matches", response: correct, refundID: "re_match", wantID: "re_match"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				expectedPath := "/v1/refunds"
+				if tc.refundID != "" {
+					expectedPath += "/" + tc.refundID
+				} else if req.URL.Query().Get("payment_intent") != "pi_fixture" ||
+					req.URL.Query().Get("created[gte]") != "1000" {
+					http.Error(w, "missing discovery filters", http.StatusBadRequest)
+					return
+				}
+				if req.Method != http.MethodGet || req.URL.Path != expectedPath {
+					http.NotFound(w, req)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, tc.response)
+			}))
+			defer server.Close()
+			adapter := stripeRefundHTTPFixture(server)
+			response, err := adapter.QueryRefund(t.Context(), payment.RefundQueryRequest{
+				TradeNo: "pi_fixture", Currency: "CNY", Amount: "42.60",
+				RefundID: tc.refundID, EarliestCreatedAt: time.Unix(1000, 500),
+			})
+			if tc.wantID == "" {
+				require.Error(t, err)
+				require.Nil(t, response)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantID, response.RefundID)
+			require.Equal(t, payment.ProviderStatusSuccess, response.Status)
+		})
+	}
+}
+
+// stripeRefundHTTPFixture routes Stripe SDK requests to the local test server.
+func stripeRefundHTTPFixture(server *httptest.Server) *Stripe {
+	backend := stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
+		HTTPClient:        server.Client(),
+		URL:               stripe.String(server.URL),
+		MaxNetworkRetries: stripe.Int64(0),
+	})
+	return &Stripe{
+		config:      map[string]string{"currency": "CNY"},
+		initialized: true,
+		sc:          stripe.NewClient("sk_test_fixture", stripe.WithBackends(&stripe.Backends{API: backend})),
+	}
 }

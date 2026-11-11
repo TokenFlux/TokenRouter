@@ -166,6 +166,25 @@ describe('AdminOrdersView', () => {
     wrapper.unmount()
   })
 
+  // A structured pending response closes the refund draft even when the
+  // advisory message does not name the channel's pending status.
+  it('refreshes a pending refund and offers only the query action', async () => {
+    mockRefundOrder.mockResolvedValueOnce({ data: { success: false, status: 'pending' } })
+    const wrapper = mountView()
+    await flushPromises()
+    await findRefundAction(wrapper)!.trigger('click')
+    await flushPromises()
+    mockGetOrders.mockResolvedValueOnce({
+      data: { items: [{ ...order, status: 'REFUND_PENDING' }], total: 1 },
+    })
+    await wrapper.get('#refund-form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('#refund-form').exists()).toBe(false)
+    expect(findRefundAction(wrapper)).toBeUndefined()
+    expect(wrapper.text()).toContain('payment.admin.queryRefundStatus')
+    expect(mockShowWarning).toHaveBeenCalledWith('payment.admin.refundPending')
+  })
+
   // The refund API requires force consent after the initial submission. The dialog must
   // retain the warning, require the checkbox before retry, and clear that state when
   // reopened.

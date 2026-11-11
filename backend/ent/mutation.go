@@ -63108,47 +63108,48 @@ func (m *UserDisabledPublicGroupMutation) ResetEdge(name string) error {
 // UserSubscriptionMutation represents an operation that mutates the UserSubscription nodes in the graph.
 type UserSubscriptionMutation struct {
 	config
-	op                      Op
-	typ                     string
-	id                      *int64
-	created_at              *time.Time
-	updated_at              *time.Time
-	deleted_at              *time.Time
-	starts_at               *time.Time
-	expires_at              *time.Time
-	status                  *string
-	daily_window_start      *time.Time
-	weekly_window_start     *time.Time
-	monthly_window_start    *time.Time
-	daily_limit_usd         *float64
-	adddaily_limit_usd      *float64
-	weekly_limit_usd        *float64
-	addweekly_limit_usd     *float64
-	monthly_limit_usd       *float64
-	addmonthly_limit_usd    *float64
-	daily_usage_usd         *float64
-	adddaily_usage_usd      *float64
-	weekly_usage_usd        *float64
-	addweekly_usage_usd     *float64
-	monthly_usage_usd       *float64
-	addmonthly_usage_usd    *float64
-	assigned_at             *time.Time
-	source_order_id         *int64
-	addsource_order_id      *int64
-	notes                   *string
-	clearedFields           map[string]struct{}
-	user                    *int64
-	cleareduser             bool
-	plan                    *int64
-	clearedplan             bool
-	assigned_by_user        *int64
-	clearedassigned_by_user bool
-	usage_logs              map[int64]struct{}
-	removedusage_logs       map[int64]struct{}
-	clearedusage_logs       bool
-	done                    bool
-	oldValue                func(context.Context) (*UserSubscription, error)
-	predicates              []predicate.UserSubscription
+	op                       Op
+	typ                      string
+	id                       *int64
+	created_at               *time.Time
+	updated_at               *time.Time
+	deleted_at               *time.Time
+	starts_at                *time.Time
+	expires_at               *time.Time
+	status                   *string
+	daily_window_start       *time.Time
+	weekly_window_start      *time.Time
+	monthly_window_start     *time.Time
+	daily_limit_usd          *float64
+	adddaily_limit_usd       *float64
+	weekly_limit_usd         *float64
+	addweekly_limit_usd      *float64
+	monthly_limit_usd        *float64
+	addmonthly_limit_usd     *float64
+	daily_usage_usd          *float64
+	adddaily_usage_usd       *float64
+	weekly_usage_usd         *float64
+	addweekly_usage_usd      *float64
+	monthly_usage_usd        *float64
+	addmonthly_usage_usd     *float64
+	assigned_at              *time.Time
+	source_order_id          *int64
+	addsource_order_id       *int64
+	refund_hold_operation_id *string
+	notes                    *string
+	clearedFields            map[string]struct{}
+	user                     *int64
+	cleareduser              bool
+	plan                     *int64
+	clearedplan              bool
+	assigned_by_user         *int64
+	clearedassigned_by_user  bool
+	usage_logs               map[int64]struct{}
+	removedusage_logs        map[int64]struct{}
+	clearedusage_logs        bool
+	done                     bool
+	oldValue                 func(context.Context) (*UserSubscription, error)
+	predicates               []predicate.UserSubscription
 }
 
 var _ ent.Mutation = (*UserSubscriptionMutation)(nil)
@@ -64230,6 +64231,55 @@ func (m *UserSubscriptionMutation) ResetSourceOrderID() {
 	delete(m.clearedFields, usersubscription.FieldSourceOrderID)
 }
 
+// SetRefundHoldOperationID sets the "refund_hold_operation_id" field.
+func (m *UserSubscriptionMutation) SetRefundHoldOperationID(s string) {
+	m.refund_hold_operation_id = &s
+}
+
+// RefundHoldOperationID returns the value of the "refund_hold_operation_id" field in the mutation.
+func (m *UserSubscriptionMutation) RefundHoldOperationID() (r string, exists bool) {
+	v := m.refund_hold_operation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefundHoldOperationID returns the old "refund_hold_operation_id" field's value of the UserSubscription entity.
+// If the UserSubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSubscriptionMutation) OldRefundHoldOperationID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefundHoldOperationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefundHoldOperationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefundHoldOperationID: %w", err)
+	}
+	return oldValue.RefundHoldOperationID, nil
+}
+
+// ClearRefundHoldOperationID clears the value of the "refund_hold_operation_id" field.
+func (m *UserSubscriptionMutation) ClearRefundHoldOperationID() {
+	m.refund_hold_operation_id = nil
+	m.clearedFields[usersubscription.FieldRefundHoldOperationID] = struct{}{}
+}
+
+// RefundHoldOperationIDCleared returns if the "refund_hold_operation_id" field was cleared in this mutation.
+func (m *UserSubscriptionMutation) RefundHoldOperationIDCleared() bool {
+	_, ok := m.clearedFields[usersubscription.FieldRefundHoldOperationID]
+	return ok
+}
+
+// ResetRefundHoldOperationID resets all changes to the "refund_hold_operation_id" field.
+func (m *UserSubscriptionMutation) ResetRefundHoldOperationID() {
+	m.refund_hold_operation_id = nil
+	delete(m.clearedFields, usersubscription.FieldRefundHoldOperationID)
+}
+
 // SetNotes sets the "notes" field.
 func (m *UserSubscriptionMutation) SetNotes(s string) {
 	m.notes = &s
@@ -64461,7 +64511,7 @@ func (m *UserSubscriptionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserSubscriptionMutation) Fields() []string {
-	fields := make([]string, 0, 21)
+	fields := make([]string, 0, 22)
 	if m.created_at != nil {
 		fields = append(fields, usersubscription.FieldCreatedAt)
 	}
@@ -64522,6 +64572,9 @@ func (m *UserSubscriptionMutation) Fields() []string {
 	if m.source_order_id != nil {
 		fields = append(fields, usersubscription.FieldSourceOrderID)
 	}
+	if m.refund_hold_operation_id != nil {
+		fields = append(fields, usersubscription.FieldRefundHoldOperationID)
+	}
 	if m.notes != nil {
 		fields = append(fields, usersubscription.FieldNotes)
 	}
@@ -64573,6 +64626,8 @@ func (m *UserSubscriptionMutation) Field(name string) (ent.Value, bool) {
 		return m.AssignedAt()
 	case usersubscription.FieldSourceOrderID:
 		return m.SourceOrderID()
+	case usersubscription.FieldRefundHoldOperationID:
+		return m.RefundHoldOperationID()
 	case usersubscription.FieldNotes:
 		return m.Notes()
 	}
@@ -64624,6 +64679,8 @@ func (m *UserSubscriptionMutation) OldField(ctx context.Context, name string) (e
 		return m.OldAssignedAt(ctx)
 	case usersubscription.FieldSourceOrderID:
 		return m.OldSourceOrderID(ctx)
+	case usersubscription.FieldRefundHoldOperationID:
+		return m.OldRefundHoldOperationID(ctx)
 	case usersubscription.FieldNotes:
 		return m.OldNotes(ctx)
 	}
@@ -64774,6 +64831,13 @@ func (m *UserSubscriptionMutation) SetField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSourceOrderID(v)
+		return nil
+	case usersubscription.FieldRefundHoldOperationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefundHoldOperationID(v)
 		return nil
 	case usersubscription.FieldNotes:
 		v, ok := value.(string)
@@ -64926,6 +64990,9 @@ func (m *UserSubscriptionMutation) ClearedFields() []string {
 	if m.FieldCleared(usersubscription.FieldSourceOrderID) {
 		fields = append(fields, usersubscription.FieldSourceOrderID)
 	}
+	if m.FieldCleared(usersubscription.FieldRefundHoldOperationID) {
+		fields = append(fields, usersubscription.FieldRefundHoldOperationID)
+	}
 	if m.FieldCleared(usersubscription.FieldNotes) {
 		fields = append(fields, usersubscription.FieldNotes)
 	}
@@ -64969,6 +65036,9 @@ func (m *UserSubscriptionMutation) ClearField(name string) error {
 		return nil
 	case usersubscription.FieldSourceOrderID:
 		m.ClearSourceOrderID()
+		return nil
+	case usersubscription.FieldRefundHoldOperationID:
+		m.ClearRefundHoldOperationID()
 		return nil
 	case usersubscription.FieldNotes:
 		m.ClearNotes()
@@ -65040,6 +65110,9 @@ func (m *UserSubscriptionMutation) ResetField(name string) error {
 		return nil
 	case usersubscription.FieldSourceOrderID:
 		m.ResetSourceOrderID()
+		return nil
+	case usersubscription.FieldRefundHoldOperationID:
+		m.ResetRefundHoldOperationID()
 		return nil
 	case usersubscription.FieldNotes:
 		m.ResetNotes()

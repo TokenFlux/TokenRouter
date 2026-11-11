@@ -67,6 +67,9 @@ export interface UpdatePaymentConfigRequest {
  * confirmation or deducted entitlements.
  */
 export interface RefundResult {
+  // New servers provide this outcome so clients can refresh or ask for consent
+  // independently of the wording in warning. Older servers omit the field.
+  status?: 'succeeded' | 'pending' | 'failed' | 'requires_force'
   success: boolean // Operation success flag.
   warning?: string // Server advisory message.
   require_force?: boolean // Recorded require force.

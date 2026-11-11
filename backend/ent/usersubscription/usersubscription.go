@@ -55,6 +55,8 @@ const (
 	FieldAssignedAt = "assigned_at"
 	// FieldSourceOrderID holds the string denoting the source_order_id field in the database.
 	FieldSourceOrderID = "source_order_id"
+	// FieldRefundHoldOperationID holds the string denoting the refund_hold_operation_id field in the database.
+	FieldRefundHoldOperationID = "refund_hold_operation_id"
 	// FieldNotes holds the string denoting the notes field in the database.
 	FieldNotes = "notes"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -120,6 +122,7 @@ var Columns = []string{
 	FieldAssignedBy,
 	FieldAssignedAt,
 	FieldSourceOrderID,
+	FieldRefundHoldOperationID,
 	FieldNotes,
 }
 
@@ -267,6 +270,11 @@ func ByAssignedAt(opts ...sql.OrderTermOption) OrderOption {
 // BySourceOrderID orders the results by the source_order_id field.
 func BySourceOrderID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSourceOrderID, opts...).ToFunc()
+}
+
+// ByRefundHoldOperationID orders the results by the refund_hold_operation_id field.
+func ByRefundHoldOperationID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRefundHoldOperationID, opts...).ToFunc()
 }
 
 // ByNotes orders the results by the notes field.

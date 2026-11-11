@@ -127,7 +127,7 @@
                 {{ t('payment.admin.queryRefundStatus') }}
               </button>
               <button
-                v-else-if="row.status === 'COMPLETED' || row.status === 'PARTIALLY_REFUNDED'"
+                v-else-if="row.status === 'COMPLETED'"
                 @click="openRefundDialog(row)"
                 class="inline-flex items-center gap-1 rounded-compact px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
               >
@@ -633,6 +633,7 @@ const statusFilterOptions = computed(() => [
   { value: 'FAILED', label: t('payment.status.failed') },
   { value: 'REFUNDED', label: t('payment.status.refunded') },
   { value: 'REFUND_REQUESTED', label: t('payment.status.refund_requested') },
+  { value: 'REFUNDING', label: t('payment.status.refunding') },
   { value: 'REFUND_PENDING', label: t('payment.status.refund_pending') },
   { value: 'REFUND_FAILED', label: t('payment.status.refund_failed') },
 ])
@@ -798,16 +799,9 @@ function closeRefundDialog() {
   refundWarning.value = ''
 }
 
-// isRefundPendingWarning recognizes pending markers in English or Chinese warning text.
-// Missing text becomes empty, and the current matching rule determines whether the caller
-// treats a response as pending.
-function isRefundPendingWarning(warning: string | undefined): boolean {
-  return /pending|处理中|待/.test(String(warning || '').toLowerCase())
-}
-
 // handleRefund submits the dialog draft for the currently selected order and interprets
-// the refund response. Success closes the editor and starts a list refresh. A warning
-// recognized as pending follows the same close-and-refresh path with a warning message. An
+// the refund response. Success closes the editor and starts a list refresh. A pending
+// result follows the same close-and-refresh path with a warning message. An
 // unconfirmed outcome closes the editor and refreshes the claimed refund state. A
 // force requirement keeps the editor open and exposes server guidance so the administrator
 // can consent before resubmitting. Other failures retain the draft, and the submitting
@@ -833,17 +827,20 @@ async function handleRefund(data: {
       loadOrders()
       return
     }
-    if (isRefundPendingWarning(res.data.warning)) {
+    if (res.data.status === 'pending') {
       appStore.showWarning(t('payment.admin.refundPending'))
       closeRefundDialog()
       loadOrders()
       return
     }
-    if (res.data.require_force) {
+    if (res.data.status === 'requires_force' || res.data.require_force) {
       // The server requires fresh force consent, so retain the open refund draft and
       // expose its warning before allowing the administrator to resubmit.
       refundRequireForce.value = true
-      refundWarning.value = res.data.warning || ''
+      refundWarning.value =
+        selectedOrder.value?.order_type === 'subscription'
+          ? t('payment.admin.subscriptionRefundForceHint')
+          : res.data.warning || ''
       return
     }
     appStore.showError(res.data.warning || t('common.error'))
@@ -876,13 +873,18 @@ async function handleQueryRefund(order: PaymentOrder) {
     const res = await adminPaymentAPI.queryRefund(order.id)
     if (res.data.success) {
       appStore.showSuccess(t('payment.admin.refundSuccess'))
-    } else if (isRefundPendingWarning(res.data.warning)) {
+    } else if (res.data.status === 'pending') {
       appStore.showWarning(t('payment.admin.refundPending'))
     } else {
       appStore.showError(res.data.warning || t('common.error'))
     }
     loadOrders()
   } catch (err: unknown) {
+    if (extractApiErrorCode(err) === 'REFUND_RECOVERY_REQUIRED') {
+      appStore.showWarning(t('payment.errors.REFUND_RECOVERY_REQUIRED'))
+      await loadOrders()
+      return
+    }
     appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
   } finally {
     // Read the latest set at completion so clearing this row does not discard indicators

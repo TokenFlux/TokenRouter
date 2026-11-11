@@ -40,6 +40,7 @@ const MaxValidityDays = 36500
 var (
 	ErrSubscriptionAlreadyExists = apperror.Conflict("SUBSCRIPTION_ALREADY_EXISTS", "subscription already exists")
 	ErrSubscriptionNilInput      = apperror.BadRequest("SUBSCRIPTION_NIL_INPUT", "subscription input cannot be nil")
+	ErrSubscriptionRefundHeld    = apperror.Conflict("SUBSCRIPTION_REFUND_HELD", "subscription has a refund in progress")
 	ErrSubscriptionNotFound      = apperror.NotFound("SUBSCRIPTION_NOT_FOUND", "subscription not found")
 	// MaxExpiresAt caps expiries after calendar-day addition and chain shifts. It
 	// leaves starts unchanged, so callers still apply each mutation's validity
@@ -667,6 +668,11 @@ func (s *SubscriptionService) revokeSubscriptionLocked(ctx context.Context, subs
 	if err != nil {
 		return err
 	}
+	// The owning refund releases its marker before revoking. Other mutations
+	// must leave the held grant and its position available for recovery.
+	if sub.RefundHoldOperationID != nil {
+		return ErrSubscriptionRefundHeld
+	}
 
 	chain, err := s.userSubRepo.ListByUserIDAndPlanID(ctx, sub.UserID, sub.PlanID)
 	if err != nil {
@@ -956,6 +962,11 @@ func (s *SubscriptionService) extendSubscriptionLocked(ctx context.Context, subs
 	if err != nil {
 		return nil, ErrSubscriptionNotFound
 	}
+	// The owning refund releases its marker before revoking. Other mutations
+	// must leave the held grant and its position available for recovery.
+	if sub.RefundHoldOperationID != nil {
+		return nil, ErrSubscriptionRefundHeld
+	}
 	if days > MaxValidityDays {
 		days = MaxValidityDays
 	}
@@ -1019,6 +1030,11 @@ func (s *SubscriptionService) setSubscriptionValidityDaysLocked(ctx context.Cont
 	sub, err := s.userSubRepo.GetByID(ctx, subscriptionID)
 	if err != nil {
 		return nil, ErrSubscriptionNotFound
+	}
+	// The owning refund releases its marker before revoking. Other mutations
+	// must leave the held grant and its position available for recovery.
+	if sub.RefundHoldOperationID != nil {
+		return nil, ErrSubscriptionRefundHeld
 	}
 	if validityDays <= 0 {
 		return nil, ErrAdjustWouldExpire

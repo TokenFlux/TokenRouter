@@ -392,6 +392,26 @@ func (_u *UserSubscriptionUpdate) ClearSourceOrderID() *UserSubscriptionUpdate {
 	return _u
 }
 
+// SetRefundHoldOperationID sets the "refund_hold_operation_id" field.
+func (_u *UserSubscriptionUpdate) SetRefundHoldOperationID(v string) *UserSubscriptionUpdate {
+	_u.mutation.SetRefundHoldOperationID(v)
+	return _u
+}
+
+// SetNillableRefundHoldOperationID sets the "refund_hold_operation_id" field if the given value is not nil.
+func (_u *UserSubscriptionUpdate) SetNillableRefundHoldOperationID(v *string) *UserSubscriptionUpdate {
+	if v != nil {
+		_u.SetRefundHoldOperationID(*v)
+	}
+	return _u
+}
+
+// ClearRefundHoldOperationID clears the value of the "refund_hold_operation_id" field.
+func (_u *UserSubscriptionUpdate) ClearRefundHoldOperationID() *UserSubscriptionUpdate {
+	_u.mutation.ClearRefundHoldOperationID()
+	return _u
+}
+
 // SetNotes sets the "notes" field.
 func (_u *UserSubscriptionUpdate) SetNotes(v string) *UserSubscriptionUpdate {
 	_u.mutation.SetNotes(v)
@@ -662,6 +682,12 @@ func (_u *UserSubscriptionUpdate) sqlSave(ctx context.Context) (_node int, err e
 	}
 	if _u.mutation.SourceOrderIDCleared() {
 		_spec.ClearField(usersubscription.FieldSourceOrderID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.RefundHoldOperationID(); ok {
+		_spec.SetField(usersubscription.FieldRefundHoldOperationID, field.TypeString, value)
+	}
+	if _u.mutation.RefundHoldOperationIDCleared() {
+		_spec.ClearField(usersubscription.FieldRefundHoldOperationID, field.TypeString)
 	}
 	if value, ok := _u.mutation.Notes(); ok {
 		_spec.SetField(usersubscription.FieldNotes, field.TypeString, value)
@@ -1182,6 +1208,26 @@ func (_u *UserSubscriptionUpdateOne) ClearSourceOrderID() *UserSubscriptionUpdat
 	return _u
 }
 
+// SetRefundHoldOperationID sets the "refund_hold_operation_id" field.
+func (_u *UserSubscriptionUpdateOne) SetRefundHoldOperationID(v string) *UserSubscriptionUpdateOne {
+	_u.mutation.SetRefundHoldOperationID(v)
+	return _u
+}
+
+// SetNillableRefundHoldOperationID sets the "refund_hold_operation_id" field if the given value is not nil.
+func (_u *UserSubscriptionUpdateOne) SetNillableRefundHoldOperationID(v *string) *UserSubscriptionUpdateOne {
+	if v != nil {
+		_u.SetRefundHoldOperationID(*v)
+	}
+	return _u
+}
+
+// ClearRefundHoldOperationID clears the value of the "refund_hold_operation_id" field.
+func (_u *UserSubscriptionUpdateOne) ClearRefundHoldOperationID() *UserSubscriptionUpdateOne {
+	_u.mutation.ClearRefundHoldOperationID()
+	return _u
+}
+
 // SetNotes sets the "notes" field.
 func (_u *UserSubscriptionUpdateOne) SetNotes(v string) *UserSubscriptionUpdateOne {
 	_u.mutation.SetNotes(v)
@@ -1482,6 +1528,12 @@ func (_u *UserSubscriptionUpdateOne) sqlSave(ctx context.Context) (_node *UserSu
 	}
 	if _u.mutation.SourceOrderIDCleared() {
 		_spec.ClearField(usersubscription.FieldSourceOrderID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.RefundHoldOperationID(); ok {
+		_spec.SetField(usersubscription.FieldRefundHoldOperationID, field.TypeString, value)
+	}
+	if _u.mutation.RefundHoldOperationIDCleared() {
+		_spec.ClearField(usersubscription.FieldRefundHoldOperationID, field.TypeString)
 	}
 	if value, ok := _u.mutation.Notes(); ok {
 		_spec.SetField(usersubscription.FieldNotes, field.TypeString, value)

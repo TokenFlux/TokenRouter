@@ -761,8 +761,11 @@ export default {
       INVALID_STATUS: 'The current order status does not allow this operation.',
       BALANCE_NOT_ENOUGH: 'Refund amount exceeds balance.',
       REFUND_AMOUNT_EXCEEDED: 'Refund amount exceeds the recharge amount.',
+      REFUND_TRADE_REFERENCE_MISSING:
+        'This order is missing its payment reference. Check the provider payment record.',
+      SUBSCRIPTION_REFUND_FULL_ONLY: 'Subscription orders can only be refunded in full.',
       REFUND_RECOVERY_REQUIRED:
-        'The refund result is unconfirmed. Verify it with the payment provider before taking further action. Do not submit another refund.',
+        'The refund result is unconfirmed. Query the refund status in the order or verify it with the payment provider.',
       REFUND_QUERY_UNSUPPORTED:
         'This payment provider does not support refund status queries. Verify the refund in the provider console.',
       REFUND_FAILED: 'Refund failed.',
@@ -870,6 +873,13 @@ export default {
       alreadyRefunded: 'Already Refunded',
       deductBalance: 'Deduct Balance',
       deductBalanceHint: 'Subtract recharged amount from user balance',
+      revokeRefundSubscription: 'Revoke subscription',
+      revokeRefundSubscriptionHint:
+        'Submitting pauses the subscription immediately. A successful refund revokes it.',
+      keepRefundSubscription: 'Refund the payment and keep the subscription.',
+      forceSubscriptionRefund: 'Confirm refund without revoking a subscription',
+      subscriptionRefundForceHint:
+        'This order has no active or queued subscription to revoke. Confirm to issue the full refund.',
       userBalance: 'User Balance',
       orderAmount: 'Order Amount',
       insufficientBalance: 'Insufficient balance — user balance will be reduced to 0',

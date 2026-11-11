@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/billing"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
@@ -16,15 +15,15 @@ import (
 // Refund requests and administrative execution have different eligibility
 // checks: user requests need an owned completed balance order and
 // AllowUserRefund, while execution planning reads RefundEnabled and additional
-// recoverable states. Planning reads current wallet or source-order grant data
-// before the store performs its own conditional transaction claim.
+// retryable states. Planning reads wallet data or records subscription hold
+// intent before the store attempts its conditional transaction claim.
 //
 // Requested local reversal quantity is separate from gateway money, which is
 // derived from stored order amounts with currency precision. Missing or
 // insufficient entitlement observations can return a force-decision result
 // alongside nil error, so callers inspect that result before executing. Wallet
 // planning chooses a bounded amount, while subscription planning retains
-// snapshot days and the first active/pending grant identity. These
+// the entitlement choice until the transactional grant lookup. These
 // observations prepare intent; the later transaction supplies actual wallet
 // deduction and persistent recovery evidence.
 
@@ -91,12 +90,12 @@ func (s *RefundWorkflow) ValidateRefundRequest(ctx context.Context, oid, uid int
 
 // PrepareRefund returns a plan, an early force-decision result, or an error
 // before any refund transaction or gateway request. It accepts completed,
-// requested, pending, or failed refund states and requires a resolved instance
+// requested, or failed refund states and requires a resolved instance
 // with administrative refund enabled.
 //
-// Nonfinite requested money is rejected, and nonpositive money selects
-// order.Amount. The upper comparison uses order currency tolerance, while
-// gateway quantity is proportional to stored credit/payment amounts. Reason
+// Zero selects the order amount. Balance orders also retain the older negative
+// amount default and compute a proportional gateway refund. Subscription
+// orders reject negative amounts and refund the full stored charge. Reason
 // text prefers the supplied trimmed reason, recorded request reason, then an
 // order description. When deduction is requested, PrepDeduct can return a
 // warning result with nil error; callers inspect that result before
@@ -106,7 +105,10 @@ func (s *RefundWorkflow) PrepareRefund(ctx context.Context, oid int64, amt float
 	if err != nil {
 		return nil, nil, infraerrors.NotFound("NOT_FOUND", "order not found")
 	}
-	ok := []string{OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundPending, OrderStatusRefundFailed}
+	if o.Status == OrderStatusRefundPending || o.Status == OrderStatusRefunding {
+		return nil, nil, RefundRecoveryRequired("a refund already awaits confirmation")
+	}
+	ok := []string{OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundFailed}
 	if !slices.Contains(ok, o.Status) {
 		return nil, nil, infraerrors.BadRequest("INVALID_STATUS", "order status does not allow refund")
 	}
@@ -123,17 +125,34 @@ func (s *RefundWorkflow) PrepareRefund(ctx context.Context, oid int64, amt float
 	if !inst.RefundEnabled {
 		return nil, nil, infraerrors.Forbidden("REFUND_DISABLED", "refund is not enabled for this provider")
 	}
-	if math.IsNaN(amt) || math.IsInf(amt, 0) {
+	if math.IsNaN(amt) || math.IsInf(amt, 0) || (o.OrderType == OrderTypeSubscription && amt < 0) {
 		return nil, nil, infraerrors.BadRequest("INVALID_AMOUNT", "invalid refund amount")
 	}
 	if amt <= 0 {
 		amt = o.Amount
 	}
 	orderCurrency := PaymentOrderCurrency(o)
+	if o.OrderType == OrderTypeSubscription {
+		// An externally paid subscription cannot be refunded locally without
+		// a channel transaction to submit and verify.
+		if strings.TrimSpace(o.PaymentTradeNo) == "" {
+			return nil, nil, infraerrors.BadRequest("REFUND_TRADE_REFERENCE_MISSING", "subscription order is missing its payment reference")
+		}
+		currency := PaymentOrderAmountCurrency(o)
+		// Compare in order-price units, then use the entire actual charge in its
+		// gateway currency so fees and cross-currency pricing are refunded fully.
+		if FormatAmountForCurrency(amt, currency) != FormatAmountForCurrency(o.Amount, currency) {
+			return nil, nil, infraerrors.BadRequest("SUBSCRIPTION_REFUND_FULL_ONLY", "subscription orders require a full refund")
+		}
+		amt = o.Amount
+	}
 	if amt-o.Amount > PaymentAmountToleranceForCurrency(orderCurrency) {
 		return nil, nil, infraerrors.BadRequest("REFUND_AMOUNT_EXCEEDED", "refund amount exceeds recharge")
 	}
-	ga := CalculateGatewayRefundAmount(o.Amount, o.PayAmount, amt, orderCurrency)
+	ga := o.PayAmount
+	if o.OrderType != OrderTypeSubscription {
+		ga = CalculateGatewayRefundAmount(o.Amount, o.PayAmount, amt, orderCurrency)
+	}
 	rr := strings.TrimSpace(reason)
 	if rr == "" && o.RefundRequestReason != nil {
 		rr = *o.RefundRequestReason
@@ -159,43 +178,23 @@ func (s *RefundWorkflow) PrepareRefund(ctx context.Context, oid int64, amt float
 	return p, nil, nil
 }
 
-// PrepDeduct fills planned entitlement recovery or returns a force-decision
-// warning from current observations. Subscription orders record snapshot days
-// and choose the first active or pending source-order grant; lookup errors are
-// treated as no usable grant.
+// PrepDeduct records the subscription hold intent or plans a wallet deduction
+// from current funds. The hold target is resolved in the preparation
+// transaction so a later renewal or revocation cannot substitute another grant.
 //
-// Without force, a missing grant or failed/insufficient wallet read yields
-// RequireForce before execution. Forced wallet-read failure leaves the plan's
-// existing deduction data unchanged. A usable wallet observation chooses
-// balance kind and clamps the requested amount to its nonnegative current
-// balance. Subscription days remain the requested snapshot quantity even when
-// force allows no identified grant; ApplyRefundDeduction later requires a
-// positive grant ID.
+// Wallet lookup failure or insufficient funds requires explicit force consent.
+// With force, a usable balance is capped at its current nonnegative amount,
+// while a failed read leaves the existing deduction fields unchanged.
 func (s *RefundWorkflow) PrepDeduct(ctx context.Context, o *Order, p *RefundPlan, force bool) *RefundResult {
 	if o.OrderType == OrderTypeSubscription {
 		p.DeductionType = DeductionTypeSubscription
-		p.SubDaysToDeduct = PaymentOrderSubscriptionValidityDays(o)
-		subs, err := s.runtime.Subscriptions(ctx, o.ID)
-		// A failed subscription read supplies no identified grant. Preserve the
-		// requested day quantity so the later force decision can report that
-		// incomplete recovery plan.
-		if err == nil {
-			for i := range subs {
-				if subs[i].Status == billing.SubscriptionStatusActive || subs[i].Status == billing.SubscriptionStatusPending {
-					p.SubscriptionID = subs[i].ID
-					break
-				}
-			}
-		}
-		if p.SubscriptionID == 0 && !force {
-			return &RefundResult{Success: false, Warning: "cannot find active subscription for deduction, use force", RequireForce: true}
-		}
+		p.SubscriptionHold = true
 		return nil
 	}
 	u, err := s.runtime.User(ctx, o.UserID)
 	if err != nil {
 		if !force {
-			return &RefundResult{Success: false, Warning: "cannot fetch user balance, use force", RequireForce: true}
+			return &RefundResult{Status: RefundResultRequiresForce, Warning: "cannot fetch user balance, use force", RequireForce: true}
 		}
 		// Forced planning proceeds after this failed balance observation with its
 		// existing deduction fields. Preparation receipt validation still checks the
@@ -207,7 +206,7 @@ func (s *RefundWorkflow) PrepDeduct(ctx context.Context, o *Order, p *RefundPlan
 	// force-decision warning before selecting a partial deduction from current
 	// funds.
 	if u.Balance < p.RefundAmount && !force {
-		return &RefundResult{Success: false, Warning: "user balance is insufficient for deduction, use force", RequireForce: true}
+		return &RefundResult{Status: RefundResultRequiresForce, Warning: "user balance is insufficient for deduction, use force", RequireForce: true}
 	}
 	p.BalanceToDeduct = math.Max(0, math.Min(p.RefundAmount, u.Balance))
 	return nil

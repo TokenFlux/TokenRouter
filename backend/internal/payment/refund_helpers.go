@@ -22,36 +22,24 @@ import (
 // stored trade number takes audited local success handling, so it represents a
 // different path from an externally submitted refund.
 
-// PaymentOrderSubscriptionValidityDays returns the positive day count in the
-// order's plan snapshot. Nil input or a nonpositive recorded count yields
-// zero, so refund planning does not synthesize a duration from the live plan.
-func PaymentOrderSubscriptionValidityDays(order *Order) int {
-	if order == nil {
-		return 0
-	}
-	if order.PlanSnapshot.ValidityDays > 0 {
-		return order.PlanSnapshot.ValidityDays
-	}
-	return 0
-}
-
-// GwRefund submits the prepared plan's gateway currency amount through the
-// order's historical provider. Supply a nonnil plan and order; an empty stored
-// trade number produces an audited local success response without resolving or
-// calling that provider.
+// GwRefund submits the prepared plan's gateway amount through the historical
+// provider. A subscription requires a trade reference. Balance orders retain
+// the audited local-only behavior for orders without a stored trade number.
 //
 // A resolved provider's reported merchant identity is compared with recorded
 // snapshot metadata under the validator's legacy rules before submission. The
 // request carries the stored merchant and upstream numbers plus
 // currency-formatted money. A provider error accompanied by pending state is
-// retained as pending for workflow compensation and query recovery; other
-// errors return, and ordinary successful responses are validated before
-// finalization.
+// retained for query recovery. Other responses keep their reference with any
+// error so the workflow can record it before changing local rights.
 func (s *RefundWorkflow) GwRefund(ctx context.Context, p *RefundPlan) (*RefundResponse, error) {
 	// Orders with no stored upstream transaction follow local-only success
 	// handling. Record the skipped gateway operation so later audit inspection
 	// can distinguish it from provider submission.
-	if p.Order.PaymentTradeNo == "" {
+	if strings.TrimSpace(p.Order.PaymentTradeNo) == "" {
+		if p.Order.OrderType == OrderTypeSubscription {
+			return nil, fmt.Errorf("subscription order is missing its payment reference")
+		}
 		s.runtime.Audit(ctx, p.Order.ID, "REFUND_NO_TRADE_NO", "admin", map[string]any{"detail": "skipped"})
 		return &RefundResponse{Status: ProviderStatusSuccess}, nil
 	}
@@ -84,10 +72,10 @@ func (s *RefundWorkflow) GwRefund(ctx context.Context, p *RefundPlan) (*RefundRe
 		if resp != nil && strings.TrimSpace(resp.Status) == ProviderStatusPending {
 			return resp, nil
 		}
-		return nil, err
+		return resp, err
 	}
 	if err := ValidateRefundProviderResponse(resp); err != nil {
-		return nil, err
+		return resp, err
 	}
 	return resp, nil
 }
@@ -100,12 +88,11 @@ func FormatGatewayRefundAmount(amount float64, order *Order) string {
 }
 
 // ValidateRefundProviderResponse accepts trimmed success, refunded, and
-// pending status text. Nil, failed, or unknown responses return errors; status
-// spelling is case-sensitive, so callers retain ambiguous results for their
-// recovery policy.
+// pending status text. Explicit failure returns a compensatable error, while
+// missing or unrecognized responses carry the unknown-outcome sentinel.
 func ValidateRefundProviderResponse(resp *RefundResponse) error {
 	if resp == nil {
-		return fmt.Errorf("payment refund response missing")
+		return fmt.Errorf("%w: payment refund response missing", ErrRefundOutcomeUnknown)
 	}
 	status := strings.TrimSpace(resp.Status)
 	switch status {
@@ -114,7 +101,7 @@ func ValidateRefundProviderResponse(resp *RefundResponse) error {
 	case ProviderStatusFailed:
 		return fmt.Errorf("payment refund failed: status %s", status)
 	default:
-		return fmt.Errorf("payment refund returned unknown status: %s", status)
+		return fmt.Errorf("%w: unrecognized provider status %q", ErrRefundOutcomeUnknown, status)
 	}
 }
 
@@ -146,6 +133,18 @@ func (s *RefundWorkflow) RefundFinalizePlan(o *Order, detail RefundPendingDetail
 		DeductBalance: detail.DeductBalance,
 		DeductionType: DeductionTypeNone,
 	}
+	if detail.SubscriptionHold {
+		p.SubscriptionHold = true
+		p.SubscriptionID = detail.SubscriptionID
+		p.DeductionType = DeductionTypeSubscription
+		return p
+	}
+	if o.OrderType == OrderTypeSubscription && detail.DeductBalance && !detail.DeductionRollbackOK {
+		p.VerifyLegacyRevocation = true
+		p.SubscriptionID = detail.SubscriptionID
+		return p
+	}
+
 	// Pending compensation restored the earlier deduction only when recorded as
 	// successful. Recover rights again on final success when that flag and the
 	// stored deduction intent both apply.

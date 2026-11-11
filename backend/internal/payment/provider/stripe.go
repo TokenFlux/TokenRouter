@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -27,8 +28,8 @@ import (
 // Queries translate those representations while combining expanded channel
 // states, whereas signed events select actionable outcomes and ignore
 // retryable payment-attempt failures. Refund creation resolves an intent and
-// treats every non-success state as pending; later refund queries distinguish
-// failed or cancelled states. Invoice documents take precedence according to
+// distinguishes pending, failed, and unknown outcomes. Refund recovery uses
+// the returned refund identity or a uniquely matching PaymentIntent refund. Invoice documents take precedence according to
 // the supplied reference, with charge receipts used when a session has no
 // usable invoice link or for intent-based retrieval.
 
@@ -788,17 +789,13 @@ func parseStripeInvoice(event *stripe.Event, status string, rawBody string) (*pa
 	}, nil
 }
 
-// Refund converts requested money using configured currency and resolves a
-// stored session or invoice label to its payment intent before submission.
-// Missing resolved intent is an error, and all SDK requests use ctx after
-// client initialization.
+// Refund submits a currency-normalized refund using the stored PaymentIntent.
+// Session and invoice references are resolved before submission, and the
+// order/amount key keeps network retries attached to the same operation.
 //
-// Creation uses requested-by-customer reason and an order/minor-amount
-// idempotency key, so req.Reason and workflow OperationID do not affect the
-// request. A succeeded result becomes success, while every other returned
-// state, including failed or cancelled, becomes pending here. QueryRefund
-// later distinguishes those failure states for recovery; local entitlement
-// preparation and finalization belong to its caller.
+// After submission, only a clear channel rejection or terminal failure can
+// release the local hold. Network and unclassified Stripe errors instead
+// leave the outcome unknown so recovery can look for an accepted refund.
 func (s *Stripe) Refund(ctx context.Context, req payment.RefundRequest) (*payment.RefundResponse, error) {
 	s.ensureInit()
 
@@ -809,24 +806,9 @@ func (s *Stripe) Refund(ctx context.Context, req payment.RefundRequest) (*paymen
 	// Resolve session and invoice references before creating the refund; channel
 	// refund parameters require an intent while local orders can retain another
 	// representation.
-	paymentIntentID := strings.TrimSpace(req.TradeNo)
-	switch {
-	case strings.HasPrefix(paymentIntentID, "cs_"):
-		paymentIntentID, err = s.findCheckoutSessionPaymentIntentID(ctx, paymentIntentID)
-		if err != nil {
-			return nil, err
-		}
-		if paymentIntentID == "" {
-			return nil, fmt.Errorf("stripe refund: checkout session payment intent is unavailable")
-		}
-	case strings.HasPrefix(paymentIntentID, "in_"):
-		paymentIntentID, err = s.findInvoicePaymentIntentID(ctx, paymentIntentID)
-		if err != nil {
-			return nil, err
-		}
-		if paymentIntentID == "" {
-			return nil, fmt.Errorf("stripe refund: invoice payment intent is unavailable")
-		}
+	paymentIntentID, err := s.refundPaymentIntent(ctx, req.TradeNo)
+	if err != nil {
+		return nil, err
 	}
 
 	params := &stripe.RefundCreateParams{
@@ -841,89 +823,139 @@ func (s *Stripe) Refund(ctx context.Context, req payment.RefundRequest) (*paymen
 
 	r, err := s.sc.V1Refunds.Create(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("stripe refund: %w", err)
+		// A rejected transport response can follow an accepted refund. Preserve
+		// preparation unless Stripe explicitly rejected the request before execution.
+		if stripeRefundDefinitelyRejected(err) {
+			return nil, fmt.Errorf("stripe refund rejected: %w", err)
+		}
+		return nil, fmt.Errorf("%w: stripe refund submission: %v", payment.ErrRefundOutcomeUnknown, err)
 	}
-
-	// Retain every non-success creation state as pending here; query-based
-	// recovery uses a separate mapping that can identify channel failure.
-	refundStatus := payment.ProviderStatusPending
-	if r.Status == stripe.RefundStatusSucceeded {
-		refundStatus = payment.ProviderStatusSuccess
+	if r == nil || strings.TrimSpace(r.ID) == "" {
+		return nil, fmt.Errorf("%w: stripe refund response has no identity", payment.ErrRefundOutcomeUnknown)
 	}
-
-	return &payment.RefundResponse{
-		RefundID: r.ID,
-		Status:   refundStatus,
-	}, nil
-}
-
-// QueryRefund retrieves a saved refund ID when available, otherwise resolves
-// trade identity to an intent and takes the first result from a one-item
-// refund list. It checks SDK errors and missing results before mapping
-// succeeded, failed, cancelled or pending state.
-//
-// The list branch filters by payment intent but does not compare requested
-// amount, merchant order or workflow operation identity. Callers relying on a
-// specific refund should retain its saved RefundID. This query performs no new
-// refund submission, and its failure-state mapping differs from Refund
-// creation, which reports all non-success channel states as pending.
-func (s *Stripe) QueryRefund(ctx context.Context, req payment.RefundQueryRequest) (*payment.RefundResponse, error) {
-	s.ensureInit()
-
-	var r *stripe.Refund
-	var err error
-	if refundID := strings.TrimSpace(req.RefundID); refundID != "" {
-		r, err = s.sc.V1Refunds.Retrieve(ctx, refundID, nil)
-		if err != nil {
-			return nil, fmt.Errorf("stripe query refund: %w", err)
-		}
-	} else {
-		paymentIntentID := strings.TrimSpace(req.TradeNo)
-		switch {
-		case strings.HasPrefix(paymentIntentID, "cs_"):
-			paymentIntentID, err = s.findCheckoutSessionPaymentIntentID(ctx, paymentIntentID)
-			if err != nil {
-				return nil, err
-			}
-		case strings.HasPrefix(paymentIntentID, "in_"):
-			paymentIntentID, err = s.findInvoicePaymentIntentID(ctx, paymentIntentID)
-			if err != nil {
-				return nil, err
-			}
-		}
-		if paymentIntentID == "" {
-			return nil, fmt.Errorf("stripe query refund: missing payment intent id")
-		}
-		params := &stripe.RefundListParams{PaymentIntent: stripe.String(paymentIntentID)}
-		// Request one intent-filtered refund and use its first result; this
-		// alternative does not match requested amount or workflow operation
-		// identity.
-		params.Limit = stripe.Int64(1)
-		list := s.sc.V1Refunds.List(ctx, params)
-		if list.Err() != nil {
-			return nil, fmt.Errorf("stripe query refund: %w", list.Err())
-		}
-		refunds := list.Data()
-		if len(refunds) == 0 {
-			return nil, fmt.Errorf("stripe query refund: no refund found")
-		}
-		r = refunds[0]
-	}
-
 	return &payment.RefundResponse{RefundID: r.ID, Status: stripeRefundProviderStatus(r.Status)}, nil
 }
 
-// stripeRefundProviderStatus maps succeeded to success and failed or cancelled
-// to failure. Every other Stripe refund state remains pending for the workflow
-// to retain until a later query resolves it.
+// QueryRefund verifies a known refund against the order's intent, currency and
+// minor-unit amount. Without a saved ID, it searches the preparation interval
+// and accepts only one matching successful refund.
+//
+// A missing, ambiguous or unconfirmed match leaves the local preparation
+// intact. The method reads Stripe and cannot submit a replacement refund.
+func (s *Stripe) QueryRefund(ctx context.Context, req payment.RefundQueryRequest) (*payment.RefundResponse, error) {
+	s.ensureInit()
+	intent, err := s.refundPaymentIntent(ctx, req.TradeNo)
+	if err != nil {
+		return nil, err
+	}
+	amount, err := payment.AmountToMinorUnit(req.Amount, req.Currency)
+	if err != nil || amount <= 0 || strings.TrimSpace(req.Currency) == "" {
+		return nil, fmt.Errorf("stripe query refund: invalid expected amount or currency")
+	}
+
+	if refundID := strings.TrimSpace(req.RefundID); refundID != "" {
+		refund, err := s.sc.V1Refunds.Retrieve(ctx, refundID, nil)
+		if err != nil {
+			return nil, fmt.Errorf("stripe query refund: %w", err)
+		}
+		if !stripeRefundMatches(refund, intent, req.Currency, amount) || refund.ID != refundID {
+			return nil, fmt.Errorf("stripe query refund: refund does not match the prepared payment")
+		}
+		return &payment.RefundResponse{RefundID: refund.ID, Status: stripeRefundProviderStatus(refund.Status)}, nil
+	}
+
+	if req.EarliestCreatedAt.IsZero() {
+		return nil, fmt.Errorf("stripe query refund: missing refund preparation time")
+	}
+	// Stripe timestamps use whole seconds. Search from the second preparation
+	// committed and inspect every matching page before deciding uniqueness.
+	earliest := req.EarliestCreatedAt.Unix()
+	params := &stripe.RefundListParams{
+		PaymentIntent: stripe.String(intent),
+		CreatedRange:  &stripe.RangeQueryParams{GreaterThanOrEqual: earliest},
+	}
+	var match *stripe.Refund
+	for refund, err := range s.sc.V1Refunds.List(ctx, params).All(ctx) {
+		if err != nil {
+			return nil, fmt.Errorf("stripe query refund: %w", err)
+		}
+		if !stripeRefundMatches(refund, intent, req.Currency, amount) || refund.Created < earliest {
+			continue
+		}
+		if match != nil {
+			return nil, fmt.Errorf("stripe query refund: multiple matching refunds")
+		}
+		match = refund
+	}
+	if match == nil || match.Status != stripe.RefundStatusSucceeded {
+		return nil, fmt.Errorf("stripe query refund: no uniquely confirmed refund found")
+	}
+	return &payment.RefundResponse{RefundID: match.ID, Status: payment.ProviderStatusSuccess}, nil
+}
+
+// refundPaymentIntent resolves stored checkout and invoice references for
+// Stripe's refund APIs. Resolution errors precede submission and cannot have
+// initiated a refund; an empty resolved identifier is rejected.
+func (s *Stripe) refundPaymentIntent(ctx context.Context, tradeNo string) (string, error) {
+	id := strings.TrimSpace(tradeNo)
+	var err error
+	switch {
+	case strings.HasPrefix(id, "cs_"):
+		id, err = s.findCheckoutSessionPaymentIntentID(ctx, id)
+	case strings.HasPrefix(id, "in_"):
+		id, err = s.findInvoicePaymentIntentID(ctx, id)
+	}
+	if err != nil {
+		return "", err
+	}
+	if id == "" {
+		return "", fmt.Errorf("stripe refund: payment intent is unavailable")
+	}
+	return id, nil
+}
+
+// stripeRefundMatches checks whether Stripe's refund identifies the expected
+// payment and amount. A missing intent or refund identifier cannot establish
+// the link needed to finish the local operation.
+func stripeRefundMatches(refund *stripe.Refund, intent, currency string, amount int64) bool {
+	return refund != nil && refund.ID != "" && refund.PaymentIntent != nil &&
+		refund.PaymentIntent.ID == intent && strings.EqualFold(string(refund.Currency), currency) && refund.Amount == amount
+}
+
+// stripeRefundDefinitelyRejected recognizes pre-execution Stripe rejections.
+// All transport errors and unrecognized API errors require recovery because
+// the caller cannot tell whether Stripe accepted the refund before responding.
+func stripeRefundDefinitelyRejected(err error) bool {
+	var apiErr *stripe.Error
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.HTTPStatusCode {
+	case 401, 403:
+		return true
+	case 400, 404:
+		switch apiErr.Code {
+		case stripe.ErrorCodeParameterInvalidEmpty, stripe.ErrorCodeParameterInvalidInteger,
+			stripe.ErrorCodeParameterMissing, stripe.ErrorCodeParameterUnknown, stripe.ErrorCodeResourceMissing:
+			return true
+		}
+	}
+	return false
+}
+
+// stripeRefundProviderStatus maps known Stripe states to local outcomes.
+// Returning an empty status for any new or missing state lets refund recovery
+// retain preparation until it can verify an authoritative result.
 func stripeRefundProviderStatus(status stripe.RefundStatus) string {
 	switch status {
 	case stripe.RefundStatusSucceeded:
 		return payment.ProviderStatusSuccess
 	case stripe.RefundStatusFailed, stripe.RefundStatusCanceled:
 		return payment.ProviderStatusFailed
-	default:
+	case stripe.RefundStatusPending, stripe.RefundStatusRequiresAction:
 		return payment.ProviderStatusPending
+	default:
+		return ""
 	}
 }
 

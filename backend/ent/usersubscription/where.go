@@ -155,6 +155,11 @@ func SourceOrderID(v int64) predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldEQ(FieldSourceOrderID, v))
 }
 
+// RefundHoldOperationID applies equality check predicate on the "refund_hold_operation_id" field. It's identical to RefundHoldOperationIDEQ.
+func RefundHoldOperationID(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldRefundHoldOperationID, v))
+}
+
 // Notes applies equality check predicate on the "notes" field. It's identical to NotesEQ.
 func Notes(v string) predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldEQ(FieldNotes, v))
@@ -1013,6 +1018,81 @@ func SourceOrderIDIsNil() predicate.UserSubscription {
 // SourceOrderIDNotNil applies the NotNil predicate on the "source_order_id" field.
 func SourceOrderIDNotNil() predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldNotNull(FieldSourceOrderID))
+}
+
+// RefundHoldOperationIDEQ applies the EQ predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDEQ(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDNEQ applies the NEQ predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDNEQ(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNEQ(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDIn applies the In predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDIn(vs ...string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldIn(FieldRefundHoldOperationID, vs...))
+}
+
+// RefundHoldOperationIDNotIn applies the NotIn predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDNotIn(vs ...string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNotIn(FieldRefundHoldOperationID, vs...))
+}
+
+// RefundHoldOperationIDGT applies the GT predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDGT(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGT(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDGTE applies the GTE predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDGTE(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGTE(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDLT applies the LT predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDLT(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLT(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDLTE applies the LTE predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDLTE(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLTE(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDContains applies the Contains predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDContains(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldContains(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDHasPrefix applies the HasPrefix predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDHasPrefix(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldHasPrefix(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDHasSuffix applies the HasSuffix predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDHasSuffix(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldHasSuffix(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDIsNil applies the IsNil predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDIsNil() predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldIsNull(FieldRefundHoldOperationID))
+}
+
+// RefundHoldOperationIDNotNil applies the NotNil predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDNotNil() predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNotNull(FieldRefundHoldOperationID))
+}
+
+// RefundHoldOperationIDEqualFold applies the EqualFold predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDEqualFold(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEqualFold(FieldRefundHoldOperationID, v))
+}
+
+// RefundHoldOperationIDContainsFold applies the ContainsFold predicate on the "refund_hold_operation_id" field.
+func RefundHoldOperationIDContainsFold(v string) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldContainsFold(FieldRefundHoldOperationID, v))
 }
 
 // NotesEQ applies the EQ predicate on the "notes" field.

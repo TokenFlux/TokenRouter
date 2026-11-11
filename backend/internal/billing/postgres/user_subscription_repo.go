@@ -281,7 +281,7 @@ func (r *SubscriptionStore) ListByUserIDAndPlanID(ctx context.Context, userID, p
 	return userSubscriptionEntitiesToService(subs), nil
 }
 
-// ListActiveByUserID returns visible grants whose lifetime contains one
+// ListActiveByUserID returns visible, unheld grants whose lifetime contains one
 // current-time observation and whose stored status is active or pending.
 // Expiry and start sort ascending; available quota and final-group coverage
 // are checked by service consumers.
@@ -294,6 +294,7 @@ func (r *SubscriptionStore) ListActiveByUserID(ctx context.Context, userID int64
 			usersubscription.StartsAtLTE(now),
 			usersubscription.ExpiresAtGT(now),
 			usersubscription.StatusIn(billing.SubscriptionStatusActive, billing.SubscriptionStatusPending),
+			usersubscription.RefundHoldOperationIDIsNil(),
 		).
 		WithPlan().
 		Order(
@@ -445,10 +446,12 @@ func (r *SubscriptionStore) List(ctx context.Context, params pagination.Paginati
 			usersubscription.StartsAtLTE(now),
 			usersubscription.ExpiresAtGT(now),
 			usersubscription.StatusIn(billing.SubscriptionStatusActive, billing.SubscriptionStatusPending),
+			usersubscription.RefundHoldOperationIDIsNil(),
 		)
 	case billing.SubscriptionStatusPending:
 		q = q.Where(
 			usersubscription.StatusEQ(billing.SubscriptionStatusPending),
+			usersubscription.RefundHoldOperationIDIsNil(),
 			usersubscription.StartsAtGT(now),
 			usersubscription.ExpiresAtGT(now),
 		)
@@ -459,6 +462,11 @@ func (r *SubscriptionStore) List(ctx context.Context, params pagination.Paginati
 				usersubscription.ExpiresAtLTE(now),
 			),
 		)
+	case billing.SubscriptionStatusSuspended:
+		q = q.Where(usersubscription.Or(
+			usersubscription.StatusEQ(billing.SubscriptionStatusSuspended),
+			usersubscription.And(usersubscription.RefundHoldOperationIDNotNil(), usersubscription.ExpiresAtGT(now)),
+		))
 	case billing.SubscriptionStatusRevoked:
 		q = q.Where(usersubscription.DeletedAtNotNil())
 	case "":
@@ -860,28 +868,29 @@ func userSubscriptionEntityToServiceWithStatusMapping(m *dbent.UserSubscription,
 		status = billing.SubscriptionStatusRevoked
 	}
 	out := &billing.UserSubscription{
-		ID:                 m.ID,
-		UserID:             m.UserID,
-		PlanID:             m.PlanID,
-		StartsAt:           m.StartsAt,
-		ExpiresAt:          m.ExpiresAt,
-		Status:             status,
-		DailyWindowStart:   m.DailyWindowStart,
-		WeeklyWindowStart:  m.WeeklyWindowStart,
-		MonthlyWindowStart: m.MonthlyWindowStart,
-		DailyLimitUSD:      m.DailyLimitUsd,
-		WeeklyLimitUSD:     m.WeeklyLimitUsd,
-		MonthlyLimitUSD:    m.MonthlyLimitUsd,
-		DailyUsageUSD:      m.DailyUsageUsd,
-		WeeklyUsageUSD:     m.WeeklyUsageUsd,
-		MonthlyUsageUSD:    m.MonthlyUsageUsd,
-		AssignedBy:         m.AssignedBy,
-		AssignedAt:         m.AssignedAt,
-		SourceOrderID:      m.SourceOrderID,
-		Notes:              derefString(m.Notes),
-		CreatedAt:          m.CreatedAt,
-		UpdatedAt:          m.UpdatedAt,
-		DeletedAt:          m.DeletedAt,
+		ID:                    m.ID,
+		UserID:                m.UserID,
+		PlanID:                m.PlanID,
+		StartsAt:              m.StartsAt,
+		ExpiresAt:             m.ExpiresAt,
+		Status:                status,
+		DailyWindowStart:      m.DailyWindowStart,
+		WeeklyWindowStart:     m.WeeklyWindowStart,
+		MonthlyWindowStart:    m.MonthlyWindowStart,
+		DailyLimitUSD:         m.DailyLimitUsd,
+		WeeklyLimitUSD:        m.WeeklyLimitUsd,
+		MonthlyLimitUSD:       m.MonthlyLimitUsd,
+		DailyUsageUSD:         m.DailyUsageUsd,
+		WeeklyUsageUSD:        m.WeeklyUsageUsd,
+		MonthlyUsageUSD:       m.MonthlyUsageUsd,
+		AssignedBy:            m.AssignedBy,
+		AssignedAt:            m.AssignedAt,
+		SourceOrderID:         m.SourceOrderID,
+		RefundHoldOperationID: m.RefundHoldOperationID,
+		Notes:                 derefString(m.Notes),
+		CreatedAt:             m.CreatedAt,
+		UpdatedAt:             m.UpdatedAt,
+		DeletedAt:             m.DeletedAt,
 	}
 	if m.Edges.User != nil {
 		out.User = userSummaryFromEntity(m.Edges.User)

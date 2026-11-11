@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -649,10 +650,9 @@ func (w *Wxpay) VerifyNotification(ctx context.Context, rawBody string, headers 
 //
 // wxpayRefundID uses order plus amount text rather than the workflow
 // preparation ID, so spelling controls that fallback identity. Immediate
-// STATUS_SUCCESS maps to success and every other creation status maps to
-// pending. The returned RefundID is that merchant refund number; entitlement
-// deduction, compensation and required audit remain with the workflow's
-// separate transactions.
+// Channel status uses the same mapping as query. The returned RefundID is the
+// merchant refund number even when the POST outcome is unknown, so a later
+// recovery can read the exact operation without creating another refund.
 func (w *Wxpay) Refund(ctx context.Context, req payment.RefundRequest) (*payment.RefundResponse, error) {
 	c, err := w.ensureClient()
 	if err != nil {
@@ -677,13 +677,19 @@ func (w *Wxpay) Refund(ctx context.Context, req payment.RefundRequest) (*payment
 		Amount:      &refunddomestic.AmountReq{Refund: core.Int64(rf), Total: core.Int64(tf), Currency: &cur},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("wxpay refund: %w", err)
+		// The merchant refund number already identifies this request after a
+		// transport failure. Preserve it so recovery can query before retrying.
+		var apiErr *core.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode < 500 {
+			switch apiErr.Code {
+			case "PARAM_ERROR", "SIGN_ERROR", "NO_AUTH":
+				return nil, fmt.Errorf("wxpay refund rejected: %w", err)
+			}
+		}
+		return &payment.RefundResponse{RefundID: outRefundNo},
+			fmt.Errorf("%w: wxpay refund submission: %v", payment.ErrRefundOutcomeUnknown, err)
 	}
-	st := payment.ProviderStatusPending
-	if res.Status != nil && *res.Status == refunddomestic.STATUS_SUCCESS {
-		st = payment.ProviderStatusSuccess
-	}
-	return &payment.RefundResponse{RefundID: outRefundNo, Status: st}, nil
+	return &payment.RefundResponse{RefundID: outRefundNo, Status: wxpayRefundStatus(res)}, nil
 }
 
 // QueryRefund queries the supplied trimmed merchant refund number or derives
@@ -717,18 +723,35 @@ func (w *Wxpay) QueryRefund(ctx context.Context, req payment.RefundQueryRequest)
 	if err != nil {
 		return nil, fmt.Errorf("wxpay query refund: %w", err)
 	}
-	status := payment.ProviderStatusPending
-	if res != nil && res.Status != nil {
-		switch *res.Status {
-		case refunddomestic.STATUS_SUCCESS:
-			status = payment.ProviderStatusSuccess
-		case refunddomestic.STATUS_CLOSED, refunddomestic.STATUS_ABNORMAL:
-			status = payment.ProviderStatusFailed
-		default:
-			status = payment.ProviderStatusPending
-		}
+	expectedAmount, err := payment.YuanToFen(req.Amount)
+	if err != nil || expectedAmount <= 0 || !strings.EqualFold(req.Currency, wxpayCurrency) {
+		return nil, fmt.Errorf("wxpay query refund: invalid expected amount or currency")
 	}
-	return &payment.RefundResponse{RefundID: outRefundNo, Status: status}, nil
+	if res == nil || res.OutRefundNo == nil || *res.OutRefundNo != outRefundNo ||
+		res.OutTradeNo == nil || *res.OutTradeNo != req.OrderID ||
+		res.Amount == nil || res.Amount.Refund == nil || *res.Amount.Refund != expectedAmount ||
+		res.Amount.Currency == nil || !strings.EqualFold(*res.Amount.Currency, req.Currency) {
+		return nil, fmt.Errorf("wxpay query refund: refund does not match the prepared payment")
+	}
+	return &payment.RefundResponse{RefundID: outRefundNo, Status: wxpayRefundStatus(res)}, nil
+}
+
+// wxpayRefundStatus treats abnormal refunds as pending because operators can
+// still resolve them in WeChat Pay. Missing or unrecognized states are unknown.
+func wxpayRefundStatus(res *refunddomestic.Refund) string {
+	if res == nil || res.Status == nil {
+		return ""
+	}
+	switch *res.Status {
+	case refunddomestic.STATUS_SUCCESS:
+		return payment.ProviderStatusSuccess
+	case refunddomestic.STATUS_CLOSED:
+		return payment.ProviderStatusFailed
+	case refunddomestic.STATUS_PROCESSING, refunddomestic.STATUS_ABNORMAL:
+		return payment.ProviderStatusPending
+	default:
+		return ""
+	}
 }
 
 // wxpayRefundID derives merchant refund text from a trimmed nonblank order

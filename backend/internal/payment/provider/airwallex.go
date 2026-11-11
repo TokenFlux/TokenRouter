@@ -180,8 +180,7 @@ type airwallexPaymentIntent struct {
 // airwallexRefund decodes the upstream refund reference and state used during
 // local finalization.
 type airwallexRefund struct {
-	// ID is required by Refund after trimming; QueryRefund instead substitutes
-	// its requested ID when the response label is blank.
+	// ID identifies the refund operation for both creation and later verification.
 	ID string `json:"id"`
 	// reported refund request label.
 	RequestID string `json:"request_id"`
@@ -512,10 +511,10 @@ func (a *Airwallex) Refund(ctx context.Context, req payment.RefundRequest) (*pay
 
 	var resp airwallexRefund
 	if err := a.doJSON(ctx, http.MethodPost, "/pa/refunds/create", token, payload, &resp); err != nil {
-		return nil, fmt.Errorf("airwallex refund: %w", err)
+		return nil, fmt.Errorf("%w: airwallex refund submission: %v", payment.ErrRefundOutcomeUnknown, err)
 	}
 	if strings.TrimSpace(resp.ID) == "" {
-		return nil, fmt.Errorf("airwallex refund: missing refund id")
+		return nil, fmt.Errorf("%w: airwallex refund response has no identity", payment.ErrRefundOutcomeUnknown)
 	}
 	refundResp := &payment.RefundResponse{
 		RefundID: resp.ID,
@@ -527,10 +526,9 @@ func (a *Airwallex) Refund(ctx context.Context, req payment.RefundRequest) (*pay
 	return refundResp, nil
 }
 
-// QueryRefund requires a saved trimmed refund ID and reads its current state
-// with ctx. A blank returned ID uses that requested identity, letting recovery
-// finalize an existing refund from settled, failed or pending state without
-// resubmission.
+// QueryRefund retrieves the saved Airwallex refund and verifies its original
+// intent, amount and currency before returning a settlement outcome. An
+// absent identity or inconsistent response leaves recovery pending.
 func (a *Airwallex) QueryRefund(ctx context.Context, req payment.RefundQueryRequest) (*payment.RefundResponse, error) {
 	refundID := strings.TrimSpace(req.RefundID)
 	if refundID == "" {
@@ -544,10 +542,13 @@ func (a *Airwallex) QueryRefund(ctx context.Context, req payment.RefundQueryRequ
 	if err := a.doJSON(ctx, http.MethodGet, "/pa/refunds/"+url.PathEscape(refundID), token, nil, &resp); err != nil {
 		return nil, fmt.Errorf("airwallex query refund: %w", err)
 	}
-	if strings.TrimSpace(resp.ID) == "" {
-		// Retain the saved refund reference when the response omits identity,
-		// allowing local recovery to attach the status to its existing operation.
-		resp.ID = refundID
+	expectedAmount, err := decimal.NewFromString(req.Amount)
+	if err != nil || !expectedAmount.IsPositive() {
+		return nil, fmt.Errorf("airwallex query refund: invalid expected amount")
+	}
+	if resp.ID != refundID || resp.PaymentIntentID == "" || resp.PaymentIntentID != strings.TrimSpace(req.TradeNo) ||
+		req.Currency == "" || !strings.EqualFold(resp.Currency, req.Currency) || !resp.Amount.Equal(expectedAmount) {
+		return nil, fmt.Errorf("airwallex query refund: refund does not match the prepared payment")
 	}
 	return &payment.RefundResponse{RefundID: resp.ID, Status: airwallexRefundProviderStatus(resp.Status)}, nil
 }
