@@ -344,6 +344,8 @@ func (s *OrderLifecycle) QueryPaymentOrderWithProvider(ctx context.Context, prov
 // succeeds. Fulfillment then validates amount/provider metadata separately.
 // EasyPay records its queried reference with the paid transition after order
 // validation, keeping concurrent queries from changing a fulfillment lease.
+// An opted-in adapter's paid-query proof permits the initial merchant-number
+// echo to be replaced during that transition. Later conflicting references fail.
 // Processing uses reported or saved trade reference and the normal progress
 // notification, while queried failure returns its label without invoking
 // failure handling here. Other statuses return empty,nil.
@@ -369,7 +371,7 @@ func (s *OrderLifecycle) ApplyQueriedPaymentStatus(ctx context.Context, o *Order
 			}
 			resp = retriedResp
 		}
-		if err := validatePaymentTradeNumber(o, prov.ProviderKey(), resp.TradeNo); err != nil {
+		if err := validatePaymentTradeNumber(o, prov.ProviderKey(), resp.TradeNo, resp.Metadata); err != nil {
 			return LifecycleCheckPaidResultUncertain, err
 		}
 		notificationTradeNo := o.PaymentTradeNo

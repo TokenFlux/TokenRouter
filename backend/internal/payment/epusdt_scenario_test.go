@@ -26,8 +26,8 @@ func TestEPUSDTOrderBinding(t *testing.T) {
 	require.NoError(t, ValidateProviderSnapshotMetadata(order, TypeEPUSDT, map[string]string{"pid": "1001", "currency": "USD"}))
 	require.Error(t, ValidateProviderSnapshotMetadata(order, TypeEPUSDT, map[string]string{"pid": "1002", "currency": "USD"}))
 	require.Error(t, ValidateProviderSnapshotMetadata(order, TypeEPUSDT, map[string]string{"pid": "1001", "currency": "CNY"}))
-	require.Error(t, validatePaymentTradeNumber(order, TypeEPUSDT, "another_trade"))
-	require.NoError(t, validatePaymentTradeNumber(order, TypeEPUSDT, "gateway_trade"))
+	require.Error(t, validatePaymentTradeNumber(order, TypeEPUSDT, "another_trade", nil))
+	require.NoError(t, validatePaymentTradeNumber(order, TypeEPUSDT, "gateway_trade", nil))
 	require.Equal(t, "gateway_trade", PaymentOrderQueryReference(order, nil))
 }
 

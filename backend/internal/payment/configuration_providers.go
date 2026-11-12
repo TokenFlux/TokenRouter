@@ -32,6 +32,14 @@ import (
 // recovery. Registry refresh belongs to the HTTP/settings caller after
 // persistence.
 
+// EasyPay configuration keys identify explicit instance-level compatibility
+// choices shared by administrator validation and the payment adapter.
+const (
+	// ConfigEasyPayAllowMerchantOrderNoAsTradeNo enables correction of an echoed
+	// merchant number during the first verified payment confirmation only.
+	ConfigEasyPayAllowMerchantOrderNoAsTradeNo = "allowMerchantOrderNoAsTradeNo"
+)
+
 // Provider configuration tables define recognized secret fields, in-progress
 // protected identity fields, accepted provider keys and EasyPay custom code
 // syntax for administrator configuration operations.
@@ -256,6 +264,9 @@ func (s *ConfigService) CreateProviderInstance(ctx context.Context, req CreatePr
 		req.PaymentMode = "popup"
 	}
 	if req.ProviderKey == TypeEasyPay {
+		if err := ConfigValidateEasyPayTradeNumberCompatibility(req.Config); err != nil {
+			return nil, err
+		}
 		// Prepare stable display identities and localization revisions before custom
 		// mapping checks and serialization. The supplied map can already be changed
 		// if a later validation step rejects this draft.
@@ -523,6 +534,9 @@ func (s *ConfigService) UpdateProviderInstance(ctx context.Context, id int64, re
 		configToValidate = s.ConfigDecryptConfig(current.Config)
 	}
 	if current.ProviderKey == TypeEasyPay {
+		if err := ConfigValidateEasyPayTradeNumberCompatibility(configToValidate); err != nil {
+			return nil, err
+		}
 		if err := ConfigValidateEasyPayCustomMethods(configToValidate, nextSupportedTypes); err != nil {
 			return nil, err
 		}
@@ -630,6 +644,18 @@ func (s *ConfigService) UpdateProviderInstance(ctx context.Context, id int64, re
 		u.PaymentMode = configPointer(*req.PaymentMode)
 	}
 	return s.store.UpdateInstance(ctx, id, u)
+}
+
+// ConfigValidateEasyPayTradeNumberCompatibility accepts the optional string
+// boolean used by administrator saves and adapter construction. Missing or empty
+// input disables compatibility. Other nonempty values must be exactly true or false.
+func ConfigValidateEasyPayTradeNumberCompatibility(config map[string]string) error {
+	switch config[ConfigEasyPayAllowMerchantOrderNoAsTradeNo] {
+	case "", "true", "false":
+		return nil
+	default:
+		return infraerrors.BadRequest("VALIDATION_ERROR", "allowMerchantOrderNoAsTradeNo must be true or false")
+	}
 }
 
 // GetUserRefundEligibleInstanceIDs returns decimal instance IDs from the

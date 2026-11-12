@@ -13,6 +13,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 )
 
@@ -34,6 +36,122 @@ import (
 // error for query diagnostic tests.
 type easyPayQueryFailingTransport struct {
 	cause error // nested request failure identity
+}
+
+// TestEasyPayCreateMerchantNumberCompatibility exercises API checkout through
+// its normal adapter entry. Only an opted-in exact merchant-number echo leaves
+// the provider transaction unbound for later confirmation.
+func TestEasyPayCreateMerchantNumberCompatibility(t *testing.T) {
+	for _, value := range []string{"", "false", "true"} {
+		for _, tradeNo := range []string{"ORDER123", "gateway-trade", " ORDER123"} {
+			t.Run(value+"/"+tradeNo, func(t *testing.T) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					require.Equal(t, "/mapi.php", r.URL.Path)
+					_, _ = fmt.Fprintf(w, `{"code":1,"trade_no":%q,"qrcode":"qr-payload"}`, tradeNo)
+				}))
+				t.Cleanup(server.Close)
+				adapter := newTestEasyPay(t, server.URL)
+				adapter.config[payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo] = value
+				result, err := adapter.CreatePayment(context.Background(), payment.CreatePaymentRequest{OrderID: "ORDER123", PaymentType: "alipay", Amount: "10.20"})
+				require.NoError(t, err)
+				want := tradeNo
+				if value == "true" && tradeNo == "ORDER123" {
+					want = ""
+				}
+				require.Equal(t, want, result.TradeNo)
+				require.Equal(t, "qr-payload", result.QRCode)
+			})
+		}
+	}
+}
+
+// TestEasyPayCompatibilityPaidIdentity requires explicit authenticated identity
+// before the adapter grants echo-replacement permission. Missing or conflicting
+// identities, unpaid responses, and invalid money cannot carry that permission.
+func TestEasyPayCompatibilityPaidIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		name      string // named upstream response case
+		body      string // complete query response JSON
+		wantError bool   // expected lookup rejection flag
+		confirmed bool   // expected replacement permission flag
+	}{
+		{"paid", `{"code":1,"status":1,"money":"10.20","trade_no":"UPSTREAM123","pid":"1000","out_trade_no":"ORDER123"}`, false, true},
+		{"nested", `{"code":1,"data":{"status":1,"money":"10.20","trade_no":"UPSTREAM123","pid":1000,"out_trade_no":"ORDER123"}}`, false, true},
+		{"missing merchant", `{"code":1,"status":1,"money":"10.20","trade_no":"UPSTREAM123","out_trade_no":"ORDER123"}`, true, false},
+		{"missing order", `{"code":1,"status":1,"money":"10.20","trade_no":"UPSTREAM123","pid":1000}`, true, false},
+		{"wrong merchant", `{"code":1,"status":1,"money":"10.20","trade_no":"UPSTREAM123","pid":9999,"out_trade_no":"ORDER123"}`, true, false},
+		{"wrong order", `{"code":1,"status":1,"money":"10.20","trade_no":"UPSTREAM123","pid":1000,"out_trade_no":"OTHER"}`, true, false},
+		{"invalid amount", `{"code":1,"status":1,"money":"0","trade_no":"UPSTREAM123","pid":1000,"out_trade_no":"ORDER123"}`, true, false},
+		{"missing trade", `{"code":1,"status":1,"money":"10.20","pid":1000,"out_trade_no":"ORDER123"}`, true, false},
+		{"pending", `{"code":1,"status":0}`, false, false},
+		{"failure", `{"code":0,"msg":"query failed"}`, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(server.Close)
+			adapter := newTestEasyPay(t, server.URL)
+			adapter.config["pid"] = "1000"
+			adapter.config[payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo] = "true"
+			result, err := adapter.QueryOrder(context.Background(), "ORDER123")
+			if tc.wantError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.confirmed, result.Metadata[payment.EasyPayConfirmedMerchantOrderNo] == "ORDER123")
+		})
+	}
+}
+
+// TestEasyPayCompatibilityCallbackAuthenticatesProof checks the callback and
+// its independent merchant query together. Signed mismatches and attempts to
+// inject the internal permission marker remain rejected with compatibility enabled.
+func TestEasyPayCompatibilityCallbackAuthenticatesProof(t *testing.T) {
+	for _, tc := range []struct {
+		name             string            // named callback validation case
+		change           map[string]string // signed callback field replacements
+		invalidSignature bool              // deliberately corrupt signature flag
+		wantError        bool              // expected confirmation rejection flag
+	}{
+		{name: "valid"},
+		{name: "wrong signature", invalidSignature: true, wantError: true},
+		{name: "wrong amount", change: map[string]string{"money": "11.00"}, wantError: true},
+		{name: "wrong trade", change: map[string]string{"trade_no": "OTHER"}, wantError: true},
+		{name: "injected permission", change: map[string]string{payment.EasyPayConfirmedMerchantOrderNo: "ORDER123"}, wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(`{"code":1,"status":1,"money":"10.20","trade_no":"UPSTREAM123","pid":1000,"out_trade_no":"ORDER123"}`))
+			}))
+			t.Cleanup(server.Close)
+			adapter := newTestEasyPay(t, server.URL)
+			adapter.config["pid"] = "1000"
+			adapter.config[payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo] = "true"
+			values := easyPayTestNotificationValues()
+			values.Set("money", "10.20")
+			params := make(map[string]string)
+			for key := range values {
+				params[key] = values.Get(key)
+			}
+			for key, value := range tc.change {
+				params[key] = value
+				values.Set(key, value)
+			}
+			values.Set("sign", easyPaySign(params, adapter.config["pkey"]))
+			if tc.invalidSignature {
+				values.Set("sign", "invalid")
+			}
+			result, err := adapter.VerifyNotification(context.Background(), values.Encode(), nil)
+			if tc.wantError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, "ORDER123", result.Metadata[payment.EasyPayConfirmedMerchantOrderNo])
+		})
+	}
 }
 
 // RoundTrip includes the request URL in a wrapped failure and returns no

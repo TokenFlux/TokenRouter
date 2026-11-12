@@ -1034,6 +1034,9 @@ export default {
       field_cidAlipay: '支付宝渠道 ID',
       field_cidWxpay: '微信渠道 ID',
       easypayCustomMethods: '易支付自定义支付方式',
+      easypayMerchantOrderNoCompatibility: '兼容下单交易号回显商户订单号',
+      easypayMerchantOrderNoCompatibilityHint:
+        '适用于下单时将商户订单号作为交易号返回的服务商。首次确认付款时，允许将该编号替换为通过商户凭据查单核验的交易号，仍须通过签名、商户、订单和金额校验。',
       easypayCustomMethodsHint:
         '添加当前易支付服务商额外支持的支付方式。支付方式会记录到 TokenRouter 订单中，上游 type 会作为易支付 type 参数提交。',
       addCustomMethod: '添加方式',

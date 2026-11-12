@@ -24,8 +24,10 @@ import (
 	sqlitetest "github.com/TokenFlux/TokenRouter/internal/testutil/sqlite"
 )
 
-// Displayed payment limits combine compatible instance observations into their
-// widest allowed range, with missing limits or zero components representing
+// configuration_scenario_test.go checks payment configuration persistence and
+// validation through production service entry points. Displayed payment limits
+// combine compatible instance observations into their widest allowed range,
+// with missing limits or zero components representing
 // an unlimited displayed bound. Pure fixtures distinguish those aggregate
 // decisions from exact-key limit lookup, currency consistency and provider-specific method
 // grouping. Stored enabled-method text is also tested separately from source
@@ -2190,4 +2192,44 @@ func validWxpayProviderConfigWithJSAPIAppID(t *testing.T) map[string]string {
 // requests.
 func paymentConfigStrPtr(value string) *string {
 	return &value
+}
+
+// TestEasyPayTradeNumberCompatibilityConfig saves the string switch through
+// administrator operations and reloads its public representation. Invalid values
+// fail for disabled drafts too, and pending orders permit changing this policy.
+func TestEasyPayTradeNumberCompatibilityConfig(t *testing.T) {
+	ctx := context.Background()
+	client := sqlitetest.NewClient(t)
+	svc := paymenttestkit.Configuration(client, nil, nil)
+	for _, value := range []string{"TRUE", "1", "yes", " true "} {
+		config := validEasyPayProviderConfig(t)
+		config[payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo] = value
+		_, err := svc.CreateProviderInstance(ctx, payment.CreateProviderInstanceRequest{
+			ProviderKey: payment.TypeEasyPay, Name: "invalid", Config: config,
+			SupportedTypes: []string{payment.TypeAlipay}, Enabled: false,
+		})
+		require.Equal(t, "VALIDATION_ERROR", apperror.Reason(err))
+	}
+	instance, err := svc.CreateProviderInstance(ctx, payment.CreateProviderInstanceRequest{
+		ProviderKey: payment.TypeEasyPay, Name: "compatibility", Config: validEasyPayProviderConfig(t),
+		SupportedTypes: []string{payment.TypeAlipay}, Enabled: true,
+	})
+	require.NoError(t, err)
+	require.Empty(t, svc.ConfigDecryptConfig(instance.Config)[payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo])
+	createPendingProviderConfigOrder(t, ctx, client, instance)
+	for _, value := range []string{"true", "false", ""} {
+		_, err = svc.UpdateProviderInstance(ctx, instance.ID, payment.UpdateProviderInstanceRequest{
+			Config: map[string]string{payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo: value},
+		})
+		require.NoError(t, err)
+		listed, err := svc.ListProviderInstancesWithConfig(ctx)
+		require.NoError(t, err)
+		require.Len(t, listed, 1)
+		require.Equal(t, value, listed[0].Config[payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo])
+		require.NotContains(t, listed[0].Config, "pkey")
+	}
+	_, err = svc.UpdateProviderInstance(ctx, instance.ID, payment.UpdateProviderInstanceRequest{
+		Config: map[string]string{payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo: "invalid"},
+	})
+	require.Equal(t, "VALIDATION_ERROR", apperror.Reason(err))
 }

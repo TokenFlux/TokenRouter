@@ -33,6 +33,9 @@ import (
 // successful signature triggers a query using that same merchant instance.
 // Paid state, money, and trade identity must agree before the payment core
 // checks the local order snapshot and grants its entitlements.
+// An instance can opt into merchant-number echoes from API checkout. Paid
+// queries then require explicit merchant and order identity before carrying
+// permission to replace that echo during the first payment confirmation.
 //
 // Query responses support top-level and nested variants, with pointer presence
 // deciding which representation wins even when the winning value is empty.
@@ -144,8 +147,12 @@ type easyPayRefundAttempt struct {
 // NewEasyPay validates five nonblank connection settings and copies their
 // string map before normalizing apiBase. It installs a ten-second HTTP client;
 // API operations report upstream credential or connectivity errors when
-// requests run.
+// requests run. The optional merchant-number compatibility setting accepts
+// only an empty value or the exact strings true and false.
 func NewEasyPay(instanceID string, config map[string]string) (*EasyPay, error) {
+	if err := payment.ConfigValidateEasyPayTradeNumberCompatibility(config); err != nil {
+		return nil, err
+	}
 	for _, k := range []string{"pid", "pkey", "apiBase", "notifyUrl", "returnUrl"} {
 		if strings.TrimSpace(config[k]) == "" {
 			return nil, fmt.Errorf("easypay config missing required key: %s", k)
@@ -302,6 +309,8 @@ func (e *EasyPay) createRedirectPayment(req payment.CreatePaymentRequest) (*paym
 // and QR references resolve against the instance base; other references retain
 // their exact text so opaque QR payloads and application links remain usable
 // by checkout consumers.
+// With merchant-number compatibility enabled, an exact echoed order number
+// leaves TradeNo empty so later verified confirmation can bind its real reference.
 func (e *EasyPay) createAPIPayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {
 	notifyURL, returnURL := e.resolveURLs(req)
 	paymentType := e.upstreamPaymentType(req.PaymentType)
@@ -349,8 +358,14 @@ func (e *EasyPay) createAPIPayment(ctx context.Context, req payment.CreatePaymen
 		payURL = resp.PayURL2
 	}
 	base := e.apiBase()
+	tradeNo := resp.TradeNo
+	if e.config[payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo] == "true" && tradeNo == req.OrderID {
+		// An echoed merchant number cannot bind a provider transaction. Leave the
+		// reference absent so verified payment confirmation can publish the real number.
+		tradeNo = ""
+	}
 	return &payment.CreatePaymentResponse{
-		TradeNo: resp.TradeNo,
+		TradeNo: tradeNo,
 		PayURL:  resolveEasyPayReturnedRef(base, payURL),
 		QRCode:  resolveEasyPayReturnedRef(base, resp.QRCode),
 	}, nil
@@ -453,6 +468,8 @@ func (e *EasyPay) upstreamPaymentType(paymentType string) string {
 // Identical query and form parameters support V1 servers reading either input;
 // ctx cancels the request. Transport failures expose a fixed diagnostic, with
 // cancellation and deadline identities retained for callers checking errors.Is.
+// Enabled merchant-number compatibility requires explicit identities on paid
+// responses before issuing internal permission for the first transaction binding.
 func (e *EasyPay) QueryOrder(ctx context.Context, tradeNo string) (*payment.QueryOrderResponse, error) {
 	params := map[string]string{
 		"act": "order", "pid": e.config["pid"],
@@ -475,10 +492,10 @@ func (e *EasyPay) QueryOrder(ctx context.Context, tradeNo string) (*payment.Quer
 		}
 		return nil, errors.New("easypay query request failed")
 	}
-	return parseEasyPayQueryResponse(statusCode, body, tradeNo, e.MerchantIdentityMetadata())
+	return e.parseQueryResponse(statusCode, body, tradeNo)
 }
 
-// parseEasyPayQueryResponse validates a successful V1 business response and
+// parseQueryResponse validates a successful V1 business response and
 // resolves its optional top-level and nested fields. Textual status takes
 // precedence over numeric status; a present unknown value remains pending.
 //
@@ -487,7 +504,11 @@ func (e *EasyPay) QueryOrder(ctx context.Context, tradeNo string) (*payment.Quer
 // require positive CNY money and an actual upstream trade number. Empty or
 // malformed paid fields return errors before polling or callback consumers can
 // authorize fulfillment, while pending observations may omit payment details.
-func parseEasyPayQueryResponse(statusCode int, body []byte, orderID string, metadata map[string]string) (*payment.QueryOrderResponse, error) {
+// Enabled merchant-number compatibility requires explicit matching identities
+// in paid responses. Only those verified responses receive the internal order
+// marker that authorizes replacing a previously stored merchant-number echo.
+func (e *EasyPay) parseQueryResponse(statusCode int, body []byte, orderID string) (*payment.QueryOrderResponse, error) {
+	metadata := e.MerchantIdentityMetadata()
 	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("easypay query HTTP %d", statusCode)
 	}
@@ -517,6 +538,7 @@ func parseEasyPayQueryResponse(statusCode int, body []byte, orderID string, meta
 		}
 		return nil, fmt.Errorf("easypay query unsuccessful business response")
 	}
+	hasMerchant := false
 	for _, pid := range []json.RawMessage{resp.PID, resp.Data.PID} {
 		if len(pid) == 0 {
 			continue
@@ -528,11 +550,17 @@ func parseEasyPayQueryResponse(statusCode int, body []byte, orderID string, meta
 		if merchant != metadata["pid"] {
 			return nil, fmt.Errorf("easypay query merchant mismatch")
 		}
+		hasMerchant = true
 	}
+	hasOrder := false
 	for _, returnedOrder := range []*string{resp.OrderID, resp.Data.OrderID} {
-		if returnedOrder != nil && *returnedOrder != orderID {
+		if returnedOrder == nil {
+			continue
+		}
+		if *returnedOrder != orderID {
 			return nil, fmt.Errorf("easypay query order mismatch")
 		}
+		hasOrder = true
 	}
 	// Choose by field presence in descending precedence; a present unknown state
 	// deliberately prevents another response layout from claiming paid.
@@ -580,6 +608,14 @@ func parseEasyPayQueryResponse(statusCode int, body []byte, orderID string, meta
 		if responseTradeNo == "" || !easyPaySafeNotifyValue(responseTradeNo) {
 			return nil, fmt.Errorf("easypay query missing or invalid trade number")
 		}
+		if e.config[payment.ConfigEasyPayAllowMerchantOrderNoAsTradeNo] == "true" {
+			if !hasMerchant || !hasOrder || orderID == "" {
+				return nil, fmt.Errorf("easypay compatibility requires explicit merchant and order identity")
+			}
+			// Derive this marker from the authenticated lookup and local configuration.
+			// Callback fields never supply the permission to replace an order's initial echo.
+			metadata[payment.EasyPayConfirmedMerchantOrderNo] = orderID
+		}
 	}
 	return &payment.QueryOrderResponse{
 		TradeNo:  responseTradeNo,
@@ -599,6 +635,8 @@ func parseEasyPayQueryResponse(statusCode int, body []byte, orderID string, meta
 // callbacks require queried paid state, matching CNY money and matching trade
 // identity. The resulting observation still needs local order, merchant and
 // entitlement validation; an upstream error cannot authorize a local payment.
+// Successful observations retain only the query's adapter-owned metadata, including
+// any merchant-number compatibility proof derived from local instance configuration.
 // @project-doc docs/domains/payments_and_entitlements.md#callback_security
 func (e *EasyPay) VerifyNotification(ctx context.Context, rawBody string, _ map[string]string) (*payment.PaymentNotification, error) {
 	values, err := url.ParseQuery(rawBody)
@@ -653,6 +691,7 @@ func (e *EasyPay) VerifyNotification(ctx context.Context, rawBody string, _ map[
 		return nil, fmt.Errorf("invalid signature")
 	}
 	status := payment.ProviderStatusFailed
+	metadata := e.MerchantIdentityMetadata()
 	if params["trade_status"] == tradeStatusSuccess {
 		// Reuse the verifier instance so registry refresh or another merchant cannot
 		// replace the credentials authenticating this notification during paid confirmation.
@@ -665,11 +704,12 @@ func (e *EasyPay) VerifyNotification(ctx context.Context, rawBody string, _ map[
 			return nil, fmt.Errorf("easypay notification does not match a paid upstream order")
 		}
 		status = payment.ProviderStatusSuccess
+		metadata = queried.Metadata
 	}
 	amount, _ := paid.Float64()
 	return &payment.PaymentNotification{
 		TradeNo: params["trade_no"], OrderID: params["out_trade_no"],
-		Amount: amount, Status: status, RawData: rawBody, Metadata: e.MerchantIdentityMetadata(),
+		Amount: amount, Status: status, RawData: rawBody, Metadata: metadata,
 	}, nil
 }
 
