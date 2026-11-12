@@ -349,11 +349,13 @@
           field
           label-for="payment-max-pending-orders"
           :label="t('admin.settings.payment.maxPendingOrders')"
+          :hint="t('admin.settings.payment.maxPendingOrdersHint')"
         >
           <input
             id="payment-max-pending-orders"
             v-model.number="form.payment_max_pending_orders"
             type="number"
+            aria-describedby="payment-max-pending-orders-hint"
             min="1"
             class="input"
           />
@@ -362,17 +364,20 @@
           id="payment-load-balance-strategy"
           field
           :label="t('admin.settings.payment.loadBalanceStrategy')"
+          :hint="t('admin.settings.payment.loadBalanceStrategyHint')"
         >
           <Select
             v-model="form.payment_load_balance_strategy"
             :options="loadBalanceOptions"
             :aria-label="t('admin.settings.payment.loadBalanceStrategy')"
+            aria-describedby="payment-load-balance-strategy-hint"
           />
         </SettingRow>
         <SettingToggleRow
           id="payment-cancel-rate-limit-enabled"
           v-model="form.payment_cancel_rate_limit_enabled"
           :label="t('admin.settings.payment.cancelRateLimit')"
+          :hint="t('admin.settings.payment.cancelRateLimitHint')"
         />
         <!-- Cancellation controls follow the displayed rule: at most M cancellations per N selected time units. -->
         <Collapse :open="form.payment_cancel_rate_limit_enabled">

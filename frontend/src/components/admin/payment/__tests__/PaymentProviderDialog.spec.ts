@@ -459,15 +459,14 @@ describe('PaymentProviderDialog merchant order number compatibility', () => {
         }
       ).loadProvider(provider)
       await nextTick()
-      const toggle = wrapper.findComponent('[data-testid="easypay-merchant-order-number"]')
-      expect(toggle.attributes('checked')).toBe(String(value === 'true'))
+      const toggle = wrapper.get('[data-testid="easypay-merchant-order-number"]')
+      expect(toggle.attributes('aria-checked')).toBe(String(value === 'true'))
       await wrapper.find('form').trigger('submit.prevent')
       const before = wrapper.emitted('save')?.[0]?.[0] as {
         config: Record<string, string> /* emitted provider configuration */
       }
       expect(before.config.allowMerchantOrderNoAsTradeNo).toBe(value === 'true' ? 'true' : 'false')
-      toggle.vm.$emit('toggle')
-      await nextTick()
+      await toggle.trigger('click')
       await wrapper.find('form').trigger('submit.prevent')
       const after = wrapper.emitted('save')?.[1]?.[0] as {
         config: Record<string, string> /* emitted provider configuration */
@@ -487,7 +486,7 @@ describe('PaymentProviderDialog merchant order number compatibility', () => {
     editor.reset('easypay')
     await nextTick()
     expect(
-      wrapper.find('[data-testid="easypay-merchant-order-number"]').attributes('checked'),
+      wrapper.get('[data-testid="easypay-merchant-order-number"]').attributes('aria-checked'),
     ).toBe('false')
     editor.reset('stripe')
     await nextTick()

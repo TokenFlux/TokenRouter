@@ -197,17 +197,6 @@
         <p v-if="paymentGuide" class="mb-3 text-xs text-gray-500 dark:text-gray-400">
           {{ paymentGuide.summary }}
         </p>
-        <div v-if="form.provider_key === 'easypay'" class="mb-4 space-y-2">
-          <ToggleSwitch
-            data-testid="easypay-merchant-order-number"
-            :label="t('admin.settings.payment.easypayMerchantOrderNoCompatibility')"
-            :checked="config.allowMerchantOrderNoAsTradeNo === 'true'"
-            @toggle="toggleEasyPayMerchantOrderNoCompatibility"
-          />
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.settings.payment.easypayMerchantOrderNoCompatibilityHint') }}
-          </p>
-        </div>
         <div class="space-y-3">
           <div v-for="field in resolvedFields" :key="field.key">
             <label class="input-label">
@@ -340,6 +329,18 @@
         </div>
       </div>
 
+      <!-- Remove the inline switch's baseline gap so its track centers against the full text block. -->
+      <SettingToggleRow
+        v-if="form.provider_key === 'easypay'"
+        id="easypay-merchant-order-number"
+        testid="easypay-merchant-order-number"
+        class="!items-center [&_[role=switch]]:align-top"
+        :label="t('admin.settings.payment.easypayMerchantOrderNoCompatibility')"
+        :hint="t('admin.settings.payment.easypayMerchantOrderNoCompatibilityHint')"
+        :model-value="config.allowMerchantOrderNoAsTradeNo === 'true'"
+        @update:model-value="config.allowMerchantOrderNoAsTradeNo = String($event)"
+      />
+
       <div v-if="limitableTypes.length" class="border-t border-gray-200 pt-4 dark:border-dark-700">
         <button
           type="button"
@@ -471,6 +472,7 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import RuleListEditor from '@/components/common/RuleListEditor.vue'
 import Select from '@/components/common/Select.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
+import SettingToggleRow from '@/components/common/settings/SettingToggleRow.vue'
 import ToggleSwitch from '@/components/payment/ToggleSwitch.vue'
 import type { ProviderInstance } from '@/api/payment.types'
 import type { EasyPayCustomMethod, TypeOption } from './providerConfig'
@@ -1052,15 +1054,6 @@ function buildProviderConfig(): Record<string, string> {
   }
 
   return filteredConfig
-}
-
-// toggleEasyPayMerchantOrderNoCompatibility flips the draft's explicit compatibility
-// setting. An absent value behaves as disabled until the administrator enables it.
-// The save builder serializes both switch positions as literal strings for partial
-// configuration updates.
-function toggleEasyPayMerchantOrderNoCompatibility() {
-  config.allowMerchantOrderNoAsTradeNo =
-    config.allowMerchantOrderNoAsTradeNo === 'true' ? 'false' : 'true'
 }
 
 // syncEasyPayCustomMethods reconciles EasyPay method configuration with the selected

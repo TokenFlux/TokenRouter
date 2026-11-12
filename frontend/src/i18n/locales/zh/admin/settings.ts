@@ -941,8 +941,9 @@ export default {
       orderTimeout: '订单超时时间',
       orderTimeoutHint: '单位：分钟，至少 1 分钟',
       maxPendingOrders: '最大待支付订单数',
+      maxPendingOrdersHint: '按用户统计待支付和处理中的订单。达到上限后，该用户无法创建新订单。',
       cancelRateLimit: '限制取消频率',
-      cancelRateLimitHint: '启用后，用户在时间窗口内取消订单次数超限将无法创建新订单',
+      cancelRateLimitHint: '启用后，用户在设定的时间窗口内取消订单达到上限时，无法创建新订单。',
       cancelRateLimitEvery: '每',
       cancelRateLimitAllowMax: '最多',
       cancelRateLimitTimes: '次',
@@ -1034,9 +1035,9 @@ export default {
       field_cidAlipay: '支付宝渠道 ID',
       field_cidWxpay: '微信渠道 ID',
       easypayCustomMethods: '易支付自定义支付方式',
-      easypayMerchantOrderNoCompatibility: '兼容下单交易号回显商户订单号',
+      easypayMerchantOrderNoCompatibility: '兼容下单时返回商户订单号',
       easypayMerchantOrderNoCompatibilityHint:
-        '适用于下单时将商户订单号作为交易号返回的服务商。首次确认付款时，允许将该编号替换为通过商户凭据查单核验的交易号，仍须通过签名、商户、订单和金额校验。',
+        '仅当服务商下单时把商户订单号作为交易号返回时开启。首次确认付款时，使用查单核验的交易号。',
       easypayCustomMethodsHint:
         '添加当前易支付服务商额外支持的支付方式。支付方式会记录到 TokenRouter 订单中，上游 type 会作为易支付 type 参数提交。',
       addCustomMethod: '添加方式',
@@ -1064,6 +1065,8 @@ export default {
       productNameSuffix: '商品名后缀',
       preview: '预览',
       loadBalanceStrategy: '负载均衡策略',
+      loadBalanceStrategyHint:
+        '轮询：在可用实例间轮流分配订单。最少金额：选择今日订单总金额最低的实例。',
       strategyRoundRobin: '轮询',
       strategyLeastAmount: '最少金额',
       providerManagement: '服务商管理',

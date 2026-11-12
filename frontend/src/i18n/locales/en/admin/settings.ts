@@ -1007,9 +1007,11 @@ export default {
       orderTimeout: 'Order Timeout',
       orderTimeoutHint: 'In minutes, minimum 1',
       maxPendingOrders: 'Max Pending Orders',
+      maxPendingOrdersHint:
+        'Counts orders awaiting payment or still processing. Users who reach their limit cannot place new orders.',
       cancelRateLimit: 'Limit Cancel Rate',
       cancelRateLimitHint:
-        'When enabled, users who exceed the cancel limit within the time window cannot create new orders',
+        'When enabled, users who reach the cancellation limit within the configured time window cannot place new orders.',
       cancelRateLimitEvery: 'Every',
       cancelRateLimitAllowMax: 'allow max',
       cancelRateLimitTimes: 'cancels',
@@ -1103,9 +1105,9 @@ export default {
       field_cidAlipay: 'Alipay Channel ID',
       field_cidWxpay: 'WeChat Channel ID',
       easypayCustomMethods: 'Custom EasyPay methods',
-      easypayMerchantOrderNoCompatibility: 'Allow checkout to echo the merchant order number',
+      easypayMerchantOrderNoCompatibility: 'Accept merchant order number at checkout',
       easypayMerchantOrderNoCompatibilityHint:
-        'For providers that return your merchant order number as the checkout transaction number. On first payment confirmation, it can be replaced by the transaction number verified through an authenticated order lookup. Signature, merchant, order, and amount checks still apply.',
+        'Enable only if the provider returns the merchant order number as the transaction number at checkout. The first payment confirmation uses the transaction number verified by an order lookup.',
       easypayCustomMethodsHint:
         'Add provider-specific methods supported by this EasyPay endpoint. The payment type is stored on TokenRouter orders; the upstream type is sent as EasyPay type.',
       addCustomMethod: 'Add method',
@@ -1133,6 +1135,8 @@ export default {
       productNameSuffix: 'Product Name Suffix',
       preview: 'Preview',
       loadBalanceStrategy: 'Load Balance Strategy',
+      loadBalanceStrategyHint:
+        'Round Robin rotates among eligible provider instances. Least Daily Amount favors the instance with the lowest total order amount today.',
       strategyRoundRobin: 'Round Robin',
       strategyLeastAmount: 'Least Daily Amount',
       providerManagement: 'Provider Management',
