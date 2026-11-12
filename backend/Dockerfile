@@ -1,4 +1,4 @@
-FROM golang:1.27.3-alpine
+FROM golang:1.27.4-alpine
 
 # Dockerfile builds the standalone backend using the repository root as its context.
 # The backend imports the local plugin SDK module, so dependency resolution requires

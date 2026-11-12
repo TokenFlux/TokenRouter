@@ -26,9 +26,8 @@ import (
 // which skip nonce generation and CSP assignment. Other paths receive nonce
 // replacement when CSP is enabled. Policy editing uses textual directive
 // insertion, so callers provide canonical CSP source tokens and policy syntax.
-// With Go 1.27.3, crypto/rand.Read terminates on entropy-reader failure; the
-// helper's error signature and the middleware's error branch do not make that
-// failure recoverable.
+// If the entropy reader fails, crypto/rand.Read terminates the process before
+// the middleware can apply its fallback policy.
 
 const (
 	// Nonce identifiers and integration source tokens connect request context,
@@ -154,14 +153,13 @@ var requiredCSPDirectiveValues = []struct {
 }
 
 // GenerateNonce returns sixteen random bytes encoded as padded standard base64
-// text for CSP. With the selected Go 1.27.3 toolchain, crypto/rand.Read fills
-// the buffer or terminates the process on reader failure, so entropy failure is
-// not returned through this error result.
+// text for CSP. If the entropy reader fails, crypto/rand.Read terminates the
+// process before GenerateNonce can return an error to its caller.
 func GenerateNonce() (string, error) {
 	// Sixteen random bytes supply a 128-bit nonce value.
 	b := make([]byte, 16)
-	// Read retains an error result in its API, but Go 1.27.3 terminates on
-	// entropy-reader failure before this error-return branch can be reached.
+	// The error check follows the Read signature. An entropy-reader failure
+	// terminates the process before this branch can run.
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("generate CSP nonce: %w", err)
 	}
@@ -228,9 +226,8 @@ func SecurityHeaders(cfg httpconfig.CSPConfig, getFrameSrcOrigins func() []strin
 		if cfg.Enabled {
 			nonce, err := GenerateNonce()
 			if err != nil {
-				// If the nonce helper returns an error, this branch substitutes
-				// unsafe-inline for placeholder positions. Go 1.27.3 entropy-reader failure
-				// terminates before this branch can run.
+				// If the nonce helper returns an error, replace each placeholder with
+				// unsafe-inline because rendering has no request nonce to share with CSP.
 				log.Printf("[SecurityHeaders] %v; using CSP without a nonce", err)
 				c.Header("Content-Security-Policy", strings.ReplaceAll(finalPolicy, NonceTemplate, "'unsafe-inline'"))
 			} else {

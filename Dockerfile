@@ -1,14 +1,11 @@
 # syntax=docker/dockerfile:1.7
-# =============================================================================
-# TokenRouter Multi-Stage Dockerfile
-# =============================================================================
-# Stage 1: Build frontend
-# Stage 2: Build Go backend with embedded frontend
-# Stage 3: Final minimal image
-# =============================================================================
+# Dockerfile builds the TokenRouter runtime image from source. The Node stage
+# produces frontend assets for the Go stage to embed in the server binary. The
+# runtime stage copies that binary and PostgreSQL client tools for database
+# backup and restore.
 
 ARG NODE_IMAGE=node:26.12.1-alpine
-ARG GOLANG_IMAGE=golang:1.27.3-alpine
+ARG GOLANG_IMAGE=golang:1.27.4-alpine
 ARG ALPINE_IMAGE=alpine:3.21
 ARG POSTGRES_IMAGE=postgres:18-alpine
 ARG GOPROXY=https://goproxy.cn,direct

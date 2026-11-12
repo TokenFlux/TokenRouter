@@ -19,7 +19,7 @@
 
 源码镜像的前端阶段校验 `.node-version`，再按 `frontend/package.json` 的 `packageManager` 字段安装 pnpm，本地和 CI 读取同样的版本声明。默认 Node 镜像使用 26.12.1，覆盖 `NODE_IMAGE` 时仍需满足完整版本检查。Node 26 镜像通过 npm 安装声明的 pnpm 版本，冻结安装前复制 workspace 配置。
 
-Go 构建使用 1.27.3，后端模块、两个开发工具模块、根目录和 `backend/` 的 Dockerfile 同步声明该版本。Go 标准库的安全修复需要重新编译并部署应用二进制才能生效。Node.js 用于依赖安装、前端构建和开发工具；标准生产镜像由 Go 进程提供嵌入的静态资源。
+Go 构建使用 1.27.4，后端模块、架构检查和声明排序工具，以及根目录和 `backend/` 的 Dockerfile 都声明该版本。Go 标准库的安全修复需要重新编译并部署应用二进制才能生效。Node.js 用于依赖安装、前端构建和开发工具。标准生产镜像由 Go 进程提供嵌入的静态资源。
 
 前端构建会导入 `backend/internal/pkg/locale/manifest.json` 和 `error_messages.json`。根目录的 Dockerfile 在前端构建阶段将这些文件复制到 `/app/backend/internal/pkg/locale/`，与源码中的相对导入路径一致。开发 Compose 和 `deploy/build_image.sh` 都使用这份完整应用构建入口；`backend/Dockerfile` 只构建后端，`Dockerfile.goreleaser` 只封装预编译的发布二进制。
 

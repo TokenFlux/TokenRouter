@@ -18,7 +18,7 @@
 
 | 工具 | 版本来源 | 当前要求 |
 | --- | --- | --- |
-| Go | `backend/go.mod`、CI | `1.27.3` |
+| Go | `backend/go.mod`、CI | `1.27.4` |
 | Node.js | `.node-version` | `26.12.1` |
 | pnpm | `frontend/package.json` 的 `packageManager` | `12.9.1`；本地 pnpm 读取该字段并切换到声明的版本 |
 | golangci-lint | `.golangci-version` | 本地和 CI 使用同一个完整版本，配置在 `backend/.golangci.yml` |
