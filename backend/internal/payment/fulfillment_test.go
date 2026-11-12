@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fulfillment_trade_number_test.go checks first-payment transaction binding
+// fulfillment_test.go checks first-payment transaction binding
 // against adapter-confirmed merchant numbers and persisted lifecycle state.
 // These pure checks complement PostgreSQL tests that exercise competing
 // callbacks, queries, and entitlement grants through the public payment flow.
