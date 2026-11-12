@@ -616,6 +616,9 @@ const annotation = computed(() => {
 const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
+  // Draw points at their final heights from the first frame so the reveal plugin
+  // exposes the settled curve instead of a line rising from the baseline.
+  animation: false as const,
   interaction: { intersect: false, mode: 'index' as const },
   // Annotation capsules can extend above the plot, so reserve half their height
   // in the chart layout before the canvas clips the outer drawing area.
