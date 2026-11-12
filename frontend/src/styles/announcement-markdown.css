@@ -1,32 +1,44 @@
 /*
- * announcement-markdown.css styles rendered announcement content in modal and bell-
- * detail views. Shared markdown rules provide readable headings, lists, code, and
- * tables; the later popup rules reduce spacing and decoration for the compact
- * announcement panel.
+ * announcement-markdown.css styles the sanitized Markdown and embedded HTML that
+ * AnnouncementArticle renders inside announcement dialogs. Administrators write this
+ * content freely, so the rules cover headings, lists, quotes, code, tables, and images
+ * at the dialog's compact text size. Link colors come from the shared
+ * text-link-content class on the same container.
  */
 .markdown-body {
-  @apply text-[15px] leading-[1.75];
-  @apply text-gray-700 dark:text-gray-300;
+  @apply min-w-0 break-words text-sm leading-6 text-gray-700 dark:text-dark-200;
+}
+
+/*
+ * Trim the first and last child margins because the article body already provides
+ * the spacing around its content.
+ */
+.markdown-body > :first-child {
+  @apply mt-0;
+}
+
+.markdown-body > :last-child {
+  @apply mb-0;
 }
 
 .markdown-body h1 {
-  @apply mb-6 mt-8 border-b border-gray-200 pb-3 text-3xl font-bold text-gray-900 dark:border-dark-600 dark:text-white;
+  @apply mb-4 mt-6 text-xl font-semibold text-gray-900 dark:text-white;
 }
 
 .markdown-body h2 {
-  @apply mb-4 mt-7 border-b border-gray-100 pb-2 text-2xl font-bold text-gray-900 dark:border-dark-700 dark:text-white;
+  @apply mb-3 mt-5 text-lg font-semibold text-gray-900 dark:text-white;
 }
 
 .markdown-body h3 {
-  @apply mb-3 mt-6 text-xl font-semibold text-gray-900 dark:text-white;
+  @apply mb-2 mt-4 text-base font-semibold text-gray-900 dark:text-white;
 }
 
 .markdown-body h4 {
-  @apply mb-2 mt-5 text-lg font-semibold text-gray-900 dark:text-white;
+  @apply mb-2 mt-4 text-sm font-semibold text-gray-900 dark:text-white;
 }
 
 .markdown-body p {
-  @apply mb-4 leading-relaxed;
+  @apply mb-3;
 }
 
 .markdown-body a {
@@ -35,7 +47,7 @@
 
 .markdown-body ul,
 .markdown-body ol {
-  @apply mb-4 ml-6 space-y-2;
+  @apply mb-3 space-y-1 pl-5;
 }
 
 .markdown-body ul {
@@ -47,28 +59,33 @@
 }
 
 .markdown-body li {
-  @apply pl-2 leading-relaxed;
+  @apply pl-1;
 }
 
 .markdown-body li::marker {
-  @apply text-blue-600 dark:text-blue-400;
+  @apply text-gray-400 dark:text-dark-500;
+}
+
+/* A nested list sits directly under its parent item without the block margin. */
+.markdown-body li > ul,
+.markdown-body li > ol {
+  @apply mb-0 mt-1;
 }
 
 .markdown-body blockquote {
-  @apply relative my-5 border-l-4 border-blue-500 bg-blue-50/50 py-3 pl-5 pr-4 italic text-gray-700 dark:border-blue-400 dark:bg-blue-900/10 dark:text-gray-300;
+  @apply my-4 border-l-2 border-primary-500 bg-gray-50 py-2 pl-4 pr-3 text-gray-600 dark:border-primary-400 dark:bg-dark-800 dark:text-dark-300;
 }
 
-.markdown-body blockquote::before {
-  content: '"';
-  @apply absolute -left-1 top-0 font-serif text-5xl text-blue-500/20 dark:text-blue-400/20;
+.markdown-body blockquote > :last-child {
+  @apply mb-0;
 }
 
 .markdown-body code {
-  @apply rounded-surface bg-gray-100 px-2 py-1 font-mono text-[13px] text-pink-600 dark:bg-dark-700 dark:text-pink-400;
+  @apply rounded-compact bg-gray-100 px-1.5 py-0.5 font-mono text-[13px] text-gray-800 dark:bg-dark-950 dark:text-dark-100;
 }
 
 .markdown-body pre {
-  @apply my-5 overflow-x-auto rounded-surface border border-gray-200 bg-gray-50 p-5 dark:border-dark-600 dark:bg-dark-900/50;
+  @apply my-4 overflow-x-auto rounded-surface border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-950;
 }
 
 /*
@@ -77,20 +94,25 @@
  * lines.
  */
 .markdown-body pre code {
-  @apply bg-transparent p-0 text-[13px] text-gray-800 dark:text-gray-200;
+  @apply bg-transparent p-0;
 }
 
 .markdown-body hr {
-  @apply my-8 border-0 border-t-2 border-gray-200 dark:border-dark-700;
+  @apply my-5 border-gray-200 dark:border-dark-600;
 }
 
+/*
+ * Separate borders with zero spacing let the table keep rounded corners, which
+ * collapsed borders ignore. Cells draw the inner grid lines and the table draws the
+ * outer frame.
+ */
 .markdown-body table {
-  @apply mb-5 w-full overflow-hidden rounded-control border border-gray-200 dark:border-dark-600;
+  @apply mb-4 w-full border-separate border-spacing-0 overflow-hidden rounded-control border border-gray-200 dark:border-dark-600;
 }
 
 .markdown-body th,
 .markdown-body td {
-  @apply border-b border-r border-gray-200 px-4 py-3 text-left dark:border-dark-600;
+  @apply border-b border-r border-gray-200 px-3 py-2 text-left dark:border-dark-700;
 }
 
 .markdown-body th:last-child,
@@ -103,15 +125,11 @@
 }
 
 .markdown-body th {
-  @apply bg-gradient-to-br from-blue-50 to-indigo-50 font-semibold text-gray-900 dark:from-blue-900/20 dark:to-indigo-900/10 dark:text-white;
-}
-
-.markdown-body tbody tr {
-  @apply transition-colors hover:bg-gray-50 dark:hover:bg-dark-700/30;
+  @apply bg-gray-50 font-semibold text-gray-900 dark:bg-dark-800 dark:text-white;
 }
 
 .markdown-body img {
-  @apply my-5 max-w-full rounded-surface border border-gray-200 shadow-md dark:border-dark-600;
+  @apply my-4 h-auto max-w-full rounded-control border border-gray-200 dark:border-dark-600;
 }
 
 .markdown-body strong {
@@ -119,81 +137,5 @@
 }
 
 .markdown-body em {
-  @apply italic text-gray-600 dark:text-gray-400;
-}
-
-/*
- * Popup rules follow the shared markdown rules so a compact announcement can
- * override heading spacing, code blocks, tables, and images within the same body.
- */
-.announcement-popup-content {
-  @apply text-sm leading-7 text-gray-700 dark:text-dark-200;
-}
-
-/*
- * Trim the first and last child margins because the popup container already provides
- * outer spacing around its compact markdown body.
- */
-.announcement-popup-content > :first-child {
-  @apply mt-0;
-}
-
-.announcement-popup-content > :last-child {
-  @apply mb-0;
-}
-
-.announcement-popup-content h1 {
-  @apply mb-4 mt-6 border-0 pb-0 text-xl font-semibold;
-}
-
-.announcement-popup-content h2 {
-  @apply mb-3 mt-5 border-0 pb-0 text-lg font-semibold;
-}
-
-.announcement-popup-content h3 {
-  @apply mb-2 mt-4 text-base font-semibold;
-}
-
-.announcement-popup-content h4 {
-  @apply mb-2 mt-4 text-sm font-semibold;
-}
-
-.announcement-popup-content p,
-.announcement-popup-content ul,
-.announcement-popup-content ol {
-  @apply mb-3;
-}
-
-.announcement-popup-content ul,
-.announcement-popup-content ol {
-  @apply space-y-1;
-}
-
-.announcement-popup-content blockquote {
-  @apply my-4 border-l-2 border-primary-500 bg-gray-50 py-2 pl-4 pr-3 not-italic dark:border-primary-400 dark:bg-dark-800;
-}
-
-.announcement-popup-content blockquote::before {
-  content: none;
-}
-
-.announcement-popup-content pre {
-  @apply my-4 rounded-surface p-4;
-}
-
-.announcement-popup-content table {
-  @apply mb-4;
-}
-
-.announcement-popup-content th,
-.announcement-popup-content td {
-  @apply px-3 py-2;
-}
-
-.announcement-popup-content th {
-  @apply bg-none bg-gray-50 dark:bg-dark-800;
-}
-
-.announcement-popup-content img {
-  @apply my-4 rounded-control shadow-none;
+  @apply italic;
 }

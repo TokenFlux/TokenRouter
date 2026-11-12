@@ -25,7 +25,7 @@ vi.mock('@/utils/format', () => ({
   formatDate: (date: string | Date, options: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat('zh-CN', options).format(new Date(date)),
   formatDateTime: () => '2026/08/01 12:00:00',
-  formatRelativeTime: () => '2 hours ago',
+  formatDateTimeToMinute: () => '2026/08/01 12:00',
 }))
 
 // createAnnouncement creates a silent publication with an ID-based timestamp and optional
@@ -208,10 +208,10 @@ describe('UserDashboardAnnouncements', () => {
     expect(markAsRead).toHaveBeenCalledTimes(1)
     expect(markAsRead).toHaveBeenCalledWith(1)
     expect(document.body.textContent).toContain('Unread announcement')
-    expect(document.body.querySelector('[data-testid="announcement-popup-dismiss"]')).not.toBeNull()
+    expect(document.body.querySelector('[data-testid="announcement-popup-close"]')).not.toBeNull()
 
     document.body
-      .querySelector<HTMLButtonElement>('[data-testid="announcement-popup-dismiss"]')
+      .querySelector<HTMLButtonElement>('[data-testid="announcement-popup-close"]')
       ?.click()
     await nextTick()
     await readItem.trigger('click')

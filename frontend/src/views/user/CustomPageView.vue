@@ -313,9 +313,11 @@ async function fetchAndRenderMarkdown(slug: string) {
         : match,
     )
 
-    // Sanitize parser output before adding anchors; configured embedded frames
-    // retain the explicitly allowed attributes used by this page's content format.
-    const html = marked.parse(raw) as string
+    // Pass the parser options with the call, so single newlines stay line breaks
+    // whichever other view last changed the shared marked defaults. Sanitize the
+    // output before adding anchors; configured embedded frames retain the
+    // explicitly allowed attributes used by this page's content format.
+    const html = marked.parse(raw, { async: false, breaks: true, gfm: true })
     const sanitized = DOMPurify.sanitize(html, {
       ADD_TAGS: ['iframe'],
       ADD_ATTR: ['allowfullscreen', 'frameborder', 'src'],

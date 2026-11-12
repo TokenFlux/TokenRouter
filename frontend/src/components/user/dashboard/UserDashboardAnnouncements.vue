@@ -104,7 +104,6 @@
     <AnnouncementPopup
       :announcement="selectedAnnouncement"
       preview
-      show-read-status
       @close="selectedAnnouncement = null"
     />
   </div>
@@ -114,12 +113,14 @@
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
 import { useAnnouncementStore } from '@/stores/announcements'
-import { formatDate, formatDateTime } from '@/utils/format'
+import { formatDateTime } from '@/utils/format'
 import type { UserAnnouncement } from '@/api/announcements.types'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
+import {
+  formatAnnouncementDate,
+  summarizeAnnouncement,
+} from '@/components/announcements/announcementDisplay'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Skeleton from '@/components/common/Skeleton.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -129,11 +130,10 @@ import Icon from '@/components/icons/Icon.vue'
 // copies and sorts records by publication time, with IDs breaking ties, before selecting its
 // visible entries.
 //
-// Preview text is extracted from sanitized rendered content. Tables and code blocks are
-// omitted because flattened values lose the relationships carried by rows or formatting,
-// while the detail popup retains complete content. Read marking is requested when a
-// previously unread entry opens, and the store remains responsible for publishing that
-// status to other announcement consumers.
+// Preview text and dates come from the shared announcement display module, so the timeline
+// summarizes content the same way as the header list while the detail popup retains complete
+// content. Read marking is requested when a previously unread entry opens, and the store
+// remains responsible for publishing that status to other announcement consumers.
 
 // MAX_ANNOUNCEMENTS limits the dashboard timeline to the most recent publications after its
 // independent chronological sort.
@@ -154,41 +154,6 @@ function getCreatedTimestamp(announcement: UserAnnouncement): number {
   return Number.isNaN(timestamp) ? 0 : timestamp
 }
 
-// formatAnnouncementDate formats a publication date using the current locale. Dates in
-// another calendar year include the year, while invalid timestamps return an empty label for
-// the timeline.
-function formatAnnouncementDate(createdAt: string): string {
-  const date = new Date(createdAt)
-  if (Number.isNaN(date.getTime())) return ''
-
-  const options: Intl.DateTimeFormatOptions = {
-    month: 'long',
-    day: 'numeric',
-  }
-  if (date.getFullYear() !== new Date().getFullYear()) {
-    options.year = 'numeric'
-  }
-  return formatDate(date, options)
-}
-
-// createSummary extracts the first nonempty prose paragraph from sanitized Markdown or HTML.
-// Table and code blocks are removed from the summary because their values need their layout
-// to remain understandable. If no paragraph remains, body text supplies the summary;
-// structured-only content returns an empty string so the card can use its no-summary label.
-// Whitespace is collapsed for the constrained timeline preview while the popup receives the
-// complete announcement content.
-function createSummary(content: string): string {
-  if (!content) return ''
-
-  const html = DOMPurify.sanitize(marked.parse(content, { breaks: true, gfm: true }) as string)
-  const parsed = new DOMParser().parseFromString(html, 'text/html')
-  parsed.body.querySelectorAll('table, pre').forEach((element) => element.replaceWith(' '))
-  const paragraph = [...parsed.body.querySelectorAll('p')].find((element) =>
-    element.textContent?.trim(),
-  )
-  return (paragraph?.textContent || parsed.body.textContent || '').replace(/\s+/g, ' ').trim()
-}
-
 // timelineItems copies the store entries before chronological sorting because the store
 // ordering prioritizes unread announcements for other consumers.
 const timelineItems = computed(() =>
@@ -200,7 +165,7 @@ const timelineItems = computed(() =>
     .slice(0, MAX_ANNOUNCEMENTS)
     .map((announcement) => ({
       announcement,
-      summary: createSummary(announcement.content),
+      summary: summarizeAnnouncement(announcement.content),
     })),
 )
 

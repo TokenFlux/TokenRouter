@@ -9,8 +9,8 @@ import { useAnnouncementStore } from '@/stores/announcements'
 
 // AnnouncementPopup.spec.ts checks queued announcement dialogs and controlled
 // previews with local store state. Mounted content verifies sanitized Markdown
-// and HTML, read metadata, dismissal ownership, and scroll restoration while the
-// shared stylesheet supplies mixed-content element rules.
+// and HTML, the controls each mode offers, dismissal ownership, and scroll
+// restoration while the shared stylesheet supplies mixed-content element rules.
 
 // announcementMarkdownStyles supplies parsed shared CSS rules for assertions
 // covering Markdown and embedded HTML selectors independently of source wrapping.
@@ -27,8 +27,7 @@ vi.mock('vue-i18n', async () => {
 })
 
 vi.mock('@/utils/format', () => ({
-  formatDateTime: () => '2026/07/24 15:30:00',
-  formatRelativeTime: () => '3 hours ago',
+  formatDateTimeToMinute: () => '2026/07/24 15:30',
 }))
 
 // announcement supplies deterministic draft content and metadata, including an
@@ -100,9 +99,10 @@ describe('AnnouncementPopup', () => {
     },
   )
 
-  // An administrator preview receives draft content with a script tag. Closing
-  // it must notify the parent, leave the store queue untouched, and restore
-  // scrolling when content clears.
+  // An administrator preview receives draft content with a script tag. The dialog
+  // must show the title with one publication time, offer only the header close
+  // control, notify the parent on close, leave the store queue untouched, and
+  // restore scrolling when content clears.
   it('previews an admin announcement without marking it as read', async () => {
     const store = useAnnouncementStore()
     const dismissPopup = vi.spyOn(store, 'dismissPopup')
@@ -113,16 +113,20 @@ describe('AnnouncementPopup', () => {
       },
     })
 
-    expect(document.body.textContent).toContain('Preview announcement')
+    const dialog = document.body.querySelector('[role="dialog"]')
+    expect(dialog?.classList).toContain('modal-content')
+    expect(dialog?.classList).toContain('max-w-[640px]')
+    expect(dialog?.querySelector('h2')?.textContent?.trim()).toBe('Preview announcement')
+    expect(
+      [...(dialog?.querySelectorAll('time') ?? [])].map((time) => time.textContent?.trim()),
+    ).toEqual(['2026/07/24 15:30'])
     expect(document.body.querySelector('.markdown-body h2')?.textContent).toBe('Preview heading')
     expect(document.body.querySelector('.markdown-body script')).toBeNull()
-    expect(document.body.textContent).toContain('common.close')
-    expect(document.body.querySelector('[data-testid="announcement-popup-status"]')).toBeNull()
+    expect(document.body.querySelector('[data-testid="announcement-popup-dismiss"]')).toBeNull()
 
-    const dismissButton = document.body.querySelector<HTMLButtonElement>(
-      '[data-testid="announcement-popup-dismiss"]',
-    )
-    dismissButton?.click()
+    document.body
+      .querySelector<HTMLButtonElement>('[data-testid="announcement-popup-close"]')
+      ?.click()
     await wrapper.vm.$nextTick()
 
     expect(wrapper.emitted('close')).toHaveLength(1)
@@ -133,52 +137,26 @@ describe('AnnouncementPopup', () => {
     wrapper.unmount()
   })
 
-  // A controlled user announcement includes a read timestamp and enables status
-  // display. Its dialog must show compact metadata once and retain the shared
-  // close control.
-  it('shows compact read metadata for a controlled user announcement', async () => {
-    const wrapper = mount(AnnouncementPopup, {
-      props: {
-        announcement: {
-          ...announcement,
-          read_at: '2026-07-24T08:00:00Z',
-        },
-        preview: true,
-        showReadStatus: true,
-      },
-    })
-
-    const dialog = document.body.querySelector('[role="dialog"]')
-    const status = document.body.querySelector('[data-testid="announcement-popup-status"]')
-
-    expect(dialog?.classList).toContain('max-w-[640px]')
-    expect(dialog?.classList).toContain('rounded-surface')
-    expect(dialog?.classList).toContain('sm:rounded-dialog')
-    expect(document.body.textContent).toContain('announcements.title')
-    expect(document.body.textContent).toContain('announcements.read')
-    expect(document.body.textContent?.match(/announcements\.read/g)).toHaveLength(1)
-    expect(status?.textContent).toContain('announcements.read')
-    expect(document.body.querySelector('[data-testid="announcement-popup-close"]')).not.toBeNull()
-
-    wrapper.unmount()
-  })
-
-  // A queued user popup is dismissed through its footer action. The store
-  // dismissal method must run once, while the preview-only close event remains
-  // absent.
-  it('keeps the existing user popup dismissal behavior', async () => {
+  // A queued user popup is dismissed through its acknowledgement button and then
+  // through the header close control. Each must call the store dismissal method,
+  // while the preview-only close event remains absent.
+  it('dismisses a queued popup from the acknowledgement button and the close control', async () => {
     const store = useAnnouncementStore()
     store.currentPopup = announcement
     const dismissPopup = vi.spyOn(store, 'dismissPopup').mockResolvedValue()
     const wrapper = mount(AnnouncementPopup)
 
-    const dismissButton = document.body.querySelector<HTMLButtonElement>(
+    const acknowledge = document.body.querySelector<HTMLButtonElement>(
       '[data-testid="announcement-popup-dismiss"]',
     )
-    dismissButton?.click()
+    expect(acknowledge?.textContent?.trim()).toBe('announcements.acknowledge')
+    acknowledge?.click()
+    document.body
+      .querySelector<HTMLButtonElement>('[data-testid="announcement-popup-close"]')
+      ?.click()
     await wrapper.vm.$nextTick()
 
-    expect(dismissPopup).toHaveBeenCalledTimes(1)
+    expect(dismissPopup).toHaveBeenCalledTimes(2)
     expect(wrapper.emitted('close')).toBeUndefined()
     wrapper.unmount()
   })
