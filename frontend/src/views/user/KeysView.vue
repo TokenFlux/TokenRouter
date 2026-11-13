@@ -13,19 +13,28 @@
               />
               <FilterDropdown
                 :active-count="activeFilterCount"
-                :columns="2"
                 keep-mounted
                 @reset="resetKeyFilters"
               >
-                <FilterField :label="t('keys.group')">
-                  <Select
+                <FilterField :label="t('keys.group')" icon="folder">
+                  <FilterOptions
                     :model-value="filterGroupId"
                     :options="groupFilterOptions"
+                    searchable
                     @update:model-value="onGroupFilterChange"
-                  />
+                  >
+                    <template #icon="{ option }">
+                      <ProviderIcon
+                        v-if="option?.brand"
+                        :brand="String(option.brand)"
+                        size="16px"
+                        hide-fallback
+                      />
+                    </template>
+                  </FilterOptions>
                 </FilterField>
-                <FilterField :label="t('common.status')">
-                  <Select
+                <FilterField :label="t('common.status')" icon="checkCircle">
+                  <FilterOptions
                     :model-value="filterStatus"
                     :options="statusFilterOptions"
                     @update:model-value="onStatusFilterChange"
@@ -1478,6 +1487,9 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import type { FilterOption } from '@/components/common/filterPanel'
+import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import RuleListEditor from '@/components/common/RuleListEditor.vue'
@@ -2049,20 +2061,21 @@ const shouldSubmitEditStatus = (key: ApiKey, status: 'active' | 'inactive') => {
 }
 
 // List filter options include unrestricted choices, numeric-zero ungrouped selection,
-// visible groups, and server key statuses used by the list endpoint.
+// visible groups with the display brand drawn as their row icon, and server key
+// statuses used by the list endpoint.
 const groupFilterOptions = computed(() => [
   { value: '', label: t('keys.allGroups') },
   { value: 0, label: t('keys.noGroup') },
-  ...groups.value.map((g) => ({ value: g.id, label: g.name })),
+  ...groups.value.map((g) => ({ value: g.id, label: g.name, brand: g.display_brand })),
 ])
 
-const statusFilterOptions = computed(() => [
+const statusFilterOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('keys.allStatus') },
-  { value: 'active', label: t('keys.status.active') },
-  { value: 'inactive', label: t('keys.status.inactive') },
-  { value: 'disabled', label: t('keys.status.disabled') },
-  { value: 'quota_exhausted', label: t('keys.status.quota_exhausted') },
-  { value: 'expired', label: t('keys.status.expired') },
+  { value: 'active', label: t('keys.status.active'), dot: 'green' },
+  { value: 'inactive', label: t('keys.status.inactive'), dot: 'gray' },
+  { value: 'disabled', label: t('keys.status.disabled'), dot: 'gray' },
+  { value: 'quota_exhausted', label: t('keys.status.quota_exhausted'), dot: 'amber' },
+  { value: 'expired', label: t('keys.status.expired'), dot: 'red' },
 ])
 
 // activeFilterCount counts selected group and status filters for the toolbar badge,

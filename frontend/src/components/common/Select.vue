@@ -133,17 +133,16 @@
 <script setup lang="ts">
 import { useFloatingMotion } from '@/composables/useFloatingMotion'
 import MotionTransition from '@/components/common/MotionTransition.vue'
-import { ref, computed, watch, onMounted, onUnmounted, nextTick, inject } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { SELECT_PANEL_MAX_HEIGHT, Z_INDEX } from '@/constants/overlay'
-import { FILTER_FIELD_KEY, isSameFilterValue, resolveEmptyValue } from './filterPanel'
+import { matchesOptionQuery } from './filterPanel'
 
 // Select.vue renders a controlled option picker with searching, keyboard navigation,
 // and a teleported menu. Option values and labels can come from caller-selected record
 // keys, and a generated instance marker links the separate menu to its trigger for
-// outside-click handling. FilterField integration reports the selection and supplies
-// its clear action.
+// outside-click handling.
 //
 // Opening schedules menu measurement and chooses a focused option after filtering.
 // Placement combines trigger bounds, menu dimensions, and viewport space, then updates
@@ -356,20 +355,7 @@ const filteredOptions = computed(() => {
   let opts = props.options as any[]
   if (isSearchable.value && searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
-    opts = opts.filter((opt) => {
-      // Search aliases and translated labels feed one predicate, keeping each supplied
-      // business option at most once in the filtered result.
-      if (
-        Array.isArray(opt.search_terms) &&
-        opt.search_terms.some((text: string) => text.toLowerCase().includes(query))
-      )
-        return true
-
-      if (getOptionLabel(opt).toLowerCase().includes(query)) return true
-      if (opt.description && String(opt.description).toLowerCase().includes(query)) return true
-      if (opt.displayBrand && String(opt.displayBrand).toLowerCase().includes(query)) return true
-      return false
-    })
+    opts = opts.filter((opt) => matchesOptionQuery(opt, getOptionLabel(opt), query))
 
     // A nonblank query adds an independent creation entry ahead of matches, allowing
     // the user to submit that text even when supplied options also match.
@@ -547,31 +533,6 @@ const clearSelection = () => {
   if (props.disabled) return
   emit('update:modelValue', null)
   emit('change', null, null)
-}
-
-// filterField connects an embedded selector to its owning filter chip and supplies the
-// value used when that chip is removed.
-const filterField = inject(FILTER_FIELD_KEY, null)
-if (filterField) {
-  // An explicitly supplied reset value wins, including null; otherwise infer it from
-  // the first option so removing a chip restores the field default.
-  const emptyValue = computed(() => {
-    const explicit = filterField.emptyValue()
-    if (explicit !== undefined) return explicit
-    return resolveEmptyValue(props.options.length ? getOptionValue(props.options[0]) : null)
-  })
-  filterField.bindControl(
-    computed(() => ({
-      active: !isSameFilterValue(props.modelValue, emptyValue.value),
-      text: selectedLabel.value,
-      clear: () => {
-        const value = (emptyValue.value ?? null) as SelectOption['value']
-        const option = props.options.find((opt) => getOptionValue(opt) === value) ?? null
-        emit('update:modelValue', value)
-        emit('change', value, option as SelectOption | null)
-      },
-    })),
-  )
 }
 
 // onTriggerKeyDown opens the menu when a trigger keyboard action requests it.

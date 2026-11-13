@@ -216,6 +216,7 @@ function mountUsageView() {
         AppLayout: simpleStub,
         Pagination: true,
         Select: true,
+        FilterOptions: true,
         DateRangePicker: true,
         Icon: true,
         UsageStatsCards: chartStub,
@@ -328,9 +329,11 @@ describe('user UsageView', () => {
     ])
     const wrapper = mountUsageView()
     await flushPromises()
-    // options collects option objects exposed by every mounted Select stub in the page.
+    // options collects option objects exposed by every mounted filter option list stub.
     const options = () =>
-      wrapper.findAllComponents({ name: 'Select' }).flatMap((item) => item.props('options') || [])
+      wrapper
+        .findAllComponents({ name: 'FilterOptions' })
+        .flatMap((item) => item.props('options') || [])
     expect(options()).toContainEqual(expect.objectContaining({ value: 1, label: 'English group' }))
     expect(options()).toContainEqual(expect.objectContaining({ value: 2, label: 'Legacy group' }))
     getAvailable.mockResolvedValue([{ id: 1, name: 'business-group', display_name: '中文分组' }])
@@ -433,9 +436,9 @@ describe('user UsageView', () => {
     expect(showError).not.toHaveBeenCalled()
   })
 
-  // Main selectors start with unselected null values in the UI. The test protects their
-  // all-option presentation and omitting those predicates from the normalized usage query.
-  it('主筛选框初始值为 null，显示“全部”选项，请求参数不带未选条件', async () => {
+  // Main filter lists start with unselected null values in the UI. The test protects their
+  // leading all-option and omitting those predicates from the normalized usage query.
+  it('主筛选项初始值为 null，首项是“全部”，请求参数不带未选条件', async () => {
     const wrapper = mountUsageView()
     await flushPromises()
 
@@ -446,10 +449,10 @@ describe('user UsageView', () => {
       'admin.usage.allTypes',
     ]
     for (const label of labels) {
-      const select = wrapper
-        .findAllComponents({ name: 'Select' })
+      const filterOptions = wrapper
+        .findAllComponents({ name: 'FilterOptions' })
         .find((item) => item.props('options')?.[0]?.label === (messages[label] ?? label))
-      expect(select?.props('modelValue')).toBeNull()
+      expect(filterOptions?.props('modelValue')).toBeNull()
     }
     const params = query.mock.calls[0][0]
     for (const key of ['api_key_id', 'group_id', 'model', 'request_type']) {

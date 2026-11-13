@@ -2,31 +2,26 @@
   <div :class="flat ? 'p-4' : 'card p-6'">
     <div class="space-y-4">
       <div class="flex items-center justify-between gap-2">
-        <!-- Unselected predicates may be undefined; passing null matches the shared selectors' unfiltered option while retaining the query object values. -->
-        <FilterDropdown
-          :active-count="activeFilterCount"
-          :columns="3"
-          keep-mounted
-          @reset="resetPanelFilters"
-        >
+        <!-- Unselected predicates may be undefined; passing null matches the option lists' unfiltered entry while retaining the query object values. -->
+        <FilterDropdown :active-count="activeFilterCount" keep-mounted @reset="resetPanelFilters">
           <!-- Request-ID filtering removes date bounds from queries; the user ranking uses its own supported filter dimensions. -->
           <RequestIdFilterField
             v-if="mode !== 'ranking'"
             v-model="filters.request_id"
             @search="emitChange"
           />
-          <FilterField v-if="mode === 'usage'" :label="t('admin.usage.teamFilter')">
-            <Select
+          <FilterField v-if="mode === 'usage'" :label="t('admin.usage.teamFilter')" icon="users">
+            <FilterOptions
               :model-value="filters.team_id ?? null"
-              @update:model-value="filters.team_id = $event"
               :options="teamOptions"
               searchable
+              @update:model-value="filters.team_id = $event"
               @change="emitChange"
             />
           </FilterField>
 
-          <FilterField v-if="mode === 'usage'" :label="t('admin.usage.requestSource')">
-            <Select
+          <FilterField v-if="mode === 'usage'" :label="t('admin.usage.requestSource')" icon="send">
+            <FilterOptions
               :model-value="filters.request_source ?? null"
               :options="requestSourceOptions"
               @update:model-value="filters.request_source = $event"
@@ -34,241 +29,183 @@
             />
           </FilterField>
 
-          <!-- User search -->
-          <FilterField
-            :label="t('admin.usage.userFilter')"
-            :value-text="filters.user_id ? userKeyword || `#${filters.user_id}` : ''"
-            @clear="clearUser"
-          >
-            <div ref="userSearchRef" class="usage-filter-dropdown relative">
-              <input
-                v-model="userKeyword"
-                type="text"
-                class="input pr-8"
-                :placeholder="t('admin.usage.searchUserPlaceholder')"
-                @input="debounceUserSearch"
-                @focus="showUserDropdown = true"
-              />
-              <button
-                v-if="filters.user_id"
-                type="button"
-                @click="clearUser"
-                class="absolute right-2 top-0 flex h-9 items-center text-gray-400 hover:text-gray-600 dark:text-dark-400 dark:hover:text-dark-200"
-                aria-label="Clear user filter"
-              >
-                <Icon name="x" size="sm" />
-              </button>
-              <MotionTransition name="dropdown-fade">
-                <div
-                  v-if="showUserDropdown && (userResults.length > 0 || userKeyword)"
-                  :inert="
-                    !(showUserDropdown && (userResults.length > 0 || userKeyword)) || undefined
-                  "
-                  class="dropdown z-50 mt-1 max-h-menu-sm w-full overflow-auto py-0"
+          <FilterField :label="t('admin.usage.userFilter')" icon="user">
+            <FilterOptions
+              remote
+              :model-value="filters.user_id ?? null"
+              :options="userOptions"
+              :selected-label="userLabel"
+              :search-placeholder="t('admin.usage.searchUserPlaceholder')"
+              @search="debounceUserSearch"
+              @change="onUserChange"
+            >
+              <template #icon="{ value }">
+                <UserAvatar :user-id="Number(value)" size-class="h-4 w-4" />
+              </template>
+              <template #option="{ option, label }">
+                <span class="min-w-0 flex-1 truncate"
+                  >{{ label
+                  }}<span v-if="option?.deleted" class="usage-filter-meta ml-1"
+                    >（{{ t('admin.usage.userDeletedBadge') }}）</span
+                  ></span
                 >
-                  <button
-                    v-for="u in userResults"
-                    :key="u.id"
-                    type="button"
-                    @click="selectUser(u)"
-                    class="dropdown-item"
-                  >
-                    <span
-                      >{{ u.email
-                      }}<span v-if="u.deleted" class="ml-1 text-xs text-gray-400"
-                        >（{{ t('admin.usage.userDeletedBadge') }}）</span
-                      ></span
-                    >
-                    <span class="text-xs text-gray-400">#{{ u.id }}</span>
-                  </button>
-                </div>
-              </MotionTransition>
-            </div>
+                <span v-if="option" class="usage-filter-meta">#{{ option.value }}</span>
+              </template>
+            </FilterOptions>
           </FilterField>
 
-          <!-- API-key search -->
-          <FilterField
-            :label="t('usage.apiKeyFilter')"
-            :value-text="filters.api_key_id ? apiKeyKeyword || `#${filters.api_key_id}` : ''"
-            @clear="onClearApiKey"
-          >
-            <div ref="apiKeySearchRef" class="usage-filter-dropdown relative">
-              <input
-                v-model="apiKeyKeyword"
-                type="text"
-                class="input pr-8"
-                :placeholder="t('admin.usage.searchApiKeyPlaceholder')"
-                @input="debounceApiKeySearch"
-                @focus="onApiKeyFocus"
-              />
-              <button
-                v-if="filters.api_key_id"
-                type="button"
-                @click="onClearApiKey"
-                class="absolute right-2 top-0 flex h-9 items-center text-gray-400 hover:text-gray-600 dark:text-dark-400 dark:hover:text-dark-200"
-                aria-label="Clear API key filter"
-              >
-                <Icon name="x" size="sm" />
-              </button>
-              <MotionTransition name="dropdown-fade">
-                <div
-                  v-if="showApiKeyDropdown && apiKeyResults.length > 0"
-                  :inert="!(showApiKeyDropdown && apiKeyResults.length > 0) || undefined"
-                  class="dropdown z-50 mt-1 max-h-menu-sm w-full overflow-auto py-0"
-                >
-                  <button
-                    v-for="k in apiKeyResults"
-                    :key="k.id"
-                    type="button"
-                    @click="selectApiKey(k)"
-                    class="dropdown-item"
-                  >
-                    <span class="truncate">{{ k.name || `#${k.id}` }}</span>
-                    <span class="text-xs text-gray-400">#{{ k.id }}</span>
-                  </button>
-                </div>
-              </MotionTransition>
-            </div>
+          <FilterField :label="t('usage.apiKeyFilter')" icon="key">
+            <FilterOptions
+              remote
+              :model-value="filters.api_key_id ?? null"
+              :options="apiKeyOptions"
+              :selected-label="apiKeyLabel"
+              :search-placeholder="t('admin.usage.searchApiKeyPlaceholder')"
+              @search="debounceApiKeySearch"
+              @change="onApiKeyChange"
+            >
+              <template #option="{ option, label }">
+                <span class="min-w-0 flex-1 truncate">{{ label }}</span>
+                <span v-if="option" class="usage-filter-meta">#{{ option.value }}</span>
+              </template>
+            </FilterOptions>
           </FilterField>
 
-          <!-- Model filter -->
-          <FilterField :label="t('usage.model')">
-            <Select
+          <FilterField :label="t('usage.model')" icon="cube">
+            <FilterOptions
               :model-value="filters.model ?? null"
-              @update:model-value="filters.model = $event"
               :options="modelOptions"
               searchable
+              @update:model-value="filters.model = $event"
               @change="emitChange"
-            />
+            >
+              <template #icon="{ value }">
+                <ModelIcon :model="String(value)" size="16px" hide-fallback />
+              </template>
+            </FilterOptions>
           </FilterField>
 
-          <!-- Provider search -->
-          <FilterField
-            :label="t('admin.usage.provider')"
-            :value-text="filters.provider_id ? providerKeyword || `#${filters.provider_id}` : ''"
-            @clear="clearProvider"
-          >
-            <div ref="providerSearchRef" class="usage-filter-dropdown relative">
-              <input
-                v-model="providerKeyword"
-                type="text"
-                class="input pr-8"
-                :placeholder="t('admin.usage.searchProviderPlaceholder')"
-                @input="debounceProviderSearch"
-                @focus="showProviderDropdown = true"
-              />
-              <button
-                v-if="filters.provider_id"
-                type="button"
-                @click="clearProvider"
-                class="absolute right-2 top-0 flex h-9 items-center text-gray-400 hover:text-gray-600 dark:text-dark-400 dark:hover:text-dark-200"
-                aria-label="Clear provider filter"
-              >
-                <Icon name="x" size="sm" />
-              </button>
-              <MotionTransition name="dropdown-fade">
-                <div
-                  v-if="showProviderDropdown && (providerResults.length > 0 || providerKeyword)"
-                  :inert="
-                    !(showProviderDropdown && (providerResults.length > 0 || providerKeyword)) ||
-                    undefined
-                  "
-                  class="dropdown z-50 mt-1 max-h-menu-sm w-full overflow-auto py-0"
-                >
-                  <button
-                    v-for="a in providerResults"
-                    :key="a.id"
-                    type="button"
-                    @click="selectProvider(a)"
-                    class="dropdown-item"
-                  >
-                    <span class="truncate">{{ a.name }}</span>
-                    <span class="text-xs text-gray-400">#{{ a.id }}</span>
-                  </button>
-                </div>
-              </MotionTransition>
-            </div>
+          <FilterField :label="t('admin.usage.provider')" icon="server">
+            <FilterOptions
+              remote
+              :model-value="filters.provider_id ?? null"
+              :options="providerOptions"
+              :selected-label="providerLabel"
+              :search-placeholder="t('admin.usage.searchProviderPlaceholder')"
+              @search="debounceProviderSearch"
+              @change="onProviderChange"
+            >
+              <template #option="{ option, label }">
+                <span class="min-w-0 flex-1 truncate">{{ label }}</span>
+                <span v-if="option" class="usage-filter-meta">#{{ option.value }}</span>
+              </template>
+            </FilterOptions>
           </FilterField>
 
           <!-- Request mode for usage and ranking filters. -->
-          <FilterField v-if="mode !== 'errors'" :label="t('usage.type')">
-            <Select
+          <FilterField v-if="mode !== 'errors'" :label="t('usage.type')" icon="bolt">
+            <FilterOptions
               :model-value="filters.request_type ?? null"
-              @update:model-value="filters.request_type = $event"
               :options="requestTypeOptions"
+              @update:model-value="filters.request_type = $event"
               @change="emitChange"
             />
           </FilterField>
 
           <!-- Billing source for usage and ranking filters. -->
-          <FilterField v-if="mode !== 'errors'" :label="t('admin.usage.billingType')">
-            <Select
+          <FilterField
+            v-if="mode !== 'errors'"
+            :label="t('admin.usage.billingType')"
+            icon="creditCard"
+          >
+            <FilterOptions
               :model-value="filters.billing_type ?? null"
-              @update:model-value="filters.billing_type = $event"
               :options="billingTypeOptions"
+              @update:model-value="filters.billing_type = $event"
               @change="emitChange"
             />
           </FilterField>
 
           <!-- Billing-mode selection belongs to usage records; ranking accepts the dimensions supported by its own API. -->
-          <FilterField v-if="mode === 'usage'" :label="t('admin.usage.billingMode')">
-            <Select
+          <FilterField
+            v-if="mode === 'usage'"
+            :label="t('admin.usage.billingMode')"
+            icon="calculator"
+          >
+            <FilterOptions
               :model-value="filters.billing_mode ?? null"
-              @update:model-value="filters.billing_mode = $event"
               :options="billingModeOptions"
+              @update:model-value="filters.billing_mode = $event"
               @change="emitChange"
             />
           </FilterField>
 
           <!-- Native compaction selection applies to usage records and the ranking query. -->
-          <FilterField v-if="mode !== 'errors'" :label="t('usage.compactionFilter')">
-            <Select
+          <FilterField
+            v-if="mode !== 'errors'"
+            :label="t('usage.compactionFilter')"
+            icon="minimize"
+          >
+            <FilterOptions
               :model-value="filters.native_compaction_v2 ?? null"
-              @update:model-value="filters.native_compaction_v2 = $event"
               :options="compactionOptions"
+              @update:model-value="filters.native_compaction_v2 = $event"
               @change="emitChange"
             />
           </FilterField>
 
           <!-- Error phase selector. -->
-          <FilterField v-if="mode === 'errors'" :label="t('admin.ops.errorLog.type')">
-            <Select
+          <FilterField v-if="mode === 'errors'" :label="t('admin.ops.errorLog.type')" icon="layers">
+            <FilterOptions
               :model-value="filters.error_phase ?? null"
-              @update:model-value="filters.error_phase = $event"
               :options="errorPhaseOptions"
+              @update:model-value="filters.error_phase = $event"
               @change="emitChange"
             />
           </FilterField>
 
           <!-- Error category selector. -->
-          <FilterField v-if="mode === 'errors'" :label="t('usage.errors.category')">
-            <Select
+          <FilterField v-if="mode === 'errors'" :label="t('usage.errors.category')" icon="tag">
+            <FilterOptions
               :model-value="filters.error_category ?? null"
-              @update:model-value="filters.error_category = $event"
               :options="errorCategoryOptions"
+              @update:model-value="filters.error_category = $event"
               @change="emitChange"
             />
           </FilterField>
 
           <!-- Error HTTP status selector. -->
-          <FilterField v-if="mode === 'errors'" :label="t('admin.ops.errorLog.status')">
-            <Select
+          <FilterField
+            v-if="mode === 'errors'"
+            :label="t('admin.ops.errorLog.status')"
+            icon="exclamationCircle"
+          >
+            <FilterOptions
               :model-value="filters.status_code ?? null"
-              @update:model-value="filters.status_code = $event"
               :options="statusCodeOptions"
+              @update:model-value="filters.status_code = $event"
               @change="emitChange"
             />
           </FilterField>
 
           <!-- Group filter -->
-          <FilterField :label="t('admin.usage.group')">
-            <Select
+          <FilterField :label="t('admin.usage.group')" icon="folder">
+            <FilterOptions
               :model-value="filters.group_id ?? null"
-              @update:model-value="filters.group_id = $event"
               :options="groupOptions"
               searchable
+              @update:model-value="filters.group_id = $event"
               @change="emitChange"
-            />
+            >
+              <template #icon="{ option }">
+                <ProviderIcon
+                  v-if="option?.brand"
+                  :brand="String(option.brand)"
+                  size="16px"
+                  hide-fallback
+                />
+              </template>
+            </FilterOptions>
           </FilterField>
         </FilterDropdown>
 
@@ -307,13 +244,26 @@
 
 <script setup lang="ts">
 import RequestIdFilterField from '@/components/common/RequestIdFilterField.vue'
-import MotionTransition from '@/components/common/MotionTransition.vue'
 import { ref, onMounted, onUnmounted, toRef, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
-import Select, { type SelectOption } from '@/components/common/Select.vue'
+import type { SelectOption } from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
+import {
+  BILLING_MODE_ICONS,
+  BILLING_TYPE_ICONS,
+  COMPACTION_ICONS,
+  ERROR_CATEGORY_ICONS,
+  ERROR_PHASE_ICONS,
+  REQUEST_SOURCE_ICONS,
+  REQUEST_TYPE_ICONS,
+  withOptionIcons,
+} from '@/components/common/filterOptionIcons'
+import ModelIcon from '@/components/common/ModelIcon.vue'
+import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
 import { SEARCH_DEBOUNCE_MS } from '@/constants/ui'
@@ -324,11 +274,17 @@ import type { SimpleApiKey, SimpleUser } from '@/api/admin/usage'
 // ref; change events ask the page to reload. Usage, error, and ranking modes expose
 // different filter subsets.
 //
-// User search maintains a revision shared with route-label hydration. Clearing, selecting,
-// or typing advances that revision so delayed user results cannot replace a newer
-// selection. API-key and provider search use their own debounce timers but do not share
-// that response guard. Date changes update the shared object, while panel reset clears only
-// non-date fields.
+// The three searches use remote FilterOptions lists: this component turns typed text into
+// debounced requests and keeps the returned candidates, while each list keeps its own
+// search text. A selected identity can fall outside the latest candidates, so a separate
+// label per search names it for the pinned row and the collapsed summary.
+//
+// Two revisions guard against late responses. The user search revision advances with each
+// typed query so an older response cannot replace newer candidates. The user label revision
+// advances whenever the label changes, and the page compares it before applying a label
+// looked up from the route, so a later selection keeps its own label. API-key and provider
+// search use their own debounce timers without a response guard. Date changes update the
+// shared object, while panel reset clears only non-date fields.
 
 // ModelValue holds mutable query predicates shared with the parent usage page.
 type ModelValue = Record<string, any>
@@ -367,38 +323,43 @@ const emit = defineEmits(['update:modelValue', 'change', 'refresh', 'reset', 'ex
 const { t } = useI18n()
 const filters = toRef(props, 'modelValue')
 
-// Search container refs identify clicks inside each autocomplete so the document listener
-// can dismiss the other dropdowns.
-const userSearchRef = ref<HTMLElement | null>(null)
-const apiKeySearchRef = ref<HTMLElement | null>(null)
-const providerSearchRef = ref<HTMLElement | null>(null)
-
-// User search state tracks typed text, returned candidates, visibility, debounce ownership,
-// and the current response revision.
-const userKeyword = ref('')
+// User search state tracks returned candidates, debounce ownership, and the current
+// response revision; userLabel names the selected user and userLabelRevision counts its
+// changes for route-label hydration.
 const userResults = ref<SimpleUser[]>([])
-const showUserDropdown = ref(false)
 let userSearchTimeout: ReturnType<typeof setTimeout> | null = null
 let userSearchSequence = 0
+const userLabel = ref('')
+let userLabelRevision = 0
 
-// API-key search state tracks typed text and candidates scoped to the selected user when a
-// user filter exists.
-const apiKeyKeyword = ref('')
+// API-key search state tracks candidates scoped to the selected user, the selected key's
+// label, and the last typed text, which a user change reuses to refresh that scope.
 const apiKeyResults = ref<SimpleApiKey[]>([])
-const showApiKeyDropdown = ref(false)
+const apiKeyLabel = ref('')
+const apiKeyQuery = ref('')
 let apiKeySearchTimeout: ReturnType<typeof setTimeout> | null = null
 
-// SimpleProvider contains provider identity and name for autocomplete selection.
+// SimpleProvider contains provider identity and name for remote provider selection.
 interface SimpleProvider {
   id: number // provider record identifier
   name: string // provider display name
 }
-// Provider search state tracks the text and compact identities displayed by the provider
-// autocomplete dropdown.
-const providerKeyword = ref('')
+// Provider search state tracks the returned candidates and the selected provider's label.
 const providerResults = ref<SimpleProvider[]>([])
-const showProviderDropdown = ref(false)
+const providerLabel = ref('')
 let providerSearchTimeout: ReturnType<typeof setTimeout> | null = null
+
+// userOptions, apiKeyOptions, and providerOptions convert search candidates into option
+// rows; the deleted flag lets the user row show its badge.
+const userOptions = computed<SelectOption[]>(() =>
+  userResults.value.map((u) => ({ value: u.id, label: u.email, deleted: u.deleted })),
+)
+const apiKeyOptions = computed<SelectOption[]>(() =>
+  apiKeyResults.value.map((k) => ({ value: k.id, label: k.name || `#${k.id}` })),
+)
+const providerOptions = computed<SelectOption[]>(() =>
+  providerResults.value.map((p) => ({ value: p.id, label: p.name })),
+)
 
 // modelOptions prepends the unfiltered choice to the model names supplied by the parent
 // usage page.
@@ -407,7 +368,7 @@ const modelOptions = computed<SelectOption[]>(() => [
   ...(props.modelOptions ?? []).map((m) => ({ value: m, label: m })),
 ])
 // Group and team choices begin with an unfiltered option and receive independent additions
-// after mounting.
+// after mounting; group choices also carry the display brand drawn as their row icon.
 const groupOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allGroups') }])
 const teamOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allTeams') }])
 // activeFilterCount counts nonempty predicates outside dates, excluding request ID when the
@@ -427,46 +388,66 @@ const activeFilterCount = computed(
 
 // requestSourceOptions separates customer usage from the internal model work recorded
 // by probes and tests. The empty option retains the administrator's complete view.
-const requestSourceOptions = computed(() => [
-  { value: null, label: t('admin.usage.sourcesAll') },
-  ...['user', 'system', 'group_probe', 'provider_test', 'scheduled_test', 'quota_probe'].map(
-    (value) => ({
-      value,
-      label: t(`admin.usage.requestSources.${value}`),
-    }),
+const requestSourceOptions = computed(() =>
+  withOptionIcons(
+    [
+      { value: null, label: t('admin.usage.sourcesAll') },
+      ...['user', 'system', 'group_probe', 'provider_test', 'scheduled_test', 'quota_probe'].map(
+        (value) => ({
+          value,
+          label: t(`admin.usage.requestSources.${value}`),
+        }),
+      ),
+    ],
+    REQUEST_SOURCE_ICONS,
   ),
-])
+)
 
 // requestTypeOptions supplies the canonical request modes accepted by usage filtering and
 // their translated display labels.
-const requestTypeOptions = ref<SelectOption[]>([
-  { value: null, label: t('admin.usage.allTypes') },
-  { value: 'ws_v2', label: t('usage.ws') },
-  { value: 'live', label: t('usage.live') },
-  { value: 'stream', label: t('usage.stream') },
-  { value: 'sync', label: t('usage.sync') },
-  { value: 'cyber', label: t('usage.cyber') },
-])
+const requestTypeOptions = ref<SelectOption[]>(
+  withOptionIcons(
+    [
+      { value: null, label: t('admin.usage.allTypes') },
+      { value: 'ws_v2', label: t('usage.ws') },
+      { value: 'live', label: t('usage.live') },
+      { value: 'stream', label: t('usage.stream') },
+      { value: 'sync', label: t('usage.sync') },
+      { value: 'cyber', label: t('usage.cyber') },
+    ],
+    REQUEST_TYPE_ICONS,
+  ),
+)
 
 // billingTypeOptions distinguishes balance and subscription billing while null clears the
 // billing-source predicate for requests.
-const billingTypeOptions = ref<SelectOption[]>([
-  { value: null, label: t('admin.usage.allBillingTypes') },
-  { value: 0, label: t('admin.usage.billingTypeBalance') },
-  { value: 1, label: t('admin.usage.billingTypeSubscription') },
-])
+const billingTypeOptions = ref<SelectOption[]>(
+  withOptionIcons(
+    [
+      { value: null, label: t('admin.usage.allBillingTypes') },
+      { value: 0, label: t('admin.usage.billingTypeBalance') },
+      { value: 1, label: t('admin.usage.billingTypeSubscription') },
+    ],
+    BILLING_TYPE_ICONS,
+  ),
+)
 
 // errorPhaseOptions maps backend phase identifiers to the same translated categories used
 // by error type badges.
-const errorPhaseOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('admin.usage.allTypes') },
-  { value: 'upstream', label: t('admin.ops.errorLog.typeUpstream') },
-  { value: 'provider_auth', label: t('admin.ops.errorLog.typeProviderAuth') },
-  { value: 'request', label: t('admin.ops.errorLog.typeRequest') },
-  { value: 'auth', label: t('admin.ops.errorLog.typeAuth') },
-  { value: 'routing', label: t('admin.ops.errorLog.typeRouting') },
-  { value: 'internal', label: t('admin.ops.errorLog.typeInternal') },
-])
+const errorPhaseOptions = computed<SelectOption[]>(() =>
+  withOptionIcons(
+    [
+      { value: null, label: t('admin.usage.allTypes') },
+      { value: 'upstream', label: t('admin.ops.errorLog.typeUpstream') },
+      { value: 'provider_auth', label: t('admin.ops.errorLog.typeProviderAuth') },
+      { value: 'request', label: t('admin.ops.errorLog.typeRequest') },
+      { value: 'auth', label: t('admin.ops.errorLog.typeAuth') },
+      { value: 'routing', label: t('admin.ops.errorLog.typeRouting') },
+      { value: 'internal', label: t('admin.ops.errorLog.typeInternal') },
+    ],
+    ERROR_PHASE_ICONS,
+  ),
+)
 
 // errorCategoryCodes lists searchable backend categories; the display-only Other bucket
 // cannot be translated into a query predicate.
@@ -483,10 +464,15 @@ const errorCategoryCodes = [
 
 // errorCategoryOptions translates searchable category codes and adds the null choice that
 // clears error category filtering.
-const errorCategoryOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('usage.errors.allCategories') },
-  ...errorCategoryCodes.map((c) => ({ value: c, label: t('usage.errors.categories.' + c) })),
-])
+const errorCategoryOptions = computed<SelectOption[]>(() =>
+  withOptionIcons(
+    [
+      { value: null, label: t('usage.errors.allCategories') },
+      ...errorCategoryCodes.map((c) => ({ value: c, label: t('usage.errors.categories.' + c) })),
+    ],
+    ERROR_CATEGORY_ICONS,
+  ),
+)
 
 // statusCodeOptions uses common status codes independently of current rows so later-page
 // errors remain selectable.
@@ -497,21 +483,31 @@ const statusCodeOptions = computed<SelectOption[]>(() => [
 
 // billingModeOptions maps token, request, image, and video billing modes to labels for
 // usage filtering.
-const billingModeOptions = ref<SelectOption[]>([
-  { value: null, label: t('admin.usage.allBillingModes') },
-  { value: 'token', label: t('admin.usage.billingModeToken') },
-  { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
-  { value: 'image', label: t('admin.usage.billingModeImage') },
-  { value: 'video', label: t('admin.usage.billingModeVideo') },
-])
+const billingModeOptions = ref<SelectOption[]>(
+  withOptionIcons(
+    [
+      { value: null, label: t('admin.usage.allBillingModes') },
+      { value: 'token', label: t('admin.usage.billingModeToken') },
+      { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
+      { value: 'image', label: t('admin.usage.billingModeImage') },
+      { value: 'video', label: t('admin.usage.billingModeVideo') },
+    ],
+    BILLING_MODE_ICONS,
+  ),
+)
 
 // compactionOptions distinguishes native and legacy compaction while null removes that
 // predicate from usage selection.
-const compactionOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('usage.allCompactions') },
-  { value: true, label: t('usage.nativeCompactionV2') },
-  { value: false, label: t('usage.legacyCompaction') },
-])
+const compactionOptions = computed<SelectOption[]>(() =>
+  withOptionIcons(
+    [
+      { value: null, label: t('usage.allCompactions') },
+      { value: true, label: t('usage.nativeCompactionV2') },
+      { value: false, label: t('usage.legacyCompaction') },
+    ],
+    COMPACTION_ICONS,
+  ),
+)
 
 // emitChange notifies the parent that shared filter values need reloading.
 const emitChange = () => emit('change')
@@ -536,10 +532,10 @@ const clearPendingUserSearch = () => {
 // The callback captures the new revision before waiting for the API. Success and failure
 // both compare that revision before publishing candidates, so later typing or selection
 // wins regardless of response order. Current successes sort active users before deleted
-// users; current failures clear the suggestion list.
-const debounceUserSearch = () => {
+// users; current failures clear the candidate list.
+const debounceUserSearch = (text: string) => {
   clearPendingUserSearch()
-  const query = userKeyword.value.trim()
+  const query = text.trim()
   if (!query) {
     userResults.value = []
     return
@@ -556,7 +552,7 @@ const debounceUserSearch = () => {
         userResults.value = results.sort((a, b) => Number(a.deleted) - Number(b.deleted))
       }
     } catch {
-      // Clear suggestions only for the current search revision so an older rejected
+      // Clear candidates only for the current search revision so an older rejected
       // request cannot erase results belonging to later input.
       if (sequence === userSearchSequence) {
         userResults.value = []
@@ -565,93 +561,96 @@ const debounceUserSearch = () => {
   }, SEARCH_DEBOUNCE_MS)
 }
 
-// debounceApiKeySearch replaces the pending timer and searches keys using the selected user
-// and current text. Failures clear suggestions; already running searches are not canceled
-// or checked for staleness.
-const debounceApiKeySearch = () => {
+// debounceApiKeySearch remembers the text and replaces the pending timer before searching
+// keys of the selected user. Failures clear candidates; already running searches are not
+// canceled or checked for staleness.
+const debounceApiKeySearch = (text: string) => {
+  apiKeyQuery.value = text
   // Replacing the debounce timer coalesces rapid input; an API-key request that has
   // already started still completes independently.
   if (apiKeySearchTimeout) clearTimeout(apiKeySearchTimeout)
   apiKeySearchTimeout = setTimeout(async () => {
     try {
-      apiKeyResults.value = await adminAPI.usage.searchApiKeys(
-        filters.value.user_id,
-        apiKeyKeyword.value || '',
-      )
+      apiKeyResults.value = await adminAPI.usage.searchApiKeys(filters.value.user_id, text)
     } catch {
-      // Treat key lookup failure as no suggestions so the selected user predicate remains
+      // Treat key lookup failure as no candidates so the selected user predicate remains
       // usable even when key discovery fails.
       apiKeyResults.value = []
     }
   }, SEARCH_DEBOUNCE_MS)
 }
 
-// selectUser records the selected identity and email, invalidates user searches, and clears
-// the key selection. It then loads that user's available keys before emitting the shared
-// filter change.
+// onUserChange applies a user row choice from the remote list, where a null value means the
+// checked row was chosen again to clear the selection.
+const onUserChange = (value: SelectOption['value']) => {
+  if (value === null) {
+    clearUser()
+    return
+  }
+  const user = userResults.value.find((u) => u.id === value)
+  if (user) selectUser(user)
+}
+
+// setUserLabelValue replaces the selected user's label and advances the label revision.
+const setUserLabelValue = (label: string) => {
+  userLabelRevision += 1
+  userLabel.value = label
+}
+
+// selectUser records the selected identity and email and clears the key selection. It then
+// loads that user's keys for the current key search text before emitting the shared filter
+// change.
 const selectUser = async (u: SimpleUser) => {
-  clearPendingUserSearch()
-  userKeyword.value = u.email
-  showUserDropdown.value = false
+  setUserLabelValue(u.email)
   filters.value.user_id = u.id
   clearApiKey()
 
-  // Auto-load API keys for this user
   try {
-    apiKeyResults.value = await adminAPI.usage.searchApiKeys(u.id, '')
+    apiKeyResults.value = await adminAPI.usage.searchApiKeys(u.id, apiKeyQuery.value)
   } catch {
     // Keep the newly selected user and publish its filter change even when loading that
-    // user's key suggestions fails.
+    // user's key candidates fails.
     apiKeyResults.value = []
   }
 
   emitChange()
 }
 
-// clearUser removes the selected user and dependent key while invalidating pending user
-// results. It clears both autocomplete presentations before emitting change so the parent
-// reload sees the cleared selection.
+// clearUser removes the selected user and dependent key. Key candidates belonged to the
+// removed user, so they are dropped and reload when the key search next gains focus; the
+// user candidates stay because they still match the list's search text.
 const clearUser = () => {
-  clearPendingUserSearch()
-  userKeyword.value = ''
-  userResults.value = []
-  showUserDropdown.value = false
+  setUserLabelValue('')
   filters.value.user_id = undefined
   clearApiKey()
-  emitChange()
-}
-
-// selectApiKey records a key identity and closes suggestions before emitting change. Keys
-// without a name display their numeric identifier so the selected key remains identifiable
-// in the input.
-const selectApiKey = (k: SimpleApiKey) => {
-  apiKeyKeyword.value = k.name || String(k.id)
-  showApiKeyDropdown.value = false
-  filters.value.api_key_id = k.id
-  emitChange()
-}
-
-// clearApiKey clears key text, candidates, visibility, and the shared key predicate. It
-// does not emit change itself because callers can combine key clearing with a user
-// selection update.
-const clearApiKey = () => {
-  apiKeyKeyword.value = ''
   apiKeyResults.value = []
-  showApiKeyDropdown.value = false
+  emitChange()
+}
+
+// onApiKeyChange applies a key row choice; a null value clears the selected key.
+const onApiKeyChange = (value: SelectOption['value']) => {
+  if (value === null) {
+    clearApiKey()
+    emitChange()
+    return
+  }
+  const key = apiKeyResults.value.find((k) => k.id === value)
+  if (!key) return
+  apiKeyLabel.value = key.name || `#${key.id}`
+  filters.value.api_key_id = key.id
+  emitChange()
+}
+
+// clearApiKey clears the selected key and its label. It does not emit change itself
+// because callers can combine key clearing with a user selection update.
+const clearApiKey = () => {
+  apiKeyLabel.value = ''
   filters.value.api_key_id = undefined
 }
 
-// onClearApiKey clears the selected key and notifies the query-owning parent.
-const onClearApiKey = () => {
-  clearApiKey()
-  emitChange()
-}
-
-// resetPanelFilters clears every shared predicate except the beginning and ending dates. It
-// invalidates user search work first and emits one change after the shared object has been
-// updated.
+// resetPanelFilters clears every shared predicate except the beginning and ending dates and
+// emits one change after the shared object has been updated.
 const resetPanelFilters = () => {
-  clearPendingUserSearch()
   for (const key of Object.keys(filters.value)) {
     if (key !== 'start_date' && key !== 'end_date') filters.value[key] = undefined
   }
@@ -661,71 +660,40 @@ const resetPanelFilters = () => {
 // debounceProviderSearch replaces the pending provider timer and retrieves up to twenty
 // matching providers. Empty text or retrieval failure clears candidates; completed requests
 // do not compare a response revision.
-const debounceProviderSearch = () => {
+const debounceProviderSearch = (text: string) => {
   // Replacing the debounce timer coalesces provider input; already running provider
   // requests retain their existing completion behavior.
   if (providerSearchTimeout) clearTimeout(providerSearchTimeout)
   providerSearchTimeout = setTimeout(async () => {
-    if (!providerKeyword.value) {
+    if (!text) {
       providerResults.value = []
       return
     }
     try {
-      const res = await adminAPI.providers.list(1, 20, { search: providerKeyword.value })
+      const res = await adminAPI.providers.list(1, 20, { search: text })
       providerResults.value = res.items.map((a) => ({ id: a.id, name: a.name }))
     } catch {
-      // Treat provider lookup failure as an empty suggestion list while keeping the typed
+      // Treat provider lookup failure as an empty candidate list while keeping the typed
       // provider text available for another search.
       providerResults.value = []
     }
   }, SEARCH_DEBOUNCE_MS)
 }
 
-// selectProvider records provider identity and name before closing suggestions and
-// notifying the parent.
-const selectProvider = (a: SimpleProvider) => {
-  providerKeyword.value = a.name
-  showProviderDropdown.value = false
-  filters.value.provider_id = a.id
-  emitChange()
-}
-
-// clearProvider removes provider text, candidates, and the shared predicate before
-// notifying the parent.
-const clearProvider = () => {
-  providerKeyword.value = ''
-  providerResults.value = []
-  showProviderDropdown.value = false
-  filters.value.provider_id = undefined
-  emitChange()
-}
-
-// onApiKeyFocus opens key suggestions and schedules a search when no candidates exist.
-// Existing candidates remain available immediately, so focusing an already populated input
-// does not issue another request.
-const onApiKeyFocus = () => {
-  showApiKeyDropdown.value = true
-  // Trigger search if no results yet
-  if (apiKeyResults.value.length === 0) {
-    debounceApiKeySearch()
+// onProviderChange records a chosen provider identity and label before notifying the
+// parent; a null value clears the provider predicate.
+const onProviderChange = (value: SelectOption['value']) => {
+  if (value === null) {
+    providerLabel.value = ''
+    filters.value.provider_id = undefined
+    emitChange()
+    return
   }
-}
-
-// onDocumentClick closes search dropdowns whose containers do not contain the clicked node.
-// Clicks inside a portaled Select dropdown are ignored so choosing a filter does not
-// dismiss autocomplete state.
-const onDocumentClick = (e: MouseEvent) => {
-  const target = e.target as Node | null
-  if (!target) return
-  if (target instanceof Element && target.closest('.select-dropdown-portal')) return
-
-  const clickedInsideUser = userSearchRef.value?.contains(target) ?? false
-  const clickedInsideApiKey = apiKeySearchRef.value?.contains(target) ?? false
-  const clickedInsideProvider = providerSearchRef.value?.contains(target) ?? false
-
-  if (!clickedInsideUser) showUserDropdown.value = false
-  if (!clickedInsideApiKey) showApiKeyDropdown.value = false
-  if (!clickedInsideProvider) showProviderDropdown.value = false
+  const provider = providerResults.value.find((p) => p.id === value)
+  if (!provider) return
+  providerLabel.value = provider.name
+  filters.value.provider_id = provider.id
+  emitChange()
 }
 
 watch(
@@ -744,46 +712,38 @@ watch(
   { immediate: true },
 )
 
+// Clear each selection label when a parent update or panel reset removes its predicate, so
+// the next selection is not named by the previous one. Candidates stay because they still
+// match the search text shown in their lists.
 watch(
   () => filters.value.user_id,
   (userId) => {
-    if (!userId) {
-      clearPendingUserSearch()
-      userKeyword.value = ''
-      userResults.value = []
-    }
+    if (!userId && userLabel.value) setUserLabelValue('')
   },
 )
 
 watch(
   () => filters.value.api_key_id,
   (apiKeyId) => {
-    if (!apiKeyId) {
-      apiKeyKeyword.value = ''
-      apiKeyResults.value = []
-    }
+    if (!apiKeyId) apiKeyLabel.value = ''
   },
 )
 
 watch(
   () => filters.value.provider_id,
   (providerId) => {
-    if (!providerId) {
-      providerKeyword.value = ''
-      providerResults.value = []
-    }
+    if (!providerId) providerLabel.value = ''
   },
 )
 
 onMounted(async () => {
-  // The document listener sees clicks beyond the component containers, including portaled
-  // controls that onDocumentClick exempts from dismissal.
-  document.addEventListener('click', onDocumentClick)
   // Team and group choices load independently so a failure in either source leaves the
   // other filters usable.
   await Promise.allSettled([
     adminAPI.groups.list(1, 1000).then((gs) => {
-      groupOptions.value.push(...gs.items.map((g: any) => ({ value: g.id, label: g.name })))
+      groupOptions.value.push(
+        ...gs.items.map((g) => ({ value: g.id, label: g.name, brand: g.display_brand })),
+      )
     }),
     adminAPI.teams.list().then((teams) => {
       teamOptions.value.push(...teams.map((team) => ({ value: team.id, label: team.name })))
@@ -791,26 +751,27 @@ onMounted(async () => {
   ])
 })
 
-// Unmount invalidates user search results and removes the document listener; API-key and
-// provider timer lifetimes remain independent here.
+// Unmount invalidates user search results; API-key and provider timer lifetimes remain
+// independent here.
 onUnmounted(() => {
   clearPendingUserSearch()
-  document.removeEventListener('click', onDocumentClick)
 })
 
-// setUserKeyword fills a programmatically selected user label and closes its suggestions.
-// It invalidates pending user searches first so route hydration or ranking selection cannot
-// immediately receive stale candidates.
-const setUserKeyword = (email: string) => {
-  clearPendingUserSearch()
-  userKeyword.value = email
-  userResults.value = []
-  showUserDropdown.value = false
-}
+// setUserLabel names a user selected by the page, such as a route or ranking selection. It
+// advances the label revision, so a route lookup started earlier cannot replace this newer
+// label.
+const setUserLabel = (email: string) => setUserLabelValue(email)
 
-// getUserSearchRevision returns the current user-search revision for route label
+// getUserLabelRevision returns the current user label revision for route label
 // validation.
-const getUserSearchRevision = () => userSearchSequence
+const getUserLabelRevision = () => userLabelRevision
 
-defineExpose({ getUserSearchRevision, setUserKeyword })
+defineExpose({ getUserLabelRevision, setUserLabel })
 </script>
+
+<style scoped>
+/* Candidate identifiers and badges stay secondary to the user, key, or provider name. */
+.usage-filter-meta {
+  @apply shrink-0 text-xs text-gray-400 dark:text-dark-400;
+}
+</style>

@@ -29,6 +29,8 @@ export default {
     reset: 'Reset',
     search: 'Search',
     filter: 'Filter',
+    resetFilters: 'Reset filters',
+    clear: 'Clear',
     export: 'Export',
     import: 'Import',
     actions: 'Actions',

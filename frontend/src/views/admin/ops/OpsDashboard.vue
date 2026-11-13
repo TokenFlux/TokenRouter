@@ -271,6 +271,7 @@ const groups = ref<
   Array<{
     id: number // persisted group identifier
     name: string // group selector display name
+    display_brand?: string // group badge brand, drawn as the filter icon
   }>
 >([])
 const latencyBucketBoundaries = ref<number[]>(defaultLatencyBucketBoundaries())
@@ -648,13 +649,18 @@ async function loadDashboardAdvancedSettings() {
   }
 }
 
-// loadGroups retrieves selectable group identities and names for child controls.
+// loadGroups retrieves selectable group identities, names, and display brands for child
+// controls.
 // Failure logs the request error and clears the choices while leaving the
 // currently selected filter value untouched.
 async function loadGroups() {
   try {
     const list = await adminAPI.groups.getAll()
-    groups.value = list.map((group) => ({ id: group.id, name: group.name }))
+    groups.value = list.map((group) => ({
+      id: group.id,
+      name: group.name,
+      display_brand: group.display_brand,
+    }))
   } catch (err) {
     // Clear unavailable group choices after a failed lookup while retaining
     // the selected filter for subsequent dashboard queries.

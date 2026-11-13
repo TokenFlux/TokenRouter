@@ -52,19 +52,15 @@
                   capability = '';
                 "
               >
-                <FilterField :label="t('admin.modelAttributes.columns.provider')">
-                  <Select
-                    v-model="provider"
-                    :options="providerOptions"
-                    :aria-label="t('admin.modelAttributes.allProviders')"
-                  />
+                <FilterField :label="t('admin.modelAttributes.columns.provider')" icon="tag">
+                  <FilterOptions v-model="provider" :options="providerOptions" searchable>
+                    <template #icon="{ value }">
+                      <ProviderIcon :brand="String(value)" size="16px" hide-fallback />
+                    </template>
+                  </FilterOptions>
                 </FilterField>
-                <FilterField :label="t('admin.modelAttributes.columns.capability')">
-                  <Select
-                    v-model="capability"
-                    :options="capabilityOptions"
-                    :aria-label="t('admin.modelAttributes.allCapabilities')"
-                  />
+                <FilterField :label="t('admin.modelAttributes.columns.capability')" icon="puzzle">
+                  <FilterOptions v-model="capability" :options="capabilityOptions" />
                 </FilterField>
               </FilterDropdown>
             </div>
@@ -460,6 +456,10 @@ import RuleListEditor from '@/components/common/RuleListEditor.vue'
 import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import { MODEL_CAPABILITY_ICONS } from '@/components/common/modelCapabilityIcons'
+import type { FilterOption } from '@/components/common/filterPanel'
+import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -654,11 +654,12 @@ const providerOptions = computed(() => [
   { value: '', label: t('admin.modelAttributes.allProviders') },
   ...providers.value.map((value) => ({ value, label: value })),
 ])
-const capabilityOptions = computed(() => [
+const capabilityOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('admin.modelAttributes.allCapabilities') },
   ...attributeCapabilities.map((value) => ({
     value,
     label: t(`admin.modelAttributes.fields.${value}`),
+    icon: MODEL_CAPABILITY_ICONS[value],
   })),
 ])
 // configColumns and defaultColumns define the distinct table fields used by configuration

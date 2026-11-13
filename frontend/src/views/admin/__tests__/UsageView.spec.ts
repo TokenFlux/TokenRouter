@@ -140,29 +140,28 @@ vi.mock('vue-router', () => ({
 // AppLayoutStub renders the administrator page slot so page-loading tests can inspect
 // sections independently of the surrounding application layout.
 const AppLayoutStub = { template: '<div><slot /></div>' }
-// UsageFiltersStub exposes search revision and label methods used by route hydration,
+// UsageFiltersStub exposes label revision and label methods used by route hydration,
 // with a settings slot for column-control interactions.
 const UsageFiltersStub = defineComponent({
   // setup exposes a mutable user label and revision-aware setter for route-hydration tests.
   setup(_, { expose }) {
-    const userKeyword = ref('')
-    let userSearchRevision = 0
-    // setUserKeyword advances the fixture search revision before publishing the requested
-    // label. This lets hydration tests simulate later typing even when the numeric user
-    // filter remains unchanged.
-    const setUserKeyword = (email: string) => {
-      userSearchRevision += 1
-      userKeyword.value = email
+    const userLabel = ref('')
+    let userLabelRevision = 0
+    // setUserLabel advances the fixture label revision before publishing the requested
+    // label. This lets hydration tests simulate a later selection even when the numeric
+    // user filter remains unchanged.
+    const setUserLabel = (email: string) => {
+      userLabelRevision += 1
+      userLabel.value = email
     }
     expose({
-      getUserSearchRevision: () => userSearchRevision,
-      setUserKeyword,
-      simulateUserInput: setUserKeyword,
+      getUserLabelRevision: () => userLabelRevision,
+      setUserLabel,
     })
-    return { userKeyword }
+    return { userLabel }
   },
   template:
-    '<div><span data-test="user-filter-label">{{ userKeyword }}</span><slot name="after-reset" /></div>',
+    '<div><span data-test="user-filter-label">{{ userLabel }}</span><slot name="after-reset" /></div>',
 })
 // UsageTableStub accepts visible column definitions so preference tests observe the
 // exact columns passed by the administrator page.
@@ -470,7 +469,7 @@ describe('admin UsageView 路由筛选', () => {
     const wrapper = mountRouteFilteredUsageView()
     await wrapper.vm.$nextTick()
     ;(wrapper.vm as any).filters.user_id = 84
-    ;(wrapper.findComponent(UsageFiltersStub).vm as any).setUserKeyword('current-user@test.com')
+    ;(wrapper.findComponent(UsageFiltersStub).vm as any).setUserLabel('current-user@test.com')
 
     resolveLookup({ id: 42, email: 'stale-user@test.com' })
     await flushPromises()
@@ -478,9 +477,9 @@ describe('admin UsageView 路由筛选', () => {
     expect(wrapper.find('[data-test="user-filter-label"]').text()).toBe('current-user@test.com')
   })
 
-  // The user types a search after route-label retrieval starts for the same identifier. The
-  // test protects the newer typed label from a delayed successful hydration response.
-  it('路由用户查询成功时不覆盖后续输入', async () => {
+  // The same user is selected again after route-label retrieval starts. The test protects
+  // the newer selected label from a delayed successful hydration response.
+  it('路由用户查询成功时不覆盖之后选定的标签', async () => {
     routeQuery.user_id = '42'
     let resolveLookup!: (user: {
       id: number // record numeric identifier
@@ -494,18 +493,18 @@ describe('admin UsageView 路由筛选', () => {
 
     const wrapper = mountRouteFilteredUsageView()
     await wrapper.vm.$nextTick()
-    ;(wrapper.findComponent(UsageFiltersStub).vm as any).simulateUserInput('new-search@test.com')
+    ;(wrapper.findComponent(UsageFiltersStub).vm as any).setUserLabel('picked@test.com')
 
     resolveLookup({ id: 42, email: 'route-user@test.com' })
     await flushPromises()
 
     expect((wrapper.vm as any).filters.user_id).toBe(42)
-    expect(wrapper.find('[data-test="user-filter-label"]').text()).toBe('new-search@test.com')
+    expect(wrapper.find('[data-test="user-filter-label"]').text()).toBe('picked@test.com')
   })
 
-  // The user types a search after route-label retrieval starts and that lookup fails. The
-  // test protects retaining the typed text instead of replacing it with numeric identity.
-  it('路由用户查询失败时不覆盖后续输入', async () => {
+  // The same user is selected again after route-label retrieval starts and that lookup
+  // fails. The test protects the selected label from replacement with numeric identity.
+  it('路由用户查询失败时不覆盖之后选定的标签', async () => {
     routeQuery.user_id = '42'
     let rejectLookup!: (error: Error) => void
     getById.mockReturnValue(
@@ -516,13 +515,13 @@ describe('admin UsageView 路由筛选', () => {
 
     const wrapper = mountRouteFilteredUsageView()
     await wrapper.vm.$nextTick()
-    ;(wrapper.findComponent(UsageFiltersStub).vm as any).simulateUserInput('new-search@test.com')
+    ;(wrapper.findComponent(UsageFiltersStub).vm as any).setUserLabel('picked@test.com')
 
     rejectLookup(new Error('lookup failed'))
     await flushPromises()
 
     expect((wrapper.vm as any).filters.user_id).toBe(42)
-    expect(wrapper.find('[data-test="user-filter-label"]').text()).toBe('new-search@test.com')
+    expect(wrapper.find('[data-test="user-filter-label"]').text()).toBe('picked@test.com')
   })
 
   // Route-label retrieval fails while its user selection remains current. The test protects

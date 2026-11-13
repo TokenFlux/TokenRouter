@@ -8,11 +8,12 @@ import UsageFilters from '../UsageFilters.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
 
-// UsageFilters.spec.ts tests administrator autocomplete ordering, stale user responses,
-// and supplied filter choices. Mounted components use API substitutes and selected
-// control stubs, allowing assertions to observe shared filter mutation and emitted
-// changes without contacting the server. Request-source labels use the assembled
-// language catalogs so incorrect namespace placement remains observable.
+// UsageFilters.spec.ts tests administrator user search ordering, stale user responses,
+// and supplied filter choices. Mounted components use API substitutes with the real
+// filter panel, so user search runs through the rendered option rows while assertions
+// observe shared filter mutation and emitted changes without contacting the server.
+// Request-source labels use the assembled language catalogs so incorrect namespace
+// placement remains observable.
 
 // catalogI18n resolves source labels through the real bilingual runtime catalogs;
 // autocomplete fixtures retain their independent deterministic labels below.
@@ -115,8 +116,8 @@ const defaultFilters = () => ({
 })
 
 // mountFilters renders UsageFilters with deterministic dates and caller-provided mutable
-// filters. It stubs Select and Teleport so tests can observe control props and emitted
-// changes while autocomplete requests remain controlled.
+// filters. The real filter panel stays mounted, so tests read option props or click
+// rendered rows while search requests remain controlled by API substitutes.
 function mountFilters(filters = defaultFilters()) {
   return mount(UsageFilters, {
     props: {
@@ -129,11 +130,25 @@ function mountFilters(filters = defaultFilters()) {
     },
     global: {
       stubs: {
-        Select: true,
-        Teleport: true,
+        Icon: true,
       },
     },
   })
+}
+
+// filterOptionsList returns every mounted filter option list in panel order.
+function filterOptionsList(wrapper: ReturnType<typeof mountFilters>) {
+  return wrapper.findAllComponents({ name: 'FilterOptions' })
+}
+
+// userField returns the section of the user filter, whose search box and rows the user
+// search tests drive.
+function userField(wrapper: ReturnType<typeof mountFilters>) {
+  const field = wrapper
+    .findAll('section')
+    .find((section) => section.get('button').text().startsWith('User'))
+  expect(field).toBeDefined()
+  return field!
 }
 
 // deferred returns a promise and its externally controlled settlement functions. Tests
@@ -176,13 +191,11 @@ describe('UsageFilters — user search dropdown', () => {
       catalogI18n.global.locale.value = locale
       const wrapper = mountFilters()
       await flushPromises()
-      const source = wrapper
-        .findAllComponents({ name: 'Select' })
-        .find((select) =>
-          select
-            .props('options')
-            ?.some((option: { value: unknown }) => option.value === 'group_probe'),
-        )
+      const source = filterOptionsList(wrapper).find((select) =>
+        select
+          .props('options')
+          ?.some((option: { value: unknown }) => option.value === 'group_probe'),
+      )
       expect(source).toBeDefined()
       expect(source!.props('options').map((option: { label: string }) => option.label)).toEqual(
         locale === 'zh'
@@ -215,12 +228,12 @@ describe('UsageFilters — user search dropdown', () => {
     },
   )
 
-  // Active and deleted users arrive together in autocomplete results. The test protects
+  // Active and deleted users arrive together in search results. The test protects
   // active-first ordering, translated deletion badges, and the selected user identifier
   // emitted through shared filters.
   it('(a) labels deleted users with the i18n badge and (b) sorts active users before deleted ones, (c) selection sets user_id', async () => {
     // Return the deleted user first so the rendered order proves that active users
-    // receive priority in suggestions.
+    // receive priority in results.
     mockSearchUsers.mockResolvedValue([
       { id: 2, email: 'gone@test.com', deleted: true },
       { id: 1, email: 'active@test.com', deleted: false },
@@ -228,21 +241,18 @@ describe('UsageFilters — user search dropdown', () => {
 
     const wrapper = mountFilters()
 
-    // Focus and typing reproduce the autocomplete path that schedules the user debounce
-    // timer before requesting suggestions.
-    const input = wrapper.find('input[placeholder="Search user..."]')
-    await input.trigger('focus')
+    // Typing schedules the user debounce timer before requesting results.
+    const input = userField(wrapper).get('input[placeholder="Search user..."]')
     await input.setValue('test')
-    await input.trigger('input')
 
     // Advance the debounce clock before flushing promises so the request callback has
     // started when assertions inspect its results.
     vi.advanceTimersByTime(300)
     await flushPromises()
 
-    // Inspect actual element order so the assertion covers displayed suggestion
-    // ordering rather than the response fixture alone.
-    const buttons = wrapper.findAll('.usage-filter-dropdown button[type="button"]')
+    // Inspect actual row order so the assertion covers displayed result ordering rather
+    // than the response fixture alone.
+    const buttons = userField(wrapper).findAll('[role="option"]')
     const emailTexts = buttons.map((b) => b.text())
 
     const activeIdx = emailTexts.findIndex((t) => t.includes('active@test.com'))
@@ -291,8 +301,7 @@ describe('UsageFilters — user search dropdown', () => {
       .mockImplementationOnce(() => secondSearch.promise)
 
     const wrapper = mountFilters()
-    const input = wrapper.find('input[placeholder="Search user..."]')
-    await input.trigger('focus')
+    const input = userField(wrapper).get('input[placeholder="Search user..."]')
 
     await input.setValue('a')
     vi.advanceTimersByTime(300)
@@ -325,8 +334,7 @@ describe('UsageFilters — user search dropdown', () => {
     mockSearchUsers.mockImplementationOnce(() => pendingSearch.promise)
 
     const wrapper = mountFilters()
-    const input = wrapper.find('input[placeholder="Search user..."]')
-    await input.trigger('focus')
+    const input = userField(wrapper).get('input[placeholder="Search user..."]')
 
     await input.setValue('stale')
     vi.advanceTimersByTime(300)
@@ -370,8 +378,7 @@ describe('UsageFilters — model options come from prop (no dup request)', () =>
       },
       global: {
         stubs: {
-          Select: true,
-          Teleport: true,
+          Icon: true,
         },
       },
     })
@@ -389,8 +396,8 @@ describe('UsageFilters — model options come from prop (no dup request)', () =>
 
 describe('UsageFilters — team options', () => {
   // Team options arrive through the administrator team API during mounting. The test
-  // protects their numeric values and labels in the project Select options.
-  it('loads admin teams into the project Select options', async () => {
+  // protects their numeric values and labels in the team filter options.
+  it('loads admin teams into the team filter options', async () => {
     mockTeamsList.mockResolvedValueOnce([{ id: 9, name: 'Platform Team' }])
 
     const wrapper = mountFilters()
@@ -409,21 +416,21 @@ describe('UsageFilters — team options', () => {
 
 describe('UsageFilters — 未设置的条件', () => {
   // Unselected predicates arrive as undefined values in the shared filter object. The test
-  // protects null dropdown presentation and writing a selected request type back into
+  // protects null option-list values and writing a selected request type back into
   // filters.
-  it('undefined 条件按 null 传给下拉框，显示“全部”选项；选择后写回筛选对象', async () => {
+  it('undefined 条件按 null 传给筛选列表；选择后写回筛选对象', async () => {
     const filters: Record<string, any> = { start_date: '', end_date: '' }
     const wrapper = mountFilters(filters as ReturnType<typeof defaultFilters>)
     await flushPromises()
 
-    const selects = wrapper.findAllComponents({ name: 'Select' })
-    expect(selects.length).toBeGreaterThan(0)
-    for (const select of selects) {
-      expect(select.props('modelValue')).toBeNull()
+    const lists = filterOptionsList(wrapper)
+    expect(lists.length).toBeGreaterThan(0)
+    for (const list of lists) {
+      expect(list.props('modelValue')).toBeNull()
     }
 
-    const typeSelect = selects.find((select) => select.props('options')?.[0]?.label === 'All Types')
-    typeSelect!.vm.$emit('update:modelValue', 'sync')
+    const typeList = lists.find((list) => list.props('options')?.[0]?.label === 'All Types')
+    typeList!.vm.$emit('update:modelValue', 'sync')
     expect(filters.request_type).toBe('sync')
   })
 })

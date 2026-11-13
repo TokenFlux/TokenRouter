@@ -193,10 +193,10 @@ describe('默认价格查询', () => {
     vi.mocked(listDefaultPricing).mockResolvedValue({ total: 0, items: [], last_updated: '' })
     const wrapper = mount(DefaultPricingPanel, { global: { stubs } })
     await flushPromises()
-    expect(wrapper.findAllComponents({ name: 'Select' })).toHaveLength(0)
+    expect(wrapper.findAllComponents({ name: 'FilterOptions' })).toHaveLength(0)
     await wrapper.get('button[aria-label="common.filter"]').trigger('click')
-    const selects = wrapper.findAllComponents({ name: 'Select' })
-    await selects[0].vm.$emit('update:modelValue', 'grok')
+    const filterOptions = wrapper.findAllComponents({ name: 'FilterOptions' })
+    await filterOptions[0].vm.$emit('update:modelValue', 'grok')
     await flushPromises()
     const call = vi.mocked(listDefaultPricing).mock.lastCall!
     expect(call[0]).toMatchObject({ page: 1, platform: 'grok' })
@@ -212,19 +212,16 @@ describe('默认价格查询', () => {
     await flushPromises()
     const filter = wrapper.get('button[aria-label="common.filter"]')
     await filter.trigger('click')
-    const selects = wrapper.findAllComponents({ name: 'Select' })
-    selects[0].vm.$emit('update:modelValue', 'grok')
-    selects[1].vm.$emit('update:modelValue', 'image')
+    const filterOptions = wrapper.findAllComponents({ name: 'FilterOptions' })
+    filterOptions[0].vm.$emit('update:modelValue', 'grok')
+    filterOptions[1].vm.$emit('update:modelValue', 'image')
     await flushPromises()
     expect(filter.text()).toBe('2')
     expect(vi.mocked(listDefaultPricing).mock.lastCall?.[0]).toMatchObject({
       platform: 'grok',
       billing_mode: 'image',
     })
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'common.reset')!
-      .trigger('click')
+    await wrapper.get('[data-testid="filter-reset"]').trigger('click')
     await flushPromises()
     expect(vi.mocked(listDefaultPricing).mock.lastCall?.[0]).toMatchObject({
       platform: '',

@@ -15,20 +15,28 @@
           />
         </div>
 
-        <FilterDropdown
-          :active-count="activeFilterCount"
-          :columns="3"
-          keep-mounted
-          @reset="resetPanelFilters"
-        >
-          <FilterField :label="t('marketplace.filterBrand')">
-            <Select v-model="selectedBrand" :options="brandSelectOptions" />
+        <FilterDropdown :active-count="activeFilterCount" keep-mounted @reset="resetPanelFilters">
+          <FilterField :label="t('marketplace.filterBrand')" icon="tag">
+            <FilterOptions v-model="selectedBrand" :options="brandSelectOptions">
+              <template #icon="{ value }">
+                <ProviderIcon :brand="String(value)" size="16px" hide-fallback />
+              </template>
+            </FilterOptions>
           </FilterField>
-          <FilterField :label="t('marketplace.filterPricingMode')">
-            <Select v-model="selectedPricingMode" :options="pricingSelectOptions" />
+          <FilterField :label="t('marketplace.filterPricingMode')" icon="dollar">
+            <FilterOptions v-model="selectedPricingMode" :options="pricingSelectOptions" />
           </FilterField>
-          <FilterField :label="t('marketplace.filterGroup')">
-            <Select v-model="selectedGroupId" :options="groupSelectOptions" searchable />
+          <FilterField :label="t('marketplace.filterGroup')" icon="folder">
+            <FilterOptions v-model="selectedGroupId" :options="groupSelectOptions" searchable>
+              <template #icon="{ option }">
+                <ProviderIcon
+                  v-if="option?.brand"
+                  :brand="String(option.brand)"
+                  size="16px"
+                  hide-fallback
+                />
+              </template>
+            </FilterOptions>
           </FilterField>
         </FilterDropdown>
       </div>
@@ -112,20 +120,28 @@
             />
           </div>
 
-          <FilterDropdown
-            :active-count="activeFilterCount"
-            :columns="3"
-            keep-mounted
-            @reset="resetPanelFilters"
-          >
-            <FilterField :label="t('marketplace.filterBrand')">
-              <Select v-model="selectedBrand" :options="brandSelectOptions" />
+          <FilterDropdown :active-count="activeFilterCount" keep-mounted @reset="resetPanelFilters">
+            <FilterField :label="t('marketplace.filterBrand')" icon="tag">
+              <FilterOptions v-model="selectedBrand" :options="brandSelectOptions">
+                <template #icon="{ value }">
+                  <ProviderIcon :brand="String(value)" size="16px" hide-fallback />
+                </template>
+              </FilterOptions>
             </FilterField>
-            <FilterField :label="t('marketplace.filterPricingMode')">
-              <Select v-model="selectedPricingMode" :options="pricingSelectOptions" />
+            <FilterField :label="t('marketplace.filterPricingMode')" icon="dollar">
+              <FilterOptions v-model="selectedPricingMode" :options="pricingSelectOptions" />
             </FilterField>
-            <FilterField :label="t('marketplace.filterGroup')">
-              <Select v-model="selectedGroupId" :options="groupSelectOptions" searchable />
+            <FilterField :label="t('marketplace.filterGroup')" icon="folder">
+              <FilterOptions v-model="selectedGroupId" :options="groupSelectOptions" searchable>
+                <template #icon="{ option }">
+                  <ProviderIcon
+                    v-if="option?.brand"
+                    :brand="String(option.brand)"
+                    size="16px"
+                    hide-fallback
+                  />
+                </template>
+              </FilterOptions>
             </FilterField>
           </FilterDropdown>
         </div>
@@ -341,9 +357,10 @@ import ModelPricingPanel from '@/components/marketplace/ModelPricingPanel.vue'
 import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
-import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import { BILLING_MODE_ICONS, withOptionIcons } from '@/components/common/filterOptionIcons'
 import ModelIdLabel from '@/components/common/ModelIdLabel.vue'
 import GlobalSearchTrigger from '@/components/layout/search/GlobalSearchTrigger.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
@@ -471,7 +488,8 @@ const availableBrands = computed(() => {
 })
 
 // Filter choices retain their original values and append translated all-items
-// entries; available group choices also preserve the server's additional search terms.
+// entries; available group choices also preserve the server's additional search terms
+// and carry the brand drawn as their filter-row icon, matching the brand on the cards.
 const brandSelectOptions = computed(() => [
   { value: 'all', label: t('marketplace.allBrands') },
   ...availableBrands.value.map((brand) => ({
@@ -482,13 +500,18 @@ const brandSelectOptions = computed(() => [
 
 // pricingSelectOptions includes explicitly unpriced records alongside the three supported
 // billing units so missing quotes remain discoverable through the same filter control.
-const pricingSelectOptions = computed(() => [
-  { value: 'all', label: t('marketplace.allTypes') },
-  { value: 'token', label: t('marketplace.tokenPricing') },
-  { value: 'image', label: t('marketplace.imagePricing') },
-  { value: 'video', label: t('marketplace.videoPricing') },
-  { value: 'unpriced', label: t('marketplace.unpriced') },
-])
+const pricingSelectOptions = computed(() =>
+  withOptionIcons(
+    [
+      { value: 'all', label: t('marketplace.allTypes') },
+      { value: 'token', label: t('marketplace.tokenPricing') },
+      { value: 'image', label: t('marketplace.imagePricing') },
+      { value: 'video', label: t('marketplace.videoPricing') },
+      { value: 'unpriced', label: t('marketplace.unpriced') },
+    ],
+    BILLING_MODE_ICONS,
+  ),
+)
 
 const groupSelectOptions = computed(() => [
   { value: 'all', label: t('marketplace.allGroups') },
@@ -496,6 +519,7 @@ const groupSelectOptions = computed(() => [
     value: group.id,
     label: group.name,
     search_terms: group.search_terms,
+    brand: groupBrandSource(group),
   })),
 ])
 

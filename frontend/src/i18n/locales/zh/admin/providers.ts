@@ -128,7 +128,6 @@ export default {
     editProvider: '编辑提供商',
     deleteProvider: '删除提供商',
     searchProviders: '搜索提供商...',
-    filterHint: '按平台、类型、状态、Privacy 或分组筛选',
     privacyFilter: 'Privacy 状态',
     notes: '备注',
     notesPlaceholder: '请输入备注',

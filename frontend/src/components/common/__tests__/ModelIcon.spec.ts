@@ -6,7 +6,7 @@ import ProviderIcon from '../ProviderIcon.vue'
  * ModelIcon.spec.ts checks model and provider brand graphics for known names and Nano
  * Banana aliases. Parameterized cases inspect SVG presence, dimensions, and path
  * colors to cover theme inheritance and Google brand resolution across both icon
- * components.
+ * components, and the hideFallback option that leaves unknown names without a mark.
  */
 
 describe('ModelIcon', () => {
@@ -43,6 +43,20 @@ describe('ModelIcon', () => {
 
     expect(wrapper.find('svg').exists()).toBe(true)
     expect(wrapper.find('.model-icon-fallback').exists()).toBe(false)
+  })
+
+  /**
+   * An unrecognized model name is rendered with and without hideFallback. The default
+   * shows its initial, while hideFallback renders no mark so filter rows show logos only
+   * for recognized models.
+   */
+  it('hideFallback 时未知模型不显示首字母占位', () => {
+    const shown = mount(ModelIcon, { props: { model: 'mystery-model' } })
+    expect(shown.get('.model-icon-fallback').text()).toBe('M')
+
+    const hidden = mount(ModelIcon, { props: { model: 'mystery-model', hideFallback: true } })
+    expect(hidden.find('.model-icon-fallback').exists()).toBe(false)
+    expect(hidden.find('svg').exists()).toBe(false)
   })
 })
 
@@ -96,5 +110,18 @@ describe('ProviderIcon', () => {
     expect(wrapper.findAll('path').map((path) => path.attributes('fill'))).toEqual(
       Array(4).fill('currentColor'),
     )
+  })
+
+  /**
+   * A provider without brand artwork is rendered with hideFallback, alongside a known
+   * brand. The unknown provider renders no letter, while the known brand keeps its mark.
+   */
+  it('hideFallback 时没有标志的厂商不显示字母占位', () => {
+    const hidden = mount(ProviderIcon, { props: { brand: 'abacusai', hideFallback: true } })
+    expect(hidden.find('.provider-icon-fallback').exists()).toBe(false)
+
+    const known = mount(ProviderIcon, { props: { brand: 'Anthropic', hideFallback: true } })
+    expect(known.find('svg, span').exists()).toBe(true)
+    expect(known.find('.provider-icon-fallback').exists()).toBe(false)
   })
 })

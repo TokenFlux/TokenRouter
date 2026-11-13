@@ -34,7 +34,7 @@
     <path v-for="(p, idx) in iconInfo.paths" :key="idx" :d="p" :fill="iconColor" />
   </svg>
   <span
-    v-else
+    v-else-if="!hideFallback"
     class="provider-icon-fallback"
     :style="{ width: size, height: size, fontSize: `calc(${size} * 0.58)`, color: iconColor }"
     aria-hidden="true"
@@ -53,7 +53,8 @@ import { providerBrandDisplayName, resolveProviderBrand } from '@/utils/provider
  * ProviderIcon.vue renders provider marks from shared brand artwork or an initial.
  * Google uses the same full-color mark as sign-in unless a caller supplies a
  * color override. Other marks use the brand color, then the graphic color and
- * current text color. Unknown providers with no display name use a question mark.
+ * current text color. Unknown providers with no display name use a question mark,
+ * and hideFallback renders nothing in place of the initial or question mark.
  */
 
 /**
@@ -65,10 +66,14 @@ const props = withDefaults(
     brand: string /* provider display brand */
     size?: string /* rendered icon size */
     color?: string /* caller color override */
+    // Renders nothing instead of the letter placeholder for brands without artwork, so
+    // lists can show logos only where a real mark exists.
+    hideFallback?: boolean
   }>(),
   {
     size: '18px',
     color: '',
+    hideFallback: false,
   },
 )
 

@@ -12,11 +12,15 @@
               @input="handleSearch"
             />
             <FilterDropdown :active-count="activeFilterCount" @reset="resetRedeemFilters">
-              <FilterField :label="t('admin.redeem.columns.type')">
-                <Select v-model="filters.type" :options="filterTypeOptions" @change="loadCodes" />
+              <FilterField :label="t('admin.redeem.columns.type')" icon="ticket">
+                <FilterOptions
+                  v-model="filters.type"
+                  :options="filterTypeOptions"
+                  @change="loadCodes"
+                />
               </FilterField>
-              <FilterField :label="t('admin.redeem.columns.status')">
-                <Select
+              <FilterField :label="t('admin.redeem.columns.status')" icon="checkCircle">
+                <FilterOptions
                   v-model="filters.status"
                   :options="filterStatusOptions"
                   @change="loadCodes"
@@ -666,6 +670,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import type { FilterOption } from '@/components/common/filterPanel'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import SettingToggleRow from '@/components/common/settings/SettingToggleRow.vue'
@@ -807,26 +813,31 @@ const typeOptions = computed(() => [
 // filterTypeOptions includes generated credentials and persisted adjustment sources for
 // list filtering. Plugin balance records are history entries and are excluded from
 // the separate generation choices above.
-const filterTypeOptions = computed(() => [
+const filterTypeOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('admin.redeem.allTypes') },
-  { value: 'balance', label: t('admin.redeem.balance') },
-  { value: 'affiliate_balance', label: t('admin.redeem.types.affiliate_balance') },
+  { value: 'balance', label: t('admin.redeem.balance'), icon: 'dollar' },
+  {
+    value: 'affiliate_balance',
+    label: t('admin.redeem.types.affiliate_balance'),
+    icon: 'affiliate',
+  },
   {
     value: 'plugin_balance', // Persisted plugin adjustment type.
     label: t('admin.redeem.types.plugin_balance'), // Localized source filter label.
+    icon: 'puzzle',
   },
-  { value: 'concurrency', label: t('admin.redeem.concurrency') },
-  { value: 'subscription', label: t('admin.redeem.subscription') },
-  { value: 'invitation', label: t('admin.redeem.invitation') },
+  { value: 'concurrency', label: t('admin.redeem.concurrency'), icon: 'layers' },
+  { value: 'subscription', label: t('admin.redeem.subscription'), icon: 'calendar' },
+  { value: 'invitation', label: t('admin.redeem.invitation'), icon: 'userPlus' },
 ])
 
-const filterStatusOptions = computed(() => [
+const filterStatusOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('admin.redeem.allStatus') },
-  { value: 'unused', label: t('admin.redeem.unused') },
-  { value: 'active', label: t('admin.redeem.status.active') },
-  { value: 'used', label: t('admin.redeem.used') },
-  { value: 'expired', label: t('admin.redeem.status.expired') },
-  { value: 'disabled', label: t('admin.redeem.status.disabled') },
+  { value: 'unused', label: t('admin.redeem.unused'), dot: 'green' },
+  { value: 'active', label: t('admin.redeem.status.active'), dot: 'amber' },
+  { value: 'used', label: t('admin.redeem.used'), dot: 'gray' },
+  { value: 'expired', label: t('admin.redeem.status.expired'), dot: 'red' },
+  { value: 'disabled', label: t('admin.redeem.status.disabled'), dot: 'gray' },
 ])
 
 const batchStatusOptions = computed(() => [

@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import { platformIconClass } from '@/utils/platformColors'
+import type { ProviderPlatform } from '@/api/admin/providers.types'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -67,6 +71,7 @@ interface Props {
   groups?: Array<{
     id: number // persisted group identifier
     name: string // group selector display name
+    display_brand?: string // group badge brand, drawn as the filter icon
   }>
 }
 
@@ -206,14 +211,12 @@ const timeRangeOptions = computed(() => [
   },
 ])
 
-const groupOptions = computed(() => {
-  const groups = props.groups ?? []
-  const filtered = groups
-  return [
-    { value: null, label: t('common.all') },
-    ...filtered.map((g) => ({ value: g.id, label: g.name })),
-  ]
-})
+// groupOptions prepends the unfiltered choice to the supplied groups and keeps each
+// group's display brand for its filter-row icon.
+const groupOptions = computed(() => [
+  { value: null, label: t('common.all') },
+  ...(props.groups ?? []).map((g) => ({ value: g.id, label: g.name, brand: g.display_brand })),
+])
 
 // activeFilterCount counts platform, group, and nondefault range selections for
 // the filter dropdown indicator in the toolbar.
@@ -1163,26 +1166,43 @@ function handleToolbarRefresh() {
         <template v-if="!props.fullscreen">
           <FilterDropdown
             :active-count="activeFilterCount"
-            :columns="2"
             trigger-class="flex rounded-control bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800 btn-icon-sm"
             @reset="resetOpsFilters"
           >
-            <FilterField :label="t('admin.ops.errorLog.platform')">
-              <Select
+            <FilterField :label="t('admin.ops.errorLog.platform')" icon="cloud">
+              <FilterOptions
                 :model-value="platform"
                 :options="platformOptions"
                 @update:model-value="handlePlatformChange"
-              />
+              >
+                <template #icon="{ value }">
+                  <PlatformIcon
+                    :platform="value as ProviderPlatform"
+                    size="md"
+                    :class="platformIconClass(String(value))"
+                  />
+                </template>
+              </FilterOptions>
             </FilterField>
-            <FilterField :label="t('admin.ops.errorLog.group')">
-              <Select
+            <FilterField :label="t('admin.ops.errorLog.group')" icon="folder">
+              <FilterOptions
                 :model-value="groupId"
                 :options="groupOptions"
+                searchable
                 @update:model-value="handleGroupChange"
-              />
+              >
+                <template #icon="{ option }">
+                  <ProviderIcon
+                    v-if="option?.brand"
+                    :brand="String(option.brand)"
+                    size="16px"
+                    hide-fallback
+                  />
+                </template>
+              </FilterOptions>
             </FilterField>
-            <FilterField :label="t('admin.dashboard.timeRange')" empty-value="1h" full>
-              <Select
+            <FilterField :label="t('admin.dashboard.timeRange')" icon="clock" empty-value="1h">
+              <FilterOptions
                 :model-value="timeRange"
                 :options="timeRangeOptions"
                 @update:model-value="handleTimeRangeChange"

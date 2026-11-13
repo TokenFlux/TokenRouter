@@ -132,7 +132,6 @@ export default {
     editProvider: 'Edit Provider',
     deleteProvider: 'Delete Provider',
     searchProviders: 'Search providers...',
-    filterHint: 'Filter by platform, type, status, Privacy, or group',
     privacyFilter: 'Privacy status',
     notes: 'Notes',
     notesPlaceholder: 'Enter notes',

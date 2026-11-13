@@ -16,19 +16,17 @@
               />
             </div>
             <FilterDropdown :active-count="activeFilterCount" @reset="resetProxyFilters">
-              <FilterField :label="t('admin.proxies.columns.protocol')">
-                <Select
+              <FilterField :label="t('admin.proxies.columns.protocol')" icon="link">
+                <FilterOptions
                   v-model="filters.protocol"
                   :options="protocolOptions"
-                  :placeholder="t('admin.proxies.allProtocols')"
                   @change="loadProxies"
                 />
               </FilterField>
-              <FilterField :label="t('admin.proxies.columns.status')">
-                <Select
+              <FilterField :label="t('admin.proxies.columns.status')" icon="checkCircle">
+                <FilterOptions
                   v-model="filters.status"
                   :options="statusOptions"
-                  :placeholder="t('admin.proxies.allStatus')"
                   @change="loadProxies"
                 />
               </FilterField>
@@ -1030,6 +1028,8 @@ import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
 import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import type { FilterOption } from '@/components/common/filterPanel'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import { useClipboard } from '@/composables/useClipboard'
@@ -1088,21 +1088,21 @@ const columns = computed<Column[]>(() => [
 
 // Protocol and status filter choices include unrestricted values, while form selector options
 // restrict the values administrators may persist.
-const protocolOptions = computed(() => [
+const protocolOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('admin.proxies.allProtocols') },
-  { value: 'http', label: 'HTTP' },
-  { value: 'https', label: 'HTTPS' },
-  { value: 'socks5', label: 'SOCKS5' },
-  { value: 'socks5h', label: 'SOCKS5H' },
+  { value: 'http', label: 'HTTP', icon: 'globe' },
+  { value: 'https', label: 'HTTPS', icon: 'lock' },
+  { value: 'socks5', label: 'SOCKS5', icon: 'swap' },
+  { value: 'socks5h', label: 'SOCKS5H', icon: 'server' },
 ])
 
 // statusOptions supplies translated activation choices for filtering records, including the
-// empty choice that clears filtering.
-const statusOptions = computed(() => [
+// empty choice that clears filtering; dot colors match the status column badges.
+const statusOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('admin.proxies.allStatus') },
-  { value: 'active', label: t('admin.providers.status.active') },
-  { value: 'inactive', label: t('admin.providers.status.inactive') },
-  { value: 'expired', label: t('admin.proxies.expired') },
+  { value: 'active', label: t('admin.providers.status.active'), dot: 'green' },
+  { value: 'inactive', label: t('admin.providers.status.inactive'), dot: 'red' },
+  { value: 'expired', label: t('admin.proxies.expired'), dot: 'red' },
 ])
 
 // protocolSelectOptions lists supported transports for create and edit controls,

@@ -69,7 +69,7 @@
         :title="`${t(`admin.modelAttributes.fields.${field}`)} · ${capabilityText(attributes[field], field)}`"
       >
         <Icon
-          :name="CAPABILITY_ICONS[field]"
+          :name="MODEL_CAPABILITY_ICONS[field]"
           size="xs"
           class="h-3.5 w-3.5"
           :class="attributes[field] ? labelClass : mutedClass"
@@ -143,6 +143,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import ModalityIcon from '@/components/common/ModalityIcon.vue'
+import { MODEL_CAPABILITY_ICONS } from '@/components/common/modelCapabilityIcons'
 import type { IconName } from '@/components/icons/registry'
 import type { ModelModality } from '@/utils/modelCapabilities'
 import {
@@ -213,19 +214,6 @@ const { t } = useI18n()
  * parameters.
  */
 type CapabilityState = 'supported' | 'unsupported' | 'unknown' | 'conditional'
-
-/**
- * CAPABILITY_ICONS maps boolean model features to the shared glyphs displayed beside
- * their translated capability names.
- */
-const CAPABILITY_ICONS: Record<(typeof attributeCapabilities)[number], IconName> = {
-  reasoning: 'brain',
-  tool_call: 'toolCall',
-  structured_output: 'structuredOutput',
-  temperature: 'temperature',
-  top_p: 'sliders',
-  attachment: 'attachment',
-}
 
 /**
  * STATE_ICONS distinguishes supported, unsupported, unknown, and conditional evidence

@@ -8,6 +8,13 @@ import type { SelectOption } from '@/components/common/Select.vue'
 import type { ModelStat, UsageRequestType } from '@/api/usage.types'
 import { requestTypeToLegacyStream } from '@/utils/usageRequestType'
 import { formatQueryTime, type UsageRange } from './usageChartData'
+import {
+  BILLING_MODE_ICONS,
+  BILLING_TYPE_ICONS,
+  COMPACTION_ICONS,
+  REQUEST_TYPE_ICONS,
+  withOptionIcons,
+} from '@/components/common/filterOptionIcons'
 
 // useUsageChartFilters.ts manages dashboard usage filters and the available key, group, and
 // model choices. Query parameters retain the distinction between an unrestricted null value
@@ -38,6 +45,7 @@ export interface UsageChartFilters {
 type NamedOption = {
   id: number // API record identity.
   name: string // Displayed selection label.
+  brand?: string // Group badge brand drawn as the filter-row icon.
 }
 
 // emptyFilters returns a fresh unrestricted filter object for initialization or reset.
@@ -113,32 +121,52 @@ export function useUsageChartFilters() {
   ])
   const groupOptions = computed<SelectOption[]>(() => [
     { value: null, label: t('admin.usage.allGroups') },
-    ...groups.value.map((group) => ({ value: group.id, label: group.name })),
+    ...groups.value.map((group) => ({ value: group.id, label: group.name, brand: group.brand })),
   ])
-  const requestTypeOptions = computed<SelectOption[]>(() => [
-    { value: null, label: t('admin.usage.allTypes') },
-    { value: 'ws_v2', label: t('usage.ws') },
-    { value: 'live', label: t('usage.live') },
-    { value: 'stream', label: t('usage.stream') },
-    { value: 'sync', label: t('usage.sync') },
-  ])
-  const billingTypeOptions = computed<SelectOption[]>(() => [
-    { value: null, label: t('admin.usage.allBillingTypes') },
-    { value: 0, label: t('admin.usage.billingTypeBalance') },
-    { value: 1, label: t('admin.usage.billingTypeSubscription') },
-  ])
-  const billingModeOptions = computed<SelectOption[]>(() => [
-    { value: null, label: t('admin.usage.allBillingModes') },
-    { value: 'token', label: t('admin.usage.billingModeToken') },
-    { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
-    { value: 'image', label: t('admin.usage.billingModeImage') },
-    { value: 'video', label: t('admin.usage.billingModeVideo') },
-  ])
-  const compactionOptions = computed<SelectOption[]>(() => [
-    { value: null, label: t('usage.allCompactions') },
-    { value: true, label: t('usage.nativeCompactionV2') },
-    { value: false, label: t('usage.legacyCompaction') },
-  ])
+  const requestTypeOptions = computed<SelectOption[]>(() =>
+    withOptionIcons(
+      [
+        { value: null, label: t('admin.usage.allTypes') },
+        { value: 'ws_v2', label: t('usage.ws') },
+        { value: 'live', label: t('usage.live') },
+        { value: 'stream', label: t('usage.stream') },
+        { value: 'sync', label: t('usage.sync') },
+      ],
+      REQUEST_TYPE_ICONS,
+    ),
+  )
+  const billingTypeOptions = computed<SelectOption[]>(() =>
+    withOptionIcons(
+      [
+        { value: null, label: t('admin.usage.allBillingTypes') },
+        { value: 0, label: t('admin.usage.billingTypeBalance') },
+        { value: 1, label: t('admin.usage.billingTypeSubscription') },
+      ],
+      BILLING_TYPE_ICONS,
+    ),
+  )
+  const billingModeOptions = computed<SelectOption[]>(() =>
+    withOptionIcons(
+      [
+        { value: null, label: t('admin.usage.allBillingModes') },
+        { value: 'token', label: t('admin.usage.billingModeToken') },
+        { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
+        { value: 'image', label: t('admin.usage.billingModeImage') },
+        { value: 'video', label: t('admin.usage.billingModeVideo') },
+      ],
+      BILLING_MODE_ICONS,
+    ),
+  )
+  const compactionOptions = computed<SelectOption[]>(() =>
+    withOptionIcons(
+      [
+        { value: null, label: t('usage.allCompactions') },
+        { value: true, label: t('usage.nativeCompactionV2') },
+        { value: false, label: t('usage.legacyCompaction') },
+      ],
+      COMPACTION_ICONS,
+    ),
+  )
 
   // loadKeyAndGroupOptions gathers personal keys, available groups, and optional team keys
   // for the dashboard filters. A missing team allows personal results to proceed, while
@@ -169,7 +197,7 @@ export function useUsageChartFilters() {
 
       const groupMap = new Map<number, NamedOption>()
       for (const group of availableGroups)
-        groupMap.set(group.id, { id: group.id, name: group.name })
+        groupMap.set(group.id, { id: group.id, name: group.name, brand: group.display_brand })
       for (const key of teamKeys) {
         if (key.group_id && key.group_name)
           groupMap.set(key.group_id, { id: key.group_id, name: key.group_name })

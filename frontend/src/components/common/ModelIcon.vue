@@ -27,7 +27,7 @@
     <path v-for="(p, idx) in iconInfo.paths" :key="idx" :d="p" :fill="iconInfo.color" />
   </svg>
   <span
-    v-else
+    v-else-if="!hideFallback"
     class="model-icon-fallback"
     :style="{ width: size, height: size, fontSize: `calc(${size} * 0.5)` }"
   >
@@ -44,7 +44,7 @@ import { modelIconData } from '@/utils/modelIconData'
  * ModelIcon.vue selects a model brand graphic from its name and renders the matching
  * icon data. Ordered name checks resolve overlapping matches, including the Typesafe
  * brand override, while unrecognized model names use their uppercase first character
- * as a compact placeholder.
+ * as a compact placeholder unless hideFallback asks for no mark at all.
  */
 
 /**
@@ -55,9 +55,13 @@ const props = withDefaults(
   defineProps<{
     model: string /* model name identifier */
     size?: string /* rendered icon size */
+    // Renders nothing instead of the initial placeholder for unrecognized models, so
+    // lists can show logos only where a real mark exists.
+    hideFallback?: boolean
   }>(),
   {
     size: '18px',
+    hideFallback: false,
   },
 )
 

@@ -20,19 +20,22 @@
                 mode = '';
               "
             >
-              <FilterField :label="t('admin.pricing.defaults.columns.platform')">
-                <Select
-                  v-model="platform"
-                  :options="platformOptions"
-                  :aria-label="t('admin.pricing.defaults.columns.platform')"
-                />
+              <FilterField :label="t('admin.pricing.defaults.columns.platform')" icon="cloud">
+                <FilterOptions v-model="platform" :options="platformOptions">
+                  <template #icon="{ value }">
+                    <PlatformIcon
+                      :platform="value as ProviderPlatform"
+                      size="md"
+                      :class="platformIconClass(String(value))"
+                    />
+                  </template>
+                </FilterOptions>
               </FilterField>
-              <FilterField :label="t('admin.pricing.defaults.columns.billing_mode')">
-                <Select
-                  v-model="mode"
-                  :options="modeOptions"
-                  :aria-label="t('admin.pricing.defaults.columns.billing_mode')"
-                />
+              <FilterField
+                :label="t('admin.pricing.defaults.columns.billing_mode')"
+                icon="calculator"
+              >
+                <FilterOptions v-model="mode" :options="modeOptions" />
               </FilterField>
             </FilterDropdown>
           </div>
@@ -228,9 +231,13 @@ import {
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/table/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
-import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import { BILLING_MODE_ICONS, withOptionIcons } from '@/components/common/filterOptionIcons'
+import { platformIconClass } from '@/utils/platformColors'
+import type { ProviderPlatform } from '@/api/admin/providers.types'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import PlatformBadge from '@/components/common/PlatformBadge.vue'
 import BillingModeBadge from '@/components/common/BillingModeBadge.vue'
@@ -297,13 +304,18 @@ const platformOptions = computed(() => [
     label: t(`admin.groups.platforms.${value}`, value),
   })),
 ])
-const modeOptions = computed(() => [
-  { value: '', label: t('admin.pricing.defaults.allModes') },
-  ...['token', 'image', 'video', 'per_request'].map((value) => ({
-    value,
-    label: t(`admin.pricing.defaults.modes.${value}`),
-  })),
-])
+const modeOptions = computed(() =>
+  withOptionIcons(
+    [
+      { value: '', label: t('admin.pricing.defaults.allModes') },
+      ...['token', 'image', 'video', 'per_request'].map((value) => ({
+        value,
+        label: t(`admin.pricing.defaults.modes.${value}`),
+      })),
+    ],
+    BILLING_MODE_ICONS,
+  ),
+)
 // columns defines the displayed table fields and their translated headings, ordering, and
 // sorting controls.
 const columns = computed(() =>

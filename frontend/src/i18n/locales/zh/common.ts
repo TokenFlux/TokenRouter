@@ -29,6 +29,8 @@ export default {
     reset: '重置',
     search: '搜索',
     filter: '筛选',
+    resetFilters: '重置筛选',
+    clear: '清除',
     export: '导出',
     import: '导入',
     actions: '操作',

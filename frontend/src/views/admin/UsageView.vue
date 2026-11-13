@@ -460,12 +460,12 @@ const handleUserClick = async (userId: number) => {
   }
 }
 
-// handleRankingSelectUser applies a ranking identity to the page filter and search label.
+// handleRankingSelectUser applies a ranking identity to the page filter and user label.
 // It switches back to usage records and applies the new selection across the page's
 // dependent queries.
 const handleRankingSelectUser = (userId: number, email: string) => {
   filters.value = { ...filters.value, user_id: userId }
-  usageFiltersRef.value?.setUserKeyword?.(email || '')
+  usageFiltersRef.value?.setUserLabel?.(email || '')
   activeTab.value = 'usage'
   applyFilters()
 }
@@ -601,32 +601,32 @@ const applyRouteQueryFilters = () => {
 // missing user identifier skips retrieval, and a current failed lookup displays the numeric
 // identifier.
 //
-// Before requesting, it captures both user identity and the filter component's search
-// revision. Success and failure compare both values before assigning a label. Typing or
-// changing selection during the request therefore keeps the newer label, even when the
-// selected numeric user remains unchanged.
+// Before requesting, it captures both user identity and the filter component's label
+// revision. Success and failure compare both values before assigning a label. Selecting a
+// user during the request therefore keeps the newer label, even when the selected numeric
+// user remains unchanged.
 const loadRouteUserFilterLabel = async () => {
-  // Capture the user and search revision together so successful label
-  // hydration cannot overwrite a newer selection or typed search.
+  // Capture the user and label revision together so successful label
+  // hydration cannot overwrite a newer selection.
   const requestedUserId = filters.value.user_id
   if (!requestedUserId) return
-  const userSearchRevision = usageFiltersRef.value?.getUserSearchRevision?.()
+  const userLabelRevision = usageFiltersRef.value?.getUserLabelRevision?.()
 
-  // routeUserFilterIsCurrent compares user identity and search revision with the captured
+  // routeUserFilterIsCurrent compares user identity and label revision with the captured
   // route lookup.
   const routeUserFilterIsCurrent = () =>
     filters.value.user_id === requestedUserId &&
-    usageFiltersRef.value?.getUserSearchRevision?.() === userSearchRevision
+    usageFiltersRef.value?.getUserLabelRevision?.() === userLabelRevision
 
   try {
     const user = await adminAPI.users.getById(requestedUserId, true)
     if (!routeUserFilterIsCurrent()) return
-    usageFiltersRef.value?.setUserKeyword?.(user.email || String(requestedUserId))
+    usageFiltersRef.value?.setUserLabel?.(user.email || String(requestedUserId))
   } catch {
-    // Use numeric identity only if both the filter and search revision still match; newer
-    // typed labels survive a failed hydration.
+    // Use numeric identity only if both the filter and label revision still match; newer
+    // selected labels survive a failed hydration.
     if (!routeUserFilterIsCurrent()) return
-    usageFiltersRef.value?.setUserKeyword?.(String(requestedUserId))
+    usageFiltersRef.value?.setUserLabel?.(String(requestedUserId))
   }
 }
 

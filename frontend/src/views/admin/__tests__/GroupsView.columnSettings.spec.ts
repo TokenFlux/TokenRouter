@@ -173,23 +173,6 @@ const DataTableStub = {
   `,
 }
 
-// SelectStub forwards selection updates through a compact test control so assertions exercise
-// the owning component data flow.
-const SelectStub = {
-  props: ['modelValue', 'options', 'placeholder'],
-  emits: ['update:modelValue', 'change'],
-  template: `
-    <select
-      :value="modelValue"
-      @change="$emit('update:modelValue', $event.target.value); $emit('change')"
-    >
-      <option v-for="option in options" :key="String(option.value)" :value="option.value">
-        {{ option.label }}
-      </option>
-    </select>
-  `,
-}
-
 // BaseDialogStub and adjacent control stubs expose test-visible slots and events while keeping
 // dialog layout outside the tested page behavior.
 const BaseDialogStub = {
@@ -216,7 +199,6 @@ const mountView = async () => {
         BaseDialog: BaseDialogStub,
         ConfirmDialog: true,
         EmptyState: true,
-        Select: SelectStub,
         PlatformIcon: true,
         Icon: IconStub,
         GroupCapacityBadge: true,
@@ -299,11 +281,11 @@ describe('admin GroupsView column settings', () => {
   it('omits the exclusive-group filter from the toolbar and list request', async () => {
     const wrapper = await mountView()
 
-    // The filter panel exposes the currently supported filter controls after the toolbar button
-    // is opened.
+    // The filter panel exposes the currently supported filter fields after the toolbar button
+    // is opened; status is the only one.
     await wrapper.get('button[aria-label="common.filter"]').trigger('click')
     await flushPromises()
-    expect(wrapper.findAll('select')).toHaveLength(1)
+    expect(wrapper.findAll('[role="dialog"] section')).toHaveLength(1)
     expect(listGroups.mock.calls[0]?.[2]).not.toHaveProperty('is_exclusive')
   })
 

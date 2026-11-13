@@ -95,40 +95,42 @@
         <div class="flex items-center justify-between gap-2">
           <FilterDropdown
             :active-count="activeFilterCount"
-            :columns="3"
             keep-mounted
             @reset="resetCurrentFilters"
           >
             <!-- The request identifier filters usage and errors together, and removes date bounds from both queries. -->
             <RequestIdFilterField v-model="filters.request_id" @search="applyFilters" />
             <template v-if="activeTab === 'errors'">
-              <FilterField :label="t('usage.errors.keyName')">
-                <Select
+              <FilterField :label="t('usage.errors.keyName')" icon="key">
+                <FilterOptions
                   v-model="errorFilter.api_key_id"
                   :options="errorKeyOptions"
                   @change="applyErrorFilters"
                 />
               </FilterField>
-              <FilterField :label="t('usage.errors.model')">
-                <Select
+              <FilterField :label="t('usage.errors.model')" icon="cube">
+                <FilterOptions
                   v-model="errorFilter.model"
                   :options="errorModelOptions"
                   searchable
                   creatable
-                  clearable
-                  :placeholder="t('usage.errors.modelPlaceholder')"
+                  :search-placeholder="t('usage.errors.modelPlaceholder')"
                   @change="applyErrorFilters"
-                />
+                >
+                  <template #icon="{ value }">
+                    <ModelIcon :model="String(value)" size="16px" hide-fallback />
+                  </template>
+                </FilterOptions>
               </FilterField>
-              <FilterField :label="t('usage.errors.category')">
-                <Select
+              <FilterField :label="t('usage.errors.category')" icon="tag">
+                <FilterOptions
                   v-model="errorFilter.category"
                   :options="errorCategoryOptions"
                   @change="applyErrorFilters"
                 />
               </FilterField>
-              <FilterField :label="t('usage.errors.status')">
-                <Select
+              <FilterField :label="t('usage.errors.status')" icon="exclamationCircle">
+                <FilterOptions
                   v-model="errorFilter.status_code"
                   :options="errorStatusOptions"
                   @change="applyErrorFilters"
@@ -136,52 +138,65 @@
               </FilterField>
             </template>
             <template v-else>
-              <FilterField :label="t('usage.apiKeyFilter')">
-                <Select
+              <FilterField :label="t('usage.apiKeyFilter')" icon="key">
+                <FilterOptions
                   v-model="filters.api_key_id"
                   :options="apiKeyOptions"
                   @change="applyFilters"
                 />
               </FilterField>
-              <FilterField :label="t('usage.model')">
-                <Select
+              <FilterField :label="t('usage.model')" icon="cube">
+                <FilterOptions
                   v-model="filters.model"
                   :options="modelOptions"
                   searchable
                   @change="applyFilters"
-                />
+                >
+                  <template #icon="{ value }">
+                    <ModelIcon :model="String(value)" size="16px" hide-fallback />
+                  </template>
+                </FilterOptions>
               </FilterField>
-              <FilterField :label="t('admin.usage.group')">
-                <Select
+              <FilterField :label="t('admin.usage.group')" icon="folder">
+                <FilterOptions
                   v-model="filters.group_id"
                   :options="groupOptions"
                   searchable
                   @change="applyFilters"
-                />
+                >
+                  <template #icon="{ option }">
+                    <ProviderIcon
+                      v-if="option?.brand"
+                      :brand="String(option.brand)"
+                      size="16px"
+                      hide-fallback
+                    />
+                  </template>
+                </FilterOptions>
               </FilterField>
-              <FilterField :label="t('usage.type')">
-                <Select
+              <FilterField :label="t('usage.type')" icon="bolt">
+                <FilterOptions
                   v-model="filters.request_type"
                   :options="requestTypeOptions"
                   @change="applyFilters"
                 />
               </FilterField>
-              <FilterField :label="t('admin.usage.billingType')">
-                <Select
+              <FilterField :label="t('admin.usage.billingType')" icon="creditCard">
+                <FilterOptions
                   v-model="filters.billing_type"
                   :options="billingTypeOptions"
                   @change="applyFilters"
                 />
               </FilterField>
-              <FilterField :label="t('admin.usage.billingMode')">
-                <Select
+              <FilterField :label="t('admin.usage.billingMode')" icon="calculator">
+                <FilterOptions
                   v-model="filters.billing_mode"
                   :options="billingModeOptions"
                   @change="applyFilters"
                 />
               </FilterField>
-              <FilterField :label="t('usage.compactionFilter')">
-                <Select
+              <FilterField :label="t('usage.compactionFilter')" icon="minimize">
+                <FilterOptions
                   v-model="filters.native_compaction_v2"
                   :options="compactionOptions"
                   @change="applyFilters"
@@ -350,6 +365,17 @@ import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import {
+  BILLING_MODE_ICONS,
+  BILLING_TYPE_ICONS,
+  COMPACTION_ICONS,
+  ERROR_CATEGORY_ICONS,
+  REQUEST_TYPE_ICONS,
+  withOptionIcons,
+} from '@/components/common/filterOptionIcons'
+import ModelIcon from '@/components/common/ModelIcon.vue'
+import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
 import IpGeoBatchToolbar from '@/components/common/IpGeoBatchToolbar.vue'
@@ -510,10 +536,15 @@ const errorCategoryCodes = [
 
 // errorCategoryOptions translates queryable error categories and supplies the empty string
 // that clears the selected category predicate.
-const errorCategoryOptions = computed<SelectOption[]>(() => [
-  { value: '', label: t('usage.errors.allCategories') },
-  ...errorCategoryCodes.map((c) => ({ value: c, label: t('usage.errors.categories.' + c) })),
-])
+const errorCategoryOptions = computed<SelectOption[]>(() =>
+  withOptionIcons(
+    [
+      { value: '', label: t('usage.errors.allCategories') },
+      ...errorCategoryCodes.map((c) => ({ value: c, label: t('usage.errors.categories.' + c) })),
+    ],
+    ERROR_CATEGORY_ICONS,
+  ),
+)
 
 // errorStatusOptions uses common status codes shared with administrator filters, keeping
 // codes selectable even when absent from the current page.
@@ -631,43 +662,65 @@ const granularityOptions = computed<SelectOption[]>(() => [
 ])
 // requestTypeOptions lists canonical usage request modes plus the null selection that
 // clears mode filtering in the query.
-const requestTypeOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('admin.usage.allTypes') },
-  { value: 'ws_v2', label: t('usage.ws') },
-  { value: 'live', label: t('usage.live') },
-  { value: 'stream', label: t('usage.stream') },
-  { value: 'sync', label: t('usage.sync') },
-])
+const requestTypeOptions = computed<SelectOption[]>(() =>
+  withOptionIcons(
+    [
+      { value: null, label: t('admin.usage.allTypes') },
+      { value: 'ws_v2', label: t('usage.ws') },
+      { value: 'live', label: t('usage.live') },
+      { value: 'stream', label: t('usage.stream') },
+      { value: 'sync', label: t('usage.sync') },
+    ],
+    REQUEST_TYPE_ICONS,
+  ),
+)
 // billingTypeOptions distinguishes balance and subscription usage while retaining null for
 // the unfiltered dropdown selection.
-const billingTypeOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('admin.usage.allBillingTypes') },
-  { value: 0, label: t('admin.usage.billingTypeBalance') },
-  { value: 1, label: t('admin.usage.billingTypeSubscription') },
-])
+const billingTypeOptions = computed<SelectOption[]>(() =>
+  withOptionIcons(
+    [
+      { value: null, label: t('admin.usage.allBillingTypes') },
+      { value: 0, label: t('admin.usage.billingTypeBalance') },
+      { value: 1, label: t('admin.usage.billingTypeSubscription') },
+    ],
+    BILLING_TYPE_ICONS,
+  ),
+)
 // billingModeOptions supplies translated token, per-request, image, and video choices for
 // the shared usage filter controls.
-const billingModeOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('admin.usage.allBillingModes') },
-  { value: 'token', label: t('admin.usage.billingModeToken') },
-  { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
-  { value: 'image', label: t('admin.usage.billingModeImage') },
-  { value: 'video', label: t('admin.usage.billingModeVideo') },
-])
+const billingModeOptions = computed<SelectOption[]>(() =>
+  withOptionIcons(
+    [
+      { value: null, label: t('admin.usage.allBillingModes') },
+      { value: 'token', label: t('admin.usage.billingModeToken') },
+      { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
+      { value: 'image', label: t('admin.usage.billingModeImage') },
+      { value: 'video', label: t('admin.usage.billingModeVideo') },
+    ],
+    BILLING_MODE_ICONS,
+  ),
+)
 // compactionOptions distinguishes native and legacy compaction and supplies a null choice
 // for requests without that predicate.
-const compactionOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('usage.allCompactions') },
-  { value: true, label: t('usage.nativeCompactionV2') },
-  { value: false, label: t('usage.legacyCompaction') },
-])
+const compactionOptions = computed<SelectOption[]>(() =>
+  withOptionIcons(
+    [
+      { value: null, label: t('usage.allCompactions') },
+      { value: true, label: t('usage.nativeCompactionV2') },
+      { value: false, label: t('usage.legacyCompaction') },
+    ],
+    COMPACTION_ICONS,
+  ),
+)
 
 // UsageKeyOption keeps key identity and name for the usage selectors.
 type UsageKeyOption = Pick<TeamAPIKey, 'id' | 'name'>
-// UsageGroupOption keeps group identity and display name for usage selectors.
+// UsageGroupOption keeps group identity, display name, and display brand for usage
+// selectors; the brand draws the group's filter-row icon.
 type UsageGroupOption = {
   id: number // selector record numeric identity
   name: string // selector option display name
+  brand?: string // group badge brand, absent for team key groups
 }
 // Filter option state combines available personal and team keys, their groups, and model
 // names accumulated from statistics.
@@ -685,10 +738,10 @@ const apiKeyOptions = computed<SelectOption[]>(() => [
   ...apiKeys.value.map((key) => ({ value: key.id, label: key.name })),
 ])
 // groupOptions prepends the unfiltered selection to available personal and team group
-// choices using their loaded display names.
+// choices using their loaded display names and brands.
 const groupOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allGroups') },
-  ...groups.value.map((group) => ({ value: group.id, label: group.name })),
+  ...groups.value.map((group) => ({ value: group.id, label: group.name, brand: group.brand })),
 ])
 // modelOptions prepends the unfiltered selection to accumulated model names while
 // preserving the selected model after later refreshes.
@@ -1311,7 +1364,11 @@ const loadFilterOptions = async () => {
     apiKeys.value = [...uniqueKeys.values()]
     const uniqueGroups = new Map<number, UsageGroupOption>()
     for (const group of availableGroups)
-      uniqueGroups.set(group.id, { id: group.id, name: group.display_name || group.name })
+      uniqueGroups.set(group.id, {
+        id: group.id,
+        name: group.display_name || group.name,
+        brand: group.display_brand,
+      })
     for (const key of teamKeys) {
       if (key.group_id && key.group_name)
         uniqueGroups.set(key.group_id, { id: key.group_id, name: key.group_name })

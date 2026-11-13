@@ -27,7 +27,7 @@
       />
       <img
         v-else
-        :src="methodIcon(method.type)"
+        :src="paymentMethodIconUrl(method.type)"
         :alt="methodLabel(method)"
         class="h-6 w-6 shrink-0 object-contain"
       />
@@ -59,16 +59,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
-import {
-  METHOD_ORDER,
-  isBuiltInAlipayMethod,
-  isBuiltInWxpayMethod,
-} from '@/utils/payment/paymentMethods'
-import alipayIcon from '@/assets/icons/alipay.svg'
-import wxpayIcon from '@/assets/icons/wxpay.svg'
-import stripeIcon from '@/assets/icons/stripe.svg'
-import airwallexIcon from '@/assets/icons/airwallex.svg'
-import paymentIcon from '@/assets/icons/payment.svg'
+import { METHOD_ORDER, paymentMethodIconUrl } from '@/utils/payment/paymentMethods'
 
 /**
  * PaymentMethodSelector.vue renders available payment methods with fees, icons, and
@@ -101,14 +92,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// Bundled icons identify built-in methods, with one asset shared by each wallet's exact aliases.
-const METHOD_ICONS = new Map([
-  ['alipay', alipayIcon],
-  ['wxpay', wxpayIcon],
-  ['stripe', stripeIcon],
-  ['airwallex', airwallexIcon],
-])
-
 // Sorting copies the input array so the selector can order cards without changing the checkout
 // page's method collection.
 const sortedMethods = computed(() => {
@@ -119,18 +102,6 @@ const sortedMethods = computed(() => {
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
   })
 })
-
-/**
- * methodIcon resolves exact built-in wallet aliases and method codes to their bundled
- * artwork. Unmapped codes use the generic icon so custom EasyPay methods can render
- * without a bundled asset.
- */
-function methodIcon(type: string): string {
-  let iconMethod = type
-  if (isBuiltInAlipayMethod(type)) iconMethod = 'alipay'
-  if (isBuiltInWxpayMethod(type)) iconMethod = 'wxpay'
-  return METHOD_ICONS.get(iconMethod) ?? paymentIcon
-}
 
 /**
  * methodLabel prefers the configured display name and otherwise resolves its localized

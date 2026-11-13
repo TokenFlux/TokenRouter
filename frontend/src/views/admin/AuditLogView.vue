@@ -17,80 +17,74 @@
             </div>
             <FilterDropdown
               :active-count="activeFilterCount"
-              :columns="3"
               keep-mounted
               @reset="resetAuditFilters"
             >
               <FilterField
                 :label="t('requests.id')"
+                icon="document"
                 :value-text="filters.request_id"
-                @clear="clearAuditFilter('request_id')"
               >
-                <input
+                <FilterTextInput
                   v-model.trim="filters.request_id"
-                  type="text"
-                  class="input font-mono"
-                  spellcheck="false"
+                  mono
                   maxlength="255"
-                  @keyup.enter="search"
+                  @submit="search"
+                  @clear="clearAuditFilter('request_id')"
                 />
               </FilterField>
               <FilterField
                 :label="t('admin.audit.filters.actorEmail')"
+                icon="userCircle"
                 :value-text="filters.actor_email"
-                @clear="clearAuditFilter('actor_email')"
               >
-                <input
+                <FilterTextInput
                   v-model.trim="filters.actor_email"
-                  type="text"
-                  class="input"
-                  @keyup.enter="search"
+                  @submit="search"
+                  @clear="clearAuditFilter('actor_email')"
                 />
               </FilterField>
               <FilterField
                 :label="t('admin.audit.filters.action')"
+                icon="edit"
                 :value-text="filters.action"
-                @clear="clearAuditFilter('action')"
               >
-                <input
+                <FilterTextInput
                   v-model.trim="filters.action"
-                  type="text"
-                  class="input"
-                  @keyup.enter="search"
+                  @submit="search"
+                  @clear="clearAuditFilter('action')"
                 />
               </FilterField>
               <FilterField
                 :label="t('admin.audit.filters.clientIp')"
+                icon="globe"
                 :value-text="filters.client_ip"
-                @clear="clearAuditFilter('client_ip')"
               >
-                <input
+                <FilterTextInput
                   v-model.trim="filters.client_ip"
-                  type="text"
-                  class="input"
-                  @keyup.enter="search"
+                  @submit="search"
+                  @clear="clearAuditFilter('client_ip')"
                 />
               </FilterField>
-              <FilterField :label="t('admin.audit.filters.method')">
-                <Select v-model="filters.method" :options="methodOptions" @change="search" />
+              <FilterField :label="t('admin.audit.filters.method')" icon="swap">
+                <FilterOptions v-model="filters.method" :options="methodOptions" @change="search" />
               </FilterField>
-              <FilterField
-                :label="t('admin.audit.filters.authMethod')"
-                :value-text="authMethodLabel(filters.auth_method)"
-                @clear="clearAuditFilter('auth_method')"
-              >
-                <Select
+              <FilterField :label="t('admin.audit.filters.authMethod')" icon="lock">
+                <FilterOptions
                   v-model="filters.auth_method"
                   :options="authMethodOptions"
-                  :aria-label="t('admin.audit.filters.authMethod')"
                   @change="search"
                 />
               </FilterField>
-              <FilterField :label="t('admin.audit.filters.result')">
-                <Select v-model="filters.success" :options="resultOptions" @change="search" />
+              <FilterField :label="t('admin.audit.filters.result')" icon="shieldCheck">
+                <FilterOptions
+                  v-model="filters.success"
+                  :options="resultOptions"
+                  @change="search"
+                />
               </FilterField>
-              <FilterField :label="t('admin.dashboard.timeRange')">
-                <Select
+              <FilterField :label="t('admin.dashboard.timeRange')" icon="clock">
+                <FilterOptions
                   :model-value="timeRange"
                   :options="timeRangeOptions"
                   @update:model-value="handleTimeRangeChange"
@@ -442,9 +436,11 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/table/DataTable.vue'
 import type { Column } from '@/components/common/table/types'
 import Pagination from '@/components/common/Pagination.vue'
-import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import type { FilterOption } from '@/components/common/filterPanel'
+import FilterTextInput from '@/components/common/FilterTextInput.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -594,9 +590,7 @@ function handleCustomTimeRangeConfirm() {
 }
 
 // clearAuditFilter removes one supported text condition and searches page one.
-function clearAuditFilter(
-  key: 'request_id' | 'actor_email' | 'action' | 'client_ip' | 'auth_method',
-) {
+function clearAuditFilter(key: 'request_id' | 'actor_email' | 'action' | 'client_ip') {
   filters[key] = ''
   search()
 }
@@ -621,7 +615,8 @@ function handleCustomTimeRangeCancel() {
 }
 
 // Audit table columns and method, authentication, and result selectors use labels from
-// the current translation context.
+// the current translation context; authentication rows carry icons and result rows carry
+// the same green and red as the status dots in the table.
 const columns = computed<Column[]>(() => [
   { key: 'created_at', label: t('admin.audit.columns.time') },
   { key: 'actor', label: t('admin.audit.columns.actor') },
@@ -641,17 +636,17 @@ const methodOptions = computed(() => [
   { value: 'GET', label: 'GET' },
 ])
 
-const authMethodOptions = computed(() => [
+const authMethodOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('admin.audit.filters.all') },
-  { value: 'jwt', label: 'JWT' },
-  { value: 'admin_api_key', label: 'Admin API Key' },
-  { value: 'mcp_token', label: t('admin.mcp.authMethod') },
+  { value: 'jwt', label: 'JWT', icon: 'login' },
+  { value: 'admin_api_key', label: 'Admin API Key', icon: 'key' },
+  { value: 'mcp_token', label: t('admin.mcp.authMethod'), icon: 'puzzle' },
 ])
 
-const resultOptions = computed(() => [
+const resultOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('admin.audit.filters.all') },
-  { value: 'true', label: t('admin.audit.filters.resultSuccess') },
-  { value: 'false', label: t('admin.audit.filters.resultFailure') },
+  { value: 'true', label: t('admin.audit.filters.resultSuccess'), dot: 'green' },
+  { value: 'false', label: t('admin.audit.filters.resultFailure'), dot: 'red' },
 ])
 
 // authMethodLabel returns a configured authentication label or the raw method. Empty

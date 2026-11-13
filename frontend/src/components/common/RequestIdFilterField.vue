@@ -2,11 +2,13 @@
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterTextInput from '@/components/common/FilterTextInput.vue'
 
 /**
  * RequestIdFilterField.vue edits a request identifier inside a filter panel using a
- * local draft. Enter and blur apply a trimmed value only when it differs from the
- * active filter, and parent resets replace the draft displayed in the input.
+ * local draft. Enter, blur, and the clear button apply a trimmed value only when it
+ * differs from the active filter, and parent resets replace the draft displayed in the
+ * input.
  */
 
 /**
@@ -65,27 +67,17 @@ function apply() {
   emit('update:modelValue', value)
   emit('search')
 }
-
-/**
- * clear resets the local draft and applies the empty filter through apply.
- */
-function clear() {
-  draft.value = ''
-  apply()
-}
 </script>
 
 <template>
-  <FilterField :label="t('requests.id')" :value-text="modelValue || ''" @clear="clear">
-    <input
+  <FilterField :label="t('requests.id')" icon="document" :value-text="modelValue || ''">
+    <FilterTextInput
       v-model="draft"
-      type="text"
-      class="input font-mono placeholder:font-sans"
+      mono
       :placeholder="t('requests.filterPlaceholder')"
       maxlength="255"
-      spellcheck="false"
-      autocomplete="off"
-      @keydown.enter.prevent="apply"
+      @submit="apply"
+      @clear="apply"
       @blur="apply"
     />
   </FilterField>

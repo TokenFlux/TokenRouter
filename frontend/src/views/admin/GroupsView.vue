@@ -16,11 +16,10 @@
               />
             </div>
             <FilterDropdown :active-count="activeFilterCount" @reset="resetGroupFilters">
-              <FilterField :label="t('admin.groups.columns.status')">
-                <Select
+              <FilterField :label="t('admin.groups.columns.status')" icon="checkCircle">
+                <FilterOptions
                   v-model="filters.status"
                   :options="statusOptions"
-                  :placeholder="t('admin.groups.allStatus')"
                   @change="loadGroups"
                 />
               </FilterField>
@@ -562,9 +561,10 @@ import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import type { FilterOption } from '@/components/common/filterPanel'
 import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import GroupRateMultipliersModal from '@/components/admin/group/GroupRateMultipliersModal.vue'
@@ -828,11 +828,11 @@ if (typeof window !== 'undefined') {
 }
 
 // statusOptions supplies translated activation choices for filtering records, including the
-// empty choice that clears filtering.
-const statusOptions = computed(() => [
+// empty choice that clears filtering; dot colors match the status column badges.
+const statusOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('admin.groups.allStatus') },
-  { value: 'active', label: t('admin.providers.status.active') },
-  { value: 'inactive', label: t('admin.providers.status.inactive') },
+  { value: 'active', label: t('admin.providers.status.active'), dot: 'green' },
+  { value: 'inactive', label: t('admin.providers.status.inactive'), dot: 'red' },
 ])
 
 // cloneAdvancedSchedulerOverrides copies the optional scheduler override record for editing.

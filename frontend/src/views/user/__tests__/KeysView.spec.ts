@@ -1056,10 +1056,10 @@ describe('user KeysView column settings', () => {
     await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
     await flushPromises()
 
-    const selects = wrapper.findAllComponents({ name: 'Select' })
-    await selects[0].vm.$emit('update:modelValue', 42)
+    const filterOptions = wrapper.findAllComponents({ name: 'FilterOptions' })
+    await filterOptions[0].vm.$emit('update:modelValue', 42)
     await flushPromises()
-    await selects[1].vm.$emit('update:modelValue', 'active')
+    await filterOptions[1].vm.$emit('update:modelValue', 'active')
     await flushPromises()
 
     listKeys.mockClear()

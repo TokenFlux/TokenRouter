@@ -6,6 +6,8 @@ import Select from '../Select.vue'
 import DateTimePicker from '../DateTimePicker.vue'
 import DateRangePicker from '../DateRangePicker.vue'
 import FilterDropdown from '../FilterDropdown.vue'
+import FilterField from '../FilterField.vue'
+import FilterOptions from '../FilterOptions.vue'
 
 // FloatingPanelLifecycle.spec.ts tests floating controls inside a real BaseDialog with
 // a hideable section. Document clicks and ancestor mutations exercise portal dismissal
@@ -19,11 +21,21 @@ vi.mock('vue-i18n', () => ({
 // Host combines the real shared controls with parent-owned fixture state so cases can
 // exercise cross-component visibility and event effects.
 const Host = defineComponent({
-  components: { BaseDialog, AppSelect: Select, DateTimePicker, DateRangePicker, FilterDropdown },
-  // setup exposes section visibility and sample options to the lifecycle host.
+  components: {
+    BaseDialog,
+    AppSelect: Select,
+    DateTimePicker,
+    DateRangePicker,
+    FilterDropdown,
+    FilterField,
+    FilterOptions,
+  },
+  // setup exposes section visibility, sample options, and the filter value to the
+  // lifecycle host.
   setup() {
     return {
       shown: ref(true),
+      filterValue: ref<string | null>(null),
       options: [
         { value: 'a', label: 'A' },
         { value: 'b', label: 'B' },
@@ -38,14 +50,17 @@ const Host = defineComponent({
       <DateTimePicker model-value="" />
       <DateRangePicker start-date="2026-10-01" end-date="2026-10-02" />
       <FilterDropdown :active-count="0" keep-mounted>
-        <AppSelect :model-value="'a'" :options="options" />
+        <FilterField label="字段" icon="filter">
+          <FilterOptions v-model="filterValue" :options="options" />
+        </FilterField>
       </FilterDropdown>
     </section>
   </BaseDialog>`,
 })
 
-// activeSelect finds a listbox that remains interactive in the document.
-const activeSelect = () => document.querySelector('[role="listbox"]:not([inert])')
+// activeSelect finds a Select portal listbox that remains interactive in the document.
+const activeSelect = () =>
+  document.querySelector('.select-dropdown-portal[role="listbox"]:not([inert])')
 // settle waits across Vue updates and one timer turn for browser observers. Lifecycle
 // assertions call it after DOM visibility changes so queued floating-panel work can
 // update rendering.
@@ -132,18 +147,17 @@ describe('浮层关闭', () => {
     })
   })
 
-  // A Select inside a filter publishes a choice from its body-level portal. The filter
-  // remains open during selection and closes after a subsequent click outside its
-  // owned wrapper.
-  it('筛选框内的 Teleport 选项可选择，点击弹窗空白处关闭筛选面板', async () => {
+  // An option row inside a filter publishes a choice from within the panel. The filter
+  // remains open during selection and closes after a subsequent click outside its owned
+  // wrapper.
+  it('筛选面板内的选项可选择，点击弹窗空白处关闭筛选面板', async () => {
     await withHost(async (wrapper) => {
       const filter = wrapper.findComponent(FilterDropdown)
       await filter.get('button').trigger('click')
-      const select = filter.findComponent(Select)
-      await select.get('button').trigger('click')
-      document.querySelectorAll<HTMLElement>('[role="option"]')[1].click()
+      const options = filter.findComponent(FilterOptions)
+      options.get<HTMLElement>('[role="option"][data-value="b"]').element.click()
       await settle()
-      expect(select.emitted('update:modelValue')?.[0]).toEqual(['b'])
+      expect(options.emitted('update:modelValue')?.[0]).toEqual(['b'])
       expect(filter.get('button').attributes('aria-expanded')).toBe('true')
       document.querySelector<HTMLButtonElement>('#outside')!.click()
       await settle()

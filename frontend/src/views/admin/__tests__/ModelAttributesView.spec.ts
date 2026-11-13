@@ -273,15 +273,15 @@ describe('属性管理页面', () => {
     await flushPromises()
     const filter = wrapper.get('button[aria-label="common.filter"]')
     expect(filter.attributes('aria-expanded')).toBe('false')
-    expect(wrapper.findAllComponents({ name: 'Select' })).toHaveLength(0)
+    expect(wrapper.findAllComponents({ name: 'FilterOptions' })).toHaveLength(0)
     await filter.trigger('click')
 
     // Changing both filters in one update should issue one query, with the active-filter count
     // matching the submitted constraints.
     vi.mocked(modelAttributesAPI.defaults).mockClear()
-    const selects = wrapper.findAllComponents({ name: 'Select' })
-    selects[0]!.vm.$emit('update:modelValue', 'original')
-    selects[1]!.vm.$emit('update:modelValue', 'tool_call')
+    const filterOptions = wrapper.findAllComponents({ name: 'FilterOptions' })
+    filterOptions[0]!.vm.$emit('update:modelValue', 'original')
+    filterOptions[1]!.vm.$emit('update:modelValue', 'tool_call')
     await flushPromises()
     expect(filter.text()).toBe('2')
     expect(modelAttributesAPI.defaults).toHaveBeenCalledTimes(1)
@@ -289,10 +289,7 @@ describe('属性管理页面', () => {
       expect.objectContaining({ page: 1, provider: 'original', capability: 'tool_call' }),
     )
 
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'common.reset')!
-      .trigger('click')
+    await wrapper.get('[data-testid="filter-reset"]').trigger('click')
     await flushPromises()
     expect(filter.text()).toBe('')
     expect(modelAttributesAPI.defaults).toHaveBeenLastCalledWith(

@@ -14,22 +14,30 @@
               />
             </div>
             <FilterDropdown :active-count="activeFilterCount" @reset="resetOrderFilters">
-              <FilterField :label="t('payment.orders.status')">
-                <Select
+              <FilterField :label="t('payment.orders.status')" icon="checkCircle">
+                <FilterOptions
                   v-model="orderFilters.status"
                   :options="statusFilterOptions"
                   @change="loadOrders"
                 />
               </FilterField>
-              <FilterField :label="t('payment.orders.paymentMethod')">
-                <Select
+              <FilterField :label="t('payment.orders.paymentMethod')" icon="creditCard">
+                <FilterOptions
                   v-model="orderFilters.payment_type"
                   :options="paymentTypeFilterOptions"
                   @change="loadOrders"
-                />
+                >
+                  <template #icon="{ value }">
+                    <img
+                      :src="paymentMethodIconUrl(String(value))"
+                      alt=""
+                      class="h-4 w-4 object-contain"
+                    />
+                  </template>
+                </FilterOptions>
               </FilterField>
-              <FilterField :label="t('payment.orders.orderType')">
-                <Select
+              <FilterField :label="t('payment.orders.orderType')" icon="order">
+                <FilterOptions
                   v-model="orderFilters.order_type"
                   :options="orderTypeFilterOptions"
                   @change="loadOrders"
@@ -470,9 +478,11 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import { paymentMethodIconUrl } from '@/utils/payment/paymentMethods'
+import type { FilterOption } from '@/components/common/filterPanel'
 import Icon from '@/components/icons/Icon.vue'
 import AdminRefundDialog from '@/components/admin/payment/AdminRefundDialog.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
@@ -677,20 +687,20 @@ const selectedOrderFeeAmount = computed(() => {
 
 // statusFilterOptions supplies translated order statuses plus the empty all-statuses
 // option used when constructing list query parameters.
-const statusFilterOptions = computed(() => [
+const statusFilterOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('payment.admin.allStatuses') },
-  { value: 'PENDING', label: t('payment.status.pending') },
-  { value: 'PROCESSING', label: t('payment.status.processing') },
-  { value: 'PAID', label: t('payment.status.paid') },
-  { value: 'COMPLETED', label: t('payment.status.completed') },
-  { value: 'EXPIRED', label: t('payment.status.expired') },
-  { value: 'CANCELLED', label: t('payment.status.cancelled') },
-  { value: 'FAILED', label: t('payment.status.failed') },
-  { value: 'REFUNDED', label: t('payment.status.refunded') },
-  { value: 'REFUND_REQUESTED', label: t('payment.status.refund_requested') },
-  { value: 'REFUNDING', label: t('payment.status.refunding') },
-  { value: 'REFUND_PENDING', label: t('payment.status.refund_pending') },
-  { value: 'REFUND_FAILED', label: t('payment.status.refund_failed') },
+  { value: 'PENDING', label: t('payment.status.pending'), dot: 'yellow' },
+  { value: 'PROCESSING', label: t('payment.status.processing'), dot: 'cyan' },
+  { value: 'PAID', label: t('payment.status.paid'), dot: 'blue' },
+  { value: 'COMPLETED', label: t('payment.status.completed'), dot: 'green' },
+  { value: 'EXPIRED', label: t('payment.status.expired'), dot: 'gray' },
+  { value: 'CANCELLED', label: t('payment.status.cancelled'), dot: 'gray' },
+  { value: 'FAILED', label: t('payment.status.failed'), dot: 'red' },
+  { value: 'REFUNDED', label: t('payment.status.refunded'), dot: 'purple' },
+  { value: 'REFUND_REQUESTED', label: t('payment.status.refund_requested'), dot: 'orange' },
+  { value: 'REFUNDING', label: t('payment.status.refunding'), dot: 'orange' },
+  { value: 'REFUND_PENDING', label: t('payment.status.refund_pending'), dot: 'orange' },
+  { value: 'REFUND_FAILED', label: t('payment.status.refund_failed'), dot: 'red' },
 ])
 
 // paymentTypeFilterOptions supplies supported payment-method filters and an empty option
@@ -705,10 +715,10 @@ const paymentTypeFilterOptions = computed(() => [
 
 // orderTypeFilterOptions offers balance and subscription purchase filters with an empty
 // value that keeps both purchase kinds visible.
-const orderTypeFilterOptions = computed(() => [
+const orderTypeFilterOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('payment.admin.allOrderTypes') },
-  { value: 'balance', label: t('payment.admin.balanceOrder') },
-  { value: 'subscription', label: t('payment.admin.subscriptionOrder') },
+  { value: 'balance', label: t('payment.admin.balanceOrder'), icon: 'recharge' },
+  { value: 'subscription', label: t('payment.admin.subscriptionOrder'), icon: 'calendar' },
 ])
 
 // showOrderDetail opens with the selected list row and requests current order details and

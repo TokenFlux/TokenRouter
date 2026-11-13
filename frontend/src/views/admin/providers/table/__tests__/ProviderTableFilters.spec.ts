@@ -5,9 +5,9 @@ import ProviderTableFilters from '../ProviderTableFilters.vue'
 import type { AdminGroup } from '@/api/groups.types'
 
 // ProviderTableFilters.spec.ts checks group-filter options for active and
-// inactive provider groups. The select stub exposes the supplied option
-// records so assertions verify inclusion and translated inactive labels
-// independently of native browser selection behavior.
+// inactive provider groups. The real filter panel renders each group as an
+// option row, so assertions read the visible row labels, including the
+// translated inactive suffix.
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -18,28 +18,6 @@ vi.mock('vue-i18n', async () => {
     }),
   }
 })
-
-// SelectStub renders supplied option labels and exposes its model value,
-// allowing inactive-group inclusion to be tested without native selection
-// behavior.
-const SelectStub = {
-  props: [
-    'modelValue', // current controlled input value
-    'options', // available typed selection options
-  ],
-  emits: [
-    'update:modelValue', // replacement controlled input value
-    'change', // notify parent of input change
-  ],
-  template: `
-    <div data-test="select-stub" :data-model-value="String(modelValue ?? '')">
-      <!-- 测试只暴露项目 Select 的 options，不使用浏览器原生选择框行为。 -->
-      <span v-for="option in options" :key="String(option.value)" data-test="select-option">
-        {{ option.label }}
-      </span>
-    </div>
-  `,
-}
 
 // group builds an active OpenAI group with optional policies disabled.
 // Overrides are applied last so filter tests can vary group identity and
@@ -93,25 +71,23 @@ describe('ProviderTableFilters', () => {
       },
       global: {
         stubs: {
-          Select: SelectStub,
           SearchInput: true,
+          Icon: true,
         },
       },
     })
 
     await wrapper.get('button[aria-label="common.filter"]').trigger('click')
 
-    const selectComponents = wrapper.findAllComponents(SelectStub)
-    const groupOptions = selectComponents.at(4)?.props('options') as Array<{
-      value: string // selected option identifier
-      label: string // translated display label
-    }>
+    const groupField = wrapper
+      .findAll('section')
+      .find((section) => section.get('button').text() === 'admin.providers.columns.groups')
+    expect(groupField).toBeDefined()
+    await groupField!.get('button').trigger('click')
+    const rowLabels = groupField!.findAll('[role="option"]').map((row) => row.text())
 
-    expect(groupOptions).toEqual(
-      expect.arrayContaining([
-        { value: '10', label: 'Active Pool' },
-        { value: '11', label: 'Disabled Pool (common.inactive)' },
-      ]),
+    expect(rowLabels).toEqual(
+      expect.arrayContaining(['Active Pool', 'Disabled Pool (common.inactive)']),
     )
   })
 })

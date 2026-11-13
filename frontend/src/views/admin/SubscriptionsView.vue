@@ -66,24 +66,18 @@
               </MotionTransition>
             </div>
 
-            <FilterDropdown
-              :active-count="activeFilterCount"
-              :columns="2"
-              @reset="resetSubscriptionFilters"
-            >
-              <FilterField :label="t('admin.subscriptions.columns.status')">
-                <Select
+            <FilterDropdown :active-count="activeFilterCount" @reset="resetSubscriptionFilters">
+              <FilterField :label="t('admin.subscriptions.columns.status')" icon="checkCircle">
+                <FilterOptions
                   v-model="filters.status"
                   :options="statusOptions"
-                  :placeholder="t('admin.subscriptions.allStatus')"
                   @change="applyFilters"
                 />
               </FilterField>
-              <FilterField :label="t('admin.subscriptions.form.group')">
-                <Select
+              <FilterField :label="t('admin.subscriptions.form.group')" icon="badge">
+                <FilterOptions
                   v-model="filters.plan_id"
                   :options="planOptions"
-                  :placeholder="t('admin.announcements.form.selectPackages')"
                   @change="applyFilters"
                 />
               </FilterField>
@@ -771,6 +765,8 @@ import UserAvatar from '@/components/common/UserAvatar.vue'
 import Select from '@/components/common/Select.vue'
 import FilterDropdown from '@/components/common/FilterDropdown.vue'
 import FilterField from '@/components/common/FilterField.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
+import type { FilterOption } from '@/components/common/filterPanel'
 import Icon from '@/components/icons/Icon.vue'
 import {
   getRemainingDurationParts,
@@ -997,13 +993,13 @@ const columnDropdownRef = ref<HTMLElement | null>(null)
 
 // Status choices include an unfiltered option and the supported subscription lifecycle
 // values used by server listing.
-const statusOptions = computed(() => [
+const statusOptions = computed<FilterOption[]>(() => [
   { value: '', label: t('admin.subscriptions.allStatus') },
-  { value: 'active', label: t('admin.subscriptions.status.active') },
-  { value: 'pending', label: t('admin.subscriptions.status.pending') },
-  { value: 'expired', label: t('admin.subscriptions.status.expired') },
-  { value: 'suspended', label: t('admin.subscriptions.status.suspended') },
-  { value: 'revoked', label: t('admin.subscriptions.status.revoked') },
+  { value: 'active', label: t('admin.subscriptions.status.active'), dot: 'green' },
+  { value: 'pending', label: t('admin.subscriptions.status.pending'), dot: 'brand' },
+  { value: 'expired', label: t('admin.subscriptions.status.expired'), dot: 'amber' },
+  { value: 'suspended', label: t('admin.subscriptions.status.suspended'), dot: 'red' },
+  { value: 'revoked', label: t('admin.subscriptions.status.revoked'), dot: 'gray' },
 ])
 
 // Subscription rows and plan choices load separately; abortController identifies the

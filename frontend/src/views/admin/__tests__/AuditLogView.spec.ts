@@ -30,11 +30,6 @@ function page() {
         TablePageLayout: { template: '<div><slot name="filters"/><slot name="table"/></div>' },
         FilterDropdown: { template: '<div><slot /></div>' },
         FilterField: { template: '<div><slot /></div>' },
-        Select: {
-          props: ['modelValue', 'options'],
-          template:
-            '<select :value="modelValue"><option v-for="option in options" :value="option.value">{{ option.label }}</option></select>',
-        },
         DataTable: {
           props: ['data'],
           template: '<div data-test="rows"><span v-for="row in data">{{ row.id }}</span></div>',
@@ -62,15 +57,21 @@ describe('audit route filters', () => {
   it('shows MCP authentication and synchronizes reused route controls', async () => {
     const wrapper = page()
     await flushPromises()
-    const select = wrapper.get('select[aria-label="admin.audit.filters.authMethod"]')
-    expect((select.element as HTMLSelectElement).value).toBe('mcp_token')
-    expect(select.get('option[value="mcp_token"]').text()).toBe('admin.mcp.authMethod')
+    // checkedAuthMethod returns the value of the checked authentication row, or null when
+    // that field shows no condition.
+    const authField = wrapper.get('[role="option"][data-value="mcp_token"]').element.parentElement!
+    const checkedAuthMethod = () =>
+      authField.querySelector('[aria-selected="true"]')?.getAttribute('data-value') ?? null
+    expect(checkedAuthMethod()).toBe('mcp_token')
+    expect(wrapper.get('[role="option"][data-value="mcp_token"]').text()).toBe(
+      'admin.mcp.authMethod',
+    )
     expect(api.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ q: 'tr_mcp_first', auth_method: 'mcp_token' }),
     )
     route.query = { q: 'tr_mcp_second', auth_method: 'jwt' }
     await flushPromises()
-    expect((select.element as HTMLSelectElement).value).toBe('jwt')
+    expect(checkedAuthMethod()).toBe('jwt')
     expect(
       (wrapper.get('input[aria-label="admin.audit.filters.q"]').element as HTMLInputElement).value,
     ).toBe('tr_mcp_second')
@@ -79,7 +80,7 @@ describe('audit route filters', () => {
     )
     route.query = {}
     await flushPromises()
-    expect((select.element as HTMLSelectElement).value).toBe('')
+    expect(checkedAuthMethod()).toBeNull()
     wrapper.unmount()
   })
 

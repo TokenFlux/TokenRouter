@@ -1,5 +1,5 @@
 import { defineComponent, nextTick, reactive } from 'vue'
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ModelMarketplaceView from '../ModelMarketplaceView.vue'
 import { modelIconData } from '@/utils/modelIconData'
@@ -97,39 +97,6 @@ vi.mock('vue-i18n', async () => {
       },
     }),
   }
-})
-
-// SelectStub renders each option as an actionable button and emits both selected
-// value events expected by the marketplace filters, retaining original option values.
-const SelectStub = defineComponent({
-  name: 'TokenSelectStub',
-  props: {
-    // Current selected option value.
-    modelValue: {
-      type: [String, Number, Boolean, null],
-      default: null,
-    },
-    // Available option records with labels and values; omission produces no selectable buttons.
-    options: {
-      type: Array,
-      default: () => [],
-    },
-  },
-  // Selection publishes the model value, then the change event with its option record.
-  emits: ['update:modelValue', 'change'],
-  template: `
-    <div class="select-stub">
-      <button
-        v-for="option in options"
-        :key="String(option.value)"
-        type="button"
-        :data-testid="'select-option-' + String(option.value)"
-        @click="$emit('update:modelValue', option.value); $emit('change', option.value, option)"
-      >
-        {{ option.label }}
-      </button>
-    </div>
-  `,
 })
 
 // SearchInputStub forwards native input text immediately through the model event
@@ -237,6 +204,19 @@ function marketplaceModel(
   }
 }
 
+// chooseFilterOption opens the toolbar filter panel when it is closed and clicks the
+// option row with the given value inside the named field. The marketplace panel has three
+// fields, so every field is expanded and no heading needs a click.
+async function chooseFilterOption(wrapper: VueWrapper, fieldLabel: string, value: string) {
+  const trigger = wrapper.get('button[aria-label="common.filter"]')
+  if (trigger.attributes('aria-expanded') !== 'true') await trigger.trigger('click')
+  const field = wrapper
+    .findAll('section')
+    .find((section) => section.get('button').text() === fieldLabel)
+  expect(field).toBeDefined()
+  await field!.get(`[role="option"][data-value="${value}"]`).trigger('click')
+}
+
 // mountMarketplace mounts the real catalog page with inert layout collaborators.
 // Filter substitutes retain user events, while model cards remain real components.
 // The helper drains pending promises before returning the wrapper to its caller.
@@ -251,7 +231,6 @@ async function mountMarketplace() {
         LocaleSwitcher: { template: '<span />' },
         GroupCapacityBadge: { template: '<span data-testid="group-capacity" />' },
         SearchInput: SearchInputStub,
-        Select: SelectStub,
       },
     },
   })
@@ -341,7 +320,7 @@ describe('ModelMarketplaceView', () => {
     expect(wrapper.findAll('[data-testid="marketplace-group-section"]')).toHaveLength(1)
     expect(wrapper.get('[data-testid="group-exclusive-tag"]').text()).toBe('marketplace.exclusive')
     await wrapper.get('[data-testid="marketplace-search"]').setValue('')
-    await wrapper.get('[data-testid="select-option-2"]').trigger('click')
+    await chooseFilterOption(wrapper, 'marketplace.filterGroup', '2')
     expect(wrapper.findAll('[data-testid="marketplace-group-section"]')).toHaveLength(1)
     expect(wrapper.get('[data-testid="group-exclusive-tag"]').exists()).toBe(true)
   })
@@ -383,7 +362,7 @@ describe('ModelMarketplaceView', () => {
       { ...marketplaceFixture()[0], is_exclusive: true },
     ])
     const wrapper = await mountMarketplace()
-    await wrapper.get('[data-testid="select-option-1"]').trigger('click')
+    await chooseFilterOption(wrapper, 'marketplace.filterGroup', '1')
     let resolveNew!: (groups: MarketplaceGroup[]) => void
     getAvailableMarketplaceModels.mockImplementationOnce(
       () =>
@@ -804,7 +783,7 @@ it('shows and filters custom video prices', async () => {
   const wrapper = await mountMarketplace()
   expect(wrapper.text()).toContain('768p')
   expect(wrapper.text()).toContain('marketplace.perSecond')
-  await wrapper.get('[data-testid="select-option-video"]').trigger('click')
+  await chooseFilterOption(wrapper, 'marketplace.filterPricingMode', 'video')
   expect(wrapper.text()).toContain('Custom Video')
   expect(wrapper.text()).not.toContain('Text Model')
   wrapper.unmount()

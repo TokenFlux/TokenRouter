@@ -5,7 +5,7 @@ import { defineComponent, h, onMounted } from 'vue'
 import UserDashboardUsageChart from '../UserDashboardUsageChart.vue'
 import UserDashboardUsageToolbar from '../UserDashboardUsageToolbar.vue'
 import { provideUsageChartState } from '../usageChartState'
-import Select from '@/components/common/Select.vue'
+import FilterOptions from '@/components/common/FilterOptions.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import { Line } from 'vue-chartjs'
 import { usageAPI } from '@/api/usage'
@@ -129,8 +129,8 @@ const mountChart = async () => {
       stubs: {
         Line: true,
         DateRangePicker: true,
-        Select: true,
-        // Render filter-panel slot content directly so each dropdown remains inspectable in component assertions.
+        FilterOptions: true,
+        // Render filter-panel slot content directly so each option list remains inspectable in component assertions.
         FilterDropdown: { template: '<div><slot /></div>' },
         RouterLink: { template: '<a><slot /></a>' },
         ModelIcon: true,
@@ -236,26 +236,26 @@ describe('UserDashboardUsageChart', () => {
     vi.mocked(usageAPI.getDashboardTrend).mockResolvedValue(trendOf([]) as any)
     const wrapper = await mountChart()
 
-    const selects = wrapper.findAllComponents(Select)
-    expect(selects).toHaveLength(7)
-    const [keySelect, modelSelect, groupSelect, typeSelect] = selects
-    expect(keySelect.props('options')).toEqual([
+    const filterOptions = wrapper.findAllComponents(FilterOptions)
+    expect(filterOptions).toHaveLength(7)
+    const [keyFilter, modelFilter, groupFilter, typeFilter] = filterOptions
+    expect(keyFilter.props('options')).toEqual([
       { value: null, label: 'usage.allApiKeys' },
       { value: 7, label: 'personal-key' },
     ])
-    expect(modelSelect.props('options')).toEqual([
+    expect(modelFilter.props('options')).toEqual([
       { value: null, label: 'admin.usage.allModels' },
       { value: 'claude-opus', label: 'claude-opus' },
     ])
-    expect(groupSelect.props('options')).toEqual([
+    expect(groupFilter.props('options')).toEqual([
       { value: null, label: 'admin.usage.allGroups' },
       { value: 3, label: 'Claude' },
     ])
 
     vi.mocked(usageAPI.getDashboardTrend).mockClear()
-    groupSelect.vm.$emit('update:modelValue', 3)
-    typeSelect.vm.$emit('update:modelValue', 'sync')
-    typeSelect.vm.$emit('change', 'sync', null)
+    groupFilter.vm.$emit('update:modelValue', 3)
+    typeFilter.vm.$emit('update:modelValue', 'sync')
+    typeFilter.vm.$emit('change', 'sync', null)
     await flushPromises()
 
     const calls = vi.mocked(usageAPI.getDashboardTrend).mock.calls.map((call) => call[0])
@@ -266,7 +266,7 @@ describe('UserDashboardUsageChart', () => {
     const modelCalls = vi.mocked(usageAPI.getDashboardModels).mock.calls
     expect(modelCalls).toHaveLength(2)
     expect(modelCalls[1][0]).toMatchObject({ group_id: 3, request_type: 'sync' })
-    expect(modelSelect.props('options')).toHaveLength(2)
+    expect(modelFilter.props('options')).toHaveLength(2)
   })
 
   // No usage filters are active during initial loading. The test protects reuse of one
