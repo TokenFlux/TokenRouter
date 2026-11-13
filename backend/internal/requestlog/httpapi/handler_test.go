@@ -16,11 +16,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/requestlog"
 )
 
-// Request diagnostic routes verify authenticated role before reading a
-// repository fixture, even when query parameters claim another user or
-// administrator access. The same identity scenarios exercise query, path, and
-// writer-health endpoints, with provider and alias metadata asserted for
-// successful detail reads.
+// handler_test.go checks authenticated roles on the request diagnostic routes.
+// The handlers check identity before reading the repository fixture, even when
+// query parameters claim another user or administrator access. The scenarios
+// exercise query, path, and writer-health endpoints and inspect provider and
+// alias metadata on successful detail reads.
 
 // requestRepositoryStub records authorized lookup arguments and returns one
 // fixed diagnostic detail.
@@ -49,10 +49,15 @@ func (r *requestRepositoryStub) Find(_ context.Context, _ string, userID int64, 
 	return []requestlog.Detail{{RequestRecord: telemetry.RequestRecord{RequestID: "request", UserID: 42, ProviderID: 99, Aliases: []telemetry.RequestAlias{{Kind: "upstream", Value: "supplier"}}, Attempts: []telemetry.RequestAttempt{{Number: 1, ProviderID: 99, RequestID: "supplier"}}}, Errors: []requestlog.Failure{{ID: 7, Status: 500}}, AuditIDs: []int64{8}}}, nil
 }
 
+// FindProviderNames supplies the configured display name for the fixture attempt.
+func (r *requestRepositoryStub) FindProviderNames(context.Context, []int64) (map[int64]string, error) {
+	return map[int64]string{99: "Primary upstream"}, nil
+}
+
 // TestRequestDiagnosticsRequireAdmin exercises anonymous, user, and
 // administrator identities across query, path, and health routes. It checks
 // status, rejected-read counts, trusted lookup arguments, and successful
-// provider ID and alias count in the response.
+// provider ID, display name, and alias count in the response.
 func TestRequestDiagnosticsRequireAdmin(t *testing.T) {
 	for _, test := range []struct {
 		// name identifies the case while role determines whether middleware installs
@@ -101,6 +106,7 @@ func TestRequestDiagnosticsRequireAdmin(t *testing.T) {
 				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 				require.Len(t, body.Data.Items, 1)
 				require.Equal(t, int64(99), body.Data.Items[0].ProviderID)
+				require.Equal(t, map[int64]string{99: "Primary upstream"}, body.Data.Items[0].ProviderNames)
 				require.Len(t, body.Data.Items[0].Aliases, 1)
 			})
 		}

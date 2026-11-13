@@ -24,6 +24,7 @@ import type { RequestAlias, RequestDetail } from '@/api/requests'
 // retain their source and ownership in the related list. Historical unclassified upstream
 // aliases use a narrower value comparison when their attempt is absent. Equal identifier
 // strings from different providers or attempts remain distinct list identities.
+// Provider names label both attempts and related identifiers by their recorded provider ID.
 
 // props supplies the request detail record whose nested collections drive the card sections
 // and timing views.
@@ -192,6 +193,13 @@ const listedAliases = computed(() => aliasRows.value.filter((alias) => !shownByA
 // source-unrecorded label in the related list.
 const SOURCE_KINDS = new Set(['caller', 'upstream', 'upstream_request', 'response'])
 
+// providerLabel displays the configured provider name for a recorded ID. The numeric label
+// remains available for historical records whose provider row could not be resolved.
+function providerLabel(id: number) {
+  // Keep the recorded ID visible when the lookup response has no name for this provider.
+  return props.item.provider_names?.[id] || `${t('requests.provider')} #${id}`
+}
+
 // aliasMeta joins recorded source, provider, and attempt annotations for an identifier.
 // Source-sensitive kinds with no source receive an unknown-origin label, while missing
 // ownership fields contribute no text.
@@ -199,7 +207,7 @@ function aliasMeta(alias: RequestAlias) {
   const parts: string[] = []
   if (alias.source) parts.push(t('requests.via', { source: alias.source }))
   else if (SOURCE_KINDS.has(alias.kind)) parts.push(t('requests.sourceUnrecorded'))
-  if (alias.provider_id) parts.push(`${t('requests.provider')} #${alias.provider_id}`)
+  if (alias.provider_id) parts.push(providerLabel(alias.provider_id))
   if (alias.attempt_number)
     parts.push(t('requests.attemptNumber', { number: alias.attempt_number }))
   return parts.join(' · ')
@@ -355,8 +363,10 @@ const attemptHasDetails = (attempt: Attempt) =>
                 :class="statusClass(attempt.status_code)"
                 >HTTP {{ attempt.status_code }}</span
               >
-              <span v-if="attempt.provider_id" class="text-xs text-gray-500 dark:text-dark-300"
-                >{{ t('requests.provider') }} #{{ attempt.provider_id }}</span
+              <span
+                v-if="attempt.provider_id"
+                class="min-w-0 whitespace-normal break-words text-xs text-gray-500 dark:text-dark-300"
+                >{{ providerLabel(attempt.provider_id) }}</span
               >
               <span
                 v-if="attempt.duration_ms != null"
@@ -547,9 +557,11 @@ const attemptHasDetails = (attempt: Attempt) =>
             }}</dt>
             <dd class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
               <RequestIdLink :value="alias.value" :link="false" full />
-              <span v-if="aliasMeta(alias)" class="text-gray-400 dark:text-dark-500">{{
-                aliasMeta(alias)
-              }}</span>
+              <span
+                v-if="aliasMeta(alias)"
+                class="min-w-0 break-words text-gray-400 dark:text-dark-500"
+                >{{ aliasMeta(alias) }}</span
+              >
             </dd>
           </template>
         </dl>

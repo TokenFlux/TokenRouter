@@ -4,7 +4,8 @@ import apiClient from './client'
  * requests.ts retrieves administrator request diagnostics and their linked usage
  * records. Request lifecycle details and failure observations remain separate
  * from per-usage performance fields, while alias entries preserve the upstream
- * attempt and provider that supplied an observed identifier.
+ * attempt and provider that supplied an observed identifier. Provider names
+ * describe the current configuration for IDs in those diagnostics.
  */
 
 /**
@@ -41,6 +42,8 @@ export interface RequestDetail {
   pending?: boolean // Pending request marker.
   usage_write_state?: string // Observed usage persistence result.
   usage_write_error?: string // Bounded persistence failure diagnostic.
+  /** Current display names keyed by attempt or alias provider ID, when resolved by the server. */
+  provider_names?: Partial<Record<number, string>>
   aliases?: RequestAlias[] // Observed request aliases.
   failure_timings?: Record<string, number> // Failed request stage observations.
   attempts?: {

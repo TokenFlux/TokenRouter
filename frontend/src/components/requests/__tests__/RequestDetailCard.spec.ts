@@ -5,9 +5,9 @@ import RequestDetailCard from '../RequestDetailCard.vue'
 import requests from '@/i18n/locales/en/requests'
 import type { RequestDetail } from '@/api/requests'
 
-// RequestDetailCard.spec.ts tests request identifier ownership and timing captions in the
-// detail card. Shallow mounting keeps the card selection logic active while nested
-// presentation components and identifier links are replaced for focused text assertions.
+// RequestDetailCard.spec.ts tests identifier ownership, provider labels, and timing
+// captions in the detail card. Shallow mounting keeps the card selection logic active
+// while nested presentation components and identifier links are replaced for text assertions.
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -69,10 +69,11 @@ function detail(): RequestDetail {
 
 describe('RequestDetailCard identifiers', () => {
   // Identifiers include matched attempt ownership and unmatched aliases with source
-  // metadata. The test protects placement under the owning attempt and retaining unmatched
-  // identifiers in the related section.
+  // metadata. The test protects placement under the owning attempt, with the configured
+  // provider names displayed on both the attempt and the unmatched identifier.
   it('shows owned identifiers on their attempt and lists each identifier once', () => {
     const item = detail()
+    item.provider_names = { 7: 'Primary upstream', 8: 'Alternate upstream' }
     item.attempts = [
       {
         number: 1,
@@ -106,6 +107,9 @@ describe('RequestDetailCard identifiers', () => {
       },
     ]
     const wrapper = renderDetail(item)
+    const attempt = wrapper.get('ol li')
+    expect(attempt.text()).toContain('Primary upstream')
+    expect(attempt.text()).not.toContain('Provider #7')
     const [attemptDetails, related] = wrapper.findAll('dl').slice(-2)
     expect(attemptDetails.text()).toContain('Upstream request ID')
     expect(attemptDetails.text()).toContain('from X-Client-Request-Id')
@@ -114,13 +118,13 @@ describe('RequestDetailCard identifiers', () => {
     expect(related.findAll('dd')).toHaveLength(2)
     expect(related.text()).toContain('Caller request ID')
     expect(related.text()).toContain('from X-Client-Request-ID')
-    expect(related.text()).toContain('from X-Request-Id · Provider #8 · Attempt #2')
+    expect(related.text()).toContain('from X-Request-Id · Alternate upstream · Attempt #2')
     expect(related.text()).not.toContain('resp_result')
   })
 
   // Several provider authentication failures have no attempt number recorded. The test
-  // protects retaining every failure reason and the unnumbered label instead of presenting
-  // attempt zero.
+  // protects retaining every failure reason, the unnumbered label, and numeric provider
+  // labels for attempts whose names are missing.
   it('shows multiple unnumbered provider failures', () => {
     const item = detail()
     item.attempts = [
@@ -143,6 +147,8 @@ describe('RequestDetailCard identifiers', () => {
     expect(wrapper.text()).toContain('Provider authentication error')
     expect(wrapper.text()).toContain('first failure')
     expect(wrapper.text()).toContain('second failure')
+    expect(wrapper.text()).toContain('Provider #7')
+    expect(wrapper.text()).toContain('Provider #8')
     expect(wrapper.text()).toContain('Unnumbered')
     expect(wrapper.text()).not.toContain('#0')
   })

@@ -29,6 +29,8 @@ import (
 // sequentially with their own row limits, so returned details are not one
 // database snapshot or one globally sorted page. Task rows then update matching
 // alias-linked details in place.
+// Provider name reads use the IDs selected by the request service and include
+// soft-deleted rows because those providers still identify retained attempts.
 
 // findUsageSQL selects visible usage identities before loading their diagnostic
 // payloads, preserving one result per stored row across overlapping ID sources.
@@ -214,6 +216,30 @@ func (s *Store) Find(ctx context.Context, id string, userID int64, admin bool) (
 		return nil, err
 	}
 	return result, nil
+}
+
+// FindProviderNames reads only the configured names for the supplied IDs.
+// The caller supplies IDs from administrator-visible diagnostics. Soft-deleted
+// providers can still name historical attempts, and absent rows leave no entry
+// for their ID.
+func (s *Store) FindProviderNames(ctx context.Context, ids []int64) (map[int64]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM providers WHERE id = ANY($1::bigint[])`, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	// Release the cursor if scanning fails before exhaustion so later request
+	// lookups can reuse the connection.
+	defer func() { _ = rows.Close() }()
+	names := make(map[int64]string, len(ids))
+	for rows.Next() {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		names[id] = name
+	}
+	return names, rows.Err()
 }
 
 // findUsage appends up to one hundred one accessible usage references using the

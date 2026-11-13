@@ -15,7 +15,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 )
 
-// Request-writer fixtures retain successful snapshot batches and can fail or
+// service_test.go exercises snapshot persistence and pending request lookups.
+// Writer fixtures retain successful snapshot batches and can fail or
 // pause selected persistence attempts. Direct flush cases check which timestamp
 // versions remain buffered, while later reads expose pending summaries during
 // injected database unavailability.
@@ -40,9 +41,8 @@ type testRepository struct {
 	// between completed calls or before workers start; it can publish another
 	// Service snapshot.
 	save func(context.Context, []telemetry.RequestRecord) error
-	// findErr is returned by every fixture lookup with no details. Configure it
-	// before Find calls; the fixture ignores requested identity and administrator
-	// flags.
+	// findErr simulates a database outage for detail and provider name reads.
+	// Configure it before Find calls; the fixture ignores the query arguments.
 	findErr error
 }
 
@@ -71,6 +71,11 @@ func (r *testRepository) Save(ctx context.Context, records []telemetry.RequestRe
 // It ignores context, identifier, ownership, and admin inputs so
 // pending-summary tests isolate the service's local access decision.
 func (r *testRepository) Find(context.Context, string, int64, bool) ([]Detail, error) {
+	return nil, r.findErr
+}
+
+// FindProviderNames returns no names and the configured database read error.
+func (r *testRepository) FindProviderNames(context.Context, []int64) (map[int64]string, error) {
 	return nil, r.findErr
 }
 
@@ -405,11 +410,16 @@ func TestStopTimeoutReportsPending(t *testing.T) {
 
 // TestFindPendingChecksOwnership injects lookup failure while one user's
 // summary remains pending. Another user receives that error; the owner and
-// administrator see an isolated attempt slice and nil error.
+// administrator see an isolated attempt slice and nil error. A failed provider
+// name query leaves the provider ID visible on the administrator result.
 func TestFindPendingChecksOwnership(t *testing.T) {
 	repo := &testRepository{findErr: errors.New("database unavailable")}
 	service := NewService(repo, 30, nil)
-	service.Observe(telemetry.RequestRecord{RequestID: "id", UserID: 1, Attempts: []telemetry.RequestAttempt{{RequestID: "supplier"}}})
+	service.Observe(telemetry.RequestRecord{
+		RequestID: "id",
+		UserID:    1,
+		Attempts:  []telemetry.RequestAttempt{{ProviderID: 7, RequestID: "supplier"}},
+	})
 	items, err := service.Find(t.Context(), "id", 2, false)
 	require.Error(t, err)
 	require.Empty(t, items)
@@ -423,4 +433,6 @@ func TestFindPendingChecksOwnership(t *testing.T) {
 	items, err = service.Find(t.Context(), "id", 0, true)
 	require.NoError(t, err)
 	require.Equal(t, "supplier", items[0].Attempts[0].RequestID)
+	require.Equal(t, int64(7), items[0].Attempts[0].ProviderID)
+	require.Empty(t, items[0].ProviderNames)
 }

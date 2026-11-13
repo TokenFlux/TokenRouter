@@ -29,6 +29,10 @@ import (
 // individual retries. Stop closes map admission before waiting for registered
 // overflow writes and draining; later observations save on their own, and the
 // first stop context governs the shared drain result.
+//
+// Administrator lookups resolve provider names from the IDs in the final
+// details, after merging any local snapshot. The names reflect the provider
+// records at lookup time, so request snapshots stay independent of renames.
 
 // These limits bound pending request count, batch size, worker cadence, retry
 // spacing, and the write context supplied to persistence.
@@ -57,6 +61,10 @@ type Repository interface {
 	// source by userID and trusted admin. Returned details can include historical
 	// records whose request summary has expired, with inferred Legacy metadata.
 	Find(context.Context, string, int64, bool) ([]Detail, error)
+	// FindProviderNames returns current display names keyed by the supplied
+	// provider IDs, including soft-deleted rows retained for diagnostics. IDs
+	// without a stored name are omitted from the result.
+	FindProviderNames(context.Context, []int64) (map[int64]string, error)
 	// Cleanup removes request summaries whose start time precedes cutoff using
 	// ctx. Usage, billing, and other diagnostic data follow their own retention,
 	// so later Find can still synthesize retained historical details.
@@ -90,7 +98,7 @@ type Failure struct {
 }
 
 // Detail joins a stored or inferred request summary with retained diagnostic
-// references.
+// references and administrator display metadata.
 type Detail struct {
 	// RequestRecord holds the response summary. Pending lookup clones its
 	// collections but keeps FinishedAt pointers shared, so consumers treat
@@ -98,6 +106,9 @@ type Detail struct {
 	telemetry.RequestRecord
 	Usage  []Usage   `json:"usage"`  // retained usage row summaries
 	Errors []Failure `json:"errors"` // retained error row references
+	// ProviderNames supplies available names for provider IDs in this detail's
+	// attempts and aliases. Only administrator lookups populate it.
+	ProviderNames map[int64]string `json:"provider_names,omitempty"`
 	// AuditIDs contains retained audit row IDs. The PostgreSQL Find path attaches
 	// these references only when its trusted admin argument is true.
 	AuditIDs []int64 `json:"audit_ids,omitempty"`
@@ -132,9 +143,9 @@ type Service struct {
 	// retention is elapsed age based on twenty-four-hour days. Hourly cleanup
 	// subtracts it from the current clock and compares stored request start times.
 	retention time.Duration
-	// logf optionally receives reports synchronously from observations, flushing,
-	// drain, or the worker. It can run under flushMu; return without synchronously
-	// flushing or stopping this service.
+	// logf optionally receives synchronous writer reports and provider name
+	// lookup failures. Writer reports can run under flushMu, so the callback
+	// must return without synchronously flushing or stopping this service.
 	logf func(string, ...any)
 	// failures counts reporting events atomically across concurrent writers and
 	// cleanup. Health reads it separately from the pending count, so the pair is
@@ -468,6 +479,8 @@ func (s *Service) ack(record telemetry.RequestRecord) {
 // local record returns nil error even after repository failure, supporting
 // local diagnostics during storage outages. Other results retain the repository
 // error and its returned items.
+// Administrator results also include available provider names for their final
+// attempts and aliases, including IDs contributed by the local snapshot.
 func (s *Service) Find(ctx context.Context, id string, userID int64, admin bool) (items []Detail, err error) {
 	defer func() {
 		for i := range items {
@@ -475,6 +488,11 @@ func (s *Service) Find(ctx context.Context, id string, userID int64, admin bool)
 			if len(items[i].Usage) > 0 || (!writeFailure && items[i].State != "failed" && items[i].State != "canceled") {
 				items[i].FailureTimings = nil
 			}
+		}
+		if admin && err == nil {
+			// Resolve labels after merging so attempts supplied only by a pending
+			// snapshot use the same lookup as attempts already saved in PostgreSQL.
+			s.attachProviderNames(ctx, items)
 		}
 	}()
 	items, err = s.repo.Find(ctx, id, userID, admin)
@@ -495,6 +513,54 @@ func (s *Service) Find(ctx context.Context, id string, userID int64, admin bool)
 		return append(items, Detail{RequestRecord: record, Pending: true}), nil
 	}
 	return items, err
+}
+
+// attachProviderNames populates administrator display names on the supplied
+// details. Multiple requests can share a provider, and a single request can
+// reference different providers after failover. Read each ID in one batch and
+// attach its name only to details referencing that ID. Missing rows and lookup
+// failures leave the recorded IDs available for display. Run after pending
+// snapshots have been merged, outside the pending-map lock.
+func (s *Service) attachProviderNames(ctx context.Context, items []Detail) {
+	var ids []int64
+	detailsByProvider := make(map[int64][]int)
+	add := func(id int64, detailIndex int) {
+		if id <= 0 {
+			return
+		}
+		if len(detailsByProvider[id]) == 0 {
+			ids = append(ids, id)
+		}
+		detailsByProvider[id] = append(detailsByProvider[id], detailIndex)
+	}
+	for i, item := range items {
+		for _, attempt := range item.Attempts {
+			add(attempt.ProviderID, i)
+		}
+		for _, alias := range item.Aliases {
+			add(alias.ProviderID, i)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	names, err := s.repo.FindProviderNames(ctx, ids)
+	if err != nil {
+		// Keep request diagnostics available by ID when the optional label query
+		// fails. Log storage failures without counting them as writer failures.
+		if s.logf != nil && ctx.Err() == nil {
+			s.logf("read request provider names: %v", err)
+		}
+		return
+	}
+	for id, name := range names {
+		for _, i := range detailsByProvider[id] {
+			if items[i].ProviderNames == nil {
+				items[i].ProviderNames = make(map[int64]string)
+			}
+			items[i].ProviderNames[id] = name
+		}
+	}
 }
 
 // Health returns local pending-ID count and cumulative reporting failures with

@@ -27,6 +27,8 @@ import (
 // ordinary-user and administrator visibility after replay, cleanup, and
 // team-owner changes. Usage cases also preserve distinct charges sharing an ID
 // and filter inaccessible rows before applying the global result limit.
+// Provider labels resolve retained rows for administrator details, including
+// attempts that are still pending a write.
 //
 // Execution-plan cases populate large sparse-match fixtures and capture nested
 // SQL through auto_explain notices on a dedicated pq connection. Recreating the
@@ -815,4 +817,55 @@ func TestStoreIdentifierProvenanceSurvivesQueueAndLookup(t *testing.T) {
 		require.ElementsMatch(t, aliases, items[0].Aliases)
 		require.Equal(t, "X-Client-Request-Id", items[0].Attempts[0].RequestIDHeader)
 	}
+}
+
+// TestStoreFindProviderNames checks that administrator lookups label persisted
+// attempts with current names after a rename or soft deletion. A pending-only
+// attempt also resolves its name, while absent providers and ordinary callers
+// receive no names.
+func TestStoreFindProviderNames(t *testing.T) {
+	db := postgrescontainer.New(t)
+	ctx := t.Context()
+	_, err := db.ExecContext(ctx, `INSERT INTO providers (id, name, platform, type, deleted_at) VALUES
+ (7, 'Original name', 'openai', 'apikey', NULL),
+ (8, 'Retired upstream', 'openai', 'apikey', NOW()),
+ (9, 'Pending upstream', 'openai', 'apikey', NULL)`)
+	require.NoError(t, err)
+	store := NewStore(db)
+	service := requestlog.NewService(store, 30, nil)
+	now := time.Now().UTC()
+	require.NoError(t, store.Save(ctx, []telemetry.RequestRecord{{
+		RequestID: "stored", UserID: 101, StartedAt: now, UpdatedAt: now, State: "completed",
+		Attempts: []telemetry.RequestAttempt{
+			{Number: 1, ProviderID: 8, Status: 502},
+			{Number: 2, ProviderID: 7, Status: 200},
+		},
+		Aliases: []telemetry.RequestAlias{
+			{Kind: "upstream_request", Value: "unknown-provider", ProviderID: 99},
+			{Kind: "upstream_request", Value: "alias-only-provider", ProviderID: 9},
+		},
+	}}))
+	_, err = db.ExecContext(ctx, `UPDATE providers SET name = 'Renamed upstream' WHERE id = 7`)
+	require.NoError(t, err)
+	service.Observe(telemetry.RequestRecord{
+		RequestID: "pending", UserID: 101, StartedAt: now, UpdatedAt: now, State: "running",
+		Attempts: []telemetry.RequestAttempt{{Number: 1, ProviderID: 9}},
+	})
+
+	items, err := service.Find(ctx, "stored", 0, true)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, map[int64]string{7: "Renamed upstream", 8: "Retired upstream", 9: "Pending upstream"}, items[0].ProviderNames)
+	require.Equal(t, int64(99), items[0].Aliases[0].ProviderID)
+
+	items, err = service.Find(ctx, "stored", 101, false)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Empty(t, items[0].ProviderNames)
+
+	items, err = service.Find(ctx, "pending", 0, true)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.True(t, items[0].Pending)
+	require.Equal(t, map[int64]string{9: "Pending upstream"}, items[0].ProviderNames)
 }
