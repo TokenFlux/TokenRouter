@@ -10,9 +10,8 @@ import (
 // for OpenAI compatibility streams.
 // Gemini payloads can repeat accumulated text or provide new fragments, while
 // Responses and Chat consumers receive sequential Anthropic block events. Text
-// and thinking therefore keep separate accumulated histories, and successive
-// calls with the same tool name share one argument history until a text part
-// or different name closes that tool.
+// and thinking therefore keep separate accumulated histories. Each call keeps
+// its own argument history, and only continuations of that call reuse it.
 //
 // The iterator mutates state as its consumer advances. Usage and finish
 // metadata are recorded before output, so a disconnected consumer can still
@@ -20,6 +19,13 @@ import (
 // and stops rely on the active-block convention of
 // AnthropicEventToResponsesEvents. Callers serialize Begin, Process, and
 // Finish consumption for one response.
+
+// nativeGeminiStreamTool describes one function part or an active invocation.
+type nativeGeminiStreamTool struct {
+	id   string // upstream invocation identifier
+	name string // normalized function name
+	args string // observed argument text
+}
 
 // NativeGeminiCompatStream keeps one response's cumulative content and active
 // block state for conversion into Responses or Chat events.
@@ -45,11 +51,9 @@ type NativeGeminiCompatStream struct {
 	// to suppress repeated prefixes and emit new fragments.
 	seenText     string // accumulated visible text history
 	seenThinking string // accumulated thinking text history
-	// openToolName groups adjacent calls by name; seenToolJSON accumulates that
-	// group's argument text. Closing the tool resets both, so a later occurrence
-	// of the same name opens a distinct block.
-	openToolName string // active tool grouping name
-	seenToolJSON string // accumulated tool argument text
+	// tool tracks the invocation named by openToolIndex until that block
+	// closes. Further arguments join only when they belong to that invocation.
+	tool nativeGeminiStreamTool
 	// usage is replaced before output when raw contains usageMetadata; a payload
 	// lacking that field leaves the previously observed counts available to Usage.
 	usage NativeGeminiUsage
@@ -100,7 +104,7 @@ func (s *NativeGeminiCompatStream) Begin(messageID, originalModel string) iter.S
 // iteration finishes.
 //
 // Text and thinking histories distinguish cumulative repeats from incremental
-// fragments; adjacent same-name function calls use the same argument
+// fragments. Function parts for the same invocation share an argument
 // accumulator. Opening or closing a block changes state during iteration, and
 // a consumer stop keeps those partial changes. Metadata updates precede all
 // yielded output, which lets Usage report this payload even when its first
@@ -184,18 +188,13 @@ func (s *NativeGeminiCompatStream) Process(geminiResp map[string]any, raw []byte
 			}
 
 			if fc, ok := part["functionCall"].(map[string]any); ok && fc != nil {
-				name, _ := fc["name"].(string)
-				// A missing or blank function name uses the generic tool label so a usable
-				// tool block can still be announced downstream.
-				if strings.TrimSpace(name) == "" {
-					name = "tool"
-				}
-				// Finish text/thinking before opening a function item; same-name adjacent
-				// calls remain one tool block until another name or text intervenes.
+				call := newNativeGeminiStreamTool(fc)
+				// End prose before starting a tool item because OpenAI conversion
+				// addresses argument deltas to its currently active item.
 				if s.closeOpenBlock(emit) {
 					return
 				}
-				if s.openToolIndex >= 0 && s.openToolName != name {
+				if s.openToolIndex >= 0 && !s.tool.continues(call) {
 					if s.closeOpenTool(emit) {
 						return
 					}
@@ -204,7 +203,7 @@ func (s *NativeGeminiCompatStream) Process(geminiResp map[string]any, raw []byte
 					idx := s.nextBlockIndex
 					s.nextBlockIndex++
 					s.openToolIndex = idx
-					s.openToolName = name
+					s.tool = nativeGeminiStreamTool{id: call.id, name: call.name}
 					s.sawToolUse = true
 					if emit(&AnthropicStreamEvent{
 						Type:  "content_block_start",
@@ -212,7 +211,7 @@ func (s *NativeGeminiCompatStream) Process(geminiResp map[string]any, raw []byte
 						ContentBlock: &AnthropicContentBlock{
 							Type:  "tool_use",
 							ID:    "toolu_" + s.runtime.RandomHex(8),
-							Name:  name,
+							Name:  call.name,
 							Input: json.RawMessage(`{}`),
 						},
 					}) {
@@ -220,24 +219,7 @@ func (s *NativeGeminiCompatStream) Process(geminiResp map[string]any, raw []byte
 					}
 				}
 
-				// Forward string arguments as supplied, serialize other values, and keep
-				// an empty object when arguments are absent, blank, or unencodable.
-				argsJSONText := "{}"
-				switch v := fc["args"].(type) {
-				case nil:
-				case string:
-					if strings.TrimSpace(v) != "" {
-						argsJSONText = v
-					}
-				default:
-					if b, err := json.Marshal(v); err == nil && len(b) > 0 {
-						argsJSONText = string(b)
-					}
-				}
-				// Apply the same prefix heuristic to serialized arguments so repeated
-				// complete objects contribute only their unseen suffix to the active tool.
-				delta, newSeen := NativeComputeGeminiTextDelta(s.seenToolJSON, argsJSONText)
-				s.seenToolJSON = newSeen
+				delta := s.tool.appendArgs(call)
 				if delta != "" {
 					if emit(&AnthropicStreamEvent{
 						Type: "content_block_delta",
@@ -315,18 +297,86 @@ func (s *NativeGeminiCompatStream) closeOpenBlock(emit func(*AnthropicStreamEven
 	return disconnected
 }
 
-// closeOpenTool emits a stop and clears the active tool's name and argument
-// history. The callback reports consumer stop with true, and cleanup occurs
-// even when that stop is rejected.
+// closeOpenTool finishes the active invocation and clears its argument history.
+// The callback reports consumer stop with true. Supply empty arguments at
+// closure when no arguments arrived, since the OpenAI converter builds input
+// from deltas and ignores the initial Messages tool input.
 func (s *NativeGeminiCompatStream) closeOpenTool(emit func(*AnthropicStreamEvent) bool) bool {
 	if s.openToolIndex < 0 {
 		return false
+	}
+	// Wait until closure to supply the empty object because a later fragment
+	// with the same ID can still supply the real arguments.
+	if s.tool.args == "" && emit(&AnthropicStreamEvent{
+		Type:  "content_block_delta",
+		Delta: &AnthropicDelta{Type: "input_json_delta", PartialJSON: "{}"},
+	}) {
+		return true
 	}
 	// The downstream converter closes its active item from this unindexed stop;
 	// clear our open marker after emission even when iteration is abandoned.
 	disconnected := emit(&AnthropicStreamEvent{Type: "content_block_stop"})
 	s.openToolIndex = -1
-	s.openToolName = ""
-	s.seenToolJSON = ""
+	s.tool = nativeGeminiStreamTool{}
 	return disconnected
+}
+
+// newNativeGeminiStreamTool reads the identity and argument text of one part.
+// Missing names use the generic tool label. String arguments may be fragments
+// from compatible relays. Omitted arguments stay empty here so a later part
+// of the same invocation can provide the input before the block closes.
+func newNativeGeminiStreamTool(part map[string]any) nativeGeminiStreamTool {
+	id, _ := part["id"].(string)
+	name, _ := part["name"].(string)
+	// Give a nameless call the fallback label expected by compatibility
+	// clients that require a nonempty function name at block start.
+	if strings.TrimSpace(name) == "" {
+		name = "tool"
+	}
+
+	// Keep raw string fragments intact because their combined text is the
+	// argument object. Missing, blank, or unencodable inputs wait for closure.
+	args, isString := part["args"].(string)
+	if isString {
+		if strings.TrimSpace(args) == "" {
+			args = ""
+		}
+	} else if part["args"] != nil {
+		if encoded, err := json.Marshal(part["args"]); err == nil {
+			args = string(encoded)
+		}
+	}
+	return nativeGeminiStreamTool{id: id, name: name, args: args}
+}
+
+// continues reports whether next belongs to the active tool invocation.
+// An explicit identifier is authoritative. Without one, only an unfinished
+// string argument from a compatible relay can continue an adjacent same-name
+// invocation. Two complete argument objects represent independent calls, even
+// when both names and inputs match, because each Gemini part can ask the
+// client to execute that function separately.
+func (t nativeGeminiStreamTool) continues(next nativeGeminiStreamTool) bool {
+	if t.id != "" || next.id != "" {
+		return t.id != "" && t.id == next.id
+	}
+	if t.name != next.name || t.args == "" || json.Valid([]byte(t.args)) {
+		return false
+	}
+	// A complete object can finish an unfinished invocation when the relay
+	// repeats its prefix. A different complete object starts another invocation.
+	return strings.HasPrefix(next.args, t.args) || !json.Valid([]byte(next.args))
+}
+
+// appendArgs returns new argument text and records what the active invocation
+// has emitted. Once a complete JSON input has been delivered, another part
+// with the same ID cannot append a second value to the downstream tool input.
+func (t *nativeGeminiStreamTool) appendArgs(next nativeGeminiStreamTool) string {
+	if json.Valid([]byte(t.args)) {
+		return ""
+	}
+	// Reuse the cumulative-prefix rule for relay fragments so replaying a
+	// partial prefix does not duplicate bytes in the client's tool input.
+	delta, seen := NativeComputeGeminiTextDelta(t.args, next.args)
+	t.args = seen
+	return delta
 }

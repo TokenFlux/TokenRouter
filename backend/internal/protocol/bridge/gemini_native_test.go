@@ -33,6 +33,42 @@ func TestNativeConvertGeminiToClaudeMessagePreservesCachedPrompt(t *testing.T) {
 	}
 }
 
+// TestNativeGeminiMessagesThinkingHistory converts a signed thought and an
+// answer, then replays that response alongside redacted and legacy thinking.
+// Buffered Messages must include the signature and Gemini must receive only
+// the answer and user prompt as ordinary conversation history.
+func TestNativeGeminiMessagesThinkingHistory(t *testing.T) {
+	raw := []byte(`{"candidates":[{"content":{"parts":[` +
+		`{"thought":true,"text":"reason","thoughtSignature":"opaque"},` +
+		`{"thought":true,"thoughtSignature":"signature-only"},{"text":"answer"}]}}]}`)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	runtime := NativeGeminiRuntime{MessageID: func() string { return "msg_fixture" }}
+	response, _ := NativeConvertGeminiToClaudeMessage(runtime, payload, "gemini", raw, false)
+	blocks, ok := response["content"].([]any)
+	require.True(t, ok)
+	require.Equal(t, []any{
+		map[string]any{"type": "thinking", "thinking": "reason", "signature": "opaque"},
+		map[string]any{"type": "thinking", "thinking": "", "signature": "signature-only"},
+		map[string]any{"type": "text", "text": "answer"},
+	}, blocks)
+
+	request, err := json.Marshal(map[string]any{
+		"messages": []any{
+			map[string]any{"role": "assistant", "content": []any{
+				map[string]any{"type": "redacted_thinking", "data": "redacted"},
+				map[string]any{"thinking": "legacy reasoning", "signature": ""},
+			}},
+			map[string]any{"role": "assistant", "content": blocks},
+			map[string]any{"role": "user", "content": "next"},
+		},
+	})
+	require.NoError(t, err)
+	converted, err := NativeConvertClaudeMessagesToGeminiGenerateContent(NativeGeminiOptions{}, request)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"contents":[{"role":"model","parts":[{"text":"answer"}]},{"role":"user","parts":[{"text":"next"}]}]}`, string(converted))
+}
+
 // Native tool conversion groups accepted client functions and retains a
 // separate typed search declaration. Schema fixtures check recursive key
 // removal, type normalization, scalar enum spelling and representable integer

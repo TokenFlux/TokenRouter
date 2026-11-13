@@ -52,3 +52,46 @@ func TestNativeGeminiMessagesIteratorKeepsUsageUpdateAfterOutput(t *testing.T) {
 	}
 	require.Zero(t, state.Usage().InputTokens)
 }
+
+// TestNativeGeminiMessagesKeepsThinkingOutOfText sends a thought and its
+// later signature followed by visible JSON. The Messages events must close
+// the signed thinking block before emitting that JSON as text.
+func TestNativeGeminiMessagesKeepsThinkingOutOfText(t *testing.T) {
+	state := NewNativeGeminiMessagesStream(NativeGeminiRuntime{})
+	var events []map[string]any
+	for _, part := range []string{
+		`{"thought":true,"text":"{\"signature\":\"\",\"thinking\":\"summary\"}"}`,
+		`{"thought":true,"thoughtSignature":"real-signature"}`,
+		`{"text":"{\"signature\":\"\",\"thinking\":\"summary\"}"}`,
+	} {
+		raw := []byte(`{"candidates":[{"content":{"parts":[` + part + `]}}]}`)
+		var payload map[string]any
+		require.NoError(t, json.Unmarshal(raw, &payload))
+		for event := range state.Process(payload, raw) {
+			if event.Name != "" {
+				payload, ok := event.Data.(map[string]any)
+				require.True(t, ok)
+				events = append(events, payload)
+			}
+		}
+	}
+	for event := range state.Finish() {
+		if event.Name != "" {
+			payload, ok := event.Data.(map[string]any)
+			require.True(t, ok)
+			events = append(events, payload)
+		}
+	}
+	require.Len(t, events, 9)
+	const text = `{"signature":"","thinking":"summary"}`
+	require.Equal(t, []map[string]any{
+		{"type": "content_block_start", "index": 0, "content_block": map[string]any{"type": "thinking", "thinking": "", "signature": ""}},
+		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "thinking_delta", "thinking": text}},
+		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "signature_delta", "signature": "real-signature"}},
+		{"type": "content_block_stop", "index": 0},
+		{"type": "content_block_start", "index": 1, "content_block": map[string]any{"type": "text", "text": ""}},
+		{"type": "content_block_delta", "index": 1, "delta": map[string]any{"type": "text_delta", "text": text}},
+		{"type": "content_block_stop", "index": 1},
+	}, events[:7])
+	require.Equal(t, "message_stop", events[len(events)-1]["type"])
+}

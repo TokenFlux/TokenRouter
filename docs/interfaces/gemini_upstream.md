@@ -58,6 +58,8 @@ Antigravity 的专用入口 `/antigravity/v1beta/*` 强制选择 Antigravity 提
 
 兼容层维护 thinking 和推理字段、tool 和 schema、图片输入、usage、finish reason 和 Gemini 的 thought signature。工具 schema 会递归删掉 Gemini 不支持的字段；INTEGER 类型的整数 `exclusiveMinimum` 转成加一后的、包含边界的 `minimum`，已有的更严格的下界保持不变；无法等价转换的独占下界只删除，不会编造新的下界。需要跨轮次保持 signature、session 和缓存连续性时，粘性会话优先复用同一个提供商；换提供商时，重新评估能否继续，另一个提供商的内部状态不能当作通用的上下文使用。
 
+Messages 的流式和非流式响应把 Gemini 的 thought 内容放在独立的 thinking 块，并随块返回 Gemini 提供的签名。普通请求回传历史时，转换器省略 thinking 和 redacted_thinking 块及仅含这些块的回合。Messages 历史本身无法确认签名来自哪个提供商。
+
 原生和 Claude 兼容的生图响应，按上游实际返回的 `inlineData` 或 `inline_data` 图片 part 数计费，自定义的模型别名也一样。流式响应取单个 payload 里观测到的最大图片数，累积式的 SSE 因此不会重复计费；没有观测到内联图片时，才按请求的模型名或映射后的模型名判断是不是生图模型。
 
 ## 配额与调度
@@ -86,6 +88,8 @@ Gemini REST、OAuth、Vertex 共用的 SSE 读取，以及 Antigravity 的 Gemin
 HTTP 200 中的 Google error 在转换之前识别，不能被吞掉或补成成功结束。本地读超时、截断和格式故障按 502 进入既有策略；上游明确错误保留状态及安全消息。尚未提交 HTTP 时使用 JSON 错误，已提交原生 SSE 时使用 data-only Google error 对象，包含 code、message 和 status；转换入口使用各自的流式错误，且只呈现一次。读取失败保留已观测的部分结果，结算资格仍由原有入口规则判断。
 
 汇总上游 SSE 时，各候选分别累积内容与终态，不能被另一个候选覆盖。相邻文本只有在其他元数据完全一致时才合并，以保留不同的 thought signature。稀疏用量尾帧仅更新出现且非 null 的字段，明确的零值仍有效；缺失字段不会抹掉先前观察到的输入或缓存计数。
+
+Messages、Chat 和 Responses 的流式转换按 Gemini 调用 ID 区分工具调用。缺少 ID 时，独立的完整参数对象各自生成一个调用，同名的连续参数分片可继续写入尚未完成的调用。
 
 Messages、Chat 和 Responses 的流式及非流式转换都返回上游已报告的缓存读取数。Messages 普通输入扣除缓存；OpenAI 两种协议的总输入包含缓存，不能直接使用扣除后的普通输入。客户端最终用量与后台记录使用同一快照，字段规则见[客户端用量与缓存](protocol_capabilities.md#client_usage_cache)。
 

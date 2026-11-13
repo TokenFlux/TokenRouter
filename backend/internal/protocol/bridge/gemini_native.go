@@ -23,9 +23,11 @@ import (
 // options rather than being guessed from client model spelling.
 //
 // Buffered responses and native iterators use the first candidate and keep
-// observed token counts separate from converted content. Prompt counts lose
-// their cached portion for Messages accounting, thinking adds to output
-// counts, and image counts identify a subset of candidate output. Native
+// observed token counts separate from converted content. Reasoning is returned
+// separately from visible text and skipped when rebuilding Messages history
+// for Gemini, where its replay signature can belong to another upstream.
+// Messages input excludes cached tokens, thinking adds to output counts, and
+// image counts identify a subset of candidate output. Native
 // schema cleanup copies ordinary JSON maps and arrays, narrows type arrays,
 // and uses checked numeric increments for integer exclusive minima; unsupported
 // constructs can lose validation information. The internal Gemini dialect has
@@ -72,13 +74,13 @@ type NativeGeminiRuntime struct {
 // MessageID and, for calls, RandomHex; rawData supplies usage independently of
 // the decoded candidate map.
 //
-// Nonempty thought text becomes thinking, other text remains visible, and
-// opted-in inline images passing MIME and base64 checks become Markdown data
-// URLs. Each function part gets a generated tool ID and makes tool_use win
-// over finish-reason mapping; upstream IDs and thought signatures are not
-// copied. Function argument values remain shared with geminiResp. Missing
-// usage yields zero counts in a nonnil value. The message usage map carries
-// disjoint input, output, and cache-read counts so later OpenAI conversion can
+// Thought text and its supplied signature become thinking. Other text remains
+// visible, and opted-in inline images passing MIME and base64 checks become
+// Markdown data URLs. Each function part makes tool_use take precedence over
+// finish-reason mapping. Tool blocks use generated IDs and carry no
+// Gemini signature. Function argument values remain shared with geminiResp.
+// Missing usage yields zero counts in a nonnil value. The message usage map
+// carries disjoint input, output, and cache-read counts so OpenAI conversion can
 // reconstruct inclusive prompt totals. Image counts remain in the companion
 // usage value because Messages has no corresponding output-token category.
 func NativeConvertGeminiToClaudeMessage(runtime NativeGeminiRuntime, geminiResp map[string]any, originalModel string, rawData []byte, includeInlineData bool) (map[string]any, *NativeGeminiUsage) {
@@ -100,21 +102,22 @@ func NativeConvertGeminiToClaudeMessage(runtime NativeGeminiRuntime, geminiResp 
 						if !ok {
 							continue
 						}
-						// Preserve the first candidate's supplied part order; thought text uses
-						// the Messages thinking field while other nonempty text uses its visible
-						// text field.
-						if text, ok := pm["text"].(string); ok && text != "" {
-							if thought, _ := pm["thought"].(bool); thought {
-								contentBlocks = append(contentBlocks, map[string]any{
-									"type":     "thinking",
-									"thinking": text,
-								})
-							} else {
-								contentBlocks = append(contentBlocks, map[string]any{
-									"type": "text",
-									"text": text,
-								})
-							}
+						text, _ := pm["text"].(string)
+						thought, _ := pm["thought"].(bool)
+						signature, _ := pm["thoughtSignature"].(string)
+						// Keep a signed thought even when it has no readable summary, since
+						// the signature is part of the thinking block exposed to the client.
+						if thought && (text != "" || signature != "") {
+							contentBlocks = append(contentBlocks, map[string]any{
+								"type":      "thinking",
+								"thinking":  text,
+								"signature": signature,
+							})
+						} else if text != "" {
+							contentBlocks = append(contentBlocks, map[string]any{
+								"type": "text",
+								"text": text,
+							})
 						}
 						// OpenAI-compatible buffered clients receive inline images through
 						// Markdown text; restrict this path to supported MIME labels and
@@ -559,16 +562,17 @@ func NativeExtractClaudeSystemText(system any) string {
 
 // NativeConvertClaudeMessagesToGeminiContents converts JSON-decoded Messages
 // history using a writable call-ID/name map. A nonarray messages value fails,
-// non-map turns are skipped, and every accepted turn yields a content record
-// even when no supported part remains.
+// non-map turns and turns containing only omitted reasoning are skipped.
 //
 // Trimmed, lowercased assistant roles become model; all other roles become
 // user. String content retains all whitespace, while multi-block text drops
 // blanks and single-block text keeps them. Calls record nonblank IDs/names and
 // receive trimmed signatures or the supplied marker. Results resolve names
-// from prior calls or use tool. Base64 images require nonempty MIME/data
-// strings but receive no image validation, unknown blocks become serialized
-// text, and nested argument values remain shared with input maps.
+// from prior calls or use tool. Thinking and redacted thinking are omitted
+// because Messages history cannot establish the origin of their replay data.
+// Base64 images require nonempty MIME/data strings but receive no image
+// validation. Other unknown blocks become serialized text, and nested
+// argument values remain shared with input maps.
 func NativeConvertClaudeMessagesToGeminiContents(options NativeGeminiOptions, messages any, toolUseIDToName map[string]string) ([]any, error) {
 	arr, ok := messages.([]any)
 	if !ok {
@@ -592,6 +596,7 @@ func NativeConvertClaudeMessagesToGeminiContents(options NativeGeminiOptions, me
 		}
 
 		parts := make([]any, 0)
+		omittedReasoning := false
 		switch content := mm["content"].(type) {
 		case string:
 			// String content stays intact, including blanks, so the native request
@@ -610,6 +615,13 @@ func NativeConvertClaudeMessagesToGeminiContents(options NativeGeminiOptions, me
 					continue
 				}
 				bt, _ := bm["type"].(string)
+				// Some Messages clients omit the discriminator on thinking history.
+				// Recognize its dedicated field before falling back to plain JSON text.
+				if bt == "" {
+					if _, ok := bm["thinking"]; ok {
+						bt = "thinking"
+					}
+				}
 				switch bt {
 				case "text":
 					if text, ok := bm["text"].(string); ok {
@@ -617,6 +629,10 @@ func NativeConvertClaudeMessagesToGeminiContents(options NativeGeminiOptions, me
 							parts = append(parts, map[string]any{"text": text})
 						}
 					}
+				case "thinking", "redacted_thinking":
+					// Messages can carry reasoning from a previous provider. Omit its
+					// opaque replay data and keep it out of the current Gemini prompt.
+					omittedReasoning = true
 				case "tool_use":
 					// Capture call names under their supplied IDs before later result
 					// conversion; only the emptiness check is trimmed, so map keys retain
@@ -676,9 +692,8 @@ func NativeConvertClaudeMessagesToGeminiContents(options NativeGeminiOptions, me
 						}
 					}
 				default:
-					// Unknown block kinds, including unhandled thinking representations, are
-					// serialized into visible text; an encoding failure omits that block and
-					// keeps the remaining turn.
+					// Preserve the legacy text fallback for other unknown blocks. If
+					// serialization fails, keep the rest of the accepted turn.
 					if b, err := json.Marshal(bm); err == nil {
 						parts = append(parts, map[string]any{"text": string(b)})
 					}
@@ -689,6 +704,11 @@ func NativeConvertClaudeMessagesToGeminiContents(options NativeGeminiOptions, me
 			// so this converter does not silently remove an accepted message record.
 		}
 
+		// Omit a reasoning-only turn because Gemini needs at least one part and
+		// an empty placeholder would introduce assistant content absent from history.
+		if omittedReasoning && len(parts) == 0 {
+			continue
+		}
 		out = append(out, map[string]any{
 			"role":  gRole,
 			"parts": parts,

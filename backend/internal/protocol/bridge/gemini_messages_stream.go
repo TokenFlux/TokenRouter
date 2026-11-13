@@ -1,21 +1,17 @@
 package bridge
 
-import (
-	"encoding/json"
-	"iter"
-	"strings"
-)
+import "iter"
 
 // gemini_messages_stream.go converts native Gemini payloads into Messages
 // events and delivery signals.
 // Native Messages clients receive indexed content blocks and separate HTTP
-// flush signals from each Gemini payload. All nonempty text
-// parts use the visible text channel here, including thought-marked parts,
-// while adjacent same-name function calls share one argument history until
-// text or another name ends that tool.
+// flush signals from each Gemini payload. Thought summaries and visible
+// text use separate blocks and histories. A thought signature can arrive
+// after its readable text, so the iterator retains it until the block closes.
 //
 // Accumulated text and argument histories let the iterator suppress repeated
-// prefixes and emit incremental fragments. Each yield can stop consumption
+// prefixes and emit incremental fragments. Tool fragments join only when
+// they belong to the same invocation. Each yield can stop consumption
 // after state has already advanced; finish metadata is recorded before output,
 // but usage is replaced only after every part and control signal has been
 // consumed. The HTTP adapter emits each named event and honors flush requests
@@ -46,22 +42,23 @@ type NativeGeminiMessagesStream struct {
 	// sawToolUse makes Finish prefer tool_use after any tool block opens, so
 	// the client can supply a tool result on its next turn.
 	sawToolUse bool
-	// nextBlockIndex allocates new starts; openBlockIndex and openToolIndex use
-	// -1 for absence. openBlockType describes the active text lifecycle, which
-	// closes before a tool block opens and clears on that transition.
+	// nextBlockIndex allocates starts. The two open indexes use -1 for
+	// absence, and openBlockType distinguishes the active text or thinking
+	// block so transitions can close it before opening the next block.
 	nextBlockIndex int    // next announced block index
-	openBlockIndex int    // active text block index
+	openBlockIndex int    // active text or thinking index
 	openToolIndex  int    // active tool block index
-	openBlockType  string // active text block kind
-	// seenText accumulates across text/tool transitions; comparison against that
-	// history determines whether incoming text is cumulative, repeated, or incremental.
-	seenText string
-	// openToolID, openToolName, and seenToolJSON describe one adjacent same-name
-	// tool group. Closing it clears name and arguments; the next opening replaces
-	// its ID before the new block_start is yielded.
-	openToolID   string // generated active tool identity
-	openToolName string // active tool grouping name
-	seenToolJSON string // accumulated tool argument text
+	openBlockType  string // active text or thinking kind
+	// seenText and seenThinking track separate cumulative channels so
+	// a repeat in one channel cannot suppress identical content in the other.
+	seenText     string // accumulated visible text
+	seenThinking string // accumulated reasoning text
+	// thoughtSignature holds the signature for the open thinking block
+	// until its closing events can deliver it at the same index.
+	thoughtSignature string
+	// tool tracks the active invocation while openToolIndex identifies its
+	// block. Only the active invocation can receive more argument fragments.
+	tool nativeGeminiStreamTool
 	// usage holds the latest fully consumed payload with usageMetadata; stopping
 	// before its final part/control yield completes leaves earlier counts intact.
 	usage NativeGeminiUsage
@@ -123,13 +120,12 @@ func (s *NativeGeminiMessagesStream) Begin(messageID, originalModel string) iter
 // consumption, and consume each sequence once before processing the next
 // payload.
 //
-// All nonempty text uses the visible text accumulator, regardless of thought
-// flags. Same-name adjacent function parts share a generated tool ID and
-// argument history; changing names or receiving text closes that group. A
-// consumer stop retains partial block/history changes and skips remaining
-// output. Finish metadata is read first, while usage is replaced after the
-// payload's output and flush yields finish, so early exit can retain earlier
-// counts.
+// Thought-marked parts use the thinking channel and can carry a signature
+// without readable text. A new content kind closes the previous block.
+// Function parts keep their arguments in the block for the matching call.
+// A consumer stop retains partial state and skips remaining output. Finish
+// metadata is read first, while usage is replaced after the payload's output
+// and flush yields finish, so early exit can retain earlier counts.
 func (s *NativeGeminiMessagesStream) Process(geminiResp map[string]any, raw []byte) iter.Seq[NativeMessageEvent] {
 	return func(yield func(NativeMessageEvent) bool) {
 		emit := func(name string, data any) bool { return yield(NativeMessageEvent{Name: name, Data: data}) }
@@ -141,65 +137,63 @@ func (s *NativeGeminiMessagesStream) Process(geminiResp map[string]any, raw []by
 
 		parts := NativeExtractGeminiParts(geminiResp)
 		for _, part := range parts {
-			if text, ok := part["text"].(string); ok && text != "" {
-				// A text part ends the current tool group before opening or resuming
-				// visible text; clearing arguments prevents reuse by a later same-name
-				// call.
-				if s.openToolIndex >= 0 {
-					if !emit("content_block_stop", map[string]any{
-						"type":  "content_block_stop",
-						"index": s.openToolIndex,
+			text, _ := part["text"].(string)
+			thought, _ := part["thought"].(bool)
+			signature, _ := part["thoughtSignature"].(string)
+			signedThought := thought && signature != ""
+			if text != "" || signedThought {
+				// End the tool block before opening text or thinking so a later
+				// invocation starts with its own argument history.
+				if !s.closeToolBlock(emit) {
+					return
+				}
+				blockType, deltaType, field := "text", "text_delta", "text"
+				seen := &s.seenText
+				if thought {
+					blockType, deltaType, field = "thinking", "thinking_delta", "thinking"
+					seen = &s.seenThinking
+				}
+				// Compare prefixes within the same channel. A repeated thought can
+				// still carry the signature that was absent from its earlier frames.
+				delta, newSeen := NativeComputeGeminiTextDelta(*seen, text)
+				*seen = newSeen
+				if delta == "" && !signedThought {
+					continue
+				}
+				// A distinct signature closes the preceding thought so neither
+				// signature can overwrite the other before delivery.
+				newSignature := signedThought && s.thoughtSignature != "" && s.thoughtSignature != signature
+				if s.openBlockType != blockType || newSignature {
+					if !s.closeTextBlock(emit) {
+						return
+					}
+					s.openBlockType = blockType
+					s.openBlockIndex = s.nextBlockIndex
+					s.nextBlockIndex++
+					contentBlock := map[string]any{"type": blockType, field: ""}
+					if thought {
+						contentBlock["signature"] = ""
+					}
+					if !emit("content_block_start", map[string]any{
+						"type":          "content_block_start",
+						"index":         s.openBlockIndex,
+						"content_block": contentBlock,
 					}) {
 						return
 					}
-					s.openToolIndex = -1
-					s.openToolName = ""
-					s.seenToolJSON = ""
 				}
-
-				// One visible text history covers every nonempty text part, so
-				// thought-marked parts participate in the same cumulative-prefix heuristic
-				// on this native Messages path.
-				delta, newSeen := NativeComputeGeminiTextDelta(s.seenText, text)
-				s.seenText = newSeen
+				if signedThought {
+					s.thoughtSignature = signature
+				}
 				if delta == "" {
 					continue
 				}
-
-				// Announce an empty indexed text block before its first delta, allowing
-				// the Messages client to address all later text updates to that block.
-				if s.openBlockType != "text" {
-					if s.openBlockIndex >= 0 {
-						if !emit("content_block_stop", map[string]any{
-							"type":  "content_block_stop",
-							"index": s.openBlockIndex,
-						}) {
-							return
-						}
-					}
-					s.openBlockType = "text"
-					s.openBlockIndex = s.nextBlockIndex
-					s.nextBlockIndex++
-					if !emit("content_block_start", map[string]any{
-						"type":  "content_block_start",
-						"index": s.openBlockIndex,
-						"content_block": map[string]any{
-							"type": "text",
-							"text": "",
-						},
-					}) {
-						return
-					}
-				}
-
-				// Yield the timing marker before the text delta; the HTTP adapter records
-				// only its first occurrence even though each nonempty delta requests it.
 				if !emit("content_block_delta", map[string]any{
 					"type":  "content_block_delta",
 					"index": s.openBlockIndex,
 					"delta": map[string]any{
-						"type": "text_delta",
-						"text": delta,
+						"type": deltaType,
+						field:  delta,
 					},
 				}) {
 					return
@@ -211,81 +205,37 @@ func (s *NativeGeminiMessagesStream) Process(geminiResp map[string]any, raw []by
 			}
 
 			if fc, ok := part["functionCall"].(map[string]any); ok && fc != nil {
-				name, _ := fc["name"].(string)
-				args := fc["args"]
-				// A blank function name selects the generic tool label so the emitted tool
-				// block still supplies a name to Messages consumers.
-				if strings.TrimSpace(name) == "" {
-					name = "tool"
+				if !s.closeTextBlock(emit) {
+					return
 				}
 
-				// Finish the current visible text lifecycle before a tool opens, so its
-				// later argument deltas have a distinct indexed content block.
-				if s.openBlockIndex >= 0 {
-					if !emit("content_block_stop", map[string]any{
-						"type":  "content_block_stop",
-						"index": s.openBlockIndex,
-					}) {
+				call := newNativeGeminiStreamTool(fc)
+				// Different invocations need independent blocks so the client
+				// never appends two complete argument objects to one input.
+				if s.openToolIndex >= 0 && !s.tool.continues(call) {
+					if !s.closeToolBlock(emit) {
 						return
 					}
-					s.openBlockIndex = -1
-					s.openBlockType = ""
 				}
-
-				// A different function name ends the adjacent call group; matching names
-				// keep the existing ID and accumulated arguments until text intervenes.
-				if s.openToolIndex >= 0 && s.openToolName != name {
-					if !emit("content_block_stop", map[string]any{
-						"type":  "content_block_stop",
-						"index": s.openToolIndex,
-					}) {
-						return
-					}
-					s.openToolIndex = -1
-					s.openToolName = ""
-					s.seenToolJSON = ""
-				}
-
 				if s.openToolIndex < 0 {
-					s.openToolID = "toolu_" + s.runtime.RandomHex(8)
+					s.tool = nativeGeminiStreamTool{id: call.id, name: call.name}
 					s.openToolIndex = s.nextBlockIndex
-					s.openToolName = name
 					s.nextBlockIndex++
 					s.sawToolUse = true
-
 					if !emit("content_block_start", map[string]any{
 						"type":  "content_block_start",
 						"index": s.openToolIndex,
 						"content_block": map[string]any{
 							"type":  "tool_use",
-							"id":    s.openToolID,
-							"name":  name,
+							"id":    "toolu_" + s.runtime.RandomHex(8),
+							"name":  call.name,
 							"input": map[string]any{},
 						},
 					}) {
 						return
 					}
 				}
-
-				// Keep supplied string arguments verbatim, serialize other values, and use
-				// an empty object when arguments are absent, blank, or cannot be encoded.
-				argsJSONText := "{}"
-				switch v := args.(type) {
-				case nil:
-				case string:
-					if strings.TrimSpace(v) != "" {
-						argsJSONText = v
-					}
-				default:
-					if b, err := json.Marshal(args); err == nil && len(b) > 0 {
-						argsJSONText = string(b)
-					}
-				}
-
-				// Compare serialized arguments against the active group's history so
-				// cumulative argument payloads do not repeat already emitted JSON text.
-				delta, newSeen := NativeComputeGeminiTextDelta(s.seenToolJSON, argsJSONText)
-				s.seenToolJSON = newSeen
+				delta := s.tool.appendArgs(call)
 				if delta != "" {
 					if !emit("content_block_delta", map[string]any{
 						"type":  "content_block_delta",
@@ -314,14 +264,13 @@ func (s *NativeGeminiMessagesStream) Process(geminiResp map[string]any, raw []by
 }
 
 // Finish stops active blocks and yields final message_delta, message_stop, and
-// a flush request. Consume it once after upstream exhaustion; open markers
-// remain set, so repeated consumption can repeat stops and terminal events.
+// a flush request. Consume it once after upstream exhaustion, since
+// repeated consumption repeats message termination.
 //
 // Tool presence overrides the recorded finish reason because the client
 // receives a call requiring a result. Output usage is emitted even at zero,
 // and ordinary input and cache reads are included independently, even at zero.
-// A consumer stop skips later terminal or flush yields and does not
-// reset response state.
+// A consumer stop skips later terminal or flush yields.
 func (s *NativeGeminiMessagesStream) Finish() iter.Seq[NativeMessageEvent] {
 	return func(yield func(NativeMessageEvent) bool) {
 		emit := func(name string, data any) bool { return yield(NativeMessageEvent{Name: name, Data: data}) }
@@ -329,21 +278,8 @@ func (s *NativeGeminiMessagesStream) Finish() iter.Seq[NativeMessageEvent] {
 
 		// Close indexed content before message-level termination so the client
 		// finishes its text or argument accumulator before reading final usage.
-		if s.openBlockIndex >= 0 {
-			if !emit("content_block_stop", map[string]any{
-				"type":  "content_block_stop",
-				"index": s.openBlockIndex,
-			}) {
-				return
-			}
-		}
-		if s.openToolIndex >= 0 {
-			if !emit("content_block_stop", map[string]any{
-				"type":  "content_block_stop",
-				"index": s.openToolIndex,
-			}) {
-				return
-			}
+		if !s.closeTextBlock(emit) || !s.closeToolBlock(emit) {
+			return
 		}
 
 		// An opened tool selects tool_use regardless of the finish reason because
@@ -379,4 +315,57 @@ func (s *NativeGeminiMessagesStream) Finish() iter.Seq[NativeMessageEvent] {
 			return
 		}
 	}
+}
+
+// closeTextBlock delivers any retained signature and closes the current
+// text or thinking block. It reports whether the iterator can keep yielding.
+//
+// Gemini can send the summary and its signature in different parts. Messages
+// expects the signature at the thinking block's index before its stop event.
+// If the consumer stops during either yield, return immediately so a new
+// block cannot open in that iteration.
+func (s *NativeGeminiMessagesStream) closeTextBlock(emit func(string, any) bool) bool {
+	if s.openBlockIndex < 0 {
+		return true
+	}
+	if s.thoughtSignature != "" {
+		if !emit("content_block_delta", map[string]any{
+			"type":  "content_block_delta",
+			"index": s.openBlockIndex,
+			"delta": map[string]any{
+				"type":      "signature_delta",
+				"signature": s.thoughtSignature,
+			},
+		}) {
+			return false
+		}
+		s.thoughtSignature = ""
+	}
+	if !emit("content_block_stop", map[string]any{
+		"type":  "content_block_stop",
+		"index": s.openBlockIndex,
+	}) {
+		return false
+	}
+	s.openBlockIndex = -1
+	s.openBlockType = ""
+	return true
+}
+
+// closeToolBlock stops an open tool and reports whether delivery can continue.
+// Once the consumer accepts the stop, the next invocation can open a block
+// with fresh arguments and identity.
+func (s *NativeGeminiMessagesStream) closeToolBlock(emit func(string, any) bool) bool {
+	if s.openToolIndex < 0 {
+		return true
+	}
+	if !emit("content_block_stop", map[string]any{
+		"type":  "content_block_stop",
+		"index": s.openToolIndex,
+	}) {
+		return false
+	}
+	s.openToolIndex = -1
+	s.tool = nativeGeminiStreamTool{}
+	return true
 }
