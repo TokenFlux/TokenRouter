@@ -197,11 +197,14 @@ func (s *NativeGeminiMessagesStream) Process(geminiResp map[string]any, raw []by
 			}
 
 			if fc, ok := part["functionCall"].(map[string]any); ok && fc != nil {
+				call := newNativeGeminiStreamTool(part, fc)
+				if s.toolFrames.updateClosed(call, s.runtime) {
+					continue
+				}
 				if !s.closeTextBlock(emit) {
 					return
 				}
 
-				call := newNativeGeminiStreamTool(part, fc)
 				// Different invocations need independent blocks so the client
 				// never appends two complete argument objects to one input.
 				if s.openToolIndex >= 0 && !s.tool.continues(call, toolInFrame) {
@@ -335,7 +338,7 @@ func (s *NativeGeminiMessagesStream) closeToolBlock(emit func(string, any) bool)
 	if s.openToolIndex < 0 {
 		return true
 	}
-	s.tool.remember(s.runtime)
+	s.toolFrames.close(s.tool, s.runtime)
 	if !emit("content_block_stop", map[string]any{
 		"type":  "content_block_stop",
 		"index": s.openToolIndex,

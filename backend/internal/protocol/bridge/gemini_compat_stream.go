@@ -13,7 +13,8 @@ import (
 // Gemini payloads can repeat accumulated text or provide new fragments, while
 // Responses and Chat consumers receive sequential Anthropic block events. Text
 // and thinking therefore keep separate accumulated histories. Each call keeps
-// its own argument history. Calls with explicit IDs can continue across frames.
+// its own argument history. Calls with explicit IDs can continue across frames,
+// and later parts for a closed ID update replay metadata without reopening it.
 // Legacy relays can repeat a complete batch at the start of their next frame.
 // Matching that prefix suppresses duplicate execution while keeping identical
 // calls in separate positions of the original batch.
@@ -39,11 +40,14 @@ type nativeGeminiStreamTool struct {
 	structured bool
 }
 
-// nativeGeminiToolFrames recognizes cumulative snapshots of complete tool calls.
+// nativeGeminiToolFrames tracks repeated batches and closed upstream call IDs.
 type nativeGeminiToolFrames struct {
 	// previous holds the complete calls in the preceding tool-only frame.
 	// Usage-only frames leave this sequence available for duplicate detection.
 	previous []nativeGeminiStreamTool
+	// closed records the client ID and signature after a tool block closes.
+	// An upstream replay can update its signature but cannot open a second block.
+	closed map[string]nativeGeminiStreamTool
 }
 
 // NativeGeminiCompatStream keeps one response's cumulative content and active
@@ -212,6 +216,9 @@ func (s *NativeGeminiCompatStream) Process(geminiResp map[string]any, raw []byte
 
 			if fc, ok := part["functionCall"].(map[string]any); ok && fc != nil {
 				call := newNativeGeminiStreamTool(part, fc)
+				if s.toolFrames.updateClosed(call, s.runtime) {
+					continue
+				}
 				// End prose before starting a tool item because OpenAI conversion
 				// addresses argument deltas to its currently active item.
 				if s.closeOpenBlock(emit) {
@@ -329,7 +336,7 @@ func (s *NativeGeminiCompatStream) closeOpenTool(emit func(*AnthropicStreamEvent
 	if s.openToolIndex < 0 {
 		return false
 	}
-	s.tool.remember(s.runtime)
+	s.toolFrames.close(s.tool, s.runtime)
 	// Wait until closure to supply the empty object because a later fragment
 	// with the same ID can still supply the real arguments.
 	if strings.TrimSpace(s.tool.args) == "" && emit(&AnthropicStreamEvent{
@@ -382,6 +389,40 @@ func (s *nativeGeminiToolFrames) trimReplay(parts []map[string]any) ([]map[strin
 		return parts[len(previous):], true
 	}
 	return parts, false
+}
+
+// updateClosed reports whether the upstream ID has already produced a closed
+// client block. A changed, nonempty signature refreshes the original binding.
+//
+// An upstream can resend an entire batch with a signature added to an
+// earlier call. The frame prefix no longer matches, but explicit IDs still
+// identify the same invocations. Keep the existing client ID and ignore
+// replayed arguments so the client cannot execute the tool twice.
+func (s *nativeGeminiToolFrames) updateClosed(call nativeGeminiStreamTool, runtime NativeGeminiRuntime) bool {
+	previous, ok := s.closed[call.id]
+	if !ok {
+		return false
+	}
+	if call.signature != "" && call.signature != previous.signature {
+		previous.signature = call.signature
+		s.closed[call.id] = previous
+		previous.remember(runtime)
+	}
+	return true
+}
+
+// close remembers the tool before the downstream stop event. Keep explicit
+// IDs for this response so later frames can amend their replay metadata
+// without opening another client block or retaining completed arguments.
+func (s *nativeGeminiToolFrames) close(tool nativeGeminiStreamTool, runtime NativeGeminiRuntime) {
+	tool.remember(runtime)
+	if tool.id == "" {
+		return
+	}
+	if s.closed == nil {
+		s.closed = make(map[string]nativeGeminiStreamTool)
+	}
+	s.closed[tool.id] = nativeGeminiStreamTool{id: tool.id, clientID: tool.clientID, signature: tool.signature}
 }
 
 // newNativeGeminiStreamTool reads the identity and argument text of one part.

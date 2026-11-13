@@ -1273,16 +1273,19 @@ func TestGeminiToolCallReplayAcrossProtocols(t *testing.T) {
 					initialBody = fmt.Sprintf(`{"model":%q,"stream":%t,"input":"weather"}`, model, stream)
 				}
 				contentType, raw := "application/json", calls
-				// Split the signature from the first call's arguments so both
-				// streaming and collection must attach it to the same call ID.
-				firstFrame := `{"candidates":[{"content":{"parts":[{"functionCall":{"id":"gemini-paris","name":"lookup","args":{"city":"Paris"}}}]}}]}`
-				lastFrame := `{"candidates":[{"content":{"parts":[{"functionCall":{"id":"gemini-paris","name":"lookup"},"thoughtSignature":"original-signature"},{"functionCall":{"id":"gemini-london","name":"lookup","args":{"city":"London"}}}]},"finishReason":"STOP"}]}`
 				if stream {
+					// The second frame adds a signature to an already announced
+					// call. The client should still execute each upstream ID once.
+					firstFrame := `{"candidates":[{"content":{"parts":[{"functionCall":{"id":"gemini-paris","name":"lookup","args":{"city":"Paris"}}},{"functionCall":{"id":"gemini-london","name":"lookup","args":{"city":"London"}}}]}}]}`
 					contentType = "text/event-stream"
-					raw = "data: " + firstFrame + "\n\ndata: " + lastFrame + "\n\n"
+					raw = "data: " + firstFrame + "\n\ndata: " + calls + "\n\n"
 				}
 				answerFrame := answer
 				if oauth {
+					// The buffered converter must reconstruct the argument object
+					// from string fragments and retain the later signature.
+					firstFrame := `{"candidates":[{"content":{"parts":[{"functionCall":{"id":"gemini-paris","name":"lookup","args":"{\"city\":"}}]}}]}`
+					lastFrame := `{"candidates":[{"content":{"parts":[{"functionCall":{"id":"gemini-paris","name":"lookup","args":"\"Paris\"}"},"thoughtSignature":"original-signature"},{"functionCall":{"id":"gemini-london","name":"lookup","args":{"city":"London"}}}]},"finishReason":"STOP"}]}`
 					provider.Record.Type = capability.ProviderTypeOAuth
 					provider.Record.Credentials = map[string]any{"access_token": "ya29.fixture", "project_id": "project-1"}
 					contentType = "text/event-stream"
@@ -1348,6 +1351,18 @@ func TestGeminiToolCallReplayAcrossProtocols(t *testing.T) {
 							ids = append(ids, id.String())
 						}
 					}
+				}
+				if oauth {
+					var parisInput string
+					switch protocol {
+					case "messages":
+						parisInput = gjson.Get(rec.Body.String(), "content.0.input").Raw
+					case "responses":
+						parisInput = gjson.Get(rec.Body.String(), "output.0.arguments").String()
+					case "chat":
+						parisInput = gjson.Get(rec.Body.String(), "choices.0.message.tool_calls.0.function.arguments").String()
+					}
+					require.JSONEq(t, `{"city":"Paris"}`, parisInput)
 				}
 				require.Len(t, ids, 2)
 				require.NotEqual(t, ids[0], ids[1])

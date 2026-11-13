@@ -5,7 +5,39 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
+
+// TestNativeGeminiReplayKeepsFirstToolSignatureFallback replays two tool
+// steps with unsigned cached calls. The first call in each step needs the
+// compatibility marker, while its unsigned parallel sibling stays unsigned.
+func TestNativeGeminiReplayKeepsFirstToolSignatureFallback(t *testing.T) {
+	history := []byte(`{"messages":[
+		{"role":"user","content":"lookup"},
+		{"role":"assistant","content":[
+			{"type":"text","text":"Checking"},
+			{"type":"tool_use","id":"a","name":"lookup","input":{}},
+			{"type":"tool_use","id":"b","name":"lookup","input":{}}
+		]},
+		{"role":"user","content":[
+			{"type":"tool_result","tool_use_id":"a","content":"first"},
+			{"type":"tool_result","tool_use_id":"b","content":"second"}
+		]},
+		{"role":"assistant","content":[{"type":"tool_use","id":"c","name":"lookup","input":{}}]},
+		{"role":"user","content":[{"type":"tool_result","tool_use_id":"c","content":"third"}]}
+	]}`)
+	wire, err := NativeConvertClaudeMessagesToGeminiGenerateContent(NativeGeminiOptions{
+		DummyThoughtSignature: "compatibility-marker",
+		LookupToolCall: func(id string) (NativeGeminiToolCall, bool) {
+			return NativeGeminiToolCall{ID: "upstream-" + id}, true
+		},
+	}, history)
+	require.NoError(t, err)
+	require.Equal(t, "compatibility-marker", gjson.GetBytes(wire, "contents.1.parts.1.thoughtSignature").String())
+	require.False(t, gjson.GetBytes(wire, "contents.1.parts.2.thoughtSignature").Exists())
+	require.Equal(t, "compatibility-marker", gjson.GetBytes(wire, "contents.3.parts.0.thoughtSignature").String())
+	require.Equal(t, "upstream-c", gjson.GetBytes(wire, "contents.4.parts.0.functionResponse.id").String())
+}
 
 // TestNativeConvertGeminiToClaudeMessagePreservesCachedPrompt supplies a cached
 // Gemini prompt and checks the serialized Messages buckets. Cache-only input
