@@ -35,8 +35,8 @@ func TestNativeConvertGeminiToClaudeMessagePreservesCachedPrompt(t *testing.T) {
 
 // TestNativeGeminiMessagesThinkingHistory converts a signed thought and an
 // answer, then replays that response alongside redacted and legacy thinking.
-// Buffered Messages must include the signature and Gemini must receive only
-// the answer and user prompt as ordinary conversation history.
+// Buffered Messages keeps readable thinking without its upstream signature.
+// Replaying the response must leave only the answer and the new user prompt.
 func TestNativeGeminiMessagesThinkingHistory(t *testing.T) {
 	raw := []byte(`{"candidates":[{"content":{"parts":[` +
 		`{"thought":true,"text":"reason","thoughtSignature":"opaque"},` +
@@ -48,8 +48,7 @@ func TestNativeGeminiMessagesThinkingHistory(t *testing.T) {
 	blocks, ok := response["content"].([]any)
 	require.True(t, ok)
 	require.Equal(t, []any{
-		map[string]any{"type": "thinking", "thinking": "reason", "signature": "opaque"},
-		map[string]any{"type": "thinking", "thinking": "", "signature": "signature-only"},
+		map[string]any{"type": "thinking", "thinking": "reason", "signature": ""},
 		map[string]any{"type": "text", "text": "answer"},
 	}, blocks)
 
@@ -67,6 +66,33 @@ func TestNativeGeminiMessagesThinkingHistory(t *testing.T) {
 	converted, err := NativeConvertClaudeMessagesToGeminiGenerateContent(NativeGeminiOptions{}, request)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"contents":[{"role":"model","parts":[{"text":"answer"}]},{"role":"user","parts":[{"text":"next"}]}]}`, string(converted))
+}
+
+// TestNativeGeminiThinkingCanReplayToResponses switches a buffered Gemini
+// reply to an OpenAI Responses route. Its signed thought must never become
+// encrypted_content, and the assistant answer must remain in the history.
+func TestNativeGeminiThinkingCanReplayToResponses(t *testing.T) {
+	raw := []byte(`{"candidates":[{"content":{"parts":[` +
+		`{"thought":true,"text":"plan","thoughtSignature":"gemini-opaque"},` +
+		`{"text":"answer"}]}}]}`)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	runtime := NativeGeminiRuntime{MessageID: func() string { return "msg_fixture" }}
+	response, _ := NativeConvertGeminiToClaudeMessage(runtime, payload, "gemini", raw, false)
+	content, err := json.Marshal(response["content"])
+	require.NoError(t, err)
+	converted, err := AnthropicToResponses(&AnthropicRequest{
+		Model: "gpt-6.1-sol",
+		Messages: []AnthropicMessage{
+			{Role: "assistant", Content: content},
+			{Role: "user", Content: json.RawMessage(`"next"`)},
+		},
+	}, RequestOptions{})
+	require.NoError(t, err)
+	require.JSONEq(t, `[
+		{"type":"message","role":"assistant","content":[{"type":"output_text","text":"answer"}]},
+		{"type":"message","role":"user","content":[{"type":"input_text","text":"next"}]}
+	]`, string(converted.Input))
 }
 
 // Native tool conversion groups accepted client functions and retains a

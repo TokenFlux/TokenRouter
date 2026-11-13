@@ -74,7 +74,7 @@ type NativeGeminiRuntime struct {
 // MessageID and, for calls, RandomHex; rawData supplies usage independently of
 // the decoded candidate map.
 //
-// Thought text and its supplied signature become thinking. Other text remains
+// Thought text becomes thinking with an empty signature. Other text remains
 // visible, and opted-in inline images passing MIME and base64 checks become
 // Markdown data URLs. Each function part makes tool_use take precedence over
 // finish-reason mapping. Tool blocks use generated IDs and carry no
@@ -104,14 +104,13 @@ func NativeConvertGeminiToClaudeMessage(runtime NativeGeminiRuntime, geminiResp 
 						}
 						text, _ := pm["text"].(string)
 						thought, _ := pm["thought"].(bool)
-						signature, _ := pm["thoughtSignature"].(string)
-						// Keep a signed thought even when it has no readable summary, since
-						// the signature is part of the thinking block exposed to the client.
-						if thought && (text != "" || signature != "") {
+						// Expose only the summary because a client can replay its history
+						// through a different provider that cannot interpret a Gemini signature.
+						if thought && text != "" {
 							contentBlocks = append(contentBlocks, map[string]any{
 								"type":      "thinking",
 								"thinking":  text,
-								"signature": signature,
+								"signature": "",
 							})
 						} else if text != "" {
 							contentBlocks = append(contentBlocks, map[string]any{

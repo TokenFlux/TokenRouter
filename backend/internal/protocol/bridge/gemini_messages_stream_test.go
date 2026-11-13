@@ -55,7 +55,8 @@ func TestNativeGeminiMessagesIteratorKeepsUsageUpdateAfterOutput(t *testing.T) {
 
 // TestNativeGeminiMessagesKeepsThinkingOutOfText sends a thought and its
 // later signature followed by visible JSON. The Messages events must close
-// the signed thinking block before emitting that JSON as text.
+// the thinking block before emitting the answer and must omit the upstream
+// signature so clients can replay the history on another route.
 func TestNativeGeminiMessagesKeepsThinkingOutOfText(t *testing.T) {
 	state := NewNativeGeminiMessagesStream(NativeGeminiRuntime{})
 	var events []map[string]any
@@ -82,16 +83,15 @@ func TestNativeGeminiMessagesKeepsThinkingOutOfText(t *testing.T) {
 			events = append(events, payload)
 		}
 	}
-	require.Len(t, events, 9)
+	require.Len(t, events, 8)
 	const text = `{"signature":"","thinking":"summary"}`
 	require.Equal(t, []map[string]any{
 		{"type": "content_block_start", "index": 0, "content_block": map[string]any{"type": "thinking", "thinking": "", "signature": ""}},
 		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "thinking_delta", "thinking": text}},
-		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "signature_delta", "signature": "real-signature"}},
 		{"type": "content_block_stop", "index": 0},
 		{"type": "content_block_start", "index": 1, "content_block": map[string]any{"type": "text", "text": ""}},
 		{"type": "content_block_delta", "index": 1, "delta": map[string]any{"type": "text_delta", "text": text}},
 		{"type": "content_block_stop", "index": 1},
-	}, events[:7])
+	}, events[:6])
 	require.Equal(t, "message_stop", events[len(events)-1]["type"])
 }

@@ -2,7 +2,9 @@ package bridge
 
 import (
 	"encoding/json"
+	"io"
 	"iter"
+	"slices"
 	"strings"
 )
 
@@ -11,7 +13,10 @@ import (
 // Gemini payloads can repeat accumulated text or provide new fragments, while
 // Responses and Chat consumers receive sequential Anthropic block events. Text
 // and thinking therefore keep separate accumulated histories. Each call keeps
-// its own argument history, and only continuations of that call reuse it.
+// its own argument history. Calls with explicit IDs can continue across frames.
+// Legacy relays can repeat a complete batch at the start of their next frame.
+// Matching that prefix suppresses duplicate execution while keeping identical
+// calls in separate positions of the original batch.
 //
 // The iterator mutates state as its consumer advances. Usage and finish
 // metadata are recorded before output, so a disconnected consumer can still
@@ -25,6 +30,16 @@ type nativeGeminiStreamTool struct {
 	id   string // upstream invocation identifier
 	name string // normalized function name
 	args string // observed argument text
+	// structured marks a JSON object supplied as args rather than a string
+	// chunk. It distinguishes a new snapshot from text inside a partial value.
+	structured bool
+}
+
+// nativeGeminiToolFrames recognizes cumulative snapshots of complete tool calls.
+type nativeGeminiToolFrames struct {
+	// previous holds the complete calls in the preceding tool-only frame.
+	// Usage-only frames leave this sequence available for duplicate detection.
+	previous []nativeGeminiStreamTool
 }
 
 // NativeGeminiCompatStream keeps one response's cumulative content and active
@@ -54,6 +69,9 @@ type NativeGeminiCompatStream struct {
 	// tool tracks the invocation named by openToolIndex until that block
 	// closes. Further arguments join only when they belong to that invocation.
 	tool nativeGeminiStreamTool
+	// toolFrames keeps completed tool-only snapshots across payloads so an
+	// upstream can repeat an entire batch without issuing the tools again.
+	toolFrames nativeGeminiToolFrames
 	// usage is replaced before output when raw contains usageMetadata; a payload
 	// lacking that field leaves the previously observed counts available to Usage.
 	usage NativeGeminiUsage
@@ -121,7 +139,8 @@ func (s *NativeGeminiCompatStream) Process(geminiResp map[string]any, raw []byte
 			s.usage = *u
 		}
 
-		for _, part := range NativeExtractGeminiParts(geminiResp) {
+		parts, toolInFrame := s.toolFrames.trimReplay(NativeExtractGeminiParts(geminiResp))
+		for _, part := range parts {
 			if text, ok := part["text"].(string); ok && text != "" {
 				// A text or thinking part ends the active tool's argument history before
 				// another content kind opens in downstream Responses state.
@@ -194,11 +213,12 @@ func (s *NativeGeminiCompatStream) Process(geminiResp map[string]any, raw []byte
 				if s.closeOpenBlock(emit) {
 					return
 				}
-				if s.openToolIndex >= 0 && !s.tool.continues(call) {
+				if s.openToolIndex >= 0 && !s.tool.continues(call, toolInFrame) {
 					if s.closeOpenTool(emit) {
 						return
 					}
 				}
+				toolInFrame = true
 				if s.openToolIndex < 0 {
 					idx := s.nextBlockIndex
 					s.nextBlockIndex++
@@ -307,7 +327,7 @@ func (s *NativeGeminiCompatStream) closeOpenTool(emit func(*AnthropicStreamEvent
 	}
 	// Wait until closure to supply the empty object because a later fragment
 	// with the same ID can still supply the real arguments.
-	if s.tool.args == "" && emit(&AnthropicStreamEvent{
+	if strings.TrimSpace(s.tool.args) == "" && emit(&AnthropicStreamEvent{
 		Type:  "content_block_delta",
 		Delta: &AnthropicDelta{Type: "input_json_delta", PartialJSON: "{}"},
 	}) {
@@ -321,10 +341,48 @@ func (s *NativeGeminiCompatStream) closeOpenTool(emit func(*AnthropicStreamEvent
 	return disconnected
 }
 
+// trimReplay returns the parts to emit and whether their frame already
+// contained tool calls. It leaves mixed and fragmented payloads to the
+// per-call converter because their part boundaries can carry other content.
+//
+// Some relays resend the preceding complete batch as a prefix of the next
+// frame. Matching the whole prefix preserves multiple identical calls in
+// one frame while suppressing a replay of those calls in a later frame.
+// Retain only normalized strings so the caller can reuse its decoded maps
+// after the current iteration.
+func (s *nativeGeminiToolFrames) trimReplay(parts []map[string]any) ([]map[string]any, bool) {
+	if len(parts) == 0 {
+		return parts, false
+	}
+	var calls []nativeGeminiStreamTool
+	for _, part := range parts {
+		call, ok := part["functionCall"].(map[string]any)
+		if !ok || call == nil || part["text"] != nil {
+			s.previous = nil
+			return parts, false
+		}
+		tool := newNativeGeminiStreamTool(call)
+		if !completeGeminiToolArgs(tool.args) {
+			s.previous = nil
+			return parts, false
+		}
+		calls = append(calls, tool)
+	}
+
+	previous := s.previous
+	s.previous = calls
+	if len(previous) > 0 && len(calls) >= len(previous) && slices.EqualFunc(previous, calls[:len(previous)], func(a, b nativeGeminiStreamTool) bool {
+		return a.id == b.id && a.name == b.name && a.args == b.args
+	}) {
+		return parts[len(previous):], true
+	}
+	return parts, false
+}
+
 // newNativeGeminiStreamTool reads the identity and argument text of one part.
 // Missing names use the generic tool label. String arguments may be fragments
-// from compatible relays. Omitted arguments stay empty here so a later part
-// of the same invocation can provide the input before the block closes.
+// from compatible relays and retain their whitespace. Omitted arguments stay
+// empty so a later part of the same call can supply them before closure.
 func newNativeGeminiStreamTool(part map[string]any) nativeGeminiStreamTool {
 	id, _ := part["id"].(string)
 	name, _ := part["name"].(string)
@@ -334,49 +392,72 @@ func newNativeGeminiStreamTool(part map[string]any) nativeGeminiStreamTool {
 		name = "tool"
 	}
 
-	// Keep raw string fragments intact because their combined text is the
-	// argument object. Missing, blank, or unencodable inputs wait for closure.
+	// Keep raw string fragments intact because a space can be significant
+	// inside a quoted value split over frames. A structured object already
+	// has its own JSON boundaries and can signal a separate call.
 	args, isString := part["args"].(string)
-	if isString {
-		if strings.TrimSpace(args) == "" {
-			args = ""
-		}
-	} else if part["args"] != nil {
+	_, structured := part["args"].(map[string]any)
+	if !isString && part["args"] != nil {
 		if encoded, err := json.Marshal(part["args"]); err == nil {
 			args = string(encoded)
 		}
 	}
-	return nativeGeminiStreamTool{id: id, name: name, args: args}
+	return nativeGeminiStreamTool{id: id, name: name, args: args, structured: structured}
 }
 
 // continues reports whether next belongs to the active tool invocation.
-// An explicit identifier is authoritative. Without one, only an unfinished
-// string argument from a compatible relay can continue an adjacent same-name
-// invocation. Two complete argument objects represent independent calls, even
-// when both names and inputs match, because each Gemini part can ask the
-// client to execute that function separately.
-func (t nativeGeminiStreamTool) continues(next nativeGeminiStreamTool) bool {
+// An explicit identifier is authoritative. Without one, parts in one frame
+// are separate calls. Across frames an identical argument snapshot can repeat
+// the active call, and string fragments can complete its unfinished object.
+// A structured argument object is a fresh call unless it extends the active
+// prefix. A string chunk can contain an entire nested object.
+func (t nativeGeminiStreamTool) continues(next nativeGeminiStreamTool, toolInFrame bool) bool {
 	if t.id != "" || next.id != "" {
 		return t.id != "" && t.id == next.id
 	}
-	if t.name != next.name || t.args == "" || json.Valid([]byte(t.args)) {
+	if toolInFrame || t.name != next.name {
 		return false
 	}
-	// A complete object can finish an unfinished invocation when the relay
-	// repeats its prefix. A different complete object starts another invocation.
-	return strings.HasPrefix(next.args, t.args) || !json.Valid([]byte(next.args))
+	if t.args == next.args {
+		return true
+	}
+	if t.args == "" || completeGeminiToolArgs(t.args) {
+		return false
+	}
+	// String chunks can carry a scalar or nested object. Structured arguments
+	// can complete the previous prefix when the relay switches to a snapshot.
+	return !next.structured || strings.HasPrefix(next.args, t.args)
 }
 
 // appendArgs returns new argument text and records what the active invocation
 // has emitted. Once a complete JSON input has been delivered, another part
 // with the same ID cannot append a second value to the downstream tool input.
 func (t *nativeGeminiStreamTool) appendArgs(next nativeGeminiStreamTool) string {
-	if json.Valid([]byte(t.args)) {
+	if completeGeminiToolArgs(t.args) || next.args == "" || next.args == t.args {
 		return ""
 	}
-	// Reuse the cumulative-prefix rule for relay fragments so replaying a
-	// partial prefix does not duplicate bytes in the client's tool input.
-	delta, seen := NativeComputeGeminiTextDelta(t.args, next.args)
-	t.args = seen
-	return delta
+	// When the relay repeats the prefix and adds new bytes, send just those
+	// bytes so the client does not see the opening of the object twice.
+	if delta, ok := strings.CutPrefix(next.args, t.args); ok {
+		t.args = next.args
+		return delta
+	}
+	combined := t.args + next.args
+	// A shorter prefix can be a nested opening brace or a rewind of the
+	// previous snapshot. Append it only if the combined input can be JSON.
+	if strings.HasPrefix(t.args, next.args) {
+		var value json.RawMessage
+		err := json.NewDecoder(strings.NewReader(combined)).Decode(&value)
+		if err != io.ErrUnexpectedEOF && !completeGeminiToolArgs(combined) {
+			return ""
+		}
+	}
+	t.args = combined
+	return next.args
+}
+
+// completeGeminiToolArgs reports whether text contains a complete JSON object.
+// A JSON scalar can occur as a fragment of a larger function argument object.
+func completeGeminiToolArgs(text string) bool {
+	return strings.HasPrefix(strings.TrimSpace(text), "{") && json.Valid([]byte(text))
 }
