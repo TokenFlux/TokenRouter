@@ -97,6 +97,9 @@ type ExchangeOptions struct {
 	// downgraded request conversion callback
 	ConvertRetry func([]byte) ([]byte, error)
 	ReplaceBody  func([]byte) // subsequent request body replacement
+	// RepairToolReplay replaces OpenAI-compatible history with its legacy
+	// representation after a signature rejection. True permits one repair.
+	RepairToolReplay func() bool
 }
 
 // ExchangeResult carries a selected response or a separate native token

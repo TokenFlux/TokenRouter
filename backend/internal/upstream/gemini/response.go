@@ -45,6 +45,9 @@ type ResponseOptions struct {
 	// ObserveRaw receives upstream payload bytes synchronously before conversion.
 	// Its callback leaves borrowed input unchanged and copies bytes retained after returning.
 	ObserveRaw func([]byte) // raw payload observation callback
+	// RememberToolCall records replay metadata under a generated client ID
+	// before the completed call reaches a Messages or OpenAI client.
+	RememberToolCall func(string, bridge.NativeGeminiToolCall)
 
 	// GoogleError, ReadBody, WriteHeaders, ObserveImages, ReverseTools,
 	// ClaudeError, ChatError, and CompatError are supplied for the output paths
@@ -102,7 +105,7 @@ func (s *ResponseAdapter) HandleNonStreamingResponse(c *upstream.OutputContext, 
 		return nil, s.Options.ClaudeError(http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
 
-	claudeResp, usage := ConvertGeminiToClaudeMessage(geminiResp, originalModel, unwrappedBody, false)
+	claudeResp, usage := s.convertGeminiToClaudeMessage(geminiResp, originalModel, unwrappedBody, false)
 	responseBody, err := json.Marshal(claudeResp)
 	if err != nil {
 		return nil, err
@@ -134,7 +137,7 @@ func (s *ResponseAdapter) HandleStreamingResponse(c *upstream.OutputContext, res
 		return nil, errors.New("streaming not supported")
 	}
 
-	state := bridge.NewNativeGeminiMessagesStream(bridge.NativeGeminiRuntime{RandomHex: upstream.RandomHex, MessageID: upstream.GenerateAnthropicMsgID})
+	state := bridge.NewNativeGeminiMessagesStream(s.bridgeRuntime())
 
 	writeEvent := func(event bridge.NativeMessageEvent) {
 		if event.Name != "" {
@@ -373,8 +376,22 @@ func UnwrapGeminiResponse(raw []byte) ([]byte, error) {
 // of the decoded map, and includeInlineData selects the bridge image-text
 // representation in the returned Messages body.
 func ConvertGeminiToClaudeMessage(geminiResp map[string]any, originalModel string, rawData []byte, includeInlineData bool) (map[string]any, *upstream.TokenUsage) {
-	result, usage := bridge.NativeConvertGeminiToClaudeMessage(bridge.NativeGeminiRuntime{MessageID: upstream.GenerateAnthropicMsgID, RandomHex: upstream.RandomHex}, geminiResp, originalModel, rawData, includeInlineData)
+	return (&ResponseAdapter{}).convertGeminiToClaudeMessage(geminiResp, originalModel, rawData, includeInlineData)
+}
+
+// convertGeminiToClaudeMessage converts a buffered reply and records its tool replay metadata.
+func (s *ResponseAdapter) convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel string, rawData []byte, includeInlineData bool) (map[string]any, *upstream.TokenUsage) {
+	result, usage := bridge.NativeConvertGeminiToClaudeMessage(s.bridgeRuntime(), geminiResp, originalModel, rawData, includeInlineData)
 	return result, LegacyNativeGeminiUsage(usage)
+}
+
+// bridgeRuntime supplies the adapter's ID generators and scoped replay callback.
+func (s *ResponseAdapter) bridgeRuntime() bridge.NativeGeminiRuntime {
+	return bridge.NativeGeminiRuntime{
+		MessageID:        upstream.GenerateAnthropicMsgID,
+		RandomHex:        upstream.RandomHex,
+		RememberToolCall: s.Options.RememberToolCall,
+	}
 }
 
 // ExtractGeminiUsage copies bridge token buckets into upstream usage,

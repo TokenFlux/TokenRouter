@@ -30,6 +30,10 @@ type nativeGeminiStreamTool struct {
 	id   string // upstream invocation identifier
 	name string // normalized function name
 	args string // observed argument text
+	// signature comes from the outer Gemini part and may arrive in a later
+	// frame than the function call or its first arguments.
+	signature string
+	clientID  string // generated downstream identifier
 	// structured marks a JSON object supplied as args rather than a string
 	// chunk. It distinguishes a new snapshot from text inside a partial value.
 	structured bool
@@ -207,7 +211,7 @@ func (s *NativeGeminiCompatStream) Process(geminiResp map[string]any, raw []byte
 			}
 
 			if fc, ok := part["functionCall"].(map[string]any); ok && fc != nil {
-				call := newNativeGeminiStreamTool(fc)
+				call := newNativeGeminiStreamTool(part, fc)
 				// End prose before starting a tool item because OpenAI conversion
 				// addresses argument deltas to its currently active item.
 				if s.closeOpenBlock(emit) {
@@ -223,14 +227,14 @@ func (s *NativeGeminiCompatStream) Process(geminiResp map[string]any, raw []byte
 					idx := s.nextBlockIndex
 					s.nextBlockIndex++
 					s.openToolIndex = idx
-					s.tool = nativeGeminiStreamTool{id: call.id, name: call.name}
+					s.tool = call.open(s.runtime)
 					s.sawToolUse = true
 					if emit(&AnthropicStreamEvent{
 						Type:  "content_block_start",
 						Index: &idx,
 						ContentBlock: &AnthropicContentBlock{
 							Type:  "tool_use",
-							ID:    "toolu_" + s.runtime.RandomHex(8),
+							ID:    s.tool.clientID,
 							Name:  call.name,
 							Input: json.RawMessage(`{}`),
 						},
@@ -325,6 +329,7 @@ func (s *NativeGeminiCompatStream) closeOpenTool(emit func(*AnthropicStreamEvent
 	if s.openToolIndex < 0 {
 		return false
 	}
+	s.tool.remember(s.runtime)
 	// Wait until closure to supply the empty object because a later fragment
 	// with the same ID can still supply the real arguments.
 	if strings.TrimSpace(s.tool.args) == "" && emit(&AnthropicStreamEvent{
@@ -361,7 +366,7 @@ func (s *nativeGeminiToolFrames) trimReplay(parts []map[string]any) ([]map[strin
 			s.previous = nil
 			return parts, false
 		}
-		tool := newNativeGeminiStreamTool(call)
+		tool := newNativeGeminiStreamTool(part, call)
 		if !completeGeminiToolArgs(tool.args) {
 			s.previous = nil
 			return parts, false
@@ -372,7 +377,7 @@ func (s *nativeGeminiToolFrames) trimReplay(parts []map[string]any) ([]map[strin
 	previous := s.previous
 	s.previous = calls
 	if len(previous) > 0 && len(calls) >= len(previous) && slices.EqualFunc(previous, calls[:len(previous)], func(a, b nativeGeminiStreamTool) bool {
-		return a.id == b.id && a.name == b.name && a.args == b.args
+		return a.id == b.id && a.name == b.name && a.args == b.args && (a.signature == b.signature || b.signature == "")
 	}) {
 		return parts[len(previous):], true
 	}
@@ -383,9 +388,10 @@ func (s *nativeGeminiToolFrames) trimReplay(parts []map[string]any) ([]map[strin
 // Missing names use the generic tool label. String arguments may be fragments
 // from compatible relays and retain their whitespace. Omitted arguments stay
 // empty so a later part of the same call can supply them before closure.
-func newNativeGeminiStreamTool(part map[string]any) nativeGeminiStreamTool {
-	id, _ := part["id"].(string)
-	name, _ := part["name"].(string)
+func newNativeGeminiStreamTool(part, call map[string]any) nativeGeminiStreamTool {
+	id, _ := call["id"].(string)
+	name, _ := call["name"].(string)
+	signature, _ := part["thoughtSignature"].(string)
 	// Give a nameless call the fallback label expected by compatibility
 	// clients that require a nonempty function name at block start.
 	if strings.TrimSpace(name) == "" {
@@ -395,14 +401,30 @@ func newNativeGeminiStreamTool(part map[string]any) nativeGeminiStreamTool {
 	// Keep raw string fragments intact because a space can be significant
 	// inside a quoted value split over frames. A structured object already
 	// has its own JSON boundaries and can signal a separate call.
-	args, isString := part["args"].(string)
-	_, structured := part["args"].(map[string]any)
-	if !isString && part["args"] != nil {
-		if encoded, err := json.Marshal(part["args"]); err == nil {
+	args, isString := call["args"].(string)
+	_, structured := call["args"].(map[string]any)
+	if !isString && call["args"] != nil {
+		if encoded, err := json.Marshal(call["args"]); err == nil {
 			args = string(encoded)
 		}
 	}
-	return nativeGeminiStreamTool{id: id, name: name, args: args, structured: structured}
+	return nativeGeminiStreamTool{id: id, name: name, args: args, signature: signature, structured: structured}
+}
+
+// open starts an empty downstream tool input under a fresh client ID.
+// The first part's arguments and any later signature are added as the
+// consumer advances through the stream.
+func (t nativeGeminiStreamTool) open(runtime NativeGeminiRuntime) nativeGeminiStreamTool {
+	return nativeGeminiStreamTool{id: t.id, name: t.name, clientID: "toolu_" + runtime.RandomHex(8)}
+}
+
+// remember records the original fields before emitting a tool's stop event.
+// The client can send a result immediately after that event, and the cached
+// record includes any signature that arrived after the start.
+func (t nativeGeminiStreamTool) remember(runtime NativeGeminiRuntime) {
+	if runtime.RememberToolCall != nil {
+		runtime.RememberToolCall(t.clientID, NativeGeminiToolCall{ID: t.id, Signature: t.signature})
+	}
 }
 
 // continues reports whether next belongs to the active tool invocation.
@@ -417,6 +439,16 @@ func (t nativeGeminiStreamTool) continues(next nativeGeminiStreamTool, toolInFra
 	}
 	if toolInFrame || t.name != next.name {
 		return false
+	}
+	// A different signature identifies a new invocation without an ID even when
+	// the provider repeats the same tool name and argument object.
+	if t.signature != "" && next.signature != "" && t.signature != next.signature {
+		return false
+	}
+	// Older relays can deliver a signature alongside an otherwise empty
+	// continuation of the active same-name call.
+	if next.signature != "" && next.args == "" {
+		return true
 	}
 	if t.args == next.args {
 		return true
@@ -433,6 +465,11 @@ func (t nativeGeminiStreamTool) continues(next nativeGeminiStreamTool, toolInFra
 // has emitted. Once a complete JSON input has been delivered, another part
 // with the same ID cannot append a second value to the downstream tool input.
 func (t *nativeGeminiStreamTool) appendArgs(next nativeGeminiStreamTool) string {
+	// A late signature belongs to the active call even if its argument
+	// object was already emitted and this frame supplies no new bytes.
+	if next.signature != "" {
+		t.signature = next.signature
+	}
 	if completeGeminiToolArgs(t.args) || next.args == "" || next.args == t.args {
 		return ""
 	}

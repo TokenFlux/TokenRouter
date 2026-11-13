@@ -14,6 +14,7 @@ import (
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/googleforward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
@@ -49,7 +50,7 @@ func TestHandleNativeNonStreamingResponse_FeedsImageCounter(t *testing.T) {
 	}
 
 	svc := newGeminiFixture(geminiDependencies{})
-	usage, err := googleforward.GeminiResponseForTest(svc, c).HandleNativeNonStreamingResponse(upstream.NewOutputContext(c.Sink()), resp, false)
+	usage, err := googleforward.GeminiResponseForTest(svc, c, session.GeminiToolScope{}).HandleNativeNonStreamingResponse(upstream.NewOutputContext(c.Sink()), resp, false)
 	require.NoError(t, err)
 	require.NotNil(t, usage)
 
@@ -84,7 +85,9 @@ func TestGeminiHandleNativeNonStreamingResponse_DebugDisabledDoesNotEmitHeaderLo
 		Body: io.NopCloser(strings.NewReader(`{"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":2}}`)),
 	}
 
-	usage, err := googleforward.GeminiResponseForTest(svc, &googleforward.AttemptForTest{Output: gatewayhttp.NewGoogleBoundary(c, svc.Options, false)}).HandleNativeNonStreamingResponse(upstream.NewOutputContext(gatewayhttp.NewGoogleBoundary(c, svc.Options, false).Sink()), resp, false)
+	output := gatewayhttp.NewGoogleBoundary(c, svc.Options, false)
+	adapter := googleforward.GeminiResponseForTest(svc, &googleforward.AttemptForTest{Output: output}, session.GeminiToolScope{})
+	usage, err := adapter.HandleNativeNonStreamingResponse(upstream.NewOutputContext(output.Sink()), resp, false)
 	require.NoError(t, err)
 	require.NotNil(t, usage)
 	require.NotEmpty(t, w.Body.Bytes())

@@ -56,7 +56,7 @@ func (s *ResponseAdapter) CompleteMessages(c *upstream.OutputContext, resp *http
 			// participating payload.
 			collectedBytes, _ := json.Marshal(collected)
 			s.Options.ObserveImages(collectedBytes)
-			claudeResp, usageObj2 := ConvertGeminiToClaudeMessage(collected, originalModel, collectedBytes, false)
+			claudeResp, usageObj2 := s.convertGeminiToClaudeMessage(collected, originalModel, collectedBytes, false)
 			if body, err := json.Marshal(claudeResp); err == nil {
 				c.NextEvent(bridge.CompatJSONHasContent(body), true)
 				c.Data(http.StatusOK, "application/json; charset=utf-8", body)
@@ -164,7 +164,7 @@ func (s *ResponseAdapter) CompleteOpenAI(c *upstream.OutputContext, resp *http.R
 		// participating payloads.
 		collectedBytes, _ := json.Marshal(collected)
 		if protocol == OpenAICompatResponses {
-			responsesResp, usageObj2, convertErr := GeminiResponseToResponses(collected, originalModel, collectedBytes, usageObj)
+			responsesResp, usageObj2, convertErr := s.geminiResponseToResponses(collected, originalModel, collectedBytes, usageObj)
 			if convertErr != nil {
 				return nil, s.Options.CompatError(protocol, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 			}
@@ -173,7 +173,7 @@ func (s *ResponseAdapter) CompleteOpenAI(c *upstream.OutputContext, resp *http.R
 			}
 			usage = usageObj2
 		} else {
-			chatResp, usageObj2, convertErr := GeminiResponseToChatCompletions(collected, originalModel, collectedBytes, usageObj)
+			chatResp, usageObj2, convertErr := s.geminiResponseToChatCompletions(collected, originalModel, collectedBytes, usageObj)
 			if convertErr != nil {
 				return nil, s.Options.CompatError(protocol, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 			}

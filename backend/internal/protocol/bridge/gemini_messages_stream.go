@@ -201,7 +201,7 @@ func (s *NativeGeminiMessagesStream) Process(geminiResp map[string]any, raw []by
 					return
 				}
 
-				call := newNativeGeminiStreamTool(fc)
+				call := newNativeGeminiStreamTool(part, fc)
 				// Different invocations need independent blocks so the client
 				// never appends two complete argument objects to one input.
 				if s.openToolIndex >= 0 && !s.tool.continues(call, toolInFrame) {
@@ -211,7 +211,7 @@ func (s *NativeGeminiMessagesStream) Process(geminiResp map[string]any, raw []by
 				}
 				toolInFrame = true
 				if s.openToolIndex < 0 {
-					s.tool = nativeGeminiStreamTool{id: call.id, name: call.name}
+					s.tool = call.open(s.runtime)
 					s.openToolIndex = s.nextBlockIndex
 					s.nextBlockIndex++
 					s.sawToolUse = true
@@ -220,7 +220,7 @@ func (s *NativeGeminiMessagesStream) Process(geminiResp map[string]any, raw []by
 						"index": s.openToolIndex,
 						"content_block": map[string]any{
 							"type":  "tool_use",
-							"id":    "toolu_" + s.runtime.RandomHex(8),
+							"id":    s.tool.clientID,
 							"name":  call.name,
 							"input": map[string]any{},
 						},
@@ -335,6 +335,7 @@ func (s *NativeGeminiMessagesStream) closeToolBlock(emit func(string, any) bool)
 	if s.openToolIndex < 0 {
 		return true
 	}
+	s.tool.remember(s.runtime)
 	if !emit("content_block_stop", map[string]any{
 		"type":  "content_block_stop",
 		"index": s.openToolIndex,

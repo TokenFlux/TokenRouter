@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -1239,6 +1240,211 @@ func TestGeminiMessagesCompatServiceForward_StreamingClosesToolUseBeforeText(t *
 	require.GreaterOrEqual(t, toolStart, 0, "应先开始 tool_use 块")
 	require.Greater(t, toolStop, toolStart, "tool_use 块应被关闭")
 	require.Greater(t, textStart, toolStop, "文本块必须在 tool_use 块关闭后开始")
+}
+
+// TestGeminiToolCallReplayAcrossProtocols obtains parallel same-name calls
+// from a Gemini fixture through each compatible client protocol. Replaying
+// their results restores the original identifiers and only the first call's
+// signature. A different key, provider, or model uses the legacy fallback.
+func TestGeminiToolCallReplayAcrossProtocols(t *testing.T) {
+	const model = "gemini-2.5-flash"
+	const calls = `{"candidates":[{"content":{"parts":[{"functionCall":{"id":"gemini-paris","name":"lookup","args":{"city":"Paris"}},"thoughtSignature":"original-signature"},{"functionCall":{"id":"gemini-london","name":"lookup","args":{"city":"London"}}}]},"finishReason":"STOP"}]}`
+	const answer = `{"candidates":[{"content":{"parts":[{"text":"done"}]},"finishReason":"STOP"}]}`
+
+	for _, protocol := range []string{"messages", "responses", "chat"} {
+		for _, mode := range []string{"buffered", "stream", "collected OAuth stream"} {
+			t.Run(protocol+"/"+mode, func(t *testing.T) {
+				stream := mode == "stream"
+				oauth := mode == "collected OAuth stream"
+				stub := &queuedHTTPUpstreamStub{}
+				svc := newGeminiFixture(geminiDependencies{
+					httpUpstream: stub, cfg: &googleforward.Options{}, tokenProvider: newGeminiTokenSourceForTest(),
+				})
+				executor := &gatewayhttp.GeminiExecutor{Runtime: svc}
+				provider := &gatewayprovider.ExecutionProvider{Record: providercore.Record{
+					ID:           101,
+					Platform:     capability.PlatformGemini,
+					Type:         capability.ProviderTypeAPIKey,
+					Credentials:  map[string]any{"api_key": "fixture-key"},
+					LoadLocation: time.LoadLocation,
+				}}
+				initialBody := fmt.Sprintf(`{"model":%q,"stream":%t,"messages":[{"role":"user","content":"weather"}]}`, model, stream)
+				if protocol == "responses" {
+					initialBody = fmt.Sprintf(`{"model":%q,"stream":%t,"input":"weather"}`, model, stream)
+				}
+				contentType, raw := "application/json", calls
+				// Split the signature from the first call's arguments so both
+				// streaming and collection must attach it to the same call ID.
+				firstFrame := `{"candidates":[{"content":{"parts":[{"functionCall":{"id":"gemini-paris","name":"lookup","args":{"city":"Paris"}}}]}}]}`
+				lastFrame := `{"candidates":[{"content":{"parts":[{"functionCall":{"id":"gemini-paris","name":"lookup"},"thoughtSignature":"original-signature"},{"functionCall":{"id":"gemini-london","name":"lookup","args":{"city":"London"}}}]},"finishReason":"STOP"}]}`
+				if stream {
+					contentType = "text/event-stream"
+					raw = "data: " + firstFrame + "\n\ndata: " + lastFrame + "\n\n"
+				}
+				answerFrame := answer
+				if oauth {
+					provider.Record.Type = capability.ProviderTypeOAuth
+					provider.Record.Credentials = map[string]any{"access_token": "ya29.fixture", "project_id": "project-1"}
+					contentType = "text/event-stream"
+					raw = "data: {\"response\":" + firstFrame + "}\n\ndata: {\"response\":" + lastFrame + "}\n\n"
+					answerFrame = "data: {\"response\":" + answer + "}\n\n"
+				}
+				stub.responses = []*http.Response{{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": {contentType}},
+					Body:       io.NopCloser(strings.NewReader(raw)),
+				}}
+
+				rec := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(rec)
+				c.Set("api_key", &apikey.APIKey{ID: 21})
+				path := "/v1/" + protocol
+				if protocol == "chat" {
+					path = "/v1/chat/completions"
+				}
+				c.Request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(initialBody))
+				var err error
+				switch protocol {
+				case "messages":
+					_, err = executor.Forward(t.Context(), c, provider, []byte(initialBody))
+				case "responses":
+					_, err = executor.ForwardAsResponses(t.Context(), c, provider, []byte(initialBody), nil)
+				case "chat":
+					_, err = executor.ForwardAsChatCompletions(t.Context(), c, provider, []byte(initialBody))
+				}
+				require.NoError(t, err)
+				require.NotContains(t, rec.Body.String(), "original-signature")
+				require.NotContains(t, rec.Body.String(), "gemini-paris")
+				var ids []string
+				payloads := []string{rec.Body.String()}
+				if stream {
+					payloads = nil
+					for line := range strings.SplitSeq(rec.Body.String(), "\n") {
+						if payload, ok := strings.CutPrefix(line, "data: "); ok {
+							payloads = append(payloads, payload)
+						}
+					}
+				}
+				for _, payload := range payloads {
+					var idsInPayload []gjson.Result
+					switch {
+					case protocol == "messages" && stream:
+						idsInPayload = []gjson.Result{gjson.Get(payload, "content_block.id")}
+					case protocol == "messages":
+						idsInPayload = gjson.Get(payload, "content.#.id").Array()
+					case protocol == "responses" && stream:
+						if gjson.Get(payload, "type").String() == "response.output_item.added" {
+							idsInPayload = []gjson.Result{gjson.Get(payload, "item.call_id")}
+						}
+					case protocol == "responses":
+						idsInPayload = gjson.Get(payload, "output.#.call_id").Array()
+					case stream:
+						idsInPayload = gjson.Get(payload, "choices.0.delta.tool_calls.#.id").Array()
+					default:
+						idsInPayload = gjson.Get(payload, "choices.0.message.tool_calls.#.id").Array()
+					}
+					for _, id := range idsInPayload {
+						if id.String() != "" {
+							ids = append(ids, id.String())
+						}
+					}
+				}
+				require.Len(t, ids, 2)
+				require.NotEqual(t, ids[0], ids[1])
+
+				// Return the results in completion order, which can differ from
+				// invocation order when the client runs parallel tools.
+				for _, replay := range []struct {
+					name     string // destination used on replay
+					keyID    int64  // authenticated replay key
+					provider int64  // selected replay provider
+					model    string // requested replay model
+					match    bool   // scope permits restoration
+					reject   bool   // upstream rejects the first signature
+				}{
+					{"same scope", 21, 101, model, true, false},
+					{"different key", 22, 101, model, false, false},
+					{"different provider", 21, 102, model, false, false},
+					{"different model", 21, 101, "gemini-2.5-pro", false, false},
+					{"signature rejected", 21, 101, model, true, true},
+				} {
+					t.Run(replay.name, func(t *testing.T) {
+						body := fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"weather"},{"role":"assistant","content":[{"type":"tool_use","id":%q,"name":"lookup","input":{"city":"Paris"}},{"type":"tool_use","id":%q,"name":"lookup","input":{"city":"London"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":%q,"content":"London result"},{"type":"tool_result","tool_use_id":%q,"content":"Paris result"}]}]}`, replay.model, ids[0], ids[1], ids[1], ids[0])
+						switch protocol {
+						case "responses":
+							body = fmt.Sprintf(`{"model":%q,"input":[{"role":"user","content":"weather"},{"type":"function_call","call_id":%q,"name":"lookup","arguments":"{\"city\":\"Paris\"}"},{"type":"function_call","call_id":%q,"name":"lookup","arguments":"{\"city\":\"London\"}"},{"type":"function_call_output","call_id":%q,"output":"London result"},{"type":"function_call_output","call_id":%q,"output":"Paris result"}]}`, replay.model, ids[0], ids[1], ids[1], ids[0])
+						case "chat":
+							body = fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"weather"},{"role":"assistant","tool_calls":[{"type":"function","id":%q,"function":{"name":"lookup","arguments":"{\"city\":\"Paris\"}"}},{"type":"function","id":%q,"function":{"name":"lookup","arguments":"{\"city\":\"London\"}"}}]},{"role":"tool","tool_call_id":%q,"content":"London result"},{"role":"tool","tool_call_id":%q,"content":"Paris result"}]}`, replay.model, ids[0], ids[1], ids[1], ids[0])
+						}
+						firstAttempt := stub.callCount
+						if replay.reject {
+							stub.responses = append(stub.responses, &http.Response{
+								StatusCode: http.StatusBadRequest,
+								Header:     make(http.Header),
+								Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"Invalid thought signature"}}`)),
+							})
+						}
+						stub.responses = append(stub.responses, &http.Response{
+							StatusCode: http.StatusOK,
+							Header:     make(http.Header),
+							Body:       io.NopCloser(strings.NewReader(answerFrame)),
+						})
+						provider.Record.ID = replay.provider
+						rec := httptest.NewRecorder()
+						c, _ := gin.CreateTestContext(rec)
+						c.Set("api_key", &apikey.APIKey{ID: replay.keyID})
+						c.Request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+						var err error
+						switch protocol {
+						case "messages":
+							_, err = executor.Forward(t.Context(), c, provider, []byte(body))
+						case "responses":
+							_, err = executor.ForwardAsResponses(t.Context(), c, provider, []byte(body), nil)
+						case "chat":
+							_, err = executor.ForwardAsChatCompletions(t.Context(), c, provider, []byte(body))
+						}
+						require.NoError(t, err)
+						wire := stub.requestBodies[firstAttempt]
+						prefix := "contents"
+						if oauth {
+							prefix = "request.contents"
+						}
+						if replay.reject {
+							require.Equal(t, firstAttempt+2, stub.callCount)
+							fallback := gjson.GetBytes(stub.requestBodies[firstAttempt+1], prefix+".1.parts.0")
+							require.False(t, fallback.Get("functionCall.id").Exists())
+							require.Equal(t, "skip_thought_signature_validator", fallback.Get("thoughtSignature").String())
+						} else {
+							require.Equal(t, firstAttempt+1, stub.callCount)
+						}
+
+						first := gjson.GetBytes(wire, prefix+".1.parts.0")
+						second := gjson.GetBytes(wire, prefix+".1.parts.1")
+						paris := gjson.GetBytes(wire, prefix+".2.parts.0.functionResponse")
+						london := gjson.GetBytes(wire, prefix+".2.parts.1.functionResponse")
+						require.Equal(t, "Paris", first.Get("functionCall.args.city").String())
+						require.Equal(t, "London", second.Get("functionCall.args.city").String())
+						require.Equal(t, "London result", london.Get("response.content").String())
+						require.Equal(t, "Paris result", paris.Get("response.content").String())
+						if replay.match {
+							require.Equal(t, "gemini-paris", first.Get("functionCall.id").String())
+							require.Equal(t, "original-signature", first.Get("thoughtSignature").String())
+							require.Equal(t, "gemini-london", second.Get("functionCall.id").String())
+							require.False(t, second.Get("thoughtSignature").Exists())
+							require.Equal(t, "gemini-london", london.Get("id").String())
+							require.Equal(t, "gemini-paris", paris.Get("id").String())
+						} else {
+							require.False(t, first.Get("functionCall.id").Exists())
+							require.False(t, second.Get("functionCall.id").Exists())
+							require.False(t, london.Get("id").Exists())
+							require.False(t, paris.Get("id").Exists())
+							require.Equal(t, "skip_thought_signature_validator", first.Get("thoughtSignature").String())
+						}
+					})
+				}
+			})
+		}
+	}
 }
 
 // TestGeminiMessagesCompatServiceForward_PreservesRequestedModelAndMappedUpstreamModel

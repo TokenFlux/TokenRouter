@@ -20,8 +20,9 @@ import (
 // Each attempt rebuilds the request and selects its request-ID header. Error
 // bodies are captured and closed before retry, then rebuilt when retries end.
 // Throttling observations reach caller state before sleeping; transport errors
-// consume the same total attempt budget. ExternalRetry delegates both failure
-// classes to the caller after one dispatch. The caller closes the selected
+// consume the same total attempt budget. A signature rejection can trigger
+// one replay repair before output. ExternalRetry delegates ordinary failure
+// retries to the caller after one dispatch. The caller closes the selected
 // final body and performs protocol conversion after this exchange returns.
 
 // ExchangeOpenAI returns the selected upstream response and request-ID header
@@ -33,7 +34,9 @@ import (
 // Transport retries use the same attempt count and a cancellable backoff
 // wait. Final transport failure returns the caller-mapped error, while final
 // HTTP failure retains captured bytes for protocol error mapping. ExternalRetry
-// delegates retry decisions to the caller after a single dispatch.
+// delegates ordinary retries to the caller after a single dispatch. When
+// RepairToolReplay supplies a changed body, one signature rejection can be
+// retried within the current provider attempt.
 func ExchangeOpenAI(ctx context.Context, options ExchangeOptions) (ExchangeResult, error) {
 	maxAttempts := options.MaxRetries
 	// External retry ownership leaves failed exchanges for the outer provider
@@ -44,6 +47,7 @@ func ExchangeOpenAI(ctx context.Context, options ExchangeOptions) (ExchangeResul
 	requestIDHeader := options.RequestIDHeader
 	var resp *http.Response
 	candidateCount := 1
+	repairedReplay := false
 	// Rebuild the request and its ID-header selection for every attempt,
 	// including after caller body replacement. Captured HTTP error bytes survive
 	// stream closing before another request or final error mapping.
@@ -98,6 +102,19 @@ func ExchangeOpenAI(ctx context.Context, options ExchangeOptions) (ExchangeResul
 		resp = rebuilt
 		if matched {
 			break
+		}
+
+		// A cached signature can become invalid even on the same provider.
+		// Rebuild one request with legacy tool history after a signature 400.
+		if resp.StatusCode == http.StatusBadRequest && !repairedReplay && options.RepairToolReplay != nil {
+			body := options.ReadError(resp)
+			_ = resp.Body.Close()
+			if IsGeminiSignatureRelatedError(body) && options.RepairToolReplay() {
+				repairedReplay = true
+				attempt--
+				continue
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
 		}
 
 		if resp.StatusCode >= 400 && !options.ExternalRetry && options.ShouldRetry(resp.StatusCode) {

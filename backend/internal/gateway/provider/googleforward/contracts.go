@@ -67,6 +67,9 @@ type Output interface {
 	// RequestContext returns the active HTTP request context used by
 	// forwarding.
 	RequestContext() context.Context
+	// APIKeyID returns the authenticated Key used to scope Gemini tool replay.
+	// Zero means the caller has no authenticated Key available for replay.
+	APIKeyID() int64
 	// GetHeader reads one inbound header from the current HTTP request.
 	GetHeader(string) string
 	// Header sets one outbound header through the active HTTP presentation
@@ -187,6 +190,9 @@ type Gemini struct {
 	Transport httpclient.UpstreamTransport
 	// response header filtering policy
 	HeaderFilter *egress.CompiledHeaderFilter
+	// toolCalls binds client call IDs to Gemini metadata across requests.
+	// The zero value is ready to use for the lifetime of this runtime.
+	toolCalls session.GeminiToolCalls
 	// Enter is optional; a successful admission returns the release
 	// callback that the platform executor holds through response-body
 	// cleanup.

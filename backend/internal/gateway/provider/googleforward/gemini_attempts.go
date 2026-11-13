@@ -19,6 +19,7 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -157,8 +158,9 @@ func (s *Gemini) Forward(ctx context.Context, output Output, provider *gatewaypr
 	// planning so OAuth, API key, and service-account attempts send the
 	// same selected wire model.
 	mappedModel := gatewayprovider.ExecutionModelPolicy(provider).UpstreamModel(ctx, req.Model)
+	toolScope := session.GeminiToolScope{APIKeyID: c.APIKeyID(), ProviderID: provider.Record.ID, Model: mappedModel}
 
-	geminiReq, err := convertClaudeMessagesToGeminiGenerateContent(body)
+	geminiReq, err := bridge.NativeConvertClaudeMessagesToGeminiGenerateContent(s.geminiToolOptions(toolScope), body)
 	if err != nil {
 		return nil, c.ClaudeError(http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
@@ -170,7 +172,6 @@ func (s *Gemini) Forward(ctx context.Context, output Output, provider *gatewaypr
 	if err != nil {
 		return nil, c.ClaudeError(http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
-	geminiReq = ensureGeminiFunctionCallThoughtSignatures(geminiReq)
 	originalClaudeBody := body
 
 	proxyURL := ""
@@ -207,6 +208,8 @@ func (s *Gemini) Forward(ctx context.Context, output Output, provider *gatewaypr
 		return gatewayprovider.FilterSignatureSensitiveBlocksForRetry(originalClaudeBody, originalModel)
 	}
 	options.ConvertRetry = func(stripped []byte) ([]byte, error) {
+		// A provider rejected the original signature. Rebuild with the
+		// compatibility marker so the retry does not send that signature again.
 		converted, err := convertClaudeMessagesToGeminiGenerateContent(stripped)
 		if err != nil {
 			return nil, err
@@ -229,7 +232,7 @@ func (s *Gemini) Forward(ctx context.Context, output Output, provider *gatewaypr
 		Model:          mappedModel,
 		Mode:           gemininative.MessagesResponse,
 		Exchange:       options,
-		Response:       s.geminiResponseAdapter(c).Options,
+		Response:       s.geminiResponseAdapter(c, toolScope).Options,
 		StartedAt:      startTime,
 		UpstreamStream: useUpstreamStream,
 		OAuth:          provider.Record.Type == capability.ProviderTypeOAuth,
@@ -425,7 +428,7 @@ func (s *Gemini) ForwardNative(ctx context.Context, output Output, provider *gat
 		Model:          mappedModel,
 		Mode:           gemininative.NativeResponse,
 		Exchange:       options,
-		Response:       s.geminiResponseAdapter(c).Options,
+		Response:       s.geminiResponseAdapter(c, session.GeminiToolScope{}).Options,
 		StartedAt:      startTime,
 		UpstreamStream: useUpstreamStream,
 		OAuth:          provider.Record.Type == capability.ProviderTypeOAuth,

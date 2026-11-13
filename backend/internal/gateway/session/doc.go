@@ -22,6 +22,8 @@
 //     or declared identity and validate persisted client IDs.
 //   - gemini_digest.go, anthropic_prompt_cache.go, digest_session_store.go build
 //     protocol digests and retain continuation bindings.
+//   - gemini_tool_calls.go retains original Gemini tool IDs and signatures
+//     within the Key and upstream that produced them.
 //   - openai_ws_state_store.go, compat_responses.go, reasoning_history.go hold
 //     response continuity, rejection sets, opaque state, and recoverable
 //     reasoning text.

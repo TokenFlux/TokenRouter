@@ -40,6 +40,9 @@ type GoogleBoundary struct {
 // preparation.
 func (o GoogleOutput) RequestContext() context.Context { return o.Context.Request.Context() }
 
+// APIKeyID returns the authenticated Key ID for Gemini tool replay scoping.
+func (o GoogleOutput) APIKeyID() int64 { return APIKeyIDFromContext(o.Context) }
+
 // GetHeader reads an inbound HTTP header from the current request. A nil
 // Context returns an empty string, allowing callers that gather optional
 // header signals to omit them.

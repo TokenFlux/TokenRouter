@@ -71,7 +71,7 @@ func (s *ResponseAdapter) HandleChatCompletionsNonStreamingResponseFromGemini(
 		return nil, s.Options.ChatError(http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
 
-	chatResp, usage, err := GeminiResponseToChatCompletions(geminiResp, originalModel, respBody, nil)
+	chatResp, usage, err := s.geminiResponseToChatCompletions(geminiResp, originalModel, respBody, nil)
 	if err != nil {
 		return nil, s.Options.ChatError(http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
@@ -91,11 +91,18 @@ func (s *ResponseAdapter) HandleChatCompletionsNonStreamingResponseFromGemini(
 // input, output, or cache override returns the supplied usage pointer
 // directly; other usage is copied from bridge extraction.
 func GeminiResponseToChatCompletions(geminiResp map[string]any, originalModel string, rawData []byte, usageOverride *upstream.TokenUsage) (*protocolopenai.ChatCompletionsResponse, *upstream.TokenUsage, error) {
+	return (&ResponseAdapter{}).geminiResponseToChatCompletions(geminiResp, originalModel, rawData, usageOverride)
+}
+
+// geminiResponseToChatCompletions converts buffered output and records tool
+// replay metadata. A positive text or cache override returns the supplied
+// usage pointer, while other counts come from the Gemini payload.
+func (s *ResponseAdapter) geminiResponseToChatCompletions(geminiResp map[string]any, originalModel string, rawData []byte, usageOverride *upstream.TokenUsage) (*protocolopenai.ChatCompletionsResponse, *upstream.TokenUsage, error) {
 	var override *bridge.NativeGeminiUsage
 	if usageOverride != nil {
 		override = &bridge.NativeGeminiUsage{InputTokens: usageOverride.InputTokens, OutputTokens: usageOverride.OutputTokens, CacheReadInputTokens: usageOverride.CacheReadInputTokens, ImageOutputTokens: usageOverride.ImageOutputTokens}
 	}
-	result, usage, usedOverride, err := bridge.NativeGeminiResponseToChatCompletions(bridge.Runtime{Now: time.Now, ReadRandom: rand.Read}, bridge.NativeGeminiRuntime{MessageID: upstream.GenerateAnthropicMsgID, RandomHex: upstream.RandomHex}, geminiResp, originalModel, rawData, override)
+	result, usage, usedOverride, err := bridge.NativeGeminiResponseToChatCompletions(bridge.Runtime{Now: time.Now, ReadRandom: rand.Read}, s.bridgeRuntime(), geminiResp, originalModel, rawData, override)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -109,12 +116,12 @@ func GeminiResponseToChatCompletions(geminiResp map[string]any, originalModel st
 // to Responses with caller model identity. Positive text/cache override counts
 // select the supplied usage pointer directly; image-only or all-zero overrides
 // leave bridge extraction in control.
-func GeminiResponseToResponses(geminiResp map[string]any, originalModel string, rawData []byte, usageOverride *upstream.TokenUsage) (*protocolopenai.ResponsesResponse, *upstream.TokenUsage, error) {
+func (s *ResponseAdapter) geminiResponseToResponses(geminiResp map[string]any, originalModel string, rawData []byte, usageOverride *upstream.TokenUsage) (*protocolopenai.ResponsesResponse, *upstream.TokenUsage, error) {
 	var override *bridge.NativeGeminiUsage
 	if usageOverride != nil {
 		override = &bridge.NativeGeminiUsage{InputTokens: usageOverride.InputTokens, OutputTokens: usageOverride.OutputTokens, CacheReadInputTokens: usageOverride.CacheReadInputTokens, ImageOutputTokens: usageOverride.ImageOutputTokens}
 	}
-	result, usage, usedOverride, err := bridge.NativeGeminiResponseToResponses(bridge.Runtime{Now: time.Now, ReadRandom: rand.Read}, bridge.NativeGeminiRuntime{MessageID: upstream.GenerateAnthropicMsgID, RandomHex: upstream.RandomHex}, geminiResp, originalModel, rawData, override)
+	result, usage, usedOverride, err := bridge.NativeGeminiResponseToResponses(bridge.Runtime{Now: time.Now, ReadRandom: rand.Read}, s.bridgeRuntime(), geminiResp, originalModel, rawData, override)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -150,7 +157,7 @@ func (s *ResponseAdapter) HandleResponsesNonStreamingResponseFromGemini(
 	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
 		return nil, s.Options.CompatError(OpenAICompatResponses, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
-	responsesResp, usage, err := GeminiResponseToResponses(geminiResp, originalModel, respBody, nil)
+	responsesResp, usage, err := s.geminiResponseToResponses(geminiResp, originalModel, respBody, nil)
 	if err != nil {
 		return nil, s.Options.CompatError(OpenAICompatResponses, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
@@ -233,7 +240,7 @@ func (s *ResponseAdapter) HandleOpenAICompatStreamingResponseFromGemini(
 	// Responses emission.
 	clientToolRestorer := bridge.NewResponsesClientToolStreamRestorer(clientToolMapping)
 
-	state := bridge.NewNativeGeminiCompatStream(bridge.NativeGeminiRuntime{RandomHex: upstream.RandomHex, MessageID: upstream.GenerateAnthropicMsgID})
+	state := bridge.NewNativeGeminiCompatStream(s.bridgeRuntime())
 
 	// Chunk serialization errors suppress output, while writer errors signal
 	// disconnect to the outer loop so it can return its accumulated usage
