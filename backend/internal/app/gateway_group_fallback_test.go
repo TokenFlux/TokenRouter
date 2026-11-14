@@ -19,8 +19,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
-// Group fallback must resolve destination permissions before admission or
-// session ownership changes. Fixtures make each phase observable through
+// gateway_group_fallback_test.go checks destination permissions and Token price
+// protection before funding admission or session ownership changes. Fixtures
+// make each phase observable through
 // funding and RPM counts, captured isolation identity, and returned Key data,
 // while rejected chains leave the caller's starting group intact.
 
@@ -165,6 +166,26 @@ func TestRuntimeGroupFallbackRechecksAuthorizationBeforeFunding(t *testing.T) {
 			require.Zero(t, funds.calls)
 		})
 	}
+}
+
+// TestRuntimeGroupFallbackRejectsHigherTokenRate selects an authorized group
+// whose current price exceeds the credential ceiling. It rejects the fallback
+// before funding and leaves the caller's starting group unchanged.
+func TestRuntimeGroupFallbackRejectsHigherTokenRate(t *testing.T) {
+	user := &identity.User{ID: 7}
+	target := &routing.Group{ID: 20, Status: "active", RateMultiplier: .081, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages}}
+	keys := testkit.NewService(nil, fallbackUserRepository{user: user}, fallbackGroupRepository{group: target}, nil, nil, nil, nil)
+	t.Cleanup(keys.Stop)
+	funds := &fallbackFundingCheck{}
+	resolver := provideRuntimeGroupFallbackResolver(keys, admission.NewFundingAdmission(funds, nil), nil, nil)
+	groupID := int64(10)
+	original := &apikey.APIKey{UserID: 7, User: user, GroupID: &groupID, MaxTokenRateMultiplier: .08}
+	resolved, subscription, err := resolver(t.Context(), original, 20, protocol.ProtocolAnthropicMessages)
+	require.ErrorIs(t, err, apikey.ErrTokenRateLimitExceeded)
+	require.Nil(t, resolved)
+	require.Nil(t, subscription)
+	require.Zero(t, funds.calls)
+	require.Equal(t, int64(10), *original.GroupID)
 }
 
 // TestRuntimeGroupFallbackChecksSelectedSubscriptionCoverage supplies a

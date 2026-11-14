@@ -30,6 +30,7 @@ var (
 		{Name: "quota", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "quota_used", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "max_token_rate_multiplier", Type: field.TypeFloat64, Default: 0},
 		{Name: "concurrency_limit", Type: field.TypeInt, Default: 0},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
 		{Name: "rate_limit_5h", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
@@ -55,19 +56,19 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "api_keys_groups_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[32]},
+				Columns:    []*schema.Column{APIKeysColumns[33]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "api_keys_teams_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[33]},
+				Columns:    []*schema.Column{APIKeysColumns[34]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "api_keys_users_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[34]},
+				Columns:    []*schema.Column{APIKeysColumns[35]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -76,17 +77,17 @@ var (
 			{
 				Name:    "apikey_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[34]},
+				Columns: []*schema.Column{APIKeysColumns[35]},
 			},
 			{
 				Name:    "apikey_team_id",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[33]},
+				Columns: []*schema.Column{APIKeysColumns[34]},
 			},
 			{
 				Name:    "apikey_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[32]},
+				Columns: []*schema.Column{APIKeysColumns[33]},
 			},
 			{
 				Name:    "apikey_status",

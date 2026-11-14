@@ -23,6 +23,7 @@ import (
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -164,7 +165,8 @@ func TestAuthorizeTurnReloadsSubscription(t *testing.T) {
 // TestKeyAdmissionUsesCurrentTurnLimits reserves allowance before and after
 // successful reauthorization with a reduced RPM limit. Later admission uses
 // the current Key and presents RPM rejection as 1013, while the original Key's
-// limit stays unchanged.
+// limit stays unchanged. A Token price rejection closes the current turn with
+// policy status 1008 so the client receives a distinct configuration failure.
 func TestKeyAdmissionUsesCurrentTurnLimits(t *testing.T) {
 	original := &apikey.APIKey{ID: 1, User: &identity.User{ID: 2}, BillingMode: billing.APIKeyBillingModeBalance, RPMLimit: 20}
 	original.Group = &routing.Group{AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolResponsesWebSocket}}
@@ -183,6 +185,12 @@ func TestKeyAdmissionUsesCurrentTurnLimits(t *testing.T) {
 	require.Equal(t, 1013, adapter.CloseInfo(err).Status)
 	require.Same(t, current, auth.acquired)
 	require.Equal(t, 20, original.RPMLimit)
+	message := "Token multiplier 0.2x exceeds API key limit 0.1x. Check group pricing or update the key limit."
+	auth.acquireErr = apperror.Forbidden("API_KEY_TOKEN_RATE_LIMIT_EXCEEDED", message)
+	_, _, err = adapter.AcquireKey(t.Context())
+	require.ErrorIs(t, err, apikey.ErrTokenRateLimitExceeded)
+	require.Equal(t, 1008, adapter.CloseInfo(err).Status)
+	require.Equal(t, message, adapter.CloseInfo(err).Reason)
 }
 
 // TestAuthorizeTurnRejectsRevokedWSProtocol reauthenticates a Key whose

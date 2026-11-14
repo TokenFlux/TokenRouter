@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // authorization.go authenticates gateway requests, resolves their group and
@@ -454,7 +455,8 @@ func abortAuthorizationGroupNotAllowed(c *gin.Context, key *apikey.APIKey, o API
 // acquireKeyRequest reserves request capacity before protocol handling; non-consuming and per-turn endpoints bypass it.
 // Successful callers use the request context it installs and invoke the returned
 // release function after processing finishes. Rejections write the protocol's
-// error and return false; limiter failures use 503 while configured limits use 429.
+// error and return false. Price ceilings use 403, capacity limits use 429, and
+// unavailable pricing or limiter storage uses 503.
 func acquireKeyRequest(c *gin.Context, keys *apikey.APIKeyService, key *apikey.APIKey, options APIKeyAuthorizationOptions) (func(), bool) {
 	if IsAPIKeyNonConsumingRequest(c.Request.Method, c.Request.URL.Path) || isResponsesTurnAdmission(c) {
 		// Reads bypass key request limits, and Responses upgrades count each turn
@@ -466,11 +468,20 @@ func acquireKeyRequest(c *gin.Context, keys *apikey.APIKeyService, key *apikey.A
 		c.Request = c.Request.WithContext(ctx)
 		return release, true
 	}
+	message := err.Error()
 	status := http.StatusTooManyRequests
 	code := "API_KEY_RPM_LIMIT_EXCEEDED"
 	// Unknown limiter failures cannot establish which configured limit was reached.
 	// Classify them as service unavailable so callers distinguish store failure from an enforced capacity limit.
 	switch {
+	case errors.Is(err, apikey.ErrTokenRateLimitExceeded):
+		status = http.StatusForbidden
+		code = "API_KEY_TOKEN_RATE_LIMIT_EXCEEDED"
+		message = apperror.Message(err)
+	case errors.Is(err, apikey.ErrTokenRateUnavailable):
+		status = http.StatusServiceUnavailable
+		code = "API_KEY_TOKEN_RATE_UNAVAILABLE"
+		message = apikey.ErrTokenRateUnavailable.Message
 	case errors.Is(err, apikey.ErrKeyConcurrencyExceeded):
 		code = "API_KEY_CONCURRENCY_LIMIT_EXCEEDED"
 	case errors.Is(err, apikey.ErrKeyRPMExceeded):
@@ -483,13 +494,13 @@ func acquireKeyRequest(c *gin.Context, keys *apikey.APIKeyService, key *apikey.A
 		// do not retry before its reported request-capacity wait has elapsed.
 		c.Header("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
 	}
-	if status == http.StatusTooManyRequests && options.Authentication.BusinessLimited != nil {
+	if (status == http.StatusTooManyRequests || status == http.StatusForbidden) && options.Authentication.BusinessLimited != nil {
 		options.Authentication.BusinessLimited(c, code)
 	}
 	if options.Authentication.Google {
-		keyhttp.AbortGoogleError(c, status, err.Error())
+		keyhttp.AbortGoogleError(c, status, message)
 	} else {
-		keyhttp.AbortWithError(c, status, code, err.Error())
+		keyhttp.AbortWithError(c, status, code, message)
 	}
 	return nil, false
 }

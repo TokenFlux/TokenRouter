@@ -49,8 +49,8 @@ func provideRuntimeGroupFallbackResolver(keys *apikey.APIKeyService, funding *ad
 
 // provideGroupFallbackResolver creates destination validation and returns nil
 // when keys or funding is absent. Its callback requires the current Key,
-// resolves the requested destination, and rejects unsupported client protocols
-// before resolving enforced funding.
+// resolves the requested destination, enforces the Key Token ceiling, and
+// rejects unsupported client protocols before resolving enforced funding.
 //
 // After funding admission succeeds, session isolation is checked with the
 // original Key's user identity and current execution hints. fundingOnly selects
@@ -71,6 +71,9 @@ func provideGroupFallbackResolver(keys *apikey.APIKeyService, funding *admission
 		// consume an authorized group view rather than the current group's settings.
 		resolved, err := keys.ResolveRuntimeGroup(ctx, key, id)
 		if err != nil {
+			return nil, nil, err
+		}
+		if err := keys.CheckTokenRateLimit(ctx, resolved); err != nil {
 			return nil, nil, err
 		}
 		if resolved == nil || resolved.Group == nil || !resolved.Group.AllowsClientProtocol(source) {

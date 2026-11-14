@@ -363,6 +363,27 @@ func (_u *APIKeyUpdate) ClearExpiresAt() *APIKeyUpdate {
 	return _u
 }
 
+// SetMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field.
+func (_u *APIKeyUpdate) SetMaxTokenRateMultiplier(v float64) *APIKeyUpdate {
+	_u.mutation.ResetMaxTokenRateMultiplier()
+	_u.mutation.SetMaxTokenRateMultiplier(v)
+	return _u
+}
+
+// SetNillableMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableMaxTokenRateMultiplier(v *float64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetMaxTokenRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddMaxTokenRateMultiplier adds value to the "max_token_rate_multiplier" field.
+func (_u *APIKeyUpdate) AddMaxTokenRateMultiplier(v float64) *APIKeyUpdate {
+	_u.mutation.AddMaxTokenRateMultiplier(v)
+	return _u
+}
+
 // SetConcurrencyLimit sets the "concurrency_limit" field.
 func (_u *APIKeyUpdate) SetConcurrencyLimit(v int) *APIKeyUpdate {
 	_u.mutation.ResetConcurrencyLimit()
@@ -804,6 +825,11 @@ func (_u *APIKeyUpdate) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "APIKey.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.MaxTokenRateMultiplier(); ok {
+		if err := apikey.MaxTokenRateMultiplierValidator(v); err != nil {
+			return &ValidationError{Name: "max_token_rate_multiplier", err: fmt.Errorf(`ent: validator failed for field "APIKey.max_token_rate_multiplier": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ConcurrencyLimit(); ok {
 		if err := apikey.ConcurrencyLimitValidator(v); err != nil {
 			return &ValidationError{Name: "concurrency_limit", err: fmt.Errorf(`ent: validator failed for field "APIKey.concurrency_limit": %w`, err)}
@@ -924,6 +950,12 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.ExpiresAtCleared() {
 		_spec.ClearField(apikey.FieldExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.MaxTokenRateMultiplier(); ok {
+		_spec.SetField(apikey.FieldMaxTokenRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedMaxTokenRateMultiplier(); ok {
+		_spec.AddField(apikey.FieldMaxTokenRateMultiplier, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.ConcurrencyLimit(); ok {
 		_spec.SetField(apikey.FieldConcurrencyLimit, field.TypeInt, value)
@@ -1526,6 +1558,27 @@ func (_u *APIKeyUpdateOne) ClearExpiresAt() *APIKeyUpdateOne {
 	return _u
 }
 
+// SetMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field.
+func (_u *APIKeyUpdateOne) SetMaxTokenRateMultiplier(v float64) *APIKeyUpdateOne {
+	_u.mutation.ResetMaxTokenRateMultiplier()
+	_u.mutation.SetMaxTokenRateMultiplier(v)
+	return _u
+}
+
+// SetNillableMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableMaxTokenRateMultiplier(v *float64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetMaxTokenRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddMaxTokenRateMultiplier adds value to the "max_token_rate_multiplier" field.
+func (_u *APIKeyUpdateOne) AddMaxTokenRateMultiplier(v float64) *APIKeyUpdateOne {
+	_u.mutation.AddMaxTokenRateMultiplier(v)
+	return _u
+}
+
 // SetConcurrencyLimit sets the "concurrency_limit" field.
 func (_u *APIKeyUpdateOne) SetConcurrencyLimit(v int) *APIKeyUpdateOne {
 	_u.mutation.ResetConcurrencyLimit()
@@ -1980,6 +2033,11 @@ func (_u *APIKeyUpdateOne) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "APIKey.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.MaxTokenRateMultiplier(); ok {
+		if err := apikey.MaxTokenRateMultiplierValidator(v); err != nil {
+			return &ValidationError{Name: "max_token_rate_multiplier", err: fmt.Errorf(`ent: validator failed for field "APIKey.max_token_rate_multiplier": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ConcurrencyLimit(); ok {
 		if err := apikey.ConcurrencyLimitValidator(v); err != nil {
 			return &ValidationError{Name: "concurrency_limit", err: fmt.Errorf(`ent: validator failed for field "APIKey.concurrency_limit": %w`, err)}
@@ -2117,6 +2175,12 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	}
 	if _u.mutation.ExpiresAtCleared() {
 		_spec.ClearField(apikey.FieldExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.MaxTokenRateMultiplier(); ok {
+		_spec.SetField(apikey.FieldMaxTokenRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedMaxTokenRateMultiplier(); ok {
+		_spec.AddField(apikey.FieldMaxTokenRateMultiplier, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.ConcurrencyLimit(); ok {
 		_spec.SetField(apikey.FieldConcurrencyLimit, field.TypeInt, value)

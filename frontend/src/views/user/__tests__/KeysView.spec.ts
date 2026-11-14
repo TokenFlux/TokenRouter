@@ -18,6 +18,7 @@ const {
   getDashboardApiKeysUsage,
   getAvailableGroups,
   getUserGroupRates,
+  getTokenRateMultipliers,
   getBillingOptions,
   showError,
   showSuccess,
@@ -36,6 +37,7 @@ const {
   getDashboardApiKeysUsage: vi.fn(),
   getAvailableGroups: vi.fn(),
   getUserGroupRates: vi.fn(),
+  getTokenRateMultipliers: vi.fn(),
   getBillingOptions: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
@@ -60,6 +62,7 @@ const messages: Record<string, string> = {
   'common.edit': 'Edit',
   'common.more': 'More',
   'keys.apiKey': 'API Key',
+  'keys.tokenRateLimitCurrentHint': 'Current Token multiplier {rate}x',
   'keys.allGroups': 'All Groups',
   'keys.allStatus': 'All Status',
   'keys.columnSettings': 'Column Settings',
@@ -131,6 +134,7 @@ vi.mock('@/api', () => ({
     rotate: rotateKey,
     delete: vi.fn(),
     toggleStatus,
+    getTokenRateMultipliers,
     getBillingOptions,
   },
   authAPI: {
@@ -186,7 +190,10 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, values?: Record<string, unknown>) =>
+        (messages[key] ?? key).replace(/\{(\w+)\}/g, (match, name: string) =>
+          String(values?.[name] ?? match),
+        ),
     }),
   }
 })
@@ -428,6 +435,8 @@ const getButtonByText = (wrapper: VueWrapper, text: string) => {
 
 describe('user KeysView column settings', () => {
   beforeEach(() => {
+    getTokenRateMultipliers.mockReset()
+    getTokenRateMultipliers.mockResolvedValue({ 42: 0.08 })
     localStorage.clear()
 
     listKeys.mockReset()
@@ -1118,6 +1127,8 @@ describe('user KeysView column settings', () => {
     await fastSelect!.vm.$emit('update:modelValue', 'force_on')
     await wrapper.get('#key-concurrency-limit').setValue('2')
     await wrapper.get('#key-rpm-limit').setValue('30')
+    await wrapper.get('[data-testid="key-token-rate-protection"]').trigger('click')
+    await wrapper.get('#key-token-rate-limit').setValue('0.08')
     await wrapper.get('form#key-form').trigger('submit')
     await flushPromises()
 
@@ -1128,9 +1139,139 @@ describe('user KeysView column settings', () => {
         fast_mode_policy: 'force_on',
         concurrency_limit: 2,
         rpm_limit: 30,
+        max_token_rate_multiplier: 0.08,
       }),
     )
   })
+
+  // The selected group has a server-provided 0.08 Token rate. The form displays
+  // that rate and accepts a decimal protection ceiling in its creation payload.
+  it('displays the current effective Token rate for the selected group', async () => {
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    await flushPromises()
+    const groupSelect = wrapper
+      .findAllComponents({ name: 'Select' })
+      .find((select) => select.attributes('data-tour') === 'key-form-group')
+    await groupSelect!.vm.$emit('update:modelValue', 42)
+    await nextTick()
+    expect(wrapper.text()).toContain('0.080')
+    expect(getTokenRateMultipliers).toHaveBeenCalledWith('personal', 'auto', null)
+  })
+
+  // A user selects a group priced at 0.4 and enables protection. The form fills
+  // that group's actual multiplier and submits it as the new credential ceiling.
+  it('defaults enabled Token protection to the selected group multiplier', async () => {
+    getTokenRateMultipliers.mockResolvedValue({ 42: 0.4 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-tour="key-form-name"]').setValue('protected-key')
+    const groupSelect = wrapper
+      .findAllComponents({ name: 'Select' })
+      .find((select) => select.attributes('data-tour') === 'key-form-group')
+    await groupSelect!.vm.$emit('update:modelValue', 42)
+    await nextTick()
+    expect(wrapper.find('#key-token-rate-limit').exists()).toBe(false)
+    await wrapper.get('[data-testid="key-token-rate-protection"]').trigger('click')
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('0.4')
+    expect(wrapper.text()).toContain('0.400')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+    expect(createKey).toHaveBeenCalledWith(
+      expect.objectContaining({ max_token_rate_multiplier: 0.4 }),
+    )
+  })
+
+  // Untouched defaults follow selected groups; custom ceilings express a user choice.
+  // Switching groups after manual input keeps that choice instead of raising the guard.
+  it('updates group defaults until the user edits the Token ceiling', async () => {
+    getTokenRateMultipliers.mockResolvedValue({ 42: 0.4, 43: 0.6 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    await flushPromises()
+    const groupSelect = wrapper
+      .findAllComponents({ name: 'Select' })
+      .find((select) => select.attributes('data-tour') === 'key-form-group')
+    await wrapper.get('[data-testid="key-token-rate-protection"]').trigger('click')
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('')
+    await groupSelect!.vm.$emit('update:modelValue', 42)
+    await nextTick()
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('0.4')
+    await groupSelect!.vm.$emit('update:modelValue', 43)
+    await nextTick()
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('0.6')
+    await wrapper.get('#key-token-rate-limit').setValue('0.5')
+    await groupSelect!.vm.$emit('update:modelValue', 42)
+    await nextTick()
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('0.5')
+    await wrapper.get('[data-testid="key-token-rate-protection"]').trigger('click')
+    await wrapper.get('[data-testid="key-token-rate-protection"]').trigger('click')
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('0.4')
+  })
+
+  // Protection can be enabled before the rate preview finishes loading. The
+  // resolved group multiplier fills the empty default without requiring another toggle.
+  it('fills the Token default when the pending group preview arrives', async () => {
+    let resolveRates!: (rates: Record<number, number>) => void
+    getTokenRateMultipliers.mockReturnValueOnce(
+      new Promise<Record<number, number>>((resolve) => {
+        resolveRates = resolve
+      }),
+    )
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    await nextTick()
+    const groupSelect = wrapper
+      .findAllComponents({ name: 'Select' })
+      .find((select) => select.attributes('data-tour') === 'key-form-group')
+    await groupSelect!.vm.$emit('update:modelValue', 42)
+    await wrapper.get('[data-testid="key-token-rate-protection"]').trigger('click')
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('')
+    resolveRates({ 42: 0.4 })
+    await flushPromises()
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('0.4')
+  })
+
+  // An existing Key has a lower saved ceiling than its group's current rate.
+  // Opening the editor keeps protection enabled and preserves the saved ceiling after preview loading.
+  it('preserves a saved Token ceiling when the group multiplier has increased', async () => {
+    getTokenRateMultipliers.mockResolvedValue({ 42: 0.6 })
+    listKeys.mockResolvedValueOnce({
+      items: [{ ...createApiKey(), group_id: 42, max_token_rate_multiplier: 0.4 }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'Edit').trigger('click')
+    await flushPromises()
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('0.4')
+    expect(wrapper.text()).toContain('0.600')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ max_token_rate_multiplier: 0.4 }),
+    )
+  })
+
+  // Enabled protection receives an empty, zero, negative, or oversized ceiling.
+  // The form rejects these values so saving cannot silently disable the requested guard.
+  it.each(['', '0', '-0.01', '1000000000000'])(
+    'rejects invalid Token ceiling %s',
+    async (value) => {
+      const wrapper = await mountView()
+      await getButtonByText(wrapper, 'Create API Key').trigger('click')
+      await wrapper.get('[data-testid="key-token-rate-protection"]').trigger('click')
+      await wrapper.get('#key-token-rate-limit').setValue(value)
+      await wrapper.get('form#key-form').trigger('submit')
+      await flushPromises()
+      expect(createKey).not.toHaveBeenCalled()
+      expect(showError).toHaveBeenCalledWith('keys.tokenRateLimitInvalid')
+    },
+  )
 
   // The create endpoint rejects a valid draft with an API-key-count limit reason. The test
   // protects the localized limit message rather than exposing the raw error category.
@@ -1404,10 +1545,18 @@ describe('user KeysView column settings', () => {
   })
 
   // An existing key loads finite concurrency and RPM caps before the user enters zero. The
-  // test protects loading those values and submitting zero to remove both caps.
+  // test protects loading saved limits and disabling Token protection to clear its ceiling.
   it('loads request limits and submits zero to remove them', async () => {
     listKeys.mockResolvedValueOnce({
-      items: [{ ...createApiKey(), group_id: 42, concurrency_limit: 3, rpm_limit: 60 }],
+      items: [
+        {
+          ...createApiKey(),
+          group_id: 42,
+          concurrency_limit: 3,
+          rpm_limit: 60,
+          max_token_rate_multiplier: 0.08,
+        },
+      ],
       total: 1,
       page: 1,
       page_size: 20,
@@ -1419,11 +1568,14 @@ describe('user KeysView column settings', () => {
     expect((wrapper.get('#key-rpm-limit').element as HTMLInputElement).value).toBe('60')
     await wrapper.get('#key-concurrency-limit').setValue('0')
     await wrapper.get('#key-rpm-limit').setValue('0')
+    expect((wrapper.get('#key-token-rate-limit').element as HTMLInputElement).value).toBe('0.08')
+    await wrapper.get('[data-testid="key-token-rate-protection"]').trigger('click')
+    expect(wrapper.find('#key-token-rate-limit').exists()).toBe(false)
     await wrapper.get('form#key-form').trigger('submit')
     await flushPromises()
     expect(updateKey).toHaveBeenCalledWith(
       1,
-      expect.objectContaining({ concurrency_limit: 0, rpm_limit: 0 }),
+      expect.objectContaining({ concurrency_limit: 0, rpm_limit: 0, max_token_rate_multiplier: 0 }),
     )
   })
 

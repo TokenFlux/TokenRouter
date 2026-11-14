@@ -56,6 +56,27 @@ export async function getBillingOptions(
 }
 
 /**
+ * getTokenRateMultipliers previews the highest current group Token rates for
+ * the selected funding mode and payer scope. Subscription mode requires its
+ * selected identifier; rejected lookups leave error handling to the caller.
+ */
+export async function getTokenRateMultipliers(
+  scope: 'personal' | 'team',
+  billingMode: string,
+  subscriptionID: number | null,
+): Promise<Record<number, number>> {
+  const { data } = await apiClient.get<Record<number, number>>('/groups/rates', {
+    params: {
+      scope,
+      token_rates: true,
+      billing_mode: billingMode,
+      subscription_id: billingMode === 'subscription' ? subscriptionID : undefined,
+    },
+  })
+  return data
+}
+
+/**
  * createWithPayload submits the caller's assembled API-key creation payload and
  * returns the created key.
  */
@@ -107,6 +128,7 @@ export async function toggleStatus(id: number, status: 'active' | 'inactive'): P
 export const keysAPI = {
   list,
   getBillingOptions,
+  getTokenRateMultipliers,
   createWithPayload,
   update,
   rotate,
