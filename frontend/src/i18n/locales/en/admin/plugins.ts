@@ -4,6 +4,23 @@
 // data survives uninstalling an installed contribution.
 
 export default {
+  data: {
+    title: 'Local data',
+    hint: 'Business files survive ordinary uninstall. Disable a plugin before export or restore. Host database and external storage backups are separate.',
+    owner: 'Plugin ID',
+    files: 'Files',
+    size: 'Size',
+    retained: 'Uninstalled',
+    empty: 'No local plugin data',
+    export: 'Export backup',
+    purge: 'Delete retained data',
+    purgeHint: 'Delete local files and KV for {id}? This operation cannot be undone.',
+    restore: 'Restore backup',
+    restoreHint:
+      'Select a ZIP exported for this plugin ID. The destination must be empty. Archives and expanded files are each limited to 1 GiB, with up to 10,000 entries.',
+    archive: 'Backup ZIP',
+    failed: 'Plugin data operation failed.',
+  },
   updated: 'Plugin updated.',
   rollback: 'Roll back',
   rollbackTo: 'Roll back to v{version}',

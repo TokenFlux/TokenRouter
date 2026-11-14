@@ -99,7 +99,19 @@ func (s *server) Init(ctx context.Context, request *pluginpb.InitRequest) (*plug
 			_ = connection.Close()
 		}
 	}()
-	env := &Env{PluginID: request.PluginId, Version: request.PluginVersion, PreviousVersion: request.PreviousVersion, HostVersion: request.HostVersion, InstanceID: request.InstanceId, StateDir: request.StateDir, Permissions: append([]string(nil), request.GrantedPermissions...), Config: config, Host: NewHost(pluginpb.NewHostClient(connection)), Logger: s.logger}
+	env := &Env{
+		PluginID:        request.PluginId,
+		Version:         request.PluginVersion,
+		PreviousVersion: request.PreviousVersion,
+		HostVersion:     request.HostVersion,
+		InstanceID:      request.InstanceId,
+		StateDir:        request.StateDir,
+		DataDir:         request.DataDir,
+		Permissions:     append([]string(nil), request.GrantedPermissions...),
+		Config:          config,
+		Host:            NewHost(pluginpb.NewHostClient(connection)),
+		Logger:          s.logger,
+	}
 	if err := s.implementation.Init(ctx, env); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}

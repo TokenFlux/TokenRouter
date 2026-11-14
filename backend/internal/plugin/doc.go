@@ -11,6 +11,7 @@
 //   - catalog.go selects source-qualified releases; catalog_service.go, catalog_refresh.go, and catalog_indexes.go own cache and registration coordination.
 //   - configuration.go, limits.go, and dev_source.go normalize persistent policy and development records.
 //   - grant.go, ledger.go, wallet.go, redeem.go, subscriptions.go, and capabilities.go define caller authority, financial rules, and audit collaboration.
+//   - data.go coordinates persistent directories, retained-owner cleanup, and offline backup management.
 //   - http.go defines transport-independent HTTP contribution values.
 //   - tasks.go schedules declared jobs and retains in-memory execution results.
 //   - kv.go and kv_maintenance.go enforce isolated JSON storage and sampled quota maintenance.

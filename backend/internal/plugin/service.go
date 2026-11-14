@@ -270,11 +270,14 @@ func (s *Service) Disable(ctx context.Context, id string, actor int64) (*ChangeR
 
 // Uninstall drains admitted work before transactionally deleting installation intent and optional KV.
 // Drain failure leaves the installation intact with request admission closed for
-// retry. Ledger history always remains, and local files are removed after commit.
+// retry. Ledger history always remains; package files and disposable state are
+// removed after commit. Durable business files remain until explicit data purge.
 //
 // The same plugin lock spans admission closure, callback completion, store deletion,
-// and local cleanup. An arriving enable or reinstall request therefore cannot
-// create a generation between drain and purge. Missing records still clean managed
+// and local cleanup. A purging uninstall also removes the durable data directory
+// after the host transaction commits; a failed removal remains retryable. An
+// arriving enable or reinstall request cannot create a generation between drain
+// and purge. Missing records still clean managed
 // files, supporting retries after a committed deletion whose filesystem cleanup
 // failed. PostgreSQL deletion owns the atomic installation and KV transaction.
 func (s *Service) Uninstall(ctx context.Context, id string, purge bool) error {
@@ -285,6 +288,13 @@ func (s *Service) Uninstall(ctx context.Context, id string, purge bool) error {
 		}
 		if err := s.manager.store.Delete(ctx, id, purge); err != nil {
 			return err
+		}
+		if purge && s.manager.data != nil {
+			// Host KV is already committed; preserve any failed filesystem cleanup
+			// for a later purge retry before removing the remaining package state.
+			if err := s.manager.data.Remove(ctx, id); err != nil {
+				return err
+			}
 		}
 		return s.manager.syncLocked(ctx, id)
 	})

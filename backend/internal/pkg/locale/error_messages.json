@@ -180,7 +180,12 @@
     "MAX_RUNNING_EXCEEDED": "Plugin process limit reached",
     "PLUGIN_INDEX_SIGNATURE_INVALID": "Plugin index signature is invalid",
     "PLUGIN_CONFIG_INVALID": "Plugin configuration is invalid",
-    "PLUGIN_PACKAGE_MISSING": "Plugin package is missing; upload the same version again"
+    "PLUGIN_PACKAGE_MISSING": "Plugin package is missing; upload the same version again",
+    "PLUGIN_DATA_REQUIRES_STOP": "Disable the plugin before backing up or restoring its data.",
+    "PLUGIN_DATA_NOT_FOUND": "Plugin data not found.",
+    "PLUGIN_DATA_EXISTS": "Plugin data directory is not empty.",
+    "PLUGIN_DATA_INVALID": "Plugin data archive or directory is invalid.",
+    "PLUGIN_DATA_TOO_LARGE": "Plugin data exceeds archive limits."
   },
   "zh-Hans": {
     "HTTP_400": "请求参数无效，请检查后重试。",
@@ -363,6 +368,11 @@
     "MAX_RUNNING_EXCEEDED": "已达到插件进程数量上限。",
     "PLUGIN_INDEX_SIGNATURE_INVALID": "插件索引签名无效。",
     "PLUGIN_CONFIG_INVALID": "插件配置无效，请检查字段。",
-    "PLUGIN_PACKAGE_MISSING": "插件安装包丢失，请重新上传相同版本。"
+    "PLUGIN_PACKAGE_MISSING": "插件安装包丢失，请重新上传相同版本。",
+    "PLUGIN_DATA_REQUIRES_STOP": "备份或恢复数据前请先停用插件。",
+    "PLUGIN_DATA_NOT_FOUND": "插件数据不存在。",
+    "PLUGIN_DATA_EXISTS": "插件数据目录非空，请先备份并清理现有数据。",
+    "PLUGIN_DATA_INVALID": "插件数据备份或目录无效。",
+    "PLUGIN_DATA_TOO_LARGE": "插件数据超过备份大小或条目数量限制。"
   }
 }

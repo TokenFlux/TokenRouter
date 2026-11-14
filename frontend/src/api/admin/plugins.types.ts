@@ -238,3 +238,12 @@ export interface PluginIncompatibility {
   code: string // Stable host requirement failure code.
   detail: string // Bounded requirement failure explanation.
 }
+
+/** PluginDataUsage describes retained local business files and current installation intent. */
+export interface PluginDataUsage {
+  plugin_id: string // Publisher-qualified directory owner.
+  bytes: number // Observed regular file bytes.
+  files: number // Observed regular file count.
+  installed: boolean // An installation record currently exists.
+  enabled: boolean // The installation currently requests execution.
+}

@@ -101,6 +101,7 @@ func TestServeConnectsRealProcessAndBroker(t *testing.T) {
 		HostBrokerId:  brokerID,
 		ConfigJson:    []byte(`{"amount":"0.1"}`),
 		StateDir:      directory,
+		DataDir:       filepath.Join(directory, "persistent"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -131,6 +132,7 @@ func TestServeConnectsRealProcessAndBroker(t *testing.T) {
 		"method": "POST", "path": "/echo", "query": "value=hello%20world",
 		"body": "request payload", "user": "7", "username": "tester",
 		"plugin": "test.roundtrip", "amount": "0.1", "balance": "1.10000000",
+		"data_dir": filepath.Join(directory, "persistent"),
 	} {
 		if echo[key] != want {
 			t.Fatalf("echo %s = %q, want %q", key, echo[key], want)

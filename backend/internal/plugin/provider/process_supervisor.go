@@ -564,7 +564,19 @@ func (s *supervisor) start() (_ *generation, resultErr error) {
 	})
 	ctx, cancel := context.WithTimeout(s.ctx, s.options.InitTimeout)
 	defer cancel()
-	_, err = conn.services.Plugin.Init(ctx, &pluginpb.InitRequest{HostVersion: s.options.HostVersion, ApiVersion: sdk.ProtocolVersion, PluginId: spec.PluginID, PluginVersion: spec.Version, PreviousVersion: spec.PreviousVersion, InstanceId: s.options.InstanceID, ConfigJson: spec.ConfigJSON, HostBrokerId: brokerID, GrantedPermissions: spec.Permissions, StateDir: spec.StateDir})
+	_, err = conn.services.Plugin.Init(ctx, &pluginpb.InitRequest{
+		HostVersion:        s.options.HostVersion,
+		ApiVersion:         sdk.ProtocolVersion,
+		PluginId:           spec.PluginID,
+		PluginVersion:      spec.Version,
+		PreviousVersion:    spec.PreviousVersion,
+		InstanceId:         s.options.InstanceID,
+		ConfigJson:         spec.ConfigJSON,
+		HostBrokerId:       brokerID,
+		GrantedPermissions: spec.Permissions,
+		StateDir:           spec.StateDir,
+		DataDir:            spec.DataDir,
+	})
 	if err != nil {
 		return nil, err
 	}

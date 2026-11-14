@@ -58,10 +58,24 @@ func providePluginSource(cfg *config.Config, store *postgres.Store, configuratio
 // providePluginManager assembles verified storage, installation policy, and process ownership.
 // The source is shared with host capabilities to avoid a manager/process dependency
 // cycle. Construction leaves reconciliation to the registered application lifecycle hook.
-func providePluginManager(cfg *config.Config, info BuildInfo, source *plugin.DevSource, configuration *plugin.Configuration, packages *provider.PackageFiles, processes *provider.Processes) *plugin.Manager {
+func providePluginManager(
+	cfg *config.Config,
+	info BuildInfo,
+	source *plugin.DevSource,
+	configuration *plugin.Configuration,
+	packages *provider.PackageFiles,
+	processes *provider.Processes,
+) (*plugin.Manager, error) {
+	data, err := provider.NewDataFiles(filepath.Join(cfg.Plugins.Dir, "data"))
+	if err != nil {
+		return nil, err
+	}
 	return plugin.NewManager(plugin.ManagerOptions{
-		Enabled: cfg.Plugins.Enabled, MaxRunning: cfg.Plugins.MaxRunning, HostVersion: info.Version, StateRoot: filepath.Join(cfg.Plugins.Dir, "state"),
-	}, source, packages, processes, configuration, slog.Default())
+		Enabled:     cfg.Plugins.Enabled,
+		MaxRunning:  cfg.Plugins.MaxRunning,
+		HostVersion: info.Version,
+		StateRoot:   filepath.Join(cfg.Plugins.Dir, "state"),
+	}, source, packages, processes, configuration, data, slog.Default()), nil
 }
 
 // providePluginService binds administration to the same runtime manager and staged uploads.

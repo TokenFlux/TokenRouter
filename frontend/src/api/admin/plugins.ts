@@ -1,6 +1,7 @@
 import { apiClient } from '../client'
 import type {
   PluginChange,
+  PluginDataUsage,
   PluginCatalogEntry,
   PluginIndex,
   PluginIndexInput,
@@ -14,7 +15,8 @@ import type {
   PluginStatus,
 } from './plugins.types'
 
-// plugins.ts sends installed-plugin administration through the shared panel client.
+// plugins.ts sends installation and persistent-data administration through the
+// shared panel client.
 // UI controllers own permission review and step-up retries. Upload and install
 // requests receive enough time for bounded package transfer and startup, while
 // configuration requests keep secret omission and clearing semantics explicit.
@@ -194,4 +196,51 @@ export async function rollback(id: string): Promise<PluginChange> {
       { timeout: 90000 },
     )
   ).data
+}
+
+/** listData retrieves durable directories, including those retained after ordinary uninstall. */
+export async function listData(signal?: AbortSignal): Promise<PluginDataUsage[]> {
+  return (await apiClient.get<PluginDataUsage[]>('/admin/plugins/data', { signal })).data
+}
+
+/** purgeData removes retained files and KV for an already uninstalled plugin.
+ * The caller confirms deletion before dispatch. Installed owners are rejected,
+ * and a filesystem cleanup failure can be retried using the same identity.
+ */
+export async function purgeData(id: string): Promise<void> {
+  await apiClient.delete(`/admin/plugins/${encodeURIComponent(id)}/data`)
+}
+
+/** backupData downloads a stable archive of a disabled or uninstalled owner's files.
+ * Expected policy errors remain JSON so the existing step-up controller can read
+ * their reasons; successful binary payloads retain their Blob representation.
+ */
+export async function backupData(id: string): Promise<Blob> {
+  const response = await apiClient.get<Blob>(
+    `/admin/plugins/${encodeURIComponent(id)}/data/archive`,
+    {
+      responseType: 'blob',
+      timeout: 300000,
+      validateStatus: (status) =>
+        (status >= 200 && status < 300) || (status >= 400 && status < 500 && status !== 401),
+    },
+  )
+  if (response.status !== 200) {
+    // Decode policy responses before reporting them so binary download mode
+    // cannot hide the step-up reason that must trigger administrator verification.
+    const failure: Record<string, unknown> = JSON.parse(await response.data.text())
+    throw { ...failure, status: response.status }
+  }
+  return response.data
+}
+
+/** restoreData uploads a backup for a matching disabled or uninstalled plugin ID.
+ * The destination must be absent or empty. The file stays owned by the caller
+ * so a step-up retry can resend the same bytes after verification completes.
+ */
+export async function restoreData(id: string, file: File): Promise<void> {
+  await apiClient.post(`/admin/plugins/${encodeURIComponent(id)}/data/archive`, file, {
+    timeout: 300000,
+    headers: { 'Content-Type': 'application/zip' },
+  })
 }

@@ -55,7 +55,7 @@ func TestInstalledPluginHTTPPersistenceAndRecovery(t *testing.T) {
 	packages, err := provider.NewPackageFiles(directory, provider.DownloadOptions{})
 	require.NoError(t, err)
 	processes := provider.NewProcesses(plugin.RuntimeOptions{HostVersion: "0.5.4", InstanceID: "installation-test", Timezone: "UTC"}, logger, nil)
-	manager := plugin.NewManager(plugin.ManagerOptions{Enabled: true, MaxRunning: 20, HostVersion: "0.5.4", StateRoot: filepath.Join(directory, "state")}, store, packages, processes, configuration, logger)
+	manager := plugin.NewManager(plugin.ManagerOptions{Enabled: true, MaxRunning: 20, HostVersion: "0.5.4", StateRoot: filepath.Join(directory, "state")}, store, packages, processes, configuration, nil, logger)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -148,7 +148,7 @@ func TestInstalledPluginHTTPPersistenceAndRecovery(t *testing.T) {
 	// Stop the first owner before reconstructing the same durable installation; the second manager must restore enabled intent without an HTTP enable request.
 	require.NoError(t, manager.Stop(t.Context()))
 	restartedProcesses := provider.NewProcesses(plugin.RuntimeOptions{HostVersion: "0.5.4", InstanceID: "restarted-test", Timezone: "UTC"}, logger, nil)
-	restarted := plugin.NewManager(plugin.ManagerOptions{Enabled: true, MaxRunning: 20, HostVersion: "0.5.4", StateRoot: filepath.Join(directory, "state")}, store, packages, restartedProcesses, configuration, logger)
+	restarted := plugin.NewManager(plugin.ManagerOptions{Enabled: true, MaxRunning: 20, HostVersion: "0.5.4", StateRoot: filepath.Join(directory, "state")}, store, packages, restartedProcesses, configuration, nil, logger)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

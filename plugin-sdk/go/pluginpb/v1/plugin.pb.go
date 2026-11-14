@@ -47,8 +47,10 @@ type InitRequest struct {
 	HostBrokerId uint32 `protobuf:"varint,8,opt,name=host_broker_id,json=hostBrokerId,proto3" json:"host_broker_id,omitempty"`
 	// Administrator-confirmed host capability names.
 	GrantedPermissions []string `protobuf:"bytes,9,rep,name=granted_permissions,json=grantedPermissions,proto3" json:"granted_permissions,omitempty"`
-	// Disposable local cache directory; durable business data belongs in host KV.
-	StateDir      string `protobuf:"bytes,10,opt,name=state_dir,json=stateDir,proto3" json:"state_dir,omitempty"`
+	// Disposable local cache directory; business data belongs in data_dir or host KV.
+	StateDir string `protobuf:"bytes,10,opt,name=state_dir,json=stateDir,proto3" json:"state_dir,omitempty"`
+	// Persistent plugin-owned directory, retained until explicit data purge.
+	DataDir       string `protobuf:"bytes,11,opt,name=data_dir,json=dataDir,proto3" json:"data_dir,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -149,6 +151,13 @@ func (x *InitRequest) GetGrantedPermissions() []string {
 func (x *InitRequest) GetStateDir() string {
 	if x != nil {
 		return x.StateDir
+	}
+	return ""
+}
+
+func (x *InitRequest) GetDataDir() string {
+	if x != nil {
+		return x.DataDir
 	}
 	return ""
 }
@@ -4219,7 +4228,7 @@ var File_tokenrouter_plugin_v1_plugin_proto protoreflect.FileDescriptor
 
 const file_tokenrouter_plugin_v1_plugin_proto_rawDesc = "" +
 	"\n" +
-	"\"tokenrouter/plugin/v1/plugin.proto\x12\x15tokenrouter.plugin.v1\"\xf6\x02\n" +
+	"\"tokenrouter/plugin/v1/plugin.proto\x12\x15tokenrouter.plugin.v1\"\x91\x03\n" +
 	"\vInitRequest\x12!\n" +
 	"\fhost_version\x18\x01 \x01(\tR\vhostVersion\x12\x1f\n" +
 	"\vapi_version\x18\x02 \x01(\rR\n" +
@@ -4234,7 +4243,8 @@ const file_tokenrouter_plugin_v1_plugin_proto_rawDesc = "" +
 	"\x0ehost_broker_id\x18\b \x01(\rR\fhostBrokerId\x12/\n" +
 	"\x13granted_permissions\x18\t \x03(\tR\x12grantedPermissions\x12\x1b\n" +
 	"\tstate_dir\x18\n" +
-	" \x01(\tR\bstateDir\"\x0e\n" +
+	" \x01(\tR\bstateDir\x12\x19\n" +
+	"\bdata_dir\x18\v \x01(\tR\adataDir\"\x0e\n" +
 	"\fInitResponse\"\x0f\n" +
 	"\rHealthRequest\"@\n" +
 	"\x0eHealthResponse\x12\x14\n" +

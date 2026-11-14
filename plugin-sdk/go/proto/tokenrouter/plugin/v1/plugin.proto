@@ -39,8 +39,10 @@ message InitRequest {
   uint32 host_broker_id = 8;
   // Administrator-confirmed host capability names.
   repeated string granted_permissions = 9;
-  // Disposable local cache directory; durable business data belongs in host KV.
+  // Disposable local cache directory; business data belongs in data_dir or host KV.
   string state_dir = 10;
+  // Persistent plugin-owned directory, retained until explicit data purge.
+  string data_dir = 11;
 }
 
 // InitResponse carries the result of its corresponding plugin protocol operation.

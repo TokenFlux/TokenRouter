@@ -278,7 +278,7 @@ func managerFixture(t *testing.T, maximum int) (*Manager, *Service, *memoryInsta
 	store := newMemoryInstallations()
 	processes := &processFixture{}
 	packages := &packageFixture{}
-	manager := NewManager(ManagerOptions{Enabled: true, MaxRunning: maximum, HostVersion: "0.5.4", StateRoot: t.TempDir()}, store, packages, processes, NewConfiguration(nil, false), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	manager := NewManager(ManagerOptions{Enabled: true, MaxRunning: maximum, HostVersion: "0.5.4", StateRoot: t.TempDir()}, store, packages, processes, NewConfiguration(nil, false), nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	return manager, NewService(manager, nil, nil, nil), store, processes, packages
 }
 

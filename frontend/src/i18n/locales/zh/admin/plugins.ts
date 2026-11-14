@@ -4,6 +4,23 @@
 // data survives uninstalling an installed contribution.
 
 export default {
+  data: {
+    title: '本地数据',
+    hint: '普通卸载保留业务文件。导出或恢复前请停用插件；宿主数据库和外部存储需要分别备份。',
+    owner: '插件 ID',
+    files: '文件数',
+    size: '大小',
+    retained: '已卸载',
+    empty: '暂无插件本地数据',
+    export: '导出备份',
+    purge: '清除保留数据',
+    purgeHint: '清除 {id} 的本地文件和 KV 数据？此操作无法撤销。',
+    restore: '恢复备份',
+    restoreHint:
+      '选择该插件 ID 导出的 ZIP 备份，目标目录须为空。压缩包与解压文件总量各限 1 GiB，最多 10,000 个条目。',
+    archive: 'ZIP 备份',
+    failed: '插件数据操作失败。',
+  },
   updated: '插件已更新。',
   rollback: '回滚',
   rollbackTo: '回滚到 v{version}',
