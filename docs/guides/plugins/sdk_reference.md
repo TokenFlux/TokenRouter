@@ -45,6 +45,8 @@ Config 提供 String、Float、Int、Bool、Secret 等读取器。secret 在宿�
 
 本地目录在普通卸载后保留，重装相同 ID 时复用。管理员可在插件目录的“本地数据”页查看占用、导出 ZIP、恢复空目录或清除已卸载数据。导出前先停用插件。插件负责数据格式版本与代码回滚的兼容检查。宿主分配目录，不提供 SQLite 驱动或跨存储事务。
 
+单元测试使用 `plugintest.New(t).Env`，其中的 `DataDir` 和 `StateDir` 是每个测试宿主独立的可写临时目录。插件完成测试后应关闭数据库和文件句柄，再由 Go testing 自动删除目录。该工具不模拟宿主更新、卸载、备份或恢复流程。
+
 PostgreSQL/MySQL 连接串及 S3/MinIO 密钥由插件在 manifest config 中声明，敏感字段使用 secret，再通过 `env.Config.Secret` 读取。插件使用自己的客户端建立连接，并在 network 中声明外部主机名。外部存储不随本地目录导出或清除。
 
 ## KV 与数据兼容

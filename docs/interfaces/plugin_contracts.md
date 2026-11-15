@@ -111,7 +111,7 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 
 `VerifyCaptcha` 要求 `captcha.verify`。站点未启用验证码时返回 `enabled=false, success=true`；启用状态与验证使用同一份配置。Turnstile 与阿里云保留原始 token，腾讯使用包含 `ticket`、`randstr` 的 JSON 字符串。SDK 从 `Caller` 传递原 HTTP 请求的客户端 IP。现有验证服务判为失败的挑战返回 `success=false`；配置或未分类服务错误返回 `HOST_UNAVAILABLE`。原认证入口继续执行其启动配置中的必需验证码约束。
 
-`plugintest` 提供进程内 gRPC 假宿主、余额和 KV，可注入协议错误。它不替代宿主的权限、额度、审计及 PostgreSQL 事务测试。签到示例使用 pending 记录固定奖励金额，再调用钱包幂等加款，最后 CAS 标记完成，允许恢复在 KV 认领后失败的加款。
+`plugintest` 提供进程内 gRPC 假宿主、余额和 KV，可注入协议错误。`plugintest.New(t)` 为每个测试宿主提供独立、可写的 `Env.StateDir` 和 `Env.DataDir`，测试结束时自动清理；插件应先关闭数据库和文件句柄。临时目录支持本地文件测试，不替代真实宿主的卸载保留、备份恢复、权限、额度、审计及 PostgreSQL 事务测试。签到示例使用 pending 记录固定奖励金额，再调用钱包幂等加款，最后 CAS 标记完成，允许恢复在 KV 认领后失败的加款。
 
 <a id="kv_api"></a>
 ## KV 接口
