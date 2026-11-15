@@ -79,8 +79,11 @@ type exportTaskEnvelope struct {
 type exportTaskListEnvelope struct {
 	Code int `json:"code"` // HTTP application status code
 	Data struct {
-		Items []dto.UsageExportTask `json:"items"` // decoded page of export tasks
-		Total int64                 `json:"total"` // total matching task count
+		Items        []dto.UsageExportTask `json:"items"`         // decoded page of export tasks
+		Total        int64                 `json:"total"`         // total matching task count
+		ActiveCount  int64                 `json:"active_count"`  // scope-wide pending/running task count
+		ActiveIDs    []int64               `json:"active_ids"`    // scope-wide pending/running task IDs
+		WatchedItems []dto.UsageExportTask `json:"watched_items"` // off-page watched task snapshots
 	} `json:"data"` // paginated payload wrapper
 }
 
@@ -97,10 +100,27 @@ func newInMemoryExportRepo() *inMemoryExportRepo {
 	}
 }
 
-// CreateTask assigns an ID and creation timestamp before storing a task copy.
-func (r *inMemoryExportRepo) CreateTask(_ context.Context, task *usage.UsageExportTask) error {
+// CreateTask atomically enforces maxActive under r.mu before storing a task copy.
+func (r *inMemoryExportRepo) CreateTask(_ context.Context, task *usage.UsageExportTask, maxActive int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if maxActive > 0 {
+		var active int
+		for _, existing := range r.tasks {
+			if existing.Scope != task.Scope {
+				continue
+			}
+			if task.CreatedBy > 0 && existing.CreatedBy != task.CreatedBy {
+				continue
+			}
+			if existing.Status == usage.UsageExportStatusPending || existing.Status == usage.UsageExportStatusRunning {
+				active++
+			}
+		}
+		if active >= maxActive {
+			return usage.ErrExportActiveLimitExceeded
+		}
+	}
 	r.nextID++
 	now := time.Now().UTC()
 	task.ID = r.nextID
@@ -142,11 +162,66 @@ func (r *inMemoryExportRepo) ListTasks(
 		}
 		items = append(items, *task)
 	}
-	return items, &pagination.PaginationResult{
-		Total:    int64(len(items)),
+	total := int64(len(items))
+	offset := min(params.Offset(), len(items))
+	end := min(offset+params.Limit(), len(items))
+	return items[offset:end], &pagination.PaginationResult{
+		Total:    total,
 		Page:     params.Page,
 		PageSize: params.PageSize,
 	}, nil
+}
+
+// ListActiveTaskIDs returns pending and running task IDs matching filter in descending ID order.
+func (r *inMemoryExportRepo) ListActiveTaskIDs(_ context.Context, filter usage.UsageExportListFilter) ([]int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var ids []int64
+	for id := r.nextID; id >= 1; id-- {
+		task, ok := r.tasks[id]
+		if !ok || task.Scope != filter.Scope {
+			continue
+		}
+		if filter.CreatedBy != nil && task.CreatedBy != *filter.CreatedBy {
+			continue
+		}
+		if task.Status == usage.UsageExportStatusPending || task.Status == usage.UsageExportStatusRunning {
+			ids = append(ids, task.ID)
+		}
+	}
+	if ids == nil {
+		return []int64{}, nil
+	}
+	return ids, nil
+}
+
+// ListTasksByIDs returns scoped tasks matching taskIDs in descending ID order.
+func (r *inMemoryExportRepo) ListTasksByIDs(
+	_ context.Context,
+	filter usage.UsageExportListFilter,
+	taskIDs []int64,
+) ([]usage.UsageExportTask, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	wanted := make(map[int64]struct{}, len(taskIDs))
+	for _, id := range taskIDs {
+		wanted[id] = struct{}{}
+	}
+	var out []usage.UsageExportTask
+	for id := r.nextID; id >= 1; id-- {
+		task, ok := r.tasks[id]
+		if !ok || task.Scope != filter.Scope {
+			continue
+		}
+		if _, match := wanted[id]; !match {
+			continue
+		}
+		if filter.CreatedBy != nil && task.CreatedBy != *filter.CreatedBy {
+			continue
+		}
+		out = append(out, *task)
+	}
+	return out, nil
 }
 
 // CountActiveTasks counts pending and running tasks matching scope and createdBy.
@@ -186,6 +261,18 @@ func (r *inMemoryExportRepo) ClaimNextPendingTask(_ context.Context, _ int64) (*
 		return &cp, nil
 	}
 	return nil, nil
+}
+
+// RequeueTask resets an interrupted running task back to pending.
+func (r *inMemoryExportRepo) RequeueTask(_ context.Context, taskID int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if task, ok := r.tasks[taskID]; ok && task.Status == usage.UsageExportStatusRunning {
+		task.Status = usage.UsageExportStatusPending
+		task.ExportedRows = 0
+		task.StartedAt = nil
+	}
+	return nil
 }
 
 // GetTaskStatus returns the persisted status string or ErrExportTaskNotFound.
@@ -728,4 +815,90 @@ func TestExportDownloadTicketAndDirectBearerStreamDeliverCSVAndHandleExpiry(t *t
 	router.ServeHTTP(expiredStreamRec, expiredStreamReq)
 	require.Equal(t, http.StatusGone, expiredStreamRec.Code)
 	require.Contains(t, expiredStreamRec.Body.String(), "USAGE_EXPORT_EXPIRED")
+}
+
+// TestUserExportEndpointsReturnDisabledErrorWithNilStoreAndTrackOffPageTasks
+// verifies both disabled export routing (with nil artifact store) and off-page
+// active task tracking via active_ids and watch_ids on page one queries.
+func TestUserExportEndpointsReturnDisabledErrorWithNilStoreAndTrackOffPageTasks(t *testing.T) {
+	repo := newInMemoryExportRepo()
+	rowReader := &inMemoryExportRowReader{}
+	usageRepo := &userUsageRepoCapture{listRows: []usage.UsageLog{}}
+
+	disabledSvc := usage.NewUsageExportService(repo, rowReader, nil, nil, nil, &usage.Options{
+		UsageExport: usage.UsageExportConfig{Enabled: false},
+	})
+	disabledRouter := newUserExportTestRouter(disabledSvc, usageRepo, nil, "X-Test-User", nil, nil)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodGet, "/api/v1/usage/export-tasks", ""},
+		{http.MethodPost, "/api/v1/usage/export-tasks", `{"start_time":"2026-06-15T00:00:00Z","end_time":"2026-06-15T01:00:00Z","timezone":"UTC"}`},
+		{http.MethodPost, "/api/v1/usage/export-tasks/1/cancel", ""},
+		{http.MethodPost, "/api/v1/usage/export-tasks/1/download-ticket", ""},
+		{http.MethodGet, "/api/v1/usage/export-tasks/1/download", ""},
+		{http.MethodGet, "/api/v1/usage/export-downloads/any.ticket", ""},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+		req.Header.Set("X-Test-User", "42")
+		if tc.body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		rec := httptest.NewRecorder()
+		disabledRouter.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusServiceUnavailable, rec.Code, tc.path)
+		require.Contains(t, rec.Body.String(), "USAGE_EXPORT_DISABLED", tc.path)
+	}
+
+	// Enable exports and seed task #1 (running) pushed to page 2 by tasks #2 and #3 (succeeded).
+	store := newInMemoryExportStore()
+	enabledSvc := usage.NewUsageExportService(repo, rowReader, store, nil, nil, &usage.Options{
+		UsageExport: usage.UsageExportConfig{Enabled: true, MaxActivePerUser: 5},
+	})
+	enabledRouter := newUserExportTestRouter(enabledSvc, usageRepo, nil, "X-Test-User", nil, nil)
+
+	start := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+	filters := usage.UsageExportFilters{StartTime: start, EndTime: start.Add(time.Hour), Timezone: "UTC"}
+	require.NoError(t, repo.CreateTask(context.Background(), &usage.UsageExportTask{
+		Scope: usage.UsageExportScopeUser, Status: usage.UsageExportStatusRunning, CreatedBy: 42, Filters: filters,
+	}, 0))
+	require.NoError(t, repo.CreateTask(context.Background(), &usage.UsageExportTask{
+		Scope: usage.UsageExportScopeUser, Status: usage.UsageExportStatusSucceeded, CreatedBy: 42, Filters: filters,
+	}, 0))
+	require.NoError(t, repo.CreateTask(context.Background(), &usage.UsageExportTask{
+		Scope: usage.UsageExportScopeUser, Status: usage.UsageExportStatusSucceeded, CreatedBy: 42, Filters: filters,
+	}, 0))
+
+	page1Req := httptest.NewRequest(http.MethodGet, "/api/v1/usage/export-tasks?page=1&page_size=2", nil)
+	page1Req.Header.Set("X-Test-User", "42")
+	page1Rec := httptest.NewRecorder()
+	enabledRouter.ServeHTTP(page1Rec, page1Req)
+	require.Equal(t, http.StatusOK, page1Rec.Code)
+
+	var page1Env exportTaskListEnvelope
+	require.NoError(t, json.Unmarshal(page1Rec.Body.Bytes(), &page1Env))
+	require.Len(t, page1Env.Data.Items, 2)
+	require.Equal(t, int64(1), page1Env.Data.ActiveCount)
+	require.Equal(t, []int64{1}, page1Env.Data.ActiveIDs)
+
+	// Transition off-page task #1 to succeeded and verify watch_ids=1 returns its settled row.
+	_, err := repo.MarkTaskSucceeded(context.Background(), 1, 50, "out.csv", "user/out.csv", 128, start.Add(24*time.Hour))
+	require.NoError(t, err)
+
+	watchReq := httptest.NewRequest(http.MethodGet, "/api/v1/usage/export-tasks?page=1&page_size=2&watch_ids=1", nil)
+	watchReq.Header.Set("X-Test-User", "42")
+	watchRec := httptest.NewRecorder()
+	enabledRouter.ServeHTTP(watchRec, watchReq)
+	require.Equal(t, http.StatusOK, watchRec.Code)
+
+	var watchEnv exportTaskListEnvelope
+	require.NoError(t, json.Unmarshal(watchRec.Body.Bytes(), &watchEnv))
+	require.Zero(t, watchEnv.Data.ActiveCount)
+	require.Empty(t, watchEnv.Data.ActiveIDs)
+	require.Len(t, watchEnv.Data.WatchedItems, 1)
+	require.Equal(t, int64(1), watchEnv.Data.WatchedItems[0].ID)
+	require.Equal(t, usage.UsageExportStatusSucceeded, watchEnv.Data.WatchedItems[0].Status)
 }

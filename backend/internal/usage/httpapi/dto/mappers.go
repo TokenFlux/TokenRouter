@@ -259,6 +259,59 @@ func ExportFromUsage(task *usage.UsageExportTask) *UsageExportTask {
 	}
 }
 
+// ExportPageFromUsage converts a UsageExportTaskListResult into a paginated DTO
+// carrying scope-wide active task IDs and any off-page watched task snapshots.
+func ExportPageFromUsage(res *usage.UsageExportTaskListResult, page, pageSize int) UsageExportTaskPage {
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+	if res == nil {
+		return UsageExportTaskPage{
+			Items:     []UsageExportTask{},
+			Page:      page,
+			PageSize:  pageSize,
+			Pages:     1,
+			ActiveIDs: []int64{},
+		}
+	}
+	items := make([]UsageExportTask, 0, len(res.Items))
+	for i := range res.Items {
+		items = append(items, *ExportFromUsage(&res.Items[i]))
+	}
+	var watched []UsageExportTask
+	if len(res.WatchedItems) > 0 {
+		watched = make([]UsageExportTask, 0, len(res.WatchedItems))
+		for i := range res.WatchedItems {
+			watched = append(watched, *ExportFromUsage(&res.WatchedItems[i]))
+		}
+	}
+	var total int64
+	if res.Pagination != nil {
+		total = res.Pagination.Total
+	}
+	pages := 1
+	if total > 0 {
+		pages = int((total + int64(pageSize) - 1) / int64(pageSize))
+	}
+	activeIDs := res.ActiveIDs
+	if activeIDs == nil {
+		activeIDs = []int64{}
+	}
+	return UsageExportTaskPage{
+		Items:        items,
+		Total:        total,
+		Page:         page,
+		PageSize:     pageSize,
+		Pages:        pages,
+		ActiveCount:  res.ActiveCount,
+		ActiveIDs:    activeIDs,
+		WatchedItems: watched,
+	}
+}
+
 // RequestTypeStringPtr returns a new display-string pointer for a stored
 // request category. Nil input returns nil, while invalid stored integers
 // normalize to unknown before their lowercase label is produced.

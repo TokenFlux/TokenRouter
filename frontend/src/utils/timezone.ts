@@ -32,6 +32,14 @@ export interface LocalDateTimeParts {
   second: number // Clock second from 0 through 59.
 }
 
+// ParsedFlexibleTimestamp retains both the target-timezone wall-clock string and the
+// resolved UTC Date instant so unambiguous inputs (Unix epochs and explicit-offset ISO
+// timestamps) never lose their exact instant during repeated DST fall-back hours.
+export interface ParsedFlexibleTimestamp {
+  localValue: string // Wall-clock timestamp formatted as YYYY-MM-DDTHH:mm:ss in targetTimezone.
+  instant: Date // Whole-second UTC Date instant represented by the input.
+}
+
 // FALLBACK_IANA_TIMEZONES and zonedPartFormatters supply deterministic zone choices in
 // minimal runtimes and cache Intl formatters by validated IANA identifier.
 const FALLBACK_IANA_TIMEZONES: readonly string[] = [
@@ -361,6 +369,25 @@ export function instantToZonedLocalDateTime(instant: Date, timeZone: string): st
   return `${pad4(parts.year)}-${pad2(parts.month)}-${pad2(parts.day)}T${pad2(parts.hour)}:${pad2(parts.minute)}:${pad2(parts.second)}`
 }
 
+// formatInstantRFC3339InTimezone formats an exact Date instant as an explicit-offset
+// RFC3339 timestamp in timeZone without re-parsing wall-clock text, preserving the
+// exact -04:00 or -05:00 occurrence across repeated daylight-saving fall-back hours.
+export function formatInstantRFC3339InTimezone(instant: Date, timeZone: string): string | null {
+  const cleanZone = timeZone.trim()
+  if (Number.isNaN(instant.getTime()) || !isValidIanaTimezone(cleanZone)) {
+    return null
+  }
+  const resolvedLocal = instantToZonedLocalDateTime(instant, cleanZone)
+  if (!resolvedLocal) {
+    return null
+  }
+  if (cleanZone === 'UTC') {
+    return `${resolvedLocal}Z`
+  }
+  const offset = formatUtcOffset(getTimezoneOffsetMinutes(cleanZone, instant))
+  return `${resolvedLocal}${offset}`
+}
+
 // formatZonedRFC3339 converts a local picker timestamp and IANA timezone into an
 // explicit-offset RFC3339 string suitable for usage export task creation payloads.
 // Invalid timestamps or timezone names return null.
@@ -369,13 +396,7 @@ export function formatZonedRFC3339(localValue: string, timeZone: string): string
   if (!instant) {
     return null
   }
-  const cleanZone = timeZone.trim()
-  const resolvedLocal = instantToZonedLocalDateTime(instant, cleanZone)
-  if (cleanZone === 'UTC') {
-    return `${resolvedLocal}Z`
-  }
-  const offset = formatUtcOffset(getTimezoneOffsetMinutes(cleanZone, instant))
-  return `${resolvedLocal}${offset}`
+  return formatInstantRFC3339InTimezone(instant, timeZone)
 }
 
 // formatInstantInTimezoneDisplay formats an ISO timestamp or Date as YYYY-MM-DD HH:mm:ss
@@ -400,13 +421,17 @@ export function formatInstantUTCPreview(instant: Date): string {
   return formatted ? `${formatted}Z` : ''
 }
 
-// parseFlexibleTimestampInput parses pasted Unix seconds, Unix milliseconds, offset ISO
-// timestamps, or wall-clock date-time strings into YYYY-MM-DDTHH:mm:ss in targetTimezone.
-// Unrecognized or out-of-range strings return null so callers can surface validation feedback.
-export function parseFlexibleTimestampInput(
+// parseFlexibleTimestamp parses pasted Unix seconds, Unix milliseconds, explicit-offset
+// ISO timestamps, or wall-clock date-time strings into both targetTimezone's wall-clock
+// string and the exact whole-second UTC Date instant.
+//
+// Returning instant alongside localValue prevents DST fall-back ambiguity from shifting
+// pasted explicit-offset or epoch timestamps onto the earlier repeated local hour when
+// callers later serialize RFC3339 export bounds.
+export function parseFlexibleTimestamp(
   rawInput: string,
   targetTimezone: string,
-): string | null {
+): ParsedFlexibleTimestamp | null {
   const trimmed = rawInput.trim()
   if (!trimmed || !isValidIanaTimezone(targetTimezone)) {
     return null
@@ -415,17 +440,25 @@ export function parseFlexibleTimestampInput(
   // 9-to-10-digit numbers (with optional fractional seconds) represent Unix epoch seconds.
   if (/^\d{9,10}(?:\.\d+)?$/.test(trimmed)) {
     const epochSeconds = Math.floor(Number(trimmed))
-    return instantToZonedLocalDateTime(new Date(epochSeconds * 1000), targetTimezone)
+    const instant = new Date(epochSeconds * 1000)
+    return {
+      localValue: instantToZonedLocalDateTime(instant, targetTimezone),
+      instant,
+    }
   }
 
   // 12-to-14-digit integers represent millisecond Unix timestamps from JS or log exports.
   if (/^\d{12,14}$/.test(trimmed)) {
     const epochSeconds = Math.floor(Number(trimmed) / 1000)
-    return instantToZonedLocalDateTime(new Date(epochSeconds * 1000), targetTimezone)
+    const instant = new Date(epochSeconds * 1000)
+    return {
+      localValue: instantToZonedLocalDateTime(instant, targetTimezone),
+      instant,
+    }
   }
 
   // Timestamps ending with Z or an explicit +/-HH:MM offset represent absolute instants
-  // that are converted into targetTimezone's wall clock.
+  // whose exact UTC millisecond point must survive projection into targetTimezone.
   if (/(?:[Zz]|[+-]\d{2}:?\d{2})$/.test(trimmed)) {
     const normalizedIso = trimmed
       .replace(/^(\d{4})\/(\d{2})\/(\d{2})/, '$1-$2-$3')
@@ -435,8 +468,11 @@ export function parseFlexibleTimestampInput(
     if (Number.isNaN(parsedMs)) {
       return null
     }
-    const truncatedSecMs = Math.floor(parsedMs / 1000) * 1000
-    return instantToZonedLocalDateTime(new Date(truncatedSecMs), targetTimezone)
+    const instant = new Date(Math.floor(parsedMs / 1000) * 1000)
+    return {
+      localValue: instantToZonedLocalDateTime(instant, targetTimezone),
+      instant,
+    }
   }
 
   // Offset-free date-time text is interpreted directly as wall-clock time in targetTimezone.
@@ -445,5 +481,20 @@ export function parseFlexibleTimestampInput(
   if (!parts) {
     return null
   }
-  return `${pad4(parts.year)}-${pad2(parts.month)}-${pad2(parts.day)}T${pad2(parts.hour)}:${pad2(parts.minute)}:${pad2(parts.second)}`
+  const localValue = `${pad4(parts.year)}-${pad2(parts.month)}-${pad2(parts.day)}T${pad2(parts.hour)}:${pad2(parts.minute)}:${pad2(parts.second)}`
+  const instant = zonedDateTimeToInstant(localValue, targetTimezone)
+  if (!instant) {
+    return null
+  }
+  return { localValue, instant }
+}
+
+// parseFlexibleTimestampInput parses pasted Unix seconds, Unix milliseconds, offset ISO
+// timestamps, or wall-clock date-time strings into YYYY-MM-DDTHH:mm:ss in targetTimezone.
+// Unrecognized or out-of-range strings return null so callers can surface validation feedback.
+export function parseFlexibleTimestampInput(
+  rawInput: string,
+  targetTimezone: string,
+): string | null {
+  return parseFlexibleTimestamp(rawInput, targetTimezone)?.localValue ?? null
 }

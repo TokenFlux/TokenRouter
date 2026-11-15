@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -62,26 +61,27 @@ type CreateAdminUsageExportTaskRequest struct {
 }
 
 // ListExportTasks returns a paginated list of administrator-scoped background
-// CSV export tasks ordered newest first.
+// CSV export tasks ordered newest first along with scope-wide active IDs and
+// optional off-page watch_ids snapshots.
 func (h *UsageHandler) ListExportTasks(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		usagehttp.WriteExportDisabledResponse(c)
 		return
 	}
 
+	watchIDs, ok := usagehttp.ParseExportWatchIDsParam(c)
+	if !ok {
+		return
+	}
 	page, pageSize := response.ParsePagination(c)
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
-	tasks, result, err := h.exportService.ListAdminTasks(c.Request.Context(), params)
+	result, err := h.exportService.ListAdminTasks(c.Request.Context(), params, watchIDs...)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	out := make([]dto.UsageExportTask, 0, len(tasks))
-	for i := range tasks {
-		out = append(out, *dto.ExportFromUsage(&tasks[i]))
-	}
-	response.Paginated(c, out, result.Total, page, pageSize)
+	response.Success(c, dto.ExportPageFromUsage(result, page, pageSize))
 }
 
 // CreateExportTask validates explicit half-open timestamps, IANA timezone, and
@@ -91,8 +91,8 @@ func (h *UsageHandler) ListExportTasks(c *gin.Context) {
 // Replayed idempotency keys reuse the previously recorded task response, while
 // per-administrator active task quotas reject excess concurrent exports with 429.
 func (h *UsageHandler) CreateExportTask(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		usagehttp.WriteExportDisabledResponse(c)
 		return
 	}
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
@@ -197,8 +197,8 @@ func (h *UsageHandler) CreateExportTask(c *gin.Context) {
 // CancelExportTask cancels a pending or running administrator export task and
 // returns the updated task DTO.
 func (h *UsageHandler) CancelExportTask(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		usagehttp.WriteExportDisabledResponse(c)
 		return
 	}
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
@@ -222,8 +222,8 @@ func (h *UsageHandler) CancelExportTask(c *gin.Context) {
 // CreateExportDownloadTicket issues a 60-second HMAC-signed download ticket and
 // relative streaming URL for a succeeded administrator export task.
 func (h *UsageHandler) CreateExportDownloadTicket(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		usagehttp.WriteExportDisabledResponse(c)
 		return
 	}
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
@@ -247,8 +247,8 @@ func (h *UsageHandler) CreateExportDownloadTicket(c *gin.Context) {
 // DownloadExportTask streams a succeeded administrator CSV artifact directly to
 // an authenticated API or MCP client.
 func (h *UsageHandler) DownloadExportTask(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		usagehttp.WriteExportDisabledResponse(c)
 		return
 	}
 	subject, ok := authctx.GetAuthSubjectFromContext(c)

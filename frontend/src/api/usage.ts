@@ -12,6 +12,7 @@ import type {
   UserErrorRequestDetail,
   UserErrorListParams,
   UsageExportTask,
+  UsageExportTaskListResponse,
   UsageExportDownloadTicket,
   CreateUserUsageExportTaskRequest,
 } from '@/api/usage.types'
@@ -388,12 +389,13 @@ export async function listExportTasks(
   params: {
     page?: number // Requested 1-based page number.
     page_size?: number // Requested page size.
+    watch_ids?: string // Optional comma-separated off-page task IDs to inspect.
   } = {},
   options?: {
     signal?: AbortSignal // Caller-owned cancellation signal.
   },
-): Promise<PaginatedResponse<UsageExportTask>> {
-  const { data } = await apiClient.get<PaginatedResponse<UsageExportTask>>('/usage/export-tasks', {
+): Promise<UsageExportTaskListResponse> {
+  const { data } = await apiClient.get<UsageExportTaskListResponse>('/usage/export-tasks', {
     params,
     signal: options?.signal,
   })

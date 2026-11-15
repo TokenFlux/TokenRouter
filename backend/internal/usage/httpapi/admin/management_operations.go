@@ -306,7 +306,7 @@ var ManagementOperations = map[string]*adminapi.Operation{
 		ReadOnly:    true,
 		Response:    "json",
 		BrowserPath: "/admin/usage",
-		Input:       adminapi.Arguments("/api/v1/admin/usage/export-tasks", []string{"page", "page_size"}, nil),
+		Input:       adminapi.Arguments("/api/v1/admin/usage/export-tasks", []string{"page", "page_size", "watch_ids"}, nil),
 	}),
 	"usage.list": adminapi.Define(adminapi.Operation{
 		ID:     "usage.list",

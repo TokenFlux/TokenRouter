@@ -57,7 +57,7 @@ func TestExportStoreEntLifecycleAndCancellationGuard(t *testing.T) {
 			Locale:    usage.UsageExportLocaleZH,
 		},
 	}
-	require.NoError(t, repo.CreateTask(ctx, task1))
+	require.NoError(t, repo.CreateTask(ctx, task1, 2))
 	require.NotZero(t, task1.ID)
 
 	task2 := &usage.UsageExportTask{
@@ -66,7 +66,15 @@ func TestExportStoreEntLifecycleAndCancellationGuard(t *testing.T) {
 		CreatedBy: 42,
 		Filters:   task1.Filters,
 	}
-	require.NoError(t, repo.CreateTask(ctx, task2))
+	require.NoError(t, repo.CreateTask(ctx, task2, 2))
+
+	overQuotaTask := &usage.UsageExportTask{
+		Scope:     usage.UsageExportScopeUser,
+		Status:    usage.UsageExportStatusPending,
+		CreatedBy: 42,
+		Filters:   task1.Filters,
+	}
+	require.ErrorIs(t, repo.CreateTask(ctx, overQuotaTask, 2), usage.ErrExportActiveLimitExceeded)
 
 	active, err := repo.CountActiveTasks(ctx, usage.UsageExportScopeUser, 42)
 	require.NoError(t, err)
@@ -77,6 +85,13 @@ func TestExportStoreEntLifecycleAndCancellationGuard(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(500), loaded2.TotalRows)
 	require.Equal(t, int64(250), loaded2.ExportedRows)
+
+	// Requeue task2 on simulated shutdown, then restore running status before finalize assertions.
+	require.NoError(t, repo.RequeueTask(ctx, task2.ID))
+	requeued2, err := repo.GetTask(ctx, task2.ID)
+	require.NoError(t, err)
+	require.Equal(t, usage.UsageExportStatusPending, requeued2.Status)
+	require.Equal(t, int64(0), requeued2.ExportedRows)
 
 	// Cancel task1 and verify MarkTaskSucceeded refuses to overwrite canceled state.
 	canceled, err := repo.CancelTask(ctx, task1.ID, 42)
@@ -129,6 +144,20 @@ func TestExportStoreEntLifecycleAndCancellationGuard(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2), page.Total)
 	require.Len(t, listed, 2)
+
+	activeIDs, err := repo.ListActiveTaskIDs(ctx, usage.UsageExportListFilter{
+		Scope:     usage.UsageExportScopeUser,
+		CreatedBy: &uid,
+	})
+	require.NoError(t, err)
+	require.Empty(t, activeIDs)
+
+	watched, err := repo.ListTasksByIDs(ctx, usage.UsageExportListFilter{
+		Scope:     usage.UsageExportScopeUser,
+		CreatedBy: &uid,
+	}, []int64{task1.ID, task2.ID})
+	require.NoError(t, err)
+	require.Len(t, watched, 2)
 
 	_, missingErr := repo.GetTask(ctx, 99999)
 	require.ErrorIs(t, missingErr, usage.ErrExportTaskNotFound)

@@ -188,4 +188,63 @@ describe('useUsageExportIndicator', () => {
     expect(wrapper.vm.activeExportCount).toBe(0)
     expect(showError).toHaveBeenCalledWith('usage.exportPanel.taskFailedToast')
   })
+
+  // When ten newer finished exports push an older running task (#1) onto page two,
+  // activeExportCount must remain 1, background polling must keep running with watch_ids,
+  // and the completion toast must still fire once task #1 settles off page one.
+  it('keeps polling and emits completion toast when an active task moves past page one', async () => {
+    const newerFinished = Array.from({ length: 10 }, (_, idx) => makeTask(11 - idx, 'succeeded'))
+
+    userListExportTasks
+      .mockResolvedValueOnce({
+        items: [makeTask(1, 'running')],
+        total: 1,
+        page: 1,
+        page_size: 10,
+        pages: 1,
+        active_count: 1,
+        active_ids: [1],
+      })
+      .mockResolvedValueOnce({
+        items: newerFinished,
+        total: 11,
+        page: 1,
+        page_size: 10,
+        pages: 2,
+        active_count: 1,
+        active_ids: [1],
+        watched_items: [makeTask(1, 'running')],
+      })
+      .mockResolvedValueOnce({
+        items: newerFinished,
+        total: 11,
+        page: 1,
+        page_size: 10,
+        pages: 2,
+        active_count: 0,
+        active_ids: [],
+        watched_items: [makeTask(1, 'succeeded')],
+      })
+
+    const { wrapper } = mountHarness('user')
+    await flushPromises()
+    expect(wrapper.vm.activeExportCount).toBe(1)
+
+    // Poll 1: task #1 is pushed off page 1 by 10 newer tasks, but stays running on page 2.
+    vi.advanceTimersByTime(4000)
+    await flushPromises()
+    expect(userListExportTasks).toHaveBeenNthCalledWith(
+      2,
+      { page: 1, page_size: 10, watch_ids: '1' },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
+    expect(wrapper.vm.activeExportCount).toBe(1)
+    expect(showSuccess).not.toHaveBeenCalled()
+
+    // Poll 2: off-page task #1 transitions to succeeded via watched_items.
+    vi.advanceTimersByTime(4000)
+    await flushPromises()
+    expect(wrapper.vm.activeExportCount).toBe(0)
+    expect(showSuccess).toHaveBeenCalledWith('usage.exportPanel.taskCompletedToast')
+  })
 })

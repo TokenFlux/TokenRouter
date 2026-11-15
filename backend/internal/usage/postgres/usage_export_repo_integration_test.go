@@ -4,6 +4,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestExportStoreIntegrationSkipLockedClaimAndStaleReclaim(t *testing.T) {
 				Timezone:  "UTC",
 			},
 		}
-		require.NoError(t, repo.CreateTask(ctx, task))
+		require.NoError(t, repo.CreateTask(ctx, task, 2))
 	}
 
 	var (
@@ -73,4 +74,110 @@ func TestExportStoreIntegrationSkipLockedClaimAndStaleReclaim(t *testing.T) {
 	require.NotNil(t, reclaimed)
 	require.Equal(t, claimed[0].ID, reclaimed.ID)
 	require.Equal(t, int64(0), reclaimed.ExportedRows)
+}
+
+// TestExportStoreIntegrationConcurrentQuotaEnforcement runs concurrent CreateTask
+// calls across independent ExportStore instances against PostgreSQL. Transaction
+// advisory locks serialize per-actor admission so concurrent requests neither
+// exceed maxActive from one existing task nor race from zero existing tasks.
+func TestExportStoreIntegrationConcurrentQuotaEnforcement(t *testing.T) {
+	ctx := context.Background()
+	_, err := integrationDB.ExecContext(ctx, "TRUNCATE TABLE usage_export_tasks RESTART IDENTITY CASCADE")
+	require.NoError(t, err)
+
+	start := time.Date(2026, 4, 16, 0, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+	filters := usage.UsageExportFilters{
+		StartTime: start,
+		EndTime:   end,
+		Timezone:  "UTC",
+	}
+
+	seedRepo := NewExportStoreWithSQL(integrationEntClient, integrationDB)
+	seedTask := &usage.UsageExportTask{
+		Scope:     usage.UsageExportScopeUser,
+		Status:    usage.UsageExportStatusPending,
+		CreatedBy: 42,
+		Filters:   filters,
+	}
+	require.NoError(t, seedRepo.CreateTask(ctx, seedTask, 2))
+
+	const contenders = 6
+	barrier := make(chan struct{})
+	errs := make([]error, contenders)
+	var wg sync.WaitGroup
+	for i := range contenders {
+		// Construct separate ExportStore instances so PostgreSQL advisory locks,
+		// rather than any in-process struct mutex, enforce the active quota.
+		workerRepo := NewExportStoreWithSQL(integrationEntClient, integrationDB)
+		wg.Add(1)
+		go func(idx int, r *ExportStore) {
+			defer wg.Done()
+			<-barrier
+			errs[idx] = r.CreateTask(ctx, &usage.UsageExportTask{
+				Scope:     usage.UsageExportScopeUser,
+				Status:    usage.UsageExportStatusPending,
+				CreatedBy: 42,
+				Filters:   filters,
+			}, 2)
+		}(i, workerRepo)
+	}
+	close(barrier)
+	wg.Wait()
+
+	var inserted, rejected int
+	for _, createErr := range errs {
+		switch {
+		case createErr == nil:
+			inserted++
+		case errors.Is(createErr, usage.ErrExportActiveLimitExceeded):
+			rejected++
+		default:
+			t.Fatalf("unexpected CreateTask error: %v", createErr)
+		}
+	}
+	require.Equal(t, 1, inserted)
+	require.Equal(t, contenders-1, rejected)
+
+	activeForUser42, err := seedRepo.CountActiveTasks(ctx, usage.UsageExportScopeUser, 42)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), activeForUser42)
+
+	// Also verify concurrent creation starting from zero existing rows for user 99.
+	zeroBarrier := make(chan struct{})
+	zeroErrs := make([]error, contenders)
+	for i := range contenders {
+		workerRepo := NewExportStoreWithSQL(integrationEntClient, integrationDB)
+		wg.Add(1)
+		go func(idx int, r *ExportStore) {
+			defer wg.Done()
+			<-zeroBarrier
+			zeroErrs[idx] = r.CreateTask(ctx, &usage.UsageExportTask{
+				Scope:     usage.UsageExportScopeUser,
+				Status:    usage.UsageExportStatusPending,
+				CreatedBy: 99,
+				Filters:   filters,
+			}, 2)
+		}(i, workerRepo)
+	}
+	close(zeroBarrier)
+	wg.Wait()
+
+	var zeroInserted, zeroRejected int
+	for _, createErr := range zeroErrs {
+		switch {
+		case createErr == nil:
+			zeroInserted++
+		case errors.Is(createErr, usage.ErrExportActiveLimitExceeded):
+			zeroRejected++
+		default:
+			t.Fatalf("unexpected CreateTask error from empty state: %v", createErr)
+		}
+	}
+	require.Equal(t, 2, zeroInserted)
+	require.Equal(t, contenders-2, zeroRejected)
+
+	activeForUser99, err := seedRepo.CountActiveTasks(ctx, usage.UsageExportScopeUser, 99)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), activeForUser99)
 }

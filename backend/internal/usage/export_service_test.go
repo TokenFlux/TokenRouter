@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -51,6 +52,13 @@ type sliceExportRowReader struct {
 // staticBalanceUnitReader supplies a fixed currency unit label in service tests.
 type staticBalanceUnitReader string
 
+// scriptedExportRowReader delegates per-task batch reads to a caller-supplied
+// function so tests can block specific tasks until timeout or service shutdown.
+type scriptedExportRowReader struct {
+	countFn func(ctx context.Context, filters UsageExportFilters) (int64, error)                                 // custom CountExportLogs callback
+	batchFn func(ctx context.Context, filters UsageExportFilters, cursor *UsageExportCursor) ([]UsageLog, error) // custom NextBatch callback
+}
+
 // newInMemoryExportRepo constructs an empty in-memory export repository fixture.
 func newInMemoryExportRepo() *inMemoryExportRepo {
 	return &inMemoryExportRepo{
@@ -58,10 +66,27 @@ func newInMemoryExportRepo() *inMemoryExportRepo {
 	}
 }
 
-// CreateTask clones and stores task with a monotonically increasing ID.
-func (r *inMemoryExportRepo) CreateTask(_ context.Context, task *UsageExportTask) error {
+// CreateTask atomically checks maxActive under r.mu before storing a cloned task.
+func (r *inMemoryExportRepo) CreateTask(_ context.Context, task *UsageExportTask, maxActive int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if maxActive > 0 {
+		var active int
+		for _, existing := range r.tasks {
+			if existing.Scope != task.Scope {
+				continue
+			}
+			if task.CreatedBy > 0 && existing.CreatedBy != task.CreatedBy {
+				continue
+			}
+			if existing.Status == UsageExportStatusPending || existing.Status == UsageExportStatusRunning {
+				active++
+			}
+		}
+		if active >= maxActive {
+			return ErrExportActiveLimitExceeded
+		}
+	}
 	r.nextID++
 	now := time.Now().UTC()
 	task.ID = r.nextID
@@ -112,7 +137,74 @@ func (r *inMemoryExportRepo) ListTasks(
 		return 0
 	})
 	total := int64(len(matched))
-	return matched, pagination.ResultFromTotal(total, params), nil
+	offset := min(params.Offset(), len(matched))
+	end := min(offset+params.Limit(), len(matched))
+	return matched[offset:end], pagination.ResultFromTotal(total, params), nil
+}
+
+// ListActiveTaskIDs returns all pending and running task IDs matching filter ordered newest ID first.
+func (r *inMemoryExportRepo) ListActiveTaskIDs(_ context.Context, filter UsageExportListFilter) ([]int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var ids []int64
+	for _, t := range r.tasks {
+		if t.Scope != filter.Scope {
+			continue
+		}
+		if filter.CreatedBy != nil && t.CreatedBy != *filter.CreatedBy {
+			continue
+		}
+		if t.Status == UsageExportStatusPending || t.Status == UsageExportStatusRunning {
+			ids = append(ids, t.ID)
+		}
+	}
+	slices.SortFunc(ids, func(a, b int64) int {
+		if a > b {
+			return -1
+		}
+		if a < b {
+			return 1
+		}
+		return 0
+	})
+	if ids == nil {
+		return []int64{}, nil
+	}
+	return ids, nil
+}
+
+// ListTasksByIDs returns scoped tasks matching taskIDs ordered newest ID first.
+func (r *inMemoryExportRepo) ListTasksByIDs(
+	_ context.Context,
+	filter UsageExportListFilter,
+	taskIDs []int64,
+) ([]UsageExportTask, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	wanted := make(map[int64]struct{}, len(taskIDs))
+	for _, id := range taskIDs {
+		wanted[id] = struct{}{}
+	}
+	var out []UsageExportTask
+	for _, t := range r.tasks {
+		if _, ok := wanted[t.ID]; !ok || t.Scope != filter.Scope {
+			continue
+		}
+		if filter.CreatedBy != nil && t.CreatedBy != *filter.CreatedBy {
+			continue
+		}
+		out = append(out, *t)
+	}
+	slices.SortFunc(out, func(a, b UsageExportTask) int {
+		if a.ID > b.ID {
+			return -1
+		}
+		if a.ID < b.ID {
+			return 1
+		}
+		return 0
+	})
+	return out, nil
 }
 
 // CountActiveTasks counts pending and running tasks in scope for createdBy.
@@ -134,13 +226,20 @@ func (r *inMemoryExportRepo) CountActiveTasks(_ context.Context, scope string, c
 	return count, nil
 }
 
-// ClaimNextPendingTask claims the lowest-ID pending task and transitions it to running.
-func (r *inMemoryExportRepo) ClaimNextPendingTask(_ context.Context, _ int64) (*UsageExportTask, error) {
+// ClaimNextPendingTask claims the lowest-ID pending or stale-running task and
+// transitions it to running with zeroed progress.
+func (r *inMemoryExportRepo) ClaimNextPendingTask(_ context.Context, staleAfterSeconds int64) (*UsageExportTask, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if staleAfterSeconds <= 0 {
+		staleAfterSeconds = 1800
+	}
+	staleCutoff := time.Now().UTC().Add(-time.Duration(staleAfterSeconds) * time.Second)
 	var candidate *UsageExportTask
 	for _, t := range r.tasks {
-		if t.Status != UsageExportStatusPending {
+		eligible := t.Status == UsageExportStatusPending ||
+			(t.Status == UsageExportStatusRunning && t.StartedAt != nil && t.StartedAt.Before(staleCutoff))
+		if !eligible {
 			continue
 		}
 		if candidate == nil || t.ID < candidate.ID {
@@ -157,6 +256,19 @@ func (r *inMemoryExportRepo) ClaimNextPendingTask(_ context.Context, _ int64) (*
 	candidate.UpdatedAt = now
 	cp := *candidate
 	return &cp, nil
+}
+
+// RequeueTask resets a running task back to pending with cleared claim fields.
+func (r *inMemoryExportRepo) RequeueTask(_ context.Context, taskID int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if t, ok := r.tasks[taskID]; ok && t.Status == UsageExportStatusRunning {
+		t.Status = UsageExportStatusPending
+		t.ExportedRows = 0
+		t.StartedAt = nil
+		t.UpdatedAt = time.Now().UTC()
+	}
+	return nil
 }
 
 // GetTaskStatus returns persisted status or ErrExportTaskNotFound.
@@ -352,6 +464,32 @@ func (r *sliceExportRowReader) NextBatch(
 // GetBalanceUnitName returns the static unit string.
 func (u staticBalanceUnitReader) GetBalanceUnitName(_ context.Context) string { return string(u) }
 
+// CountExportLogs invokes r.countFn when set or defaults to one matching row.
+func (r *scriptedExportRowReader) CountExportLogs(ctx context.Context, filters UsageExportFilters) (int64, error) {
+	if r.countFn != nil {
+		return r.countFn(ctx, filters)
+	}
+	return 1, nil
+}
+
+// NewExportBatchReader returns r as an isolated UsageExportBatchReader.
+func (r *scriptedExportRowReader) NewExportBatchReader(_ string) UsageExportBatchReader {
+	return r
+}
+
+// NextBatch invokes r.batchFn for the first page and ends once cursor is nonnil.
+func (r *scriptedExportRowReader) NextBatch(
+	ctx context.Context,
+	filters UsageExportFilters,
+	cursor *UsageExportCursor,
+	_ int,
+) ([]UsageLog, error) {
+	if cursor != nil {
+		return nil, nil
+	}
+	return r.batchFn(ctx, filters, cursor)
+}
+
 // TestUsageExportServiceQuotasStreamingTicketAndExpiry exercises end-to-end user
 // task creation, active-task quota enforcement, multi-batch keyset CSV writing,
 // and cross-user isolation. Signed download tickets stream UTF-8 BOM CSV bytes
@@ -465,4 +603,264 @@ func TestUsageExportServiceDeletesArtifactOnConcurrentCancelRace(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, UsageExportStatusCanceled, persisted.Status)
 	require.Empty(t, store.files)
+}
+
+// TestUsageExportServiceTimedOutTasksFailTerminallyWithoutStarvingQueue queues
+// two persistently slow tasks ahead of a healthy task across two workers. Both
+// slow tasks transition to terminal failed status on deadline expiry instead of
+// staying running and starving the queue, allowing the healthy task to succeed.
+func TestUsageExportServiceTimedOutTasksFailTerminallyWithoutStarvingQueue(t *testing.T) {
+	repo := newInMemoryExportRepo()
+	store := newInMemoryArtifactStore()
+	t0 := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+
+	var slow1Runs, slow2Runs int32
+	reader := &scriptedExportRowReader{
+		batchFn: func(ctx context.Context, filters UsageExportFilters, _ *UsageExportCursor) ([]UsageLog, error) {
+			if filters.RequestID == "slow-1" {
+				atomic.AddInt32(&slow1Runs, 1)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			if filters.RequestID == "slow-2" {
+				atomic.AddInt32(&slow2Runs, 1)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			return []UsageLog{{ID: 99, CreatedAt: t0.Add(-time.Minute), Model: "gpt-5.4", ActualCost: 0.05}}, nil
+		},
+	}
+
+	opts := &Options{
+		UsageExport: UsageExportConfig{
+			Enabled:               true,
+			RetentionHours:        24,
+			MaxActivePerAdmin:     5,
+			BatchSize:             10,
+			WorkerConcurrency:     2,
+			WorkerIntervalSeconds: 1,
+			TaskTimeoutSeconds:    1,
+		},
+	}
+	svc := NewUsageExportService(repo, reader, store, nil, nil, opts)
+
+	slow1, err := svc.CreateAdminTask(context.Background(), 1, UsageExportFilters{
+		StartTime: t0.Add(-time.Hour),
+		EndTime:   t0,
+		Timezone:  "UTC",
+		RequestID: "slow-1",
+	})
+	require.NoError(t, err)
+	slow2, err := svc.CreateAdminTask(context.Background(), 1, UsageExportFilters{
+		StartTime: t0.Add(-time.Hour),
+		EndTime:   t0,
+		Timezone:  "UTC",
+		RequestID: "slow-2",
+	})
+	require.NoError(t, err)
+	fast3, err := svc.CreateAdminTask(context.Background(), 1, UsageExportFilters{
+		StartTime: t0.Add(-time.Hour),
+		EndTime:   t0,
+		Timezone:  "UTC",
+		RequestID: "fast-3",
+	})
+	require.NoError(t, err)
+
+	svc.Start()
+	t.Cleanup(svc.Stop)
+
+	require.Eventually(t, func() bool {
+		gotFast, errFast := repo.GetTask(context.Background(), fast3.ID)
+		gotS1, errS1 := repo.GetTask(context.Background(), slow1.ID)
+		gotS2, errS2 := repo.GetTask(context.Background(), slow2.ID)
+		return errFast == nil && errS1 == nil && errS2 == nil &&
+			gotFast.Status == UsageExportStatusSucceeded &&
+			gotS1.Status == UsageExportStatusFailed &&
+			gotS2.Status == UsageExportStatusFailed
+	}, 4*time.Second, 25*time.Millisecond)
+
+	gotSlow1, err := repo.GetTask(context.Background(), slow1.ID)
+	require.NoError(t, err)
+	require.Equal(t, UsageExportStatusFailed, gotSlow1.Status)
+	require.NotNil(t, gotSlow1.ErrorMsg)
+	require.Contains(t, *gotSlow1.ErrorMsg, "timed out")
+
+	gotSlow2, err := repo.GetTask(context.Background(), slow2.ID)
+	require.NoError(t, err)
+	require.Equal(t, UsageExportStatusFailed, gotSlow2.Status)
+	require.NotNil(t, gotSlow2.ErrorMsg)
+	require.Contains(t, *gotSlow2.ErrorMsg, "timed out")
+
+	// Trigger another drain pass after timeout to confirm timed-out tasks never re-enter execution.
+	svc.RunOnce()
+	require.Equal(t, int32(1), atomic.LoadInt32(&slow1Runs))
+	require.Equal(t, int32(1), atomic.LoadInt32(&slow2Runs))
+}
+
+// TestUsageExportServiceGracefulShutdownRequeuesInterruptedTask interrupts an
+// in-flight worker batch via Stop before the per-task timeout elapses. Shutdown
+// requeues the running task back to pending rather than marking it failed so a
+// newly started service instance completes the CSV cleanly.
+func TestUsageExportServiceGracefulShutdownRequeuesInterruptedTask(t *testing.T) {
+	repo := newInMemoryExportRepo()
+	store := newInMemoryArtifactStore()
+	t0 := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+
+	enteredBatch := make(chan struct{})
+	var blockFirstRun sync.Once
+	reader := &scriptedExportRowReader{
+		batchFn: func(ctx context.Context, _ UsageExportFilters, _ *UsageExportCursor) ([]UsageLog, error) {
+			blocked := false
+			blockFirstRun.Do(func() {
+				blocked = true
+				close(enteredBatch)
+				<-ctx.Done()
+			})
+			if blocked {
+				return nil, ctx.Err()
+			}
+			return []UsageLog{{ID: 7, CreatedAt: t0.Add(-time.Minute), Model: "gpt-5.4"}}, nil
+		},
+	}
+
+	opts := &Options{
+		UsageExport: UsageExportConfig{
+			Enabled:            true,
+			BatchSize:          10,
+			WorkerConcurrency:  1,
+			TaskTimeoutSeconds: 60,
+		},
+	}
+	svc1 := NewUsageExportService(repo, reader, store, nil, nil, opts)
+	task, err := svc1.CreateUserTask(context.Background(), 42, UsageExportFilters{
+		StartTime: t0.Add(-time.Hour),
+		EndTime:   t0,
+		Timezone:  "UTC",
+	})
+	require.NoError(t, err)
+
+	svc1.Start()
+	<-enteredBatch
+	svc1.Stop()
+
+	afterStop, err := repo.GetTask(context.Background(), task.ID)
+	require.NoError(t, err)
+	require.Equal(t, UsageExportStatusPending, afterStop.Status)
+	require.Nil(t, afterStop.ErrorMsg)
+
+	svc2 := NewUsageExportService(repo, reader, store, nil, nil, opts)
+	svc2.RunOnce()
+
+	completed, err := repo.GetTask(context.Background(), task.ID)
+	require.NoError(t, err)
+	require.Equal(t, UsageExportStatusSucceeded, completed.Status)
+}
+
+// TestUsageExportServiceConcurrentCreateEnforcesActiveQuotaAtomically launches
+// concurrent CreateUserTask calls when one active task already exists under a
+// limit of two. Exactly one concurrent caller succeeds while the remaining
+// callers receive USAGE_EXPORT_ACTIVE_LIMIT_EXCEEDED, leaving two active tasks.
+func TestUsageExportServiceConcurrentCreateEnforcesActiveQuotaAtomically(t *testing.T) {
+	repo := newInMemoryExportRepo()
+	store := newInMemoryArtifactStore()
+	t0 := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+	reader := &sliceExportRowReader{}
+
+	opts := &Options{
+		UsageExport: UsageExportConfig{
+			Enabled:          true,
+			MaxActivePerUser: 2,
+		},
+	}
+	svc := NewUsageExportService(repo, reader, store, nil, nil, opts)
+	filters := UsageExportFilters{
+		StartTime: t0.Add(-time.Hour),
+		EndTime:   t0,
+		Timezone:  "UTC",
+	}
+
+	_, err := svc.CreateUserTask(context.Background(), 77, filters)
+	require.NoError(t, err)
+
+	const contenders = 6
+	startBarrier := make(chan struct{})
+	errs := make([]error, contenders)
+	var wg sync.WaitGroup
+	for i := range contenders {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			<-startBarrier
+			_, errs[idx] = svc.CreateUserTask(context.Background(), 77, filters)
+		}(i)
+	}
+	close(startBarrier)
+	wg.Wait()
+
+	var succeeded, quotaRejected int
+	for _, callErr := range errs {
+		if callErr == nil {
+			succeeded++
+			continue
+		}
+		if infraerrors.FromError(callErr).Reason == "USAGE_EXPORT_ACTIVE_LIMIT_EXCEEDED" {
+			quotaRejected++
+		}
+	}
+	require.Equal(t, 1, succeeded)
+	require.Equal(t, contenders-1, quotaRejected)
+
+	activeCount, err := repo.CountActiveTasks(context.Background(), UsageExportScopeUser, 77)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), activeCount)
+}
+
+// TestUsageExportServiceDisabledWithNilStoreReturnsDisabledError constructs
+// UsageExportService with Enabled=false and a nil artifact store matching app
+// wiring. Every task and download method returns 503 USAGE_EXPORT_DISABLED
+// instead of failing early on store readiness with an internal error.
+func TestUsageExportServiceDisabledWithNilStoreReturnsDisabledError(t *testing.T) {
+	repo := newInMemoryExportRepo()
+	reader := &sliceExportRowReader{}
+	svc := NewUsageExportService(repo, reader, nil, nil, nil, &Options{
+		UsageExport: UsageExportConfig{Enabled: false},
+	})
+	ctx := context.Background()
+	t0 := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+	filters := UsageExportFilters{
+		StartTime: t0.Add(-time.Hour),
+		EndTime:   t0,
+		Timezone:  "UTC",
+	}
+
+	assertDisabled := func(err error) {
+		t.Helper()
+		require.Error(t, err)
+		require.Equal(t, infraerrors.CategoryServiceUnavailable, infraerrors.CategoryOf(err))
+		require.Equal(t, "USAGE_EXPORT_DISABLED", infraerrors.FromError(err).Reason)
+	}
+
+	_, err := svc.ListUserTasks(ctx, 1, pagination.PaginationParams{Page: 1, PageSize: 10})
+	assertDisabled(err)
+
+	_, err = svc.ListAdminTasks(ctx, pagination.PaginationParams{Page: 1, PageSize: 10})
+	assertDisabled(err)
+
+	_, err = svc.CreateUserTask(ctx, 1, filters)
+	assertDisabled(err)
+
+	_, err = svc.CreateAdminTask(ctx, 1, filters)
+	assertDisabled(err)
+
+	_, err = svc.CancelUserTask(ctx, 1, 10)
+	assertDisabled(err)
+
+	_, _, err = svc.IssueUserDownloadTicket(ctx, 1, 10)
+	assertDisabled(err)
+
+	_, err = svc.OpenUserDownload(ctx, 1, 10)
+	assertDisabled(err)
+
+	_, err = svc.OpenDownloadByTicket(ctx, "any.ticket")
+	assertDisabled(err)
 }

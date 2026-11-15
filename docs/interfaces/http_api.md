@@ -115,9 +115,9 @@ Markdown 正文需要 JWT，并且菜单可见；管理员页面只对管理员�
 
 使用记录的用户侧和管理员侧导出统一通过后台任务执行，生成带 UTF-8 BOM 的 `.csv` 文件：
 
-- 用户入口位于 `/api/v1/usage/export-tasks`（列表 `GET`、创建 `POST`、取消 `POST /:id/cancel`、换取下载票据 `POST /:id/download-ticket` 和流式下载 `GET /:id/download`），直接挂在用户认证分组上，创建、轮询和换票不占用重查询限流配额。管理员入口位于 `/api/v1/admin/usage/export-tasks` 的对应子路径，经过管理员认证、面板限流和审计中间件。
-- 创建请求提交左闭右开时间区间 `[start_time, end_time)`、必填 IANA `timezone` 和筛选条件，接入面板命令幂等执行器（支持 `Idempotency-Key`）。起止时间支持带偏移的 RFC3339 或按 `timezone` 解析的秒级本地时间 `YYYY-MM-DDTHH:mm:ss`；活动任务（`pending` 与 `running`）达到配额时返回 `429 USAGE_EXPORT_ACTIVE_LIMIT`，功能关闭时返回 `503 USAGE_EXPORT_DISABLED`。
-- 浏览器下载先通过 `POST .../export-tasks/:id/download-ticket` 获取 60 秒有效期的 HMAC-SHA256 签名票据，再访问公共路由 `GET /api/v1/usage/export-downloads/:ticket` 原生流式下载；票据绑定任务 ID、调用作用域、所属操作者和文件相对键。API 与 MCP 客户端也可直接使用带 Bearer 凭据的 `GET .../export-tasks/:id/download`。文件超过保留期或本地产物缺失时返回 `410 USAGE_EXPORT_EXPIRED`，任务未完成时返回 `409 USAGE_EXPORT_NOT_READY`。
+- 用户入口位于 `/api/v1/usage/export-tasks`（列表 `GET`、创建 `POST`、取消 `POST /:id/cancel`、换取下载票据 `POST /:id/download-ticket` 和流式下载 `GET /:id/download`），直接挂在用户认证分组上，创建、轮询和换票不占用重查询限流配额。管理员入口位于 `/api/v1/admin/usage/export-tasks` 的对应子路径，经过管理员认证、面板限流和审计中间件。列表响应除当前页记录外，还返回作用域内全量活动任务计数 `active_count`、`active_ids`，并支持 `watch_ids` 查询跨分页任务的终态变化（`watched_items`）。
+- 创建请求提交左闭右开时间区间 `[start_time, end_time)`、必填 IANA `timezone` 和筛选条件，接入面板命令幂等执行器（支持 `Idempotency-Key`）。起止时间支持带偏移的 RFC3339 或按 `timezone` 解析的秒级本地时间 `YYYY-MM-DDTHH:mm:ss`；活动任务（`pending` 与 `running`）在入库事务内校验配额，超限时返回 `429 USAGE_EXPORT_ACTIVE_LIMIT_EXCEEDED`，功能关闭时返回 `503 USAGE_EXPORT_DISABLED`。
+- 浏览器下载先通过 `POST .../export-tasks/:id/download-ticket` 获取 60 秒有效期的 HMAC-SHA256 签名票据，再访问公共路由 `GET /api/v1/usage/export-downloads/:ticket` 原生流式下载；票据绑定任务 ID、调用作用域、请求者用户 ID 和过期时间戳。API 与 MCP 客户端也可直接使用带 Bearer 凭据的 `GET .../export-tasks/:id/download`。文件超过保留期或本地产物缺失时返回 `410 USAGE_EXPORT_EXPIRED`，任务未完成时返回 `409 USAGE_EXPORT_NOT_READY`。
 
 <a id="personal_recharge_multiplier_api"></a>
 ## 用户专属充值倍率

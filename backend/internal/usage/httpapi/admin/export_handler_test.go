@@ -87,10 +87,27 @@ func newAdminMemoryExportRepo() *adminMemoryExportRepo {
 	}
 }
 
-// CreateTask assigns an ID and creation timestamp before storing a task copy.
-func (r *adminMemoryExportRepo) CreateTask(_ context.Context, task *usage.UsageExportTask) error {
+// CreateTask atomically enforces maxActive under r.mu before storing a task copy.
+func (r *adminMemoryExportRepo) CreateTask(_ context.Context, task *usage.UsageExportTask, maxActive int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if maxActive > 0 {
+		var active int
+		for _, existing := range r.tasks {
+			if existing.Scope != task.Scope {
+				continue
+			}
+			if task.CreatedBy > 0 && existing.CreatedBy != task.CreatedBy {
+				continue
+			}
+			if existing.Status == usage.UsageExportStatusPending || existing.Status == usage.UsageExportStatusRunning {
+				active++
+			}
+		}
+		if active >= maxActive {
+			return usage.ErrExportActiveLimitExceeded
+		}
+	}
 	r.nextID++
 	now := time.Now().UTC()
 	task.ID = r.nextID
@@ -132,11 +149,66 @@ func (r *adminMemoryExportRepo) ListTasks(
 		}
 		items = append(items, *task)
 	}
-	return items, &pagination.PaginationResult{
-		Total:    int64(len(items)),
+	total := int64(len(items))
+	offset := min(params.Offset(), len(items))
+	end := min(offset+params.Limit(), len(items))
+	return items[offset:end], &pagination.PaginationResult{
+		Total:    total,
 		Page:     params.Page,
 		PageSize: params.PageSize,
 	}, nil
+}
+
+// ListActiveTaskIDs returns pending and running task IDs matching filter in descending ID order.
+func (r *adminMemoryExportRepo) ListActiveTaskIDs(_ context.Context, filter usage.UsageExportListFilter) ([]int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var ids []int64
+	for id := r.nextID; id >= 1; id-- {
+		task, ok := r.tasks[id]
+		if !ok || task.Scope != filter.Scope {
+			continue
+		}
+		if filter.CreatedBy != nil && task.CreatedBy != *filter.CreatedBy {
+			continue
+		}
+		if task.Status == usage.UsageExportStatusPending || task.Status == usage.UsageExportStatusRunning {
+			ids = append(ids, task.ID)
+		}
+	}
+	if ids == nil {
+		return []int64{}, nil
+	}
+	return ids, nil
+}
+
+// ListTasksByIDs returns scoped tasks matching taskIDs in descending ID order.
+func (r *adminMemoryExportRepo) ListTasksByIDs(
+	_ context.Context,
+	filter usage.UsageExportListFilter,
+	taskIDs []int64,
+) ([]usage.UsageExportTask, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	wanted := make(map[int64]struct{}, len(taskIDs))
+	for _, id := range taskIDs {
+		wanted[id] = struct{}{}
+	}
+	var out []usage.UsageExportTask
+	for id := r.nextID; id >= 1; id-- {
+		task, ok := r.tasks[id]
+		if !ok || task.Scope != filter.Scope {
+			continue
+		}
+		if _, match := wanted[id]; !match {
+			continue
+		}
+		if filter.CreatedBy != nil && task.CreatedBy != *filter.CreatedBy {
+			continue
+		}
+		out = append(out, *task)
+	}
+	return out, nil
 }
 
 // CountActiveTasks counts pending and running tasks matching scope and createdBy.
@@ -176,6 +248,18 @@ func (r *adminMemoryExportRepo) ClaimNextPendingTask(_ context.Context, _ int64)
 		return &cp, nil
 	}
 	return nil, nil
+}
+
+// RequeueTask resets an interrupted running task back to pending.
+func (r *adminMemoryExportRepo) RequeueTask(_ context.Context, taskID int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if task, ok := r.tasks[taskID]; ok && task.Status == usage.UsageExportStatusRunning {
+		task.Status = usage.UsageExportStatusPending
+		task.ExportedRows = 0
+		task.StartedAt = nil
+	}
+	return nil
 }
 
 // GetTaskStatus returns the persisted status string or ErrExportTaskNotFound.
@@ -607,4 +691,37 @@ func TestAdminCancelTicketAndDirectDownloadStreamDeliverAdminCSV(t *testing.T) {
 	router.ServeHTTP(directRec, directReq)
 	require.Equal(t, http.StatusOK, directRec.Code)
 	require.Equal(t, csvBody, directRec.Body.String())
+}
+
+// TestAdminExportEndpointsReturnDisabledErrorWithNilStore mounts administrator
+// export routes with Enabled=false and a nil local artifact store. Every admin
+// export route returns 503 USAGE_EXPORT_DISABLED instead of 500.
+func TestAdminExportEndpointsReturnDisabledErrorWithNilStore(t *testing.T) {
+	repo := newAdminMemoryExportRepo()
+	rowReader := &adminMemoryExportRowReader{}
+	disabledSvc := usage.NewUsageExportService(repo, rowReader, nil, nil, nil, &usage.Options{
+		UsageExport: usage.UsageExportConfig{Enabled: false},
+	})
+	router := setupAdminExportTestRouter(disabledSvc, 1)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodGet, "/api/v1/admin/usage/export-tasks", ""},
+		{http.MethodPost, "/api/v1/admin/usage/export-tasks", `{"start_time":"2026-06-15T00:00:00Z","end_time":"2026-06-15T01:00:00Z","timezone":"UTC"}`},
+		{http.MethodPost, "/api/v1/admin/usage/export-tasks/1/cancel", ""},
+		{http.MethodPost, "/api/v1/admin/usage/export-tasks/1/download-ticket", ""},
+		{http.MethodGet, "/api/v1/admin/usage/export-tasks/1/download", ""},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+		if tc.body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusServiceUnavailable, rec.Code, tc.path)
+		require.Contains(t, rec.Body.String(), "USAGE_EXPORT_DISABLED", tc.path)
+	}
 }

@@ -17,16 +17,17 @@ import (
 // execution, cancellation, retention sweeps, and signed download delivery.
 // Regular users and administrators submit export tasks that snapshot explicit
 // half-open time bounds, IANA timezone, display locale, currency unit, and
-// authorized query filters before returning immediately. Dedicated background
-// workers claim pending or stale-running tasks with SKIP LOCKED, stream keyset
-// batches into temporary .part CSV files, and atomically publish finished files.
+// authorized query filters while enforcing per-actor active quotas atomically at
+// insertion. Dedicated background workers claim pending or crash-abandoned tasks
+// with SKIP LOCKED, stream keyset batches into temporary .part CSV files, and
+// atomically publish finished files.
 //
-// Cancellation, worker completion, and post-completion expiry can overlap on the
-// same task row. Workers check persisted status between batches and use a
-// conditional terminal update after committing the file, deleting the published
-// CSV whenever a concurrent cancellation wins the database transition. Expiry
-// sweeps remove disk artifacts before clearing persisted file paths so transient
-// filesystem errors remain retryable on subsequent sweeps.
+// Task execution separates service shutdown from per-task timeout so timed-out
+// exports transition immediately to failed status instead of remaining running
+// and starving worker slots across retries, whereas graceful shutdown requeues
+// interrupted running tasks back to pending. Workers also check persisted status
+// between batches and use a conditional terminal update after committing the
+// file, deleting the published CSV whenever a concurrent cancellation wins.
 
 // Worker scheduling, default limits, and HTTP status constants govern background
 // export execution, active-task admission quotas, and expired-artifact responses.
@@ -39,10 +40,12 @@ const (
 	defaultExportBatchSize          = 2000             // keyset scan rows per worker batch
 	defaultExportWorkerConcurrency  = 2                // background export worker goroutine count
 	defaultExportWorkerInterval     = 5 * time.Second  // recurring poll and sweep interval
-	defaultExportTaskTimeout        = 30 * time.Minute // per-task execution timeout and stale threshold
+	defaultExportTaskTimeout        = 30 * time.Minute // per-task execution timeout
+	defaultExportStaleClaimGrace    = 1 * time.Minute  // grace after task timeout before reclaiming crash-abandoned tasks
 	defaultExportSweepBatchLimit    = 100              // maximum expired tasks processed per sweep
 	defaultExportStalePartGraceTime = 5 * time.Minute  // extra grace beyond task timeout before deleting .part files
 	maxExportErrorMsgBytes          = 500              // maximum persisted failure diagnostic length
+	maxWatchedExportTaskIDs         = 64               // maximum off-page watched task IDs inspected per list poll
 
 	exportCategoryGone infraerrors.Category = 410 // HTTP 410 Gone status category for expired artifacts
 )
@@ -215,36 +218,116 @@ func (s *UsageExportService) CreateAdminTask(ctx context.Context, actorUserID in
 	return s.createTask(ctx, UsageExportScopeAdmin, actorUserID, filters)
 }
 
-// ListUserTasks returns paginated user-scope export tasks owned by actorUserID.
+// IsEnabled reports whether background CSV export endpoints and workers are
+// enabled by deployment configuration.
+func (s *UsageExportService) IsEnabled() bool {
+	return s.isEnabled()
+}
+
+// ListUserTasks returns paginated user-scope export tasks owned by actorUserID
+// along with scope-wide active task IDs and optional watched task records.
 func (s *UsageExportService) ListUserTasks(
 	ctx context.Context,
 	actorUserID int64,
 	params pagination.PaginationParams,
-) ([]UsageExportTask, *pagination.PaginationResult, error) {
-	if err := s.requireReady(); err != nil {
-		return nil, nil, err
+	watchIDs ...int64,
+) (*UsageExportTaskListResult, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return nil, err
 	}
 	if actorUserID <= 0 {
-		return nil, nil, infraerrors.BadRequest("USAGE_EXPORT_INVALID_CREATOR", "invalid export task creator")
+		return nil, infraerrors.BadRequest("USAGE_EXPORT_INVALID_CREATOR", "invalid export task creator")
 	}
 	uid := actorUserID
-	return s.repo.ListTasks(ctx, UsageExportListFilter{
+	return s.listScopedTasks(ctx, UsageExportListFilter{
 		Scope:     UsageExportScopeUser,
 		CreatedBy: &uid,
-	}, params)
+	}, params, watchIDs)
 }
 
-// ListAdminTasks returns paginated administrator-scope export tasks across admins.
+// ListAdminTasks returns paginated administrator-scope export tasks across admins
+// along with scope-wide active task IDs and optional watched task records.
 func (s *UsageExportService) ListAdminTasks(
 	ctx context.Context,
 	params pagination.PaginationParams,
-) ([]UsageExportTask, *pagination.PaginationResult, error) {
-	if err := s.requireReady(); err != nil {
-		return nil, nil, err
+	watchIDs ...int64,
+) (*UsageExportTaskListResult, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return nil, err
 	}
-	return s.repo.ListTasks(ctx, UsageExportListFilter{
+	return s.listScopedTasks(ctx, UsageExportListFilter{
 		Scope: UsageExportScopeAdmin,
-	}, params)
+	}, params, watchIDs)
+}
+
+// listScopedTasks loads one page of scoped export tasks, all active task IDs in
+// that scope, and any requested watchIDs absent from the returned page slice.
+func (s *UsageExportService) listScopedTasks(
+	ctx context.Context,
+	filter UsageExportListFilter,
+	params pagination.PaginationParams,
+	watchIDs []int64,
+) (*UsageExportTaskListResult, error) {
+	items, pageResult, err := s.repo.ListTasks(ctx, filter, params)
+	if err != nil {
+		return nil, err
+	}
+	activeIDs, err := s.repo.ListActiveTaskIDs(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	if activeIDs == nil {
+		activeIDs = []int64{}
+	}
+
+	onPage := make(map[int64]struct{}, len(items))
+	for i := range items {
+		onPage[items[i].ID] = struct{}{}
+	}
+	missingWatchIDs := normalizeWatchedTaskIDs(watchIDs, onPage)
+
+	var watchedItems []UsageExportTask
+	if len(missingWatchIDs) > 0 {
+		watchedItems, err = s.repo.ListTasksByIDs(ctx, filter, missingWatchIDs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &UsageExportTaskListResult{
+		Items:        items,
+		Pagination:   pageResult,
+		ActiveCount:  int64(len(activeIDs)),
+		ActiveIDs:    activeIDs,
+		WatchedItems: watchedItems,
+	}, nil
+}
+
+// normalizeWatchedTaskIDs deduplicates positive watchIDs absent from onPage and
+// caps the slice at maxWatchedExportTaskIDs.
+func normalizeWatchedTaskIDs(watchIDs []int64, onPage map[int64]struct{}) []int64 {
+	if len(watchIDs) == 0 {
+		return nil
+	}
+	out := make([]int64, 0, min(len(watchIDs), maxWatchedExportTaskIDs))
+	seen := make(map[int64]struct{}, len(out))
+	for _, id := range watchIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, present := onPage[id]; present {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+		if len(out) >= maxWatchedExportTaskIDs {
+			break
+		}
+	}
+	return out
 }
 
 // CancelUserTask cancels a pending or running user export task owned by
@@ -276,11 +359,8 @@ func (s *UsageExportService) IssueAdminDownloadTicket(ctx context.Context, actor
 // opens the corresponding CSV artifact stream, returning 401 for invalid/expired
 // tickets and 410 when the export artifact itself has expired.
 func (s *UsageExportService) OpenDownloadByTicket(ctx context.Context, ticket string) (*UsageExportDownloadStream, error) {
-	if err := s.requireReady(); err != nil {
+	if err := s.ensureAvailable(); err != nil {
 		return nil, err
-	}
-	if !s.isEnabled() {
-		return nil, infraerrors.ServiceUnavailable("USAGE_EXPORT_DISABLED", "usage export is disabled")
 	}
 	claims, err := s.signer.Verify(ticket)
 	if err != nil {
@@ -301,19 +381,16 @@ func (s *UsageExportService) OpenAdminDownload(ctx context.Context, actorUserID,
 	return s.openAuthorizedDownload(ctx, UsageExportScopeAdmin, actorUserID, taskID)
 }
 
-// createTask validates filters, checks per-actor active quotas, snapshots the
-// currency unit label, persists the pending task, and signals background workers.
+// createTask validates filters, snapshots the currency unit label, atomically
+// enforces the caller's active-task quota during persistence, and wakes workers.
 func (s *UsageExportService) createTask(
 	ctx context.Context,
 	scope string,
 	actorUserID int64,
 	filters UsageExportFilters,
 ) (*UsageExportTask, error) {
-	if err := s.requireReady(); err != nil {
+	if err := s.ensureAvailable(); err != nil {
 		return nil, err
-	}
-	if !s.isEnabled() {
-		return nil, infraerrors.ServiceUnavailable("USAGE_EXPORT_DISABLED", "usage export is disabled")
 	}
 	if strings.TrimSpace(filters.BalanceUnitName) == "" && s.balanceUnits != nil {
 		filters.BalanceUnitName = strings.TrimSpace(s.balanceUnits.GetBalanceUnitName(ctx))
@@ -323,26 +400,19 @@ func (s *UsageExportService) createTask(
 	}
 
 	limit := s.maxActiveLimit(scope)
-	if limit > 0 {
-		activeCount, err := s.repo.CountActiveTasks(ctx, scope, actorUserID)
-		if err != nil {
-			return nil, fmt.Errorf("count active export tasks: %w", err)
-		}
-		if activeCount >= int64(limit) {
-			return nil, infraerrors.TooManyRequests(
-				"USAGE_EXPORT_ACTIVE_LIMIT_EXCEEDED",
-				fmt.Sprintf("active export task limit (%d) reached; wait for a running task to finish or cancel it", limit),
-			)
-		}
-	}
-
 	task := &UsageExportTask{
 		Scope:     scope,
 		Status:    UsageExportStatusPending,
 		Filters:   filters,
 		CreatedBy: actorUserID,
 	}
-	if err := s.repo.CreateTask(ctx, task); err != nil {
+	if err := s.repo.CreateTask(ctx, task, limit); err != nil {
+		if errors.Is(err, ErrExportActiveLimitExceeded) {
+			return nil, infraerrors.TooManyRequests(
+				"USAGE_EXPORT_ACTIVE_LIMIT_EXCEEDED",
+				fmt.Sprintf("active export task limit (%d) reached; wait for a running task to finish or cancel it", limit),
+			)
+		}
 		return nil, fmt.Errorf("create export task: %w", err)
 	}
 	s.logMessage(
@@ -362,11 +432,8 @@ func (s *UsageExportService) createTask(
 // cancelTask enforces scope and creator ownership before conditionally marking
 // a pending or running export task as canceled.
 func (s *UsageExportService) cancelTask(ctx context.Context, scope string, actorUserID, taskID int64) (*UsageExportTask, error) {
-	if err := s.requireReady(); err != nil {
+	if err := s.ensureAvailable(); err != nil {
 		return nil, err
-	}
-	if !s.isEnabled() {
-		return nil, infraerrors.ServiceUnavailable("USAGE_EXPORT_DISABLED", "usage export is disabled")
 	}
 	if actorUserID <= 0 {
 		return nil, infraerrors.BadRequest("USAGE_EXPORT_INVALID_CANCELLER", "invalid export task canceller")
@@ -411,11 +478,8 @@ func (s *UsageExportService) issueDownloadTicket(
 	scope string,
 	actorUserID, taskID int64,
 ) (string, time.Time, error) {
-	if err := s.requireReady(); err != nil {
+	if err := s.ensureAvailable(); err != nil {
 		return "", time.Time{}, err
-	}
-	if !s.isEnabled() {
-		return "", time.Time{}, infraerrors.ServiceUnavailable("USAGE_EXPORT_DISABLED", "usage export is disabled")
 	}
 	if actorUserID <= 0 {
 		return "", time.Time{}, infraerrors.Unauthorized("UNAUTHORIZED", "authentication required")
@@ -449,11 +513,8 @@ func (s *UsageExportService) openAuthorizedDownload(
 	scope string,
 	actorUserID, taskID int64,
 ) (*UsageExportDownloadStream, error) {
-	if err := s.requireReady(); err != nil {
+	if err := s.ensureAvailable(); err != nil {
 		return nil, err
-	}
-	if !s.isEnabled() {
-		return nil, infraerrors.ServiceUnavailable("USAGE_EXPORT_DISABLED", "usage export is disabled")
 	}
 	if actorUserID <= 0 {
 		return nil, infraerrors.Unauthorized("UNAUTHORIZED", "authentication required")
@@ -590,7 +651,9 @@ func (s *UsageExportService) workerLoop() {
 // drainClaimableTasks repeatedly claims and executes pending or stale-running
 // tasks until the queue is empty or workerCtx is canceled.
 func (s *UsageExportService) drainClaimableTasks() {
-	staleSeconds := int64(s.taskTimeout().Seconds())
+	// Add a post-timeout grace window so a live worker whose execCtx deadline just
+	// expired can finish MarkTaskFailed before peer workers treat the row as abandoned.
+	staleSeconds := int64((s.taskTimeout() + defaultExportStaleClaimGrace).Seconds())
 	for {
 		if s.workerCtx != nil && s.workerCtx.Err() != nil {
 			return
@@ -617,10 +680,13 @@ func (s *UsageExportService) drainClaimableTasks() {
 // executeTask counts matching rows, streams keyset batches into a temporary CSV
 // writer, checks cancellation between batches, and atomically publishes the file.
 //
-// Context cancellation or deadline expiration exits without marking the task
-// failed so stale-running reclamation can restart a clean rewrite later. When
-// MarkTaskSucceeded reports that a concurrent cancel won after Commit, the newly
-// published CSV file is deleted immediately to prevent orphaned disk artifacts.
+// Execution timeouts and service shutdown take distinct recovery paths because CSV
+// generation streams into an uncommitted .part file from row zero. Exceeding the
+// per-task deadline while workerCtx remains active transitions the task to terminal
+// failed status immediately so slow tasks cannot repeatedly reclaim worker slots,
+// whereas graceful shutdown aborts partial output and requeues the running task
+// back to pending. When MarkTaskSucceeded reports that a concurrent cancel won
+// after Commit, the newly published CSV file is deleted immediately.
 func (s *UsageExportService) executeTask(ctx context.Context, task *UsageExportTask) {
 	if task == nil {
 		return
@@ -635,7 +701,7 @@ func (s *UsageExportService) executeTask(ctx context.Context, task *UsageExportT
 	totalRows, err := s.rowReader.CountExportLogs(ctx, task.Filters)
 	if err != nil {
 		if isContextInterruption(err) {
-			s.logMessage("service.usage_export", "[UsageExport] count interrupted: task=%d err=%v", task.ID, err)
+			s.handleTaskInterruption(ctx, task.ID, 0, err, "count")
 			return
 		}
 		s.markTaskFailed(task.ID, 0, err)
@@ -674,7 +740,9 @@ func (s *UsageExportService) executeTask(ctx context.Context, task *UsageExportT
 
 	for {
 		if ctx != nil && ctx.Err() != nil {
-			s.logMessage("service.usage_export", "[UsageExport] task interrupted: task=%d err=%v", task.ID, ctx.Err())
+			_ = writer.Abort()
+			_ = s.store.Delete(artifactKey)
+			s.handleTaskInterruption(ctx, task.ID, exportedTotal, ctx.Err(), "batch loop")
 			return
 		}
 		canceled, err := s.isTaskCanceled(task.ID)
@@ -692,9 +760,9 @@ func (s *UsageExportService) executeTask(ctx context.Context, task *UsageExportT
 		rows, err := batchReader.NextBatch(ctx, task.Filters, cursor, batchSize)
 		if err != nil {
 			if isContextInterruption(err) {
-				// Leave persisted status as running on shutdown or task timeout so a
-				// replacement worker can reclaim and rewrite the CSV from row zero.
-				s.logMessage("service.usage_export", "[UsageExport] batch interrupted: task=%d err=%v", task.ID, err)
+				_ = writer.Abort()
+				_ = s.store.Delete(artifactKey)
+				s.handleTaskInterruption(ctx, task.ID, exportedTotal, err, "batch read")
 				return
 			}
 			s.markTaskFailed(task.ID, exportedTotal, err)
@@ -859,16 +927,72 @@ func (s *UsageExportService) isTaskCanceled(taskID int64) (bool, error) {
 	return status == UsageExportStatusCanceled, nil
 }
 
-// markTaskFailed truncates err to 500 UTF-8-safe bytes and records failed status.
+// handleTaskInterruption separates graceful service shutdown from per-task
+// execution timeouts so timed-out tasks fail terminally while shutdown-interrupted
+// tasks return to pending for the next process startup.
+func (s *UsageExportService) handleTaskInterruption(
+	ctx context.Context,
+	taskID, exportedRows int64,
+	cause error,
+	stage string,
+) {
+	timedOut := errors.Is(cause, context.DeadlineExceeded) ||
+		(ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded))
+	if !timedOut && s.parentContext().Err() != nil {
+		s.logMessage(
+			"service.usage_export",
+			"[UsageExport] %s interrupted by shutdown: task=%d exported=%d err=%v",
+			stage,
+			taskID,
+			exportedRows,
+			cause,
+		)
+		s.requeueInterruptedTask(taskID)
+		return
+	}
+
+	failErr := fmt.Errorf("export task interrupted during %s: %w", stage, cause)
+	if timedOut {
+		failErr = fmt.Errorf("export task timed out after %s", s.taskTimeout())
+	}
+	s.markTaskFailed(taskID, exportedRows, failErr)
+}
+
+// requeueInterruptedTask resets a running task back to pending on a short
+// background timeout during Stop so restarted workers resume promptly without
+// waiting for the stale-running timeout window.
+func (s *UsageExportService) requeueInterruptedTask(taskID int64) {
+	if s == nil || s.repo == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := s.repo.RequeueTask(ctx, taskID); err != nil {
+		s.logMessage("service.usage_export", "[UsageExport] requeue interrupted task failed: task=%d err=%v", taskID, err)
+	}
+}
+
+// markTaskFailed truncates err to 500 UTF-8-safe bytes and records failed status,
+// retrying once on transient database errors so timed-out tasks do not linger in running.
 func (s *UsageExportService) markTaskFailed(taskID, exportedRows int64, err error) {
 	msg := "export failed"
 	if err != nil {
 		msg = truncateUTF8Bytes(strings.TrimSpace(err.Error()), maxExportErrorMsgBytes)
 	}
 	s.logMessage("service.usage_export", "[UsageExport] task failed: task=%d exported=%d err=%s", taskID, exportedRows, msg)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if updateErr := s.repo.MarkTaskFailed(ctx, taskID, exportedRows, msg); updateErr != nil {
+	for attempt := range 2 {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		updateErr := s.repo.MarkTaskFailed(ctx, taskID, exportedRows, msg)
+		cancel()
+		if updateErr == nil {
+			return
+		}
+		if attempt == 0 {
+			// Retry once after a brief pause so a transient connection reset right as a
+			// slow query times out still persists terminal failed status.
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
 		s.logMessage("service.usage_export", "[UsageExport] mark task failed write error: task=%d err=%v", taskID, updateErr)
 	}
 }
@@ -914,6 +1038,19 @@ func truncateUTF8Bytes(s string, maxBytes int) string {
 // isContextInterruption reports whether err stems from context cancellation or deadline expiry.
 func isContextInterruption(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// ensureAvailable checks the feature gate before verifying storage dependencies
+// so disabled deployments where local artifact storage was skipped at startup
+// return 503 USAGE_EXPORT_DISABLED rather than a 500 readiness error.
+func (s *UsageExportService) ensureAvailable() error {
+	if s == nil {
+		return fmt.Errorf("usage export service not ready")
+	}
+	if !s.isEnabled() {
+		return infraerrors.ServiceUnavailable("USAGE_EXPORT_DISABLED", "usage export is disabled")
+	}
+	return s.requireReady()
 }
 
 // requireReady verifies that core storage and reader dependencies are bound.

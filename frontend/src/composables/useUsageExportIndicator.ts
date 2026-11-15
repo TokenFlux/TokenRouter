@@ -15,10 +15,11 @@ import { useAppStore } from '@/stores/app'
 // AbortController. Responses that settle after the dialog reopens or after page unmount are
 // discarded before mutating badge counts or emitting notifications.
 
-// BACKGROUND_POLL_MS and INDICATOR_PAGE_SIZE govern closed-dialog polling cadence and the
-// first-page window inspected for active tasks (exceeding both user and admin quotas).
+// BACKGROUND_POLL_MS, INDICATOR_PAGE_SIZE, and MAX_FALLBACK_SCAN_PAGES govern closed-dialog
+// polling cadence, page size, and fallback multi-page scans when test doubles omit active_ids.
 const BACKGROUND_POLL_MS = 4000
 const INDICATOR_PAGE_SIZE = 10
+const MAX_FALLBACK_SCAN_PAGES = 10
 
 // UsageExportIndicator bindings connect the usage page's export button and UsageExportDialog
 // events to shared background task tracking.
@@ -57,6 +58,7 @@ export function useUsageExportIndicator(
   let pollTimer: number | null = null
   let abortController: AbortController | null = null
   let requestSeq = 0
+  let isUnmounted = false
 
   // stopPolling clears the recurring closed-dialog timer when no tasks remain active or
   // when the export dialog takes over polling.
@@ -75,10 +77,10 @@ export function useUsageExportIndicator(
     }
   }
 
-  // syncBackgroundPolling runs the 4-second background timer only while the dialog is closed
-  // and at least one export task remains pending or running.
+  // syncBackgroundPolling runs the 4-second background timer only while mounted, with the
+  // dialog closed, and while at least one export task remains pending or running.
   const syncBackgroundPolling = () => {
-    if (isDialogOpen.value || activeExportCount.value <= 0) {
+    if (isUnmounted || isDialogOpen.value || activeExportCount.value <= 0) {
       stopPolling()
       return
     }
@@ -89,14 +91,14 @@ export function useUsageExportIndicator(
     }
   }
 
-  // refreshActiveExports fetches the first page of export tasks while the dialog is closed.
-  // Initial mount calls pass notifyTransitions = false to hydrate the badge silently, whereas
-  // recurring polls pass true so tasks transitioning to succeeded or failed emit one toast.
+  // refreshActiveExports queries export tasks while the dialog is closed, forwarding any
+  // trackedActiveIds as watch_ids so older running tasks pushed past page one retain accurate
+  // badge counts, keep background polling active, and still emit terminal transition toasts.
   //
-  // Responses arriving after a newer request starts, after cancellation, or after the dialog
-  // opens are ignored so open-dialog state remains authoritative.
+  // Responses arriving after a newer request starts, after cancellation, after unmount, or
+  // after the dialog opens are ignored so open-dialog state remains authoritative.
   const refreshActiveExports = async (notifyTransitions = false): Promise<void> => {
-    if (isDialogOpen.value) {
+    if (isUnmounted || isDialogOpen.value) {
       return
     }
     const listFn = mode === 'admin' ? adminUsageAPI?.listExportTasks : usageAPI?.listExportTasks
@@ -110,34 +112,95 @@ export function useUsageExportIndicator(
     const controller = new AbortController()
     abortController = controller
     const seq = ++requestSeq
+    const previousActive = new Set(trackedActiveIds)
+    const watchIds = previousActive.size > 0 ? [...previousActive].join(',') : undefined
 
     try {
       const page = await listFn(
-        { page: 1, page_size: INDICATOR_PAGE_SIZE },
+        {
+          page: 1,
+          page_size: INDICATOR_PAGE_SIZE,
+          ...(watchIds ? { watch_ids: watchIds } : {}),
+        },
         { signal: controller.signal },
       )
-      if (seq !== requestSeq || controller.signal.aborted || isDialogOpen.value) {
+      if (isUnmounted || seq !== requestSeq || controller.signal.aborted || isDialogOpen.value) {
         return
       }
 
-      const items = Array.isArray(page?.items) ? page.items : []
-      const nextActive = new Set<number>()
-      for (const item of items) {
-        if (isTaskActive(item)) {
-          nextActive.add(item.id)
-          continue
+      const knownById = new Map<number, UsageExportTask>()
+      const firstItems = Array.isArray(page?.items) ? page.items : []
+      for (const item of firstItems) {
+        knownById.set(item.id, item)
+      }
+      if (Array.isArray(page?.watched_items)) {
+        for (const item of page.watched_items) {
+          knownById.set(item.id, item)
         }
-        if (notifyTransitions && trackedActiveIds.has(item.id)) {
-          if (item.status === 'succeeded') {
+      }
+
+      const hasServerActiveIds = Array.isArray(page?.active_ids)
+      const totalPages = typeof page?.pages === 'number' ? page.pages : 1
+      if (!hasServerActiveIds && totalPages > 1) {
+        // Fallback scan for plain paginated fixtures that omit server-computed active_ids
+        // and watched_items when older running tasks move onto subsequent pages.
+        const maxPage = Math.min(totalPages, MAX_FALLBACK_SCAN_PAGES)
+        for (let pageNum = 2; pageNum <= maxPage; pageNum += 1) {
+          const nextPage = await listFn(
+            { page: pageNum, page_size: INDICATOR_PAGE_SIZE },
+            { signal: controller.signal },
+          )
+          if (
+            isUnmounted ||
+            seq !== requestSeq ||
+            controller.signal.aborted ||
+            isDialogOpen.value
+          ) {
+            return
+          }
+          if (Array.isArray(nextPage?.items)) {
+            for (const item of nextPage.items) {
+              knownById.set(item.id, item)
+            }
+          }
+        }
+      }
+
+      const nextActive = new Set<number>()
+      if (hasServerActiveIds) {
+        for (const id of page.active_ids!) {
+          if (typeof id === 'number' && id > 0) {
+            nextActive.add(id)
+          }
+        }
+      } else {
+        for (const item of knownById.values()) {
+          if (isTaskActive(item)) {
+            nextActive.add(item.id)
+          }
+        }
+      }
+
+      if (notifyTransitions) {
+        for (const prevId of previousActive) {
+          if (nextActive.has(prevId)) {
+            continue
+          }
+          const settled = knownById.get(prevId)
+          if (settled?.status === 'succeeded') {
             appStore.showSuccess(t('usage.exportPanel.taskCompletedToast'))
-          } else if (item.status === 'failed') {
+          } else if (settled?.status === 'failed') {
             appStore.showError(t('usage.exportPanel.taskFailedToast'))
           }
         }
       }
 
       trackedActiveIds = nextActive
-      activeExportCount.value = nextActive.size
+      const reportedCount =
+        typeof page?.active_count === 'number'
+          ? Math.max(nextActive.size, page.active_count)
+          : nextActive.size
+      activeExportCount.value = reportedCount
       syncBackgroundPolling()
     } catch {
       // Background indicator probes fail silently so transient polling errors do not disrupt
@@ -187,7 +250,8 @@ export function useUsageExportIndicator(
   })
 
   onUnmounted(() => {
-    // Advance requestSeq before aborting so any settling promise observes invalidation.
+    // Mark unmounted and advance requestSeq before aborting so any settling promise stops.
+    isUnmounted = true
     requestSeq += 1
     stopPolling()
     abortInFlight()

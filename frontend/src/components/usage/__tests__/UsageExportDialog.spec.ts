@@ -415,4 +415,132 @@ describe('UsageExportDialog', () => {
       'usage_export_51.csv',
     )
   })
+
+  // Pasting 2026-11-01T01:30:00-05:00 under America/New_York targets the second fall-back
+  // occurrence at 06:30:00Z rather than 01:30:00-04:00 at 05:30:00Z. The UTC preview and
+  // submitted start_time payload must preserve -05:00 without shifting an hour earlier.
+  it('preserves pasted EST offset during America/New_York daylight-saving fall-back', async () => {
+    mockUserCreateExportTask.mockResolvedValue({
+      id: 92,
+      scope: 'user',
+      status: 'pending',
+      filters: {
+        start_time: '2026-11-01T01:30:00-05:00',
+        end_time: '2026-11-01T02:30:00-05:00',
+        timezone: 'America/New_York',
+      },
+      created_by: 7,
+      total_rows: 0,
+      exported_rows: 0,
+      file_size_bytes: 0,
+      created_at: '2026-11-15T10:20:30Z',
+      updated_at: '2026-11-15T10:20:30Z',
+    })
+
+    const wrapper = mount(UsageExportDialog, {
+      props: {
+        show: true,
+        mode: 'user',
+        startDate: '2026-11-01',
+        endDate: '2026-11-01',
+        filters: {},
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    // Select America/New_York via SelectStub, then paste unambiguous EST (-05:00) bounds.
+    await wrapper.find('[data-testid="timezone-select-stub"]').trigger('click')
+    await wrapper.find('[data-testid="export-toggle-paste"]').trigger('click')
+
+    await wrapper
+      .find('[data-testid="export-paste-start-input"]')
+      .setValue('2026-11-01T01:30:00-05:00')
+    await wrapper.find('[data-testid="export-paste-start-apply"]').trigger('click')
+
+    await wrapper
+      .find('[data-testid="export-paste-end-input"]')
+      .setValue('2026-11-01T02:30:00-05:00')
+    await wrapper.find('[data-testid="export-paste-end-apply"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="export-boundary-preview"]').text()).toContain(
+      '[2026-11-01 06:30:00Z, 2026-11-01 07:30:00Z)',
+    )
+
+    await wrapper.find('[data-testid="create-export-task-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(mockUserCreateExportTask).toHaveBeenCalledWith({
+      start_time: '2026-11-01T01:30:00-05:00',
+      end_time: '2026-11-01T02:30:00-05:00',
+      timezone: 'America/New_York',
+      locale: 'zh',
+    })
+  })
+
+  // Navigating away unmounts UsageExportDialog while createExportTask may still be in
+  // flight. A late creation resolution after unmount must neither call listExportTasks
+  // nor start a background polling interval on the destroyed component instance.
+  it('ignores late createExportTask completion after unmount without restarting polling', async () => {
+    let resolveCreate!: (value: unknown) => void
+    mockUserCreateExportTask.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve
+        }),
+    )
+
+    const wrapper = mount(UsageExportDialog, {
+      props: {
+        show: true,
+        mode: 'user',
+        startDate: '2026-11-15',
+        endDate: '2026-11-15',
+        filters: {},
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+    expect(mockUserListExportTasks).toHaveBeenCalledTimes(1)
+
+    await wrapper.find('[data-testid="create-export-task-btn"]').trigger('click')
+    expect(mockUserCreateExportTask).toHaveBeenCalledTimes(1)
+
+    // Unmount before createExportTask settles, then resolve the pending creation request.
+    wrapper.unmount()
+    resolveCreate({
+      id: 77,
+      scope: 'user',
+      status: 'pending',
+      filters: {
+        start_time: '2026-11-15T00:00:00Z',
+        end_time: '2026-11-16T00:00:00Z',
+        timezone: 'UTC',
+      },
+      created_by: 7,
+      total_rows: 0,
+      exported_rows: 0,
+      file_size_bytes: 0,
+      created_at: '2026-11-15T10:20:30Z',
+      updated_at: '2026-11-15T10:20:30Z',
+    })
+    await flushPromises()
+
+    vi.advanceTimersByTime(12000)
+    await flushPromises()
+
+    expect(mockUserListExportTasks).toHaveBeenCalledTimes(1)
+  })
 })

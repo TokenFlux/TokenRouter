@@ -329,6 +329,19 @@ type UsageExportTask struct {
 	UpdatedAt     time.Time  `json:"updated_at"`              // latest task update instant
 }
 
+// UsageExportTaskPage extends the paginated task list response with scope-wide
+// active task identifiers and optional watched task records for off-page tracking.
+type UsageExportTaskPage struct {
+	Items        []UsageExportTask `json:"items"`                   // requested page of export tasks
+	Total        int64             `json:"total"`                   // total matching export tasks
+	Page         int               `json:"page"`                    // 1-based page number
+	PageSize     int               `json:"page_size"`               // requested page size
+	Pages        int               `json:"pages"`                   // total page count (at least 1)
+	ActiveCount  int64             `json:"active_count"`            // pending plus running tasks across all pages
+	ActiveIDs    []int64           `json:"active_ids"`              // all pending or running task IDs across pages
+	WatchedItems []UsageExportTask `json:"watched_items,omitempty"` // latest records for requested off-page watch_ids
+}
+
 // UsageExportDownloadTicket carries a short-lived signed download token and its
 // streaming browser URL.
 type UsageExportDownloadTicket struct {

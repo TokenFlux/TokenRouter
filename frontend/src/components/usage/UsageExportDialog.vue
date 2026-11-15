@@ -107,20 +107,22 @@
           <div>
             <label class="input-label">{{ t('usage.exportPanel.startTimeLabel') }}</label>
             <DateTimePicker
-              v-model="startLocal"
+              :model-value="startLocal"
               precision="second"
               :clearable="false"
-              :now-resolver="resolveNowInSelectedTimezone"
+              :now-resolver="resolveNowForStart"
+              @update:model-value="handleStartPickerUpdate"
             />
           </div>
           <div>
             <label class="input-label">{{ t('usage.exportPanel.endTimeLabel') }}</label>
             <DateTimePicker
-              v-model="endLocal"
+              :model-value="endLocal"
               precision="second"
               :clearable="false"
               :min="startLocal"
-              :now-resolver="resolveNowInSelectedTimezone"
+              :now-resolver="resolveNowForEnd"
+              @update:model-value="handleEndPickerUpdate"
             />
           </div>
         </div>
@@ -544,6 +546,7 @@ import type {
   CreateUserUsageExportTaskRequest,
   UsageExportFilters,
   UsageExportTask,
+  UsageExportTaskListResponse,
   UsageExportTaskStatus,
   UsageRequestType,
 } from '@/api/usage.types'
@@ -553,13 +556,13 @@ import { formatBytes } from '@/utils/format'
 import {
   dateRangeToHalfOpenLocalRange,
   formatInstantInTimezoneDisplay,
+  formatInstantRFC3339InTimezone,
   formatInstantUTCPreview,
-  formatZonedRFC3339,
   getBrowserTimezone,
   getTimezoneSelectOptions,
   instantToZonedLocalDateTime,
   isValidIanaTimezone,
-  parseFlexibleTimestampInput,
+  parseFlexibleTimestamp,
   shiftCalendarDate,
   zonedDateTimeToInstant,
 } from '@/utils/timezone'
@@ -606,9 +609,14 @@ const TASKS_PAGE_SIZE = 10
 
 // Form draft state holds the chosen IANA timezone, second-precision local bounds,
 // filter-inheritance switch, and optional timestamp quick-paste inputs.
+// startExactInstant and endExactInstant retain unambiguous UTC instants from pasted
+// offset/epoch timestamps, relative presets, or timezone switches so repeated DST
+// fall-back hours never shift onto the earlier local occurrence on submission.
 const selectedTimezone = ref<string>(getBrowserTimezone())
 const startLocal = ref<string>('')
 const endLocal = ref<string>('')
+const startExactInstant = ref<Date | null>(null)
+const endExactInstant = ref<Date | null>(null)
 const includePageFilters = ref<boolean>(true)
 const showQuickPaste = ref<boolean>(false)
 const pasteStartInput = ref<string>('')
@@ -627,18 +635,41 @@ const tasksLoading = ref<boolean>(false)
 const cancelingTaskIds = ref<Set<number>>(new Set())
 const downloadingTaskIds = ref<Set<number>>(new Set())
 const trackedActiveTaskIds = ref<Set<number>>(new Set())
+const globalActiveTaskCount = ref<number>(0)
 
-// pollTimer and listAbortController coordinate recurring refreshes and cancel stale GET
-// requests when the dialog closes, changes page, or unmounts.
+// pollTimer, listAbortController, listReqSeq, and isUnmounted coordinate recurring
+// refreshes and ensure late create/cancel/download responses never restart polling
+// after the dialog closes or unmounts.
 let pollTimer: number | null = null
 let listAbortController: AbortController | null = null
 let listReqSeq = 0
+let isUnmounted = false
 
-// startInstant and endInstant resolve the local picker strings against selectedTimezone.
+// resolveBoundInstant prefers exactInstant while its wall-clock projection in timeZone
+// still matches localValue, falling back to wall-clock resolution after manual edits.
+function resolveBoundInstant(
+  localValue: string,
+  exactInstant: Date | null,
+  timeZone: string,
+): Date | null {
+  if (
+    exactInstant &&
+    !Number.isNaN(exactInstant.getTime()) &&
+    instantToZonedLocalDateTime(exactInstant, timeZone) === localValue
+  ) {
+    return exactInstant
+  }
+  return zonedDateTimeToInstant(localValue, timeZone)
+}
+
+// startInstant and endInstant resolve each bound against selectedTimezone while
+// preserving unambiguous instants across DST fall-back folds.
 const startInstant = computed(() =>
-  zonedDateTimeToInstant(startLocal.value, selectedTimezone.value),
+  resolveBoundInstant(startLocal.value, startExactInstant.value, selectedTimezone.value),
 )
-const endInstant = computed(() => zonedDateTimeToInstant(endLocal.value, selectedTimezone.value))
+const endInstant = computed(() =>
+  resolveBoundInstant(endLocal.value, endExactInstant.value, selectedTimezone.value),
+)
 
 // isRangeValid requires both timestamps to parse cleanly and endInstant to strictly follow startInstant.
 const isRangeValid = computed(() => {
@@ -790,10 +821,42 @@ function resolveExportErrorMessage(err: unknown, fallbackKey: string): string {
   }
 }
 
-// resolveNowInSelectedTimezone formats the current instant as YYYY-MM-DDTHH:mm:ss in selectedTimezone.
-function resolveNowInSelectedTimezone(): string {
+// handleStartPickerUpdate updates startLocal from DateTimePicker and clears any
+// pinned exact instant whenever the wall-clock string changes manually.
+function handleStartPickerUpdate(nextValue: string): void {
+  if (nextValue !== startLocal.value) {
+    startExactInstant.value = null
+  }
+  startLocal.value = nextValue
+}
+
+// handleEndPickerUpdate updates endLocal from DateTimePicker and clears any
+// pinned exact instant whenever the wall-clock string changes manually.
+function handleEndPickerUpdate(nextValue: string): void {
+  if (nextValue !== endLocal.value) {
+    endExactInstant.value = null
+  }
+  endLocal.value = nextValue
+}
+
+// resolveNowForStart pins startExactInstant to the current whole-second UTC instant
+// and returns its wall-clock string in selectedTimezone for DateTimePicker's Now action.
+function resolveNowForStart(): string {
   const truncatedNow = new Date(Math.floor(Date.now() / 1000) * 1000)
-  return instantToZonedLocalDateTime(truncatedNow, selectedTimezone.value)
+  const localNow = instantToZonedLocalDateTime(truncatedNow, selectedTimezone.value)
+  startExactInstant.value = truncatedNow
+  startLocal.value = localNow
+  return localNow
+}
+
+// resolveNowForEnd pins endExactInstant to the current whole-second UTC instant
+// and returns its wall-clock string in selectedTimezone for DateTimePicker's Now action.
+function resolveNowForEnd(): string {
+  const truncatedNow = new Date(Math.floor(Date.now() / 1000) * 1000)
+  const localNow = instantToZonedLocalDateTime(truncatedNow, selectedTimezone.value)
+  endExactInstant.value = truncatedNow
+  endLocal.value = localNow
+  return localNow
 }
 
 // applyPageDateRange aligns startLocal and endLocal to [props.startDate 00:00:00, props.endDate+1d 00:00:00)
@@ -802,6 +865,8 @@ function applyPageDateRange(): void {
   pasteError.value = ''
   const inherited = dateRangeToHalfOpenLocalRange(props.startDate, props.endDate)
   if (inherited) {
+    startExactInstant.value = null
+    endExactInstant.value = null
     startLocal.value = inherited.startLocal
     endLocal.value = inherited.endLocal
     return
@@ -809,13 +874,18 @@ function applyPageDateRange(): void {
   applyCalendarDayPreset(0)
 }
 
-// applyRelativeHoursPreset sets [now - hours, now) at whole-second resolution in selectedTimezone.
+// applyRelativeHoursPreset sets [now - hours, now) at whole-second resolution in selectedTimezone
+// while pinning both exact instants across daylight-saving transitions.
 function applyRelativeHoursPreset(hours: number): void {
   pasteError.value = ''
   const endMs = Math.floor(Date.now() / 1000) * 1000
   const startMs = endMs - hours * 3600 * 1000
-  startLocal.value = instantToZonedLocalDateTime(new Date(startMs), selectedTimezone.value)
-  endLocal.value = instantToZonedLocalDateTime(new Date(endMs), selectedTimezone.value)
+  const startDate = new Date(startMs)
+  const endDate = new Date(endMs)
+  startExactInstant.value = startDate
+  endExactInstant.value = endDate
+  startLocal.value = instantToZonedLocalDateTime(startDate, selectedTimezone.value)
+  endLocal.value = instantToZonedLocalDateTime(endDate, selectedTimezone.value)
 }
 
 // applyCalendarDayPreset sets [day 00:00:00, nextDay 00:00:00) in selectedTimezone for
@@ -826,6 +896,8 @@ function applyCalendarDayPreset(dayOffset: number): void {
   const targetDay = dayOffset === 0 ? todayInZone : shiftCalendarDate(todayInZone, dayOffset)
   const nextDay = shiftCalendarDate(targetDay, 1)
   if (targetDay && nextDay) {
+    startExactInstant.value = null
+    endExactInstant.value = null
     startLocal.value = `${targetDay}T00:00:00`
     endLocal.value = `${nextDay}T00:00:00`
   }
@@ -846,9 +918,11 @@ function handleTimezoneSelect(nextValue: string | number | boolean | null): void
   selectedTimezone.value = cleanZone
   pasteError.value = ''
   if (previousStart) {
+    startExactInstant.value = previousStart
     startLocal.value = instantToZonedLocalDateTime(previousStart, cleanZone)
   }
   if (previousEnd) {
+    endExactInstant.value = previousEnd
     endLocal.value = instantToZonedLocalDateTime(previousEnd, cleanZone)
   }
 }
@@ -859,19 +933,22 @@ function toggleQuickPaste(): void {
   pasteError.value = ''
 }
 
-// applyPasteBound parses pasted Unix seconds, milliseconds, or ISO text into startLocal or endLocal.
+// applyPasteBound parses pasted Unix seconds, milliseconds, explicit-offset ISO text, or
+// wall-clock text into startLocal/endLocal while preserving the exact parsed instant.
 function applyPasteBound(bound: 'start' | 'end'): void {
   const raw = bound === 'start' ? pasteStartInput.value : pasteEndInput.value
-  const parsed = parseFlexibleTimestampInput(raw, selectedTimezone.value)
+  const parsed = parseFlexibleTimestamp(raw, selectedTimezone.value)
   if (!parsed) {
     pasteError.value = t('usage.exportPanel.quickPasteInvalid')
     return
   }
   pasteError.value = ''
   if (bound === 'start') {
-    startLocal.value = parsed
+    startExactInstant.value = parsed.instant
+    startLocal.value = parsed.localValue
   } else {
-    endLocal.value = parsed
+    endExactInstant.value = parsed.instant
+    endLocal.value = parsed.localValue
   }
 }
 
@@ -942,6 +1019,11 @@ function taskFilterSummaryLabel(taskFilters: UsageExportFilters): string {
   return t('usage.exportPanel.filterCountTag', { count })
 }
 
+// isDialogActive reports whether the component remains mounted and currently visible.
+function isDialogActive(): boolean {
+  return !isUnmounted && props.show
+}
+
 // stopPolling clears any active progress interval and aborts in-flight list refreshes.
 function stopPolling(): void {
   if (pollTimer !== null) {
@@ -960,9 +1042,9 @@ function abortInFlightList(): void {
 }
 
 // syncPollingInterval starts or stops the 3-second silent refresh timer depending on
-// dialog visibility and whether any displayed task remains pending or running.
+// mounted visibility and whether any scoped export task remains pending or running.
 function syncPollingInterval(): void {
-  const shouldPoll = props.show && tasks.value.some((item) => isTaskActive(item.status))
+  const shouldPoll = isDialogActive() && globalActiveTaskCount.value > 0
   if (!shouldPoll) {
     stopPolling()
     return
@@ -974,40 +1056,73 @@ function syncPollingInterval(): void {
   }
 }
 
-// updateTrackedTransitions emits completion toasts when previously active tasks finish
-// during an open-dialog background poll and updates the parent's active-task badge count.
-function updateTrackedTransitions(fetchedItems: UsageExportTask[], isSilentPoll: boolean): void {
+// updateTrackedTransitions reconciles both current-page items and off-page watched_items
+// against trackedActiveTaskIds so completion toasts and toolbar badge counts stay accurate
+// even when older active tasks move past page one or the operator views another page.
+function updateTrackedTransitions(res: UsageExportTaskListResponse, isSilentPoll: boolean): void {
   const previousActive = trackedActiveTaskIds.value
-  const nextActive = new Set<number>()
-
+  const fetchedItems = Array.isArray(res.items) ? res.items : []
+  const knownById = new Map<number, UsageExportTask>()
   for (const item of fetchedItems) {
-    if (isTaskActive(item.status)) {
-      nextActive.add(item.id)
-      continue
+    knownById.set(item.id, item)
+  }
+  if (Array.isArray(res.watched_items)) {
+    for (const item of res.watched_items) {
+      knownById.set(item.id, item)
     }
-    if (isSilentPoll && previousActive.has(item.id)) {
-      if (item.status === 'succeeded') {
+  }
+
+  const nextActive = new Set<number>()
+  if (Array.isArray(res.active_ids)) {
+    for (const id of res.active_ids) {
+      if (typeof id === 'number' && id > 0) {
+        nextActive.add(id)
+      }
+    }
+  } else {
+    for (const item of knownById.values()) {
+      if (isTaskActive(item.status)) {
+        nextActive.add(item.id)
+      }
+    }
+  }
+
+  if (isSilentPoll) {
+    for (const prevId of previousActive) {
+      if (nextActive.has(prevId)) {
+        continue
+      }
+      const settled = knownById.get(prevId)
+      if (settled?.status === 'succeeded') {
         appStore.showSuccess(t('usage.exportPanel.taskCompletedToast'))
-      } else if (item.status === 'failed') {
+      } else if (settled?.status === 'failed') {
         appStore.showError(t('usage.exportPanel.taskFailedToast'))
       }
     }
   }
 
   trackedActiveTaskIds.value = nextActive
-  if (tasksPage.value === 1) {
-    emit('tasksChanged', nextActive.size)
-    emit('activeIdsChanged', [...nextActive])
-  }
+  const nextCount =
+    typeof res.active_count === 'number'
+      ? Math.max(nextActive.size, res.active_count)
+      : nextActive.size
+  globalActiveTaskCount.value = nextCount
+  emit('tasksChanged', nextCount)
+  emit('activeIdsChanged', [...nextActive])
 }
 
-// loadTasks fetches the current page of user or administrator export tasks. Silent polls
-// preserve existing rows without toggling initial skeletons or noisy toast errors.
+// loadTasks fetches the current page of user or administrator export tasks while mounted
+// and visible. Silent polls preserve existing rows without toggling initial skeletons.
 async function loadTasks(silent = false): Promise<void> {
+  if (!isDialogActive()) {
+    return
+  }
   abortInFlightList()
   const controller = new AbortController()
   listAbortController = controller
   const seq = ++listReqSeq
+  const watchIds =
+    trackedActiveTaskIds.value.size > 0 ? [...trackedActiveTaskIds.value].join(',') : undefined
 
   if (!silent) {
     tasksLoading.value = true
@@ -1017,43 +1132,48 @@ async function loadTasks(silent = false): Promise<void> {
   }
 
   try {
-    const params = { page: tasksPage.value, page_size: tasksPageSize }
+    const params = {
+      page: tasksPage.value,
+      page_size: tasksPageSize,
+      ...(watchIds ? { watch_ids: watchIds } : {}),
+    }
     const res =
       props.mode === 'admin'
         ? await adminUsageAPI.listExportTasks(params, { signal: controller.signal })
         : await usageAPI.listExportTasks(params, { signal: controller.signal })
 
-    if (seq !== listReqSeq) {
+    if (!isDialogActive() || seq !== listReqSeq) {
       return
     }
     tasks.value = res.items || []
     tasksTotal.value = res.total || 0
-    updateTrackedTransitions(tasks.value, silent)
+    updateTrackedTransitions(res, silent)
     syncPollingInterval()
   } catch (err: unknown) {
-    // Aborted polls arise from closing the dialog or changing pages and need no error toast.
-    if (controller.signal.aborted) {
+    // Aborted polls or post-unmount rejections need no error toast.
+    if (isUnmounted || controller.signal.aborted) {
       return
     }
-    if (!silent) {
+    if (!silent && props.show) {
       appStore.showError(resolveExportErrorMessage(err, 'usage.exportPanel.loadTasksFailed'))
     }
   } finally {
-    if (seq === listReqSeq) {
+    if (!isUnmounted && seq === listReqSeq) {
       tasksLoading.value = false
       tasksInitialLoading.value = false
     }
   }
 }
 
-// submitCreateTask validates bounds, formats explicit-offset RFC3339 timestamps, submits
-// the user or administrator export task, and refreshes page 1 to begin progress tracking.
+// submitCreateTask validates bounds, formats explicit-offset RFC3339 timestamps directly
+// from startInstant and endInstant so DST fall-back offsets stay intact, submits the
+// export task, and refreshes page 1 only when the dialog remains mounted and open.
 async function submitCreateTask(): Promise<void> {
-  if (!isRangeValid.value || creatingTask.value) {
+  if (!isRangeValid.value || creatingTask.value || !startInstant.value || !endInstant.value) {
     return
   }
-  const startRfc3339 = formatZonedRFC3339(startLocal.value, selectedTimezone.value)
-  const endRfc3339 = formatZonedRFC3339(endLocal.value, selectedTimezone.value)
+  const startRfc3339 = formatInstantRFC3339InTimezone(startInstant.value, selectedTimezone.value)
+  const endRfc3339 = formatInstantRFC3339InTimezone(endInstant.value, selectedTimezone.value)
   if (!startRfc3339 || !endRfc3339) {
     appStore.showError(t('usage.exportPanel.errors.invalidTimeRange'))
     return
@@ -1065,6 +1185,7 @@ async function submitCreateTask(): Promise<void> {
 
   creatingTask.value = true
   try {
+    let created: UsageExportTask
     if (props.mode === 'admin') {
       const payload: CreateAdminUsageExportTaskRequest = {
         start_time: startRfc3339,
@@ -1073,7 +1194,7 @@ async function submitCreateTask(): Promise<void> {
         locale: normalizedLocale,
         ...inheritedFilters,
       }
-      await adminUsageAPI.createExportTask(payload)
+      created = await adminUsageAPI.createExportTask(payload)
     } else {
       const payload: CreateUserUsageExportTaskRequest = {
         start_time: startRfc3339,
@@ -1082,16 +1203,39 @@ async function submitCreateTask(): Promise<void> {
         locale: normalizedLocale,
         ...inheritedFilters,
       }
-      await usageAPI.createExportTask(payload)
+      created = await usageAPI.createExportTask(payload)
+    }
+
+    // Discard post-unmount completions so navigating away never restarts list polling.
+    if (isUnmounted) {
+      return
     }
 
     appStore.showSuccess(t('usage.exportPanel.taskCreatedToast'))
+    if (!props.show) {
+      // If the user closed the modal while staying on UsageView, hand the new active ID
+      // to the page-level indicator without starting open-dialog polling.
+      if (created && isTaskActive(created.status)) {
+        const nextActive = new Set(trackedActiveTaskIds.value)
+        nextActive.add(created.id)
+        trackedActiveTaskIds.value = nextActive
+        globalActiveTaskCount.value = Math.max(globalActiveTaskCount.value, nextActive.size)
+        emit('activeIdsChanged', [...nextActive])
+        emit('tasksChanged', globalActiveTaskCount.value)
+      }
+      return
+    }
+
     tasksPage.value = 1
     await loadTasks(false)
   } catch (err: unknown) {
-    appStore.showError(resolveExportErrorMessage(err, 'usage.exportPanel.createTaskFailed'))
+    if (!isUnmounted) {
+      appStore.showError(resolveExportErrorMessage(err, 'usage.exportPanel.createTaskFailed'))
+    }
   } finally {
-    creatingTask.value = false
+    if (!isUnmounted) {
+      creatingTask.value = false
+    }
   }
 }
 
@@ -1110,24 +1254,36 @@ async function handleCancelTask(task: UsageExportTask): Promise<void> {
         ? await adminUsageAPI.cancelExportTask(task.id)
         : await usageAPI.cancelExportTask(task.id)
 
+    if (isUnmounted) {
+      return
+    }
+
     tasks.value = tasks.value.map((item) => (item.id === task.id ? updated : item))
     const nextTracked = new Set(trackedActiveTaskIds.value)
-    nextTracked.delete(task.id)
+    const wasTracked = nextTracked.delete(task.id)
     trackedActiveTaskIds.value = nextTracked
-
-    if (tasksPage.value === 1) {
-      const remainingActive = tasks.value.filter((item) => isTaskActive(item.status)).length
-      emit('tasksChanged', remainingActive)
+    if (wasTracked && globalActiveTaskCount.value > 0) {
+      globalActiveTaskCount.value = Math.max(nextTracked.size, globalActiveTaskCount.value - 1)
+    } else {
+      globalActiveTaskCount.value = nextTracked.size
     }
+    emit('tasksChanged', globalActiveTaskCount.value)
+    emit('activeIdsChanged', [...nextTracked])
     syncPollingInterval()
     appStore.showInfo(t('usage.exportPanel.taskCanceledToast'))
   } catch (err: unknown) {
-    appStore.showError(resolveExportErrorMessage(err, 'usage.exportPanel.cancelTaskFailed'))
-    void loadTasks(true)
+    if (!isUnmounted) {
+      appStore.showError(resolveExportErrorMessage(err, 'usage.exportPanel.cancelTaskFailed'))
+      if (isDialogActive()) {
+        void loadTasks(true)
+      }
+    }
   } finally {
-    const cleaned = new Set(cancelingTaskIds.value)
-    cleaned.delete(task.id)
-    cancelingTaskIds.value = cleaned
+    if (!isUnmounted) {
+      const cleaned = new Set(cancelingTaskIds.value)
+      cleaned.delete(task.id)
+      cancelingTaskIds.value = cleaned
+    }
   }
 }
 
@@ -1146,14 +1302,23 @@ async function handleDownloadTask(task: UsageExportTask): Promise<void> {
       props.mode === 'admin'
         ? await adminUsageAPI.createExportDownloadTicket(task.id)
         : await usageAPI.createExportDownloadTicket(task.id)
+    if (isUnmounted) {
+      return
+    }
     usageAPI.triggerExportDownloadUrl(ticket.download_url, task.file_name)
   } catch (err: unknown) {
-    appStore.showError(resolveExportErrorMessage(err, 'usage.exportPanel.downloadFailed'))
-    void loadTasks(true)
+    if (!isUnmounted) {
+      appStore.showError(resolveExportErrorMessage(err, 'usage.exportPanel.downloadFailed'))
+      if (isDialogActive()) {
+        void loadTasks(true)
+      }
+    }
   } finally {
-    const cleaned = new Set(downloadingTaskIds.value)
-    cleaned.delete(task.id)
-    downloadingTaskIds.value = cleaned
+    if (!isUnmounted) {
+      const cleaned = new Set(downloadingTaskIds.value)
+      cleaned.delete(task.id)
+      downloadingTaskIds.value = cleaned
+    }
   }
 }
 
@@ -1182,6 +1347,7 @@ watch(
       applyPageDateRange()
       void loadTasks(false)
     } else {
+      listReqSeq += 1
       stopPolling()
       abortInFlightList()
     }
@@ -1189,8 +1355,10 @@ watch(
   { immediate: true },
 )
 
-// Release polling timers and abort in-flight requests if the parent unmounts the dialog.
+// Release polling timers, mark unmounted, and abort in-flight requests on unmount.
 onUnmounted(() => {
+  isUnmounted = true
+  listReqSeq += 1
   stopPolling()
   abortInFlightList()
 })

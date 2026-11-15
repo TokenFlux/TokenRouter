@@ -30,6 +30,9 @@ var (
 	// ErrExportArtifactNotFound marks a missing local CSV artifact so download
 	// handlers and expiry sweeps can distinguish removed files from read errors.
 	ErrExportArtifactNotFound = errors.New("usage export artifact not found")
+	// ErrExportActiveLimitExceeded marks an admission rejection when creating a
+	// pending export task would exceed the caller's active-task quota.
+	ErrExportActiveLimitExceeded = errors.New("usage export active task limit exceeded")
 )
 
 // Options carries application-owned dependencies and deployment settings for

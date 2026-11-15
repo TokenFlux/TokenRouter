@@ -68,10 +68,11 @@ type CreateUsageExportTaskRequest struct {
 }
 
 // ListExportTasks returns a paginated list of background export tasks owned by
-// the authenticated user, ordered newest first.
+// the authenticated user, ordered newest first, along with scope-wide active IDs
+// and optional off-page watch_ids snapshots.
 func (h *UsageHandler) ListExportTasks(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		WriteExportDisabledResponse(c)
 		return
 	}
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
@@ -80,19 +81,19 @@ func (h *UsageHandler) ListExportTasks(c *gin.Context) {
 		return
 	}
 
+	watchIDs, ok := ParseExportWatchIDsParam(c)
+	if !ok {
+		return
+	}
 	page, pageSize := response.ParsePagination(c)
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
-	tasks, result, err := h.exportService.ListUserTasks(c.Request.Context(), subject.UserID, params)
+	result, err := h.exportService.ListUserTasks(c.Request.Context(), subject.UserID, params, watchIDs...)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	out := make([]dto.UsageExportTask, 0, len(tasks))
-	for i := range tasks {
-		out = append(out, *dto.ExportFromUsage(&tasks[i]))
-	}
-	response.Paginated(c, out, result.Total, page, pageSize)
+	response.Success(c, dto.ExportPageFromUsage(result, page, pageSize))
 }
 
 // CreateExportTask validates explicit half-open timestamps, IANA timezone, and
@@ -103,8 +104,8 @@ func (h *UsageHandler) ListExportTasks(c *gin.Context) {
 // UsageExportService pins UserID and owned-team scope on the persisted filter
 // snapshot. Replayed idempotency keys return the previously recorded task DTO.
 func (h *UsageHandler) CreateExportTask(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		WriteExportDisabledResponse(c)
 		return
 	}
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
@@ -202,8 +203,8 @@ func (h *UsageHandler) CreateExportTask(c *gin.Context) {
 // CancelExportTask cancels a pending or running user export task owned by the
 // authenticated requester and returns the updated task DTO.
 func (h *UsageHandler) CancelExportTask(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		WriteExportDisabledResponse(c)
 		return
 	}
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
@@ -227,8 +228,8 @@ func (h *UsageHandler) CancelExportTask(c *gin.Context) {
 // CreateExportDownloadTicket issues a 60-second HMAC-signed download ticket and
 // relative streaming URL for a succeeded user export task owned by the caller.
 func (h *UsageHandler) CreateExportDownloadTicket(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		WriteExportDisabledResponse(c)
 		return
 	}
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
@@ -252,8 +253,8 @@ func (h *UsageHandler) CreateExportDownloadTicket(c *gin.Context) {
 // DownloadExportTask streams a succeeded user CSV artifact directly to an
 // authenticated API client using bearer credentials.
 func (h *UsageHandler) DownloadExportTask(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		WriteExportDisabledResponse(c)
 		return
 	}
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
@@ -278,8 +279,8 @@ func (h *UsageHandler) DownloadExportTask(c *gin.Context) {
 // and streams the corresponding user or administrator CSV artifact from disk.
 // Invalid or expired tickets return 401, while expired export files return 410.
 func (h *UsageHandler) DownloadExportByTicket(c *gin.Context) {
-	if h.exportService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Usage export service unavailable")
+	if h.exportService == nil || !h.exportService.IsEnabled() {
+		WriteExportDisabledResponse(c)
 		return
 	}
 	ticket := strings.TrimSpace(c.Param("ticket"))
@@ -362,6 +363,37 @@ func WriteCSVDownloadStream(c *gin.Context, stream *usage.UsageExportDownloadStr
 		"X-Content-Type-Options": "nosniff",
 	}
 	c.DataFromReader(http.StatusOK, contentLength, "text/csv; charset=utf-8", stream.Reader, extraHeaders)
+}
+
+// WriteExportDisabledResponse writes the structured HTTP 503 USAGE_EXPORT_DISABLED
+// error response when background exports are unconfigured or turned off.
+func WriteExportDisabledResponse(c *gin.Context) {
+	response.ErrorFrom(c, infraerrors.ServiceUnavailable("USAGE_EXPORT_DISABLED", "usage export is disabled"))
+}
+
+// ParseExportWatchIDsParam parses an optional comma-separated watch_ids query
+// string into positive int64 task identifiers, writing a 400 response when any
+// non-empty token is malformed.
+func ParseExportWatchIDsParam(c *gin.Context) ([]int64, bool) {
+	raw := strings.TrimSpace(c.Query("watch_ids"))
+	if raw == "" {
+		return nil, true
+	}
+	parts := strings.Split(raw, ",")
+	ids := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		token := strings.TrimSpace(part)
+		if token == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(token, 10, 64)
+		if err != nil || id <= 0 {
+			response.BadRequest(c, "Invalid watch_ids")
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return ids, true
 }
 
 // ParseExportTaskIDParam extracts and validates a positive integer :id path

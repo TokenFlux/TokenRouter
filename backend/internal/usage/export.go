@@ -119,6 +119,17 @@ type UsageExportListFilter struct {
 	CreatedBy *int64 // optional creator filter; required for user scope
 }
 
+// UsageExportTaskListResult bundles one paginated task slice with scope-wide
+// active task identifiers and optional watched task records so progress polling
+// and completion notifications continue when older tasks move past page one.
+type UsageExportTaskListResult struct {
+	Items        []UsageExportTask            // requested page of export tasks
+	Pagination   *pagination.PaginationResult // exact page and total metadata
+	ActiveCount  int64                        // total pending or running tasks in filter scope
+	ActiveIDs    []int64                      // all pending or running task IDs in filter scope
+	WatchedItems []UsageExportTask            // scoped tasks matching caller-supplied watch IDs
+}
+
 // UsageExportCursor identifies the last exported row in descending (created_at, id) order.
 type UsageExportCursor struct {
 	CreatedAt time.Time // previous row creation timestamp
@@ -147,21 +158,31 @@ type UsageBalanceUnitReader interface {
 	GetBalanceUnitName(ctx context.Context) string
 }
 
-// UsageExportRepository persists export task metadata, atomic worker claims,
-// progress updates, and expiration transitions.
+// UsageExportRepository persists export task metadata, atomic quota-checked
+// admission, worker claims, progress updates, and expiration transitions.
 type UsageExportRepository interface {
-	// CreateTask inserts a pending export task and populates its ID and timestamps.
-	CreateTask(ctx context.Context, task *UsageExportTask) error
+	// CreateTask atomically enforces maxActive when positive for task.Scope and
+	// task.CreatedBy, returning ErrExportActiveLimitExceeded when pending and
+	// running tasks already reach maxActive, and otherwise inserts the task and
+	// populates its ID and timestamps.
+	CreateTask(ctx context.Context, task *UsageExportTask, maxActive int) error
 	// GetTask loads one persisted export task by ID or returns ErrExportTaskNotFound.
 	GetTask(ctx context.Context, taskID int64) (*UsageExportTask, error)
 	// ListTasks returns scoped export tasks ordered newest first with exact pagination.
 	ListTasks(ctx context.Context, filter UsageExportListFilter, params pagination.PaginationParams) ([]UsageExportTask, *pagination.PaginationResult, error)
+	// ListActiveTaskIDs returns all pending and running task IDs matching filter ordered newest first.
+	ListActiveTaskIDs(ctx context.Context, filter UsageExportListFilter) ([]int64, error)
+	// ListTasksByIDs returns scoped tasks matching taskIDs so callers can observe terminal transitions off page one.
+	ListTasksByIDs(ctx context.Context, filter UsageExportListFilter, taskIDs []int64) ([]UsageExportTask, error)
 	// CountActiveTasks counts pending and running tasks in scope for createdBy;
 	// nonpositive createdBy counts across all creators in that scope.
 	CountActiveTasks(ctx context.Context, scope string, createdBy int64) (int64, error)
 	// ClaimNextPendingTask atomically claims the oldest pending or stale running task
 	// with SKIP LOCKED, resetting ExportedRows to zero for a clean file rewrite.
 	ClaimNextPendingTask(ctx context.Context, staleRunningAfterSeconds int64) (*UsageExportTask, error)
+	// RequeueTask conditionally resets an interrupted running task back to pending
+	// with zeroed progress and cleared claim timestamps during graceful shutdown.
+	RequeueTask(ctx context.Context, taskID int64) error
 	// GetTaskStatus returns the current status of taskID or ErrExportTaskNotFound.
 	GetTaskStatus(ctx context.Context, taskID int64) (string, error)
 	// UpdateTaskProgress persists totalRows and cumulative exportedRows for a running task.

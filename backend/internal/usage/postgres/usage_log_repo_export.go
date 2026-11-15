@@ -30,15 +30,16 @@ const (
 // exportBatchReader streams keyset-paginated usage rows for one export task and
 // caches resolved team scope and display associations across batches.
 type exportBatchReader struct {
-	store           *Store                        // owning PostgreSQL usage store
-	scope           string                        // user or admin export scope
-	teamResolved    bool                          // whether ownedTeamID was already resolved
-	ownedTeamUserID int64                         // userID for which ownedTeamID was resolved
-	ownedTeamID     int64                         // cached owned team ID or zero
-	userCache       map[int64]*usage.UserView     // per-task acting user display cache
-	apiKeyCache     map[int64]*usage.KeyView      // per-task API key display cache
-	providerCache   map[int64]*usage.ProviderView // per-task provider display cache
-	groupCache      map[int64]*usage.GroupView    // per-task group display cache
+	store                *Store                        // owning PostgreSQL usage store
+	scope                string                        // user or admin export scope
+	maxAssocCacheEntries int                           // per-entity association cache bound
+	teamResolved         bool                          // whether ownedTeamID was already resolved
+	ownedTeamUserID      int64                         // userID for which ownedTeamID was resolved
+	ownedTeamID          int64                         // cached owned team ID or zero
+	userCache            map[int64]*usage.UserView     // per-task acting user display cache
+	apiKeyCache          map[int64]*usage.KeyView      // per-task API key display cache
+	providerCache        map[int64]*usage.ProviderView // per-task provider display cache
+	groupCache           map[int64]*usage.GroupView    // per-task group display cache
 }
 
 // CountExportLogs returns the exact row count matching filters at export start
@@ -61,12 +62,13 @@ func (r *Store) CountExportLogs(ctx context.Context, filters usage.UsageExportFi
 // caches scoped to user or administrator CSV requirements.
 func (r *Store) NewExportBatchReader(scope string) usage.UsageExportBatchReader {
 	return &exportBatchReader{
-		store:         r,
-		scope:         scope,
-		userCache:     make(map[int64]*usage.UserView),
-		apiKeyCache:   make(map[int64]*usage.KeyView),
-		providerCache: make(map[int64]*usage.ProviderView),
-		groupCache:    make(map[int64]*usage.GroupView),
+		store:                r,
+		scope:                scope,
+		maxAssocCacheEntries: maxExportAssocCacheEntries,
+		userCache:            make(map[int64]*usage.UserView),
+		apiKeyCache:          make(map[int64]*usage.KeyView),
+		providerCache:        make(map[int64]*usage.ProviderView),
+		groupCache:           make(map[int64]*usage.GroupView),
 	}
 }
 
@@ -234,109 +236,161 @@ func (r *Store) buildExportScopeSource(
 }
 
 // hydrateExportBatch attaches cached display associations required by b.scope,
-// querying Ent only for uncached positive identifiers in the current batch.
+// querying Ent only for uncached positive identifiers while preserving all
+// current-batch hits across bounded cache eviction.
 func (b *exportBatchReader) hydrateExportBatch(ctx context.Context, logs []usage.UsageLog) error {
 	if b.store == nil || b.store.client == nil || len(logs) == 0 {
 		return nil
 	}
 
-	missingKeys := collectMissingPositiveIDs(logs, b.apiKeyCache, func(l *usage.UsageLog) int64 { return l.APIKeyID })
-	if len(missingKeys) > 0 {
-		loadedKeys, err := b.store.loadAPIKeys(ctx, missingKeys)
+	keyViews, err := resolveExportBatchRelations(
+		ctx,
+		logs,
+		b.apiKeyCache,
+		b.maxAssocCacheEntries,
+		func(l *usage.UsageLog) int64 { return l.APIKeyID },
+		b.store.loadAPIKeys,
+	)
+	if err != nil {
+		return err
+	}
+
+	var (
+		userViews     map[int64]*usage.UserView
+		providerViews map[int64]*usage.ProviderView
+		groupViews    map[int64]*usage.GroupView
+	)
+	if b.scope == usage.UsageExportScopeAdmin {
+		userViews, err = resolveExportBatchRelations(
+			ctx,
+			logs,
+			b.userCache,
+			b.maxAssocCacheEntries,
+			func(l *usage.UsageLog) int64 { return l.UserID },
+			b.store.loadUsers,
+		)
 		if err != nil {
 			return err
 		}
-		storeBoundedCacheEntries(b.apiKeyCache, missingKeys, loadedKeys)
-	}
 
-	if b.scope == usage.UsageExportScopeAdmin {
-		missingUsers := collectMissingPositiveIDs(logs, b.userCache, func(l *usage.UsageLog) int64 { return l.UserID })
-		if len(missingUsers) > 0 {
-			loadedUsers, err := b.store.loadUsers(ctx, missingUsers)
-			if err != nil {
-				return err
-			}
-			storeBoundedCacheEntries(b.userCache, missingUsers, loadedUsers)
+		providerViews, err = resolveExportBatchRelations(
+			ctx,
+			logs,
+			b.providerCache,
+			b.maxAssocCacheEntries,
+			func(l *usage.UsageLog) int64 { return l.ProviderID },
+			b.store.loadProviders,
+		)
+		if err != nil {
+			return err
 		}
 
-		missingProviders := collectMissingPositiveIDs(logs, b.providerCache, func(l *usage.UsageLog) int64 { return l.ProviderID })
-		if len(missingProviders) > 0 {
-			loadedProviders, err := b.store.loadProviders(ctx, missingProviders)
-			if err != nil {
-				return err
-			}
-			storeBoundedCacheEntries(b.providerCache, missingProviders, loadedProviders)
-		}
-
-		missingGroups := collectMissingPositiveIDs(logs, b.groupCache, func(l *usage.UsageLog) int64 {
-			if l.GroupID == nil {
-				return 0
-			}
-			return *l.GroupID
-		})
-		if len(missingGroups) > 0 {
-			loadedGroups, err := b.store.loadGroups(ctx, missingGroups)
-			if err != nil {
-				return err
-			}
-			storeBoundedCacheEntries(b.groupCache, missingGroups, loadedGroups)
+		groupViews, err = resolveExportBatchRelations(
+			ctx,
+			logs,
+			b.groupCache,
+			b.maxAssocCacheEntries,
+			func(l *usage.UsageLog) int64 {
+				if l.GroupID == nil {
+					return 0
+				}
+				return *l.GroupID
+			},
+			b.store.loadGroups,
+		)
+		if err != nil {
+			return err
 		}
 	}
 
 	for i := range logs {
 		if logs[i].APIKeyID > 0 {
-			logs[i].APIKey = b.apiKeyCache[logs[i].APIKeyID]
+			logs[i].APIKey = keyViews[logs[i].APIKeyID]
 		}
 		if b.scope == usage.UsageExportScopeAdmin {
 			if logs[i].UserID > 0 {
-				logs[i].User = b.userCache[logs[i].UserID]
+				logs[i].User = userViews[logs[i].UserID]
 			}
 			if logs[i].ProviderID > 0 {
-				logs[i].Provider = b.providerCache[logs[i].ProviderID]
+				logs[i].Provider = providerViews[logs[i].ProviderID]
 			}
 			if logs[i].GroupID != nil && *logs[i].GroupID > 0 {
-				logs[i].Group = b.groupCache[*logs[i].GroupID]
+				logs[i].Group = groupViews[*logs[i].GroupID]
 			}
 		}
 	}
 	return nil
 }
 
-// collectMissingPositiveIDs returns deduplicated positive relation IDs from logs
-// that have not yet been recorded in cache.
-func collectMissingPositiveIDs[V any](
+// resolveExportBatchRelations builds a complete ID-to-view map for every positive
+// relation referenced in logs, loading only uncached IDs from loader.
+//
+// Pre-existing cache hits for the current batch are copied into batchViews before
+// any capacity eviction runs on cache. When adding missingIDs would push cache
+// past maxEntries, cache is cleared and repopulated from batchViews up to
+// maxEntries so neither the current batch nor hot IDs in the next batch lose
+// already-resolved display names.
+func resolveExportBatchRelations[V any](
+	ctx context.Context,
 	logs []usage.UsageLog,
 	cache map[int64]*V,
+	maxEntries int,
 	extract func(*usage.UsageLog) int64,
-) []int64 {
-	var missing []int64
-	seen := make(map[int64]struct{})
+	loader func(context.Context, []int64) (map[int64]*V, error),
+) (map[int64]*V, error) {
+	if maxEntries <= 0 {
+		maxEntries = maxExportAssocCacheEntries
+	}
+
+	batchViews := make(map[int64]*V)
+	var (
+		batchIDs   []int64
+		missingIDs []int64
+	)
 	for i := range logs {
 		id := extract(&logs[i])
 		if id <= 0 {
 			continue
 		}
-		if _, cached := cache[id]; cached {
+		if _, seenInBatch := batchViews[id]; seenInBatch {
 			continue
 		}
-		if _, dup := seen[id]; dup {
+		batchIDs = append(batchIDs, id)
+		if cachedView, inCache := cache[id]; inCache {
+			batchViews[id] = cachedView
 			continue
 		}
-		seen[id] = struct{}{}
-		missing = append(missing, id)
+		batchViews[id] = nil
+		missingIDs = append(missingIDs, id)
 	}
-	return missing
-}
 
-// storeBoundedCacheEntries records loaded and missing IDs in cache, clearing the
-// map first when adding requestedIDs would exceed maxExportAssocCacheEntries.
-func storeBoundedCacheEntries[V any](cache map[int64]*V, requestedIDs []int64, loaded map[int64]*V) {
-	if len(cache)+len(requestedIDs) > maxExportAssocCacheEntries {
-		// Evict the per-task map wholesale at 4,096 entries so pathological high-cardinality
-		// admin exports stay memory-bounded without per-row LRU bookkeeping.
-		clear(cache)
+	if len(missingIDs) == 0 {
+		return batchViews, nil
 	}
-	for _, id := range requestedIDs {
-		cache[id] = loaded[id]
+
+	loaded, err := loader(ctx, missingIDs)
+	if err != nil {
+		return nil, err
 	}
+	for _, id := range missingIDs {
+		batchViews[id] = loaded[id]
+	}
+
+	if len(cache)+len(missingIDs) <= maxEntries {
+		for _, id := range missingIDs {
+			cache[id] = batchViews[id]
+		}
+		return batchViews, nil
+	}
+
+	// Evict stale cross-batch entries at maxEntries and seed cache from batchIDs
+	// so every hot ID referenced in the current batch stays warm for the next batch.
+	clear(cache)
+	for _, id := range batchIDs {
+		if len(cache) >= maxEntries {
+			break
+		}
+		cache[id] = batchViews[id]
+	}
+	return batchViews, nil
 }

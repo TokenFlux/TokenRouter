@@ -1,5 +1,6 @@
 import type { User } from '@/api/identity.types'
 import type { ApiKey } from '@/api/keys.types'
+import type { PaginatedResponse } from '@/api/common.types'
 import type { Group } from '@/api/groups.types'
 import type { UserSubscription } from '@/api/subscriptions.types'
 
@@ -394,6 +395,15 @@ export interface UsageExportTask {
   expires_at?: string // Artifact retention expiration RFC3339 timestamp.
   created_at: string // Task creation RFC3339 timestamp.
   updated_at: string // Latest state update RFC3339 timestamp.
+}
+
+// UsageExportTaskListResponse extends standard pagination with scope-wide active task
+// counts, active IDs, and optional watched task records so progress tracking survives
+// when older active exports move past page one.
+export interface UsageExportTaskListResponse extends PaginatedResponse<UsageExportTask> {
+  active_count?: number // Total pending or running tasks across all pages in scope.
+  active_ids?: number[] // Identifiers of all pending or running tasks across all pages.
+  watched_items?: UsageExportTask[] // Latest scoped records matching requested watch_ids.
 }
 
 // UsageExportDownloadTicket carries a short-lived signed download token and streaming URL.

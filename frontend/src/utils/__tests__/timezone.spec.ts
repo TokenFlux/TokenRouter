@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   dateRangeToHalfOpenLocalRange,
   formatInstantInTimezoneDisplay,
+  formatInstantRFC3339InTimezone,
   formatInstantUTCPreview,
   formatUtcOffset,
   formatZonedRFC3339,
@@ -10,6 +11,7 @@ import {
   getTimezoneSelectOptions,
   instantToZonedLocalDateTime,
   isValidIanaTimezone,
+  parseFlexibleTimestamp,
   parseFlexibleTimestampInput,
   parseLocalDateTimeParts,
   zonedDateTimeToInstant,
@@ -106,5 +108,25 @@ describe('timezone utilities', () => {
       '2026-11-15T14:05:00',
     )
     expect(parseFlexibleTimestampInput('not-a-timestamp', 'Asia/Shanghai')).toBeNull()
+  })
+
+  // During America/New_York fall-back on 2026-11-01, 01:30:00 occurs twice: once in EDT
+  // (-04:00 at 05:30Z) and again in EST (-05:00 at 06:30Z). Pasting an explicit-offset
+  // timestamp must retain its exact UTC instant and serialize back with its original offset.
+  it('preserves unambiguous instants across daylight-saving fall-back repeated hours', () => {
+    const firstFold = parseFlexibleTimestamp('2026-11-01T01:30:00-04:00', 'America/New_York')
+    const secondFold = parseFlexibleTimestamp('2026-11-01T01:30:00-05:00', 'America/New_York')
+
+    expect(firstFold?.localValue).toBe('2026-11-01T01:30:00')
+    expect(secondFold?.localValue).toBe('2026-11-01T01:30:00')
+    expect(firstFold?.instant.toISOString()).toBe('2026-11-01T05:30:00.000Z')
+    expect(secondFold?.instant.toISOString()).toBe('2026-11-01T06:30:00.000Z')
+
+    expect(formatInstantRFC3339InTimezone(firstFold!.instant, 'America/New_York')).toBe(
+      '2026-11-01T01:30:00-04:00',
+    )
+    expect(formatInstantRFC3339InTimezone(secondFold!.instant, 'America/New_York')).toBe(
+      '2026-11-01T01:30:00-05:00',
+    )
   })
 })
