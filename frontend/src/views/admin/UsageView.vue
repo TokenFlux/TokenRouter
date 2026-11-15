@@ -254,6 +254,8 @@
     :filters="filters"
     :start-date="startDate"
     :end-date="endDate"
+    :filter-labels="cleanupFilterLabels"
+    :model-options="modelNameOptions"
     @close="cleanupDialogVisible = false"
   />
   <!-- Balance history modal triggered from usage table user click -->
@@ -347,6 +349,7 @@ const usageLogs = ref<AdminUsageLog[]>([])
 const loading = ref(false)
 const showExportDialog = ref(false)
 const exportFilterLabels = ref<UsageExportFilterLabel[]>([])
+const cleanupFilterLabels = ref<UsageExportFilterLabel[]>([])
 const { activeExportCount, handleDialogTasksChanged, handleDialogActiveIdsChanged } =
   useUsageExportIndicator('admin', showExportDialog)
 const trendData = ref<TrendDataPoint[]>([])
@@ -992,8 +995,10 @@ const openExportDialog = () => {
   exportFilterLabels.value = usageFiltersRef.value?.getFilterSummaryLabels?.() ?? []
   showExportDialog.value = true
 }
-// openCleanupDialog opens the cleanup task editor with the current page filters.
+// openCleanupDialog snapshots resolved filter labels from UsageFilters and opens the
+// cleanup task editor with the current page filters.
 const openCleanupDialog = () => {
+  cleanupFilterLabels.value = usageFiltersRef.value?.getFilterSummaryLabels?.() ?? []
   cleanupDialogVisible.value = true
 }
 

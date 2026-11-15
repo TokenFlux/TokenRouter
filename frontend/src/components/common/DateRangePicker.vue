@@ -168,7 +168,9 @@ import { getFloatingPanelPosition, type FloatingPanelPosition } from '@/utils/fl
 // Two day clicks build a range, with reversed clicks sorted before preset recognition.
 // Date-only presets match exact strings, while minute presets compare elapsed duration
 // and endpoint freshness. Local calendar dates and timestamp strings remain distinct
-// so short presets retain their time components through selection and display.
+// so short presets retain their time components through selection and display. Passing
+// dateOnly hides sub-day and rolling-hour presets, and Escape closes an open calendar
+// during capture so enclosing dialogs stay open.
 
 // DatePreset pairs a translated range label with a fresh endpoint resolver.
 interface DatePreset {
@@ -214,6 +216,9 @@ interface Props {
   // Applies and closes immediately after a preset click when true; ordinary calendar
   // selection still waits for application.
   applyOnPreset?: boolean
+  // Omits sub-day and rolling-hour presets for callers that only accept calendar YYYY-MM-DD
+  // bounds.
+  dateOnly?: boolean
 }
 
 // Emits defines the component notifications delivered to its parent listeners.
@@ -238,7 +243,10 @@ interface Emits {
 
 // props holds parent-supplied component options consumed by the rendering and
 // interaction handlers below.
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  applyOnPreset: false,
+  dateOnly: false,
+})
 // emit publishes the declared component notifications so the parent can update its
 // owned state.
 const emit = defineEmits<Emits>()
@@ -458,9 +466,9 @@ const presets: DatePreset[] = [
   },
 ]
 
-// presetGroupValues arranges duration, single-day, rolling-day, and month shortcuts
-// for display; presetGroups resolves those identifiers without changing preset
-// matching order.
+// presetGroupValues arranges duration, single-day, rolling-day, and month shortcuts for
+// display, while SUB_DAY_PRESET_VALUES identifies sub-day and rolling-hour presets
+// hidden when dateOnly restricts selection to YYYY-MM-DD calendar bounds.
 const presetGroupValues = [
   ['last15Minutes', 'last30Minutes', 'last24Hours'],
   ['today', 'yesterday'],
@@ -468,11 +476,23 @@ const presetGroupValues = [
   ['thisMonth', 'lastMonth'],
 ]
 
-const presetGroups = presetGroupValues.map((values) =>
-  values
-    .map((value) => presets.find((preset) => preset.value === value))
-    .filter((preset): preset is DatePreset => !!preset),
+const SUB_DAY_PRESET_VALUES = new Set(['last15Minutes', 'last30Minutes', 'last24Hours'])
+
+// availablePresets filters out sub-day shortcuts when dateOnly is active so preset
+// matching and trigger labels stay consistent with visible calendar presets.
+const availablePresets = computed(() =>
+  props.dateOnly ? presets.filter((preset) => !SUB_DAY_PRESET_VALUES.has(preset.value)) : presets,
 )
+
+// presetGroups resolves shortcut identifiers into grouped preset definitions for rendering.
+const presetGroups = computed(() => {
+  const visibleGroups = props.dateOnly ? presetGroupValues.slice(1) : presetGroupValues
+  return visibleGroups.map((values) =>
+    values
+      .map((value) => presets.find((preset) => preset.value === value))
+      .filter((preset): preset is DatePreset => !!preset),
+  )
+})
 
 // displayValue uses the opening snapshot while editing, so a draft preset or calendar
 // change does not relabel the trigger before application.
@@ -483,7 +503,7 @@ const displayValue = computed(() => {
       : { start: localStartDate.value, end: localEndDate.value, preset: activePreset.value }
 
   if (committed.preset) {
-    const preset = presets.find((p) => p.value === committed.preset)
+    const preset = availablePresets.value.find((p) => p.value === committed.preset)
     if (preset) return t(preset.labelKey)
   }
 
@@ -709,12 +729,12 @@ const presetMatchesRange = (preset: DatePreset): boolean => {
   return durationDrift <= 1000 && endDrift <= 90 * 1000
 }
 
-// onDateChange selects the first preset matching the current local endpoints. It
-// clears the previous preset before scanning, leaving null when the completed range is
-// a custom selection.
+// onDateChange selects the first available preset matching the current local endpoints.
+// It clears the previous preset before scanning, leaving null when the completed range
+// is a custom selection or excluded by dateOnly.
 const onDateChange = () => {
   activePreset.value = null
-  for (const preset of presets) {
+  for (const preset of availablePresets.value) {
     if (presetMatchesRange(preset)) {
       activePreset.value = preset.value
       break
@@ -823,11 +843,12 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 }
 
-// handleEscape cancels an open range picker when Escape is pressed. It delegates
-// snapshot restoration to close, while other keys and already closed pickers leave the
-// current draft untouched.
+// handleEscape cancels an open range picker when Escape is pressed and stops
+// propagation so an enclosing dialog stays open while the calendar popover closes
+// first. Other keys and already closed pickers leave the draft untouched.
 const handleEscape = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && isOpen.value) {
+    event.stopPropagation()
     close()
   }
 }
@@ -842,6 +863,13 @@ const handleViewportChange = () => {
 }
 
 onDateChange()
+
+watch(
+  () => props.dateOnly,
+  () => {
+    onDateChange()
+  },
+)
 
 watch(
   () => props.startDate,
@@ -859,11 +887,11 @@ watch(
   },
 )
 
-// Capture outside clicks before an enclosing dialog stops bubbling; viewport listeners
-// then keep the open calendar positioned during scrolling or resizing.
+// Capture outside clicks and Escape presses before an enclosing dialog consumes them;
+// viewport listeners then keep the open calendar positioned during scrolling or resizing.
 onMounted(() => {
   document.addEventListener('click', handleClickOutside, true)
-  document.addEventListener('keydown', handleEscape)
+  document.addEventListener('keydown', handleEscape, true)
   window.addEventListener('resize', handleViewportChange)
   window.addEventListener('scroll', handleViewportChange, true)
 })
@@ -872,7 +900,7 @@ onMounted(() => {
 // picker cannot react to later clicks or request position updates.
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside, true)
-  document.removeEventListener('keydown', handleEscape)
+  document.removeEventListener('keydown', handleEscape, true)
   window.removeEventListener('resize', handleViewportChange)
   window.removeEventListener('scroll', handleViewportChange, true)
 })

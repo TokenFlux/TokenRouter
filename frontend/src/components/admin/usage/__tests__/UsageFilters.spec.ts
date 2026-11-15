@@ -480,3 +480,100 @@ describe('UsageFilters — 未设置的条件', () => {
     ])
   })
 })
+
+describe('UsageFilters — cleanup inline mode', () => {
+  beforeEach(() => {
+    catalogI18n.global.locale.value = 'en'
+    mockTeamsList.mockResolvedValue([{ id: 7, name: 'Core Team' }])
+    mockGroupsList.mockResolvedValue({
+      items: [{ id: 12, name: 'Claude Group', display_brand: 'anthropic' }],
+    })
+  })
+
+  // Mounting UsageFilters with mode="cleanup" and variant="inline" embeds only the
+  // nine backend-supported cleanup fields without a FilterDropdown trigger. It enables
+  // creatable model entry, hydrates pre-resolved labels from seedLabels, omits
+  // unsupported predicates from summaries, and formats persisted cleanup task filters.
+  it('renders nine inline cleanup fields, omits unsupported predicates, and hydrates seedLabels', async () => {
+    const filters: Record<string, any> = {
+      request_id: 'req-ignored',
+      team_id: 7,
+      request_source: 'system',
+      user_id: 42,
+      api_key_id: 88,
+      provider_id: 19,
+      billing_mode: 'token',
+      native_compaction_v2: true,
+      stream: true,
+      start_date: '2026-11-01',
+      end_date: '2026-11-10',
+    }
+    const wrapper = mount(UsageFilters, {
+      props: {
+        modelValue: filters,
+        mode: 'cleanup',
+        variant: 'inline',
+        showActions: false,
+        startDate: '2026-11-01',
+        endDate: '2026-11-10',
+        modelOptions: ['gpt-5'],
+        seedLabels: [
+          { key: 'user_id', label: 'User', value: 'alice@example.com' },
+          { key: 'api_key_id', label: 'API Key', value: 'Prod Key' },
+          { key: 'provider_id', label: 'Provider', value: 'Anthropic Main' },
+        ],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'FilterDropdown' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'RequestIdFilterField' }).exists()).toBe(false)
+
+    const fields = wrapper.findAllComponents({ name: 'FilterField' })
+    expect(fields).toHaveLength(9)
+    const fieldLabels = fields.map((field) => field.props('label'))
+    expect(fieldLabels).not.toContain('Billing Mode')
+    expect(fieldLabels).not.toContain('Compaction')
+
+    const modelList = filterOptionsList(wrapper).find((list) =>
+      list.props('options')?.some((opt: { value: unknown }) => opt.value === 'gpt-5'),
+    )
+    expect(modelList?.props('creatable')).toBe(true)
+
+    expect((wrapper.vm as any).getFilterSummaryLabels()).toEqual([
+      { key: 'team_id', label: 'Team', value: 'Core Team' },
+      { key: 'request_source', label: 'Request source', value: 'System request' },
+      { key: 'user_id', label: 'User', value: 'alice@example.com' },
+      { key: 'api_key_id', label: 'API Key', value: 'Prod Key' },
+      { key: 'provider_id', label: 'Provider', value: 'Anthropic Main' },
+      { key: 'request_type', label: 'Type', value: 'Stream' },
+    ])
+
+    expect(
+      (wrapper.vm as any).formatCleanupTaskFilters({
+        start_time: '2026-11-01T00:00:00Z',
+        end_time: '2026-11-10T23:59:59Z',
+        team_id: 7,
+        group_id: 12,
+        request_source: 'group_probe',
+        model: 'claude-retired',
+        stream: false,
+        billing_type: 1,
+      }),
+    ).toEqual([
+      { key: 'team_id', label: 'Team', value: 'Core Team' },
+      { key: 'request_source', label: 'Request source', value: 'Group probe' },
+      { key: 'model', label: 'Model', value: 'claude-retired' },
+      { key: 'group_id', label: 'Group', value: 'Claude Group' },
+      { key: 'request_type', label: 'Type', value: 'Sync' },
+      { key: 'billing_type', label: 'Billing Type', value: 'Subscription' },
+    ])
+
+    wrapper.unmount()
+  })
+})

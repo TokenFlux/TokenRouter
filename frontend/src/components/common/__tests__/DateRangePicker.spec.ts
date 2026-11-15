@@ -224,4 +224,69 @@ describe('DateRangePicker', () => {
     expect(wrapper.emitted('change')).toBeUndefined()
     expect(wrapper.find('.input-trigger').text()).toBe(triggerText)
   })
+
+  // The dateOnly flag restricts shortcuts to calendar dates for date-only backends.
+  // Opening the panel omits sub-day presets and keeps calendar ranges unlabeled by
+  // rolling-hour names.
+  it('hides sub-day presets when dateOnly is enabled', async () => {
+    const now = new Date()
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+    const wrapper = mount(DateRangePicker, {
+      props: {
+        startDate: formatLocalDate(yesterday),
+        endDate: formatLocalDate(now),
+        dateOnly: true,
+      },
+      global: {
+        stubs: {
+          Icon: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).not.toContain('Last 24 Hours')
+    await wrapper.find('.input-trigger').trigger('click')
+    const presetLabels = wrapper.findAll('.date-picker-preset').map((node) => node.text())
+    expect(presetLabels).not.toContain('Last 15 Minutes')
+    expect(presetLabels).not.toContain('Last 30 Minutes')
+    expect(presetLabels).not.toContain('Last 24 Hours')
+    expect(presetLabels).toContain('Today')
+    expect(presetLabels).toContain('Last 7 Days')
+    wrapper.unmount()
+  })
+
+  // Pressing Escape while the calendar panel is open must dismiss the popover and stop
+  // event propagation. Bubble listeners on document, such as an enclosing BaseDialog,
+  // must not observe that Escape keydown.
+  it('closes on Escape and stops propagation to enclosing document listeners', async () => {
+    const outerEscapeHandler = vi.fn()
+    document.addEventListener('keydown', outerEscapeHandler)
+    const wrapper = mount(DateRangePicker, {
+      attachTo: document.body,
+      props: {
+        startDate: '2026-01-10',
+        endDate: '2026-01-12',
+      },
+      global: {
+        stubs: {
+          Icon: true,
+        },
+      },
+    })
+
+    try {
+      await wrapper.find('.input-trigger').trigger('click')
+      expect(wrapper.find('.input-trigger').attributes('aria-expanded')).toBe('true')
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await waitForTransition()
+
+      expect(wrapper.find('.date-picker-dropdown').exists()).toBe(false)
+      expect(outerEscapeHandler).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('keydown', outerEscapeHandler)
+      wrapper.unmount()
+    }
+  })
 })

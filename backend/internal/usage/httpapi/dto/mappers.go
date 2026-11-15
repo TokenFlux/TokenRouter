@@ -188,6 +188,7 @@ func CleanupFromUsage(task *usage.UsageCleanupTask) *UsageCleanupTask {
 			APIKeyID:      task.Filters.APIKeyID,
 			ProviderID:    task.Filters.ProviderID,
 			GroupID:       task.Filters.GroupID,
+			TeamID:        task.Filters.TeamID,
 			Model:         task.Filters.Model,
 			RequestType:   RequestTypeStringPtr(task.Filters.RequestType),
 			Stream:        task.Filters.Stream,

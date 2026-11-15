@@ -135,6 +135,28 @@ func TestUsageCleanupTaskFromService_RequestTypeMapping(t *testing.T) {
 	require.Equal(t, "stream", *dtoTask.Filters.RequestType)
 }
 
+// TestUsageCleanupTaskFromService_PreservesTeamID converts a cleanup task carrying
+// an optional team filter into its HTTP DTO representation. It requires the
+// mapped task filters to retain the team identifier pointer so cleanup task cards
+// can display team-scoped deletion tasks accurately.
+func TestUsageCleanupTaskFromService_PreservesTeamID(t *testing.T) {
+	t.Parallel()
+
+	teamID := int64(42)
+	task := &usage.UsageCleanupTask{
+		ID:     2,
+		Status: usage.UsageCleanupStatusPending,
+		Filters: usage.UsageCleanupFilters{
+			TeamID: &teamID,
+		},
+	}
+
+	dtoTask := CleanupFromUsage(task)
+	require.NotNil(t, dtoTask)
+	require.NotNil(t, dtoTask.Filters.TeamID)
+	require.Equal(t, teamID, *dtoTask.Filters.TeamID)
+}
+
 // TestRequestTypeStringPtrNil calls the request-type display wrapper with
 // absent input. It requires a nil result so optional cleanup category text
 // can remain absent.

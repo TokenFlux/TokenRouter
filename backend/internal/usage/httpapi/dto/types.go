@@ -242,6 +242,7 @@ type UsageCleanupFilters struct {
 	APIKeyID    *int64    `json:"api_key_id,omitempty"`   // optional key equality selector
 	ProviderID  *int64    `json:"provider_id,omitempty"`  // optional provider equality selector
 	GroupID     *int64    `json:"group_id,omitempty"`     // optional group equality selector
+	TeamID      *int64    `json:"team_id,omitempty"`      // optional team equality selector
 	Model       *string   `json:"model,omitempty"`        // optional stored model selector
 	RequestType *string   `json:"request_type,omitempty"` // optional normalized category label
 	Stream      *bool     `json:"stream,omitempty"`       // optional legacy stream selector
