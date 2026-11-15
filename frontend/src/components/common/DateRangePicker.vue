@@ -153,6 +153,7 @@
 
 <script setup lang="ts">
 import { useFloatingMotion } from '@/composables/useFloatingMotion'
+import { useLocalDay } from '@/composables/useLocalDay'
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -171,6 +172,14 @@ import { getFloatingPanelPosition, type FloatingPanelPosition } from '@/utils/fl
 // so short presets retain their time components through selection and display. Passing
 // dateOnly hides sub-day and rolling-hour presets, and Escape closes an open calendar
 // during capture so enclosing dialogs stay open.
+//
+// Calendar highlighting and shortcut bounds follow the browser's current local day.
+// Midnight changes refresh labels without applying a different range; the parent owns
+// whether its selection follows today. Interaction resamples the date after suspended
+// timers. Parent updates replace the cancellation snapshot, so cancelling after a
+// parent rollover restores the newly applied range rather than its previous date.
+// Once the user edits an open draft, parent updates preserve its endpoints and any
+// incomplete two-click selection until the user applies or cancels that draft.
 
 // DatePreset pairs a translated range label with a fresh endpoint resolver.
 interface DatePreset {
@@ -261,11 +270,15 @@ const isOpen = ref(false)
 const containerRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<FloatingPanelPosition | null>(null)
 // localStartDate, localEndDate, and activePreset hold the editable range; snapshot
-// captures their opening values for trigger display and cancellation restoration.
+// tracks applied endpoints for trigger display and cancellation, including replacements
+// from the parent while the calendar remains open.
 const localStartDate = ref(props.startDate)
 const localEndDate = ref(props.endDate)
 const activePreset = ref<string | null>(null)
 const snapshot = ref<RangeSnapshot | null>(null)
+// draftEdited protects user-selected endpoints from parent updates during this open
+// session, even when an edit happens to match the currently applied range.
+const draftEdited = ref(false)
 
 // viewMonth stores the first local day of the displayed month as YYYY-MM-DD for
 // calendar navigation.
@@ -299,17 +312,10 @@ const dropdownStyle = computed(() => {
 // dateLocale follows application language; today and tomorrow use browser-local
 // calendar dates for current-day highlighting and the latest selectable date.
 const dateLocale = computed(() => locale.value)
-
-const today = computed(() => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-})
+const { today, refreshToday } = useLocalDay()
 
 const tomorrow = computed(() => {
-  const d = new Date()
+  const d = new Date(`${today.value}T00:00:00`)
   d.setDate(d.getDate() + 1)
   return formatDateToString(d)
 })
@@ -388,7 +394,7 @@ const presets: DatePreset[] = [
     labelKey: 'dates.yesterday',
     value: 'yesterday',
     getRange: () => {
-      const d = new Date()
+      const d = new Date(`${today.value}T00:00:00`)
       d.setDate(d.getDate() - 1)
       const yesterday = formatDateToString(d)
       return { start: yesterday, end: yesterday }
@@ -414,7 +420,7 @@ const presets: DatePreset[] = [
     value: '7days',
     getRange: () => {
       const end = today.value
-      const d = new Date()
+      const d = new Date(`${end}T00:00:00`)
       // Include today as one of the seven calendar days.
       d.setDate(d.getDate() - 6)
       const start = formatDateToString(d)
@@ -426,7 +432,7 @@ const presets: DatePreset[] = [
     value: '14days',
     getRange: () => {
       const end = today.value
-      const d = new Date()
+      const d = new Date(`${end}T00:00:00`)
       // Include today as one of the fourteen calendar days.
       d.setDate(d.getDate() - 13)
       const start = formatDateToString(d)
@@ -438,7 +444,7 @@ const presets: DatePreset[] = [
     value: '30days',
     getRange: () => {
       const end = today.value
-      const d = new Date()
+      const d = new Date(`${end}T00:00:00`)
       // Include today as one of the thirty calendar days.
       d.setDate(d.getDate() - 29)
       const start = formatDateToString(d)
@@ -449,7 +455,7 @@ const presets: DatePreset[] = [
     labelKey: 'dates.thisMonth',
     value: 'thisMonth',
     getRange: () => {
-      const now = new Date()
+      const now = new Date(`${today.value}T00:00:00`)
       const start = formatDateToString(new Date(now.getFullYear(), now.getMonth(), 1))
       return { start, end: today.value }
     },
@@ -458,7 +464,7 @@ const presets: DatePreset[] = [
     labelKey: 'dates.lastMonth',
     value: 'lastMonth',
     getRange: () => {
-      const now = new Date()
+      const now = new Date(`${today.value}T00:00:00`)
       const start = formatDateToString(new Date(now.getFullYear(), now.getMonth() - 1, 1))
       const end = formatDateToString(new Date(now.getFullYear(), now.getMonth(), 0))
       return { start, end }
@@ -494,8 +500,9 @@ const presetGroups = computed(() => {
   )
 })
 
-// displayValue uses the opening snapshot while editing, so a draft preset or calendar
-// change does not relabel the trigger before application.
+// displayValue labels the committed range, using its opening snapshot during edits.
+// A preset label is retained only while its current bounds still match, so an
+// open snapshot cannot continue calling yesterday today after local midnight.
 const displayValue = computed(() => {
   const committed =
     isOpen.value && snapshot.value
@@ -504,7 +511,9 @@ const displayValue = computed(() => {
 
   if (committed.preset) {
     const preset = availablePresets.value.find((p) => p.value === committed.preset)
-    if (preset) return t(preset.labelKey)
+    if (preset && presetMatchesRange(preset, committed.start, committed.end)) {
+      return t(preset.labelKey)
+    }
   }
 
   if (committed.start && committed.end) {
@@ -649,8 +658,10 @@ const shiftMonth = (offset: number) => {
 //
 // A second click before the first day swaps the stored endpoints so calendar
 // highlighting and emitted ranges remain chronological. Preset recognition runs after
-// both endpoints are final, and application remains a separate action.
+// both endpoints are final, and application remains a separate action. Both clicks mark
+// the draft as edited so a parent rollover cannot replace either selection phase.
 const selectDay = (date: string) => {
+  draftEdited.value = true
   if (!selectingEnd.value) {
     localStartDate.value = date
     localEndDate.value = date
@@ -690,12 +701,16 @@ const parseRangeTime = (value: string): number | null => {
 
 // selectPreset copies a freshly resolved preset into the local range draft. It clears
 // incomplete calendar selection, displays the ending month, and immediately applies
-// only when applyOnPreset is enabled.
+// only when applyOnPreset is enabled. Resampling first catches suspended midnight timers
+// even when the calendar remained open while the browser slept. The selected endpoints
+// remain an edited draft until application or cancellation.
 const selectPreset = (preset: DatePreset) => {
+  refreshToday()
   const range = preset.getRange()
   localStartDate.value = range.start
   localEndDate.value = range.end
   activePreset.value = preset.value
+  draftEdited.value = true
   selectingEnd.value = false
   hoverDate.value = null
   showMonthOf(range.end)
@@ -704,7 +719,7 @@ const selectPreset = (preset: DatePreset) => {
   }
 }
 
-// presetMatchesRange checks whether the draft still represents a particular preset.
+// presetMatchesRange checks whether supplied endpoints still represent a particular preset.
 // Date-only presets compare endpoint strings exactly, while duration presets parse
 // both timestamps and reject invalid endpoints.
 //
@@ -712,14 +727,14 @@ const selectPreset = (preset: DatePreset) => {
 // duration may drift by one second, and the endpoint may be at most ninety seconds
 // from now. Both conditions are needed so an older interval with the same length does
 // not keep a recent-range label.
-const presetMatchesRange = (preset: DatePreset): boolean => {
+const presetMatchesRange = (preset: DatePreset, start: string, end: string): boolean => {
   const range = preset.getRange()
   if (!preset.durationMs) {
-    return range.start === localStartDate.value && range.end === localEndDate.value
+    return range.start === start && range.end === end
   }
 
-  const startMs = parseRangeTime(localStartDate.value)
-  const endMs = parseRangeTime(localEndDate.value)
+  const startMs = parseRangeTime(start)
+  const endMs = parseRangeTime(end)
   if (startMs === null || endMs === null) return false
 
   const durationDrift = Math.abs(endMs - startMs - preset.durationMs)
@@ -729,28 +744,35 @@ const presetMatchesRange = (preset: DatePreset): boolean => {
   return durationDrift <= 1000 && endDrift <= 90 * 1000
 }
 
-// onDateChange selects the first available preset matching the current local endpoints.
-// It clears the previous preset before scanning, leaving null when the completed range
-// is a custom selection or excluded by dateOnly.
+// findMatchingPreset identifies the first available shortcut matching supplied endpoints.
+// Custom ranges and presets excluded by dateOnly return null. Applied snapshots and
+// editable drafts use this same recognition rule without changing each other's state.
+const findMatchingPreset = (start: string, end: string): string | null => {
+  return (
+    availablePresets.value.find((preset) => presetMatchesRange(preset, start, end))?.value ?? null
+  )
+}
+
+// onDateChange recognizes the current draft without changing its endpoints.
+// A custom range or shortcut excluded by dateOnly clears the previous preset, while
+// matching ranges use the first available shortcut's identifier.
 const onDateChange = () => {
-  activePreset.value = null
-  for (const preset of availablePresets.value) {
-    if (presetMatchesRange(preset)) {
-      activePreset.value = preset.value
-      break
-    }
-  }
+  activePreset.value = findMatchingPreset(localStartDate.value, localEndDate.value)
 }
 
 // open captures the current endpoints and preset before starting a draft session. It
 // resets incomplete selection, shows the ending month, and measures the panel after
-// marking it open.
+// marking it open. The clock and preset label catch up before capturing the snapshot,
+// and the new session follows parent updates until the user edits a selection.
 const open = () => {
+  refreshToday()
+  onDateChange()
   snapshot.value = {
     start: localStartDate.value,
     end: localEndDate.value,
     preset: activePreset.value,
   }
+  draftEdited.value = false
   selectingEnd.value = false
   hoverDate.value = null
   showMonthOf(localEndDate.value)
@@ -758,20 +780,22 @@ const open = () => {
   updateDropdownPosition()
 }
 
-// close discards an open draft by restoring its captured endpoints and preset. It also
-// clears incomplete day selection and hover feedback; an already closed picker returns
-// without touching those values.
+// close discards an open draft by restoring its captured endpoints and recognizing
+// their current preset. Parent updates replace that snapshot while open. It also clears
+// incomplete selection, edit ownership, and hover feedback; an already closed picker
+// remains unchanged.
 const close = () => {
   if (!isOpen.value) return
-  // Cancellation restores the opening snapshot before hiding the panel, keeping
+  // Cancellation restores the latest applied snapshot before hiding the panel, keeping
   // abandoned preset and endpoint edits out of the applied trigger display.
   if (snapshot.value) {
     localStartDate.value = snapshot.value.start
     localEndDate.value = snapshot.value.end
-    activePreset.value = snapshot.value.preset
+    onDateChange()
   }
   selectingEnd.value = false
   hoverDate.value = null
+  draftEdited.value = false
   isOpen.value = false
 }
 
@@ -787,7 +811,7 @@ const toggle = () => {
 }
 
 // cancel delegates draft cancellation to the picker close handler. That handler
-// restores the opening snapshot when the panel is open and leaves an already closed
+// restores the latest applied snapshot when the panel is open and leaves an already closed
 // picker unchanged.
 const cancel = () => {
   close()
@@ -795,8 +819,15 @@ const cancel = () => {
 
 // apply publishes both endpoint updates followed by the aggregate range change. It
 // then closes the panel directly, allowing the selected draft to remain current rather
-// than restoring the opening snapshot.
+// than restoring the opening snapshot. A draft spanning midnight keeps its selected
+// endpoints and receives the preset name that matches them at application time.
+// Publishing ends edit ownership so subsequent parent updates can synchronize the control.
 const apply = () => {
+  refreshToday()
+  const preset = availablePresets.value.find((item) => item.value === activePreset.value)
+  if (!preset || !presetMatchesRange(preset, localStartDate.value, localEndDate.value)) {
+    onDateChange()
+  }
   // Publish both endpoint updates before the aggregate change so parent handlers
   // receive the individual model changes before acting on the complete range.
   emit('update:startDate', localStartDate.value)
@@ -806,6 +837,7 @@ const apply = () => {
     endDate: localEndDate.value,
     preset: activePreset.value,
   })
+  draftEdited.value = false
   isOpen.value = false
 }
 
@@ -864,6 +896,10 @@ const handleViewportChange = () => {
 
 onDateChange()
 
+// Reclassify the selected dates after midnight without emitting a change: callers
+// own their applied range, while this control keeps shortcut labels and highlights current.
+watch(today, onDateChange)
+
 watch(
   () => props.dateOnly,
   () => {
@@ -871,19 +907,23 @@ watch(
   },
 )
 
+// Parent rollovers update the applied snapshot independently of an edited draft.
+// Cancel must restore the latest applied range, while Apply must retain the user's
+// selection, including an unfinished first click or a shortcut awaiting confirmation.
 watch(
-  () => props.startDate,
-  (val) => {
-    localStartDate.value = val
-    onDateChange()
-  },
-)
-
-watch(
-  () => props.endDate,
-  (val) => {
-    localEndDate.value = val
-    onDateChange()
+  () => [props.startDate, props.endDate] as const,
+  ([start, end]) => {
+    // The parent's midnight timer can run before this picker's timer. Resample
+    // before labeling the applied snapshot so today's new bounds receive today's label.
+    refreshToday()
+    if (isOpen.value) {
+      snapshot.value = { start, end, preset: findMatchingPreset(start, end) }
+    }
+    if (!isOpen.value || !draftEdited.value) {
+      localStartDate.value = start
+      localEndDate.value = end
+      onDateChange()
+    }
   },
 )
 

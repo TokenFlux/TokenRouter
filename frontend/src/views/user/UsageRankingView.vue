@@ -125,7 +125,16 @@
 <script setup lang="ts">
 import Skeleton from '@/components/common/Skeleton.vue'
 import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
-import { computed, defineComponent, h, onMounted, ref, type PropType } from 'vue'
+import {
+  computed,
+  defineComponent,
+  h,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+  type PropType,
+} from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   usageAPI,
@@ -138,6 +147,7 @@ import UserAvatar from '@/components/common/UserAvatar.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { useLocalDay } from '@/composables/useLocalDay'
 import { formatNumber } from '@/utils/format'
 
 // UsageRankingView.vue renders the public usage ranking for a browser-local date range. The
@@ -149,6 +159,10 @@ import { formatNumber } from '@/utils/format'
 // primary; a token metric supplies the final default when none remain. The first three rows
 // receive rank styling, and desktop cards visually place the winner between second and
 // third place.
+//
+// Today's selection follows the browser calendar across midnight and resumed tabs.
+// Historical selections retain their explicit endpoints. Request generations keep a
+// delayed response for an earlier date from replacing the current ranking or error.
 
 // Translation and balance formatting provide ranking labels, configured unit names, and
 // four-decimal user spending values.
@@ -160,12 +174,16 @@ const { balanceUnitName, formatBalanceAmount } = useBalanceDisplay()
 const loading = ref(false)
 const response = ref<UsageRankingResponse | null>(null)
 const errorMessage = ref('')
+// requestGeneration identifies the only request allowed to publish results or release
+// loading state; unmounting invalidates pending work without changing server requests.
+let requestGeneration = 0
 
-// Local date state initializes the range to today and derives the displayed ranking and
-// first three featured records.
-const today = formatLocalDate(new Date())
-const startDate = ref(today)
-const endDate = ref(today)
+// Local date state follows today until a different preset or fixed range is applied.
+// The shared clock also catches up before manual refreshes after browser suspension.
+const { today, refreshToday } = useLocalDay()
+const followsToday = ref(true)
+const startDate = ref(today.value)
+const endDate = ref(today.value)
 const ranking = computed(() => response.value?.ranking || [])
 const topCards = computed(() => ranking.value.slice(0, 3))
 // UsageRankingMetric names the API-supported metric used by ranking cards and rows.
@@ -195,15 +213,6 @@ const dateRangeLabel = computed(() => {
   const end = response.value?.end_date || endDate.value
   return start === end ? start : `${start} - ${end}`
 })
-
-// formatLocalDate formats browser-local calendar components to initialize date input
-// values.
-function formatLocalDate(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 // topCardOrderClass places the winner between second and third on desktop screens. Other
 // ranks use the final order class, while narrow layouts retain the input order of cards.
@@ -333,34 +342,59 @@ function rankTheme(rank: number): {
   }
 }
 
-// onDateRangeChange stores both selected dates and reloads the ranking.
+// onDateRangeChange stores the applied range and reloads the ranking. Only the
+// today preset follows subsequent calendar changes; historical and other preset
+// endpoints remain fixed until the user applies another selection.
 function onDateRangeChange(range: {
   startDate: string // beginning calendar date
   endDate: string // ending calendar date
   preset: string | null // optional date preset identifier
 }) {
+  followsToday.value = range.preset === 'today'
   startDate.value = range.startDate
   endDate.value = range.endDate
   loadRanking()
 }
 
-// loadRanking retrieves the selected range and lets the server choose ranking size. A
-// failure stores its message while retaining the earlier response, and settlement releases
-// the loading flag.
+// loadRanking retrieves the selected range and lets the server choose ranking size.
+// Today's bounds are resampled before dispatch, including when browser timers have
+// been suspended. Other selections retain the endpoints supplied by the picker.
+//
+// A newer request or component unmount invalidates earlier completions. Only the
+// current generation can publish a result, report a failure, or release loading
+// state, so yesterday's delayed response cannot replace today's ranking. A current
+// failure retains the last successful response behind the error display.
 async function loadRanking() {
+  refreshToday()
+  if (followsToday.value) {
+    startDate.value = today.value
+    endDate.value = today.value
+  }
+  const generation = ++requestGeneration
   loading.value = true
   errorMessage.value = ''
   try {
-    response.value = await usageAPI.getRanking({
+    const result = await usageAPI.getRanking({
       start_date: startDate.value,
       end_date: endDate.value,
     })
+    // A rollover can start a replacement request while this one is still running.
+    // Publish only the generation that still owns the selected range's result.
+    if (generation === requestGeneration) {
+      response.value = result
+    }
   } catch (error: any) {
-    // Keep the previous successful ranking response after retrieval fails, while exposing
-    // the current failure message beside the selected date controls.
-    errorMessage.value = error?.message || t('usageRanking.loadError')
+    // Ignore replaced request failures so a late error for yesterday cannot hide
+    // today's successful ranking. Current failures retain the last response behind the error.
+    if (generation === requestGeneration) {
+      errorMessage.value = error?.message || t('usageRanking.loadError')
+    }
   } finally {
-    loading.value = false
+    // An earlier request settling must not clear the loading indicator while its
+    // replacement is still fetching the range currently selected by the user.
+    if (generation === requestGeneration) {
+      loading.value = false
+    }
   }
 }
 
@@ -523,7 +557,21 @@ const RankingRow = defineComponent({
   },
 })
 
+// Timer and resume changes reload only a still-followed day. Manual refresh already
+// updates both bounds synchronously, so its queued clock notification needs no second request.
+watch(today, (currentDay) => {
+  if (followsToday.value && (startDate.value !== currentDay || endDate.value !== currentDay)) {
+    void loadRanking()
+  }
+})
+
 onMounted(() => {
   loadRanking()
+})
+
+// Invalidate in-flight responses on navigation so this page's discarded reactive
+// state remains unchanged when older requests eventually resolve or reject.
+onUnmounted(() => {
+  requestGeneration++
 })
 </script>
