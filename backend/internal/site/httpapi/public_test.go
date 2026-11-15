@@ -15,8 +15,15 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/site"
 )
 
-// calendarPublicSource supplies empty settings so the test exercises the injected calendar.
-type calendarPublicSource struct{}
+// public_test.go checks the public settings API against the HTML injection path.
+// Controlled display values and injected calendars verify that both transports
+// expose the same feature decisions and timezone metadata before browsers render
+// account controls.
+
+// calendarPublicSource supplies a display switch alongside injected calendar settings.
+type calendarPublicSource struct {
+	showUserID string // Stored display-switch value.
+}
 
 // TestPublicCalendarMatchesAPIAndInjection supplies calendars with distinct zone names and display labels.
 // It verifies that API and HTML injection return the configured label and the
@@ -58,11 +65,11 @@ func TestPublicCalendarMatchesAPIAndInjection(t *testing.T) {
 	}
 }
 
-// LoadSitePublicInputs supplies empty display, auth, and usage inputs for calendar tests.
+// LoadSitePublicInputs supplies display-switch values with empty auth and usage inputs.
 // Each call allocates a fresh values map, keeping fixture data independent of
 // the response service's language and navigation transformations.
-func (calendarPublicSource) LoadSitePublicInputs(context.Context) (site.PublicInputs, error) {
-	return site.PublicInputs{Values: map[string]string{}}, nil
+func (source calendarPublicSource) LoadSitePublicInputs(context.Context) (site.PublicInputs, error) {
+	return site.PublicInputs{Values: map[string]string{site.SettingKeyShowUserID: source.showUserID}}, nil
 }
 
 // PublicVersion returns the fixed source build label used by injection fixtures.
@@ -70,3 +77,33 @@ func (calendarPublicSource) PublicVersion() string { return "calendar-contract" 
 
 // LoadSiteShareImage leaves this text-only fixture without an uploaded cover.
 func (calendarPublicSource) LoadSiteShareImage(context.Context) (string, error) { return "", nil }
+
+// TestPublicUserIDSwitchMatchesAPIAndInjection supplies missing, disabled, enabled,
+// and invalid stored values. Both public transports must agree so initial HTML
+// rendering and subsequent API refreshes expose the same account display policy.
+func TestPublicUserIDSwitchMatchesAPIAndInjection(t *testing.T) {
+	for _, value := range []string{"", "false", "true", "invalid"} {
+		t.Run(value, func(t *testing.T) {
+			service := site.NewPublicService(calendarPublicSource{showUserID: value}, timezone.NewCalendar(time.UTC), "UTC")
+			handler := NewPublicHandler(service, "test")
+			response := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(response)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/settings/public", nil)
+			handler.GetPublicSettings(ctx)
+			require.Equal(t, http.StatusOK, response.Code)
+			var envelope struct {
+				Data map[string]any `json:"data"` // Public settings response.
+			}
+			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &envelope))
+			require.Equal(t, value == "true", envelope.Data["show_user_id"])
+
+			injection, err := service.GetPublicSettingsForInjection(context.Background())
+			require.NoError(t, err)
+			encoded, err := json.Marshal(injection)
+			require.NoError(t, err)
+			var fields map[string]any
+			require.NoError(t, json.Unmarshal(encoded, &fields))
+			require.Equal(t, value == "true", fields["show_user_id"])
+		})
+	}
+}

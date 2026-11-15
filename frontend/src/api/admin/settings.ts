@@ -741,6 +741,7 @@ export interface SystemSettings {
   contact_info: string // Configured contact info.
   doc_url: string // Configured doc url.
   home_content: string // Configured home content.
+  show_user_id: boolean // Account identifier display switch.
   hide_ccs_import_button: boolean // Hide ccs import button.
   table_default_page_size: number // Table default page size.
   table_page_size_options: number[] // Table page size options.
@@ -1107,6 +1108,7 @@ export interface UpdateSettingsRequest {
   contact_info?: string // Requested contact info.
   doc_url?: string // Requested doc url.
   home_content?: string // Requested home content.
+  show_user_id?: boolean // Requested account identifier visibility.
   hide_ccs_import_button?: boolean // Hide ccs import button.
   table_default_page_size?: number // Table default page size.
   table_page_size_options?: number[] // Table page size options.

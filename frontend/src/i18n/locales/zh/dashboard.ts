@@ -696,6 +696,7 @@ export default {
   },
   // Profile
   profile: {
+    copyUserId: '复制用户 ID #{id}',
     title: '个人设置',
     description: '管理您的账户信息和设置',
     accountBalance: '账户余额',

@@ -28,6 +28,7 @@ export function buildFeaturesSettingsPayload(
     | 'bstats_log_sent_data'
     | 'bstats_log_response_status_text'
     | 'team_enabled'
+    | 'show_user_id'
     | 'creative_enabled'
     | 'risk_control_enabled'
     | 'cyber_session_block_enabled'
@@ -48,6 +49,7 @@ export function buildFeaturesSettingsPayload(
   | 'bstats_log_sent_data'
   | 'bstats_log_response_status_text'
   | 'team_enabled'
+  | 'show_user_id'
   | 'creative_enabled'
   | 'creative_model_settings'
   | 'creative_worker_count'
@@ -85,6 +87,7 @@ export function buildFeaturesSettingsPayload(
     // Feature visibility and reporting controls share the same bulk request,
     // allowing the coordinator to persist their edited values in one save attempt.
     team_enabled: form.team_enabled,
+    show_user_id: form.show_user_id,
     bstats_enabled: form.bstats_enabled,
     bstats_log_errors: form.bstats_log_errors,
     bstats_log_sent_data: form.bstats_log_sent_data,

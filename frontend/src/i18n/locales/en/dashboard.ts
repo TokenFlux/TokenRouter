@@ -717,6 +717,7 @@ export default {
   },
   // Profile
   profile: {
+    copyUserId: 'Copy user ID #{id}',
     title: 'Profile Settings',
     description: 'Manage your account information and settings',
     accountBalance: 'Account Balance',

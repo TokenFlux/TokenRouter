@@ -71,6 +71,7 @@ type (
 		DocURL                      string                   `json:"doc_url"`                         // resolved documentation link
 		HomeContent                 string                   `json:"home_content"`                    // resolved homepage content
 		HideCcsImportButton         bool                     `json:"hide_ccs_import_button"`          // hide import action
+		ShowUserID                  bool                     `json:"show_user_id"`                    // User ID display switch.
 		PurchaseSubscriptionEnabled bool                     `json:"purchase_subscription_enabled"`   // subscription purchase switch
 		PurchaseSubscriptionURL     string                   `json:"purchase_subscription_url"`       // resolved purchase destination
 		TableDefaultPageSize        int                      `json:"table_default_page_size"`         // default rows per page

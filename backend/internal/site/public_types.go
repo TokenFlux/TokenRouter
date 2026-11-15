@@ -77,6 +77,9 @@ type (
 		DocURL                  string                   // resolved documentation link
 		HomeContent             string                   // resolved homepage content
 		HideCcsImportButton     bool                     // hide import action
+		// ShowUserID is enabled when the stored switch equals true. Missing
+		// settings keep account identifiers hidden in the account menu and profile.
+		ShowUserID bool // User ID display switch.
 
 		PurchaseSubscriptionEnabled bool   // subscription purchase switch
 		PurchaseSubscriptionURL     string // resolved purchase destination

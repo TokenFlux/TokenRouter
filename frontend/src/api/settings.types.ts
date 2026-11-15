@@ -116,6 +116,9 @@ export interface PublicSettings {
   contact_info: string // Site contact details.
   doc_url: string // Site documentation URL.
   home_content: string // Homepage content markup.
+  // Older public settings can omit show_user_id; consumers show account identifiers
+  // only when the switch is true.
+  show_user_id?: boolean // Account identifier display switch.
   hide_ccs_import_button: boolean // CCS import hiding switch.
   payment_enabled: boolean // Payment checkout availability.
   team_enabled?: boolean // Team feature availability.

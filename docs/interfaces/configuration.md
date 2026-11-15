@@ -192,6 +192,8 @@ setup 的数据库和 Redis 连接测试由精简版 bootstrap 执行，输入�
 
 usage、audit 和 ops 的静态参数，由 app 整理成各模块的 Options；动态的 Ops 设置和日志配置，由数据库里的键控制。统一的预聚合控制器在 `settings/preaggregation`，带十五秒缓存和更新通知。运行日志按"应用、持久化失败时回滚、清理 Reload"的顺序处理。
 
+管理员在“系统设置 → 功能开关”管理 `show_user_id`。缺键时默认关闭；开启后，右上角头像下拉菜单和个人资料显示当前登录用户的 `#ID`，点击可复制包含 `#` 的完整文本。综合设置 GET/PUT 读写该布尔字段，更新时省略字段会保留原值。公共设置 API 和 HTML 注入都返回展示开关，用户 ID 取自当前登录用户资料。
+
 ### 模块读取器
 
 创作台的运行开关和模型列表，由 app 直接注入 `creative.RuntimeSettings`，每次即时读取；路由容量使用同一个 `provider.QuotaSettingsCache`。各个读取器共用已经装配好的缓存实例。`settings/composite` 负责综合设置的组合、准备顺序和提交后的应用；`settings/httpapi` 负责扁平的请求绑定、权限、审计和响应。

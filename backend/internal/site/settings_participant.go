@@ -51,6 +51,7 @@ func SettingsParticipant() settings.Participant {
 		SettingKeyFooterText,
 		SettingKeyFrontendURL,
 		SettingKeyHideCcsImportButton,
+		SettingKeyShowUserID,
 		SettingKeyHomeContent,
 		SettingKeyHomeFeaturedModels,
 		SettingKeyLoginAgreementDocuments,

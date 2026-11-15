@@ -185,6 +185,13 @@ export default {
         'If the window and bucket size would produce more than 720 bars, the backend widens the bucket size automatically.',
     },
     features: {
+      userId: {
+        title: 'User ID',
+        description: 'Control account identifier visibility.',
+        enabled: 'Show User ID',
+        enabledHint:
+          'Show a copyable ID such as #1233 in the avatar menu and profile. Disabled by default.',
+      },
       bstats: {
         title: 'bStats',
         description:

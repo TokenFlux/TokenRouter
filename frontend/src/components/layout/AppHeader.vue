@@ -191,6 +191,8 @@
                   />
                 </router-link>
 
+                <UserIdBadge :user-id="user.id" class="mt-2 w-full justify-between" />
+
                 <!-- Below sm, show the balance beneath the account card. -->
                 <div class="flex items-baseline justify-between gap-3 px-2.5 pb-1 pt-2 sm:hidden">
                   <span class="text-xs text-primary-900/60 dark:text-dark-400">{{
@@ -316,6 +318,7 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/announcements/AnnouncementBell.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import UserIdBadge from '@/components/user/UserIdBadge.vue'
 import HeaderContactSupport from '@/components/layout/HeaderContactSupport.vue'
 import GlobalSearchTrigger from '@/components/layout/search/GlobalSearchTrigger.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -329,8 +332,9 @@ import { useTheme, type ThemeMode } from '@/composables/useTheme'
 // entries, balance, and account menu. Marketplace, announcement, docs, support, and
 // language entries show text from md upward so new users can read what each entry does;
 // narrower headers fall back to icons. Authenticated users choose themes in the account
-// menu, while guests keep a header theme toggle. Public pages add guest navigation,
-// authenticated menus follow public feature settings, and the creative workspace
+// menu, which also offers optional user ID copying. Guests keep a header theme toggle.
+// Public pages add guest navigation, authenticated menus follow public feature settings,
+// and the creative workspace
 // provides a dashboard return link beside the brand. Menu listeners belong to the
 // mounted header.
 

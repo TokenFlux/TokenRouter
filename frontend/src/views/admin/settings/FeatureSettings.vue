@@ -1,5 +1,19 @@
 <template>
   <SettingsCard
+    :title="t('admin.settings.features.userId.title')"
+    :description="t('admin.settings.features.userId.description')"
+  >
+    <SettingsSection>
+      <SettingToggleRow
+        id="show-user-id"
+        v-model="form.show_user_id"
+        :label="t('admin.settings.features.userId.enabled')"
+        :hint="t('admin.settings.features.userId.enabledHint')"
+      />
+    </SettingsSection>
+  </SettingsCard>
+
+  <SettingsCard
     :title="t('admin.settings.features.team.title')"
     :description="t('admin.settings.features.team.description')"
   >
@@ -391,9 +405,9 @@ import RuleListEditor from '@/components/common/RuleListEditor.vue'
 import type { useFeaturesSettings, FeaturesSettingsForm } from './useFeaturesSettings'
 
 /**
- * FeatureSettings.vue renders team, creative, affiliate, risk-control, and bStats settings using
- * the page-owned draft and feature controller. Creative rows expose candidates and
- * supported operations from the controller, including unavailable historical selections,
+ * FeatureSettings.vue renders user ID, team, creative, affiliate, risk-control, and
+ * bStats settings using the page-owned draft and feature controller. Creative rows expose
+ * candidates and supported operations, including unavailable historical selections,
  * while worker usage displays its observed status. The shared page save action persists
  * edited values across tabs.
  *

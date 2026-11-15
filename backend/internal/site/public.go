@@ -63,6 +63,7 @@ const (
 	SettingKeyFooterText                          = "footer_text"
 	SettingKeyForceEmailOnThirdPartySignup        = "force_email_on_third_party_signup"
 	SettingKeyHideCcsImportButton                 = "hide_ccs_import_button"
+	SettingKeyShowUserID                          = "show_user_id"
 	SettingKeyHomeContent                         = "home_content"
 	SettingKeyHomeFeaturedModels                  = "home_featured_models"
 	SettingKeyInvitationCodeEnabled               = "invitation_code_enabled"
@@ -306,6 +307,7 @@ func (s *PublicService) GetPublicSettings(ctx context.Context) (*PublicSettings,
 		DocURL:                      settings[SettingKeyDocURL],
 		HomeContent:                 settings[SettingKeyHomeContent],
 		HideCcsImportButton:         settings[SettingKeyHideCcsImportButton] == "true",
+		ShowUserID:                  settings[SettingKeyShowUserID] == "true",
 		PurchaseSubscriptionEnabled: settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:     strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		TableDefaultPageSize:        tableDefaultPageSize,
@@ -632,6 +634,7 @@ func (s *PublicService) GetPublicSettingsForInjection(ctx context.Context) (any,
 		DocURL                              string                       `json:"doc_url,omitempty"`                       // resolved documentation link
 		HomeContent                         string                       `json:"home_content,omitempty"`                  // resolved homepage content
 		HideCcsImportButton                 bool                         `json:"hide_ccs_import_button"`                  // hide import action
+		ShowUserID                          bool                         `json:"show_user_id"`                            // User ID display switch.
 		PurchaseSubscriptionEnabled         bool                         `json:"purchase_subscription_enabled"`           // subscription purchase switch
 		PurchaseSubscriptionURL             string                       `json:"purchase_subscription_url,omitempty"`     // resolved purchase destination
 		TableDefaultPageSize                int                          `json:"table_default_page_size"`                 // default rows per page
@@ -726,6 +729,7 @@ func (s *PublicService) GetPublicSettingsForInjection(ctx context.Context) (any,
 		DocURL:                              settings.DocURL,
 		HomeContent:                         settings.HomeContent,
 		HideCcsImportButton:                 settings.HideCcsImportButton,
+		ShowUserID:                          settings.ShowUserID,
 		PurchaseSubscriptionEnabled:         settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:             settings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:                settings.TableDefaultPageSize,
@@ -1030,6 +1034,7 @@ func PublicValueKeys() []string {
 		SettingKeyFooterText,
 		SettingKeyForceEmailOnThirdPartySignup,
 		SettingKeyHideCcsImportButton,
+		SettingKeyShowUserID,
 		SettingKeyHomeContent,
 		SettingKeyHomeFeaturedModels,
 		SettingKeyInvitationCodeEnabled,
