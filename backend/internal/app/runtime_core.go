@@ -84,6 +84,7 @@ func provideCoreRuntime(
 	authCacheInvalidationWorker *apikey.AuthCacheInvalidationWorker,
 	schedulerSnapshot *scheduler.SnapshotService,
 	usageCleanup *usage.UsageCleanupService,
+	usageExport *usage.UsageExportService,
 	idempotencyCleanup *idempotency.IdempotencyCleanupService,
 	paymentOrderExpiry *payment.OrderExpiry,
 	tlsFingerprintCollector *provider.TLSFingerprintCollectorService,
@@ -126,6 +127,17 @@ func provideCoreRuntime(
 	}, Stop: func(ctx context.Context) error {
 		if usageCleanup != nil {
 			usageCleanup.Stop()
+		}
+		return nil
+	}})
+	manager.Register(lifecycle.Hook{Name: "UsageExportService", StartOrder: 980, StopOrder: shutdownStageProducers, Start: func(ctx context.Context) error {
+		if usageExport != nil {
+			usageExport.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if usageExport != nil {
+			usageExport.Stop()
 		}
 		return nil
 	}})

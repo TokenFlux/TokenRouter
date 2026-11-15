@@ -8,7 +8,7 @@
       aria-haspopup="dialog"
       :class="[
         'input input-trigger',
-        modelValue && 'pr-10',
+        modelValue && isClearable && 'pr-10',
         isOpen && 'date-time-picker-trigger-open',
       ]"
     >
@@ -18,7 +18,7 @@
       <span :class="['date-time-picker-value', !modelValue && 'date-time-picker-placeholder']">
         {{ displayValue }}
       </span>
-      <span v-if="!modelValue" class="date-time-picker-icon">
+      <span v-if="!modelValue || !isClearable" class="date-time-picker-icon">
         <Icon
           name="chevronDown"
           size="sm"
@@ -33,7 +33,7 @@
       button inside another.
     -->
     <button
-      v-if="modelValue"
+      v-if="modelValue && isClearable"
       type="button"
       class="date-time-picker-clear btn-icon-sm"
       :aria-label="t('dates.clear')"
@@ -119,8 +119,10 @@
             </div>
           </div>
 
-          <!-- Hour and minute columns scroll within the height allocated by the adjacent calendar. -->
-          <div class="date-time-picker-time">
+          <!-- Clock columns scroll within the height allocated by the adjacent calendar. -->
+          <div
+            :class="['date-time-picker-time', isSecondPrecision && 'date-time-picker-time-seconds']"
+          >
             <div class="date-time-picker-header date-time-picker-time-header">
               <span class="date-time-picker-title tabular-nums">{{ timeLabel }}</span>
             </div>
@@ -187,16 +189,17 @@ import MotionTransition from '@/components/common/MotionTransition.vue'
 import { useFloatingMotion } from '@/composables/useFloatingMotion'
 import { getFloatingPanelPosition, type FloatingPanelPosition } from '@/utils/floatingPanel'
 
-// DateTimePicker.vue edits a local date and minute-resolution time in a floating
-// calendar. Opening parses the parent value into a local draft; applying formats that
-// draft, while presets and the current-time action publish immediately. Closing leaves
-// the parent model unchanged.
+// DateTimePicker.vue edits a local date and minute- or second-resolution time in a
+// floating calendar. Opening parses the parent value into a local draft; applying
+// formats that draft at the configured precision, while presets and the current-time
+// action publish immediately. Closing leaves the parent model unchanged.
 //
 // Calendar cells compare only the date portion of min. Clock choices remain available
-// on that date, and immediate shortcuts publish their resolved values directly.
-// Time-column clicks can establish today when no date is selected, while column
-// scrolling waits for the rendered panel. The shared floating-panel helper computes
-// placement with width chosen from preset availability.
+// on that date, and immediate shortcuts publish their resolved values directly. Second
+// precision renders literal YYYY-MM-DD HH:mm:ss text on the trigger so callers holding
+// wall-clock timestamps in an explicit IANA timezone avoid browser-local DST shifts.
+// Time-column clicks establish today when no date is selected, while column scrolling
+// waits for the rendered panel.
 
 // CalendarCell contains the display and selection state for one calendar position.
 interface CalendarCell {
@@ -211,8 +214,11 @@ interface CalendarCell {
   selected: boolean // Current selection highlight flag.
 }
 
-// TimeColumnKey identifies the hour or minute column receiving scroll measurements.
-type TimeColumnKey = 'hour' | 'minute'
+// TimeColumnKey identifies the hour, minute, or second column receiving scroll measurements.
+type TimeColumnKey = 'hour' | 'minute' | 'second'
+
+// DateTimePrecision selects minute or second granularity for clock columns and output strings.
+export type DateTimePrecision = 'minute' | 'second'
 
 // DateTimePreset resolves a local timestamp when its shortcut is selected.
 export interface DateTimePreset {
@@ -226,8 +232,8 @@ export interface DateTimePreset {
 
 // Props describes the values and options supplied by the parent component.
 interface Props {
-  // Local YYYY-MM-DDTHH:mm text; an empty string means unset, and parsing ignores
-  // trailing seconds or milliseconds.
+  // Local YYYY-MM-DDTHH:mm or YYYY-MM-DDTHH:mm:ss text; an empty string means unset,
+  // and minute precision ignores trailing seconds when present.
   modelValue: string
 
   // Labels an unset or unparsable parent value; a missing or empty label selects the
@@ -238,6 +244,16 @@ interface Props {
   // not restrict time-column choices or immediate shortcut values.
   min?: string
 
+  // Selects minute (default) or second clock columns and emitted timestamp formatting.
+  precision?: DateTimePrecision
+
+  // Controls whether an occupied trigger shows the inline clear button; defaults to true.
+  clearable?: boolean
+
+  // Supplies a custom wall-clock timestamp when clicking Now, allowing callers bound to
+  // a non-browser IANA timezone to emit the current instant in that target zone.
+  nowResolver?: () => string
+
   presets?: DateTimePreset[] // Immediate date-time shortcut entries.
 
   presetsTitle?: string // Shortcut list heading text.
@@ -246,7 +262,10 @@ interface Props {
 
 // props holds parent-supplied component options consumed by the rendering and
 // interaction handlers below.
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  precision: 'minute',
+  clearable: true,
+})
 // emit publishes the declared component notifications so the parent can update its
 // owned state.
 const emit = defineEmits<{
@@ -257,20 +276,26 @@ const emit = defineEmits<{
 // application language.
 const { t, locale } = useI18n()
 
+// isSecondPrecision and isClearable normalize optional boolean and granularity props
+// for template rendering, width calculation, and timestamp formatting.
+const isSecondPrecision = computed(() => props.precision === 'second')
+const isClearable = computed(() => props.clearable !== false)
+
 // isOpen controls the panel, containerRef defines measurement and outside-click
 // ownership, and dropdownPosition stores the shared floating helper result.
 const isOpen = ref(false)
 const containerRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<FloatingPanelPosition | null>(null)
 // columnRefs retains rendered time-column elements so the opening tick can center
-// selected values independently for hours and minutes.
+// selected values independently for hours, minutes, and optional seconds.
 const columnRefs: Partial<Record<TimeColumnKey, HTMLElement>> = {}
 
-// localDate, localHour, and localMinute hold the pending calendar and time selection
-// until an apply action publishes their combined local timestamp.
+// localDate, localHour, localMinute, and localSecond hold the pending calendar and
+// clock selection until an apply action publishes their combined local timestamp.
 const localDate = ref('')
 const localHour = ref(0)
 const localMinute = ref(0)
+const localSecond = ref(0)
 
 // viewMonth stores the first local day of the displayed month as YYYY-MM-DD for
 // calendar navigation.
@@ -278,13 +303,17 @@ const viewMonth = ref('')
 
 // dropdownWidth and dropdownMargin bound panel width and viewport padding in CSS
 // pixels before the shared floating helper calculates placement.
-const dropdownWidth = computed(() => (props.presets?.length ? 544 : 432))
+const dropdownWidth = computed(() => {
+  const baseWidth = props.presets?.length ? 544 : 432
+  return isSecondPrecision.value ? baseWidth + 48 : baseWidth
+})
 const dropdownMargin = 12
 
-// hours and minutes enumerate the selectable clock values used by the two scrolling
-// time columns.
+// hours, minutes, and seconds enumerate the selectable clock values used by the
+// scrolling time columns.
 const hours = Array.from({ length: 24 }, (_, index) => index)
 const minutes = Array.from({ length: 60 }, (_, index) => index)
+const seconds = Array.from({ length: 60 }, (_, index) => index)
 
 // pad formats a numeric time field with at least two characters.
 const pad = (value: number): string => String(value).padStart(2, '0')
@@ -300,21 +329,27 @@ const formatDate = (date: Date): string => {
 // invalid Date for the caller.
 const parseLocalDate = (value: string): Date => new Date(`${value.slice(0, 10)}T00:00:00`)
 
-// parseValue extracts the date, hour, and minute prefix from local timestamp text.
-// Seconds and later characters are ignored, and strings lacking the expected prefix
-// return null for caller defaults.
+// parseValue extracts the date, hour, minute, and optional second fields from local
+// timestamp text. Missing seconds default to zero, and strings lacking the expected
+// date-time prefix return null for caller defaults.
 const parseValue = (
   value: string,
 ): {
   date: string // Captured YYYY-MM-DD prefix; years may contain more than four digits.
   hour: number // Local hour numeric value.
   minute: number // Local minute numeric value.
+  second: number // Local second numeric value, defaulting to zero when omitted.
 } | null => {
-  // Read minute precision from the accepted prefix; trailing seconds do not
-  // participate in draft display or emitted apply values.
-  const match = /^(\d{4,}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(value)
+  // Accept T or space between date and clock fields; minute-mode callers ignore the
+  // parsed second during display and apply emission.
+  const match = /^(\d{4,}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(value)
   if (!match) return null
-  return { date: match[1], hour: Number(match[2]), minute: Number(match[3]) }
+  return {
+    date: match[1],
+    hour: Number(match[2]),
+    minute: Number(match[3]),
+    second: match[4] ? Number(match[4]) : 0,
+  }
 }
 
 // dropdownStyle maps the floating helper coordinates to CSS, retaining auto for the
@@ -332,16 +367,24 @@ const dropdownStyle = computed(() => {
 })
 
 // displayValue formats the parent value for the trigger, while timeLabel formats the
-// pending hour and minute within the open draft panel.
+// pending clock values within the open draft panel. Second precision renders literal
+// YYYY-MM-DD HH:mm:ss text so non-browser timezone wall clocks never cross local DST.
 const displayValue = computed(() => {
   const parsed = parseValue(props.modelValue)
   if (!parsed) return props.placeholder || t('dates.selectDateTime')
+  if (isSecondPrecision.value) {
+    return `${parsed.date} ${pad(parsed.hour)}:${pad(parsed.minute)}:${pad(parsed.second)}`
+  }
   const date = parseLocalDate(parsed.date)
   date.setHours(parsed.hour, parsed.minute)
   return date.toLocaleString(locale.value, { dateStyle: 'medium', timeStyle: 'short' })
 })
 
-const timeLabel = computed(() => `${pad(localHour.value)}:${pad(localMinute.value)}`)
+const timeLabel = computed(() =>
+  isSecondPrecision.value
+    ? `${pad(localHour.value)}:${pad(localMinute.value)}:${pad(localSecond.value)}`
+    : `${pad(localHour.value)}:${pad(localMinute.value)}`,
+)
 
 // monthLabel names the displayed month, while weekStartsOn and weekdayLabels place
 // Monday first for zh-Hans and Sunday first for other locales.
@@ -409,34 +452,52 @@ const ensureDate = () => {
   if (!localDate.value) localDate.value = formatDate(new Date())
 }
 
-// timeColumns binds each clock column to its current draft selection and establishes
-// today when a time-first edit lacks a date.
-const timeColumns = computed(() => [
-  {
-    key: 'hour' as const,
-    label: t('dates.hour'),
-    values: hours,
-    selected: localHour.value,
-    select: (value: number) => {
-      localHour.value = value
-      ensureDate()
+// timeColumns binds each active clock column to its current draft selection and
+// establishes today when a time-first edit lacks a date.
+const timeColumns = computed(() => {
+  const baseColumns = [
+    {
+      key: 'hour' as const,
+      label: t('dates.hour'),
+      values: hours,
+      selected: localHour.value,
+      select: (value: number) => {
+        localHour.value = value
+        ensureDate()
+      },
     },
-  },
-  {
-    key: 'minute' as const,
-    label: t('dates.minute'),
-    values: minutes,
-    selected: localMinute.value,
-    select: (value: number) => {
-      localMinute.value = value
-      ensureDate()
+    {
+      key: 'minute' as const,
+      label: t('dates.minute'),
+      values: minutes,
+      selected: localMinute.value,
+      select: (value: number) => {
+        localMinute.value = value
+        ensureDate()
+      },
     },
-  },
-])
+  ]
+  if (!isSecondPrecision.value) {
+    return baseColumns
+  }
+  return [
+    ...baseColumns,
+    {
+      key: 'second' as const,
+      label: t('dates.second'),
+      values: seconds,
+      selected: localSecond.value,
+      select: (value: number) => {
+        localSecond.value = value
+        ensureDate()
+      },
+    },
+  ]
+})
 
-// setColumnRef registers the DOM element for an hour or minute column. Non-HTMLElement
-// values remove the registration, so the later scroll helper skips columns that are no
-// longer mounted.
+// setColumnRef registers the DOM element for a clock column. Non-HTMLElement values
+// remove the registration, so the later scroll helper skips columns that are no longer
+// mounted.
 const setColumnRef = (key: TimeColumnKey, el: Element | ComponentPublicInstance | null) => {
   if (el instanceof HTMLElement) {
     columnRefs[key] = el
@@ -445,15 +506,19 @@ const setColumnRef = (key: TimeColumnKey, el: Element | ComponentPublicInstance 
   }
 }
 
-// scrollColumnsToSelection centers the selected hour and minute within their rendered
-// columns. Call it after the panel DOM updates; missing column elements or matching
-// options are skipped independently.
+// scrollColumnsToSelection centers the selected hour, minute, and optional second
+// within their rendered columns. Call it after the panel DOM updates; missing column
+// elements or matching options are skipped independently.
 const scrollColumnsToSelection = () => {
   const selections: Record<TimeColumnKey, number> = {
     hour: localHour.value,
     minute: localMinute.value,
+    second: localSecond.value,
   }
-  for (const key of ['hour', 'minute'] as const) {
+  const activeKeys: TimeColumnKey[] = isSecondPrecision.value
+    ? ['hour', 'minute', 'second']
+    : ['hour', 'minute']
+  for (const key of activeKeys) {
     const column = columnRefs[key]
     const option = column?.querySelector<HTMLElement>(`[data-value="${selections[key]}"]`)
     if (!column || !option) continue
@@ -481,11 +546,11 @@ const selectDay = (date: string) => {
   localDate.value = date
 }
 
-// emitValue publishes a local date-time string containing hour and minute. The date is
-// used as supplied, and padded clock fields produce the minute-resolution
-// representation expected by parent model consumers.
-const emitValue = (date: string, hour: number, minute: number) => {
-  emit('update:modelValue', `${date}T${pad(hour)}:${pad(minute)}`)
+// emitValue publishes a local date-time string formatted at the configured precision.
+// Minute precision emits YYYY-MM-DDTHH:mm, while second precision appends :ss.
+const emitValue = (date: string, hour: number, minute: number, second = 0) => {
+  const base = `${date}T${pad(hour)}:${pad(minute)}`
+  emit('update:modelValue', isSecondPrecision.value ? `${base}:${pad(second)}` : base)
 }
 
 // isPresetActive resolves a shortcut and compares it with the parent timestamp. An
@@ -503,12 +568,16 @@ const selectPreset = (preset: DateTimePreset) => {
   isOpen.value = false
 }
 
-// selectNow publishes the current local calendar date, hour, and minute. It closes the
-// panel after emitting the value, so callers receive minute precision from this
-// immediate action.
+// selectNow publishes the current timestamp using nowResolver when provided, or the
+// browser clock formatted at the active precision, and closes the panel immediately.
 const selectNow = () => {
+  if (props.nowResolver) {
+    emit('update:modelValue', props.nowResolver())
+    isOpen.value = false
+    return
+  }
   const now = new Date()
-  emitValue(formatDate(now), now.getHours(), now.getMinutes())
+  emitValue(formatDate(now), now.getHours(), now.getMinutes(), now.getSeconds())
   isOpen.value = false
 }
 
@@ -521,6 +590,7 @@ const open = () => {
   localDate.value = parsed?.date ?? ''
   localHour.value = parsed?.hour ?? now.getHours()
   localMinute.value = parsed?.minute ?? now.getMinutes()
+  localSecond.value = parsed?.second ?? (isSecondPrecision.value ? now.getSeconds() : 0)
   showMonthOf(localDate.value)
   isOpen.value = true
   updateDropdownPosition()
@@ -552,7 +622,7 @@ const toggle = () => {
 // handler performs no further minimum comparison.
 const apply = () => {
   if (!localDate.value) return
-  emitValue(localDate.value, localHour.value, localMinute.value)
+  emitValue(localDate.value, localHour.value, localMinute.value, localSecond.value)
   isOpen.value = false
 }
 
@@ -762,6 +832,11 @@ onUnmounted(() => {
   @apply flex flex-col p-3;
   @apply border-t border-primary-900/10 dark:border-dark-600;
   @apply sm:w-32 sm:shrink-0 sm:border-l sm:border-t-0;
+}
+
+/* Second precision widens the clock pane to fit three scrolling numeric columns cleanly. */
+.date-time-picker-time-seconds {
+  @apply sm:w-44;
 }
 
 /*

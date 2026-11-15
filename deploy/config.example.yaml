@@ -886,6 +886,29 @@ usage:
     worker_interval_seconds: 10
     # Task execution timeout (seconds)
     task_timeout_seconds: 1800
+  # =============================================================================
+  # Usage Export Task Configuration
+  # Background CSV export storage, retention, active quotas, and worker settings.
+  # =============================================================================
+  export_tasks:
+    # Enable background usage export tasks
+    enabled: true
+    # Local export artifact directory; empty derives <DATA_DIR or storage.dir or ./data>/exports/usage
+    dir: ""
+    # Completed CSV file retention duration (hours)
+    retention_hours: 24
+    # Maximum concurrent pending + running tasks per regular user
+    max_active_per_user: 2
+    # Maximum concurrent pending + running tasks per administrator
+    max_active_per_admin: 5
+    # Cursor scan batch size per query
+    batch_size: 2000
+    # Background export worker concurrency
+    worker_concurrency: 2
+    # Worker sweep interval (seconds)
+    worker_interval_seconds: 10
+    # Single export task execution timeout (seconds)
+    task_timeout_seconds: 3600
 # Request summaries are stored independently of Ops sampling and buffered in
 # memory for batched database writes.
 request_log:

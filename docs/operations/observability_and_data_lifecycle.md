@@ -73,6 +73,7 @@
 - Ops system log sink 只索引选定的等级和组件，按批写入 PostgreSQL；队列满时不阻塞主请求，只增加 dropped 计数。连续写库失败后，从 2 秒开始指数退避，最长 60 秒；退避期间直接丢弃观测批次并计入 dropped，日志链路不会一直占用数据库连接，任何一次成功都会立即恢复正常写入。重复调用 Start 不会产生新的写入协程，也不会有新的退避状态；Stop 可以重复调用，停止后无法重新打开。停止等待受应用剩余的预算约束，超时时报告未完成的项，不算排空成功。
 - 运维指标采集器、小时和日聚合器、告警评估器、计划报告和清理任务，各自维护周期、开关、leader lock 和 job heartbeat。
 - Usage cleanup 任务持久化为 pending、running、succeeded、failed、canceled 几种状态，分批删除；进程中断后，长时间停在 running 的任务可以被重新抢占，继续执行。
+- Usage export 任务持久化为 pending、running、succeeded、failed、canceled、expired 状态，按 `(created_at, id)` 降序游标分批读取并流式写入受根目录约束的本地临时 CSV，写完后原子重命名提交；启动恢复时，上次进程中断遗留的 running 任务会重置回 pending 重新生成，不暴露半成品文件。
 - 插件 KV 的单实例 worker 每 5 分钟采样额度、每 10 分钟清理过期行，失败保留旧额度快照；清理每批 1000 行、单轮最多 30 秒。配额包含保留的过期数据，详见[KV 存储与维护](../architecture/plugin_system.md#kv_storage)。
 - 审计、scheduler snapshot outbox、幂等记录和批量图片的清理，各有自己的 worker。一个 worker 健康，不代表整个后台都健康。
 
@@ -115,6 +116,8 @@ Ops cleanup 按运行时设置，清理错误日志、系统日志、指标和�
 
 Usage cleanup 是管理员手动创建的持久任务，需要提供时间范围，还可以再按用户、团队、Key、提供商、分组、模型、请求类型、是否流式或计费类型收窄。删除按批推进，记录操作人、进度、取消和错误。只要任务已经删除过记录，不论最终是成功、取消还是随后失败，都会在统一收尾时，为受影响的范围登记异步的聚合重算；重算使用聚合运行时的 context，取消的状态仍然是 canceled。系统没有持久化的修复队列，进程崩溃后修复不保证投递。大范围的清理，先备份，并估算对分区、索引、vacuum 和查询的影响。
 
+Usage export 产物默认在任务完成后保留 24 小时（由 `usage.export_tasks.retention_hours` 控制）。后台清理按周期扫描到期的 `succeeded` 任务，先删除受根目录约束的本地 CSV 文件（文件已不存在视为成功），再把数据库记录更新为 `expired`；历史任务元数据继续保留供面板查看，过期下载返回 `410 USAGE_EXPORT_EXPIRED`。
+
 通用审计的清空操作，由 audit/postgres 在同一个事务里锁表、计数、TRUNCATE 并插入一条留痕；任何一步失败都回滚，序列的行为不变。管理员 API Key 被拒绝，TOTP 凭据照常验证。普通的管理员审计尽力异步写入；Ops 系统日志清理的留痕也尽力执行；支付专项审计和退款事务各有自己的保证。
 
 清理之前，按数据的归属判断：
@@ -135,7 +138,7 @@ Usage cleanup 是管理员手动创建的持久任务，需要提供时间范围
 
 ## 备份与恢复范围
 
-backup 使用 PostgreSQL dump，把产物流式写到本地或 S3 兼容存储；配置、记录、定时调度和恢复都受维护锁保护。默认的内容策略，会排除 `backupContentTableDataGroups` 里归类的 usage records、Ops logs、专项 audit history 和 runtime data，这四类都需要手动选择。提供商余额提醒的最近轮次和下次检查时间属于 `runtime_data`，配置仍保存在提供商 Extra 中；恢复时没有运行状态会在下一轮扫描重新检查。备份显示 completed，只说明已经写出了所选的内容，不代表这四类都在文件里。
+backup 使用 PostgreSQL dump，把产物流式写到本地或 S3 兼容存储；配置、记录、定时调度和恢复都受维护锁保护。默认的内容策略，会排除 `backupContentTableDataGroups` 里归类的 usage records、Ops logs、专项 audit history 和 runtime data，这四类都需要手动选择。提供商余额提醒的最近轮次和下次检查时间属于 `runtime_data`，配置仍保存在提供商 Extra 中；恢复时没有运行状态会在下一轮扫描重新检查。使用记录导出任务表 `usage_export_tasks` 也属于 `runtime_data`，对应的本地 `exports/usage` CSV 文件不在数据库 dump 中；恢复后缺失本地文件的已完成任务在下载时返回已过期。备份显示 completed，只说明已经写出了所选的内容，不代表这四类都在文件里。
 
 `plugin_indexes`、`plugin_installations`、`plugin_kv` 和 `plugin_ledger` 属于始终包含的业务数据。台账承载幂等执行证据，不能归入可排除的日志或 runtime_data。恢复数据库时也要恢复固定的 TOTP 加密密钥；本地安装包不在 dump 中，上传来源需要保留原归档，索引来源按已接受摘要重新下载。
 

@@ -932,7 +932,8 @@ func TestBackupService_ContentConfigDefaultsExcludeLargeHistory(t *testing.T) {
 	require.Contains(t, cfg.ExcludedTableData, "public.usage_analytics_aggregation_state")
 	require.Contains(t, cfg.ExcludedTableData, "public.pending_auth_sessions")
 	require.Contains(t, cfg.ExcludedTableData, "public.identity_adoption_decisions")
-	require.Len(t, cfg.ExcludedTableData, 37)
+	require.Contains(t, cfg.ExcludedTableData, "public.usage_export_tasks")
+	require.Len(t, cfg.ExcludedTableData, 38)
 	require.Contains(t, cfg.ExcludedTableData, "public.billing_system_usage_entries")
 	require.Contains(t, cfg.ExcludedTableData, "public.provider_balance_alert_states")
 	require.Contains(t, cfg.ExcludedTableData, "public.request_records")
@@ -942,6 +943,7 @@ func TestBackupService_ContentConfigDefaultsExcludeLargeHistory(t *testing.T) {
 	require.Contains(t, dumper.opts.ExcludeTableData, "public.ops_error_logs")
 	require.Contains(t, dumper.opts.ExcludeTableData, "public.usage_billing_dedup")
 	require.Contains(t, dumper.opts.ExcludeTableData, "public.identity_adoption_decisions")
+	require.Contains(t, dumper.opts.ExcludeTableData, "public.usage_export_tasks")
 }
 
 // TestBackupService_ContentConfigCanIncludeSelectedData enables usage and audit

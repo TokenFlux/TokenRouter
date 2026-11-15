@@ -496,10 +496,22 @@ func TestUpgradeV2WeChatLegacyModes(t *testing.T) {
 }
 
 // TestUpgradeV2CurrentKeysHaveSources audits the migration in the reverse direction.
-// Each decoded leaf must originate in the frozen schema, a consolidation rule,
-// or an explicitly imported module setting, preventing accidental orphan fields.
+// Each decoded leaf must originate in the frozen v1 schema, a consolidation rule,
+// an explicitly imported module setting, or the declared list of v2-native keys,
+// preventing accidental orphan fields.
 func TestUpgradeV2CurrentKeysHaveSources(t *testing.T) {
-	sources := map[string]bool{"config_version": true}
+	sources := map[string]bool{
+		"config_version":                             true,
+		"usage.export_tasks.enabled":                 true,
+		"usage.export_tasks.dir":                     true,
+		"usage.export_tasks.retention_hours":         true,
+		"usage.export_tasks.max_active_per_user":     true,
+		"usage.export_tasks.max_active_per_admin":    true,
+		"usage.export_tasks.batch_size":              true,
+		"usage.export_tasks.worker_concurrency":      true,
+		"usage.export_tasks.worker_interval_seconds": true,
+		"usage.export_tasks.task_timeout_seconds":    true,
+	}
 	for _, entry := range extendedEnvironment {
 		sources[entry.Path] = true
 	}

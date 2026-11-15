@@ -6,12 +6,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/server/adminapi"
 )
 
-// routes_admin.go registers administrator dashboard, usage-query, and
-// cleanup-task HTTP routes.
-// Administrator dashboard and usage routes expose statistics, searches and
-// persisted cleanup tasks through separate path groups. The application
-// supplies their authentication, rate limiting and audit middleware on the
-// parent group before these handlers are registered.
+// routes_admin.go registers administrator dashboard, usage-query, cleanup-task,
+// and export-task HTTP routes.
+// Administrator dashboard and usage routes expose statistics, searches,
+// persisted cleanup tasks, and background CSV export tasks through separate
+// path groups. The application supplies their authentication, rate limiting,
+// and audit middleware on the parent group before these handlers are registered.
 
 // RegisterDashboardRoutes attaches dashboard reports, chart snapshots and
 // batch usage reads beneath admin. The caller supplies a nonnil handler and
@@ -35,10 +35,10 @@ func RegisterDashboardRoutes(admin *gin.RouterGroup, endpoint *DashboardHandler)
 	}
 }
 
-// RegisterUsageRoutes attaches usage records, statistics, searches and
-// cleanup-task commands beneath admin. The caller supplies a nonnil handler
-// and installs authentication, rate limiting and audit middleware on the
-// parent group first.
+// RegisterUsageRoutes attaches usage records, statistics, searches,
+// cleanup-task commands, and export-task commands beneath admin. The caller
+// supplies a nonnil handler and installs authentication, rate limiting, and
+// audit middleware on the parent group first.
 func RegisterUsageRoutes(admin *gin.RouterGroup, endpoint *UsageHandler) {
 	usage := admin.Group("/usage")
 	{
@@ -49,5 +49,10 @@ func RegisterUsageRoutes(admin *gin.RouterGroup, endpoint *UsageHandler) {
 		adminapi.Register(usage, ManagementOperations["usage.cleanup_tasks.list"], endpoint.ListCleanupTasks)
 		adminapi.Register(usage, ManagementOperations["usage.cleanup_tasks.create"], endpoint.CreateCleanupTask)
 		adminapi.Register(usage, ManagementOperations["usage.cleanup_tasks.cancel.create"], endpoint.CancelCleanupTask)
+		adminapi.Register(usage, ManagementOperations["usage.export_tasks.list"], endpoint.ListExportTasks)
+		adminapi.Register(usage, ManagementOperations["usage.export_tasks.create"], endpoint.CreateExportTask)
+		adminapi.Register(usage, ManagementOperations["usage.export_tasks.cancel.create"], endpoint.CancelExportTask)
+		adminapi.Register(usage, ManagementOperations["usage.export_tasks.download_ticket.create"], endpoint.CreateExportDownloadTicket)
+		adminapi.Register(usage, ManagementOperations["usage.export_tasks.download.get"], endpoint.DownloadExportTask)
 	}
 }

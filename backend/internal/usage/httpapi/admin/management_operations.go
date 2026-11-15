@@ -240,6 +240,74 @@ var ManagementOperations = map[string]*adminapi.Operation{
 		BrowserPath: "/admin/usage",
 		Input:       adminapi.Arguments("/api/v1/admin/usage/cleanup-tasks", []string{"page", "page_size"}, nil),
 	}),
+	"usage.export_tasks.cancel.create": adminapi.Define(adminapi.Operation{
+		ID:     "usage.export_tasks.cancel.create",
+		Module: "usage",
+		Title:  "Cancel Export Task",
+		Description: "CancelExportTask cancels a pending or running administrator usage export task and returns " +
+			"the updated task state. Terminal tasks return conflict and missing tasks return not found.",
+		Method:      "POST",
+		Path:        "/api/v1/admin/usage/export-tasks/:id/cancel",
+		Response:    "json",
+		BrowserPath: "/admin/usage",
+		Input:       adminapi.Arguments("/api/v1/admin/usage/export-tasks/:id/cancel", []string{}, nil),
+	}),
+	"usage.export_tasks.create": adminapi.Define(adminapi.Operation{
+		ID:     "usage.export_tasks.create",
+		Module: "usage",
+		Title:  "Create Export Task",
+		Description: "CreateExportTask validates explicit half-open timestamps, an IANA timezone, and optional " +
+			"administrator usage filters before persisting a background CSV export task through the " +
+			"idempotency executor. Start and end bounds accept RFC3339 or local YYYY-MM-DDTHH:mm:ss " +
+			"timestamps interpreted in timezone as [start_time, end_time). Omitted body fields follow " +
+			"the HTTP handler defaults.",
+		Method:      "POST",
+		Path:        "/api/v1/admin/usage/export-tasks",
+		Response:    "json",
+		BrowserPath: "/admin/usage",
+		Idempotent:  true,
+		Input:       adminapi.Arguments("/api/v1/admin/usage/export-tasks", []string{}, (*CreateAdminUsageExportTaskRequest)(nil)),
+	}),
+	"usage.export_tasks.download.get": adminapi.Define(adminapi.Operation{
+		ID:     "usage.export_tasks.download.get",
+		Module: "usage",
+		Title:  "Download Export Task CSV",
+		Description: "DownloadExportTask streams the committed UTF-8 BOM CSV file for a succeeded administrator " +
+			"export task. Expired files return HTTP 410 and unfinished tasks return conflict. This " +
+			"operation is available through read_operation and delivers a protected file artifact.",
+		Method:      "GET",
+		Path:        "/api/v1/admin/usage/export-tasks/:id/download",
+		ReadOnly:    true,
+		Response:    adminapi.ResponseFile,
+		BrowserPath: "/admin/usage",
+		Input:       adminapi.Arguments("/api/v1/admin/usage/export-tasks/:id/download", []string{}, nil),
+	}),
+	"usage.export_tasks.download_ticket.create": adminapi.Define(adminapi.Operation{
+		ID:     "usage.export_tasks.download_ticket.create",
+		Module: "usage",
+		Title:  "Create Export Download Ticket",
+		Description: "CreateExportDownloadTicket issues a 60-second signed ticket and relative download URL for " +
+			"streaming a succeeded administrator CSV export directly in the browser.",
+		Method:      "POST",
+		Path:        "/api/v1/admin/usage/export-tasks/:id/download-ticket",
+		Response:    "json",
+		BrowserPath: "/admin/usage",
+		Input:       adminapi.Arguments("/api/v1/admin/usage/export-tasks/:id/download-ticket", []string{}, nil),
+	}),
+	"usage.export_tasks.list": adminapi.Define(adminapi.Operation{
+		ID:     "usage.export_tasks.list",
+		Module: "usage",
+		Title:  "List Export Tasks",
+		Description: "ListExportTasks returns a paginated list of administrator usage export tasks ordered newest " +
+			"first, including row progress and committed CSV metadata. This operation is available " +
+			"through read_operation.",
+		Method:      "GET",
+		Path:        "/api/v1/admin/usage/export-tasks",
+		ReadOnly:    true,
+		Response:    "json",
+		BrowserPath: "/admin/usage",
+		Input:       adminapi.Arguments("/api/v1/admin/usage/export-tasks", []string{"page", "page_size"}, nil),
+	}),
 	"usage.list": adminapi.Define(adminapi.Operation{
 		ID:     "usage.list",
 		Module: "usage",

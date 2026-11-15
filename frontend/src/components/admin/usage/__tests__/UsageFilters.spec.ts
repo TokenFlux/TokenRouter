@@ -53,7 +53,7 @@ const messages: Record<string, string> = {
   'common.refresh': 'Refresh',
   'common.reset': 'Reset',
   'admin.usage.cleanup.button': 'Cleanup',
-  'usage.exportExcel': 'Export',
+  'usage.exportCsv': 'Export',
 }
 
 // Existing autocomplete labels stay deterministic; unlisted keys resolve through
@@ -63,7 +63,8 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? catalogI18n.global.t(key),
+      t: (key: string, params?: Record<string, unknown>) =>
+        messages[key] ?? catalogI18n.global.t(key, params ?? {}),
     }),
   }
 })
@@ -432,5 +433,50 @@ describe('UsageFilters — 未设置的条件', () => {
     const typeList = lists.find((list) => list.props('options')?.[0]?.label === 'All Types')
     typeList!.vm.$emit('update:modelValue', 'sync')
     expect(filters.request_type).toBe('sync')
+  })
+
+  // Passing activeExportCount to UsageFilters renders a live badge on the export button
+  // without disabling clicks. Calling getFilterSummaryLabels resolves human-readable chips
+  // including zero-valued balance billing and false-valued legacy compaction.
+  it('renders active export badge count and summarizes active filter labels', async () => {
+    catalogI18n.global.locale.value = 'en'
+    const filters: Record<string, any> = {
+      user_id: 42,
+      billing_type: 0,
+      native_compaction_v2: false,
+      model: 'gpt-5.4',
+      start_date: '2026-05-01',
+      end_date: '2026-05-28',
+    }
+    const wrapper = mount(UsageFilters, {
+      props: {
+        modelValue: filters,
+        activeExportCount: 2,
+        startDate: '2026-05-01',
+        endDate: '2026-05-28',
+        showActions: true,
+        modelOptions: ['gpt-5.4'],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+    ;(wrapper.vm as any).setUserLabel('owner@example.com')
+
+    const exportBtn = wrapper.get('[data-testid="admin-usage-export-btn"]')
+    expect(exportBtn.attributes('disabled')).toBeUndefined()
+    expect(exportBtn.text()).toBe('Export (2)')
+    await exportBtn.trigger('click')
+    expect(wrapper.emitted('export')).toHaveLength(1)
+
+    expect((wrapper.vm as any).getFilterSummaryLabels()).toEqual([
+      { key: 'user_id', label: 'User', value: 'owner@example.com' },
+      { key: 'model', label: 'Model', value: 'gpt-5.4' },
+      { key: 'billing_type', label: 'Billing Type', value: 'Balance' },
+      { key: 'native_compaction_v2', label: 'Compaction', value: 'Legacy Compaction' },
+    ])
   })
 })

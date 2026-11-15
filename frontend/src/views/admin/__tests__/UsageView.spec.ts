@@ -1,60 +1,54 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
-import * as XLSX from 'xlsx'
 
 import UsageView from '../UsageView.vue'
 
 // UsageView.spec.ts tests administrator usage queries, endpoint caching, route hydration,
-// and workbook export. API substitutes control response order and child controls expose
-// page actions, while spreadsheet assertions read serialized values and column preference
-// cases retain the real page storage operations.
+// and background CSV export panel integration. API substitutes control response order and
+// child controls expose page actions, while column preference cases retain the real page
+// storage operations.
 
-// Administrator API substitutes record list, summary, chart, user, and error queries;
-// routeQuery supplies mutable initial navigation filters for hydration cases.
-const { list, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, routeQuery } =
-  vi.hoisted(() => {
-    vi.stubGlobal('localStorage', {
-      getItem: vi.fn(() => null),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-    })
-
-    return {
-      list: vi.fn(),
-      getStats: vi.fn(),
-      getSnapshotV2: vi.fn(),
-      getById: vi.fn(),
-      getModelStats: vi.fn(),
-      listErrorLogs: vi.fn(),
-      routeQuery: {} as Record<string, string>,
-    }
+// Administrator API substitutes record list, summary, chart, user, error, and export-task
+// queries; routeQuery supplies mutable initial navigation filters for hydration cases.
+const {
+  list,
+  getStats,
+  getSnapshotV2,
+  getById,
+  getModelStats,
+  listErrorLogs,
+  listExportTasks,
+  routeQuery,
+} = vi.hoisted(() => {
+  vi.stubGlobal('localStorage', {
+    getItem: vi.fn(() => null),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
   })
 
-// exportMocks records export page requests, worksheet headers, appended rows, and the
-// saved workbook so serialization assertions inspect the actual written result.
-const exportMocks = vi.hoisted(() => ({
-  list: vi.fn(),
-  headers: vi.fn(),
-  rows: vi.fn(),
-  save: vi.fn(),
-}))
-vi.mock('xlsx', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('xlsx')>()
-  exportMocks.headers.mockImplementation(actual.utils.aoa_to_sheet)
-  exportMocks.rows.mockImplementation(actual.utils.sheet_add_aoa)
   return {
-    ...actual,
-    utils: { ...actual.utils, aoa_to_sheet: exportMocks.headers, sheet_add_aoa: exportMocks.rows },
+    list: vi.fn(),
+    getStats: vi.fn(),
+    getSnapshotV2: vi.fn(),
+    getById: vi.fn(),
+    getModelStats: vi.fn(),
+    listErrorLogs: vi.fn(),
+    listExportTasks: vi.fn().mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 10,
+      pages: 0,
+    }),
+    routeQuery: {} as Record<string, string>,
   }
 })
-vi.mock('file-saver', () => ({ saveAs: exportMocks.save }))
 
-// messages supplies administrator chart, table, and export labels so tests locate
-// controls and compare spreadsheet columns against their headings.
+// messages supplies administrator chart, table, and column-setting labels so tests locate
+// controls and compare visible headings.
 const messages: Record<string, string> = {
   'usage.tps': 'TPS',
-  'usage.tpsExport': 'TPS (tok/s)',
   'admin.dashboard.timeRange': 'Time Range',
   'admin.dashboard.day': 'Day',
   'admin.dashboard.hour': 'Hour',
@@ -96,7 +90,7 @@ vi.mock('@/api/admin', () => ({
 
 vi.mock('@/api/admin/usage', () => ({
   adminUsageAPI: {
-    list: exportMocks.list,
+    listExportTasks,
   },
 }))
 
@@ -111,14 +105,6 @@ vi.mock('@/stores/app', () => ({
     showSuccess: vi.fn(),
     showInfo: vi.fn(),
   }),
-}))
-
-vi.mock('@/utils/format', () => ({
-  formatReasoningEffort: (value: string | null | undefined) => value ?? '-',
-}))
-
-vi.mock('@/composables/useBalanceDisplay', () => ({
-  useBalanceDisplay: () => ({ balanceUnitName: { value: 'Credits' }, usdUnitName: 'USD' }),
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -140,9 +126,16 @@ vi.mock('vue-router', () => ({
 // AppLayoutStub renders the administrator page slot so page-loading tests can inspect
 // sections independently of the surrounding application layout.
 const AppLayoutStub = { template: '<div><slot /></div>' }
-// UsageFiltersStub exposes label revision and label methods used by route hydration,
-// with a settings slot for column-control interactions.
+// UsageFiltersStub exposes label revision, label setter, and filter summary methods used by
+// route hydration and background export tests, with a settings slot for column controls.
 const UsageFiltersStub = defineComponent({
+  props: {
+    activeExportCount: {
+      type: Number,
+      default: 0,
+    },
+  },
+  emits: ['change', 'refresh', 'reset', 'cleanup', 'export'],
   // setup exposes a mutable user label and revision-aware setter for route-hydration tests.
   setup(_, { expose }) {
     const userLabel = ref('')
@@ -154,15 +147,32 @@ const UsageFiltersStub = defineComponent({
       userLabelRevision += 1
       userLabel.value = email
     }
+    const getFilterSummaryLabels = () =>
+      userLabel.value ? [{ key: 'user_id', label: 'User', value: userLabel.value }] : []
     expose({
       getUserLabelRevision: () => userLabelRevision,
       setUserLabel,
+      getFilterSummaryLabels,
     })
     return { userLabel }
   },
   template:
-    '<div><span data-test="user-filter-label">{{ userLabel }}</span><slot name="after-reset" /></div>',
+    '<div><span data-test="user-filter-label">{{ userLabel }}</span><span data-test="active-export-count">{{ activeExportCount }}</span><slot name="after-reset" /></div>',
 })
+// UsageExportDialogStub captures inherited date, filter, and chip props passed by admin UsageView.
+const UsageExportDialogStub = {
+  name: 'UsageExportDialog',
+  props: [
+    'show', // modal visibility flag
+    'mode', // user or administrator mode
+    'startDate', // inherited inclusive start date
+    'endDate', // inherited inclusive end date
+    'filters', // inherited filter object
+    'filterLabels', // human-readable filter summary chips
+  ],
+  emits: ['close', 'tasksChanged', 'activeIdsChanged'],
+  template: '<div data-test="usage-export-dialog" />',
+}
 // UsageTableStub accepts visible column definitions so preference tests observe the
 // exact columns passed by the administrator page.
 const UsageTableStub = {
@@ -225,7 +235,7 @@ const mountRouteFilteredUsageView = () =>
         UsageStatsCards: true,
         UsageFilters: UsageFiltersStub,
         UsageTable: true,
-        UsageExportProgress: true,
+        UsageExportDialog: UsageExportDialogStub,
         UsageCleanupDialog: true,
         UserBalanceHistoryModal: true,
         Pagination: true,
@@ -246,6 +256,13 @@ describe('admin UsageView 路由筛选', () => {
     vi.useFakeTimers()
     Object.keys(routeQuery).forEach((key) => delete routeQuery[key])
     list.mockReset().mockResolvedValue({ items: [], total: 0, pages: 0 })
+    listExportTasks.mockReset().mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 10,
+      pages: 0,
+    })
     getStats.mockReset().mockResolvedValue({
       total_requests: 0,
       total_input_tokens: 0,
@@ -331,108 +348,51 @@ describe('admin UsageView 路由筛选', () => {
     expect(rawCall[1].signal.aborted).toBe(true)
   })
 
-  // Exported rows include matching, different, and unknown upstream response models. The
-  // test protects the corresponding model cells, mismatch values, and each row matching the
-  // header width.
-  it('导出上游响应模型并区分相同、不同和未知', async () => {
-    exportMocks.list.mockResolvedValue({
-      total: 3,
-      pages: 1,
-      items: [
-        { model: 'sent', upstream_response_model: 'runtime', upstream_model_mismatch: true },
-        { model: 'sent', upstream_response_model: 'sent', upstream_model_mismatch: false },
-        { model: 'historical' },
-      ],
-    })
-    exportMocks.headers.mockClear()
-    exportMocks.rows.mockClear()
+  // Emitting export from UsageFilters snapshots human-readable filter labels from the
+  // filter bar before opening UsageExportDialog. The dialog receives administrator mode,
+  // current page dates, and the active user filter payload.
+  it('opens UsageExportDialog in admin mode with inherited dates and resolved filter chips', async () => {
+    routeQuery.user_id = '42'
+    getById.mockResolvedValue({ id: 42, email: 'route-user@test.com' })
+
     const wrapper = mountRouteFilteredUsageView()
     await flushPromises()
+
+    const dialog = wrapper.findComponent(UsageExportDialogStub)
+    expect(dialog.props('show')).toBe(false)
+
     wrapper.findComponent(UsageFiltersStub).vm.$emit('export')
     await flushPromises()
-    const headers = exportMocks.headers.mock.calls[0]?.[0]?.[0] as string[]
-    const rows = exportMocks.rows.mock.calls[0]?.[1] as unknown[][]
-    expect(headers).toContain('usage.userBilled (Credits)')
-    expect(headers).toContain('usage.original (USD)')
-    expect(headers).toContain('usage.providerBilled (USD)')
-    const model = headers.indexOf('Upstream response model')
-    const mismatch = headers.indexOf('Upstream model mismatch')
-    expect(model).toBeGreaterThan(-1)
-    expect(rows.map((row) => [row[model], row[mismatch]])).toEqual([
-      ['runtime', 'Yes'],
-      ['sent', 'No'],
-      ['', ''],
+
+    expect(dialog.props('show')).toBe(true)
+    expect(dialog.props('mode')).toBe('admin')
+    expect(dialog.props('filters')).toMatchObject({ user_id: 42 })
+    expect(dialog.props('filterLabels')).toEqual([
+      { key: 'user_id', label: 'User', value: 'route-user@test.com' },
     ])
-    expect(rows.every((row) => row.length === headers.length)).toBe(true)
     wrapper.unmount()
   })
 
-  // Workbook export spans multiple pages containing numeric and missing TPS observations.
-  // The test protects numeric cell types, one-decimal display formats, empty missing
-  // values, and one final download.
-  it('TPS 分页导出为数值并设置一位小数，服务端未返回估算时留空', async () => {
-    const row = { model: 'test', output_tokens: 100, duration_ms: 5000, ttft_ms: 1000, tps: 25 }
-    exportMocks.list
-      .mockReset()
-      .mockResolvedValueOnce({ total: 104, items: Array.from({ length: 100 }, () => row) })
-      .mockResolvedValueOnce({
-        total: 104,
-        items: [
-          { ...row, output_tokens: 101, duration_ms: 4000, tps: 33.7 },
-          { ...row, output_tokens: 23, duration_ms: 21000, tps: 1.2 },
-          { ...row, output_tokens: 469, duration_ms: 21000, tps: 23.5 },
-          { ...row, ttft_ms: null, tps: null },
-        ],
-      })
-    exportMocks.headers.mockClear()
-    exportMocks.rows.mockClear()
-    exportMocks.save.mockClear()
+  // Mounting the admin Usage view with an active running export populates UsageFilters'
+  // activeExportCount badge immediately. Emitting tasksChanged from UsageExportDialog
+  // updates the forwarded badge count in sync.
+  it('forwards active background export counts to UsageFilters', async () => {
+    listExportTasks.mockResolvedValueOnce({
+      items: [{ id: 88, status: 'running' }],
+      total: 1,
+      page: 1,
+      page_size: 10,
+      pages: 1,
+    })
+
     const wrapper = mountRouteFilteredUsageView()
     await flushPromises()
-    wrapper.findComponent(UsageFiltersStub).vm.$emit('export')
-    await flushPromises()
 
-    const { utils, write, read } = XLSX
-    const headers = exportMocks.headers.mock.calls[0][0][0] as string[]
-    const column = headers.indexOf('TPS (tok/s)')
-    expect(column).toBe(headers.indexOf('usage.duration') + 1)
-    expect(exportMocks.list.mock.calls.map((call) => call[0].page)).toEqual([1, 2])
-    expect(exportMocks.rows).toHaveBeenCalledTimes(2)
-    const sheet = exportMocks.rows.mock.calls[1][0]
-    const workbook = utils.book_new()
-    utils.book_append_sheet(workbook, sheet, 'Usage')
-    // Read the serialized workbook so assertions inspect actual page-ending values,
-    // cell types, and number formats after writing.
-    const restored = read(write(workbook, { type: 'array', bookType: 'xlsx' }), {
-      type: 'array',
-      cellNF: true,
-    }).Sheets.Usage
-    expect(restored[utils.encode_cell({ r: 1, c: column })]).toMatchObject({
-      t: 'n',
-      v: 25,
-      z: '0.0',
-      w: '25.0',
-    })
-    expect(restored[utils.encode_cell({ r: 101, c: column })]).toMatchObject({
-      t: 'n',
-      v: 33.7,
-      z: '0.0',
-      w: '33.7',
-    })
-    expect(restored[utils.encode_cell({ r: 102, c: column })]).toMatchObject({
-      t: 'n',
-      v: 1.2,
-      z: '0.0',
-      w: '1.2',
-    })
-    expect(restored[utils.encode_cell({ r: 103, c: column })]).toMatchObject({
-      t: 'n',
-      v: 23.5,
-      z: '0.0',
-      w: '23.5',
-    })
-    expect(restored[utils.encode_cell({ r: 104, c: column })]?.v ?? '').toBe('')
-    expect(exportMocks.save).toHaveBeenCalledOnce()
+    expect(wrapper.find('[data-test="active-export-count"]').text()).toBe('1')
+
+    wrapper.findComponent(UsageExportDialogStub).vm.$emit('tasksChanged', 0)
+    await flushPromises()
+    expect(wrapper.find('[data-test="active-export-count"]').text()).toBe('0')
     wrapper.unmount()
   })
 
@@ -591,7 +551,7 @@ describe('admin UsageView distribution metric toggles', () => {
           UsageStatsCards: true,
           UsageFilters: UsageFiltersStub,
           UsageTable: true,
-          UsageExportProgress: true,
+          UsageExportDialog: UsageExportDialogStub,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
           AuditLogModal: true,
@@ -639,7 +599,7 @@ describe('admin UsageView distribution metric toggles', () => {
           UsageStatsCards: true,
           UsageFilters: UsageFiltersStub,
           UsageTable: UsageTableStub,
-          UsageExportProgress: true,
+          UsageExportDialog: UsageExportDialogStub,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
           Pagination: true,
@@ -675,7 +635,7 @@ describe('admin UsageView distribution metric toggles', () => {
           UsageStatsCards: true,
           UsageFilters: UsageFiltersStub,
           UsageTable: true,
-          UsageExportProgress: true,
+          UsageExportDialog: UsageExportDialogStub,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
           Pagination: true,
@@ -733,6 +693,13 @@ describe('admin UsageView request ID column visibility', () => {
     vi.mocked(localStorage.getItem).mockReset().mockReturnValue(null)
     vi.mocked(localStorage.setItem).mockReset()
     list.mockReset().mockResolvedValue({ items: [], total: 0, pages: 0 })
+    listExportTasks.mockReset().mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 10,
+      pages: 0,
+    })
     getStats.mockReset().mockResolvedValue({
       total_requests: 0,
       total_input_tokens: 0,
@@ -764,7 +731,7 @@ describe('admin UsageView request ID column visibility', () => {
           UsageStatsCards: true,
           UsageFilters: UsageFiltersStub,
           UsageTable: UsageTableStub,
-          UsageExportProgress: true,
+          UsageExportDialog: UsageExportDialogStub,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
           AuditLogModal: true,
@@ -859,7 +826,7 @@ describe('admin UsageView request ID column visibility', () => {
           UsageStatsCards: true,
           UsageFilters: UsageFiltersStub,
           UsageTable: UsageTableStub,
-          UsageExportProgress: true,
+          UsageExportDialog: UsageExportDialogStub,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
           AuditLogModal: true,
@@ -981,7 +948,7 @@ describe('admin UsageView handleUserClick', () => {
           UsageStatsCards: true,
           UsageFilters: UsageFiltersStub,
           UsageTable: UsageTableStub,
-          UsageExportProgress: true,
+          UsageExportDialog: UsageExportDialogStub,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
           AuditLogModal: true,
@@ -1050,7 +1017,7 @@ describe('admin UsageView errors tab filter forwarding', () => {
           UsageStatsCards: true,
           UsageFilters: UsageFiltersStub,
           UsageTable: true,
-          UsageExportProgress: true,
+          UsageExportDialog: UsageExportDialogStub,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
           AuditLogModal: true,
@@ -1133,7 +1100,7 @@ describe('admin UsageView ranking tab', () => {
           UsageStatsCards: true,
           UsageFilters: UsageFiltersStub,
           UsageTable: true,
-          UsageExportProgress: true,
+          UsageExportDialog: UsageExportDialogStub,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
           Pagination: true,

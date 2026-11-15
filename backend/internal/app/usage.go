@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"database/sql"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,16 +29,18 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 	usagepg "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
+	usageprovider "github.com/TokenFlux/TokenRouter/internal/usage/provider"
 	usageredis "github.com/TokenFlux/TokenRouter/internal/usage/rediscache"
 )
 
-// usage.go assembles usage queries, aggregation, cleanup, and dashboard
+// usage.go assembles usage queries, aggregation, cleanup, export, and dashboard
 // services with their storage dependencies.
-// Usage querying, dashboard aggregation, and cleanup share the same SQL-backed
-// store and calendar. Dashboard refresh tasks use application tracking,
-// aggregation receives singleton coordination and billing deduplication
-// archiving, while public usage reads copied Key context and separately
-// resolved billing/subscription data.
+// Usage querying, dashboard aggregation, cleanup, and keyset CSV exports share
+// the same SQL-backed store and calendar. Dashboard refresh tasks use
+// application tracking, aggregation receives singleton coordination and billing
+// deduplication archiving, export artifacts stay inside a confined local root
+// closed after worker and timer shutdown, and public usage reads copied Key
+// context with separately resolved billing/subscription data.
 
 // publicBalanceUnit adapts billing display-unit reads for the public usage
 // handler.
@@ -76,8 +81,8 @@ func providePublicUsage(u *usage.UsageService, k *keycore.APIKeyService, users *
 
 // provideUsageOptions returns nil for missing configuration or copies usage
 // runtime inputs. It includes the supplied calendar and process logging,
-// forwarding aggregation, retention, cleanup, and dashboard values for each
-// service's interpretation.
+// forwarding aggregation, retention, cleanup, export, and dashboard values for
+// each service's interpretation.
 func provideUsageOptions(c *config.Config, calendar timezone.Calendar) *usage.Options {
 	if c == nil {
 		return nil
@@ -105,6 +110,16 @@ func provideUsageOptions(c *config.Config, calendar timezone.Calendar) *usage.Op
 			BatchSize:             c.Usage.CleanupTasks.BatchSize,
 			WorkerIntervalSeconds: c.Usage.CleanupTasks.WorkerIntervalSeconds,
 			TaskTimeoutSeconds:    c.Usage.CleanupTasks.TaskTimeoutSeconds,
+		},
+		UsageExport: usage.UsageExportConfig{
+			Enabled:               c.Usage.ExportTasks.Enabled,
+			RetentionHours:        c.Usage.ExportTasks.RetentionHours,
+			MaxActivePerUser:      c.Usage.ExportTasks.MaxActivePerUser,
+			MaxActivePerAdmin:     c.Usage.ExportTasks.MaxActivePerAdmin,
+			BatchSize:             c.Usage.ExportTasks.BatchSize,
+			WorkerConcurrency:     c.Usage.ExportTasks.WorkerConcurrency,
+			WorkerIntervalSeconds: c.Usage.ExportTasks.WorkerIntervalSeconds,
+			TaskTimeoutSeconds:    c.Usage.ExportTasks.TaskTimeoutSeconds,
 		},
 		Dashboard: usage.DashboardConfig{
 			Enabled:                    c.Usage.DashboardCache.Enabled,
@@ -151,6 +166,61 @@ func provideUsageCleanupRepository(client *dbent.Client, db *sql.DB) usage.Usage
 	return usagepg.NewUsageCleanupRepository(client, db)
 }
 
+// provideUsageExportRepository constructs usage-export task persistence over
+// shared Ent and SQL. Missing database dependencies return a nil interface so
+// route-inventory and unconfigured fixtures observe an absent repository.
+func provideUsageExportRepository(client *dbent.Client, db *sql.DB) usage.UsageExportRepository {
+	if client == nil && db == nil {
+		return nil
+	}
+	return usagepg.NewUsageExportRepository(client, db)
+}
+
+// provideUsageExportArtifactStore opens the confined local usage-export
+// artifact directory when export tasks are enabled. Disabled or nil
+// configurations return nil without touching disk, while enabled stores
+// register descriptor closure after timing-wheel shutdown.
+func provideUsageExportArtifactStore(cfg *config.Config, manager *lifecycle.Manager) (usage.UsageExportArtifactStore, error) {
+	if cfg == nil || !cfg.Usage.ExportTasks.Enabled {
+		return nil, nil
+	}
+	store, err := usageprovider.NewLocalExportStore(resolveUsageExportDir(cfg))
+	if err != nil {
+		return nil, err
+	}
+	if manager != nil {
+		// Close the confined os.Root descriptor only after HTTP downloads, export
+		// workers, and recurring timing-wheel sweeps have stopped using it.
+		manager.Register(lifecycle.Hook{
+			Name:       "UsageExportArtifactStore",
+			StartOrder: 175,
+			StopOrder:  shutdownStageTimingWheel + 5,
+			Stop: func(context.Context) error {
+				return store.Close()
+			},
+		})
+	}
+	return store, nil
+}
+
+// resolveUsageExportDir returns the configured usage-export directory or
+// derives <DATA_DIR or storage.dir or ./data>/exports/usage when omitted.
+func resolveUsageExportDir(cfg *config.Config) string {
+	if cfg != nil {
+		if dir := strings.TrimSpace(cfg.Usage.ExportTasks.Dir); dir != "" {
+			return dir
+		}
+	}
+	base := strings.TrimSpace(os.Getenv("DATA_DIR"))
+	if base == "" && cfg != nil {
+		base = strings.TrimSpace(cfg.Storage.Dir)
+	}
+	if base == "" {
+		base = "./data"
+	}
+	return filepath.Join(base, "exports", "usage")
+}
+
 // provideUsageAggregation constructs aggregation with shared time-wheel and
 // settings dependencies. It installs singleton acquisition using Redis and
 // optional database advisory locks; the aggregation service owns recurring
@@ -168,6 +238,22 @@ func provideUsageAggregation(repo usage.DashboardAggregationRepository, wheel *t
 // aggregation coordination.
 func provideUsageCleanup(repo usage.UsageCleanupRepository, wheel *timingwheel.Wheel, agg *usage.DashboardAggregationService, options *usage.Options) *usage.UsageCleanupService {
 	return usage.NewUsageCleanupService(repo, wheel, agg, options)
+}
+
+// provideUsageExport constructs background usage CSV export workers with shared
+// task persistence, keyset log scanning, confined local storage, balance-unit
+// display settings, and timing-wheel sweeps. Nil store or wheel pointers stay
+// untyped nil interfaces so unconfigured fixtures do not receive typed-nil dependencies.
+func provideUsageExport(repo usage.UsageExportRepository, store *usagepg.Store, artifacts usage.UsageExportArtifactStore, settingsStore *settings.Store, wheel *timingwheel.Wheel, options *usage.Options) *usage.UsageExportService {
+	var rowReader usage.UsageExportRowReader
+	if store != nil {
+		rowReader = store
+	}
+	var tw usage.TimingWheel
+	if wheel != nil {
+		tw = wheel
+	}
+	return usage.NewUsageExportService(repo, rowReader, artifacts, publicBalanceUnit{settingsStore}, tw, options)
 }
 
 // provideUsageDashboard binds dashboard reads and cached refresh work to shared

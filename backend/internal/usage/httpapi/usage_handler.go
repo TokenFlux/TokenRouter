@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	idemhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/locale"
@@ -22,7 +23,7 @@ import (
 )
 
 // usage_handler.go serves authenticated user usage history, rankings, error
-// records, and dashboard reports.
+// records, dashboard reports, and export-task handler dependencies.
 // User usage reports bind visibility to the authenticated actor and include
 // its owned team's records through repository scope. Direct record detail is
 // stricter: the stored actor must match the requester before request metadata
@@ -125,9 +126,11 @@ type usageRankingResponse struct {
 	Limit           int      `json:"limit"`                       // configured ranking row limit
 }
 
-// UsageHandler serves authenticated usage reports, rankings, key summaries
-// and failed-request views.
+// UsageHandler serves authenticated usage reports, rankings, key summaries,
+// failed-request views, and background user export tasks.
 type UsageHandler struct {
+	idemhttp.Executor // user command idempotency helpers
+
 	calendar      timezone.Calendar   // user query range calendar
 	usageService  *usage.UsageService // usage record and report service
 	apiKeyService ports.KeyReader     // key lookup and ownership reader
@@ -138,6 +141,10 @@ type UsageHandler struct {
 	// Ranking needs a bound reader, while error endpoints reject access when
 	// this reader is nil.
 	settingService ports.Settings // ranking and error visibility reader
+	// exportService manages persisted background CSV exports and download
+	// tickets. Nil makes export routes return service unavailable while
+	// leaving usage list and report routes operational.
+	exportService *usage.UsageExportService // optional background export service
 }
 
 // BatchAPIKeysUsageRequest carries key identifiers submitted for the
@@ -226,6 +233,16 @@ func NewUsageHandler(
 		opsService:     opsService,
 		settingService: settingService,
 	}
+}
+
+// SetExportService attaches the background export service used by user export
+// task endpoints and public signed-ticket downloads. Call during handler
+// assembly before serving HTTP requests; nil leaves export routes unavailable.
+func (h *UsageHandler) SetExportService(exportService *usage.UsageExportService) {
+	if h == nil {
+		return
+	}
+	h.exportService = exportService
 }
 
 // parseUserUsageFilters returns actor-scoped selectors and scalar chart

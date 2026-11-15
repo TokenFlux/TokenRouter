@@ -21,13 +21,15 @@ import (
 	providerhttp "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
 	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+	usageuserhttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/admin"
 )
 
-// Participating handler executors receive one coordinator during application
-// construction. The fixture checks each consumer's retention settings, replays
-// a command when execution switches from provider to group handlers, and
-// compares a second coordinator's write TTL.
+// idempotency_http_test.go verifies that participating panel command handlers
+// receive one shared idempotency coordinator during application construction.
+// The fixture checks each consumer's retention settings, replays a command when
+// execution switches from provider to group handlers, and compares a second
+// coordinator's write TTL.
 
 // TestIdempotencyHTTPUsesExplicitApplicationCoordinator binds multiple handler
 // types to one coordinator. Their write and maintenance TTLs must match that
@@ -49,7 +51,8 @@ func TestIdempotencyHTTPUsesExplicitApplicationCoordinator(t *testing.T) {
 	groups := &routinghttp.GroupHandler{}
 	system := &opshttp.SystemHandler{}
 	usage := &usagehttp.UsageHandler{}
-	provideIdempotencyHTTP(coordinator, providers, archive, codex, keys, redeem, subscriptions, proxies, users, groups, system, usage)
+	userUsage := &usageuserhttp.UsageHandler{}
+	provideIdempotencyHTTP(coordinator, providers, archive, codex, keys, redeem, subscriptions, proxies, users, groups, system, usage, userUsage)
 	for _, handler := range []interface {
 		// DefaultWriteIdempotencyTTL returns write-record retention from the bound
 		// coordinator. Nil coordinators and nonpositive configured periods use that
@@ -60,7 +63,7 @@ func TestIdempotencyHTTPUsesExplicitApplicationCoordinator(t *testing.T) {
 		// periods use that accessor's default, keeping this retention setting
 		// separate from the normal write period.
 		DefaultSystemOperationIdempotencyTTL() time.Duration
-	}{providers, archive, codex, keys, redeem, subscriptions, proxies, users, groups, system, usage} {
+	}{providers, archive, codex, keys, redeem, subscriptions, proxies, users, groups, system, usage, userUsage} {
 		require.Equal(t, 2*time.Hour, handler.DefaultWriteIdempotencyTTL())
 		require.Equal(t, 17*time.Minute, handler.DefaultSystemOperationIdempotencyTTL())
 	}

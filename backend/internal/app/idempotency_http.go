@@ -11,6 +11,7 @@ import (
 	providerhttp "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
 	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+	usageuserhttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/admin"
 )
 
@@ -41,6 +42,7 @@ func provideIdempotencyHTTP(
 	groups *routinghttp.GroupHandler,
 	system *opshttp.SystemHandler,
 	usage *usagehttp.UsageHandler,
+	userUsage *usageuserhttp.UsageHandler,
 ) *idempotencyHTTPReady {
 	// Bind every consumer before endpoints read its unsynchronized executor
 	// pointer. A configured coordinator supplies shared storage, while command
@@ -51,7 +53,7 @@ func provideIdempotencyHTTP(
 		// with requests, and another binding replaces the executor's current pointer.
 		// Nil clears the binding for standalone direct-callback fixtures.
 		BindIdempotency(*idempotency.IdempotencyCoordinator)
-	}{providers, archive, codex, keys, redeem, subscriptions, proxies, users, groups, system, usage} {
+	}{providers, archive, codex, keys, redeem, subscriptions, proxies, users, groups, system, usage, userUsage} {
 		consumer.BindIdempotency(coordinator)
 	}
 	return &idempotencyHTTPReady{}

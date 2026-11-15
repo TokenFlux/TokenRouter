@@ -21,7 +21,7 @@ import (
 )
 
 // usage_handler.go handles administrator usage searches, statistics, timing
-// enrichment, and cleanup commands.
+// enrichment, cleanup commands, and background export-task dependencies.
 // Administrator usage queries combine record selectors with optional
 // retained-history request identity lookup. List accepts independent time
 // bounds, while Stats uses both explicit dates together or a period default,
@@ -35,8 +35,8 @@ import (
 // response slices by trimmed local identity, including a historical client:
 // prefix, and leaves timing absent when observation lookup fails.
 
-// UsageHandler serves administrator usage reads, searches and persisted
-// cleanup-task commands.
+// UsageHandler serves administrator usage reads, searches, cleanup-task
+// commands, and persisted CSV export-task commands.
 type UsageHandler struct {
 	idemhttp.Executor // administrator command idempotency helpers
 
@@ -48,6 +48,10 @@ type UsageHandler struct {
 	// a service-unavailable response from cleanup routes while ordinary usage
 	// reads can remain configured.
 	cleanupService *usage.UsageCleanupService // optional cleanup task service
+	// exportService handles persisted background CSV exports and signed download
+	// tickets. Nil produces a service-unavailable response from export routes
+	// while ordinary usage and cleanup routes remain operational.
+	exportService *usage.UsageExportService // optional background export service
 }
 
 // CreateUsageCleanupTaskRequest carries administrator deletion dates,
@@ -91,6 +95,16 @@ func NewUsageHandler(
 		adminService:   adminService,
 		cleanupService: cleanupService,
 	}
+}
+
+// SetExportService attaches the background CSV export service used by
+// administrator export-task endpoints. Call during handler assembly before
+// serving HTTP requests; nil leaves export routes unavailable.
+func (h *UsageHandler) SetExportService(exportService *usage.UsageExportService) {
+	if h == nil {
+		return
+	}
+	h.exportService = exportService
 }
 
 // List returns an administrator usage page under validated scalar selectors

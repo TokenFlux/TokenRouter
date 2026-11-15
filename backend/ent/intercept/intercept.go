@@ -46,6 +46,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintprofile"
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
 	"github.com/TokenFlux/TokenRouter/ent/usagecleanuptask"
+	"github.com/TokenFlux/TokenRouter/ent/usageexporttask"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/userallowedgroup"
@@ -1110,6 +1111,33 @@ func (f TraverseUsageCleanupTask) Traverse(ctx context.Context, q ent.Query) err
 	return fmt.Errorf("unexpected query type %T. expect *ent.UsageCleanupTaskQuery", q)
 }
 
+// The UsageExportTaskFunc type is an adapter to allow the use of ordinary function as a Querier.
+type UsageExportTaskFunc func(context.Context, *ent.UsageExportTaskQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f UsageExportTaskFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.UsageExportTaskQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.UsageExportTaskQuery", q)
+}
+
+// The TraverseUsageExportTask type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseUsageExportTask func(context.Context, *ent.UsageExportTaskQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseUsageExportTask) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseUsageExportTask) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.UsageExportTaskQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.UsageExportTaskQuery", q)
+}
+
 // The UsageLogFunc type is an adapter to allow the use of ordinary function as a Querier.
 type UsageLogFunc func(context.Context, *ent.UsageLogQuery) (ent.Value, error)
 
@@ -1376,6 +1404,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.TeamOwnershipTransferQuery, predicate.TeamOwnershipTransfer, teamownershiptransfer.OrderOption]{typ: ent.TypeTeamOwnershipTransfer, tq: q}, nil
 	case *ent.UsageCleanupTaskQuery:
 		return &query[*ent.UsageCleanupTaskQuery, predicate.UsageCleanupTask, usagecleanuptask.OrderOption]{typ: ent.TypeUsageCleanupTask, tq: q}, nil
+	case *ent.UsageExportTaskQuery:
+		return &query[*ent.UsageExportTaskQuery, predicate.UsageExportTask, usageexporttask.OrderOption]{typ: ent.TypeUsageExportTask, tq: q}, nil
 	case *ent.UsageLogQuery:
 		return &query[*ent.UsageLogQuery, predicate.UsageLog, usagelog.OrderOption]{typ: ent.TypeUsageLog, tq: q}, nil
 	case *ent.UserQuery:

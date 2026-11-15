@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -968,6 +969,30 @@ type UsageCleanupConfig struct {
 	TaskTimeoutSeconds int `mapstructure:"task_timeout_seconds"`
 }
 
+// UsageExportConfig supplies background CSV export storage, retention, active-task
+// quotas, cursor batching, worker concurrency, polling, and execution budgets.
+type UsageExportConfig struct {
+	// Enabled enables background usage export task creation and worker execution.
+	Enabled bool `mapstructure:"enabled"`
+	// Dir selects the local directory holding generated CSV artifacts; normalization
+	// derives <DATA_DIR or storage.dir or ./data>/exports/usage when omitted.
+	Dir string `mapstructure:"dir"`
+	// RetentionHours sets how long completed CSV artifacts stay downloadable before expiration cleanup.
+	RetentionHours int `mapstructure:"retention_hours"`
+	// MaxActivePerUser and MaxActivePerAdmin cap concurrent pending or running export
+	// tasks per regular user and per administrator respectively.
+	MaxActivePerUser  int `mapstructure:"max_active_per_user"`  // per-user active task cap
+	MaxActivePerAdmin int `mapstructure:"max_active_per_admin"` // per-admin active task cap
+	// BatchSize limits usage log rows scanned per keyset cursor batch.
+	BatchSize int `mapstructure:"batch_size"`
+	// WorkerConcurrency sets the number of background export workers in the process.
+	WorkerConcurrency int `mapstructure:"worker_concurrency"`
+	// export worker sweep interval seconds
+	WorkerIntervalSeconds int `mapstructure:"worker_interval_seconds"`
+	// export task execution budget seconds
+	TaskTimeoutSeconds int `mapstructure:"task_timeout_seconds"`
+}
+
 // DingTalkOAuthConfig supplies active DingTalk login, organization, and profile-synchronization defaults.
 type DingTalkOAuthConfig struct {
 	AppType      string `mapstructure:"app_type"`      // public or internal application
@@ -1587,11 +1612,12 @@ type StorageConfig struct {
 	Dir string `mapstructure:"dir"` // Local data directory.
 }
 
-// UsageConfig groups request-record queues, dashboard caches, aggregation, retention, and cleanup tasks.
+// UsageConfig groups request-record queues, dashboard caches, aggregation, retention, cleanup, and export tasks.
 type UsageConfig struct {
 	Aggregation    UsageAggregationConfig   `mapstructure:"aggregation"`     // usage aggregation settings
 	CleanupTasks   UsageCleanupConfig       `mapstructure:"cleanup_tasks"`   // usage cleanup tasks settings
 	DashboardCache DashboardCacheConfig     `mapstructure:"dashboard_cache"` // usage dashboard cache settings
+	ExportTasks    UsageExportConfig        `mapstructure:"export_tasks"`    // usage export tasks settings
 	RecordQueue    GatewayUsageRecordConfig `mapstructure:"record_queue"`    // usage record queue settings
 	Retention      UsageRetentionConfig     `mapstructure:"retention"`       // usage retention settings
 }
@@ -1896,6 +1922,7 @@ func loadFrom(path string, exists bool, env upgradeEnvironment, allowMissingJWTS
 	cfg.Server.Mode = strings.ToLower(strings.TrimSpace(cfg.Server.Mode))
 	cfg.Site.FrontendURL = strings.TrimSpace(cfg.Site.FrontendURL)
 	cfg.Plugins.normalize(cfg.Storage.Dir)
+	cfg.Usage.ExportTasks.normalize(cfg.Storage.Dir)
 	cfg.Auth.JWT.Secret = strings.TrimSpace(cfg.Auth.JWT.Secret)
 	cfg.Auth.OAuth.LinuxDo.ClientID = strings.TrimSpace(cfg.Auth.OAuth.LinuxDo.ClientID)
 	cfg.Auth.OAuth.LinuxDo.ClientSecret = strings.TrimSpace(cfg.Auth.OAuth.LinuxDo.ClientSecret)
@@ -2374,6 +2401,17 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("usage.cleanup_tasks.batch_size", 5000)
 	v.SetDefault("usage.cleanup_tasks.worker_interval_seconds", 10)
 	v.SetDefault("usage.cleanup_tasks.task_timeout_seconds", 1800)
+
+	// Usage export task
+	v.SetDefault("usage.export_tasks.enabled", true)
+	v.SetDefault("usage.export_tasks.dir", "")
+	v.SetDefault("usage.export_tasks.retention_hours", 24)
+	v.SetDefault("usage.export_tasks.max_active_per_user", 2)
+	v.SetDefault("usage.export_tasks.max_active_per_admin", 5)
+	v.SetDefault("usage.export_tasks.batch_size", 2000)
+	v.SetDefault("usage.export_tasks.worker_concurrency", 2)
+	v.SetDefault("usage.export_tasks.worker_interval_seconds", 10)
+	v.SetDefault("usage.export_tasks.task_timeout_seconds", 3600)
 
 	// Idempotency
 	v.SetDefault("idempotency.observe_only", true)
@@ -3169,6 +3207,9 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("usage.cleanup_tasks.task_timeout_seconds must be non-negative")
 		}
 	}
+	if err := c.Usage.ExportTasks.validate(); err != nil {
+		return err
+	}
 	if c.Idempotency.DefaultTTLSeconds <= 0 {
 		return fmt.Errorf("idempotency.default_ttl_seconds must be positive")
 	}
@@ -3956,4 +3997,73 @@ func warnIfInsecureURL(field, raw string) {
 // this facade.
 func ValidateDingTalkConfig(value DingTalkOAuthConfig) error {
 	return authconfig.ValidateDingTalkConfig(value.IdentityDefaults())
+}
+
+// normalize trims the configured export directory and derives a fallback path under
+// DATA_DIR, storage.dir, or ./data when omitted. Explicit directory values retain
+// precedence and no filesystem probes or directory creations happen during load.
+func (e *UsageExportConfig) normalize(dataDir string) {
+	e.Dir = strings.TrimSpace(e.Dir)
+	if e.Dir == "" {
+		base := strings.TrimSpace(os.Getenv("DATA_DIR"))
+		if base == "" {
+			base = strings.TrimSpace(dataDir)
+		}
+		if base == "" {
+			base = "./data"
+		}
+		e.Dir = filepath.Join(base, "exports", "usage")
+	}
+}
+
+// validate checks numeric bounds on usage export task settings. Enabled execution
+// requires positive retention, active-task caps, batch size, worker concurrency,
+// sweep interval, and task timeout; disabled execution rejects negative values.
+func (e UsageExportConfig) validate() error {
+	if e.Enabled {
+		if e.RetentionHours <= 0 {
+			return fmt.Errorf("usage.export_tasks.retention_hours must be positive")
+		}
+		if e.MaxActivePerUser <= 0 {
+			return fmt.Errorf("usage.export_tasks.max_active_per_user must be positive")
+		}
+		if e.MaxActivePerAdmin <= 0 {
+			return fmt.Errorf("usage.export_tasks.max_active_per_admin must be positive")
+		}
+		if e.BatchSize <= 0 {
+			return fmt.Errorf("usage.export_tasks.batch_size must be positive")
+		}
+		if e.WorkerConcurrency <= 0 {
+			return fmt.Errorf("usage.export_tasks.worker_concurrency must be positive")
+		}
+		if e.WorkerIntervalSeconds <= 0 {
+			return fmt.Errorf("usage.export_tasks.worker_interval_seconds must be positive")
+		}
+		if e.TaskTimeoutSeconds <= 0 {
+			return fmt.Errorf("usage.export_tasks.task_timeout_seconds must be positive")
+		}
+		return nil
+	}
+	if e.RetentionHours < 0 {
+		return fmt.Errorf("usage.export_tasks.retention_hours must be non-negative")
+	}
+	if e.MaxActivePerUser < 0 {
+		return fmt.Errorf("usage.export_tasks.max_active_per_user must be non-negative")
+	}
+	if e.MaxActivePerAdmin < 0 {
+		return fmt.Errorf("usage.export_tasks.max_active_per_admin must be non-negative")
+	}
+	if e.BatchSize < 0 {
+		return fmt.Errorf("usage.export_tasks.batch_size must be non-negative")
+	}
+	if e.WorkerConcurrency < 0 {
+		return fmt.Errorf("usage.export_tasks.worker_concurrency must be non-negative")
+	}
+	if e.WorkerIntervalSeconds < 0 {
+		return fmt.Errorf("usage.export_tasks.worker_interval_seconds must be non-negative")
+	}
+	if e.TaskTimeoutSeconds < 0 {
+		return fmt.Errorf("usage.export_tasks.task_timeout_seconds must be non-negative")
+	}
+	return nil
 }

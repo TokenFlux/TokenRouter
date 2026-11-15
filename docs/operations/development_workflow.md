@@ -373,9 +373,6 @@ Axios 的 Node 重定向依赖 `follow-redirects` 通过 workspace override 固�
 
 DOMPurify 用于 Markdown 页面、公告、支付说明和 SVG 图标的内容清理。直接依赖和 workspace override 的最低版本均为 `3.4.17`，包含 [GHSA-cg2g-xh64-v4q7](https://github.com/advisories/GHSA-cg2g-xh64-v4q7) 和 [GHSA-mrv2-3pqr-j5jr](https://github.com/advisories/GHSA-mrv2-3pqr-j5jr) 的修复。更新时同步锁文件，并验证 HTML 内容清理、SVG 图形与滤镜保留、前端构建和安全审计。
 
-管理员用量导出通过动态导入 `xlsx` 生成工作簿，调用 `aoa_to_sheet`、`sheet_add_aoa` 和 `write`。依赖固定为 [SheetJS 官方分发](https://docs.sheetjs.com/docs/getting-started/installation/nodejs/)的 `0.20.3` tarball，锁文件记录下载地址和完整性校验值。该版本包含原型污染和 ReDoS 的修复。升级时验证分页数据追加、工作簿序列化、前端生产构建和安全扫描。
-
-
 ## 提交与文档
 
 提交信息遵循 Conventional Commits，例如 `feat(gateway): ...`、`fix(billing): ...`、`docs(project): ...`。一次提交围绕一个可以验证的目的，生成文件、迁移和接口测试，和它们的源码变更一起提交。

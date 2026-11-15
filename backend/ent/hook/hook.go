@@ -453,6 +453,18 @@ func (f UsageCleanupTaskFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UsageCleanupTaskMutation", m)
 }
 
+// The UsageExportTaskFunc type is an adapter to allow the use of ordinary
+// function as UsageExportTask mutator.
+type UsageExportTaskFunc func(context.Context, *ent.UsageExportTaskMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f UsageExportTaskFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.UsageExportTaskMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UsageExportTaskMutation", m)
+}
+
 // The UsageLogFunc type is an adapter to allow the use of ordinary
 // function as UsageLog mutator.
 type UsageLogFunc func(context.Context, *ent.UsageLogMutation) (ent.Value, error)

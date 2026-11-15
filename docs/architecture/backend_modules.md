@@ -287,13 +287,14 @@ backend/
 │   │   ├── usageview/                                   用量、额度、订阅档位和归一化校验
 │   │   ├── vertex/                                      Vertex 服务账号、区域请求与批处理客户端
 │   │   └── zhipu/                                       智谱模型及用量查询
-│   ├── usage/                                           用量记录、统计、仪表盘、聚合与清理
+│   ├── usage/                                           用量记录、统计、仪表盘、聚合、清理与导出
 │   │   ├── httpapi/                                     HTTP 路由、鉴权接入与输入输出适配
 │   │   │   ├── admin/                                   管理员用量、仪表盘、快照与查询缓存
 │   │   │   ├── dto/                                     HTTP 展示值、请求值及脱敏映射
 │   │   │   └── ports/                                   用量 HTTP 层的调用方读取接口
 │   │   ├── postgres/                                    PostgreSQL 持久化及事务适配
 │   │   │   └── query/                                   用户活动、Key 最近 IP 与团队统计的事务内查询
+│   │   ├── provider/                                    受根目录约束的本地导出文件存储适配
 │   │   └── rediscache/                                  Redis 缓存、计数或会话适配
 │   └── web/                                             嵌入前端、静态覆盖与 SPA 交付
 ├── ent/                                                 Ent 生成模型与客户端；仅手写 schema 展开
@@ -326,7 +327,7 @@ backend/
 
 业务根包定义用例、状态和所需的接口。`httpapi` 处理请求与响应；`postgres`、`rediscache` 实现持久化和运行状态；`provider` 适配供应商或其他模块提供的能力。模块只创建实际需要的适配包，测试替身放在 `testkit`。
 
-`provider` 的具体用途随模块而异：提供商 provider 负责授权、凭据、健康及导入协作；modelcatalog provider 加载统一模型目录，billing provider 处理计费回退告警和时区；payment provider 对接支付机构；backup provider 执行归档与存储；gateway provider 组合路由、选号、传输与平台调用。业务规则仍写在所属模块的核心包里。
+`provider` 的具体用途随模块而异：提供商 provider 负责授权、凭据、健康及导入协作；modelcatalog provider 加载统一模型目录，billing provider 处理计费回退告警和时区；payment provider 对接支付机构；backup provider 执行归档与存储；usage provider 管理受根目录约束的本地导出文件；gateway provider 组合路由、选号、传输与平台调用。业务规则仍写在所属模块的核心包里。
 
 `app` 注入生产实例、各模块需要的配置和跨模块接口实现，并登记资源启停。模块通过接口接收能力，依赖方向始终指向 app 之外。跨模块的资金事务由各存储共用同一个连接完成；数据库访问集中在存储子包里，HTTP 层通过用例访问数据。`billing/pricing`、`routing/capability`、`scheduler/policy` 等纯规则子包可以被多个模块直接引用，规则只写一份。
 

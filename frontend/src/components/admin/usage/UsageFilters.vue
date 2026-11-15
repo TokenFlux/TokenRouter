@@ -229,11 +229,24 @@
             </button>
             <button
               type="button"
+              data-testid="admin-usage-export-btn"
               @click="$emit('export')"
-              :disabled="exporting"
               class="btn btn-primary whitespace-nowrap px-3 sm:px-4"
             >
-              {{ t('usage.exportExcel') }}
+              <Icon
+                v-if="activeExportCount > 0"
+                name="loader"
+                size="sm"
+                class="animate-spin"
+                :animate-on-hover="false"
+              />
+              <span>
+                {{
+                  activeExportCount > 0
+                    ? t('usage.exportPanel.activeCountLabel', { count: activeExportCount })
+                    : t('usage.exportCsv')
+                }}
+              </span>
             </button>
           </template>
         </div>
@@ -268,6 +281,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
 import { SEARCH_DEBOUNCE_MS } from '@/constants/ui'
 import type { SimpleApiKey, SimpleUser } from '@/api/admin/usage'
+import type { UsageExportFilterLabel } from '@/types/ui'
 
 // UsageFilters.vue edits shared administrator usage filters and provides user, API-key, and
 // provider searches. The modelValue object remains parent-owned and is mutated through its
@@ -294,7 +308,8 @@ interface Props {
   // modelValue is the parent-owned query object mutated through filters; callers handle
   // change events to reload its current values.
   modelValue: ModelValue
-  exporting: boolean // export operation busy flag
+  exporting?: boolean // legacy export busy flag retained for embedded callers
+  activeExportCount?: number // active pending or running background export task count
   startDate: string // beginning calendar date
   endDate: string // ending calendar date
   showActions?: boolean // action button visibility flag
@@ -310,6 +325,8 @@ interface Props {
 // props supplies usage-mode defaults and parent-owned values used to render and edit the
 // filter panel.
 const props = withDefaults(defineProps<Props>(), {
+  exporting: false,
+  activeExportCount: 0,
   showActions: true,
   mode: 'usage',
   flat: false,
@@ -766,7 +783,127 @@ const setUserLabel = (email: string) => setUserLabelValue(email)
 // validation.
 const getUserLabelRevision = () => userLabelRevision
 
-defineExpose({ getUserLabelRevision, setUserLabel })
+// findOptionLabel resolves the display label for a selected option value or falls back to
+// fallbackText when the option has not been loaded into the current list.
+const findOptionLabel = (
+  options: SelectOption[],
+  value: SelectOption['value'],
+  fallbackText: string,
+): string => options.find((item) => item.value === value)?.label ?? fallbackText
+
+// getFilterSummaryLabels builds human-readable chips for active usage filters so
+// UsageExportDialog displays resolved user, API-key, provider, team, and group names
+// instead of bare numeric identifiers. Zero-valued balance billing and false-valued legacy
+// compaction remain included as explicit predicates.
+const getFilterSummaryLabels = (): UsageExportFilterLabel[] => {
+  const chips: UsageExportFilterLabel[] = []
+  const current = filters.value
+
+  if (typeof current.request_id === 'string' && current.request_id.trim() !== '') {
+    chips.push({
+      key: 'request_id',
+      label: t('admin.usage.requestId'),
+      value: current.request_id.trim(),
+    })
+  }
+  if (typeof current.team_id === 'number' && current.team_id > 0) {
+    chips.push({
+      key: 'team_id',
+      label: t('admin.usage.teamFilter'),
+      value: findOptionLabel(teamOptions.value, current.team_id, `#${current.team_id}`),
+    })
+  }
+  if (
+    typeof current.request_source === 'string' &&
+    current.request_source.trim() !== '' &&
+    current.request_source.trim() !== 'all'
+  ) {
+    chips.push({
+      key: 'request_source',
+      label: t('admin.usage.requestSource'),
+      value: findOptionLabel(
+        requestSourceOptions.value,
+        current.request_source,
+        current.request_source,
+      ),
+    })
+  }
+  if (typeof current.user_id === 'number' && current.user_id > 0) {
+    chips.push({
+      key: 'user_id',
+      label: t('admin.usage.userFilter'),
+      value: userLabel.value || `#${current.user_id}`,
+    })
+  }
+  if (typeof current.api_key_id === 'number' && current.api_key_id > 0) {
+    chips.push({
+      key: 'api_key_id',
+      label: t('usage.apiKeyFilter'),
+      value: apiKeyLabel.value || `#${current.api_key_id}`,
+    })
+  }
+  if (typeof current.model === 'string' && current.model.trim() !== '') {
+    chips.push({
+      key: 'model',
+      label: t('usage.model'),
+      value: current.model.trim(),
+    })
+  }
+  if (typeof current.provider_id === 'number' && current.provider_id > 0) {
+    chips.push({
+      key: 'provider_id',
+      label: t('admin.usage.provider'),
+      value: providerLabel.value || `#${current.provider_id}`,
+    })
+  }
+  if (typeof current.group_id === 'number' && current.group_id > 0) {
+    chips.push({
+      key: 'group_id',
+      label: t('admin.usage.group'),
+      value: findOptionLabel(groupOptions.value, current.group_id, `#${current.group_id}`),
+    })
+  }
+  if (typeof current.request_type === 'string' && current.request_type.trim() !== '') {
+    chips.push({
+      key: 'request_type',
+      label: t('usage.type'),
+      value: findOptionLabel(requestTypeOptions.value, current.request_type, current.request_type),
+    })
+  }
+  if (typeof current.billing_type === 'number' && !Number.isNaN(current.billing_type)) {
+    chips.push({
+      key: 'billing_type',
+      label: t('admin.usage.billingType'),
+      value: findOptionLabel(
+        billingTypeOptions.value,
+        current.billing_type,
+        String(current.billing_type),
+      ),
+    })
+  }
+  if (typeof current.billing_mode === 'string' && current.billing_mode.trim() !== '') {
+    chips.push({
+      key: 'billing_mode',
+      label: t('admin.usage.billingMode'),
+      value: findOptionLabel(billingModeOptions.value, current.billing_mode, current.billing_mode),
+    })
+  }
+  if (typeof current.native_compaction_v2 === 'boolean') {
+    chips.push({
+      key: 'native_compaction_v2',
+      label: t('usage.compactionFilter'),
+      value: findOptionLabel(
+        compactionOptions.value,
+        current.native_compaction_v2,
+        String(current.native_compaction_v2),
+      ),
+    })
+  }
+
+  return chips
+}
+
+defineExpose({ getUserLabelRevision, setUserLabel, getFilterSummaryLabels })
 </script>
 
 <style scoped>

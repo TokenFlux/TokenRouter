@@ -50,6 +50,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintprofile"
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
 	"github.com/TokenFlux/TokenRouter/ent/usagecleanuptask"
+	"github.com/TokenFlux/TokenRouter/ent/usageexporttask"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/userallowedgroup"
@@ -111,6 +112,7 @@ const (
 	TypeTeamMembership           = "TeamMembership"
 	TypeTeamOwnershipTransfer    = "TeamOwnershipTransfer"
 	TypeUsageCleanupTask         = "UsageCleanupTask"
+	TypeUsageExportTask          = "UsageExportTask"
 	TypeUsageLog                 = "UsageLog"
 	TypeUser                     = "User"
 	TypeUserAllowedGroup         = "UserAllowedGroup"
@@ -51969,6 +51971,1536 @@ func (m *UsageCleanupTaskMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *UsageCleanupTaskMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown UsageCleanupTask edge %s", name)
+}
+
+// UsageExportTaskMutation represents an operation that mutates the UsageExportTask nodes in the graph.
+type UsageExportTaskMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *int64
+	created_at         *time.Time
+	updated_at         *time.Time
+	scope              *string
+	status             *string
+	filters            *jsontext.Value
+	appendfilters      jsontext.Value
+	created_by         *int64
+	addcreated_by      *int64
+	total_rows         *int64
+	addtotal_rows      *int64
+	exported_rows      *int64
+	addexported_rows   *int64
+	file_name          *string
+	file_path          *string
+	file_size_bytes    *int64
+	addfile_size_bytes *int64
+	error_message      *string
+	canceled_by        *int64
+	addcanceled_by     *int64
+	canceled_at        *time.Time
+	started_at         *time.Time
+	finished_at        *time.Time
+	expires_at         *time.Time
+	clearedFields      map[string]struct{}
+	done               bool
+	oldValue           func(context.Context) (*UsageExportTask, error)
+	predicates         []predicate.UsageExportTask
+}
+
+var _ ent.Mutation = (*UsageExportTaskMutation)(nil)
+
+// usageexporttaskOption allows management of the mutation configuration using functional options.
+type usageexporttaskOption func(*UsageExportTaskMutation)
+
+// newUsageExportTaskMutation creates new mutation for the UsageExportTask entity.
+func newUsageExportTaskMutation(c config, op Op, opts ...usageexporttaskOption) *UsageExportTaskMutation {
+	m := &UsageExportTaskMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeUsageExportTask,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withUsageExportTaskID sets the ID field of the mutation.
+func withUsageExportTaskID(id int64) usageexporttaskOption {
+	return func(m *UsageExportTaskMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *UsageExportTask
+		)
+		m.oldValue = func(ctx context.Context) (*UsageExportTask, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().UsageExportTask.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withUsageExportTask sets the old UsageExportTask of the mutation.
+func withUsageExportTask(node *UsageExportTask) usageexporttaskOption {
+	return func(m *UsageExportTaskMutation) {
+		m.oldValue = func(context.Context) (*UsageExportTask, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m UsageExportTaskMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m UsageExportTaskMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *UsageExportTaskMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *UsageExportTaskMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().UsageExportTask.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *UsageExportTaskMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *UsageExportTaskMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *UsageExportTaskMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *UsageExportTaskMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *UsageExportTaskMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *UsageExportTaskMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetScope sets the "scope" field.
+func (m *UsageExportTaskMutation) SetScope(s string) {
+	m.scope = &s
+}
+
+// Scope returns the value of the "scope" field in the mutation.
+func (m *UsageExportTaskMutation) Scope() (r string, exists bool) {
+	v := m.scope
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScope returns the old "scope" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldScope(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScope is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScope requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScope: %w", err)
+	}
+	return oldValue.Scope, nil
+}
+
+// ResetScope resets all changes to the "scope" field.
+func (m *UsageExportTaskMutation) ResetScope() {
+	m.scope = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *UsageExportTaskMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *UsageExportTaskMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *UsageExportTaskMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetFilters sets the "filters" field.
+func (m *UsageExportTaskMutation) SetFilters(j jsontext.Value) {
+	m.filters = &j
+	m.appendfilters = nil
+}
+
+// Filters returns the value of the "filters" field in the mutation.
+func (m *UsageExportTaskMutation) Filters() (r jsontext.Value, exists bool) {
+	v := m.filters
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFilters returns the old "filters" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldFilters(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFilters is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFilters requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFilters: %w", err)
+	}
+	return oldValue.Filters, nil
+}
+
+// AppendFilters adds j to the "filters" field.
+func (m *UsageExportTaskMutation) AppendFilters(j jsontext.Value) {
+	m.appendfilters = append(m.appendfilters, j...)
+}
+
+// AppendedFilters returns the list of values that were appended to the "filters" field in this mutation.
+func (m *UsageExportTaskMutation) AppendedFilters() (jsontext.Value, bool) {
+	if len(m.appendfilters) == 0 {
+		return nil, false
+	}
+	return m.appendfilters, true
+}
+
+// ResetFilters resets all changes to the "filters" field.
+func (m *UsageExportTaskMutation) ResetFilters() {
+	m.filters = nil
+	m.appendfilters = nil
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (m *UsageExportTaskMutation) SetCreatedBy(i int64) {
+	m.created_by = &i
+	m.addcreated_by = nil
+}
+
+// CreatedBy returns the value of the "created_by" field in the mutation.
+func (m *UsageExportTaskMutation) CreatedBy() (r int64, exists bool) {
+	v := m.created_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedBy returns the old "created_by" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldCreatedBy(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedBy: %w", err)
+	}
+	return oldValue.CreatedBy, nil
+}
+
+// AddCreatedBy adds i to the "created_by" field.
+func (m *UsageExportTaskMutation) AddCreatedBy(i int64) {
+	if m.addcreated_by != nil {
+		*m.addcreated_by += i
+	} else {
+		m.addcreated_by = &i
+	}
+}
+
+// AddedCreatedBy returns the value that was added to the "created_by" field in this mutation.
+func (m *UsageExportTaskMutation) AddedCreatedBy() (r int64, exists bool) {
+	v := m.addcreated_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreatedBy resets all changes to the "created_by" field.
+func (m *UsageExportTaskMutation) ResetCreatedBy() {
+	m.created_by = nil
+	m.addcreated_by = nil
+}
+
+// SetTotalRows sets the "total_rows" field.
+func (m *UsageExportTaskMutation) SetTotalRows(i int64) {
+	m.total_rows = &i
+	m.addtotal_rows = nil
+}
+
+// TotalRows returns the value of the "total_rows" field in the mutation.
+func (m *UsageExportTaskMutation) TotalRows() (r int64, exists bool) {
+	v := m.total_rows
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTotalRows returns the old "total_rows" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldTotalRows(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTotalRows is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTotalRows requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTotalRows: %w", err)
+	}
+	return oldValue.TotalRows, nil
+}
+
+// AddTotalRows adds i to the "total_rows" field.
+func (m *UsageExportTaskMutation) AddTotalRows(i int64) {
+	if m.addtotal_rows != nil {
+		*m.addtotal_rows += i
+	} else {
+		m.addtotal_rows = &i
+	}
+}
+
+// AddedTotalRows returns the value that was added to the "total_rows" field in this mutation.
+func (m *UsageExportTaskMutation) AddedTotalRows() (r int64, exists bool) {
+	v := m.addtotal_rows
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTotalRows resets all changes to the "total_rows" field.
+func (m *UsageExportTaskMutation) ResetTotalRows() {
+	m.total_rows = nil
+	m.addtotal_rows = nil
+}
+
+// SetExportedRows sets the "exported_rows" field.
+func (m *UsageExportTaskMutation) SetExportedRows(i int64) {
+	m.exported_rows = &i
+	m.addexported_rows = nil
+}
+
+// ExportedRows returns the value of the "exported_rows" field in the mutation.
+func (m *UsageExportTaskMutation) ExportedRows() (r int64, exists bool) {
+	v := m.exported_rows
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExportedRows returns the old "exported_rows" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldExportedRows(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExportedRows is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExportedRows requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExportedRows: %w", err)
+	}
+	return oldValue.ExportedRows, nil
+}
+
+// AddExportedRows adds i to the "exported_rows" field.
+func (m *UsageExportTaskMutation) AddExportedRows(i int64) {
+	if m.addexported_rows != nil {
+		*m.addexported_rows += i
+	} else {
+		m.addexported_rows = &i
+	}
+}
+
+// AddedExportedRows returns the value that was added to the "exported_rows" field in this mutation.
+func (m *UsageExportTaskMutation) AddedExportedRows() (r int64, exists bool) {
+	v := m.addexported_rows
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetExportedRows resets all changes to the "exported_rows" field.
+func (m *UsageExportTaskMutation) ResetExportedRows() {
+	m.exported_rows = nil
+	m.addexported_rows = nil
+}
+
+// SetFileName sets the "file_name" field.
+func (m *UsageExportTaskMutation) SetFileName(s string) {
+	m.file_name = &s
+}
+
+// FileName returns the value of the "file_name" field in the mutation.
+func (m *UsageExportTaskMutation) FileName() (r string, exists bool) {
+	v := m.file_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFileName returns the old "file_name" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldFileName(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFileName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFileName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFileName: %w", err)
+	}
+	return oldValue.FileName, nil
+}
+
+// ClearFileName clears the value of the "file_name" field.
+func (m *UsageExportTaskMutation) ClearFileName() {
+	m.file_name = nil
+	m.clearedFields[usageexporttask.FieldFileName] = struct{}{}
+}
+
+// FileNameCleared returns if the "file_name" field was cleared in this mutation.
+func (m *UsageExportTaskMutation) FileNameCleared() bool {
+	_, ok := m.clearedFields[usageexporttask.FieldFileName]
+	return ok
+}
+
+// ResetFileName resets all changes to the "file_name" field.
+func (m *UsageExportTaskMutation) ResetFileName() {
+	m.file_name = nil
+	delete(m.clearedFields, usageexporttask.FieldFileName)
+}
+
+// SetFilePath sets the "file_path" field.
+func (m *UsageExportTaskMutation) SetFilePath(s string) {
+	m.file_path = &s
+}
+
+// FilePath returns the value of the "file_path" field in the mutation.
+func (m *UsageExportTaskMutation) FilePath() (r string, exists bool) {
+	v := m.file_path
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFilePath returns the old "file_path" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldFilePath(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFilePath is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFilePath requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFilePath: %w", err)
+	}
+	return oldValue.FilePath, nil
+}
+
+// ClearFilePath clears the value of the "file_path" field.
+func (m *UsageExportTaskMutation) ClearFilePath() {
+	m.file_path = nil
+	m.clearedFields[usageexporttask.FieldFilePath] = struct{}{}
+}
+
+// FilePathCleared returns if the "file_path" field was cleared in this mutation.
+func (m *UsageExportTaskMutation) FilePathCleared() bool {
+	_, ok := m.clearedFields[usageexporttask.FieldFilePath]
+	return ok
+}
+
+// ResetFilePath resets all changes to the "file_path" field.
+func (m *UsageExportTaskMutation) ResetFilePath() {
+	m.file_path = nil
+	delete(m.clearedFields, usageexporttask.FieldFilePath)
+}
+
+// SetFileSizeBytes sets the "file_size_bytes" field.
+func (m *UsageExportTaskMutation) SetFileSizeBytes(i int64) {
+	m.file_size_bytes = &i
+	m.addfile_size_bytes = nil
+}
+
+// FileSizeBytes returns the value of the "file_size_bytes" field in the mutation.
+func (m *UsageExportTaskMutation) FileSizeBytes() (r int64, exists bool) {
+	v := m.file_size_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFileSizeBytes returns the old "file_size_bytes" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldFileSizeBytes(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFileSizeBytes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFileSizeBytes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFileSizeBytes: %w", err)
+	}
+	return oldValue.FileSizeBytes, nil
+}
+
+// AddFileSizeBytes adds i to the "file_size_bytes" field.
+func (m *UsageExportTaskMutation) AddFileSizeBytes(i int64) {
+	if m.addfile_size_bytes != nil {
+		*m.addfile_size_bytes += i
+	} else {
+		m.addfile_size_bytes = &i
+	}
+}
+
+// AddedFileSizeBytes returns the value that was added to the "file_size_bytes" field in this mutation.
+func (m *UsageExportTaskMutation) AddedFileSizeBytes() (r int64, exists bool) {
+	v := m.addfile_size_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetFileSizeBytes resets all changes to the "file_size_bytes" field.
+func (m *UsageExportTaskMutation) ResetFileSizeBytes() {
+	m.file_size_bytes = nil
+	m.addfile_size_bytes = nil
+}
+
+// SetErrorMessage sets the "error_message" field.
+func (m *UsageExportTaskMutation) SetErrorMessage(s string) {
+	m.error_message = &s
+}
+
+// ErrorMessage returns the value of the "error_message" field in the mutation.
+func (m *UsageExportTaskMutation) ErrorMessage() (r string, exists bool) {
+	v := m.error_message
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldErrorMessage returns the old "error_message" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldErrorMessage(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldErrorMessage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldErrorMessage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldErrorMessage: %w", err)
+	}
+	return oldValue.ErrorMessage, nil
+}
+
+// ClearErrorMessage clears the value of the "error_message" field.
+func (m *UsageExportTaskMutation) ClearErrorMessage() {
+	m.error_message = nil
+	m.clearedFields[usageexporttask.FieldErrorMessage] = struct{}{}
+}
+
+// ErrorMessageCleared returns if the "error_message" field was cleared in this mutation.
+func (m *UsageExportTaskMutation) ErrorMessageCleared() bool {
+	_, ok := m.clearedFields[usageexporttask.FieldErrorMessage]
+	return ok
+}
+
+// ResetErrorMessage resets all changes to the "error_message" field.
+func (m *UsageExportTaskMutation) ResetErrorMessage() {
+	m.error_message = nil
+	delete(m.clearedFields, usageexporttask.FieldErrorMessage)
+}
+
+// SetCanceledBy sets the "canceled_by" field.
+func (m *UsageExportTaskMutation) SetCanceledBy(i int64) {
+	m.canceled_by = &i
+	m.addcanceled_by = nil
+}
+
+// CanceledBy returns the value of the "canceled_by" field in the mutation.
+func (m *UsageExportTaskMutation) CanceledBy() (r int64, exists bool) {
+	v := m.canceled_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCanceledBy returns the old "canceled_by" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldCanceledBy(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCanceledBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCanceledBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCanceledBy: %w", err)
+	}
+	return oldValue.CanceledBy, nil
+}
+
+// AddCanceledBy adds i to the "canceled_by" field.
+func (m *UsageExportTaskMutation) AddCanceledBy(i int64) {
+	if m.addcanceled_by != nil {
+		*m.addcanceled_by += i
+	} else {
+		m.addcanceled_by = &i
+	}
+}
+
+// AddedCanceledBy returns the value that was added to the "canceled_by" field in this mutation.
+func (m *UsageExportTaskMutation) AddedCanceledBy() (r int64, exists bool) {
+	v := m.addcanceled_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearCanceledBy clears the value of the "canceled_by" field.
+func (m *UsageExportTaskMutation) ClearCanceledBy() {
+	m.canceled_by = nil
+	m.addcanceled_by = nil
+	m.clearedFields[usageexporttask.FieldCanceledBy] = struct{}{}
+}
+
+// CanceledByCleared returns if the "canceled_by" field was cleared in this mutation.
+func (m *UsageExportTaskMutation) CanceledByCleared() bool {
+	_, ok := m.clearedFields[usageexporttask.FieldCanceledBy]
+	return ok
+}
+
+// ResetCanceledBy resets all changes to the "canceled_by" field.
+func (m *UsageExportTaskMutation) ResetCanceledBy() {
+	m.canceled_by = nil
+	m.addcanceled_by = nil
+	delete(m.clearedFields, usageexporttask.FieldCanceledBy)
+}
+
+// SetCanceledAt sets the "canceled_at" field.
+func (m *UsageExportTaskMutation) SetCanceledAt(t time.Time) {
+	m.canceled_at = &t
+}
+
+// CanceledAt returns the value of the "canceled_at" field in the mutation.
+func (m *UsageExportTaskMutation) CanceledAt() (r time.Time, exists bool) {
+	v := m.canceled_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCanceledAt returns the old "canceled_at" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldCanceledAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCanceledAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCanceledAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCanceledAt: %w", err)
+	}
+	return oldValue.CanceledAt, nil
+}
+
+// ClearCanceledAt clears the value of the "canceled_at" field.
+func (m *UsageExportTaskMutation) ClearCanceledAt() {
+	m.canceled_at = nil
+	m.clearedFields[usageexporttask.FieldCanceledAt] = struct{}{}
+}
+
+// CanceledAtCleared returns if the "canceled_at" field was cleared in this mutation.
+func (m *UsageExportTaskMutation) CanceledAtCleared() bool {
+	_, ok := m.clearedFields[usageexporttask.FieldCanceledAt]
+	return ok
+}
+
+// ResetCanceledAt resets all changes to the "canceled_at" field.
+func (m *UsageExportTaskMutation) ResetCanceledAt() {
+	m.canceled_at = nil
+	delete(m.clearedFields, usageexporttask.FieldCanceledAt)
+}
+
+// SetStartedAt sets the "started_at" field.
+func (m *UsageExportTaskMutation) SetStartedAt(t time.Time) {
+	m.started_at = &t
+}
+
+// StartedAt returns the value of the "started_at" field in the mutation.
+func (m *UsageExportTaskMutation) StartedAt() (r time.Time, exists bool) {
+	v := m.started_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartedAt returns the old "started_at" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldStartedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartedAt: %w", err)
+	}
+	return oldValue.StartedAt, nil
+}
+
+// ClearStartedAt clears the value of the "started_at" field.
+func (m *UsageExportTaskMutation) ClearStartedAt() {
+	m.started_at = nil
+	m.clearedFields[usageexporttask.FieldStartedAt] = struct{}{}
+}
+
+// StartedAtCleared returns if the "started_at" field was cleared in this mutation.
+func (m *UsageExportTaskMutation) StartedAtCleared() bool {
+	_, ok := m.clearedFields[usageexporttask.FieldStartedAt]
+	return ok
+}
+
+// ResetStartedAt resets all changes to the "started_at" field.
+func (m *UsageExportTaskMutation) ResetStartedAt() {
+	m.started_at = nil
+	delete(m.clearedFields, usageexporttask.FieldStartedAt)
+}
+
+// SetFinishedAt sets the "finished_at" field.
+func (m *UsageExportTaskMutation) SetFinishedAt(t time.Time) {
+	m.finished_at = &t
+}
+
+// FinishedAt returns the value of the "finished_at" field in the mutation.
+func (m *UsageExportTaskMutation) FinishedAt() (r time.Time, exists bool) {
+	v := m.finished_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFinishedAt returns the old "finished_at" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldFinishedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFinishedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFinishedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFinishedAt: %w", err)
+	}
+	return oldValue.FinishedAt, nil
+}
+
+// ClearFinishedAt clears the value of the "finished_at" field.
+func (m *UsageExportTaskMutation) ClearFinishedAt() {
+	m.finished_at = nil
+	m.clearedFields[usageexporttask.FieldFinishedAt] = struct{}{}
+}
+
+// FinishedAtCleared returns if the "finished_at" field was cleared in this mutation.
+func (m *UsageExportTaskMutation) FinishedAtCleared() bool {
+	_, ok := m.clearedFields[usageexporttask.FieldFinishedAt]
+	return ok
+}
+
+// ResetFinishedAt resets all changes to the "finished_at" field.
+func (m *UsageExportTaskMutation) ResetFinishedAt() {
+	m.finished_at = nil
+	delete(m.clearedFields, usageexporttask.FieldFinishedAt)
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *UsageExportTaskMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *UsageExportTaskMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the UsageExportTask entity.
+// If the UsageExportTask object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageExportTaskMutation) OldExpiresAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (m *UsageExportTaskMutation) ClearExpiresAt() {
+	m.expires_at = nil
+	m.clearedFields[usageexporttask.FieldExpiresAt] = struct{}{}
+}
+
+// ExpiresAtCleared returns if the "expires_at" field was cleared in this mutation.
+func (m *UsageExportTaskMutation) ExpiresAtCleared() bool {
+	_, ok := m.clearedFields[usageexporttask.FieldExpiresAt]
+	return ok
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *UsageExportTaskMutation) ResetExpiresAt() {
+	m.expires_at = nil
+	delete(m.clearedFields, usageexporttask.FieldExpiresAt)
+}
+
+// Where appends a list predicates to the UsageExportTaskMutation builder.
+func (m *UsageExportTaskMutation) Where(ps ...predicate.UsageExportTask) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the UsageExportTaskMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *UsageExportTaskMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.UsageExportTask, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *UsageExportTaskMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *UsageExportTaskMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (UsageExportTask).
+func (m *UsageExportTaskMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *UsageExportTaskMutation) Fields() []string {
+	fields := make([]string, 0, 17)
+	if m.created_at != nil {
+		fields = append(fields, usageexporttask.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, usageexporttask.FieldUpdatedAt)
+	}
+	if m.scope != nil {
+		fields = append(fields, usageexporttask.FieldScope)
+	}
+	if m.status != nil {
+		fields = append(fields, usageexporttask.FieldStatus)
+	}
+	if m.filters != nil {
+		fields = append(fields, usageexporttask.FieldFilters)
+	}
+	if m.created_by != nil {
+		fields = append(fields, usageexporttask.FieldCreatedBy)
+	}
+	if m.total_rows != nil {
+		fields = append(fields, usageexporttask.FieldTotalRows)
+	}
+	if m.exported_rows != nil {
+		fields = append(fields, usageexporttask.FieldExportedRows)
+	}
+	if m.file_name != nil {
+		fields = append(fields, usageexporttask.FieldFileName)
+	}
+	if m.file_path != nil {
+		fields = append(fields, usageexporttask.FieldFilePath)
+	}
+	if m.file_size_bytes != nil {
+		fields = append(fields, usageexporttask.FieldFileSizeBytes)
+	}
+	if m.error_message != nil {
+		fields = append(fields, usageexporttask.FieldErrorMessage)
+	}
+	if m.canceled_by != nil {
+		fields = append(fields, usageexporttask.FieldCanceledBy)
+	}
+	if m.canceled_at != nil {
+		fields = append(fields, usageexporttask.FieldCanceledAt)
+	}
+	if m.started_at != nil {
+		fields = append(fields, usageexporttask.FieldStartedAt)
+	}
+	if m.finished_at != nil {
+		fields = append(fields, usageexporttask.FieldFinishedAt)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, usageexporttask.FieldExpiresAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *UsageExportTaskMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case usageexporttask.FieldCreatedAt:
+		return m.CreatedAt()
+	case usageexporttask.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case usageexporttask.FieldScope:
+		return m.Scope()
+	case usageexporttask.FieldStatus:
+		return m.Status()
+	case usageexporttask.FieldFilters:
+		return m.Filters()
+	case usageexporttask.FieldCreatedBy:
+		return m.CreatedBy()
+	case usageexporttask.FieldTotalRows:
+		return m.TotalRows()
+	case usageexporttask.FieldExportedRows:
+		return m.ExportedRows()
+	case usageexporttask.FieldFileName:
+		return m.FileName()
+	case usageexporttask.FieldFilePath:
+		return m.FilePath()
+	case usageexporttask.FieldFileSizeBytes:
+		return m.FileSizeBytes()
+	case usageexporttask.FieldErrorMessage:
+		return m.ErrorMessage()
+	case usageexporttask.FieldCanceledBy:
+		return m.CanceledBy()
+	case usageexporttask.FieldCanceledAt:
+		return m.CanceledAt()
+	case usageexporttask.FieldStartedAt:
+		return m.StartedAt()
+	case usageexporttask.FieldFinishedAt:
+		return m.FinishedAt()
+	case usageexporttask.FieldExpiresAt:
+		return m.ExpiresAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *UsageExportTaskMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case usageexporttask.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case usageexporttask.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case usageexporttask.FieldScope:
+		return m.OldScope(ctx)
+	case usageexporttask.FieldStatus:
+		return m.OldStatus(ctx)
+	case usageexporttask.FieldFilters:
+		return m.OldFilters(ctx)
+	case usageexporttask.FieldCreatedBy:
+		return m.OldCreatedBy(ctx)
+	case usageexporttask.FieldTotalRows:
+		return m.OldTotalRows(ctx)
+	case usageexporttask.FieldExportedRows:
+		return m.OldExportedRows(ctx)
+	case usageexporttask.FieldFileName:
+		return m.OldFileName(ctx)
+	case usageexporttask.FieldFilePath:
+		return m.OldFilePath(ctx)
+	case usageexporttask.FieldFileSizeBytes:
+		return m.OldFileSizeBytes(ctx)
+	case usageexporttask.FieldErrorMessage:
+		return m.OldErrorMessage(ctx)
+	case usageexporttask.FieldCanceledBy:
+		return m.OldCanceledBy(ctx)
+	case usageexporttask.FieldCanceledAt:
+		return m.OldCanceledAt(ctx)
+	case usageexporttask.FieldStartedAt:
+		return m.OldStartedAt(ctx)
+	case usageexporttask.FieldFinishedAt:
+		return m.OldFinishedAt(ctx)
+	case usageexporttask.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown UsageExportTask field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UsageExportTaskMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case usageexporttask.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case usageexporttask.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case usageexporttask.FieldScope:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScope(v)
+		return nil
+	case usageexporttask.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case usageexporttask.FieldFilters:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFilters(v)
+		return nil
+	case usageexporttask.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedBy(v)
+		return nil
+	case usageexporttask.FieldTotalRows:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTotalRows(v)
+		return nil
+	case usageexporttask.FieldExportedRows:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExportedRows(v)
+		return nil
+	case usageexporttask.FieldFileName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFileName(v)
+		return nil
+	case usageexporttask.FieldFilePath:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFilePath(v)
+		return nil
+	case usageexporttask.FieldFileSizeBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFileSizeBytes(v)
+		return nil
+	case usageexporttask.FieldErrorMessage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetErrorMessage(v)
+		return nil
+	case usageexporttask.FieldCanceledBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCanceledBy(v)
+		return nil
+	case usageexporttask.FieldCanceledAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCanceledAt(v)
+		return nil
+	case usageexporttask.FieldStartedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartedAt(v)
+		return nil
+	case usageexporttask.FieldFinishedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFinishedAt(v)
+		return nil
+	case usageexporttask.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown UsageExportTask field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *UsageExportTaskMutation) AddedFields() []string {
+	var fields []string
+	if m.addcreated_by != nil {
+		fields = append(fields, usageexporttask.FieldCreatedBy)
+	}
+	if m.addtotal_rows != nil {
+		fields = append(fields, usageexporttask.FieldTotalRows)
+	}
+	if m.addexported_rows != nil {
+		fields = append(fields, usageexporttask.FieldExportedRows)
+	}
+	if m.addfile_size_bytes != nil {
+		fields = append(fields, usageexporttask.FieldFileSizeBytes)
+	}
+	if m.addcanceled_by != nil {
+		fields = append(fields, usageexporttask.FieldCanceledBy)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *UsageExportTaskMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case usageexporttask.FieldCreatedBy:
+		return m.AddedCreatedBy()
+	case usageexporttask.FieldTotalRows:
+		return m.AddedTotalRows()
+	case usageexporttask.FieldExportedRows:
+		return m.AddedExportedRows()
+	case usageexporttask.FieldFileSizeBytes:
+		return m.AddedFileSizeBytes()
+	case usageexporttask.FieldCanceledBy:
+		return m.AddedCanceledBy()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UsageExportTaskMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case usageexporttask.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCreatedBy(v)
+		return nil
+	case usageexporttask.FieldTotalRows:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTotalRows(v)
+		return nil
+	case usageexporttask.FieldExportedRows:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddExportedRows(v)
+		return nil
+	case usageexporttask.FieldFileSizeBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddFileSizeBytes(v)
+		return nil
+	case usageexporttask.FieldCanceledBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCanceledBy(v)
+		return nil
+	}
+	return fmt.Errorf("unknown UsageExportTask numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *UsageExportTaskMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(usageexporttask.FieldFileName) {
+		fields = append(fields, usageexporttask.FieldFileName)
+	}
+	if m.FieldCleared(usageexporttask.FieldFilePath) {
+		fields = append(fields, usageexporttask.FieldFilePath)
+	}
+	if m.FieldCleared(usageexporttask.FieldErrorMessage) {
+		fields = append(fields, usageexporttask.FieldErrorMessage)
+	}
+	if m.FieldCleared(usageexporttask.FieldCanceledBy) {
+		fields = append(fields, usageexporttask.FieldCanceledBy)
+	}
+	if m.FieldCleared(usageexporttask.FieldCanceledAt) {
+		fields = append(fields, usageexporttask.FieldCanceledAt)
+	}
+	if m.FieldCleared(usageexporttask.FieldStartedAt) {
+		fields = append(fields, usageexporttask.FieldStartedAt)
+	}
+	if m.FieldCleared(usageexporttask.FieldFinishedAt) {
+		fields = append(fields, usageexporttask.FieldFinishedAt)
+	}
+	if m.FieldCleared(usageexporttask.FieldExpiresAt) {
+		fields = append(fields, usageexporttask.FieldExpiresAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *UsageExportTaskMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *UsageExportTaskMutation) ClearField(name string) error {
+	switch name {
+	case usageexporttask.FieldFileName:
+		m.ClearFileName()
+		return nil
+	case usageexporttask.FieldFilePath:
+		m.ClearFilePath()
+		return nil
+	case usageexporttask.FieldErrorMessage:
+		m.ClearErrorMessage()
+		return nil
+	case usageexporttask.FieldCanceledBy:
+		m.ClearCanceledBy()
+		return nil
+	case usageexporttask.FieldCanceledAt:
+		m.ClearCanceledAt()
+		return nil
+	case usageexporttask.FieldStartedAt:
+		m.ClearStartedAt()
+		return nil
+	case usageexporttask.FieldFinishedAt:
+		m.ClearFinishedAt()
+		return nil
+	case usageexporttask.FieldExpiresAt:
+		m.ClearExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown UsageExportTask nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *UsageExportTaskMutation) ResetField(name string) error {
+	switch name {
+	case usageexporttask.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case usageexporttask.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case usageexporttask.FieldScope:
+		m.ResetScope()
+		return nil
+	case usageexporttask.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case usageexporttask.FieldFilters:
+		m.ResetFilters()
+		return nil
+	case usageexporttask.FieldCreatedBy:
+		m.ResetCreatedBy()
+		return nil
+	case usageexporttask.FieldTotalRows:
+		m.ResetTotalRows()
+		return nil
+	case usageexporttask.FieldExportedRows:
+		m.ResetExportedRows()
+		return nil
+	case usageexporttask.FieldFileName:
+		m.ResetFileName()
+		return nil
+	case usageexporttask.FieldFilePath:
+		m.ResetFilePath()
+		return nil
+	case usageexporttask.FieldFileSizeBytes:
+		m.ResetFileSizeBytes()
+		return nil
+	case usageexporttask.FieldErrorMessage:
+		m.ResetErrorMessage()
+		return nil
+	case usageexporttask.FieldCanceledBy:
+		m.ResetCanceledBy()
+		return nil
+	case usageexporttask.FieldCanceledAt:
+		m.ResetCanceledAt()
+		return nil
+	case usageexporttask.FieldStartedAt:
+		m.ResetStartedAt()
+		return nil
+	case usageexporttask.FieldFinishedAt:
+		m.ResetFinishedAt()
+		return nil
+	case usageexporttask.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown UsageExportTask field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *UsageExportTaskMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *UsageExportTaskMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *UsageExportTaskMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *UsageExportTaskMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *UsageExportTaskMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *UsageExportTaskMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *UsageExportTaskMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown UsageExportTask unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *UsageExportTaskMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown UsageExportTask edge %s", name)
 }
 
 // UsageLogMutation represents an operation that mutates the UsageLog nodes in the graph.

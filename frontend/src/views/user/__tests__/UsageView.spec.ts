@@ -3,21 +3,22 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
 
-// UsageView.spec.ts tests user usage filters, error visibility, team scope, and CSV export.
-// API substitutes expose the parameters sent by real page loaders, while child-control
-// stubs reveal column permissions and export assertions compare the complete user-facing
-// record format across pages.
+// UsageView.spec.ts tests user usage filters, error visibility, team scope, and background
+// CSV export panel integration. API substitutes expose the parameters sent by real page
+// loaders, while child-control stubs verify column permissions, inherited filter chips, and
+// active background export badge state.
 
 enableAutoUnmount(afterEach)
 
 // User and team API substitutes record queries and control membership, public error
-// visibility, translated options, chart data, and notification effects for the page.
+// visibility, translated options, chart data, background export tasks, and notifications.
 const {
   query,
   getStats,
   getDashboardModels,
   getDashboardSnapshotV2,
   listMyErrorRequests,
+  listExportTasks,
   publicSettings,
   list,
   getAvailable,
@@ -35,6 +36,7 @@ const {
   getDashboardModels: vi.fn(),
   getDashboardSnapshotV2: vi.fn(),
   listMyErrorRequests: vi.fn(),
+  listExportTasks: vi.fn(),
   publicSettings: { allow_user_view_error_requests: undefined as boolean | undefined },
   list: vi.fn(),
   getAvailable: vi.fn(),
@@ -94,13 +96,12 @@ const messages: Record<string, string> = {
   'usage.ws': 'WS',
   'usage.stream': 'Stream',
   'usage.sync': 'Sync',
-  'usage.exporting': 'Exporting',
   'usage.exportCsv': 'Export',
+  'usage.compactionFilter': 'Compaction',
+  'usage.nativeCompactionV2': 'Native compaction',
+  'usage.legacyCompaction': 'Legacy compaction',
+  'requests.id': 'Request ID',
   'usage.failedToLoad': 'Failed to load',
-  'usage.noDataToExport': 'No data',
-  'usage.preparingExport': 'Preparing export',
-  'usage.exportSuccess': 'Export success',
-  'usage.exportFailed': 'Export failed',
   'common.refresh': 'Refresh',
   'common.reset': 'Reset',
 }
@@ -112,12 +113,24 @@ vi.mock('@/api', () => ({
     getDashboardModels,
     getDashboardSnapshotV2,
     listMyErrorRequests,
+    listExportTasks,
   },
   keysAPI: {
     list,
   },
   userGroupsAPI: {
     getAvailable,
+  },
+}))
+
+vi.mock('@/api/usage', () => ({
+  usageAPI: {
+    query,
+    getStats,
+    getDashboardModels,
+    getDashboardSnapshotV2,
+    listMyErrorRequests,
+    listExportTasks,
   },
 }))
 
@@ -140,16 +153,17 @@ vi.mock('@/stores/app', () => ({
   }),
 }))
 
-vi.mock('@/composables/useBalanceDisplay', () => ({
-  useBalanceDisplay: () => ({ balanceUnitName: { value: 'Credits' }, usdUnitName: 'USD' }),
-}))
-
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, unknown>) => {
+        if (key === 'usage.exportPanel.activeCountLabel') {
+          return `Export (${params?.count ?? 0})`
+        }
+        return messages[key] ?? key
+      },
     }),
   }
 })
@@ -169,6 +183,21 @@ const UsageTableStub = {
     'compactUserColumn', // compact member attribution flag
   ],
   template: '<div data-test="usage-table" />',
+}
+// UsageExportDialogStub captures inherited date, filter, and chip props and exposes events
+// used to drive active background export badge transitions.
+const UsageExportDialogStub = {
+  name: 'UsageExportDialog',
+  props: [
+    'show', // modal visibility flag
+    'mode', // user or administrator mode
+    'startDate', // inherited inclusive start date
+    'endDate', // inherited inclusive end date
+    'filters', // inherited filter object
+    'filterLabels', // human-readable filter summary chips
+  ],
+  emits: ['close', 'tasksChanged', 'activeIdsChanged'],
+  template: '<div data-test="usage-export-dialog" />',
 }
 
 // usageLog supplies representative usage measurements reused by rendering cases, with each
@@ -207,7 +236,7 @@ const usageLog = {
 }
 
 // mountUsageView renders the user page with controlled child widgets and API substitutes.
-// The actual page loaders, preference actions, permission checks, and CSV serialization
+// The actual page loaders, preference actions, permission checks, and export panel wiring
 // stay active for these assertions.
 function mountUsageView() {
   return mount(UsageView, {
@@ -221,6 +250,7 @@ function mountUsageView() {
         Icon: true,
         UsageStatsCards: chartStub,
         UsageTable: UsageTableStub,
+        UsageExportDialog: UsageExportDialogStub,
         ModelDistributionChart: chartStub,
         GroupDistributionChart: chartStub,
         EndpointDistributionChart: chartStub,
@@ -240,6 +270,13 @@ describe('user UsageView', () => {
     getDashboardModels.mockReset()
     getDashboardSnapshotV2.mockReset()
     listMyErrorRequests.mockReset().mockResolvedValue({ items: [], total: 0, pages: 0 })
+    listExportTasks.mockReset().mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 10,
+      pages: 0,
+    })
     publicSettings.allow_user_view_error_requests = undefined
     list.mockReset()
     getAvailable.mockReset()
@@ -578,187 +615,66 @@ describe('user UsageView', () => {
     ).not.toContain('tps')
   })
 
-  // CSV export runs with selected user filters and representative usage values. The test
-  // protects exact user-facing columns, byte-order mark, filtered requests, and excluding
-  // provider-specific administrator fields.
-  it('exports csv with current filters and without admin-only fields', async () => {
+  // Clicking the toolbar export button on the user Usage view opens UsageExportDialog
+  // with the current date range. Resolved filter chips include API key, group, zero-valued
+  // balance billing, and false-valued legacy compaction selections.
+  it('opens UsageExportDialog with inherited date range and resolved filter labels', async () => {
+    getAvailable.mockResolvedValue([{ id: 3, name: 'vip', display_name: 'VIP Group' }])
     const wrapper = mountUsageView()
     await flushPromises()
 
-    let exportedBlob: Blob | null = null
-    let csvContent = ''
-    const OriginalBlob = globalThis.Blob
-    vi.stubGlobal(
-      'Blob',
-      vi.fn(function (parts: BlobPart[], options?: BlobPropertyBag) {
-        csvContent = parts.map((part) => String(part)).join('')
-        return new OriginalBlob(parts, options)
-      }),
-    )
-    const originalCreateObjectURL = window.URL.createObjectURL
-    const originalRevokeObjectURL = window.URL.revokeObjectURL
-    window.URL.createObjectURL = vi.fn((blob: Blob | MediaSource) => {
-      exportedBlob = blob as Blob
-      return 'blob:usage-export'
-    }) as typeof window.URL.createObjectURL
-    window.URL.revokeObjectURL = vi.fn(() => {}) as typeof window.URL.revokeObjectURL
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-
-    await (wrapper.vm as any).exportToCSV()
-
-    expect(exportedBlob).not.toBeNull()
-    expect(query).toHaveBeenCalledWith(
-      expect.objectContaining({
-        page_size: 100,
-        sort_by: 'created_at',
-        sort_order: 'desc',
-      }),
-    )
-    expect(clickSpy).toHaveBeenCalled()
-    expect(showSuccess).toHaveBeenCalled()
-    expect(csvContent.startsWith('\uFEFF')).toBe(true)
-    expect(csvContent.slice(1)).toBe(
-      [
-        'Time,API Key,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost (Credits),Original Cost (USD),TTFT (ms),TTFT mode,Duration (ms),TPS (tok/s)',
-        '2026-03-08T00:00:00Z,demo-key,gpt-5.4,"\'-",,203.0.113.10,Sync,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,First output,345,303.3',
-      ].join('\n'),
-    )
-    expect(csvContent).toContain('IP Address')
-    expect(csvContent).toContain('203.0.113.10')
-    expect(csvContent).toContain('Billed Cost')
-    expect(csvContent).toContain('Original Cost')
-    expect(csvContent).not.toContain('Upstream Endpoint')
-    expect(csvContent).not.toContain('provider_cost')
-    expect(csvContent).not.toContain('provider_rate_multiplier')
-
-    window.URL.createObjectURL = originalCreateObjectURL
-    window.URL.revokeObjectURL = originalRevokeObjectURL
-    vi.unstubAllGlobals()
-    clickSpy.mockRestore()
-  })
-
-  // CSV export spans multiple pages with numeric and unavailable TPS observations. The test
-  // protects shared formatting, consistent row width, and empty cells when the estimate is
-  // unavailable.
-  it('CSV 分页导出使用相同 TPS 公式，缺少首字耗时时留空', async () => {
-    query.mockResolvedValue({ items: [usageLog], total: 103, pages: 2 })
-    const wrapper = mountUsageView()
+    const vm = wrapper.vm as any
+    vm.startDate = '2026-03-01'
+    vm.endDate = '2026-03-08'
+    vm.filters.api_key_id = 1
+    vm.filters.group_id = 3
+    vm.filters.model = 'gpt-5.4'
+    vm.filters.billing_type = 0
+    vm.filters.native_compaction_v2 = false
     await flushPromises()
-    query
-      .mockReset()
-      .mockResolvedValueOnce({
-        items: Array.from({ length: 100 }, () => usageLog),
-        total: 103,
-        pages: 2,
-      })
-      .mockResolvedValueOnce({
-        items: [
-          { ...usageLog, output_tokens: 23, duration_ms: 21000, ttft_ms: 1000, tps: 1.2 },
-          { ...usageLog, output_tokens: 469, duration_ms: 21000, ttft_ms: 1000, tps: 23.5 },
-          { ...usageLog, ttft_ms: null, tps: null },
-        ],
-        total: 103,
-        pages: 2,
-      })
-    let csvContent = ''
-    const OriginalBlob = globalThis.Blob
-    vi.stubGlobal(
-      'Blob',
-      vi.fn(function (parts: BlobPart[], options?: BlobPropertyBag) {
-        csvContent = parts.map(String).join('')
-        return new OriginalBlob(parts, options)
-      }),
-    )
-    const originalCreateObjectURL = window.URL.createObjectURL
-    const originalRevokeObjectURL = window.URL.revokeObjectURL
-    window.URL.createObjectURL = vi.fn(() => 'blob:usage-tps')
-    window.URL.revokeObjectURL = vi.fn()
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-    try {
-      await (wrapper.vm as any).exportToCSV()
-      expect(query.mock.calls.map((call) => call[0].page)).toEqual([1, 2])
-      const lines = csvContent
-        .slice(1)
-        .split('\n')
-        .map((line) => line.split(','))
-      const tpsIndex = lines[0].indexOf('TPS (tok/s)')
-      expect(tpsIndex).toBe(lines[0].indexOf('Duration (ms)') + 1)
-      expect(lines).toHaveLength(104)
-      expect(lines[1][tpsIndex]).toBe('303.3')
-      expect(lines[100][tpsIndex]).toBe('303.3')
-      expect(lines[101][tpsIndex]).toBe('1.2')
-      expect(lines[102][tpsIndex]).toBe('23.5')
-      expect(lines[103][tpsIndex]).toBe('')
-      expect(lines.every((line) => line.length === lines[0].length)).toBe(true)
-    } finally {
-      window.URL.createObjectURL = originalCreateObjectURL
-      window.URL.revokeObjectURL = originalRevokeObjectURL
-      vi.unstubAllGlobals()
-      clickSpy.mockRestore()
-    }
+
+    const dialog = wrapper.findComponent(UsageExportDialogStub)
+    expect(dialog.props('show')).toBe(false)
+
+    await wrapper.get('[data-testid="user-usage-export-btn"]').trigger('click')
+    expect(dialog.props('show')).toBe(true)
+    expect(dialog.props('mode')).toBe('user')
+    expect(dialog.props('startDate')).toBe('2026-03-01')
+    expect(dialog.props('endDate')).toBe('2026-03-08')
+    expect(dialog.props('filterLabels')).toEqual([
+      { key: 'api_key_id', label: 'API Key', value: 'demo-key' },
+      { key: 'model', label: 'Model', value: 'gpt-5.4' },
+      { key: 'group_id', label: 'Group', value: 'VIP Group' },
+      { key: 'billing_type', label: 'Billing type', value: 'Balance' },
+      { key: 'native_compaction_v2', label: 'Compaction', value: 'Legacy compaction' },
+    ])
   })
 
-  // A historical exported row has image count but no explicit billing mode. The test
-  // protects deriving image billing and retaining the final empty measurement cell in CSV.
-  it('exports historical image rows with image billing mode derived from image_count', async () => {
-    query.mockResolvedValue({
+  // Mounting the user Usage view with pending and running background exports populates the
+  // active count on the toolbar button. The button stays enabled so users can reopen
+  // UsageExportDialog to monitor progress or cancel tasks.
+  it('displays active background export count on the toolbar button without disabling it', async () => {
+    listExportTasks.mockResolvedValueOnce({
       items: [
-        {
-          ...usageLog,
-          request_id: 'req-user-export-legacy-image',
-          ttft_ms: null,
-          ttft_mode: null,
-          tps: null,
-          actual_cost: 0.2,
-          total_cost: 0.2,
-          input_cost: 0,
-          output_cost: 0,
-          cache_creation_cost: 0,
-          cache_read_cost: 0,
-          input_tokens: 0,
-          output_tokens: 0,
-          cache_creation_tokens: 0,
-          cache_read_tokens: 0,
-          image_count: 1,
-          model: 'gpt-image-2',
-          billing_mode: null,
-          ip_address: null,
-        },
+        { id: 21, status: 'running' },
+        { id: 20, status: 'pending' },
       ],
-      total: 1,
+      total: 2,
+      page: 1,
+      page_size: 10,
       pages: 1,
     })
 
     const wrapper = mountUsageView()
     await flushPromises()
 
-    let csvContent = ''
-    const OriginalBlob = globalThis.Blob
-    vi.stubGlobal(
-      'Blob',
-      vi.fn(function (parts: BlobPart[], options?: BlobPropertyBag) {
-        csvContent = parts.map((part) => String(part)).join('')
-        return new OriginalBlob(parts, options)
-      }),
-    )
-    const originalCreateObjectURL = window.URL.createObjectURL
-    const originalRevokeObjectURL = window.URL.revokeObjectURL
-    window.URL.createObjectURL = vi.fn(
-      () => 'blob:usage-export',
-    ) as typeof window.URL.createObjectURL
-    window.URL.revokeObjectURL = vi.fn(() => {}) as typeof window.URL.revokeObjectURL
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const exportBtn = wrapper.get('[data-testid="user-usage-export-btn"]')
+    expect(exportBtn.attributes('disabled')).toBeUndefined()
+    expect(exportBtn.text()).toBe('Export (2)')
 
-    await (wrapper.vm as any).exportToCSV()
-
-    expect(csvContent).toContain('Billing mode')
-    expect(csvContent).toContain('Image')
-    expect(csvContent).not.toContain(',Token,0,0,0,0,')
-    expect(csvContent.split('\n')[1].endsWith(',')).toBe(true)
-
-    window.URL.createObjectURL = originalCreateObjectURL
-    window.URL.revokeObjectURL = originalRevokeObjectURL
-    vi.unstubAllGlobals()
-    clickSpy.mockRestore()
+    const dialog = wrapper.findComponent(UsageExportDialogStub)
+    dialog.vm.$emit('tasksChanged', 0)
+    await flushPromises()
+    expect(exportBtn.text()).toBe('Export')
   })
 })

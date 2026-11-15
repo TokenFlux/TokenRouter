@@ -263,11 +263,24 @@
             <button
               v-if="activeTab !== 'errors'"
               type="button"
-              @click="exportToCSV"
-              :disabled="exporting"
+              data-testid="user-usage-export-btn"
+              @click="openExportDialog"
               class="btn btn-primary whitespace-nowrap px-3 sm:px-4"
             >
-              {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
+              <Icon
+                v-if="activeExportCount > 0"
+                name="loader"
+                size="sm"
+                class="animate-spin"
+                :animate-on-hover="false"
+              />
+              <span>
+                {{
+                  activeExportCount > 0
+                    ? t('usage.exportPanel.activeCountLabel', { count: activeExportCount })
+                    : t('usage.exportCsv')
+                }}
+              </span>
             </button>
           </div>
         </div>
@@ -340,6 +353,17 @@
       />
     </div>
   </AppLayout>
+  <UsageExportDialog
+    :show="showExportDialog"
+    mode="user"
+    :start-date="startDate"
+    :end-date="endDate"
+    :filters="filters"
+    :filter-labels="exportFilterLabels"
+    @close="showExportDialog = false"
+    @tasks-changed="handleDialogTasksChanged"
+    @active-ids-changed="handleDialogActiveIdsChanged"
+  />
 </template>
 
 <script setup lang="ts">
@@ -385,16 +409,11 @@ import EndpointDistributionChart from '@/components/charts/EndpointDistributionC
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import TeamMemberUsageCharts from '@/components/charts/TeamMemberUsageCharts.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import UsageExportDialog from '@/components/usage/UsageExportDialog.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
-import { formatReasoningEffortMapping } from '@/utils/format'
-import {
-  getBillingModeLabel,
-  getDisplayBillingMode as resolveDisplayBillingMode,
-} from '@/utils/billingMode'
-import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
-import { calculateUsageTps } from '@/utils/usageTps'
+import { useUsageExportIndicator } from '@/composables/useUsageExportIndicator'
+import { requestTypeToLegacyStream } from '@/utils/usageRequestType'
 import type {
   EndpointStat,
   GroupStat,
@@ -407,24 +426,24 @@ import type {
   UserErrorRequest,
 } from '@/api/usage.types'
 import type { Column } from '@/components/common/table/types'
+import type { UsageExportFilterLabel } from '@/types/ui'
 import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
 
 // UsageView.vue loads personal and team usage with summaries, charts, error records, and
-// CSV export. Nullable selector values are normalized before querying, and request-ID
-// searches omit date limits while skipping distribution queries. Team owners receive the
-// member column and aggregate member history.
+// background CSV exports. Nullable selector values are normalized before querying, and
+// request-ID searches omit date limits while skipping distribution queries. Team owners
+// receive the member column and aggregate member history.
 //
 // Usage lists cancel superseded requests, and statistics loaders compare request sequences
 // before publishing results. Error retrieval checks the public visibility setting before
 // sending, with separate pagination and preferences. Locale refresh reloads visible errors
-// or clears inactive rows for the next visit. Export uses the user API and user-visible
-// fields, and browser column preferences remain separate from administrator settings.
+// or clears inactive rows for the next visit. Export opens UsageExportDialog with inherited
+// date bounds and filter chips, while browser column preferences remain separate from
+// administrator settings.
 
 // Translation and application notifications provide labels and request feedback for usage
 // records, filters, and export actions.
 const { t } = useI18n()
-// Export headers identify account charges and standard costs with their respective units.
-const { balanceUnitName, usdUnitName } = useBalanceDisplay()
 const appStore = useAppStore()
 
 // DistributionMetric selects token count or actual charge for distribution charts.
@@ -454,14 +473,16 @@ const teamMemberSeries = ref<
   }>
 >([])
 
-// Loading flags distinguish the records table, chart requests, and export operation so each
-// section can render its own progress.
+// Loading flags distinguish the records table and chart requests so each section can render
+// its own progress while showExportDialog coordinates background CSV export tasks.
 const loading = ref(false)
 const chartsLoading = ref(false)
 const modelStatsLoading = ref(false)
 const endpointStatsLoading = ref(false)
 const teamChartsLoading = ref(false)
-const exporting = ref(false)
+const showExportDialog = ref(false)
+const { activeExportCount, handleDialogTasksChanged, handleDialogActiveIdsChanged } =
+  useUsageExportIndicator('user', showExportDialog)
 // Error request state owns separate paging, sort, filters, loading, and totals so switching
 // tabs does not reuse usage pagination.
 const errorRows = ref<UserErrorRequest[]>([])
@@ -626,8 +647,8 @@ type UsageFilterState = Omit<
   request_type: UsageRequestType | null
 }
 
-// filters owns the mutable usage query selection; page changes and exports combine these
-// values with sorting and paging.
+// filters owns the mutable usage query selection; page changes combine these values with
+// sorting and paging, while background exports inherit active predicates.
 const filters = ref<UsageFilterState>({
   start_date: startDate.value,
   end_date: endDate.value,
@@ -647,8 +668,7 @@ const pagination = reactive({
   page_size: getPersistedPageSize(),
   total: 0,
 })
-// sortState holds the server sort column and direction used consistently by displayed pages
-// and exports.
+// sortState holds the server sort column and direction used by displayed usage pages.
 const sortState = reactive({
   sort_by: 'created_at',
   sort_order: 'desc' as 'asc' | 'desc',
@@ -771,8 +791,7 @@ const normalizedFilters = computed<UsageQueryParams>(() => {
 })
 
 // buildUsageListParams combines pagination, normalized filters, and the current server
-// sort. Displayed pages and CSV retrieval share this builder so their query selection and
-// ordering follow the same rules.
+// sort for the displayed usage record table.
 const buildUsageListParams = (page: number, pageSize: number): UsageQueryParams => ({
   page,
   page_size: pageSize,
@@ -1029,146 +1048,91 @@ const handleIpGeoBatchFailed = () => {
   appStore.showError(t('usage.ipGeo.batchFailed'))
 }
 
-// getRequestTypeExportText translates the resolved request mode for a CSV cell. Unknown
-// modes use a translated unknown label after the shared resolver handles historical stream
-// and request-type fields.
-const getRequestTypeExportText = (log: UsageLog): string => {
-  const requestType = resolveUsageRequestType(log)
-  if (requestType === 'cyber') return t('usage.cyber')
-  if (requestType === 'live') return t('usage.live')
-  if (requestType === 'ws_v2') return t('usage.ws')
-  if (requestType === 'stream') return t('usage.stream')
-  if (requestType === 'sync') return t('usage.sync')
-  return t('usage.unknown')
+// openExportDialog opens the background CSV export panel with inherited date bounds and
+// active filter chips.
+const openExportDialog = () => {
+  showExportDialog.value = true
 }
 
-// getDisplayBillingMode delegates billing-mode selection to the shared usage resolver.
-// Historical rows can derive image mode from image count, and callers receive the
-// resolver's nullable result when mode remains unknown.
-const getDisplayBillingMode = (
-  row: Pick<UsageLog, 'billing_mode' | 'image_count'> | null | undefined,
-): string | null | undefined => resolveDisplayBillingMode(row)
+// exportFilterLabels summarizes active usage predicates into human-readable chips for
+// UsageExportDialog, preserving zero-valued balance billing and false-valued compaction.
+const exportFilterLabels = computed<UsageExportFilterLabel[]>(() => {
+  const chips: UsageExportFilterLabel[] = []
+  const current = filters.value
 
-// escapeCSVValue serializes one value for the CSV writer, returning empty text for nullish
-// values. Quotes are doubled, and fields containing CSV separators or line breaks receive
-// enclosing quotes.
-//
-// Values beginning with spreadsheet formula prefixes receive a quoted apostrophe prefix
-// before export. This retains the displayed cell text as text when common spreadsheet
-// readers would otherwise evaluate it. The transformation is applied to every data cell and
-// header before rows are joined.
-const escapeCSVValue = (value: unknown): string => {
-  if (value == null) return ''
-  const str = String(value)
-  // Escape quotes before adding CSV enclosure or the spreadsheet text prefix so embedded
-  // delimiters remain part of the same cell value.
-  const escaped = str.replace(/"/g, '""')
-  if (/^[=+\-@\t\r]/.test(str)) return `"\'${escaped}"`
-  if (/[,"\n\r]/.test(str)) return `"${escaped}"`
-  return str
-}
-
-// exportToCSV retrieves all expected usage pages and downloads their user-facing columns as
-// UTF-8 CSV. A zero displayed total returns with a warning, and each page uses the shared
-// filter and sort builder.
-//
-// The initial total determines page count, while returned rows supply actual cell data.
-// Text escapes prevent delimiters and formula prefixes from changing spreadsheet
-// interpretation. Costs, request mode, and TPS follow their owning user fields and shared
-// formatters. A temporary Blob URL triggers the download and is revoked afterward;
-// settlement clears export progress. Monetary headers identify account units and USD
-// costs while each data cell retains its recorded numeric precision.
-const exportToCSV = async () => {
-  if (pagination.total === 0) {
-    appStore.showWarning(t('usage.noDataToExport'))
-    return
+  if (typeof current.request_id === 'string' && current.request_id.trim() !== '') {
+    chips.push({
+      key: 'request_id',
+      label: t('requests.id'),
+      value: current.request_id.trim(),
+    })
   }
-  exporting.value = true
-  appStore.showInfo(t('usage.preparingExport'))
-  try {
-    const allLogs: UsageLog[] = []
-    const pageSize = 100
-    // Round upward to include a final partially filled export page.
-    const totalPages = Math.ceil(pagination.total / pageSize)
-    for (let page = 1; page <= totalPages; page++) {
-      const response = await usageAPI.query(buildUsageListParams(page, pageSize))
-      allLogs.push(...response.items)
-    }
-    if (allLogs.length === 0) {
-      appStore.showWarning(t('usage.noDataToExport'))
-      return
-    }
-    const headers = [
-      t('usage.time'),
-      t('usage.apiKeyFilter'),
-      t('usage.model'),
-      t('usage.reasoningEffort'),
-      t('usage.inboundEndpoint'),
-      t('admin.usage.ipAddress'),
-      t('usage.type'),
-      t('admin.usage.billingMode'),
-      t('admin.usage.inputTokens'),
-      t('admin.usage.outputTokens'),
-      t('admin.usage.cacheReadTokens'),
-      t('admin.usage.cacheCreationTokens'),
-      t('usage.rate'),
-      `${t('usage.userBilled')} (${balanceUnitName.value})`,
-      `${t('usage.original')} (${usdUnitName})`,
-      t('usage.firstToken'),
-      t('usage.ttftMode'),
-      t('usage.duration'),
-      t('usage.tpsExport'),
-    ]
-    const rows = allLogs.map((log) =>
-      [
-        log.created_at,
-        log.api_key?.name || '',
-        log.model,
-        formatReasoningEffortMapping(log.requested_reasoning_effort, log.reasoning_effort),
-        log.inbound_endpoint || '',
-        log.ip_address || '',
-        getRequestTypeExportText(log),
-        getBillingModeLabel(getDisplayBillingMode(log), t),
-        log.input_tokens,
-        log.output_tokens,
-        log.cache_read_tokens,
-        log.cache_creation_tokens,
-        log.rate_multiplier,
-        log.actual_cost.toFixed(8),
-        log.total_cost.toFixed(8),
-        log.ttft_ms ?? '',
-        log.ttft_mode === 'first_event'
-          ? t('usage.latencyFirstEvent')
-          : log.ttft_mode === 'first_output'
-            ? t('usage.latencyFirstToken')
-            : '',
-        log.duration_ms ?? '',
-        calculateUsageTps(log)?.toFixed(1) ?? '',
-      ].map(escapeCSVValue),
-    )
-    const csvContent = [
-      headers.map(escapeCSVValue).join(','),
-      ...rows.map((row) => row.join(',')),
-    ].join('\n')
-    // Prefix UTF-8 data for spreadsheet decoding, then create a temporary URL used by the
-    // download anchor before releasing that URL.
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `usage_${startDate.value}_to_${endDate.value}.csv`
-    link.click()
-    window.URL.revokeObjectURL(url)
-    appStore.showSuccess(t('usage.exportSuccess'))
-  } catch (error) {
-    // Report export failure and release busy state through finally; no success
-    // notification is emitted for a partially constructed download.
-    console.error('CSV Export failed:', error)
-    appStore.showError(t('usage.exportFailed'))
-  } finally {
-    exporting.value = false
+  if (typeof current.api_key_id === 'number' && current.api_key_id > 0) {
+    const keyName = apiKeys.value.find((item) => item.id === current.api_key_id)?.name
+    chips.push({
+      key: 'api_key_id',
+      label: t('usage.apiKeyFilter'),
+      value: keyName || `#${current.api_key_id}`,
+    })
   }
-}
+  if (typeof current.model === 'string' && current.model.trim() !== '') {
+    chips.push({
+      key: 'model',
+      label: t('usage.model'),
+      value: current.model.trim(),
+    })
+  }
+  if (typeof current.group_id === 'number' && current.group_id > 0) {
+    const groupName = groups.value.find((item) => item.id === current.group_id)?.name
+    chips.push({
+      key: 'group_id',
+      label: t('admin.usage.group'),
+      value: groupName || `#${current.group_id}`,
+    })
+  }
+  if (typeof current.request_type === 'string' && current.request_type.trim() !== '') {
+    const typeLabel = requestTypeOptions.value.find(
+      (item) => item.value === current.request_type,
+    )?.label
+    chips.push({
+      key: 'request_type',
+      label: t('usage.type'),
+      value: typeLabel || current.request_type,
+    })
+  }
+  if (typeof current.billing_type === 'number' && !Number.isNaN(current.billing_type)) {
+    const billingLabel = billingTypeOptions.value.find(
+      (item) => item.value === current.billing_type,
+    )?.label
+    chips.push({
+      key: 'billing_type',
+      label: t('admin.usage.billingType'),
+      value: billingLabel || String(current.billing_type),
+    })
+  }
+  if (typeof current.billing_mode === 'string' && current.billing_mode.trim() !== '') {
+    const modeLabel = billingModeOptions.value.find(
+      (item) => item.value === current.billing_mode,
+    )?.label
+    chips.push({
+      key: 'billing_mode',
+      label: t('admin.usage.billingMode'),
+      value: modeLabel || current.billing_mode,
+    })
+  }
+  if (typeof current.native_compaction_v2 === 'boolean') {
+    const compactionLabel = compactionOptions.value.find(
+      (item) => item.value === current.native_compaction_v2,
+    )?.label
+    chips.push({
+      key: 'native_compaction_v2',
+      label: t('usage.compactionFilter'),
+      value: compactionLabel || String(current.native_compaction_v2),
+    })
+  }
+
+  return chips
+})
 
 // Usage column constants define mandatory fields, default hidden choices, and the browser
 // storage namespace for saved preferences.

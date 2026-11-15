@@ -143,9 +143,9 @@ func providePaymentRouteMount(user *paymenthttp.PaymentHandler, webhook *payment
 }
 
 // provideUserRouteMount mounts user resources after JWT, backend-mode, panel,
-// and audit middleware. Team routes receive step-up protection, and usage plus
-// creative registrars receive the heavy-query limiter in addition to those
-// group guards.
+// and audit middleware. Team routes receive step-up protection, usage plus
+// creative registrars receive the heavy-query limiter, and signed usage-export
+// downloads mount on /api/v1 under the public-IP limiter.
 func provideUserRouteMount(
 	eModelMarketplace *routinghttp.MarketplaceHandler,
 	eUserPromotion *promotionhttp.UserHandler,
@@ -174,6 +174,7 @@ func provideUserRouteMount(
 		routinghttp.RegisterUserMarketplaceRoutes(authenticated, eModelMarketplace)
 		teamhttp.RegisterUserRoutes(authenticated, eTeam, security.StepUp)
 		usagehttp.RegisterUserRoutes(authenticated, eUsage, security.Panel.Heavy())
+		usagehttp.RegisterPublicExportDownloadRoutes(v1, eUsage, security.Panel.PublicIP())
 		creativehttp.RegisterUserRoutes(authenticated, eCreative, security.Panel.Heavy())
 		sitehttp.RegisterUserRoutes(authenticated, eAnnouncement)
 		billinghttp.RegisterUserRoutes(authenticated, eRedeem, eSubscription)

@@ -17,7 +17,9 @@
 // query_cache.go own query caches and aggregation work.
 // analytics_aggregation.go and aggregation_state.go define rollup storage and
 // field-specific progress updates. cleanup*.go covers task creation,
-// cancellation and execution. provider*.go describes provider costs and token
-// windows. ranking.go, runtime_settings.go, settings_participant.go and
-// admin_settings_read.go control ranking visibility and user error views.
+// cancellation and execution. export*.go manages persisted CSV export tasks,
+// signed download tickets and streaming encoders. provider*.go describes
+// provider costs and token windows. ranking.go, runtime_settings.go,
+// settings_participant.go and admin_settings_read.go control ranking visibility
+// and user error views.
 package usage

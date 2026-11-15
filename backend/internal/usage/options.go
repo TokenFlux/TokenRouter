@@ -18,9 +18,19 @@ import (
 // keep scheduling, singleton acquisition, and reporting with their application
 // owners.
 
-// ErrCleanupTaskNotFound marks a missing persisted cleanup task so service
-// cancellation and worker status checks can distinguish absence from storage failure.
-var ErrCleanupTaskNotFound = errors.New("usage cleanup task not found")
+// Usage task and artifact sentinels distinguish missing persisted rows or
+// removed export files from ordinary storage failures during status and download checks.
+var (
+	// ErrCleanupTaskNotFound marks a missing persisted cleanup task so service
+	// cancellation and worker status checks can distinguish absence from storage failure.
+	ErrCleanupTaskNotFound = errors.New("usage cleanup task not found")
+	// ErrExportTaskNotFound marks a missing persisted export task so cancellation,
+	// worker polling, and download checks can distinguish absence from storage failure.
+	ErrExportTaskNotFound = errors.New("usage export task not found")
+	// ErrExportArtifactNotFound marks a missing local CSV artifact so download
+	// handlers and expiry sweeps can distinguish removed files from read errors.
+	ErrExportArtifactNotFound = errors.New("usage export artifact not found")
+)
 
 // Options carries application-owned dependencies and deployment settings for
 // usage services.
@@ -32,6 +42,7 @@ type Options struct {
 	RunBackground func(string, func()) bool  // tracked background dispatch callback
 	DashboardAgg  DashboardAggregationConfig // dashboard rollup deployment settings
 	UsageCleanup  UsageCleanupConfig         // administrator cleanup deployment settings
+	UsageExport   UsageExportConfig          // background CSV export deployment settings
 	Dashboard     DashboardConfig            // dashboard snapshot deployment settings
 	// Logf receives component, format, and arguments. Nil selects the service's
 	// standard logger path, whose logUsage helper forwards the format and
@@ -78,6 +89,23 @@ type (
 		// WorkerIntervalSeconds sets polling, and TaskTimeoutSeconds bounds one
 		// claimed task. The cleanup service selects defaults for nonpositive values.
 		MaxRangeDays, BatchSize, WorkerIntervalSeconds, TaskTimeoutSeconds int // days rows seconds seconds
+	}
+	// UsageExportConfig controls background CSV export admission, worker pool
+	// concurrency, keyset batch sizes, and artifact retention sweeps.
+	UsageExportConfig struct {
+		// Enabled gates export task creation, cancellation, download ticket exchange,
+		// and Start's registration of worker goroutines and sweep callbacks.
+		Enabled bool // export task admission gate
+		// RetentionHours sets post-completion CSV retention, MaxActivePerUser bounds
+		// concurrent pending/running user exports, and MaxActivePerAdmin bounds
+		// concurrent pending/running administrator exports. Nonpositive values select
+		// service defaults.
+		RetentionHours, MaxActivePerUser, MaxActivePerAdmin int // hours tasks tasks
+		// BatchSize bounds each keyset scan batch, WorkerConcurrency sets worker count,
+		// WorkerIntervalSeconds sets recurring poll/sweep cadence, and TaskTimeoutSeconds
+		// bounds one claimed export task and stale-running reclamation. Nonpositive
+		// values select service defaults.
+		BatchSize, WorkerConcurrency, WorkerIntervalSeconds, TaskTimeoutSeconds int // rows workers seconds seconds
 	}
 )
 

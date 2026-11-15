@@ -29,11 +29,11 @@ import (
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 )
 
-// Gateway route guards classify aliases and reject disabled protocols using the
-// client's error format before body processing. These scenarios distinguish
-// route registration from successful execution, cover method and path
-// admission, and inspect retired paths separately from existing resource
-// operations and generation endpoints.
+// http_routes_test.go verifies gateway protocol route guards, public auth rate
+// limiting, and assembled route dispatch. Gateway route guards classify aliases
+// and reject disabled protocols using the client's error format before body
+// processing, covering method and path admission separately from retired paths
+// and generation endpoints.
 
 // Protocol error aliases select the expected Anthropic, OpenAI, and Google
 // envelopes in group-admission denial scenarios.
@@ -750,8 +750,8 @@ func TestGatewayRoutesOpenAICompatibleCountTokensPathIsRegistered(t *testing.T) 
 
 // RegisterUserRoutes mounts fixture user resources under JWT, backend-mode,
 // panel, and audit guards. Supplied module handlers are registered in their
-// route families, team receives step-up, and usage/creative routes receive the
-// heavy-query limiter.
+// route families, team receives step-up, usage/creative routes receive the
+// heavy-query limiter, and signed usage-export downloads mount under public IP limits.
 func RegisterUserRoutes(
 	v1 *gin.RouterGroup,
 	h *routeTestHandlers,
@@ -773,6 +773,7 @@ func RegisterUserRoutes(
 	keyhttp.RegisterUserRoutes(authenticated, h.APIKey)
 	teamhttp.RegisterUserRoutes(authenticated, h.Team, gin.HandlerFunc(stepUpAuth))
 	usagehttp.RegisterUserRoutes(authenticated, h.Usage, panelRateLimiter.Heavy())
+	usagehttp.RegisterPublicExportDownloadRoutes(v1, h.Usage, panelRateLimiter.PublicIP())
 	creativehttp.RegisterUserRoutes(authenticated, h.Creative, panelRateLimiter.Heavy())
 	sitehttp.RegisterUserRoutes(authenticated, h.Announcement)
 	billinghttp.RegisterUserRoutes(authenticated, h.Redeem, h.Subscription)

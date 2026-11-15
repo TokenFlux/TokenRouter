@@ -88,6 +88,8 @@ type Tx struct {
 	TeamOwnershipTransfer *TeamOwnershipTransferClient
 	// UsageCleanupTask is the client for interacting with the UsageCleanupTask builders.
 	UsageCleanupTask *UsageCleanupTaskClient
+	// UsageExportTask is the client for interacting with the UsageExportTask builders.
+	UsageExportTask *UsageExportTaskClient
 	// UsageLog is the client for interacting with the UsageLog builders.
 	UsageLog *UsageLogClient
 	// User is the client for interacting with the User builders.
@@ -270,6 +272,7 @@ func (tx *Tx) init() {
 	tx.TeamMembership = NewTeamMembershipClient(tx.config)
 	tx.TeamOwnershipTransfer = NewTeamOwnershipTransferClient(tx.config)
 	tx.UsageCleanupTask = NewUsageCleanupTaskClient(tx.config)
+	tx.UsageExportTask = NewUsageExportTaskClient(tx.config)
 	tx.UsageLog = NewUsageLogClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 	tx.UserAllowedGroup = NewUserAllowedGroupClient(tx.config)

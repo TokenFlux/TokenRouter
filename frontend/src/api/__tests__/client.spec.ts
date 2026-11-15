@@ -240,6 +240,27 @@ describe('API Client', () => {
     })
 
     /**
+     * A native GET supplies an explicit timezone query value. The request
+     * interceptor retains that caller-chosen timezone instead of replacing it
+     * with the browser default.
+     */
+    it('GET 请求显式传入 timezone 时保留调用方值', async () => {
+      const adapter = vi.fn().mockResolvedValue({
+        status: 200,
+        data: { code: 0, data: {} },
+        headers: {},
+        config: {},
+        statusText: 'OK',
+      })
+      apiClient.defaults.adapter = adapter
+
+      await apiClient.get('/test', { params: { timezone: 'America/New_York' } })
+
+      const config = adapter.mock.calls[0][0]
+      expect(config.params?.timezone).toBe('America/New_York')
+    })
+
+    /**
      * A POST passes through the same interceptor used by GET requests. Its
      * parameters receive no automatic timezone, keeping mutation payload
      * handling separate from date-filtered reads.

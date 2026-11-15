@@ -1124,6 +1124,46 @@ func TestValidateUsageCleanupConfigDisabled(t *testing.T) {
 	}
 }
 
+// TestLoadDefaultUsageExportConfig inspects default export task settings and
+// directory derivation precedence. Loading must retain the 24-hour retention,
+// active-task caps, batch size, worker count, and DATA_DIR fallback path.
+func TestLoadDefaultUsageExportConfig(t *testing.T) {
+	t.Setenv("DATA_DIR", "/tmp/tr-export-data")
+	fixture := newConfigFixture(t)
+
+	cfg, err := fixture.Load()
+	require.NoError(t, err)
+	require.True(t, cfg.Usage.ExportTasks.Enabled)
+	require.Equal(t, filepath.Join("/tmp/tr-export-data", "exports", "usage"), cfg.Usage.ExportTasks.Dir)
+	require.Equal(t, 24, cfg.Usage.ExportTasks.RetentionHours)
+	require.Equal(t, 2, cfg.Usage.ExportTasks.MaxActivePerUser)
+	require.Equal(t, 5, cfg.Usage.ExportTasks.MaxActivePerAdmin)
+	require.Equal(t, 2000, cfg.Usage.ExportTasks.BatchSize)
+	require.Equal(t, 2, cfg.Usage.ExportTasks.WorkerConcurrency)
+	require.Equal(t, 10, cfg.Usage.ExportTasks.WorkerIntervalSeconds)
+	require.Equal(t, 3600, cfg.Usage.ExportTasks.TaskTimeoutSeconds)
+}
+
+// TestValidateUsageExportConfigBounds checks enabled and disabled validation
+// rules on UsageExportConfig. Active executors reject zero quotas or budgets,
+// while disabled configurations still reject negative numeric fields.
+func TestValidateUsageExportConfigBounds(t *testing.T) {
+	fixture := newConfigFixture(t)
+	cfg, err := fixture.Load()
+	require.NoError(t, err)
+
+	cfg.Usage.ExportTasks.Enabled = true
+	cfg.Usage.ExportTasks.MaxActivePerUser = 0
+	err = cfg.Validate()
+	require.ErrorContains(t, err, "usage.export_tasks.max_active_per_user")
+
+	cfg.Usage.ExportTasks.MaxActivePerUser = 2
+	cfg.Usage.ExportTasks.Enabled = false
+	cfg.Usage.ExportTasks.RetentionHours = -1
+	err = cfg.Validate()
+	require.ErrorContains(t, err, "usage.export_tasks.retention_hours")
+}
+
 // TestConfigAddressHelpers constructs server, Redis, and PostgreSQL settings
 // with empty and populated passwords and zones. Address text and DSN fragments
 // must reflect the selected port, password omission, and timezone behavior.

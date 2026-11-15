@@ -43,6 +43,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintprofile"
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
 	"github.com/TokenFlux/TokenRouter/ent/usagecleanuptask"
+	"github.com/TokenFlux/TokenRouter/ent/usageexporttask"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/userallowedgroup"
@@ -2333,6 +2334,69 @@ func init() {
 	usagecleanuptaskDescDeletedRows := usagecleanuptaskFields[3].Descriptor()
 	// usagecleanuptask.DefaultDeletedRows holds the default value on creation for the deleted_rows field.
 	usagecleanuptask.DefaultDeletedRows = usagecleanuptaskDescDeletedRows.Default.(int64)
+	usageexporttaskMixin := schema.UsageExportTask{}.Mixin()
+	usageexporttaskMixinFields0 := usageexporttaskMixin[0].Fields()
+	_ = usageexporttaskMixinFields0
+	usageexporttaskFields := schema.UsageExportTask{}.Fields()
+	_ = usageexporttaskFields
+	// usageexporttaskDescCreatedAt is the schema descriptor for created_at field.
+	usageexporttaskDescCreatedAt := usageexporttaskMixinFields0[0].Descriptor()
+	// usageexporttask.DefaultCreatedAt holds the default value on creation for the created_at field.
+	usageexporttask.DefaultCreatedAt = usageexporttaskDescCreatedAt.Default.(func() time.Time)
+	// usageexporttaskDescUpdatedAt is the schema descriptor for updated_at field.
+	usageexporttaskDescUpdatedAt := usageexporttaskMixinFields0[1].Descriptor()
+	// usageexporttask.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	usageexporttask.DefaultUpdatedAt = usageexporttaskDescUpdatedAt.Default.(func() time.Time)
+	// usageexporttask.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	usageexporttask.UpdateDefaultUpdatedAt = usageexporttaskDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// usageexporttaskDescScope is the schema descriptor for scope field.
+	usageexporttaskDescScope := usageexporttaskFields[0].Descriptor()
+	// usageexporttask.ScopeValidator is a validator for the "scope" field. It is called by the builders before save.
+	usageexporttask.ScopeValidator = func() func(string) error {
+		validators := usageexporttaskDescScope.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(scope string) error {
+			for _, fn := range fns {
+				if err := fn(scope); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// usageexporttaskDescStatus is the schema descriptor for status field.
+	usageexporttaskDescStatus := usageexporttaskFields[1].Descriptor()
+	// usageexporttask.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	usageexporttask.StatusValidator = func() func(string) error {
+		validators := usageexporttaskDescStatus.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(status string) error {
+			for _, fn := range fns {
+				if err := fn(status); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// usageexporttaskDescTotalRows is the schema descriptor for total_rows field.
+	usageexporttaskDescTotalRows := usageexporttaskFields[4].Descriptor()
+	// usageexporttask.DefaultTotalRows holds the default value on creation for the total_rows field.
+	usageexporttask.DefaultTotalRows = usageexporttaskDescTotalRows.Default.(int64)
+	// usageexporttaskDescExportedRows is the schema descriptor for exported_rows field.
+	usageexporttaskDescExportedRows := usageexporttaskFields[5].Descriptor()
+	// usageexporttask.DefaultExportedRows holds the default value on creation for the exported_rows field.
+	usageexporttask.DefaultExportedRows = usageexporttaskDescExportedRows.Default.(int64)
+	// usageexporttaskDescFileSizeBytes is the schema descriptor for file_size_bytes field.
+	usageexporttaskDescFileSizeBytes := usageexporttaskFields[8].Descriptor()
+	// usageexporttask.DefaultFileSizeBytes holds the default value on creation for the file_size_bytes field.
+	usageexporttask.DefaultFileSizeBytes = usageexporttaskDescFileSizeBytes.Default.(int64)
 	usagelogFields := schema.UsageLog{}.Fields()
 	_ = usagelogFields
 	// usagelogDescImageFrameCount is the schema descriptor for image_frame_count field.

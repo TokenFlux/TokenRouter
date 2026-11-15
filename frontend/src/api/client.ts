@@ -77,12 +77,12 @@ apiClient.interceptors.request.use(
       config.headers['Accept-Language'] = getLocale()
     }
 
-    // Native GET queries receive timezone defaults; plugin endpoints own their query contract and receive only explicitly supplied query values.
+    // Native GET queries default to the browser timezone unless the caller supplies an explicit timezone; plugin endpoints own their query contract and receive only supplied values.
     if (config.method === 'get' && !isPluginApiPath(config.url)) {
       if (!config.params) {
         config.params = {}
       }
-      config.params.timezone = getUserTimezone()
+      config.params.timezone ??= getUserTimezone()
     }
 
     if (config.headers) {

@@ -16,6 +16,6 @@
 //   - tls_fingerprint*.go, error_passthrough_rule.go: TLS handshakes and upstream error passthrough rules.
 //   - payment*.go, subscription_plan.go, redeem_code*.go, promo_code*.go: payments, plans, redemption codes, and signup promotions.
 //   - creative_run*.go, batch_image*.go: creative jobs, outputs, pending actions, and batch image events.
-//   - usage*.go: request usage and usage cleanup tasks.
+//   - usage*.go: request usage, usage cleanup tasks, and usage export tasks.
 //   - announcement*.go, setting.go, security_secret.go, idempotency_record.go: announcements, settings, secrets, and idempotent request records.
 package schema

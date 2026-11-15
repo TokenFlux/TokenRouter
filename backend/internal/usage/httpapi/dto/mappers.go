@@ -6,19 +6,20 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-// mappers.go maps usage records and cleanup tasks into user and administrator
-// HTTP responses.
+// mappers.go maps usage records, cleanup tasks, and export tasks into user and
+// administrator HTTP responses.
 // Usage detail responses display the client model while administrator
 // responses add outbound observations and provider costs. Request categories
 // also supply older transport flags, so converting a record resolves those
 // representations before filling the response.
 //
 // The mappers keep absent observations absent and restrict administrator
-// additions to AdminUsageLog. Billing allocations receive their own entries
-// and copied subscription and plan identifiers. TTFT, TPS and detailed timing
-// use copied scalar values derived from the usage snapshot. Other optional log
-// values and image-size maps retain their source references, which callers
-// treat as immutable while a response is being encoded.
+// additions to AdminUsageLog and administrator-scoped export filters. Billing
+// allocations receive their own entries and copied subscription and plan
+// identifiers. TTFT, TPS and detailed timing use copied scalar values derived
+// from the usage snapshot. Other optional log values and image-size maps
+// retain their source references, which callers treat as immutable while a
+// response is being encoded.
 
 // usageLogFromServiceUser builds the common usage response from a nonnil
 // record and optional display language. It selects RequestedModel when
@@ -201,6 +202,60 @@ func CleanupFromUsage(task *usage.UsageCleanupTask) *UsageCleanupTask {
 		FinishedAt:   task.FinishedAt,
 		CreatedAt:    task.CreatedAt,
 		UpdatedAt:    task.UpdatedAt,
+	}
+}
+
+// ExportFromUsage builds an export-task response, returning nil for a nil task.
+// User-scope responses omit internal actor pinning and administrator-only
+// selectors from Filters, and internal FilePath keys are never copied.
+func ExportFromUsage(task *usage.UsageExportTask) *UsageExportTask {
+	if task == nil {
+		return nil
+	}
+	filters := UsageExportFilters{
+		StartTime:          task.Filters.StartTime,
+		EndTime:            task.Filters.EndTime,
+		Timezone:           task.Filters.Timezone,
+		Locale:             task.Filters.Locale,
+		BalanceUnitName:    task.Filters.BalanceUnitName,
+		APIKeyID:           task.Filters.APIKeyID,
+		GroupID:            task.Filters.GroupID,
+		TeamID:             task.Filters.TeamID,
+		PersonalOnly:       task.Filters.PersonalOnly,
+		RequestID:          task.Filters.RequestID,
+		Model:              task.Filters.Model,
+		ModelFilterSource:  task.Filters.ModelFilterSource,
+		RequestType:        RequestTypeStringPtr(task.Filters.RequestType),
+		Stream:             task.Filters.Stream,
+		NativeCompactionV2: task.Filters.NativeCompactionV2,
+		BillingType:        task.Filters.BillingType,
+		BillingMode:        task.Filters.BillingMode,
+	}
+	if task.Scope == usage.UsageExportScopeAdmin {
+		// Expose user, provider, and request-source selectors only on admin tasks;
+		// user tasks pin UserID internally for ownership rather than explicit filtering.
+		filters.RequestSource = task.Filters.RequestSource
+		filters.UserID = task.Filters.UserID
+		filters.ProviderID = task.Filters.ProviderID
+	}
+	return &UsageExportTask{
+		ID:            task.ID,
+		Scope:         task.Scope,
+		Status:        task.Status,
+		Filters:       filters,
+		CreatedBy:     task.CreatedBy,
+		TotalRows:     task.TotalRows,
+		ExportedRows:  task.ExportedRows,
+		FileName:      task.FileName,
+		FileSizeBytes: task.FileSizeBytes,
+		ErrorMessage:  task.ErrorMsg,
+		CanceledBy:    task.CanceledBy,
+		CanceledAt:    task.CanceledAt,
+		StartedAt:     task.StartedAt,
+		FinishedAt:    task.FinishedAt,
+		ExpiresAt:     task.ExpiresAt,
+		CreatedAt:     task.CreatedAt,
+		UpdatedAt:     task.UpdatedAt,
 	}
 }
 

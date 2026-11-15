@@ -11,12 +11,14 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-// types.go defines user and administrator usage-response fields and
-// cleanup-task DTOs.
+// types.go defines user and administrator usage-response fields, cleanup-task
+// DTOs, and background export-task DTOs.
 // User usage responses display client model names and charged amounts
 // alongside measured token and image details. AdminUsageLog embeds that
 // response and adds outbound model observations, provider cost inputs and
-// performance observations read from the same persisted usage row.
+// performance observations read from the same persisted usage row. Export-task
+// responses expose validated half-open time bounds, explicit IANA timezone,
+// progress counters, and committed download metadata without leaking local disk keys.
 
 type (
 	// User names the account response used for loaded usage display relations.
@@ -271,4 +273,66 @@ type UsageCleanupTask struct {
 type ProviderSummary struct {
 	ID   int64  `json:"id"`   // loaded provider identifier
 	Name string `json:"name"` // loaded provider display name
+}
+
+// UsageExportFilters carries the half-open time bounds, explicit IANA timezone,
+// locale snapshot, and optional query selectors exposed in export-task HTTP responses.
+type UsageExportFilters struct {
+	// StartTime and EndTime define the persisted half-open [StartTime, EndTime)
+	// query window matched against usage_logs.created_at.
+	StartTime       time.Time `json:"start_time"`                  // inclusive export start instant
+	EndTime         time.Time `json:"end_time"`                    // exclusive export end instant
+	Timezone        string    `json:"timezone"`                    // validated IANA timezone identifier
+	Locale          string    `json:"locale,omitempty"`            // normalized zh or en CSV locale
+	BalanceUnitName string    `json:"balance_unit_name,omitempty"` // snapshotted user charge unit label
+	// RequestSource, UserID, and ProviderID are populated only for administrator
+	// export tasks; user-scope mappers omit them so internal actor pinning is not
+	// presented as an explicit user-selected filter.
+	RequestSource      string  `json:"request_source,omitempty"`       // optional administrator source selector
+	UserID             *int64  `json:"user_id,omitempty"`              // optional administrator user selector
+	APIKeyID           *int64  `json:"api_key_id,omitempty"`           // optional API key selector
+	ProviderID         *int64  `json:"provider_id,omitempty"`          // optional administrator provider selector
+	GroupID            *int64  `json:"group_id,omitempty"`             // optional routed group selector
+	TeamID             *int64  `json:"team_id,omitempty"`              // optional team selector
+	PersonalOnly       bool    `json:"personal_only,omitempty"`        // restrict to personal non-team usage
+	RequestID          string  `json:"request_id,omitempty"`           // optional local or upstream request ID
+	Model              *string `json:"model,omitempty"`                // optional model selector
+	ModelFilterSource  string  `json:"model_filter_source,omitempty"`  // requested, upstream, or mapping model dimension
+	RequestType        *string `json:"request_type,omitempty"`         // optional normalized category label
+	Stream             *bool   `json:"stream,omitempty"`               // optional legacy stream selector
+	NativeCompactionV2 *bool   `json:"native_compaction_v2,omitempty"` // optional remote compaction v2 flag
+	BillingType        *int8   `json:"billing_type,omitempty"`         // optional funding category selector
+	BillingMode        *string `json:"billing_mode,omitempty"`         // optional pricing mode selector
+}
+
+// UsageExportTask carries persisted export status, filter snapshot, row progress,
+// and committed attachment metadata without exposing internal filesystem paths.
+type UsageExportTask struct {
+	ID           int64              `json:"id"`            // persisted export task identifier
+	Scope        string             `json:"scope"`         // user or admin authorization scope
+	Status       string             `json:"status"`        // persisted export state label
+	Filters      UsageExportFilters `json:"filters"`       // exposed export filter and locale snapshot
+	CreatedBy    int64              `json:"created_by"`    // creator user identifier
+	TotalRows    int64              `json:"total_rows"`    // initial matching row count snapshot
+	ExportedRows int64              `json:"exported_rows"` // cumulative rows written to CSV
+	// FileName and FileSizeBytes describe the committed CSV artifact once Status
+	// reaches succeeded; internal store-relative keys remain hidden from clients.
+	FileName      *string    `json:"file_name,omitempty"`     // optional committed download filename
+	FileSizeBytes int64      `json:"file_size_bytes"`         // committed CSV byte size
+	ErrorMessage  *string    `json:"error_message,omitempty"` // optional recorded failure diagnostic
+	CanceledBy    *int64     `json:"canceled_by,omitempty"`   // optional canceling actor identifier
+	CanceledAt    *time.Time `json:"canceled_at,omitempty"`   // optional cancellation recording instant
+	StartedAt     *time.Time `json:"started_at,omitempty"`    // optional latest worker claim instant
+	FinishedAt    *time.Time `json:"finished_at,omitempty"`   // optional terminal completion instant
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`    // optional artifact expiration instant
+	CreatedAt     time.Time  `json:"created_at"`              // task creation recording instant
+	UpdatedAt     time.Time  `json:"updated_at"`              // latest task update instant
+}
+
+// UsageExportDownloadTicket carries a short-lived signed download token and its
+// streaming browser URL.
+type UsageExportDownloadTicket struct {
+	Ticket      string    `json:"ticket"`       // short-lived signed download token
+	DownloadURL string    `json:"download_url"` // relative streaming download path
+	ExpiresAt   time.Time `json:"expires_at"`   // UTC ticket expiration instant
 }

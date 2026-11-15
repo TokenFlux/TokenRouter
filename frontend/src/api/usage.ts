@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { buildApiUrl } from './url'
 import type {
   UsageLog,
   UsageQueryParams,
@@ -10,14 +11,17 @@ import type {
   UserErrorRequest,
   UserErrorRequestDetail,
   UserErrorListParams,
+  UsageExportTask,
+  UsageExportDownloadTicket,
+  CreateUserUsageExportTaskRequest,
 } from '@/api/usage.types'
 import type { PaginatedResponse } from '@/api/common.types'
 
 /**
- * usage.ts retrieves user usage records, dashboard aggregates and failed-request
- * details. Query helpers retain time, ownership and billing filters, while
- * statistics accept either a period string or query object and permit an
- * explicit API-key override.
+ * usage.ts retrieves user usage records, dashboard aggregates, failed-request
+ * details, and background CSV export tasks. Query helpers retain time, ownership,
+ * and billing filters, while export task helpers manage idempotent creation,
+ * progress polling, cancellation, and signed streaming downloads.
  */
 
 /**
@@ -367,8 +371,100 @@ export async function getMyErrorDetail(id: number): Promise<UserErrorRequestDeta
 }
 
 /**
- * usageAPI groups user usage records, rankings, dashboard summaries, and error
- * reads for callers using the module's named or default API object.
+ * buildExportIdempotencyKey generates a unique Idempotency-Key header value for
+ * export task creation requests when the caller omits an explicit replay key.
+ */
+export function buildExportIdempotencyKey(prefix = 'usage-export'): string {
+  const token =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `${prefix}-${token}`
+}
+
+/**
+ * listExportTasks retrieves paginated background CSV export tasks owned by the
+ * authenticated user. Callers may cancel in-flight polls via AbortSignal.
+ */
+export async function listExportTasks(
+  params: {
+    page?: number // Requested 1-based page number.
+    page_size?: number // Requested page size.
+  } = {},
+  options?: {
+    signal?: AbortSignal // Caller-owned cancellation signal.
+  },
+): Promise<PaginatedResponse<UsageExportTask>> {
+  const { data } = await apiClient.get<PaginatedResponse<UsageExportTask>>('/usage/export-tasks', {
+    params,
+    signal: options?.signal,
+  })
+  return data
+}
+
+/**
+ * createExportTask submits a user-scoped background CSV export task with an
+ * Idempotency-Key header so network retries do not enqueue duplicate jobs.
+ */
+export async function createExportTask(
+  payload: CreateUserUsageExportTaskRequest,
+  options?: {
+    idempotencyKey?: string // Optional caller-managed idempotency replay token.
+  },
+): Promise<UsageExportTask> {
+  const idempotencyKey = options?.idempotencyKey || buildExportIdempotencyKey('user-usage-export')
+  const { data } = await apiClient.post<UsageExportTask>('/usage/export-tasks', payload, {
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
+  return data
+}
+
+/**
+ * cancelExportTask cancels a pending or running user export task and returns its
+ * updated persisted task record.
+ */
+export async function cancelExportTask(taskId: number): Promise<UsageExportTask> {
+  const { data } = await apiClient.post<UsageExportTask>(`/usage/export-tasks/${taskId}/cancel`)
+  return data
+}
+
+/**
+ * createExportDownloadTicket exchanges an authenticated POST request for a
+ * 60-second signed streaming download URL targeting a succeeded user export task.
+ */
+export async function createExportDownloadTicket(
+  taskId: number,
+): Promise<UsageExportDownloadTicket> {
+  const { data } = await apiClient.post<UsageExportDownloadTicket>(
+    `/usage/export-tasks/${taskId}/download-ticket`,
+  )
+  return data
+}
+
+/**
+ * triggerExportDownloadUrl resolves a relative or absolute signed download URL
+ * against the configured API base and initiates a native browser file download
+ * without buffering CSV bytes in JavaScript memory.
+ */
+export function triggerExportDownloadUrl(downloadUrl: string, fileName?: string): string {
+  const href =
+    /^[a-z][a-z\d+.-]*:\/\//i.test(downloadUrl) || downloadUrl.startsWith('//')
+      ? downloadUrl
+      : buildApiUrl(downloadUrl)
+  if (typeof document !== 'undefined') {
+    const anchor = document.createElement('a')
+    anchor.href = href
+    anchor.download = fileName || ''
+    anchor.rel = 'noopener'
+    anchor.style.display = 'none'
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+  }
+  return href
+}
+
+/**
+ * usageAPI groups user usage records, rankings, dashboard summaries, error reads,
+ * and background export task endpoints for module consumers.
  */
 export const usageAPI = {
   query,
@@ -381,6 +477,11 @@ export const usageAPI = {
   getDashboardApiKeysUsage,
   listMyErrorRequests,
   getMyErrorDetail,
+  listExportTasks,
+  createExportTask,
+  cancelExportTask,
+  createExportDownloadTicket,
+  triggerExportDownloadUrl,
 }
 
 export default usageAPI

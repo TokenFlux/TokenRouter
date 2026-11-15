@@ -388,17 +388,18 @@ func TestProcessModes(t *testing.T) {
 			// Ops error workers stop before the system-log sink, and usage cleanup
 			// stops before dashboard aggregation; every listed stop follows HTTP
 			// and precedes Redis.
-			for _, name := range []string{"OpsMetricsCollector", "OpsAggregationService", "OpsAlertEvaluatorService", "OpsCleanupService", "OpsScheduledReportService", "OpsService", "OpsIngressRejectAggregator", "DashboardAggregationService", "UsageCleanupService", "AuditLogService", "OpsSystemLogSink"} {
+			for _, name := range []string{"OpsMetricsCollector", "OpsAggregationService", "OpsAlertEvaluatorService", "OpsCleanupService", "OpsScheduledReportService", "OpsService", "OpsIngressRejectAggregator", "DashboardAggregationService", "UsageCleanupService", "UsageExportService", "AuditLogService", "OpsSystemLogSink"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 			}
-			for _, name := range []string{"OpsWSRuntime", "OpsErrorLogWorkers", "UsageLogBatchers"} {
+			for _, name := range []string{"OpsWSRuntime", "OpsErrorLogWorkers", "UsageLogBatchers", "UsageExportArtifactStore"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 			}
+			require.Less(t, strings.Index(logs, "stopped UsageExportService"), strings.Index(logs, "stopped UsageExportArtifactStore"))
 			require.Less(t, strings.Index(logs, "stopped UsageCleanupService"), strings.Index(logs, "stopped DashboardAggregationService"))
 			require.Less(t, strings.Index(logs, "stopped OpsErrorLogWorkers"), strings.Index(logs, "stopped OpsSystemLogSink"))
 

@@ -52,6 +52,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintprofile"
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
 	"github.com/TokenFlux/TokenRouter/ent/usagecleanuptask"
+	"github.com/TokenFlux/TokenRouter/ent/usageexporttask"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/userallowedgroup"
@@ -142,6 +143,8 @@ type Client struct {
 	TeamOwnershipTransfer *TeamOwnershipTransferClient
 	// UsageCleanupTask is the client for interacting with the UsageCleanupTask builders.
 	UsageCleanupTask *UsageCleanupTaskClient
+	// UsageExportTask is the client for interacting with the UsageExportTask builders.
+	UsageExportTask *UsageExportTaskClient
 	// UsageLog is the client for interacting with the UsageLog builders.
 	UsageLog *UsageLogClient
 	// User is the client for interacting with the User builders.
@@ -204,6 +207,7 @@ func (c *Client) init() {
 	c.TeamMembership = NewTeamMembershipClient(c.config)
 	c.TeamOwnershipTransfer = NewTeamOwnershipTransferClient(c.config)
 	c.UsageCleanupTask = NewUsageCleanupTaskClient(c.config)
+	c.UsageExportTask = NewUsageExportTaskClient(c.config)
 	c.UsageLog = NewUsageLogClient(c.config)
 	c.User = NewUserClient(c.config)
 	c.UserAllowedGroup = NewUserAllowedGroupClient(c.config)
@@ -340,6 +344,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		TeamMembership:           NewTeamMembershipClient(cfg),
 		TeamOwnershipTransfer:    NewTeamOwnershipTransferClient(cfg),
 		UsageCleanupTask:         NewUsageCleanupTaskClient(cfg),
+		UsageExportTask:          NewUsageExportTaskClient(cfg),
 		UsageLog:                 NewUsageLogClient(cfg),
 		User:                     NewUserClient(cfg),
 		UserAllowedGroup:         NewUserAllowedGroupClient(cfg),
@@ -403,6 +408,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		TeamMembership:           NewTeamMembershipClient(cfg),
 		TeamOwnershipTransfer:    NewTeamOwnershipTransferClient(cfg),
 		UsageCleanupTask:         NewUsageCleanupTaskClient(cfg),
+		UsageExportTask:          NewUsageExportTaskClient(cfg),
 		UsageLog:                 NewUsageLogClient(cfg),
 		User:                     NewUserClient(cfg),
 		UserAllowedGroup:         NewUserAllowedGroupClient(cfg),
@@ -448,8 +454,8 @@ func (c *Client) Use(hooks ...Hook) {
 		c.Provider, c.ProviderGroup, c.Proxy, c.RedeemCode, c.RedeemCodeUsage,
 		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
 		c.TLSFingerprintRouter, c.Team, c.TeamInvitation, c.TeamMembership,
-		c.TeamOwnershipTransfer, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.TeamOwnershipTransfer, c.UsageCleanupTask, c.UsageExportTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserDisabledPublicGroup, c.UserSubscription,
 	} {
 		n.Use(hooks...)
@@ -469,8 +475,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.Provider, c.ProviderGroup, c.Proxy, c.RedeemCode, c.RedeemCodeUsage,
 		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
 		c.TLSFingerprintRouter, c.Team, c.TeamInvitation, c.TeamMembership,
-		c.TeamOwnershipTransfer, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.TeamOwnershipTransfer, c.UsageCleanupTask, c.UsageExportTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserDisabledPublicGroup, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
@@ -554,6 +560,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.TeamOwnershipTransfer.mutate(ctx, m)
 	case *UsageCleanupTaskMutation:
 		return c.UsageCleanupTask.mutate(ctx, m)
+	case *UsageExportTaskMutation:
+		return c.UsageExportTask.mutate(ctx, m)
 	case *UsageLogMutation:
 		return c.UsageLog.mutate(ctx, m)
 	case *UserMutation:
@@ -6367,6 +6375,139 @@ func (c *UsageCleanupTaskClient) mutate(ctx context.Context, m *UsageCleanupTask
 	}
 }
 
+// UsageExportTaskClient is a client for the UsageExportTask schema.
+type UsageExportTaskClient struct {
+	config
+}
+
+// NewUsageExportTaskClient returns a client for the UsageExportTask from the given config.
+func NewUsageExportTaskClient(c config) *UsageExportTaskClient {
+	return &UsageExportTaskClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `usageexporttask.Hooks(f(g(h())))`.
+func (c *UsageExportTaskClient) Use(hooks ...Hook) {
+	c.hooks.UsageExportTask = append(c.hooks.UsageExportTask, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `usageexporttask.Intercept(f(g(h())))`.
+func (c *UsageExportTaskClient) Intercept(interceptors ...Interceptor) {
+	c.inters.UsageExportTask = append(c.inters.UsageExportTask, interceptors...)
+}
+
+// Create returns a builder for creating a UsageExportTask entity.
+func (c *UsageExportTaskClient) Create() *UsageExportTaskCreate {
+	mutation := newUsageExportTaskMutation(c.config, OpCreate)
+	return &UsageExportTaskCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of UsageExportTask entities.
+func (c *UsageExportTaskClient) CreateBulk(builders ...*UsageExportTaskCreate) *UsageExportTaskCreateBulk {
+	return &UsageExportTaskCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *UsageExportTaskClient) MapCreateBulk(slice any, setFunc func(*UsageExportTaskCreate, int)) *UsageExportTaskCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &UsageExportTaskCreateBulk{err: fmt.Errorf("calling to UsageExportTaskClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*UsageExportTaskCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &UsageExportTaskCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for UsageExportTask.
+func (c *UsageExportTaskClient) Update() *UsageExportTaskUpdate {
+	mutation := newUsageExportTaskMutation(c.config, OpUpdate)
+	return &UsageExportTaskUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *UsageExportTaskClient) UpdateOne(_m *UsageExportTask) *UsageExportTaskUpdateOne {
+	mutation := newUsageExportTaskMutation(c.config, OpUpdateOne, withUsageExportTask(_m))
+	return &UsageExportTaskUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *UsageExportTaskClient) UpdateOneID(id int64) *UsageExportTaskUpdateOne {
+	mutation := newUsageExportTaskMutation(c.config, OpUpdateOne, withUsageExportTaskID(id))
+	return &UsageExportTaskUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for UsageExportTask.
+func (c *UsageExportTaskClient) Delete() *UsageExportTaskDelete {
+	mutation := newUsageExportTaskMutation(c.config, OpDelete)
+	return &UsageExportTaskDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *UsageExportTaskClient) DeleteOne(_m *UsageExportTask) *UsageExportTaskDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *UsageExportTaskClient) DeleteOneID(id int64) *UsageExportTaskDeleteOne {
+	builder := c.Delete().Where(usageexporttask.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &UsageExportTaskDeleteOne{builder}
+}
+
+// Query returns a query builder for UsageExportTask.
+func (c *UsageExportTaskClient) Query() *UsageExportTaskQuery {
+	return &UsageExportTaskQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeUsageExportTask},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a UsageExportTask entity by its id.
+func (c *UsageExportTaskClient) Get(ctx context.Context, id int64) (*UsageExportTask, error) {
+	return c.Query().Where(usageexporttask.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *UsageExportTaskClient) GetX(ctx context.Context, id int64) *UsageExportTask {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *UsageExportTaskClient) Hooks() []Hook {
+	return c.hooks.UsageExportTask
+}
+
+// Interceptors returns the client interceptors.
+func (c *UsageExportTaskClient) Interceptors() []Interceptor {
+	return c.inters.UsageExportTask
+}
+
+func (c *UsageExportTaskClient) mutate(ctx context.Context, m *UsageExportTaskMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&UsageExportTaskCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&UsageExportTaskUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&UsageExportTaskUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&UsageExportTaskDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown UsageExportTask mutation op: %q", m.Op())
+	}
+}
+
 // UsageLogClient is a client for the UsageLog schema.
 type UsageLogClient struct {
 	config
@@ -7761,8 +7902,8 @@ type (
 		Provider, ProviderGroup, Proxy, RedeemCode, RedeemCodeUsage, SecuritySecret,
 		Setting, SubscriptionPlan, TLSFingerprintProfile, TLSFingerprintRouter, Team,
 		TeamInvitation, TeamMembership, TeamOwnershipTransfer, UsageCleanupTask,
-		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserDisabledPublicGroup, UserSubscription []ent.Hook
+		UsageExportTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserDisabledPublicGroup, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, APIKeyCompositeGroup, Announcement, AnnouncementRead, AuthIdentity,
@@ -7773,8 +7914,8 @@ type (
 		Provider, ProviderGroup, Proxy, RedeemCode, RedeemCodeUsage, SecuritySecret,
 		Setting, SubscriptionPlan, TLSFingerprintProfile, TLSFingerprintRouter, Team,
 		TeamInvitation, TeamMembership, TeamOwnershipTransfer, UsageCleanupTask,
-		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserDisabledPublicGroup, UserSubscription []ent.Interceptor
+		UsageExportTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserDisabledPublicGroup, UserSubscription []ent.Interceptor
 	}
 )
 

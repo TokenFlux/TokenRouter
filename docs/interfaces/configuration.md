@@ -104,6 +104,10 @@ database:
 
 `request_log.retention_days` 控制请求摘要保留天数，默认 30。内存批写、失败处理和关闭排空见[请求 ID 与请求查询](../operations/request_lookup.md#request_storage)。
 
+### 使用记录导出
+
+`usage.export_tasks` 是需要重启生效的进程配置，控制后台使用记录 CSV 导出的开关、本地目录、保留期、活动任务配额和游标扫描参数。`enabled` 默认 `true`，`retention_hours` 默认 `24` 小时；普通用户与管理员的未完成任务（`pending` 与 `running`）上限分别由 `max_active_per_user`（默认 `2`）和 `max_active_per_admin`（默认 `5`）限定，单批游标扫描 `batch_size` 默认 `2000`，`worker_concurrency` 默认 `2`，`worker_interval_seconds` 默认 `10`，单任务超时 `task_timeout_seconds` 默认 `3600`。`dir` 显式值优先；留空时依次取 `DATA_DIR/exports/usage`、`storage.dir/exports/usage` 或 `./data/exports/usage`。
+
 ### 插件运行时
 
 `plugins` 是需要重启生效的进程配置。`enabled` 默认 true，`max_running` 默认 20；`dev_mode` 默认 false，只有显式开启后才读取 `dev_dirs`。开发目录中的代码按 manifest 授予权限，不使用正式安装的二进制摘要校验。`enabled=false` 不启动插件进程或 KV 维护，贡献 API、UI 描述和资源路由返回 503 `PLUGINS_DISABLED`；管理员仍可查看和卸载。

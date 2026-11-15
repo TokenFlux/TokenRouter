@@ -1,13 +1,21 @@
 import { apiClient } from '../client'
-import type { AdminUsageLog, UsageQueryParams, UsageRequestType } from '@/api/usage.types'
+import { buildExportIdempotencyKey } from '../usage'
+import type {
+  AdminUsageLog,
+  CreateAdminUsageExportTaskRequest,
+  EndpointStat,
+  UsageExportDownloadTicket,
+  UsageExportTask,
+  UsageQueryParams,
+  UsageRequestType,
+} from '@/api/usage.types'
 import type { PaginatedResponse } from '@/api/common.types'
-import type { EndpointStat } from '@/api/usage.types'
 
 /**
- * usage.ts retrieves administrator usage records and manages cleanup tasks.
- * Query types retain ownership, billing and request-mode filters, while cleanup
- * creation and cancellation return task state; user and API-key search endpoints
- * supply compact selector records.
+ * usage.ts retrieves administrator usage records and manages cleanup and
+ * background CSV export tasks. Query types retain ownership, billing, and
+ * request-mode filters, while task endpoints expose idempotent creation,
+ * progress polling, cancellation, and signed streaming ticket exchange.
  */
 
 /**
@@ -262,8 +270,72 @@ export async function cancelCleanupTask(taskId: number): Promise<{
 }
 
 /**
- * adminUsageAPI groups usage records, summary queries and cleanup jobs for
- * callers using the module's named or default API object.
+ * listExportTasks lists administrator-scoped background CSV export tasks ordered
+ * newest first. Callers may cancel in-flight polls via AbortSignal.
+ */
+export async function listExportTasks(
+  params: {
+    page?: number // Requested 1-based page number.
+    page_size?: number // Requested page size.
+  } = {},
+  options?: {
+    signal?: AbortSignal // Caller-owned cancellation signal.
+  },
+): Promise<PaginatedResponse<UsageExportTask>> {
+  const { data } = await apiClient.get<PaginatedResponse<UsageExportTask>>(
+    '/admin/usage/export-tasks',
+    {
+      params,
+      signal: options?.signal,
+    },
+  )
+  return data
+}
+
+/**
+ * createExportTask submits an administrator background CSV export task with an
+ * Idempotency-Key header so network retries do not create duplicate tasks.
+ */
+export async function createExportTask(
+  payload: CreateAdminUsageExportTaskRequest,
+  options?: {
+    idempotencyKey?: string // Optional caller-managed idempotency replay token.
+  },
+): Promise<UsageExportTask> {
+  const idempotencyKey = options?.idempotencyKey || buildExportIdempotencyKey('admin-usage-export')
+  const { data } = await apiClient.post<UsageExportTask>('/admin/usage/export-tasks', payload, {
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
+  return data
+}
+
+/**
+ * cancelExportTask cancels a pending or running administrator export task and
+ * returns its updated persisted task record.
+ */
+export async function cancelExportTask(taskId: number): Promise<UsageExportTask> {
+  const { data } = await apiClient.post<UsageExportTask>(
+    `/admin/usage/export-tasks/${taskId}/cancel`,
+  )
+  return data
+}
+
+/**
+ * createExportDownloadTicket exchanges an authenticated POST request for a
+ * 60-second signed streaming download URL targeting an administrator export task.
+ */
+export async function createExportDownloadTicket(
+  taskId: number,
+): Promise<UsageExportDownloadTicket> {
+  const { data } = await apiClient.post<UsageExportDownloadTicket>(
+    `/admin/usage/export-tasks/${taskId}/download-ticket`,
+  )
+  return data
+}
+
+/**
+ * adminUsageAPI groups usage records, summary queries, cleanup jobs, and
+ * background CSV export task endpoints for administrator callers.
  */
 export const adminUsageAPI = {
   list,
@@ -273,6 +345,10 @@ export const adminUsageAPI = {
   listCleanupTasks,
   createCleanupTask,
   cancelCleanupTask,
+  listExportTasks,
+  createExportTask,
+  cancelExportTask,
+  createExportDownloadTicket,
 }
 
 export default adminUsageAPI

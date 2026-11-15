@@ -20,5 +20,6 @@
 //   - api_key_dashboard_analytics.go and key_totals.go read key dashboard metrics
 //     and retained usage totals.
 //   - usage_cleanup_repo.go persists cleanup tasks and deletes analytical rows.
+//   - usage_export_repo.go persists export tasks, worker claims, and expiry state.
 //   - support.go delegates SQL helpers and owning-module display conversions.
 package postgres

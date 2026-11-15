@@ -175,8 +175,8 @@ export default defineConfig(({ mode }) => {
                       return 'vendor-vue'
                     }
 
-                    // Reused browser utilities and spreadsheet exports share the UI vendor group.
-                    if (id.includes('/@vueuse/') || id.includes('/xlsx/')) {
+                    // Reused browser composition utilities share the UI vendor group.
+                    if (id.includes('/@vueuse/')) {
                       return 'vendor-ui'
                     }
 

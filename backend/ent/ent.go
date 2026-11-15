@@ -49,6 +49,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintprofile"
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
 	"github.com/TokenFlux/TokenRouter/ent/usagecleanuptask"
+	"github.com/TokenFlux/TokenRouter/ent/usageexporttask"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/userallowedgroup"
@@ -153,6 +154,7 @@ func checkColumn(t, c string) error {
 			teammembership.Table:           teammembership.ValidColumn,
 			teamownershiptransfer.Table:    teamownershiptransfer.ValidColumn,
 			usagecleanuptask.Table:         usagecleanuptask.ValidColumn,
+			usageexporttask.Table:          usageexporttask.ValidColumn,
 			usagelog.Table:                 usagelog.ValidColumn,
 			user.Table:                     user.ValidColumn,
 			userallowedgroup.Table:         userallowedgroup.ValidColumn,

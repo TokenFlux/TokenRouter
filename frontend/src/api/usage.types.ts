@@ -3,10 +3,11 @@ import type { ApiKey } from '@/api/keys.types'
 import type { Group } from '@/api/groups.types'
 import type { UserSubscription } from '@/api/subscriptions.types'
 
-// usage.types.ts describes request usage, failure records, and aggregated consumption
-// reports. Timing fields distinguish stage durations from offsets measured at request
-// ingress, and optional observations remain absent when historical records did not
-// collect the corresponding measurement.
+// usage.types.ts describes request usage, failure records, aggregated consumption
+// reports, and background CSV export task contracts. Timing fields distinguish stage
+// durations from offsets measured at request ingress, optional observations remain
+// absent when historical records lack measurements, and export task models capture
+// half-open second-precision time bounds with explicit IANA timezones.
 
 // UsageRequestType identifies the transport or execution mode recorded for a request.
 export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber' | 'live'
@@ -336,4 +337,98 @@ export interface UsageQueryParams {
   timezone?: string // IANA timezone name.
   sort_by?: string // Server sorting field.
   sort_order?: 'asc' | 'desc' // Server sorting direction.
+}
+
+// UsageExportScope identifies whether an export task belongs to a regular user or an administrator.
+export type UsageExportScope = 'user' | 'admin'
+
+// UsageExportTaskStatus enumerates persisted lifecycle states for background CSV export tasks.
+export type UsageExportTaskStatus =
+  'pending' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'expired'
+
+// UsageExportFilters snapshots the half-open time window, IANA timezone, locale, and
+// query selectors persisted on a background CSV export task.
+export interface UsageExportFilters {
+  // start_time and end_time define the persisted half-open [start_time, end_time)
+  // interval matched against usage_logs.created_at.
+  start_time: string // Inclusive export start RFC3339 timestamp.
+  end_time: string // Exclusive export end RFC3339 timestamp.
+  timezone: string // Validated IANA timezone identifier.
+  locale?: string // Normalized zh or en CSV header locale.
+  balance_unit_name?: string // Snapshotted user charge currency unit label.
+  // request_source, user_id, and provider_id appear only on administrator-scoped tasks.
+  request_source?: string // Administrator customer or system source selector.
+  user_id?: number // Administrator owning user selector.
+  api_key_id?: number // API key record selector.
+  provider_id?: number // Administrator upstream provider selector.
+  group_id?: number // Routing group record selector.
+  team_id?: number // Team record selector.
+  personal_only?: boolean // Restricts export to personal non-team usage.
+  request_id?: string // Canonical local or upstream request identifier.
+  model?: string // Requested or mapped model selector.
+  model_filter_source?: string // Model dimension: requested, upstream, or mapping.
+  request_type?: UsageRequestType // Normalized request execution category.
+  stream?: boolean // Legacy streaming request selector.
+  native_compaction_v2?: boolean // Remote compaction v2 activation selector.
+  billing_type?: number // Funding category selector.
+  billing_mode?: string // Pricing mode selector.
+}
+
+// UsageExportTask describes a persisted background CSV export job, its row progress,
+// and its downloadable file metadata.
+export interface UsageExportTask {
+  id: number // Persisted export task identifier.
+  scope: UsageExportScope // Authorization scope: user or admin.
+  status: UsageExportTaskStatus // Current lifecycle status.
+  filters: UsageExportFilters // Snapshotted time window and query filters.
+  created_by: number // Initiating actor user identifier.
+  total_rows: number // Initial matching row count snapshot.
+  exported_rows: number // Cumulative rows written to the CSV artifact.
+  file_name?: string // Download attachment filename once succeeded.
+  file_size_bytes: number // Committed CSV file byte length.
+  error_message?: string // Recorded diagnostic message when status is failed.
+  canceled_by?: number // Canceling actor user identifier.
+  canceled_at?: string // Cancellation recording RFC3339 timestamp.
+  started_at?: string // Worker claim RFC3339 timestamp.
+  finished_at?: string // Terminal completion RFC3339 timestamp.
+  expires_at?: string // Artifact retention expiration RFC3339 timestamp.
+  created_at: string // Task creation RFC3339 timestamp.
+  updated_at: string // Latest state update RFC3339 timestamp.
+}
+
+// UsageExportDownloadTicket carries a short-lived signed download token and streaming URL.
+export interface UsageExportDownloadTicket {
+  ticket: string // Signed 60-second HMAC download token.
+  download_url: string // Relative public streaming download path.
+  expires_at: string // Ticket expiration RFC3339 timestamp.
+}
+
+// CreateUserUsageExportTaskRequest defines the user-scoped background export creation payload.
+export interface CreateUserUsageExportTaskRequest {
+  // start_time and end_time accept RFC3339 or offset-free YYYY-MM-DDTHH:mm:ss bounds
+  // interpreted as [start_time, end_time) in timezone.
+  start_time: string // Required inclusive start timestamp.
+  end_time: string // Required exclusive end timestamp.
+  timezone: string // Required IANA timezone identifier.
+  locale?: string // Optional zh or en CSV header locale.
+  api_key_id?: number // Optional API key selector.
+  group_id?: number // Optional routing group selector.
+  team_id?: number // Optional team selector.
+  personal_only?: boolean // Restricts export to personal non-team usage.
+  request_id?: string // Optional canonical request identifier.
+  model?: string // Optional requested model selector.
+  request_type?: UsageRequestType // Optional request execution mode.
+  stream?: boolean // Optional legacy streaming flag.
+  native_compaction_v2?: boolean // Optional remote compaction v2 flag.
+  billing_type?: number // Optional funding category selector.
+  billing_mode?: string // Optional pricing mode selector.
+}
+
+// CreateAdminUsageExportTaskRequest extends export creation with administrator ownership
+// and upstream routing selectors.
+export interface CreateAdminUsageExportTaskRequest extends CreateUserUsageExportTaskRequest {
+  request_source?: string // Optional customer or system request source.
+  user_id?: number // Optional acting user selector.
+  provider_id?: number // Optional upstream provider selector.
+  model_filter_source?: 'requested' | 'upstream' | 'mapping' // Optional model matching dimension.
 }

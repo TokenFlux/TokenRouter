@@ -107,13 +107,13 @@
           :mode="activeTab"
           :start-date="startDate"
           :end-date="endDate"
-          :exporting="exporting"
+          :active-export-count="activeExportCount"
           :model-options="modelNameOptions"
           @change="applyFilters"
           @refresh="refreshData"
           @reset="resetFilters"
           @cleanup="openCleanupDialog"
-          @export="exportToExcel"
+          @export="openExportDialog"
         >
           <template #after-reset>
             <IpGeoBatchToolbar
@@ -238,13 +238,16 @@
       />
     </div>
   </AppLayout>
-  <UsageExportProgress
-    :show="exportProgress.show"
-    :progress="exportProgress.progress"
-    :current="exportProgress.current"
-    :total="exportProgress.total"
-    :estimated-time="exportProgress.estimatedTime"
-    @cancel="cancelExport"
+  <UsageExportDialog
+    :show="showExportDialog"
+    mode="admin"
+    :start-date="startDate"
+    :end-date="endDate"
+    :filters="filters"
+    :filter-labels="exportFilterLabels"
+    @close="showExportDialog = false"
+    @tasks-changed="handleDialogTasksChanged"
+    @active-ids-changed="handleDialogActiveIdsChanged"
   />
   <UsageCleanupDialog
     :show="cleanupDialogVisible"
@@ -266,21 +269,17 @@
 </template>
 
 <script setup lang="ts">
-import { formatRequestTimingForExport } from '@/utils/requestTiming'
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import { vContentReveal } from '@/directives/contentReveal'
 
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { saveAs } from 'file-saver'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import { adminUsageAPI } from '@/api/admin/usage'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
-import { formatReasoningEffort } from '@/utils/format'
-import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
-import { calculateUsageTps } from '@/utils/usageTps'
+import { useUsageExportIndicator } from '@/composables/useUsageExportIndicator'
+import { requestTypeToLegacyStream } from '@/utils/usageRequestType'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
@@ -288,7 +287,7 @@ import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'
 import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
-import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
+import UsageExportDialog from '@/components/usage/UsageExportDialog.vue'
 import IpGeoBatchToolbar from '@/components/common/IpGeoBatchToolbar.vue'
 import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
@@ -302,7 +301,6 @@ import GroupDistributionChart from '@/components/charts/GroupDistributionChart.v
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type {
   AdminUsageLog,
   TrendDataPoint,
@@ -312,11 +310,12 @@ import type {
 } from '@/api/usage.types'
 import type { AdminUser } from '@/api/admin/users.types'
 import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
+import type { UsageExportFilterLabel } from '@/types/ui'
 
 // UsageView.vue loads administrator usage records, summaries, distributions, and error
 // views under shared filters. Request-ID list and summary queries omit date predicates,
-// while chart visibility follows that search mode. The administrator export owns provider
-// fields and serializes every requested page into a workbook.
+// while chart visibility follows that search mode. Exporting opens UsageExportDialog with
+// inherited date bounds and filter chips to manage background CSV tasks.
 //
 // Lists use cancellation ownership; model, summary, chart, and raw endpoint loaders also
 // use sequence checks where their responses can overlap. Raw endpoint caches and
@@ -328,8 +327,6 @@ import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin
 // Translation and application notifications provide labels and request feedback for usage
 // records, filters, and export actions.
 const { t } = useI18n()
-// Export headers identify account charges and standard costs with their respective units.
-const { balanceUnitName, usdUnitName } = useBalanceDisplay()
 const appStore = useAppStore()
 // DistributionMetric selects token count or actual charge for distribution charts.
 type DistributionMetric = 'tokens' | 'actual_cost'
@@ -345,10 +342,13 @@ const route = useRoute()
 // distribution responses used by charts.
 const usageStats = ref<AdminUsageStatsResponse | null>(null)
 const usageLogs = ref<AdminUsageLog[]>([])
-// Loading flags distinguish the records table, chart requests, and export operation so each
-// section can render its own progress.
+// Loading flags distinguish the records table and chart requests so each section can render
+// its own progress while showExportDialog coordinates background CSV export tasks.
 const loading = ref(false)
-const exporting = ref(false)
+const showExportDialog = ref(false)
+const exportFilterLabels = ref<UsageExportFilterLabel[]>([])
+const { activeExportCount, handleDialogTasksChanged, handleDialogActiveIdsChanged } =
+  useUsageExportIndicator('admin', showExportDialog)
 const trendData = ref<TrendDataPoint[]>([])
 const requestedModelStats = ref<ModelStat[]>([])
 const upstreamModelStats = ref<ModelStat[]>([])
@@ -390,29 +390,19 @@ const endpointStatsLoading = computed(() =>
 // loadedRawEndpoints marks reusable upstream and path results; summary reloads clear both
 // flags before fetching the active raw source.
 const loadedRawEndpoints = reactive({ upstream: false, path: false })
-// Endpoint request ownership combines a sequence with a controller, while export and
-// summary controllers own their separate requests.
+// Endpoint request ownership combines a sequence with a controller, while list and summary
+// controllers own their separate requests.
 let endpointReqSeq = 0
 let endpointAbortController: AbortController | null = null
 // abortController owns the latest usage-list request; sequence counters independently
 // identify current statistics and chart requests.
 let abortController: AbortController | null = null
-let exportAbortController: AbortController | null = null
 // Chart and summary sequences reject superseded responses independently; modelStatsReqSeq
 // governs the selected model-source request.
 let chartReqSeq = 0
 let statsReqSeq = 0
 let statsAbortController: AbortController | null = null
 let modelStatsReqSeq = 0
-// Export progress holds dialog visibility, percentage, processed rows, expected total, and
-// an optional formatted remaining-time estimate.
-const exportProgress = reactive({
-  show: false,
-  progress: 0,
-  current: 0,
-  total: 0,
-  estimatedTime: '',
-})
 // cleanupDialogVisible controls the separate cleanup dialog that copies the current
 // selection when it opens.
 const cleanupDialogVisible = ref(false)
@@ -528,8 +518,8 @@ const endDate = ref(defaultRange.end)
 // it returns an empty override object so the existing selected dates remain in the query.
 const requestDateParams = () =>
   filters.value.request_id ? { start_date: undefined, end_date: undefined } : {}
-// filters owns the mutable usage query selection; page changes and exports combine these
-// values with sorting and paging.
+// filters owns the mutable usage query selection; page changes combine these values with
+// sorting and paging, while background exports inherit active predicates.
 const filters = ref<AdminUsageQueryParams>({
   user_id: undefined,
   model: undefined,
@@ -543,8 +533,7 @@ const filters = ref<AdminUsageQueryParams>({
 // pagination holds the current one-based page, persisted page size, and most recently
 // returned matching-record total.
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
-// sortState holds the server sort column and direction used consistently by displayed pages
-// and exports.
+// sortState holds the server sort column and direction used by displayed usage pages.
 const sortState = reactive({
   sort_by: 'created_at',
   sort_order: 'desc' as 'asc' | 'desc',
@@ -997,187 +986,15 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 const handleIpGeoBatchFailed = () => {
   appStore.showError(t('usage.ipGeo.batchFailed'))
 }
-// cancelExport requests cancellation through the current workbook export controller.
-// With no controller it has no effect; the export flow owns request settlement,
-// progress cleanup, and releasing its controller.
-const cancelExport = () => exportAbortController?.abort()
+// openExportDialog snapshots resolved filter labels from UsageFilters and opens the
+// background CSV export dialog.
+const openExportDialog = () => {
+  exportFilterLabels.value = usageFiltersRef.value?.getFilterSummaryLabels?.() ?? []
+  showExportDialog.value = true
+}
 // openCleanupDialog opens the cleanup task editor with the current page filters.
 const openCleanupDialog = () => {
   cleanupDialogVisible.value = true
-}
-// getRequestTypeLabel translates the canonical usage request mode after legacy resolution.
-// Unrecognized modes produce the unknown label so exported rows retain an explicit
-// request-type cell for incomplete records.
-const getRequestTypeLabel = (log: AdminUsageLog): string => {
-  const requestType = resolveUsageRequestType(log)
-  if (requestType === 'cyber') return t('usage.cyber')
-  if (requestType === 'live') return t('usage.live')
-  if (requestType === 'ws_v2') return t('usage.ws')
-  if (requestType === 'stream') return t('usage.stream')
-  if (requestType === 'sync') return t('usage.sync')
-  return t('usage.unknown')
-}
-
-// exportToExcel retrieves filtered usage pages and writes an administrator workbook. A
-// running export blocks another start, and its controller supports cancellation while pages
-// are being fetched.
-//
-// The first page establishes the expected total; each appended batch advances row counts
-// and sets numeric TPS precision on the corresponding spreadsheet cells. Administrator
-// columns retain provider costs, upstream identities, and diagnostic timing separately from
-// user charges, with monetary units in column headers. Cancellation skips saving, and
-// final cleanup releases progress only when
-// the controller still belongs to this export.
-const exportToExcel = async () => {
-  if (exporting.value) return
-  exporting.value = true
-  exportProgress.show = true
-  const c = new AbortController()
-  exportAbortController = c
-  try {
-    let p = 1
-    let total = pagination.total
-    let exportedCount = 0
-    const XLSX = await import('xlsx')
-    const headers = [
-      t('usage.time'),
-      t('admin.usage.user'),
-      t('usage.apiKeyFilter'),
-      t('admin.usage.provider'),
-      t('usage.model'),
-      t('usage.upstreamModel'),
-      t('usage.upstreamResponseModel'),
-      t('usage.upstreamModelMismatch'),
-      t('usage.requestedReasoningEffort'),
-      t('usage.reasoningEffort'),
-      t('admin.usage.group'),
-      t('usage.inboundEndpoint'),
-      t('usage.upstreamEndpoint'),
-      t('usage.type'),
-      t('admin.usage.inputTokens'),
-      t('admin.usage.outputTokens'),
-      t('admin.usage.cacheReadTokens'),
-      t('admin.usage.cacheCreationTokens'),
-      `${t('admin.usage.inputCost')} (${usdUnitName})`,
-      `${t('admin.usage.outputCost')} (${usdUnitName})`,
-      `${t('admin.usage.cacheReadCost')} (${usdUnitName})`,
-      `${t('admin.usage.cacheCreationCost')} (${usdUnitName})`,
-      t('usage.rate'),
-      t('usage.providerMultiplier'),
-      `${t('usage.original')} (${usdUnitName})`,
-      `${t('usage.userBilled')} (${balanceUnitName.value})`,
-      `${t('usage.providerBilled')} (${usdUnitName})`,
-      t('usage.firstToken'),
-      t('usage.ttftMode'),
-      t('usage.duration'),
-      t('usage.tpsExport'),
-      t('usage.detailedTiming'),
-      t('admin.usage.requestId'),
-      t('admin.usage.upstreamRequestId'),
-      t('admin.usage.requestSource'),
-      t('admin.usage.costStatus'),
-      t('usage.userAgent'),
-      t('admin.usage.ipAddress'),
-    ]
-    const ws = XLSX.utils.aoa_to_sheet([headers])
-    const tpsColumn = headers.indexOf(t('usage.tpsExport'))
-    while (true) {
-      const res = await adminUsageAPI.list(buildUsageListParams(p, 100, true), { signal: c.signal })
-      if (c.signal.aborted) break
-      if (p === 1) {
-        total = res.total
-        exportProgress.total = total
-      }
-      const rows = (res.items || []).map((log: AdminUsageLog) => [
-        log.created_at,
-        log.user?.email || '',
-        log.api_key?.name || '',
-        log.provider?.name || '',
-        log.model,
-        log.upstream_model || '',
-        log.upstream_response_model || '',
-        log.upstream_model_mismatch == null
-          ? ''
-          : t(log.upstream_model_mismatch ? 'common.yes' : 'common.no'),
-        formatReasoningEffort(log.requested_reasoning_effort || log.reasoning_effort),
-        formatReasoningEffort(log.reasoning_effort),
-        log.group?.name || '',
-        log.inbound_endpoint || '',
-        log.upstream_endpoint || '',
-        getRequestTypeLabel(log),
-        log.input_tokens,
-        log.output_tokens,
-        log.cache_read_tokens,
-        log.cache_creation_tokens,
-        log.input_cost?.toFixed(6) || '0.000000',
-        log.output_cost?.toFixed(6) || '0.000000',
-        log.cache_read_cost?.toFixed(6) || '0.000000',
-        log.cache_creation_cost?.toFixed(6) || '0.000000',
-        log.rate_multiplier?.toPrecision(4) || '1.00',
-        (log.provider_rate_multiplier ?? 1).toPrecision(4),
-        log.total_cost?.toFixed(6) || '0.000000',
-        log.actual_cost?.toFixed(6) || '0.000000',
-        log.system_usage?.cost_state === 'unknown'
-          ? ''
-          : (
-              (log.provider_stats_cost ?? log.total_cost) * (log.provider_rate_multiplier ?? 1)
-            ).toFixed(6),
-        log.ttft_ms ?? '',
-        log.ttft_mode === 'first_event'
-          ? t('usage.latencyFirstEvent')
-          : log.ttft_mode === 'first_output'
-            ? t('usage.latencyFirstToken')
-            : '',
-        log.duration_ms,
-        calculateUsageTps(log) ?? '',
-        formatRequestTimingForExport(log.detailed_timing),
-        log.request_id || '',
-        log.upstream_request_id || '',
-        t(`admin.usage.requestSources.${log.request_source || 'user'}`),
-        log.system_usage?.cost_state || '',
-        log.user_agent || '',
-        log.ip_address || '',
-      ])
-      if (rows.length) {
-        XLSX.utils.sheet_add_aoa(ws, rows, { origin: -1 })
-        // Apply display precision after appending each batch so TPS cells retain
-        // numeric values usable by spreadsheet calculations.
-        for (let index = 0; index < rows.length; index++) {
-          const cell = ws[XLSX.utils.encode_cell({ r: exportedCount + index + 1, c: tpsColumn })]
-          if (cell?.t === 'n') cell.z = '0.0'
-        }
-      }
-      exportedCount += rows.length
-      exportProgress.current = exportedCount
-      // Show rounded progress capped at a completed percentage.
-      exportProgress.progress =
-        total > 0 ? Math.min(100, Math.round((exportedCount / total) * 100)) : 0
-      if (exportedCount >= total || res.items.length < 100) break
-      p++
-    }
-    if (!c.signal.aborted) {
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Usage')
-      saveAs(
-        new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        }),
-        `usage_${filters.value.start_date}_to_${filters.value.end_date}.xlsx`,
-      )
-      appStore.showSuccess(t('usage.exportSuccess'))
-    }
-  } catch (error) {
-    // An export rejection reports failure and skips workbook saving; controller-owned
-    // cleanup still releases the progress dialog for subsequent attempts.
-    console.error('Failed to export:', error)
-    appStore.showError('Export Failed')
-  } finally {
-    if (exportAbortController === c) {
-      exportAbortController = null
-      exporting.value = false
-      exportProgress.show = false
-    }
-  }
 }
 
 // Usage column constants define mandatory fields, default hidden choices, and the browser
@@ -1520,7 +1337,6 @@ onUnmounted(() => {
   statsAbortController?.abort()
   endpointAbortController?.abort()
   abortController?.abort()
-  exportAbortController?.abort()
   document.removeEventListener('click', handleColumnClickOutside)
 })
 

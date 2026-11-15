@@ -117,6 +117,9 @@ type TeamOwnershipTransfer func(*sql.Selector)
 // UsageCleanupTask is the predicate function for usagecleanuptask builders.
 type UsageCleanupTask func(*sql.Selector)
 
+// UsageExportTask is the predicate function for usageexporttask builders.
+type UsageExportTask func(*sql.Selector)
+
 // UsageLog is the predicate function for usagelog builders.
 type UsageLog func(*sql.Selector)
 

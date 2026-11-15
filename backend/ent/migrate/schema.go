@@ -1872,6 +1872,55 @@ var (
 			},
 		},
 	}
+	// UsageExportTasksColumns holds the columns for the "usage_export_tasks" table.
+	UsageExportTasksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "scope", Type: field.TypeString, Size: 16},
+		{Name: "status", Type: field.TypeString, Size: 20},
+		{Name: "filters", Type: field.TypeJSON},
+		{Name: "created_by", Type: field.TypeInt64},
+		{Name: "total_rows", Type: field.TypeInt64, Default: 0},
+		{Name: "exported_rows", Type: field.TypeInt64, Default: 0},
+		{Name: "file_name", Type: field.TypeString, Nullable: true},
+		{Name: "file_path", Type: field.TypeString, Nullable: true},
+		{Name: "file_size_bytes", Type: field.TypeInt64, Default: 0},
+		{Name: "error_message", Type: field.TypeString, Nullable: true},
+		{Name: "canceled_by", Type: field.TypeInt64, Nullable: true},
+		{Name: "canceled_at", Type: field.TypeTime, Nullable: true},
+		{Name: "started_at", Type: field.TypeTime, Nullable: true},
+		{Name: "finished_at", Type: field.TypeTime, Nullable: true},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+	}
+	// UsageExportTasksTable holds the schema information for the "usage_export_tasks" table.
+	UsageExportTasksTable = &schema.Table{
+		Name:       "usage_export_tasks",
+		Columns:    UsageExportTasksColumns,
+		PrimaryKey: []*schema.Column{UsageExportTasksColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "usageexporttask_status_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{UsageExportTasksColumns[4], UsageExportTasksColumns[1]},
+			},
+			{
+				Name:    "usageexporttask_scope_created_by_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{UsageExportTasksColumns[3], UsageExportTasksColumns[6], UsageExportTasksColumns[1]},
+			},
+			{
+				Name:    "usageexporttask_scope_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{UsageExportTasksColumns[3], UsageExportTasksColumns[1]},
+			},
+			{
+				Name:    "usageexporttask_status_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{UsageExportTasksColumns[4], UsageExportTasksColumns[17]},
+			},
+		},
+	}
 	// UsageLogsColumns holds the columns for the "usage_logs" table.
 	UsageLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2394,6 +2443,7 @@ var (
 		TeamMembershipsTable,
 		TeamOwnershipTransfersTable,
 		UsageCleanupTasksTable,
+		UsageExportTasksTable,
 		UsageLogsTable,
 		UsersTable,
 		UserAllowedGroupsTable,
@@ -2543,6 +2593,9 @@ func init() {
 	}
 	UsageCleanupTasksTable.Annotation = &entsql.Annotation{
 		Table: "usage_cleanup_tasks",
+	}
+	UsageExportTasksTable.Annotation = &entsql.Annotation{
+		Table: "usage_export_tasks",
 	}
 	UsageLogsTable.ForeignKeys[0].RefTable = APIKeysTable
 	UsageLogsTable.ForeignKeys[1].RefTable = GroupsTable

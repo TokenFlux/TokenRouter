@@ -12,6 +12,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 )
 
+// runtime_core_test.go verifies reusable shutdown barriers and timeout isolation
+// across core runtime phases. Virtual-time fixtures hold background side effects
+// at each producer stage to confirm that reusable waits serialize phases without
+// sealing later admission and stop advancing dependencies when a barrier times out.
+
 // TestProvideCoreRuntimeBarriersDrainEachPhase creates tracked side effects at
 // every reusable wait. Each barrier must finish its current task before the
 // next producer runs, while leaving task admission available for later phases.
@@ -19,7 +24,7 @@ func TestProvideCoreRuntimeBarriersDrainEachPhase(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		tasks := lifecycle.NewTasks()
 		manager := lifecycle.New()
-		provideCoreRuntime(nil, nil, nil, nil, nil, nil, manager, nil, nil, nil, tasks, nil, nil)
+		provideCoreRuntime(nil, nil, nil, nil, nil, nil, nil, manager, nil, nil, nil, tasks, nil, nil)
 
 		// Numeric expectations identify each shutdown wait independently of the
 		// production constants, so changing a stage cannot move this fixture with it.
@@ -68,7 +73,7 @@ func TestProvideCoreRuntimeBarrierTimeoutKeepsDependencies(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		tasks := lifecycle.NewTasks()
 		manager := lifecycle.New()
-		provideCoreRuntime(nil, nil, nil, nil, nil, nil, manager, nil, nil, nil, tasks, nil, nil)
+		provideCoreRuntime(nil, nil, nil, nil, nil, nil, nil, manager, nil, nil, nil, tasks, nil, nil)
 		release := make(chan struct{})
 		defer close(release)
 		manager.Register(lifecycle.Hook{
