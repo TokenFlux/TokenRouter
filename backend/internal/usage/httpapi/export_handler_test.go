@@ -143,15 +143,17 @@ func (r *inMemoryExportRepo) GetTask(_ context.Context, taskID int64) (*usage.Us
 	return &cp, nil
 }
 
-// ListTasks filters tasks by scope and optional creator in descending ID order.
-func (r *inMemoryExportRepo) ListTasks(
+// ListTaskPage reads paginated tasks, active IDs, and off-page watched tasks
+// atomically under r.mu in descending ID order.
+func (r *inMemoryExportRepo) ListTaskPage(
 	_ context.Context,
 	filter usage.UsageExportListFilter,
 	params pagination.PaginationParams,
-) ([]usage.UsageExportTask, *pagination.PaginationResult, error) {
+	watchIDs []int64,
+) (*usage.UsageExportTaskListResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	var items []usage.UsageExportTask
+	var matched []usage.UsageExportTask
 	for id := r.nextID; id >= 1; id-- {
 		task, ok := r.tasks[id]
 		if !ok || task.Scope != filter.Scope {
@@ -160,68 +162,45 @@ func (r *inMemoryExportRepo) ListTasks(
 		if filter.CreatedBy != nil && task.CreatedBy != *filter.CreatedBy {
 			continue
 		}
-		items = append(items, *task)
+		matched = append(matched, *task)
 	}
-	total := int64(len(items))
-	offset := min(params.Offset(), len(items))
-	end := min(offset+params.Limit(), len(items))
-	return items[offset:end], &pagination.PaginationResult{
-		Total:    total,
-		Page:     params.Page,
-		PageSize: params.PageSize,
+	total := int64(len(matched))
+	offset := min(params.Offset(), len(matched))
+	end := min(offset+params.Limit(), len(matched))
+	pageItems := matched[offset:end]
+
+	onPage := make(map[int64]struct{}, len(pageItems))
+	for i := range pageItems {
+		onPage[pageItems[i].ID] = struct{}{}
+	}
+	wanted := make(map[int64]struct{}, len(watchIDs))
+	for _, id := range watchIDs {
+		if _, present := onPage[id]; !present && id > 0 {
+			wanted[id] = struct{}{}
+		}
+	}
+
+	activeIDs := make([]int64, 0)
+	var watchedItems []usage.UsageExportTask
+	for i := range matched {
+		if matched[i].Status == usage.UsageExportStatusPending || matched[i].Status == usage.UsageExportStatusRunning {
+			activeIDs = append(activeIDs, matched[i].ID)
+		}
+		if _, ok := wanted[matched[i].ID]; ok {
+			watchedItems = append(watchedItems, matched[i])
+		}
+	}
+	return &usage.UsageExportTaskListResult{
+		Items: pageItems,
+		Pagination: &pagination.PaginationResult{
+			Total:    total,
+			Page:     params.Page,
+			PageSize: params.PageSize,
+		},
+		ActiveCount:  int64(len(activeIDs)),
+		ActiveIDs:    activeIDs,
+		WatchedItems: watchedItems,
 	}, nil
-}
-
-// ListActiveTaskIDs returns pending and running task IDs matching filter in descending ID order.
-func (r *inMemoryExportRepo) ListActiveTaskIDs(_ context.Context, filter usage.UsageExportListFilter) ([]int64, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	var ids []int64
-	for id := r.nextID; id >= 1; id-- {
-		task, ok := r.tasks[id]
-		if !ok || task.Scope != filter.Scope {
-			continue
-		}
-		if filter.CreatedBy != nil && task.CreatedBy != *filter.CreatedBy {
-			continue
-		}
-		if task.Status == usage.UsageExportStatusPending || task.Status == usage.UsageExportStatusRunning {
-			ids = append(ids, task.ID)
-		}
-	}
-	if ids == nil {
-		return []int64{}, nil
-	}
-	return ids, nil
-}
-
-// ListTasksByIDs returns scoped tasks matching taskIDs in descending ID order.
-func (r *inMemoryExportRepo) ListTasksByIDs(
-	_ context.Context,
-	filter usage.UsageExportListFilter,
-	taskIDs []int64,
-) ([]usage.UsageExportTask, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	wanted := make(map[int64]struct{}, len(taskIDs))
-	for _, id := range taskIDs {
-		wanted[id] = struct{}{}
-	}
-	var out []usage.UsageExportTask
-	for id := r.nextID; id >= 1; id-- {
-		task, ok := r.tasks[id]
-		if !ok || task.Scope != filter.Scope {
-			continue
-		}
-		if _, match := wanted[id]; !match {
-			continue
-		}
-		if filter.CreatedBy != nil && task.CreatedBy != *filter.CreatedBy {
-			continue
-		}
-		out = append(out, *task)
-	}
-	return out, nil
 }
 
 // CountActiveTasks counts pending and running tasks matching scope and createdBy.

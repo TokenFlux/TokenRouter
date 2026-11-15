@@ -173,11 +173,12 @@ export function useUsageExportIndicator(
             nextActive.add(id)
           }
         }
-      } else {
-        for (const item of knownById.values()) {
-          if (isTaskActive(item)) {
-            nextActive.add(item.id)
-          }
+      }
+      // Retain any returned task record still reporting pending or running status so
+      // polling cannot halt before observing its terminal status transition.
+      for (const item of knownById.values()) {
+        if (isTaskActive(item)) {
+          nextActive.add(item.id)
         }
       }
 

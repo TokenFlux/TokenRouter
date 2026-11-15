@@ -168,12 +168,10 @@ type UsageExportRepository interface {
 	CreateTask(ctx context.Context, task *UsageExportTask, maxActive int) error
 	// GetTask loads one persisted export task by ID or returns ErrExportTaskNotFound.
 	GetTask(ctx context.Context, taskID int64) (*UsageExportTask, error)
-	// ListTasks returns scoped export tasks ordered newest first with exact pagination.
-	ListTasks(ctx context.Context, filter UsageExportListFilter, params pagination.PaginationParams) ([]UsageExportTask, *pagination.PaginationResult, error)
-	// ListActiveTaskIDs returns all pending and running task IDs matching filter ordered newest first.
-	ListActiveTaskIDs(ctx context.Context, filter UsageExportListFilter) ([]int64, error)
-	// ListTasksByIDs returns scoped tasks matching taskIDs so callers can observe terminal transitions off page one.
-	ListTasksByIDs(ctx context.Context, filter UsageExportListFilter, taskIDs []int64) ([]UsageExportTask, error)
+	// ListTaskPage reads one paginated slice of scoped export tasks, all active
+	// task IDs in that scope, and any off-page watchIDs from a single consistent
+	// snapshot so task statuses and active_ids never disagree under concurrent writes.
+	ListTaskPage(ctx context.Context, filter UsageExportListFilter, params pagination.PaginationParams, watchIDs []int64) (*UsageExportTaskListResult, error)
 	// CountActiveTasks counts pending and running tasks in scope for createdBy;
 	// nonpositive createdBy counts across all creators in that scope.
 	CountActiveTasks(ctx context.Context, scope string, createdBy int64) (int64, error)

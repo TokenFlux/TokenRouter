@@ -1079,11 +1079,12 @@ function updateTrackedTransitions(res: UsageExportTaskListResponse, isSilentPoll
         nextActive.add(id)
       }
     }
-  } else {
-    for (const item of knownById.values()) {
-      if (isTaskActive(item.status)) {
-        nextActive.add(item.id)
-      }
+  }
+  // Always retain any returned item whose status is still pending or running so
+  // polling never stops before the UI has observed that row's terminal state.
+  for (const item of knownById.values()) {
+    if (isTaskActive(item.status)) {
+      nextActive.add(item.id)
     }
   }
 

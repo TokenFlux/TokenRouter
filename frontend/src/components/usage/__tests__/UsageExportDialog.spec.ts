@@ -543,4 +543,93 @@ describe('UsageExportDialog', () => {
 
     expect(mockUserListExportTasks).toHaveBeenCalledTimes(1)
   })
+
+  // Even if an intermediary or stale response ever pairs a running row in items with an
+  // empty active_ids array, the dialog must keep polling until the terminal succeeded row
+  // arrives so the Download button and completion toast still appear automatically.
+  it('continues polling when a displayed row is still running despite empty active_ids', async () => {
+    mockUserListExportTasks
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 61,
+            scope: 'user',
+            status: 'running',
+            filters: {
+              start_time: '2026-11-15T00:00:00Z',
+              end_time: '2026-11-16T00:00:00Z',
+              timezone: 'UTC',
+            },
+            created_by: 7,
+            total_rows: 200,
+            exported_rows: 180,
+            file_size_bytes: 0,
+            created_at: '2026-11-15T10:00:00Z',
+            updated_at: '2026-11-15T10:01:00Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 10,
+        pages: 1,
+        active_count: 0,
+        active_ids: [],
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 61,
+            scope: 'user',
+            status: 'succeeded',
+            filters: {
+              start_time: '2026-11-15T00:00:00Z',
+              end_time: '2026-11-16T00:00:00Z',
+              timezone: 'UTC',
+            },
+            created_by: 7,
+            total_rows: 200,
+            exported_rows: 200,
+            file_name: 'usage_export_61.csv',
+            file_size_bytes: 8192,
+            expires_at: '2026-11-16T10:02:00Z',
+            created_at: '2026-11-15T10:00:00Z',
+            updated_at: '2026-11-15T10:02:00Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 10,
+        pages: 1,
+        active_count: 0,
+        active_ids: [],
+      })
+
+    const wrapper = mount(UsageExportDialog, {
+      props: {
+        show: true,
+        mode: 'user',
+        startDate: '2026-11-15',
+        endDate: '2026-11-15',
+        filters: {},
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.emitted('tasksChanged')?.[0]).toEqual([1])
+    expect(wrapper.find('[data-testid="download-export-task-61"]').exists()).toBe(false)
+
+    vi.advanceTimersByTime(3000)
+    await flushPromises()
+
+    expect(mockShowSuccess).toHaveBeenCalledWith('usage.exportPanel.taskCompletedToast')
+    expect(wrapper.find('[data-testid="download-export-task-61"]').exists()).toBe(true)
+    expect(wrapper.emitted('tasksChanged')?.at(-1)).toEqual([0])
+  })
 })

@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
@@ -180,4 +181,98 @@ func TestExportStoreIntegrationConcurrentQuotaEnforcement(t *testing.T) {
 	activeForUser99, err := seedRepo.CountActiveTasks(ctx, usage.UsageExportScopeUser, 99)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), activeForUser99)
+}
+
+// TestExportStoreIntegrationListTaskPageConsistentSnapshot races concurrent
+// task creation and completion transitions against ListTaskPage readers on
+// PostgreSQL. REPEATABLE READ read-only snapshots ensure Items, WatchedItems,
+// and ActiveIDs always reflect the exact same point-in-time task statuses.
+func TestExportStoreIntegrationListTaskPageConsistentSnapshot(t *testing.T) {
+	ctx := context.Background()
+	_, err := integrationDB.ExecContext(ctx, "TRUNCATE TABLE usage_export_tasks RESTART IDENTITY CASCADE")
+	require.NoError(t, err)
+
+	repo := NewExportStoreWithSQL(integrationEntClient, integrationDB)
+	start := time.Date(2026, 4, 16, 0, 0, 0, 0, time.UTC)
+	filters := usage.UsageExportFilters{
+		StartTime: start,
+		EndTime:   start.Add(time.Hour),
+		Timezone:  "UTC",
+	}
+	uid := int64(77)
+
+	const totalTasks = 40
+	createdIDs := make([]int64, totalTasks)
+	for i := range totalTasks {
+		task := &usage.UsageExportTask{
+			Scope:     usage.UsageExportScopeUser,
+			Status:    usage.UsageExportStatusRunning,
+			CreatedBy: uid,
+			Filters:   filters,
+		}
+		require.NoError(t, repo.CreateTask(ctx, task, 0))
+		createdIDs[i] = task.ID
+	}
+
+	stopReaders := make(chan struct{})
+	var readerWG sync.WaitGroup
+	errCh := make(chan error, 8)
+
+	for range 4 {
+		readerRepo := NewExportStoreWithSQL(integrationEntClient, integrationDB)
+		readerWG.Add(1)
+		go func(r *ExportStore) {
+			defer readerWG.Done()
+			for {
+				select {
+				case <-stopReaders:
+					return
+				default:
+				}
+				page, listErr := r.ListTaskPage(
+					ctx,
+					usage.UsageExportListFilter{Scope: usage.UsageExportScopeUser, CreatedBy: &uid},
+					pagination.PaginationParams{Page: 1, PageSize: 10},
+					createdIDs[:5],
+				)
+				if listErr != nil {
+					errCh <- listErr
+					return
+				}
+				activeSet := make(map[int64]struct{}, len(page.ActiveIDs))
+				for _, id := range page.ActiveIDs {
+					activeSet[id] = struct{}{}
+				}
+				checkItem := func(item usage.UsageExportTask) bool {
+					isActive := item.Status == usage.UsageExportStatusPending || item.Status == usage.UsageExportStatusRunning
+					_, inActive := activeSet[item.ID]
+					return isActive == inActive
+				}
+				for _, item := range page.Items {
+					if !checkItem(item) {
+						errCh <- errors.New("split snapshot between page items and active_ids")
+						return
+					}
+				}
+				for _, item := range page.WatchedItems {
+					if !checkItem(item) {
+						errCh <- errors.New("split snapshot between watched_items and active_ids")
+						return
+					}
+				}
+			}
+		}(readerRepo)
+	}
+
+	for _, id := range createdIDs {
+		_, markErr := repo.MarkTaskSucceeded(ctx, id, 10, "export.csv", "user/export.csv", 64, start.Add(24*time.Hour))
+		require.NoError(t, markErr)
+	}
+	close(stopReaders)
+	readerWG.Wait()
+	close(errCh)
+
+	for readErr := range errCh {
+		require.NoError(t, readErr)
+	}
 }

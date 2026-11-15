@@ -121,197 +121,38 @@ func (r *ExportStore) GetTask(ctx context.Context, taskID int64) (*usage.UsageEx
 	return &task, nil
 }
 
-// ListTasks returns scoped export tasks ordered newest first with exact total counts.
-func (r *ExportStore) ListTasks(
+// ListTaskPage reads one paginated slice of scoped export tasks, all active
+// task IDs in that scope, and any requested off-page watchIDs inside one
+// read-only REPEATABLE READ snapshot transaction so task statuses and active_ids
+// never diverge when a background worker completes a task mid-poll.
+func (r *ExportStore) ListTaskPage(
 	ctx context.Context,
 	filter usage.UsageExportListFilter,
 	params pagination.PaginationParams,
-) ([]usage.UsageExportTask, *pagination.PaginationResult, error) {
+	watchIDs []int64,
+) (*usage.UsageExportTaskListResult, error) {
 	if r.client != nil {
-		return r.listTasksWithEnt(ctx, filter, params)
+		return r.listTaskPageWithEnt(ctx, filter, params, watchIDs)
 	}
-
-	conditions := []string{"scope = $1"}
-	args := []any{filter.Scope}
-	if filter.CreatedBy != nil {
-		conditions = append(conditions, fmt.Sprintf("created_by = $%d", len(args)+1))
-		args = append(args, *filter.CreatedBy)
-	}
-	whereClause := "WHERE " + strings.Join(conditions, " AND ")
-
-	var total int64
-	if err := scanSingleRow(ctx, r.sql, "SELECT COUNT(*) FROM usage_export_tasks "+whereClause, args, &total); err != nil {
-		return nil, nil, err
-	}
-	if total == 0 {
-		return []usage.UsageExportTask{}, paginationResultFromTotal(0, params), nil
-	}
-
-	limitPos := len(args) + 1
-	offsetPos := len(args) + 2
-	listArgs := append(append([]any{}, args...), params.Limit(), params.Offset())
-	query := fmt.Sprintf(`
-		SELECT id, scope, status, filters, created_by, total_rows, exported_rows,
-			file_name, file_path, file_size_bytes, error_message,
-			canceled_by, canceled_at, started_at, finished_at, expires_at,
-			created_at, updated_at
-		FROM usage_export_tasks
-		%s
-		ORDER BY created_at DESC, id DESC
-		LIMIT $%d OFFSET $%d
-	`, whereClause, limitPos, offsetPos)
-
-	rows, err := r.sql.QueryContext(ctx, query, listArgs...)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	tasks := make([]usage.UsageExportTask, 0)
-	for rows.Next() {
-		task, scanErr := scanUsageExportTaskRow(rows)
-		if scanErr != nil {
-			return nil, nil, scanErr
-		}
-		tasks = append(tasks, task)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, err
-	}
-	return tasks, paginationResultFromTotal(total, params), nil
-}
-
-// ListActiveTaskIDs returns all pending and running export task IDs matching
-// filter ordered newest first so callers can track off-page active tasks.
-func (r *ExportStore) ListActiveTaskIDs(ctx context.Context, filter usage.UsageExportListFilter) ([]int64, error) {
-	if r.client != nil {
-		client := clientFromContext(ctx, r.client)
-		query := client.UsageExportTask.Query().Where(
-			dbusageexporttask.ScopeEQ(filter.Scope),
-			dbusageexporttask.StatusIn(usage.UsageExportStatusPending, usage.UsageExportStatusRunning),
-		)
-		if filter.CreatedBy != nil {
-			query = query.Where(dbusageexporttask.CreatedByEQ(*filter.CreatedBy))
-		}
-		ids, err := query.
-			Order(dbent.Desc(dbusageexporttask.FieldCreatedAt), dbent.Desc(dbusageexporttask.FieldID)).
-			IDs(ctx)
+	if sqlDB, ok := r.sql.(*sql.DB); ok {
+		tx, err := sqlDB.BeginTx(ctx, &sql.TxOptions{
+			Isolation: sql.LevelRepeatableRead,
+			ReadOnly:  true,
+		})
 		if err != nil {
 			return nil, err
 		}
-		if ids == nil {
-			return []int64{}, nil
-		}
-		return ids, nil
-	}
-
-	conditions := []string{"scope = $1", "status IN ($2, $3)"}
-	args := []any{filter.Scope, usage.UsageExportStatusPending, usage.UsageExportStatusRunning}
-	if filter.CreatedBy != nil {
-		conditions = append(conditions, fmt.Sprintf("created_by = $%d", len(args)+1))
-		args = append(args, *filter.CreatedBy)
-	}
-	query := fmt.Sprintf(
-		"SELECT id FROM usage_export_tasks WHERE %s ORDER BY created_at DESC, id DESC",
-		strings.Join(conditions, " AND "),
-	)
-	rows, err := r.sql.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	ids := make([]int64, 0)
-	for rows.Next() {
-		var id int64
-		if scanErr := rows.Scan(&id); scanErr != nil {
-			return nil, scanErr
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return ids, nil
-}
-
-// ListTasksByIDs returns scoped export tasks matching taskIDs ordered newest
-// first so UI polling can observe terminal status transitions off page one.
-func (r *ExportStore) ListTasksByIDs(
-	ctx context.Context,
-	filter usage.UsageExportListFilter,
-	taskIDs []int64,
-) ([]usage.UsageExportTask, error) {
-	if len(taskIDs) == 0 {
-		return []usage.UsageExportTask{}, nil
-	}
-	if r.client != nil {
-		client := clientFromContext(ctx, r.client)
-		query := client.UsageExportTask.Query().Where(
-			dbusageexporttask.ScopeEQ(filter.Scope),
-			dbusageexporttask.IDIn(taskIDs...),
-		)
-		if filter.CreatedBy != nil {
-			query = query.Where(dbusageexporttask.CreatedByEQ(*filter.CreatedBy))
-		}
-		rows, err := query.
-			Order(dbent.Desc(dbusageexporttask.FieldCreatedAt), dbent.Desc(dbusageexporttask.FieldID)).
-			All(ctx)
+		res, err := listTaskPageWithSQL(ctx, tx, filter, params, watchIDs)
 		if err != nil {
+			_ = tx.Rollback()
 			return nil, err
 		}
-		tasks := make([]usage.UsageExportTask, 0, len(rows))
-		for _, row := range rows {
-			task, convErr := usageExportTaskFromEnt(row)
-			if convErr != nil {
-				return nil, convErr
-			}
-			tasks = append(tasks, task)
+		if err := tx.Commit(); err != nil {
+			return nil, err
 		}
-		return tasks, nil
+		return res, nil
 	}
-
-	conditions := []string{"scope = $1"}
-	args := []any{filter.Scope}
-	if filter.CreatedBy != nil {
-		conditions = append(conditions, fmt.Sprintf("created_by = $%d", len(args)+1))
-		args = append(args, *filter.CreatedBy)
-	}
-	placeholders := make([]string, 0, len(taskIDs))
-	for _, id := range taskIDs {
-		args = append(args, id)
-		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
-	}
-	conditions = append(conditions, fmt.Sprintf("id IN (%s)", strings.Join(placeholders, ", ")))
-
-	query := fmt.Sprintf(`
-		SELECT id, scope, status, filters, created_by, total_rows, exported_rows,
-			file_name, file_path, file_size_bytes, error_message,
-			canceled_by, canceled_at, started_at, finished_at, expires_at,
-			created_at, updated_at
-		FROM usage_export_tasks
-		WHERE %s
-		ORDER BY created_at DESC, id DESC
-	`, strings.Join(conditions, " AND "))
-
-	rows, err := r.sql.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	tasks := make([]usage.UsageExportTask, 0, len(taskIDs))
-	for rows.Next() {
-		task, scanErr := scanUsageExportTaskRow(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		tasks = append(tasks, task)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return tasks, nil
+	return listTaskPageWithSQL(ctx, r.sql, filter, params, watchIDs)
 }
 
 // CountActiveTasks counts pending and running export tasks in scope, filtering
@@ -978,41 +819,286 @@ func (r *ExportStore) getTaskWithEnt(ctx context.Context, taskID int64) (*usage.
 	return &task, nil
 }
 
-// listTasksWithEnt queries paginated export tasks via Ent ordered newest first.
-func (r *ExportStore) listTasksWithEnt(
+// listTaskPageWithEnt executes paginated task, active-ID, and watched-task reads
+// inside a single read-only snapshot transaction on Ent.
+func (r *ExportStore) listTaskPageWithEnt(
 	ctx context.Context,
 	filter usage.UsageExportListFilter,
 	params pagination.PaginationParams,
-) ([]usage.UsageExportTask, *pagination.PaginationResult, error) {
-	client := clientFromContext(ctx, r.client)
-	query := client.UsageExportTask.Query().Where(dbusageexporttask.ScopeEQ(filter.Scope))
-	if filter.CreatedBy != nil {
-		query = query.Where(dbusageexporttask.CreatedByEQ(*filter.CreatedBy))
+	watchIDs []int64,
+) (*usage.UsageExportTaskListResult, error) {
+	if existingTx := dbent.TxFromContext(ctx); existingTx != nil {
+		return queryExportTaskPageEnt(ctx, existingTx.Client(), filter, params, watchIDs)
 	}
-	total, err := query.Clone().Count(ctx)
+
+	isPostgres := r.client.Driver().Dialect() == dialect.Postgres
+	txOpts := &sql.TxOptions{ReadOnly: true}
+	if isPostgres {
+		// Pin one MVCC snapshot across count, page rows, active IDs, and watched rows
+		// so concurrent worker completion cannot appear in active_ids before items.
+		txOpts.Isolation = sql.LevelRepeatableRead
+	} else {
+		r.quotaMu.Lock()
+		defer r.quotaMu.Unlock()
+	}
+
+	tx, err := r.client.BeginTx(ctx, txOpts)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+	res, err := queryExportTaskPageEnt(ctx, tx.Client(), filter, params, watchIDs)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// queryExportTaskPageEnt reads paginated items, active IDs, and off-page watched
+// rows from client within the caller's snapshot transaction.
+func queryExportTaskPageEnt(
+	ctx context.Context,
+	client *dbent.Client,
+	filter usage.UsageExportListFilter,
+	params pagination.PaginationParams,
+	watchIDs []int64,
+) (*usage.UsageExportTaskListResult, error) {
+	baseQuery := client.UsageExportTask.Query().Where(dbusageexporttask.ScopeEQ(filter.Scope))
+	if filter.CreatedBy != nil {
+		baseQuery = baseQuery.Where(dbusageexporttask.CreatedByEQ(*filter.CreatedBy))
+	}
+
+	total, err := baseQuery.Clone().Count(ctx)
+	if err != nil {
+		return nil, err
 	}
 	if total == 0 {
-		return []usage.UsageExportTask{}, paginationResultFromTotal(0, params), nil
+		return &usage.UsageExportTaskListResult{
+			Items:      []usage.UsageExportTask{},
+			Pagination: paginationResultFromTotal(0, params),
+			ActiveIDs:  []int64{},
+		}, nil
 	}
-	rows, err := query.
+
+	rows, err := baseQuery.Clone().
 		Order(dbent.Desc(dbusageexporttask.FieldCreatedAt), dbent.Desc(dbusageexporttask.FieldID)).
 		Offset(params.Offset()).
 		Limit(params.Limit()).
 		All(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	tasks := make([]usage.UsageExportTask, 0, len(rows))
+	items := make([]usage.UsageExportTask, 0, len(rows))
+	onPage := make(map[int64]struct{}, len(rows))
 	for _, row := range rows {
 		task, convErr := usageExportTaskFromEnt(row)
 		if convErr != nil {
-			return nil, nil, convErr
+			return nil, convErr
+		}
+		items = append(items, task)
+		onPage[task.ID] = struct{}{}
+	}
+
+	activeIDs, err := baseQuery.Clone().
+		Where(dbusageexporttask.StatusIn(usage.UsageExportStatusPending, usage.UsageExportStatusRunning)).
+		Order(dbent.Desc(dbusageexporttask.FieldCreatedAt), dbent.Desc(dbusageexporttask.FieldID)).
+		IDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if activeIDs == nil {
+		activeIDs = []int64{}
+	}
+
+	offPageWatchIDs := excludeOnPageTaskIDs(watchIDs, onPage)
+	var watchedItems []usage.UsageExportTask
+	if len(offPageWatchIDs) > 0 {
+		watchedRows, watchErr := baseQuery.Clone().
+			Where(dbusageexporttask.IDIn(offPageWatchIDs...)).
+			Order(dbent.Desc(dbusageexporttask.FieldCreatedAt), dbent.Desc(dbusageexporttask.FieldID)).
+			All(ctx)
+		if watchErr != nil {
+			return nil, watchErr
+		}
+		watchedItems = make([]usage.UsageExportTask, 0, len(watchedRows))
+		for _, row := range watchedRows {
+			task, convErr := usageExportTaskFromEnt(row)
+			if convErr != nil {
+				return nil, convErr
+			}
+			watchedItems = append(watchedItems, task)
+		}
+	}
+
+	return &usage.UsageExportTaskListResult{
+		Items:        items,
+		Pagination:   paginationResultFromTotal(int64(total), params),
+		ActiveCount:  int64(len(activeIDs)),
+		ActiveIDs:    activeIDs,
+		WatchedItems: watchedItems,
+	}, nil
+}
+
+// listTaskPageWithSQL reads paginated items, active IDs, and off-page watched
+// rows on exec for raw-SQL callers.
+func listTaskPageWithSQL(
+	ctx context.Context,
+	exec sqlExecutor,
+	filter usage.UsageExportListFilter,
+	params pagination.PaginationParams,
+	watchIDs []int64,
+) (*usage.UsageExportTaskListResult, error) {
+	conditions := []string{"scope = $1"}
+	args := []any{filter.Scope}
+	if filter.CreatedBy != nil {
+		conditions = append(conditions, fmt.Sprintf("created_by = $%d", len(args)+1))
+		args = append(args, *filter.CreatedBy)
+	}
+	whereClause := "WHERE " + strings.Join(conditions, " AND ")
+
+	var total int64
+	if err := scanSingleRow(ctx, exec, "SELECT COUNT(*) FROM usage_export_tasks "+whereClause, args, &total); err != nil {
+		return nil, err
+	}
+	if total == 0 {
+		return &usage.UsageExportTaskListResult{
+			Items:      []usage.UsageExportTask{},
+			Pagination: paginationResultFromTotal(0, params),
+			ActiveIDs:  []int64{},
+		}, nil
+	}
+
+	limitPos := len(args) + 1
+	offsetPos := len(args) + 2
+	listArgs := append(append([]any{}, args...), params.Limit(), params.Offset())
+	pageQuery := fmt.Sprintf(`
+		SELECT id, scope, status, filters, created_by, total_rows, exported_rows,
+			file_name, file_path, file_size_bytes, error_message,
+			canceled_by, canceled_at, started_at, finished_at, expires_at,
+			created_at, updated_at
+		FROM usage_export_tasks
+		%s
+		ORDER BY created_at DESC, id DESC
+		LIMIT $%d OFFSET $%d
+	`, whereClause, limitPos, offsetPos)
+
+	pageRows, err := exec.QueryContext(ctx, pageQuery, listArgs...)
+	if err != nil {
+		return nil, err
+	}
+	items, err := scanUsageExportTaskSlice(pageRows)
+	if err != nil {
+		return nil, err
+	}
+
+	onPage := make(map[int64]struct{}, len(items))
+	for i := range items {
+		onPage[items[i].ID] = struct{}{}
+	}
+
+	activeArgs := append(append([]any{}, args...), usage.UsageExportStatusPending, usage.UsageExportStatusRunning)
+	activeQuery := fmt.Sprintf(
+		"SELECT id FROM usage_export_tasks %s AND status IN ($%d, $%d) ORDER BY created_at DESC, id DESC",
+		whereClause,
+		len(args)+1,
+		len(args)+2,
+	)
+	activeRows, err := exec.QueryContext(ctx, activeQuery, activeArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = activeRows.Close() }()
+
+	activeIDs := make([]int64, 0)
+	for activeRows.Next() {
+		var id int64
+		if scanErr := activeRows.Scan(&id); scanErr != nil {
+			return nil, scanErr
+		}
+		activeIDs = append(activeIDs, id)
+	}
+	if err := activeRows.Err(); err != nil {
+		return nil, err
+	}
+
+	offPageWatchIDs := excludeOnPageTaskIDs(watchIDs, onPage)
+	var watchedItems []usage.UsageExportTask
+	if len(offPageWatchIDs) > 0 {
+		watchArgs := append([]any{}, args...)
+		placeholders := make([]string, 0, len(offPageWatchIDs))
+		for _, id := range offPageWatchIDs {
+			watchArgs = append(watchArgs, id)
+			placeholders = append(placeholders, fmt.Sprintf("$%d", len(watchArgs)))
+		}
+		watchQuery := fmt.Sprintf(`
+			SELECT id, scope, status, filters, created_by, total_rows, exported_rows,
+				file_name, file_path, file_size_bytes, error_message,
+				canceled_by, canceled_at, started_at, finished_at, expires_at,
+				created_at, updated_at
+			FROM usage_export_tasks
+			%s AND id IN (%s)
+			ORDER BY created_at DESC, id DESC
+		`, whereClause, strings.Join(placeholders, ", "))
+		watchRows, watchErr := exec.QueryContext(ctx, watchQuery, watchArgs...)
+		if watchErr != nil {
+			return nil, watchErr
+		}
+		watchedItems, err = scanUsageExportTaskSlice(watchRows)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &usage.UsageExportTaskListResult{
+		Items:        items,
+		Pagination:   paginationResultFromTotal(total, params),
+		ActiveCount:  int64(len(activeIDs)),
+		ActiveIDs:    activeIDs,
+		WatchedItems: watchedItems,
+	}, nil
+}
+
+// excludeOnPageTaskIDs returns positive watchIDs absent from onPage without duplicates.
+func excludeOnPageTaskIDs(watchIDs []int64, onPage map[int64]struct{}) []int64 {
+	if len(watchIDs) == 0 {
+		return nil
+	}
+	out := make([]int64, 0, len(watchIDs))
+	seen := make(map[int64]struct{}, len(watchIDs))
+	for _, id := range watchIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, present := onPage[id]; present {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+// scanUsageExportTaskSlice decodes all rows from rows and closes rows before returning.
+func scanUsageExportTaskSlice(rows *sql.Rows) ([]usage.UsageExportTask, error) {
+	defer func() { _ = rows.Close() }()
+	tasks := make([]usage.UsageExportTask, 0)
+	for rows.Next() {
+		task, err := scanUsageExportTaskRow(rows)
+		if err != nil {
+			return nil, err
 		}
 		tasks = append(tasks, task)
 	}
-	return tasks, paginationResultFromTotal(int64(total), params), nil
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tasks, nil
 }
 
 // scanUsageExportTaskRow decodes one 18-column usage_export_tasks SQL row.

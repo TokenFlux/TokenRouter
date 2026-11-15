@@ -137,27 +137,16 @@ func TestExportStoreEntLifecycleAndCancellationGuard(t *testing.T) {
 	require.NotNil(t, expiredTask.FileName)
 
 	uid := int64(42)
-	listed, page, err := repo.ListTasks(ctx, usage.UsageExportListFilter{
+	pageRes, err := repo.ListTaskPage(ctx, usage.UsageExportListFilter{
 		Scope:     usage.UsageExportScopeUser,
 		CreatedBy: &uid,
-	}, pagination.PaginationParams{Page: 1, PageSize: 10})
+	}, pagination.PaginationParams{Page: 1, PageSize: 1}, []int64{task1.ID, task2.ID})
 	require.NoError(t, err)
-	require.Equal(t, int64(2), page.Total)
-	require.Len(t, listed, 2)
-
-	activeIDs, err := repo.ListActiveTaskIDs(ctx, usage.UsageExportListFilter{
-		Scope:     usage.UsageExportScopeUser,
-		CreatedBy: &uid,
-	})
-	require.NoError(t, err)
-	require.Empty(t, activeIDs)
-
-	watched, err := repo.ListTasksByIDs(ctx, usage.UsageExportListFilter{
-		Scope:     usage.UsageExportScopeUser,
-		CreatedBy: &uid,
-	}, []int64{task1.ID, task2.ID})
-	require.NoError(t, err)
-	require.Len(t, watched, 2)
+	require.Equal(t, int64(2), pageRes.Pagination.Total)
+	require.Len(t, pageRes.Items, 1)
+	require.Empty(t, pageRes.ActiveIDs)
+	require.Zero(t, pageRes.ActiveCount)
+	require.Len(t, pageRes.WatchedItems, 1)
 
 	_, missingErr := repo.GetTask(ctx, 99999)
 	require.ErrorIs(t, missingErr, usage.ErrExportTaskNotFound)

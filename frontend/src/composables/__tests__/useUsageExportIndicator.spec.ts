@@ -247,4 +247,38 @@ describe('useUsageExportIndicator', () => {
     expect(wrapper.vm.activeExportCount).toBe(0)
     expect(showSuccess).toHaveBeenCalledWith('usage.exportPanel.taskCompletedToast')
   })
+
+  // If a response still carries a running task in items or watched_items alongside an
+  // empty active_ids array, the indicator must keep polling until the terminal status arrives.
+  it('retains active tracking when an observed item is still running despite empty active_ids', async () => {
+    userListExportTasks
+      .mockResolvedValueOnce({
+        items: [makeTask(21, 'running')],
+        total: 1,
+        page: 1,
+        page_size: 10,
+        pages: 1,
+        active_count: 0,
+        active_ids: [],
+      })
+      .mockResolvedValueOnce({
+        items: [makeTask(21, 'succeeded')],
+        total: 1,
+        page: 1,
+        page_size: 10,
+        pages: 1,
+        active_count: 0,
+        active_ids: [],
+      })
+
+    const { wrapper } = mountHarness('user')
+    await flushPromises()
+    expect(wrapper.vm.activeExportCount).toBe(1)
+
+    vi.advanceTimersByTime(4000)
+    await flushPromises()
+
+    expect(wrapper.vm.activeExportCount).toBe(0)
+    expect(showSuccess).toHaveBeenCalledWith('usage.exportPanel.taskCompletedToast')
+  })
 })

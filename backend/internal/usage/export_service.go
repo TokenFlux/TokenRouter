@@ -260,52 +260,21 @@ func (s *UsageExportService) ListAdminTasks(
 	}, params, watchIDs)
 }
 
-// listScopedTasks loads one page of scoped export tasks, all active task IDs in
-// that scope, and any requested watchIDs absent from the returned page slice.
+// listScopedTasks normalizes watchIDs and delegates to a single snapshot-consistent
+// repository read so returned task statuses and active_ids cannot diverge when a
+// worker finishes a task concurrently with polling.
 func (s *UsageExportService) listScopedTasks(
 	ctx context.Context,
 	filter UsageExportListFilter,
 	params pagination.PaginationParams,
 	watchIDs []int64,
 ) (*UsageExportTaskListResult, error) {
-	items, pageResult, err := s.repo.ListTasks(ctx, filter, params)
-	if err != nil {
-		return nil, err
-	}
-	activeIDs, err := s.repo.ListActiveTaskIDs(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	if activeIDs == nil {
-		activeIDs = []int64{}
-	}
-
-	onPage := make(map[int64]struct{}, len(items))
-	for i := range items {
-		onPage[items[i].ID] = struct{}{}
-	}
-	missingWatchIDs := normalizeWatchedTaskIDs(watchIDs, onPage)
-
-	var watchedItems []UsageExportTask
-	if len(missingWatchIDs) > 0 {
-		watchedItems, err = s.repo.ListTasksByIDs(ctx, filter, missingWatchIDs)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &UsageExportTaskListResult{
-		Items:        items,
-		Pagination:   pageResult,
-		ActiveCount:  int64(len(activeIDs)),
-		ActiveIDs:    activeIDs,
-		WatchedItems: watchedItems,
-	}, nil
+	return s.repo.ListTaskPage(ctx, filter, params, normalizeWatchedTaskIDs(watchIDs))
 }
 
-// normalizeWatchedTaskIDs deduplicates positive watchIDs absent from onPage and
-// caps the slice at maxWatchedExportTaskIDs.
-func normalizeWatchedTaskIDs(watchIDs []int64, onPage map[int64]struct{}) []int64 {
+// normalizeWatchedTaskIDs deduplicates positive watchIDs and caps the slice at
+// maxWatchedExportTaskIDs.
+func normalizeWatchedTaskIDs(watchIDs []int64) []int64 {
 	if len(watchIDs) == 0 {
 		return nil
 	}
@@ -313,9 +282,6 @@ func normalizeWatchedTaskIDs(watchIDs []int64, onPage map[int64]struct{}) []int6
 	seen := make(map[int64]struct{}, len(out))
 	for _, id := range watchIDs {
 		if id <= 0 {
-			continue
-		}
-		if _, present := onPage[id]; present {
 			continue
 		}
 		if _, dup := seen[id]; dup {
