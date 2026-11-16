@@ -100,10 +100,11 @@ describe('request timing breakdown', () => {
 
   /**
    * A timing object contains wire, normalized, and outbound payload sizes alongside
-   * optional preparation sub-stages. Breakdown preserves zero-valued sub-stages, omits
-   * unrecorded optional steps, and prefers wire bytes over declared content length.
+   * pre-slot preprocess sub-stages, post-slot attempt preparation, and timeline events.
+   * Breakdown separates preprocess sub-stages from post-slot preparation and computes
+   * positive step deltas between consecutive observed timeline milestones.
    */
-  it('exposes observed preparation substages and payload byte metadata', () => {
+  it('separates preprocess substages from post-slot preparation and computes event deltas', () => {
     const detailed = timingBreakdown({
       request_content_length: 1024,
       request_raw_bytes: 2048,
@@ -116,18 +117,32 @@ describe('request timing breakdown', () => {
       session_ms: 2,
       scheduler_select_ms: 1,
       provider_prepare_ms: 19,
+      provider_slot_acquired_ms: 20,
+      upstream_started_ms: 39,
+      upstream_wrote_request_ms: 39,
+      upstream_first_response_byte_ms: 540,
     })
     expect(detailed.requestBytes).toBe(2048)
     expect(detailed.decodedBytes).toBe(8192)
     expect(detailed.upstreamBytes).toBe(8400)
     expect(detailed.compressed).toBe(true)
-    expect(detailed.substages).toEqual([
+    expect(detailed.preprocessSubstages).toEqual([
       { key: 'request_body_decode_ms', value: 3 },
       { key: 'ingress_validate_ms', value: 0 },
       { key: 'bootstrap_ms', value: 14 },
       { key: 'session_ms', value: 2 },
       { key: 'scheduler_select_ms', value: 1 },
-      { key: 'provider_prepare_ms', value: 19 },
+    ])
+    expect(detailed.providerPrepare).toEqual({ key: 'provider_prepare_ms', value: 19 })
+    expect(
+      detailed.events
+        .filter((row) => row.value != null)
+        .map((row) => ({ key: row.key, value: row.value, deltaMs: row.deltaMs })),
+    ).toEqual([
+      { key: 'provider_slot_acquired_ms', value: 20, deltaMs: null },
+      { key: 'upstream_started_ms', value: 39, deltaMs: 19 },
+      { key: 'upstream_wrote_request_ms', value: 39, deltaMs: null },
+      { key: 'upstream_first_response_byte_ms', value: 540, deltaMs: 501 },
     ])
 
     const historical = timingBreakdown({ request_content_length: 512 })
@@ -135,7 +150,8 @@ describe('request timing breakdown', () => {
     expect(historical.decodedBytes).toBeNull()
     expect(historical.upstreamBytes).toBeNull()
     expect(historical.compressed).toBeNull()
-    expect(historical.substages).toEqual([])
+    expect(historical.preprocessSubstages).toEqual([])
+    expect(historical.providerPrepare).toBeNull()
   })
 
   /**

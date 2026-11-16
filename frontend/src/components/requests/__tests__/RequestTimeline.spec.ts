@@ -67,10 +67,10 @@ describe('request timeline', () => {
     expect(wrapper.text()).toContain('7.97MB')
   })
 
-  // A compressed request supplies wire bytes, decoded bytes, outbound bytes, and
-  // preparation sub-stages without a Content-Length header. The timeline renders all four
-  // payload items and the observed preparation sub-stage line without altering event bars.
-  it('renders wire, decoded, and upstream payload sizes alongside preparation substages', () => {
+  // A compressed request supplies wire bytes, decoded bytes, outbound bytes, admission
+  // durations, preprocess sub-stages, and post-slot preparation. The timeline renders
+  // numbered chronological stages 1 -> 2 -> 3 without altering event bar rows.
+  it('orders pre-slot preprocess steps, post-slot preparation, and timeline bars', () => {
     const wrapper = mount(RequestTimeline, {
       props: {
         timing: {
@@ -78,10 +78,15 @@ describe('request timeline', () => {
           request_decoded_bytes: 4194304,
           request_compressed: 1,
           upstream_request_bytes: 4198400,
+          request_body_read_ms: 2,
+          preprocess_ms: 8,
+          user_slot_wait_ms: 0,
+          provider_slot_wait_ms: 0,
           request_body_decode_ms: 6,
           session_ms: 2,
           provider_prepare_ms: 15,
-          upstream_started_ms: 40,
+          provider_slot_acquired_ms: 10,
+          upstream_started_ms: 25,
         },
         duration: 500,
       },
@@ -94,8 +99,16 @@ describe('request timeline', () => {
     expect(text).toContain('requests.requestCompressed')
     expect(text).toContain('requests.timing.compressedYes')
     expect(text).toContain('requests.upstreamRequestSize')
-    expect(text).toContain('4.00MB')
-    expect(text).toContain('requests.timing.preparation')
+    expect(text).toContain('1. requests.timing.beforeSlot')
+    expect(text).toContain('requests.timing.preprocessSteps')
+    expect(text).toContain('2. requests.timing.afterSlot')
+    expect(text).toContain('3. requests.timing.events')
+    expect(text.indexOf('1. requests.timing.beforeSlot')).toBeLessThan(
+      text.indexOf('2. requests.timing.afterSlot'),
+    )
+    expect(text.indexOf('2. requests.timing.afterSlot')).toBeLessThan(
+      text.indexOf('3. requests.timing.events'),
+    )
     expect(text).toContain('requests.timingNames.request_body_decode_ms')
     expect(text).toContain('6ms')
     expect(text).toContain('requests.timingNames.provider_prepare_ms')

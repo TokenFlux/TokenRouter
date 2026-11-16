@@ -1,18 +1,17 @@
 import type { UsageLogTiming } from '@/api/usage.types'
 
 /**
- * requestTiming.ts groups recorded request timing into admission durations,
- * preparation sub-stages, payload observations, and event offsets for usage displays
- * and exports. Admission durations describe separate portions of elapsed work;
- * preparation sub-stages break down local gateway and external audit steps without
- * altering the admission sum; event offsets share an ingress origin.
+ * requestTiming.ts groups recorded request timing into three chronological stages
+ * alongside payload observations for usage displays and exports:
+ *   1. Pre-slot admission durations (including ordered sub-steps inside preprocess_ms),
+ *   2. Post-slot provider preparation and retry queueing before upstream dispatch,
+ *   3. Ingress-relative transport and streaming timeline milestones.
  *
  * A record with any admission duration receives the complete set of four duration rows,
  * retaining null for unrecorded observations. The total exists only when every duration
- * is present. Optional preparation sub-stages retain only observed entries, client and
- * upstream stream flags filter their own event groups independently, and positive retry
- * queue time appears separately. Export retains all present fields, including flags and
- * zero-valued observations.
+ * is present. Preprocess sub-stages retain only observed entries, client and upstream
+ * stream flags filter their own event groups independently, and positive step deltas
+ * annotate consecutive observed timeline milestones. Export retains all present fields.
  */
 
 /**
@@ -27,10 +26,10 @@ export const admissionTimingKeys = [
 ] as const
 
 /**
- * preparationTimingKeys orders optional gateway preparation and attempt-setup
- * sub-stages without folding them into the four-part initial admission sum.
+ * preprocessTimingKeys orders optional gateway sub-stages executed inside preprocess_ms
+ * prior to provider slot acquisition.
  */
-export const preparationTimingKeys = [
+export const preprocessTimingKeys = [
   'request_body_decode_ms',
   'ingress_validate_ms',
   'bootstrap_ms',
@@ -38,7 +37,6 @@ export const preparationTimingKeys = [
   'moderation_external_ms',
   'session_ms',
   'scheduler_select_ms',
-  'provider_prepare_ms',
 ] as const
 
 /**
@@ -75,9 +73,10 @@ const streamOnlyTimingKeys: ReadonlySet<TimingKey> = new Set([
  */
 export type TimingKey =
   | (typeof admissionTimingKeys)[number]
-  | (typeof preparationTimingKeys)[number]
-  | (typeof eventTimingKeys)[number]
+  | (typeof preprocessTimingKeys)[number]
+  | 'provider_prepare_ms'
   | 'retry_provider_slot_wait_ms'
+  | (typeof eventTimingKeys)[number]
 
 /**
  * TimingRow pairs a recognized metric with observed milliseconds or a missing value.
@@ -85,6 +84,14 @@ export type TimingKey =
 export interface TimingRow {
   key: TimingKey // recognized metric name
   value: number | null // observed milliseconds or null
+}
+
+/**
+ * EventTimingRow pairs an ingress-relative milestone with its positive step delta from
+ * the preceding observed milestone when monotonic.
+ */
+export interface EventTimingRow extends TimingRow {
+  deltaMs: number | null // positive elapsed milliseconds since previous observed event
 }
 
 /**
@@ -101,17 +108,20 @@ export interface TimingBreakdown {
   admissionTotal: number | null // complete duration sum
 
   /**
-   * substages holds observed gateway preparation and attempt-setup sub-stages in
-   * execution order, omitting steps that did not run on the recorded route.
+   * preprocessSubstages holds observed gateway sub-stages executed inside
+   * preprocess_ms in execution order, omitting steps not run on the recorded route.
    */
-  substages: TimingRow[]
+  preprocessSubstages: TimingRow[]
 
   /**
-   * retryWait is null unless a positive retry queue duration was recorded.
-   * Consumers display this observation separately from the initial admission rows.
+   * providerPrepare and retryWait describe work occurring after initial slot
+   * acquisition and before upstream request dispatch: retryWait appears only when
+   * positive, while providerPrepare retains observed zero and positive durations.
    */
-  retryWait: TimingRow | null
-  events: TimingRow[] // ingress-relative event offsets
+  providerPrepare: TimingRow | null // post-slot attempt preparation duration
+  retryWait: TimingRow | null // positive retry provider queue duration
+
+  events: EventTimingRow[] // ingress-relative event offsets with step deltas
 
   /**
    * requestBytes, decodedBytes, upstreamBytes, and compressed expose wire, normalized,
@@ -169,12 +179,14 @@ export function timingBreakdown(timing: UsageLogTiming, stream?: boolean): Timin
     ? admissionTimingKeys.map(row)
     : []
   const complete = durations.length > 0 && durations.every((item) => item.value != null)
-  const substages = preparationTimingKeys.filter((key) => timing[key] != null).map(row)
+  const preprocessSubstages = preprocessTimingKeys.filter((key) => timing[key] != null).map(row)
+  const providerPrepare = timing.provider_prepare_ms != null ? row('provider_prepare_ms') : null
   /**
    * Filter upstream milestones by upstream mode and downstream delivery by client mode
    * because protocol conversion can make those stream settings differ.
    */
-  const events = eventTimingKeys
+  let prevObservedEventMs: number | null = null
+  const events: EventTimingRow[] = eventTimingKeys
     .filter(
       (key) =>
         (streaming !== false || !streamOnlyTimingKeys.has(key)) &&
@@ -186,11 +198,22 @@ export function timingBreakdown(timing: UsageLogTiming, stream?: boolean): Timin
             'upstream_completed_ms',
           ].includes(key)),
     )
-    .map(row)
+    .map((key) => {
+      const value = timingValue(timing, key)
+      let deltaMs: number | null = null
+      if (value != null) {
+        if (prevObservedEventMs != null && value > prevObservedEventMs) {
+          deltaMs = value - prevObservedEventMs
+        }
+        prevObservedEventMs = value
+      }
+      return { key, value, deltaMs }
+    })
   return {
     durations,
     admissionTotal: complete ? durations.reduce((sum, item) => sum + (item.value ?? 0), 0) : null,
-    substages,
+    preprocessSubstages,
+    providerPrepare,
 
     /**
      * Positive retry queue time is reported separately from the initial admission
