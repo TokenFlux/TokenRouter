@@ -481,6 +481,51 @@ func TestAPIKeyAuthSnapshotRoundTripPreservesBillingMode(t *testing.T) {
 	require.Equal(t, preferredID, *restored.PreferredSubscriptionID)
 }
 
+// TestAPIKeyAuthSnapshotRoundTripPreservesForceClaude1hCache serializes keys
+// with disabled and enabled forced one-hour Claude cache settings through JSON.
+// It checks snapshot schema acceptance and exact retention of both boolean
+// states after cache reconstruction.
+func TestAPIKeyAuthSnapshotRoundTripPreservesForceClaude1hCache(t *testing.T) {
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
+	for _, enabled := range []bool{false, true} {
+		key := &apikey.APIKey{
+			ID:                 19,
+			UserID:             7,
+			Key:                "sk-claude-1h-roundtrip",
+			Status:             billing.StatusActive,
+			ForceClaude1hCache: enabled,
+			User:               &identity.User{ID: 7, Status: billing.StatusActive, Role: identity.RoleUser},
+		}
+		snapshot := svc.KeySnapshotFromAPIKey(context.Background(), key)
+		require.Equal(t, apikey.KeyApiKeyAuthSnapshotVersion, snapshot.Version)
+		require.Equal(t, enabled, snapshot.ForceClaude1hCache)
+
+		payload, err := json.Marshal(&apikey.APIKeyAuthCacheEntry{Snapshot: snapshot})
+		require.NoError(t, err)
+		var decoded apikey.APIKeyAuthCacheEntry
+		require.NoError(t, json.Unmarshal(payload, &decoded))
+
+		materialized, used, err := svc.KeyApplyAuthCacheEntry(key.Key, &decoded)
+		require.NoError(t, err)
+		require.True(t, used)
+		require.Equal(t, enabled, materialized.ForceClaude1hCache)
+	}
+}
+
+// TestAPIKeyServiceRejectsV47AuthSnapshotWithoutForceClaude1hCache supplies a
+// version 47 fixture predating the per-Key Claude one-hour cache flag. It
+// checks the current version gate ignores the stale entry without error so
+// authentication reloads storage.
+func TestAPIKeyServiceRejectsV47AuthSnapshotWithoutForceClaude1hCache(t *testing.T) {
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
+	apiKey, ok, err := svc.KeyApplyAuthCacheEntry("k-legacy-v47", &apikey.APIKeyAuthCacheEntry{
+		Snapshot: &apikey.APIKeyAuthSnapshot{Version: 47},
+	})
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Nil(t, apiKey)
+}
+
 // TestAPIKeyAuthGroupSnapshotPreservesExplicitEmptyClientProtocols serializes
 // an explicitly empty client protocol set. It checks decoding retains nonnil
 // empty input and reconstruction rejects a client protocol instead of choosing

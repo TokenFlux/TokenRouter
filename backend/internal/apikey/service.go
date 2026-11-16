@@ -131,6 +131,7 @@ type APIKeyUpdateFields struct {
 	// Key update and complete binding replacement.
 	CompositeConfiguration bool // select composite mode and bindings
 	FastModePolicy         bool // select Key acceleration choice
+	ForceClaude1hCache     bool // select Claude 1h cache override
 	// BillingConfiguration writes BillingMode and PreferredSubscriptionID together
 	// so their selected funding choice remains one persisted update. Service
 	// validation clears the selected ID outside subscription mode.
@@ -380,6 +381,9 @@ type CreateAPIKeyRequest struct {
 	IPWhitelist    []string `json:"ip_whitelist"`     // supplied allowed address patterns
 	IPBlacklist    []string `json:"ip_blacklist"`     // supplied denied address patterns
 	FastModePolicy string   `json:"fast_mode_policy"` // submitted Key acceleration choice
+	// ForceClaude1hCache defaults false when absent. Enabling it rewrites
+	// ephemeral prompt-cache markers on Claude requests authenticated with this Key to 1h.
+	ForceClaude1hCache *bool `json:"force_claude_1h_cache"` // optional Claude 1h cache override
 	// BillingMode and PreferredSubscriptionID are validated against the current
 	// payer before bindings are persisted. Automatic and balance modes clear the
 	// preferred ID; specified funding requires an effective owned subscription.
@@ -433,9 +437,10 @@ type UpdateAPIKeyRequest struct {
 	// IPWhitelist and IPBlacklist leave their saved lists unchanged when nil.
 	// Supplied empty slices clear the selected list, and accepted replacements
 	// retain the supplied slice storage.
-	IPWhitelist    *[]string `json:"ip_whitelist"`     // optional allowed-pattern replacement
-	IPBlacklist    *[]string `json:"ip_blacklist"`     // optional denied-pattern replacement
-	FastModePolicy *string   `json:"fast_mode_policy"` // optional Key acceleration replacement
+	IPWhitelist        *[]string `json:"ip_whitelist"`          // optional allowed-pattern replacement
+	IPBlacklist        *[]string `json:"ip_blacklist"`          // optional denied-pattern replacement
+	FastModePolicy     *string   `json:"fast_mode_policy"`      // optional Key acceleration replacement
+	ForceClaude1hCache *bool     `json:"force_claude_1h_cache"` // optional Claude 1h cache replacement
 	// BillingMode and PreferredSubscriptionID combine with saved funding values
 	// when omitted. A supplied non-subscription mode clears the preferred ID;
 	// keeping subscription mode requires an effective owned selection.
@@ -1193,6 +1198,10 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 	if req.FallbackWhenGroupUnavailable != nil {
 		fallbackWhenGroupUnavailable = *req.FallbackWhenGroupUnavailable
 	}
+	forceClaude1hCache := false
+	if req.ForceClaude1hCache != nil {
+		forceClaude1hCache = *req.ForceClaude1hCache
+	}
 
 	// Store submitted names with HTML entities for metacharacters so Create and
 	// Update return the saved representation used by management responses.
@@ -1206,6 +1215,7 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		CompositeGroups:              compositeGroups,
 		Status:                       StatusActive,
 		FastModePolicy:               fastModePolicy,
+		ForceClaude1hCache:           forceClaude1hCache,
 		BillingMode:                  billingMode,
 		PreferredSubscriptionID:      preferredSubscriptionID,
 		ModelMapping:                 modelMapping,
@@ -1629,6 +1639,10 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		}
 		apiKey.FastModePolicy = fastModePolicy
 		fields.FastModePolicy = true
+	}
+	if req.ForceClaude1hCache != nil {
+		apiKey.ForceClaude1hCache = *req.ForceClaude1hCache
+		fields.ForceClaude1hCache = true
 	}
 	if req.ModelMapping != nil {
 		fields.ModelMapping = true

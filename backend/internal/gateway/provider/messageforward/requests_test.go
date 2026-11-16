@@ -600,6 +600,61 @@ func TestBuildUpstreamRequestAnthropicAPIKeyPassthrough_PreservesContextManageme
 		"API-key passthrough + 客户端带 context-management beta → 字段保留（不过度删除）")
 }
 
+// TestBuildRequests_ForceClaude1hCacheAcrossAnthropicPaths prepares Vertex,
+// ordinary API Key, and API Key passthrough requests with forced one-hour
+// Claude caching enabled. It checks Claude models rewrite 5m and default
+// ephemeral markers to 1h while non-Claude passthrough models keep 5m.
+func TestBuildRequests_ForceClaude1hCacheAcrossAnthropicPaths(t *testing.T) {
+	ctx := gatewayprovider.WithAPIKeyForceClaude1hCache(context.Background(), true)
+	c := &requestBoundaryFixture{Request: httptest.NewRequest(http.MethodPost, "/v1/messages", nil)}
+	svc := NewRuntime(Dependencies{}, Options{Configured: true})
+	claudeBody := []byte(`{
+		"model":"claude-sonnet-4-6",
+		"cache_control":{"type":"ephemeral","ttl":"5m"},
+		"system":[{"type":"text","text":"sys","cache_control":{"type":"ephemeral"}}],
+		"tools":[{"name":"bash","cache_control":{"type":"ephemeral","ttl":"5m"},"input_schema":{"type":"object"}}],
+		"messages":[{"role":"user","content":[{"type":"text","text":"hi","cache_control":{"type":"ephemeral","ttl":"5m"}}]}]
+	}`)
+
+	apiKeyProvider := &gatewayprovider.ExecutionProvider{
+		Record: providercore.Record{
+			LoadLocation: time.LoadLocation, ID: 601,
+			Platform:    capability.PlatformAnthropic,
+			Type:        capability.ProviderTypeAPIKey,
+			Credentials: map[string]any{"api_key": "sk-ant"},
+		},
+	}
+	apiKeyReq, _, err := svc.buildRequest(ctx, c, &AttemptState{}, apiKeyProvider, claudeBody, "sk-ant", "apikey", "claude-sonnet-4-6", false, false)
+	require.NoError(t, err)
+	apiKeyOut := readUpstreamBodyForTest(t, apiKeyReq)
+	require.Equal(t, "1h", gjson.GetBytes(apiKeyOut, "cache_control.ttl").String())
+	require.Equal(t, "1h", gjson.GetBytes(apiKeyOut, "system.0.cache_control.ttl").String())
+	require.Equal(t, "1h", gjson.GetBytes(apiKeyOut, "tools.0.cache_control.ttl").String())
+	require.Equal(t, "1h", gjson.GetBytes(apiKeyOut, "messages.0.content.0.cache_control.ttl").String())
+
+	vertexReq, _, err := svc.buildRequest(ctx, c, &AttemptState{}, newVertexServiceAccount(602), claudeBody, "vertex-token", "service_account", "claude-sonnet-4-6@20260218", false, false)
+	require.NoError(t, err)
+	vertexOut := readUpstreamBodyForTest(t, vertexReq)
+	require.Equal(t, "1h", gjson.GetBytes(vertexOut, "cache_control.ttl").String())
+	require.Equal(t, "1h", gjson.GetBytes(vertexOut, "system.0.cache_control.ttl").String())
+	require.Equal(t, "1h", gjson.GetBytes(vertexOut, "tools.0.cache_control.ttl").String())
+	require.Equal(t, "1h", gjson.GetBytes(vertexOut, "messages.0.content.0.cache_control.ttl").String())
+
+	passReq, passWire, err := svc.buildPassthroughRequest(ctx, c, &AttemptState{}, newAnthropicAPIKeyPassthroughProviderForBetaTest(), claudeBody, "upstream-key")
+	require.NoError(t, err)
+	_ = readUpstreamBodyForTest(t, passReq)
+	require.Equal(t, "1h", gjson.GetBytes(passWire, "cache_control.ttl").String())
+	require.Equal(t, "1h", gjson.GetBytes(passWire, "system.0.cache_control.ttl").String())
+	require.Equal(t, "1h", gjson.GetBytes(passWire, "tools.0.cache_control.ttl").String())
+	require.Equal(t, "1h", gjson.GetBytes(passWire, "messages.0.content.0.cache_control.ttl").String())
+
+	nonClaudeBody := []byte(`{"model":"glm-5","messages":[{"role":"user","content":[{"type":"text","text":"hi","cache_control":{"type":"ephemeral","ttl":"5m"}}]}]}`)
+	nonClaudeReq, nonClaudeWire, err := svc.buildPassthroughRequest(ctx, c, &AttemptState{}, newAnthropicAPIKeyPassthroughProviderForBetaTest(), nonClaudeBody, "upstream-key")
+	require.NoError(t, err)
+	_ = readUpstreamBodyForTest(t, nonClaudeReq)
+	require.Equal(t, "5m", gjson.GetBytes(nonClaudeWire, "messages.0.content.0.cache_control.ttl").String())
+}
+
 // TestBuildCountTokensRequestAnthropicAPIKeyPassthrough_StripsContextManagementWhenClientHeaderMissingBeta
 // supplies context-management edits to native counting without their beta. The
 // prepared counting request removes that field while using the API key

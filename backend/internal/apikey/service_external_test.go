@@ -1436,6 +1436,7 @@ func TestAPIKeyUpdate_OnlyDeclaresRequestedColumns(t *testing.T) {
 	whitelist := []string{"10.0.0.1"}
 	fastModePolicy := apikey.APIKeyFastModePolicyForceOff
 	fallbackToDefaultGroup := false
+	forceClaude1hCache := true
 	modelMapping := map[string]string{"review": "gpt-5.6-luna"}
 
 	tests := []struct {
@@ -1488,6 +1489,11 @@ func TestAPIKeyUpdate_OnlyDeclaresRequestedColumns(t *testing.T) {
 			req:  apikey.UpdateAPIKeyRequest{FallbackWhenGroupUnavailable: &fallbackToDefaultGroup},
 			want: apikey.APIKeyUpdateFields{FallbackWhenGroupUnavailable: true},
 		},
+		{
+			name: "fork force claude 1h cache only",
+			req:  apikey.UpdateAPIKeyRequest{ForceClaude1hCache: &forceClaude1hCache},
+			want: apikey.APIKeyUpdateFields{ForceClaude1hCache: true},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1508,6 +1514,66 @@ func TestAPIKeyUpdate_OnlyDeclaresRequestedColumns(t *testing.T) {
 			require.Equal(t, []apikey.APIKeyUpdateFields{tt.want}, repo.updateFields)
 		})
 	}
+}
+
+// TestAPIKeyService_CreateAndUpdateForceClaude1hCache creates credentials with
+// omitted and enabled Claude one-hour cache flags, then updates an enabled
+// credential with omitted and disabled inputs. It checks the false creation
+// default, retained enabled value when omitted, and persisted replacement when
+// explicitly cleared.
+func TestAPIKeyService_CreateAndUpdateForceClaude1hCache(t *testing.T) {
+	const userID int64 = 7
+	group := &routing.Group{ID: 11, Status: billing.StatusActive}
+	repo := &apiKeyNameSanitizeRepoStub{}
+	user := &identity.User{ID: userID, Status: billing.StatusActive, Role: identity.RoleUser}
+	svc := testkit.NewService(
+		repo,
+		&userRepoStub{user: user},
+		&compositeGroupRepoStub{groups: map[int64]*routing.Group{group.ID: group}},
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	svc.Start()
+
+	defaultCustomKey := "sk_claude_1h_default"
+	defaultKey, err := svc.Create(context.Background(), userID, apikey.CreateAPIKeyRequest{
+		Name:      "default cache key",
+		CustomKey: &defaultCustomKey,
+		GroupID:   &group.ID,
+	})
+	require.NoError(t, err)
+	require.False(t, defaultKey.ForceClaude1hCache)
+	require.False(t, repo.created[0].ForceClaude1hCache)
+
+	enabled := true
+	enabledCustomKey := "sk_claude_1h_enabled"
+	enabledKey, err := svc.Create(context.Background(), userID, apikey.CreateAPIKeyRequest{
+		Name:               "forced 1h cache key",
+		CustomKey:          &enabledCustomKey,
+		GroupID:            &group.ID,
+		ForceClaude1hCache: &enabled,
+	})
+	require.NoError(t, err)
+	require.True(t, enabledKey.ForceClaude1hCache)
+	require.True(t, repo.created[1].ForceClaude1hCache)
+
+	repo.apiKey = repo.created[1]
+	renamed := "renamed forced 1h cache key"
+	retained, err := svc.Update(context.Background(), enabledKey.ID, userID, apikey.UpdateAPIKeyRequest{
+		Name: &renamed,
+	})
+	require.NoError(t, err)
+	require.True(t, retained.ForceClaude1hCache)
+
+	disabled := false
+	cleared, err := svc.Update(context.Background(), enabledKey.ID, userID, apikey.UpdateAPIKeyRequest{
+		ForceClaude1hCache: &disabled,
+	})
+	require.NoError(t, err)
+	require.False(t, cleared.ForceClaude1hCache)
+	require.False(t, repo.apiKey.ForceClaude1hCache)
 }
 
 // TestAPIKeyUpdateClearsModelMappingWithEmptyObject supplies an empty

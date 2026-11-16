@@ -77,6 +77,7 @@ func (s ManagedKeys) Ensure(ctx context.Context, userID, groupID int64) (*APIKey
 		BillingMode:                  APIKeyBillingModeAuto,
 		ManagedBy:                    &managedBy,
 		FastModePolicy:               "follow_request",
+		ForceClaude1hCache:           false,
 		FallbackWhenGroupUnavailable: false,
 	}
 	if err := s.Store.CreateManagedKey(ctx, key); err != nil {

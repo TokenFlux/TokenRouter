@@ -198,6 +198,20 @@ func (_u *APIKeyUpdate) SetNillableFastModePolicy(v *string) *APIKeyUpdate {
 	return _u
 }
 
+// SetForceClaude1hCache sets the "force_claude_1h_cache" field.
+func (_u *APIKeyUpdate) SetForceClaude1hCache(v bool) *APIKeyUpdate {
+	_u.mutation.SetForceClaude1hCache(v)
+	return _u
+}
+
+// SetNillableForceClaude1hCache sets the "force_claude_1h_cache" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableForceClaude1hCache(v *bool) *APIKeyUpdate {
+	if v != nil {
+		_u.SetForceClaude1hCache(*v)
+	}
+	return _u
+}
+
 // SetBillingMode sets the "billing_mode" field.
 func (_u *APIKeyUpdate) SetBillingMode(v string) *APIKeyUpdate {
 	_u.mutation.SetBillingMode(v)
@@ -864,6 +878,9 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.FastModePolicy(); ok {
 		_spec.SetField(apikey.FieldFastModePolicy, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.ForceClaude1hCache(); ok {
+		_spec.SetField(apikey.FieldForceClaude1hCache, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.BillingMode(); ok {
 		_spec.SetField(apikey.FieldBillingMode, field.TypeString, value)
 	}
@@ -1357,6 +1374,20 @@ func (_u *APIKeyUpdateOne) SetFastModePolicy(v string) *APIKeyUpdateOne {
 func (_u *APIKeyUpdateOne) SetNillableFastModePolicy(v *string) *APIKeyUpdateOne {
 	if v != nil {
 		_u.SetFastModePolicy(*v)
+	}
+	return _u
+}
+
+// SetForceClaude1hCache sets the "force_claude_1h_cache" field.
+func (_u *APIKeyUpdateOne) SetForceClaude1hCache(v bool) *APIKeyUpdateOne {
+	_u.mutation.SetForceClaude1hCache(v)
+	return _u
+}
+
+// SetNillableForceClaude1hCache sets the "force_claude_1h_cache" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableForceClaude1hCache(v *bool) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetForceClaude1hCache(*v)
 	}
 	return _u
 }
@@ -2056,6 +2087,9 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	}
 	if value, ok := _u.mutation.FastModePolicy(); ok {
 		_spec.SetField(apikey.FieldFastModePolicy, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ForceClaude1hCache(); ok {
+		_spec.SetField(apikey.FieldForceClaude1hCache, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.BillingMode(); ok {
 		_spec.SetField(apikey.FieldBillingMode, field.TypeString, value)

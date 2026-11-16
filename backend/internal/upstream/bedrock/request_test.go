@@ -184,6 +184,36 @@ func TestSanitizeBedrockCacheControl_TTL_Claude46(t *testing.T) {
 	assert.Equal(t, "1h", gjson.GetBytes(result, "messages.0.content.0.cache_control.ttl").String())
 }
 
+// TestSanitizeBedrockCacheControl_TopLevelAndToolTTL supplies scope and
+// one-hour TTL on top-level and tool cache-control markers across TTL-capable
+// and older Bedrock models. It checks scope removal everywhere, one-hour TTL
+// retention on Claude 4.6, and TTL removal on Claude 3.5.
+func TestSanitizeBedrockCacheControl_TopLevelAndToolTTL(t *testing.T) {
+	input := `{
+		"cache_control": {"type":"ephemeral","scope":"global","ttl":"1h"},
+		"tools": [
+			{"name":"bash","cache_control":{"type":"ephemeral","scope":"global","ttl":"1h"},"input_schema":{"type":"object"}}
+		],
+		"messages": [{"role":"user","content":"hi"}]
+	}`
+
+	supported := SanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
+	assert.False(t, gjson.GetBytes(supported, "cache_control.scope").Exists())
+	assert.Equal(t, "ephemeral", gjson.GetBytes(supported, "cache_control.type").String())
+	assert.Equal(t, "1h", gjson.GetBytes(supported, "cache_control.ttl").String())
+	assert.False(t, gjson.GetBytes(supported, "tools.0.cache_control.scope").Exists())
+	assert.Equal(t, "ephemeral", gjson.GetBytes(supported, "tools.0.cache_control.type").String())
+	assert.Equal(t, "1h", gjson.GetBytes(supported, "tools.0.cache_control.ttl").String())
+
+	older := SanitizeBedrockCacheControl([]byte(input), "anthropic.claude-3-5-sonnet-20241022-v2:0")
+	assert.False(t, gjson.GetBytes(older, "cache_control.scope").Exists())
+	assert.False(t, gjson.GetBytes(older, "cache_control.ttl").Exists())
+	assert.Equal(t, "ephemeral", gjson.GetBytes(older, "cache_control.type").String())
+	assert.False(t, gjson.GetBytes(older, "tools.0.cache_control.scope").Exists())
+	assert.False(t, gjson.GetBytes(older, "tools.0.cache_control.ttl").Exists())
+	assert.Equal(t, "ephemeral", gjson.GetBytes(older, "tools.0.cache_control.type").String())
+}
+
 // TestSanitizeBedrockCacheControl_NoCacheControl supplies system and message
 // text without cache objects. It checks cleanup returns equivalent JSON and
 // leaves those ordinary blocks available.

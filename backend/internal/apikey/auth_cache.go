@@ -34,10 +34,11 @@ type APIKeyAuthSnapshot struct {
 	GroupID     *int64 `json:"group_id,omitempty"`
 	IsComposite bool   `json:"is_composite"` // prefix selection mode flag
 	// ordered composite group snapshots.
-	CompositeGroups []APIKeyAuthCompositeGroupSnapshot `json:"composite_groups,omitempty"`
-	Name            string                             `json:"name"`             // saved credential display name
-	Status          string                             `json:"status"`           // stored credential lifecycle state
-	FastModePolicy  string                             `json:"fast_mode_policy"` // stored Key acceleration preference
+	CompositeGroups    []APIKeyAuthCompositeGroupSnapshot `json:"composite_groups,omitempty"`
+	Name               string                             `json:"name"`                  // saved credential display name
+	Status             string                             `json:"status"`                // stored credential lifecycle state
+	FastModePolicy     string                             `json:"fast_mode_policy"`      // stored Key acceleration preference
+	ForceClaude1hCache bool                               `json:"force_claude_1h_cache"` // stored Claude 1h cache override
 	// BillingMode and PreferredSubscriptionID select automatic, wallet or
 	// specified subscription funding. Admission checks the chosen source against
 	// the payer and final group after authentication.

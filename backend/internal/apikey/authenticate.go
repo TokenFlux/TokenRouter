@@ -47,8 +47,9 @@ type AccessSnapshot struct {
 	TeamID      *int64 // copied team scope identifier
 	// key remains a shared pointer to this attempt's loaded view. Context
 	// copying retains it; runtime group helpers publish request-local replacements.
-	key            *APIKey
-	fastModePolicy string // selected request acceleration policy
+	key                *APIKey
+	fastModePolicy     string // selected request acceleration policy
+	forceClaude1hCache bool   // selected Claude 1h cache override
 }
 
 // AuthenticationInput supplies the client address and member-allowance
@@ -121,7 +122,15 @@ func (s *APIKeyService) authenticateKey(key *APIKey, input AuthenticationInput) 
 	if key == nil {
 		return nil, &AuthenticationFailure{Kind: AuthenticationLookup, Cause: ErrAPIKeyNotFound}
 	}
-	access := &AccessSnapshot{KeyID: key.ID, OwnerUserID: key.UserID, ActorUserID: key.UserID, TeamID: clonePointer(key.TeamID), key: key, fastModePolicy: key.FastModePolicy}
+	access := &AccessSnapshot{
+		KeyID:              key.ID,
+		OwnerUserID:        key.UserID,
+		ActorUserID:        key.UserID,
+		TeamID:             clonePointer(key.TeamID),
+		key:                key,
+		fastModePolicy:     key.FastModePolicy,
+		forceClaude1hCache: key.ForceClaude1hCache,
+	}
 	if key.User != nil {
 		access.PayerUserID = key.User.ID
 	}

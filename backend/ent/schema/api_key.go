@@ -42,8 +42,9 @@ func (APIKey) Mixin() []ent.Mixin {
 
 // Fields describes credential ownership, group selection, funding, and limits.
 // Generated Ent inserts start active with ordinary group binding, automatic
-// funding, client-following Fast policy, and zero quota or spending limits.
-// The key service validates combinations before repository writes.
+// funding, client-following Fast policy, default Claude cache lifetime, and
+// zero quota or spending limits. The key service validates combinations before
+// repository writes.
 func (APIKey) Fields() []ent.Field {
 	return []ent.Field{
 		// Linked user identity.
@@ -86,6 +87,13 @@ func (APIKey) Fields() []ent.Field {
 			MaxLen(32).
 			Default("follow_request").
 			Comment("API key Fast mode policy: follow_request, force_on, or force_off"),
+		// force_claude_1h_cache rewrites ephemeral prompt-cache markers on
+		// Claude requests authenticated with this credential to use a 1h TTL.
+		// Leaving it false preserves incoming client cache lifetimes and any
+		// separate administrator OAuth cache-TTL policy.
+		field.Bool("force_claude_1h_cache").
+			Default(false).
+			Comment("Rewrites ephemeral cache_control markers on Claude requests to 1h TTL"),
 		// billing_mode and preferred_subscription_id determine the funding
 		// selection made for the key's payer. Auto can use subscriptions then
 		// wallet funds; subscription selects the recorded entitlement, and

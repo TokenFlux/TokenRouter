@@ -45,6 +45,8 @@ type APIKey struct {
 	Status string `json:"status,omitempty"`
 	// API key Fast mode policy: follow_request, force_on, or force_off
 	FastModePolicy string `json:"fast_mode_policy,omitempty"`
+	// Rewrites ephemeral cache_control markers on Claude requests to 1h TTL
+	ForceClaude1hCache bool `json:"force_claude_1h_cache,omitempty"`
 	// API key billing mode: auto, subscription, or balance
 	BillingMode string `json:"billing_mode,omitempty"`
 	// User subscription ID selected when billing_mode is subscription
@@ -170,7 +172,7 @@ func (*APIKey) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case apikey.FieldModelMapping, apikey.FieldIPWhitelist, apikey.FieldIPBlacklist:
 			values[i] = new([]byte)
-		case apikey.FieldTeamOwnerDisabled, apikey.FieldIsComposite, apikey.FieldFallbackWhenGroupUnavailable:
+		case apikey.FieldTeamOwnerDisabled, apikey.FieldIsComposite, apikey.FieldForceClaude1hCache, apikey.FieldFallbackWhenGroupUnavailable:
 			values[i] = new(sql.NullBool)
 		case apikey.FieldQuota, apikey.FieldQuotaUsed, apikey.FieldRateLimit5h, apikey.FieldRateLimit1d, apikey.FieldRateLimit7d, apikey.FieldUsage5h, apikey.FieldUsage1d, apikey.FieldUsage7d:
 			values[i] = new(sql.NullFloat64)
@@ -275,6 +277,12 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field fast_mode_policy", values[i])
 			} else if value.Valid {
 				_m.FastModePolicy = value.String
+			}
+		case apikey.FieldForceClaude1hCache:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field force_claude_1h_cache", values[i])
+			} else if value.Valid {
+				_m.ForceClaude1hCache = value.Bool
 			}
 		case apikey.FieldBillingMode:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -523,6 +531,9 @@ func (_m *APIKey) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("fast_mode_policy=")
 	builder.WriteString(_m.FastModePolicy)
+	builder.WriteString(", ")
+	builder.WriteString("force_claude_1h_cache=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ForceClaude1hCache))
 	builder.WriteString(", ")
 	builder.WriteString("billing_mode=")
 	builder.WriteString(_m.BillingMode)

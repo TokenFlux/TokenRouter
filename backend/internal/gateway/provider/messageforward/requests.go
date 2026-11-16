@@ -44,6 +44,11 @@ func (r *Runtime) buildRequest(ctx context.Context, output HTTPBoundary, state *
 	if err != nil {
 		return nil, nil, err
 	}
+	// Apply one-hour ephemeral cache lifetimes after model attribute rules so
+	// converted Responses and Chat payloads share the same TTL policy as Messages.
+	if r.injectTTL(ctx, target, model) {
+		body = anthropic.InjectAnthropicCacheControlTTL1h(body)
+	}
 	if target.Record.Platform == capability.PlatformAnthropic && target.Record.Type == capability.ProviderTypeServiceAccount {
 		// Vertex preparation removes deferred-tool cache controls
 		// before its builder sanitizes beta-dependent body fields,
@@ -107,6 +112,11 @@ func (r *Runtime) buildPassthroughRequest(ctx context.Context, output HTTPBounda
 	body, err = gatewayadapter.ApplyModelAttributeParameters(body, attributes)
 	if err != nil {
 		return nil, nil, err
+	}
+	// Enforce the API Key's forced Claude 1h cache policy for direct passthrough
+	// builders when not already applied by the outer passthrough flow.
+	if gatewayadapter.ShouldForceClaude1hCache(ctx, target, model) {
+		body = anthropic.InjectAnthropicCacheControlTTL1h(body)
 	}
 	options := r.requestOptions(ctx, output, state, target, model, "apikey", false)
 	options.URL = func() (string, error) {

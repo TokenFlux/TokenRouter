@@ -57,6 +57,12 @@ type PassthroughPorts interface {
 	// model. The caller passes the already resolved request model and retains
 	// the returned bytes before updating the shared parsed body.
 	FilterSearchHistory([]byte, string) []byte
+	// InjectTTL reports whether per-Key or provider settings enable one-hour
+	// cache-control TTL rewriting for the resolved passthrough model.
+	InjectTTL(context.Context, string) bool
+	// CacheTTL rewrites existing ephemeral cache-control markers in the supplied
+	// passthrough body to use a one-hour TTL before parsed-body publication.
+	CacheTTL([]byte) []byte
 	// ReadErrorBody captures bytes from the current failed upstream response.
 	// It can return partial bytes with a read error; the caller resets that
 	// evidence for health policy before choosing final error handling.

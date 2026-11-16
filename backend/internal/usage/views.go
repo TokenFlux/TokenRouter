@@ -85,6 +85,7 @@ type KeyView struct {
 	CompositeGroups         []KeyCompositeGroupView // loaded composite group bindings
 	Status                  string                  // stored key status
 	FastModePolicy          string                  // key Fast mode policy
+	ForceClaude1hCache      bool                    // key Claude 1h cache override
 	BillingMode             string                  // selected key funding mode
 	PreferredSubscriptionID *int64                  // optional selected subscription identifier
 	// ModelMapping supplies key alias mappings to keyFromView. The final API-key

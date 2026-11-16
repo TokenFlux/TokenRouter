@@ -44,6 +44,14 @@ type availableGroupsRepository struct {
 	apikey.GroupRepository // unused group methods require setup
 }
 
+// forceClaudeCacheHTTPRepository captures Key creation and update records for
+// console HTTP handler assertions.
+type forceClaudeCacheHTTPRepository struct {
+	apikey.APIKeyRepository                           // unused repository methods require setup
+	stored                  *apikey.APIKey            // latest persisted credential record
+	lastUpdateFields        apikey.APIKeyUpdateFields // latest captured column mask
+}
+
 // TestValidateAPIKeyCreateRequest supplies omitted and bounded monetary
 // allowances with positive or invalid relative expiry values. It checks
 // accepted limits and early rejection of negative, nonfinite, oversized or
@@ -285,6 +293,99 @@ func (availableGroupsUsers) GetByID(context.Context, int64) (*apikey.User, error
 // filtering.
 func (availableGroupsRepository) ListActive(context.Context) ([]routing.Group, error) {
 	return []routing.Group{{ID: 1, Status: "active"}, {ID: 2, Status: "active", IsExclusive: true}}, nil
+}
+
+// GetByID returns the active public group when id equals one and reports
+// missing group data otherwise.
+func (availableGroupsRepository) GetByID(_ context.Context, id int64) (*routing.Group, error) {
+	if id == 1 {
+		return &routing.Group{ID: 1, Status: "active"}, nil
+	}
+	return nil, routing.ErrGroupNotFound
+}
+
+// Create stores a shallow copy of key with ID 1 for subsequent update calls.
+func (r *forceClaudeCacheHTTPRepository) Create(_ context.Context, key *apikey.APIKey) error {
+	clone := *key
+	clone.ID = 1
+	r.stored = &clone
+	*key = clone
+	return nil
+}
+
+// ExistsByKey reports that every generated or custom credential secret is unused.
+func (r *forceClaudeCacheHTTPRepository) ExistsByKey(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+// GetByID returns a shallow copy of the stored credential when id matches.
+// Mismatched or absent records return ErrAPIKeyNotFound.
+func (r *forceClaudeCacheHTTPRepository) GetByID(_ context.Context, id int64) (*apikey.APIKey, error) {
+	if r.stored == nil || r.stored.ID != id {
+		return nil, apikey.ErrAPIKeyNotFound
+	}
+	clone := *r.stored
+	return &clone, nil
+}
+
+// Update records the supplied Key copy and selected persistence mask.
+func (r *forceClaudeCacheHTTPRepository) Update(_ context.Context, key *apikey.APIKey, fields apikey.APIKeyUpdateFields) error {
+	clone := *key
+	r.stored = &clone
+	r.lastUpdateFields = fields
+	return nil
+}
+
+// TestAPIKeyHandler_CreateAndUpdateForceClaude1hCache submits HTTP creation and
+// update requests toggling force_claude_1h_cache. It checks JSON binding,
+// persisted repository state, selected update mask, and serialized DTO output.
+func TestAPIKeyHandler_CreateAndUpdateForceClaude1hCache(t *testing.T) {
+	repo := &forceClaudeCacheHTTPRepository{}
+	service := apikey.NewAPIKeyService(repo, availableGroupsUsers{}, availableGroupsRepository{}, nil, nil, nil, &apikey.Options{})
+	service.Start()
+	t.Cleanup(service.Stop)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(authctx.ContextKeyUser, authctx.AuthSubject{UserID: 1})
+		c.Next()
+	})
+	handler := NewAPIKeyHandler(service, func(*routing.Group, *accessview.GroupCapacitySummary) *struct{} { return nil })
+	router.POST("/keys", handler.Create)
+	router.PUT("/keys/:id", handler.Update)
+
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/keys", strings.NewReader(`{"name":"claude-key","group_id":1,"force_claude_1h_cache":true}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(createRec, createReq)
+	require.Equal(t, http.StatusOK, createRec.Code, createRec.Body.String())
+
+	var created struct {
+		Data struct { // decoded console Key payload
+			ID                 int64 `json:"id"`                    // returned credential identifier
+			ForceClaude1hCache bool  `json:"force_claude_1h_cache"` // returned Claude 1h cache flag
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &created))
+	require.Equal(t, int64(1), created.Data.ID)
+	require.True(t, created.Data.ForceClaude1hCache)
+	require.True(t, repo.stored.ForceClaude1hCache)
+
+	updateRec := httptest.NewRecorder()
+	updateReq := httptest.NewRequest(http.MethodPut, "/keys/1", strings.NewReader(`{"force_claude_1h_cache":false}`))
+	updateReq.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(updateRec, updateReq)
+	require.Equal(t, http.StatusOK, updateRec.Code, updateRec.Body.String())
+
+	var updated struct {
+		Data struct { // decoded console Key payload
+			ForceClaude1hCache bool `json:"force_claude_1h_cache"` // returned Claude 1h cache flag
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(updateRec.Body.Bytes(), &updated))
+	require.False(t, updated.Data.ForceClaude1hCache)
+	require.False(t, repo.stored.ForceClaude1hCache)
+	require.Equal(t, apikey.APIKeyUpdateFields{ForceClaude1hCache: true}, repo.lastUpdateFields)
 }
 
 // TestAvailableGroupsOptionalModels varies include_models omission, valid

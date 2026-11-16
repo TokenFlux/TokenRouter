@@ -137,6 +137,7 @@ type APIKeyMutation struct {
 	is_composite                    *bool
 	status                          *string
 	fast_mode_policy                *string
+	force_claude_1h_cache           *bool
 	billing_mode                    *string
 	preferred_subscription_id       *int64
 	addpreferred_subscription_id    *int64
@@ -757,6 +758,42 @@ func (m *APIKeyMutation) OldFastModePolicy(ctx context.Context) (v string, err e
 // ResetFastModePolicy resets all changes to the "fast_mode_policy" field.
 func (m *APIKeyMutation) ResetFastModePolicy() {
 	m.fast_mode_policy = nil
+}
+
+// SetForceClaude1hCache sets the "force_claude_1h_cache" field.
+func (m *APIKeyMutation) SetForceClaude1hCache(b bool) {
+	m.force_claude_1h_cache = &b
+}
+
+// ForceClaude1hCache returns the value of the "force_claude_1h_cache" field in the mutation.
+func (m *APIKeyMutation) ForceClaude1hCache() (r bool, exists bool) {
+	v := m.force_claude_1h_cache
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldForceClaude1hCache returns the old "force_claude_1h_cache" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldForceClaude1hCache(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldForceClaude1hCache is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldForceClaude1hCache requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldForceClaude1hCache: %w", err)
+	}
+	return oldValue.ForceClaude1hCache, nil
+}
+
+// ResetForceClaude1hCache resets all changes to the "force_claude_1h_cache" field.
+func (m *APIKeyMutation) ResetForceClaude1hCache() {
+	m.force_claude_1h_cache = nil
 }
 
 // SetBillingMode sets the "billing_mode" field.
@@ -2144,7 +2181,7 @@ func (m *APIKeyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *APIKeyMutation) Fields() []string {
-	fields := make([]string, 0, 34)
+	fields := make([]string, 0, 35)
 	if m.created_at != nil {
 		fields = append(fields, apikey.FieldCreatedAt)
 	}
@@ -2180,6 +2217,9 @@ func (m *APIKeyMutation) Fields() []string {
 	}
 	if m.fast_mode_policy != nil {
 		fields = append(fields, apikey.FieldFastModePolicy)
+	}
+	if m.force_claude_1h_cache != nil {
+		fields = append(fields, apikey.FieldForceClaude1hCache)
 	}
 	if m.billing_mode != nil {
 		fields = append(fields, apikey.FieldBillingMode)
@@ -2279,6 +2319,8 @@ func (m *APIKeyMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case apikey.FieldFastModePolicy:
 		return m.FastModePolicy()
+	case apikey.FieldForceClaude1hCache:
+		return m.ForceClaude1hCache()
 	case apikey.FieldBillingMode:
 		return m.BillingMode()
 	case apikey.FieldPreferredSubscriptionID:
@@ -2356,6 +2398,8 @@ func (m *APIKeyMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldStatus(ctx)
 	case apikey.FieldFastModePolicy:
 		return m.OldFastModePolicy(ctx)
+	case apikey.FieldForceClaude1hCache:
+		return m.OldForceClaude1hCache(ctx)
 	case apikey.FieldBillingMode:
 		return m.OldBillingMode(ctx)
 	case apikey.FieldPreferredSubscriptionID:
@@ -2492,6 +2536,13 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetFastModePolicy(v)
+		return nil
+	case apikey.FieldForceClaude1hCache:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetForceClaude1hCache(v)
 		return nil
 	case apikey.FieldBillingMode:
 		v, ok := value.(string)
@@ -2941,6 +2992,9 @@ func (m *APIKeyMutation) ResetField(name string) error {
 		return nil
 	case apikey.FieldFastModePolicy:
 		m.ResetFastModePolicy()
+		return nil
+	case apikey.FieldForceClaude1hCache:
+		m.ResetForceClaude1hCache()
 		return nil
 	case apikey.FieldBillingMode:
 		m.ResetBillingMode()

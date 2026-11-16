@@ -123,8 +123,9 @@ func EffectiveAPIKey(c *gin.Context) (*apikey.APIKey, bool) {
 // downstream handlers. Rejections abort with the standard endpoint's error shape.
 //
 // After final group authorization it binds a request snapshot using the selected
-// payer and Fast policy. Actor principal publication follows funding admission,
-// and key request capacity is reserved immediately before downstream processing.
+// payer, Fast policy, and Claude cache-lifetime override. Actor principal
+// publication follows funding admission, and key request capacity is reserved
+// immediately before downstream processing.
 // The release callback runs after c.Next returns, covering waiting and streaming
 // performed by later handlers. Observation callbacks can run before admission succeeds.
 func NewAPIKeyAuthorization(apiKeyService *apikey.APIKeyService, subscriptionService AuthorizationSubscriptions, options APIKeyAuthorizationOptions) gin.HandlerFunc {
@@ -150,11 +151,12 @@ func NewAPIKeyAuthorization(apiKeyService *apikey.APIKeyService, subscriptionSer
 			return
 		}
 		// Composite selection can replace the group-specific key view. Publish its
-		// payer and Fast policy after authorization so execution reads the admitted selection.
+		// payer and per-key request policies after authorization so execution reads the admitted selection.
 		requestAccess := *access
 		requestAccess.PayerUserID = apiKey.User.ID
 		ctx := apikey.WithAccessSnapshot(c.Request.Context(), requestAccess)
-		c.Request = c.Request.WithContext(apikey.WithFastModePolicy(ctx, apiKey.FastModePolicy))
+		ctx = apikey.WithFastModePolicy(ctx, apiKey.FastModePolicy)
+		c.Request = c.Request.WithContext(apikey.WithForceClaude1hCache(ctx, apiKey.ForceClaude1hCache))
 		ApplyAPIKeyModelRedirect(c, apiKey)
 		// Existing results and usage remain accessible after consumption eligibility
 		// ends; identity checks still apply before these operations bypass funding enforcement.
@@ -280,6 +282,13 @@ func NewGoogleAPIKeyAuthorization(apiKeyService *apikey.APIKeyService, subscript
 			keyhttp.AbortGoogleError(c, 403, "You do not have access to the selected group.")
 			return
 		}
+		// Publish the admitted payer and per-key request policies so protocol
+		// fallback routes leaving Google ingress still observe the key's settings.
+		requestAccess := *access
+		requestAccess.PayerUserID = apiKey.User.ID
+		ctx := apikey.WithAccessSnapshot(c.Request.Context(), requestAccess)
+		ctx = apikey.WithFastModePolicy(ctx, apiKey.FastModePolicy)
+		c.Request = c.Request.WithContext(apikey.WithForceClaude1hCache(ctx, apiKey.ForceClaude1hCache))
 		ApplyAPIKeyModelRedirect(c, apiKey)
 		skipBilling := IsAPIKeyUsageRequest(c.Request.Method, c.Request.URL.Path) ||
 			IsBatchImageBillingBypassRequest(c.Request.Method, c.Request.URL.Path) ||

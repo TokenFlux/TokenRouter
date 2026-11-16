@@ -115,6 +115,11 @@ func FastModePolicy(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldFastModePolicy, v))
 }
 
+// ForceClaude1hCache applies equality check predicate on the "force_claude_1h_cache" field. It's identical to ForceClaude1hCacheEQ.
+func ForceClaude1hCache(v bool) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldForceClaude1hCache, v))
+}
+
 // BillingMode applies equality check predicate on the "billing_mode" field. It's identical to BillingModeEQ.
 func BillingMode(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldBillingMode, v))
@@ -698,6 +703,16 @@ func FastModePolicyEqualFold(v string) predicate.APIKey {
 // FastModePolicyContainsFold applies the ContainsFold predicate on the "fast_mode_policy" field.
 func FastModePolicyContainsFold(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldContainsFold(FieldFastModePolicy, v))
+}
+
+// ForceClaude1hCacheEQ applies the EQ predicate on the "force_claude_1h_cache" field.
+func ForceClaude1hCacheEQ(v bool) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldForceClaude1hCache, v))
+}
+
+// ForceClaude1hCacheNEQ applies the NEQ predicate on the "force_claude_1h_cache" field.
+func ForceClaude1hCacheNEQ(v bool) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldForceClaude1hCache, v))
 }
 
 // BillingModeEQ applies the EQ predicate on the "billing_mode" field.

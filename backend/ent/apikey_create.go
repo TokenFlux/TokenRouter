@@ -171,6 +171,20 @@ func (_c *APIKeyCreate) SetNillableFastModePolicy(v *string) *APIKeyCreate {
 	return _c
 }
 
+// SetForceClaude1hCache sets the "force_claude_1h_cache" field.
+func (_c *APIKeyCreate) SetForceClaude1hCache(v bool) *APIKeyCreate {
+	_c.mutation.SetForceClaude1hCache(v)
+	return _c
+}
+
+// SetNillableForceClaude1hCache sets the "force_claude_1h_cache" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableForceClaude1hCache(v *bool) *APIKeyCreate {
+	if v != nil {
+		_c.SetForceClaude1hCache(*v)
+	}
+	return _c
+}
+
 // SetBillingMode sets the "billing_mode" field.
 func (_c *APIKeyCreate) SetBillingMode(v string) *APIKeyCreate {
 	_c.mutation.SetBillingMode(v)
@@ -567,6 +581,10 @@ func (_c *APIKeyCreate) defaults() error {
 		v := apikey.DefaultFastModePolicy
 		_c.mutation.SetFastModePolicy(v)
 	}
+	if _, ok := _c.mutation.ForceClaude1hCache(); !ok {
+		v := apikey.DefaultForceClaude1hCache
+		_c.mutation.SetForceClaude1hCache(v)
+	}
 	if _, ok := _c.mutation.BillingMode(); !ok {
 		v := apikey.DefaultBillingMode
 		_c.mutation.SetBillingMode(v)
@@ -673,6 +691,9 @@ func (_c *APIKeyCreate) check() error {
 		if err := apikey.FastModePolicyValidator(v); err != nil {
 			return &ValidationError{Name: "fast_mode_policy", err: fmt.Errorf(`ent: validator failed for field "APIKey.fast_mode_policy": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.ForceClaude1hCache(); !ok {
+		return &ValidationError{Name: "force_claude_1h_cache", err: errors.New(`ent: missing required field "APIKey.force_claude_1h_cache"`)}
 	}
 	if _, ok := _c.mutation.BillingMode(); !ok {
 		return &ValidationError{Name: "billing_mode", err: errors.New(`ent: missing required field "APIKey.billing_mode"`)}
@@ -798,6 +819,10 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.FastModePolicy(); ok {
 		_spec.SetField(apikey.FieldFastModePolicy, field.TypeString, value)
 		_node.FastModePolicy = value
+	}
+	if value, ok := _c.mutation.ForceClaude1hCache(); ok {
+		_spec.SetField(apikey.FieldForceClaude1hCache, field.TypeBool, value)
+		_node.ForceClaude1hCache = value
 	}
 	if value, ok := _c.mutation.BillingMode(); ok {
 		_spec.SetField(apikey.FieldBillingMode, field.TypeString, value)
@@ -1169,6 +1194,18 @@ func (u *APIKeyUpsert) SetFastModePolicy(v string) *APIKeyUpsert {
 // UpdateFastModePolicy sets the "fast_mode_policy" field to the value that was provided on create.
 func (u *APIKeyUpsert) UpdateFastModePolicy() *APIKeyUpsert {
 	u.SetExcluded(apikey.FieldFastModePolicy)
+	return u
+}
+
+// SetForceClaude1hCache sets the "force_claude_1h_cache" field.
+func (u *APIKeyUpsert) SetForceClaude1hCache(v bool) *APIKeyUpsert {
+	u.Set(apikey.FieldForceClaude1hCache, v)
+	return u
+}
+
+// UpdateForceClaude1hCache sets the "force_claude_1h_cache" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateForceClaude1hCache() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldForceClaude1hCache)
 	return u
 }
 
@@ -1773,6 +1810,20 @@ func (u *APIKeyUpsertOne) SetFastModePolicy(v string) *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) UpdateFastModePolicy() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateFastModePolicy()
+	})
+}
+
+// SetForceClaude1hCache sets the "force_claude_1h_cache" field.
+func (u *APIKeyUpsertOne) SetForceClaude1hCache(v bool) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetForceClaude1hCache(v)
+	})
+}
+
+// UpdateForceClaude1hCache sets the "force_claude_1h_cache" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateForceClaude1hCache() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateForceClaude1hCache()
 	})
 }
 
@@ -2607,6 +2658,20 @@ func (u *APIKeyUpsertBulk) SetFastModePolicy(v string) *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) UpdateFastModePolicy() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateFastModePolicy()
+	})
+}
+
+// SetForceClaude1hCache sets the "force_claude_1h_cache" field.
+func (u *APIKeyUpsertBulk) SetForceClaude1hCache(v bool) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetForceClaude1hCache(v)
+	})
+}
+
+// UpdateForceClaude1hCache sets the "force_claude_1h_cache" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateForceClaude1hCache() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateForceClaude1hCache()
 	})
 }
 

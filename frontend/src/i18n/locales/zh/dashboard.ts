@@ -221,6 +221,8 @@ export default {
       tooManyRules: '最多支持 100 条模型重定向规则',
     },
     fallbackWhenGroupUnavailable: '不可用时自动降级',
+    forceClaude1hCache: '强制 Claude 使用 1h 缓存',
+    forceClaude1hCacheHint: '开启后，此密钥发起的 Claude 请求会将缓存生命周期改写为 1h。',
     statusLabel: '状态',
     selectStatus: '选择状态',
     saving: '保存中...',

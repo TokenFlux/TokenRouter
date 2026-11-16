@@ -104,9 +104,9 @@ WS 每轮读取在线参数快照，并通过请求、输出、会话和选择�
 
 凭据提取和认证错误展示由 `apikey/httpapi` 处理。Key、用户、团队和 IP 校验在 `apikey.Authenticate` 里完成，返回的 `AccessSnapshot` 区分 owner、payer、actor 和 team。`gateway/httpapi` 的通用认证入口和 Google 认证入口组合了复合 Key 选组、模型改写和 `gateway/admission` 的资金准入，HTTP 适配层负责请求上下文和观测数据。普通协议门禁在读取请求体之前执行；Google 入口和通用入口各自的错误检查顺序不同。
 
-认证缓存版本为 47。来源数据和请求里的嵌套 map、slice、指针都会复制，复合 Key 选组改动的是副本，共享快照保持不变；分组手动设置的 Fast 策略在缓存读写中完整保存。
+认证缓存版本为 48。来源数据和请求里的嵌套 map、slice、指针都会复制，复合 Key 选组改动的是副本，共享快照保持不变；分组手动设置的 Fast 策略和 Key 的 `force_claude_1h_cache` 开关在缓存读写中完整保存。
 
-通用认证入口在最终选组授权后绑定 `AccessSnapshot` 和 Fast 策略，付款用户取这个请求的付款主体；Google 分支在自己的时机绑定。认证失败时，供 Ops 使用的已加载 Key 信息和认证成功的快照分开存放，Key 能加载出来并不代表授权成功。
+通用认证入口和 Google 认证入口在最终选组授权后绑定 `AccessSnapshot`、Fast 策略和 `force_claude_1h_cache`，付款用户取这个请求的付款主体，跨协议回退后仍可读取该 Key 的策略。认证失败时，供 Ops 使用的已加载 Key 信息和认证成功的快照分开存放，Key 能加载出来并不代表授权成功。
 
 通用 API Key 认证的步骤：
 

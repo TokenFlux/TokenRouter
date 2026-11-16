@@ -238,6 +238,7 @@ func KeyCreateAPIKeyRecord(ctx context.Context, client *dbent.Client, key *keyco
 		SetStatus(key.Status).
 		SetIsComposite(key.IsComposite).
 		SetFastModePolicy(KeyApiKeyFastModePolicyForPersistence(key.FastModePolicy)).
+		SetForceClaude1hCache(key.ForceClaude1hCache).
 		SetBillingMode(KeyApiKeyBillingModeForPersistence(key.BillingMode)).
 		SetNillablePreferredSubscriptionID(key.PreferredSubscriptionID).
 		SetModelMapping(keycore.CloneModelMapping(key.ModelMapping)).
@@ -424,6 +425,7 @@ func (r *KeyStore) GetByKeyForAuth(ctx context.Context, key string) (*keycore.AP
 			apikey.FieldName,
 			apikey.FieldStatus,
 			apikey.FieldFastModePolicy,
+			apikey.FieldForceClaude1hCache,
 			apikey.FieldBillingMode,
 			apikey.FieldPreferredSubscriptionID,
 			apikey.FieldModelMapping,
@@ -568,6 +570,9 @@ func (r *KeyStore) Update(ctx context.Context, key *keycore.APIKey, fields keyco
 	}
 	if fields.FastModePolicy {
 		builder.SetFastModePolicy(KeyApiKeyFastModePolicyForPersistence(key.FastModePolicy))
+	}
+	if fields.ForceClaude1hCache {
+		builder.SetForceClaude1hCache(key.ForceClaude1hCache)
 	}
 	if fields.BillingConfiguration {
 		builder.SetBillingMode(KeyApiKeyBillingModeForPersistence(key.BillingMode))
@@ -1257,6 +1262,7 @@ func KeyApiKeyEntityToService(m *dbent.APIKey) *keycore.APIKey {
 		Name:                         m.Name,
 		Status:                       m.Status,
 		FastModePolicy:               m.FastModePolicy,
+		ForceClaude1hCache:           m.ForceClaude1hCache,
 		BillingMode:                  m.BillingMode,
 		PreferredSubscriptionID:      m.PreferredSubscriptionID,
 		ModelMapping:                 keycore.CloneModelMapping(m.ModelMapping),

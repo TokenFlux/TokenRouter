@@ -235,11 +235,11 @@ type MessagePorts interface {
 	// Messages replaces both body model and parsed model when it changes, while
 	// retaining the original client name for completion metadata.
 	PlatformModel(string) string
-	// InjectTTL reports whether selected-provider settings enable cache TTL
-	// injection for this request. A true result applies CacheTTL after model
-	// normalization and before credentials, with parsed replacement required for
-	// continued execution.
-	InjectTTL(context.Context) bool
+	// InjectTTL reports whether selected-provider or per-Key settings enable
+	// cache TTL injection for the resolved upstream model. A true result applies
+	// CacheTTL after model normalization and before credentials, with parsed
+	// replacement required for continued execution.
+	InjectTTL(context.Context, string) bool
 	// CacheTTL applies the selected one-hour cache-control TTL request rewrite.
 	// Messages calls it after TTL eligibility and republishes its return before
 	// credential/transport preparation; callback ownership remains with the

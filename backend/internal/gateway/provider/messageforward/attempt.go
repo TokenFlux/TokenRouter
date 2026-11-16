@@ -282,10 +282,10 @@ func (a *attempt) PlatformModel(model string) string {
 	return gatewayprovider.ExecutionModelPolicy(a.provider).AnthropicUpstream(model)
 }
 
-// InjectTTL reports whether current provider and runtime policy permit cache
-// TTL injection.
-func (a *attempt) InjectTTL(ctx context.Context) bool {
-	return a.s.injectTTL(ctx, a.provider)
+// InjectTTL reports whether current provider and per-Key runtime policy permit
+// cache TTL injection for the resolved upstream model.
+func (a *attempt) InjectTTL(ctx context.Context, model string) bool {
+	return a.s.injectTTL(ctx, a.provider, model)
 }
 
 // CacheTTL delegates one-hour TTL injection into Anthropic cache control

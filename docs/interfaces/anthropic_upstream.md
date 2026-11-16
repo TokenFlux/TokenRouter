@@ -61,6 +61,16 @@ Anthropic 的请求策略包括：
 - prompt caching、cache TTL 注入和消息缓存的改写；缓存读写的 token 计入用量和定价。
 - 可选的 web search 模拟、Claude Code 客户端约束、metadata 和 header 策略，以及长上下文计价。
 
+<a id="claude_cache_ttl_policy"></a>
+### Claude 缓存 TTL 策略
+
+网关有两个入口会把请求里的 `ephemeral` `cache_control`（覆盖顶层 `cache_control`、`system`、`tools` 和 `messages` 内容块）改写为 `"ttl": "1h"`：
+
+- 全局运行设置 `enable_anthropic_cache_ttl_1h_injection`：只作用于 Anthropic 平台的 `oauth` 和 `setup-token` 提供商。提供商 `Extra` 未启用 `cache_ttl_override_enabled` 时，响应侧默认把缓存创建 token 归入 `5m` 分档计费。
+- API Key 的 `force_claude_1h_cache`（默认 `false`，迁移 `313_api_key_force_claude_1h_cache.sql`）：随认证快照版本 48 下发，作用于该 Key 发起的 Claude 请求，覆盖 Anthropic 平台（`oauth`、`setup-token`、`apikey` 普通与直通、Vertex `service_account`、Bedrock），以及 OpenCode 和 OpenAI 兼容平台上的原生 Anthropic 链路（含 Responses 和 Chat Completions 转 Anthropic）。
+
+`ShouldForceClaude1hCache` 按最终映射后的上游模型判断资格：GLM、Kimi、DeepSeek、MiniMax、Qwen Thinking 等原样回传家族，以及 Kimi、Zhipu、DeepSeek 等非 Claude 平台保持原有 `cache_control` 不变。Bedrock 在注入后继续执行型号能力清理，Claude 4.5 及以上保留 `1h`，不支持 TTL 的旧型号剥离 `ttl` 字段。仅由 Key 的 `force_claude_1h_cache` 触发的 1 小时缓存不覆盖响应分档，按上游实际返回的 1 小时缓存写入单价结算。
+
 <a id="bedrock_region_routing"></a>
 ### Bedrock 模型与来源区域
 

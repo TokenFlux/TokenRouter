@@ -63,6 +63,11 @@ func APIKeyPassthrough(ctx context.Context, p PassthroughPorts, in MessageInput,
 	// Remove unsupported server-tool blocks before the parsed body is republished
 	// so subsequent request views use this forwarding representation.
 	input.Body = p.FilterSearchHistory(input.Body, input.RequestModel)
+	// Rewrite ephemeral cache markers for eligible Claude passthrough requests
+	// before republishing the shared parsed body so downstream views match wire bytes.
+	if p.InjectTTL(ctx, input.RequestModel) {
+		input.Body = p.CacheTTL(input.Body)
+	}
 	if input.Parsed != nil {
 		// Reparse the filtered body in the shared request state. Later body views
 		// and usage-hash extraction then read these bytes rather than the input

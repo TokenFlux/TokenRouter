@@ -18,7 +18,7 @@
 //   - health_observation.go, proxy_response_feedback.go, failure_scope.go, and
 //     invalid_json.go: provider health, proxy stream feedback, and failure classification.
 //   - image_intent.go, response_image_policy.go, and creative_*.go: image intent, permissions, and creative targets.
-//   - fast_policy.go, thinking_request.go, and input_tokens.go: service tiers, thinking fields, and input-token estimation.
+//   - fast_policy.go, claude_cache_policy.go, thinking_request.go, and input_tokens.go: service tiers, Claude cache TTL policy, thinking fields, and input-token estimation.
 //   - search_runtime.go, standalone_search*.go, and stats_pricing.go: search execution and price lookup.
 //   - upstream_*.go and ws_diagnostics.go: upstream context, request IDs, and WebSocket diagnostics.
 package provider

@@ -74,6 +74,9 @@ type APIKey struct {
 	// FastModePolicy supplies request acceleration preference to gateway policy
 	// processing. Higher priority group or global choices can affect forwarding.
 	FastModePolicy string
+	// ForceClaude1hCache rewrites ephemeral cache_control lifetimes on Claude
+	// requests to 1h when enabled, while false preserves client cache lifetimes.
+	ForceClaude1hCache bool
 	// BillingMode and PreferredSubscriptionID select the funding source. The
 	// subscription mode requires a valid payer subscription; the other modes
 	// clear the selected ID during service configuration validation.

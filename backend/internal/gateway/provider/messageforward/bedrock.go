@@ -65,6 +65,11 @@ func (r *Runtime) bedrock(
 	if err != nil {
 		return nil, err
 	}
+	// Rewrite ephemeral cache lifetimes before Bedrock sanitization so Claude 4.5+
+	// routes retain 1h while older non-TTL Bedrock models strip unsupported TTL fields.
+	if gatewayprovider.ShouldForceClaude1hCache(ctx, provider, mappedModel, reqModel) {
+		body = anthropic.InjectAnthropicCacheControlTTL1h(body)
+	}
 	if mappedModel != reqModel {
 		logging.LegacyPrintf("service.gateway", "[Bedrock] Model mapping: %s -> %s (provider: %s)", reqModel, mappedModel, provider.Record.Name)
 	}

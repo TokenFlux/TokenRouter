@@ -195,7 +195,7 @@ func Messages(ctx context.Context, p MessagePorts, in MessageInput, parsed *requ
 	// TTL eligibility is resolved for this provider/request after model selection.
 	// Its rewrite follows total marker enforcement and is republished before
 	// credentials and exchange preparation read the selected body.
-	if p.InjectTTL(ctx) {
+	if p.InjectTTL(ctx, reqModel) {
 		if err := replaceBody(p.CacheTTL(body)); err != nil {
 			return nil, err
 		}

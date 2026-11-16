@@ -46,6 +46,7 @@ export interface ApiKey {
   composite_groups?: ApiKeyCompositeGroup[] // Prefix-to-group routing entries.
   status: 'active' | 'inactive' | 'disabled' | 'quota_exhausted' | 'expired' // Current lifecycle state.
   fast_mode_policy: ApiKeyFastModePolicy // Key acceleration preference.
+  force_claude_1h_cache?: boolean // Forced Claude 1h cache override.
   billing_mode?: ApiKeyBillingMode // Request funding mode.
   preferred_subscription_id?: number | null // Preferred funding subscription identifier.
   model_mapping: Record<string, string> // Requested-to-upstream model mappings.
@@ -93,6 +94,8 @@ export interface CreateApiKeyRequest {
     prefix: string // Composite routing prefix.
   }> // Prefix-to-group routing entries.
   fast_mode_policy?: ApiKeyFastModePolicy // Key acceleration preference.
+  // Omitting this field defaults to false; true rewrites Claude ephemeral cache markers to 1h.
+  force_claude_1h_cache?: boolean // Forced Claude 1h cache override.
   billing_mode?: ApiKeyBillingMode // Request funding mode.
   preferred_subscription_id?: number | null // Preferred funding subscription identifier.
   model_mapping?: Record<string, string> // Requested-to-upstream model mappings.
@@ -125,6 +128,8 @@ export interface UpdateApiKeyRequest {
   }> // Prefix-to-group routing entries.
   status?: 'active' | 'inactive' // Current lifecycle state.
   fast_mode_policy?: ApiKeyFastModePolicy // Key acceleration preference.
+  // Omitting this field retains the saved setting; supplied booleans replace the saved override.
+  force_claude_1h_cache?: boolean // Forced Claude 1h cache override.
   billing_mode?: ApiKeyBillingMode // Request funding mode.
   preferred_subscription_id?: number | null // Preferred funding subscription identifier.
   model_mapping?: Record<string, string> // Requested-to-upstream model mappings.

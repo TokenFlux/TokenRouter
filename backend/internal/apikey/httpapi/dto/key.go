@@ -29,16 +29,17 @@ type APIKey[G any] struct {
 	// TeamID and Scope describe the same presentation scope: any present TeamID
 	// selects team, while nil selects personal. Conversion retains the supplied
 	// TeamID pointer, so response consumers treat it as shared input.
-	TeamID            *int64                    `json:"team_id"`             // credential team scope identifier
-	Scope             string                    `json:"scope"`               // personal or team response scope
-	TeamOwnerDisabled bool                      `json:"team_owner_disabled"` // persisted independent owner lock
-	Key               string                    `json:"key"`                 // current authentication credential text
-	Name              string                    `json:"name"`                // saved credential display name
-	GroupID           *int64                    `json:"group_id"`            // ordinary or selected group identifier
-	IsComposite       bool                      `json:"is_composite"`        // prefix selection mode flag
-	CompositeGroups   []APIKeyCompositeGroup[G] `json:"composite_groups"`    // ordered presented composite group bindings
-	Status            string                    `json:"status"`              // stored credential lifecycle state
-	FastModePolicy    string                    `json:"fast_mode_policy"`    // stored Key acceleration preference
+	TeamID             *int64                    `json:"team_id"`               // credential team scope identifier
+	Scope              string                    `json:"scope"`                 // personal or team response scope
+	TeamOwnerDisabled  bool                      `json:"team_owner_disabled"`   // persisted independent owner lock
+	Key                string                    `json:"key"`                   // current authentication credential text
+	Name               string                    `json:"name"`                  // saved credential display name
+	GroupID            *int64                    `json:"group_id"`              // ordinary or selected group identifier
+	IsComposite        bool                      `json:"is_composite"`          // prefix selection mode flag
+	CompositeGroups    []APIKeyCompositeGroup[G] `json:"composite_groups"`      // ordered presented composite group bindings
+	Status             string                    `json:"status"`                // stored credential lifecycle state
+	FastModePolicy     string                    `json:"fast_mode_policy"`      // stored Key acceleration preference
+	ForceClaude1hCache bool                      `json:"force_claude_1h_cache"` // configured Claude 1h cache override
 	// BillingMode and PreferredSubscriptionID describe the selected payer funding
 	// choice. Configuration writes and request admission validate eligibility;
 	// listing maps saved values, and the subscription ID remains a shared pointer.
@@ -112,6 +113,7 @@ func APIKeyFromKey[G any](k *apikey.APIKey, group func(*routing.Group) *G) *APIK
 		IsComposite:                  k.IsComposite,
 		Status:                       k.Status,
 		FastModePolicy:               k.FastModePolicy,
+		ForceClaude1hCache:           k.ForceClaude1hCache,
 		BillingMode:                  k.BillingMode,
 		PreferredSubscriptionID:      k.PreferredSubscriptionID,
 		ModelMapping:                 apikey.CloneModelMapping(k.ModelMapping),

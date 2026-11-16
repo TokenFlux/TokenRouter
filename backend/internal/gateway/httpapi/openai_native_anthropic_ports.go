@@ -101,6 +101,16 @@ func (p *openAINativeAnthropicAdapter) CacheLimit(body []byte) []byte {
 	return anthropic.EnforceCacheControlLimit(body)
 }
 
+// CacheTTL rewrites existing ephemeral cache markers to a 1h lifetime when the
+// authenticated API Key enables forced Claude 1h caching for the selected
+// upstream model; ineligible platforms and passback models keep their input bytes.
+func (p *openAINativeAnthropicAdapter) CacheTTL(ctx context.Context, body []byte, model string) []byte {
+	if !gatewayprovider.ShouldForceClaude1hCache(ctx, p.provider, model) {
+		return body
+	}
+	return anthropic.InjectAnthropicCacheControlTTL1h(body)
+}
+
 // Log writes native forwarding diagnostics under the gateway logging
 // component.
 func (p *openAINativeAnthropicAdapter) Log(format string, args ...any) {

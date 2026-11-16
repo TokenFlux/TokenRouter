@@ -5,9 +5,10 @@ import (
 )
 
 // access_context.go stores and updates authenticated request identity,
-// effective Key views, and Fast policy in contexts. Context updates copy the
-// access record and its TeamID so those scalar decisions stay local, while the
-// request-owned key pointer remains available to later gateway processing.
+// effective Key views, and per-request Key policy overrides in contexts.
+// Context updates copy the access record and its TeamID so those scalar
+// decisions stay local, while the request-owned key pointer remains available
+// to later gateway processing.
 //
 // WithRuntimeAPIKey accepts a replacement only when its ID matches the saved
 // access record. A replacement with a hydrated user refreshes the payer ID
@@ -51,10 +52,22 @@ func WithFastModePolicy(ctx context.Context, policy string) context.Context {
 // FastModePolicy returns the acceleration policy saved for this request.
 func (a AccessSnapshot) FastModePolicy() string { return a.fastModePolicy }
 
+// WithForceClaude1hCache stores enabled in a copied access record for later
+// Claude cache-policy resolution. An absent access record starts with zero
+// identity fields while preserving the supplied cache-lifetime choice.
+func WithForceClaude1hCache(ctx context.Context, enabled bool) context.Context {
+	access, _ := AccessSnapshotFromContext(ctx)
+	access.forceClaude1hCache = enabled
+	return WithAccessSnapshot(ctx, access)
+}
+
+// ForceClaude1hCache reports whether this request forces Claude ephemeral cache markers to 1h.
+func (a AccessSnapshot) ForceClaude1hCache() bool { return a.forceClaude1hCache }
+
 // WithRuntimeAPIKey publishes key as the effective view when its ID matches the
 // stored access record. Missing access, nil keys, and mismatched IDs return ctx
-// unchanged; a present User refreshes PayerUserID while the other identity and
-// Fast policy fields retain their values.
+// unchanged; a present User refreshes PayerUserID while the other identity,
+// Fast policy, and Claude cache-lifetime override fields retain their values.
 func WithRuntimeAPIKey(ctx context.Context, key *APIKey) context.Context {
 	access, ok := AccessSnapshotFromContext(ctx)
 	if !ok || key == nil || access.KeyID != key.ID {

@@ -39,6 +39,8 @@ const (
 	FieldStatus = "status"
 	// FieldFastModePolicy holds the string denoting the fast_mode_policy field in the database.
 	FieldFastModePolicy = "fast_mode_policy"
+	// FieldForceClaude1hCache holds the string denoting the force_claude_1h_cache field in the database.
+	FieldForceClaude1hCache = "force_claude_1h_cache"
 	// FieldBillingMode holds the string denoting the billing_mode field in the database.
 	FieldBillingMode = "billing_mode"
 	// FieldPreferredSubscriptionID holds the string denoting the preferred_subscription_id field in the database.
@@ -147,6 +149,7 @@ var Columns = []string{
 	FieldIsComposite,
 	FieldStatus,
 	FieldFastModePolicy,
+	FieldForceClaude1hCache,
 	FieldBillingMode,
 	FieldPreferredSubscriptionID,
 	FieldModelMapping,
@@ -211,6 +214,8 @@ var (
 	DefaultFastModePolicy string
 	// FastModePolicyValidator is a validator for the "fast_mode_policy" field. It is called by the builders before save.
 	FastModePolicyValidator func(string) error
+	// DefaultForceClaude1hCache holds the default value on creation for the "force_claude_1h_cache" field.
+	DefaultForceClaude1hCache bool
 	// DefaultBillingMode holds the default value on creation for the "billing_mode" field.
 	DefaultBillingMode string
 	// BillingModeValidator is a validator for the "billing_mode" field. It is called by the builders before save.
@@ -313,6 +318,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByFastModePolicy orders the results by the fast_mode_policy field.
 func ByFastModePolicy(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFastModePolicy, opts...).ToFunc()
+}
+
+// ByForceClaude1hCache orders the results by the force_claude_1h_cache field.
+func ByForceClaude1hCache(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldForceClaude1hCache, opts...).ToFunc()
 }
 
 // ByBillingMode orders the results by the billing_mode field.

@@ -71,6 +71,9 @@ type NativeAnthropicPorts interface {
 	// CacheLimit applies the Anthropic cache-control validity and breakpoint
 	// limiting rules.
 	CacheLimit(body []byte) []byte
+	// CacheTTL rewrites existing ephemeral cache-control markers to one hour when
+	// the authenticated API Key and target upstream model qualify for Claude 1h caching.
+	CacheTTL(ctx context.Context, body []byte, model string) []byte
 	// Log writes the supplied formatting message through the bound gateway logger.
 	Log(format string, args ...any)
 	// ProtocolAPIKey reads the configured Anthropic-compatible credential for the

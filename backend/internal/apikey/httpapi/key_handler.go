@@ -98,6 +98,9 @@ type CreateAPIKeyRequest struct {
 	// group is unavailable. Nil selects the service default, and target admission
 	// still applies its own eligibility checks.
 	FallbackWhenGroupUnavailable *bool `json:"fallback_when_group_unavailable"` // supplied unavailable-group selection preference
+	// ForceClaude1hCache rewrites ephemeral Claude cache lifetimes to 1h when
+	// enabled. Nil selects the false service default.
+	ForceClaude1hCache *bool `json:"force_claude_1h_cache"` // supplied Claude 1h cache preference
 }
 
 // UpdateAPIKeyRequest retains omitted, clear and replacement values for user
@@ -147,6 +150,9 @@ type UpdateAPIKeyRequest struct {
 	// FallbackWhenGroupUnavailable retains the saved selection preference when
 	// nil. Supplied false disables unavailable-group selection after the service writes it.
 	FallbackWhenGroupUnavailable *bool `json:"fallback_when_group_unavailable"` // supplied unavailable-group selection preference
+	// ForceClaude1hCache retains the saved Claude cache-lifetime override when
+	// nil. Supplied booleans replace the saved setting during persistence.
+	ForceClaude1hCache *bool `json:"force_claude_1h_cache"` // supplied Claude 1h cache preference
 }
 
 // ApiKeyLimitInput pairs a supplied numeric allowance with its validation field
@@ -383,6 +389,7 @@ func (h *APIKeyHandler[G]) Create(c *gin.Context) {
 		ModelMapping:                 req.ModelMapping,
 		ExpiresInDays:                req.ExpiresInDays,
 		FallbackWhenGroupUnavailable: req.FallbackWhenGroupUnavailable,
+		ForceClaude1hCache:           req.ForceClaude1hCache,
 	}
 	if req.Quota != nil {
 		svcReq.Quota = *req.Quota
@@ -456,6 +463,7 @@ func (h *APIKeyHandler[G]) Update(c *gin.Context) {
 		RateLimit7d:                  req.RateLimit7d,
 		ResetRateLimitUsage:          req.ResetRateLimitUsage,
 		FallbackWhenGroupUnavailable: req.FallbackWhenGroupUnavailable,
+		ForceClaude1hCache:           req.ForceClaude1hCache,
 	}
 	if req.Name != "" {
 		svcReq.Name = &req.Name

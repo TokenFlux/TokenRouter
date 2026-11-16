@@ -16,7 +16,7 @@
 
 | 层级 | 管理的策略 | 职责范围之外 |
 | --- | --- | --- |
-| API Key | 分组选择、复合前缀、Key 级模型重定向、Key 限额 | 上游提供商的凭据和平台 |
+| API Key | 分组选择、复合前缀、Key 级模型重定向、Key 限额、Fast 偏好、强制 Claude 1 小时缓存 | 上游提供商的凭据和平台 |
 | Group | 组内提供商关联、基础或高级调度器的选择、高级调度器的稀疏覆盖、客户端协议和媒体准入、fallback、OAuth 和 privacy、推理上限、模型可见性、Fast/Standard 计费和 RPM | 上游 token |
 | PricingConfig | 可以被多个分组复用的价卡、价格引用、计费设置、计费模型来源和提供商成本配置 | 模型权限、请求模型改写和功能开关 |
 | Provider | 凭据、代理、模型映射和白名单、重试状态码、临时不可调度、Header override 和 capability | 超出分组对用户公开的能力范围 |
@@ -81,7 +81,7 @@ HTTP 在策略改写的位置记录客户端的档位，`gateway/requeststate` �
 
 Fast 和 Ultra Fast 在系统、分组和 Key 三层的判定，统一由 `gateway/tierpolicy.Resolve` 执行，HTTP 报文和 WS 帧都使用这个结果。系统层短路或分组强制关闭时，判定在此结束，后面 Key 开启时的查价不会执行；Key 强制开启产生的新档位，还要再经过一次系统策略。执行适配层提供资格信息和按需读取的接口，协议拒绝、HTTP/SSE 错误和 WS 错误帧分别由各自的适配层输出。
 
-Header 策略来自平台默认值、全局设置和允许的提供商 override。认证头、hop-by-hop 头、Host 和长度等受保护的头不能被随意覆盖。Anthropic 的 beta 和 cache、OpenAI 的 UA 和客户端元数据、Claude Code 模拟、dateline 和 metadata 的兼容，都在平台适配层里处理，并经过出站安全校验。
+Header 策略来自平台默认值、全局设置和允许的提供商 override。认证头、hop-by-hop 头、Host 和长度等受保护的头不能被随意覆盖。Anthropic 的 beta 和 cache、OpenAI 的 UA 和客户端元数据、Claude Code 模拟、dateline 和 metadata 的兼容，都在平台适配层里处理，并经过出站安全校验。Key 级 `force_claude_1h_cache` 与全局 OAuth 1 小时缓存注入的适用范围和计费差异见 [Claude 缓存 TTL 策略](../interfaces/anthropic_upstream.md#claude_cache_ttl_policy)。
 
 ## 重试与降级
 

@@ -73,6 +73,8 @@ const messages: Record<string, string> = {
   'keys.group': 'Group',
   'keys.groupRequired': 'Group required',
   'keys.selectGroup': 'Select a group',
+  'keys.forceClaude1hCache': 'Force Claude 1h cache',
+  'keys.forceClaude1hCacheHint': 'Force Claude ephemeral prompt cache to 1h',
   'keys.composite.label': 'Composite key',
   'keys.composite.hint': 'Choose a group with a prefix/model ID.',
   'keys.composite.addMapping': 'Add group mapping',
@@ -202,6 +204,7 @@ const createApiKey = (): ApiKey => ({
   group_id: null,
   status: 'active',
   fast_mode_policy: 'follow_request',
+  force_claude_1h_cache: false,
   model_mapping: {},
   ip_whitelist: [],
   ip_blacklist: [],
@@ -1462,5 +1465,83 @@ describe('user KeysView column settings', () => {
     await wrapper.get('form#key-form').trigger('submit')
     expect(showError).toHaveBeenCalledWith('Duplicate source model')
     expect(createKey).not.toHaveBeenCalled()
+  })
+
+  // The user creates keys with the Claude 1h cache toggle left untouched and then switched on.
+  // The test protects the default false creation flag and submits true after toggling the control.
+  it('submits forced Claude 1h cache preference when creating keys', async () => {
+    getAvailableGroups.mockResolvedValue([
+      { id: 42, name: 'Anthropic', platform: 'anthropic', rate_multiplier: 1 },
+    ])
+    const wrapper = await mountView()
+
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    await nextTick()
+    expect(wrapper.text()).toContain('Force Claude 1h cache')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('default-claude-key')
+    const defaultGroupSelect = wrapper
+      .findAllComponents({ name: 'Select' })
+      .find((select) => select.attributes('data-tour') === 'key-form-group')
+    await defaultGroupSelect!.vm.$emit('update:modelValue', 42)
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(createKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'default-claude-key',
+        group_id: 42,
+        force_claude_1h_cache: false,
+      }),
+    )
+
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    await nextTick()
+    await wrapper.get('[data-tour="key-form-name"]').setValue('forced-1h-claude-key')
+    const enabledGroupSelect = wrapper
+      .findAllComponents({ name: 'Select' })
+      .find((select) => select.attributes('data-tour') === 'key-form-group')
+    await enabledGroupSelect!.vm.$emit('update:modelValue', 42)
+    await wrapper.get('[data-test="force-claude-1h-cache-toggle"]').trigger('click')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(createKey).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'forced-1h-claude-key',
+        group_id: 42,
+        force_claude_1h_cache: true,
+      }),
+    )
+  })
+
+  // An existing key loads forced Claude 1h caching enabled before the user turns the switch off.
+  // The test protects hydrating the saved flag in edit mode and submitting false after toggling.
+  it('loads and toggles forced Claude 1h cache while editing a key', async () => {
+    listKeys.mockResolvedValueOnce({
+      items: [{ ...createApiKey(), group_id: 42, force_claude_1h_cache: true }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const wrapper = await mountView()
+
+    await getButtonByText(wrapper, 'Edit').trigger('click')
+    await nextTick()
+    const toggle = wrapper
+      .findAllComponents({ name: 'Toggle' })
+      .find((item) => item.attributes('data-test') === 'force-claude-1h-cache-toggle')
+    expect(toggle?.props('modelValue')).toBe(true)
+
+    await wrapper.get('[data-test="force-claude-1h-cache-toggle"]').trigger('click')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(updateKey).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        force_claude_1h_cache: false,
+      }),
+    )
   })
 })

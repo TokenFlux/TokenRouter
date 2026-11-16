@@ -94,6 +94,7 @@ func ForwardNativeMessages(ctx context.Context, body []byte, defaultMappedModel 
 	// can cause compatible upstreams to reject the request.
 	body = p.StripEmpty(body)
 	body = p.FilterSearch(body, upstreamModel)
+	body = p.CacheTTL(ctx, body, upstreamModel)
 
 	p.Log("[Messages passthrough] provider=%d(%s) platform=%s model=%s upstream=%s stream=%v",
 		profile.ID, profile.Name, profile.Platform, originalModel, upstreamModel, clientStream)
@@ -217,11 +218,11 @@ func ForwardNativeResponses(ctx context.Context, body []byte, defaultMappedModel
 	}
 
 	// Remove empty text and incompatible search history, then enforce cache
-	// breakpoint limits before native construction receives the converted
-	// Anthropic body.
+	// breakpoint limits and per-Key Claude TTL overrides before native construction.
 	anthropicBody = p.StripEmpty(anthropicBody)
 	anthropicBody = p.FilterSearch(anthropicBody, upstreamModel)
 	anthropicBody = p.CacheLimit(anthropicBody)
+	anthropicBody = p.CacheTTL(ctx, anthropicBody, upstreamModel)
 
 	apiKey := strings.TrimSpace(p.ProtocolAPIKey())
 	if apiKey == "" {
@@ -331,11 +332,11 @@ func ForwardNativeChat(ctx context.Context, body []byte, defaultMappedModel stri
 	}
 
 	// Remove empty text and incompatible search history, then enforce cache
-	// breakpoint limits before native construction receives the converted
-	// Anthropic body.
+	// breakpoint limits and per-Key Claude TTL overrides before native construction.
 	anthropicBody = p.StripEmpty(anthropicBody)
 	anthropicBody = p.FilterSearch(anthropicBody, upstreamModel)
 	anthropicBody = p.CacheLimit(anthropicBody)
+	anthropicBody = p.CacheTTL(ctx, anthropicBody, upstreamModel)
 
 	apiKey := strings.TrimSpace(p.ProtocolAPIKey())
 	if apiKey == "" {

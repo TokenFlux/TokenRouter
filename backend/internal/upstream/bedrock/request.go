@@ -384,11 +384,15 @@ func IsBedrockClaude45OrNewer(modelID string) bool {
 }
 
 // SanitizeBedrockCacheControl removes scope and disallowed TTL fields from
-// object cache controls in system and message blocks. The first rule override
-// or catalogue determines whether 5m/1h can remain; cleanup edit errors are
-// discarded.
+// object cache controls at top level and in system, tool, and message blocks.
+// The first rule override or catalogue determines whether 5m/1h can remain;
+// cleanup edit errors are discarded.
 func SanitizeBedrockCacheControl(body []byte, modelID string, rules ...modelcatalog.ExecutionRules) []byte {
 	isClaude45 := len(bedrockExecutionRules(modelID, rules).CacheTTL) > 0
+
+	if topCC := gjson.GetBytes(body, "cache_control"); topCC.Exists() && topCC.IsObject() {
+		body = DeleteCacheControlUnsupportedFields(body, "cache_control", topCC, isClaude45)
+	}
 
 	systemArr := gjson.GetBytes(body, "system")
 	if systemArr.Exists() && systemArr.IsArray() {
@@ -401,6 +405,20 @@ func SanitizeBedrockCacheControl(body []byte, modelID string, rules ...modelcata
 				continue
 			}
 			body = DeleteCacheControlUnsupportedFields(body, fmt.Sprintf("system.%d.cache_control", i), cc, isClaude45)
+		}
+	}
+
+	toolsArr := gjson.GetBytes(body, "tools")
+	if toolsArr.Exists() && toolsArr.IsArray() {
+		for i, item := range toolsArr.Array() {
+			if !item.IsObject() {
+				continue
+			}
+			cc := item.Get("cache_control")
+			if !cc.Exists() || !cc.IsObject() {
+				continue
+			}
+			body = DeleteCacheControlUnsupportedFields(body, fmt.Sprintf("tools.%d.cache_control", i), cc, isClaude45)
 		}
 	}
 
