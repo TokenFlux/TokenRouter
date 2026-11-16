@@ -65,10 +65,23 @@ var (
 
 	// Union needles avoid map decoding for ordinary roots; the escape needle
 	// also admits roots whose oneOf or anyOf key uses escaped JSON spelling.
-	openAIResponsesJSONOneOfKey     = []byte(`"oneOf"`)
-	openAIResponsesJSONAnyOfKey     = []byte(`"anyOf"`)
-	openAIResponsesJSONEscapeNeedle = []byte{'\\'}
+	openAIResponsesJSONOneOfKey       = []byte(`"oneOf"`)
+	openAIResponsesJSONAnyOfKey       = []byte(`"anyOf"`)
+	openAIResponsesJSONEscapeNeedle   = []byte{'\\'}
+	openAIResponsesUnicodeKeyNeedle   = []byte(`\u`)
+	openAIResponsesPatternFieldNeedle = []byte("pattern")
 )
+
+// ToolSchemaSanitizeOptions selects which schema compatibility repairs run
+// together during a single structural traversal.
+type ToolSchemaSanitizeOptions struct {
+	// RepairParameterTypes enables explicit-null root replacement and bounded
+	// object-only union root type insertion.
+	RepairParameterTypes bool // repair parameter root type fields
+	// RemoveLookaroundPatterns deletes schema pattern members containing regex
+	// lookaround assertions.
+	RemoveLookaroundPatterns bool // remove lookaround pattern constraints
+}
 
 // openAIResponsesToolSchemaOptions selects independent compatibility edits for
 // the scoped schema parser.
@@ -115,16 +128,32 @@ type openAIResponsesToolSchemaParser struct {
 	probeType string // last decoded input type string
 }
 
+// SanitizeToolSchemas runs the requested parameter-type and pattern repairs in
+// a single structural pass over body. Disabled options or empty input return
+// body unchanged; when only pattern removal is requested and the conservative
+// lookaround screen finds no candidate, source bytes pass through directly.
+func SanitizeToolSchemas(body []byte, options ToolSchemaSanitizeOptions) ([]byte, bool, error) {
+	if len(body) == 0 || (!options.RepairParameterTypes && !options.RemoveLookaroundPatterns) {
+		return body, false, nil
+	}
+	removePatterns := options.RemoveLookaroundPatterns && openAIResponsesBodyMayContainRegexLookaround(body)
+	if !options.RepairParameterTypes && !removePatterns {
+		return body, false, nil
+	}
+	return sanitizeOpenAIResponsesToolSchemas(body, openAIResponsesToolSchemaOptions{
+		removeLookaroundPatterns:        removePatterns,
+		replaceNullParameterTypes:       options.RepairParameterTypes,
+		injectObjectUnionRootObjectType: options.RepairParameterTypes,
+	})
+}
+
 // SanitizeToolSchemaPatterns removes recognized lookaround pattern members
 // from tool parameter schemas and supported nested schema keywords.
 // Instance-valued keywords remain outside schema traversal. Empty input or a
 // failed literal precheck returns source bytes without JSON validation;
 // decoder failures can leave a pattern unmatched.
 func SanitizeToolSchemaPatterns(body []byte) ([]byte, bool, error) {
-	if len(body) == 0 || !openAIResponsesBodyMayContainRegexLookaround(body) {
-		return body, false, nil
-	}
-	return sanitizeOpenAIResponsesToolSchemas(body, openAIResponsesToolSchemaOptions{removeLookaroundPatterns: true})
+	return SanitizeToolSchemas(body, ToolSchemaSanitizeOptions{RemoveLookaroundPatterns: true})
 }
 
 // SanitizeToolParameterTypes replaces a single explicit null type at a
@@ -133,24 +162,22 @@ func SanitizeToolSchemaPatterns(body []byte) ([]byte, bool, error) {
 // Empty input and parser safety limits pass through source bytes; malformed
 // parsed input returns an error.
 func SanitizeToolParameterTypes(body []byte) ([]byte, bool, error) {
-	if len(body) == 0 {
-		return body, false, nil
-	}
-	return sanitizeOpenAIResponsesToolSchemas(body, openAIResponsesToolSchemaOptions{
-		replaceNullParameterTypes:       true,
-		injectObjectUnionRootObjectType: true,
-	})
+	return SanitizeToolSchemas(body, ToolSchemaSanitizeOptions{RepairParameterTypes: true})
 }
 
 // openAIResponsesBodyMayContainRegexLookaround screens for an opening
-// parenthesis or its canonical Unicode escape. A match allows scoped parsing
-// but does not establish a lookaround expression; other characters are checked
-// after string decoding.
+// parenthesis (literal or Unicode-escaped) alongside a literal or escaped
+// pattern member key. A match allows scoped parsing while avoiding full-body
+// scans when ordinary message code contains parentheses without pattern keys.
 func openAIResponsesBodyMayContainRegexLookaround(body []byte) bool {
-	// An opening parenthesis may be literal or encoded as JSON's canonical
-	// Unicode escape. Other lookaround characters may themselves be escaped, so
-	// the full decoded pattern is checked only after scoped parsing.
-	return bytes.Contains(body, []byte("(")) || bytes.Contains(body, []byte(`\u0028`))
+	// Both a parenthesis and a literal or Unicode-escaped pattern key must appear
+	// before any schema pattern member can decode to a lookaround assertion.
+	hasParen := bytes.IndexByte(body, '(') >= 0 || bytes.Contains(body, []byte(`\u0028`))
+	if !hasParen {
+		return false
+	}
+	return bytes.Contains(body, openAIResponsesPatternFieldNeedle) ||
+		bytes.Contains(body, openAIResponsesUnicodeKeyNeedle)
 }
 
 // hasRegexLookaround reports any of the four lookahead/lookbehind marker
@@ -236,23 +263,6 @@ func (p *openAIResponsesToolSchemaParser) parseValue(
 			context = openAIResponsesToolSchema
 		}
 	}
-	if context == openAIResponsesToolSchemaInputItem && p.body[p.pos] == '{' {
-		// Type can occur after parameters in an input object. Probe the whole
-		// object before selecting its role, so parameters are not edited before
-		// an ordinary input discriminator is known.
-		probe := openAIResponsesToolSchemaParser{body: p.body, pos: p.pos}
-		if err := probe.parseValue(openAIResponsesToolSchemaTypeProbe, false, depth); err != nil {
-			return err
-		}
-		switch probe.probeType {
-		case "function", "custom", "tool_search", "namespace":
-			context = openAIResponsesToolSchemaTool
-		case "additional_tools":
-			context = openAIResponsesToolSchemaToolCarrier
-		default:
-			context = openAIResponsesToolSchemaSkip
-		}
-	}
 	switch p.body[p.pos] {
 	case '{':
 		return p.parseObject(context, schemaRoot, depth+1)
@@ -278,9 +288,11 @@ func (p *openAIResponsesToolSchemaParser) parseValue(
 // edit limits return before the outer sanitizer can publish any recorded
 // changes.
 //
-// Pattern deletion spans include the appropriate adjacent comma while
-// retaining the next member's preceding whitespace. Root null repair requires
-// one type member, since duplicate effective values are ambiguous.
+// Input-item objects resolve their discriminator lazily only when they contain
+// a parameters, function, or tools member, keeping ordinary conversation items
+// single-pass. Pattern deletion spans include the appropriate adjacent comma
+// while retaining the next member's preceding whitespace. Root null repair
+// requires one type member, since duplicate effective values are ambiguous.
 // Missing-type union insertion requires one parameters member and a successful
 // bounded classification of that root. Nested deletions can overlap; the final
 // patch builder resolves deletion overlap and rejects conflicting
@@ -288,6 +300,7 @@ func (p *openAIResponsesToolSchemaParser) parseValue(
 func (p *openAIResponsesToolSchemaParser) parseObject(
 	context openAIResponsesToolSchemaContext, schemaRoot bool, depth int,
 ) error {
+	objectStart := p.pos
 	p.pos++
 	p.skipWhitespace()
 	if p.consume('}') {
@@ -317,6 +330,23 @@ func (p *openAIResponsesToolSchemaParser) parseObject(
 		p.skipWhitespace()
 		valueStart := p.pos
 
+		if context == openAIResponsesToolSchemaInputItem &&
+			openAIResponsesJSONStringMatchesAny(key, "parameters", "function", "tools") {
+			// Type can appear after parameters or repeat later in an input item.
+			// Probe the full object once on demand so ordinary messages avoid a second pass.
+			probe := openAIResponsesToolSchemaParser{body: p.body, pos: objectStart}
+			if err := probe.parseValue(openAIResponsesToolSchemaTypeProbe, false, depth-1); err != nil {
+				return err
+			}
+			switch probe.probeType {
+			case "function", "custom", "tool_search", "namespace":
+				context = openAIResponsesToolSchemaTool
+			case "additional_tools":
+				context = openAIResponsesToolSchemaToolCarrier
+			default:
+				context = openAIResponsesToolSchemaSkip
+			}
+		}
 		childContext, childSchemaRoot := openAIResponsesToolSchemaChildContext(context, key)
 		if err := p.parseValue(childContext, childSchemaRoot, depth); err != nil {
 			return err
@@ -622,47 +652,61 @@ func openAIResponsesToolSchemaChildContext(
 // control bytes without decoding the value. Errors may leave pos advanced; the
 // outer sanitizer separately checks UTF-8 and full JSON validity.
 func (p *openAIResponsesToolSchemaParser) parseString() (int, int, error) {
-	if p.pos >= len(p.body) || p.body[p.pos] != '"' {
+	body := p.body
+	if p.pos >= len(body) || body[p.pos] != '"' {
 		return 0, 0, p.syntaxError("expected string")
 	}
 	start := p.pos
-	p.pos++
-	for p.pos < len(p.body) {
-		switch p.body[p.pos] {
-		case '"':
-			p.pos++
-			return start, p.pos, nil
-		case '\\':
-			p.pos++
-			if p.pos >= len(p.body) {
-				return 0, 0, p.syntaxError("unterminated string escape")
+	i := start + 1
+	for i < len(body) {
+		// Advance across unescaped non-control bytes in registers before handling
+		// quotes, escapes, or invalid control characters.
+		for i < len(body) {
+			b := body[i]
+			if b == '"' {
+				p.pos = i + 1
+				return start, i + 1, nil
 			}
-			switch p.body[p.pos] {
-			case 'u':
-				if p.pos+4 >= len(p.body) {
-					return 0, 0, p.syntaxError("short unicode escape")
-				}
-				for _, digit := range p.body[p.pos+1 : p.pos+5] {
-					if !isOpenAIResponsesJSONHexDigit(digit) {
-						return 0, 0, p.syntaxError("invalid unicode escape")
-					}
-				}
-				// Skip the u marker and its four hexadecimal digits.
-				p.pos += 5
-				continue
-			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
-				p.pos++
-			default:
-				return 0, 0, p.syntaxError("invalid string escape")
+			if b == '\\' || b < 0x20 {
+				break
 			}
-		default:
+			i++
+		}
+		if i >= len(body) {
+			break
+		}
+		if body[i] < 0x20 {
 			// Raw control bytes cannot remain inside a JSON quoted string.
-			if p.body[p.pos] < 0x20 {
-				return 0, 0, p.syntaxError("control character in string")
+			p.pos = i
+			return 0, 0, p.syntaxError("control character in string")
+		}
+		i++
+		if i >= len(body) {
+			p.pos = i
+			return 0, 0, p.syntaxError("unterminated string escape")
+		}
+		switch body[i] {
+		case 'u':
+			if i+4 >= len(body) {
+				p.pos = i
+				return 0, 0, p.syntaxError("short unicode escape")
 			}
-			p.pos++
+			for _, digit := range body[i+1 : i+5] {
+				if !isOpenAIResponsesJSONHexDigit(digit) {
+					p.pos = i
+					return 0, 0, p.syntaxError("invalid unicode escape")
+				}
+			}
+			// Skip the u marker and its four hexadecimal digits.
+			i += 5
+		case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
+			i++
+		default:
+			p.pos = i
+			return 0, 0, p.syntaxError("invalid string escape")
 		}
 	}
+	p.pos = len(body)
 	return 0, 0, p.syntaxError("unterminated string")
 }
 

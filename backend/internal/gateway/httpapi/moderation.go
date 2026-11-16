@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
+	"unsafe"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -14,6 +16,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
@@ -37,10 +40,22 @@ import (
 // These Gin keys retain Cyber recording state, current-turn content and an
 // explicit prompt excerpt for warning attribution across event and completion observations.
 const (
-	CyberWarningRecordedKey      = "openai_cyber_warning_recorded"
-	CyberWarningSnapshotKey      = "openai_cyber_warning_snapshot"
-	CyberWarningPromptExcerptKey = "openai_cyber_warning_prompt_excerpt"
+	CyberWarningRecordedKey        = "openai_cyber_warning_recorded"
+	CyberWarningSnapshotKey        = "openai_cyber_warning_snapshot"
+	CyberWarningPromptExcerptKey   = "openai_cyber_warning_prompt_excerpt"
+	cyberWarningSnapshotBindingKey = "openai_cyber_warning_snapshot_binding"
 )
+
+// cyberWarningSnapshotBinding ties a retained current-turn moderation snapshot
+// to the exact protocol and body slice header from which it was extracted.
+type cyberWarningSnapshotBinding struct {
+	// protocol, bodyData, and bodyLen must all match before BuildContentModerationInput
+	// reuses snapshot, ensuring any intermediate body rewrite forces fresh extraction.
+	protocol string                            // extraction protocol identifier
+	bodyData *byte                             // original body backing pointer
+	bodyLen  int                               // original body byte length
+	snapshot moderation.ContentModerationInput // extracted current-turn content
+}
 
 // ModerationEndpoints reads normalized endpoint and forced-platform evidence
 // for HTTP input.
@@ -280,8 +295,18 @@ func SetOpenAICyberWarningRequestSnapshot(c *gin.Context, protocol string, body 
 	}
 	// Extract the same current-turn content used by local moderation, including
 	// tool output and media, so warning recording can attach evidence beyond a text-only excerpt.
+	extractStart := time.Now()
 	snapshot := moderation.ExtractContentModerationInput(protocol, body)
+	if c.Request != nil {
+		timing.ObserveSubstage(c.Request.Context(), "moderation_extract_ms", time.Since(extractStart))
+	}
 	c.Set(CyberWarningSnapshotKey, snapshot)
+	c.Set(cyberWarningSnapshotBindingKey, cyberWarningSnapshotBinding{
+		protocol: protocol,
+		bodyData: unsafe.SliceData(body),
+		bodyLen:  len(body),
+		snapshot: snapshot,
+	})
 	excerpt := moderation.ExtractContentModerationPromptExcerptFromInput(snapshot)
 	SetOpenAICyberWarningPromptExcerpt(c, excerpt)
 }
@@ -385,6 +410,19 @@ func BuildContentModerationInput(endpoints ModerationEndpoints, c *gin.Context, 
 	// so the recorded check or warning still identifies its HTTP endpoint.
 	if input.Endpoint == "" && c.Request != nil && c.Request.URL != nil {
 		input.Endpoint = c.Request.URL.Path
+	}
+	if c != nil && len(body) > 0 {
+		if raw, ok := c.Get(cyberWarningSnapshotBindingKey); ok {
+			// Reuse the request snapshot only when protocol and backing slice match, so any
+			// intervening prompt or bootstrap rewrite triggers fresh extraction on the new bytes.
+			if binding, ok := raw.(cyberWarningSnapshotBinding); ok &&
+				binding.protocol == protocol &&
+				binding.bodyLen == len(body) &&
+				binding.bodyData == unsafe.SliceData(body) {
+				copied := moderationflow.SnapshotContent(binding.snapshot)
+				input.PreExtracted = &copied
+			}
+		}
 	}
 	return input
 }

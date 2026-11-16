@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -18,6 +19,7 @@ import (
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -144,7 +146,9 @@ func (b *messageAttemptBridge) Select(excluded map[int64]struct{}) (textflow.Sel
 		zap.Int("failed_provider_count", len(excluded)),
 	)
 	var err error
+	selectStart := time.Now()
 	b.selection, err = b.binding().selectProvider(b.c.Request.Context(), b.currentAPIKey.GroupID, b.sessionKey, b.reqModel, excluded)
+	timing.ObserveSubstage(b.c.Request.Context(), "scheduler_select_ms", time.Since(selectStart))
 	if err != nil {
 		return textflow.Selection{}, err
 	}

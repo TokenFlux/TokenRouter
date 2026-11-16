@@ -523,7 +523,38 @@ func (p *Performance) FailureTimings() map[string]int64 {
 // returned maps are independent of the live collector and frozen usage snapshots.
 func failureTimings(values map[string]int64) map[string]int64 {
 	out := make(map[string]int64)
-	for _, key := range []string{"request_content_length", "timing_stream", "timing_admitted", "request_body_read_ms", "preprocess_ms", "user_slot_wait_ms", "provider_slot_wait_ms", "retry_provider_slot_wait_ms", "provider_slot_acquired_ms", "attempt_number", "upstream_started_ms", "upstream_finished_ms", "upstream_get_conn_ms", "upstream_got_conn_ms", "upstream_wrote_request_ms", "upstream_first_response_byte_ms", "upstream_connection_reused", "upstream_wrote_request_error"} {
+	for _, key := range []string{
+		"request_content_length",
+		"request_raw_bytes",
+		"request_decoded_bytes",
+		"request_compressed",
+		"upstream_request_bytes",
+		"timing_stream",
+		"timing_admitted",
+		"request_body_read_ms",
+		"request_body_decode_ms",
+		"preprocess_ms",
+		"ingress_validate_ms",
+		"bootstrap_ms",
+		"moderation_extract_ms",
+		"moderation_external_ms",
+		"session_ms",
+		"scheduler_select_ms",
+		"provider_prepare_ms",
+		"user_slot_wait_ms",
+		"provider_slot_wait_ms",
+		"retry_provider_slot_wait_ms",
+		"provider_slot_acquired_ms",
+		"attempt_number",
+		"upstream_started_ms",
+		"upstream_finished_ms",
+		"upstream_get_conn_ms",
+		"upstream_got_conn_ms",
+		"upstream_wrote_request_ms",
+		"upstream_first_response_byte_ms",
+		"upstream_connection_reused",
+		"upstream_wrote_request_error",
+	} {
 		if value, ok := values[key]; ok {
 			out[key] = value
 		}

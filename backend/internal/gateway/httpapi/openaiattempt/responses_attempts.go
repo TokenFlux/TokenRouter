@@ -20,6 +20,7 @@ import (
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -158,6 +159,7 @@ func (b *responsesAttemptBridge) Select(excluded map[int64]struct{}) (textflow.R
 	b.reqLog.Debug("openai.provider_selecting", zap.Int("excluded_provider_count", len(excluded)))
 	var scheduleDecision scheduler.PlatformDecision
 	var err error
+	selectStart := time.Now()
 	b.selection, scheduleDecision, err = b.binding().selectProviderWithSchedulerForCapability(
 		b.selectionCtx,
 		b.apiKey.GroupID,
@@ -169,6 +171,9 @@ func (b *responsesAttemptBridge) Select(excluded map[int64]struct{}) (textflow.R
 		false,
 		b.requestPlatform,
 	)
+	if b.c != nil && b.c.Request != nil {
+		timing.ObserveSubstage(b.c.Request.Context(), "scheduler_select_ms", time.Since(selectStart))
+	}
 	if err != nil {
 		return textflow.ResponseSelection{}, err
 	}

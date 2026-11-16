@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
@@ -49,6 +50,12 @@ type PassthroughInput struct {
 	ReasoningEffort        *string   // previously recorded effective effort
 	Stream                 bool      // incoming streaming mode choice
 	StartedAt              time.Time // request arrival timestamp
+	// SanitizedToolSchemasPlatform, SanitizedReasoningReplay, and SanitizedInputItemIDs
+	// forward prelude completion state so CompatibilityBodyWithSkip avoids repeating
+	// multi-megabyte scans when input and tool schemas remain unchanged.
+	SanitizedToolSchemasPlatform string // platform whose tool schemas were sanitized
+	SanitizedReasoningReplay     bool   // reasoning.content replay already sanitized
+	SanitizedInputItemIDs        bool   // input item IDs already sanitized
 }
 
 // ImageBilling carries the image charge identity and its output/input size tiers.
@@ -77,6 +84,15 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	profile := p.Profile()
 	body, canonicalImageIntentBody, reqModel := in.Body, in.CanonicalImageIntentBody, in.Model
 	attemptImageIntentInvalidated, reasoningEffort, reqStream, startTime := in.ImageIntentInvalidated, in.ReasoningEffort, in.Stream, in.StartedAt
+	skipSchemasPlatform := in.SanitizedToolSchemasPlatform
+	skipReasoningReplay := in.SanitizedReasoningReplay
+	skipInputItemIDs := in.SanitizedInputItemIDs
+	prepareRecorded := false
+	defer func() {
+		if !prepareRecorded && !startTime.IsZero() {
+			timing.ObserveProviderPrepare(ctx, time.Since(startTime))
+		}
+	}()
 	requestedModel := reqModel
 	upstreamPassthroughModel := ""
 	responsesLite := profile.OpenAI && ((p.HasContext() && p.LiteHeader()) || p.LitePayloadFlag(body))
@@ -101,7 +117,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		// Lite clients can send their instructions as developer input. Synthesize
 		// only when both that input and the top-level field are absent, and retain
 		// the generated text for possible Compact recovery.
-		if p.CodexModel(model) && !gjson.GetBytes(body, "instructions").Exists() &&
+		if p.CodexModel(model) && !wirejson.ParseView(body).Get("instructions").Exists() &&
 			(!responsesLite || !openai.HasResponsesLiteDeveloperInstructions(body)) {
 			defaultInstructions = openai.DefaultCodexSynthInstructions(model)
 			nextBody, setErr := sjson.SetBytes(body, "instructions", defaultInstructions)
@@ -145,8 +161,12 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		}
 		if normalized {
 			body = normalizedBody
+			// OAuth normalization can wrap string or object input into an array, so
+			// input-dependent prelude checks must run again on the new array.
+			skipReasoningReplay = false
+			skipInputItemIDs = false
 		}
-		reqStream = gjson.GetBytes(body, "stream").Bool()
+		reqStream = wirejson.ParseView(body).Get("stream").Bool()
 
 		// Namespace raw metadata before deriving the fingerprint; header construction
 		// later consumes the staged IDs for the same selected provider attempt.
@@ -183,7 +203,18 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	// reserved names are then aliased for OAuth-like credentials with reverse
 	// names retained for output restoration.
 	if profile.OpenAI {
-		normalizedBody, normalized, normalizeErr := p.CompatibilityBody(body, responsesLite)
+		var (
+			normalizedBody []byte
+			normalized     bool
+			normalizeErr   error
+		)
+		if skipAware, ok := p.(interface {
+			CompatibilityBodyWithSkip(body []byte, lite bool, skipToolSchemasPlatform string, skipReasoningReplay, skipInputItemIDs bool) ([]byte, bool, error)
+		}); ok {
+			normalizedBody, normalized, normalizeErr = skipAware.CompatibilityBodyWithSkip(body, responsesLite, skipSchemasPlatform, skipReasoningReplay, skipInputItemIDs)
+		} else {
+			normalizedBody, normalized, normalizeErr = p.CompatibilityBody(body, responsesLite)
+		}
 		if normalizeErr != nil {
 			return nil, fmt.Errorf("normalize passthrough Responses compatibility: %w", normalizeErr)
 		}
@@ -235,7 +266,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		}
 	}
 
-	policyModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	policyModel := strings.Clone(strings.TrimSpace(wirejson.ParseView(body).Get("model").String()))
 	if policyModel == "" {
 		policyModel = reqModel
 	}
@@ -315,7 +346,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 			body = retryBody
 			instructionModel = upstreamPassthroughModel
 		}
-		actualModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+		actualModel := strings.Clone(strings.TrimSpace(wirejson.ParseView(body).Get("model").String()))
 		if actualModel == "" {
 			actualModel = reqModel
 		}
@@ -327,6 +358,10 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 			return nil, buildErr
 		}
 
+		if !prepareRecorded && !startTime.IsZero() {
+			prepareRecorded = true
+			timing.ObserveProviderPrepare(ctx, time.Since(startTime))
+		}
 		upstreamStart := time.Now()
 		resp, err = p.SendPass(upstreamReq)
 		p.Latency(time.Since(upstreamStart))
@@ -367,7 +402,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 			// budget flag.
 			if retryBody, fallbackModel, retry := p.CompactRetry(requestedModel, body, resp.StatusCode, upstreamMsg, probeBody, compactModelFallbackRetried); retry {
 				p.CompactObserved(resp, probeBody, upstreamMsg)
-				fromModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+				fromModel := strings.Clone(strings.TrimSpace(wirejson.ParseView(body).Get("model").String()))
 				body = retryBody
 				upstreamPassthroughModel = fallbackModel
 				compactModelFallbackRetried = true

@@ -7,9 +7,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/tidwall/gjson"
-
 	gatewayadapter "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -104,7 +103,7 @@ func (r *Runtime) buildVertexRequest(ctx context.Context, output HTTPBoundary, t
 // Messages suffix is added, and policy block errors propagate from
 // construction.
 func (r *Runtime) buildPassthroughRequest(ctx context.Context, output HTTPBoundary, state *AttemptState, target *gatewayadapter.ExecutionProvider, body []byte, token string) (*http.Request, []byte, error) {
-	model := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	model := strings.Clone(strings.TrimSpace(wirejson.ParseView(body).Get("model").String()))
 	attributes, err := gatewayadapter.ResolveModelAttributes(ctx, target, model, r.dependencies.Attributes, "anthropic_messages")
 	if err != nil {
 		return nil, nil, err
@@ -115,7 +114,7 @@ func (r *Runtime) buildPassthroughRequest(ctx context.Context, output HTTPBounda
 	}
 	// Enforce the API Key's forced Claude 1h cache policy for direct passthrough
 	// builders when not already applied by the outer passthrough flow.
-	if gatewayadapter.ShouldForceClaude1hCache(ctx, target, model) {
+	if (state == nil || !state.CacheTTL1hApplied) && gatewayadapter.ShouldForceClaude1hCache(ctx, target, model) {
 		body = anthropic.InjectAnthropicCacheControlTTL1h(body)
 	}
 	options := r.requestOptions(ctx, output, state, target, model, "apikey", false)

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -18,6 +19,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
@@ -276,6 +278,10 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 	}
 
 	h.backend.ObserveRequest(c, "", false)
+	ingressValidateStart := time.Now()
+	recordIngressValidate := func() {
+		timing.ObserveSubstage(c.Request.Context(), "ingress_validate_ms", time.Since(ingressValidateStart))
+	}
 
 	// Apply prompt replacement before constructing parsed state so moderation and
 	// sticky identity both describe the content later forwarded for this request.
@@ -284,6 +290,7 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 	bodyRef := requeststate.NewRequestBodyRef(body)
 	parsedReq, err := requeststate.ParseGatewayRequest(bodyRef, capability.PlatformAnthropic)
 	if err != nil {
+		recordIngressValidate()
 		LogRequestBodyParseFailure(reqLog, body, err)
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
@@ -305,20 +312,24 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 
 	// Apply configured version bounds to Claude Code clients.
 	if !h.checkClientVersion(c, detection) {
+		recordIngressValidate()
 		return
 	}
 
 	apiKey, err = resolveClientGroupForRequest(c, h.backend, apiKey, protocol.ProtocolAnthropicMessages)
 	if err != nil {
+		recordIngressValidate()
 		writeClientGroupFallbackError(c, err, h.errorResponse)
 		return
 	}
 	if policyBody, changed, policyErr := h.backend.Reasoning(c, apiKey, body); policyErr != nil {
+		recordIngressValidate()
 		h.backend.PolicyDenied(c)
 		h.errorResponse(c, http.StatusForbidden, "permission_error", policyErr.Error())
 		return
 	} else if changed {
 		if err := parsedReq.ReplaceBody(policyBody); err != nil {
+			recordIngressValidate()
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply reasoning effort policy")
 			return
 		}
@@ -336,9 +347,11 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 	h.backend.ObserveEndpoint(c, reqStream)
 
 	if reqModel == "" {
+		recordIngressValidate()
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
+	recordIngressValidate()
 
 	if decision := h.backend.Moderate(c, reqLog, apiKey, subject, reqModel, body); decision != nil && decision.Blocked {
 		h.errorResponse(c, ModerationHTTPStatus(decision), "content_policy_violation", decision.Message)
@@ -378,9 +391,13 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 		return
 	}
 
-	// Group features such as web search emulation read this ID.
+	// Group features such as web search emulation read this ID; publish parsedReq
+	// on Gin context so downstream native Messages execution clones in O(1) when
+	// body bytes remain unchanged.
 	parsedReq.GroupID = apiKey.GroupID
+	c.Set("parsed_request", parsedReq)
 
+	sessionStart := time.Now()
 	parsedReq.SessionContext = &requeststate.SessionContext{
 		ClientIP:  clientip.GetClientIP(c),
 		UserAgent: c.GetHeader("User-Agent"),
@@ -408,6 +425,7 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 	}
 	if isolationSessionID := MetadataSessionID(parsedReq.MetadataUserID); isolationSessionID != "" {
 		if err := h.backend.Isolate(c.Request.Context(), apiKey, subject.UserID, isolationSessionID); h.isolationError(c, err, streamStarted) {
+			timing.ObserveSubstage(c.Request.Context(), "session_ms", time.Since(sessionStart))
 			return
 		}
 	}
@@ -431,6 +449,7 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 	} else {
 		reqLog.Info("sticky.no_session_key", zap.String("session_hash", sessionHash))
 	}
+	timing.ObserveSubstage(c.Request.Context(), "session_ms", time.Since(sessionStart))
 	hasBoundSession := sessionKey != "" && sessionBoundProviderID > 0
 
 	call := MessagesCall{Key: apiKey, Subject: subject, Subscription: subscription, Parsed: parsedReq, Body: body, Model: reqModel, Stream: reqStream, ClaudeCode: isClaudeCodeClient, Platform: platform, SessionKey: sessionKey, BoundProviderID: sessionBoundProviderID, HasBoundSession: hasBoundSession, StreamStarted: &streamStarted, Log: reqLog, Route: groupMappingRoutePlan, Mapping: groupMapping}

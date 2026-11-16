@@ -79,7 +79,18 @@ func NativeMessageIntercepted(c *gin.Context) bool {
 // returning. Successful preparation publishes the parsed request for
 // synchronous execution.
 func (e *UnifiedTextExecutor) prepareNativeMessages(c *gin.Context, target *gatewayadapter.ExecutionProvider, body []byte) (*requeststate.ParsedRequest, func(), bool, error) {
-	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), "anthropic")
+	var parsed *requeststate.ParsedRequest
+	var err error
+	// Reuse the already parsed request via CloneForBody when admission published
+	// one on Gin context so unchanged multi-megabyte bodies skip a second parse.
+	if rawParsed, ok := c.Get("parsed_request"); ok {
+		if existing, ok := rawParsed.(*requeststate.ParsedRequest); ok && existing != nil {
+			parsed, err = existing.CloneForBody(body)
+		}
+	}
+	if parsed == nil && err == nil {
+		parsed, err = requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), "anthropic")
+	}
 	if err != nil {
 		WriteAnthropicError(c, 400, "invalid_request_error", "", "Failed to parse request body")
 		return nil, nil, false, err

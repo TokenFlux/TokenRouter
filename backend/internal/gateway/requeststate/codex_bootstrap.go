@@ -8,6 +8,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tidwall/gjson"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // codex_bootstrap.go recognizes Codex bootstrap tool-output items and rewrites
@@ -17,21 +21,67 @@ import (
 // are reclassified as user messages at their existing input positions,
 // retaining the output text as the user input.
 //
-// The normalizer rejects duplicate JSON members before decoding an object, so
-// conflicting discriminators or identities cannot silently collapse during a
-// rewrite. Candidate items need absent or blank string call IDs; delegation
-// permits other identified history and a string previous response ID, while
-// automation permits only bootstrap context. Narrow text/XML recognition
+// Conservative byte and zero-copy input screening skips full uniqueness and map
+// decoding when no missing-ID bootstrap candidate can exist. When a candidate
+// is present, the normalizer rejects duplicate JSON members before decoding an
+// object so conflicting discriminators or identities cannot silently collapse
+// during a rewrite. Candidate items need absent or blank string call IDs;
+// delegation permits other identified history and a string previous response ID,
+// while automation permits only bootstrap context. Narrow text/XML recognition
 // decides which items qualify and json.Number retains unrelated numeric
 // spelling during whole-object encoding. Declined requests return the supplied
 // bytes; recognition establishes a supported format, leaving authorization and
 // source trust with the caller.
+
+var (
+	// These byte markers screen raw JSON before structural candidate inspection;
+	// a Unicode escape marker keeps escaped ASCII spellings eligible for probing.
+	codexBootstrapUnicodeEscapeNeedle = []byte(`\u`)
+	codexBootstrapOutputTypeNeedle    = []byte("function_call_output")
+	codexBootstrapAppNamespaceNeedle  = []byte("codex_app")
+	codexBootstrapTUINamespaceNeedle  = []byte("codex_tui")
+)
+
+// NormalizeCodexBootstraps evaluates automation and delegation bootstrap
+// repairs in sequence while validating member uniqueness and decoding the
+// request object at most once. It returns the resulting bytes alongside
+// separate change flags for automation and delegation; declined requests return
+// the supplied slice and false flags.
+func NormalizeCodexBootstraps(body []byte) ([]byte, bool, bool) {
+	if !mayContainCodexBootstrapCandidate(body, true, true) {
+		return body, false, false
+	}
+	// A map rewrite would collapse duplicate members and choose one identity or
+	// discriminator. Decline before decoding so the supplied ambiguity remains visible.
+	if !HasUniqueJSONMembers(body) {
+		return body, false, false
+	}
+	request, ok := decodeCodexBootstrapRequest(body)
+	if !ok {
+		return body, false, false
+	}
+	automationChanged := applyCodexCallOutputBootstrap(request, IsCodexAutomationCandidate, false)
+	delegationChanged := applyCodexCallOutputBootstrap(request, IsCodexDelegationCandidate, true)
+	if !automationChanged && !delegationChanged {
+		return body, false, false
+	}
+	normalized, err := json.Marshal(request)
+	if err != nil {
+		// Reencoding failed after temporary object changes. Retain the original
+		// request so callers cannot adopt a partial bootstrap conversion.
+		return body, false, false
+	}
+	return normalized, automationChanged, delegationChanged
+}
 
 // NormalizeCodexDelegationBootstrap reclassifies recognized missing-ID
 // delegation output items as user input. It permits other identified historical
 // calls or item references and string previous-response evidence; declined
 // input retains the supplied slice and false.
 func NormalizeCodexDelegationBootstrap(body []byte) ([]byte, bool) {
+	if !mayContainCodexBootstrapCandidate(body, false, true) {
+		return body, false
+	}
 	// A resumed delegation can accompany identified call history. Permit that
 	// context while still rejecting a call ID on the injected candidate itself.
 	return NormalizeCodexCallOutputBootstrap(body, IsCodexDelegationCandidate, true)
@@ -42,6 +92,9 @@ func NormalizeCodexDelegationBootstrap(body []byte) ([]byte, bool) {
 // call/reference context declines bootstrap conversion, returning the supplied
 // bytes and false.
 func NormalizeCodexAutomationBootstrap(body []byte) ([]byte, bool) {
+	if !mayContainCodexBootstrapCandidate(body, true, false) {
+		return body, false
+	}
 	return NormalizeCodexCallOutputBootstrap(body, IsCodexAutomationCandidate, false)
 }
 
@@ -63,23 +116,142 @@ func NormalizeCodexCallOutputBootstrap(body []byte, isCandidate func(map[string]
 	if !HasUniqueJSONMembers(body) {
 		return body, false
 	}
+	request, ok := decodeCodexBootstrapRequest(body)
+	if !ok {
+		return body, false
+	}
+	if !applyCodexCallOutputBootstrap(request, isCandidate, allowHistoricalContext) {
+		return body, false
+	}
+	normalized, err := json.Marshal(request)
+	if err != nil {
+		// Reencoding failed after temporary object changes. Retain the original
+		// request so callers cannot adopt a partial bootstrap conversion.
+		return body, false
+	}
+	return normalized, true
+}
+
+// mayContainCodexBootstrapCandidate conservatively screens body for any
+// automation or delegation bootstrap item before full uniqueness and map
+// decoding. False guarantees that neither selected normalizer can rewrite body;
+// escaped JSON keys conservatively return true so full decoding decides.
+func mayContainCodexBootstrapCandidate(body []byte, checkAutomation, checkDelegation bool) bool {
+	if len(body) == 0 || (!checkAutomation && !checkDelegation) {
+		return false
+	}
+	hasUnicodeEscape := bytes.Contains(body, codexBootstrapUnicodeEscapeNeedle)
+	if !hasUnicodeEscape {
+		if !bytes.Contains(body, codexBootstrapOutputTypeNeedle) {
+			return false
+		}
+		hasApp := bytes.Contains(body, codexBootstrapAppNamespaceNeedle)
+		hasTUI := checkDelegation && bytes.Contains(body, codexBootstrapTUINamespaceNeedle)
+		if !hasApp && !hasTUI {
+			return false
+		}
+	}
+
+	root := wirejson.ParseView(body)
+	if !root.IsObject() {
+		return false
+	}
+	foundCandidate := false
+	root.ForEach(func(key, value gjson.Result) bool {
+		// Escaped root keys can alias input or previous_response_id; let the full
+		// uniqueness and map decoder evaluate those rare representations.
+		if strings.Contains(key.Raw, `\u`) {
+			foundCandidate = true
+			return false
+		}
+		if key.Str != "input" || !value.IsArray() {
+			return true
+		}
+		value.ForEach(func(_, item gjson.Result) bool {
+			if !item.IsObject() {
+				return true
+			}
+			var typ, namespace, name string
+			var hasOutput, disallowedCallID, escapedKey bool
+			item.ForEach(func(itemKey, itemVal gjson.Result) bool {
+				if strings.Contains(itemKey.Raw, `\u`) {
+					escapedKey = true
+					return false
+				}
+				switch itemKey.Str {
+				case "type":
+					if itemVal.Type == gjson.String {
+						typ = itemVal.Str
+					}
+				case "namespace":
+					if itemVal.Type == gjson.String {
+						namespace = itemVal.Str
+					}
+				case "name":
+					if itemVal.Type == gjson.String {
+						name = itemVal.Str
+					}
+				case "output":
+					if itemVal.Type == gjson.String {
+						hasOutput = true
+					}
+				case "call_id":
+					if itemVal.Type != gjson.String || strings.TrimSpace(itemVal.Str) != "" {
+						disallowedCallID = true
+					}
+				}
+				return true
+			})
+			if escapedKey {
+				foundCandidate = true
+				return false
+			}
+			if typ != "function_call_output" || !hasOutput || disallowedCallID {
+				return true
+			}
+			if checkAutomation && namespace == "codex_app" && name == "automation_update" {
+				foundCandidate = true
+				return false
+			}
+			if checkDelegation && IsCodexDelegationTool(namespace, name) {
+				foundCandidate = true
+				return false
+			}
+			return true
+		})
+		return !foundCandidate
+	})
+	return foundCandidate
+}
+
+// decodeCodexBootstrapRequest decodes body into a number-preserving top-level
+// object map. Non-object roots or syntax failures return false so callers
+// retain their original bytes.
+func decodeCodexBootstrapRequest(body []byte) (map[string]any, bool) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
 	var request map[string]any
 	// This optional repair needs an object before it can classify input items.
 	// Keep the complete supplied representation when object decoding cannot prepare one.
-	if err := decoder.Decode(&request); err != nil {
-		return body, false
+	if err := decoder.Decode(&request); err != nil || request == nil {
+		return nil, false
 	}
+	return request, true
+}
+
+// applyCodexCallOutputBootstrap validates context and rewrites qualifying
+// missing-ID bootstrap items inside a decoded request object. All validation
+// completes before input mutation, so a false result leaves request unchanged.
+func applyCodexCallOutputBootstrap(request map[string]any, isCandidate func(map[string]any) bool, allowHistoricalContext bool) bool {
 	if previousResponseID, exists := request["previous_response_id"]; exists {
 		value, ok := previousResponseID.(string)
 		if !ok || (!allowHistoricalContext && strings.TrimSpace(value) != "") {
-			return body, false
+			return false
 		}
 	}
 	input, ok := request["input"].([]any)
 	if !ok {
-		return body, false
+		return false
 	}
 
 	// Validate surrounding call identities before adopting any conversion.
@@ -95,7 +267,7 @@ func NormalizeCodexCallOutputBootstrap(body []byte, isCandidate func(map[string]
 			callIDValue, exists := item["call_id"]
 			callID, isString := callIDValue.(string)
 			if exists && (!isString || strings.TrimSpace(callID) != "") {
-				return body, false
+				return false
 			}
 			continue
 		}
@@ -103,13 +275,13 @@ func NormalizeCodexCallOutputBootstrap(body []byte, isCandidate func(map[string]
 			if allowHistoricalContext && strings.TrimSpace(StringField(item, "id")) != "" {
 				continue
 			}
-			return body, false
+			return false
 		}
 		if strings.HasSuffix(typ, "_call") || IsResponsesCallOutputType(typ) {
 			if allowHistoricalContext && strings.TrimSpace(StringField(item, "call_id")) != "" {
 				continue
 			}
-			return body, false
+			return false
 		}
 	}
 
@@ -135,16 +307,7 @@ func NormalizeCodexCallOutputBootstrap(body []byte, isCandidate func(map[string]
 		}
 		changed = true
 	}
-	if !changed {
-		return body, false
-	}
-	normalized, err := json.Marshal(request)
-	if err != nil {
-		// Reencoding failed after temporary object changes. Retain the original
-		// request so callers cannot adopt a partial bootstrap conversion.
-		return body, false
-	}
-	return normalized, true
+	return changed
 }
 
 // HasUniqueJSONMembers reports whether body contains one complete JSON value

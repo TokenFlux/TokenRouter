@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"maps"
+	"strings"
 	"unsafe"
 
 	"github.com/tidwall/gjson"
@@ -764,6 +765,9 @@ func FilterThinkingBlocksInternal(body []byte, rejectedSignature string) []byte 
 		!bytes.Contains(body, []byte(`"thinking" :`)) {
 		return body
 	}
+	if !needsThinkingBlockFiltering(body, rejectedSignature) {
+		return body
+	}
 
 	var req map[string]any
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -853,4 +857,150 @@ func FilterThinkingBlocksInternal(body []byte, rejectedSignature string) []byte 
 		return body
 	}
 	return newBody
+}
+
+// needsThinkingBlockFiltering checks a borrowed gjson view to see whether any
+// message content block would be removed by FilterThinkingBlocksInternal.
+// Valid signed assistant thinking under enabled or adaptive mode returns false
+// with zero heap allocations; escaped keys conservatively return true so full
+// map decoding handles them.
+func needsThinkingBlockFiltering(body []byte, rejectedSignature string) bool {
+	if !gjson.ValidBytes(body) {
+		return false
+	}
+	root := gjson.Parse(unsafe.String(unsafe.SliceData(body), len(body)))
+	if !root.IsObject() {
+		return false
+	}
+
+	var thinkingVal, messagesVal gjson.Result
+	var hasThinkingObj, hasMessages, escapedKey bool
+	root.ForEach(func(key, val gjson.Result) bool {
+		if strings.Contains(key.Raw, `\u`) {
+			escapedKey = true
+			return false
+		}
+		switch key.Str {
+		case "thinking":
+			thinkingVal = val
+			hasThinkingObj = true
+		case "messages":
+			messagesVal = val
+			hasMessages = true
+		}
+		return true
+	})
+	if escapedKey {
+		return true
+	}
+	if !hasMessages || !messagesVal.IsArray() {
+		return false
+	}
+
+	thinkingEnabled := false
+	if hasThinkingObj && thinkingVal.IsObject() {
+		thinkType := ""
+		thinkingVal.ForEach(func(key, val gjson.Result) bool {
+			if strings.Contains(key.Raw, `\u`) {
+				escapedKey = true
+				return false
+			}
+			if key.Str == "type" {
+				if val.Type == gjson.String {
+					thinkType = val.String()
+				} else {
+					thinkType = ""
+				}
+			}
+			return true
+		})
+		if escapedKey {
+			return true
+		}
+		thinkingEnabled = thinkType == "enabled" || thinkType == "adaptive"
+	}
+
+	needsFilter := false
+	messagesVal.ForEach(func(_, msg gjson.Result) bool {
+		if !msg.IsObject() {
+			return true
+		}
+		role := ""
+		var content gjson.Result
+		hasContent := false
+		msg.ForEach(func(key, val gjson.Result) bool {
+			if strings.Contains(key.Raw, `\u`) {
+				escapedKey = true
+				return false
+			}
+			switch key.Str {
+			case "role":
+				if val.Type == gjson.String {
+					role = val.String()
+				} else {
+					role = ""
+				}
+			case "content":
+				content = val
+				hasContent = true
+			}
+			return true
+		})
+		if escapedKey {
+			needsFilter = true
+			return false
+		}
+		if !hasContent || !content.IsArray() {
+			return true
+		}
+		content.ForEach(func(_, block gjson.Result) bool {
+			if !block.IsObject() {
+				return true
+			}
+			blockType := ""
+			signature := ""
+			hasThinkingField := false
+			block.ForEach(func(key, val gjson.Result) bool {
+				if strings.Contains(key.Raw, `\u`) {
+					escapedKey = true
+					return false
+				}
+				switch key.Str {
+				case "type":
+					if val.Type == gjson.String {
+						blockType = val.String()
+					} else {
+						blockType = ""
+					}
+				case "signature":
+					if val.Type == gjson.String {
+						signature = val.String()
+					} else {
+						signature = ""
+					}
+				case "thinking":
+					hasThinkingField = true
+				}
+				return true
+			})
+			if escapedKey {
+				needsFilter = true
+				return false
+			}
+			if blockType == "thinking" || blockType == "redacted_thinking" {
+				if thinkingEnabled && role == "assistant" && signature != "" && signature != rejectedSignature {
+					return true
+				}
+				needsFilter = true
+				return false
+			}
+			if blockType == "" && hasThinkingField {
+				needsFilter = true
+				return false
+			}
+			return true
+		})
+		return !needsFilter
+	})
+	return needsFilter
 }

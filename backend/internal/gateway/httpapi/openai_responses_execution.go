@@ -12,6 +12,7 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	openaiexecution "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
@@ -70,8 +71,10 @@ func (s *OpenAIResponsesExecutor) Forward(ctx context.Context, c *gin.Context, p
 		return nil, routeErr
 	}
 	profile := openAIForwardProfile(provider)
+	attemptPrepStart := time.Now()
 	prepared, err := openaiexecution.PreparePrelude(ctx, body, profile, openAIForwardPreludeAdapter{s: s, c: c, provider: provider, ctx: ctx})
 	if err != nil {
+		timing.ObserveProviderPrepare(ctx, time.Since(attemptPrepStart))
 		return nil, err
 	}
 	body = prepared.Body
@@ -85,15 +88,23 @@ func (s *OpenAIResponsesExecutor) Forward(ctx context.Context, c *gin.Context, p
 	isCodexCLI := prepared.CodexCLI
 	switch prepared.Route {
 	case openaiexecution.DispatchRawChat:
+		timing.ObserveProviderPrepare(ctx, time.Since(attemptPrepStart))
 		return s.Text.ResponsesViaRawChat(ctx, c, provider, body, tlsRouterMatch)
 	case openaiexecution.DispatchGrok:
+		timing.ObserveProviderPrepare(ctx, time.Since(attemptPrepStart))
 		return s.Grok.ForwardResponses(ctx, c, provider, body, originalModel, reqStream, startTime)
 	case openaiexecution.DispatchAnthropic:
 		return s.Text.NativeResponses(ctx, c, provider, body, reqModel)
 	case openaiexecution.DispatchPassthrough:
-		return s.Text.Passthrough(ctx, c, provider, originalBody, canonicalImageIntentBody, reqModel, prepared.ImageIntentInvalidated, prepared.ReasoningEffort, reqStream, startTime, tlsRouterMatch)
+		return s.Text.passthroughWithPreludeState(ctx, c, provider, originalBody, canonicalImageIntentBody, reqModel, prepared.ImageIntentInvalidated, prepared.ReasoningEffort, reqStream, startTime, prepared.SanitizedToolSchemasPlatform, prepared.SanitizedReasoningReplay, prepared.SanitizedInputItemIDs, tlsRouterMatch)
 	}
 
+	nativePrepRecorded := false
+	defer func() {
+		if !nativePrepRecorded {
+			timing.ObserveProviderPrepare(ctx, time.Since(attemptPrepStart))
+		}
+	}()
 	transformed, err := openaiexecution.TransformRequest(ctx, prepared, profile, openAIForwardTransformAdapter{openAIForwardPreludeAdapter{s: s, c: c, provider: provider, ctx: ctx}})
 	if err != nil {
 		return nil, err
@@ -202,6 +213,10 @@ func (s *OpenAIResponsesExecutor) Forward(ctx context.Context, c *gin.Context, p
 		},
 		ApplyHeaders: func(headers http.Header) { openai.ApplyCodexFingerprintHeaders(headers, fingerprintIDs) },
 		Do: func(request *http.Request) (*http.Response, error) {
+			if !nativePrepRecorded {
+				nativePrepRecorded = true
+				timing.ObserveProviderPrepare(ctx, time.Since(attemptPrepStart))
+			}
 			resetResponseModel(c)
 			proxyURL := ""
 			if provider.Record.ProxyID != nil && provider.Record.Proxy != nil {

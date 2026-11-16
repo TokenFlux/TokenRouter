@@ -205,6 +205,13 @@ func (p openAITextHTTPBackend) NormalizeBootstrap(body []byte, delegation bool) 
 	return requeststate.NormalizeCodexAutomationBootstrap(body)
 }
 
+// NormalizeBootstraps repairs both automation and delegation Codex bootstrap
+// call-output shapes in one shared pass, returning adopted bytes and separate
+// change flags for request logging.
+func (p openAITextHTTPBackend) NormalizeBootstraps(body []byte) ([]byte, bool, bool) {
+	return requeststate.NormalizeCodexBootstraps(body)
+}
+
 // ValidateTier delegates service-tier field validation before route execution
 // and provider policy.
 func (p openAITextHTTPBackend) ValidateTier(body []byte) error {

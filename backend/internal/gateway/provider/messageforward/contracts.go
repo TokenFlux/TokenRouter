@@ -67,6 +67,13 @@ type AttemptState struct {
 	// it when the upstream error contains both recognized Claude Code
 	// authorization phrases.
 	MimicDebug string // OAuth mimic diagnostic text
+	// CacheTTL1hApplied records that outer API key passthrough already applied
+	// one-hour ephemeral cache lifetimes so buildPassthroughRequest skips rescanning.
+	CacheTTL1hApplied bool // passthrough 1h cache TTL already applied
+	// PrepareStartedAt and PrepareRecorded measure post-slot provider preparation
+	// once before the attempt's first transport exchange begins.
+	PrepareStartedAt time.Time // attempt preparation start timestamp
+	PrepareRecorded  bool      // attempt preparation duration already emitted
 }
 
 // BodyKind selects the response-body size failure presentation for an entry.

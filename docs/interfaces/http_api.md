@@ -361,6 +361,8 @@ app 为所有需要幂等的用户和管理员 HTTP 处理器绑定同一个协�
 
 `request_body_read_ms`、`preprocess_ms`、`user_slot_wait_ms`、`provider_slot_wait_ms` 分解 HTTP 首次准入前的耗时。原始 Body 的读取才计入读取时间，容量检查执行时间属于其他处理，等待只统计检查之间的排队。`retry_provider_slot_wait_ms` 单列后续等待。`provider_slot_acquired_ms` 是首次取得执行资格的时刻；它与连接、发送、响应和输出事件都不能作为时长相加。
 
+为细化准备阶段与载荷体积诊断，`detailed_timing` 与失败阶段快照还会按实际执行路径附带可选字段：`request_raw_bytes`（入站原始读取字节）、`request_decoded_bytes`（解压与宽容 JSON 规范化后的字节）、`request_compressed`（入站压缩标记，`0` 或 `1`）、`upstream_request_bytes`（当次上游尝试实际发送字节），以及 `request_body_decode_ms`、`ingress_validate_ms`、`bootstrap_ms`、`moderation_extract_ms`、`moderation_external_ms`、`session_ms`、`scheduler_select_ms`、`provider_prepare_ms` 等子阶段耗时。其中准入前子阶段属于 `preprocess_ms` 的细分观测，`provider_prepare_ms` 记录取得提供商槽位后到当次上游交换开始前的报文准备耗时，不改变前述四段准入耗时的求和关系。
+
 启用 HTTP 文本计时的请求在尝试适配器接收调度器已取得的槽位或排队取得槽位后记录准入，先于后续的粘性绑定和上游执行。首次成功将 `timing_admitted` 置为 `1`，冻结前述四段耗时和槽位时刻；重试取得槽位不会移动这个时刻。始终未取得槽位的请求保留 `timing_admitted=0`，不生成槽位时刻。原生 Gemini 和 Antigravity 专用入口遵循同一规则。
 
 首事件允许正常元数据，排除心跳和空的保活 delta。有效内容包含正文、明文思考、工具名称及实际参数，排除单独的角色、ID、空占位、签名和密文；重复的完整终态不延长内容输出区间。`first_visible_output_ms` 表示成功写入最终下游 writer，`first_downstream_flush_ms` 表示包含上游事件的首次 HTTP Flush，可由元数据触发。二者不证明客户端已经收到或渲染内容，本地产生的错误与排队心跳不建立这些交付指标。

@@ -30,35 +30,21 @@ func ShouldSanitizeOpenAIResponsesToolSchemaPatterns(platform string) bool {
 }
 
 // SanitizeOpenAIResponsesToolSchemasForPlatform applies parameter-root repair
-// before OpenAI-only pattern cleanup. The changed result combines successful
-// stages; any stage error returns the original body and false, leaving partial
-// repairs unpublished.
+// and OpenAI-only pattern cleanup in a single JSON pass. Any stage error
+// returns the original body and false, leaving partial repairs unpublished.
 func SanitizeOpenAIResponsesToolSchemasForPlatform(body []byte, platform string) ([]byte, bool, error) {
-	normalized := body
-	changed := false
-	// Repair the shared parameter-root type before platform-specific pattern rules
-	// run, so both sanitizers inspect the same progressively normalized request.
-	if ShouldRepairOpenAIResponsesNullToolSchemaType(platform) {
-		next, repaired, err := wire.SanitizeToolParameterTypes(normalized)
-		if err != nil {
-			return body, false, fmt.Errorf("sanitize OpenAI Responses tool parameters: %w", err)
-		}
-		if repaired {
-			normalized = next
-			changed = true
-		}
+	options := wire.ToolSchemaSanitizeOptions{
+		RepairParameterTypes:     ShouldRepairOpenAIResponsesNullToolSchemaType(platform),
+		RemoveLookaroundPatterns: ShouldSanitizeOpenAIResponsesToolSchemaPatterns(platform),
 	}
-	// Pattern cleanup is restricted to OpenAI; other supported platform paths retain
-	// their regex content after the common parameter-root type repair.
-	if ShouldSanitizeOpenAIResponsesToolSchemaPatterns(platform) {
-		next, sanitized, err := wire.SanitizeToolSchemaPatterns(normalized)
-		if err != nil {
-			return body, false, fmt.Errorf("sanitize OpenAI Responses tool schema patterns: %w", err)
-		}
-		if sanitized {
-			normalized = next
-			changed = true
-		}
+	if !options.RepairParameterTypes && !options.RemoveLookaroundPatterns {
+		return body, false, nil
+	}
+	// Combine root-parameter repair and OpenAI lookaround removal in one streaming
+	// pass so large Responses payloads are not scanned and copied twice.
+	normalized, changed, err := wire.SanitizeToolSchemas(body, options)
+	if err != nil {
+		return body, false, fmt.Errorf("sanitize OpenAI Responses tool schemas: %w", err)
 	}
 	return normalized, changed, nil
 }

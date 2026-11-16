@@ -22,6 +22,7 @@ import (
 
 	"github.com/tidwall/gjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -667,6 +668,9 @@ type ContentModerationCheckInput struct {
 	// metadata after units are built. Callers keep the bytes stable while
 	// extraction reads them.
 	Body []byte // submitted request JSON bytes
+	// PreExtracted supplies current-turn units already extracted from the identical
+	// Body and Protocol earlier in the same request, skipping duplicate JSON parsing.
+	PreExtracted *ContentModerationInput // optional pre-extracted current-turn content
 	// NoMediaRetention omits ordinary log excerpts, input items, and image
 	// snapshots while retaining decisions, categories, scores, and completeness
 	// metadata. Flagged-input hash recording remains a separate cache operation
@@ -1527,6 +1531,15 @@ func (in *ContentModerationInput) Normalize() {
 	}
 }
 
+// Clone copies Images, Items, and ImageItems slice storage so callers can
+// mutate or normalize the returned moderation input without aliasing retained snapshots.
+func (in ContentModerationInput) Clone() ContentModerationInput {
+	in.Images = slices.Clone(in.Images)
+	in.Items = slices.Clone(in.Items)
+	in.ImageItems = slices.Clone(in.ImageItems)
+	return in
+}
+
 // IsEmpty reports whether aggregate text is blank and the image list is empty.
 // Item collections alone do not make this predicate nonempty, so callers
 // normalize or construct their aggregate representation before using it for
@@ -2079,7 +2092,16 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			"configured_models", cfg.ModelFilter.Models)
 		return allow, nil
 	}
-	content := ExtractContentModerationInput(input.Protocol, input.Body)
+	var content ContentModerationInput
+	if input.PreExtracted != nil {
+		// Reuse cloned units when an earlier request snapshot already extracted this
+		// exact protocol and body buffer, avoiding a second multi-megabyte JSON pass.
+		content = input.PreExtracted.Clone()
+	} else {
+		extractStart := time.Now()
+		content = ExtractContentModerationInput(input.Protocol, input.Body)
+		timing.ObserveSubstage(ctx, "moderation_extract_ms", time.Since(extractStart))
+	}
 	if content.IsEmpty() {
 		slog.Info("content_moderation.skip_empty_input",
 			"user_id", input.UserID,
@@ -2285,8 +2307,12 @@ func (s *ContentModerationService) checkSync(ctx context.Context, input ContentM
 	auditCtx, cancel := context.WithTimeout(ctx, contentModerationAuditTotalTimeout)
 	result := s.auditContentModerationInput(auditCtx, cfg, auditInput, trackPreBlock)
 	cancel()
+	elapsed := time.Since(start)
+	if queueDelay == nil {
+		timing.ObserveSubstage(ctx, "moderation_external_ms", elapsed)
+	}
 	// Record the shared audit duration in truncated integer milliseconds.
-	latency := int(time.Since(start).Milliseconds())
+	latency := int(elapsed.Milliseconds())
 	if result.SuccessfulUnits == 0 {
 		if trackPreBlock {
 			s.recordPreBlockSyncMetric(latency, ContentModerationActionError)

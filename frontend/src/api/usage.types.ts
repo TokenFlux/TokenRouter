@@ -158,10 +158,15 @@ export interface UsageLogTiming {
   upstream_completed_ms?: number | null // Milliseconds from request ingress.
   upstream_finished_ms?: number | null // Milliseconds from request ingress.
   attempt_number?: number | null // Usage-producing exchange ordinal.
-  // request_content_length, timing_stream, and timing_admitted retain missing
-  // observations for older requests. Absence indicates an unknown body length or mode,
-  // while zero remains an observed value.
-  request_content_length?: number | null // Observed request body bytes.
+  // request_content_length, request_raw_bytes, request_decoded_bytes,
+  // request_compressed, upstream_request_bytes, timing_stream, and timing_admitted
+  // retain missing observations for older requests. Absence indicates an unrecorded
+  // size or mode, while zero remains an observed value.
+  request_content_length?: number | null // Declared ingress request bytes.
+  request_raw_bytes?: number | null // Wire request bytes read.
+  request_decoded_bytes?: number | null // Decoded normalized JSON bytes.
+  request_compressed?: number | null // Request compression flag, zero or one.
+  upstream_request_bytes?: number | null // Serialized upstream request bytes.
   timing_stream?: number | null // Client streaming flag, zero or one.
   timing_admitted?: number | null // Initial admission flag, zero or one.
 
@@ -172,6 +177,18 @@ export interface UsageLogTiming {
   preprocess_ms?: number | null // Milliseconds spent in stage.
   user_slot_wait_ms?: number | null // Milliseconds spent in stage.
   provider_slot_wait_ms?: number | null // Milliseconds spent in stage.
+  // request_body_decode_ms, ingress_validate_ms, bootstrap_ms, moderation_extract_ms,
+  // moderation_external_ms, session_ms, scheduler_select_ms, and provider_prepare_ms
+  // break down gateway preparation and attempt setup without changing the four-part
+  // initial admission sum; unrecorded sub-stages remain absent.
+  request_body_decode_ms?: number | null // Milliseconds spent decoding body.
+  ingress_validate_ms?: number | null // Milliseconds spent validating ingress.
+  bootstrap_ms?: number | null // Milliseconds spent normalizing bootstrap.
+  moderation_extract_ms?: number | null // Milliseconds spent extracting audit input.
+  moderation_external_ms?: number | null // Milliseconds spent awaiting audit API.
+  session_ms?: number | null // Milliseconds spent resolving session.
+  scheduler_select_ms?: number | null // Milliseconds spent selecting provider.
+  provider_prepare_ms?: number | null // Milliseconds spent preparing attempt.
   // Later attempts accumulate this duration without changing the four initial admission
   // measurements.
   retry_provider_slot_wait_ms?: number | null // Milliseconds spent in stage.

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tidwall/gjson"
+
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -61,6 +63,11 @@ type convertedLegacyResponsesMessages struct {
 // mutations succeed.
 func NormalizeOpenAIResponsesLegacyIngress(body []byte) ([]byte, bool, error) {
 	if len(body) == 0 {
+		return body, false, nil
+	}
+	// Screen valid root objects with a zero-copy view so native Responses bodies
+	// lacking messages, prompt, and commands skip full-body UseNumber map decoding.
+	if gjson.ValidBytes(body) && !hasLegacyResponsesIngressFields(body) {
 		return body, false, nil
 	}
 
@@ -263,4 +270,25 @@ func applyLegacyResponsesTopLevelFields(request map[string]any, legacy converted
 	for _, key := range []string{"max_tokens", "max_completion_tokens", "reasoning_effort", "functions", "function_call"} {
 		delete(request, key)
 	}
+}
+
+// hasLegacyResponsesIngressFields reports whether a validated JSON document is a
+// non-object (which DecodeUseNumber rejects) or carries top-level messages,
+// prompt, or commands fields requiring legacy ingress normalization.
+func hasLegacyResponsesIngressFields(body []byte) bool {
+	root := wirejson.ParseView(body)
+	if !root.IsObject() {
+		return true
+	}
+	found := false
+	root.ForEach(func(key, _ gjson.Result) bool {
+		switch key.String() {
+		case "messages", "prompt", "commands":
+			found = true
+			return false
+		default:
+			return true
+		}
+	})
+	return found
 }

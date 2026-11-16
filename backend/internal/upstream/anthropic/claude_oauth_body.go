@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -929,7 +930,11 @@ func RewriteSystemForNonClaudeCodeWithPromptBlocks(body []byte, system any, expa
 // invalid; top-level cache_control is outside this traversal, and tool markers
 // form their own ordered list.
 func CollectCacheControlPaths(body []byte) (invalidThinking []CacheControlPath, messagePaths []string, toolPaths []string, systemPaths []string) {
-	system := gjson.GetBytes(body, "system")
+	if !mayContainCacheControlToken(body) {
+		return nil, nil, nil, nil
+	}
+	root := parseAnthropicBodyView(body)
+	system := root.Get("system")
 	if system.IsArray() {
 		sysIndex := 0
 		system.ForEach(func(_, item gjson.Result) bool {
@@ -949,7 +954,7 @@ func CollectCacheControlPaths(body []byte) (invalidThinking []CacheControlPath, 
 		})
 	}
 
-	messages := gjson.GetBytes(body, "messages")
+	messages := root.Get("messages")
 	if messages.IsArray() {
 		msgIndex := 0
 		messages.ForEach(func(_, msg gjson.Result) bool {
@@ -977,7 +982,7 @@ func CollectCacheControlPaths(body []byte) (invalidThinking []CacheControlPath, 
 		})
 	}
 
-	tools := gjson.GetBytes(body, "tools")
+	tools := root.Get("tools")
 	if tools.IsArray() {
 		toolIndex := 0
 		tools.ForEach(func(_, tool gjson.Result) bool {
@@ -1103,9 +1108,10 @@ func InjectAnthropicCacheControlTTL1h(body []byte) []byte {
 // level and in system, message, or tool arrays. Empty body or ttl returns
 // unchanged bytes; failed individual writes leave that marker's value in place.
 func ForceEphemeralCacheControlTTL(body []byte, ttl string) []byte {
-	if len(body) == 0 || ttl == "" {
+	if len(body) == 0 || ttl == "" || !mayContainCacheControlToken(body) {
 		return body
 	}
+	root := parseAnthropicBodyView(body)
 	out := body
 	var paths []string
 	addPath := func(path string, value gjson.Result) {
@@ -1119,11 +1125,11 @@ func ForceEphemeralCacheControlTTL(body []byte, ttl string) []byte {
 		paths = append(paths, path+".cache_control.ttl")
 	}
 
-	if topCC := gjson.GetBytes(body, "cache_control"); topCC.Exists() && topCC.Get("type").String() == "ephemeral" && topCC.Get("ttl").String() != ttl {
+	if topCC := root.Get("cache_control"); topCC.Exists() && topCC.Get("type").String() == "ephemeral" && topCC.Get("ttl").String() != ttl {
 		paths = append(paths, "cache_control.ttl")
 	}
 
-	system := gjson.GetBytes(body, "system")
+	system := root.Get("system")
 	if system.IsArray() {
 		idx := -1
 		system.ForEach(func(_, block gjson.Result) bool {
@@ -1133,7 +1139,7 @@ func ForceEphemeralCacheControlTTL(body []byte, ttl string) []byte {
 		})
 	}
 
-	messages := gjson.GetBytes(body, "messages")
+	messages := root.Get("messages")
 	if messages.IsArray() {
 		msgIdx := -1
 		messages.ForEach(func(_, msg gjson.Result) bool {
@@ -1152,7 +1158,7 @@ func ForceEphemeralCacheControlTTL(body []byte, ttl string) []byte {
 		})
 	}
 
-	tools := gjson.GetBytes(body, "tools")
+	tools := root.Get("tools")
 	if tools.IsArray() {
 		idx := -1
 		tools.ForEach(func(_, tool gjson.Result) bool {
@@ -1177,7 +1183,7 @@ func ForceEphemeralCacheControlTTL(body []byte, ttl string) []byte {
 // the billing prefix and an entrypoint marker. This identifies proxied traffic;
 // callers use separate Claude Code-only validation for authorization.
 func SystemHasClaudeCodeBillingAttribution(body []byte) bool {
-	system := gjson.GetBytes(body, "system")
+	system := parseAnthropicBodyView(body).Get("system")
 	if !system.IsArray() {
 		return false
 	}
@@ -1198,4 +1204,22 @@ func SystemHasClaudeCodeBillingAttribution(body []byte) bool {
 // qualify, while authorization policy remains with the caller.
 func IsProxiedClaudeCodeRequest(body []byte, metadataUserID string) bool {
 	return ParseMetadataUserID(metadataUserID) != nil && SystemHasClaudeCodeBillingAttribution(body)
+}
+
+// mayContainCacheControlToken screens raw JSON bytes for literal cache_control
+// or Unicode escape sequences before traversing system, message, and tool arrays.
+func mayContainCacheControlToken(body []byte) bool {
+	if len(body) == 0 {
+		return false
+	}
+	return bytes.Contains(body, []byte("cache_control")) || bytes.Contains(body, []byte(`\u`))
+}
+
+// parseAnthropicBodyView borrows raw's backing bytes for read-only gjson lookups
+// so top-level message and tool array probes do not heap-copy large payloads.
+func parseAnthropicBodyView(raw []byte) gjson.Result {
+	if len(raw) == 0 {
+		return gjson.Result{}
+	}
+	return gjson.Parse(unsafe.String(unsafe.SliceData(raw), len(raw)))
 }

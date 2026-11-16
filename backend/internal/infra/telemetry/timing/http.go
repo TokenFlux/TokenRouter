@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 )
 
 // http.go records external HTTP durations and tracks pending response headers.
@@ -88,6 +90,9 @@ func Do(client *http.Client, req *http.Request) (response *http.Response, err er
 	}
 	if req != nil {
 		if s := StagesFromContext(req.Context()); s != nil {
+			if attempt := telemetry.RequestAttemptFromContext(req.Context()); attempt.Number > 0 && req.ContentLength >= 0 {
+				s.SetAttemptRequestBytes(int64(attempt.Number), req.ContentLength)
+			}
 			// Header waiting follows every upstream exchange even when dependency
 			// timing is disabled, so metrics settings cannot disable downstream liveness.
 			s.upstreamHeaderWaits.Add(1)

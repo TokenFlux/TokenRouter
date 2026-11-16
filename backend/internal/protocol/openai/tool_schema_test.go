@@ -3,6 +3,7 @@ package openai
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -669,4 +670,94 @@ func BenchmarkSanitizeOpenAIResponsesToolParameterTypes_ByteSpanPatch(b *testing
 	for range b.N {
 		_, _, _ = SanitizeToolParameterTypes(body)
 	}
+}
+
+// TestSanitizeToolSchemasCombinedSinglePassAndLazyMessageProbing supplies a
+// payload combining a null root schema type, a lookaround pattern, a message
+// item with trailing type, and code containing parentheses. Combined sanitation
+// repairs real tool schemas in one pass while skipping non-tool messages and
+// pattern-free payloads with zero allocations.
+func TestSanitizeToolSchemasCombinedSinglePassAndLazyMessageProbing(t *testing.T) {
+	combined := []byte(`{
+		"model":"gpt-5.4",
+		"tools":[{"type":"function","name":"search","parameters":{"type":null,"properties":{"q":{"type":"string","pattern":"(?=foo).*"}}}}],
+		"input":[
+			{"tools":[{"type":"function","name":"ignored","parameters":{"type":null}}],"type":"message","role":"user","content":"call foo(bar)"}
+		]
+	}`)
+	got, changed, err := SanitizeToolSchemas(combined, ToolSchemaSanitizeOptions{
+		RepairParameterTypes:     true,
+		RemoveLookaroundPatterns: true,
+	})
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, "object", gjson.GetBytes(got, "tools.0.parameters.type").String())
+	require.False(t, gjson.GetBytes(got, "tools.0.parameters.properties.q.pattern").Exists())
+	require.Equal(t, gjson.Null, gjson.GetBytes(got, "input.0.tools.0.parameters.type").Type)
+
+	codeWithParensNoPattern := []byte(`{"model":"gpt-5.4","tools":[{"type":"function","name":"run","parameters":{"type":"object","properties":{"cmd":{"type":"string"}}}}],"input":[{"type":"message","role":"user","content":"if (x > 0) { return fn(x); }"}]}`)
+	allocs := testing.AllocsPerRun(20, func() {
+		out, didChange, runErr := SanitizeToolSchemaPatterns(codeWithParensNoPattern)
+		if runErr != nil || didChange || len(out) != len(codeWithParensNoPattern) {
+			t.Fatal("unexpected pattern sanitizer work on code payload without pattern key")
+		}
+	})
+	require.Zero(t, allocs)
+}
+
+// BenchmarkSanitizeToolSchemas_LargeConversation runs combined tool-schema
+// sanitization across 1 MiB, 5 MiB, 20 MiB, and 32 MiB Responses conversations
+// containing thirty-six tools and code history. Sub-benchmarks report byte
+// throughput and verify bounded allocations when schemas require no edits.
+func BenchmarkSanitizeToolSchemas_LargeConversation(b *testing.B) {
+	options := ToolSchemaSanitizeOptions{
+		RepairParameterTypes:     true,
+		RemoveLookaroundPatterns: true,
+	}
+	for _, sizeMiB := range []int{1, 5, 20, 32} {
+		payload := buildLargeResponsesSchemaFixture(sizeMiB << 20)
+		b.Run(strconv.Itoa(sizeMiB)+"MiB", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(payload)))
+			b.ResetTimer()
+			for range b.N {
+				_, _, _ = SanitizeToolSchemas(payload, options)
+			}
+		})
+	}
+}
+
+// buildLargeResponsesSchemaFixture builds a clean Responses JSON payload of at
+// least targetBytes with thirty-six function tools and multi-turn code messages.
+func buildLargeResponsesSchemaFixture(targetBytes int) []byte {
+	out := make([]byte, 0, targetBytes+8192)
+	out = append(out, `{"model":"gpt-5.4","stream":true,"tools":[`...)
+	for i := range 36 {
+		if i > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, `{"type":"function","name":"tool_`...)
+		out = append(out, strconv.Itoa(i)...)
+		out = append(out, `","parameters":{"type":"object","properties":{"path":{"type":"string"},"line":{"type":"integer"}}}}`...)
+	}
+	out = append(out, `],"input":[`...)
+	chunk := strings.Repeat("func process(items []string) error { return check(items) } ", 32)
+	turn := 0
+	for len(out) < targetBytes {
+		if turn > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, `{"type":"message","role":"user","content":[{"type":"input_text","text":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"}]},{"type":"function_call","call_id":"call_`...)
+		out = append(out, strconv.Itoa(turn)...)
+		out = append(out, `","name":"tool_0","arguments":"{\"path\":\"a.go\"}"},{"type":"function_call_output","call_id":"call_`...)
+		out = append(out, strconv.Itoa(turn)...)
+		out = append(out, `","output":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"}`...)
+		turn++
+	}
+	out = append(out, `]}`...)
+	return out
 }

@@ -3,12 +3,14 @@ package messageforward
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayadapter "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -39,6 +41,10 @@ func (r *Runtime) exchangeOptions(output HTTPBoundary, state *AttemptState, targ
 		return r.buildRequest(ctx, output, state, target, body, token, tokenType, model, stream, mimic)
 	}
 	options.Do = func(request *http.Request) (*http.Response, error) {
+		if state != nil && !state.PrepareRecorded && !state.PrepareStartedAt.IsZero() && request != nil {
+			state.PrepareRecorded = true
+			timing.ObserveProviderPrepare(request.Context(), time.Since(state.PrepareStartedAt))
+		}
 		return r.dependencies.Transport.DoWithTLS(request, proxy, target.Record.ID, target.Record.Concurrency, profile)
 	}
 	options.ShouldRectify = func(ctx context.Context, body []byte) bool {
@@ -90,6 +96,10 @@ func (r *Runtime) passthroughExchange(output HTTPBoundary, state *AttemptState, 
 		return r.buildPassthroughRequest(ctx, output, state, target, body, token)
 	}
 	options.Do = func(request *http.Request) (*http.Response, error) {
+		if state != nil && !state.PrepareRecorded && !state.PrepareStartedAt.IsZero() && request != nil {
+			state.PrepareRecorded = true
+			timing.ObserveProviderPrepare(request.Context(), time.Since(state.PrepareStartedAt))
+		}
 		return r.dependencies.Transport.DoWithTLS(request, proxy, target.Record.ID, target.Record.Concurrency, r.requestTLS(target))
 	}
 	options.TransportError = func(ctx context.Context, err error, address string) error {

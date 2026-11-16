@@ -1,6 +1,7 @@
 package clientmeta
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 )
@@ -8,14 +9,15 @@ import (
 // interception.go classifies Claude auxiliary requests that can receive fixed
 // local answers. Single-token Haiku probes require a validated Claude client
 // and take precedence; suggestion and warmup recognition inspect structured
-// message and system text after a quick raw-body marker check.
+// message and system text after a narrow raw-byte marker check.
 //
 // Suggestion recognition considers the first text block of the final request
 // message when its role is user, while warmup scans all text blocks for title
-// requests or a fixed warmup value. Malformed JSON yields ordinary forwarding.
-// This ordering keeps probe identification independent of JSON
-// shape and keeps suggestion classification ahead of title or warmup markers
-// elsewhere in an otherwise valid request.
+// requests or a fixed warmup value. Screening raw bytes for exact auxiliary
+// phrases and escaped ASCII letters avoids string-copying and decoding large
+// conversations that merely mention the word title. Malformed JSON yields
+// ordinary forwarding, keeping probe identification independent of JSON shape
+// and keeping suggestion classification ahead of title or warmup markers.
 
 // Interception kinds select the fixed local reply emitted by the Messages
 // entrypoint when a recognized auxiliary request bypasses upstream execution.
@@ -24,6 +26,15 @@ const (
 	InterceptTypeWarmup                                 // Warmup request; reply with "New Conversation".
 	InterceptTypeSuggestionMode                         // Suggestion mode; reply with an empty string.
 	InterceptTypeMaxTokensOneHaiku                      // Single-token Haiku probe; reply with "#".
+)
+
+var (
+	// These exact byte markers screen raw request bytes before JSON unmarshaling
+	// so ordinary tool schemas containing "title" do not decode multi-megabyte bodies.
+	interceptSuggestionMarker  = []byte("[SUGGESTION MODE:")
+	interceptMsgTitleMarker    = []byte("Please write a 5-10 word title for the following conversation:")
+	interceptWarmupMarker      = []byte("Warmup")
+	interceptSystemTitleMarker = []byte("nalyze if this message indicates a new conversation topic. If it does, extract a 2-3 word title")
 )
 
 // InterceptType classifies auxiliary requests eligible for fixed local responses.
@@ -47,10 +58,14 @@ func DetectInterceptType(body []byte, model string, maxTokens int, isClaudeCodeC
 		return InterceptTypeMaxTokensOneHaiku
 	}
 
-	// Skip JSON parsing when no suggestion or warmup marker is present.
-	bodyStr := string(body)
-	hasSuggestionMode := strings.Contains(bodyStr, "[SUGGESTION MODE:")
-	hasWarmupKeyword := strings.Contains(bodyStr, "title") || strings.Contains(bodyStr, "Warmup")
+	// Screen raw bytes for the exact auxiliary phrases or escaped printable ASCII
+	// (\u0040-\u007f) without allocating a string copy of the request body.
+	hasEscapedASCII := containsEscapedPrintableASCII(body)
+	hasSuggestionMode := bytes.Contains(body, interceptSuggestionMarker) || hasEscapedASCII
+	hasWarmupKeyword := bytes.Contains(body, interceptMsgTitleMarker) ||
+		bytes.Contains(body, interceptWarmupMarker) ||
+		bytes.Contains(body, interceptSystemTitleMarker) ||
+		hasEscapedASCII
 
 	if !hasSuggestionMode && !hasWarmupKeyword {
 		return InterceptTypeNone
@@ -106,4 +121,27 @@ func DetectInterceptType(body []byte, model string, maxTokens int, isClaudeCodeC
 	}
 
 	return InterceptTypeNone
+}
+
+// containsEscapedPrintableASCII reports whether body contains a JSON Unicode
+// escape in \u0040 through \u007f (covering letters and brackets) while
+// ignoring control/punctuation escapes such as \u001b or \u003c.
+func containsEscapedPrintableASCII(body []byte) bool {
+	const prefix = `\u00`
+	offset := 0
+	for offset <= len(body)-6 {
+		idx := bytes.Index(body[offset:], []byte(prefix))
+		if idx < 0 {
+			return false
+		}
+		pos := offset + idx
+		if pos+5 < len(body) {
+			hi := body[pos+4]
+			if hi >= '4' && hi <= '7' {
+				return true
+			}
+		}
+		offset = pos + 4
+	}
+	return false
 }

@@ -12,40 +12,53 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 )
 
-// stages.go collects HTTP text admission intervals and stream milestones for
-// one logical request. Body reads are observed on the original reader, while
-// memory replays retain the context without inheriting that reader. Admission
-// freezes the initial breakdown; later provider waits belong to retries rather
-// than changing the explanation of the first accepted provider.
+// stages.go collects HTTP text admission intervals, payload byte counts, and
+// stream milestones for one logical request. Body reads and raw wire bytes are
+// observed on the original reader, while decoded payload size, compression, and
+// preparation sub-stages accumulate alongside admission. Admission freezes the
+// initial breakdown; later provider waits and per-attempt preparation belong to
+// retries rather than changing the explanation of the first accepted provider.
 //
 // A mutex coordinates detached upstream work with request completion and
 // snapshots. Each milestone keeps its first observation, and completion freezes
 // unfinished admission without inventing a successful slot acquisition. The
-// collector stores durations rather than payloads. Optional response callbacks
-// let gateway adapters observe platform framing without placing protocol or
-// HTTP framework dependencies in this shared timing package.
+// collector stores durations and byte sizes rather than payloads. Optional
+// response callbacks let gateway adapters observe platform framing without
+// placing protocol or HTTP framework dependencies in this shared timing package.
 
 // stageKey isolates the request collector from other timing context values.
 type stageKey struct{}
 
 // Stages owns admission counters and first-event observations for one HTTP request.
 type Stages struct {
-	// mu protects end, admitted, body, user, provider, retry and events. start
-	// remains immutable; end freezes initial durations, while admitted decides
-	// whether later provider waits belong to retries or a completed failure.
-	mu          sync.Mutex       // protects counters and milestones
-	start       time.Time        // monotonic ingress reference
-	end         time.Time        // frozen admission endpoint
-	admitted    bool             // successful admission observed
-	body        time.Duration    // original reader duration
-	user        time.Duration    // initial user queue duration
-	provider    time.Duration    // initial provider queue duration
-	retry       time.Duration    // subsequent provider queue duration
-	stream      bool             // client streaming applicability
-	events      map[string]int64 // first observed offsets
-	mode        string           // captured request metric mode
-	attempt     int64            // actual upstream exchange ordinal
-	performance *Performance     // current exchange observations under mu
+	// mu protects end, admitted, body, user, provider, retry, byte counters,
+	// substages, and events. start remains immutable; end freezes initial
+	// durations, while admitted decides whether later provider waits belong to
+	// retries or a completed failure.
+	mu          sync.Mutex               // protects counters and milestones
+	start       time.Time                // monotonic ingress reference
+	end         time.Time                // frozen admission endpoint
+	admitted    bool                     // successful admission observed
+	body        time.Duration            // original reader duration
+	user        time.Duration            // initial user queue duration
+	provider    time.Duration            // initial provider queue duration
+	retry       time.Duration            // subsequent provider queue duration
+	substages   map[string]time.Duration // pre-admission preparation sub-stages
+	stream      bool                     // client streaming applicability
+	events      map[string]int64         // first observed offsets and sizes
+	mode        string                   // captured request metric mode
+	attempt     int64                    // actual upstream exchange ordinal
+	performance *Performance             // current exchange observations under mu
+
+	// rawBytes and rawBytesObserved track wire payload bytes delivered by the
+	// wrapped request reader so zero-byte bodies remain distinct from unread streams.
+	rawBytes         int64 // cumulative wire bytes read
+	rawBytesObserved bool  // original reader invoked at least once
+
+	// pendingPrepare and pendingPrepareObserved accumulate post-slot provider
+	// preparation before BeginAttempt transfers the total to that exchange.
+	pendingPrepare         time.Duration // current attempt preparation duration
+	pendingPrepareObserved bool          // current attempt preparation recorded
 
 	// response observes each opened upstream response without consuming it. Set
 	// before sharing the context; readers invoke it synchronously on their exchange.
@@ -132,17 +145,24 @@ func (s *Stages) SetMode(mode string) {
 // so closing an abandoned response cannot update a subsequent provider's metrics.
 //
 // Initial admission stays frozen at its own endpoint, and request-level downstream
-// milestones retain their first observation across retries. Only upstream exchange
-// observations are replaced. All mutations use the collector mutex; callers finish
-// one dispatch before beginning another, while old transport callbacks may still return.
+// milestones retain their first observation across retries. Pending provider
+// preparation recorded before this dispatch moves onto the new exchange and resets
+// for later retries. All mutations use the collector mutex; callers finish one
+// dispatch before beginning another, while old transport callbacks may still return.
 func (s *Stages) BeginAttempt() int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.attempt++
-	s.performance = &Performance{Mode: NormalizeMode(s.mode), Values: map[string]int64{
+	values := map[string]int64{
 		"attempt_number":      s.attempt,
 		"upstream_started_ms": time.Since(s.start).Milliseconds(),
-	}}
+	}
+	if s.pendingPrepareObserved {
+		values["provider_prepare_ms"] = s.pendingPrepare.Milliseconds()
+		s.pendingPrepare = 0
+		s.pendingPrepareObserved = false
+	}
+	s.performance = &Performance{Mode: NormalizeMode(s.mode), Values: values}
 	return s.attempt
 }
 
@@ -219,9 +239,9 @@ func (s *Stages) ReadBody(body io.ReadCloser) io.ReadCloser {
 	return &stageBody{ReadCloser: body, stages: s}
 }
 
-// Read forwards bytes and errors unchanged and records elapsed reader work.
-// Failed and partial reads still consume time. Admission clipping excludes
-// any late body activity from an already frozen initial breakdown.
+// Read forwards bytes and errors unchanged and records elapsed reader work plus
+// raw wire byte totals. Failed and partial reads still consume time. Admission
+// clipping excludes any late body activity from an already frozen initial breakdown.
 //
 // The underlying read runs outside the collector lock so cancellation and
 // snapshot publication do not wait behind network input. The completed interval
@@ -232,6 +252,14 @@ func (r *stageBody) Read(p []byte) (int, error) {
 	n, err := r.ReadCloser.Read(p)
 	end := time.Now()
 	r.stages.mu.Lock()
+	if r.stages.end.IsZero() {
+		if n > 0 {
+			r.stages.rawBytes += int64(n)
+		}
+		if n > 0 || err == io.EOF {
+			r.stages.rawBytesObserved = true
+		}
+	}
 	if !r.stages.end.IsZero() && end.After(r.stages.end) {
 		end = r.stages.end
 	}
@@ -345,9 +373,19 @@ func (s *Stages) snapshotLocked() map[string]int64 {
 	if s.admitted {
 		out["timing_admitted"] = 1
 	}
+	if s.rawBytesObserved {
+		out["request_raw_bytes"] = s.rawBytes
+	}
+	for name, elapsed := range s.substages {
+		out[name] = elapsed.Milliseconds()
+	}
 	maps.Copy(out, s.events)
 	if s.performance != nil {
 		maps.Copy(out, s.performance.Values)
+	} else if s.pendingPrepareObserved {
+		// Retain post-slot preparation duration when a request fails before transport
+		// dispatch creates an exchange performance map.
+		out["provider_prepare_ms"] = s.pendingPrepare.Milliseconds()
 	}
 	return out
 }
@@ -373,7 +411,7 @@ func (s *Stages) AttemptFailureSnapshot() map[string]int64 {
 		failedAt = end
 	}
 	values := map[string]int64{"failed_at_ms": failedAt}
-	for _, key := range []string{"upstream_started_ms", "upstream_finished_ms", "upstream_get_conn_ms", "upstream_got_conn_ms", "upstream_wrote_request_ms", "upstream_first_response_byte_ms", "upstream_connection_reused", "upstream_wrote_request_error"} {
+	for _, key := range []string{"provider_prepare_ms", "upstream_request_bytes", "upstream_started_ms", "upstream_finished_ms", "upstream_get_conn_ms", "upstream_got_conn_ms", "upstream_wrote_request_ms", "upstream_first_response_byte_ms", "upstream_connection_reused", "upstream_wrote_request_error"} {
 		if value, ok := s.performance.Values[key]; ok {
 			values[key] = value
 		}
@@ -431,6 +469,105 @@ func (s *Stages) SetContentLength(length int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.events["request_content_length"] = length
+}
+
+// RecordBodyDecode stores decoded body size, compression status, and pure decode
+// CPU duration. It subtracts elapsed wire reader time from totalReadAndDecode so
+// slow client uploads do not inflate decompression and JSON-normalization metrics.
+func (s *Stages) RecordBodyDecode(decodedBytes int64, compressed bool, totalReadAndDecode time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.end.IsZero() {
+		return
+	}
+	if decodedBytes >= 0 {
+		s.events["request_decoded_bytes"] = decodedBytes
+	}
+	if compressed {
+		s.events["request_compressed"] = 1
+	} else {
+		s.events["request_compressed"] = 0
+	}
+	// Subtract original reader wait from the combined read-and-decode interval so
+	// request_body_decode_ms reflects CPU decompression and lenient JSON cleanup alone.
+	decodeElapsed := max(time.Duration(0), totalReadAndDecode-s.body)
+	if s.substages == nil {
+		s.substages = make(map[string]time.Duration)
+	}
+	s.substages["request_body_decode_ms"] += decodeElapsed
+}
+
+// RecordSubstage accumulates elapsed time under name while initial admission is
+// still open. Calls arriving after Admit or Finish are ignored so retries do not
+// rewrite pre-admission preparation diagnostics; negative durations clamp to zero.
+func (s *Stages) RecordSubstage(name string, elapsed time.Duration) {
+	if name == "" {
+		return
+	}
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.end.IsZero() {
+		return
+	}
+	if s.substages == nil {
+		s.substages = make(map[string]time.Duration)
+	}
+	s.substages[name] += elapsed
+}
+
+// RecordProviderPrepare accumulates post-slot request preparation time for the
+// upcoming upstream exchange. Multiple preparation steps before BeginAttempt sum
+// together, and BeginAttempt transfers that total onto the exchange's isolated map.
+func (s *Stages) RecordProviderPrepare(elapsed time.Duration) {
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pendingPrepare += elapsed
+	s.pendingPrepareObserved = true
+}
+
+// SetAttemptRequestBytes records the serialized upstream request body size on the
+// matching active exchange. Nonmatching ordinals and negative lengths are ignored
+// so background dependency calls or abandoned attempts cannot overwrite the size.
+func (s *Stages) SetAttemptRequestBytes(attempt int64, length int64) {
+	if attempt <= 0 || length < 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.performance == nil || s.attempt != attempt {
+		return
+	}
+	s.performance.Values["upstream_request_bytes"] = length
+}
+
+// ObserveBodyDecode records decoded body metadata on ctx's collector when present;
+// missing contexts or collectors are ignored without allocation.
+func ObserveBodyDecode(ctx context.Context, decodedBytes int64, compressed bool, totalReadAndDecode time.Duration) {
+	if s := StagesFromContext(ctx); s != nil {
+		s.RecordBodyDecode(decodedBytes, compressed, totalReadAndDecode)
+	}
+}
+
+// ObserveSubstage accumulates a pre-admission preparation sub-stage on ctx's
+// collector when present; missing contexts or collectors are ignored.
+func ObserveSubstage(ctx context.Context, name string, elapsed time.Duration) {
+	if s := StagesFromContext(ctx); s != nil {
+		s.RecordSubstage(name, elapsed)
+	}
+}
+
+// ObserveProviderPrepare accumulates post-slot provider preparation time on ctx's
+// collector when present; missing contexts or collectors are ignored.
+func ObserveProviderPrepare(ctx context.Context, elapsed time.Duration) {
+	if s := StagesFromContext(ctx); s != nil {
+		s.RecordProviderPrepare(elapsed)
+	}
 }
 
 // SetUpstreamRequestListener registers the downstream header-wait observer.

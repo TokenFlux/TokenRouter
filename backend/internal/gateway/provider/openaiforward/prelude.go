@@ -102,6 +102,12 @@ type Prelude struct {
 	// view.
 	View  requeststate.OpenAIRequestView
 	Route Dispatch // selected provider-attempt executor
+	// SanitizedToolSchemasPlatform, SanitizedReasoningReplay, and SanitizedInputItemIDs
+	// record compatibility passes already completed on Body so HTTP passthrough
+	// skips duplicate multi-megabyte scans when those sections stay unchanged.
+	SanitizedToolSchemasPlatform string // platform whose tool schemas were sanitized
+	SanitizedReasoningReplay     bool   // reasoning.content replay already sanitized
+	SanitizedInputItemIDs        bool   // input item IDs already sanitized
 }
 
 // PreludePorts supplies policy reads, body conversions, and observations during request preparation.
@@ -264,6 +270,7 @@ func PreparePrelude(ctx context.Context, body []byte, profile Profile, p Prelude
 	} else if changed {
 		body = updated
 	}
+	value.SanitizedToolSchemasPlatform = profile.Platform
 	// OAuth Responses accepts the platform reasoning-mode normalization here
 	// before Lite and Compact policy inspect the body for their own compatibility
 	// requirements.
@@ -314,6 +321,7 @@ func PreparePrelude(ctx context.Context, body []byte, profile Profile, p Prelude
 			p.Reject(Rejection{Status: 400, Type: "invalid_request_error", Message: err.Error(), Param: "tools", ObserveUpstream: true})
 			return nil, err
 		}
+		value.SanitizedToolSchemasPlatform = ""
 	}
 	// Retention follows the selected protocol policy. Earlier turns may own the
 	// declaration, so the current body cannot establish that a call namespace is
@@ -334,6 +342,7 @@ func PreparePrelude(ctx context.Context, body []byte, profile Profile, p Prelude
 		if err != nil {
 			return nil, fmt.Errorf("adapt DeepSeek Responses client tools: %w", err)
 		}
+		value.SanitizedToolSchemasPlatform = ""
 	}
 	value.Body = body
 	value.OriginalBody = body
@@ -369,6 +378,7 @@ func PreparePrelude(ctx context.Context, body []byte, profile Profile, p Prelude
 			value.OriginalBody = body
 			value.View = requeststate.NewOpenAIRequestView(body)
 		}
+		value.SanitizedReasoningReplay = true
 		if updated, changed, err := p.InputItemIDs(body); err != nil {
 			return nil, fmt.Errorf("sanitize OpenAI Responses input item IDs: %w", err)
 		} else if changed {
@@ -377,6 +387,7 @@ func PreparePrelude(ctx context.Context, body []byte, profile Profile, p Prelude
 			value.OriginalBody = body
 			value.View = requeststate.NewOpenAIRequestView(body)
 		}
+		value.SanitizedInputItemIDs = true
 	}
 	value.MessagesBridge = p.MessagesBridge(body)
 	p.BindMessagesBridge(value.MessagesBridge)

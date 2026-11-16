@@ -176,6 +176,22 @@ func (p *openAIPassthroughExecutionAdapter) CompatibilityBody(body []byte, lite 
 	return gatewayadapter.NormalizeOpenAIResponsesWebSocketCompatibilityBody(body, gatewayadapter.ExecutionProtocolRecord(p.provider), lite)
 }
 
+// CompatibilityBodyWithSkip runs credential-aware Responses compatibility
+// normalization while skipping stages already completed in PreparePrelude on the
+// identical input or tool schema bytes.
+func (p *openAIPassthroughExecutionAdapter) CompatibilityBodyWithSkip(body []byte, lite bool, skipToolSchemasPlatform string, skipReasoningReplay, skipInputItemIDs bool) ([]byte, bool, error) {
+	return gatewayadapter.NormalizeOpenAIResponsesCompatibilityBodyWithOptions(
+		body,
+		gatewayadapter.ExecutionProtocolRecord(p.provider),
+		lite,
+		gatewayadapter.ResponsesCompatibilitySkipOptions{
+			SkipReasoningContentReplay: skipReasoningReplay,
+			SkipInputItemIDs:           skipInputItemIDs,
+			SkipToolSchemasPlatform:    skipToolSchemasPlatform,
+		},
+	)
+}
+
 // ReservedToolNames delegates reserved OAuth function-name aliasing with its
 // restoration mapping. It returns change state and any collision or parsing
 // error; the passthrough runner merges the mapping only after successful

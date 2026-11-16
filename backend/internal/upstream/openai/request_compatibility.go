@@ -46,7 +46,7 @@ func SanitizeOpenAICrossModeFailoverReasoning(body []byte) (sanitized []byte, ch
 	if len(body) == 0 {
 		return body, false, nil
 	}
-	if !gjson.GetBytes(body, "input").Exists() {
+	if !wirejson.ParseView(body).Get("input").Exists() {
 		return body, false, nil
 	}
 
@@ -212,7 +212,7 @@ func NormalizeOpenAIParallelToolCallsWithoutTools(body []byte, responsesLite boo
 	if responsesLite {
 		return body, false, nil
 	}
-	parallel := gjson.GetBytes(body, "parallel_tool_calls")
+	parallel := wirejson.ParseView(body).Get("parallel_tool_calls")
 	if !parallel.Exists() {
 		return body, false, nil
 	}
@@ -231,18 +231,36 @@ func NormalizeOpenAIParallelToolCallsWithoutTools(body []byte, responsesLite boo
 // presence rather than each tool's validity, allowing upstream validation to
 // decide whether those entries are usable.
 func OpenAIRequestBodyHasTools(body []byte) bool {
-	if tools := gjson.GetBytes(body, "tools"); tools.IsArray() && len(tools.Array()) > 0 {
+	root := wirejson.ParseView(body)
+	if jsonArrayHasElements(root.Get("tools")) {
 		return true
 	}
-	for _, item := range gjson.GetBytes(body, "input").Array() {
+	found := false
+	root.Get("input").ForEach(func(_, item gjson.Result) bool {
 		if strings.TrimSpace(item.Get("type").String()) != "additional_tools" {
-			continue
-		}
-		if tools := item.Get("tools"); tools.IsArray() && len(tools.Array()) > 0 {
 			return true
 		}
+		if jsonArrayHasElements(item.Get("tools")) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+// jsonArrayHasElements reports whether value is a JSON array with at least one
+// element without allocating a slice of element results.
+func jsonArrayHasElements(value gjson.Result) bool {
+	if !value.IsArray() {
+		return false
 	}
-	return false
+	nonEmpty := false
+	value.ForEach(func(_, _ gjson.Result) bool {
+		nonEmpty = true
+		return false
+	})
+	return nonEmpty
 }
 
 // NormalizeOpenAIResponsesReasoningContentReplay removes nonempty
@@ -250,13 +268,13 @@ func OpenAIRequestBodyHasTools(body []byte) bool {
 // input or an unmatched precheck returns the supplied bytes; decoding and
 // re-encoding use UseNumber, and failures retain those bytes.
 //
-// Only visible content arrays are removed. Item identity, summary, and
+// Only visible reasoning content arrays are removed. Item identity, summary, and
 // encrypted_content remain for the destination's separate storage-mode cleanup.
 // Compatible providers can accept their own visible reasoning representation,
 // so callers enable this transformation according to the selected upstream
 // instead of applying it to every replay.
 func NormalizeOpenAIResponsesReasoningContentReplay(body []byte) ([]byte, bool, error) {
-	input := gjson.GetBytes(body, "input")
+	input := wirejson.ParseView(body).Get("input")
 	if !input.IsArray() {
 		return body, false, nil
 	}
@@ -266,8 +284,7 @@ func NormalizeOpenAIResponsesReasoningContentReplay(body []byte) ([]byte, bool, 
 		if strings.TrimSpace(item.Get("type").String()) != "reasoning" {
 			return true
 		}
-		content := item.Get("content")
-		if content.IsArray() && len(content.Array()) > 0 {
+		if jsonArrayHasElements(item.Get("content")) {
 			needsNormalization = true
 			return false
 		}
@@ -322,11 +339,17 @@ func NormalizeOpenAIResponsesReasoningContentReplay(body []byte) ([]byte, bool, 
 // Unpaired call_id fields are stripped according to the shared protocol rule,
 // while tool call/result identities remain available for pairing.
 func NormalizeOpenAIAPIKeyStoreFalseReasoningReplay(body []byte, knownStoreFalse bool) ([]byte, bool, error) {
-	if !knownStoreFalse && gjson.GetBytes(body, "store").Type != gjson.False {
+	root := wirejson.ParseView(body)
+	if !knownStoreFalse && root.Get("store").Type != gjson.False {
 		return body, false, nil
 	}
-	input := gjson.GetBytes(body, "input")
+	input := root.Get("input")
 	if !input.IsArray() {
+		return body, false, nil
+	}
+	// Skip full-body map decoding when valid JSON contains no reasoning items,
+	// rs_ references, or non-pair call_id fields requiring store=false cleanup.
+	if gjson.ValidBytes(body) && !needsStoreFalseReasoningReplay(root) {
 		return body, false, nil
 	}
 
@@ -392,6 +415,87 @@ func NormalizeOpenAIAPIKeyStoreFalseReasoningReplay(body []byte, knownStoreFalse
 		return body, false, fmt.Errorf("serialize API-key store=false reasoning replay: %w", err)
 	}
 	return normalized, true, nil
+}
+
+// needsStoreFalseReasoningReplay reports whether a validated Responses root
+// object contains any input item that NormalizeOpenAIAPIKeyStoreFalseReasoningReplay
+// would drop or mutate. Member scans retain the final value of duplicate keys so
+// screening matches encoding/json map decoding without allocating maps.
+func needsStoreFalseReasoningReplay(root gjson.Result) bool {
+	var lastInput gjson.Result
+	hasInput := false
+	root.ForEach(func(key, value gjson.Result) bool {
+		if key.String() == "input" {
+			lastInput = value
+			hasInput = true
+		}
+		return true
+	})
+	if !hasInput || !lastInput.IsArray() {
+		return false
+	}
+	needed := false
+	var (
+		typ                string
+		id                 string
+		hasValidCiphertext bool
+		hasNonNullSummary  bool
+		hasCallID          bool
+	)
+	// Reuse one member-visitor closure across items so multi-thousand-turn inputs
+	// do not allocate per-item closure environments on the heap.
+	scanItem := func(key, value gjson.Result) bool {
+		switch key.String() {
+		case "type":
+			if value.Type == gjson.String {
+				typ = strings.TrimSpace(value.String())
+			} else {
+				typ = ""
+			}
+		case "id":
+			if value.Type == gjson.String {
+				id = strings.TrimSpace(value.String())
+			} else {
+				id = ""
+			}
+		case "encrypted_content":
+			hasValidCiphertext = value.Type == gjson.String && strings.TrimSpace(value.String()) != ""
+		case "summary":
+			hasNonNullSummary = value.Type != gjson.Null
+		case "call_id":
+			hasCallID = true
+		}
+		return true
+	}
+	lastInput.ForEach(func(_, item gjson.Result) bool {
+		if !item.IsObject() {
+			return true
+		}
+		typ = ""
+		id = ""
+		hasValidCiphertext = false
+		hasNonNullSummary = false
+		hasCallID = false
+		item.ForEach(scanItem)
+		switch typ {
+		case "reasoning":
+			if !hasValidCiphertext || strings.HasPrefix(id, "rs_") || !hasNonNullSummary {
+				needed = true
+				return false
+			}
+		case "item_reference":
+			if strings.HasPrefix(id, "rs_") {
+				needed = true
+				return false
+			}
+		}
+		if wire.ShouldStripNonPairCallID(typ) && hasCallID {
+			needed = true
+			return false
+		}
+		return true
+	})
+	return needed
 }
 
 // SetOpenAIRequestMapPath mutates a nonnil request along a trimmed dotted path,
@@ -650,7 +754,7 @@ func DetectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byt
 		return ""
 	}
 
-	instructions := gjson.GetBytes(body, "instructions")
+	instructions := wirejson.ParseView(body).Get("instructions")
 	if !instructions.Exists() {
 		return ""
 	}
@@ -681,7 +785,7 @@ func IsOpenAICodexModel(model string) bool {
 // internal content-kind metadata. Developer tool declarations do not supply
 // instruction text.
 func HasResponsesLiteDeveloperInstructions(body []byte) bool {
-	input := gjson.GetBytes(body, "input")
+	input := wirejson.ParseView(body).Get("input")
 	if !input.IsArray() {
 		return false
 	}
@@ -701,14 +805,15 @@ func HasResponsesLiteDeveloperInstructions(body []byte) bool {
 		if !content.IsArray() {
 			return true
 		}
-		for _, part := range content.Array() {
+		content.ForEach(func(_, part gjson.Result) bool {
 			value := part.Get("text")
 			if part.Get("type").String() == "input_text" && value.Type == gjson.String && strings.TrimSpace(value.String()) != "" {
 				found = true
 				return false
 			}
-		}
-		return true
+			return true
+		})
+		return !found
 	})
 	return found
 }
@@ -724,7 +829,7 @@ func RefreshCodexDefaultInstructions(body []byte, previous, model string) ([]byt
 	if previous == "" {
 		return body, nil
 	}
-	instructions := gjson.GetBytes(body, "instructions").String()
+	instructions := wirejson.ParseView(body).Get("instructions").String()
 	before, after, found := strings.CutLast(instructions, previous)
 	if !found {
 		return body, nil
@@ -747,10 +852,11 @@ func OpenAIRequestBodyMayContainImageInput(body []byte) bool {
 	if len(body) == 0 {
 		return false
 	}
-	input := gjson.GetBytes(body, "input")
+	root := wirejson.ParseView(body)
+	input := root.Get("input")
 	// This path yields no element for ordinary Chat arrays in the pinned gjson
 	// parser, leaving their image content outside this request-mode probe.
-	messages := gjson.GetBytes(body, "messages.#-1")
+	messages := root.Get("messages.#-1")
 	return wire.JSONValueMayContainImageInput(input) || wire.JSONValueMayContainImageInput(messages)
 }
 
@@ -762,7 +868,7 @@ func OpenAIRequestBodyMayContainEmptyBase64InputImage(body []byte) bool {
 	if len(body) == 0 || !OpenAIRequestBodyMayContainInputImageToken(body) {
 		return false
 	}
-	input := gjson.GetBytes(body, "input")
+	input := wirejson.ParseView(body).Get("input")
 	if !input.Exists() {
 		return false
 	}

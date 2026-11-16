@@ -1,7 +1,10 @@
 package moderation
 
 import (
+	"strconv"
+	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 )
@@ -415,4 +418,63 @@ func TestExtractContentModerationInput_OpenAIResponsesCodexPayloadUsesLastUserMe
 	require.Equal(t, "first user prompt\nlast user prompt", input.Text)
 	require.Empty(t, input.Images)
 	require.NotContains(t, input.Text, "developer permissions")
+}
+
+// TestExtractContentModerationInput_ClonesStringsWithoutPinningBody extracts
+// text and image references from a user turn backed by a standalone byte slice.
+// Extracted strings must own independent storage rather than aliasing the
+// caller's request buffer.
+func TestExtractContentModerationInput_ClonesStringsWithoutPinningBody(t *testing.T) {
+	body := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"isolated text"},{"type":"image_url","image_url":{"url":"https://example.com/pic.png"}}]}]}`)
+	bodyStart := uintptr(unsafe.Pointer(unsafe.SliceData(body)))
+	bodyEnd := bodyStart + uintptr(len(body))
+
+	extracted := ExtractContentModerationInput(ContentModerationProtocolOpenAIChat, body)
+	require.Equal(t, "isolated text", extracted.Text)
+	require.Equal(t, []string{"https://example.com/pic.png"}, extracted.Images)
+
+	textPtr := uintptr(unsafe.Pointer(unsafe.StringData(extracted.Items[0].Text)))
+	imgPtr := uintptr(unsafe.Pointer(unsafe.StringData(extracted.Images[0])))
+	require.False(t, textPtr >= bodyStart && textPtr < bodyEnd, "extracted text must not alias body buffer")
+	require.False(t, imgPtr >= bodyStart && imgPtr < bodyEnd, "extracted image ref must not alias body buffer")
+}
+
+// BenchmarkExtractContentModerationInput_LargeHistory extracts the trailing
+// user turn from 1 MiB, 5 MiB, 20 MiB, and 32 MiB Anthropic conversation
+// histories. Sub-benchmarks report byte throughput and confirm bounded per-turn
+// heap allocations independent of history length.
+func BenchmarkExtractContentModerationInput_LargeHistory(b *testing.B) {
+	for _, sizeMiB := range []int{1, 5, 20, 32} {
+		payload := buildModerationHistoryFixture(sizeMiB << 20)
+		b.Run(strconv.Itoa(sizeMiB)+"MiB", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(payload)))
+			b.ResetTimer()
+			for range b.N {
+				_ = ExtractContentModerationInput(ContentModerationProtocolAnthropicMessages, payload)
+			}
+		})
+	}
+}
+
+// buildModerationHistoryFixture constructs an Anthropic Messages body of at
+// least targetBytes ending with one current-turn user message after history.
+func buildModerationHistoryFixture(targetBytes int) []byte {
+	out := make([]byte, 0, targetBytes+4096)
+	out = append(out, `{"model":"claude-opus-4-6","messages":[`...)
+	chunk := strings.Repeat("historical conversation turn text excluded from current audit ", 32)
+	turn := 0
+	for len(out) < targetBytes {
+		if turn > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, `{"role":"user","content":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"},{"role":"assistant","content":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"}`...)
+		turn++
+	}
+	out = append(out, `,{"role":"user","content":"final turn prompt to audit"}]}`...)
+	return out
 }

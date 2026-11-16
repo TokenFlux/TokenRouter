@@ -1,6 +1,7 @@
 package promptpolicy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -156,6 +158,31 @@ type Service struct {
 	// temporary disabled entry rather than applying replacement.
 	notFound error
 	warn     func(string, ...any) // optional synchronous replacement diagnostic callback
+}
+
+// promptFieldSpanEdit records one non-overlapping raw JSON string replacement
+// collected against the immutable source body.
+type promptFieldSpanEdit struct {
+	start       int    // inclusive byte offset in source body
+	end         int    // exclusive byte offset in source body
+	replacement []byte // encoded JSON string literal replacement
+}
+
+// promptBodyPatcher collects changed string spans from a borrowed JSON view so
+// multiple history hits can be spliced in one linear copy rather than repeated
+// whole-body sjson writes.
+type promptBodyPatcher struct {
+	body      []byte                // immutable source request bytes
+	jsonStr   string                // borrowed string view over body
+	spans     []promptFieldSpanEdit // ordered non-overlapping span edits
+	fallback  bool                  // fallback to sequential sjson writes
+	pathEdits []promptPathEdit      // fallback path edits when spans cannot be used
+}
+
+// promptPathEdit records a path-based replacement for the fallback sjson path.
+type promptPathEdit struct {
+	path     string // sjson field path
+	replaced string // replacement string value
 }
 
 // DefaultUserPromptReplacementConfig returns fresh enabled rules for timezone
@@ -523,14 +550,18 @@ func applySingleUserPromptReplacementRule(text string, rule compiledUserPromptRe
 
 // ApplyUserPromptReplacementToBody applies cached rules to user text selected
 // by the protocol. Nil service, empty/invalid JSON, disabled configuration, or
-// no compiled rules returns the supplied body; unknown protocol labels use
-// Messages-shaped traversal and one instant is captured for all fields.
+// no compiled rules returns the supplied body; disabled rules return before
+// JSON validation, and unknown protocol labels use Messages-shaped traversal
+// with one instant captured for all fields.
 func (s *Service) ApplyUserPromptReplacementToBody(ctx context.Context, body []byte, protocol string) []byte {
-	if s == nil || len(body) == 0 || !gjson.ValidBytes(body) {
+	if s == nil || len(body) == 0 {
 		return body
 	}
 	compiled := s.getCompiledUserPromptReplacementConfig(ctx)
 	if compiled == nil || !compiled.enabled || len(compiled.rules) == 0 {
+		return body
+	}
+	if !gjson.ValidBytes(body) {
 		return body
 	}
 	now := time.Now()
@@ -544,42 +575,150 @@ func (s *Service) ApplyUserPromptReplacementToBody(ctx context.Context, body []b
 	}
 }
 
+// newPromptBodyPatcher creates a span collector over body's backing bytes.
+func newPromptBodyPatcher(body []byte) promptBodyPatcher {
+	return promptBodyPatcher{
+		body:    body,
+		jsonStr: unsafe.String(unsafe.SliceData(body), len(body)),
+	}
+}
+
+// consider evaluates rules on a string result and records any changed value.
+func (p *promptBodyPatcher) consider(path string, result gjson.Result, rules []compiledUserPromptReplacementRule, now time.Time) {
+	if result.Type != gjson.String {
+		return
+	}
+	original := result.String()
+	replaced := applyCompiledUserPromptReplacementRules(original, rules, now)
+	if replaced == original {
+		return
+	}
+	p.pathEdits = append(p.pathEdits, promptPathEdit{path: path, replaced: replaced})
+	if p.fallback {
+		return
+	}
+	start, end, ok := borrowedStringByteRange(p.jsonStr, result.Raw)
+	if !ok || (len(p.spans) > 0 && start < p.spans[len(p.spans)-1].end) {
+		p.fallback = true
+		return
+	}
+	encoded, err := encodeJSONStringLiteral(replaced)
+	if err != nil {
+		p.fallback = true
+		return
+	}
+	p.spans = append(p.spans, promptFieldSpanEdit{start: start, end: end, replacement: encoded})
+}
+
+// build returns the original body when no field changed, splices non-overlapping
+// spans in one pass when available, or applies sequential sjson path writes.
+func (p *promptBodyPatcher) build(warn ...func(string, ...any)) []byte {
+	if len(p.pathEdits) == 0 {
+		return p.body
+	}
+	if !p.fallback && len(p.spans) == len(p.pathEdits) {
+		delta := 0
+		for _, span := range p.spans {
+			delta += len(span.replacement) - (span.end - span.start)
+		}
+		out := make([]byte, 0, len(p.body)+delta)
+		cursor := 0
+		for _, span := range p.spans {
+			out = append(out, p.body[cursor:span.start]...)
+			out = append(out, span.replacement...)
+			cursor = span.end
+		}
+		out = append(out, p.body[cursor:]...)
+		if gjson.ValidBytes(out) {
+			return out
+		}
+	}
+	updated := p.body
+	for _, edit := range p.pathEdits {
+		next, err := sjson.SetBytesOptions(updated, edit.path, edit.replaced, &sjson.Options{Optimistic: true})
+		if err != nil {
+			if len(warn) > 0 {
+				emit(warn[0], "user_prompt_replacement_set_path_failed", "path", edit.path, "error", err)
+			}
+			continue
+		}
+		updated = next
+	}
+	return updated
+}
+
+// borrowedStringByteRange locates raw inside jsonStr's backing storage and
+// returns its half-open byte range. It returns false when raw is shorter than a
+// quoted string or does not point within jsonStr, signaling fallback to sjson.
+func borrowedStringByteRange(jsonStr, raw string) (int, int, bool) {
+	if len(raw) < 2 || jsonStr == "" {
+		return 0, 0, false
+	}
+	basePtr := uintptr(unsafe.Pointer(unsafe.StringData(jsonStr)))
+	rawPtr := uintptr(unsafe.Pointer(unsafe.StringData(raw)))
+	if rawPtr < basePtr {
+		return 0, 0, false
+	}
+	offset := rawPtr - basePtr
+	if offset > uintptr(len(jsonStr)) || len(raw) > len(jsonStr)-int(offset) {
+		return 0, 0, false
+	}
+	start := int(offset)
+	return start, start + len(raw), true
+}
+
+// encodeJSONStringLiteral encodes value as a quoted JSON string without HTML
+// angle-bracket escaping.
+func encodeJSONStringLiteral(value string) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(value); err != nil {
+		return nil, err
+	}
+	encoded := buf.Bytes()
+	if len(encoded) > 0 && encoded[len(encoded)-1] == '\n' {
+		encoded = encoded[:len(encoded)-1]
+	}
+	return encoded, nil
+}
+
 // applyUserPromptReplacementMessages applies ordered rules to Messages-shaped
 // entries whose role is user. A missing messages array passes through, and
 // callers provide compiled rules plus the common body clock value.
 //
 // String content is considered directly, while array content visits text
 // blocks and their text field. Other roles and block kinds remain outside
-// those selections. Each accepted mutation becomes input to the next field
-// write; a failed mutation keeps the currently supplied body, including
-// earlier successful field changes. That per-field behavior preserves partial
-// progress instead of treating the complete body rewrite as one atomic
-// operation.
+// those selections. Unchanged requests allocate no copy of the messages array,
+// and multiple matching fields splice into one replacement buffer.
 func applyUserPromptReplacementMessages(body []byte, rules []compiledUserPromptReplacementRule, now time.Time, warn ...func(string, ...any)) []byte {
-	messages := gjson.GetBytes(body, "messages")
+	if len(body) == 0 {
+		return body
+	}
+	patcher := newPromptBodyPatcher(body)
+	messages := gjson.Get(patcher.jsonStr, "messages")
 	if !messages.IsArray() {
 		return body
 	}
-	updated := body
 	messages.ForEach(func(msgKey, msg gjson.Result) bool {
 		if msg.Get("role").String() != "user" {
 			return true
 		}
 		base := "messages." + msgKey.String() + ".content"
 		content := msg.Get("content")
-		updated = replaceTextResultAtPath(updated, base, content, rules, now, warn...)
+		patcher.consider(base, content, rules, now)
 		if content.IsArray() {
 			content.ForEach(func(blockKey, block gjson.Result) bool {
 				if block.Get("type").String() == "text" {
 					path := base + "." + blockKey.String() + ".text"
-					updated = replaceTextResultAtPath(updated, path, block.Get("text"), rules, now, warn...)
+					patcher.consider(path, block.Get("text"), rules, now)
 				}
 				return true
 			})
 		}
 		return true
 	})
-	return updated
+	return patcher.build(warn...)
 }
 
 // applyUserPromptReplacementOpenAIResponses rewrites string input or eligible
@@ -588,15 +727,17 @@ func applyUserPromptReplacementMessages(body []byte, rules []compiledUserPromptR
 //
 // Eligible entries can expose direct text, string content, or content blocks
 // of input_text, text, or empty type. A standalone input string is treated as
-// user text directly. The traversal reads original field values and
-// accumulates mutations into updated bytes, retaining earlier changes if
-// another write fails. Unrecognized nonarray input passes through for the
-// owning protocol handler to interpret.
+// user text directly. Unchanged requests avoid copying the input array, and
+// multiple matching fields splice into one replacement buffer.
 func applyUserPromptReplacementOpenAIResponses(body []byte, rules []compiledUserPromptReplacementRule, now time.Time, warn ...func(string, ...any)) []byte {
-	input := gjson.GetBytes(body, "input")
-	updated := body
+	if len(body) == 0 {
+		return body
+	}
+	patcher := newPromptBodyPatcher(body)
+	input := gjson.Get(patcher.jsonStr, "input")
 	if input.Type == gjson.String {
-		return replaceTextResultAtPath(updated, "input", input, rules, now, warn...)
+		patcher.consider("input", input, rules, now)
+		return patcher.build(warn...)
 	}
 	if !input.IsArray() {
 		return body
@@ -608,25 +749,25 @@ func applyUserPromptReplacementOpenAIResponses(body []byte, rules []compiledUser
 		}
 		base := "input." + itemKey.String()
 		if text := item.Get("text"); text.Type == gjson.String {
-			updated = replaceTextResultAtPath(updated, base+".text", text, rules, now, warn...)
+			patcher.consider(base+".text", text, rules, now)
 		}
 		content := item.Get("content")
 		if content.Type == gjson.String {
-			updated = replaceTextResultAtPath(updated, base+".content", content, rules, now, warn...)
+			patcher.consider(base+".content", content, rules, now)
 		}
 		if content.IsArray() {
 			content.ForEach(func(blockKey, block gjson.Result) bool {
 				blockType := block.Get("type").String()
 				if blockType == "input_text" || blockType == "text" || blockType == "" {
 					path := base + ".content." + blockKey.String() + ".text"
-					updated = replaceTextResultAtPath(updated, path, block.Get("text"), rules, now, warn...)
+					patcher.consider(path, block.Get("text"), rules, now)
 				}
 				return true
 			})
 		}
 		return true
 	})
-	return updated
+	return patcher.build(warn...)
 }
 
 // applyUserPromptReplacementGemini rewrites string text fields in Gemini parts
@@ -635,17 +776,17 @@ func applyUserPromptReplacementOpenAIResponses(body []byte, rules []compiledUser
 // operation.
 //
 // Each selected content must have an array of parts; other shapes and nonuser
-// roles remain outside traversal. Field mutations accumulate using original
-// parsed text values and the current updated body. A nonstring field or write
-// error keeps those existing bytes, including successful earlier replacements,
-// so one malformed or unsupported part does not discard completed changes
-// elsewhere.
+// roles remain outside traversal. Unchanged requests avoid copying contents,
+// and multiple matching parts splice into one replacement buffer.
 func applyUserPromptReplacementGemini(body []byte, rules []compiledUserPromptReplacementRule, now time.Time, warn ...func(string, ...any)) []byte {
-	contents := gjson.GetBytes(body, "contents")
+	if len(body) == 0 {
+		return body
+	}
+	patcher := newPromptBodyPatcher(body)
+	contents := gjson.Get(patcher.jsonStr, "contents")
 	if !contents.IsArray() {
 		return body
 	}
-	updated := body
 	contents.ForEach(func(contentKey, content gjson.Result) bool {
 		role := content.Get("role").String()
 		if role != "" && role != "user" {
@@ -657,38 +798,12 @@ func applyUserPromptReplacementGemini(body []byte, rules []compiledUserPromptRep
 		}
 		parts.ForEach(func(partKey, part gjson.Result) bool {
 			path := "contents." + contentKey.String() + ".parts." + partKey.String() + ".text"
-			updated = replaceTextResultAtPath(updated, path, part.Get("text"), rules, now, warn...)
+			patcher.consider(path, part.Get("text"), rules, now)
 			return true
 		})
 		return true
 	})
-	return updated
-}
-
-// replaceTextResultAtPath applies rules to a parsed string field and writes
-// changed text into the current body. Nonstrings and unchanged values pass
-// through; a write error warns through the first optional callback and retains
-// supplied bytes, including prior field edits.
-func replaceTextResultAtPath(body []byte, path string, result gjson.Result, rules []compiledUserPromptReplacementRule, now time.Time, warn ...func(string, ...any)) []byte {
-	if result.Type != gjson.String {
-		return body
-	}
-	original := result.String()
-	replaced := applyCompiledUserPromptReplacementRules(original, rules, now)
-	if replaced == original {
-		return body
-	}
-	next, err := sjson.SetBytesOptions(body, path, replaced, &sjson.Options{Optimistic: true})
-	// Keep the current accumulated body when a single field write fails, so
-	// previous successful replacements survive while the optional warning records
-	// this path-specific failure.
-	if err != nil {
-		if len(warn) > 0 {
-			emit(warn[0], "user_prompt_replacement_set_path_failed", "path", path, "error", err)
-		}
-		return body
-	}
-	return next
+	return patcher.build(warn...)
 }
 
 // ConfigToRaw normalizes and validates settings before encoding newly

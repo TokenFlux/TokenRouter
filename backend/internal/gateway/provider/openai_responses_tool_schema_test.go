@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -112,4 +113,45 @@ func TestOpenAIResponsesToolSchemaPlatformGate_APIKeyAndOAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, changed)
 	require.Equal(t, string(body), string(normalized))
+}
+
+// BenchmarkNormalizeOpenAIResponsesCompatibilityBody_LargeHistory exercises
+// full WebSocket compatibility and prelude-skipped HTTP passthrough across 1 MiB,
+// 5 MiB, 20 MiB, and 32 MiB clean OAuth and API Key histories. Sub-benchmarks
+// report throughput and heap allocations so redundant whole-body decodes surface immediately.
+func BenchmarkNormalizeOpenAIResponsesCompatibilityBody_LargeHistory(b *testing.B) {
+	oauthProvider := &providercore.Record{Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth}
+	apiKeyProvider := &providercore.Record{Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeAPIKey}
+	skipAll := ResponsesCompatibilitySkipOptions{
+		SkipReasoningContentReplay: true,
+		SkipInputItemIDs:           true,
+		SkipToolSchemasPlatform:    capability.PlatformOpenAI,
+	}
+	for _, sizeMiB := range []int{1, 5, 20, 32} {
+		payload := buildCleanResponsesCompatibilityFixture(sizeMiB << 20)
+		b.Run("OAuth_Full/"+strconv.Itoa(sizeMiB)+"MiB", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(payload)))
+			b.ResetTimer()
+			for range b.N {
+				_, _, _ = NormalizeOpenAIResponsesWebSocketCompatibilityBody(payload, oauthProvider, false)
+			}
+		})
+		b.Run("OAuth_PassthroughSkip/"+strconv.Itoa(sizeMiB)+"MiB", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(payload)))
+			b.ResetTimer()
+			for range b.N {
+				_, _, _ = NormalizeOpenAIResponsesCompatibilityBodyWithOptions(payload, oauthProvider, false, skipAll)
+			}
+		})
+		b.Run("APIKey_Full/"+strconv.Itoa(sizeMiB)+"MiB", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(payload)))
+			b.ResetTimer()
+			for range b.N {
+				_, _, _ = NormalizeOpenAIResponsesWebSocketCompatibilityBody(payload, apiKeyProvider, false)
+			}
+		})
+	}
 }

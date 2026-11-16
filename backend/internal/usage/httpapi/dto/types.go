@@ -182,9 +182,14 @@ type UsageLogTiming struct {
 	UpstreamFinishedMs    *int64 `json:"upstream_finished_ms,omitempty"`     // milliseconds from request ingress
 	AttemptNumber         *int64 `json:"attempt_number,omitempty"`           // usage-producing exchange ordinal
 
-	// RequestContentLength records the observed body length in bytes. Missing,
-	// unsupported, or rejected numeric observations remain nil, while zero is retained.
-	RequestContentLength *int64 `json:"request_content_length,omitempty"` // bytes
+	// RequestContentLength, RequestRawBytes, RequestDecodedBytes, RequestCompressed,
+	// and UpstreamRequestBytes record wire and normalized payload sizes alongside
+	// compression state. Unrecorded observations remain nil, while zero is retained.
+	RequestContentLength *int64 `json:"request_content_length,omitempty"` // declared ingress bytes
+	RequestRawBytes      *int64 `json:"request_raw_bytes,omitempty"`      // wire ingress bytes read
+	RequestDecodedBytes  *int64 `json:"request_decoded_bytes,omitempty"`  // normalized JSON bytes
+	RequestCompressed    *int64 `json:"request_compressed,omitempty"`     // transport compression flag
+	UpstreamRequestBytes *int64 `json:"upstream_request_bytes,omitempty"` // serialized upstream request bytes
 	// TimingStream and TimingAdmitted use zero or one for known streaming and
 	// initial admission state. Their nil values preserve unknown historical metadata.
 	TimingStream   *int64 `json:"timing_stream,omitempty"`   // client streaming flag
@@ -197,6 +202,18 @@ type UsageLogTiming struct {
 	PreprocessMs       *int64 `json:"preprocess_ms,omitempty"`         // milliseconds
 	UserSlotWaitMs     *int64 `json:"user_slot_wait_ms,omitempty"`     // milliseconds
 	ProviderSlotWaitMs *int64 `json:"provider_slot_wait_ms,omitempty"` // milliseconds
+	// RequestBodyDecodeMs, IngressValidateMs, BootstrapMs, ModerationExtractMs,
+	// ModerationExternalMs, SessionMs, SchedulerSelectMs, and ProviderPrepareMs
+	// break down gateway preparation and post-slot attempt setup without altering
+	// the four-part initial admission sum; unrecorded sub-stages remain nil.
+	RequestBodyDecodeMs  *int64 `json:"request_body_decode_ms,omitempty"` // milliseconds
+	IngressValidateMs    *int64 `json:"ingress_validate_ms,omitempty"`    // milliseconds
+	BootstrapMs          *int64 `json:"bootstrap_ms,omitempty"`           // milliseconds
+	ModerationExtractMs  *int64 `json:"moderation_extract_ms,omitempty"`  // milliseconds
+	ModerationExternalMs *int64 `json:"moderation_external_ms,omitempty"` // milliseconds
+	SessionMs            *int64 `json:"session_ms,omitempty"`             // milliseconds
+	SchedulerSelectMs    *int64 `json:"scheduler_select_ms,omitempty"`    // milliseconds
+	ProviderPrepareMs    *int64 `json:"provider_prepare_ms,omitempty"`    // milliseconds
 	// RetryProviderSlotWaitMs counts later provider waits separately, leaving the
 	// four initial admission durations unchanged when another attempt queues.
 	RetryProviderSlotWaitMs *int64 `json:"retry_provider_slot_wait_ms,omitempty"` // milliseconds

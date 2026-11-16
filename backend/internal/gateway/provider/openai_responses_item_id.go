@@ -8,6 +8,7 @@ import (
 	"github.com/tidwall/sjson"
 
 	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -36,73 +37,89 @@ import (
 // references bearing the same text. Raw item bytes retain their other values,
 // and the rebuilt array replaces input after all item edits succeed.
 func SanitizeOpenAIResponsesInputItemIDs(body []byte) ([]byte, bool, error) {
-	input := gjson.GetBytes(body, "input")
+	input := wirejson.ParseView(body).Get("input")
 	if !input.IsArray() {
 		return body, false, nil
 	}
 
-	// inputItem holds one raw replay object and the field removals selected for it.
-	type inputItem struct {
-		body        []byte // raw replay item JSON
-		stripID     bool   // item identity requires removal
-		stripCallID bool   // non-pair call identity removal
+	// dirtyItem records an input array index and the identity fields requiring deletion.
+	type dirtyItem struct {
+		index       int  // zero-based position in input
+		stripID     bool // item identity requires removal
+		stripCallID bool // non-pair call identity removal
 	}
 
-	items := make([]inputItem, 0)
+	var dirty []dirtyItem
+	scanIndex := 0
 	input.ForEach(func(_, item gjson.Result) bool {
-		parsed := inputItem{body: []byte(item.Raw)}
-		if item.IsObject() {
-			itemType := item.Get("type")
-			id := item.Get("id")
-			trimmedItemType := strings.TrimSpace(itemType.String())
-			parsed.stripCallID = item.Get("call_id").Exists() && openaiprotocol.ShouldStripNonPairCallID(trimmedItemType)
-			if id.Type == gjson.String {
-				parsed.stripID = openai.ShouldStripOpenAIResponsesInputItemID(trimmedItemType, id.String())
-			}
+		current := scanIndex
+		scanIndex++
+		if !item.IsObject() {
+			return true
 		}
-		items = append(items, parsed)
+		itemType := item.Get("type")
+		id := item.Get("id")
+		trimmedItemType := strings.TrimSpace(itemType.String())
+		stripCallID := item.Get("call_id").Exists() && openaiprotocol.ShouldStripNonPairCallID(trimmedItemType)
+		stripID := false
+		if id.Type == gjson.String {
+			stripID = openai.ShouldStripOpenAIResponsesInputItemID(trimmedItemType, id.String())
+		}
+		// Record only items needing edits so clean multi-megabyte histories return
+		// immediately without allocating per-item byte copies or a slice per turn.
+		if stripID || stripCallID {
+			dirty = append(dirty, dirtyItem{
+				index:       current,
+				stripID:     stripID,
+				stripCallID: stripCallID,
+			})
+		}
 		return true
 	})
-	hasSanitization := false
-	for _, item := range items {
-		if item.stripID || item.stripCallID {
-			hasSanitization = true
-			break
-		}
-	}
-	if !hasSanitization {
+	if len(dirty) == 0 {
 		return body, false, nil
 	}
 
-	// Edit each raw object independently so equal text in another identity namespace
-	// cannot trigger removal of a paired output or an opaque reference elsewhere.
-	rebuiltItems := make([][]byte, 0, len(items))
-	for index, item := range items {
-		itemBody := item.body
-		if item.stripID {
-			var err error
-			itemBody, err = sjson.DeleteBytes(itemBody, "id")
-			if err != nil {
-				return nil, false, fmt.Errorf("delete input.%d.id: %w", index, err)
-			}
-		}
-		if item.stripCallID {
-			var err error
-			itemBody, err = sjson.DeleteBytes(itemBody, "call_id")
-			if err != nil {
-				return nil, false, fmt.Errorf("delete input.%d.call_id: %w", index, err)
-			}
-		}
-		rebuiltItems = append(rebuiltItems, itemBody)
-	}
-
+	// Edit dirty objects independently while copying untouched raw items directly
+	// into rebuiltInput, keeping call_id and item ID namespaces isolated.
 	rebuiltInput := make([]byte, 0, len(input.Raw))
 	rebuiltInput = append(rebuiltInput, '[')
-	for i, item := range rebuiltItems {
-		if i > 0 {
+	dirtyPos := 0
+	itemIndex := 0
+	var editErr error
+	input.ForEach(func(_, item gjson.Result) bool {
+		if itemIndex > 0 {
 			rebuiltInput = append(rebuiltInput, ',')
 		}
-		rebuiltInput = append(rebuiltInput, item...)
+		if dirtyPos < len(dirty) && dirty[dirtyPos].index == itemIndex {
+			target := dirty[dirtyPos]
+			dirtyPos++
+			itemBody := []byte(item.Raw)
+			if target.stripID {
+				var err error
+				itemBody, err = sjson.DeleteBytes(itemBody, "id")
+				if err != nil {
+					editErr = fmt.Errorf("delete input.%d.id: %w", itemIndex, err)
+					return false
+				}
+			}
+			if target.stripCallID {
+				var err error
+				itemBody, err = sjson.DeleteBytes(itemBody, "call_id")
+				if err != nil {
+					editErr = fmt.Errorf("delete input.%d.call_id: %w", itemIndex, err)
+					return false
+				}
+			}
+			rebuiltInput = append(rebuiltInput, itemBody...)
+		} else {
+			rebuiltInput = append(rebuiltInput, item.Raw...)
+		}
+		itemIndex++
+		return true
+	})
+	if editErr != nil {
+		return nil, false, editErr
 	}
 	rebuiltInput = append(rebuiltInput, ']')
 

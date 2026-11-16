@@ -33,7 +33,24 @@ import (
 // until synchronous reading finishes; the shared runner owns response
 // recovery, and returned observations can accompany an error.
 func (s *OpenAITextExecutor) Passthrough(ctx context.Context, c *gin.Context, provider *gatewayprovider.ExecutionProvider, body, canonicalImageIntentBody []byte, reqModel string, attemptImageIntentInvalidated bool, reasoningEffort *string, reqStream bool, startTime time.Time, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error) {
-	input := openaiexecution.PassthroughInput{Body: body, CanonicalImageIntentBody: canonicalImageIntentBody, Model: reqModel, ImageIntentInvalidated: attemptImageIntentInvalidated, ReasoningEffort: reasoningEffort, Stream: reqStream, StartedAt: startTime}
+	return s.passthroughWithPreludeState(ctx, c, provider, body, canonicalImageIntentBody, reqModel, attemptImageIntentInvalidated, reasoningEffort, reqStream, startTime, "", false, false, tlsRouterMatch...)
+}
+
+// passthroughWithPreludeState runs one passthrough attempt while forwarding
+// compatibility markers already satisfied during PreparePrelude.
+func (s *OpenAITextExecutor) passthroughWithPreludeState(ctx context.Context, c *gin.Context, provider *gatewayprovider.ExecutionProvider, body, canonicalImageIntentBody []byte, reqModel string, attemptImageIntentInvalidated bool, reasoningEffort *string, reqStream bool, startTime time.Time, sanitizedSchemasPlatform string, sanitizedReasoningReplay, sanitizedInputItemIDs bool, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error) {
+	input := openaiexecution.PassthroughInput{
+		Body:                         body,
+		CanonicalImageIntentBody:     canonicalImageIntentBody,
+		Model:                        reqModel,
+		ImageIntentInvalidated:       attemptImageIntentInvalidated,
+		ReasoningEffort:              reasoningEffort,
+		Stream:                       reqStream,
+		StartedAt:                    startTime,
+		SanitizedToolSchemasPlatform: sanitizedSchemasPlatform,
+		SanitizedReasoningReplay:     sanitizedReasoningReplay,
+		SanitizedInputItemIDs:        sanitizedInputItemIDs,
+	}
 	p := &openAIPassthroughExecutionAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, provider: provider, tls: tlsRouterMatch}}
 	result, err := openaiexecution.RunPassthrough(ctx, input, p)
 	out := openaiexecution.ToForwardResult(result)

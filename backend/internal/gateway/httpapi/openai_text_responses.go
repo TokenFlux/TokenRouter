@@ -16,7 +16,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
@@ -113,8 +115,14 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 	}
 
 	h.backend.ObserveRequest(c, "", false)
+	ingressValidateStart := time.Now()
+	var bootstrapElapsed time.Duration
+	recordIngressValidate := func() {
+		timing.ObserveSubstage(c.Request.Context(), "ingress_validate_ms", time.Since(ingressValidateStart)-bootstrapElapsed)
+	}
 	body, ok = h.normalizeOpenAIResponsesCompactRequest(c, reqLog, body)
 	if !ok {
+		recordIngressValidate()
 		return
 	}
 	legacyCompact, nativeCompactionV2 := IsOpenAIResponsesCompactPath(c), IsBareOpenAIResponsesPath(c) && IsOpenAIRemoteCompactionV2Request(body)
@@ -126,6 +134,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 
 	// Validate request JSON.
 	if !gjson.ValidBytes(body) {
+		recordIngressValidate()
 		LogRequestBodyParseFailure(reqLog, body, nil)
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
@@ -135,53 +144,78 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "openai_responses")
 	sessionHashBody := body
 
-	// Extract fields needed for validation.
-	modelResult := gjson.GetBytes(body, "model")
+	// Extract fields needed for validation using a borrowed view and cloned short string.
+	modelResult := wirejson.ParseView(body).Get("model")
 	if !modelResult.Exists() || modelResult.Type != gjson.String || modelResult.String() == "" {
+		recordIngressValidate()
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
-	reqModel := modelResult.String()
+	reqModel := strings.Clone(modelResult.String())
 	apiKey, err = resolveClientGroupForRequest(c, h.backend, apiKey, protocol.ProtocolOpenAIResponses)
 	if err != nil {
+		recordIngressValidate()
 		writeClientGroupFallbackError(c, err, h.errorResponse)
 		return
 	}
 	if cappedBody, changed, policyErr := h.backend.Reasoning(c, apiKey, body); policyErr != nil {
+		recordIngressValidate()
 		h.backend.PolicyDenied(c)
 		h.errorResponse(c, http.StatusForbidden, "permission_error", policyErr.Error())
 		return
 	} else if changed {
 		body = cappedBody
 	}
-	// Automation bootstrap repair can replace an unsupported call-output shape
-	// with user input; session identity continues to use the view saved before this repair.
-	if normalizedBody, changed := h.backend.NormalizeBootstrap(body, false); changed {
-		body = normalizedBody
-		reqLog.Info("openai.codex_automation_bootstrap_normalized",
-			zap.String("normalization", "call_output_to_user_message"),
-		)
+	// Repair automation and delegation bootstrap call outputs in a single pass when
+	// the HTTP backend supports combined screening; session identity retains the pre-repair bytes.
+	bootstrapStart := time.Now()
+	if combined, hasCombined := h.backend.(interface {
+		NormalizeBootstraps([]byte) ([]byte, bool, bool)
+	}); hasCombined {
+		normalizedBody, automationChanged, delegationChanged := combined.NormalizeBootstraps(body)
+		if automationChanged || delegationChanged {
+			body = normalizedBody
+		}
+		if automationChanged {
+			reqLog.Info("openai.codex_automation_bootstrap_normalized",
+				zap.String("normalization", "call_output_to_user_message"),
+			)
+		}
+		if delegationChanged {
+			reqLog.Info("openai.codex_delegation_bootstrap_normalized",
+				zap.String("normalization", "call_output_to_user_message"),
+			)
+		}
+	} else {
+		if normalizedBody, changed := h.backend.NormalizeBootstrap(body, false); changed {
+			body = normalizedBody
+			reqLog.Info("openai.codex_automation_bootstrap_normalized",
+				zap.String("normalization", "call_output_to_user_message"),
+			)
+		}
+		if normalizedBody, changed := h.backend.NormalizeBootstrap(body, true); changed {
+			body = normalizedBody
+			reqLog.Info("openai.codex_delegation_bootstrap_normalized",
+				zap.String("normalization", "call_output_to_user_message"),
+			)
+		}
 	}
-	// Delegation bootstrap has its own input repair. Adopt its changed bytes
-	// for forwarding while the saved session view keeps identity before bootstrap normalization.
-	if normalizedBody, changed := h.backend.NormalizeBootstrap(body, true); changed {
-		body = normalizedBody
-		reqLog.Info("openai.codex_delegation_bootstrap_normalized",
-			zap.String("normalization", "call_output_to_user_message"),
-		)
-	}
+	bootstrapElapsed = time.Since(bootstrapStart)
+	timing.ObserveSubstage(c.Request.Context(), "bootstrap_ms", bootstrapElapsed)
 
 	reqStream, ok := ParseOpenAICompatibleStream(body)
 	if !ok {
+		recordIngressValidate()
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", InvalidStreamFieldTypeMessage)
 		return
 	}
 	if err := h.backend.ValidateTier(body); err != nil {
+		recordIngressValidate()
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
-	previousResponseID := strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String())
+	previousResponseID := strings.Clone(strings.TrimSpace(wirejson.ParseView(body).Get("previous_response_id").String()))
 	if previousResponseID != "" {
 		previousResponseIDKind := h.backend.PreviousKind(previousResponseID)
 		reqLog = reqLog.With(
@@ -190,6 +224,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 			zap.Int("previous_response_id_len", len(previousResponseID)),
 		)
 		if previousResponseIDKind == "message_id" {
+			recordIngressValidate()
 			reqLog.Warn("openai.request_validation_failed",
 				zap.String("reason", "previous_response_id_looks_like_message_id"),
 			)
@@ -211,12 +246,14 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 			reqLog.Warn("openai.previous_response_owner_lookup_failed", zap.Error(ownershipErr))
 		}
 		if !owned {
+			recordIngressValidate()
 			reqLog.Warn("openai.request_validation_failed", zap.String("reason", "previous_response_owner_mismatch"))
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "previous_response_id is not available for this user")
 			return
 		}
 	}
 	h.backend.SetOwner(c, subject.UserID, apiKey.ID)
+	recordIngressValidate()
 
 	h.backend.ObserveRequest(c, reqModel, reqStream)
 	h.backend.ObserveEndpoint(c, reqStream)
@@ -311,20 +348,24 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 
 	// Derive affinity and explicit isolation from the saved pre-policy body,
 	// keeping forwarding-control rewrites out of the session and cyber identity inputs.
+	sessionStart := time.Now()
 	explicitSessionHash := h.backend.SessionHash(c, OpenAIExplicitSession, sessionHashBody)
 	sessionHash := h.backend.SessionHash(c, OpenAISelectionSession, sessionHashBody)
 	if h.backend.RejectCyber(c, apiKey, sessionHashBody, reqModel, protocol.ProtocolOpenAIResponses) {
+		timing.ObserveSubstage(c.Request.Context(), "session_ms", time.Since(sessionStart))
 		return
 	}
 	if explicitSessionHash != "" {
 		c.Request = c.Request.WithContext(requeststate.WithSessionIsolation(c.Request.Context(), session.SessionIsolationSourceOpenAI, explicitSessionHash))
 		if err := h.backend.Isolate(c.Request.Context(), apiKey, subject.UserID, session.SessionIsolationSourceOpenAI, explicitSessionHash); h.handleOpenAISessionIsolationError(c, err, streamStarted) {
+			timing.ObserveSubstage(c.Request.Context(), "session_ms", time.Since(sessionStart))
 			return
 		}
 	}
 	c.Request = c.Request.WithContext(h.backend.GuardianContext(
 		c.Request.Context(), c, sessionHashBody, reqModel,
 	))
+	timing.ObserveSubstage(c.Request.Context(), "session_ms", time.Since(sessionStart))
 	requireCompact := legacyCompact
 
 	// OpenAI image generation requires Responses support; raw Chat cannot generate images (#4417).

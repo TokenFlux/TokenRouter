@@ -120,3 +120,29 @@ func TestNormalizeCompactionTriggerInputOrder_PreservesHistoryAndLargeNumbers(t 
 	require.False(t, changedAgain)
 	require.Equal(t, normalized, second)
 }
+
+// TestNormalizeCompactionTriggerInputOrder_ZeroAllocFastPaths checks allocation
+// counts when input carries no trigger or one already-final trigger. Both common
+// cases must return the original slice without allocating decoded maps.
+func TestNormalizeCompactionTriggerInputOrder_ZeroAllocFastPaths(t *testing.T) {
+	noTrigger := []byte(`{"model":"gpt-5.5","input":[{"type":"message","role":"user","content":"` + string(make([]byte, 4096)) + `"}]}`)
+	for i := range noTrigger {
+		if noTrigger[i] == 0 {
+			noTrigger[i] = 'a'
+		}
+	}
+	require.Zero(t, testing.AllocsPerRun(20, func() {
+		_, changed, err := NormalizeCompactionTriggerInputOrder(noTrigger)
+		if err != nil || changed {
+			t.Fatal("unexpected compaction trigger change")
+		}
+	}))
+
+	alreadyFinal := []byte(`{"model":"gpt-5.5","input":[{"type":"message","role":"user","content":"ok"},{"type":"compaction_trigger"}]}`)
+	require.Zero(t, testing.AllocsPerRun(20, func() {
+		_, changed, err := NormalizeCompactionTriggerInputOrder(alreadyFinal)
+		if err != nil || changed {
+			t.Fatal("unexpected compaction trigger reorder")
+		}
+	}))
+}

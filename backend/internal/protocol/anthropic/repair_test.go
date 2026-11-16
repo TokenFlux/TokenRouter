@@ -2,6 +2,8 @@ package anthropic
 
 import (
 	"encoding/json"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -133,4 +135,82 @@ func TestRemoveThinkingDependentContextStrategies_MixedEntries(t *testing.T) {
 	edit0, ok := edits[0].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "other_strategy", edit0["type"])
+}
+
+// TestFilterThinkingBlocksInternal_SignedHistoryZeroAllocAndUnsignedFiltered
+// supplies signed assistant thinking blocks and unsigned thinking blocks. Signed
+// histories return unchanged with zero allocations, while unsigned blocks are
+// converted or removed according to the thinking-filter contract.
+func TestFilterThinkingBlocksInternal_SignedHistoryZeroAllocAndUnsignedFiltered(t *testing.T) {
+	signed := []byte(`{"model":"claude-opus-4-6","thinking":{"type":"enabled","budget_tokens":4096},"messages":[` +
+		`{"role":"user","content":[{"type":"text","text":"explain"}]},` +
+		`{"role":"assistant","content":[{"type":"thinking","thinking":"step 1","signature":"sig_valid_123"},{"type":"text","text":"answer"}]}` +
+		`]}`)
+	allocs := testing.AllocsPerRun(20, func() {
+		out := FilterThinkingBlocksInternal(signed, "")
+		if len(out) != len(signed) {
+			t.Fatal("unexpected rewrite of signed assistant thinking history")
+		}
+	})
+	require.Zero(t, allocs)
+
+	unsigned := []byte(`{"model":"claude-opus-4-6","thinking":{"type":"enabled","budget_tokens":4096},"messages":[` +
+		`{"role":"assistant","content":[{"type":"thinking","thinking":"missing sig"},{"type":"text","text":"answer"}]}` +
+		`]}`)
+	repaired := FilterThinkingBlocksInternal(unsigned, "")
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(repaired, &decoded))
+	msgs, ok := decoded["messages"].([]any)
+	require.True(t, ok)
+	firstMsg, ok := msgs[0].(map[string]any)
+	require.True(t, ok)
+	content, ok := firstMsg["content"].([]any)
+	require.True(t, ok)
+	require.Len(t, content, 1)
+	firstBlock, ok := content[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "text", firstBlock["type"])
+	require.Equal(t, "answer", firstBlock["text"])
+}
+
+// BenchmarkFilterThinkingBlocksInternal_SignedConversation screens 1 MiB, 5 MiB,
+// 20 MiB, and 32 MiB signed Claude conversations through FilterThinkingBlocksInternal.
+// Each sub-benchmark reports byte throughput and confirms zero heap allocations
+// when assistant thinking blocks already carry valid signatures.
+func BenchmarkFilterThinkingBlocksInternal_SignedConversation(b *testing.B) {
+	for _, sizeMiB := range []int{1, 5, 20, 32} {
+		payload := buildSignedAnthropicConversation(sizeMiB << 20)
+		b.Run(strconv.Itoa(sizeMiB)+"MiB", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(payload)))
+			b.ResetTimer()
+			for range b.N {
+				_ = FilterThinkingBlocksInternal(payload, "")
+			}
+		})
+	}
+}
+
+// buildSignedAnthropicConversation builds a valid Messages JSON payload of at
+// least targetBytes whose assistant turns carry signed thinking blocks.
+func buildSignedAnthropicConversation(targetBytes int) []byte {
+	out := make([]byte, 0, targetBytes+4096)
+	out = append(out, `{"model":"claude-opus-4-6","stream":true,"thinking":{"type":"enabled","budget_tokens":8192},"messages":[`...)
+	chunk := strings.Repeat("detailed repository file content with title and metadata ", 32)
+	turn := 0
+	for len(out) < targetBytes {
+		if turn > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, `{"role":"user","content":[{"type":"text","text":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"}]},{"role":"assistant","content":[{"type":"thinking","thinking":"analyzing turn","signature":"sig_`...)
+		out = append(out, strconv.Itoa(turn)...)
+		out = append(out, `"},{"type":"text","text":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"}]}`...)
+		turn++
+	}
+	out = append(out, `]}`...)
+	return out
 }

@@ -127,3 +127,24 @@ func TestApplyUserPromptReplacementMessages_OnlyUserText(t *testing.T) {
 	require.Contains(t, got, `{"role":"assistant","content":"secret"}`)
 	require.Equal(t, 2, strings.Count(got, "public"))
 }
+
+// TestApplyUserPromptReplacementMessages_MultiHitPreservesLiteralAngleBrackets
+// applies default environment replacements across multiple user messages in one
+// payload. All user blocks update in a single pass while retaining literal XML
+// angle brackets without HTML Unicode escaping.
+func TestApplyUserPromptReplacementMessages_MultiHitPreservesLiteralAngleBrackets(t *testing.T) {
+	cfg := DefaultUserPromptReplacementConfig()
+	compiled, err := compileUserPromptReplacementConfig(cfg, time.Minute)
+	require.NoError(t, err)
+
+	body := []byte(`{"messages":[` +
+		`{"role":"user","content":"<environment_context><current_date>2026-06-30</current_date><timezone>Asia/Shanghai</timezone></environment_context>"},` +
+		`{"role":"assistant","content":"ack"},` +
+		`{"role":"user","content":[{"type":"text","text":"<environment_context><current_date>2026-06-30</current_date><timezone>Asia/Shanghai</timezone></environment_context>"}]}` +
+		`]}`)
+	out := applyUserPromptReplacementMessages(body, compiled.rules, time.Date(2026, 6, 30, 18, 0, 0, 0, time.UTC))
+	require.True(t, gjson.ValidBytes(out))
+	require.NotContains(t, string(out), `\u003c`)
+	require.Equal(t, 2, strings.Count(string(out), "Asia/Tokyo"))
+	require.Equal(t, 2, strings.Count(string(out), "2026-07-01"))
+}

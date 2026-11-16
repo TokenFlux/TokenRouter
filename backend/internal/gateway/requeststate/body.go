@@ -99,6 +99,8 @@ type ParsedRequest struct {
 	// and inputRange. Each range refers to Body's current bytes and is cleared
 	// when a failed replacement makes those offsets unusable.
 	protocol      string    // protocol selected for range refresh
+	parsedData    []byte    // last successfully parsed body slice
+	parsedValid   bool      // scalars and ranges match parsedData
 	systemRange   jsonRange // system or Gemini parts range
 	messagesRange jsonRange // messages or Gemini contents range
 	inputRange    jsonRange // Responses input value range
@@ -111,6 +113,24 @@ type ParsedRequest struct {
 	// acceptance. Native streaming paths call after successful headers; emulated
 	// search calls before searching. CloneForBody clears it for another attempt.
 	OnUpstreamAccepted func() // optional serial-queue release callback
+}
+
+// scannedGatewayRequestFields holds first-occurrence top-level members and byte
+// ranges collected in one traversal of a validated JSON object.
+type scannedGatewayRequestFields struct {
+	hasModel       bool         // model member encountered
+	model          gjson.Result // first model value
+	hasStream      bool         // stream member encountered
+	stream         gjson.Result // first stream value
+	metadataUserID string       // first metadata.user_id string
+	thinkingType   string       // first thinking.type string
+	outputEffort   string       // trimmed first output_config.effort
+	hasMaxTokens   bool         // max_tokens member encountered
+	maxTokens      gjson.Result // first max_tokens value
+	hasSystem      bool         // system member presence for non-Gemini
+	systemRange    jsonRange    // system or systemInstruction.parts range
+	messagesRange  jsonRange    // messages or contents array range
+	inputRange     jsonRange    // Responses input range
 }
 
 // NewRequestBodyRef retains data as a forwarding body reference. It copies no
@@ -156,6 +176,25 @@ func missingJSONRange() jsonRange {
 	return jsonRange{start: -1, end: -1}
 }
 
+// rangeFromBorrowedResult records the byte interval of r.Raw inside jsonStr.
+// When r.Raw does not point within jsonStr's backing bytes, it falls back to
+// r.Index; out-of-bounds or empty results produce a missing range.
+func rangeFromBorrowedResult(jsonStr string, r gjson.Result) jsonRange {
+	if r.Raw == "" || jsonStr == "" {
+		return missingJSONRange()
+	}
+	basePtr := uintptr(unsafe.Pointer(unsafe.StringData(jsonStr)))
+	rawPtr := uintptr(unsafe.Pointer(unsafe.StringData(r.Raw)))
+	if rawPtr >= basePtr {
+		offset := rawPtr - basePtr
+		if offset <= uintptr(len(jsonStr)) && len(r.Raw) <= len(jsonStr)-int(offset) {
+			start := int(offset)
+			return jsonRange{start: start, end: start + len(r.Raw), kind: r.Type}
+		}
+	}
+	return rangeFromResult(r)
+}
+
 // rangeFromResult records the raw value's positive start offset, length, and
 // gjson type. Empty raw values, nonpositive indexes, or overflowing end offsets
 // produce a missing range that raw accessors decline to read.
@@ -177,6 +216,13 @@ func (r jsonRange) exists() bool {
 	return r.start >= 0 && r.end >= r.start
 }
 
+// sameNonEmptyByteSlice reports whether a and b share non-empty backing bytes
+// with identical length. Callers keep parsed body storage immutable in place,
+// so matching slice headers establish identical JSON bytes.
+func sameNonEmptyByteSlice(a, b []byte) bool {
+	return len(a) > 0 && len(a) == len(b) && unsafe.SliceData(a) == unsafe.SliceData(b)
+}
+
 // clearGatewayRequestDerivedState resets body-derived scalars and raw ranges
 // before valid-body parsing proceeds. Nil requests are ignored; the body
 // reference, protocol and caller-supplied identity or acceptance state are
@@ -185,6 +231,8 @@ func clearGatewayRequestDerivedState(parsed *ParsedRequest) {
 	if parsed == nil {
 		return
 	}
+	parsed.parsedData = nil
+	parsed.parsedValid = false
 	parsed.Model = ""
 	parsed.Stream = false
 	parsed.MetadataUserID = ""
@@ -204,45 +252,12 @@ func clearGatewayRequestRanges(parsed *ParsedRequest) {
 	if parsed == nil {
 		return
 	}
+	parsed.parsedData = nil
+	parsed.parsedValid = false
 	parsed.HasSystem = false
 	parsed.systemRange = missingJSONRange()
 	parsed.messagesRange = missingJSONRange()
 	parsed.inputRange = missingJSONRange()
-}
-
-// setGatewayRequestRanges records protocol-specific ranges in the current JSON
-// string. Callers clear preceding ranges first; Gemini reads
-// systemInstruction.parts and contents arrays, while Responses additionally
-// retains input and other protocols record system presence including null.
-func setGatewayRequestRanges(parsed *ParsedRequest, protocol string, jsonStr string) {
-	if parsed == nil {
-		return
-	}
-	// Gemini stores system parts and contents under different protocol paths.
-	// Capture those raw values together so Messages readers receive the selected
-	// conversation representation rather than unrelated Anthropic-shaped fields.
-	switch protocol {
-	case capability.PlatformGemini:
-		if sysParts := gjson.Get(jsonStr, "systemInstruction.parts"); sysParts.Exists() && sysParts.IsArray() {
-			parsed.systemRange = rangeFromResult(sysParts)
-		}
-		if contents := gjson.Get(jsonStr, "contents"); contents.Exists() && contents.IsArray() {
-			parsed.messagesRange = rangeFromResult(contents)
-		}
-	default:
-		if sys := gjson.Get(jsonStr, "system"); sys.Exists() {
-			parsed.HasSystem = true
-			parsed.systemRange = rangeFromResult(sys)
-		}
-		if msgs := gjson.Get(jsonStr, "messages"); msgs.Exists() && msgs.IsArray() {
-			parsed.messagesRange = rangeFromResult(msgs)
-		}
-		if protocol == "responses" {
-			if input := gjson.Get(jsonStr, "input"); input.Exists() {
-				parsed.inputRange = rangeFromResult(input)
-			}
-		}
-	}
 }
 
 // normalizeClaudeCodeLongContextModel removes repeated trailing Claude Code
@@ -266,10 +281,13 @@ func normalizeClaudeCodeLongContextModel(model string) string {
 //
 // Invalid JSON fails before scalar reset. Once JSON is valid, earlier derived
 // values are cleared, then model and stream type checks can return with
-// partially refreshed scalars. Anthropic model normalization replaces bytes
-// before range capture; max_tokens uses finite integral float64 values compared
-// against converted int bounds. A successful parse does not require a top-level
-// object, and caller-owned identity fields remain attached to this request.
+// partially refreshed scalars. One top-level object traversal collects first-
+// occurrence fields and ranges so large message arrays are skipped once rather
+// than on every field lookup. Anthropic model normalization replaces bytes and
+// refreshes ranges for the rewritten storage; max_tokens uses finite integral
+// float64 values compared against converted int bounds. A successful parse does
+// not require a top-level object, and caller-owned identity fields remain
+// attached to this request.
 func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) error {
 	if parsed == nil || parsed.Body == nil {
 		return fmt.Errorf("empty request body")
@@ -280,18 +298,24 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 		return DescribeInvalidJSON(bodyBytes)
 	}
 
-	// gjson offsets refer to this retained byte storage. Keep it unchanged during
-	// parsing and rebind this string after a model rewrite changes the body.
-	jsonStr := *(*string)(unsafe.Pointer(&bodyBytes))
 	clearGatewayRequestDerivedState(parsed)
 	parsed.protocol = protocol
 
-	modelResult := gjson.Get(jsonStr, "model")
-	if modelResult.Exists() {
-		if modelResult.Type != gjson.String {
+	// gjson offsets refer to this retained byte storage. Keep it unchanged during
+	// parsing and rebind after an Anthropic model selector rewrite replaces bytes.
+	jsonStr := unsafe.String(unsafe.SliceData(bodyBytes), len(bodyBytes))
+	fields, isObject := scanGatewayRequestTopLevelFields(jsonStr, protocol)
+	if !isObject {
+		parsed.parsedData = bodyBytes
+		parsed.parsedValid = true
+		return nil
+	}
+
+	if fields.hasModel {
+		if fields.model.Type != gjson.String {
 			return fmt.Errorf("invalid model field type")
 		}
-		parsed.Model = modelResult.String()
+		parsed.Model = fields.model.String()
 		if protocol == capability.PlatformAnthropic {
 			normalizedModel := normalizeClaudeCodeLongContextModel(parsed.Model)
 			if normalizedModel != parsed.Model {
@@ -303,40 +327,145 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 				// to the rewritten bytes rather than positions in the client's selector spelling.
 				parsed.Body.Replace(normalizedBody)
 				bodyBytes = normalizedBody
-				jsonStr = *(*string)(unsafe.Pointer(&bodyBytes))
+				jsonStr = unsafe.String(unsafe.SliceData(bodyBytes), len(bodyBytes))
+				fields, _ = scanGatewayRequestTopLevelFields(jsonStr, protocol)
 				parsed.Model = normalizedModel
 			}
 		}
 	}
 
-	streamResult := gjson.Get(jsonStr, "stream")
-	if streamResult.Exists() {
-		if streamResult.Type != gjson.True && streamResult.Type != gjson.False {
+	if fields.hasStream {
+		if fields.stream.Type != gjson.True && fields.stream.Type != gjson.False {
 			return fmt.Errorf("invalid stream field type")
 		}
-		parsed.Stream = streamResult.Bool()
+		parsed.Stream = fields.stream.Bool()
 	}
 
-	parsed.MetadataUserID = gjson.Get(jsonStr, "metadata.user_id").String()
+	parsed.MetadataUserID = fields.metadataUserID
+	parsed.ThinkingEnabled = fields.thinkingType == "enabled" || fields.thinkingType == "adaptive"
+	parsed.OutputEffort = fields.outputEffort
 
-	thinkingType := gjson.Get(jsonStr, "thinking.type").String()
-	parsed.ThinkingEnabled = thinkingType == "enabled" || thinkingType == "adaptive"
-
-	parsed.OutputEffort = strings.TrimSpace(gjson.Get(jsonStr, "output_config.effort").String())
-
-	maxTokensResult := gjson.Get(jsonStr, "max_tokens")
-	if maxTokensResult.Exists() && maxTokensResult.Type == gjson.Number {
+	if fields.hasMaxTokens && fields.maxTokens.Type == gjson.Number {
 		// Probe identification uses an integer extracted through gjson's float64
 		// path, so large source integers can already be rounded before conversion.
-		f := maxTokensResult.Float()
+		f := fields.maxTokens.Float()
 		if !math.IsNaN(f) && !math.IsInf(f, 0) && f == math.Trunc(f) &&
 			f <= float64(math.MaxInt) && f >= float64(math.MinInt) {
 			parsed.MaxTokens = int(f)
 		}
 	}
 
-	setGatewayRequestRanges(parsed, protocol, jsonStr)
+	parsed.HasSystem = fields.hasSystem
+	parsed.systemRange = fields.systemRange
+	parsed.messagesRange = fields.messagesRange
+	parsed.inputRange = fields.inputRange
+	parsed.parsedData = bodyBytes
+	parsed.parsedValid = true
 	return nil
+}
+
+// scanGatewayRequestTopLevelFields visits top-level members once, keeping the
+// first occurrence of each recognized scalar and protocol range. Non-object
+// roots return false so callers retain zero-valued fields without error.
+func scanGatewayRequestTopLevelFields(jsonStr, protocol string) (scannedGatewayRequestFields, bool) {
+	out := scannedGatewayRequestFields{
+		systemRange:   missingJSONRange(),
+		messagesRange: missingJSONRange(),
+		inputRange:    missingJSONRange(),
+	}
+	root := gjson.Parse(jsonStr)
+	if !root.IsObject() {
+		return out, false
+	}
+
+	const (
+		seenModel uint16 = 1 << iota
+		seenStream
+		seenMetadata
+		seenThinking
+		seenOutputConfig
+		seenMaxTokens
+		seenSystem
+		seenMessages
+		seenInput
+	)
+	wantMask := seenModel | seenStream | seenMetadata | seenThinking | seenOutputConfig | seenMaxTokens | seenSystem | seenMessages
+	if protocol == "responses" {
+		wantMask |= seenInput
+	}
+	var seen uint16
+
+	root.ForEach(func(key, value gjson.Result) bool {
+		switch key.Str {
+		case "model":
+			if seen&seenModel == 0 {
+				out.hasModel = true
+				out.model = value
+				seen |= seenModel
+			}
+		case "stream":
+			if seen&seenStream == 0 {
+				out.hasStream = true
+				out.stream = value
+				seen |= seenStream
+			}
+		case "metadata":
+			if seen&seenMetadata == 0 {
+				out.metadataUserID = value.Get("user_id").String()
+				seen |= seenMetadata
+			}
+		case "thinking":
+			if seen&seenThinking == 0 {
+				out.thinkingType = value.Get("type").String()
+				seen |= seenThinking
+			}
+		case "output_config":
+			if seen&seenOutputConfig == 0 {
+				out.outputEffort = strings.TrimSpace(value.Get("effort").String())
+				seen |= seenOutputConfig
+			}
+		case "max_tokens":
+			if seen&seenMaxTokens == 0 {
+				out.hasMaxTokens = true
+				out.maxTokens = value
+				seen |= seenMaxTokens
+			}
+		case "systemInstruction":
+			if protocol == capability.PlatformGemini && seen&seenSystem == 0 {
+				if sysParts := value.Get("parts"); sysParts.Exists() && sysParts.IsArray() {
+					out.systemRange = rangeFromBorrowedResult(jsonStr, sysParts)
+				}
+				seen |= seenSystem
+			}
+		case "contents":
+			if protocol == capability.PlatformGemini && seen&seenMessages == 0 {
+				if value.IsArray() {
+					out.messagesRange = rangeFromBorrowedResult(jsonStr, value)
+				}
+				seen |= seenMessages
+			}
+		case "system":
+			if protocol != capability.PlatformGemini && seen&seenSystem == 0 {
+				out.hasSystem = true
+				out.systemRange = rangeFromBorrowedResult(jsonStr, value)
+				seen |= seenSystem
+			}
+		case "messages":
+			if protocol != capability.PlatformGemini && seen&seenMessages == 0 {
+				if value.IsArray() {
+					out.messagesRange = rangeFromBorrowedResult(jsonStr, value)
+				}
+				seen |= seenMessages
+			}
+		case "input":
+			if protocol == "responses" && seen&seenInput == 0 {
+				out.inputRange = rangeFromBorrowedResult(jsonStr, value)
+				seen |= seenInput
+			}
+		}
+		return seen != wantMask
+	})
+	return out, true
 }
 
 // refreshGatewayRequestRanges reparses scalars and ranges from the current body
@@ -488,16 +617,17 @@ func (p *ParsedRequest) SystemValue() (any, bool) {
 	return system, true
 }
 
-// CloneForBody copies parsed state and reparses it around the supplied body
-// bytes for another attempt. A nil receiver or parsing failure returns an
-// error, and the new body reference retains caller storage.
+// CloneForBody copies parsed state around the supplied body bytes for another
+// attempt, reparsing only when body differs from the already validated slice.
+// A nil receiver or parsing failure returns an error, and the new body
+// reference retains caller storage.
 //
 // The copy retains SessionContext and GroupID pointers, while scalar and range
-// fields are refreshed for the new bytes. OnUpstreamAccepted is cleared so the
-// earlier attempt's queue release callback cannot be carried into this one.
-// Callers keep retained identity objects and byte storage unchanged or supply
-// separate copies before mutation; the clone creates independent parsed fields,
-// not an independent copy of every referenced value.
+// fields match the supplied bytes. OnUpstreamAccepted is cleared so the earlier
+// attempt's queue release callback cannot be carried into this one. Callers
+// keep retained identity objects and byte storage unchanged or supply separate
+// copies before mutation; the clone creates independent parsed fields, not an
+// independent copy of every referenced value.
 func (p *ParsedRequest) CloneForBody(body []byte) (*ParsedRequest, error) {
 	if p == nil {
 		return nil, fmt.Errorf("parse request: empty request")
@@ -507,6 +637,9 @@ func (p *ParsedRequest) CloneForBody(body []byte) (*ParsedRequest, error) {
 	// Queue acceptance belongs to the preceding attempt. Clear that callback
 	// before reparsing so another attempt installs its own resource-release decision.
 	clone.OnUpstreamAccepted = nil
+	if p.parsedValid && p.Body != nil && sameNonEmptyByteSlice(p.parsedData, body) && sameNonEmptyByteSlice(p.Body.Bytes(), body) {
+		return &clone, nil
+	}
 	if err := refreshGatewayRequestRanges(&clone, clone.protocol); err != nil {
 		return nil, err
 	}
@@ -514,8 +647,9 @@ func (p *ParsedRequest) CloneForBody(body []byte) (*ParsedRequest, error) {
 }
 
 // ReplaceBody installs supplied bytes and reparses this request's scalars and
-// ranges in place. A nil receiver fails, and the installed body retains caller
-// storage after either success or error.
+// ranges in place when the slice differs from the already parsed body. A nil
+// receiver fails, and the installed body retains caller storage after either
+// success or error.
 //
 // This operation does not roll back a failed replacement. Invalid JSON can
 // retain earlier scalar values, while later type errors can leave partially
@@ -526,6 +660,9 @@ func (p *ParsedRequest) CloneForBody(body []byte) (*ParsedRequest, error) {
 func (p *ParsedRequest) ReplaceBody(data []byte) error {
 	if p == nil {
 		return fmt.Errorf("parse request: empty request")
+	}
+	if p.parsedValid && p.Body != nil && sameNonEmptyByteSlice(p.parsedData, data) && sameNonEmptyByteSlice(p.Body.Bytes(), data) {
+		return nil
 	}
 	if p.Body == nil {
 		p.Body = NewRequestBodyRef(data)

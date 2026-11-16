@@ -2,6 +2,7 @@ package provider
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -182,4 +183,69 @@ func TestSanitizeOpenAIResponsesInputItemIDsStripsOnlyNonPairCallIDs(t *testing.
 	for i := 3; i < 10; i++ {
 		require.True(t, gjson.GetBytes(sanitized, "input."+strconv.Itoa(i)+".call_id").Exists())
 	}
+}
+
+// TestSanitizeOpenAIResponsesInputItemIDs_ZeroAllocCleanHistory supplies a
+// multi-turn history whose message and call identifiers already meet Responses
+// rules. Clean payloads must return the original byte slice unchanged with zero
+// heap allocations.
+func TestSanitizeOpenAIResponsesInputItemIDs_ZeroAllocCleanHistory(t *testing.T) {
+	clean := buildCleanResponsesCompatibilityFixture(64 * 1024)
+	allocs := testing.AllocsPerRun(20, func() {
+		out, changed, err := SanitizeOpenAIResponsesInputItemIDs(clean)
+		if err != nil || changed || len(out) != len(clean) {
+			t.Fatal("unexpected item ID sanitation on clean history")
+		}
+	})
+	require.Zero(t, allocs)
+}
+
+// BenchmarkSanitizeOpenAIResponsesInputItemIDs_CleanLargeHistory runs item-ID
+// screening across 1 MiB, 5 MiB, 20 MiB, and 32 MiB clean Responses histories.
+// Each sub-benchmark reports byte throughput and confirms that clean inputs
+// avoid heap allocations.
+func BenchmarkSanitizeOpenAIResponsesInputItemIDs_CleanLargeHistory(b *testing.B) {
+	for _, sizeMiB := range []int{1, 5, 20, 32} {
+		payload := buildCleanResponsesCompatibilityFixture(sizeMiB << 20)
+		b.Run(strconv.Itoa(sizeMiB)+"MiB", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(payload)))
+			b.ResetTimer()
+			for range b.N {
+				_, _, _ = SanitizeOpenAIResponsesInputItemIDs(payload)
+			}
+		})
+	}
+}
+
+// buildCleanResponsesCompatibilityFixture constructs a valid Responses JSON
+// payload of at least targetBytes with valid IDs, tools, and paired calls.
+func buildCleanResponsesCompatibilityFixture(targetBytes int) []byte {
+	out := make([]byte, 0, targetBytes+8192)
+	out = append(out, `{"model":"gpt-5.4","store":false,"stream":true,"tools":[{"type":"function","name":"read_file","parameters":{"type":"object","properties":{"path":{"type":"string"}}}}],"input":[`...)
+	chunk := strings.Repeat("func handle(ctx context.Context) error { return nil } ", 36)
+	turn := 0
+	for len(out) < targetBytes {
+		if turn > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, `{"type":"message","id":"msg_`...)
+		out = append(out, strconv.Itoa(turn)...)
+		out = append(out, `","role":"user","content":[{"type":"input_text","text":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"}]},{"type":"reasoning","encrypted_content":"enc_`...)
+		out = append(out, strconv.Itoa(turn)...)
+		out = append(out, `","summary":[]},{"type":"function_call","id":"fc_`...)
+		out = append(out, strconv.Itoa(turn)...)
+		out = append(out, `","call_id":"call_`...)
+		out = append(out, strconv.Itoa(turn)...)
+		out = append(out, `","name":"read_file","arguments":"{\"path\":\"main.go\"}"},{"type":"function_call_output","call_id":"call_`...)
+		out = append(out, strconv.Itoa(turn)...)
+		out = append(out, `","output":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"}`...)
+		turn++
+	}
+	out = append(out, `]}`...)
+	return out
 }

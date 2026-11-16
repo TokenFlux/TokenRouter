@@ -1,6 +1,7 @@
 package media
 
 import (
+	"bytes"
 	"context"
 	"strings"
 
@@ -432,9 +433,10 @@ func (p ImageIntentPolicy) OpenAIRequestBodyHasImageGenerationDeclaration(body [
 	if len(body) == 0 || !gjson.ValidBytes(body) {
 		return false
 	}
-	return p.OpenAIJSONToolsContainImageGeneration(gjson.GetBytes(body, "tools")) ||
-		p.OpenAIJSONInputContainsImageGenTool(gjson.GetBytes(body, "input")) ||
-		p.OpenAIJSONToolChoiceSelectsImageGeneration(gjson.GetBytes(body, "tool_choice"))
+	root := wirejson.ParseView(body)
+	return p.OpenAIJSONToolsContainImageGeneration(root.Get("tools")) ||
+		p.OpenAIJSONInputContainsImageGenTool(root.Get("input")) ||
+		p.OpenAIJSONToolChoiceSelectsImageGeneration(root.Get("tool_choice"))
 }
 
 // OpenAIRequestBodyImageGenerationToolNeedsNormalization finds exact
@@ -442,10 +444,13 @@ func (p ImageIntentPolicy) OpenAIRequestBodyHasImageGenerationDeclaration(body [
 // members. Empty, invalid or nonarray tools input returns false; member
 // existence qualifies even when its value is null.
 func (p ImageIntentPolicy) OpenAIRequestBodyImageGenerationToolNeedsNormalization(body []byte) bool {
-	if len(body) == 0 || !gjson.ValidBytes(body) {
+	if len(body) == 0 || (!bytes.Contains(body, []byte("image_generation")) && !bytes.Contains(body, []byte(`\u`))) {
 		return false
 	}
-	tools := gjson.GetBytes(body, "tools")
+	if !gjson.ValidBytes(body) {
+		return false
+	}
+	tools := wirejson.ParseView(body).Get("tools")
 	if !tools.IsArray() {
 		return false
 	}

@@ -377,6 +377,99 @@ func TestNormalizeCodexDelegationBootstrapPreservesOrderAndIsIdempotent(t *testi
 	require.Equal(t, got, again)
 }
 
+// TestNormalizeCodexBootstrapsCombinedPassAndZeroAllocClean supplies automation
+// and delegation candidates, escaped keys, duplicate keys, and a clean body.
+// Combined normalization preserves automation's bootstrap-only history rule
+// before delegation runs, while clean bodies allocate zero heap objects.
+func TestNormalizeCodexBootstrapsCombinedPassAndZeroAllocClean(t *testing.T) {
+	autoOut := codexAutomationBootstrap("wiki", "never", automationBootstrapPrompt)
+	autoBody := codexAutomationBootstrapBody(t, autoOut, "")
+	autoGot, autoChanged, delegChanged := NormalizeCodexBootstraps(autoBody)
+	require.True(t, autoChanged)
+	require.False(t, delegChanged)
+	require.Equal(t, "message", gjson.GetBytes(autoGot, "input.0.type").String())
+
+	mixed := []byte(`{"model":"gpt-5","input":[` +
+		`{"type":"function_call_output","call_id":"call-1","output":"ok"},` +
+		`{"type":"function_call_output","namespace":"codex_tui","name":"send_message_to_thread","output":` + mustJSON(t, delegationEnvelope) + `}` +
+		`]}`)
+	got, mixedAutoChanged, mixedDelegChanged := NormalizeCodexBootstraps(mixed)
+	require.False(t, mixedAutoChanged)
+	require.True(t, mixedDelegChanged)
+	require.Equal(t, "function_call_output", gjson.GetBytes(got, "input.0.type").String())
+	require.Equal(t, "message", gjson.GetBytes(got, "input.1.type").String())
+
+	escaped := []byte(`{"model":"gpt-5","input":[{"type":"function_\u0063all_output","namespace":"codex_tui","name":"send_message_to_thread","output":` + mustJSON(t, delegationEnvelope) + `}]}`)
+	escapedGot, escapedAuto, escapedDeleg := NormalizeCodexBootstraps(escaped)
+	require.False(t, escapedAuto)
+	require.True(t, escapedDeleg)
+	require.Equal(t, "message", gjson.GetBytes(escapedGot, "input.0.type").String())
+
+	dupKey := []byte(`{"model":"gpt-5","model":"gpt-5-mini","input":[{"type":"function_call_output","namespace":"codex_tui","name":"send_message_to_thread","output":` + mustJSON(t, delegationEnvelope) + `}]}`)
+	dupGot, dupAuto, dupDeleg := NormalizeCodexBootstraps(dupKey)
+	require.False(t, dupAuto)
+	require.False(t, dupDeleg)
+	require.Equal(t, dupKey, dupGot)
+
+	clean := buildSyntheticBootstrapHistory(64 * 1024)
+	allocs := testing.AllocsPerRun(20, func() {
+		out, a, d := NormalizeCodexBootstraps(clean)
+		if a || d || len(out) != len(clean) {
+			t.Fatal("unexpected bootstrap change on clean payload")
+		}
+	})
+	require.Zero(t, allocs)
+}
+
+// BenchmarkNormalizeCodexBootstraps_NoCandidate measures combined bootstrap
+// screening across 1 MiB, 5 MiB, 20 MiB, and 32 MiB clean Responses payloads.
+// Each sub-benchmark reports byte throughput and confirms zero heap allocations.
+func BenchmarkNormalizeCodexBootstraps_NoCandidate(b *testing.B) {
+	for _, sizeMiB := range []int{1, 5, 20, 32} {
+		payload := buildSyntheticBootstrapHistory(sizeMiB << 20)
+		b.Run(strings.TrimSpace(jsonNumberLabel(sizeMiB))+"MiB", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(payload)))
+			b.ResetTimer()
+			for range b.N {
+				_, _, _ = NormalizeCodexBootstraps(payload)
+			}
+		})
+	}
+}
+
+// buildSyntheticBootstrapHistory constructs a valid multi-turn Responses JSON
+// payload of approximately targetBytes with paired function calls and outputs.
+func buildSyntheticBootstrapHistory(targetBytes int) []byte {
+	out := make([]byte, 0, targetBytes+4096)
+	out = append(out, `{"model":"gpt-5.4","stream":true,"input":[`...)
+	chunk := strings.Repeat("code review context line with identifiers and parameters ", 32)
+	turn := 0
+	for len(out) < targetBytes {
+		if turn > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, `{"type":"message","role":"user","content":[{"type":"input_text","text":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"}]},{"type":"function_call","call_id":"call_`...)
+		out = append(out, jsonNumberLabel(turn)...)
+		out = append(out, `","name":"read_file","arguments":"{\"path\":\"main.go\"}"},{"type":"function_call_output","call_id":"call_`...)
+		out = append(out, jsonNumberLabel(turn)...)
+		out = append(out, `","output":"`...)
+		out = append(out, chunk...)
+		out = append(out, `"}`...)
+		turn++
+	}
+	out = append(out, `]}`...)
+	return out
+}
+
+// jsonNumberLabel formats a small nonnegative integer for synthetic fixture IDs.
+func jsonNumberLabel(v int) string {
+	encoded, _ := json.Marshal(v)
+	return string(encoded)
+}
+
 // codexAutomationBootstrap builds header text using the supplied ID, last-run
 // value, and prompt. It validates none of them, allowing tests to construct
 // both supported headers and deliberate identity/date framing failures.
