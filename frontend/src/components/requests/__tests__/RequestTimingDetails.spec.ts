@@ -107,4 +107,36 @@ describe('request timing grid', () => {
     expect(text.indexOf('8KB')).toBeLessThan(text.indexOf('requests.timing.events'))
     wrapper.unmount()
   })
+
+  // A timing record carries decoded bytes, outbound bytes, compression state, and observed
+  // preparation sub-stages. The test protects rendering payload metadata and observed
+  // sub-stage rows while omitting unrecorded moderation steps.
+  it('renders decoded and upstream sizes, compression state, and preparation substages', () => {
+    const wrapper = mount(RequestTimingDetails, {
+      props: {
+        timing: {
+          request_decoded_bytes: 2048,
+          upstream_request_bytes: 4096,
+          request_compressed: 1,
+          request_body_decode_ms: 2,
+          bootstrap_ms: 14,
+          provider_prepare_ms: 18,
+          upstream_wrote_request_ms: 60,
+        },
+      },
+    })
+    const text = wrapper.text()
+    expect(text).toContain('requests.decodedSize')
+    expect(text).toContain('2.0KB')
+    expect(text).toContain('requests.upstreamRequestSize')
+    expect(text).toContain('4.0KB')
+    expect(text).toContain('requests.requestCompressed')
+    expect(text).toContain('requests.timing.compressedYes')
+    expect(text).toContain('requests.timing.preparation')
+    expect(text).toContain('requests.timingNames.request_body_decode_ms')
+    expect(text).toContain('requests.timingNames.bootstrap_ms')
+    expect(text).toContain('requests.timingNames.provider_prepare_ms')
+    expect(text).not.toContain('requests.timingNames.moderation_external_ms')
+    wrapper.unmount()
+  })
 })

@@ -66,4 +66,39 @@ describe('request timeline', () => {
     expect(wrapper.text()).toContain('requests.requestSize')
     expect(wrapper.text()).toContain('7.97MB')
   })
+
+  // A compressed request supplies wire bytes, decoded bytes, outbound bytes, and
+  // preparation sub-stages without a Content-Length header. The timeline renders all four
+  // payload items and the observed preparation sub-stage line without altering event bars.
+  it('renders wire, decoded, and upstream payload sizes alongside preparation substages', () => {
+    const wrapper = mount(RequestTimeline, {
+      props: {
+        timing: {
+          request_raw_bytes: 1048576,
+          request_decoded_bytes: 4194304,
+          request_compressed: 1,
+          upstream_request_bytes: 4198400,
+          request_body_decode_ms: 6,
+          session_ms: 2,
+          provider_prepare_ms: 15,
+          upstream_started_ms: 40,
+        },
+        duration: 500,
+      },
+    })
+    const text = wrapper.text()
+    expect(text).toContain('requests.requestSize')
+    expect(text).toContain('1.00MB')
+    expect(text).toContain('requests.decodedSize')
+    expect(text).toContain('4.00MB')
+    expect(text).toContain('requests.requestCompressed')
+    expect(text).toContain('requests.timing.compressedYes')
+    expect(text).toContain('requests.upstreamRequestSize')
+    expect(text).toContain('4.00MB')
+    expect(text).toContain('requests.timing.preparation')
+    expect(text).toContain('requests.timingNames.request_body_decode_ms')
+    expect(text).toContain('6ms')
+    expect(text).toContain('requests.timingNames.provider_prepare_ms')
+    expect(text).toContain('15ms')
+  })
 })

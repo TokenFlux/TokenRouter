@@ -343,6 +343,13 @@ describe('admin UsageTable detailed timing tooltip', () => {
             ...baseImageRow,
             detailed_timing: {
               request_content_length: 8360000,
+              request_raw_bytes: 2097152,
+              request_decoded_bytes: 8360000,
+              request_compressed: 1,
+              upstream_request_bytes: 8388608,
+              request_body_decode_ms: 5,
+              bootstrap_ms: 14,
+              provider_prepare_ms: 21,
               provider_slot_acquired_ms: 120,
               upstream_got_conn_ms: 200,
               upstream_get_conn_ms: 180,
@@ -368,7 +375,13 @@ describe('admin UsageTable detailed timing tooltip', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain('requests.timingNames.provider_slot_acquired_ms')
+    expect(wrapper.text()).toContain('2.00MB')
     expect(wrapper.text()).toContain('7.97MB')
+    expect(wrapper.text()).toContain('8.00MB')
+    expect(wrapper.text()).toContain('requests.timing.compressedYes')
+    expect(wrapper.text()).toContain('requests.timing.preparation')
+    expect(wrapper.text()).toContain('requests.timingNames.bootstrap_ms')
+    expect(wrapper.text()).toContain('requests.timingNames.provider_prepare_ms')
     expect(wrapper.text()).toContain('120ms')
     expect(wrapper.text()).toContain('requests.timingNames.upstream_first_event_ms')
     expect(wrapper.text()).toContain('1.02s')

@@ -381,6 +381,13 @@ func TestTextRequestTimingCompositeCompressedRead(t *testing.T) {
 				require.Equal(t, int64(3000), got["preprocess_ms"])
 				require.Zero(t, got["user_slot_wait_ms"])
 				require.Zero(t, got["provider_slot_wait_ms"])
+				require.Equal(t, int64(len(payload)), got["request_raw_bytes"])
+				require.Equal(t, int64(len(raw)), got["request_decoded_bytes"])
+				if compressed {
+					require.Equal(t, int64(1), got["request_compressed"])
+				} else {
+					require.Zero(t, got["request_compressed"])
+				}
 			})
 		})
 	}

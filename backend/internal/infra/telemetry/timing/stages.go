@@ -31,24 +31,25 @@ type stageKey struct{}
 
 // Stages owns admission counters and first-event observations for one HTTP request.
 type Stages struct {
-	// mu protects end, admitted, body, user, provider, retry, byte counters,
-	// substages, and events. start remains immutable; end freezes initial
+	// mu protects end, admitted, body, bodyAccounted, user, provider, retry, byte
+	// counters, substages, and events. start remains immutable; end freezes initial
 	// durations, while admitted decides whether later provider waits belong to
 	// retries or a completed failure.
-	mu          sync.Mutex               // protects counters and milestones
-	start       time.Time                // monotonic ingress reference
-	end         time.Time                // frozen admission endpoint
-	admitted    bool                     // successful admission observed
-	body        time.Duration            // original reader duration
-	user        time.Duration            // initial user queue duration
-	provider    time.Duration            // initial provider queue duration
-	retry       time.Duration            // subsequent provider queue duration
-	substages   map[string]time.Duration // pre-admission preparation sub-stages
-	stream      bool                     // client streaming applicability
-	events      map[string]int64         // first observed offsets and sizes
-	mode        string                   // captured request metric mode
-	attempt     int64                    // actual upstream exchange ordinal
-	performance *Performance             // current exchange observations under mu
+	mu            sync.Mutex               // protects counters and milestones
+	start         time.Time                // monotonic ingress reference
+	end           time.Time                // frozen admission endpoint
+	admitted      bool                     // successful admission observed
+	body          time.Duration            // original reader duration
+	bodyAccounted time.Duration            // reader duration already subtracted from decode
+	user          time.Duration            // initial user queue duration
+	provider      time.Duration            // initial provider queue duration
+	retry         time.Duration            // subsequent provider queue duration
+	substages     map[string]time.Duration // pre-admission preparation sub-stages
+	stream        bool                     // client streaming applicability
+	events        map[string]int64         // first observed offsets and sizes
+	mode          string                   // captured request metric mode
+	attempt       int64                    // actual upstream exchange ordinal
+	performance   *Performance             // current exchange observations under mu
 
 	// rawBytes and rawBytesObserved track wire payload bytes delivered by the
 	// wrapped request reader so zero-byte bodies remain distinct from unread streams.
@@ -472,8 +473,8 @@ func (s *Stages) SetContentLength(length int64) {
 }
 
 // RecordBodyDecode stores decoded body size, compression status, and pure decode
-// CPU duration. It subtracts elapsed wire reader time from totalReadAndDecode so
-// slow client uploads do not inflate decompression and JSON-normalization metrics.
+// CPU duration. It subtracts only newly accumulated wire reader time from
+// totalReadAndDecode and latches positive compression across later replay reads.
 func (s *Stages) RecordBodyDecode(decodedBytes int64, compressed bool, totalReadAndDecode time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -483,14 +484,18 @@ func (s *Stages) RecordBodyDecode(decodedBytes int64, compressed bool, totalRead
 	if decodedBytes >= 0 {
 		s.events["request_decoded_bytes"] = decodedBytes
 	}
+	// Composite-key authentication can decompress and clear Content-Encoding before
+	// the endpoint handler rereads restored bytes; retain an observed compressed=1.
 	if compressed {
 		s.events["request_compressed"] = 1
-	} else {
+	} else if _, exists := s.events["request_compressed"]; !exists {
 		s.events["request_compressed"] = 0
 	}
-	// Subtract original reader wait from the combined read-and-decode interval so
-	// request_body_decode_ms reflects CPU decompression and lenient JSON cleanup alone.
-	decodeElapsed := max(time.Duration(0), totalReadAndDecode-s.body)
+	// Subtract only the wire-reader duration accumulated since the previous decode
+	// observation so replay normalization does not re-subtract initial upload wait.
+	unaccountedBody := max(time.Duration(0), s.body-s.bodyAccounted)
+	s.bodyAccounted = s.body
+	decodeElapsed := max(time.Duration(0), totalReadAndDecode-unaccountedBody)
 	if s.substages == nil {
 		s.substages = make(map[string]time.Duration)
 	}

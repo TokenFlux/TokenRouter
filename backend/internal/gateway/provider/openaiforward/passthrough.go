@@ -161,8 +161,10 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		}
 		if normalized {
 			body = normalizedBody
-			// OAuth normalization can wrap string or object input into an array, so
-			// input-dependent prelude checks must run again on the new array.
+			// OAuth normalization can move prompt arrays (including additional_tools)
+			// into input or wrap scalar input into an array, so all input-dependent
+			// prelude checks must run again on the transformed payload.
+			skipSchemasPlatform = ""
 			skipReasoningReplay = false
 			skipInputItemIDs = false
 		}

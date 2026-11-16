@@ -1,17 +1,18 @@
 import type { UsageLogTiming } from '@/api/usage.types'
 
 /**
- * requestTiming.ts groups recorded request timing into admission durations and event
- * offsets for usage displays and exports. Admission durations describe separate
- * portions of elapsed work; event offsets share an ingress origin. Keeping them in
- * separate collections prevents display consumers from summing values that represent
- * different measurements.
+ * requestTiming.ts groups recorded request timing into admission durations,
+ * preparation sub-stages, payload observations, and event offsets for usage displays
+ * and exports. Admission durations describe separate portions of elapsed work;
+ * preparation sub-stages break down local gateway and external audit steps without
+ * altering the admission sum; event offsets share an ingress origin.
  *
- * A record with any admission duration receives the complete set of duration rows,
+ * A record with any admission duration receives the complete set of four duration rows,
  * retaining null for unrecorded observations. The total exists only when every duration
- * is present. Client and upstream stream flags filter their own event groups
- * independently, while positive retry queue time appears separately. Export retains all
- * present fields, including flags and zero-valued observations.
+ * is present. Optional preparation sub-stages retain only observed entries, client and
+ * upstream stream flags filter their own event groups independently, and positive retry
+ * queue time appears separately. Export retains all present fields, including flags and
+ * zero-valued observations.
  */
 
 /**
@@ -23,6 +24,21 @@ export const admissionTimingKeys = [
   'preprocess_ms',
   'user_slot_wait_ms',
   'provider_slot_wait_ms',
+] as const
+
+/**
+ * preparationTimingKeys orders optional gateway preparation and attempt-setup
+ * sub-stages without folding them into the four-part initial admission sum.
+ */
+export const preparationTimingKeys = [
+  'request_body_decode_ms',
+  'ingress_validate_ms',
+  'bootstrap_ms',
+  'moderation_extract_ms',
+  'moderation_external_ms',
+  'session_ms',
+  'scheduler_select_ms',
+  'provider_prepare_ms',
 ] as const
 
 /**
@@ -59,6 +75,7 @@ const streamOnlyTimingKeys: ReadonlySet<TimingKey> = new Set([
  */
 export type TimingKey =
   | (typeof admissionTimingKeys)[number]
+  | (typeof preparationTimingKeys)[number]
   | (typeof eventTimingKeys)[number]
   | 'retry_provider_slot_wait_ms'
 
@@ -71,8 +88,8 @@ export interface TimingRow {
 }
 
 /**
- * TimingBreakdown groups display rows, completeness totals, and admission state for one
- * request.
+ * TimingBreakdown groups display rows, payload metadata, completeness totals, and
+ * admission state for one request.
  */
 export interface TimingBreakdown {
   /**
@@ -84,11 +101,28 @@ export interface TimingBreakdown {
   admissionTotal: number | null // complete duration sum
 
   /**
+   * substages holds observed gateway preparation and attempt-setup sub-stages in
+   * execution order, omitting steps that did not run on the recorded route.
+   */
+  substages: TimingRow[]
+
+  /**
    * retryWait is null unless a positive retry queue duration was recorded.
    * Consumers display this observation separately from the initial admission rows.
    */
   retryWait: TimingRow | null
   events: TimingRow[] // ingress-relative event offsets
+
+  /**
+   * requestBytes, decodedBytes, upstreamBytes, and compressed expose wire, normalized,
+   * and outbound payload measurements; requestBytes prefers request_raw_bytes over
+   * request_content_length so chunked uploads still report ingress size.
+   */
+  requestBytes: number | null // wire or declared ingress bytes
+  decodedBytes: number | null // normalized JSON request bytes
+  upstreamBytes: number | null // serialized upstream request bytes
+  compressed: boolean | null // transport compression state, or null when unrecorded
+
   /**
    * admitted is null when timing_admitted was absent; otherwise it reports whether
    * the stored flag equals one for this record.
@@ -135,6 +169,7 @@ export function timingBreakdown(timing: UsageLogTiming, stream?: boolean): Timin
     ? admissionTimingKeys.map(row)
     : []
   const complete = durations.length > 0 && durations.every((item) => item.value != null)
+  const substages = preparationTimingKeys.filter((key) => timing[key] != null).map(row)
   /**
    * Filter upstream milestones by upstream mode and downstream delivery by client mode
    * because protocol conversion can make those stream settings differ.
@@ -155,6 +190,7 @@ export function timingBreakdown(timing: UsageLogTiming, stream?: boolean): Timin
   return {
     durations,
     admissionTotal: complete ? durations.reduce((sum, item) => sum + (item.value ?? 0), 0) : null,
+    substages,
 
     /**
      * Positive retry queue time is reported separately from the initial admission
@@ -163,6 +199,10 @@ export function timingBreakdown(timing: UsageLogTiming, stream?: boolean): Timin
     retryWait:
       (timing.retry_provider_slot_wait_ms ?? 0) > 0 ? row('retry_provider_slot_wait_ms') : null,
     events,
+    requestBytes: timing.request_raw_bytes ?? timing.request_content_length ?? null,
+    decodedBytes: timing.request_decoded_bytes ?? null,
+    upstreamBytes: timing.upstream_request_bytes ?? null,
+    compressed: timing.request_compressed == null ? null : timing.request_compressed === 1,
     admitted: timing.timing_admitted == null ? null : timing.timing_admitted === 1,
   }
 }

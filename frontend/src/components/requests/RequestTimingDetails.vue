@@ -2,12 +2,18 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { UsageLogTiming } from '@/api/usage.types'
-import { formatTimingMs, timingBreakdown, type TimingRow } from '@/utils/requestTiming'
+import {
+  formatRequestSize,
+  formatTimingMs,
+  timingBreakdown,
+  type TimingRow,
+} from '@/utils/requestTiming'
 
-// RequestTimingDetails.vue renders compact usage timing details with shared admission and
-// event labels. Admission durations show the slot-acquisition total when available, while
-// failed admission uses the request end as its endpoint; missing observations remain
-// distinguishable from measured zero.
+// RequestTimingDetails.vue renders compact usage timing details with shared payload,
+// admission, preparation sub-stage, and event labels. Admission durations show the
+// slot-acquisition total when available, observed preparation sub-stages appear in their
+// own section, and failed admission uses the request end as its endpoint; missing
+// observations remain distinguishable from measured zero.
 
 // props supplies timing observations and an optional legacy stream hint. The undefined
 // stream default prevents Vue from treating an omitted boolean as false and hiding stages
@@ -57,6 +63,24 @@ function display(row: TimingRow): string {
   >
     <!-- Callers put request-level pairs here so they share this grid's columns. -->
     <slot />
+    <template v-if="breakdown.decodedBytes != null">
+      <span class="text-gray-400">{{ t('requests.decodedSize') }}</span>
+      <span class="font-medium tabular-nums text-right">{{
+        formatRequestSize(breakdown.decodedBytes)
+      }}</span>
+    </template>
+    <template v-if="breakdown.upstreamBytes != null">
+      <span class="text-gray-400">{{ t('requests.upstreamRequestSize') }}</span>
+      <span class="font-medium tabular-nums text-right">{{
+        formatRequestSize(breakdown.upstreamBytes)
+      }}</span>
+    </template>
+    <template v-if="breakdown.compressed != null">
+      <span class="text-gray-400">{{ t('requests.requestCompressed') }}</span>
+      <span class="font-medium tabular-nums text-right">{{
+        t(breakdown.compressed ? 'requests.timing.compressedYes' : 'requests.timing.compressedNo')
+      }}</span>
+    </template>
     <template v-if="breakdown.retryWait">
       <span class="text-gray-400">{{ t('requests.timingNames.retry_provider_slot_wait_ms') }}</span>
       <span class="font-medium tabular-nums text-right">{{ display(breakdown.retryWait) }}</span>
@@ -73,6 +97,17 @@ function display(row: TimingRow): string {
         }}</span>
       </div>
       <template v-for="row in breakdown.durations" :key="row.key">
+        <span class="text-gray-400">{{ t(`requests.timingNames.${row.key}`) }}</span>
+        <span class="font-medium tabular-nums text-right">{{ display(row) }}</span>
+      </template>
+    </template>
+    <template v-if="breakdown.substages.length">
+      <div
+        class="col-span-full mt-1 border-t border-gray-700 pt-1.5 text-gray-300 dark:border-dark-600"
+      >
+        {{ t('requests.timing.preparation') }}
+      </div>
+      <template v-for="row in breakdown.substages" :key="row.key">
         <span class="text-gray-400">{{ t(`requests.timingNames.${row.key}`) }}</span>
         <span class="font-medium tabular-nums text-right">{{ display(row) }}</span>
       </template>

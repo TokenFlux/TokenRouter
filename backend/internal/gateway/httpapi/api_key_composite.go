@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -19,6 +20,7 @@ import (
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/systemone"
 	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
@@ -434,9 +436,10 @@ func RewriteCompositeAdditionalModels(request *http.Request, apiKey *apikey.APIK
 //
 // Encoded bodies are decoded using a cloned request so a decoding failure leaves
 // the raw bytes and their encoding available to the caller. Successful decoding
-// removes Content-Encoding and installs decoded bytes with matching length
-// metadata. An error during the initial raw read is returned immediately, so
-// callers cannot assume the partially consumed body was restored on that path.
+// records decoded payload telemetry, removes Content-Encoding, and installs
+// decoded bytes with matching length metadata. An error during the initial raw
+// read is returned immediately, so callers cannot assume the partially consumed
+// body was restored on that path.
 //
 // Decoding delegates to httpx, which can truncate decoded data at 64 MiB without
 // a size error; callers still validate completeness. The installed reader shares
@@ -446,6 +449,7 @@ func ReadAndRestoreRequestBody(request *http.Request) ([]byte, error) {
 	if request == nil || request.Body == nil {
 		return nil, apikey.ErrCompositeKeyPrefixRequired
 	}
+	startedAt := time.Now()
 	rawBody, err := io.ReadAll(request.Body)
 	if err != nil {
 		return nil, err
@@ -454,6 +458,7 @@ func ReadAndRestoreRequestBody(request *http.Request) ([]byte, error) {
 
 	encoding := strings.ToLower(strings.TrimSpace(request.Header.Get("Content-Encoding")))
 	if encoding == "" || encoding == "identity" {
+		timing.ObserveBodyDecode(request.Context(), int64(len(rawBody)), false, time.Since(startedAt))
 		return rawBody, nil
 	}
 
@@ -462,10 +467,13 @@ func ReadAndRestoreRequestBody(request *http.Request) ([]byte, error) {
 	decodeRequest := request.Clone(request.Context())
 	decodeRequest.Body = io.NopCloser(bytes.NewReader(rawBody))
 	decodeRequest.ContentLength = int64(len(rawBody))
-	decodedBody, err := ReadRequestBodyWithPrealloc(decodeRequest)
+	decodedBody, compressed, err := httpx.ReadRequestBodyWithMaxPrealloc(decodeRequest, gatewayRequestBodyMaxInitCap)
 	if err != nil {
 		return nil, err
 	}
+	// Record decompression before clearing Content-Encoding so a later handler
+	// reread of restored bytes retains request_compressed=1 and decompression CPU time.
+	timing.ObserveBodyDecode(request.Context(), int64(len(decodedBody)), compressed, time.Since(startedAt))
 	request.Header.Del("Content-Encoding")
 	SetRequestBody(request, decodedBody)
 	return decodedBody, nil

@@ -46,7 +46,7 @@ func TestDetectInterceptType_IgnoresTitleKeywordInToolsAndRecognizesRealExtracto
 	ordinaryWithTitleSchema := []byte(`{
 		"model":"claude-opus-4-6",
 		"tools":[{"name":"create_issue","input_schema":{"type":"object","title":"IssueInput","properties":{"title":{"type":"string"}}}}],
-		"messages":[{"role":"user","content":[{"type":"text","text":"Please implement the feature and update the PR title."}]}]
+		"messages":[{"role":"user","content":[{"type":"text","text":"Please implement \u003cdiv\u003e \u0026\u0026 update the PR title."}]}]
 	}`)
 	allocs := testing.AllocsPerRun(20, func() {
 		if got := DetectInterceptType(ordinaryWithTitleSchema, "claude-opus-4-6", 4096, true); got != InterceptTypeNone {
@@ -61,6 +61,11 @@ func TestDetectInterceptType_IgnoresTitleKeywordInToolsAndRecognizesRealExtracto
 	}`)
 	require.Equal(t, InterceptTypeWarmup, DetectInterceptType(realTitlePrompt, "claude-haiku-4-5", 128, true))
 
-	escapedSuggestion := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"\u005bSUGGESTION MODE:test]"}]}]}`)
+	escapedSpaceTitlePrompt := []byte(`{
+		"messages":[{"role":"user","content":[{"type":"text","text":"Please write a 5-10 word\u0020title for the following conversation: debugging latency"}]}]
+	}`)
+	require.Equal(t, InterceptTypeWarmup, DetectInterceptType(escapedSpaceTitlePrompt, "claude-haiku-4-5", 128, true))
+
+	escapedSuggestion := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"[SUGGESTION MODE\u003Atest]"}]}]}`)
 	require.Equal(t, InterceptTypeSuggestionMode, DetectInterceptType(escapedSuggestion, "claude-sonnet-4-5", 128, false))
 }

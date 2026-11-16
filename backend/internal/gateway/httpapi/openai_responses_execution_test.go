@@ -7532,3 +7532,48 @@ func TestOpenAIResponsesImageDriverRejection(t *testing.T) {
 		}
 	}
 }
+
+// TestResponsesPassthroughOAuthPromptAdditionalToolsSanitizesSchemas sends an
+// OAuth passthrough request whose tool schemas sit inside a legacy prompt
+// additional_tools array. Moving prompt into input must re-enable tool-schema
+// repair so null root types become object and lookaround patterns are removed.
+func TestResponsesPassthroughOAuthPromptAdditionalToolsSanitizesSchemas(t *testing.T) {
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
+	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.144.1")
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body: io.NopCloser(strings.NewReader(
+			"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_prompt_tools\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n" +
+				"data: [DONE]\n\n",
+		)),
+	}}
+	svc := newResponsesFixture(responsesFixtureInputs{transport: upstream})
+	provider := &gatewayprovider.ExecutionProvider{
+		Record: providercore.Record{
+			LoadLocation: time.LoadLocation, ID: 599, Name: "oauth-prompt-tools", Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth,
+			Concurrency: 1, Status: billingcore.StatusActive, Schedulable: true, RateMultiplier: new(float64(1)),
+			Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-provider"},
+			Extra:       map[string]any{"openai_passthrough": true},
+		},
+	}
+	body := []byte(`{
+		"model":"gpt-5.6-terra",
+		"stream":true,
+		"instructions":"test",
+		"prompt":[
+			{"type":"additional_tools","tools":[
+				{"type":"function","name":"lookup","parameters":{"type":null,"properties":{"q":{"type":"string","pattern":"(?=foo).*"}}}}
+			]},
+			{"type":"message","role":"user","content":"hello"}
+		]
+	}`)
+
+	result, err := svc.Forward(context.Background(), c, provider, body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "object", gjson.GetBytes(upstream.lastBody, `input.#(type=="additional_tools").tools.0.parameters.type`).String())
+	require.False(t, gjson.GetBytes(upstream.lastBody, `input.#(type=="additional_tools").tools.0.parameters.properties.q.pattern`).Exists())
+}

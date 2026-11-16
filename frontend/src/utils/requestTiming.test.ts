@@ -99,6 +99,46 @@ describe('request timing breakdown', () => {
   })
 
   /**
+   * A timing object contains wire, normalized, and outbound payload sizes alongside
+   * optional preparation sub-stages. Breakdown preserves zero-valued sub-stages, omits
+   * unrecorded optional steps, and prefers wire bytes over declared content length.
+   */
+  it('exposes observed preparation substages and payload byte metadata', () => {
+    const detailed = timingBreakdown({
+      request_content_length: 1024,
+      request_raw_bytes: 2048,
+      request_decoded_bytes: 8192,
+      request_compressed: 1,
+      upstream_request_bytes: 8400,
+      request_body_decode_ms: 3,
+      ingress_validate_ms: 0,
+      bootstrap_ms: 14,
+      session_ms: 2,
+      scheduler_select_ms: 1,
+      provider_prepare_ms: 19,
+    })
+    expect(detailed.requestBytes).toBe(2048)
+    expect(detailed.decodedBytes).toBe(8192)
+    expect(detailed.upstreamBytes).toBe(8400)
+    expect(detailed.compressed).toBe(true)
+    expect(detailed.substages).toEqual([
+      { key: 'request_body_decode_ms', value: 3 },
+      { key: 'ingress_validate_ms', value: 0 },
+      { key: 'bootstrap_ms', value: 14 },
+      { key: 'session_ms', value: 2 },
+      { key: 'scheduler_select_ms', value: 1 },
+      { key: 'provider_prepare_ms', value: 19 },
+    ])
+
+    const historical = timingBreakdown({ request_content_length: 512 })
+    expect(historical.requestBytes).toBe(512)
+    expect(historical.decodedBytes).toBeNull()
+    expect(historical.upstreamBytes).toBeNull()
+    expect(historical.compressed).toBeNull()
+    expect(historical.substages).toEqual([])
+  })
+
+  /**
    * A timing object contains a measured zero duration and a provider admission offset.
    * Export retains both raw names and units, while a missing object yields empty text.
    */

@@ -707,7 +707,10 @@
           >
             <span class="text-gray-400">{{ t('usage.timingRequestSize') }}</span>
             <span class="font-medium tabular-nums text-right">{{
-              formatRequestSize(timingTooltipData.detailed_timing?.request_content_length)
+              formatRequestSize(
+                timingTooltipData.detailed_timing?.request_raw_bytes ??
+                  timingTooltipData.detailed_timing?.request_content_length,
+              )
             }}</span>
             <span class="text-gray-400">{{ t('usage.timingAttempts') }}</span>
             <span class="font-medium tabular-nums text-right">{{

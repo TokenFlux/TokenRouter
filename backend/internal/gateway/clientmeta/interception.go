@@ -14,8 +14,8 @@ import (
 // Suggestion recognition considers the first text block of the final request
 // message when its role is user, while warmup scans all text blocks for title
 // requests or a fixed warmup value. Screening raw bytes for exact auxiliary
-// phrases and escaped ASCII letters avoids string-copying and decoding large
-// conversations that merely mention the word title. Malformed JSON yields
+// phrases and escaped ASCII marker characters avoids string-copying and decoding
+// large conversations that merely mention the word title. Malformed JSON yields
 // ordinary forwarding, keeping probe identification independent of JSON shape
 // and keeping suggestion classification ahead of title or warmup markers.
 
@@ -59,13 +59,14 @@ func DetectInterceptType(body []byte, model string, maxTokens int, isClaudeCodeC
 	}
 
 	// Screen raw bytes for the exact auxiliary phrases or escaped printable ASCII
-	// (\u0040-\u007f) without allocating a string copy of the request body.
-	hasEscapedASCII := containsEscapedPrintableASCII(body)
-	hasSuggestionMode := bytes.Contains(body, interceptSuggestionMarker) || hasEscapedASCII
+	// characters that can appear inside those phrases (\u0020-\u007e, excluding
+	// Go's routine HTML escapes for &, <, and >) without copying the request body.
+	hasEscapedMarker := containsEscapedMarkerChar(body)
+	hasSuggestionMode := bytes.Contains(body, interceptSuggestionMarker) || hasEscapedMarker
 	hasWarmupKeyword := bytes.Contains(body, interceptMsgTitleMarker) ||
 		bytes.Contains(body, interceptWarmupMarker) ||
 		bytes.Contains(body, interceptSystemTitleMarker) ||
-		hasEscapedASCII
+		hasEscapedMarker
 
 	if !hasSuggestionMode && !hasWarmupKeyword {
 		return InterceptTypeNone
@@ -123,10 +124,11 @@ func DetectInterceptType(body []byte, model string, maxTokens int, isClaudeCodeC
 	return InterceptTypeNone
 }
 
-// containsEscapedPrintableASCII reports whether body contains a JSON Unicode
-// escape in \u0040 through \u007f (covering letters and brackets) while
-// ignoring control/punctuation escapes such as \u001b or \u003c.
-func containsEscapedPrintableASCII(body []byte) bool {
+// containsEscapedMarkerChar reports whether body contains a JSON Unicode escape
+// in \u0020 through \u007e (covering spaces, digits, punctuation, brackets, and
+// letters in all intercepted phrases) while ignoring control escapes and HTML
+// escapes (\u0026, \u003c, \u003e) emitted by standard JSON encoders.
+func containsEscapedMarkerChar(body []byte) bool {
 	const prefix = `\u00`
 	offset := 0
 	for offset <= len(body)-6 {
@@ -136,12 +138,40 @@ func containsEscapedPrintableASCII(body []byte) bool {
 		}
 		pos := offset + idx
 		if pos+5 < len(body) {
-			hi := body[pos+4]
-			if hi >= '4' && hi <= '7' {
+			if decoded, ok := decodeASCIIHexPair(body[pos+4], body[pos+5]); ok &&
+				decoded >= 0x20 && decoded <= 0x7e &&
+				decoded != '&' && decoded != '<' && decoded != '>' {
 				return true
 			}
 		}
 		offset = pos + 4
 	}
 	return false
+}
+
+// decodeASCIIHexPair parses two ASCII hex digits into their byte value.
+func decodeASCIIHexPair(hi, lo byte) (byte, bool) {
+	highVal, ok := decodeHexNibble(hi)
+	if !ok {
+		return 0, false
+	}
+	lowVal, ok := decodeHexNibble(lo)
+	if !ok {
+		return 0, false
+	}
+	return (highVal << 4) | lowVal, true
+}
+
+// decodeHexNibble converts one ASCII hexadecimal digit to its 4-bit value.
+func decodeHexNibble(b byte) (byte, bool) {
+	switch {
+	case b >= '0' && b <= '9':
+		return b - '0', true
+	case b >= 'a' && b <= 'f':
+		return b - 'a' + 10, true
+	case b >= 'A' && b <= 'F':
+		return b - 'A' + 10, true
+	default:
+		return 0, false
+	}
 }

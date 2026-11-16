@@ -4,9 +4,10 @@ import { useI18n } from 'vue-i18n'
 import type { UsageLogTiming } from '@/api/usage.types'
 import { formatRequestSize, formatTimingMs, timingBreakdown } from '@/utils/requestTiming'
 
-// RequestTimeline.vue draws one request timing record as observed request size and
-// admission durations followed by ingress-relative event bars. Admission durations can be
-// added, while event offsets share a common start and must remain separate measurements.
+// RequestTimeline.vue draws one request timing record as observed payload sizes,
+// admission durations, and preparation sub-stages followed by ingress-relative event bars.
+// Admission durations can be added, preparation sub-stages list observed gateway steps,
+// and event offsets share a common start and must remain separate measurements.
 // Only observed offsets produce event rows.
 //
 // The supplied total request duration establishes a minimum scale across timelines on the
@@ -38,9 +39,18 @@ const { t } = useI18n()
 const view = computed(() => {
   const breakdown = timingBreakdown(props.timing)
   const requestSize =
-    props.timing.request_content_length == null
+    breakdown.requestBytes == null ? null : formatRequestSize(breakdown.requestBytes)
+  const decodedSize =
+    breakdown.decodedBytes == null ? null : formatRequestSize(breakdown.decodedBytes)
+  const upstreamSize =
+    breakdown.upstreamBytes == null ? null : formatRequestSize(breakdown.upstreamBytes)
+  const compressedLabel =
+    breakdown.compressed == null
       ? null
-      : formatRequestSize(props.timing.request_content_length)
+      : t(breakdown.compressed ? 'requests.timing.compressedYes' : 'requests.timing.compressedNo')
+  const hasPayloadMeta = Boolean(
+    requestSize || decodedSize || upstreamSize || compressedLabel != null,
+  )
   const events = breakdown.events
     .filter((row) => row.value != null)
     .map((row) => ({ key: row.key, value: row.value ?? 0 }))
@@ -50,6 +60,11 @@ const view = computed(() => {
   return {
     breakdown,
     requestSize,
+    decodedSize,
+    upstreamSize,
+    compressedLabel,
+    hasPayloadMeta,
+    hasHeaderMeta: Boolean(hasPayloadMeta || breakdown.durations.length || breakdown.retryWait),
     scale,
     // Keep a half-percent sliver so measured early events remain visible.
     rows: events.map((row) => ({ ...row, percent: Math.max((row.value / scale) * 100, 0.5) })),
@@ -59,19 +74,34 @@ const view = computed(() => {
 
 <template>
   <div class="space-y-3 text-xs">
-    <!-- Request body size and admission durations: complete durations sum to slot acquisition,
+    <!-- Payload sizes and admission durations: complete durations sum to slot acquisition,
          while failed admission ends at request completion and incomplete observations omit the total. -->
-    <p
-      v-if="view.requestSize || view.breakdown.durations.length"
-      class="flex flex-wrap items-baseline gap-x-1.5 gap-y-1"
-    >
+    <p v-if="view.hasHeaderMeta" class="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
       <template v-if="view.requestSize">
         <span class="text-gray-500 dark:text-dark-400">{{ t('requests.requestSize') }}</span>
-        <span
-          class="font-mono tabular-nums text-gray-900 dark:text-dark-100"
-          :class="view.breakdown.durations.length || view.breakdown.retryWait ? 'mr-3' : ''"
-          >{{ view.requestSize }}</span
-        >
+        <span class="font-mono tabular-nums text-gray-900 dark:text-dark-100 mr-2">{{
+          view.requestSize
+        }}</span>
+      </template>
+      <template v-if="view.decodedSize">
+        <span class="text-gray-500 dark:text-dark-400">{{ t('requests.decodedSize') }}</span>
+        <span class="font-mono tabular-nums text-gray-900 dark:text-dark-100 mr-2">{{
+          view.decodedSize
+        }}</span>
+      </template>
+      <template v-if="view.compressedLabel != null">
+        <span class="text-gray-500 dark:text-dark-400">{{ t('requests.requestCompressed') }}</span>
+        <span class="font-mono tabular-nums text-gray-900 dark:text-dark-100 mr-2">{{
+          view.compressedLabel
+        }}</span>
+      </template>
+      <template v-if="view.upstreamSize">
+        <span class="text-gray-500 dark:text-dark-400">{{
+          t('requests.upstreamRequestSize')
+        }}</span>
+        <span class="font-mono tabular-nums text-gray-900 dark:text-dark-100 mr-2">{{
+          view.upstreamSize
+        }}</span>
       </template>
       <template v-if="view.breakdown.durations.length">
         <span class="font-medium text-gray-900 dark:text-dark-50">{{
@@ -105,6 +135,23 @@ const view = computed(() => {
         >
         <span class="font-mono tabular-nums text-gray-900 dark:text-dark-100">{{
           formatTimingMs(view.breakdown.retryWait.value)
+        }}</span>
+      </template>
+    </p>
+    <p
+      v-if="view.breakdown.substages.length"
+      class="flex flex-wrap items-baseline gap-x-1.5 gap-y-1"
+    >
+      <span class="font-medium text-gray-900 dark:text-dark-50">{{
+        t('requests.timing.preparation')
+      }}</span>
+      <template v-for="(row, index) in view.breakdown.substages" :key="row.key">
+        <span v-if="index" class="text-gray-400 dark:text-dark-500">·</span>
+        <span class="text-gray-500 dark:text-dark-400">{{
+          t(`requests.timingNames.${row.key}`)
+        }}</span>
+        <span class="font-mono tabular-nums text-gray-900 dark:text-dark-100">{{
+          formatTimingMs(row.value)
         }}</span>
       </template>
     </p>

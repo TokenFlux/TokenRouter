@@ -59,13 +59,22 @@ func NormalizeLenientJSONRequestBody(body []byte, limit int64) ([]byte, error) {
 	return result, err
 }
 
-// ReadRequestBodyWithPrealloc delegates body reading and decompression to httpx.
-// A nil request or body returns nil without error. The reader consumes the body;
-// successful decoding updates encoding and length metadata, while callers that
-// need to reread input install a replacement body themselves.
+// ReadRequestBodyWithPrealloc delegates body reading and decompression to httpx
+// with the authenticated gateway preallocation bound and records decoded payload
+// telemetry. A nil request or body returns nil without error. The reader consumes
+// the body; successful decoding updates encoding and length metadata, while callers
+// that need to reread input install a replacement body themselves.
 // httpx can truncate decoded bytes at 64 MiB without a size error. Callers
 // validate completeness, supply any limit on encoded or unencoded input, and
 // close the original body after its use.
 func ReadRequestBodyWithPrealloc(req *http.Request) ([]byte, error) {
-	return httpx.ReadRequestBodyWithPrealloc(req)
+	startedAt := time.Now()
+	body, compressed, err := httpx.ReadRequestBodyWithMaxPrealloc(req, gatewayRequestBodyMaxInitCap)
+	if err != nil {
+		return nil, err
+	}
+	if req != nil {
+		timing.ObserveBodyDecode(req.Context(), int64(len(body)), compressed, time.Since(startedAt))
+	}
+	return body, nil
 }
